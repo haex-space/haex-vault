@@ -1,154 +1,21 @@
-import Fuse from 'fuse.js'
-import { invoke, convertFileSrc } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { save as showSaveDialog } from '@tauri-apps/plugin-dialog'
-import { writeFile, exists as fileExists, mkdir } from '@tauri-apps/plugin-fs'
-import { appCacheDir, join as joinPath } from '@tauri-apps/api/path'
-import type { FileEntry as BaseFileEntry } from '~/../src-tauri/bindings/FileEntry'
+import { invoke } from '@tauri-apps/api/core'
 import type { StorageListDirResponse } from '~/../src-tauri/bindings/StorageListDirResponse'
-import { getMediaType } from '~/composables/useFilePreview'
-import { classifyBackend, resolveAvPlayback } from '~/composables/useMediaPlayback'
+import {
+  type FileEntry,
+  type RemotePeer,
+  type ViewMode,
+  type SearchableFile,
+  type GlobalSearchFile,
+  CHUNK_SIZE,
+  getFileIcon,
+  formatDate,
+  isContentUri,
+  toS3Prefix,
+} from '~/composables/fileBrowserHelpers'
 import { readableFileSize } from '~/utils/helper'
 
-/**
- * Prompt for a save location and write `base64` there.
- *
- * Used for local file downloads (small enough that the base64 round-trip
- * through the Tauri IPC is fine). S3 downloads use the dedicated chunked
- * resumable path in `streamingDownloadToPath()` instead — that one streams
- * directly from S3 to disk in Rust without round-tripping a base64 string.
- *
- * Returns false if the user cancels the save dialog.
- */
-async function saveBase64WithDialog(
-  base64: string,
-  defaultFilename: string,
-): Promise<boolean> {
-  const target = await showSaveDialog({ defaultPath: defaultFilename })
-  if (!target) return false
-
-  let bytes: Uint8Array
-  try {
-    const binary = atob(base64)
-    bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  } catch (e) {
-    console.error('[saveBase64WithDialog] failed to decode base64:', e)
-    return false
-  }
-  await writeFile(target, bytes)
-  return true
-}
-
-
-/**
- * Tauri payload for `storage:transfer:*` events emitted by
- * `remote_storage_download_to_path`. `bytesTotal` is best-effort — some
- * S3-compatible backends don't return Content-Length, in which case the
- * Rust side reports `bytesTotal == bytesDone` (monotone, always 100%).
- */
-interface StorageTransferEvent {
-  transferId: string
-  bytesDone?: number
-  bytesTotal?: number
-  reason?: string
-}
-
-/**
- * Stable hash of `(backendId, key)` used to name on-disk cache files for
- * the streaming-via-cache play path. Uses Web Crypto SHA-256 so we don't
- * pull a hashing dep just for this. Hex-truncated to keep paths readable.
- */
-async function cacheKeyHash(backendId: string, key: string): Promise<string> {
-  const data = new TextEncoder().encode(`${backendId} ${key}`)
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(digest))
-    .slice(0, 16)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-}
-
-// Extended FileEntry with optional path (used on Android for Content URIs)
-// and an optional spaceId for entries that came from the multi-space root
-// listing (`remoteListAllSharesAsync`). The spaceId carries provenance
-// through subsequent calls so a click on `TestShare` in space A always
-// resolves the UCAN of space A, even when space B also has a `TestShare`.
-export type FileEntry = BaseFileEntry & { path?: string; spaceId?: string }
-
-export interface RemotePeer {
-  endpointId: string
-  name: string
-  source: 'space' | 'contact' | 's3'
-  detail: string
-  localPath?: string
-  /**
-   * When set, the peer represents a remote S3 backend rather than a P2P
-   * endpoint. `endpointId` is then a synthetic id (e.g. `s3:<backendId>`)
-   * used only for UI bookkeeping — backend calls use `s3BackendId`.
-   */
-  s3BackendId?: string
-}
-
-const CHUNK_SIZE = 50
-
-/**
- * Feature flag — whether the iroh P2P transport currently exposes mutation
- * verbs (delete, rename, cross-peer copy). When this flips to `true`, the
- * file browser's per-row context menu starts surfacing those actions for
- * P2P peers, still gated by a write UCAN (`canWrite`). Flip on
- * feat/p2p-mutation-ops once the backend lands.
- */
-const P2P_MUTATIONS_SUPPORTED = false
-
-const FILE_ICONS: Record<string, string> = {
-  jpg: 'i-lucide-image', jpeg: 'i-lucide-image', png: 'i-lucide-image',
-  gif: 'i-lucide-image', webp: 'i-lucide-image', svg: 'i-lucide-image',
-  mp4: 'i-lucide-video', mov: 'i-lucide-video', avi: 'i-lucide-video', mkv: 'i-lucide-video',
-  mp3: 'i-lucide-music', wav: 'i-lucide-music', flac: 'i-lucide-music', ogg: 'i-lucide-music',
-  pdf: 'i-lucide-file-text',
-  zip: 'i-lucide-archive', tar: 'i-lucide-archive', gz: 'i-lucide-archive',
-  '7z': 'i-lucide-archive', rar: 'i-lucide-archive',
-}
-
-export type ViewMode = 'list' | 'grid'
-
-// Search result entry with path context for deep (recursive) search
-export type SearchableFile = FileEntry & {
-  displayPath: string  // Relative directory for UI display, e.g. "photos/vacation"
-  searchPath: string   // Full path from share root, e.g. "/photos/vacation/beach.jpg"
-}
-
-// Global search result across all local shares
-export type GlobalSearchFile = SearchableFile & {
-  shareId: string
-  shareName: string
-  shareLocalPath: string
-}
-
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-
-function getFileIcon(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase() || ''
-  return FILE_ICONS[ext] || 'i-lucide-file'
-}
-
-function formatDate(timestamp: bigint | number | null): string {
-  if (!timestamp) return ''
-  const ms = typeof timestamp === 'bigint' ? Number(timestamp) * 1000 : Number(timestamp) * 1000
-  const diff = Date.now() - ms
-  const seconds = Math.floor(diff / 1000)
-
-  if (seconds < 60) return rtf.format(-seconds, 'second')
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return rtf.format(-minutes, 'minute')
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return rtf.format(-hours, 'hour')
-  const days = Math.floor(hours / 24)
-  if (days < 30) return rtf.format(-days, 'day')
-  const months = Math.floor(days / 30)
-  if (months < 12) return rtf.format(-months, 'month')
-  return rtf.format(-Math.floor(months / 12), 'year')
-}
+// Re-exported so existing consumers keep importing these from here.
+export type { FileEntry, RemotePeer, ViewMode, SearchableFile, GlobalSearchFile }
 
 export function useFileBrowser(tabId: string) {
   const peerStore = usePeerStorageStore()
@@ -169,179 +36,6 @@ export function useFileBrowser(tabId: string) {
   const isLoadingMore = ref(false)
   const loadError = ref<string | null>(null)
   const direction = ref<'forward' | 'back'>('forward')
-
-  // =========================================================================
-  // S3 chunked-download progress
-  //
-  // Mirrors the events emitted by `remote_storage_download_to_path`. Keyed
-  // by the S3 key so the row-progress UI can look up by file without
-  // needing to know the transfer id. The row only renders during an
-  // in-flight transfer — entries are cleared on complete / cancel / fail.
-  // =========================================================================
-  const s3TransferProgress = ref<Map<string, number>>(new Map())
-  // transferId → s3 key so completion / error events can resolve back to
-  // the row that started the download.
-  const transferIdToKey = new Map<string, string>()
-  let progressUnlisteners: UnlistenFn[] = []
-
-  onMounted(async () => {
-    const clearByTransferId = (transferId: string) => {
-      const key = transferIdToKey.get(transferId)
-      if (!key) return
-      transferIdToKey.delete(transferId)
-      const next = new Map(s3TransferProgress.value)
-      next.delete(key)
-      s3TransferProgress.value = next
-    }
-
-    progressUnlisteners.push(
-      await listen<StorageTransferEvent>('storage:transfer:progress', (e) => {
-        const key = transferIdToKey.get(e.payload.transferId)
-        if (!key) return
-        const done = e.payload.bytesDone ?? 0
-        const total = e.payload.bytesTotal ?? 0
-        const ratio = total > 0 ? Math.min(1, done / total) : 0
-        const next = new Map(s3TransferProgress.value)
-        next.set(key, ratio)
-        s3TransferProgress.value = next
-      }),
-      await listen<StorageTransferEvent>('storage:transfer:complete', (e) => {
-        clearByTransferId(e.payload.transferId)
-      }),
-      await listen<StorageTransferEvent>('storage:transfer:cancelled', (e) => {
-        clearByTransferId(e.payload.transferId)
-      }),
-      await listen<StorageTransferEvent>('storage:transfer:failed', (e) => {
-        clearByTransferId(e.payload.transferId)
-      }),
-    )
-  })
-
-  onUnmounted(() => {
-    for (const off of progressUnlisteners) off()
-    progressUnlisteners = []
-    transferIdToKey.clear()
-    s3TransferProgress.value = new Map()
-  })
-
-  /**
-   * Progress (0..1) of an in-flight S3 chunked download for the file with
-   * `fileName` in the current directory, or `undefined` if no transfer is
-   * active. Safe to call for non-S3 peers (returns undefined).
-   */
-  const getS3TransferProgress = (fileName: string): number | undefined => {
-    if (!selectedPeer.value?.s3BackendId) return undefined
-    const key = toS3Prefix(currentPath.value) + fileName
-    return s3TransferProgress.value.get(key)
-  }
-
-  const getS3TransferIdForKey = (key: string): string | undefined => {
-    for (const [transferId, entryKey] of transferIdToKey.entries()) {
-      if (entryKey === key) return transferId
-    }
-    return undefined
-  }
-
-  const cancelS3TransferAsync = async (transferId: string): Promise<void> => {
-    await invoke('remote_storage_cancel_transfer', { transferId })
-  }
-
-  /**
-   * Cancel an in-flight transfer for `file`. Resolves the right transferId
-   * from the active-transfer maps (S3: keyed by S3 key, P2P: keyed by
-   * remote path) and forwards to the matching backend cancel command.
-   * No-op when nothing is in flight for that row — safe to call from the
-   * X-button without separately checking.
-   */
-  const cancelFileTransferAsync = async (file: FileEntry): Promise<void> => {
-    const peer = selectedPeer.value
-    if (!peer) return
-    if (peer.s3BackendId) {
-      const key = toS3Prefix(currentPath.value) + file.name
-      const transferId = getS3TransferIdForKey(key)
-      if (transferId) await cancelS3TransferAsync(transferId)
-      return
-    }
-    if (!peer.localPath) {
-      const path = resolveFilePath(file)
-      const transferId = peerStore.getTransferIdForPath(path)
-      if (transferId) await peerStore.cancelTransferAsync(transferId)
-    }
-  }
-
-  /**
-   * Start (or resume) a chunked download from S3 to `outputPath`. Returns
-   * after the Tauri command resolves — progress events fire in the
-   * background and the active S3 row's progress bar reflects them.
-   */
-  const startS3ChunkedDownload = async (
-    backendId: string,
-    key: string,
-    outputPath: string,
-  ): Promise<void> => {
-    const transferId = crypto.randomUUID()
-    transferIdToKey.set(transferId, key)
-    const next = new Map(s3TransferProgress.value)
-    next.set(key, 0)
-    s3TransferProgress.value = next
-
-    try {
-      await invoke('remote_storage_download_to_path', {
-        request: { backendId, key, outputPath, transferId },
-      })
-    } finally {
-      // Belt-and-braces — the complete/failed/cancelled event already
-      // cleans up, but if it never arrives (extension reload, panic)
-      // we still want the row UI to clear.
-      transferIdToKey.delete(transferId)
-      const cleared = new Map(s3TransferProgress.value)
-      cleared.delete(key)
-      s3TransferProgress.value = cleared
-    }
-  }
-
-  /**
-   * Mirror of `startS3ChunkedDownload` for the upload direction. Uses the
-   * same `transferIdToKey` + `s3TransferProgress` maps so the per-row UI
-   * (progress overlay + X cancel button) lights up exactly the same way it
-   * does for downloads — no new plumbing on the consumer side.
-   */
-  const startS3ChunkedUpload = async (
-    backendId: string,
-    key: string,
-    sourcePath: string,
-  ): Promise<void> => {
-    const transferId = crypto.randomUUID()
-    transferIdToKey.set(transferId, key)
-    const next = new Map(s3TransferProgress.value)
-    next.set(key, 0)
-    s3TransferProgress.value = next
-
-    try {
-      await invoke('remote_storage_upload_from_path', {
-        request: { backendId, key, sourcePath, transferId },
-      })
-    } finally {
-      transferIdToKey.delete(transferId)
-      const cleared = new Map(s3TransferProgress.value)
-      cleared.delete(key)
-      s3TransferProgress.value = cleared
-    }
-  }
-
-  const isContentUri = (p: string) => p.startsWith('{')
-
-  /**
-   * Convert internal `/`-prefixed currentPath to an S3 prefix string.
-   *   `/`           → `""`           (bucket root)
-   *   `/dir/sub`    → `"dir/sub/"`   (folder)
-   * S3 keys never start with `/` and folder prefixes always end with `/`.
-   */
-  const toS3Prefix = (path: string): string => {
-    if (path === '/' || path === '') return ''
-    const stripped = path.replace(/^\/+/, '').replace(/\/+$/, '')
-    return stripped ? `${stripped}/` : ''
-  }
 
   // Navigation stack for Android Content URI support.
   // Each entry stores the display name and the actual path/URI to navigate to.
@@ -414,187 +108,17 @@ export function useFileBrowser(tabId: string) {
   // =========================================================================
 
   const viewMode = ref<ViewMode>('list')
-  const searchQuery = ref('')
-  const deepSearchFiles = ref<SearchableFile[]>([])
-  const globalSearchFiles = ref<GlobalSearchFile[]>([])
-  const isSearching = ref(false)
-  const isGlobalSearching = ref(false)
-  let searchGeneration = 0
-  let searchTimeout: ReturnType<typeof setTimeout> | undefined
 
-  const recursiveSearchAsync = async (basePath: string, generation: number) => {
-    // S3 deep search isn't wired up yet — fall back to the shallow filter
-    // against `sortedFiles` (handled in `filteredFiles`).
-    if (selectedPeer.value?.s3BackendId) return
-
-    // Queue carries `spaceId` so subdirectory listings stay scoped to the
-    // share's origin space. Without this the root fan-out's per-entry
-    // spaceId gets dropped on the first descend, and colliding share names
-    // across spaces collapse onto whichever space the by-name fallback
-    // picks first — missing one space and duplicating the other.
-    interface QueueEntry { path: string; displayPrefix: string; spaceId?: string }
-    const queue: QueueEntry[] = [{
-      path: basePath,
-      displayPrefix: '',
-      spaceId: currentSpaceId.value ?? undefined,
-    }]
-    const results: SearchableFile[] = []
-
-    while (queue.length > 0) {
-      if (generation !== searchGeneration) return
-      const { path: dirPath, displayPrefix, spaceId } = queue.shift()!
-
-      try {
-        let entries: FileEntry[]
-        if (selectedPeer.value?.localPath) {
-          const result = await peerStore.localListAsync(selectedPeer.value.localPath, dirPath)
-          entries = result.entries as FileEntry[]
-        } else if (dirPath === '/') {
-          entries = await peerStore.remoteListAllSharesAsync(selectedPeer.value!.endpointId)
-        } else {
-          entries = await peerStore.remoteListAsync(
-            selectedPeer.value!.endpointId,
-            dirPath,
-            spaceId,
-          )
-        }
-
-        for (const entry of entries) {
-          const entryPath = entry.path && isContentUri(entry.path)
-            ? entry.path
-            : dirPath === '/' ? `/${entry.name}` : `${dirPath}/${entry.name}`
-
-          results.push({
-            ...entry,
-            spaceId: entry.spaceId ?? spaceId,
-            displayPath: displayPrefix,
-            searchPath: entryPath,
-          })
-
-          if (entry.isDir) {
-            queue.push({
-              path: entryPath,
-              displayPrefix: displayPrefix ? `${displayPrefix}/${entry.name}` : entry.name,
-              spaceId: entry.spaceId ?? spaceId,
-            })
-          }
-        }
-
-        if (generation !== searchGeneration) return
-        deepSearchFiles.value = [...results]
-      } catch {
-        // Skip directories that fail to list (permissions, broken links, etc.)
-      }
-    }
-  }
-
-  const globalSearchAsync = async (generation: number) => {
-    const shares = peerStore.nodeId
-      ? peerStore.shares.filter(s => s.endpointId === peerStore.nodeId)
-      : peerStore.shares
-
-    const results: GlobalSearchFile[] = []
-
-    for (const share of shares) {
-      if (generation !== searchGeneration) return
-
-      interface QueueEntry { path: string; displayPrefix: string }
-      const queue: QueueEntry[] = [{ path: '/', displayPrefix: '' }]
-
-      while (queue.length > 0) {
-        if (generation !== searchGeneration) return
-        const { path: dirPath, displayPrefix } = queue.shift()!
-
-        try {
-          const result = await peerStore.localListAsync(share.localPath, dirPath)
-          const entries = result.entries as FileEntry[]
-
-          for (const entry of entries) {
-            const entryPath = dirPath === '/' ? `/${entry.name}` : `${dirPath}/${entry.name}`
-
-            results.push({
-              ...entry,
-              displayPath: displayPrefix ? `${share.name}/${displayPrefix}` : share.name,
-              searchPath: entryPath,
-              shareId: share.id,
-              shareName: share.name,
-              shareLocalPath: share.localPath,
-            })
-
-            if (entry.isDir) {
-              queue.push({
-                path: entryPath,
-                displayPrefix: displayPrefix ? `${displayPrefix}/${entry.name}` : entry.name,
-              })
-            }
-          }
-
-          if (generation !== searchGeneration) return
-          globalSearchFiles.value = [...results]
-        } catch {
-          // Skip directories that fail to list
-        }
-      }
-    }
-  }
-
-  watch(searchQuery, (query) => {
-    if (searchTimeout) clearTimeout(searchTimeout)
-
-    if (!query) {
-      searchGeneration++
-      deepSearchFiles.value = []
-      globalSearchFiles.value = []
-      isSearching.value = false
-      isGlobalSearching.value = false
-      return
-    }
-
-    searchTimeout = setTimeout(async () => {
-      const generation = ++searchGeneration
-
-      if (selectedPeer.value) {
-        deepSearchFiles.value = []
-        isSearching.value = true
-        await recursiveSearchAsync(currentPath.value, generation)
-        if (generation === searchGeneration) {
-          isSearching.value = false
-        }
-      } else {
-        globalSearchFiles.value = []
-        isGlobalSearching.value = true
-        await globalSearchAsync(generation)
-        if (generation === searchGeneration) {
-          isGlobalSearching.value = false
-        }
-      }
-    }, 300)
-  })
-
-  const fuse = computed(() => {
-    const source = searchQuery.value && deepSearchFiles.value.length > 0
-      ? deepSearchFiles.value
-      : sortedFiles.value
-    return new Fuse(source, { keys: ['name'], threshold: 0.4 })
-  })
-
-  const filteredFiles = computed((): (FileEntry & { displayPath?: string; searchPath?: string })[] => {
-    if (!searchQuery.value) return sortedFiles.value
-    // S3 falls back to shallow search on the currently loaded folder since
-    // there is no deep-search backend wired up yet.
-    if (selectedPeer.value?.s3BackendId) return fuse.value.search(searchQuery.value).map(r => r.item)
-    if (deepSearchFiles.value.length === 0) return []
-    return fuse.value.search(searchQuery.value).map(r => r.item)
-  })
-
-  const globalFuse = computed(() => {
-    return new Fuse(globalSearchFiles.value, { keys: ['name'], threshold: 0.4 })
-  })
-
-  const filteredGlobalFiles = computed((): GlobalSearchFile[] => {
-    if (!searchQuery.value || globalSearchFiles.value.length === 0) return []
-    return globalFuse.value.search(searchQuery.value).map(r => r.item)
-  })
+  // Shallow + deep + global fuzzy search. `resetSearch` is called by
+  // `loadFiles` so a fresh listing never shows stale deep-search results.
+  const {
+    searchQuery,
+    isSearching,
+    isGlobalSearching,
+    filteredFiles,
+    filteredGlobalFiles,
+    resetSearch,
+  } = useFileSearch({ selectedPeer, currentPath, currentSpaceId, sortedFiles })
 
   // =========================================================================
   // Path helpers
@@ -616,6 +140,26 @@ export function useFileBrowser(tabId: string) {
     if (file.path && isContentUri(file.path)) return file.path
     return `${selectedPeer.value.localPath}/${resolveFilePath(file).replace(/^\//, '')}`
   }
+
+  // S3 chunked-transfer progress + lifecycle (download/upload/cancel).
+  const {
+    getS3TransferProgress,
+    cancelFileTransferAsync,
+    startS3ChunkedDownload,
+    startS3ChunkedUpload,
+  } = useS3Transfers({ selectedPeer, currentPath, resolveFilePath })
+
+  // Media playback / inline preview (audio/video stream via the range
+  // server, image/pdf preview, thumbnails).
+  const { canPlayFile, playFile, getThumbnailUrl } = useMediaPlayback({
+    selectedPeer,
+    currentPath,
+    currentSpaceId,
+    preview,
+    resolveFilePath,
+    resolveLocalAbsolutePath,
+    startS3ChunkedDownload,
+  })
 
   // =========================================================================
   // Navigation
@@ -726,10 +270,7 @@ export function useFileBrowser(tabId: string) {
     isLoading.value = true
     isLoadingMore.value = false
     loadError.value = null
-    searchQuery.value = ''
-    deepSearchFiles.value = []
-    isSearching.value = false
-    searchGeneration++
+    resetSearch()
     clearSelection()
 
     const generation = ++loadGeneration
@@ -885,612 +426,41 @@ export function useFileBrowser(tabId: string) {
     }
   }
 
-  /**
-   * Download `file` to a user-chosen destination via the native save dialog.
-   *
-   * Why not just `<a download>`: that trick is unreliable in Tauri WebViews
-   * — WebKitGTK in particular drops the `download` attribute and treats the
-   * link as a same-origin navigation. The native `save()` + `writeFile()`
-   * round-trip is the only path that works consistently across desktop
-   * and Android.
-   *
-   * Returns false if the user cancelled the save dialog. The caller can
-   * treat that as a no-op (no toast needed).
-   */
-  const downloadFile = async (file: FileEntry): Promise<boolean> => {
-    if (!selectedPeer.value) return false
-
-    if (selectedPeer.value.s3BackendId) {
-      // Save dialog first, then stream chunk-by-chunk straight to the
-      // chosen path — no full file in RAM, automatically resumable if
-      // the same target path exists from a previous interrupted run.
-      const target = await showSaveDialog({ defaultPath: file.name })
-      if (!target) return false
-      const key = toS3Prefix(currentPath.value) + file.name
-      try {
-        await startS3ChunkedDownload(selectedPeer.value.s3BackendId, key, target)
-        return true
-      } catch (e) {
-        // The Rust side surfaces user cancellation as a `DownloadFailed`
-        // with reason "cancelled". Treat that as a non-error so toasts
-        // don't shout at the user for a deliberate action.
-        const msg = e instanceof Error ? e.message : String(e)
-        if (msg.includes('cancelled')) return false
-        throw e
-      }
-    } else if (selectedPeer.value.localPath) {
-      // Local file: read as base64, then offer save dialog.
-      const absPath = resolveLocalAbsolutePath(file)
-      if (!absPath) return false
-      const base64 = await invoke<string>('filesystem_read_file', { path: absPath })
-      return await saveBase64WithDialog(base64, file.name)
-    } else {
-      // Remote P2P file: existing streaming path already writes to disk
-      // cache under the peer-storage's own location.
-      await peerStore.remoteReadAsync(
-        selectedPeer.value.endpointId,
-        resolveFilePath(file),
-        undefined,
-        file.spaceId ?? currentSpaceId.value ?? undefined,
-      )
-      return true
-    }
-  }
-
-  const downloadSelectedAsync = async () => {
-    const selected = files.value.filter(f => selectedFiles.value.has(f.name) && !f.isDir)
-    for (const file of selected) {
-      await downloadFile(file)
-    }
-  }
-
-  const deleteSelectedAsync = async () => {
-    const selected = files.value.filter(f => selectedFiles.value.has(f.name))
-    for (const file of selected) {
-      await deleteFile(file)
-    }
-    clearSelection()
-    await loadFiles()
-  }
-
-  /**
-   * Delete a single entry, picking the right transport for the current
-   * backend.
-   *
-   *   - Local: `filesystem_remove` (handles files and directories).
-   *   - S3: `remote_storage_delete`. Folders need to be deleted as a "/"-
-   *     suffixed object marker, matching how `createFolderAsync` writes them.
-   *     S3 doesn't have real directories, so this only removes the marker —
-   *     callers should not expect recursive folder deletion until a real
-   *     batch API is wired up.
-   *   - P2P: not supported by the iroh backend yet — returns early.
-   *
-   * The caller is responsible for refreshing the listing (`loadFiles()`)
-   * if it isn't already chained through `deleteSelectedAsync`.
-   */
-  const deleteFile = async (file: FileEntry) => {
-    if (!selectedPeer.value) return
-    if (selectedPeer.value.localPath) {
-      const filePath = resolveFilePath(file)
-      const fullPath = `${selectedPeer.value.localPath}/${filePath.replace(/^\//, '')}`
-      await invoke('filesystem_remove', { path: fullPath })
-    } else if (selectedPeer.value.s3BackendId) {
-      const prefix = toS3Prefix(currentPath.value)
-      const key = file.isDir ? `${prefix}${file.name}/` : prefix + file.name
-      await invoke('remote_storage_delete', {
-        request: {
-          backendId: selectedPeer.value.s3BackendId,
-          key,
-        },
-      })
-    } else {
-      // P2P delete is unsupported — silently no-op. The caller checks
-      // `canDeleteFile` first so this is only reachable via a stale UI.
-      return
-    }
-  }
-
-  /**
-   * Whether deleting `file` is supported on the current backend. Mirrors the
-   * switch in `deleteFile` — keep them in sync.
-   *
-   * For P2P peers there are two gates: backend support (`P2P_MUTATIONS_SUPPORTED`,
-   * flipped on when the iroh delete verb ships on feat/p2p-mutation-ops)
-   * AND a write UCAN (`canWrite`). Surface the menu item only when both
-   * are true so users never see a button that the server would reject.
-   */
-  const canDeleteFile = (_file: FileEntry): boolean => {
-    const peer = selectedPeer.value
-    if (!peer) return false
-    if (peer.localPath) return true
-    if (peer.s3BackendId) return true
-    return P2P_MUTATIONS_SUPPORTED && canWrite.value
-  }
-
-  /**
-   * Rename `file` to `newName` (a basename, not a full path). Local shares
-   * only — S3 has no native rename (would need copy + delete with a new key),
-   * and the P2P transport has no rename verb at all.
-   *
-   * Returns true on success. Refuses names containing path separators so a
-   * rename can never silently move a file across folders.
-   */
-  const renameFile = async (file: FileEntry, newName: string): Promise<boolean> => {
-    const trimmed = newName.trim()
-    if (!trimmed || trimmed === file.name) return false
-    if (trimmed.includes('/') || trimmed.includes('\\')) return false
-    if (!selectedPeer.value?.localPath) return false
-
-    const dir = resolveCurrentDir()
-    if (!dir) return false
-    const oldPath = `${dir}/${file.name}`
-    const newPath = `${dir}/${trimmed}`
-    await invoke('filesystem_rename', { from: oldPath, to: newPath })
-    await loadFiles()
-    return true
-  }
-
-  /**
-   * Whether `file` can be renamed on the current backend.
-   *
-   * Local shares only today — S3 has no native rename (would need copy +
-   * delete with a new key, tracked on feat/file-ops-extensions) and the
-   * P2P transport has no rename verb either. The P2P arm follows the
-   * same dual-gate as `canDeleteFile`: backend support + write UCAN.
-   */
-  const canRenameFile = (_file: FileEntry): boolean => {
-    const peer = selectedPeer.value
-    if (!peer) return false
-    if (peer.localPath) return true
-    if (peer.s3BackendId) return false // pending feat/file-ops-extensions
-    return P2P_MUTATIONS_SUPPORTED && canWrite.value
-  }
-
-  /**
-   * Single-file variants of copy/cut. Both delegate to the same `clipboard`
-   * store the selection-based copy/cut use, so paste behaviour is identical.
-   * Local shares only — clipboard entries need absolute paths and only local
-   * shares expose them.
-   */
-  const copyFile = (file: FileEntry) => {
-    const dir = resolveCurrentDir()
-    if (!dir) return
-    clipboard.copy(dir, [{ name: file.name, isDir: file.isDir, absolutePath: `${dir}/${file.name}` }])
-  }
-
-  const cutFile = (file: FileEntry) => {
-    const dir = resolveCurrentDir()
-    if (!dir) return
-    clipboard.cut(dir, [{ name: file.name, isDir: file.isDir, absolutePath: `${dir}/${file.name}` }])
-  }
-
-  /**
-   * Whether `file` can participate in clipboard copy/cut on the current
-   * backend. The clipboard entries need absolute paths (because paste may
-   * land on a different share), so today only local shares qualify.
-   *
-   * P2P arm gated by both backend support (cross-peer copy/cut isn't
-   * implemented yet) and a write UCAN — matches the `canDeleteFile` /
-   * `canRenameFile` shape so adding the backend is a single flag flip.
-   */
-  const canCopyOrCutFile = (_file: FileEntry): boolean => {
-    const peer = selectedPeer.value
-    if (!peer) return false
-    if (peer.localPath) return true
-    if (peer.s3BackendId) return false // pending feat/file-ops-extensions
-    return P2P_MUTATIONS_SUPPORTED && canWrite.value
-  }
-
-  /**
-   * Whether `file` can be "played" (image/video/audio/pdf preview) on the
-   * current backend.
-   */
-  const canPlayFile = (file: FileEntry): boolean => {
-    if (file.isDir) return false
-    return getMediaType(file.name) !== 'unsupported'
-  }
-
-  /**
-   * Materialise an S3 object in the app cache and return the local path.
-   *
-   * Why we go through disk for the play path even with a `haex-stream://`
-   * protocol handler available: WebKitGTK on Linux refuses media loaded
-   * through custom URI schemes (the GStreamer media backend only accepts
-   * http(s) / file). The detour via `convertFileSrc()` exposes the file
-   * via Tauri's asset protocol, which serves over `http://asset.localhost`
-   * — a scheme WebKit happily accepts.
-   *
-   * The download uses the same chunked / resumable Rust command as
-   * `downloadFile`, so a previous partial cache file is picked up where
-   * it left off.
-   */
-  const ensureS3FileCachedAsync = async (
-    file: FileEntry,
-    backendId: string,
-  ): Promise<string> => {
-    const key = toS3Prefix(currentPath.value) + file.name
-    const cacheRoot = await appCacheDir()
-    const subdir = await joinPath(cacheRoot, 's3-stream-cache')
-    if (!(await fileExists(subdir))) {
-      await mkdir(subdir, { recursive: true })
-    }
-    const hash = await cacheKeyHash(backendId, key)
-    const cachePath = await joinPath(subdir, `${hash}-${file.name}`)
-    await startS3ChunkedDownload(backendId, key, cachePath)
-    return cachePath
-  }
-
-  /**
-   * Unified open path for a file. Called both from single-click and the
-   * "Play" context-menu item.
-   *
-   * Media (image/video/audio/pdf) opens in the inline preview modal so the
-   * user gets immediate feedback inside the app. Everything else is handed
-   * to the OS via `openWithSystem`.
-   *
-   * Audio/video — regardless of backend — streams through the local HTTP
-   * range server (`http://127.0.0.1:<port>/…`), the only URL form WebKitGTK's
-   * GStreamer backend accepts with Range support on every platform. The
-   * backend → action mapping lives in `resolveAvPlayback`:
-   *   - S3 / P2P / local share: register a streaming source and hand the
-   *     element the range-server URL (no full-file download to disk first).
-   *   - Android Content URI: no path for the range server and must never be
-   *     loaded into RAM, so it streams via the system player from disk.
-   *
-   * Image / PDF / other still materialise a concrete path first:
-   *   - S3: chunk-streamed to the app cache (resumable), then `openLocal`
-   *     (image/pdf via `convertFileSrc`) or `openWithSystem`.
-   *   - Local share: direct `openLocal` / `openWithSystem` on the share path.
-   *   - P2P peer: `remoteReadAsync` into the peer cache, then `openLocal` /
-   *     `openWithSystem`.
-   */
-  const playFile = async (file: FileEntry) => {
-    const peer = selectedPeer.value
-    if (!peer) return
-    const type = getMediaType(file.name)
-    const isMedia = type !== 'unsupported'
-
-    // Audio/video: always stream through the local range server (or the
-    // system player for Android Content URIs). UCAN + relayUrl for the P2P
-    // case come from the same resolver `remoteReadAsync` uses, so capability
-    // checks stay in lock-step.
-    if (type === 'audio' || type === 'video') {
-      const localAbsPath = peer.localPath ? resolveLocalAbsolutePath(file) : null
-      const action = resolveAvPlayback(classifyBackend(peer, localAbsPath))
-      try {
-        switch (action) {
-          case 'streamS3': {
-            const key = toS3Prefix(currentPath.value) + file.name
-            const url = await invoke<string>('media_server_register_s3_stream', {
-              backendId: peer.s3BackendId,
-              key,
-            })
-            preview.openStream(url, file.name)
-            return
-          }
-          case 'streamPeer': {
-            const path = resolveFilePath(file)
-            const { ucanToken, relayUrl: deviceRelayUrl } =
-              peerStore.resolveRequestContext(
-                peer.endpointId,
-                path,
-                file.spaceId ?? currentSpaceId.value ?? undefined,
-              )
-            if (!ucanToken) {
-              throw new Error('No valid UCAN token for this peer\'s space')
-            }
-            const url = await invoke<string>('media_server_register_peer_stream', {
-              nodeId: peer.endpointId,
-              relayUrl: deviceRelayUrl,
-              path,
-              ucanToken,
-            })
-            preview.openStream(url, file.name)
-            return
-          }
-          case 'streamLocal': {
-            const url = await invoke<string>('media_server_register', {
-              path: localAbsPath,
-            })
-            preview.openStream(url, file.name)
-            return
-          }
-          case 'openSystem': {
-            // Android Content URI — no file path for the range server, and
-            // never base64 into RAM. The system player streams from disk.
-            if (localAbsPath) await preview.openWithSystem(localAbsPath)
-            return
-          }
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        if (msg.includes('cancelled')) return
-        throw e
-      }
-    }
-
-    let absPath: string | null = null
-    try {
-      if (peer.s3BackendId) {
-        absPath = await ensureS3FileCachedAsync(file, peer.s3BackendId)
-      } else if (peer.localPath) {
-        absPath = resolveLocalAbsolutePath(file)
-      } else {
-        absPath = await peerStore.remoteReadAsync(
-          peer.endpointId,
-          resolveFilePath(file),
-          undefined,
-          file.spaceId ?? currentSpaceId.value ?? undefined,
-        )
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      if (msg.includes('cancelled')) return
-      throw e
-    }
-    if (!absPath) return
-
-    if (isMedia) {
-      await preview.openLocal(absPath, file.name, file.size)
-    } else {
-      await preview.openWithSystem(absPath)
-    }
-  }
-
-  // =========================================================================
-  // Upload / create folder
-  // =========================================================================
-
-  /**
-   * Whether the currently selected peer supports adding files / folders
-   * *from this user*. The server still enforces the same check — this is
-   * only a UI gate so users don't see write buttons for shares they have
-   * read-only access to.
-   *
-   *  - Local share: the share lives on this device, the OS enforces perms.
-   *  - S3 backend: the user configured it; ACL enforcement is on the bucket.
-   *  - P2P peer: requires a cached UCAN with `space/write` or `space/admin`.
-   */
-  const canWrite = computed(() => {
-    const peer = selectedPeer.value
-    if (!peer) return false
-    if (peer.localPath || peer.s3BackendId) return true
-    const cap = peerStore.getCapabilityForPeer(
-      peer.endpointId,
-      currentPath.value,
-      currentSpaceId.value ?? undefined,
-    )
-    return cap === 'space/write' || cap === 'space/admin'
+  // Write operations (download / delete / rename / upload / create folder /
+  // clipboard) + their backend-support guards.
+  const {
+    canWrite,
+    downloadFile,
+    downloadSelectedAsync,
+    deleteFile,
+    deleteSelectedAsync,
+    canDeleteFile,
+    renameFile,
+    canRenameFile,
+    copyFile,
+    cutFile,
+    canCopyOrCutFile,
+    uploadFilesAsync,
+    createFolderAsync,
+    isCutFile,
+    copySelected,
+    cutSelected,
+    pasteAsync,
+    canPaste,
+  } = useFileMutations({
+    selectedPeer,
+    currentPath,
+    currentSpaceId,
+    files,
+    selectedFiles,
+    clipboard,
+    resolveFilePath,
+    resolveLocalAbsolutePath,
+    startS3ChunkedDownload,
+    startS3ChunkedUpload,
+    loadFiles,
+    clearSelection,
   })
-
-  /** Join the current path with a basename, preserving the `/dir/sub` form. */
-  const joinRemotePath = (name: string): string =>
-    currentPath.value === '/' ? `/${name}` : `${currentPath.value}/${name}`
-
-  /**
-   * Open the native file picker and add the chosen file(s) to the current
-   * folder. Supports local shares (zero-copy via `filesystem_copy`), S3
-   * backends (streamed via `remote_storage_upload_from_path` so multi-GB
-   * files don't have to fit in IPC memory), and remote P2P peers (streamed
-   * via the iroh `Request::Write` protocol with progress + cancellation).
-   *
-   * Each remote upload inserts a placeholder row into `files.value` so the
-   * existing per-row progress + X-cancel UI works while the transfer runs;
-   * the placeholder is replaced by the real listing once `loadFiles()`
-   * refreshes at the end. Cancelled or failed uploads have their placeholder
-   * removed in-line so they don't linger before the refresh.
-   *
-   * Returns the number of files the caller asked to upload (regardless of
-   * how many ultimately succeeded — the caller's toast just acknowledges
-   * the intent).
-   */
-  const uploadFilesAsync = async (): Promise<number> => {
-    if (!canWrite.value || !selectedPeer.value) return 0
-
-    const selected = await invoke<string[] | null>('filesystem_select_file', {
-      multiple: true,
-    })
-    if (!selected || selected.length === 0) return 0
-
-    const basename = (p: string): string => {
-      const parts = p.split(/[/\\]/)
-      return parts[parts.length - 1] || p
-    }
-
-    const isCancelledError = (e: unknown): boolean => {
-      const msg = e instanceof Error ? e.message : String(e)
-      return msg.includes('cancelled')
-    }
-
-    // Track placeholders so removal can't ever drop a real listing entry
-    // that happens to share a name. Belt-and-braces because the placeholder
-    // has `modified: null` and isDir false which *should* be unambiguous,
-    // but explicit identity is cheaper than reasoning about that.
-    const placeholders = new Set<{ name: string; size: bigint; isDir: false; modified: null }>()
-    const insertPlaceholder = (name: string) => {
-      const entry = { name, size: 0n, isDir: false as const, modified: null }
-      placeholders.add(entry)
-      files.value = [...files.value, entry]
-    }
-    const removePlaceholder = (name: string) => {
-      for (const entry of placeholders) {
-        if (entry.name === name) {
-          placeholders.delete(entry)
-          files.value = files.value.filter(f => f !== entry)
-          return
-        }
-      }
-    }
-
-    // Sequential `for await` is deliberate: each upload runs against one
-    // transferId / one cancel token, and the placeholder UX (one progress
-    // bar per row) is easier to follow when files complete in order. Fan-out
-    // would also need a per-row queue indicator. The file-sync provider
-    // path (cloud_provider.rs) already does its own parallel multipart for
-    // bulk syncs.
-    if (selectedPeer.value.localPath) {
-      const targetDir = resolveCurrentDir()
-      if (!targetDir) return 0
-      for (const src of selected) {
-        await invoke('filesystem_copy', {
-          from: src,
-          to: `${targetDir}/${basename(src)}`,
-        })
-      }
-    } else if (selectedPeer.value.s3BackendId) {
-      const prefix = toS3Prefix(currentPath.value)
-      for (const src of selected) {
-        const name = basename(src)
-        insertPlaceholder(name)
-        try {
-          await startS3ChunkedUpload(
-            selectedPeer.value.s3BackendId,
-            prefix + name,
-            src,
-          )
-        } catch (e) {
-          removePlaceholder(name)
-          if (!isCancelledError(e)) throw e
-        }
-      }
-    } else {
-      // Remote P2P peer: read on Rust side and stream over iroh.
-      for (const src of selected) {
-        const name = basename(src)
-        insertPlaceholder(name)
-        try {
-          await peerStore.remoteWriteAsync(
-            selectedPeer.value.endpointId,
-            joinRemotePath(name),
-            src,
-            currentSpaceId.value ?? undefined,
-          )
-        } catch (e) {
-          removePlaceholder(name)
-          if (!isCancelledError(e)) throw e
-        }
-      }
-    }
-
-    await loadFiles()
-    return selected.length
-  }
-
-  /**
-   * Create a new folder under the current path. For S3 this uploads a
-   * zero-byte object with a trailing `/`, which is the conventional way to
-   * surface an "empty folder" through the delimiter-based listing. For
-   * P2P peers it sends a `Request::CreateDirectory` over iroh.
-   * Returns true on success.
-   */
-  const createFolderAsync = async (rawName: string): Promise<boolean> => {
-    if (!canWrite.value || !selectedPeer.value) return false
-    const name = rawName.trim().replace(/^\/+|\/+$/g, '')
-    // Refuse names with path separators — folder creation is a single-level
-    // operation; nested paths would silently surprise the user.
-    if (!name || name.includes('/') || name.includes('\\')) return false
-
-    if (selectedPeer.value.localPath) {
-      const targetDir = resolveCurrentDir()
-      if (!targetDir) return false
-      await invoke('filesystem_mkdir', { path: `${targetDir}/${name}` })
-    } else if (selectedPeer.value.s3BackendId) {
-      const prefix = toS3Prefix(currentPath.value)
-      await invoke('remote_storage_upload', {
-        request: {
-          backendId: selectedPeer.value.s3BackendId,
-          key: `${prefix}${name}/`,
-          data: '',
-        },
-      })
-    } else {
-      await peerStore.remoteCreateDirectoryAsync(
-        selectedPeer.value.endpointId,
-        joinRemotePath(name),
-        currentSpaceId.value ?? undefined,
-      )
-    }
-
-    await loadFiles()
-    return true
-  }
-
-  // =========================================================================
-  // Clipboard operations
-  // =========================================================================
-
-  const resolveCurrentDir = () => {
-    if (!selectedPeer.value?.localPath) return null
-    const sub = currentPath.value === '/' ? '' : currentPath.value.replace(/^\//, '')
-    return sub ? `${selectedPeer.value.localPath}/${sub}` : selectedPeer.value.localPath
-  }
-
-  const isCutFile = (file: FileEntry) => {
-    const dir = resolveCurrentDir()
-    if (!dir) return false
-    return clipboard.cutPaths.value.has(`${dir}/${file.name}`)
-  }
-
-  const buildClipboardEntries = () => {
-    const dir = resolveCurrentDir()
-    if (!dir) return []
-    return files.value
-      .filter(f => selectedFiles.value.has(f.name))
-      .map(f => ({
-        name: f.name,
-        isDir: f.isDir,
-        absolutePath: `${dir}/${f.name}`,
-      }))
-  }
-
-  const copySelected = () => {
-    const entries = buildClipboardEntries()
-    if (entries.length === 0) return
-    clipboard.copy(resolveCurrentDir()!, entries)
-    clearSelection()
-  }
-
-  const cutSelected = () => {
-    const entries = buildClipboardEntries()
-    if (entries.length === 0) return
-    clipboard.cut(resolveCurrentDir()!, entries)
-    clearSelection()
-  }
-
-  const pasteAsync = async () => {
-    const targetDir = resolveCurrentDir()
-    if (!targetDir) return
-    await clipboard.pasteAsync(targetDir)
-    await loadFiles()
-  }
-
-  /**
-   * Whether the clipboard's contents can be pasted into the current folder.
-   * Requires (a) something on the clipboard and (b) the active peer to
-   * accept writes. P2P follows the same dual-gate shape as the other
-   * mutation helpers — backend support + write UCAN.
-   */
-  const canPaste = computed(() => {
-    if (!clipboard.hasClipboard.value) return false
-    const peer = selectedPeer.value
-    if (!peer) return false
-    if (peer.localPath) return true
-    if (peer.s3BackendId) return false // pending feat/file-ops-extensions
-    return P2P_MUTATIONS_SUPPORTED && canWrite.value
-  })
-
-  // =========================================================================
-  // Thumbnails
-  // =========================================================================
-
-  const getThumbnailUrl = (file: FileEntry): string | null => {
-    if (file.isDir) return null
-    if (getMediaType(file.name) !== 'image') return null
-    if (!selectedPeer.value?.localPath) return null
-    const absPath = resolveLocalAbsolutePath(file)
-    if (!absPath || absPath.startsWith('{')) return null
-    return convertFileSrc(absPath)
-  }
 
   return {
     // State
