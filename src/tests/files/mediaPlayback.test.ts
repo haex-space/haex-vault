@@ -31,11 +31,11 @@ describe('resolveAvPlayback', () => {
     expect(resolveAvPlayback('localFs')).toBe('streamLocal')
   })
 
-  // Android content URIs have no file path for the range server and must
-  // NEVER be base64-loaded into RAM (would OOM on large media). The system
-  // player streams from disk until the Phase-2 content-URI source exists.
-  it('opens Android content-URI media with the system player', () => {
-    expect(resolveAvPlayback('localContentUri')).toBe('openSystem')
+  // Android content URIs stream through the range server via a dedicated
+  // SAF-fd source — Range requests seek against the underlying fd in a
+  // blocking thread, so the full file never lands in RAM.
+  it('streams Android content-URI media via the SAF-fd source', () => {
+    expect(resolveAvPlayback('localContentUri')).toBe('streamContentUri')
   })
 
   it('streams S3 media through the range server', () => {

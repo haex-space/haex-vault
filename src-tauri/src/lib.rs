@@ -522,6 +522,8 @@ pub fn run() {
             media_server::media_server_register,
             media_server::media_server_register_s3_stream,
             media_server::media_server_register_peer_stream,
+            #[cfg(target_os = "android")]
+            media_server::media_server_register_content_uri,
             // Extension Remote Storage commands (with permission checks)
             extension::remote_storage::commands::extension_remote_storage_list_backends,
             extension::remote_storage::commands::extension_remote_storage_add_backend,

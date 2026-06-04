@@ -555,5 +555,30 @@ pub async fn media_server_register_peer_stream(
     Ok(state.media_server.register_source(Arc::new(source), ct).await)
 }
 
+/// Register an Android Content URI as a streaming source. Returns a
+/// `http://127.0.0.1:<port>/<token>` URL backed by a local SAF file
+/// descriptor — Range requests against that URL are translated into
+/// seek+read against the underlying fd in a `spawn_blocking` thread, so
+/// a multi-GiB media file never lands in RAM.
+///
+/// `uri_json` is the resolved file's `FileUri` JSON blob (the same shape
+/// the frontend already holds in `file.path` for Content URI shares).
+/// `name_hint` is the file's display name — used only to derive a MIME
+/// type from the extension.
+#[cfg(target_os = "android")]
+#[tauri::command(rename_all = "camelCase")]
+pub async fn media_server_register_content_uri(
+    state: tauri::State<'_, crate::AppState>,
+    app_handle: tauri::AppHandle,
+    uri_json: String,
+    name_hint: String,
+) -> Result<String, String> {
+    use crate::remote_storage::streaming::content_uri_source::ContentUriStreamingSource;
+    use crate::remote_storage::streaming::source::StreamingSource;
+    let source = ContentUriStreamingSource::new(app_handle, uri_json, name_hint);
+    let ct = source.content_type().await;
+    Ok(state.media_server.register_source(Arc::new(source), ct).await)
+}
+
 #[cfg(test)]
 mod tests;

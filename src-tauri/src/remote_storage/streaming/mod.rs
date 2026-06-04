@@ -11,6 +11,8 @@
 //! `<audio>` element at — the browser then drives Range requests and we
 //! translate each one into a call into the matching adapter.
 
+#[cfg(target_os = "android")]
+pub mod content_uri_source;
 pub mod peer_source;
 pub mod protocol;
 pub mod s3_source;
