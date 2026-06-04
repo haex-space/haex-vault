@@ -47,6 +47,33 @@ const { currentVault } = storeToRefs(vaultStore)
 // Initialize navigation store (registers popstate listener + boundary)
 useNavigationStore()
 
+// Releasing the Rust-side mount lock + DB connection on page leave so that
+// navigating away from a vault (back to the index, switching vaults, deleting
+// the file externally before opening another) doesn't leave the vault_lock
+// orphaned — the next `create_encrypted_database` would otherwise fail with
+// VaultAlreadyMountedInProcess against a file the user no longer cares about.
+//
+// `onBeforeRouteLeave` is the primary path because vue-router awaits its
+// returned promise before navigation proceeds — so the Rust-side
+// `close_database` (which releases the lock) completes before the next
+// vault page can mount. `onBeforeUnmount` stays as a fallback for non-routed
+// teardowns (HMR, app close) but is fire-and-forget by Vue.
+onBeforeRouteLeave(async () => {
+  try {
+    await vaultStore.closeAsync()
+  } catch (error) {
+    console.error('vault route-leave close failed:', error)
+  }
+})
+
+onBeforeUnmount(async () => {
+  try {
+    await vaultStore.closeAsync()
+  } catch (error) {
+    console.error('vault unmount close failed:', error)
+  }
+})
+
 onMounted(async () => {
   try {
     // Initialize vault (device, spaces, cleanup) — must run after navigation
