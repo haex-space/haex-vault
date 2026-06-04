@@ -113,7 +113,7 @@ fn map_peer_error(err: crate::peer_storage::error::PeerStorageError) -> Streamin
 /// MIME from file extension. Mirrors the table in the local
 /// `media_server::mime_for` so both layers agree on what to send for the
 /// same file. Case-insensitive on the extension.
-fn content_type_from_path(path: &str) -> Option<String> {
+pub(super) fn content_type_from_path(path: &str) -> Option<String> {
     let ext = path.rsplit('.').next()?.to_ascii_lowercase();
     let mime = match ext.as_str() {
         "mp3" => "audio/mpeg",

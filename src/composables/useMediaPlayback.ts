@@ -9,6 +9,7 @@ import {
   type FileEntry,
   type RemotePeer,
 } from '~/composables/fileBrowserHelpers'
+import { isAndroid } from '~/utils/platform'
 
 /**
  * How a media file should be opened, by backend and media class.
@@ -23,12 +24,21 @@ import {
 export type MediaBackend = 's3' | 'p2p' | 'localFs' | 'localContentUri'
 
 /** Concrete action for playing an audio/video file. */
-export type AvAction = 'streamLocal' | 'streamS3' | 'streamPeer' | 'openSystem'
+export type AvAction =
+  | 'streamLocal'
+  | 'streamS3'
+  | 'streamPeer'
+  | 'streamContentUri'
 
 /**
  * Classify the backend a file lives on from the selected peer and the
  * resolved local path. `localAbsPath` is only meaningful for local shares;
  * an Android Content URI is encoded as a JSON blob starting with `{`.
+ *
+ * The `localContentUri` branch is gated to Android because the underlying
+ * Tauri command (`media_server_register_content_uri`) is only registered on
+ * Android — on iOS/desktop a `{`-prefixed path (unlikely but possible if
+ * shared from elsewhere) would fall back to plain `localFs`.
  */
 export function classifyBackend(
   peer: { s3BackendId?: string; localPath?: string },
@@ -36,16 +46,18 @@ export function classifyBackend(
 ): MediaBackend {
   if (peer.s3BackendId) return 's3'
   if (peer.localPath) {
-    return localAbsPath?.startsWith('{') ? 'localContentUri' : 'localFs'
+    return isAndroid() && localAbsPath?.startsWith('{')
+      ? 'localContentUri'
+      : 'localFs'
   }
   return 'p2p'
 }
 
 /**
  * Decide how to play an audio/video file given its backend. Every backend
- * streams through the range server except Android Content URIs, which have
- * no file path for the server and must never be loaded into RAM — the system
- * player streams those from disk until a content-URI streaming source exists.
+ * streams through the local HTTP range server — Android Content URIs use a
+ * dedicated source that seeks against the SAF file descriptor in a blocking
+ * thread, so the full file never lands in RAM.
  */
 export function resolveAvPlayback(backend: MediaBackend): AvAction {
   switch (backend) {
@@ -56,7 +68,7 @@ export function resolveAvPlayback(backend: MediaBackend): AvAction {
     case 'p2p':
       return 'streamPeer'
     case 'localContentUri':
-      return 'openSystem'
+      return 'streamContentUri'
   }
 }
 
@@ -133,8 +145,9 @@ export function useMediaPlayback(deps: MediaPlaybackDeps) {
    * backend → action mapping lives in `resolveAvPlayback`:
    *   - S3 / P2P / local share: register a streaming source and hand the
    *     element the range-server URL (no full-file download to disk first).
-   *   - Android Content URI: no path for the range server and must never be
-   *     loaded into RAM, so it streams via the system player from disk.
+   *   - Android Content URI: register a SAF-fd-backed source so Range
+   *     requests seek against the underlying file descriptor — keeps the
+   *     full file out of RAM the same way the other backends do.
    *
    * Image / PDF / other still materialise a concrete path first:
    *   - S3: chunk-streamed to the app cache (resumable), then `openLocal`
@@ -194,10 +207,16 @@ export function useMediaPlayback(deps: MediaPlaybackDeps) {
             preview.openStream(url, file.name)
             return
           }
-          case 'openSystem': {
-            // Android Content URI — no file path for the range server, and
-            // never base64 into RAM. The system player streams from disk.
-            if (localAbsPath) await preview.openWithSystem(localAbsPath)
+          case 'streamContentUri': {
+            // Android Content URI — `localAbsPath` is the file's FileUri JSON.
+            // The native source seeks against the SAF fd inside spawn_blocking
+            // for each Range, so the full file never lands in RAM.
+            if (!localAbsPath) return
+            const url = await invoke<string>('media_server_register_content_uri', {
+              uriJson: localAbsPath,
+              nameHint: file.name,
+            })
+            preview.openStream(url, file.name)
             return
           }
         }

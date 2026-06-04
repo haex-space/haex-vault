@@ -1,7 +1,20 @@
-import { describe, it, expect } from 'vitest'
-import { classifyBackend, resolveAvPlayback } from '~/composables/useMediaPlayback'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// `useMediaPlayback` pulls in `~/utils/platform`, which calls `platform()` from
+// `@tauri-apps/plugin-os` at runtime — undefined in vitest. Stub it before
+// importing the module under test.
+vi.mock('~/utils/platform', () => ({
+  isAndroid: vi.fn(() => false),
+}))
+
+const { classifyBackend, resolveAvPlayback } = await import('~/composables/useMediaPlayback')
+const { isAndroid } = await import('~/utils/platform')
 
 describe('classifyBackend', () => {
+  beforeEach(() => {
+    vi.mocked(isAndroid).mockReturnValue(false)
+  })
+
   it('classifies an S3 peer as s3', () => {
     expect(classifyBackend({ s3BackendId: 'b1' }, null)).toBe('s3')
   })
@@ -12,10 +25,18 @@ describe('classifyBackend', () => {
     ).toBe('localFs')
   })
 
-  it('classifies a local share resolving to an Android content URI as localContentUri', () => {
+  it('on Android, a local share resolving to a content-URI JSON blob is localContentUri', () => {
+    vi.mocked(isAndroid).mockReturnValue(true)
     expect(
       classifyBackend({ localPath: 'content://x' }, '{"uri":"content://x"}'),
     ).toBe('localContentUri')
+  })
+
+  it('off-Android, a `{`-prefixed path falls back to localFs (Android-only command would not exist)', () => {
+    vi.mocked(isAndroid).mockReturnValue(false)
+    expect(
+      classifyBackend({ localPath: 'content://x' }, '{"uri":"content://x"}'),
+    ).toBe('localFs')
   })
 
   it('classifies a peer with neither s3 nor localPath as p2p', () => {
@@ -31,11 +52,11 @@ describe('resolveAvPlayback', () => {
     expect(resolveAvPlayback('localFs')).toBe('streamLocal')
   })
 
-  // Android content URIs have no file path for the range server and must
-  // NEVER be base64-loaded into RAM (would OOM on large media). The system
-  // player streams from disk until the Phase-2 content-URI source exists.
-  it('opens Android content-URI media with the system player', () => {
-    expect(resolveAvPlayback('localContentUri')).toBe('openSystem')
+  // Android content URIs stream through the range server via a dedicated
+  // SAF-fd source — Range requests seek against the underlying fd in a
+  // blocking thread, so the full file never lands in RAM.
+  it('streams Android content-URI media via the SAF-fd source', () => {
+    expect(resolveAvPlayback('localContentUri')).toBe('streamContentUri')
   })
 
   it('streams S3 media through the range server', () => {

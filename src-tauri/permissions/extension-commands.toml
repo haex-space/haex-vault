@@ -284,6 +284,7 @@ commands.allow = [
   "media_server_register",
   "media_server_register_s3_stream",
   "media_server_register_peer_stream",
+  "media_server_register_content_uri",
 
   # External bridge (WebSocket for browser extension etc.)
   "external_bridge_start",
