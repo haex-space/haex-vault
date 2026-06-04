@@ -25,8 +25,7 @@ interface TokenState {
   refreshToken: string | null
   reauthResolver: ReauthContextResolver | null
   lastReauthAttempt: number
-  pendingReauthPromise: Promise<string | null> | null
-  pendingReauth: Promise<string | null> | null
+  inflightReauth: Promise<string | null> | null
 }
 
 const tokenStates = new Map<string, TokenState>()
@@ -47,8 +46,7 @@ const getOrCreateState = (backendId: string): TokenState => {
       refreshToken: null,
       reauthResolver: null,
       lastReauthAttempt: 0,
-      pendingReauthPromise: null,
-      pendingReauth: null,
+      inflightReauth: null,
     }
     tokenStates.set(backendId, state)
   }
@@ -147,7 +145,8 @@ export const didAuthenticateAsync = async (
 
 /**
  * Attempts to re-authenticate via DID challenge when token is expired.
- * Parallel calls share the same promise — no duplicate auth requests.
+ * Parallel callers share `state.inflightReauth` — exactly one challenge
+ * round trip per re-auth window.
  */
 export const attemptDidReauthAsync = async (backendId?: string): Promise<string | null> => {
   const id = resolveBackendId(backendId)
@@ -155,9 +154,9 @@ export const attemptDidReauthAsync = async (backendId?: string): Promise<string 
 
   if (!state.reauthResolver) return null
 
-  if (state.pendingReauthPromise) {
+  if (state.inflightReauth) {
     log.debug('DID re-auth: waiting for ongoing attempt...')
-    return state.pendingReauthPromise
+    return state.inflightReauth
   }
 
   const now = Date.now()
@@ -167,7 +166,7 @@ export const attemptDidReauthAsync = async (backendId?: string): Promise<string 
   }
 
   state.lastReauthAttempt = now
-  state.pendingReauthPromise = (async () => {
+  const inflight = (async () => {
     try {
       const ctx = await state.reauthResolver!()
       if (!ctx) {
@@ -187,11 +186,12 @@ export const attemptDidReauthAsync = async (backendId?: string): Promise<string 
       return null
     }
   })()
+  state.inflightReauth = inflight
 
   try {
-    return await state.pendingReauthPromise
+    return await inflight
   } finally {
-    state.pendingReauthPromise = null
+    if (state.inflightReauth === inflight) state.inflightReauth = null
   }
 }
 
@@ -278,20 +278,11 @@ export const fetchWithReauthAsync = async (
   backendId?: string,
 ): Promise<Response> => {
   const id = resolveBackendId(backendId)
-  const state = getOrCreateState(id)
   const response = await fetch(url, init)
   if (response.status !== 401) return response
 
-  if (!state.pendingReauth) {
-    log.warn('Server returned 401 — attempting DID re-authentication...')
-    state.pendingReauth = attemptDidReauthAsync(id).finally(() => {
-      state.pendingReauth = null
-    })
-  } else {
-    log.debug('Server returned 401 — waiting for ongoing re-auth...')
-  }
-
-  const newToken = await state.pendingReauth
+  log.warn('Server returned 401 — attempting DID re-authentication...')
+  const newToken = await attemptDidReauthAsync(id)
   if (!newToken) return response
 
   const headers = new Headers(init.headers)
