@@ -4,7 +4,6 @@ import {
   type FileEntry,
   type RemotePeer,
   type ViewMode,
-  type SearchableFile,
   type GlobalSearchFile,
   CHUNK_SIZE,
   getFileIcon,
@@ -13,9 +12,6 @@ import {
   toS3Prefix,
 } from '~/composables/fileBrowserHelpers'
 import { readableFileSize } from '~/utils/helper'
-
-// Re-exported so existing consumers keep importing these from here.
-export type { FileEntry, RemotePeer, ViewMode, SearchableFile, GlobalSearchFile }
 
 export function useFileBrowser(tabId: string) {
   const peerStore = usePeerStorageStore()

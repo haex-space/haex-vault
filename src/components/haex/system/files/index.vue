@@ -783,7 +783,7 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { SettingsCategory } from '~/config/settingsCategories'
-import type { RemotePeer } from '~/composables/useFileBrowser'
+import type { RemotePeer } from '~/composables/fileBrowserHelpers'
 import { usePeerPing } from '~/composables/usePeerPing'
 import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 
