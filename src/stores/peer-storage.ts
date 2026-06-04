@@ -1,5 +1,7 @@
 import { invoke, Channel } from '@tauri-apps/api/core'
-import { RustEventGroup, RUST_EVENTS, type PeerStorageStateEvent } from '@/lib/rust-events'
+import { listen } from '@tauri-apps/api/event'
+import { RUST_EVENTS, type PeerStorageStateEvent } from '@/lib/rust-events'
+import { createOnceListener, type OnceListener } from '@/lib/once-listener'
 import { and, eq, or } from 'drizzle-orm'
 import { createLogger } from '@/stores/logging'
 import { requireDb } from '~/stores/vault'
@@ -36,7 +38,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // closing the race window between accept-complete and CRDT-row-arrived.
   const acceptedInviteEndpoints = ref<Array<{ spaceId: string, endpointId: string }>>([])
 
-  let stateEvents: RustEventGroup | null = null
+  let stateEvents: OnceListener | null = null
 
   const refreshStatusAsync = async () => {
     try {
@@ -341,17 +343,21 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     // Listen for Rust-side endpoint state changes. When Android suspends the
     // process, iroh closes the endpoint and emits this event. We restart the
     // full P2P stack so the user doesn't have to relaunch the app.
-    stateEvents = new RustEventGroup()
-    await stateEvents.on<PeerStorageStateEvent>(
-      RUST_EVENTS.peerStorageStateChanged,
-      ({ running: isRunning, reason, uptimeSecs }) => {
-        if (!isRunning && running.value) {
-          log.warn(`[P2P] Endpoint closed (reason=${reason}, uptime=${uptimeSecs}s), restarting`)
-          running.value = false
-          startAsync().catch(err => log.error('[P2P] Post-close restart failed:', err))
-        }
-      },
+    stateEvents = createOnceListener(() =>
+      listen<PeerStorageStateEvent>(
+        RUST_EVENTS.peerStorageStateChanged,
+        (event) => {
+          const { running: isRunning, reason, uptimeSecs } = event.payload
+          if (!isRunning && running.value) {
+            log.warn(`[P2P] Endpoint closed (reason=${reason}, uptime=${uptimeSecs}s), restarting`)
+            running.value = false
+            startAsync().catch(err => log.error('[P2P] Post-close restart failed:', err))
+          }
+        },
+        { target: 'main' },
+      ),
     )
+    await stateEvents.initAsync()
   }
 
   const stopAsync = async () => {
