@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { haexSyncRules, haexSyncState, type SelectHaexSyncRules } from '~/database/schemas'
 import { subscribeToSyncUpdates, unsubscribeFromSyncUpdates } from '~/stores/sync/syncEvents'
 import { createLogger } from '@/stores/logging'
+import { createOnceListener } from '@/lib/once-listener'
 import { requireDb } from '~/stores/vault'
 
 interface SyncRuleStatus {
@@ -246,8 +247,8 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     }
 
     // The user-facing rule (strip wrappers, pull S3 <Message>, cap length) is
-    // enforced here on hydration so it mirrors the live `unlistenError`
-    // formatting for the `syncFailed` path.
+    // enforced here on hydration so it mirrors the live `file-sync:error`
+    // listener formatting for the `syncFailed` path.
     if (level === 'error' && (!raw || summary === raw)) {
       summary = extractUserFacingError(summary)
     }
@@ -475,27 +476,19 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // Event listeners
   // =========================================================================
 
-  let unlistenProgress: (() => void) | null = null
-  let unlistenComplete: (() => void) | null = null
-  let unlistenError: (() => void) | null = null
-  let unlistenAutoPaused: (() => void) | null = null
-
-  const setupEventListeners = async () => {
-    if (unlistenProgress || unlistenComplete || unlistenError) return
-
-    // Backend emits these via emit_to("main", …) — pin the listener
-    // explicitly so Tauri v2 routes them through (default-Any is dropped
-    // in production builds).
-    unlistenProgress = await listen<{ ruleId: string } & SyncProgress>(
+  // Backend emits these via emit_to("main", …) — pin the listener
+  // explicitly so Tauri v2 routes them through (default-Any is dropped
+  // in production builds).
+  const eventListener = createOnceListener(async () => [
+    await listen<{ ruleId: string } & SyncProgress>(
       'file-sync:progress',
       (event) => {
         currentProgress.value.set(event.payload.ruleId, event.payload)
         currentProgress.value = new Map(currentProgress.value)
       },
       { target: 'main' },
-    )
-
-    unlistenComplete = await listen<{ ruleId: string; result: SyncResult }>(
+    ),
+    await listen<{ ruleId: string; result: SyncResult }>(
       'file-sync:complete',
       (event) => {
         const { ruleId, result } = event.payload
@@ -561,9 +554,8 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         }
       },
       { target: 'main' },
-    )
-
-    unlistenError = await listen<{
+    ),
+    await listen<{
       ruleId: string
       error: string
       unavailable?: 'source' | 'target' | null
@@ -625,9 +617,8 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         }
       },
       { target: 'main' },
-    )
-
-    unlistenAutoPaused = await listen<{
+    ),
+    await listen<{
       ruleId: string
       consecutiveFailures: number
       lastError: string
@@ -660,7 +651,11 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
         try { await loadRulesAsync() } catch { /* best effort */ }
       },
       { target: 'main' },
-    )
+    ),
+  ])
+
+  const setupEventListeners = async () => {
+    await eventListener.initAsync()
 
     // Subscribe to CRDT changes on sync_rules table.
     // When a remote device syncs and updates lastSyncedAt, trigger only affected rules.
@@ -684,14 +679,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   }
 
   const cleanupEventListeners = () => {
-    unlistenProgress?.()
-    unlistenComplete?.()
-    unlistenError?.()
-    unlistenAutoPaused?.()
-    unlistenProgress = null
-    unlistenComplete = null
-    unlistenError = null
-    unlistenAutoPaused = null
+    eventListener.dispose()
     unsubscribeFromSyncUpdates('file-sync')
   }
 
