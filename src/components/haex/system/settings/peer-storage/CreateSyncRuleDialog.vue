@@ -273,8 +273,7 @@
 <script setup lang="ts">
 import type { StepperItem } from '@nuxt/ui'
 import { invoke } from '@tauri-apps/api/core'
-import { eq } from 'drizzle-orm'
-import { haexDevices, type SelectHaexSyncRules } from '~/database/schemas'
+import type { SelectHaexSyncRules } from '~/database/schemas'
 import { getUcanForSpaceAsync } from '~/utils/auth/ucanStore'
 import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 
@@ -321,7 +320,6 @@ const loadStorageBackendsAsync = async () => {
     })
   }
 }
-const { currentVault } = storeToRefs(useVaultStore())
 
 // UStepper uses 0-based index
 const step = ref(0)

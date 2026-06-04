@@ -75,15 +75,13 @@ impl MultiSpaceLeaderHandler {
         let remote = conn.remote_id();
         let remote_str = remote.to_string();
 
-        // Mirror the eprintln in endpoint.rs into haex_logs so production builds
-        // (where stderr is /dev/null) can correlate accept→stream→handler events.
-        crate::logging::log_to_db(
-            &self.db,
-            &self.hlc,
-            "info",
-            "MultiLeader",
-            &format!("Connection accepted from {remote_str}"),
-        );
+        // NOTE: the "Connection accepted" log is intentionally emitted *after*
+        // the auth stream below, not here. `log_to_db` is a synchronous write
+        // that takes the process-wide DB lock; placed before `open_bi` it can,
+        // under CI load with concurrent CRDT writers, delay the Challenge past
+        // the client's 5s `accept_bi` deadline (peer_storage/endpoint.rs:591),
+        // surfacing as "accept auth stream timed out after 5s". Keeping the
+        // critical accept→open_bi path free of blocking DB work avoids that.
 
         // -- Phase 1: DID challenge --
         //
@@ -155,6 +153,18 @@ impl MultiSpaceLeaderHandler {
                 return;
             }
         };
+
+        // Mirror the eprintln in endpoint.rs into haex_logs so production builds
+        // (where stderr is /dev/null) can correlate accept→stream→handler events.
+        // Emitted here (post-open_bi) rather than on accept so the blocking DB
+        // write stays off the accept→Challenge critical path (see NOTE above).
+        crate::logging::log_to_db(
+            &self.db,
+            &self.hlc,
+            "info",
+            "MultiLeader",
+            &format!("Connection accepted from {remote_str}"),
+        );
 
         let verified_short: String = verified_did.chars().take(24).collect();
         crate::logging::log_to_db(

@@ -120,6 +120,7 @@
               variant="ghost"
               icon="i-lucide-plus"
               :title="t('actions.addShare')"
+              :data-tour="props.showTourAnchors ? 'space-add-share' : undefined"
               @click.stop
             />
           </UDropdownMenu>
@@ -141,6 +142,7 @@
               icon="i-lucide-user-plus"
               :title="t('actions.invite')"
               :data-testid="`space-invite-trigger-${space.id}`"
+              :data-tour="props.showTourAnchors ? 'space-invite' : undefined"
               @click.stop
             />
             <!--
@@ -321,9 +323,11 @@ const props = withDefaults(defineProps<{
   space: SpaceWithType
   pending?: boolean
   invite?: SelectHaexPendingInvites
+  showTourAnchors?: boolean
 }>(), {
   pending: false,
   invite: undefined,
+  showTourAnchors: false,
 })
 
 const emit = defineEmits<{

@@ -555,140 +555,30 @@ pub async fn media_server_register_peer_stream(
     Ok(state.media_server.register_source(Arc::new(source), ct).await)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use async_trait::async_trait;
-    use std::sync::Arc;
-
-    struct DummySource {
-        data: Vec<u8>,
-    }
-
-    #[async_trait]
-    impl crate::remote_storage::streaming::source::StreamingSource for DummySource {
-        async fn size(
-            &self,
-        ) -> Result<u64, crate::remote_storage::streaming::source::StreamingError> {
-            Ok(self.data.len() as u64)
-        }
-        async fn read_range(
-            &self,
-            range: crate::remote_storage::streaming::source::ByteRange,
-        ) -> Result<Vec<u8>, crate::remote_storage::streaming::source::StreamingError> {
-            Ok(self.data[range.start() as usize..=range.end() as usize].to_vec())
-        }
-    }
-
-    #[tokio::test]
-    async fn serves_range_from_streaming_source() {
-        let server = MediaServer::start().await.unwrap();
-        let source = Arc::new(DummySource {
-            data: (0u8..=200).collect(),
-        });
-        let url = server
-            .register_source(source, Some("application/octet-stream".into()))
-            .await;
-
-        let client = reqwest::Client::builder().no_proxy().build().unwrap();
-        let resp = client
-            .get(&url)
-            .header("Range", "bytes=10-19")
-            .send()
-            .await
-            .unwrap();
-        assert_eq!(resp.status().as_u16(), 206);
-        assert_eq!(
-            resp.headers().get("Content-Range").unwrap(),
-            "bytes 10-19/201",
-        );
-        let body = resp.bytes().await.unwrap();
-        assert_eq!(body.as_ref(), &(10u8..=19).collect::<Vec<u8>>()[..]);
-    }
-
-    #[tokio::test]
-    async fn serves_full_body_from_streaming_source_without_range_header() {
-        let server = MediaServer::start().await.unwrap();
-        let source = Arc::new(DummySource {
-            data: vec![0xAB; 256],
-        });
-        let url = server.register_source(source, None).await;
-
-        let client = reqwest::Client::builder().no_proxy().build().unwrap();
-        let resp = client.get(&url).send().await.unwrap();
-        assert_eq!(resp.status().as_u16(), 200);
-        assert_eq!(
-            resp.headers().get("Content-Type").unwrap(),
-            "application/octet-stream",
-        );
-        let body = resp.bytes().await.unwrap();
-        assert_eq!(body.len(), 256);
-        assert!(body.iter().all(|b| *b == 0xAB));
-    }
-
-    /// A `bytes=0-` request against a multi-MiB stream source must NOT
-    /// allocate the entire object — the server caps any single response
-    /// at 8 MiB and returns 206 with a partial Content-Range so the
-    /// browser can pull the remainder in subsequent requests.
-    #[tokio::test]
-    async fn caps_open_ended_range_at_8_mib_for_stream_source() {
-        const TOTAL: usize = 10 * 1024 * 1024; // 10 MiB
-        let server = MediaServer::start().await.unwrap();
-        let source = Arc::new(DummySource {
-            data: vec![0u8; TOTAL],
-        });
-        let url = server.register_source(source, None).await;
-
-        let client = reqwest::Client::builder().no_proxy().build().unwrap();
-        let resp = client
-            .get(&url)
-            .header("Range", "bytes=0-")
-            .send()
-            .await
-            .unwrap();
-        assert_eq!(resp.status().as_u16(), 206);
-        assert_eq!(
-            resp.headers().get("Content-Range").unwrap(),
-            format!("bytes 0-{}/{}", 8 * 1024 * 1024 - 1, TOTAL).as_str(),
-        );
-        let body = resp.bytes().await.unwrap();
-        assert_eq!(body.len(), 8 * 1024 * 1024);
-    }
-
-    /// `StreamingError::NotFound` from `size()` (i.e. before any
-    /// response headers have been written) must surface as HTTP 404,
-    /// not 500. Once we are past `size()` the wire is committed and we
-    /// can only drop the connection.
-    #[tokio::test]
-    async fn size_returning_not_found_yields_http_404() {
-        struct NotFoundSource;
-        #[async_trait]
-        impl crate::remote_storage::streaming::source::StreamingSource for NotFoundSource {
-            async fn size(
-                &self,
-            ) -> Result<u64, crate::remote_storage::streaming::source::StreamingError> {
-                Err(
-                    crate::remote_storage::streaming::source::StreamingError::NotFound(
-                        "missing.mp4".into(),
-                    ),
-                )
-            }
-            async fn read_range(
-                &self,
-                _: crate::remote_storage::streaming::source::ByteRange,
-            ) -> Result<
-                Vec<u8>,
-                crate::remote_storage::streaming::source::StreamingError,
-            > {
-                unreachable!("size() returns first")
-            }
-        }
-        let server = MediaServer::start().await.unwrap();
-        let url = server
-            .register_source(Arc::new(NotFoundSource), None)
-            .await;
-        let client = reqwest::Client::builder().no_proxy().build().unwrap();
-        let resp = client.get(&url).send().await.unwrap();
-        assert_eq!(resp.status().as_u16(), 404);
-    }
+/// Register an Android Content URI as a streaming source. Returns a
+/// `http://127.0.0.1:<port>/<token>` URL backed by a local SAF file
+/// descriptor — Range requests against that URL are translated into
+/// seek+read against the underlying fd in a `spawn_blocking` thread, so
+/// a multi-GiB media file never lands in RAM.
+///
+/// `uri_json` is the resolved file's `FileUri` JSON blob (the same shape
+/// the frontend already holds in `file.path` for Content URI shares).
+/// `name_hint` is the file's display name — used only to derive a MIME
+/// type from the extension.
+#[cfg(target_os = "android")]
+#[tauri::command(rename_all = "camelCase")]
+pub async fn media_server_register_content_uri(
+    state: tauri::State<'_, crate::AppState>,
+    app_handle: tauri::AppHandle,
+    uri_json: String,
+    name_hint: String,
+) -> Result<String, String> {
+    use crate::remote_storage::streaming::content_uri_source::ContentUriStreamingSource;
+    use crate::remote_storage::streaming::source::StreamingSource;
+    let source = ContentUriStreamingSource::new(app_handle, uri_json, name_hint);
+    let ct = source.content_type().await;
+    Ok(state.media_server.register_source(Arc::new(source), ct).await)
 }
+
+#[cfg(test)]
+mod tests;
