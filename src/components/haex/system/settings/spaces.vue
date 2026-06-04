@@ -45,6 +45,7 @@
             color="primary"
             icon="i-lucide-plus"
             data-testid="spaces-create-trigger"
+            data-tour="settings-spaces-create"
             @click="showCreateDialog = true"
           >
             <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
@@ -73,6 +74,7 @@
             :space="entry.space"
             :pending="entry.kind === 'pending'"
             :invite="entry.kind === 'pending' ? entry.invite : undefined"
+            :show-tour-anchors="entry.kind === 'active' && entry.space.id === firstActiveSpaceId"
             @select="openSpaceDetail"
             @accept="
               onAcceptInviteAsync(
@@ -321,6 +323,14 @@ const spaceListEntries = computed((): SpaceListEntry[] => {
 
   return entries
 })
+
+// Anchor the tour at the first ACTIVE card, regardless of where pending invites
+// sit in spaceListEntries. Using a raw idx===0 would silently miss the anchor
+// whenever a pending invite occupies the top of the list — the onboarding-tour
+// stops `space-invite` / `space-add-share` would never resolve.
+const firstActiveSpaceId = computed(
+  () => activeSpaces.value[0]?.id ?? null,
+)
 
 // =========================================================================
 // Loading states & dialog visibility

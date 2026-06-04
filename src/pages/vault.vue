@@ -10,7 +10,7 @@
       <NuxtLayout>
         <NuxtPage />
       </NuxtLayout>
-      <HaexDeviceReconciliationDialog />
+      <HaexWelcomeDialog />
       <HaexDeviceReconciliationSpacePublishingDialog />
     </template>
   </div>
@@ -33,7 +33,6 @@ const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 
 const { readNotificationsAsync } = useNotificationStore()
-const tourStore = useTourStore()
 const { loadExtensionsAsync } = useExtensionsStore()
 const { setupEventListeners: setupBroadcastListeners } = useExtensionBroadcastStore()
 const { syncLocaleAsync, syncThemeAsync, syncVaultNameAsync } =
@@ -85,19 +84,6 @@ onMounted(async () => {
     // extension iframes as soon as they mount — not only after the first
     // extension-frame.vue renders.
     setupBroadcastListeners()
-
-    // Show onboarding tour for new vaults (no onboarding_completed setting)
-    const onboarding = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-      where: eq(haexVaultSettings.key, VaultSettingsKeyEnum.onboardingCompleted),
-    })
-    if (!onboarding?.value) {
-      await currentVault.value?.drizzle.insert(haexVaultSettings).values({
-        id: crypto.randomUUID(),
-        key: VaultSettingsKeyEnum.onboardingCompleted,
-        value: 'true',
-      })
-      await tourStore.start()
-    }
 
     // Auto-start P2P endpoint unless the user explicitly disabled it on this device.
     // Default-on semantics: missing row = enabled; only 'false' disables.

@@ -7,41 +7,29 @@
       "title": "App Launcher",
       "description": "The App Launcher gives you access to all apps and system settings in your vault."
     },
-    "launcherSettings": {
+    "settings": {
       "title": "Settings",
-      "description": "This opens the Settings. Let's take a quick tour."
-    },
-    "general": {
-      "title": "General Settings",
-      "description": "Here you'll find basic settings like language, appearance, and device name."
-    },
-    "deviceName": {
-      "title": "Device Name",
-      "description": "Give this device a name. This helps you track which changes came from which device."
-    },
-    "extensionsNav": {
-      "title": "Extensions",
-      "description": "Here you manage installed extensions and discover new ones in the Marketplace."
+      "description": "Open Settings from here. Let's look at the most important sections."
     },
     "extensions": {
-      "title": "Marketplace",
-      "description": "Open the Marketplace to install extensions like haex-pass for passwords or haex-notes for notes."
+      "title": "Extensions",
+      "description": "Install extensions like haex-pass for passwords or haex-notes for notes from the Marketplace."
     },
-    "identitiesNav": {
-      "title": "Identities",
-      "description": "Here you manage your cryptographic identities for encrypted synchronization."
+    "spacesOverview": {
+      "title": "Spaces",
+      "description": "Spaces are shared areas for collaboration. Create one here, or join via an invite. You already have your personal space."
     },
-    "identity": {
-      "title": "Create Identity",
-      "description": "Create your first identity. It's required for the end-to-end encrypted connection with a sync server."
+    "spacesInvite": {
+      "title": "Add people",
+      "description": "Use this button to invite people to a space — as a contact or via an invite link. Best tried on a space you share with others."
     },
-    "syncNav": {
-      "title": "Sync",
-      "description": "Here you configure the connection to a sync server to use your vault across multiple devices."
+    "spacesShare": {
+      "title": "Share folders & files",
+      "description": "Add folders or files to a space here. They sync to everyone who is a member of that space."
     },
     "sync": {
-      "title": "Add Backend",
-      "description": "Connect a sync server to synchronize your vault across devices."
+      "title": "Sync",
+      "description": "Connect a sync server to keep your vault in sync across all your devices."
     }
   }
 }
