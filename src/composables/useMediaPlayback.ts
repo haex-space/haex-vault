@@ -9,6 +9,7 @@ import {
   type FileEntry,
   type RemotePeer,
 } from '~/composables/fileBrowserHelpers'
+import { isAndroid } from '~/utils/platform'
 
 /**
  * How a media file should be opened, by backend and media class.
@@ -33,6 +34,11 @@ export type AvAction =
  * Classify the backend a file lives on from the selected peer and the
  * resolved local path. `localAbsPath` is only meaningful for local shares;
  * an Android Content URI is encoded as a JSON blob starting with `{`.
+ *
+ * The `localContentUri` branch is gated to Android because the underlying
+ * Tauri command (`media_server_register_content_uri`) is only registered on
+ * Android — on iOS/desktop a `{`-prefixed path (unlikely but possible if
+ * shared from elsewhere) would fall back to plain `localFs`.
  */
 export function classifyBackend(
   peer: { s3BackendId?: string; localPath?: string },
@@ -40,7 +46,9 @@ export function classifyBackend(
 ): MediaBackend {
   if (peer.s3BackendId) return 's3'
   if (peer.localPath) {
-    return localAbsPath?.startsWith('{') ? 'localContentUri' : 'localFs'
+    return isAndroid() && localAbsPath?.startsWith('{')
+      ? 'localContentUri'
+      : 'localFs'
   }
   return 'p2p'
 }

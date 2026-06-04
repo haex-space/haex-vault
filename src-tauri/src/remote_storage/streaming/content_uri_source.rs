@@ -54,7 +54,8 @@ impl StreamingSource for ContentUriStreamingSource {
             let api = app.android_fs();
             let uri = FileUri::from_json_str(&uri_json)
                 .map_err(|e| format!("invalid Content URI: {e:?}"))?;
-            Ok(api.get_len(&uri).unwrap_or(0))
+            api.get_len(&uri)
+                .map_err(|e| format!("get_len failed: {e:?}"))
         })
         .await
         .map_err(|e| StreamingError::Backend(format!("size task failed: {e}")))?
