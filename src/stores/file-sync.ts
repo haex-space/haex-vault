@@ -479,8 +479,8 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // Backend emits these via emit_to("main", …) — pin the listener
   // explicitly so Tauri v2 routes them through (default-Any is dropped
   // in production builds).
-  const eventListener = createOnceListener(async () => [
-    await listen<{ ruleId: string } & SyncProgress>(
+  const eventListener = createOnceListener(() => Promise.all([
+    listen<{ ruleId: string } & SyncProgress>(
       'file-sync:progress',
       (event) => {
         currentProgress.value.set(event.payload.ruleId, event.payload)
@@ -488,7 +488,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       },
       { target: 'main' },
     ),
-    await listen<{ ruleId: string; result: SyncResult }>(
+    listen<{ ruleId: string; result: SyncResult }>(
       'file-sync:complete',
       (event) => {
         const { ruleId, result } = event.payload
@@ -555,7 +555,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       },
       { target: 'main' },
     ),
-    await listen<{
+    listen<{
       ruleId: string
       error: string
       unavailable?: 'source' | 'target' | null
@@ -618,7 +618,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       },
       { target: 'main' },
     ),
-    await listen<{
+    listen<{
       ruleId: string
       consecutiveFailures: number
       lastError: string
@@ -652,7 +652,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       },
       { target: 'main' },
     ),
-  ])
+  ]))
 
   const setupEventListeners = async () => {
     await eventListener.initAsync()
