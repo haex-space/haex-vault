@@ -297,6 +297,7 @@
                 :items="buildContextMenuItems(file)"
               >
                 <div
+                  :data-testid="`file-entry-${file.name}`"
                   :class="[
                     'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors relative overflow-hidden',
                     browser.isSelected(file)
@@ -381,6 +382,7 @@
                 :items="buildContextMenuItems(file)"
               >
                 <div
+                  :data-testid="`file-entry-${file.name}`"
                   :class="[
                     'group relative flex flex-col items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors overflow-hidden',
                     browser.isSelected(file)
@@ -628,6 +630,7 @@
                 <div
                   v-for="entry in group.entries"
                   :key="entry.key"
+                  :data-testid="`file-peer-${entry.peer.name}`"
                   class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
                   @click="browser.selectPeer(entry.peer)"
                 >
@@ -737,6 +740,7 @@
               browser.preview.previewType.value === 'audio' &&
                 browser.preview.previewUrl.value
             "
+            data-testid="file-preview-audio"
             controls
             autoplay
             class="w-full"
@@ -747,6 +751,7 @@
               browser.preview.previewType.value === 'video' &&
                 browser.preview.previewUrl.value
             "
+            data-testid="file-preview-video"
             controls
             autoplay
             class="max-h-[70vh] w-full"
