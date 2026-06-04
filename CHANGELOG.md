@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.4.0](https://github.com/haex-space/haex-vault/compare/v2.3.0...v2.4.0) (2026-06-03)
+
+
+### Features
+
+* **peer_storage:** bind verified DID per connection (A1 phase 1) ([ab073ac](https://github.com/haex-space/haex-vault/commit/ab073ac6ee7b537659226ca4b349519de28d7b91))
+* **peer_storage:** bind verified DID per connection via quic_did_auth ([80dc06c](https://github.com/haex-space/haex-vault/commit/80dc06c81ba4871b8b666be52852cd8e170a3869))
+* **peer_storage:** cross-check verified DID against haex_devices.owner_did ([9f28c37](https://github.com/haex-space/haex-vault/commit/9f28c37de8a8de206dd549df805571ef5b589c8b))
+* **peer_storage:** enforce UCAN audience == verified peer DID ([1f89ed7](https://github.com/haex-space/haex-vault/commit/1f89ed7ce8533be5f7502dc29776079163e0d70f))
+* **quic_did_auth:** client-side respond_to_challenge + roundtrip tests ([b7ed3ce](https://github.com/haex-space/haex-vault/commit/b7ed3ce9cbc52aff40324f4fec517290c4fdfee9))
+* **quic_did_auth:** wire types + server-side challenge_and_verify ([89a1881](https://github.com/haex-space/haex-vault/commit/89a188169cdbb0896674a52b6dc1819309119d61))
+
+
+### Bug Fixes
+
+* **peer_storage:** char-safe truncation in audience-mismatch log ([4925df8](https://github.com/haex-space/haex-vault/commit/4925df8cba9642e3c221717e29b173a97b82369d))
+* **peer_storage:** drop ambiguous owner_did permanently, not order-dependently ([4463cff](https://github.com/haex-space/haex-vault/commit/4463cffe446faaf48c3eabecb9dd35a9632586f7))
+* **peer_storage:** guard against double-start panic + fix test endpoint id ([b130e5a](https://github.com/haex-space/haex-vault/commit/b130e5abaa8a607ac65c692dff3bb02ae462c9cb))
+* **peer_storage:** reject set_own_identity while endpoint is running ([4330542](https://github.com/haex-space/haex-vault/commit/433054261c1e60d749b294420c46a2d1f2e405a7))
+* **peer_storage:** validate identity row consistency on load ([82dd198](https://github.com/haex-space/haex-vault/commit/82dd19878c4684f563edda7b818fc18ca61ef884))
+* **quic_did_auth:** flush handshake writes so the peer can read them ([86e2e63](https://github.com/haex-space/haex-vault/commit/86e2e6374ab34903b00bcbd1e463490b89de8274))
+* **quic_did_auth:** length-prefix sig-input fields against NUL collision ([87cbba6](https://github.com/haex-space/haex-vault/commit/87cbba64a7cd3a47def2cede8118c00a176c67d4))
+* **space_delivery:** quic_did_auth Phase 2 — bind every request to verified DID ([#386](https://github.com/haex-space/haex-vault/issues/386)) ([ea00c84](https://github.com/haex-space/haex-vault/commit/ea00c8428ba84d213dfa03e8b7615d9e9f490be5))
+* **sync:** http capability scope must match host:port + path variants ([15a3b95](https://github.com/haex-space/haex-vault/commit/15a3b95dfd729cd7c0b114112b406c8ec9ba684e))
+* **sync:** route sync-server fetches through tauri-plugin-http ([#387](https://github.com/haex-space/haex-vault/issues/387)) ([a13e294](https://github.com/haex-space/haex-vault/commit/a13e294401b5ea6dbca142598372ffca4bd06704))
+
 ## [2.3.0](https://github.com/haex-space/haex-vault/compare/v2.2.3...v2.3.0) (2026-05-31)
 
 
