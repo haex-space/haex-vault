@@ -172,6 +172,7 @@ const identityStore = useIdentityStore()
 const publishingStore = useSpacePublishingStore()
 const tourStore = useTourStore()
 const { t } = useI18n()
+const { add } = useToast()
 
 const visible = ref(false)
 const step = ref<1 | 2>(1)
@@ -284,6 +285,16 @@ const onProceed = async () => {
     // registerNewAsync/reclaimAsync clear pendingResolution; `visible` is owned
     // locally so the dialog stays open for Step 2.
     step.value = 2
+  } catch (error) {
+    // Without a toast the user sees only `submitting` flip back to false and
+    // the dialog stuck on Step 1 — a confusing dead-end, since P2P/spaces
+    // depend on a resolved device. Surface the failure so they can retry.
+    console.error('WelcomeDialog onProceed failed:', error)
+    add({
+      title: t('errors.proceedFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
   } finally {
     submitting.value = false
   }
@@ -335,6 +346,8 @@ de:
     stops: "Launcher · Einstellungen · Erweiterungen · Spaces (Einladen & Teilen) · Sync"
     start: Tour starten
     skip: Überspringen
+  errors:
+    proceedFailed: Gerät konnte nicht eingerichtet werden
 en:
   step1:
     title: Welcome
@@ -357,4 +370,6 @@ en:
     stops: "Launcher · Settings · Extensions · Spaces (invite & share) · Sync"
     start: Start tour
     skip: Skip
+  errors:
+    proceedFailed: Could not set up this device
 </i18n>

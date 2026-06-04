@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 import { driver } from 'driver.js'
@@ -23,6 +23,12 @@ beforeEach(() => {
   vi.stubGlobal('useNuxtApp', () => ({ $i18n: { locale: { value: 'en' } } }))
   vi.stubGlobal('useWindowManagerStore', () => ({ openWindowAsync: vi.fn() }))
   vi.stubGlobal('useLauncherStore', () => ({ isOpen: false }))
+})
+
+afterEach(() => {
+  // vi.clearAllMocks() does not restore stubbed globals; without this they
+  // leak into later test files (vitest.config.ts has no unstubGlobals: true).
+  vi.unstubAllGlobals()
 })
 
 describe('tourStore.start (Promise coupling)', () => {
