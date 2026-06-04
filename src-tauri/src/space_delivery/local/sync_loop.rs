@@ -159,16 +159,42 @@ pub async fn start_peer_sync_loop(
     // Establish initial connection. UCAN is loaded from the DB inside
     // `PeerSession::connect`, so reconnect-after-expiry gets a fresh token
     // without any state plumbing up here.
-    let session = match PeerSession::connect(
-        &iroh_endpoint,
-        &leader_endpoint_id,
-        leader_relay_url.as_deref(),
-        &space_id,
-        &our_did,
-        &our_identity.signing_key,
-        &our_endpoint_id,
-        Some("sync-loop"),
-        &db,
+    // Bounded retry around the initial connect. A single transient relay/
+    // handshake hiccup — common in the relay-only docker-split CI network —
+    // would otherwise hard-fail the whole sync loop, leaving the leader's
+    // `connected_peers` empty until some external trigger reconnects, which
+    // surfaces as the 110s "Vault B device row never synced" cross-vault
+    // flake. The internal reconnect loop only runs *after* this first connect
+    // succeeds, so the initial attempt needs its own retry. `connect` carries
+    // no timeout of its own, so each attempt is bounded here too. Only
+    // `ConnectionFailed` is retried; `AccessDenied`/`ProtocolError` are
+    // deterministic and fail fast.
+    let session = match super::quic_retry::retry_transient(
+        "sync-loop initial connect",
+        || async {
+            match tokio::time::timeout(
+                Duration::from_secs(10),
+                PeerSession::connect(
+                    &iroh_endpoint,
+                    &leader_endpoint_id,
+                    leader_relay_url.as_deref(),
+                    &space_id,
+                    &our_did,
+                    &our_identity.signing_key,
+                    &our_endpoint_id,
+                    Some("sync-loop"),
+                    &db,
+                ),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => Err(DeliveryError::ConnectionFailed {
+                    reason: "initial connect timed out after 10s".to_string(),
+                }),
+            }
+        },
+        |e| matches!(e, DeliveryError::ConnectionFailed { .. }),
     )
     .await
     {
@@ -182,7 +208,7 @@ pub async fn start_peer_sync_loop(
         }
         Err(e) => {
             log_sync(&app_handle, "error", &format!(
-                "connect failed: space={} leader={} err={}",
+                "connect failed after retries: space={} leader={} err={}",
                 &space_id[..8.min(space_id.len())],
                 &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
                 e,
