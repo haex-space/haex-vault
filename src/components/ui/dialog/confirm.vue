@@ -1,8 +1,8 @@
 <template>
   <UModal
     v-model:open="open"
-    :title="title || ' '"
-    :description="description || ' '"
+    :title="title"
+    :description="description"
   >
     <template
       v-for="(_, name) in $slots"
@@ -18,7 +18,7 @@
     <template #footer>
       <div class="flex flex-col sm:flex-row gap-4 justify-end w-full">
         <UiButton
-          :icon="abortIcon || 'mdi:close'"
+          :icon="abortIcon"
           :label="abortLabel || t('abort')"
           block
 
@@ -27,7 +27,7 @@
           @click="open = false"
         />
         <UiButton
-          :icon="confirmIcon || 'mdi:check'"
+          :icon="confirmIcon"
           :label="confirmLabel || t('confirm')"
           :disabled="confirmDisabled"
           block
@@ -52,7 +52,15 @@ withDefaults(
     description?: string
     title?: string
   }>(),
-  { confirmDisabled: false },
+  {
+    abortIcon: 'mdi:close',
+    abortLabel: '',
+    confirmIcon: 'mdi:check',
+    confirmLabel: '',
+    confirmDisabled: false,
+    description: ' ',
+    title: ' ',
+  },
 )
 
 const open = defineModel<boolean>('open', { default: false })

@@ -639,21 +639,10 @@ pub async fn remote_storage_upload_from_path(
 // Helper Functions
 // ============================================================================
 
-/// Get a backend instance by ID, using a `DbConnection` directly.
-///
-/// This is the shared implementation used by both the Tauri command helper
-/// and the file-sync provider factory.
-pub async fn get_backend_instance_from_db(
-    db: &crate::database::DbConnection,
-    backend_id: &str,
-) -> Result<Box<dyn super::backend::StorageBackend>, StorageError> {
-    get_backend_instance_from_db_with_overrides(db, backend_id, None).await
-}
-
-/// Like `get_backend_instance_from_db`, but allows a per-rule override of the
-/// bucket name without persisting the change to the backend's stored config.
-/// Used by file-sync rules that want to point at a different bucket than the
-/// backend's default while sharing credentials/endpoint/region.
+/// Get a backend instance by ID, using a `DbConnection` directly, with an
+/// optional per-rule bucket override that is not persisted back to the
+/// backend's stored config. Used by file-sync rules that point at a different
+/// bucket than the backend's default while sharing credentials/endpoint/region.
 pub async fn get_backend_instance_from_db_with_overrides(
     db: &crate::database::DbConnection,
     backend_id: &str,
