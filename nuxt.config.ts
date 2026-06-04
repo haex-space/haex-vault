@@ -98,8 +98,13 @@ export default defineNuxtConfig({
     provider: 'iconify',
     mode: 'svg',
     clientBundle: {
-      // Bundle ALL icons from these collections for offline use
-      scan: true,
+      // @nuxt/icon's default scan glob omits .ts/.js, so icons referenced
+      // only inside TS maps (e.g. FILE_ICONS, password iconMap) silently miss
+      // the bundle and trigger CSP-blocked runtime fetches to api.iconify.design.
+      // Covered by src/tests/icon-bundle.test.ts.
+      scan: {
+        globInclude: ['**/*.{vue,jsx,tsx,ts,js,mjs,cjs,md,mdc,mdx,yml,yaml}'],
+      },
       sizeLimitKb: 0, // 0 = no limit, bundle everything that's scanned
       includeCustomCollections: true,
       icons: [

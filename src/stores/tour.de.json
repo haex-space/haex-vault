@@ -7,41 +7,29 @@
       "title": "App Launcher",
       "description": "Über den App Launcher erreichst du alle Apps und Systemeinstellungen deiner Vault."
     },
-    "launcherSettings": {
+    "settings": {
       "title": "Einstellungen",
-      "description": "Über diesen Eintrag öffnest du die Einstellungen. Lass uns einen kurzen Rundgang machen."
-    },
-    "general": {
-      "title": "Allgemeine Einstellungen",
-      "description": "Hier findest du grundlegende Einstellungen wie Sprache, Aussehen und Gerätenamen."
-    },
-    "deviceName": {
-      "title": "Gerätename",
-      "description": "Gib diesem Gerät einen Namen. So kannst du später nachverfolgen, welche Änderungen von welchem Gerät stammen."
-    },
-    "extensionsNav": {
-      "title": "Erweiterungen",
-      "description": "Hier verwaltest du installierte Erweiterungen und findest neue im Marketplace."
+      "description": "Hier öffnest du die Einstellungen. Schauen wir uns die wichtigsten Bereiche an."
     },
     "extensions": {
-      "title": "Marketplace",
-      "description": "Öffne den Marketplace, um Erweiterungen wie haex-pass für Passwörter oder haex-notes für Notizen zu installieren."
+      "title": "Erweiterungen",
+      "description": "Installiere Erweiterungen wie haex-pass für Passwörter oder haex-notes für Notizen aus dem Marketplace."
     },
-    "identitiesNav": {
-      "title": "Identitäten",
-      "description": "Hier verwaltest du deine kryptografischen Identitäten für die verschlüsselte Synchronisation."
+    "spacesOverview": {
+      "title": "Spaces",
+      "description": "Spaces sind geteilte Bereiche für Zusammenarbeit. Hier erstellst du einen — oder trittst per Einladung bei. Deinen persönlichen Space hast du schon."
     },
-    "identity": {
-      "title": "Identität erstellen",
-      "description": "Erstelle deine erste Identität. Sie wird für die Ende-zu-Ende-verschlüsselte Verbindung mit einem Sync-Server benötigt."
+    "spacesInvite": {
+      "title": "Leute hinzufügen",
+      "description": "Mit diesem Button lädst du Leute in einen Space ein — als Kontakt oder per Einladungslink. Am sinnvollsten in einem Space, den du mit anderen teilst."
     },
-    "syncNav": {
-      "title": "Synchronisation",
-      "description": "Hier richtest du die Verbindung zu einem Sync-Server ein, um deine Vault auf mehreren Geräten zu nutzen."
+    "spacesShare": {
+      "title": "Ordner & Dateien teilen",
+      "description": "Hier fügst du einem Space Ordner oder Dateien hinzu. Sie werden mit allen Mitgliedern dieses Space synchronisiert."
     },
     "sync": {
-      "title": "Backend hinzufügen",
-      "description": "Verbinde einen Sync-Server, um deine Vault geräteübergreifend zu synchronisieren."
+      "title": "Synchronisation",
+      "description": "Verbinde einen Sync-Server, um deine Vault auf all deinen Geräten synchron zu halten."
     }
   }
 }

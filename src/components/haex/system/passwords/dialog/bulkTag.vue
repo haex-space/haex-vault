@@ -45,7 +45,7 @@
           @click="open = false"
         />
         <UiButton
-          :icon="mode === 'add' ? 'i-lucide-tag' : 'i-lucide-tag-x'"
+          :icon="mode === 'add' ? 'i-lucide-tag' : 'i-lucide-circle-x'"
           :label="mode === 'add' ? t('confirmAdd') : t('confirmRemove')"
           color="primary"
           :loading="saving"

@@ -20,9 +20,20 @@ export const useSpacePublishingStore = defineStore('spacePublishingStore', () =>
 
   const isOpen = computed(() => mode.value !== null)
 
-  const openForNewDevice = () => {
+  /**
+   * Open the dialog after a fresh device row was created via the Welcome flow.
+   * Only meaningful when the user belongs to at least one space they do NOT
+   * own — owned spaces (personal/default + self-created) already know this
+   * device's endpoint. Centralising the gate here means every caller (welcome
+   * flow today, settings re-run / recovery flows later) gets it for free.
+   * Returns true when the dialog actually opened.
+   */
+  const openForNewDevice = (): boolean => {
+    const spacesStore = useSpacesStore()
+    if (spacesStore.foreignSpaces.length === 0) return false
     mode.value = 'new-device'
     targetSpaceId.value = null
+    return true
   }
 
   const openForNewSpace = (spaceId: string) => {

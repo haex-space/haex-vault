@@ -143,6 +143,7 @@ const categories = computed(() => [
     label: t('categories.spaces'),
     icon: SettingsCategoryIcon[SettingsCategory.Spaces],
     active: activeCategory.value === 'spaces',
+    tourId: 'settings-nav-spaces',
     click: () => {
       navigateToCategory(SettingsCategory.Spaces)
     },

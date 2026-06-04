@@ -16,7 +16,6 @@ export enum VaultSettingsKeyEnum {
   initialSyncComplete = 'initial_sync_complete',
   gradientVariant = 'gradient_variant',
   gradientEnabled = 'gradient_enabled',
-  onboardingCompleted = 'onboarding_completed',
   peerStorageAutostart = 'peer_storage_autostart',
   peerStorageRelayUrl = 'peer_storage_relay_url',
   logRetentionDays = 'log_retention_days',
