@@ -463,43 +463,17 @@ impl PeerEndpoint {
     /// This exists primarily to debug the "iroh fell back to relay" failure
     /// mode, which presents as a steady ~1 MB/s ceiling per stream and looks
     /// like a code-tuning problem until you check the path type.
+    ///
+    /// For push updates when the path changes, the frontend should listen for
+    /// `peer-storage:connection-changed` events emitted by
+    /// `spawn_connection_watcher` (started for every connection that lands in
+    /// the cache).
     pub fn diagnose_connection(&self, remote_id: EndpointId) -> Option<ConnectionDiagnostics> {
-        let conn = self
-            .connections
+        self.connections
             .lock()
             .ok()
-            .and_then(|cache| cache.get(&remote_id).cloned())?;
-
-        if conn.close_reason().is_some() {
-            return Some(ConnectionDiagnostics {
-                path_type: PathType::Closed,
-                remote_addr: None,
-                rtt_ms: None,
-            });
-        }
-
-        let info = conn.to_info();
-        let (path_type, remote_addr, rtt_ms) = match info.selected_path() {
-            Some(path) => {
-                let path_type = if path.is_relay() {
-                    PathType::Relay
-                } else if path.is_ip() {
-                    PathType::Direct
-                } else {
-                    PathType::Unknown
-                };
-                let rtt_ms = path.rtt().map(|d| d.as_secs_f64() * 1000.0);
-                let remote_addr = Some(format!("{:?}", path.remote_addr()));
-                (path_type, remote_addr, rtt_ms)
-            }
-            None => (PathType::Unknown, None, None),
-        };
-
-        Some(ConnectionDiagnostics {
-            path_type,
-            remote_addr,
-            rtt_ms,
-        })
+            .and_then(|cache| cache.get(&remote_id).cloned())
+            .map(|conn| compute_diagnostics(&conn))
     }
 
     /// Get a cached QUIC connection or establish a new one, then open a
@@ -648,8 +622,12 @@ impl PeerEndpoint {
         };
 
         if let Ok(mut cache) = self.connections.lock() {
-            cache.insert(remote_id, conn);
+            cache.insert(remote_id, conn.clone());
         }
+        // Push connection-changed events on path switches (direct↔relay) and
+        // drop. Cheaper than periodic polling from the frontend and gives the
+        // UI a real-time signal without a setInterval.
+        spawn_connection_watcher(remote_id, conn, self.state.clone());
         Ok(streams)
     }
 
@@ -865,10 +843,111 @@ impl PeerEndpoint {
         let _ = auth_send.finish();
 
         if let Ok(mut cache) = self.connections.lock() {
-            cache.insert(remote_id, conn);
+            cache.insert(remote_id, conn.clone());
         }
+        spawn_connection_watcher(remote_id, conn, self.state.clone());
         Ok(())
     }
+}
+
+// ============================================================================
+// Connection diagnostics — shared by on-demand query + push-event watcher
+// ============================================================================
+
+/// Extract `ConnectionDiagnostics` from a live iroh `Connection`. Shared
+/// between `diagnose_connection` (on-demand query) and the watcher task that
+/// emits push events when iroh switches the selected path.
+fn compute_diagnostics(conn: &iroh::endpoint::Connection) -> ConnectionDiagnostics {
+    if conn.close_reason().is_some() {
+        return ConnectionDiagnostics {
+            path_type: PathType::Closed,
+            remote_addr: None,
+            rtt_ms: None,
+        };
+    }
+
+    let info = conn.to_info();
+    let (path_type, remote_addr, rtt_ms) = match info.selected_path() {
+        Some(path) => {
+            let path_type = if path.is_relay() {
+                PathType::Relay
+            } else if path.is_ip() {
+                PathType::Direct
+            } else {
+                PathType::Unknown
+            };
+            let rtt_ms = path.rtt().map(|d| d.as_secs_f64() * 1000.0);
+            let remote_addr = Some(format!("{:?}", path.remote_addr()));
+            (path_type, remote_addr, rtt_ms)
+        }
+        None => (PathType::Unknown, None, None),
+    };
+
+    ConnectionDiagnostics {
+        path_type,
+        remote_addr,
+        rtt_ms,
+    }
+}
+
+/// Spawn a task that watches `conn.paths()` and emits a Tauri
+/// `peer-storage:connection-changed` event each time iroh switches the selected
+/// network path (direct↔relay) or the connection is dropped. The task
+/// self-terminates when the watcher returns `Disconnected` — i.e., when the
+/// underlying iroh `Watchable` is dropped (connection torn down end to end), so
+/// there is no explicit lifecycle to manage from the caller side.
+///
+/// This replaces a frontend `setInterval` poll: the UI listens once, gets
+/// real-time updates, and incurs zero CPU when nothing changes.
+fn spawn_connection_watcher(
+    remote_id: EndpointId,
+    conn: iroh::endpoint::Connection,
+    state: Arc<RwLock<PeerState>>,
+) {
+    let node_id_str = remote_id.to_string();
+    tokio::spawn(async move {
+        use iroh::Watcher;
+        let mut watcher = conn.paths();
+
+        // Initial snapshot — a frontend that subscribed after the connection
+        // was established still gets a value without waiting for the first
+        // path switch.
+        emit_connection_changed(&state, &node_id_str, &conn).await;
+
+        loop {
+            match watcher.updated().await {
+                Ok(_paths) => emit_connection_changed(&state, &node_id_str, &conn).await,
+                Err(_disconnected) => {
+                    // Connection closed — flip the UI to `Closed` and stop.
+                    emit_connection_changed(&state, &node_id_str, &conn).await;
+                    break;
+                }
+            }
+        }
+    });
+}
+
+async fn emit_connection_changed(
+    state: &Arc<RwLock<PeerState>>,
+    node_id_str: &str,
+    conn: &iroh::endpoint::Connection,
+) {
+    let app_handle = { state.read().await.app_handle.clone() };
+    let Some(app) = app_handle else {
+        // App handle is set on Android start and during normal vault boot.
+        // Absence means we're running in a context without a frontend (tests,
+        // pre-init) — silently skip the emit.
+        return;
+    };
+    let diagnostics = compute_diagnostics(conn);
+    let _ = app.emit_to(
+        "main",
+        crate::event_names::EVENT_PEER_CONNECTION_CHANGED,
+        serde_json::json!({
+            "nodeId": node_id_str,
+            "diagnostics": diagnostics,
+        }),
+    );
 }
 
 // ============================================================================
