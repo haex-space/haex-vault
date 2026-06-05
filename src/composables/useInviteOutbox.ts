@@ -7,11 +7,51 @@ import { createLogger } from '@/stores/logging'
 const log = createLogger('INVITE-OUTBOX')
 
 const BACKOFF_SECONDS = [0, 5, 15, 60, 300, 900] // immediate, 5s, 15s, 1m, 5m, 15m
-const MAX_RETRIES = BACKOFF_SECONDS.length // after this many failures, surface as FAILED to the user
+export const MAX_OUTBOX_RETRIES = BACKOFF_SECONDS.length // after this many failures, surface as FAILED to the user
 
 function nextRetryDelay(retryCount: number): number {
   const seconds = BACKOFF_SECONDS[Math.min(retryCount, BACKOFF_SECONDS.length - 1)]!
   return seconds * 1000
+}
+
+export type OutboxAttemptOutcome =
+  | { delivered: true }
+  | { delivered: false, error: string }
+
+export type OutboxNextState =
+  | { status: typeof OutboxStatus.DELIVERED, retryCount?: undefined, nextRetryAt?: undefined, lastError?: undefined }
+  | { status: typeof OutboxStatus.PENDING, retryCount: number, nextRetryAt: string, lastError: string }
+  | { status: typeof OutboxStatus.FAILED, retryCount: number, lastError: string, nextRetryAt?: undefined }
+
+/**
+ * Decide the outbox row's next state after a `local_delivery_push_invite`
+ * attempt. Pure function — same inputs always produce the same state, so
+ * both the success path and the failure path (thrown error OR
+ * `accepted === false`) route through the same retry/backoff/FAILED
+ * transition.
+ */
+export function computeOutboxNextState(
+  retryCount: number,
+  outcome: OutboxAttemptOutcome,
+  now: number,
+): OutboxNextState {
+  if (outcome.delivered) {
+    return { status: OutboxStatus.DELIVERED }
+  }
+  const nextCount = retryCount + 1
+  if (nextCount >= MAX_OUTBOX_RETRIES) {
+    return {
+      status: OutboxStatus.FAILED,
+      retryCount: nextCount,
+      lastError: outcome.error,
+    }
+  }
+  return {
+    status: OutboxStatus.PENDING,
+    retryCount: nextCount,
+    nextRetryAt: new Date(now + nextRetryDelay(nextCount)).toISOString(),
+    lastError: outcome.error,
+  }
 }
 
 export function useInviteOutbox() {
@@ -196,9 +236,10 @@ export function useInviteOutbox() {
         ...devices.map(d => d.endpointId),
       ]))
 
-      try {
-        log.info(`Outbox ${entry.id}: SENDING PushInvite → target=${entry.targetEndpointId.slice(0, 16)}… space="${space.name}" (${space.type}) inviter=${inviterIdentity.did.slice(0, 24)}… endpoints=[${spaceEndpoints.map(e => e.slice(0, 12)).join(',')}] caps=[${capabilities.join(',')}] retry=${entry.retryCount}`)
+      log.info(`Outbox ${entry.id}: SENDING PushInvite → target=${entry.targetEndpointId.slice(0, 16)}… space="${space.name}" (${space.type}) inviter=${inviterIdentity.did.slice(0, 24)}… endpoints=[${spaceEndpoints.map(e => e.slice(0, 12)).join(',')}] caps=[${capabilities.join(',')}] retry=${entry.retryCount}`)
 
+      let outcome: OutboxAttemptOutcome
+      try {
         const accepted = await invoke<boolean>('local_delivery_push_invite', {
           targetEndpointId: entry.targetEndpointId,
           spaceId: entry.spaceId,
@@ -220,49 +261,32 @@ export function useInviteOutbox() {
           // mDNS / hole-punching until the real CRDT row arrives.
           inviterRelayUrl: peerStore.relayUrl ?? peerStore.configuredRelayUrl ?? null,
         })
-
-        if (accepted) {
-          await db
-            .update(haexInviteOutbox)
-            .set({ status: OutboxStatus.DELIVERED })
-            .where(eq(haexInviteOutbox.id, entry.id))
-          log.info(`Outbox ${entry.id}: DELIVERED ✓ (target=${entry.targetEndpointId.slice(0, 16)}…)`)
-        } else {
-          log.warn(`Outbox ${entry.id}: PushInvite rejected (accepted=false, target=${entry.targetEndpointId.slice(0, 16)}…)`)
-        }
+        outcome = accepted
+          ? { delivered: true }
+          : { delivered: false, error: 'PushInvite rejected by recipient (accepted=false)' }
       } catch (error) {
-        const nextCount = entry.retryCount + 1
-        const errorMessage = error instanceof Error ? error.message : String(error)
-
-        if (nextCount >= MAX_RETRIES) {
-          // Exhausted all retries — surface to the user so they can decide
-          // whether to re-send the invite (the contact may be offline for
-          // days, or their endpoint may have changed).
-          await db
-            .update(haexInviteOutbox)
-            .set({
-              status: OutboxStatus.FAILED,
-              retryCount: nextCount,
-              lastError: errorMessage,
-            })
-            .where(eq(haexInviteOutbox.id, entry.id))
-          log.error(`Outbox ${entry.id}: exhausted retries (${nextCount}/${MAX_RETRIES}) → marked FAILED. target=${entry.targetEndpointId.slice(0, 16)}… error="${errorMessage}"`)
-          continue
+        outcome = {
+          delivered: false,
+          error: error instanceof Error ? error.message : String(error),
         }
+      }
 
-        const delay = nextRetryDelay(nextCount)
-        const nextRetry = new Date(Date.now() + delay).toISOString()
+      const nextState = computeOutboxNextState(entry.retryCount, outcome, Date.now())
+      await db
+        .update(haexInviteOutbox)
+        .set(nextState)
+        .where(eq(haexInviteOutbox.id, entry.id))
 
-        await db
-          .update(haexInviteOutbox)
-          .set({
-            retryCount: nextCount,
-            nextRetryAt: nextRetry,
-            lastError: errorMessage,
-          })
-          .where(eq(haexInviteOutbox.id, entry.id))
-
-        log.warn(`Outbox ${entry.id}: retry ${nextCount}/${MAX_RETRIES} → target=${entry.targetEndpointId.slice(0, 16)}… next=${nextRetry} error="${errorMessage}"`)
+      const targetTag = entry.targetEndpointId.slice(0, 16)
+      if (nextState.status === OutboxStatus.DELIVERED) {
+        log.info(`Outbox ${entry.id}: DELIVERED ✓ (target=${targetTag}…)`)
+      } else if (nextState.status === OutboxStatus.FAILED) {
+        // Exhausted all retries — surface to the user so they can decide
+        // whether to re-send the invite (the contact may be offline for
+        // days, or their endpoint may have changed).
+        log.error(`Outbox ${entry.id}: exhausted retries (${nextState.retryCount}/${MAX_OUTBOX_RETRIES}) → marked FAILED. target=${targetTag}… error="${nextState.lastError}"`)
+      } else {
+        log.warn(`Outbox ${entry.id}: retry ${nextState.retryCount}/${MAX_OUTBOX_RETRIES} → target=${targetTag}… next=${nextState.nextRetryAt} error="${nextState.lastError}"`)
       }
     }
   }
