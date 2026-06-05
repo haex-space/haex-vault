@@ -343,20 +343,26 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     // Listen for Rust-side endpoint state changes. When Android suspends the
     // process, iroh closes the endpoint and emits this event. We restart the
     // full P2P stack so the user doesn't have to relaunch the app.
-    stateEvents = createOnceListener(() =>
-      listen<PeerStorageStateEvent>(
-        RUST_EVENTS.peerStorageStateChanged,
-        (event) => {
-          const { running: isRunning, reason, uptimeSecs } = event.payload
-          if (!isRunning && running.value) {
-            log.warn(`[P2P] Endpoint closed (reason=${reason}, uptime=${uptimeSecs}s), restarting`)
-            running.value = false
-            startAsync().catch(err => log.error('[P2P] Post-close restart failed:', err))
-          }
-        },
-        { target: 'main' },
-      ),
-    )
+    //
+    // The handler re-enters `startAsync()` on close-event; gate creation so
+    // we don't overwrite a live OnceListener instance (whose unlisten would
+    // then be unreachable, leaving the Tauri-side listener leaked).
+    if (!stateEvents) {
+      stateEvents = createOnceListener(() =>
+        listen<PeerStorageStateEvent>(
+          RUST_EVENTS.peerStorageStateChanged,
+          (event) => {
+            const { running: isRunning, reason, uptimeSecs } = event.payload
+            if (!isRunning && running.value) {
+              log.warn(`[P2P] Endpoint closed (reason=${reason}, uptime=${uptimeSecs}s), restarting`)
+              running.value = false
+              startAsync().catch(err => log.error('[P2P] Post-close restart failed:', err))
+            }
+          },
+          { target: 'main' },
+        ),
+      )
+    }
     await stateEvents.initAsync()
   }
 

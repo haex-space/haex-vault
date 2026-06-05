@@ -19,6 +19,14 @@ export interface OnceListener {
  * module slot — `dispose()` nulls the slot, the captured reference still
  * resolves).
  */
+// A single bad unlisten must not strand the others — Tauri's UnlistenFn
+// is a remote call that can in principle reject.
+function safeUnlisten(fns: readonly UnlistenFn[]): void {
+  for (const u of fns) {
+    try { u() } catch { /* swallow; one bad unlisten must not strand the others */ }
+  }
+}
+
 export function createOnceListener(
   setup: () => Promise<UnlistenFn | UnlistenFn[]>,
 ): OnceListener {
@@ -40,14 +48,14 @@ export function createOnceListener(
       const captured = inflight
       const resolved = await captured
       if (inflight !== captured) {
-        for (const u of resolved) u()
+        safeUnlisten(resolved)
         return
       }
       unlisteners = resolved
     },
     dispose() {
       if (unlisteners) {
-        for (const u of unlisteners) u()
+        safeUnlisten(unlisteners)
         unlisteners = null
       }
       inflight = null

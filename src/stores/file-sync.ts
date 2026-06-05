@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { eq } from 'drizzle-orm'
 import { haexSyncRules, haexSyncState, type SelectHaexSyncRules } from '~/database/schemas'
 import { subscribeToSyncUpdates, unsubscribeFromSyncUpdates } from '~/stores/sync/syncEvents'
@@ -479,7 +479,12 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
   // Backend emits these via emit_to("main", …) — pin the listener
   // explicitly so Tauri v2 routes them through (default-Any is dropped
   // in production builds).
-  const eventListener = createOnceListener(() => Promise.all([
+  // allSettled instead of Promise.all: if one registration throws after another
+  // has already resolved, Promise.all would drop the resolved UnlistenFn on the
+  // floor — the listener is registered in Tauri but unreachable from JS, and
+  // the next createOnceListener retry would double-register it.
+  const eventListener = createOnceListener(async () => {
+    const results = await Promise.allSettled([
     listen<{ ruleId: string } & SyncProgress>(
       'file-sync:progress',
       (event) => {
@@ -652,7 +657,21 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
       },
       { target: 'main' },
     ),
-  ]))
+    ])
+    const unlisteners: UnlistenFn[] = []
+    let firstError: unknown
+    for (const r of results) {
+      if (r.status === 'fulfilled') unlisteners.push(r.value)
+      else if (firstError === undefined) firstError = r.reason
+    }
+    if (firstError !== undefined) {
+      for (const u of unlisteners) {
+        try { u() } catch { /* swallow during rollback */ }
+      }
+      throw firstError
+    }
+    return unlisteners
+  })
 
   const setupEventListeners = async () => {
     await eventListener.initAsync()
