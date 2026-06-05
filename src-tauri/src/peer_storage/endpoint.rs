@@ -986,6 +986,10 @@ async fn accept_loop(
                                      (access to {} spaces)",
                                     spaces.len()
                                 );
+                                // Watch inbound connections too — when a remote
+                                // peer reaches out, the UI's online dot should
+                                // flip without waiting for an outbound retry.
+                                spawn_connection_watcher(remote, conn.clone(), state.clone());
                                 handle_connection(conn, state, own_identity, own_endpoint_id).await;
                             }
                             _ => {
@@ -1007,6 +1011,7 @@ async fn accept_loop(
                                 eprintln!(
                                     "[SpaceDelivery] Accepted delivery connection from {remote}"
                                 );
+                                spawn_connection_watcher(remote, conn.clone(), state.clone());
                                 h.handle_connection(conn).await;
                             }
                             None => {
