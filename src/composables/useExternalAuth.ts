@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { isDesktop } from '~/utils/platform'
+import { createOnceListener } from '@/lib/once-listener'
 import {
   TAURI_COMMANDS,
   EXTERNAL_EVENTS,
@@ -15,7 +16,6 @@ import type { SessionBlockedClient } from '~~/src-tauri/bindings/SessionBlockedC
 // Global state for the authorization prompt
 const isOpen = ref(false)
 const pendingAuth = ref<PendingAuthorization | null>(null)
-const initialized = ref(false)
 // Counter that increments when a decision is made (for reactive updates)
 const decisionCounter = ref(0)
 // If an auth request arrives while another modal (e.g. AddContact) is open,
@@ -109,6 +109,58 @@ async function presentDialogFromQueue(auth: PendingAuthorization) {
 }
 
 /**
+ * Show the authorization prompt dialog (module-scope so the once-listener
+ * can reference it without depending on the composable instance). Only
+ * shows if a vault is currently open.
+ */
+async function showAuthorizationPrompt(auth: PendingAuthorization) {
+  // Don't show dialog if no vault is open - just ignore the request
+  // The client will wait for a response and eventually timeout
+  const vaultStore = useVaultStore()
+  if (!vaultStore.currentVault) {
+    console.warn('[ExternalAuth] Ignoring authorization request: no vault open')
+    return
+  }
+
+  // Dedup against the visible dialog and the queue so a reconnect-looping
+  // client cannot flood us. The backend also dedups in
+  // pending_authorizations, this is the belt-and-braces guard for events
+  // that slipped through (e.g. across a backend restart that cleared
+  // pending state).
+  if (isOpen.value && pendingAuth.value?.clientId === auth.clientId) return
+  if (queuedAuth.has(auth.clientId)) return
+
+  // If our own dialog is already showing a different client, or another
+  // modal (AddContact, file preview, …) is open, do NOT pop the auth
+  // dialog now: Reka UI would z-stack it behind the active modal and
+  // globally inert the page, leaving the user stuck. Queue and wait for
+  // the DOM to free up.
+  if (isOpen.value || hasOtherOpenDialog()) {
+    queuedAuth.set(auth.clientId, auth)
+    startWatchingDom()
+    return
+  }
+
+  await presentDialogFromQueue(auth)
+}
+
+// Module-scope listener — singleton across every `useExternalAuth()`
+// consumer. Backend emits via emit_to("main", …); Tauri v2 only delivers
+// here when the listener carries an AnyLabel target (passing the string
+// 'main' is the shorthand). A bare listen() with default target=Any is
+// dropped on the floor in production builds — that was the regression
+// behind the haex-pass and auto-start outages.
+const authListener = createOnceListener(() =>
+  listen<PendingAuthorization>(
+    EXTERNAL_EVENTS.AUTHORIZATION_REQUEST,
+    (event) => {
+      showAuthorizationPrompt(event.payload)
+    },
+    { target: 'main' },
+  ),
+)
+
+/**
  * Composable for managing external client authorization prompts
  *
  * When a browser extension, CLI tool, or other external client connects
@@ -116,70 +168,20 @@ async function presentDialogFromQueue(auth: PendingAuthorization) {
  * to approve or deny the connection.
  */
 export function useExternalAuth() {
-  const vaultStore = useVaultStore()
-
   /**
    * Initialize the external auth event listeners
    * Should be called once when the app starts (desktop only)
    */
   async function init() {
-    if (!isDesktop() || initialized.value) {
+    if (!isDesktop()) {
       return
     }
 
     try {
-      // Listen for authorization requests from the Tauri backend.
-      // Backend emits via emit_to("main", …); Tauri v2 deliver only matches
-      // here when the listener carries an AnyLabel target (passing the
-      // string 'main' is the shorthand). A bare listen() with default
-      // target=Any is dropped on the floor in production builds — that
-      // was the regression behind the haex-pass and auto-start outages.
-      await listen<PendingAuthorization>(
-        EXTERNAL_EVENTS.AUTHORIZATION_REQUEST,
-        (event) => {
-          showAuthorizationPrompt(event.payload)
-        },
-        { target: 'main' },
-      )
-
-      initialized.value = true
+      await authListener.initAsync()
     } catch (error) {
       console.error('[ExternalAuth] Failed to initialize:', error)
     }
-  }
-
-  /**
-   * Show the authorization prompt dialog
-   * Only shows if a vault is currently open
-   */
-  async function showAuthorizationPrompt(auth: PendingAuthorization) {
-    // Don't show dialog if no vault is open - just ignore the request
-    // The client will wait for a response and eventually timeout
-    if (!vaultStore.currentVault) {
-      console.warn('[ExternalAuth] Ignoring authorization request: no vault open')
-      return
-    }
-
-    // Dedup against the visible dialog and the queue so a reconnect-looping
-    // client cannot flood us. The backend also dedups in
-    // pending_authorizations, this is the belt-and-braces guard for events
-    // that slipped through (e.g. across a backend restart that cleared
-    // pending state).
-    if (isOpen.value && pendingAuth.value?.clientId === auth.clientId) return
-    if (queuedAuth.has(auth.clientId)) return
-
-    // If our own dialog is already showing a different client, or another
-    // modal (AddContact, file preview, …) is open, do NOT pop the auth
-    // dialog now: Reka UI would z-stack it behind the active modal and
-    // globally inert the page, leaving the user stuck. Queue and wait for
-    // the DOM to free up.
-    if (isOpen.value || hasOtherOpenDialog()) {
-      queuedAuth.set(auth.clientId, auth)
-      startWatchingDom()
-      return
-    }
-
-    await presentDialogFromQueue(auth)
   }
 
   /**

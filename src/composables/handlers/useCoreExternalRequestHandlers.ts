@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
+import { createOnceListener } from '@/lib/once-listener'
 import { and, eq, isNotNull, like, or } from 'drizzle-orm'
 import { TOTP } from 'otpauth'
 import { parse as parseTld } from 'tldts'
@@ -905,22 +906,14 @@ const dispatchAsync = async (request: ExternalCoreRequest): Promise<ExternalCore
 }
 
 export const useCoreExternalRequestHandlers = () => {
-  let unlisten: UnlistenFn | null = null
-
-  const initAsync = async () => {
-    if (unlisten) return
-    unlisten = await listen<ExternalCoreRequest>(CORE_REQUEST_EVENT, async (event) => {
+  const listener = createOnceListener(() =>
+    listen<ExternalCoreRequest>(CORE_REQUEST_EVENT, async (event) => {
       const response = await dispatchAsync(event.payload)
       await respondAsync(response).catch((err) => {
         console.error('[core] failed to send response:', err)
       })
-    })
-  }
+    }),
+  )
 
-  const dispose = () => {
-    unlisten?.()
-    unlisten = null
-  }
-
-  return { initAsync, dispose }
+  return { initAsync: listener.initAsync, dispose: listener.dispose }
 }

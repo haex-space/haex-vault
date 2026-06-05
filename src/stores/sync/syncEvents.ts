@@ -6,8 +6,9 @@
  * stores when their tables are updated via sync.
  */
 
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
 import { createLogger } from '@/stores/logging'
+import { createOnceListener } from '@/lib/once-listener'
 
 // Internal event name for store reloading after sync pull
 export const SYNC_TABLES_INTERNAL_EVENT = 'sync:tables-updated'
@@ -22,12 +23,59 @@ interface TableSubscription {
 }
 
 const subscriptions: Map<string, TableSubscription> = new Map()
-let eventUnlisten: UnlistenFn | null = null
-let isInitialized = false
 
 // Central mapping of tables to store reload functions
 // This is populated by registerStoreForTables()
 const tableToReloadFn: Map<string, () => Promise<void>> = new Map()
+
+const listener = createOnceListener(() =>
+  listen<{ tables: string[] }>(SYNC_TABLES_INTERNAL_EVENT, async (event) => {
+    const { tables } = event.payload
+
+    log.debug('========== RECEIVED sync:tables-updated ==========')
+    log.debug('Tables:', tables)
+    log.debug('Registered tables:', Array.from(tableToReloadFn.keys()))
+
+    // Track which reload functions we've already called to avoid duplicates
+    const calledFns = new Set<() => Promise<void>>()
+
+    // First, call the central reloader for each affected table
+    for (const table of tables) {
+      const reloadFn = tableToReloadFn.get(table)
+      if (reloadFn && !calledFns.has(reloadFn)) {
+        try {
+          await reloadFn()
+          calledFns.add(reloadFn)
+        } catch (error) {
+          log.error(`Error reloading store for table ${table}:`, error)
+        }
+      }
+    }
+
+    // Then notify custom subscriptions (for stores that need special handling)
+    for (const [id, subscription] of subscriptions) {
+      try {
+        // Check if this subscription is interested in any of the updated tables
+        const isInterested =
+          subscription.tables === '*' ||
+          subscription.tables.some((t) => tables.includes(t))
+
+        if (isInterested) {
+          // Pass only the tables this subscription cares about
+          const relevantTables =
+            subscription.tables === '*'
+              ? tables
+              : tables.filter((t) => subscription.tables.includes(t))
+
+          log.debug(`Notifying subscription '${id}' for tables:`, relevantTables)
+          await subscription.callback(relevantTables)
+        }
+      } catch (error) {
+        log.error(`Error in subscription '${id}':`, error)
+      }
+    }
+  }),
+)
 
 /**
  * Register a store's reload function for specific tables.
@@ -49,59 +97,7 @@ export const registerStoreForTables = (
  * Should be called once when the app starts
  */
 export const initSyncEventsAsync = async (): Promise<void> => {
-  if (isInitialized) return
-
-  eventUnlisten = await listen<{ tables: string[] }>(
-    SYNC_TABLES_INTERNAL_EVENT,
-    async (event) => {
-      const { tables } = event.payload
-
-      log.debug('========== RECEIVED sync:tables-updated ==========')
-      log.debug('Tables:', tables)
-      log.debug('Registered tables:', Array.from(tableToReloadFn.keys()))
-
-      // Track which reload functions we've already called to avoid duplicates
-      const calledFns = new Set<() => Promise<void>>()
-
-      // First, call the central reloader for each affected table
-      for (const table of tables) {
-        const reloadFn = tableToReloadFn.get(table)
-        if (reloadFn && !calledFns.has(reloadFn)) {
-          try {
-            await reloadFn()
-            calledFns.add(reloadFn)
-          } catch (error) {
-            log.error(`Error reloading store for table ${table}:`, error)
-          }
-        }
-      }
-
-      // Then notify custom subscriptions (for stores that need special handling)
-      for (const [id, subscription] of subscriptions) {
-        try {
-          // Check if this subscription is interested in any of the updated tables
-          const isInterested =
-            subscription.tables === '*' ||
-            subscription.tables.some((t) => tables.includes(t))
-
-          if (isInterested) {
-            // Pass only the tables this subscription cares about
-            const relevantTables =
-              subscription.tables === '*'
-                ? tables
-                : tables.filter((t) => subscription.tables.includes(t))
-
-            log.debug(`Notifying subscription '${id}' for tables:`, relevantTables)
-            await subscription.callback(relevantTables)
-          }
-        } catch (error) {
-          log.error(`Error in subscription '${id}':`, error)
-        }
-      }
-    },
-  )
-
-  isInitialized = true
+  await listener.initAsync()
   log.info('Initialized')
 }
 
@@ -110,13 +106,9 @@ export const initSyncEventsAsync = async (): Promise<void> => {
  * Should be called when the app shuts down
  */
 export const stopSyncEvents = (): void => {
-  if (eventUnlisten) {
-    eventUnlisten()
-    eventUnlisten = null
-  }
+  listener.dispose()
   subscriptions.clear()
   tableToReloadFn.clear()
-  isInitialized = false
   log.info('Stopped')
 }
 
