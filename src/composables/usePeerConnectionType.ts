@@ -18,20 +18,21 @@ export function usePeerConnectionType(endpointIds: Ref<string[]>) {
     const ids = endpointIds.value
     if (ids.length === 0 || !peerStore.running) return
 
-    await Promise.all(
+    const results = await Promise.allSettled(
       ids.map(async (id) => {
-        try {
-          const diag = await invoke<ConnectionDiagnostics | null>(
-            'peer_storage_diagnose_connection',
-            { nodeId: id },
-          )
-          diagMap.value.set(id, diag)
-          diagMap.value = new Map(diagMap.value)
-        } catch {
-          // Endpoint not running or peer not yet contacted — silent.
-        }
+        const diag = await invoke<ConnectionDiagnostics | null>(
+          'peer_storage_diagnose_connection',
+          { nodeId: id },
+        )
+        return { id, diag }
       }),
     )
+    const next = new Map(diagMap.value)
+    for (const r of results) {
+      if (r.status === 'fulfilled') next.set(r.value.id, r.value.diag)
+      // rejected: keep existing cached value, peer not yet contacted — silent.
+    }
+    diagMap.value = next
   }
 
   const getPathType = (id: string): PathType | null =>
