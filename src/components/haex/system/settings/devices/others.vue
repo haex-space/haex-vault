@@ -5,79 +5,104 @@
     show-back
     @back="$emit('back')"
   >
-    <UiListContainer v-if="otherDevices.length > 0">
-      <UiListItem
-        v-for="device in otherDevices"
-        :key="device.endpointId"
-      >
-        <div class="flex items-center gap-3">
+    <UAccordion
+      v-if="otherDevices.length > 0"
+      :items="accordionItems"
+      :ui="{ header: 'w-full', trigger: 'w-full flex-1', label: 'w-full flex-1' }"
+    >
+      <template #default="{ item }">
+        <div class="flex items-center gap-3 flex-1 py-1">
           <div class="relative shrink-0">
             <UiAvatar
-              :src="device.avatar"
-              :seed="device.endpointId"
-              :badge-src="getIdentityAvatar(device.identityId)"
-              :badge-seed="device.identityId || undefined"
+              :src="item.device.avatar"
+              :seed="item.device.endpointId"
+              :badge-src="getIdentityAvatar(item.device.identityId)"
+              :badge-seed="item.device.identityId || undefined"
               size="sm"
             />
             <span
               class="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border border-default"
-              :class="peerOnlineStatus[device.endpointId] ? 'bg-success' : 'bg-warning'"
+              :class="peerOnlineStatus[item.device.endpointId] ? 'bg-success' : 'bg-warning'"
             />
           </div>
-          <div class="flex-1 min-w-0">
-            <div
-              v-if="editingDeviceId === device.id"
-              class="flex items-center gap-2"
-            >
-              <UiInput
-                v-model="editingName"
-                class="flex-1"
-                @keyup.enter="onSaveOtherDeviceNameAsync(device.id)"
-                @keyup.escape="editingDeviceId = null"
-              />
-              <UiButton
-                icon="i-lucide-check"
-                color="primary"
-                @click="onSaveOtherDeviceNameAsync(device.id)"
-              />
-              <UiButton
-                icon="i-lucide-x"
-                variant="ghost"
-                color="neutral"
-                @click="editingDeviceId = null"
-              />
-            </div>
-            <template v-else>
-              <p class="text-sm font-medium truncate">{{ device.name }}</p>
-              <p class="text-xs text-muted truncate font-mono">{{ device.endpointId.slice(0, 16) }}…</p>
-            </template>
-          </div>
-          <UBadge
-            v-if="getSpaceName(device.spaceId)"
-            variant="subtle"
-          >
-            {{ getSpaceName(device.spaceId) }}
-          </UBadge>
+          <p class="text-sm font-medium truncate">{{ item.device.name }}</p>
         </div>
-        <template
-          v-if="editingDeviceId !== device.id"
-          #actions
-        >
-          <UiButton
-            icon="i-lucide-pencil"
-            variant="ghost"
-            color="neutral"
-            @click="startEditing(device)"
-          />
-          <UiButton
-            icon="i-lucide-trash-2"
-            variant="ghost"
-            color="error"
-            @click="deviceToRemove = device"
-          />
-        </template>
-      </UiListItem>
-    </UiListContainer>
+      </template>
+      <template #content="{ item }">
+        <div class="px-4 pb-4 space-y-3">
+          <component
+            :is="getIdentity(item.device.identityId)?.source === 'contact' ? 'button' : 'div'"
+            v-if="getIdentity(item.device.identityId)"
+            class="flex items-center gap-2 text-left"
+            :class="getIdentity(item.device.identityId)?.source === 'contact' ? 'hover:text-primary cursor-pointer transition-colors' : ''"
+            @click="getIdentity(item.device.identityId)?.source === 'contact' && navigateToSettings(SettingsCategory.Contacts, { contactId: item.device.identityId })"
+          >
+            <span class="text-xs text-muted w-14 shrink-0">{{ t('identity.label') }}</span>
+            <UiAvatar
+              :src="getIdentity(item.device.identityId)?.avatar ?? null"
+              :seed="item.device.identityId || undefined"
+              size="xs"
+            />
+            <span class="text-sm">{{ getIdentity(item.device.identityId)?.name }}</span>
+            <UIcon
+              v-if="getIdentity(item.device.identityId)?.source === 'contact'"
+              name="i-lucide-chevron-right"
+              class="w-3 h-3 ml-auto text-muted"
+            />
+          </component>
+          <div class="flex items-center gap-2 flex-wrap">
+            <UBadge
+              v-if="getSpaceName(item.device.spaceId)"
+              variant="subtle"
+            >
+              {{ getSpaceName(item.device.spaceId) }}
+            </UBadge>
+            <span class="text-xs text-muted">
+              {{ peerOnlineStatus[item.device.endpointId] ? t('status.online') : t('status.offline') }}
+            </span>
+          </div>
+          <div
+            v-if="editingDeviceId === item.device.id"
+            class="flex items-center gap-2"
+          >
+            <UiInput
+              v-model="editingName"
+              class="flex-1"
+              @keyup.enter="onSaveOtherDeviceNameAsync(item.device.id)"
+              @keyup.escape="editingDeviceId = null"
+            />
+            <UiButton
+              icon="i-lucide-check"
+              color="primary"
+              @click="onSaveOtherDeviceNameAsync(item.device.id)"
+            />
+            <UiButton
+              icon="i-lucide-x"
+              variant="ghost"
+              color="neutral"
+              @click="editingDeviceId = null"
+            />
+          </div>
+          <div
+            v-else
+            class="flex items-center gap-1"
+          >
+            <UiButton
+              icon="i-lucide-pencil"
+              variant="ghost"
+              color="neutral"
+              @click="startEditing(item.device)"
+            />
+            <UiButton
+              icon="i-lucide-trash-2"
+              variant="ghost"
+              color="error"
+              @click="deviceToRemove = item.device"
+            />
+          </div>
+        </div>
+      </template>
+    </UAccordion>
 
     <div
       v-else
@@ -101,8 +126,12 @@
 <script setup lang="ts">
 import { eq } from 'drizzle-orm'
 import { haexSpaceDevices, haexPeerShares } from '~/database/schemas'
+import { SettingsCategory } from '~/config/settingsCategories'
 
 defineEmits<{ back: [] }>()
+
+const tabId = inject<string>('haex-tab-id', '')
+const { navigateTo: navigateToSettings } = useDrillDownNavigation(SettingsCategory.General, 'settings-categories', tabId)
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -115,9 +144,13 @@ const { identities } = storeToRefs(identityStore)
 const { deviceId } = storeToRefs(deviceStore)
 const { currentVault } = storeToRefs(useVaultStore())
 
-const getIdentityAvatar = (identityId: string | null) => {
+const getIdentity = (identityId: string | null) => {
   if (!identityId) return null
-  return identities.value.find(i => i.id === identityId)?.avatar ?? null
+  return identities.value.find(i => i.id === identityId) ?? null
+}
+
+const getIdentityAvatar = (identityId: string | null) => {
+  return getIdentity(identityId)?.avatar ?? null
 }
 
 const otherDevices = computed(() => {
@@ -133,6 +166,10 @@ const otherDevices = computed(() => {
 const getSpaceName = (spaceId: string) => {
   return spacesStore.visibleSpaces.find(s => s.id === spaceId)?.name
 }
+
+const accordionItems = computed(() =>
+  otherDevices.value.map(device => ({ label: device.name, value: device.endpointId, device }))
+)
 
 const editingDeviceId = ref<string | null>(null)
 const editingName = ref('')
@@ -209,6 +246,11 @@ de:
     title: Andere Geräte
     description: Geräte, die diese Vault ebenfalls geöffnet haben
     empty: Keine anderen Geräte gefunden
+  identity:
+    label: Kontakt
+  status:
+    online: Online
+    offline: Offline
   deviceName:
     success: Gerätename wurde erfolgreich aktualisiert
     error: Gerätename konnte nicht aktualisiert werden
@@ -223,6 +265,11 @@ en:
     title: Other Devices
     description: Devices that have also opened this vault
     empty: No other devices found
+  identity:
+    label: Contact
+  status:
+    online: Online
+    offline: Offline
   deviceName:
     success: Device name has been successfully updated
     error: Device name could not be updated
