@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.5.0](https://github.com/haex-space/haex-vault/compare/v2.4.0...v2.5.0) (2026-06-04)
+
+
+### Features
+
+* **android:** stream Content URI media via local range server ([#397](https://github.com/haex-space/haex-vault/issues/397)) ([1a7b32d](https://github.com/haex-space/haex-vault/commit/1a7b32dec5e9524e515b9bc2745a60c795660276))
+* **welcome:** redesigned WelcomeDialog + guided onboarding tour ([#395](https://github.com/haex-space/haex-vault/issues/395)) ([82c9a03](https://github.com/haex-space/haex-vault/commit/82c9a03e1eca7bb831e5b006c3dcabcd369096dc))
+
+
+### Bug Fixes
+
+* **delivery:** bounded retry + timeout on initial sync-loop connect ([e164817](https://github.com/haex-space/haex-vault/commit/e1648170423846fc6a4c4bd8d411dfe5b40d2d5c))
+* **delivery:** de-flake CI P2P connection establishment ([76fe19d](https://github.com/haex-space/haex-vault/commit/76fe19dd31a0a9a0bc57ea06de4df05c8f1e1fca))
+* **delivery:** move accept-log off the accept→Challenge critical path ([1454a69](https://github.com/haex-space/haex-vault/commit/1454a6949db2ef17563d87463669cc26cba26c48))
+* **files:** stream local media through range server, never RAM-load ([74ccba1](https://github.com/haex-space/haex-vault/commit/74ccba16704539a6eaafd69c1b5ff1d48d7a359d))
+* **files:** stream local media through range server, never RAM-load ([7d5b35e](https://github.com/haex-space/haex-vault/commit/7d5b35e1048113fabaf1fba66cc9dd5abed7e15f))
+* **icons:** bundle all icons referenced in TS source files ([9ed0c19](https://github.com/haex-space/haex-vault/commit/9ed0c19cd23fe0b3cde4fb2efbab6c5c64b14fe2))
+* **icons:** bundle all icons referenced in TS source files ([c3f2901](https://github.com/haex-space/haex-vault/commit/c3f2901cece25386b0aaa4c49cd9b02648dd39a7))
+* **test:** guard icon id split for noUncheckedIndexedAccess ([a566b5d](https://github.com/haex-space/haex-vault/commit/a566b5d5453efda8f11895cef3dff03fd3666112))
+* **vault:** release mount lock on page unmount ([#400](https://github.com/haex-space/haex-vault/issues/400)) ([1f7f844](https://github.com/haex-space/haex-vault/commit/1f7f8446b09f75b6a594c44b0a9ed631722bdc49))
+
 ## [2.4.0](https://github.com/haex-space/haex-vault/compare/v2.3.0...v2.4.0) (2026-06-03)
 
 
