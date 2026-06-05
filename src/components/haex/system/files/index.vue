@@ -57,6 +57,13 @@
               >
                 {{ browser.selectedPeerName.value }}
               </UButton>
+              <HaexPeerStatusDot
+                v-if="!browser.selectedPeer.value?.s3BackendId"
+                :status="ping.getStatus(browser.selectedPeer.value!.endpointId)"
+                :path-type="connectionType.getPathType(browser.selectedPeer.value!.endpointId)"
+                :rtt-ms="connectionType.getRttMs(browser.selectedPeer.value!.endpointId)"
+                size="sm"
+              />
               <template
                 v-for="(segment, i) in browser.pathSegments.value"
                 :key="i"
@@ -657,6 +664,8 @@
                   <HaexPeerStatusDot
                     v-if="entry.kind === 'remote-peer'"
                     :status="ping.getStatus(entry.peer.endpointId)"
+                    :path-type="connectionType.getPathType(entry.peer.endpointId)"
+                    :rtt-ms="connectionType.getRttMs(entry.peer.endpointId)"
                   />
                   <UIcon
                     name="i-lucide-chevron-right"
@@ -1190,6 +1199,7 @@ const remotePeers = computed(() => {
 
 const remotePeerIds = computed(() => remotePeers.value.map((p) => p.endpointId))
 const ping = usePeerPing(remotePeerIds)
+const connectionType = usePeerConnectionType(remotePeerIds)
 
 const parseAvatarOptions = (raw: string | null | undefined) => {
   if (!raw) return null
