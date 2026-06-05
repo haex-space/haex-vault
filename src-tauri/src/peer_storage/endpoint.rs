@@ -124,6 +124,12 @@ pub struct PeerState {
     /// handshake — any mismatch is treated as a vault-internal inconsistency
     /// (database drift, partial sync, or worse) and the connection is closed.
     pub peer_owner_dids: HashMap<String, String>,
+    /// Live connection-watcher count per remote endpoint. A peer can have
+    /// several concurrent connections (inbound + outbound, or a stale one
+    /// lingering across a reconnect); the watcher only emits a `Closed`
+    /// diagnostic once the LAST one is torn down, so a transient connection
+    /// dropping never flips a still-live peer offline in the UI.
+    pub connection_watchers: HashMap<EndpointId, u32>,
 }
 
 impl Default for PeerState {
@@ -135,6 +141,7 @@ impl Default for PeerState {
             delivery_handler: None,
             endpoint_dids: HashMap::new(),
             peer_owner_dids: HashMap::new(),
+            connection_watchers: HashMap::new(),
         }
     }
 }
@@ -897,6 +904,13 @@ fn compute_diagnostics(conn: &iroh::endpoint::Connection) -> ConnectionDiagnosti
 /// underlying iroh `Watchable` is dropped (connection torn down end to end), so
 /// there is no explicit lifecycle to manage from the caller side.
 ///
+/// A peer can have more than one connection alive at once (inbound + outbound,
+/// or a stale connection lingering across a reconnect), each with its own
+/// watcher. We track a per-peer live count in `PeerState::connection_watchers`
+/// and only emit the `Closed` diagnostic when the LAST connection goes away —
+/// otherwise a transient connection dropping would overwrite a still-valid
+/// `online` state and flip the UI offline.
+///
 /// This replaces a frontend `setInterval` poll: the UI listens once, gets
 /// real-time updates, and incurs zero CPU when nothing changes.
 fn spawn_connection_watcher(
@@ -909,6 +923,13 @@ fn spawn_connection_watcher(
         use iroh::Watcher;
         let mut watcher = conn.paths();
 
+        // Register this connection before emitting anything, so a concurrent
+        // disconnect of a sibling connection can see we're still here.
+        {
+            let mut s = state.write().await;
+            *s.connection_watchers.entry(remote_id).or_insert(0) += 1;
+        }
+
         // Initial snapshot — a frontend that subscribed after the connection
         // was established still gets a value without waiting for the first
         // path switch.
@@ -917,12 +938,37 @@ fn spawn_connection_watcher(
         loop {
             match watcher.updated().await {
                 Ok(_paths) => emit_connection_changed(&state, &node_id_str, &conn).await,
-                Err(_disconnected) => {
-                    // Connection closed — flip the UI to `Closed` and stop.
-                    emit_connection_changed(&state, &node_id_str, &conn).await;
-                    break;
-                }
+                Err(_disconnected) => break,
             }
+        }
+
+        // This connection is gone. Deregister and only signal `Closed` once
+        // the peer has no live connection left — a stale or duplicate watcher
+        // must not clobber the `online` state another connection still owns.
+        // Emitting `Closed` explicitly (rather than recomputing from `conn`)
+        // avoids the window where `close_reason()` hasn't propagated yet and
+        // `compute_diagnostics` would report a stale `online`/path snapshot.
+        let remaining = {
+            let mut s = state.write().await;
+            let count = s.connection_watchers.entry(remote_id).or_insert(0);
+            *count = count.saturating_sub(1);
+            let remaining = *count;
+            if remaining == 0 {
+                s.connection_watchers.remove(&remote_id);
+            }
+            remaining
+        };
+        if remaining == 0 {
+            emit_diagnostics(
+                &state,
+                &node_id_str,
+                ConnectionDiagnostics {
+                    path_type: PathType::Closed,
+                    remote_addr: None,
+                    rtt_ms: None,
+                },
+            )
+            .await;
         }
     });
 }
@@ -932,6 +978,14 @@ async fn emit_connection_changed(
     node_id_str: &str,
     conn: &iroh::endpoint::Connection,
 ) {
+    emit_diagnostics(state, node_id_str, compute_diagnostics(conn)).await;
+}
+
+async fn emit_diagnostics(
+    state: &Arc<RwLock<PeerState>>,
+    node_id_str: &str,
+    diagnostics: ConnectionDiagnostics,
+) {
     let app_handle = { state.read().await.app_handle.clone() };
     let Some(app) = app_handle else {
         // App handle is set on Android start and during normal vault boot.
@@ -939,7 +993,6 @@ async fn emit_connection_changed(
         // pre-init) — silently skip the emit.
         return;
     };
-    let diagnostics = compute_diagnostics(conn);
     let _ = app.emit_to(
         "main",
         crate::event_names::EVENT_PEER_CONNECTION_CHANGED,
