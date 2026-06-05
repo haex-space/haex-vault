@@ -53,6 +53,22 @@ export function usePeerConnectionType(endpointIds: Ref<string[]>) {
     diagMap.value = next
   }
 
+  /** Per-peer refresh — wired to the StatusDot's hover handler. */
+  const refreshOne = async (id: string): Promise<void> => {
+    if (!peerStore.running) return
+    try {
+      const diag = await invoke<PeerConnectionDiagnostics | null>(
+        'peer_storage_diagnose_connection',
+        { nodeId: id },
+      )
+      const next = new Map(diagMap.value)
+      next.set(id, diag)
+      diagMap.value = next
+    } catch {
+      // Peer not yet contacted / diagnostics unavailable — keep cached value.
+    }
+  }
+
   const getPathType = (id: string): PathType | null =>
     diagMap.value.get(id)?.pathType ?? null
 
@@ -78,5 +94,5 @@ export function usePeerConnectionType(endpointIds: Ref<string[]>) {
   })
   onUnmounted(() => { events.dispose() })
 
-  return { getPathType, getRttMs, refreshAsync }
+  return { getPathType, getRttMs, refreshAsync, refreshOne }
 }

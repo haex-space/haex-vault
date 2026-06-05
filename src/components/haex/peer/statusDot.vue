@@ -7,6 +7,7 @@
         colorClass,
         isPulsing && 'animate-pulse-dot',
       ]"
+      @mouseenter="emit('hover')"
     />
   </UTooltip>
 </template>
@@ -24,6 +25,15 @@ const props = withDefaults(
   }>(),
   { size: 'md', pathType: null, rttMs: null },
 )
+
+/**
+ * `hover` fires on first mouseenter — used by the file browser to trigger an
+ * on-demand peer status refresh (heartbeat is sparse, 60s, so the dot may be
+ * up to 60s stale when the user looks at it).
+ */
+const emit = defineEmits<{
+  hover: []
+}>()
 
 const { t } = useI18n()
 

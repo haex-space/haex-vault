@@ -1,3 +1,4 @@
+import { useDocumentVisibility, useIntervalFn } from '@vueuse/core'
 import {
   RUST_EVENTS,
   RustEventGroup,
@@ -7,28 +8,50 @@ import {
 export type PeerPingStatus = 'checking' | 'online' | 'offline'
 
 /**
+ * How often the sparse "is anyone offline come back?" probe runs. Online
+ * peers are not probed — `peer-storage:connection-changed` events already
+ * cover their lifecycle. Gated by document visibility so the wakeups stop
+ * when the tab is hidden / the system is locked.
+ */
+const OFFLINE_PROBE_INTERVAL_MS = 60_000
+
+/**
  * Track online/offline state for a set of remote peers.
  *
- * Initial state is determined by an active probe (`checkPeerOnlineAsync`,
- * which issues a real `peer_storage_remote_list` request — the only way to
- * know whether we can talk to a peer we have not opened a connection to yet).
- * After that the state is kept current by `peer-storage:connection-changed`
- * events emitted from Rust whenever iroh switches the selected path or the
- * connection drops — no `setInterval`.
+ * Three signal sources, layered:
  *
- * Limitation: a peer that goes from offline → online without the user
- * triggering a request against it will continue to show offline until the
- * next active probe (e.g. another consumer of this composable mounting, or a
- * file-browser request). That is the trade-off for cutting the 30s poll:
- * offline-to-online transitions need either a UI action or an explicit
- * `refreshAsync()` call. The `connection-changed` event fires whenever a
- * connection IS established or torn down, so a successful new request
- * propagates online status to all subscribers via the watcher in
- * `peer_storage::endpoint::spawn_connection_watcher`.
+ *  - **Initial probe on mount.** `pingAllAsync` calls `checkPeerOnlineAsync`
+ *    (which issues `peer_storage_remote_list`) so the first dot render has a
+ *    real value instead of `checking`.
+ *  - **Push events.** `peer-storage:connection-changed` keeps the map current
+ *    while a connection exists: path switches and drops show up immediately.
+ *    Outbound _and_ inbound connections both spawn watchers on the Rust side.
+ *  - **Sparse offline-only heartbeat.** A 60s interval re-probes _only_ peers
+ *    currently marked `offline`. This is the offline→online detector for
+ *    peers we never actively request data from (e.g. a remote peer sitting in
+ *    the file-browser sidebar). The probe is visibility-gated — when the
+ *    document is hidden the interval is paused, so the wakeups stop while
+ *    no one is looking.
+ *
+ * Plus `refreshOne(id)` for explicit per-peer refresh (hover, manual button).
  */
 export function usePeerPing(endpointIds: Ref<string[]>) {
   const peerStore = usePeerStorageStore()
   const status = ref<Map<string, PeerPingStatus>>(new Map())
+
+  /** Probe a single peer. Used by `refreshOne` (hover) and the heartbeat. */
+  const probeOneAsync = async (id: string): Promise<void> => {
+    if (!peerStore.running) {
+      const next = new Map(status.value)
+      next.set(id, 'offline')
+      status.value = next
+      return
+    }
+    const alive = await peerStore.checkPeerOnlineAsync(id)
+    const next = new Map(status.value)
+    next.set(id, alive ? 'online' : 'offline')
+    status.value = next
+  }
 
   const pingAllAsync = async () => {
     const ids = endpointIds.value
@@ -42,13 +65,22 @@ export function usePeerPing(endpointIds: Ref<string[]>) {
       return
     }
 
-    await Promise.all(
-      ids.map(async (id) => {
-        const alive = await peerStore.checkPeerOnlineAsync(id)
-        status.value.set(id, alive ? 'online' : 'offline')
-        status.value = new Map(status.value)
-      }),
+    await Promise.all(ids.map(probeOneAsync))
+  }
+
+  /** Heartbeat: only re-probe peers currently offline. */
+  const pingOfflineAsync = async () => {
+    if (!peerStore.running) return
+    const offlineIds = endpointIds.value.filter(
+      (id) => status.value.get(id) === 'offline',
     )
+    if (offlineIds.length === 0) return
+    await Promise.all(offlineIds.map(probeOneAsync))
+  }
+
+  /** Per-peer refresh — wired to the StatusDot's hover handler. */
+  const refreshOne = async (id: string): Promise<void> => {
+    await probeOneAsync(id)
   }
 
   const getStatus = (id: string): PeerPingStatus => status.value.get(id) ?? 'checking'
@@ -73,6 +105,23 @@ export function usePeerPing(endpointIds: Ref<string[]>) {
   // Listen for connection-changed events so a relay→direct switch or a
   // sudden drop reaches the UI without us re-pinging the world.
   const events = new RustEventGroup()
+
+  // Sparse offline-only heartbeat, gated by document visibility. `immediate:
+  // false` so we don't fire before onMounted's initial probe; the visibility
+  // watcher below resumes it once the page is visible.
+  const visibility = useDocumentVisibility()
+  const heartbeat = useIntervalFn(pingOfflineAsync, OFFLINE_PROBE_INTERVAL_MS, {
+    immediate: false,
+  })
+  watch(
+    visibility,
+    (v) => {
+      if (v === 'visible') heartbeat.resume()
+      else heartbeat.pause()
+    },
+    { immediate: true },
+  )
+
   onMounted(async () => {
     for (const id of endpointIds.value) {
       status.value.set(id, 'checking')
@@ -89,7 +138,10 @@ export function usePeerPing(endpointIds: Ref<string[]>) {
       },
     )
   })
-  onUnmounted(() => { events.dispose() })
+  onUnmounted(() => {
+    events.dispose()
+    heartbeat.pause()
+  })
 
-  return { getStatus, refreshAsync: pingAllAsync }
+  return { getStatus, refreshAsync: pingAllAsync, refreshOne }
 }
