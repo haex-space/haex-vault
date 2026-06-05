@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Run release-please
         id: release
-        uses: googleapis/release-please-action@v4.4.1
+        uses: googleapis/release-please-action@v5.0.0
         with:
           # PAT (not GITHUB_TOKEN) so the resulting PR fires workflow events.
           # GitHub's anti-recursion rule suppresses workflow runs for events
