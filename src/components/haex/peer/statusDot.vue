@@ -13,10 +13,16 @@
 
 <script setup lang="ts">
 import type { PeerPingStatus } from '~/composables/usePeerPing'
+import type { PathType } from '~/composables/usePeerConnectionType'
 
 const props = withDefaults(
-  defineProps<{ status: PeerPingStatus; size?: 'sm' | 'md' }>(),
-  { size: 'md' },
+  defineProps<{
+    status: PeerPingStatus
+    size?: 'sm' | 'md'
+    pathType?: PathType | null
+    rttMs?: number | null
+  }>(),
+  { size: 'md', pathType: null, rttMs: null },
 )
 
 const { t } = useI18n()
@@ -31,12 +37,22 @@ const colorClass = computed(() => {
 
 const isPulsing = computed(() => props.status !== 'offline')
 
+const pathLabel = computed(() => {
+  if (props.status !== 'online' || !props.pathType) return null
+  const base = props.pathType === 'direct' ? t('direct') : props.pathType === 'relay' ? t('relay') : null
+  if (!base) return null
+  return props.rttMs != null ? `${base} (${props.rttMs.toFixed(0)} ms)` : base
+})
+
 const label = computed(() => {
-  switch (props.status) {
-    case 'online': return t('online')
-    case 'offline': return t('offline')
-    default: return t('checking')
-  }
+  const base = (() => {
+    switch (props.status) {
+      case 'online': return t('online')
+      case 'offline': return t('offline')
+      default: return t('checking')
+    }
+  })()
+  return pathLabel.value ? `${base} · ${pathLabel.value}` : base
 })
 </script>
 
@@ -56,8 +72,12 @@ de:
   online: Erreichbar
   offline: Nicht erreichbar
   checking: Verbindung wird geprüft…
+  direct: Direkt
+  relay: Relay
 en:
   online: Reachable
   offline: Not reachable
   checking: Checking connectivity…
+  direct: Direct
+  relay: Relay
 </i18n>
