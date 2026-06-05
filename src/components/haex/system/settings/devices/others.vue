@@ -131,7 +131,7 @@ import { SettingsCategory } from '~/config/settingsCategories'
 defineEmits<{ back: [] }>()
 
 const tabId = inject<string>('haex-tab-id', '')
-const { navigateTo: navigateToSettings } = useDrillDownNavigation(SettingsCategory.General, 'settings-categories', tabId)
+const { navigateTo: navigateToSettings } = useDrillDownNavigation<SettingsCategory>(SettingsCategory.General, 'settings-categories', tabId)
 
 const { t } = useI18n()
 const { add } = useToast()
