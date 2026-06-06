@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { eq, asc } from 'drizzle-orm'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { createMarketplaceClient } from '@haex-space/marketplace-sdk'
-import type { ExtensionListItem, CategoryWithCount, ListExtensionsParams, DownloadResponse } from '@haex-space/marketplace-sdk'
+import type { ExtensionListItem, CategoryWithCount, ListExtensionsParams, DownloadResponse, ExtensionDetail } from '@haex-space/marketplace-sdk'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { haexMarketplaces } from '@/database/schemas/marketplaces'
 import type { SelectHaexMarketplaces } from '@/database/schemas/marketplaces'
@@ -146,14 +146,23 @@ export function useMarketplaces() {
     return merged
   }
 
-  const getDownloadUrl = async (slug: string, sourceMarketplaceId?: string, version?: string): Promise<DownloadResponse> => {
+  const resolveRowAsync = async (sourceMarketplaceId?: string) => {
     const rows = await loadEnabledRowsAsync()
     const row = sourceMarketplaceId
       ? rows.find(r => r.id === sourceMarketplaceId)
       : rows.find(r => r.isDefault) ?? rows[0]
-
     if (!row) throw new Error('No enabled marketplace found')
+    return row
+  }
+
+  const getDownloadUrl = async (slug: string, sourceMarketplaceId?: string, version?: string): Promise<DownloadResponse> => {
+    const row = await resolveRowAsync(sourceMarketplaceId)
     return buildClient(row).getDownloadUrl(slug, version)
+  }
+
+  const fetchExtension = async (slug: string, sourceMarketplaceId?: string): Promise<ExtensionDetail> => {
+    const row = await resolveRowAsync(sourceMarketplaceId)
+    return buildClient(row).getExtension(slug)
   }
 
   const clearError = () => {
@@ -167,6 +176,7 @@ export function useMarketplaces() {
     isLoading,
     sourceErrors,
     fetchExtensions,
+    fetchExtension,
     fetchCategories,
     getDownloadUrl,
     clearError,

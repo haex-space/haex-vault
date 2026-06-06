@@ -234,7 +234,7 @@ import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import type { MarketplaceExtensionViewModel } from '~/types/haexspace'
 import type { ExtensionDetail } from '@haex-space/marketplace-sdk'
-import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
+import { useMarketplaces } from '~/composables/useMarketplaces'
 import { readableFileSize } from '~/utils/helper'
 
 const props = defineProps<{
@@ -251,7 +251,7 @@ const open = defineModel<boolean>('open', { default: false })
 
 const { t } = useI18n()
 const colorMode = useColorMode()
-const marketplace = useMarketplace()
+const marketplace = useMarketplaces()
 
 const isDark = computed(() => colorMode.value === 'dark')
 
@@ -276,7 +276,7 @@ watch(open, async (isOpen) => {
   if (isOpen && props.extension) {
     isLoading.value = true
     try {
-      detail.value = await marketplace.fetchExtension(props.extension.slug)
+      detail.value = await marketplace.fetchExtension(props.extension.slug, props.extension.sourceMarketplaceId)
     } catch (error) {
       console.error('Failed to load extension details:', error)
     } finally {
