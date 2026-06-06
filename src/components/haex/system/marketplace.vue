@@ -70,7 +70,7 @@
 
       <!-- Loading State -->
       <div
-        v-if="isInitialLoading || marketplace.isLoading.value"
+        v-if="isInitialLoading || marketplace.isLoading"
         class="flex-1 flex flex-col items-center justify-center gap-3"
       >
         <UIcon
@@ -439,7 +439,8 @@ const confirmInstallAsync = async (
     ) {
       // Download the selected version
       const downloadInfo = await marketplace.getDownloadUrl(
-        currentMarketplaceExtension.value.slug,
+        currentMarketplaceExtension.value!.slug,
+        currentMarketplaceExtension.value!.sourceMarketplaceId,
         selectedVersion,
       )
       await extensionStore.downloadAndPreviewAsync(

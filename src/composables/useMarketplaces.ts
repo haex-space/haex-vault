@@ -108,7 +108,7 @@ export function useMarketplaces() {
           }
         } else {
           const err = result.reason as Error
-          sourceErrors.value[row.id] = err?.message ?? 'Unknown error'
+          sourceErrors.value[row.name] = err?.message ?? 'Unknown error'
         }
       }
 
@@ -139,14 +139,14 @@ export function useMarketplaces() {
     return merged
   }
 
-  const getDownloadUrl = async (slug: string, sourceMarketplaceId?: string): Promise<DownloadResponse> => {
+  const getDownloadUrl = async (slug: string, sourceMarketplaceId?: string, version?: string): Promise<DownloadResponse> => {
     const rows = await loadEnabledRowsAsync()
     const row = sourceMarketplaceId
       ? rows.find(r => r.id === sourceMarketplaceId)
       : rows.find(r => r.isDefault) ?? rows[0]
 
     if (!row) throw new Error('No enabled marketplace found')
-    return buildClient(row).getDownloadUrl(slug)
+    return buildClient(row).getDownloadUrl(slug, version)
   }
 
   const clearError = () => {
