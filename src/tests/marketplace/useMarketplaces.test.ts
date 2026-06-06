@@ -46,7 +46,7 @@ describe('buildAuthedFetch', () => {
       'https://example.com/extensions',
       expect.objectContaining({ method: 'GET' }),
     )
-    const callHeaders = vi.mocked(mockTauriFetch).mock.calls[0][1]?.headers as Record<string, string> | undefined
+    const callHeaders = (vi.mocked(mockTauriFetch).mock.calls[0]![1] as RequestInit | undefined)?.headers as Record<string, string> | undefined
     expect(callHeaders?.Authorization).toBeUndefined()
   })
 
@@ -54,7 +54,7 @@ describe('buildAuthedFetch', () => {
     const fetcher = buildAuthedFetch(mockRow({ authType: 'bearer', authToken: 'my-secret' }))
     await fetcher('https://example.com/extensions', {})
 
-    const callHeaders = vi.mocked(mockTauriFetch).mock.calls[0][1]?.headers as Record<string, string>
+    const callHeaders = (vi.mocked(mockTauriFetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>
     expect(callHeaders.Authorization).toBe('Bearer my-secret')
   })
 
@@ -62,7 +62,7 @@ describe('buildAuthedFetch', () => {
     const fetcher = buildAuthedFetch(mockRow({ authType: 'basic', authUsername: 'user', authPassword: 'pass' }))
     await fetcher('https://example.com/extensions', {})
 
-    const callHeaders = vi.mocked(mockTauriFetch).mock.calls[0][1]?.headers as Record<string, string>
+    const callHeaders = (vi.mocked(mockTauriFetch).mock.calls[0]![1] as RequestInit).headers as Record<string, string>
     expect(callHeaders.Authorization).toBe(`Basic ${btoa('user:pass')}`)
   })
 
