@@ -18,9 +18,18 @@ vi.mock('@haex-space/marketplace-sdk', () => ({
   createMarketplaceClient: vi.fn(),
 }))
 
+vi.mock('@/stores/logging', () => ({
+  createLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}))
+
 import { fetch as mockTauriFetch } from '@tauri-apps/plugin-http'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { buildAuthedFetch, useMarketplaces } from '@/composables/useMarketplaces'
+import { buildAuthedFetch, ensureDefaultMarketplaceAsync, useMarketplaces } from '@/composables/useMarketplaces'
 import { requireDb } from '~/stores/vault'
 import { createMarketplaceClient } from '@haex-space/marketplace-sdk'
 
@@ -189,5 +198,50 @@ describe('useMarketplaces', () => {
     expect(extensions.value).toHaveLength(1)
     expect(extensions.value[0]!.extensionId).toBe('ext-ok')
     expect(sourceErrors.value['broken']).toEqual({ name: 'Market broken', message: 'network error' })
+  })
+})
+
+describe('ensureDefaultMarketplaceAsync', () => {
+  let mockDb: {
+    select: ReturnType<typeof vi.fn>
+    insert: ReturnType<typeof vi.fn>
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDb = { select: vi.fn(), insert: vi.fn() }
+    vi.mocked(requireDb).mockReturnValue(mockDb as unknown as ReturnType<typeof requireDb>)
+  })
+
+  const stubSelect = (rows: unknown[]) => {
+    const limitMock = vi.fn().mockResolvedValue(rows)
+    const whereMock = vi.fn().mockReturnValue({ limit: limitMock })
+    const fromMock = vi.fn().mockReturnValue({ where: whereMock })
+    mockDb.select.mockReturnValue({ from: fromMock })
+  }
+
+  it('inserts the default row when none exists', async () => {
+    stubSelect([])
+    const valuesMock = vi.fn().mockResolvedValue(undefined)
+    mockDb.insert.mockReturnValue({ values: valuesMock })
+
+    await ensureDefaultMarketplaceAsync()
+
+    expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Haex Marketplace',
+      baseUrl: 'https://marketplace.haex.space',
+      enabled: true,
+      isDefault: true,
+      sortOrder: 1,
+      authType: 'none',
+    }))
+  })
+
+  it('does not insert when a default row already exists', async () => {
+    stubSelect([{ id: 'existing', isDefault: true }])
+
+    await ensureDefaultMarketplaceAsync()
+
+    expect(mockDb.insert).not.toHaveBeenCalled()
   })
 })

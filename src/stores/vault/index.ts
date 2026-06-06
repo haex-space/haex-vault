@@ -447,6 +447,13 @@ export const useVaultStore = defineStore('vaultStore', () => {
     await spacesStore.loadSpacesFromDbAsync()
     await spacesStore.ensureDefaultSpaceAsync()
 
+    // Ensure the built-in haex.space marketplace row exists. Done here (not in
+    // the migration) so the row gets an HLC timestamp and CRDT-syncs cleanly.
+    // Dynamic import: useMarketplaces imports requireDb from this same vault
+    // store, so a static import would create a circular dependency.
+    const { ensureDefaultMarketplaceAsync } = await import('@/composables/useMarketplaces')
+    await ensureDefaultMarketplaceAsync()
+
     // One-time migration: backfill space members from existing UCAN tokens (non-blocking)
     spacesStore.migrateExistingMembersAsync().catch((error) => {
       log.warn('Member migration from UCANs failed:', error)

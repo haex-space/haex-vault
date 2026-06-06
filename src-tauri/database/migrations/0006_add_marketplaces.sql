@@ -1,7 +1,12 @@
 -- ---------------------------------------------------------------------------
 -- HAND-WRITTEN MIGRATION (do not regenerate with drizzle-kit)
 -- ---------------------------------------------------------------------------
--- Creates haex_marketplaces and seeds the built-in haex.space default row.
+-- Creates haex_marketplaces. The built-in default row is seeded at vault open
+-- time via ensureDefaultMarketplaceAsync (drizzle/execute_with_crdt) so it
+-- carries proper HLC timestamps and participates in CRDT sync — direct INSERTs
+-- in this migration would bypass the trigger and produce a row with
+-- haex_hlc=NULL that future user edits can't merge cleanly.
+--
 -- CRDT columns (haex_hlc, haex_column_hlcs) are injected automatically by
 -- the Rust CrdtTransformer — do NOT add them here.
 -- ---------------------------------------------------------------------------
@@ -21,6 +26,3 @@ CREATE TABLE `haex_marketplaces` (
   `created_at` text DEFAULT (CURRENT_TIMESTAMP),
   `updated_at` text DEFAULT (CURRENT_TIMESTAMP)
 );
-
-INSERT INTO `haex_marketplaces` (`id`, `name`, `base_url`, `enabled`, `is_default`, `sort_order`, `auth_type`)
-VALUES ('00000000-0000-0000-0000-000000000001', 'Haex Marketplace', 'https://marketplace.haex.space', 1, 1, 1, 'none');

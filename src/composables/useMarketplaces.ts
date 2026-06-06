@@ -7,6 +7,12 @@ import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { haexMarketplaces } from '@/database/schemas/marketplaces'
 import type { SelectHaexMarketplaces } from '@/database/schemas/marketplaces'
 import { requireDb } from '~/stores/vault'
+import { createLogger } from '@/stores/logging'
+
+const log = createLogger('MARKETPLACE')
+
+const DEFAULT_MARKETPLACE_NAME = 'Haex Marketplace'
+const DEFAULT_MARKETPLACE_URL = 'https://marketplace.haex.space'
 
 /** Identity context needed when auth_type is 'did'. Caller loads it from the identity store. */
 export interface DidIdentityContext {
@@ -63,6 +69,35 @@ export interface SourceError {
   message: string
 }
 
+/**
+ * Ensures the built-in haex.space marketplace row exists. Called from
+ * initVaultAsync at vault open — same lifecycle as ensureDefaultIdentityAsync
+ * and ensureDefaultSpaceAsync. Inserts through drizzle so the row gets a
+ * proper HLC timestamp and participates in CRDT sync.
+ */
+export async function ensureDefaultMarketplaceAsync(): Promise<void> {
+  const db = requireDb()
+
+  const existing = await db
+    .select()
+    .from(haexMarketplaces)
+    .where(eq(haexMarketplaces.isDefault, true))
+    .limit(1)
+
+  if (existing.length > 0) return
+
+  await db.insert(haexMarketplaces).values({
+    name: DEFAULT_MARKETPLACE_NAME,
+    baseUrl: DEFAULT_MARKETPLACE_URL,
+    enabled: true,
+    isDefault: true,
+    sortOrder: 1,
+    authType: 'none',
+  })
+
+  log.info('Default marketplace created')
+}
+
 export function useMarketplaces() {
   const extensions = ref<AggregatedExtension[]>([])
   const extensionsTotal = ref(0)
@@ -115,7 +150,9 @@ export function useMarketplaces() {
           }
         } else {
           const err = result.reason as Error
-          sourceErrors.value[row.id] = { name: row.name, message: err?.message ?? 'Unknown error' }
+          const message = err?.message ?? 'Unknown error'
+          sourceErrors.value[row.id] = { name: row.name, message }
+          log.error(`fetchExtensions failed for "${row.name}" (${row.baseUrl}): ${message}`)
         }
       }
 
@@ -128,11 +165,21 @@ export function useMarketplaces() {
 
   const fetchCategories = async () => {
     const rows = await loadEnabledRowsAsync()
-    const settled = await Promise.allSettled(rows.map(row => buildClient(row).listCategories()))
+    const settled = await Promise.allSettled(
+      rows.map(row => {
+        try {
+          return buildClient(row).listCategories()
+        } catch (err) {
+          return Promise.reject(err)
+        }
+      }),
+    )
 
     const merged: CategoryWithCount[] = []
     const seen = new Set<string>()
-    for (const result of settled) {
+    for (let i = 0; i < settled.length; i++) {
+      const result = settled[i]!
+      const row = rows[i]!
       if (result.status === 'fulfilled') {
         for (const cat of result.value.categories) {
           if (!seen.has(cat.slug)) {
@@ -140,6 +187,11 @@ export function useMarketplaces() {
             merged.push(cat)
           }
         }
+      } else {
+        const err = result.reason as Error
+        const message = err?.message ?? 'Unknown error'
+        sourceErrors.value[row.id] = { name: row.name, message }
+        log.error(`fetchCategories failed for "${row.name}" (${row.baseUrl}): ${message}`)
       }
     }
     categories.value = merged
