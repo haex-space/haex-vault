@@ -10,9 +10,19 @@ vi.mock('@/utils/auth/didAuth', () => ({
   fetchWithDidAuth: vi.fn(),
 }))
 
+vi.mock('~/stores/vault', () => ({
+  requireDb: vi.fn(),
+}))
+
+vi.mock('@haex-space/marketplace-sdk', () => ({
+  createMarketplaceClient: vi.fn(),
+}))
+
 import { fetch as mockTauriFetch } from '@tauri-apps/plugin-http'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { buildAuthedFetch } from '@/composables/useMarketplaces'
+import { buildAuthedFetch, useMarketplaces } from '@/composables/useMarketplaces'
+import { requireDb } from '~/stores/vault'
+import { createMarketplaceClient } from '@haex-space/marketplace-sdk'
 
 const mockRow = (overrides = {}) => ({
   id: 'test-id',
@@ -81,5 +91,103 @@ describe('buildAuthedFetch', () => {
       expect.objectContaining({ method: 'GET' }),
     )
     expect(mockTauriFetch).not.toHaveBeenCalled()
+  })
+})
+
+// ─── Helpers for useMarketplaces tests ───────────────────────────────────────
+
+function setupDbMock(mockDb: { select: ReturnType<typeof vi.fn> }, rows: unknown[]) {
+  const orderByMock = vi.fn().mockResolvedValue(rows)
+  const whereMock = vi.fn().mockReturnValue({ orderBy: orderByMock })
+  const fromMock = vi.fn().mockReturnValue({ where: whereMock })
+  mockDb.select.mockReturnValue({ from: fromMock })
+}
+
+const makeExt = (extensionId: string, name: string) => ({
+  id: extensionId,
+  extensionId,
+  name,
+  slug: name.toLowerCase(),
+  shortDescription: 'desc',
+  iconUrl: null,
+  verified: false,
+  totalDownloads: 0,
+  averageRating: null,
+  reviewCount: 0,
+  tags: null,
+  publishedAt: null,
+  publisher: null,
+  category: null,
+  versions: [],
+})
+
+const makeMarketplaceRow = (id: string, overrides: Record<string, unknown> = {}) => ({
+  ...mockRow({ id, name: `Market ${id}`, baseUrl: `https://market-${id}.example`, isDefault: id === 'default' }),
+  ...overrides,
+})
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+describe('useMarketplaces', () => {
+  let mockDb: { select: ReturnType<typeof vi.fn> }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(mockTauriFetch).mockResolvedValue(new Response('{}', { status: 200 }))
+    mockDb = { select: vi.fn() }
+    vi.mocked(requireDb).mockReturnValue(mockDb as unknown as ReturnType<typeof requireDb>)
+  })
+
+  it('merges extensions from two sources and tags sourceMarketplaceId', async () => {
+    const rows = [makeMarketplaceRow('a'), makeMarketplaceRow('b')]
+    setupDbMock(mockDb, rows)
+
+    const clientA = { listExtensions: vi.fn().mockResolvedValue({ extensions: [makeExt('ext-1', 'Alpha')], pagination: { total: 1 } }) }
+    const clientB = { listExtensions: vi.fn().mockResolvedValue({ extensions: [makeExt('ext-2', 'Beta')], pagination: { total: 1 } }) }
+    vi.mocked(createMarketplaceClient)
+      .mockReturnValueOnce(clientA as unknown as ReturnType<typeof createMarketplaceClient>)
+      .mockReturnValueOnce(clientB as unknown as ReturnType<typeof createMarketplaceClient>)
+
+    const { extensions, fetchExtensions } = useMarketplaces()
+    await fetchExtensions()
+
+    expect(extensions.value).toHaveLength(2)
+    expect(extensions.value.find(e => e.extensionId === 'ext-1')?.sourceMarketplaceId).toBe('a')
+    expect(extensions.value.find(e => e.extensionId === 'ext-2')?.sourceMarketplaceId).toBe('b')
+  })
+
+  it('dedupes by extensionId, keeps first (lowest sort_order)', async () => {
+    const rows = [makeMarketplaceRow('a', { sortOrder: 1 }), makeMarketplaceRow('b', { sortOrder: 2 })]
+    setupDbMock(mockDb, rows)
+
+    const sharedExt = makeExt('shared-id', 'Shared')
+    const clientA = { listExtensions: vi.fn().mockResolvedValue({ extensions: [sharedExt], pagination: { total: 1 } }) }
+    const clientB = { listExtensions: vi.fn().mockResolvedValue({ extensions: [sharedExt], pagination: { total: 1 } }) }
+    vi.mocked(createMarketplaceClient)
+      .mockReturnValueOnce(clientA as unknown as ReturnType<typeof createMarketplaceClient>)
+      .mockReturnValueOnce(clientB as unknown as ReturnType<typeof createMarketplaceClient>)
+
+    const { extensions, fetchExtensions } = useMarketplaces()
+    await fetchExtensions()
+
+    expect(extensions.value).toHaveLength(1)
+    expect(extensions.value[0]!.sourceMarketplaceId).toBe('a')
+  })
+
+  it('per-source failure leaves other results and records the error', async () => {
+    const rows = [makeMarketplaceRow('ok'), makeMarketplaceRow('broken')]
+    setupDbMock(mockDb, rows)
+
+    const clientOk = { listExtensions: vi.fn().mockResolvedValue({ extensions: [makeExt('ext-ok', 'Fine')], pagination: { total: 1 } }) }
+    const clientBroken = { listExtensions: vi.fn().mockRejectedValue(new Error('network error')) }
+    vi.mocked(createMarketplaceClient)
+      .mockReturnValueOnce(clientOk as unknown as ReturnType<typeof createMarketplaceClient>)
+      .mockReturnValueOnce(clientBroken as unknown as ReturnType<typeof createMarketplaceClient>)
+
+    const { extensions, sourceErrors, fetchExtensions } = useMarketplaces()
+    await fetchExtensions()
+
+    expect(extensions.value).toHaveLength(1)
+    expect(extensions.value[0]!.extensionId).toBe('ext-ok')
+    expect(sourceErrors.value['broken']).toBe('network error')
   })
 })

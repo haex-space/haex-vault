@@ -1,6 +1,12 @@
+import { ref } from 'vue'
+import { eq, asc } from 'drizzle-orm'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { createMarketplaceClient } from '@haex-space/marketplace-sdk'
+import type { ExtensionListItem, CategoryWithCount, ListExtensionsParams, DownloadResponse } from '@haex-space/marketplace-sdk'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
+import { haexMarketplaces } from '@/database/schemas/marketplaces'
 import type { SelectHaexMarketplaces } from '@/database/schemas/marketplaces'
+import { requireDb } from '~/stores/vault'
 
 /** Identity context needed when auth_type is 'did'. Caller loads it from the identity store. */
 export interface DidIdentityContext {
@@ -44,5 +50,111 @@ export function buildAuthedFetch(
 
     default: // 'none'
       return (input, init) => tauriFetch(input, init) as unknown as Promise<Response>
+  }
+}
+
+export interface AggregatedExtension extends ExtensionListItem {
+  sourceMarketplaceId: string
+  sourceMarketplaceName: string
+}
+
+export function useMarketplaces() {
+  const extensions = ref<AggregatedExtension[]>([])
+  const extensionsTotal = ref(0)
+  const categories = ref<CategoryWithCount[]>([])
+  const isLoading = ref(false)
+  const sourceErrors = ref<Record<string, string>>({})
+
+  const loadEnabledRowsAsync = async () => {
+    const db = requireDb()
+    return db.select().from(haexMarketplaces)
+      .where(eq(haexMarketplaces.enabled, true))
+      .orderBy(asc(haexMarketplaces.sortOrder))
+  }
+
+  const buildClient = (row: SelectHaexMarketplaces) =>
+    createMarketplaceClient({
+      baseUrl: row.baseUrl,
+      fetch: buildAuthedFetch(row) as unknown as typeof globalThis.fetch,
+    })
+
+  const fetchExtensions = async (params?: ListExtensionsParams) => {
+    isLoading.value = true
+    sourceErrors.value = {}
+
+    const rows = await loadEnabledRowsAsync()
+    const settled = await Promise.allSettled(
+      rows.map(row => buildClient(row).listExtensions(params)),
+    )
+
+    const merged: AggregatedExtension[] = []
+    const seen = new Set<string>()
+
+    for (let i = 0; i < settled.length; i++) {
+      const result = settled[i]!
+      const row = rows[i]!
+      if (result.status === 'fulfilled') {
+        for (const ext of result.value.extensions) {
+          if (!seen.has(ext.extensionId)) {
+            seen.add(ext.extensionId)
+            merged.push({ ...ext, sourceMarketplaceId: row.id, sourceMarketplaceName: row.name })
+          }
+        }
+      }
+      else {
+        const err = result.reason as Error
+        sourceErrors.value[row.id] = err?.message ?? 'Unknown error'
+      }
+    }
+
+    extensions.value = merged
+    extensionsTotal.value = merged.length
+    isLoading.value = false
+  }
+
+  const fetchCategories = async () => {
+    const rows = await loadEnabledRowsAsync()
+    const settled = await Promise.allSettled(rows.map(row => buildClient(row).listCategories()))
+
+    const merged: CategoryWithCount[] = []
+    const seen = new Set<string>()
+    for (const result of settled) {
+      if (result.status === 'fulfilled') {
+        for (const cat of result.value.categories) {
+          if (!seen.has(cat.slug)) {
+            seen.add(cat.slug)
+            merged.push(cat)
+          }
+        }
+      }
+    }
+    categories.value = merged
+    return merged
+  }
+
+  const getDownloadUrl = async (slug: string, sourceMarketplaceId?: string): Promise<DownloadResponse> => {
+    const rows = await loadEnabledRowsAsync()
+    const row = sourceMarketplaceId
+      ? rows.find(r => r.id === sourceMarketplaceId)
+      : rows.find(r => r.isDefault) ?? rows[0]
+
+    if (!row) throw new Error('No enabled marketplace found')
+    return buildClient(row).getDownloadUrl(slug)
+  }
+
+  const clearError = () => {
+    sourceErrors.value = {}
+  }
+
+  return {
+    extensions,
+    extensionsTotal,
+    categories,
+    isLoading,
+    sourceErrors,
+    fetchExtensions,
+    fetchCategories,
+    getDownloadUrl,
+    clearError,
   }
 }
