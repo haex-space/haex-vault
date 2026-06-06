@@ -29,7 +29,15 @@ vi.mock('@/stores/logging', () => ({
 
 import { fetch as mockTauriFetch } from '@tauri-apps/plugin-http'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { buildAuthedFetch, ensureDefaultMarketplaceAsync, useMarketplaces } from '@/composables/useMarketplaces'
+import {
+  buildAuthedFetch,
+  createMarketplaceAsync,
+  deleteMarketplaceAsync,
+  ensureDefaultMarketplaceAsync,
+  setMarketplaceEnabledAsync,
+  updateMarketplaceAsync,
+  useMarketplaces,
+} from '@/composables/useMarketplaces'
 import { requireDb } from '~/stores/vault'
 import { createMarketplaceClient } from '@haex-space/marketplace-sdk'
 
@@ -243,5 +251,99 @@ describe('ensureDefaultMarketplaceAsync', () => {
     await ensureDefaultMarketplaceAsync()
 
     expect(mockDb.insert).not.toHaveBeenCalled()
+  })
+})
+
+describe('marketplace CRUD', () => {
+  let mockDb: {
+    select: ReturnType<typeof vi.fn>
+    insert: ReturnType<typeof vi.fn>
+    update: ReturnType<typeof vi.fn>
+    delete: ReturnType<typeof vi.fn>
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDb = {
+      select: vi.fn(),
+      insert: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    }
+    vi.mocked(requireDb).mockReturnValue(mockDb as unknown as ReturnType<typeof requireDb>)
+  })
+
+  const stubSelectById = (rows: unknown[]) => {
+    const limitMock = vi.fn().mockResolvedValue(rows)
+    const whereMock = vi.fn().mockReturnValue({ limit: limitMock })
+    const fromMock = vi.fn().mockReturnValue({ where: whereMock })
+    mockDb.select.mockReturnValue({ from: fromMock })
+  }
+
+  it('createMarketplaceAsync inserts with defaults applied', async () => {
+    const valuesMock = vi.fn().mockResolvedValue(undefined)
+    mockDb.insert.mockReturnValue({ values: valuesMock })
+
+    await createMarketplaceAsync({ name: 'Local', baseUrl: 'http://localhost:3001' })
+
+    expect(valuesMock).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Local',
+      baseUrl: 'http://localhost:3001',
+      enabled: true,
+      isDefault: false,
+      sortOrder: 100,
+      authType: 'none',
+      authToken: null,
+      authUsername: null,
+      authPassword: null,
+      authIdentityId: null,
+    }))
+  })
+
+  it('updateMarketplaceAsync stamps updatedAt', async () => {
+    const whereMock = vi.fn().mockResolvedValue(undefined)
+    const setMock = vi.fn().mockReturnValue({ where: whereMock })
+    mockDb.update.mockReturnValue({ set: setMock })
+
+    await updateMarketplaceAsync('id-1', { name: 'Renamed' })
+
+    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Renamed',
+      updatedAt: expect.any(String),
+    }))
+  })
+
+  it('setMarketplaceEnabledAsync toggles enabled flag', async () => {
+    const whereMock = vi.fn().mockResolvedValue(undefined)
+    const setMock = vi.fn().mockReturnValue({ where: whereMock })
+    mockDb.update.mockReturnValue({ set: setMock })
+
+    await setMarketplaceEnabledAsync('id-1', false)
+
+    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }))
+  })
+
+  it('deleteMarketplaceAsync removes non-default rows', async () => {
+    stubSelectById([{ id: 'id-1', name: 'Custom', isDefault: false }])
+    const deleteWhereMock = vi.fn().mockResolvedValue(undefined)
+    mockDb.delete.mockReturnValue({ where: deleteWhereMock })
+
+    await deleteMarketplaceAsync('id-1')
+
+    expect(deleteWhereMock).toHaveBeenCalled()
+  })
+
+  it('deleteMarketplaceAsync refuses to delete the default marketplace', async () => {
+    stubSelectById([{ id: 'default-id', name: 'Haex', isDefault: true }])
+
+    await expect(deleteMarketplaceAsync('default-id')).rejects.toThrow(/default marketplace cannot be deleted/i)
+    expect(mockDb.delete).not.toHaveBeenCalled()
+  })
+
+  it('deleteMarketplaceAsync throws when the row does not exist', async () => {
+    stubSelectById([])
+
+    await expect(deleteMarketplaceAsync('missing')).rejects.toThrow(/not found/i)
+    expect(mockDb.delete).not.toHaveBeenCalled()
   })
 })

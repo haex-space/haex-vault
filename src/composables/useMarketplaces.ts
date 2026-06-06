@@ -98,6 +98,66 @@ export async function ensureDefaultMarketplaceAsync(): Promise<void> {
   log.info('Default marketplace created')
 }
 
+export type MarketplaceAuthType = 'none' | 'bearer' | 'basic' | 'did'
+
+export interface MarketplaceInput {
+  name: string
+  baseUrl: string
+  enabled?: boolean
+  sortOrder?: number
+  authType?: MarketplaceAuthType
+  authToken?: string | null
+  authUsername?: string | null
+  authPassword?: string | null
+  authIdentityId?: string | null
+}
+
+/** Load every marketplace row (enabled and disabled), ordered by sortOrder. */
+export async function loadAllMarketplacesAsync(): Promise<SelectHaexMarketplaces[]> {
+  const db = requireDb()
+  return db.select().from(haexMarketplaces).orderBy(asc(haexMarketplaces.sortOrder))
+}
+
+export async function createMarketplaceAsync(input: MarketplaceInput): Promise<void> {
+  const db = requireDb()
+  await db.insert(haexMarketplaces).values({
+    name: input.name,
+    baseUrl: input.baseUrl,
+    enabled: input.enabled ?? true,
+    isDefault: false,
+    sortOrder: input.sortOrder ?? 100,
+    authType: input.authType ?? 'none',
+    authToken: input.authToken ?? null,
+    authUsername: input.authUsername ?? null,
+    authPassword: input.authPassword ?? null,
+    authIdentityId: input.authIdentityId ?? null,
+  })
+  log.info(`Marketplace created: ${input.name} (${input.baseUrl})`)
+}
+
+export async function updateMarketplaceAsync(id: string, patch: Partial<MarketplaceInput>): Promise<void> {
+  const db = requireDb()
+  await db.update(haexMarketplaces)
+    .set({ ...patch, updatedAt: new Date().toISOString() })
+    .where(eq(haexMarketplaces.id, id))
+  log.info(`Marketplace updated: ${id}`)
+}
+
+export async function setMarketplaceEnabledAsync(id: string, enabled: boolean): Promise<void> {
+  await updateMarketplaceAsync(id, { enabled })
+}
+
+export async function deleteMarketplaceAsync(id: string): Promise<void> {
+  const db = requireDb()
+  const rows = await db.select().from(haexMarketplaces).where(eq(haexMarketplaces.id, id)).limit(1)
+  const row = rows[0]
+  if (!row) throw new Error(`Marketplace ${id} not found`)
+  if (row.isDefault) throw new Error('The built-in default marketplace cannot be deleted')
+
+  await db.delete(haexMarketplaces).where(eq(haexMarketplaces.id, id))
+  log.info(`Marketplace deleted: ${row.name} (${id})`)
+}
+
 export function useMarketplaces() {
   const extensions = ref<AggregatedExtension[]>([])
   const extensionsTotal = ref(0)
