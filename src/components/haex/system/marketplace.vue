@@ -52,6 +52,22 @@
         </USelectMenu>
       </div>
 
+      <!-- Source errors: shown when one or more marketplaces fail to load -->
+      <div
+        v-if="Object.keys(marketplace.sourceErrors).length"
+        class="px-6 py-2 flex flex-wrap gap-2"
+      >
+        <UBadge
+          v-for="(msg, id) in marketplace.sourceErrors"
+          :key="id"
+          color="warning"
+          variant="soft"
+          class="text-xs"
+        >
+          {{ id }}: {{ msg }}
+        </UBadge>
+      </div>
+
       <!-- Loading State -->
       <div
         v-if="isInitialLoading || marketplace.isLoading.value"
@@ -151,7 +167,8 @@ import type {
   IHaexSpaceExtensionManifest,
   MarketplaceExtensionViewModel,
 } from '~/types/haexspace'
-import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
+import type { AggregatedExtension } from '@/composables/useMarketplaces'
+import { useMarketplaces } from '@/composables/useMarketplaces'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
@@ -192,8 +209,7 @@ const installPreview = computed(() => {
   return preview.value
 })
 
-// Marketplace SDK
-const marketplace = useMarketplace()
+const marketplace = useMarketplaces()
 
 // State
 const searchQuery = ref('')
@@ -216,17 +232,17 @@ const categoryItems = computed(() => {
 
 // Transform API extensions to view models with installation status
 const extensionViewModels = computed((): MarketplaceExtensionViewModel[] => {
-  return marketplace.extensions.value.map((ext) => {
-    // Find if this extension is installed locally by matching name
+  return (marketplace.extensions.value as AggregatedExtension[]).map((ext) => {
     const installedExt = extensionStore.availableExtensions.find(
       (installed) => installed.name === ext.name,
     )
-
     return {
       ...ext,
       isInstalled: !!installedExt,
       installedVersion: installedExt?.version,
       latestVersion: ext.versions?.[0]?.version,
+      sourceMarketplaceId: ext.sourceMarketplaceId,
+      sourceMarketplaceName: ext.sourceMarketplaceName,
     }
   })
 })
@@ -283,7 +299,7 @@ const onInstallFromMarketplace = async (ext: MarketplaceExtensionViewModel) => {
 
   try {
     // Get download URL from marketplace API
-    const downloadInfo = await marketplace.getDownloadUrl(ext.slug)
+    const downloadInfo = await marketplace.getDownloadUrl(ext.slug, ext.sourceMarketplaceId)
 
     // Download and preview
     await extensionStore.downloadAndPreviewAsync(
@@ -332,7 +348,7 @@ const onUpdateExtension = async (ext: MarketplaceExtensionViewModel) => {
 
   try {
     // Get download URL from marketplace API
-    const downloadInfo = await marketplace.getDownloadUrl(ext.slug)
+    const downloadInfo = await marketplace.getDownloadUrl(ext.slug, ext.sourceMarketplaceId)
 
     // Download and preview
     await extensionStore.downloadAndPreviewAsync(
