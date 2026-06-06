@@ -81,35 +81,42 @@ export function useMarketplaces() {
   const fetchExtensions = async (params?: ListExtensionsParams) => {
     isLoading.value = true
     sourceErrors.value = {}
-
-    const rows = await loadEnabledRowsAsync()
-    const settled = await Promise.allSettled(
-      rows.map(row => buildClient(row).listExtensions(params)),
-    )
-
-    const merged: AggregatedExtension[] = []
-    const seen = new Set<string>()
-
-    for (let i = 0; i < settled.length; i++) {
-      const result = settled[i]!
-      const row = rows[i]!
-      if (result.status === 'fulfilled') {
-        for (const ext of result.value.extensions) {
-          if (!seen.has(ext.extensionId)) {
-            seen.add(ext.extensionId)
-            merged.push({ ...ext, sourceMarketplaceId: row.id, sourceMarketplaceName: row.name })
+    try {
+      const rows = await loadEnabledRowsAsync()
+      const settled = await Promise.allSettled(
+        rows.map(row => {
+          try {
+            return buildClient(row).listExtensions(params)
+          } catch (err) {
+            return Promise.reject(err)
           }
+        }),
+      )
+
+      const merged: AggregatedExtension[] = []
+      const seen = new Set<string>()
+
+      for (let i = 0; i < settled.length; i++) {
+        const result = settled[i]!
+        const row = rows[i]!
+        if (result.status === 'fulfilled') {
+          for (const ext of result.value.extensions) {
+            if (!seen.has(ext.extensionId)) {
+              seen.add(ext.extensionId)
+              merged.push({ ...ext, sourceMarketplaceId: row.id, sourceMarketplaceName: row.name })
+            }
+          }
+        } else {
+          const err = result.reason as Error
+          sourceErrors.value[row.id] = err?.message ?? 'Unknown error'
         }
       }
-      else {
-        const err = result.reason as Error
-        sourceErrors.value[row.id] = err?.message ?? 'Unknown error'
-      }
-    }
 
-    extensions.value = merged
-    extensionsTotal.value = merged.length
-    isLoading.value = false
+      extensions.value = merged
+      extensionsTotal.value = merged.length
+    } finally {
+      isLoading.value = false
+    }
   }
 
   const fetchCategories = async () => {
