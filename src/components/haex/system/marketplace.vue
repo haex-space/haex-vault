@@ -54,23 +54,23 @@
 
       <!-- Source errors: shown when one or more marketplaces fail to load -->
       <div
-        v-if="Object.keys(marketplace.sourceErrors).length"
+        v-if="Object.keys(marketplace.sourceErrors.value).length"
         class="px-6 py-2 flex flex-wrap gap-2"
       >
         <UBadge
-          v-for="(msg, id) in marketplace.sourceErrors"
+          v-for="(entry, id) in marketplace.sourceErrors.value"
           :key="id"
           color="warning"
           variant="soft"
           class="text-xs"
         >
-          {{ id }}: {{ msg }}
+          {{ entry.name }}: {{ entry.message }}
         </UBadge>
       </div>
 
       <!-- Loading State -->
       <div
-        v-if="isInitialLoading || marketplace.isLoading"
+        v-if="isInitialLoading || marketplace.isLoading.value"
         class="flex-1 flex flex-col items-center justify-center gap-3"
       >
         <UIcon

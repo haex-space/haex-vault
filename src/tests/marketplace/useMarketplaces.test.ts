@@ -188,6 +188,6 @@ describe('useMarketplaces', () => {
 
     expect(extensions.value).toHaveLength(1)
     expect(extensions.value[0]!.extensionId).toBe('ext-ok')
-    expect(sourceErrors.value['Market broken']).toBe('network error')
+    expect(sourceErrors.value['broken']).toEqual({ name: 'Market broken', message: 'network error' })
   })
 })

@@ -58,12 +58,17 @@ export interface AggregatedExtension extends ExtensionListItem {
   sourceMarketplaceName: string
 }
 
+export interface SourceError {
+  name: string
+  message: string
+}
+
 export function useMarketplaces() {
   const extensions = ref<AggregatedExtension[]>([])
   const extensionsTotal = ref(0)
   const categories = ref<CategoryWithCount[]>([])
   const isLoading = ref(false)
-  const sourceErrors = ref<Record<string, string>>({})
+  const sourceErrors = ref<Record<string, SourceError>>({})
 
   const loadEnabledRowsAsync = async () => {
     const db = requireDb()
@@ -95,11 +100,13 @@ export function useMarketplaces() {
 
       const merged: AggregatedExtension[] = []
       const seen = new Set<string>()
+      let totalAcrossSources = 0
 
       for (let i = 0; i < settled.length; i++) {
         const result = settled[i]!
         const row = rows[i]!
         if (result.status === 'fulfilled') {
+          totalAcrossSources += result.value.pagination?.total ?? result.value.extensions.length
           for (const ext of result.value.extensions) {
             if (!seen.has(ext.extensionId)) {
               seen.add(ext.extensionId)
@@ -108,12 +115,12 @@ export function useMarketplaces() {
           }
         } else {
           const err = result.reason as Error
-          sourceErrors.value[row.name] = err?.message ?? 'Unknown error'
+          sourceErrors.value[row.id] = { name: row.name, message: err?.message ?? 'Unknown error' }
         }
       }
 
       extensions.value = merged
-      extensionsTotal.value = merged.length
+      extensionsTotal.value = totalAcrossSources
     } finally {
       isLoading.value = false
     }
