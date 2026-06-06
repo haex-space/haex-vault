@@ -5,7 +5,9 @@ import tableNames from '@/database/tableNames.json'
 export const haexMarketplaces = sqliteTable(
   tableNames.haex.marketplaces.name,
   {
-    id: text(tableNames.haex.marketplaces.columns.id).primaryKey(),
+    id: text(tableNames.haex.marketplaces.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
     name: text(tableNames.haex.marketplaces.columns.name).notNull(),
     baseUrl: text(tableNames.haex.marketplaces.columns.baseUrl).notNull(),
     enabled: integer(tableNames.haex.marketplaces.columns.enabled, { mode: 'boolean' }).notNull().default(true),
