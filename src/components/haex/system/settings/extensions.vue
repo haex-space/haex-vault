@@ -1,139 +1,49 @@
 <template>
-  <div class="h-full">
-    <!-- Detail View -->
-    <HaexSystemSettingsExtensionDetail
-      v-if="selectedExtension"
-      :extension="selectedExtension"
-      @back="selectedExtension = null"
-      @removed="selectedExtension = null"
-    />
-
-    <!-- List View -->
-    <HaexSystemSettingsLayout
-      v-else
-      :title="t('title')"
-      :description="t('description')"
-    >
-      <template #actions>
-        <UiButton
-          :label="t('openMarketplace')"
-          icon="i-mdi-store"
-          data-tour="settings-extensions-install"
-          @click="openMarketplaceAsync"
-        />
-      </template>
-
-      <div v-if="loading" class="flex justify-center py-8">
-        <UIcon
-          name="i-heroicons-arrow-path"
-          class="w-8 h-8 animate-spin text-primary"
-        />
-      </div>
-
-      <div
-        v-else-if="!availableExtensions.length"
-        class="text-center py-8 text-muted"
-      >
-        {{ t('noExtensions') }}
-      </div>
-
-      <div v-else class="space-y-2">
-        <button
-          v-for="ext in availableExtensions"
-          :key="ext.id"
-          class="w-full p-4 rounded-lg border border-default bg-default hover:bg-muted transition-colors text-left"
-          @click="selectedExtension = ext"
-        >
-          <div class="flex items-center gap-3">
-            <div
-              class="w-10 h-10 shrink-0 rounded-lg bg-elevated flex items-center justify-center overflow-hidden"
-            >
-              <HaexIcon
-                :name="ext.iconUrl || 'i-heroicons-puzzle-piece'"
-                class="w-full h-full object-contain"
-              />
-            </div>
-
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <span class="font-semibold truncate">{{ ext.name }}</span>
-                <UBadge
-                  v-if="ext.devServerUrl"
-                  color="warning"
-                  variant="subtle"
-                >
-                  {{ t('devExtension') }}
-                </UBadge>
-              </div>
-              <div class="text-sm text-muted">
-                v{{ ext.version }}
-                <span v-if="ext.author" class="ml-1"
-                  >• {{ ext.author }}</span
-                >
-              </div>
-            </div>
-
-            <UIcon
-              name="i-heroicons-chevron-right"
-              class="w-5 h-5 text-gray-400 shrink-0"
-            />
-          </div>
-        </button>
-      </div>
-    </HaexSystemSettingsLayout>
-  </div>
+  <Transition :name="direction === 'back' ? 'slide-back' : 'slide-forward'" mode="out-in">
+    <div :key="activeView" class="h-full">
+      <HaexSystemSettingsExtensionsInstalled v-if="activeView === 'installed'" @back="goBack" />
+      <HaexSystemSettingsExtensionsMarketplaces v-else-if="activeView === 'marketplaces'" @back="goBack" />
+      <HaexSystemSettingsLayout v-else :title="t('title')" :description="t('description')">
+        <div class="space-y-1">
+          <HaexSystemSettingsLayoutMenuItem
+            :label="t('menu.installed')"
+            :description="t('menu.installedDesc')"
+            icon="i-heroicons-puzzle-piece"
+            @click="navigateTo('installed')"
+          />
+          <HaexSystemSettingsLayoutMenuItem
+            :label="t('menu.marketplaces')"
+            :description="t('menu.marketplacesDesc')"
+            icon="i-mdi-store"
+            @click="navigateTo('marketplaces')"
+          />
+        </div>
+      </HaexSystemSettingsLayout>
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
-import type { IHaexSpaceExtension } from '~/types/haexspace'
-
 const { t } = useI18n()
-const { add } = useToast()
-
-const extensionsStore = useExtensionsStore()
-const windowManager = useWindowManagerStore()
-const { availableExtensions } = storeToRefs(extensionsStore)
-
-const loading = ref(true)
-const selectedExtension = ref<IHaexSpaceExtension | null>(null)
-
-const loadExtensionsAsync = async () => {
-  loading.value = true
-  try {
-    await extensionsStore.loadExtensionsAsync()
-  } catch (error) {
-    console.error('Error loading extensions:', error)
-    add({ description: t('loadError'), color: 'error' })
-  } finally {
-    loading.value = false
-  }
-}
-
-const openMarketplaceAsync = async () => {
-  await windowManager.openWindowAsync({
-    type: 'system',
-    sourceId: 'marketplace',
-  })
-}
-
-onMounted(async () => {
-  await loadExtensionsAsync()
-})
+const tabId = inject<string>('haex-tab-id')!
+const { activeView, direction, navigateTo, goBack } = useDrillDownNavigation<'index' | 'installed' | 'marketplaces'>('index', 'extensions', tabId)
 </script>
 
 <i18n lang="yaml">
 de:
   title: Erweiterungen
-  description: Verwalte installierte Erweiterungen und deren Berechtigungen.
-  openMarketplace: Marketplace öffnen
-  noExtensions: Keine Erweiterungen installiert.
-  devExtension: Dev
-  loadError: Fehler beim Laden der Erweiterungen
+  description: Verwalte installierte Erweiterungen und konfiguriere Marketplaces.
+  menu:
+    installed: Erweiterungen anzeigen
+    installedDesc: Installierte Erweiterungen verwalten und Berechtigungen prüfen
+    marketplaces: Marketplace konfigurieren
+    marketplacesDesc: Marketplaces hinzufügen, bearbeiten oder löschen
 en:
   title: Extensions
-  description: Manage installed extensions and their permissions.
-  openMarketplace: Open Marketplace
-  noExtensions: No extensions installed.
-  devExtension: Dev
-  loadError: Error loading extensions
+  description: Manage installed extensions and configure marketplaces.
+  menu:
+    installed: Show extensions
+    installedDesc: Manage installed extensions and review their permissions
+    marketplaces: Configure marketplaces
+    marketplacesDesc: Add, edit, or remove marketplaces
 </i18n>
