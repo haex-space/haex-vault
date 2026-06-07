@@ -1,4 +1,4 @@
-import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
+import { useMarketplaces, type AggregatedExtension } from '~/composables/useMarketplaces'
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 
@@ -8,7 +8,7 @@ import type { IHaexSpaceExtension } from '~/types/haexspace'
  */
 export function useExtensionUpdate() {
   const extensionsStore = useExtensionsStore()
-  const marketplace = useMarketplace()
+  const marketplace = useMarketplaces()
   const { add } = useToast()
 
   // State
@@ -20,7 +20,7 @@ export function useExtensionUpdate() {
   /**
    * Find extension in marketplace by name and return its slug
    */
-  const findMarketplaceExtensionAsync = async (extensionName: string) => {
+  const findMarketplaceExtensionAsync = async (extensionName: string): Promise<AggregatedExtension | undefined> => {
     await marketplace.fetchExtensions({ search: extensionName, limit: 10 })
     return marketplace.extensions.value.find((ext) => ext.name === extensionName)
   }
@@ -29,15 +29,17 @@ export function useExtensionUpdate() {
    * Download extension from marketplace by slug and prepare for update.
    * Opens the update dialog on success.
    * @param slug - The marketplace slug for the extension
+   * @param sourceMarketplaceId - Routes the download through the marketplace that surfaced this slug.
+   *   Falls back to the default marketplace when omitted (e.g. legacy callers without source context).
    */
-  const downloadBySlugForUpdateAsync = async (slug: string) => {
+  const downloadBySlugForUpdateAsync = async (slug: string, sourceMarketplaceId?: string) => {
     if (isDownloading.value) return false
 
     isDownloading.value = true
 
     try {
       // Get download URL from marketplace API
-      const downloadInfo = await marketplace.getDownloadUrl(slug)
+      const downloadInfo = await marketplace.getDownloadUrl(slug, sourceMarketplaceId)
 
       // Download and preview
       await extensionsStore.downloadAndPreviewAsync(
@@ -81,7 +83,7 @@ export function useExtensionUpdate() {
       return false
     }
 
-    return downloadBySlugForUpdateAsync(marketplaceExt.slug)
+    return downloadBySlugForUpdateAsync(marketplaceExt.slug, marketplaceExt.sourceMarketplaceId)
   }
 
   /**

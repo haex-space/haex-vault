@@ -756,6 +756,24 @@
         "tableName": "table_name",
         "rowPks": "row_pks"
       }
+    },
+    "marketplaces": {
+      "name": "haex_marketplaces",
+      "columns": {
+        "id": "id",
+        "name": "name",
+        "baseUrl": "base_url",
+        "enabled": "enabled",
+        "isDefault": "is_default",
+        "sortOrder": "sort_order",
+        "authType": "auth_type",
+        "authToken": "auth_token",
+        "authUsername": "auth_username",
+        "authPassword": "auth_password",
+        "authIdentityId": "auth_identity_id",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at"
+      }
     }
   }
 }

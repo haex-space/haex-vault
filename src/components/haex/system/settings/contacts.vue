@@ -94,6 +94,7 @@
 <script setup lang="ts">
 import type { SelectHaexIdentities } from '~/database/schemas'
 import { createLogger } from '@/stores/logging'
+import { SettingsCategory } from '~/config/settingsCategories'
 import AddContactDialog from './contacts/AddContactDialog.vue'
 import ClaimDialog from './contacts/ClaimDialog.vue'
 import ContactListItem from './contacts/ContactListItem.vue'
@@ -107,6 +108,9 @@ const { add: addToast } = useToast()
 
 const identityStore = useIdentityStore()
 const { contacts } = storeToRefs(identityStore)
+
+const tabId = inject<string>('haex-tab-id', '')
+const { navigationContext } = useDrillDownNavigation(SettingsCategory.General, 'settings-categories', tabId)
 
 const isLoading = ref(false)
 
@@ -132,6 +136,11 @@ onMounted(async () => {
   isLoading.value = true
   try {
     await identityStore.loadIdentitiesAsync()
+    const preSelectId = (navigationContext.value as { contactId?: string } | null)?.contactId
+    if (preSelectId) {
+      expandedContact.value = preSelectId
+      await loadClaimsAsync(preSelectId)
+    }
   } finally {
     isLoading.value = false
   }

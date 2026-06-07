@@ -468,10 +468,10 @@ export async function acceptLocalInvite(
           identityId: ownerIdentity.id,
           deviceId: crypto.randomUUID(),
           endpointId: inviterEndpointId,
-          name: invite.inviterLabel || `Device ${inviterEndpointId.slice(0, 8)}`,
+          name: `Device ${inviterEndpointId.slice(0, 8)}`,
           platform: '',
-          avatar: invite.inviterAvatar ?? null,
-          avatarOptions: invite.inviterAvatarOptions ?? null,
+          avatar: null,
+          avatarOptions: null,
           relayUrl: stubRelayUrl,
           authoredByDid: invite.inviterDid,
         })

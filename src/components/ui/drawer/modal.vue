@@ -47,5 +47,6 @@ const mergedUi = computed(() => ({
   header: `pt-[calc(env(safe-area-inset-top,_0px)_+_1.5rem)] ${props.ui?.header ?? ''}`.trim(),
   body: `flex flex-col justify-center ${props.ui?.body ?? ''}`.trim(),
   footer: `pb-[calc(env(safe-area-inset-bottom,_0px)_+_1.5rem)] ${props.ui?.footer ?? ''}`.trim(),
+  close: `top-[calc(env(safe-area-inset-top,_0px)_+_1rem)] ${props.ui?.close ?? ''}`.trim(),
 }))
 </script>

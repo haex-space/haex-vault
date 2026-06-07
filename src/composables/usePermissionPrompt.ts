@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
+import { createOnceListener } from '@/lib/once-listener'
 
 export interface PermissionPromptData {
   extensionId: string
@@ -34,9 +35,28 @@ const promptQueue = ref<QueuedPrompt[]>([])
 // Waiters for duplicate prompts - resolved when the original prompt resolves
 const duplicateWaiters = new Map<string, ((decision: PermissionDecision) => void)[]>()
 
-// Event listener cleanup
-let eventUnlisten: UnlistenFn | null = null
-let isInitialized = false
+const permissionListener = createOnceListener(() =>
+  listen<PermissionPromptData>(EVENT_PERMISSION_PROMPT_REQUIRED, (event) => {
+    const data = event.payload
+
+    // Skip duplicate prompts
+    if (isDuplicatePrompt(data)) {
+      return
+    }
+
+    // Session permissions are checked in the Rust backend before this event is emitted
+    if (isOpen.value) {
+      // Queue the prompt if one is already open
+      promptQueue.value.push({ data, resolve: null })
+    } else {
+      // Show immediately
+      promptData.value = data
+      resolvePromise = null
+      isOpen.value = true
+    }
+  }),
+)
+
 
 /**
  * Generate a unique key for a permission prompt to detect duplicates
@@ -335,44 +355,14 @@ export function usePermissionPrompt() {
    * is granted (the backend returns an error to trigger the retry).
    */
   async function init() {
-    if (isInitialized) {
-      return
-    }
-    isInitialized = true
-
-    eventUnlisten = await listen<PermissionPromptData>(
-      EVENT_PERMISSION_PROMPT_REQUIRED,
-      (event) => {
-        const data = event.payload
-
-        // Skip duplicate prompts
-        if (isDuplicatePrompt(data)) {
-          return
-        }
-
-        // Session permissions are checked in the Rust backend before this event is emitted
-        if (isOpen.value) {
-          // Queue the prompt if one is already open
-          promptQueue.value.push({ data, resolve: null })
-        } else {
-          // Show immediately
-          promptData.value = data
-          resolvePromise = null
-          isOpen.value = true
-        }
-      }
-    )
+    await permissionListener.initAsync()
   }
 
   /**
    * Cleanup the event listener
    */
   function cleanup() {
-    if (eventUnlisten) {
-      eventUnlisten()
-      eventUnlisten = null
-    }
-    isInitialized = false
+    permissionListener.dispose()
   }
 
   /**
