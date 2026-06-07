@@ -630,15 +630,24 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         })
         return entries.map(entry => ({ ...entry, spaceId }))
       } catch (err) {
-        log.warn(`remoteListAllSharesAsync: leader rejected space ${spaceId.slice(0, 8)}: ${err}`)
-        return []
+        // Re-throw so the caller can surface this to the user if all spaces fail.
+        throw new Error(`space ${spaceId.slice(0, 8)}: ${err}`)
       } finally {
         activeTransfers.value--
       }
     }
 
-    const perSpace = await Promise.all(peerSpaceIds.map(fetchOneSpace))
-    return perSpace.flat()
+    const settled = await Promise.allSettled(peerSpaceIds.map(fetchOneSpace))
+    const succeeded = settled.flatMap(r => r.status === 'fulfilled' ? r.value : [])
+    const failures = settled.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+
+    if (succeeded.length === 0 && failures.length > 0) {
+      // Every space either had no UCAN or failed to connect — throw the first
+      // connection error so the file browser can show a meaningful message.
+      throw failures[0]!.reason
+    }
+
+    return succeeded
   }
 
   const remoteReadAsync = async (
