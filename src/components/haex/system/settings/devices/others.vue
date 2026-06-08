@@ -68,8 +68,7 @@
             <UiInput
               v-model="editingName"
               class="flex-1"
-              @keyup.enter="onSaveOtherDeviceNameAsync(item.device.id)"
-              @keyup.escape="editingDeviceId = null"
+              @keyup="onEditDeviceNameKeyup"
             />
             <UiButton
               icon="i-lucide-check"
@@ -204,6 +203,11 @@ const onRemoveDeviceAsync = async () => {
 const startEditing = (device: typeof peerStore.spaceDevices[number]) => {
   editingDeviceId.value = device.id
   editingName.value = device.name
+}
+
+const onEditDeviceNameKeyup = (e: KeyboardEvent) => {
+  if (e.key === 'Enter' && editingDeviceId.value) onSaveOtherDeviceNameAsync(editingDeviceId.value)
+  else if (e.key === 'Escape') editingDeviceId.value = null
 }
 
 const onSaveOtherDeviceNameAsync = async (id: string) => {
