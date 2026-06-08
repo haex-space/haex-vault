@@ -73,6 +73,9 @@ const scale = ref(1)
 
 const canvasRefs = new Map<number, HTMLCanvasElement>()
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null
+// pdfjs-dist 6 dropped PDFDocumentProxy.destroy(); the cleanup hook lives on
+// the loading task now, so we have to keep a reference to it.
+let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null
 
 const setCanvasRef = (el: HTMLCanvasElement | null, page: number) => {
   if (el) canvasRefs.set(page, el)
@@ -107,8 +110,14 @@ const loadPdf = async () => {
   isLoading.value = true
   error.value = null
 
+  // Tear down any previous load before starting a new one — without this a
+  // rapid src swap would leak the prior loading task and its worker resources.
+  await loadingTask?.destroy().catch(() => {})
+  pdfDoc = null
+
   try {
-    pdfDoc = await pdfjsLib.getDocument(props.src).promise
+    loadingTask = pdfjsLib.getDocument({ url: props.src })
+    pdfDoc = await loadingTask.promise
     totalPages.value = pdfDoc.numPages
 
     await nextTick()
@@ -151,6 +160,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   containerRef.value?.removeEventListener('scroll', onScroll)
-  pdfDoc?.destroy()
+  void loadingTask?.destroy().catch(() => {})
 })
 </script>
