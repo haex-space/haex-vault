@@ -16,8 +16,7 @@
             size="sm"
             :placeholder="t('nickname.placeholder')"
             class="flex-1"
-            @keyup.enter="saveNickname"
-            @keyup.escape="cancelNickname"
+            @keyup="onNicknameKeyup"
             @blur="saveNickname"
           />
         </template>
@@ -171,6 +170,11 @@ const saveNickname = () => {
 
 const cancelNickname = () => {
   isEditingNickname.value = false
+}
+
+const onNicknameKeyup = (e: KeyboardEvent) => {
+  if (e.key === 'Enter') saveNickname()
+  else if (e.key === 'Escape') cancelNickname()
 }
 
 const onDelete = () => {
