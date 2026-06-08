@@ -638,12 +638,16 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     }
 
     const settled = await Promise.allSettled(peerSpaceIds.map(fetchOneSpace))
-    const succeeded = settled.flatMap(r => r.status === 'fulfilled' ? r.value : [])
+    const fulfilled = settled.filter(
+      (r): r is PromiseFulfilledResult<Array<FileEntry & { spaceId: string }>> =>
+        r.status === 'fulfilled',
+    )
+    const succeeded = fulfilled.flatMap(r => r.value)
     const failures = settled.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
 
-    if (succeeded.length === 0 && failures.length > 0) {
-      // Every space either had no UCAN or failed to connect — throw the first
-      // connection error so the file browser can show a meaningful message.
+    if (fulfilled.length === 0 && failures.length > 0) {
+      // Every attempted space failed to connect — throw the first connection
+      // error so the file browser can show a meaningful message.
       throw failures[0]!.reason
     }
 
