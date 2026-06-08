@@ -297,7 +297,7 @@
 
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
-import { useMarketplace } from '@haex-space/marketplace-sdk/vue'
+import { useMarketplaces } from '~/composables/useMarketplaces'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import type { PermissionEntry } from '~~/src-tauri/bindings/PermissionEntry'
 import type { DisplayMode } from '~~/src-tauri/bindings/DisplayMode'
@@ -326,7 +326,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { add } = useToast()
 const extensionsStore = useExtensionsStore()
-const marketplace = useMarketplace()
+const marketplace = useMarketplaces()
 const windowManager = useWindowManagerStore()
 
 // Update state

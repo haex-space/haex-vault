@@ -52,4 +52,6 @@ export interface MarketplaceExtensionViewModel {
   isInstalled: boolean
   installedVersion?: string
   latestVersion?: string
+  sourceMarketplaceId?: string
+  sourceMarketplaceName?: string
 }

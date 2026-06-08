@@ -57,6 +57,14 @@
               >
                 {{ browser.selectedPeerName.value }}
               </UButton>
+              <HaexPeerStatusDot
+                v-if="!browser.selectedPeer.value?.s3BackendId"
+                :status="ping.getStatus(browser.selectedPeer.value!.endpointId)"
+                :path-type="connectionType.getPathType(browser.selectedPeer.value!.endpointId)"
+                :rtt-ms="connectionType.getRttMs(browser.selectedPeer.value!.endpointId)"
+                size="sm"
+                @hover="refreshPeerStatus(browser.selectedPeer.value!.endpointId)"
+              />
               <template
                 v-for="(segment, i) in browser.pathSegments.value"
                 :key="i"
@@ -657,6 +665,9 @@
                   <HaexPeerStatusDot
                     v-if="entry.kind === 'remote-peer'"
                     :status="ping.getStatus(entry.peer.endpointId)"
+                    :path-type="connectionType.getPathType(entry.peer.endpointId)"
+                    :rtt-ms="connectionType.getRttMs(entry.peer.endpointId)"
+                    @hover="refreshPeerStatus(entry.peer.endpointId)"
                   />
                   <UIcon
                     name="i-lucide-chevron-right"
@@ -1190,6 +1201,15 @@ const remotePeers = computed(() => {
 
 const remotePeerIds = computed(() => remotePeers.value.map((p) => p.endpointId))
 const ping = usePeerPing(remotePeerIds)
+const connectionType = usePeerConnectionType(remotePeerIds)
+
+// Refresh both ping + connection diagnostics for a single peer — wired to
+// the StatusDot's `@mouseenter` so a user who pauses on a stale dot gets an
+// immediate update instead of waiting for the next 60s heartbeat tick.
+const refreshPeerStatus = (endpointId: string) => {
+  void ping.refreshOne(endpointId)
+  void connectionType.refreshOne(endpointId)
+}
 
 const parseAvatarOptions = (raw: string | null | undefined) => {
   if (!raw) return null

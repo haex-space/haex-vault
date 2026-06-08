@@ -112,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { haexDevices, haexSpaceDevices } from '~/database/schemas'
+import { haexDevices, haexIdentities, haexSpaceDevices } from '~/database/schemas'
 import { and, eq } from 'drizzle-orm'
 
 interface DeviceRow {
@@ -183,7 +183,21 @@ const loadOwnDevicesAsync = async () => {
     rowsForDevices.value = []
     return
   }
-  const rows = await db.select().from(haexDevices)
+  // Foreign device stubs (created by the haex_space_devices_ensure_refs
+  // trigger) share the haex_devices table — filter them out by joining the
+  // owner identity and only keeping `source='own'` rows. Without this filter
+  // the dialog would list devices belonging to other vaults that we only
+  // learned about via CRDT-synced haex_space_devices rows.
+  const rows = await db
+    .select({
+      id: haexDevices.id,
+      endpointId: haexDevices.endpointId,
+      name: haexDevices.name,
+      platform: haexDevices.platform,
+    })
+    .from(haexDevices)
+    .innerJoin(haexIdentities, eq(haexIdentities.did, haexDevices.ownerDid))
+    .where(eq(haexIdentities.source, 'own'))
   rowsForDevices.value = rows.map(r => ({
     id: r.id,
     endpointId: r.endpointId,

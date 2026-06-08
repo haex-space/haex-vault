@@ -8,7 +8,8 @@
     "dirtyTablesChanged": "crdt:dirty-tables-changed"
   },
   "peer": {
-    "storageStateChanged": "peer-storage:state-changed"
+    "storageStateChanged": "peer-storage:state-changed",
+    "connectionChanged": "peer-storage:connection-changed"
   },
   "localSync": {
     "completed": "local-sync-completed",
