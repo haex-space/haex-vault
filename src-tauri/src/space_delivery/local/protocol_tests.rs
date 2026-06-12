@@ -1,6 +1,6 @@
 //! Tests for `Request` metadata helpers used by the unified AuthGate.
 
-use super::{IdentityClaim, Request};
+use super::Request;
 use crate::ucan::CapabilityLevel;
 
 /// Build one instance of every `Request` variant with its `space_id` set to
@@ -14,7 +14,7 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
             endpoint_id: "endpoint-1".into(),
             space_id: expected.into(),
             label: None,
-            claims: None::<Vec<IdentityClaim>>,
+            claims: None,
             ucan_token: "ucan".into(),
         },
         Request::MlsUploadKeyPackages {
@@ -112,7 +112,10 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
 fn required_capability_matches_documented_mapping() {
     let space = "space-x";
 
-    // Read-level operations
+    // Read-level operations. RequestRejoin + SubmitExternalCommit live here
+    // (not under Write) because the inline UCAN checks they replace in
+    // `leader.rs` enforce `CapabilityLevel::Read` — this refactor must not
+    // tighten the floor. See `Request::required_capability` doc-comment.
     let read_variants: Vec<Request> = vec![
         Request::MlsFetchKeyPackage {
             space_id: space.into(),
@@ -131,6 +134,15 @@ fn required_capability_matches_documented_mapping() {
         Request::SyncPull {
             space_id: space.into(),
             after_timestamp: None,
+            ucan_token: "ucan".into(),
+        },
+        Request::RequestRejoin {
+            space_id: space.into(),
+            ucan_token: "ucan".into(),
+        },
+        Request::SubmitExternalCommit {
+            space_id: space.into(),
+            commit: "commit".into(),
             ucan_token: "ucan".into(),
         },
     ];
@@ -167,15 +179,6 @@ fn required_capability_matches_documented_mapping() {
             changes: serde_json::json!({}),
             ucan_token: "ucan".into(),
         },
-        Request::RequestRejoin {
-            space_id: space.into(),
-            ucan_token: "ucan".into(),
-        },
-        Request::SubmitExternalCommit {
-            space_id: space.into(),
-            commit: "commit".into(),
-            ucan_token: "ucan".into(),
-        },
     ];
     for req in &write_variants {
         assert_eq!(
@@ -192,7 +195,7 @@ fn required_capability_matches_documented_mapping() {
             endpoint_id: "endpoint-1".into(),
             space_id: space.into(),
             label: None,
-            claims: None::<Vec<IdentityClaim>>,
+            claims: None,
             ucan_token: "ucan".into(),
         },
         Request::ClaimInvite {

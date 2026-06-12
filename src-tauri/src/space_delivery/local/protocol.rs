@@ -214,27 +214,43 @@ impl Request {
     /// Returns the minimum `CapabilityLevel` required to dispatch this
     /// request, or `None` if it bypasses the AuthGate.
     ///
+    /// For `Some(level)`, the level is a **minimum floor**: the gate (see
+    /// `auth_gate::authorize_request`, arriving in Phase 3 of the
+    /// unified-authgate refactor) permits any capability `>= level` via
+    /// `require_capability`. So a `Write` member always satisfies a `Read`
+    /// floor.
+    ///
     /// - `Announce` bypasses because it bootstraps the membership cache the
     ///   gate would query — gating it against itself is circular.
     /// - `ClaimInvite` bypasses because authentication is by invite token,
     ///   not by capability — the claimer is not yet a member.
     /// - `PushInvite` bypasses because it is leader-internal delivery to the
     ///   invitee's device, not a membership-scoped operation.
+    ///
+    /// `RequestRejoin` and `SubmitExternalCommit` are deliberately classified
+    /// as `Read` to mirror the existing inline UCAN checks in
+    /// `leader.rs::dispatch_request` (search for `CapabilityLevel::Read` in
+    /// the `RequestRejoin` / `SubmitExternalCommit` arms). This refactor must
+    /// not change behaviour — a read-only member that has fallen out of MLS
+    /// epoch can rejoin today, and must keep being able to rejoin after the
+    /// inline checks are deleted in Phase 5. Whether MLS-state-mutating
+    /// operations should require `Write` is a separate policy question and
+    /// can be revisited in a follow-up PR.
     pub fn required_capability(&self) -> Option<CapabilityLevel> {
         match self {
             Request::MlsFetchKeyPackage { .. }
             | Request::MlsFetchMessages { .. }
             | Request::MlsFetchWelcomes { .. }
             | Request::MlsKeyPackageCount { .. }
-            | Request::SyncPull { .. } => Some(CapabilityLevel::Read),
+            | Request::SyncPull { .. }
+            | Request::RequestRejoin { .. }
+            | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
 
             Request::MlsUploadKeyPackages { .. }
             | Request::MlsSendMessage { .. }
             | Request::MlsSendWelcome { .. }
             | Request::MlsAckCommit { .. }
-            | Request::SyncPush { .. }
-            | Request::RequestRejoin { .. }
-            | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Write),
+            | Request::SyncPush { .. } => Some(CapabilityLevel::Write),
 
             Request::Announce { .. }
             | Request::ClaimInvite { .. }
