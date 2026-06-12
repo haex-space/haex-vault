@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::ucan::CapabilityLevel;
+
 /// ALPN protocol identifier for space delivery.
 ///
 /// Version bumped from `haex-delivery/1` to `haex-delivery/2` when Phase 2 of
@@ -206,6 +208,37 @@ impl Request {
             | Request::SyncPull { space_id, .. }
             | Request::ClaimInvite { space_id, .. }
             | Request::PushInvite { space_id, .. } => space_id,
+        }
+    }
+
+    /// Returns the minimum `CapabilityLevel` required to dispatch this
+    /// request, or `None` if it bypasses the AuthGate.
+    ///
+    /// - `Announce` bypasses because it bootstraps the membership cache the
+    ///   gate would query — gating it against itself is circular.
+    /// - `ClaimInvite` bypasses because authentication is by invite token,
+    ///   not by capability — the claimer is not yet a member.
+    /// - `PushInvite` bypasses because it is leader-internal delivery to the
+    ///   invitee's device, not a membership-scoped operation.
+    pub fn required_capability(&self) -> Option<CapabilityLevel> {
+        match self {
+            Request::MlsFetchKeyPackage { .. }
+            | Request::MlsFetchMessages { .. }
+            | Request::MlsFetchWelcomes { .. }
+            | Request::MlsKeyPackageCount { .. }
+            | Request::SyncPull { .. } => Some(CapabilityLevel::Read),
+
+            Request::MlsUploadKeyPackages { .. }
+            | Request::MlsSendMessage { .. }
+            | Request::MlsSendWelcome { .. }
+            | Request::MlsAckCommit { .. }
+            | Request::SyncPush { .. }
+            | Request::RequestRejoin { .. }
+            | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Write),
+
+            Request::Announce { .. }
+            | Request::ClaimInvite { .. }
+            | Request::PushInvite { .. } => None,
         }
     }
 }
