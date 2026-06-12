@@ -1007,40 +1007,17 @@ pub(super) async fn handle_delivery_request(
         Request::SyncPull {
             space_id,
             after_timestamp,
-            ucan_token,
+            // `ucan_token` is now redundant on the wire — the gate
+            // authenticated this request against the cached UCAN. Kept
+            // as `..` to avoid a protocol break this PR.
+            ..
         } => {
-            // Read capability is the minimum bar — any member (read / write /
-            // invite / admin) may pull. Non-members get no data at all.
-            let validated = match require_valid_ucan(&ucan_token, "SyncPull") {
-                Ok(v) => v,
-                Err(r) => {
-                    crate::logging::log_to_db(
-                        &state.db, &state.hlc, "warn", "SyncPull",
-                        &format!("UCAN validation failed: space={} peer={}",
-                            &space_id[..8.min(space_id.len())], peer_endpoint_id),
-                    );
-                    return r;
-                }
-            };
-            let peer_did = verified_did.to_string();
-            if let Err(r) = require_ucan_capability(
-                &validated,
-                &space_id,
-                CapabilityLevel::Read,
-                &peer_did,
-                "SyncPull",
-                &state.db,
-            ) {
-                crate::logging::log_to_db(
-                    &state.db, &state.hlc, "warn", "SyncPull",
-                    &format!("capability/membership rejected: space={} audience={} peer={}",
-                        &space_id[..8.min(space_id.len())],
-                        &validated.audience[..24.min(validated.audience.len())],
-                        peer_endpoint_id,
-                    ),
-                );
-                return r;
-            }
+            // The gate proved Read+ capability and active membership.
+            // `validated` is held only for the success-path audit log below
+            // (`audience=…`); no further auth decision is made here.
+            let validated = gate_ucan
+                .as_ref()
+                .expect("non-bypass SyncPull must have ValidatedUcan from gate");
 
             let device_id = "leader";
             // Origin filter is push-only (sync_loop). When *serving* a pull
@@ -1355,6 +1332,15 @@ mod audience_check_tests {
     /// Announce claimed", which is itself unsafe before the handshake binds
     /// the DID. After C7 every handler binds directly via
     /// `verified_did.to_string()`.
+    ///
+    /// **T6 update.** The pre-T6 invariant — "every UCAN-gated arm calls
+    /// `require_ucan_capability(…, peer_did, …)`" — is gone. Sync arms now
+    /// trust the unified `auth_gate` (which performs the same audience +
+    /// capability + active-membership checks once per request). Only the
+    /// Announce arm still calls the helper inline, because Announce is the
+    /// bypass that *populates* the cached UCAN the gate later reads from.
+    /// We keep the `verified_did.to_string()` guard below to pin that no
+    /// regression brings back `require_peer_did(state, peer_endpoint_id)`.
     #[test]
     fn every_require_ucan_capability_call_passes_a_peer_did() {
         let source = include_str!("leader.rs");
@@ -1362,18 +1348,6 @@ mod audience_check_tests {
             .split_once("#[cfg(test)]")
             .map(|(p, _)| p)
             .unwrap_or(source);
-
-        let total_calls = production.matches("require_ucan_capability(").count();
-        // The fn definition itself contains one occurrence; production
-        // call sites are the remainder.
-        let call_sites = total_calls.saturating_sub(1);
-
-        assert!(
-            call_sites >= 4,
-            "expected at least 4 call sites (Announce, SyncPull, \
-             RequestRejoin, SubmitExternalCommit); found {}",
-            call_sites
-        );
 
         // Every handler that needs a DID for capability/buffer keys/audit
         // logs now derives it from the connection-bound verified_did. The
