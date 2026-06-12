@@ -183,6 +183,33 @@ pub enum Request {
     },
 }
 
+impl Request {
+    /// Returns the `space_id` this request targets.
+    ///
+    /// Every `Request` variant carries a `space_id` because every request is
+    /// space-scoped — the unified AuthGate uses this to route the membership
+    /// + capability lookup before dispatching to the variant-specific handler.
+    pub fn space_id_of(&self) -> &str {
+        match self {
+            Request::Announce { space_id, .. }
+            | Request::MlsUploadKeyPackages { space_id, .. }
+            | Request::MlsFetchKeyPackage { space_id, .. }
+            | Request::MlsSendMessage { space_id, .. }
+            | Request::MlsFetchMessages { space_id, .. }
+            | Request::MlsSendWelcome { space_id, .. }
+            | Request::MlsFetchWelcomes { space_id, .. }
+            | Request::MlsAckCommit { space_id, .. }
+            | Request::MlsKeyPackageCount { space_id, .. }
+            | Request::RequestRejoin { space_id, .. }
+            | Request::SubmitExternalCommit { space_id, .. }
+            | Request::SyncPush { space_id, .. }
+            | Request::SyncPull { space_id, .. }
+            | Request::ClaimInvite { space_id, .. }
+            | Request::PushInvite { space_id, .. } => space_id,
+        }
+    }
+}
+
 // ============================================================================
 // Response types
 // ============================================================================
@@ -307,3 +334,7 @@ pub async fn read_response(
 ) -> Result<Response, PeerProtocolError> {
     crate::peer_storage::protocol::read_message(recv, MAX_RESPONSE_SIZE).await
 }
+
+#[cfg(test)]
+#[path = "protocol_tests.rs"]
+mod tests;
