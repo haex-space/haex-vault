@@ -115,3 +115,47 @@ async fn rejects_audience_mismatch() {
         other => panic!("expected audience-mismatch reject, got {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn rejects_insufficient_capability() {
+    // Stage 4: the UCAN audience matches the connection DID and is for the
+    // right space, but only grants `Read`. A SyncPush requires `Write` —
+    // require_capability must reject before is_active_space_member runs.
+    let db = empty_db();
+    let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
+    peers_map.insert(
+        "endpoint-id".to_string(),
+        make_peer(
+            "endpoint-id",
+            "did:key:zPeer",
+            make_ucan("did:key:zPeer", "SPACE", CapabilityLevel::Read),
+        ),
+    );
+    let peers = RwLock::new(peers_map);
+
+    let request = Request::SyncPush {
+        space_id: "SPACE".into(),
+        changes: serde_json::json!({}),
+        ucan_token: "ignored".into(),
+    };
+
+    let result = authorize_request(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+    )
+    .await;
+
+    match result {
+        Err(Response::Error { message }) => {
+            let lower = message.to_lowercase();
+            assert!(
+                lower.contains("denied") || lower.contains("capability"),
+                "expected capability-rejection message, got: {message}"
+            );
+        }
+        other => panic!("expected capability reject, got {other:?}"),
+    }
+}
