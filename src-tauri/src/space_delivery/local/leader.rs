@@ -1135,23 +1135,18 @@ pub(super) async fn handle_delivery_request(
 
         Request::RequestRejoin {
             space_id,
-            ucan_token,
+            // `ucan_token` is now redundant on the wire — the gate
+            // authenticated this request against the cached UCAN.
+            ..
         } => {
-            let validated = match require_valid_ucan(&ucan_token, "RequestRejoin") {
-                Ok(v) => v,
-                Err(r) => return r,
-            };
-            let peer_did = verified_did.to_string();
-            if let Err(r) = require_ucan_capability(
-                &validated,
-                &space_id,
-                CapabilityLevel::Read,
-                &peer_did,
-                "RequestRejoin",
-                &state.db,
-            ) {
-                return r;
-            }
+            // The gate proved Read+ capability and active membership. We
+            // don't need the ValidatedUcan downstream, but assert it's
+            // present so a future refactor that loses the gate wire-up
+            // would panic loudly here instead of silently leaking
+            // GroupInfo to unauthenticated peers.
+            let _gate_ucan = gate_ucan
+                .as_ref()
+                .expect("non-bypass RequestRejoin must have ValidatedUcan from gate");
 
             // Export current GroupInfo with ratchet tree for External Commit
             match crate::mls::blocking::get_group_info(
