@@ -401,6 +401,9 @@ pub async fn handle_claim_invite(
             connected_at: OffsetDateTime::now_utc()
                 .format(&time::format_description::well_known::Rfc3339)
                 .unwrap_or_default(),
+            // ClaimInvite issues the UCAN; the peer presents it on a
+            // subsequent Announce, which populates this cache.
+            validated_ucan: None,
         },
     );
 
@@ -686,6 +689,7 @@ pub(super) async fn handle_delivery_request(
                 connected_at: OffsetDateTime::now_utc()
                     .format(&time::format_description::well_known::Rfc3339)
                     .unwrap_or_default(),
+                validated_ucan: Some(validated.clone()),
             };
             state
                 .connected_peers
