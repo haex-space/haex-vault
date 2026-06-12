@@ -611,6 +611,35 @@ pub(super) async fn handle_delivery_request(
     peer_endpoint_id: &str,
     verified_did: &str,
 ) -> Response {
+    // Unified auth choke point. Bypass requests (Announce, ClaimInvite,
+    // PushInvite) return `Ok(None)` and proceed unchanged; every other
+    // variant must come from a peer that already Announced on this
+    // connection, carry a UCAN whose audience matches the
+    // connection-authenticated DID, grant at least the per-request minimum
+    // capability, and still resolve to an active member.
+    //
+    // Until T6 lands, the per-arm `require_valid_ucan` + `require_ucan_capability`
+    // calls in Announce / SyncPush / SyncPull / RequestRejoin /
+    // SubmitExternalCommit remain in place as defense-in-depth — T5 only
+    // adds the choke point, it does not delete the inline checks.
+    //
+    // The result is held in `_gate_outcome` (intentionally unused). T6
+    // renames it to `gate_ucan` and threads the `ValidatedUcan` into the
+    // SyncPush/SyncPull inline cleanup so the gate becomes the single
+    // source of UCAN truth.
+    let _gate_outcome = match super::auth_gate::authorize_request(
+        &request,
+        verified_did,
+        peer_endpoint_id,
+        &state.connected_peers,
+        &state.db,
+    )
+    .await
+    {
+        Ok(maybe) => maybe,
+        Err(response) => return response,
+    };
+
     match request {
         Request::Announce {
             endpoint_id,
@@ -1382,6 +1411,119 @@ mod audience_check_tests {
             "expected at least 4 `verified_did.to_string()` bindings inside \
              request handlers (covering MLS request envelope DIDs + the \
              three UCAN-audience-checked handlers); found {verified_bindings}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod auth_gate_wireup_tests {
+    //! Regression guards for the T5 wire-up: `handle_delivery_request` must
+    //! invoke `auth_gate::authorize_request` **before** the `match request`
+    //! dispatch, so every non-bypass request is authorised at one choke point.
+    //!
+    //! Behavioural coverage of the gate's own rejection logic lives in
+    //! `auth_gate_tests` (built against a focused fixture); proving that the
+    //! dispatcher actually calls the gate requires building a full
+    //! `LeaderState` (iroh endpoint, MLS provider, tokio runtime, HLC, the
+    //! whole works), which is the same cost calculus that made
+    //! `audience_check_tests` source-text-only above. We follow the same
+    //! pattern here: pin the wire-up via static-source assertions; rely on
+    //! e2e (`haex-e2e-tests`) for end-to-end behaviour.
+    //!
+    //! T6 will rename `_gate_outcome` to `gate_ucan` and thread it into the
+    //! SyncPush/SyncPull inline cleanup. For now the variable is unused —
+    //! the prefix-underscore is deliberate.
+
+    /// `handle_delivery_request` must call `auth_gate::authorize_request`
+    /// before the `match request` dispatch. Without this single choke point
+    /// the per-arm checks remain the only line of defence and the MLS-related
+    /// arms (which had no inline UCAN check pre-T5) stay un-gated.
+    #[test]
+    fn handle_delivery_request_invokes_gate_before_match() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        let fn_marker = "pub(super) async fn handle_delivery_request(";
+        let fn_start = production
+            .find(fn_marker)
+            .expect("handle_delivery_request must exist");
+        let body = &production[fn_start..];
+        let gate_call_pos = body
+            .find("auth_gate::authorize_request(")
+            .expect(
+                "handle_delivery_request must call auth_gate::authorize_request — \
+                 without this every per-arm check stays the only line of defence \
+                 and the MLS arms remain un-gated. See plan T5 §4.1.",
+            );
+        let match_pos = body
+            .find("match request {")
+            .expect("handle_delivery_request must contain `match request {`");
+
+        assert!(
+            gate_call_pos < match_pos,
+            "auth_gate::authorize_request must be invoked BEFORE the `match \
+             request` dispatch — gating after the match defeats the choke \
+             point. See plan T5 §4.1."
+        );
+    }
+
+    /// The gate-rejection arm in `handle_delivery_request` must `return` the
+    /// `Response::Error` it receives, never fall through to the match. The
+    /// `?` operator is impossible here because the fn returns `Response`,
+    /// not `Result`, so the explicit `return response` pattern is the only
+    /// safe shape.
+    #[test]
+    fn handle_delivery_request_returns_gate_rejection() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        let fn_marker = "pub(super) async fn handle_delivery_request(";
+        let fn_start = production
+            .find(fn_marker)
+            .expect("handle_delivery_request must exist");
+        let body = &production[fn_start..];
+        let gate_call = body
+            .find("auth_gate::authorize_request(")
+            .expect("gate call missing");
+        let match_pos = body.find("match request {").expect("match missing");
+        let between = &body[gate_call..match_pos];
+
+        assert!(
+            between.contains("return response") || between.contains("=> return"),
+            "the Err arm of `auth_gate::authorize_request` must `return` the \
+             Response::Error so the dispatcher short-circuits before the \
+             match. Found gate→match slice:\n{between}"
+        );
+    }
+
+    /// `LeaderState` exposes everything the gate needs (db, connected_peers).
+    /// This pins the field names the wire-up depends on — if either is
+    /// renamed the gate call would fail to compile, but a future refactor
+    /// that wraps them in a builder/getter would silently break the
+    /// dispatcher-side wire-up that reads `&state.connected_peers` /
+    /// `&state.db` directly.
+    #[test]
+    fn leader_state_exposes_fields_the_gate_consumes() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("pub connected_peers: Arc<RwLock<HashMap<String, ConnectedPeer>>>"),
+            "LeaderState.connected_peers must remain the typed handle the \
+             gate reads from"
+        );
+        assert!(
+            production.contains("pub db: DbConnection"),
+            "LeaderState.db must remain the typed handle the gate reads from"
         );
     }
 }
