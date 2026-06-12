@@ -20,4 +20,6 @@ pub mod ucan;
 #[cfg(test)]
 mod inbound_sync_tests;
 #[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod tests;
