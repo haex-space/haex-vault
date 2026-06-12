@@ -1421,14 +1421,32 @@ mod auth_gate_wireup_tests {
     //! invoke `auth_gate::authorize_request` **before** the `match request`
     //! dispatch, so every non-bypass request is authorised at one choke point.
     //!
-    //! Behavioural coverage of the gate's own rejection logic lives in
-    //! `auth_gate_tests` (built against a focused fixture); proving that the
-    //! dispatcher actually calls the gate requires building a full
-    //! `LeaderState` (iroh endpoint, MLS provider, tokio runtime, HLC, the
-    //! whole works), which is the same cost calculus that made
-    //! `audience_check_tests` source-text-only above. We follow the same
-    //! pattern here: pin the wire-up via static-source assertions; rely on
-    //! e2e (`haex-e2e-tests`) for end-to-end behaviour.
+    //! ## Deviation from the plan (Phase 4 Task 4.2)
+    //!
+    //! The plan prescribed a behavioural integration test
+    //! (`unannounced_mls_upload_is_rejected_at_dispatcher`) built against a
+    //! `build_test_leader_state("SPACE")` helper. We deviated and shipped the
+    //! three source-text assertions below instead. Rationale:
+    //!
+    //! - **Fixture cost is real.** `LeaderState` carries an `AppHandle`, an
+    //!   iroh `Endpoint`, an MLS provider, an HLC, a tokio runtime, plus a
+    //!   SQLite schema with HLC triggers. The existing
+    //!   `audience_check_tests` and `claim_invite_did_binding_tests` modules
+    //!   hit the same wall and resolved it the same way — source-text only.
+    //!   We follow that precedent.
+    //! - **Behavioural coverage already exists at the gate level.**
+    //!   `auth_gate_tests::rejects_request_without_prior_announce` (and
+    //!   sibling rejection-path tests) drive the gate against an in-memory
+    //!   DB. Those tests prove the gate works. The source-text assertions
+    //!   here prove the *wire-up*: the dispatcher actually calls the gate,
+    //!   and on `Err` it returns the response before reaching the match.
+    //! - **End-to-end coverage lives in `haex-e2e-tests`.** Real-network
+    //!   negative paths (un-announced peer, revoked member, etc.) run there.
+    //!
+    //! Net: gate behaviour is exercised against an in-memory DB;
+    //! dispatcher-to-gate wiring is pinned via static-source assertions;
+    //! the full path is covered e2e. The plan's `build_test_leader_state`
+    //! helper was not worth its weight given that triangulation.
     //!
     //! T6 will rename `_gate_outcome` to `gate_ucan` and thread it into the
     //! SyncPush/SyncPull inline cleanup. For now the variable is unused —
@@ -1495,19 +1513,25 @@ mod auth_gate_wireup_tests {
         let between = &body[gate_call..match_pos];
 
         assert!(
-            between.contains("return response") || between.contains("=> return"),
-            "the Err arm of `auth_gate::authorize_request` must `return` the \
-             Response::Error so the dispatcher short-circuits before the \
-             match. Found gate→match slice:\n{between}"
+            between.contains("Err(response) => return response"),
+            "expected gate-Err arm to be exactly \
+             `Err(response) => return response` so the dispatcher \
+             short-circuits before the match. A loose `return …(response)` \
+             could silently wrap, log, or mutate the rejection; we pin the \
+             exact shape. Found gate→match slice:\n{}",
+            &between[..between.len().min(200)]
         );
     }
 
-    /// `LeaderState` exposes everything the gate needs (db, connected_peers).
-    /// This pins the field names the wire-up depends on — if either is
-    /// renamed the gate call would fail to compile, but a future refactor
-    /// that wraps them in a builder/getter would silently break the
-    /// dispatcher-side wire-up that reads `&state.connected_peers` /
-    /// `&state.db` directly.
+    /// Paranoid guard, **not load-bearing**: the compiler already catches
+    /// a rename of `LeaderState::connected_peers` or `LeaderState::db`
+    /// because the gate call-site in `handle_delivery_request` reads
+    /// `&state.connected_peers` / `&state.db` directly. This test only
+    /// matters for the narrow case where a future refactor introduces a
+    /// builder/getter that *re-exports the same identifier with different
+    /// semantics* — e.g. swapping the field for an `Arc<Mutex<…>>` wrapper
+    /// behind the same name. Three lines, zero runtime cost; kept for the
+    /// signal value to future readers.
     #[test]
     fn leader_state_exposes_fields_the_gate_consumes() {
         let source = include_str!("leader.rs");
