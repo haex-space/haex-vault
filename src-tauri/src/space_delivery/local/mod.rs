@@ -1,3 +1,4 @@
+pub mod auth_gate;
 pub mod buffer;
 pub mod commands;
 pub mod discovery;
