@@ -1167,23 +1167,20 @@ pub(super) async fn handle_delivery_request(
         Request::SubmitExternalCommit {
             space_id,
             commit,
-            ucan_token,
+            // `ucan_token` is now redundant on the wire — the gate
+            // authenticated this request against the cached UCAN.
+            ..
         } => {
-            let validated = match require_valid_ucan(&ucan_token, "SubmitExternalCommit") {
-                Ok(v) => v,
-                Err(r) => return r,
-            };
+            // The gate proved Read+ capability and active membership. We
+            // bind the gate outcome so a future refactor that loses the
+            // wire-up panics loudly instead of silently storing an MLS
+            // commit attributed to an unauthenticated DID.
+            let _gate_ucan = gate_ucan
+                .as_ref()
+                .expect("non-bypass SubmitExternalCommit must have ValidatedUcan from gate");
+            // `peer_did` is sourced from the connection-bound verified_did,
+            // not from the UCAN audience. The gate guarantees they're equal.
             let peer_did = verified_did.to_string();
-            if let Err(r) = require_ucan_capability(
-                &validated,
-                &space_id,
-                CapabilityLevel::Read,
-                &peer_did,
-                "SubmitExternalCommit",
-                &state.db,
-            ) {
-                return r;
-            }
 
             let commit_blob = match base64_decode(&commit) {
                 Ok(b) => b,
