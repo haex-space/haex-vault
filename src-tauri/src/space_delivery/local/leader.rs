@@ -91,6 +91,15 @@ fn require_valid_ucan(ucan_token: &str, op: &str) -> Result<ValidatedUcan, Respo
 ///    cryptographically valid but every request is rejected here.
 ///
 /// Returns an Error response on any failure.
+///
+/// **Post-T6 usage.** After the unified `auth_gate` was wired in (T5) and
+/// the per-arm redundant checks were removed (T6), this helper has exactly
+/// one caller: the `Announce` arm. Announce is the gate's bypass —
+/// `auth_gate` returns `Ok(None)` for it because Announce is what
+/// *populates* the cached `ValidatedUcan` the gate reads on subsequent
+/// requests. So the same three concentric checks still need to run, just
+/// **here**, before the UCAN is cached. Every other request variant gets
+/// these checks from the gate.
 fn require_ucan_capability(
     validated: &ValidatedUcan,
     space_id: &str,
@@ -135,10 +144,12 @@ fn require_ucan_capability(
 
 // `check_space_membership` and `check_write_capability` have been removed.
 // They authorised peers by the DID they announced and a lookup against
-// `haex_ucan_tokens` — trusting an unauthenticated self-declaration. The
-// capability enforcement now happens via `require_valid_ucan` +
-// `require_ucan_capability` above, which verify the UCAN signature on
-// every request.
+// `haex_ucan_tokens` — trusting an unauthenticated self-declaration.
+// Capability enforcement now happens at the unified `auth_gate` for every
+// non-bypass request (see `super::auth_gate::authorize_request`); the
+// `require_valid_ucan` + `require_ucan_capability` helpers above are kept
+// only for the `Announce` bypass, which must validate and cache the UCAN
+// the gate later reads.
 
 /// Broadcast an MLS notification to all connected peers.
 async fn notify_all_mls(state: &LeaderState, space_id: &str, message_type: &str) {
@@ -1280,15 +1291,26 @@ pub(super) async fn send_response(
 mod audience_check_tests {
     //! Regression guards for UCAN audience verification.
     //!
-    //! `require_ucan_capability` is the central gate for every authenticated
-    //! space-delivery request. Without an `aud == announced peer DID` check
-    //! it accepts UCANs issued to anyone as long as that anyone is still a
-    //! member — a replay window. These tests are static-source assertions:
-    //! the dispatcher requires `&mut LeaderState`, a tokio runtime, an
-    //! `iroh::Endpoint`, a populated `connected_peers` map, and a SQLite
-    //! schema with HLC triggers. Building all of that for a unit test costs
-    //! more than the linting checks below buy us. Behavioural coverage is
-    //! deferred to e2e in haex-e2e-tests.
+    //! Post-T6 reality: the unified `auth_gate::authorize_request` is the
+    //! central gate for every authenticated, non-bypass space-delivery
+    //! request. Its audience binding (`require_audience` against the
+    //! connection-bound DID) is covered by `auth_gate_tests`.
+    //!
+    //! What this module still pins is the **Announce bypass** path. Announce
+    //! cannot rely on the gate (the gate returns `Ok(None)` for it, because
+    //! Announce is what populates the cached UCAN the gate later reads), so
+    //! `require_ucan_capability` runs inline there. Without the `aud ==
+    //! announced peer DID` check inside the helper, a peer P could replay
+    //! another member's UCAN through its own QUIC channel and have it
+    //! cached — the gate would then trust the cached `validated_ucan` on
+    //! subsequent requests and the replay would pass. So the helper's
+    //! invariants matter exactly as much as before, just for one caller.
+    //!
+    //! These tests are static-source assertions because the dispatcher
+    //! requires `&mut LeaderState`, a tokio runtime, an `iroh::Endpoint`, a
+    //! populated `connected_peers` map, and a SQLite schema with HLC
+    //! triggers; building all of that costs more than the linting checks
+    //! buy us. Behavioural coverage is deferred to e2e in haex-e2e-tests.
     //!
     //! Unit coverage of the helper itself (`require_audience` accepts /
     //! rejects) lives in `ucan::verify::tests`.
@@ -1402,9 +1424,13 @@ mod auth_gate_wireup_tests {
     //! the full path is covered e2e. The plan's `build_test_leader_state`
     //! helper was not worth its weight given that triangulation.
     //!
-    //! T6 will rename `_gate_outcome` to `gate_ucan` and thread it into the
-    //! SyncPush/SyncPull inline cleanup. For now the variable is unused —
-    //! the prefix-underscore is deliberate.
+    //! T6 has landed: the gate outcome is now `gate_ucan` (no prefix
+    //! underscore) and every non-bypass arm reads its `ValidatedUcan` from
+    //! the gate via `gate_ucan.as_ref().expect(...)`. SyncPush passes the
+    //! gate UCAN into `authorize_inbound_sync_push` for downstream origin
+    //! attribution; SyncPull keeps it for the success-path audit log;
+    //! RequestRejoin and SubmitExternalCommit bind it to `_gate_ucan`
+    //! solely so a future wire-up regression would panic loudly.
 
     /// `handle_delivery_request` must call `auth_gate::authorize_request`
     /// before the `match request` dispatch. Without this single choke point
