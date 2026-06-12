@@ -115,7 +115,12 @@ fn required_capability_matches_documented_mapping() {
     // Read-level operations. RequestRejoin + SubmitExternalCommit live here
     // (not under Write) because the inline UCAN checks they replace in
     // `leader.rs` enforce `CapabilityLevel::Read` — this refactor must not
-    // tighten the floor. See `Request::required_capability` doc-comment.
+    // tighten the floor. SyncPush lives here because per-batch Write
+    // refinement happens in `inbound_sync::authorize_inbound_sync_push`,
+    // not at the gate; the gate only enforces "must be a member to push
+    // at all" so read-only members can push their own
+    // membership / device / KeyPackage rows. See
+    // `Request::required_capability` doc-comment.
     let read_variants: Vec<Request> = vec![
         Request::MlsFetchKeyPackage {
             space_id: space.into(),
@@ -134,6 +139,11 @@ fn required_capability_matches_documented_mapping() {
         Request::SyncPull {
             space_id: space.into(),
             after_timestamp: None,
+            ucan_token: "ucan".into(),
+        },
+        Request::SyncPush {
+            space_id: space.into(),
+            changes: serde_json::json!({}),
             ucan_token: "ucan".into(),
         },
         Request::RequestRejoin {
@@ -173,11 +183,6 @@ fn required_capability_matches_documented_mapping() {
         Request::MlsAckCommit {
             space_id: space.into(),
             message_ids: vec![],
-        },
-        Request::SyncPush {
-            space_id: space.into(),
-            changes: serde_json::json!({}),
-            ucan_token: "ucan".into(),
         },
     ];
     for req in &write_variants {

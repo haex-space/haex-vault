@@ -236,6 +236,15 @@ impl Request {
     /// inline checks are deleted in Phase 5. Whether MLS-state-mutating
     /// operations should require `Write` is a separate policy question and
     /// can be revisited in a follow-up PR.
+    ///
+    /// `SyncPush` is intentionally `Read` here. Per-batch refinement happens
+    /// in `inbound_sync::authorize_inbound_sync_push` — pushes touching only
+    /// membership-system tables (MEMBERSHIP_SYSTEM_TABLES) are allowed for
+    /// any member, other tables require `Write`. The gate enforces only
+    /// "must be a member to push at all"; the inbound-sync validator
+    /// enforces the per-table refinement. Tightening this to `Write` would
+    /// silently break read-only members trying to push their own
+    /// membership / device / KeyPackage rows.
     pub fn required_capability(&self) -> Option<CapabilityLevel> {
         match self {
             Request::MlsFetchKeyPackage { .. }
@@ -243,14 +252,14 @@ impl Request {
             | Request::MlsFetchWelcomes { .. }
             | Request::MlsKeyPackageCount { .. }
             | Request::SyncPull { .. }
+            | Request::SyncPush { .. }
             | Request::RequestRejoin { .. }
             | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
 
             Request::MlsUploadKeyPackages { .. }
             | Request::MlsSendMessage { .. }
             | Request::MlsSendWelcome { .. }
-            | Request::MlsAckCommit { .. }
-            | Request::SyncPush { .. } => Some(CapabilityLevel::Write),
+            | Request::MlsAckCommit { .. } => Some(CapabilityLevel::Write),
 
             Request::Announce { .. }
             | Request::ClaimInvite { .. }

@@ -6,6 +6,7 @@
 //! - Stage 2b (peer w/o UCAN):     `rejects_request_when_peer_announced_without_ucan`
 //! - Stage 3 (audience):           `rejects_audience_mismatch`
 //! - Stage 4 (capability):         `rejects_insufficient_capability`
+//! - Stage 4 (SyncPush floor):     `accepts_read_member_sync_push_at_gate_level`
 //! - Stage 5a (revoked):           `rejects_revoked_member`
 //! - Stage 5b (DB error):          `surfaces_db_error_from_membership_check_as_explicit_error`
 //! - Stage 1 (bypass):             `bypasses_claim_invite_cleanly`
@@ -121,8 +122,11 @@ async fn rejects_audience_mismatch() {
 #[tokio::test]
 async fn rejects_insufficient_capability() {
     // Stage 4: the UCAN audience matches the connection DID and is for the
-    // right space, but only grants `Read`. A SyncPush requires `Write` —
-    // require_capability must reject before is_active_space_member runs.
+    // right space, but only grants `Read`. An `MlsSendMessage` requires
+    // `Write` — require_capability must reject before
+    // is_active_space_member runs. (SyncPush is intentionally `Read` at the
+    // gate; the Write refinement for non-membership tables lives in
+    // `inbound_sync::authorize_inbound_sync_push`, not here.)
     let db = empty_db();
     let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
     peers_map.insert(
@@ -135,10 +139,10 @@ async fn rejects_insufficient_capability() {
     );
     let peers = RwLock::new(peers_map);
 
-    let request = Request::SyncPush {
+    let request = Request::MlsSendMessage {
         space_id: "SPACE".into(),
-        changes: serde_json::json!({}),
-        ucan_token: "ignored".into(),
+        message: String::new(),
+        message_type: "application".into(),
     };
 
     let result = authorize_request(
@@ -160,6 +164,50 @@ async fn rejects_insufficient_capability() {
         }
         other => panic!("expected capability reject, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn accepts_read_member_sync_push_at_gate_level() {
+    // SyncPush requires only Read at the gate level — per-batch capability
+    // refinement (Write for non-membership tables) lives in
+    // `inbound_sync::authorize_inbound_sync_push`, not here. This test
+    // guards against a future "tighten SyncPush to Write" that would
+    // silently break read-only members trying to push their own
+    // membership / device / KeyPackage rows.
+    let db = setup_membership_db();
+    insert_identity(&db, "id-read-member", "did:key:zReadMember");
+    insert_member(&db, "mem-read", "SPACE", "id-read-member", "read");
+
+    let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
+    peers_map.insert(
+        "endpoint-id".to_string(),
+        make_peer(
+            "endpoint-id",
+            "did:key:zReadMember",
+            make_ucan("did:key:zReadMember", "SPACE", CapabilityLevel::Read),
+        ),
+    );
+    let peers = RwLock::new(peers_map);
+
+    let request = Request::SyncPush {
+        space_id: "SPACE".into(),
+        changes: serde_json::json!([]),
+        ucan_token: "irrelevant — gate uses cached UCAN".into(),
+    };
+
+    let result = authorize_request(
+        &request,
+        "did:key:zReadMember",
+        "endpoint-id",
+        &peers,
+        &db,
+    )
+    .await;
+
+    assert!(
+        matches!(result, Ok(Some(_))),
+        "Read member must pass the gate for SyncPush — per-batch Write refinement happens downstream, got {result:?}"
+    );
 }
 
 #[tokio::test]
