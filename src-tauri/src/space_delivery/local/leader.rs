@@ -618,16 +618,18 @@ pub(super) async fn handle_delivery_request(
     // connection-authenticated DID, grant at least the per-request minimum
     // capability, and still resolve to an active member.
     //
-    // Until T6 lands, the per-arm `require_valid_ucan` + `require_ucan_capability`
-    // calls in Announce / SyncPush / SyncPull / RequestRejoin /
-    // SubmitExternalCommit remain in place as defense-in-depth — T5 only
-    // adds the choke point, it does not delete the inline checks.
+    // For non-bypass arms the gate's `ValidatedUcan` is the single source of
+    // UCAN truth — those arms read it via
+    // `gate_ucan.as_ref().expect("non-bypass <arm> must have ValidatedUcan from gate")`
+    // and **must not** re-validate the request's `ucan_token` field. The
+    // wire-format `ucan_token` is now redundant for non-bypass requests;
+    // removing it is left to a follow-up so this PR avoids a protocol break.
     //
-    // The result is held in `_gate_outcome` (intentionally unused). T6
-    // renames it to `gate_ucan` and threads the `ValidatedUcan` into the
-    // SyncPush/SyncPull inline cleanup so the gate becomes the single
-    // source of UCAN truth.
-    let _gate_outcome = match super::auth_gate::authorize_request(
+    // Bypass arms (Announce, ClaimInvite, PushInvite) see `gate_ucan = None`
+    // and still run their own UCAN handling — Announce in particular must
+    // validate + cache the UCAN it just received before subsequent requests
+    // on this connection can pass the gate.
+    let gate_ucan = match super::auth_gate::authorize_request(
         &request,
         verified_did,
         peer_endpoint_id,
@@ -888,32 +890,18 @@ pub(super) async fn handle_delivery_request(
         Request::SyncPush {
             space_id,
             changes,
-            ucan_token,
+            // `ucan_token` is now dead on the wire for SyncPush — the gate
+            // authenticated this request against the cached UCAN from
+            // Announce. Keeping the destructure-ignore avoids a protocol
+            // break; a follow-up removes the field from `Request::SyncPush`.
+            ..
         } => {
-            // Authenticate first; everything that follows depends on the
-            // UCAN audience being trustworthy.
-            let validated = match require_valid_ucan(&ucan_token, "SyncPush") {
-                Ok(v) => v,
-                Err(r) => return r,
-            };
-
-            // Layer-0: UCAN audience must match the connection-bound DID.
-            // Without this gate a peer with a valid SyncPush capability for
-            // someone *else*'s DID (snooped or replayed UCAN) could push
-            // arbitrary CRDT rows attributed to that DID. Analog
-            // peer_storage::handle_stream Layer-1.25.
-            if let Err(e) = crate::ucan::require_audience(&validated, verified_did) {
-                crate::logging::log_to_db(
-                    &state.db, &state.hlc, "warn", "SyncPush",
-                    &format!("audience mismatch: space={} aud={} verified={}",
-                        &space_id[..8.min(space_id.len())],
-                        &validated.audience[..24.min(validated.audience.len())],
-                        &verified_did[..24.min(verified_did.len())]),
-                );
-                return Response::Error {
-                    message: format!("Access denied: {e}"),
-                };
-            }
+            // The gate proved this peer Announced, holds a valid UCAN whose
+            // audience matches `verified_did`, has at least SyncPush's
+            // capability for this space, and is still an active member.
+            let validated = gate_ucan
+                .as_ref()
+                .expect("non-bypass SyncPush must have ValidatedUcan from gate");
 
             // Parse changes JSON into Vec<LocalColumnChange>
             let local_changes: Vec<LocalColumnChange> = match serde_json::from_value(changes) {
@@ -935,7 +923,7 @@ pub(super) async fn handle_delivery_request(
                 &state.db,
                 &space_id,
                 peer_endpoint_id,
-                &validated,
+                validated,
                 local_changes,
             ) {
                 super::inbound_sync::InboundSyncPushOutcome::Accepted { changes } => changes,
