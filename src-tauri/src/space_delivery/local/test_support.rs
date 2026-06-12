@@ -36,6 +36,30 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 /// In-memory DB with the minimum schemas `is_active_space_member` reads:
 /// `haex_identities` + `haex_space_members`, plus the CRDT bookkeeping
 /// tables the HLC hooks require.
+///
+/// ## Schema parity with production
+///
+/// The columns below are a deliberate subset of the production Drizzle
+/// schemas (`src/database/schemas/identity.ts` for `haex_identities`,
+/// `src/database/schemas/spaces.ts` for `haex_space_members`). We mirror
+/// every `NOT NULL` column production declares — even the ones our tests
+/// never read — so that `insert_identity` / `insert_member` exercise the
+/// same constraints production code does.
+///
+/// Mirrored from `haex_identities`: `id`, `did` (UNIQUE), `name` (NOT NULL),
+/// `source` (NOT NULL DEFAULT 'contact'), `private_key`, `created_at`.
+/// Deliberately omitted from `haex_identities`: `avatar`, `avatar_options`,
+/// `notes` — purely optional UI columns the membership-check SQL never
+/// touches.
+///
+/// Mirrored from `haex_space_members`: `id`, `space_id` (NOT NULL),
+/// `identity_id` (NOT NULL), `role` (NOT NULL DEFAULT 'read'),
+/// `authored_by_did`, `joined_at`. No production columns omitted —
+/// the table is small enough that we keep it at full parity.
+///
+/// CRDT-helper columns (e.g. `haex_tombstone`, HLC timestamps) are added
+/// by `core::execute` at write-time, not by the migration, so they don't
+/// appear in this CREATE TABLE.
 pub(crate) fn setup_membership_db() -> DbConnection {
     let conn = Connection::open_in_memory().expect("in-memory DB");
     let hlc = HlcService::new_for_testing("test-device");
@@ -58,7 +82,9 @@ pub(crate) fn setup_membership_db() -> DbConnection {
         "CREATE TABLE haex_identities (
             id TEXT PRIMARY KEY,
             did TEXT NOT NULL UNIQUE,
-            public_key TEXT,
+            name TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'contact',
+            private_key TEXT,
             created_at TEXT
         );
 
@@ -77,10 +103,21 @@ pub(crate) fn setup_membership_db() -> DbConnection {
 }
 
 /// Insert an identity row keyed by `identity_id` with public DID `did`.
+///
+/// `name` and `source` are `NOT NULL` in production, so we provide
+/// sensible defaults (`"Test Identity"` / `"own"`) even though the
+/// membership-check SQL never reads them. Keeps the insert at parity
+/// with what real code paths produce.
 pub(crate) fn insert_identity(db: &DbConnection, identity_id: &str, did: &str) {
     core::execute(
-        "INSERT INTO haex_identities (id, did) VALUES (?1, ?2)".to_string(),
-        vec![json!(identity_id), json!(did)],
+        "INSERT INTO haex_identities (id, did, name, source) VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            json!(identity_id),
+            json!(did),
+            json!("Test Identity"),
+            json!("own"),
+        ],
         db,
     )
     .expect("seed identity");

@@ -2,12 +2,14 @@
 //! pre-dispatch authorisation gate.
 //!
 //! Covers every stage of the pipeline:
-//! - Stage 2 (cache lookup): `rejects_request_without_prior_announce`
-//! - Stage 3 (audience):     `rejects_audience_mismatch`
-//! - Stage 4 (capability):   `rejects_insufficient_capability`
-//! - Stage 5 (membership):   `rejects_revoked_member`
-//! - Stage 1 (bypass):       `bypasses_claim_invite_cleanly`
-//! - Happy path:             `accepts_valid_request_from_active_member`
+//! - Stage 2a (no peer entry):     `rejects_request_without_prior_announce`
+//! - Stage 2b (peer w/o UCAN):     `rejects_request_when_peer_announced_without_ucan`
+//! - Stage 3 (audience):           `rejects_audience_mismatch`
+//! - Stage 4 (capability):         `rejects_insufficient_capability`
+//! - Stage 5a (revoked):           `rejects_revoked_member`
+//! - Stage 5b (DB error):          `surfaces_db_error_from_membership_check_as_explicit_error`
+//! - Stage 1 (bypass):             `bypasses_claim_invite_cleanly`
+//! - Happy path:                   `accepts_valid_request_from_active_member`
 
 #![cfg(test)]
 
@@ -290,5 +292,98 @@ async fn accepts_valid_request_from_active_member() {
             );
         }
         other => panic!("expected Ok(Some(_)) for active member, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn rejects_request_when_peer_announced_without_ucan() {
+    // Stage 2b: the peer DOES have an entry in `connected_peers` (so it
+    // didn't forge an endpoint-id), but `validated_ucan` is `None`. This
+    // is the ClaimInvite-without-follow-up-Announce shape — the whole
+    // reason `ConnectedPeer::validated_ucan` is `Option<ValidatedUcan>`
+    // and the gate's `None` arm exists (see `auth_gate.rs:31-39`).
+    // Silently treating `None` as a pass would defeat the entire gate.
+    let db = empty_db();
+    let peer = ConnectedPeer {
+        endpoint_id: "endpoint-id".to_string(),
+        did: "did:key:zPeer".to_string(),
+        label: None,
+        claims: Vec::<PeerClaim>::new(),
+        connected_at: "2026-06-12T00:00:00Z".to_string(),
+        validated_ucan: None,
+    };
+    let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
+    peers_map.insert("endpoint-id".to_string(), peer);
+    let peers = RwLock::new(peers_map);
+
+    let request = Request::MlsUploadKeyPackages {
+        space_id: "SPACE".into(),
+        packages: vec![],
+    };
+
+    let result = authorize_request(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+    )
+    .await;
+
+    match result {
+        Err(Response::Error { message }) => {
+            assert!(
+                message.contains("Announce"),
+                "expected reject mentioning Announce, got: {message}"
+            );
+        }
+        other => panic!("expected reject, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn surfaces_db_error_from_membership_check_as_explicit_error() {
+    // Stage 5b: the cached UCAN passes stages 2-4 cleanly (audience matches
+    // verified DID, capability suffices), but `is_active_space_member`'s
+    // SQL fails because the `haex_space_members` table doesn't exist on
+    // this connection. The gate must surface that as a
+    // `"Membership check failed: …"` peer-facing message — distinct from
+    // the plain "not an active member" reject — so the dispatch site (and
+    // any future log triage) can tell a DB outage apart from a revoked
+    // member.
+    let db = empty_db(); // no haex_space_members table → SQL error
+    let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
+    peers_map.insert(
+        "endpoint-id".to_string(),
+        make_peer(
+            "endpoint-id",
+            "did:key:zPeer",
+            make_ucan("did:key:zPeer", "SPACE", CapabilityLevel::Write),
+        ),
+    );
+    let peers = RwLock::new(peers_map);
+
+    let request = Request::MlsUploadKeyPackages {
+        space_id: "SPACE".into(),
+        packages: vec![],
+    };
+
+    let result = authorize_request(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+    )
+    .await;
+
+    match result {
+        Err(Response::Error { message }) => {
+            assert!(
+                message.contains("Membership check failed"),
+                "expected DB-error reject, got: {message}"
+            );
+        }
+        other => panic!("expected DB error response, got {other:?}"),
     }
 }
