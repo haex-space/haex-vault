@@ -640,6 +640,15 @@ pub(super) async fn handle_delivery_request(
     // and still run their own UCAN handling — Announce in particular must
     // validate + cache the UCAN it just received before subsequent requests
     // on this connection can pass the gate.
+    //
+    // Observability follow-up: pre-T6, the SyncPush / SyncPull arms wrote
+    // rejection rows to `haex_logs` via `log_to_db`, so an owner could see
+    // failed sync attempts in-app (CRDT-synced to owner devices). Gate
+    // rejections today only `eprintln!` to stderr — peers still receive the
+    // correct `Response::Error`, but in-app log visibility for rejected
+    // requests is reduced. Tracked as "AuthGate rejections must write
+    // haex_logs audit rows"; see the matching TODO at the top of
+    // `auth_gate::authorize_request`.
     let gate_ucan = match super::auth_gate::authorize_request(
         &request,
         verified_did,
@@ -1150,12 +1159,12 @@ pub(super) async fn handle_delivery_request(
             // authenticated this request against the cached UCAN.
             ..
         } => {
-            // The gate proved Read+ capability and active membership. We
-            // don't need the ValidatedUcan downstream, but assert it's
-            // present so a future refactor that loses the gate wire-up
-            // would panic loudly here instead of silently leaking
+            // Gate-wire-up regression guard: this arm has no downstream
+            // consumer of `validated_ucan`, but we still assert the gate
+            // produced one so a future refactor that loses the dispatcher's
+            // gate call panics loudly here instead of silently leaking
             // GroupInfo to unauthenticated peers.
-            let _gate_ucan = gate_ucan
+            let _ = gate_ucan
                 .as_ref()
                 .expect("non-bypass RequestRejoin must have ValidatedUcan from gate");
 
@@ -1182,11 +1191,12 @@ pub(super) async fn handle_delivery_request(
             // authenticated this request against the cached UCAN.
             ..
         } => {
-            // The gate proved Read+ capability and active membership. We
-            // bind the gate outcome so a future refactor that loses the
-            // wire-up panics loudly instead of silently storing an MLS
-            // commit attributed to an unauthenticated DID.
-            let _gate_ucan = gate_ucan
+            // Gate-wire-up regression guard: this arm has no downstream
+            // consumer of `validated_ucan`, but we still assert the gate
+            // produced one so a future refactor that loses the dispatcher's
+            // gate call panics loudly here instead of silently storing an
+            // MLS commit attributed to an unauthenticated DID.
+            let _ = gate_ucan
                 .as_ref()
                 .expect("non-bypass SubmitExternalCommit must have ValidatedUcan from gate");
             // `peer_did` is sourced from the connection-bound verified_did,

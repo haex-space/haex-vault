@@ -63,6 +63,14 @@ pub async fn authorize_request(
     connected_peers: &RwLock<HashMap<String, ConnectedPeer>>,
     db: &DbConnection,
 ) -> Result<Option<ValidatedUcan>, Response> {
+    // TODO(observability): rejection paths log only via eprintln!, so they don't
+    // land in haex_logs (CRDT-synced to the owner). Pre-T6, SyncPush/SyncPull
+    // arms wrote audit rows via log_to_db. To restore parity, extend this
+    // function with `hlc: &Arc<Mutex<HlcService>>` and emit log_to_db rows
+    // from each reject branch with `op` derived from the Request variant.
+    // Not security-critical (peer still gets the right Response::Error), but
+    // reduces in-app log visibility for operators triaging sync failures.
+
     // 1. Bypass — requests that bootstrap the gate's own preconditions.
     let required = match request.required_capability() {
         Some(level) => level,
