@@ -67,6 +67,23 @@ pub struct LogQueryParams {
 
 pub const DEFAULT_LOG_LEVEL: &str = "warn";
 
+/// UTF-8-safe truncation for log message interpolation.
+///
+/// DIDs and space IDs are long opaque strings; logs need a short enough
+/// fragment to fit in a single line yet enough to identify the principal.
+/// Slicing by byte (`&s[..max]`) would panic on a multi-byte UTF-8
+/// boundary; `.chars().take(max).collect()` is the safe pattern, but
+/// repeating it inline 12+ times across the codebase invited drift in
+/// the truncation length (24 chars is the established convention) and
+/// in whether to use `.chars()` or `.bytes()`. This helper enforces both.
+///
+/// Used wherever a log message embeds an attacker- or peer-controlled
+/// identifier: AuthGate reject paths, peer_storage handlers,
+/// multi_leader.rs, endpoint.rs — always at the established 24-char cap.
+pub fn log_truncate(s: &str, max: usize) -> String {
+    s.chars().take(max).collect()
+}
+
 /// Read the configured log level for a source.
 pub fn get_effective_log_level(
     conn: &rusqlite::Connection,

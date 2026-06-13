@@ -101,11 +101,11 @@ pub(super) async fn handle_stream(
     // both pass. The verified DID was bound to the connection during the
     // quic_did_auth handshake in handle_connection. ──
     if let Err(e) = crate::ucan::require_audience(&validated_ucan, verified_remote_did) {
-        // Truncate by chars (UTF-8 boundaries), not bytes, so a token whose
-        // `aud` claim contains non-ASCII text cannot crash the log path with
-        // a "byte index not on a char boundary" panic.
-        let aud_short: String = validated_ucan.audience.chars().take(24).collect();
-        let verified_short: String = verified_remote_did.chars().take(24).collect();
+        // `log_truncate` truncates by chars (UTF-8 boundaries), not bytes —
+        // a token whose `aud` claim contains non-ASCII text cannot crash
+        // the log path with a "byte index not on a char boundary" panic.
+        let aud_short = crate::logging::log_truncate(&validated_ucan.audience, 24);
+        let verified_short = crate::logging::log_truncate(verified_remote_did, 24);
         eprintln!(
             "[PeerStorage] UCAN audience != verified peer DID: aud={aud_short} verified={verified_short} err={e}"
         );
