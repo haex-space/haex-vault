@@ -37,12 +37,12 @@ CREATE TABLE `haex_critical_notifications_no_sync` (
   `last_seen` text NOT NULL,
   `acknowledged` integer NOT NULL DEFAULT 0
 );
-
+--> statement-breakpoint
 -- Banner queries: WHERE acknowledged = 0 ORDER BY last_seen DESC LIMIT 1
 CREATE INDEX `haex_critical_notifications_unacked_idx`
   ON `haex_critical_notifications_no_sync` (`acknowledged`, `last_seen`)
   WHERE `acknowledged` = 0;
-
+--> statement-breakpoint
 -- UPSERT dedup key (Q3): same (code, location) on a still-unacked row gets
 -- count++ instead of a new INSERT. After acknowledge, the next occurrence
 -- creates a NEW (acknowledged = 0) row because the tuple differs.
