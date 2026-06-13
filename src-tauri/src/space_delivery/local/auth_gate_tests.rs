@@ -121,11 +121,17 @@ fn select_audit_logs(db: &DbConnection) -> Vec<(String, String, String)> {
     rows.collect::<Result<Vec<_>, _>>().expect("collect haex_logs rows")
 }
 
-/// Assert that the gate wrote exactly one audit row tagged with `expected_op`
-/// at `warn` level, and that its message contains `must_contain` (so the
-/// per-reject-path message detail stays pinned without being verbatim-coupled
-/// to the wording).
-fn assert_single_audit_row(db: &DbConnection, expected_op: &str, must_contain: &str) {
+/// Assert that the gate wrote exactly one audit row at `expected_level`
+/// (`"warn"` for peer-side rejects, `"error"` for internal vault failures),
+/// tagged with `expected_op`, and whose message contains `must_contain` (so
+/// the per-reject-path message detail stays pinned without being
+/// verbatim-coupled to the wording).
+fn assert_single_audit_row(
+    db: &DbConnection,
+    expected_level: &str,
+    expected_op: &str,
+    must_contain: &str,
+) {
     let rows = select_audit_logs(db);
     assert_eq!(
         rows.len(),
@@ -133,7 +139,10 @@ fn assert_single_audit_row(db: &DbConnection, expected_op: &str, must_contain: &
         "expected exactly one audit row for op={expected_op}, got: {rows:?}"
     );
     let (level, source, message) = &rows[0];
-    assert_eq!(level, "warn", "audit row must be warn-level, got {level}");
+    assert_eq!(
+        level, expected_level,
+        "audit row level must be {expected_level}, got {level}"
+    );
     assert_eq!(
         source, expected_op,
         "audit row source must be op_name={expected_op}, got {source}"
@@ -171,7 +180,7 @@ async fn rejects_request_without_prior_announce() {
         other => panic!("expected reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "MlsUploadKeyPackages", "no peer entry");
+    assert_single_audit_row(&db, "warn", "MlsUploadKeyPackages", "no peer entry");
 }
 
 #[tokio::test]
@@ -215,7 +224,7 @@ async fn rejects_audience_mismatch() {
         other => panic!("expected audience-mismatch reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "MlsUploadKeyPackages", "audience");
+    assert_single_audit_row(&db, "warn", "MlsUploadKeyPackages", "audience");
 }
 
 #[tokio::test]
@@ -265,7 +274,7 @@ async fn rejects_insufficient_capability() {
         other => panic!("expected capability reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "MlsSendMessage", "capability check failed");
+    assert_single_audit_row(&db, "warn", "MlsSendMessage", "capability check failed");
 }
 
 #[tokio::test]
@@ -408,7 +417,7 @@ async fn rejects_revoked_member() {
         other => panic!("expected membership reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "MlsSendMessage", "not an active member");
+    assert_single_audit_row(&db, "warn", "MlsSendMessage", "not an active member");
 }
 
 #[tokio::test]
@@ -512,7 +521,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
         other => panic!("expected reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "MlsUploadKeyPackages", "no cached UCAN");
+    assert_single_audit_row(&db, "warn", "MlsUploadKeyPackages", "no cached UCAN");
 }
 
 #[tokio::test]
@@ -562,5 +571,5 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         other => panic!("expected DB error response, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "MlsUploadKeyPackages", "membership check DB error");
+    assert_single_audit_row(&db, "error", "MlsUploadKeyPackages", "internal failure: membership check DB error");
 }

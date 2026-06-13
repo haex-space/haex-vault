@@ -198,14 +198,20 @@ pub async fn authorize_request(
             })
         }
         Err(e) => {
+            // Distinct severity from the peer-side rejects above: this branch
+            // signals an internal vault failure (DB locked, schema drift,
+            // disk full, ...), not peer misbehaviour. Logged at `error` level
+            // and prefixed `internal failure:` so an operator filtering
+            // haex_logs by level=error or by message prefix can separate
+            // actionable DB outages from benign peer rejects.
             let aud_short: String = validated.audience.chars().take(24).collect();
             let space_short: String = space_id.chars().take(24).collect();
             log_to_db(
                 db,
                 hlc,
-                "warn",
+                "error",
                 op,
-                &format!("reject: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"),
+                &format!("internal failure: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"),
             );
             Err(Response::Error {
                 message: format!("Membership check failed: {e}"),
