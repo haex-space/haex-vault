@@ -249,9 +249,7 @@ impl Request {
     /// the `RequestRejoin` / `SubmitExternalCommit` arms). This refactor must
     /// not change behaviour — a read-only member that has fallen out of MLS
     /// epoch can rejoin today, and must keep being able to rejoin after the
-    /// inline checks are deleted in Phase 5. Whether MLS-state-mutating
-    /// operations should require `Write` is a separate policy question and
-    /// can be revisited in a follow-up PR.
+    /// inline checks are deleted in Phase 5.
     ///
     /// `SyncPush` is intentionally `Read` here. Per-batch refinement happens
     /// in `inbound_sync::authorize_inbound_sync_push` — pushes touching only
@@ -261,21 +259,55 @@ impl Request {
     /// enforces the per-table refinement. Tightening this to `Write` would
     /// silently break read-only members trying to push their own
     /// membership / device / KeyPackage rows.
+    ///
+    /// **All MLS-protocol operations are `Read` at this gate.** UCAN
+    /// capability is the *sole* mechanism for authorising space-content
+    /// writes (`haex_peer_shares` and the file bytes those shares point at);
+    /// MLS itself has no concept of "may write resource X" — it only knows
+    /// "is in the group" / "is not in the group" — so MLS-message
+    /// classification is the wrong tool for that question.
+    ///
+    /// MLS-group membership is a separate domain: every active space member
+    /// is also an MLS-group member regardless of read/write capability, and
+    /// the MLS state machine itself enforces what each member may do inside
+    /// the group (signatures, epoch ordering, sender membership). Gating
+    /// MLS-protocol traffic by `Write` conflates the two layers —
+    /// concretely:
+    ///
+    /// - `MlsUploadKeyPackages`: the peer uploads its **own** KeyPackages
+    ///   (the leader tags each row with `verified_did` and stores them in
+    ///   the `_no_sync` buffer). A read-only member cannot inject packages
+    ///   for any other DID and the rows never leave the leader. Without
+    ///   this, read-only members exhaust the initial `ClaimInvite` batch
+    ///   and can never refill — every later Welcome that needs their
+    ///   KeyPackage silently fails and they fall out of the encrypted
+    ///   group while still listed as an active member.
+    /// - `MlsAckCommit`: pure bookkeeping per-DID — marks the caller's own
+    ///   pending-commit entries as acked so the leader can clean up. Every
+    ///   member must ack; gating it on `Write` strands read-only members'
+    ///   acks forever and stops cleanup for the whole group.
+    /// - `MlsSendMessage` / `MlsSendWelcome`: the leader is a relay. MLS
+    ///   message validity (signatures, epoch, sender membership) is
+    ///   enforced at the recipient by the MLS state machine; application
+    ///   policy ("only admins may invite") is enforced at *invite-token
+    ///   creation*, not at Welcome forwarding. An extra `Write` check
+    ///   here is layered defense, but it is the wrong layer — it makes
+    ///   "read-only space member" mean "second-class MLS member", which
+    ///   does not exist in the protocol.
     pub fn required_capability(&self) -> Option<CapabilityLevel> {
         match self {
             Request::MlsFetchKeyPackage { .. }
             | Request::MlsFetchMessages { .. }
             | Request::MlsFetchWelcomes { .. }
             | Request::MlsKeyPackageCount { .. }
+            | Request::MlsUploadKeyPackages { .. }
+            | Request::MlsSendMessage { .. }
+            | Request::MlsSendWelcome { .. }
+            | Request::MlsAckCommit { .. }
             | Request::SyncPull { .. }
             | Request::SyncPush { .. }
             | Request::RequestRejoin { .. }
             | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
-
-            Request::MlsUploadKeyPackages { .. }
-            | Request::MlsSendMessage { .. }
-            | Request::MlsSendWelcome { .. }
-            | Request::MlsAckCommit { .. } => Some(CapabilityLevel::Write),
 
             Request::Announce { .. }
             | Request::ClaimInvite { .. }
