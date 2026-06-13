@@ -243,7 +243,7 @@ fn cors_preflight() -> Response<Vec<u8>> {
         .header("Access-Control-Allow-Headers", "Range")
         .header("Access-Control-Max-Age", "86400")
         .body(Vec::new())
-        .unwrap()
+        .expect("invariant: hardcoded status + static ASCII headers + empty body — Response::builder cannot fail")
 }
 
 fn error_response(status: u16, msg: String) -> Response<Vec<u8>> {

@@ -169,8 +169,12 @@ fn load_peer_owner_dids(
     let mut map: HashMap<String, String> = HashMap::new();
     for (endpoint_id, dids) in candidates {
         if dids.len() == 1 {
-            // Safe to use .next().unwrap() — len == 1 guarantees one element.
-            map.insert(endpoint_id, dids.into_iter().next().unwrap());
+            map.insert(
+                endpoint_id,
+                dids.into_iter()
+                    .next()
+                    .expect("invariant: dids.len() == 1 checked above"),
+            );
         } else {
             // Multiple distinct owner_dids for the same endpoint_id: cannot
             // pick a side safely. Drop permanently so handle_connection

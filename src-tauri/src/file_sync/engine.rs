@@ -244,8 +244,16 @@ impl SpeedTracker {
         if self.samples.len() < 2 {
             return 0;
         }
-        let oldest = self.samples.front().unwrap().0;
-        let newest = self.samples.back().unwrap().0;
+        let oldest = self
+            .samples
+            .front()
+            .expect("invariant: samples.len() >= 2 checked above")
+            .0;
+        let newest = self
+            .samples
+            .back()
+            .expect("invariant: samples.len() >= 2 checked above")
+            .0;
         let elapsed = newest.duration_since(oldest).as_secs_f64();
         let total: u64 = self.samples.iter().map(|(_, b)| b).sum();
         if elapsed < 0.05 {
@@ -565,7 +573,10 @@ pub async fn execute_sync(
             let cancel_task = cancel.clone();
 
             join_set.spawn(async move {
-                let _permit = sem.acquire().await.unwrap();
+                let _permit = sem
+                    .acquire()
+                    .await
+                    .expect("invariant: semaphore is never closed in this engine");
                 // Drop the task without doing any I/O if the rule was
                 // cancelled while this task was queued behind the semaphore.
                 if let Some(ref t) = cancel_task {
@@ -751,7 +762,10 @@ pub async fn execute_sync(
             let cancel_task = cancel.clone();
 
             join_set.spawn(async move {
-                let _permit = sem.acquire().await.unwrap();
+                let _permit = sem
+                    .acquire()
+                    .await
+                    .expect("invariant: semaphore is never closed in this engine");
                 if let Some(ref t) = cancel_task {
                     if t.is_cancelled() {
                         return;
@@ -1157,7 +1171,17 @@ fn make_conflict_path(relative_path: &str, timestamp: i64) -> String {
 fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
     use tauri::Manager;
     let state = app.state::<crate::AppState>();
-    let hlc = state.hlc.lock().unwrap();
+    // Phase 1 stop-gap until `lock_or_fail` lands (see
+    // docs/plans/2026-06-13-critical-failure-pattern.md): if the HLC
+    // mutex is poisoned, skip the update rather than panic. Phase 2 will
+    // surface this through a critical-notification row.
+    let hlc = match state.hlc.lock() {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("[CRITICAL] file_sync::update_last_synced_at: HLC mutex poisoned ({e}) — skipping last-synced-at update");
+            return;
+        }
+    };
     let now = unix_now();
 
     let sql = "UPDATE haex_sync_rules SET last_synced_at = ?1 WHERE id = ?2".to_string();

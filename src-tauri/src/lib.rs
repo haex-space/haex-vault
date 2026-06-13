@@ -1,3 +1,12 @@
+// Tests live alongside production code (per project convention: every module
+// has its own `tests.rs` file imported via `#[cfg(test)] mod tests;`). The
+// `unwrap_used` / `expect_used` lints enforced by Cargo.toml are intended for
+// production code only — failing test assertions via `.unwrap()` is idiomatic
+// and adding `expect("…")` everywhere would just be noise. Opting out at the
+// crate root once is cleaner than scattering `#![cfg_attr(test, allow(…))]`
+// across every test module.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod external_bridge;
 mod crypto;
