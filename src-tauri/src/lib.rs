@@ -99,6 +99,16 @@ pub mod event_names {
 pub struct AppState {
     pub db: DbConnection,
     pub hlc: Mutex<HlcService>,
+    /// Persistent record of critical-failure events (mutex poisoning,
+    /// schema drift, audit-log write failures) — see `crate::critical`.
+    /// Wrapped in `Mutex<Option<...>>` with the same vault-open/close
+    /// lifecycle as `vault_lock`: opened alongside `db` in
+    /// `create_encrypted_database` / `open_encrypted_database`, cleared
+    /// in `close_database`. Uses its OWN SQLite connection so it stays
+    /// writable even when the main DB's mutex is poisoned. `None` means
+    /// no vault is currently open — `AppState::lock_or_fail` then degrades
+    /// gracefully (stderr only, no banner row).
+    pub critical_sink: Mutex<Option<critical::CriticalNotificationSink>>,
     /// Exclusive advisory lock on the currently-open vault's DB file.
     /// Populated by `open_encrypted_database` / `create_encrypted_database`
     /// and cleared by `close_database`. Prevents the same vault from being
@@ -147,6 +157,52 @@ pub struct AppState {
     /// URI schemes don't work for `<audio>`/`<video>` on WebKitGTK — this
     /// is the cross-platform workaround.
     pub media_server: media_server::MediaServer,
+}
+
+impl AppState {
+    /// `Mutex::lock` replacement that records mutex poisoning as a
+    /// banner-visible critical-failure event. Use this instead of
+    /// `.lock().unwrap()` / `.lock().unwrap_or_else(|e| e.into_inner())` /
+    /// `.lock().map_err(...MutexPoisoned)` everywhere a poisoned mutex
+    /// represents a real failure.
+    ///
+    /// `params` is a `serde_json::Value` (typically an object) for i18n
+    /// substitution in the banner message. Pass `serde_json::json!({})`
+    /// when no params are needed.
+    ///
+    /// **Vault closed (sink = None):** falls back to stderr-only output.
+    /// Production callsites only run while a vault is open, so this path
+    /// is hit only by tests or pre-open lifecycle code.
+    pub fn lock_or_fail<'a, T>(
+        &self,
+        mutex: &'a Mutex<T>,
+        code: critical::CriticalFailureCode,
+        location: &'static str,
+        params: serde_json::Value,
+    ) -> Result<std::sync::MutexGuard<'a, T>, critical::MutexPoisonError> {
+        // The sink lookup uses unwrap_or_else(into_inner) on purpose —
+        // this is the very last layer of defense; even if the sink slot's
+        // own Mutex is poisoned, we want the lock_or_fail caller to get
+        // SOMETHING (Ok if main mutex is healthy, or Err with stderr).
+        // Without this fallback, a poisoned AppState.critical_sink mutex
+        // would silently turn every later lock_or_fail into None-sink mode.
+        let sink_guard = self
+            .critical_sink
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        match sink_guard.as_ref() {
+            Some(sink) => critical::lock_or_fail(mutex, code, location, sink, params),
+            None => {
+                eprintln!(
+                    "[CRITICAL] {location}: mutex check requested but no sink is available (vault closed) — last-resort stderr signal only"
+                );
+                match mutex.lock() {
+                    Ok(g) => Ok(g),
+                    Err(_) => Err(critical::MutexPoisonError { code, location }),
+                }
+            }
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -241,6 +297,7 @@ pub fn run() {
         .manage(AppState {
             db: DbConnection(Arc::new(Mutex::new(None))),
             hlc: Mutex::new(HlcService::new()),
+            critical_sink: Mutex::new(None),
             vault_lock: Mutex::new(None),
             connection_context: Mutex::new(ConnectionContext::new()),
             extension_manager: ExtensionManager::new(),
@@ -374,6 +431,9 @@ pub fn run() {
             logging::commands::log_cleanup,
             logging::commands::log_delete,
             logging::commands::log_clear_all,
+            critical::commands::critical_notifications_newest_unacked,
+            critical::commands::critical_notifications_acknowledge,
+            critical::commands::critical_notifications_cleanup,
             crdt::commands::get_table_schema,
             crdt::commands::get_dirty_tables,
             crdt::commands::clear_dirty_table,

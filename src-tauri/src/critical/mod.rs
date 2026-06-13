@@ -31,8 +31,9 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 mod codes;
+pub mod commands;
 mod error;
-mod sink;
+pub mod sink;
 
 pub use codes::{CriticalFailureCode, Severity};
 pub use error::MutexPoisonError;

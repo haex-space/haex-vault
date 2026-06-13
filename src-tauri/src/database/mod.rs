@@ -734,6 +734,15 @@ fn create_encrypted_database_inner(
         migrations_applied
     );
 
+    // Step 3b: Open the critical-notification sink as soon as
+    // `haex_critical_notifications_no_sync` exists (i.e. after migrations
+    // ran). The sink has its own connection to the same SQLCipher file
+    // so subsequent `state.lock_or_fail` calls — including the ones in
+    // the seed-data steps below — can surface poison conditions to the
+    // user via the banner instead of dying silently.
+    open_critical_sink(&vault_path, key, state)?;
+    println!("[CREATE_DB] ✅ Critical-notification sink opened");
+
     // Step 4: Now initialize HLC and triggers (tables exist after migrations)
     println!("[CREATE_DB] Step 4: Initializing HLC and CRDT triggers...");
     initialize_session_post_migration(app_handle, state)?;
@@ -815,6 +824,20 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
             println!("[CLOSE_DB] Database connection closed");
         } else {
             println!("[CLOSE_DB] No database connection to close");
+        }
+    }
+
+    // 1b. Drop the critical-notification sink — its rusqlite connection
+    //     is held independently of state.db, so without this it would
+    //     keep the SQLite file open (blocking vault re-mount) and would
+    //     write into a stale, just-closed DB on the next emit.
+    {
+        let mut sink_guard = state
+            .critical_sink
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        if sink_guard.take().is_some() {
+            println!("[CLOSE_DB] Critical-notification sink dropped");
         }
     }
 
@@ -926,6 +949,30 @@ fn reject_if_vault_already_mounted(
     Ok(())
 }
 
+/// Open a `CriticalNotificationSink` against the just-mounted vault and
+/// install it into `state.critical_sink`. Called from both
+/// `create_encrypted_database_inner` (after migrations create the table)
+/// and `open_encrypted_database` (after the table is guaranteed-present
+/// by the migration check at startup). Failure to open is propagated as
+/// a `DatabaseError` so the surrounding vault-mount path can unwind via
+/// `close_database` — partial mount is worse than no mount.
+fn open_critical_sink(
+    vault_path: &str,
+    key: &str,
+    state: &State<'_, AppState>,
+) -> Result<(), DatabaseError> {
+    let sink = crate::critical::CriticalNotificationSink::open(Path::new(vault_path), key)
+        .map_err(|e| DatabaseError::DatabaseError {
+            reason: format!("Failed to open critical-notification sink: {e}"),
+        })?;
+    let mut sink_guard = state
+        .critical_sink
+        .lock()
+        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+    *sink_guard = Some(sink);
+    Ok(())
+}
+
 /// Drop any currently-held vault lock, releasing the OS advisory lock.
 /// Best-effort: a poisoned mutex here would only block future opens, which
 /// is preferable to panicking in shutdown / error-recovery paths.
@@ -1004,6 +1051,12 @@ pub fn open_encrypted_database(
         initialize_session(&app_handle, &vault_path, &key, &state)?;
         println!("[OPEN_DB] Checking for pending migrations...");
         crate::database::migrations::apply_core_migrations(app_handle.clone(), state.clone())?;
+        // Open the critical-notification sink right after migrations so
+        // `haex_critical_notifications_no_sync` exists. See the
+        // symmetric step in `create_encrypted_database_inner` for the
+        // rationale.
+        open_critical_sink(&vault_path, &key, &state)?;
+        println!("[OPEN_DB] ✅ Critical-notification sink opened");
         // Backfill a default own identity for vaults that predate the
         // seeding step in create_encrypted_database (idempotent — no-op
         // when one already exists).

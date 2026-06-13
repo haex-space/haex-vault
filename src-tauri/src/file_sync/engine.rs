@@ -1171,16 +1171,21 @@ fn make_conflict_path(relative_path: &str, timestamp: i64) -> String {
 fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
     use tauri::Manager;
     let state = app.state::<crate::AppState>();
-    // Phase 1 stop-gap until `lock_or_fail` lands (see
-    // docs/plans/2026-06-13-critical-failure-pattern.md): if the HLC
-    // mutex is poisoned, skip the update rather than panic. Phase 2 will
-    // surface this through a critical-notification row.
-    let hlc = match state.hlc.lock() {
+    // Phase 2: route HLC poison through `AppState::lock_or_fail` so the
+    // user sees a banner via `haex_critical_notifications_no_sync`
+    // instead of a silent skip + stderr-only log. Function returns ()
+    // so we can't propagate the Err — but the banner row is persisted
+    // regardless, and skipping the last-synced-at update is the
+    // correct fallback (the alternative would be writing a CRDT row
+    // with a corrupted HLC).
+    let hlc = match state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "file_sync::engine::update_last_synced_at",
+        serde_json::json!({"rule_id": rule_id}),
+    ) {
         Ok(g) => g,
-        Err(e) => {
-            eprintln!("[CRITICAL] file_sync::update_last_synced_at: HLC mutex poisoned ({e}) — skipping last-synced-at update");
-            return;
-        }
+        Err(_) => return,
     };
     let now = unix_now();
 
