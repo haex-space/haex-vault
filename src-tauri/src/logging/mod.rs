@@ -100,6 +100,21 @@ pub fn get_effective_log_level(
 /// Log to both stderr and the CRDT-synced DB log table.
 /// Use this from subsystems that have direct DB/HLC access but no AppState.
 /// Locks HLC internally — safe to call from anywhere.
+///
+/// ## Failure modes
+///
+/// Two paths that previously failed silently now emit a `[CRITICAL]` stderr
+/// marker so the audit-row loss is visible in CI / container logs:
+///
+/// 1. `hlc.lock()` returning `Err` (HLC mutex poisoned by an earlier panic).
+/// 2. `execute_with_crdt` returning `Err` (e.g. schema drift on `haex_logs`,
+///    poisoned DB mutex, transaction failure).
+///
+/// The function still returns `()` — silent best-effort semantics are
+/// preserved for the 38 existing callers. A follow-up PR will migrate the
+/// signature to `Result<(), DatabaseError>` so individual callers can
+/// decide between propagating, retrying, and emitting a critical
+/// notification. Tracked in `docs/plans/2026-06-13-critical-failure-pattern.md`.
 pub fn log_to_db(
     db: &crate::database::DbConnection,
     hlc: &std::sync::Arc<std::sync::Mutex<crate::crdt::hlc::HlcService>>,
@@ -112,7 +127,12 @@ pub fn log_to_db(
 
     let hlc_guard = match hlc.lock() {
         Ok(g) => g,
-        Err(_) => return, // Can't log without HLC — stderr fallback above is enough
+        Err(_) => {
+            eprintln!(
+                "[CRITICAL] [log_to_db] HLC mutex poisoned — audit row LOST for source={source}, level={level}"
+            );
+            return;
+        }
     };
 
     let id = uuid::Uuid::new_v4().to_string();
@@ -127,12 +147,16 @@ pub fn log_to_db(
         serde_json::Value::String(message.to_string()),
     ];
 
-    let _ = crate::database::core::execute_with_crdt(
+    if let Err(e) = crate::database::core::execute_with_crdt(
         SQL_INSERT_LOG_MINIMAL.clone(),
         params,
         db,
         &hlc_guard,
-    );
+    ) {
+        eprintln!(
+            "[CRITICAL] [log_to_db] DB write failed — audit row LOST for source={source}, level={level}, err={e}"
+        );
+    }
 }
 
 /// Insert a log entry via CRDT-aware execution (synced across devices).
