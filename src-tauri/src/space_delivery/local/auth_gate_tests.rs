@@ -4,11 +4,12 @@
 //! Covers every stage of the pipeline:
 //! - Stage 2a (no peer entry):     `rejects_request_without_prior_announce`
 //! - Stage 2b (peer w/o UCAN):     `rejects_request_when_peer_announced_without_ucan`
-//! - Stage 3 (audience):           `rejects_audience_mismatch`
-//! - Stage 4 (capability):         `rejects_insufficient_capability`
-//! - Stage 4 (SyncPush floor):     `accepts_read_member_sync_push_at_gate_level`
-//! - Stage 5a (revoked):           `rejects_revoked_member`
-//! - Stage 5b (DB error):          `surfaces_db_error_from_membership_check_as_explicit_error`
+//! - Stage 3 (expired UCAN):       `rejects_request_with_expired_cached_ucan`
+//! - Stage 4 (audience):           `rejects_audience_mismatch`
+//! - Stage 5 (capability):         `rejects_insufficient_capability`
+//! - Stage 5 (SyncPush floor):     `accepts_read_member_sync_push_at_gate_level`
+//! - Stage 6a (revoked):           `rejects_revoked_member`
+//! - Stage 6b (DB error):          `surfaces_db_error_from_membership_check_as_explicit_error`
 //! - Stage 1 (bypass):             `bypasses_claim_invite_cleanly`
 //! - Happy path:                   `accepts_valid_request_from_active_member`
 //!
@@ -198,6 +199,59 @@ async fn rejects_request_without_prior_announce() {
     }
 
     assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "no peer entry");
+}
+
+#[tokio::test]
+async fn rejects_request_with_expired_cached_ucan() {
+    // Stage 3: `validate_token` enforced `exp` at Announce time, but the
+    // cached `ValidatedUcan` rides along for the lifetime of the QUIC
+    // connection. A session that started fresh and then outlived its UCAN
+    // must be rejected on the next gated request — otherwise an expired
+    // capability silently keeps granting access until the peer disconnects.
+    //
+    // Set `expires_at = 0` so the check is independent of the system clock:
+    // any positive `now` will reject. The audience matches the connection
+    // DID and the capability is sufficient, so the test isolates the
+    // expiry stage — only `require_not_expired` can be the rejecting
+    // layer.
+    let (db, hlc) = empty_db();
+    let expired_ucan = ValidatedUcan {
+        issuer: "did:key:zIssuer".to_string(),
+        audience: "did:key:zPeer".to_string(),
+        capabilities: HashMap::from([("SPACE".to_string(), CapabilityLevel::Write)]),
+        expires_at: 0,
+    };
+    let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
+    peers_map.insert(
+        "endpoint-id".to_string(),
+        make_peer("endpoint-id", "did:key:zPeer", expired_ucan),
+    );
+    let peers = RwLock::new(peers_map);
+
+    let request = Request::MlsUploadKeyPackages {
+        space_id: "SPACE".into(),
+        packages: vec![],
+    };
+
+    let result = authorize_request(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+        &hlc,
+    )
+    .await;
+
+    match result {
+        Err(Response::Error { message }) => assert!(
+            message.to_lowercase().contains("expired"),
+            "expected peer-facing expired-UCAN message, got: {message}"
+        ),
+        other => panic!("expected expired-UCAN reject, got {other:?}"),
+    }
+
+    assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "cached UCAN expired");
 }
 
 #[tokio::test]
