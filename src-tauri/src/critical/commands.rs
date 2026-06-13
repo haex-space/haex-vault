@@ -73,6 +73,14 @@ pub fn critical_notifications_cleanup(
             let report = sink
                 .cleanup(DEFAULT_RETENTION_DAYS)
                 .map_err(sink_error_to_db_error)?;
+            // Log the cleanup result for operator visibility. The
+            // CleanupReport.cutoff field exists precisely so callers
+            // can produce structured "deleted N rows older than T"
+            // diagnostics without re-parsing strings — use it.
+            println!(
+                "[CRITICAL_CLEANUP] deleted {} row(s) older than {} ({}-day retention)",
+                report.deleted_rows, report.cutoff, DEFAULT_RETENTION_DAYS,
+            );
             Ok(report.deleted_rows)
         }
         None => Ok(0),

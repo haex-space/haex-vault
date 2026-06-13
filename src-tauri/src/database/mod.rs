@@ -810,7 +810,29 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
     });
     println!("[CLOSE_DB] Runtime state cleared (sync loops, leaders, transfers)");
 
-    // 1. Close the database connection
+    // 1. Drop the critical-notification sink FIRST — its rusqlite
+    //    connection is held independently of `state.db`, so closing it
+    //    must not depend on the main DB mutex being healthy. Doing this
+    //    before the db.lock() at step 2 is the whole point of the
+    //    "separate connection" design: if `state.db.0` is poisoned (the
+    //    very scenario the sink exists to surface), the ?-propagation at
+    //    step 2 would otherwise return Err and leak the sink for the
+    //    process lifetime.
+    //
+    //    `unwrap_or_else(into_inner)` is correct here because this IS
+    //    the last layer of defense — there's no further mechanism to
+    //    surface a poisoned sink-slot mutex.
+    {
+        let mut sink_guard = state
+            .critical_sink
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        if sink_guard.take().is_some() {
+            println!("[CLOSE_DB] Critical-notification sink dropped");
+        }
+    }
+
+    // 2. Close the main database connection.
     {
         let mut db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
             reason: e.to_string(),
@@ -824,20 +846,6 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
             println!("[CLOSE_DB] Database connection closed");
         } else {
             println!("[CLOSE_DB] No database connection to close");
-        }
-    }
-
-    // 1b. Drop the critical-notification sink — its rusqlite connection
-    //     is held independently of state.db, so without this it would
-    //     keep the SQLite file open (blocking vault re-mount) and would
-    //     write into a stale, just-closed DB on the next emit.
-    {
-        let mut sink_guard = state
-            .critical_sink
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
-        if sink_guard.take().is_some() {
-            println!("[CLOSE_DB] Critical-notification sink dropped");
         }
     }
 

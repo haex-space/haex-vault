@@ -180,25 +180,44 @@ impl AppState {
         location: &'static str,
         params: serde_json::Value,
     ) -> Result<std::sync::MutexGuard<'a, T>, critical::MutexPoisonError> {
-        // The sink lookup uses unwrap_or_else(into_inner) on purpose —
-        // this is the very last layer of defense; even if the sink slot's
-        // own Mutex is poisoned, we want the lock_or_fail caller to get
-        // SOMETHING (Ok if main mutex is healthy, or Err with stderr).
-        // Without this fallback, a poisoned AppState.critical_sink mutex
-        // would silently turn every later lock_or_fail into None-sink mode.
-        let sink_guard = self
-            .critical_sink
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
-        match sink_guard.as_ref() {
-            Some(sink) => critical::lock_or_fail(mutex, code, location, sink, params),
+        // Snapshot the sink under the slot mutex, then DROP the guard
+        // before dispatching to the actual lock_or_fail. Holding the
+        // critical_sink guard across the caller's mutex.lock() would
+        // serialize EVERY lock_or_fail callsite in the app through a
+        // single global mutex — fine for HLC (rare contention) but
+        // unacceptable once PR B2 migrates the hot paths in
+        // peer_storage / file_sync. Sink is `Clone` via internal
+        // `Arc<Mutex<Connection>>`, so the clone is cheap.
+        //
+        // `unwrap_or_else(into_inner)` here is the documented exception:
+        // this is the very last layer of defense — even if the sink slot
+        // mutex itself is poisoned, we want the caller to still get a
+        // sensible result. Without it, a poisoned slot mutex would
+        // silently turn every later lock_or_fail into None-sink mode.
+        let sink_clone = {
+            let sink_guard = self
+                .critical_sink
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            sink_guard.clone()
+        };
+        match sink_clone {
+            Some(sink) => critical::lock_or_fail(mutex, code, location, &sink, params),
             None => {
-                eprintln!(
-                    "[CRITICAL] {location}: mutex check requested but no sink is available (vault closed) — last-resort stderr signal only"
-                );
+                // No sink (vault closed): we can't emit a banner row.
+                // Try to lock anyway; on poison, emit the same
+                // [CRITICAL]-marker line `critical::handle_poison`
+                // would emit so on-call stderr/CI logs stay symmetric
+                // across the two paths.
                 match mutex.lock() {
                     Ok(g) => Ok(g),
-                    Err(_) => Err(critical::MutexPoisonError { code, location }),
+                    Err(_) => {
+                        eprintln!(
+                            "[CRITICAL] {location}: mutex poisoned (code={code:?}, severity={severity:?}) — sink unavailable (vault closed), stderr-only",
+                            severity = code.severity(),
+                        );
+                        Err(critical::MutexPoisonError { code, location })
+                    }
                 }
             }
         }
