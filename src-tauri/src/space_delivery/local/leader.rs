@@ -683,6 +683,7 @@ pub(super) async fn handle_delivery_request(
                     &did[..24.min(did.len())],
                     peer_endpoint_id,
                 ),
+                None,
             );
             let validated = match require_valid_ucan(&ucan_token, "Announce") {
                 Ok(v) => v,
@@ -691,6 +692,7 @@ pub(super) async fn handle_delivery_request(
                         &state.db, &state.hlc, "warn", "Announce",
                         &format!("UCAN validation failed: space={} did={}",
                             &space_id[..8.min(space_id.len())], &did[..24.min(did.len())]),
+                        None,
                     );
                     return r;
                 }
@@ -711,6 +713,7 @@ pub(super) async fn handle_delivery_request(
                     &format!("capability/membership rejected: space={} audience={}",
                         &space_id[..8.min(space_id.len())],
                         &validated.audience[..24.min(validated.audience.len())]),
+                    None,
                 );
                 return r;
             }
@@ -719,6 +722,7 @@ pub(super) async fn handle_delivery_request(
                 &format!("accepted: space={} audience={}",
                     &space_id[..8.min(space_id.len())],
                     &validated.audience[..24.min(validated.audience.len())]),
+                None,
             );
 
             let did_clone = did.clone();
@@ -1062,6 +1066,7 @@ pub(super) async fn handle_delivery_request(
                             after_timestamp.as_deref(),
                             by_table,
                         ),
+                        None,
                     );
                     match serde_json::to_value(&changes) {
                         Ok(json) => Response::SyncChanges { changes: json },
@@ -1079,6 +1084,7 @@ pub(super) async fn handle_delivery_request(
                         &state.db, &state.hlc, "error", "SyncPull",
                         &format!("scan failed: space={} err={}",
                             &space_id[..8.min(space_id.len())], e),
+                        None,
                     );
                     Response::Error {
                         message: format!("Failed to scan changes: {e}"),

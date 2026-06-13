@@ -47,7 +47,7 @@ pub fn handle_push_invite(
     let token_fp = token_fingerprint(token_id);
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
         "Received invite for space {space_id} ({space_name}) from {inviter_did}, token={token_fp}"
-    ));
+    ), None);
 
     // Reject spoofed inviters: the payload `inviter_did` must equal the
     // connection-bound DID established by the quic_did_auth handshake.
@@ -59,7 +59,7 @@ pub fn handle_push_invite(
             "REJECTED: inviter_did spoofed (payload={} verified={})",
             &inviter_did[..24.min(inviter_did.len())],
             &verified_did[..24.min(verified_did.len())],
-        ));
+        ), None);
         return Response::Error {
             message: "Inviter DID does not match the authenticated peer DID".to_string(),
         };
@@ -67,14 +67,14 @@ pub fn handle_push_invite(
 
     // 1. Validate capabilities — reject if empty or containing unknown values
     if capabilities.is_empty() {
-        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, "REJECTED: no capabilities");
+        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, "REJECTED: no capabilities", None);
         return Response::Error {
             message: "Invite has no capabilities".to_string(),
         };
     }
     for cap in capabilities {
         if !VALID_CAPABILITIES.contains(&cap.as_str()) {
-            logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!("REJECTED: unknown capability {cap}"));
+            logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!("REJECTED: unknown capability {cap}"), None);
             return Response::Error {
                 message: format!("Unknown capability: {cap}"),
             };
@@ -93,13 +93,13 @@ pub fn handle_push_invite(
     .unwrap_or(0);
 
     if already_active > 0 {
-        logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!("SKIPPED: space {space_id} already active on this device"));
+        logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!("SKIPPED: space {space_id} already active on this device"), None);
         return Response::PushInviteAck { accepted: true };
     }
 
     // 3. Check invite policy
     if !check_invite_policy(db, inviter_did) {
-        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!("REJECTED: invite policy blocked inviter {inviter_did}"));
+        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!("REJECTED: invite policy blocked inviter {inviter_did}"), None);
         return Response::PushInviteAck { accepted: false };
     }
 
@@ -107,7 +107,7 @@ pub fn handle_push_invite(
     let hlc_guard = match hlc.lock() {
         Ok(guard) => guard,
         Err(_) => {
-            // Can't use log_to_db (it would also try to lock HLC). Stderr only.
+            // Can't use log_to_db (it would also try to lock HLC, None). Stderr only.
             eprintln!("[{LOG_SOURCE}] [error] ABORT: HLC lock poisoned while processing invite for space {space_id} from {inviter_did}");
             return Response::PushInviteAck { accepted: false };
         }
@@ -132,11 +132,11 @@ pub fn handle_push_invite(
     .unwrap_or(0);
 
     if existing_for_token > 0 {
-        // Drop the guard before log_to_db (which acquires the HLC internally).
+        // Drop the guard before log_to_db (which acquires the HLC internally, None).
         drop(hlc_guard);
         logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
             "SKIPPED (duplicate token): space={space_id} token={token_fp} — already received"
-        ));
+        ), None);
         return Response::PushInviteAck { accepted: true };
     }
 
@@ -222,7 +222,7 @@ pub fn handle_push_invite(
         Err(e) => {
             logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
                 "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_fp}): {e}"
-            ));
+            ), None);
             // Fail fast: don't emit push-invite-received or ACK success when
             // the row isn't persisted, or the UI fires a toast for an invite
             // that doesn't exist in the DB.
@@ -237,17 +237,17 @@ pub fn handle_push_invite(
         // user — so bail out explicitly.
         logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!(
             "INSERT IGNORED (duplicate id): pending invite {invite_id} (space={space_id}, token={token_fp})"
-        ));
+        ), None);
         return Response::PushInviteAck { accepted: false };
     }
 
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
         "INSERT OK: pending invite {invite_id} (space={space_id}, token={token_fp})"
-    ));
+    ), None);
 
     logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
         "Invite processing complete for {invite_id} in space {space_id}"
-    ));
+    ), None);
 
     // Emitting is what triggers the frontend toast + invite list reload.
     // If this fails (AppHandle dead / event channel closed) the invite is
@@ -256,10 +256,10 @@ pub fn handle_push_invite(
     match app_handle.emit_to("main", "push-invite-received", ()) {
         Ok(()) => logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
             "Emitted push-invite-received for invite {invite_id} (space={space_id})"
-        )),
+        ), None),
         Err(e) => logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
             "FAILED to emit push-invite-received for invite {invite_id}: {e}"
-        )),
+        ), None),
     }
 
     Response::PushInviteAck { accepted: true }

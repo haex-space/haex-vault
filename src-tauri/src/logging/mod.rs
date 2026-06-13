@@ -101,6 +101,18 @@ pub fn get_effective_log_level(
 /// Use this from subsystems that have direct DB/HLC access but no AppState.
 /// Locks HLC internally — safe to call from anywhere.
 ///
+/// ## Structured metadata
+///
+/// `metadata` is an optional JSON object that lands in `haex_logs.metadata`.
+/// By convention, set `{"subsystem": "AuthGate"}` (or whatever subsystem you
+/// log from) so operators can filter the in-app log viewer by subsystem
+/// independent of the per-op `source` tag. If `metadata.subsystem` is
+/// present, the stderr line is also prefixed with `[<subsystem>]` so a
+/// `grep "[AuthGate]"` against container logs still works.
+///
+/// `None` is the backward-compatible call shape — most existing callers pass
+/// it and behave as before (no metadata column, no stderr prefix).
+///
 /// ## Failure modes
 ///
 /// Two paths that previously failed silently now emit a `[CRITICAL]` stderr
@@ -111,19 +123,28 @@ pub fn get_effective_log_level(
 ///    poisoned DB mutex, transaction failure).
 ///
 /// The function still returns `()` — silent best-effort semantics are
-/// preserved for the 38 existing callers. A follow-up PR will migrate the
-/// signature to `Result<(), DatabaseError>` so individual callers can
-/// decide between propagating, retrying, and emitting a critical
-/// notification. Tracked in `docs/plans/2026-06-13-critical-failure-pattern.md`.
+/// preserved. A follow-up PR will migrate the signature to
+/// `Result<(), DatabaseError>` so individual callers can decide between
+/// propagating, retrying, and emitting a critical notification. Tracked
+/// in `docs/plans/2026-06-13-critical-failure-pattern.md`.
 pub fn log_to_db(
     db: &crate::database::DbConnection,
     hlc: &std::sync::Arc<std::sync::Mutex<crate::crdt::hlc::HlcService>>,
     level: &str,
     source: &str,
     message: &str,
+    metadata: Option<serde_json::Value>,
 ) {
-    // Always print to stderr for immediate visibility
-    eprintln!("[{source}] [{level}] {message}");
+    // Subsystem prefix for stderr legibility — restores the `[AuthGate]`-style
+    // marker that pre-T6 reject paths used to emit. If metadata is None or
+    // has no `subsystem` field, no prefix is added (backward-compatible).
+    let subsystem_prefix = metadata
+        .as_ref()
+        .and_then(|m| m.get("subsystem"))
+        .and_then(|s| s.as_str())
+        .map(|s| format!("[{s}] "))
+        .unwrap_or_default();
+    eprintln!("{subsystem_prefix}[{source}] [{level}] {message}");
 
     let hlc_guard = match hlc.lock() {
         Ok(g) => g,
@@ -139,20 +160,37 @@ pub fn log_to_db(
     let now = time::OffsetDateTime::now_utc();
     let timestamp = now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
 
-    let params: Vec<serde_json::Value> = vec![
-        serde_json::Value::String(id),
-        serde_json::Value::String(timestamp),
-        serde_json::Value::String(level.to_string()),
-        serde_json::Value::String(source.to_string()),
-        serde_json::Value::String(message.to_string()),
-    ];
+    // Choose minimal vs full insert based on whether metadata was supplied.
+    // The minimal path keeps the historical behaviour for callers that
+    // pass None; the full path populates the metadata column with the JSON
+    // string serialization of the supplied value.
+    let (sql, params) = match metadata {
+        None => (
+            SQL_INSERT_LOG_MINIMAL.clone(),
+            vec![
+                serde_json::Value::String(id),
+                serde_json::Value::String(timestamp),
+                serde_json::Value::String(level.to_string()),
+                serde_json::Value::String(source.to_string()),
+                serde_json::Value::String(message.to_string()),
+            ],
+        ),
+        Some(meta) => (
+            SQL_INSERT_LOG_FULL.clone(),
+            vec![
+                serde_json::Value::String(id),
+                serde_json::Value::String(timestamp),
+                serde_json::Value::String(level.to_string()),
+                serde_json::Value::String(source.to_string()),
+                serde_json::Value::Null, // extension_id
+                serde_json::Value::String(message.to_string()),
+                serde_json::Value::String(meta.to_string()),
+                serde_json::Value::String("rust".to_string()), // device_id
+            ],
+        ),
+    };
 
-    if let Err(e) = crate::database::core::execute_with_crdt(
-        SQL_INSERT_LOG_MINIMAL.clone(),
-        params,
-        db,
-        &hlc_guard,
-    ) {
+    if let Err(e) = crate::database::core::execute_with_crdt(sql, params, db, &hlc_guard) {
         eprintln!(
             "[CRITICAL] [log_to_db] DB write failed — audit row LOST for source={source}, level={level}, err={e}"
         );

@@ -100,14 +100,14 @@ fn make_peer(endpoint_id: &str, did: &str, validated_ucan: ValidatedUcan) -> Con
     }
 }
 
-/// Read all `(level, source, message)` rows from `haex_logs`, oldest first.
-/// Used by reject-path tests to assert that the gate wrote exactly one
-/// `warn` row tagged with the right op name.
-fn select_audit_logs(db: &DbConnection) -> Vec<(String, String, String)> {
+/// Read all `(level, source, message, metadata)` rows from `haex_logs`,
+/// oldest first. Used by reject-path tests to assert that the gate wrote
+/// exactly one row tagged with the right op name and `subsystem = "AuthGate"`.
+fn select_audit_logs(db: &DbConnection) -> Vec<(String, String, String, Option<String>)> {
     let conn_guard = db.0.lock().expect("db lock");
     let conn = conn_guard.as_ref().expect("db connection");
     let mut stmt = conn
-        .prepare("SELECT level, source, message FROM haex_logs ORDER BY timestamp")
+        .prepare("SELECT level, source, message, metadata FROM haex_logs ORDER BY timestamp")
         .expect("prepare select haex_logs");
     let rows = stmt
         .query_map([], |row| {
@@ -115,6 +115,7 @@ fn select_audit_logs(db: &DbConnection) -> Vec<(String, String, String)> {
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
             ))
         })
         .expect("query haex_logs");
@@ -123,12 +124,16 @@ fn select_audit_logs(db: &DbConnection) -> Vec<(String, String, String)> {
 
 /// Assert that the gate wrote exactly one audit row at `expected_level`
 /// (`"warn"` for peer-side rejects, `"error"` for internal vault failures),
-/// tagged with `expected_op`, and whose message contains `must_contain` (so
-/// the per-reject-path message detail stays pinned without being
-/// verbatim-coupled to the wording).
+/// tagged with `expected_op` and the structured `subsystem` metadata field
+/// `expected_subsystem`, and whose message contains `must_contain`.
+///
+/// The `subsystem` check pins the metadata convention (always set to
+/// `"AuthGate"` for any reject row this module emits) so operators can
+/// filter `haex_logs` by subsystem independent of the per-op `source` tag.
 fn assert_single_audit_row(
     db: &DbConnection,
     expected_level: &str,
+    expected_subsystem: &str,
     expected_op: &str,
     must_contain: &str,
 ) {
@@ -138,7 +143,7 @@ fn assert_single_audit_row(
         1,
         "expected exactly one audit row for op={expected_op}, got: {rows:?}"
     );
-    let (level, source, message) = &rows[0];
+    let (level, source, message, metadata) = &rows[0];
     assert_eq!(
         level, expected_level,
         "audit row level must be {expected_level}, got {level}"
@@ -150,6 +155,16 @@ fn assert_single_audit_row(
     assert!(
         message.contains(must_contain),
         "audit row message must mention {must_contain:?}, got: {message}"
+    );
+    let metadata_str = metadata
+        .as_deref()
+        .expect("audit row must have metadata column populated (with subsystem field)");
+    let metadata_json: serde_json::Value = serde_json::from_str(metadata_str)
+        .expect("audit row metadata must be valid JSON");
+    assert_eq!(
+        metadata_json.get("subsystem").and_then(|s| s.as_str()),
+        Some(expected_subsystem),
+        "audit row metadata.subsystem must be {expected_subsystem}, got: {metadata_str}"
     );
 }
 
@@ -180,7 +195,7 @@ async fn rejects_request_without_prior_announce() {
         other => panic!("expected reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "MlsUploadKeyPackages", "no peer entry");
+    assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "no peer entry");
 }
 
 #[tokio::test]
@@ -224,7 +239,7 @@ async fn rejects_audience_mismatch() {
         other => panic!("expected audience-mismatch reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "MlsUploadKeyPackages", "audience");
+    assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "audience");
 }
 
 #[tokio::test]
@@ -274,7 +289,7 @@ async fn rejects_insufficient_capability() {
         other => panic!("expected capability reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "MlsSendMessage", "capability check failed");
+    assert_single_audit_row(&db, "warn", "AuthGate", "MlsSendMessage", "capability check failed");
 }
 
 #[tokio::test]
@@ -417,7 +432,7 @@ async fn rejects_revoked_member() {
         other => panic!("expected membership reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "MlsSendMessage", "not an active member");
+    assert_single_audit_row(&db, "warn", "AuthGate", "MlsSendMessage", "not an active member");
 }
 
 #[tokio::test]
@@ -521,7 +536,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
         other => panic!("expected reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "MlsUploadKeyPackages", "no cached UCAN");
+    assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "no cached UCAN");
 }
 
 #[tokio::test]
@@ -571,5 +586,5 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         other => panic!("expected DB error response, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "error", "MlsUploadKeyPackages", "internal failure: membership check DB error");
+    assert_single_audit_row(&db, "error", "AuthGate", "MlsUploadKeyPackages", "internal failure: membership check DB error");
 }

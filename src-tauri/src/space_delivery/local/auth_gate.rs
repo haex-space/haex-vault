@@ -126,6 +126,7 @@ pub async fn authorize_request(
                 "warn",
                 op,
                 &format!("reject: no peer entry for endpoint={peer_endpoint_id} (forged endpoint-id or evicted connection?)"),
+                Some(serde_json::json!({"subsystem":"AuthGate"})),
             );
             return Err(Response::Error {
                 message: "Access denied: must Announce before sending other requests".to_string(),
@@ -138,6 +139,7 @@ pub async fn authorize_request(
                 "warn",
                 op,
                 &format!("reject: peer endpoint={peer_endpoint_id} has no cached UCAN (ClaimInvite without Announce?)"),
+                Some(serde_json::json!({"subsystem":"AuthGate"})),
             );
             return Err(Response::Error {
                 message: "Access denied: must Announce before sending other requests".to_string(),
@@ -160,6 +162,7 @@ pub async fn authorize_request(
             "warn",
             op,
             &format!("reject: UCAN audience != verified peer DID (endpoint={peer_endpoint_id} aud={aud_short} verified={verified_short} err={e})"),
+            Some(serde_json::json!({"subsystem":"AuthGate"})),
         );
         return Err(Response::Error {
             message: "Access denied: UCAN audience does not match verified peer DID".to_string(),
@@ -174,6 +177,7 @@ pub async fn authorize_request(
             "warn",
             op,
             &format!("reject: capability check failed (endpoint={peer_endpoint_id} space={space_id} required={required:?} err={e})"),
+            Some(serde_json::json!({"subsystem":"AuthGate"})),
         );
         return Err(Response::Error {
             message: format!("Access denied: {e}"),
@@ -192,6 +196,7 @@ pub async fn authorize_request(
                 "warn",
                 op,
                 &format!("reject: not an active member (endpoint={peer_endpoint_id} aud={aud_short} space={space_short})"),
+                Some(serde_json::json!({"subsystem":"AuthGate"})),
             );
             Err(Response::Error {
                 message: "Access denied: not an active member of this space".to_string(),
@@ -212,6 +217,7 @@ pub async fn authorize_request(
                 "error",
                 op,
                 &format!("internal failure: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"),
+                Some(serde_json::json!({"subsystem":"AuthGate"})),
             );
             Err(Response::Error {
                 message: format!("Membership check failed: {e}"),
