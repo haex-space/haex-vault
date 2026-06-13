@@ -5,6 +5,10 @@
 //!
 //! Run: cargo test --test mls_lifecycle
 
+// Integration-test file — opt out of unwrap/expect lints (see
+// peer_storage_fullstack.rs for the rationale).
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;

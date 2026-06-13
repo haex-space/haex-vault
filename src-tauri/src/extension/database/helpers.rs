@@ -205,7 +205,9 @@ pub fn execute_sql_with_context(
         });
     }
 
-    let mut statement = ast_vec.pop().unwrap();
+    let mut statement = ast_vec
+        .pop()
+        .expect("invariant: ast_vec.len() == 1 checked at the guard above");
 
     // If this is a SELECT statement, apply tombstone filter and execute
     if let Statement::Query(ref mut query) = statement {

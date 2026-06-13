@@ -126,7 +126,8 @@ pub fn get_effective_log_level(
         }
     }
 
-    LogLevel::from_str(DEFAULT_LOG_LEVEL).unwrap()
+    LogLevel::from_str(DEFAULT_LOG_LEVEL)
+        .expect("invariant: DEFAULT_LOG_LEVEL is a hardcoded string that must parse")
 }
 
 /// Log to both stderr and the CRDT-synced DB log table.

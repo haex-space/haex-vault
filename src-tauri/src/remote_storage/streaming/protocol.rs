@@ -236,6 +236,11 @@ fn percent_decode(s: &str) -> String {
 }
 
 fn cors_preflight() -> Response<Vec<u8>> {
+    // Match the defense-in-depth pattern used by `error_response` and
+    // `range_not_satisfiable` directly below — a future maintainer
+    // adding a non-ASCII or config-derived header value here would
+    // turn what looks like static code into a panic on every CORS
+    // preflight (hot path for cross-origin extension fetches).
     Response::builder()
         .status(204)
         .header("Access-Control-Allow-Origin", "*")
@@ -243,7 +248,7 @@ fn cors_preflight() -> Response<Vec<u8>> {
         .header("Access-Control-Allow-Headers", "Range")
         .header("Access-Control-Max-Age", "86400")
         .body(Vec::new())
-        .unwrap()
+        .unwrap_or_else(|_| Response::new(Vec::new()))
 }
 
 fn error_response(status: u16, msg: String) -> Response<Vec<u8>> {
