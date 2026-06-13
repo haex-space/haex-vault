@@ -20,11 +20,16 @@
 //!    A missing entry — or an entry whose `validated_ucan` is `None` — is
 //!    rejected with `"Access denied: must Announce before sending other
 //!    requests"`.
-//! 3. **Audience binding.** `crate::ucan::require_audience` — the cached
+//! 3. **Expiry.** `crate::ucan::require_not_expired` — `validate_token` at
+//!    Announce time enforced `exp`, but the cached `ValidatedUcan` survives
+//!    the entire QUIC connection lifetime. A long-lived session can outlive
+//!    its own UCAN — re-check on every gated request so reconnect-after-
+//!    renew is the only way to keep talking.
+//! 4. **Audience binding.** `crate::ucan::require_audience` — the cached
 //!    UCAN must have been issued *to the connection-authenticated DID*.
-//! 4. **Capability.** `crate::ucan::require_capability` — the UCAN grants
+//! 5. **Capability.** `crate::ucan::require_capability` — the UCAN grants
 //!    at least the minimum capability the request requires for its space.
-//! 5. **Active membership.** `super::ucan::is_active_space_member` —
+//! 6. **Active membership.** `super::ucan::is_active_space_member` —
 //!    revocation kill-switch: a tombstoned member's UCAN remains
 //!    cryptographically valid, but every request still fails here.
 //!
@@ -48,11 +53,11 @@
 //!
 //! Severity is two-tier:
 //!
-//! - **`warn`** for the five peer-side reject paths (no peer entry, no
-//!   cached UCAN, audience mismatch, capability check, revoked membership).
-//!   Message prefix `"reject: ..."`. These are normal — a misbehaving or
-//!   probing peer.
-//! - **`error`** for the one internal-failure path (Stage 5b: the
+//! - **`warn`** for the six peer-side reject paths (no peer entry, no
+//!   cached UCAN, expired UCAN, audience mismatch, capability check,
+//!   revoked membership). Message prefix `"reject: ..."`. These are normal
+//!   — a misbehaving or probing peer.
+//! - **`error`** for the one internal-failure path (Stage 6b: the
 //!   membership-check SQL itself errored, e.g. DB locked, schema drift,
 //!   disk full). Message prefix `"internal failure: ..."`. This signals
 //!   an operator-actionable vault problem, not peer misbehaviour, and
@@ -73,7 +78,7 @@ use crate::database::DbConnection;
 use crate::logging::log_to_db;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::types::ConnectedPeer;
-use crate::ucan::{require_audience, require_capability, ValidatedUcan};
+use crate::ucan::{require_audience, require_capability, require_not_expired, ValidatedUcan};
 
 /// Authorise an inbound `Request` against the connection's cached UCAN and
 /// the current membership state.
@@ -163,7 +168,27 @@ pub async fn authorize_request(
         }
     };
 
-    // 3. Audience binding. The underlying `UcanVerifyError::AudienceMismatch`
+    // 3. Expiry re-check. `validate_token` enforced `exp` at Announce time,
+    //    but `ConnectedPeer::validated_ucan` is held for the lifetime of the
+    //    QUIC connection — a long-lived session can outlast its own UCAN.
+    //    Re-checking here forces a reconnect-after-renew once `expires_at`
+    //    is reached.
+    if let Err(e) = require_not_expired(&validated) {
+        let aud_short: String = validated.audience.chars().take(24).collect();
+        log_to_db(
+            db,
+            hlc,
+            "warn",
+            op,
+            &format!("reject: cached UCAN expired (endpoint={peer_endpoint_id} aud={aud_short} expires_at={exp} err={e})", exp = validated.expires_at),
+            Some(serde_json::json!({"subsystem":"AuthGate"})),
+        );
+        return Err(Response::Error {
+            message: "Access denied: cached UCAN expired, please Announce again".to_string(),
+        });
+    }
+
+    // 4. Audience binding. The underlying `UcanVerifyError::AudienceMismatch`
     //    Display includes both DIDs — that's useful in logs but is an
     //    enumeration aid for an attacker probing endpoints, so the
     //    peer-facing message is fixed-string and the detail goes only to the
@@ -185,7 +210,7 @@ pub async fn authorize_request(
         });
     }
 
-    // 4. Capability.
+    // 5. Capability.
     if let Err(e) = require_capability(&validated, space_id, required) {
         log_to_db(
             db,
@@ -200,7 +225,7 @@ pub async fn authorize_request(
         });
     }
 
-    // 5. Active membership (revocation kill-switch).
+    // 6. Active membership (revocation kill-switch).
     match super::ucan::is_active_space_member(db, space_id, &validated.audience) {
         Ok(true) => Ok(Some(validated)),
         Ok(false) => {
