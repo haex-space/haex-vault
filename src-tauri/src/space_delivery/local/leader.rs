@@ -641,20 +641,17 @@ pub(super) async fn handle_delivery_request(
     // validate + cache the UCAN it just received before subsequent requests
     // on this connection can pass the gate.
     //
-    // Observability follow-up: pre-T6, the SyncPush / SyncPull arms wrote
-    // rejection rows to `haex_logs` via `log_to_db`, so an owner could see
-    // failed sync attempts in-app (CRDT-synced to owner devices). Gate
-    // rejections today only `eprintln!` to stderr — peers still receive the
-    // correct `Response::Error`, but in-app log visibility for rejected
-    // requests is reduced. Tracked as "AuthGate rejections must write
-    // haex_logs audit rows"; see the matching TODO at the top of
-    // `auth_gate::authorize_request`.
+    // Audit logging: the gate writes a `warn` row to `haex_logs` (via
+    // `log_to_db`, CRDT-synced to the owner) from every reject branch with
+    // `source = Request::op_name`, restoring the in-app log visibility the
+    // pre-T6 SyncPush / SyncPull arms used to emit directly.
     let gate_ucan = match super::auth_gate::authorize_request(
         &request,
         verified_did,
         peer_endpoint_id,
         &state.connected_peers,
         &state.db,
+        &state.hlc,
     )
     .await
     {
@@ -686,6 +683,7 @@ pub(super) async fn handle_delivery_request(
                     &did[..24.min(did.len())],
                     peer_endpoint_id,
                 ),
+                None,
             );
             let validated = match require_valid_ucan(&ucan_token, "Announce") {
                 Ok(v) => v,
@@ -694,6 +692,7 @@ pub(super) async fn handle_delivery_request(
                         &state.db, &state.hlc, "warn", "Announce",
                         &format!("UCAN validation failed: space={} did={}",
                             &space_id[..8.min(space_id.len())], &did[..24.min(did.len())]),
+                        None,
                     );
                     return r;
                 }
@@ -714,6 +713,7 @@ pub(super) async fn handle_delivery_request(
                     &format!("capability/membership rejected: space={} audience={}",
                         &space_id[..8.min(space_id.len())],
                         &validated.audience[..24.min(validated.audience.len())]),
+                    None,
                 );
                 return r;
             }
@@ -722,6 +722,7 @@ pub(super) async fn handle_delivery_request(
                 &format!("accepted: space={} audience={}",
                     &space_id[..8.min(space_id.len())],
                     &validated.audience[..24.min(validated.audience.len())]),
+                None,
             );
 
             let did_clone = did.clone();
@@ -1065,6 +1066,7 @@ pub(super) async fn handle_delivery_request(
                             after_timestamp.as_deref(),
                             by_table,
                         ),
+                        None,
                     );
                     match serde_json::to_value(&changes) {
                         Ok(json) => Response::SyncChanges { changes: json },
@@ -1082,6 +1084,7 @@ pub(super) async fn handle_delivery_request(
                         &state.db, &state.hlc, "error", "SyncPull",
                         &format!("scan failed: space={} err={}",
                             &space_id[..8.min(space_id.len())], e),
+                        None,
                     );
                     Response::Error {
                         message: format!("Failed to scan changes: {e}"),

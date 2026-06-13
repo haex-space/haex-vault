@@ -27,6 +27,7 @@ use rusqlite::Connection;
 use serde_json::json;
 
 use crate::crdt::hlc::HlcService;
+use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
@@ -35,16 +36,24 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 
 /// In-memory DB with the minimum schemas `is_active_space_member` reads:
 /// `haex_identities` + `haex_space_members`, plus the CRDT bookkeeping
-/// tables the HLC hooks require.
+/// tables the HLC hooks require, plus `haex_logs` so AuthGate audit-row
+/// assertions can read what `log_to_db` writes.
+///
+/// Returns the DB handle alongside the `Arc<Mutex<HlcService>>` that
+/// `auth_gate::authorize_request` and `logging::log_to_db` consume. The
+/// HLC inside that Arc shares the same underlying clock as the one
+/// registered via the `current_hlc()` UDF — so an audit-log INSERT
+/// goes through the same HLC source as production.
 ///
 /// ## Schema parity with production
 ///
 /// The columns below are a deliberate subset of the production Drizzle
 /// schemas (`src/database/schemas/identity.ts` for `haex_identities`,
-/// `src/database/schemas/spaces.ts` for `haex_space_members`). We mirror
-/// every `NOT NULL` column production declares — even the ones our tests
-/// never read — so that `insert_identity` / `insert_member` exercise the
-/// same constraints production code does.
+/// `src/database/schemas/spaces.ts` for `haex_space_members`,
+/// `src/database/schemas/logs.ts` for `haex_logs`). We mirror every
+/// `NOT NULL` column production declares — even the ones our tests
+/// never read — so that `insert_identity` / `insert_member` /
+/// `log_to_db` exercise the same constraints production code does.
 ///
 /// Mirrored from `haex_identities`: `id`, `did` (UNIQUE), `name` (NOT NULL),
 /// `source` (NOT NULL DEFAULT 'contact'), `private_key`, `created_at`.
@@ -57,14 +66,20 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 /// `authored_by_did`, `joined_at`. No production columns omitted —
 /// the table is small enough that we keep it at full parity.
 ///
+/// Mirrored from `haex_logs`: `id`, `timestamp` (NOT NULL), `level`
+/// (NOT NULL), `source` (NOT NULL), `extension_id` (nullable), `message`
+/// (NOT NULL), `metadata` (nullable), `device_id` (NOT NULL). The
+/// `extension_id` FK to `haex_extensions` is dropped in tests — we never
+/// seed `haex_extensions`, and `log_to_db` always inserts NULL there.
+///
 /// CRDT-helper columns (e.g. `haex_tombstone`, HLC timestamps) are added
 /// by `core::execute` at write-time, not by the migration, so they don't
 /// appear in this CREATE TABLE.
-pub(crate) fn setup_membership_db() -> DbConnection {
+pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
     let conn = Connection::open_in_memory().expect("in-memory DB");
-    let hlc = HlcService::new_for_testing("test-device");
+    let hlc_service = HlcService::new_for_testing("test-device");
     let ctx = ConnectionContext::new();
-    register_current_hlc_udf(&conn, hlc, ctx.clone()).expect("register hlc udf");
+    register_current_hlc_udf(&conn, hlc_service.clone(), ctx.clone()).expect("register hlc udf");
     install_tx_hlc_hooks(&conn, ctx).expect("install hlc hooks");
 
     conn.execute_batch(&format!(
@@ -95,11 +110,43 @@ pub(crate) fn setup_membership_db() -> DbConnection {
             role TEXT NOT NULL DEFAULT 'read',
             authored_by_did TEXT,
             joined_at TEXT
+        );
+
+        CREATE TABLE haex_logs (
+            id TEXT PRIMARY KEY,
+            timestamp TEXT NOT NULL,
+            level TEXT NOT NULL,
+            source TEXT NOT NULL,
+            extension_id TEXT,
+            message TEXT NOT NULL,
+            metadata TEXT,
+            device_id TEXT NOT NULL
         );",
     )
-    .expect("create membership schema");
+    .expect("create membership + logs schema");
 
-    DbConnection(Arc::new(Mutex::new(Some(conn))))
+    // `log_to_db` writes through `execute_with_crdt`, which expects the
+    // target table to carry the CRDT bookkeeping columns (`haex_hlc`,
+    // `haex_column_hlcs`). `ensure_crdt_columns` adds just those.
+    //
+    // We deliberately do NOT call `ensure_crdt_columns_and_triggers` here:
+    // that would install a BEFORE-DELETE trigger which writes into
+    // `haex_deleted_rows` (not seeded in this fixture) and invokes the
+    // `current_hlc()` / `uuid_v4()` UDFs. Today's tests INSERT into
+    // `haex_logs` but never DELETE, so the missing trigger is harmless.
+    // If you extend the suite to cover delete paths, seed
+    // `haex_deleted_rows` plus the required UDFs first, then switch this
+    // call to the `_and_triggers` variant — otherwise the trigger body
+    // will fail with `no such table: haex_deleted_rows`.
+    {
+        let tx = conn.unchecked_transaction().expect("begin crdt-columns tx");
+        ensure_crdt_columns(&tx, "haex_logs").expect("ensure crdt columns on haex_logs");
+        tx.commit().expect("commit crdt-columns tx");
+    }
+
+    let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+    let hlc = Arc::new(Mutex::new(hlc_service));
+    (db, hlc)
 }
 
 /// Insert an identity row keyed by `identity_id` with public DID `did`.

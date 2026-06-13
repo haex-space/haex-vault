@@ -37,12 +37,40 @@
 //! `connected_peers` map with `validated_ucan = None`. Silently treating
 //! that as a pass would defeat the entire gate — hence the explicit
 //! `None`-arm reject below, never `unwrap()` / `expect()`.
+//!
+//! ## Audit logging
+//!
+//! Every reject branch writes a row to `haex_logs` via [`log_to_db`] with
+//! `source = Request::op_name(&self)` and `metadata = {"subsystem":
+//! "AuthGate"}`, so operators can filter the in-app log viewer either by
+//! per-op `source` or by subsystem (the latter disambiguates Gate rejects
+//! from leader-side handler logs that share the same `op_name`).
+//!
+//! Severity is two-tier:
+//!
+//! - **`warn`** for the five peer-side reject paths (no peer entry, no
+//!   cached UCAN, audience mismatch, capability check, revoked membership).
+//!   Message prefix `"reject: ..."`. These are normal — a misbehaving or
+//!   probing peer.
+//! - **`error`** for the one internal-failure path (Stage 5b: the
+//!   membership-check SQL itself errored, e.g. DB locked, schema drift,
+//!   disk full). Message prefix `"internal failure: ..."`. This signals
+//!   an operator-actionable vault problem, not peer misbehaviour, and
+//!   matches the severity convention `multi_leader.rs` / `push_invite.rs`
+//!   use for analogous internal failures.
+//!
+//! Rows are CRDT-synced to the owner; peers never see the audit log
+//! directly. Pre-T6, the SyncPush / SyncPull arms wrote these rows directly;
+//! the AuthGate consolidation briefly lost that visibility, restored here.
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::RwLock;
 
+use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
+use crate::logging::log_to_db;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::types::ConnectedPeer;
 use crate::ucan::{require_audience, require_capability, ValidatedUcan};
@@ -62,15 +90,8 @@ pub async fn authorize_request(
     peer_endpoint_id: &str,
     connected_peers: &RwLock<HashMap<String, ConnectedPeer>>,
     db: &DbConnection,
+    hlc: &Arc<Mutex<HlcService>>,
 ) -> Result<Option<ValidatedUcan>, Response> {
-    // TODO(observability): rejection paths log only via eprintln!, so they don't
-    // land in haex_logs (CRDT-synced to the owner). Pre-T6, SyncPush/SyncPull
-    // arms wrote audit rows via log_to_db. To restore parity, extend this
-    // function with `hlc: &Arc<Mutex<HlcService>>` and emit log_to_db rows
-    // from each reject branch with `op` derived from the Request variant.
-    // Not security-critical (peer still gets the right Response::Error), but
-    // reduces in-app log visibility for operators triaging sync failures.
-
     // 1. Bypass — requests that bootstrap the gate's own preconditions.
     let required = match request.required_capability() {
         Some(level) => level,
@@ -78,31 +99,68 @@ pub async fn authorize_request(
     };
 
     let space_id = request.space_id_of();
+    let op = request.op_name();
 
-    // 2. Cache lookup. Split into two arms so the diagnostics distinguish
-    //    "no peer entry at all" (forged endpoint-id / evicted connection)
-    //    from "peer present but cached UCAN is `None`" (ClaimInvite without
-    //    follow-up Announce). The peer-facing message stays the same —
-    //    vague is good — only the log differs.
-    let validated = {
+    // 2. Cache lookup. Split into three outcomes so the diagnostics distinguish
+    //    "no peer entry at all" (forged endpoint-id / evicted connection) from
+    //    "peer present but cached UCAN is `None`" (ClaimInvite without
+    //    follow-up Announce). The peer-facing message stays the same — vague
+    //    is good — only the log differs.
+    //
+    //    Note on lock scope: we resolve the outcome **inside** the
+    //    `connected_peers.read().await` block, then drop the guard before
+    //    emitting the audit row. `log_to_db` is a synchronous SQLite write
+    //    under a separate `std::sync::Mutex` (db.0). Holding the tokio
+    //    RwLock read guard across that write would queue concurrent reject
+    //    paths and block any pending `connected_peers.write().await` (the
+    //    Announce / peer-cleanup writers) — a measurable starvation window
+    //    under a reject-flood. The bigger DoS-defence design (per-peer rate
+    //    limits + user notification) is tracked separately, see
+    //    docs/plans/2026-06-13-leader-reject-rate-limit.md.
+    enum PeerLookup {
+        Hit(ValidatedUcan),
+        NoEntry,
+        NoUcan,
+    }
+    let lookup = {
         let peers = connected_peers.read().await;
-        let Some(peer) = peers.get(peer_endpoint_id) else {
-            eprintln!(
-                "[AuthGate] reject: no peer entry for endpoint={peer_endpoint_id} (forged endpoint-id or evicted connection?)"
+        match peers.get(peer_endpoint_id) {
+            None => PeerLookup::NoEntry,
+            Some(peer) => match peer.validated_ucan.clone() {
+                Some(v) => PeerLookup::Hit(v),
+                None => PeerLookup::NoUcan,
+            },
+        }
+    };
+
+    let validated = match lookup {
+        PeerLookup::Hit(v) => v,
+        PeerLookup::NoEntry => {
+            log_to_db(
+                db,
+                hlc,
+                "warn",
+                op,
+                &format!("reject: no peer entry for endpoint={peer_endpoint_id} (forged endpoint-id or evicted connection?)"),
+                Some(serde_json::json!({"subsystem":"AuthGate"})),
             );
             return Err(Response::Error {
                 message: "Access denied: must Announce before sending other requests".to_string(),
             });
-        };
-        let Some(validated) = peer.validated_ucan.clone() else {
-            eprintln!(
-                "[AuthGate] reject: peer endpoint={peer_endpoint_id} has no cached UCAN (ClaimInvite without Announce?)"
+        }
+        PeerLookup::NoUcan => {
+            log_to_db(
+                db,
+                hlc,
+                "warn",
+                op,
+                &format!("reject: peer endpoint={peer_endpoint_id} has no cached UCAN (ClaimInvite without Announce?)"),
+                Some(serde_json::json!({"subsystem":"AuthGate"})),
             );
             return Err(Response::Error {
                 message: "Access denied: must Announce before sending other requests".to_string(),
             });
-        };
-        validated
+        }
     };
 
     // 3. Audience binding. The underlying `UcanVerifyError::AudienceMismatch`
@@ -114,8 +172,13 @@ pub async fn authorize_request(
     if let Err(e) = require_audience(&validated, verified_did) {
         let aud_short: String = validated.audience.chars().take(24).collect();
         let verified_short: String = verified_did.chars().take(24).collect();
-        eprintln!(
-            "[AuthGate] reject: UCAN audience != verified peer DID (endpoint={peer_endpoint_id} aud={aud_short} verified={verified_short} err={e})"
+        log_to_db(
+            db,
+            hlc,
+            "warn",
+            op,
+            &format!("reject: UCAN audience != verified peer DID (endpoint={peer_endpoint_id} aud={aud_short} verified={verified_short} err={e})"),
+            Some(serde_json::json!({"subsystem":"AuthGate"})),
         );
         return Err(Response::Error {
             message: "Access denied: UCAN audience does not match verified peer DID".to_string(),
@@ -124,8 +187,13 @@ pub async fn authorize_request(
 
     // 4. Capability.
     if let Err(e) = require_capability(&validated, space_id, required) {
-        eprintln!(
-            "[AuthGate] reject: capability check failed (endpoint={peer_endpoint_id} space={space_id} required={required:?} err={e})"
+        log_to_db(
+            db,
+            hlc,
+            "warn",
+            op,
+            &format!("reject: capability check failed (endpoint={peer_endpoint_id} space={space_id} required={required:?} err={e})"),
+            Some(serde_json::json!({"subsystem":"AuthGate"})),
         );
         return Err(Response::Error {
             message: format!("Access denied: {e}"),
@@ -138,18 +206,34 @@ pub async fn authorize_request(
         Ok(false) => {
             let aud_short: String = validated.audience.chars().take(24).collect();
             let space_short: String = space_id.chars().take(24).collect();
-            eprintln!(
-                "[AuthGate] reject: not an active member (endpoint={peer_endpoint_id} aud={aud_short} space={space_short})"
+            log_to_db(
+                db,
+                hlc,
+                "warn",
+                op,
+                &format!("reject: not an active member (endpoint={peer_endpoint_id} aud={aud_short} space={space_short})"),
+                Some(serde_json::json!({"subsystem":"AuthGate"})),
             );
             Err(Response::Error {
                 message: "Access denied: not an active member of this space".to_string(),
             })
         }
         Err(e) => {
+            // Distinct severity from the peer-side rejects above: this branch
+            // signals an internal vault failure (DB locked, schema drift,
+            // disk full, ...), not peer misbehaviour. Logged at `error` level
+            // and prefixed `internal failure:` so an operator filtering
+            // haex_logs by level=error or by message prefix can separate
+            // actionable DB outages from benign peer rejects.
             let aud_short: String = validated.audience.chars().take(24).collect();
             let space_short: String = space_id.chars().take(24).collect();
-            eprintln!(
-                "[AuthGate] reject: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"
+            log_to_db(
+                db,
+                hlc,
+                "error",
+                op,
+                &format!("internal failure: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"),
+                Some(serde_json::json!({"subsystem":"AuthGate"})),
             );
             Err(Response::Error {
                 message: format!("Membership check failed: {e}"),
