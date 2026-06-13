@@ -67,6 +67,15 @@ pub struct LogQueryParams {
 
 pub const DEFAULT_LOG_LEVEL: &str = "warn";
 
+/// Established convention across the codebase for how many characters of
+/// a DID, space ID, or endpoint ID to keep in log messages. Long enough
+/// to be unambiguous to an operator triaging by eye, short enough to
+/// keep one log line on one terminal row. Used by every `log_truncate`
+/// caller in the codebase — DO NOT pass a different `max` to
+/// [`log_truncate`] without updating this constant; the goal is a
+/// uniform shape across `haex_logs`.
+pub const LOG_TRUNCATE_DEFAULT: usize = 24;
+
 /// UTF-8-safe truncation for log message interpolation.
 ///
 /// DIDs and space IDs are long opaque strings; logs need a short enough
@@ -74,13 +83,19 @@ pub const DEFAULT_LOG_LEVEL: &str = "warn";
 /// Slicing by byte (`&s[..max]`) would panic on a multi-byte UTF-8
 /// boundary; `.chars().take(max).collect()` is the safe pattern, but
 /// repeating it inline 12+ times across the codebase invited drift in
-/// the truncation length (24 chars is the established convention) and
-/// in whether to use `.chars()` or `.bytes()`. This helper enforces both.
+/// the truncation length and in whether to use `.chars()` or
+/// `.bytes()`. This helper enforces both.
+///
+/// `max == 0` is a programmer error (would strip every identifier from
+/// every log line) and is caught in debug builds by `debug_assert!`. In
+/// release builds it returns an empty string — the call has no panic
+/// surface even on a bad caller.
 ///
 /// Used wherever a log message embeds an attacker- or peer-controlled
 /// identifier: AuthGate reject paths, peer_storage handlers,
-/// multi_leader.rs, endpoint.rs — always at the established 24-char cap.
+/// multi_leader.rs, endpoint.rs — always at [`LOG_TRUNCATE_DEFAULT`].
 pub fn log_truncate(s: &str, max: usize) -> String {
+    debug_assert!(max > 0, "log_truncate called with max=0 — would erase identifier");
     s.chars().take(max).collect()
 }
 
@@ -335,7 +350,15 @@ fn build_log_filter(query: &LogQueryParams) -> (String, Vec<serde_json::Value>, 
 }
 
 /// Read logs with optional filters.
-/// Uses select_with_crdt to automatically filter tombstoned (deleted) rows.
+///
+/// Routed through `select_with_crdt` so any future SELECT-side CRDT
+/// transformation (e.g. once the delete-log gains a `WHERE NOT IN
+/// (deleted)` projection) is automatically applied. Today
+/// `transform_query` is a no-op for plain SELECTs — tombstone
+/// filtering happens at INSERT/UPDATE time via the delete-log, not at
+/// read time — so the routing buys nothing observable on its own; it
+/// just keeps this query on the same code path the rest of the
+/// codebase uses.
 pub fn query_logs(
     connection: &crate::database::DbConnection,
     query: &LogQueryParams,
@@ -357,7 +380,8 @@ pub fn query_logs(
     params.push(JsonValue::Number(limit.into()));
     params.push(JsonValue::Number(offset.into()));
 
-    // select_with_crdt automatically filters tombstoned rows
+    // Routed through select_with_crdt for SELECT-side codepath parity —
+    // see the module-level note above; no tombstone filter today.
     let rows = crate::database::core::select_with_crdt(sql, params, connection)?;
 
     fn json_to_opt_string(val: &JsonValue) -> Option<String> {

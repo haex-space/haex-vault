@@ -66,15 +66,15 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 /// `authored_by_did`, `joined_at`. No production columns omitted —
 /// the table is small enough that we keep it at full parity.
 ///
-/// Mirrored from `haex_logs`: `id`, `timestamp` (NOT NULL), `level`
-/// (NOT NULL), `source` (NOT NULL), `extension_id` (nullable), `message`
-/// (NOT NULL), `metadata` (nullable), `device_id` (NOT NULL). The
-/// `extension_id` FK to `haex_extensions` is dropped in tests — we never
-/// seed `haex_extensions`, and `log_to_db` always inserts NULL there.
+/// The `haex_logs` schema, the two CRDT bookkeeping tables, and the
+/// `ensure_crdt_columns` call all live in [`init_logs_db_inner`] — this
+/// function only adds `haex_identities` and `haex_space_members` on top.
+/// Look at `init_logs_db_inner` for the `haex_logs` column list and the
+/// `_no_sync` table-name convention.
 ///
 /// CRDT-helper columns (e.g. `haex_tombstone`, HLC timestamps) are added
 /// by `core::execute` at write-time, not by the migration, so they don't
-/// appear in this CREATE TABLE.
+/// appear in any CREATE TABLE in this module.
 pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
     let (conn, hlc_service) = init_logs_db_inner();
 
@@ -112,11 +112,20 @@ pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
 ///
 /// Returns the raw `Connection` + `HlcService` so callers can add their
 /// own tables (membership, peers, …) before wrapping in a `DbConnection`.
-/// `setup_membership_db` and `auth_gate_tests::empty_db` both build on
+/// [`setup_membership_db`] and `auth_gate_tests::empty_db` both build on
 /// this — extracted to keep the two fixtures byte-identical on every
 /// detail that's *not* their per-test schema (was a real source of drift
 /// before the dedup landed: e.g. the missing `ensure_crdt_columns` call
 /// would silently let `log_to_db` write garbage rows).
+///
+/// ## `haex_logs` schema parity
+///
+/// Mirrored from production (`src/database/schemas/logs.ts`):
+/// `id`, `timestamp` (NOT NULL), `level` (NOT NULL), `source` (NOT NULL),
+/// `extension_id` (nullable), `message` (NOT NULL), `metadata` (nullable),
+/// `device_id` (NOT NULL). The `extension_id` FK to `haex_extensions` is
+/// dropped here — we never seed `haex_extensions`, and `log_to_db` always
+/// inserts NULL there.
 ///
 /// ## Why this is not `ensure_crdt_columns_and_triggers`
 ///

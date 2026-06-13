@@ -68,11 +68,16 @@ fn make_peer(endpoint_id: &str, did: &str, validated_ucan: ValidatedUcan) -> Con
 
 /// Read all `haex_logs` rows via the same `logging::query_logs` the in-app
 /// log viewer uses. Going through the production query (rather than a
-/// bespoke `SELECT level, source, message, metadata FROM haex_logs`) means
-/// any future change to `query_logs` — added column, hardened tombstone
-/// filter via `select_with_crdt`, JSON normalisation — gets exercised by
-/// these tests automatically; a SQL drift between production and tests
-/// can no longer pass silently.
+/// bespoke `SELECT level, source, message, metadata FROM haex_logs`)
+/// means any future change to `query_logs` — added column, JSON
+/// normalisation, column-order change — gets exercised by these tests
+/// automatically; a SQL drift between production and tests can no longer
+/// pass silently.
+///
+/// (`select_with_crdt` is a no-op for `SELECT` statements in the
+/// delete-log model — see `crdt::transformer::transform_query` — so we
+/// do *not* get a hardened tombstone filter from this routing. The
+/// motivation is purely the schema-drift coverage above.)
 ///
 /// Ordering: `query_logs` returns newest first; today's assertions check
 /// "exactly one row", so the order is moot. If a future test wants to
