@@ -1372,8 +1372,9 @@ impl PermissionManager {
 
             // Extract the domain pattern (after *.  )
             let domain_start = if pattern.contains("://*.") {
-                // SAFETY: pattern.contains("://*.") was checked on the line
-                // above, so find() must return Some.
+                // invariant: pattern.contains("://*.") was checked on the
+                // line above, so find() must return Some. (Not // SAFETY:
+                // — that prefix is reserved for unsafe blocks.)
                 pattern
                     .find("://*.")
                     .expect("invariant: contains() guard above guarantees a match")
