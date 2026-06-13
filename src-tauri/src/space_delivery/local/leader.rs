@@ -685,7 +685,25 @@ pub(super) async fn handle_delivery_request(
                 ),
                 None,
             );
-            let validated = match require_valid_ucan(&ucan_token, "Announce") {
+            // Announce bootstraps the AuthGate cache, so its `ucan_token`
+            // must be present even though the wire field is now
+            // `Option<String>` (forward-compat shape for the other request
+            // variants; see protocol.rs for the rationale).
+            let ucan_token_str = match ucan_token.as_deref() {
+                Some(t) => t,
+                None => {
+                    crate::logging::log_to_db(
+                        &state.db, &state.hlc, "warn", "Announce",
+                        &format!("missing ucan_token: space={} did={}",
+                            &space_id[..8.min(space_id.len())], &did[..24.min(did.len())]),
+                        None,
+                    );
+                    return Response::Error {
+                        message: "Announce requires ucan_token".to_string(),
+                    };
+                }
+            };
+            let validated = match require_valid_ucan(ucan_token_str, "Announce") {
                 Ok(v) => v,
                 Err(r) => {
                     crate::logging::log_to_db(

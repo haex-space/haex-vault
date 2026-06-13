@@ -95,7 +95,7 @@ impl PeerSession {
             space_id: space_id.to_string(),
             label: label.map(|s| s.to_string()),
             claims: None,
-            ucan_token: session.ucan_token.clone(),
+            ucan_token: Some(session.ucan_token.clone()),
         };
 
         let resp = session.request(req).await?;
@@ -165,7 +165,7 @@ impl PeerSession {
         let req = Request::SyncPush {
             space_id: space_id.to_string(),
             changes,
-            ucan_token: self.ucan_token.clone(),
+            ucan_token: Some(self.ucan_token.clone()),
         };
         match self.request(req).await? {
             Response::Ok => Ok(()),
@@ -185,7 +185,7 @@ impl PeerSession {
         let req = Request::SyncPull {
             space_id: space_id.to_string(),
             after_timestamp: after_timestamp.map(|s| s.to_string()),
-            ucan_token: self.ucan_token.clone(),
+            ucan_token: Some(self.ucan_token.clone()),
         };
         match self.request(req).await? {
             Response::SyncChanges { changes } => Ok(changes),
@@ -298,7 +298,7 @@ impl PeerSession {
     ) -> Result<String, DeliveryError> {
         let req = Request::RequestRejoin {
             space_id: space_id.to_string(),
-            ucan_token: self.ucan_token.clone(),
+            ucan_token: Some(self.ucan_token.clone()),
         };
         match self.request(req).await? {
             Response::GroupInfo { group_info } => Ok(group_info),
@@ -320,7 +320,7 @@ impl PeerSession {
         let req = Request::SubmitExternalCommit {
             space_id: space_id.to_string(),
             commit: commit_b64.to_string(),
-            ucan_token: self.ucan_token.clone(),
+            ucan_token: Some(self.ucan_token.clone()),
         };
         match self.request(req).await? {
             Response::MessageStored { message_id } => Ok(message_id),

@@ -320,7 +320,7 @@ async fn accepts_read_member_sync_push_at_gate_level() {
     let request = Request::SyncPush {
         space_id: "SPACE".into(),
         changes: serde_json::json!([]),
-        ucan_token: "irrelevant — gate uses cached UCAN".into(),
+        ucan_token: Some("irrelevant — gate uses cached UCAN".into()),
     };
 
     let result = authorize_request(

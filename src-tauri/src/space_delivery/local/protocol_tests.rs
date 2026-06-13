@@ -15,7 +15,7 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
             space_id: expected.into(),
             label: None,
             claims: None,
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::MlsUploadKeyPackages {
             space_id: expected.into(),
@@ -51,22 +51,22 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
         },
         Request::RequestRejoin {
             space_id: expected.into(),
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::SubmitExternalCommit {
             space_id: expected.into(),
             commit: "commit".into(),
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::SyncPush {
             space_id: expected.into(),
             changes: serde_json::json!({}),
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::SyncPull {
             space_id: expected.into(),
             after_timestamp: None,
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::ClaimInvite {
             space_id: expected.into(),
@@ -139,21 +139,21 @@ fn required_capability_matches_documented_mapping() {
         Request::SyncPull {
             space_id: space.into(),
             after_timestamp: None,
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::SyncPush {
             space_id: space.into(),
             changes: serde_json::json!({}),
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::RequestRejoin {
             space_id: space.into(),
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::SubmitExternalCommit {
             space_id: space.into(),
             commit: "commit".into(),
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
     ];
     for req in &read_variants {
@@ -201,7 +201,7 @@ fn required_capability_matches_documented_mapping() {
             space_id: space.into(),
             label: None,
             claims: None,
-            ucan_token: "ucan".into(),
+            ucan_token: Some("ucan".into()),
         },
         Request::ClaimInvite {
             space_id: space.into(),
@@ -242,4 +242,73 @@ fn required_capability_matches_documented_mapping() {
         15,
         "test must cover every Request variant",
     );
+}
+
+/// Forward-compat guard for the deprecation of the wire-level `ucan_token`
+/// field. The AuthGate consumes the connection-cached UCAN, so the field on
+/// the wire is dead weight for the four non-bypass arms. Step 1 of the
+/// removal makes the field `#[serde(default)] Option<String>` so future
+/// senders can omit it entirely. This test pins that contract: a payload
+/// without `ucan_token` must still deserialize.
+///
+/// Step 2 will stop the sender (`peer.rs`) from writing the field at all.
+/// Step 3 will remove the field entirely once every device has parsed at
+/// least one Step-1 payload.
+#[test]
+fn non_bypass_requests_deserialize_without_ucan_token_field() {
+    // Request is serde-tagged with `op` in SCREAMING_SNAKE_CASE (see
+    // protocol.rs:34) — not an outer-keyed object. Match the on-the-wire
+    // shape exactly.
+    let cases = [
+        (
+            "SyncPush",
+            serde_json::json!({
+                "op": "SYNC_PUSH",
+                "space_id": "SPACE",
+                "changes": []
+            }),
+        ),
+        (
+            "SyncPull",
+            serde_json::json!({
+                "op": "SYNC_PULL",
+                "space_id": "SPACE",
+                "after_timestamp": null
+            }),
+        ),
+        (
+            "RequestRejoin",
+            serde_json::json!({
+                "op": "REQUEST_REJOIN",
+                "space_id": "SPACE"
+            }),
+        ),
+        (
+            "SubmitExternalCommit",
+            serde_json::json!({
+                "op": "SUBMIT_EXTERNAL_COMMIT",
+                "space_id": "SPACE",
+                "commit": "AAAA"
+            }),
+        ),
+    ];
+
+    for (name, payload) in &cases {
+        let req: Request = serde_json::from_value(payload.clone()).unwrap_or_else(|e| {
+            panic!("{name} payload without ucan_token must deserialize, got error: {e}")
+        });
+        // Drilled-down check: the missing field becomes `None`, never a
+        // serde default like an empty string.
+        let token_is_none = match &req {
+            Request::SyncPush { ucan_token, .. } => ucan_token.is_none(),
+            Request::SyncPull { ucan_token, .. } => ucan_token.is_none(),
+            Request::RequestRejoin { ucan_token, .. } => ucan_token.is_none(),
+            Request::SubmitExternalCommit { ucan_token, .. } => ucan_token.is_none(),
+            _ => panic!("{name} deserialized into wrong variant: {req:?}"),
+        };
+        assert!(
+            token_is_none,
+            "{name} ucan_token must be None when omitted on the wire, got: {req:?}",
+        );
+    }
 }
