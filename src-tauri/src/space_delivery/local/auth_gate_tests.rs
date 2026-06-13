@@ -256,7 +256,7 @@ async fn rejects_request_with_expired_cached_ucan() {
 
 #[tokio::test]
 async fn rejects_audience_mismatch() {
-    // Stage 3: a peer announces with a UCAN issued *to* someone else's DID
+    // Stage 4: a peer announces with a UCAN issued *to* someone else's DID
     // (e.g. a stolen-and-replayed token). The connection-authenticated DID
     // is `did:key:zPeer`, but the cached UCAN's audience is
     // `did:key:zSomeoneElse` — require_audience must reject.
@@ -300,7 +300,7 @@ async fn rejects_audience_mismatch() {
 
 #[tokio::test]
 async fn rejects_insufficient_capability() {
-    // Stage 4: the UCAN audience matches the connection DID and is for the
+    // Stage 5: the UCAN audience matches the connection DID and is for the
     // right space, but only grants `Read`. An `MlsSendMessage` requires
     // `Write` — require_capability must reject before
     // is_active_space_member runs. (SyncPush is intentionally `Read` at the
@@ -440,7 +440,7 @@ async fn bypasses_claim_invite_cleanly() {
 
 #[tokio::test]
 async fn rejects_revoked_member() {
-    // Stage 5 kill-switch: the UCAN itself is still cryptographically
+    // Stage 6 kill-switch: the UCAN itself is still cryptographically
     // valid (audience matches, capability suffices), but the admin has
     // removed the member from haex_space_members. In the delete-log
     // model "revoked" means the row is absent — `is_active_space_member`
@@ -597,11 +597,11 @@ async fn rejects_request_when_peer_announced_without_ucan() {
 
 #[tokio::test]
 async fn surfaces_db_error_from_membership_check_as_explicit_error() {
-    // Stage 5b: the cached UCAN passes stages 2-4 cleanly (audience matches
-    // verified DID, capability suffices), but `is_active_space_member`'s
-    // SQL fails because the `haex_space_members` table doesn't exist on
-    // this connection. The gate must surface that as a
-    // `"Membership check failed: …"` peer-facing message — distinct from
+    // Stage 6b: the cached UCAN passes stages 2-5 cleanly (not expired,
+    // audience matches verified DID, capability suffices), but
+    // `is_active_space_member`'s SQL fails because the `haex_space_members`
+    // table doesn't exist on this connection. The gate must surface that as
+    // a `"Membership check failed: …"` peer-facing message — distinct from
     // the plain "not an active member" reject — so the dispatch site (and
     // any future log triage) can tell a DB outage apart from a revoked
     // member.
