@@ -1,5 +1,6 @@
 export * from './core'
 export * from './crdt'
+export * from './critical'
 export * from './devices'
 export * from './identity'
 export * from './invites'
