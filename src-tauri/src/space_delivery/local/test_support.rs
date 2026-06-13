@@ -152,9 +152,13 @@ pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
 /// Insert an identity row keyed by `identity_id` with public DID `did`.
 ///
 /// `name` and `source` are `NOT NULL` in production, so we provide
-/// sensible defaults (`"Test Identity"` / `"own"`) even though the
-/// membership-check SQL never reads them. Keeps the insert at parity
-/// with what real code paths produce.
+/// sensible defaults that match the production schema's column DEFAULT:
+/// `name = "Test Identity"`, `source = "contact"`. `"contact"` is also
+/// what every test in this codebase actually seeds — both AuthGate
+/// peers and inbound-sync attackers are *peer* identities, never local
+/// owners. If a future row-ownership rule keys on `source = 'own'` (e.g.
+/// "reject pushes from your own DID"), this default forces tests to
+/// opt in to that polarity explicitly instead of silently mis-asserting.
 pub(crate) fn insert_identity(db: &DbConnection, identity_id: &str, did: &str) {
     core::execute(
         "INSERT INTO haex_identities (id, did, name, source) VALUES (?1, ?2, ?3, ?4)"
@@ -163,7 +167,7 @@ pub(crate) fn insert_identity(db: &DbConnection, identity_id: &str, did: &str) {
             json!(identity_id),
             json!(did),
             json!("Test Identity"),
-            json!("own"),
+            json!("contact"),
         ],
         db,
     )

@@ -22,7 +22,6 @@
 
 #![cfg(test)]
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
@@ -38,7 +37,7 @@ use crate::space_delivery::local::inbound_sync::{
 };
 use crate::space_delivery::local::test_support::{insert_identity, insert_member, make_ucan};
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
-use crate::ucan::{CapabilityLevel, ValidatedUcan};
+use crate::ucan::CapabilityLevel;
 
 // =========================================================================
 // Test fixtures
