@@ -85,14 +85,41 @@ pub async fn authorize_request(
     let space_id = request.space_id_of();
     let op = request.op_name();
 
-    // 2. Cache lookup. Split into two arms so the diagnostics distinguish
-    //    "no peer entry at all" (forged endpoint-id / evicted connection)
-    //    from "peer present but cached UCAN is `None`" (ClaimInvite without
-    //    follow-up Announce). The peer-facing message stays the same —
-    //    vague is good — only the log differs.
-    let validated = {
+    // 2. Cache lookup. Split into three outcomes so the diagnostics distinguish
+    //    "no peer entry at all" (forged endpoint-id / evicted connection) from
+    //    "peer present but cached UCAN is `None`" (ClaimInvite without
+    //    follow-up Announce). The peer-facing message stays the same — vague
+    //    is good — only the log differs.
+    //
+    //    Note on lock scope: we resolve the outcome **inside** the
+    //    `connected_peers.read().await` block, then drop the guard before
+    //    emitting the audit row. `log_to_db` is a synchronous SQLite write
+    //    under a separate `std::sync::Mutex` (db.0). Holding the tokio
+    //    RwLock read guard across that write would queue concurrent reject
+    //    paths and block any pending `connected_peers.write().await` (the
+    //    Announce / peer-cleanup writers) — a measurable starvation window
+    //    under a reject-flood. The bigger DoS-defence design (per-peer rate
+    //    limits + user notification) is tracked separately, see
+    //    docs/plans/2026-06-13-leader-reject-rate-limit.md.
+    enum PeerLookup {
+        Hit(ValidatedUcan),
+        NoEntry,
+        NoUcan,
+    }
+    let lookup = {
         let peers = connected_peers.read().await;
-        let Some(peer) = peers.get(peer_endpoint_id) else {
+        match peers.get(peer_endpoint_id) {
+            None => PeerLookup::NoEntry,
+            Some(peer) => match peer.validated_ucan.clone() {
+                Some(v) => PeerLookup::Hit(v),
+                None => PeerLookup::NoUcan,
+            },
+        }
+    };
+
+    let validated = match lookup {
+        PeerLookup::Hit(v) => v,
+        PeerLookup::NoEntry => {
             log_to_db(
                 db,
                 hlc,
@@ -103,8 +130,8 @@ pub async fn authorize_request(
             return Err(Response::Error {
                 message: "Access denied: must Announce before sending other requests".to_string(),
             });
-        };
-        let Some(validated) = peer.validated_ucan.clone() else {
+        }
+        PeerLookup::NoUcan => {
             log_to_db(
                 db,
                 hlc,
@@ -115,8 +142,7 @@ pub async fn authorize_request(
             return Err(Response::Error {
                 message: "Access denied: must Announce before sending other requests".to_string(),
             });
-        };
-        validated
+        }
     };
 
     // 3. Audience binding. The underlying `UcanVerifyError::AudienceMismatch`
