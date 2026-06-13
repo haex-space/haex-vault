@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::ucan::CapabilityLevel;
+
 /// ALPN protocol identifier for space delivery.
 ///
 /// Version bumped from `haex-delivery/1` to `haex-delivery/2` when Phase 2 of
@@ -183,6 +185,89 @@ pub enum Request {
     },
 }
 
+impl Request {
+    /// Returns the `space_id` this request targets.
+    ///
+    /// Every `Request` variant carries a `space_id` because every request is
+    /// space-scoped — the unified AuthGate uses this to route the membership
+    /// + capability lookup before dispatching to the variant-specific handler.
+    pub fn space_id_of(&self) -> &str {
+        match self {
+            Request::Announce { space_id, .. }
+            | Request::MlsUploadKeyPackages { space_id, .. }
+            | Request::MlsFetchKeyPackage { space_id, .. }
+            | Request::MlsSendMessage { space_id, .. }
+            | Request::MlsFetchMessages { space_id, .. }
+            | Request::MlsSendWelcome { space_id, .. }
+            | Request::MlsFetchWelcomes { space_id, .. }
+            | Request::MlsAckCommit { space_id, .. }
+            | Request::MlsKeyPackageCount { space_id, .. }
+            | Request::RequestRejoin { space_id, .. }
+            | Request::SubmitExternalCommit { space_id, .. }
+            | Request::SyncPush { space_id, .. }
+            | Request::SyncPull { space_id, .. }
+            | Request::ClaimInvite { space_id, .. }
+            | Request::PushInvite { space_id, .. } => space_id,
+        }
+    }
+
+    /// Returns the minimum `CapabilityLevel` required to dispatch this
+    /// request, or `None` if it bypasses the AuthGate.
+    ///
+    /// For `Some(level)`, the level is a **minimum floor**: the gate (see
+    /// `auth_gate::authorize_request`, arriving in Phase 3 of the
+    /// unified-authgate refactor) permits any capability `>= level` via
+    /// `require_capability`. So a `Write` member always satisfies a `Read`
+    /// floor.
+    ///
+    /// - `Announce` bypasses because it bootstraps the membership cache the
+    ///   gate would query — gating it against itself is circular.
+    /// - `ClaimInvite` bypasses because authentication is by invite token,
+    ///   not by capability — the claimer is not yet a member.
+    /// - `PushInvite` bypasses because it is leader-internal delivery to the
+    ///   invitee's device, not a membership-scoped operation.
+    ///
+    /// `RequestRejoin` and `SubmitExternalCommit` are deliberately classified
+    /// as `Read` to mirror the existing inline UCAN checks in
+    /// `leader.rs::dispatch_request` (search for `CapabilityLevel::Read` in
+    /// the `RequestRejoin` / `SubmitExternalCommit` arms). This refactor must
+    /// not change behaviour — a read-only member that has fallen out of MLS
+    /// epoch can rejoin today, and must keep being able to rejoin after the
+    /// inline checks are deleted in Phase 5. Whether MLS-state-mutating
+    /// operations should require `Write` is a separate policy question and
+    /// can be revisited in a follow-up PR.
+    ///
+    /// `SyncPush` is intentionally `Read` here. Per-batch refinement happens
+    /// in `inbound_sync::authorize_inbound_sync_push` — pushes touching only
+    /// membership-system tables (MEMBERSHIP_SYSTEM_TABLES) are allowed for
+    /// any member, other tables require `Write`. The gate enforces only
+    /// "must be a member to push at all"; the inbound-sync validator
+    /// enforces the per-table refinement. Tightening this to `Write` would
+    /// silently break read-only members trying to push their own
+    /// membership / device / KeyPackage rows.
+    pub fn required_capability(&self) -> Option<CapabilityLevel> {
+        match self {
+            Request::MlsFetchKeyPackage { .. }
+            | Request::MlsFetchMessages { .. }
+            | Request::MlsFetchWelcomes { .. }
+            | Request::MlsKeyPackageCount { .. }
+            | Request::SyncPull { .. }
+            | Request::SyncPush { .. }
+            | Request::RequestRejoin { .. }
+            | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
+
+            Request::MlsUploadKeyPackages { .. }
+            | Request::MlsSendMessage { .. }
+            | Request::MlsSendWelcome { .. }
+            | Request::MlsAckCommit { .. } => Some(CapabilityLevel::Write),
+
+            Request::Announce { .. }
+            | Request::ClaimInvite { .. }
+            | Request::PushInvite { .. } => None,
+        }
+    }
+}
+
 // ============================================================================
 // Response types
 // ============================================================================
@@ -307,3 +392,7 @@ pub async fn read_response(
 ) -> Result<Response, PeerProtocolError> {
     crate::peer_storage::protocol::read_message(recv, MAX_RESPONSE_SIZE).await
 }
+
+#[cfg(test)]
+#[path = "protocol_tests.rs"]
+mod tests;
