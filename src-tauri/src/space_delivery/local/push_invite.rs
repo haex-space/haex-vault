@@ -107,7 +107,7 @@ pub fn handle_push_invite(
     let hlc_guard = match hlc.lock() {
         Ok(guard) => guard,
         Err(_) => {
-            // Can't use log_to_db (it would also try to lock HLC, None). Stderr only.
+            // Can't use log_to_db (it would also try to lock HLC). Stderr only.
             eprintln!("[{LOG_SOURCE}] [error] ABORT: HLC lock poisoned while processing invite for space {space_id} from {inviter_did}");
             return Response::PushInviteAck { accepted: false };
         }
@@ -132,7 +132,7 @@ pub fn handle_push_invite(
     .unwrap_or(0);
 
     if existing_for_token > 0 {
-        // Drop the guard before log_to_db (which acquires the HLC internally, None).
+        // Drop the guard before log_to_db (which acquires the HLC internally).
         drop(hlc_guard);
         logging::log_to_db(db, hlc, "info", LOG_SOURCE, &format!(
             "SKIPPED (duplicate token): space={space_id} token={token_fp} — already received"

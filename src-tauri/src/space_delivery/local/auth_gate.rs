@@ -40,12 +40,28 @@
 //!
 //! ## Audit logging
 //!
-//! Every reject branch writes a `warn` row to `haex_logs` via
-//! [`log_to_db`], with `source = Request::op_name(&self)` so operators can
-//! filter the in-app log viewer by op when triaging sync failures. Rows
-//! are CRDT-synced to the owner; peers never see the audit log directly.
-//! Pre-T6, the SyncPush / SyncPull arms wrote these rows directly; the
-//! AuthGate consolidation briefly lost that visibility, restored here.
+//! Every reject branch writes a row to `haex_logs` via [`log_to_db`] with
+//! `source = Request::op_name(&self)` and `metadata = {"subsystem":
+//! "AuthGate"}`, so operators can filter the in-app log viewer either by
+//! per-op `source` or by subsystem (the latter disambiguates Gate rejects
+//! from leader-side handler logs that share the same `op_name`).
+//!
+//! Severity is two-tier:
+//!
+//! - **`warn`** for the five peer-side reject paths (no peer entry, no
+//!   cached UCAN, audience mismatch, capability check, revoked membership).
+//!   Message prefix `"reject: ..."`. These are normal — a misbehaving or
+//!   probing peer.
+//! - **`error`** for the one internal-failure path (Stage 5b: the
+//!   membership-check SQL itself errored, e.g. DB locked, schema drift,
+//!   disk full). Message prefix `"internal failure: ..."`. This signals
+//!   an operator-actionable vault problem, not peer misbehaviour, and
+//!   matches the severity convention `multi_leader.rs` / `push_invite.rs`
+//!   use for analogous internal failures.
+//!
+//! Rows are CRDT-synced to the owner; peers never see the audit log
+//! directly. Pre-T6, the SyncPush / SyncPull arms wrote these rows directly;
+//! the AuthGate consolidation briefly lost that visibility, restored here.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

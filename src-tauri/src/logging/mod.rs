@@ -113,6 +113,24 @@ pub fn get_effective_log_level(
 /// `None` is the backward-compatible call shape — most existing callers pass
 /// it and behave as before (no metadata column, no stderr prefix).
 ///
+/// ## `device_id` is hardcoded to `"rust"`
+///
+/// Both the `None` (minimal) and `Some` (full) insert paths hardcode the
+/// `haex_logs.device_id` column to the literal string `"rust"`, matching
+/// `SQL_INSERT_LOG_MINIMAL`'s pre-existing behaviour. This means **all**
+/// rows written by `log_to_db` collapse to a synthetic `"rust"` device on
+/// CRDT-sync — operators filtering the in-app log viewer by device cannot
+/// distinguish which physical Vault device emitted the row.
+///
+/// This is intentional for now: `log_to_db` is called from contexts that
+/// don't carry `AppState`, so threading a real device_id through requires
+/// either an additional parameter at every call site or a thread-local /
+/// `OnceLock<String>` initialized at vault startup. Both are in scope for
+/// the `Result<(), DatabaseError>` signature migration; see
+/// `docs/plans/2026-06-13-critical-failure-pattern.md`. If you need
+/// per-device attribution before that lands, use `insert_log` (which takes
+/// a real `device_id: &str`) instead.
+///
 /// ## Failure modes
 ///
 /// Two paths that previously failed silently now emit a `[CRITICAL]` stderr

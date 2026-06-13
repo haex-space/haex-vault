@@ -27,7 +27,7 @@ use rusqlite::Connection;
 use serde_json::json;
 
 use crate::crdt::hlc::HlcService;
-use crate::crdt::trigger::ensure_crdt_columns_and_triggers;
+use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
@@ -127,16 +127,20 @@ pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
 
     // `log_to_db` writes through `execute_with_crdt`, which expects the
     // target table to carry the CRDT bookkeeping columns (`haex_hlc`,
-    // `haex_column_hlcs`) AND the dirty-table / BEFORE-DELETE triggers that
-    // production installs via the migration pipeline. We mirror both pieces
-    // here via `ensure_crdt_columns_and_triggers`: column-only setup (the
-    // narrower `ensure_crdt_columns` helper) would leave tests that exercise
-    // a DELETE path on `haex_logs` silently failing to write the
-    // `haex_deleted_rows` entry the delete-log model relies on.
+    // `haex_column_hlcs`). `ensure_crdt_columns` adds just those.
+    //
+    // We deliberately do NOT call `ensure_crdt_columns_and_triggers` here:
+    // that would install a BEFORE-DELETE trigger which writes into
+    // `haex_deleted_rows` (not seeded in this fixture) and invokes the
+    // `current_hlc()` / `uuid_v4()` UDFs. Today's tests INSERT into
+    // `haex_logs` but never DELETE, so the missing trigger is harmless.
+    // If you extend the suite to cover delete paths, seed
+    // `haex_deleted_rows` plus the required UDFs first, then switch this
+    // call to the `_and_triggers` variant — otherwise the trigger body
+    // will fail with `no such table: haex_deleted_rows`.
     {
         let tx = conn.unchecked_transaction().expect("begin crdt-columns tx");
-        ensure_crdt_columns_and_triggers(&tx, "haex_logs")
-            .expect("ensure crdt columns + triggers on haex_logs");
+        ensure_crdt_columns(&tx, "haex_logs").expect("ensure crdt columns on haex_logs");
         tx.commit().expect("commit crdt-columns tx");
     }
 
