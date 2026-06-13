@@ -83,8 +83,13 @@ pub enum Request {
     /// Leader responds with current GroupInfo so peer can create External Commit.
     RequestRejoin {
         space_id: String,
-        /// UCAN token proving the peer's membership
-        ucan_token: String,
+        /// UCAN token — deprecated wire field. The AuthGate consumes the
+        /// connection-cached UCAN populated at Announce time, never this
+        /// payload field. Kept on the wire as `Option<String>` for forward
+        /// compatibility: future senders can omit it; older receivers that
+        /// still expect it parse `Some(...)` from current senders.
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
     /// Submit an External Commit to rejoin a group.
     /// Leader validates UCAN for the DID in the commit, then distributes it.
@@ -92,8 +97,9 @@ pub enum Request {
         space_id: String,
         /// Base64-encoded MLS commit message
         commit: String,
-        /// UCAN token proving the peer's membership
-        ucan_token: String,
+        /// UCAN token — deprecated wire field (see `RequestRejoin::ucan_token`).
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
 
     // -- CRDT Sync --
@@ -103,16 +109,18 @@ pub enum Request {
         space_id: String,
         /// JSON-serialized CRDT changes (same format as server push)
         changes: serde_json::Value,
-        /// UCAN token proving write capability for `space_id`
-        ucan_token: String,
+        /// UCAN token — deprecated wire field (see `RequestRejoin::ucan_token`).
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
     /// Pull CRDT changes from the leader.
     /// Requires UCAN with `space/read` capability (or higher) for the target space.
     SyncPull {
         space_id: String,
         after_timestamp: Option<String>,
-        /// UCAN token proving read capability for `space_id`
-        ucan_token: String,
+        /// UCAN token — deprecated wire field (see `RequestRejoin::ucan_token`).
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
 
     // -- Identity --
@@ -129,8 +137,16 @@ pub enum Request {
         space_id: String,
         label: Option<String>,
         claims: Option<Vec<IdentityClaim>>,
-        /// UCAN token proving membership in `space_id`
-        ucan_token: String,
+        /// UCAN token — required for Announce since this call bootstraps the
+        /// AuthGate's cached `ValidatedUcan` for the rest of the connection.
+        /// Optional on the wire (forward-compat shape across all request
+        /// variants), but receivers reject `None` here — the cache cannot
+        /// be populated without a token. Enforcement lives in
+        /// `leader.rs::handle_delivery_request` (Announce arm) before
+        /// `require_valid_ucan` runs. Other request variants treat the
+        /// field as truly optional.
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
 
     // -- Invites --
