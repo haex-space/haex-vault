@@ -55,8 +55,11 @@ pub struct CriticalNotification {
 #[derive(Debug, Clone)]
 pub struct CleanupReport {
     pub deleted_rows: usize,
-    /// RFC3339 timestamp used as the cutoff.
-    pub cutoff: String,
+    /// Cutoff timestamp — rows with `last_seen < cutoff` were deleted.
+    /// Typed (not pre-formatted `String`) so callers can feed it into
+    /// structured logging in their own format; format-to-string only at
+    /// the log boundary.
+    pub cutoff: OffsetDateTime,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -69,6 +72,8 @@ pub enum SinkError {
     Json(#[from] serde_json::Error),
     #[error("Timestamp formatting: {0}")]
     Time(#[from] time::error::Format),
+    #[error("SQLCipher is not active on the sink connection — `PRAGMA cipher_version` returned empty; sink would write plaintext to an encrypted file")]
+    SqlcipherInactive,
 }
 
 #[derive(Clone)]
@@ -84,39 +89,60 @@ impl CriticalNotificationSink {
     /// table the main connection wrote. The migration runner already
     /// created the table on the main connection — SQLite shares schema
     /// across connections of the same file.
+    ///
+    /// Defense-in-depth: verifies SQLCipher is actually active after
+    /// applying the key (mirrors `create_encrypted_database_inner`'s
+    /// check at `database/mod.rs:658`). If a future build accidentally
+    /// drops the SQLCipher feature, `PRAGMA key` silently no-ops and the
+    /// file is opened as plaintext — without this guard, the first
+    /// `emit()` would surface a confusing "file is not a database" at
+    /// exactly the moment the system most needs the banner.
+    ///
+    /// Also sets a 500 ms `busy_timeout` so a concurrent main-connection
+    /// write (CRDT sync flush, log_to_db) doesn't cause `emit()` to fail
+    /// immediately with `SQLITE_BUSY` — the sink retries internally until
+    /// the lock is free.
     pub fn open(db_path: &Path, cipher_key: &str) -> Result<Self, SinkError> {
         let conn = Connection::open(db_path)?;
         // pragma_update with a plain string argument is the
         // documented SQLCipher pattern — same as
         // `database::mod::create_encrypted_database_inner`.
         conn.pragma_update(None, "key", cipher_key)?;
+
+        // Verify SQLCipher is active before the first write — see doc
+        // comment above for the silent-plaintext-fallback risk.
+        let cipher_version: String = conn
+            .query_row("PRAGMA cipher_version", [], |row| row.get(0))
+            .map_err(|_| SinkError::SqlcipherInactive)?;
+        if cipher_version.is_empty() {
+            return Err(SinkError::SqlcipherInactive);
+        }
+
+        conn.busy_timeout(std::time::Duration::from_millis(500))?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
     }
 
-    /// In-memory factory for tests. Creates the table inline so
-    /// the test doesn't need to run the migration journal.
+    /// SQL of the bundled migration that creates
+    /// `haex_critical_notifications_no_sync`. Embedded at compile time so
+    /// the in-memory test fixture below runs the *exact same* SQL as
+    /// production — a future ALTER TABLE migration that touches this
+    /// file is automatically picked up by tests on next build, no
+    /// possibility of schema drift between fixture and live DB.
+    #[cfg(test)]
+    const TABLE_MIGRATION_SQL: &str = include_str!(
+        "../../database/migrations/0007_add_critical_notifications.sql"
+    );
+
+    /// In-memory factory for tests. Executes the bundled migration SQL
+    /// against an in-memory DB so the fixture stays byte-for-byte
+    /// identical to the production schema.
     #[cfg(test)]
     pub fn in_memory() -> Result<Self, SinkError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(
-            "CREATE TABLE haex_critical_notifications_no_sync (
-                id TEXT PRIMARY KEY NOT NULL,
-                code TEXT NOT NULL,
-                location TEXT NOT NULL,
-                params TEXT NOT NULL,
-                count INTEGER NOT NULL DEFAULT 1,
-                first_seen TEXT NOT NULL,
-                last_seen TEXT NOT NULL,
-                acknowledged INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE INDEX haex_critical_notifications_unacked_idx
-                ON haex_critical_notifications_no_sync (acknowledged, last_seen)
-                WHERE acknowledged = 0;
-            CREATE UNIQUE INDEX haex_critical_notifications_dedup_idx
-                ON haex_critical_notifications_no_sync (code, location, acknowledged);",
-        )?;
+        conn.busy_timeout(std::time::Duration::from_millis(500))?;
+        conn.execute_batch(Self::TABLE_MIGRATION_SQL)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
@@ -136,18 +162,27 @@ impl CriticalNotificationSink {
         location: &str,
         params: serde_json::Value,
     ) -> Result<(), SinkError> {
-        let conn = self.conn.lock().map_err(|_| SinkError::SinkMutexPoisoned)?;
+        // Do the panic-prone work BEFORE taking the lock — a panic inside
+        // serde_json::to_string or OffsetDateTime::format would otherwise
+        // poison the sink's own mutex and silence every subsequent
+        // critical-notification write for the rest of the session.
+        // Keeping the critical section to just the SQL execute also helps
+        // throughput when many threads emit concurrently.
         let now = OffsetDateTime::now_utc().format(&Rfc3339)?;
         let params_json = serde_json::to_string(&params)?;
+        let id = Uuid::new_v4().to_string();
+        let code_str = code.as_str();
 
         // Single UPSERT statement. The ON CONFLICT clause targets the
         // unique index (code, location, acknowledged). `excluded.*`
         // refers to the values from the proposed INSERT row.
         //
-        // first_seen stays at its original value (the INSERT side never
-        // sees the existing row); only count, last_seen, and params get
-        // refreshed. Keeping the original first_seen lets operators see
-        // "this code first fired N hours ago, has happened 5 times".
+        // The SET clause deliberately omits `id` and `first_seen` so
+        // SQLite preserves them from the existing row: the original
+        // row's UUID stays stable across UPSERTs (so the frontend's
+        // acknowledge-by-id flow keeps working across repeated emits)
+        // and operators can see "this code first fired N hours ago,
+        // has happened 5 times".
         let sql = "
             INSERT INTO haex_critical_notifications_no_sync
                 (id, code, location, params, count, first_seen, last_seen, acknowledged)
@@ -158,15 +193,10 @@ impl CriticalNotificationSink {
                 params = excluded.params
         ";
 
+        let conn = self.conn.lock().map_err(|_| SinkError::SinkMutexPoisoned)?;
         conn.execute(
             sql,
-            params![
-                Uuid::new_v4().to_string(),
-                code.as_str(),
-                location,
-                params_json,
-                now,
-            ],
+            params![id, code_str, location, params_json, now],
         )?;
         Ok(())
     }
@@ -206,16 +236,19 @@ impl CriticalNotificationSink {
     /// `logging::cleanup_logs` but plain SQL — `_no_sync` doesn't run
     /// through `execute_with_crdt`, so no tombstones.
     pub fn cleanup(&self, retention_days: i64) -> Result<CleanupReport, SinkError> {
-        let conn = self.conn.lock().map_err(|_| SinkError::SinkMutexPoisoned)?;
+        // Compute the cutoff + format it outside the lock — same shrink-
+        // critical-section discipline as emit().
         let cutoff = OffsetDateTime::now_utc() - time::Duration::days(retention_days);
         let cutoff_str = cutoff.format(&Rfc3339)?;
+
+        let conn = self.conn.lock().map_err(|_| SinkError::SinkMutexPoisoned)?;
         let n = conn.execute(
             "DELETE FROM haex_critical_notifications_no_sync WHERE last_seen < ?1",
             params![cutoff_str],
         )?;
         Ok(CleanupReport {
             deleted_rows: n,
-            cutoff: cutoff_str,
+            cutoff,
         })
     }
 }

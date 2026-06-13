@@ -7,9 +7,9 @@
 
 #![cfg(test)]
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-use super::{lock_or_fail, CriticalFailureCode, CriticalNotificationSink, Severity};
+use super::{lock_or_fail, lock_or_fail_arc, CriticalFailureCode, CriticalNotificationSink, Severity};
 
 /// Poison a mutex deterministically by panicking with the guard held.
 /// `catch_unwind` swallows the panic so the test process survives.
@@ -77,20 +77,40 @@ fn emit_inserts_a_new_row_when_none_exists() {
 fn emit_upserts_count_when_same_code_location_acknowledged_triple_repeats() {
     let sink = CriticalNotificationSink::in_memory().expect("in-memory sink");
 
-    for _ in 0..5 {
+    sink.emit(
+        CriticalFailureCode::HlcMutexPoisoned,
+        "test::loc",
+        serde_json::json!({}),
+    )
+    .expect("first emit");
+    let first = sink.newest_unacked().unwrap().unwrap();
+
+    for _ in 0..4 {
         sink.emit(
             CriticalFailureCode::HlcMutexPoisoned,
             "test::loc",
             serde_json::json!({}),
         )
-        .expect("emit");
+        .expect("repeat emit");
     }
 
     let row = sink.newest_unacked().expect("query").expect("still one row");
     assert_eq!(row.count, 5, "five emits of the same triple must collapse to count=5");
-    assert_eq!(row.first_seen, row.first_seen, "first_seen must be set");
-    // last_seen >= first_seen — temporal ordering preserved.
-    assert!(row.last_seen >= row.first_seen);
+
+    // The ON CONFLICT clause must preserve `id` and `first_seen` — these
+    // are the row's identity (acknowledge-by-id from the frontend) and
+    // its forensic anchor ("first fired N hours ago"). Pin both
+    // explicitly so a future refactor that adds `id = excluded.id` or
+    // `first_seen = excluded.last_seen` to the SET clause breaks here
+    // rather than silently in production.
+    assert_eq!(row.id, first.id, "id must be stable across UPSERTs");
+    assert_eq!(
+        row.first_seen, first.first_seen,
+        "first_seen must NOT be touched by ON CONFLICT — it anchors forensics",
+    );
+    // last_seen advances on each emit (or stays equal if within the same
+    // RFC3339 second).
+    assert!(row.last_seen >= first.first_seen);
 }
 
 #[test]
@@ -293,4 +313,43 @@ fn lock_or_fail_emits_distinct_rows_for_distinct_locations_on_poison() {
     sink.acknowledge(&row_a.id).unwrap();
     let row_b = sink.newest_unacked().unwrap().expect("second caller's row");
     assert_ne!(row_a.location, row_b.location);
+}
+
+// =========================================================================
+// lock_or_fail_arc (convenience wrapper for Tauri's Arc<Mutex<T>> state)
+// =========================================================================
+
+#[test]
+fn lock_or_fail_arc_returns_guard_on_healthy_mutex() {
+    let sink = CriticalNotificationSink::in_memory().unwrap();
+    let m: Arc<Mutex<u32>> = Arc::new(Mutex::new(99));
+    let guard = lock_or_fail_arc(
+        &m,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "tests::arc_healthy",
+        &sink,
+        serde_json::json!({}),
+    )
+    .expect("healthy Arc<Mutex> should yield Ok");
+    assert_eq!(*guard, 99);
+}
+
+#[test]
+fn lock_or_fail_arc_returns_err_and_emits_row_on_poison() {
+    let sink = CriticalNotificationSink::in_memory().unwrap();
+    let m: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
+    poison_mutex(m.as_ref());
+
+    let result = lock_or_fail_arc(
+        &m,
+        CriticalFailureCode::DbMutexPoisoned,
+        "tests::arc_poisoned",
+        &sink,
+        serde_json::json!({"variant": "arc"}),
+    );
+    assert!(result.is_err());
+
+    let row = sink.newest_unacked().unwrap().expect("emit must have written a row");
+    assert_eq!(row.code, "DbMutexPoisoned");
+    assert_eq!(row.location, "tests::arc_poisoned");
 }

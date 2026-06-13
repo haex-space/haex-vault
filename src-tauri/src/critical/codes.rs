@@ -63,8 +63,10 @@ pub enum Severity {
 
 impl CriticalFailureCode {
     /// Map this code to its banner severity. Each arm must match the
-    /// severity documented in the variant doc-comment above; the test
-    /// `severity_matches_variant_docs` pins this contract.
+    /// severity documented in the variant doc-comment above; the tests
+    /// `severity_critical_for_data_corruption_codes` and
+    /// `severity_warning_for_observability_codes` (in
+    /// `crate::critical::tests`) pin every variant to its severity.
     pub fn severity(&self) -> Severity {
         match self {
             Self::HlcMutexPoisoned | Self::DbMutexPoisoned | Self::DbSchemaDrift => Severity::Critical,
