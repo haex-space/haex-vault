@@ -11,6 +11,11 @@
 //! - Stage 5b (DB error):          `surfaces_db_error_from_membership_check_as_explicit_error`
 //! - Stage 1 (bypass):             `bypasses_claim_invite_cleanly`
 //! - Happy path:                   `accepts_valid_request_from_active_member`
+//!
+//! Each reject test additionally verifies that the gate writes a `warn` row
+//! to `haex_logs` (via `log_to_db`) with `source = Request::op_name`, so the
+//! in-app log viewer keeps showing rejected requests; happy-path and bypass
+//! tests verify that the gate writes no audit row when nothing is rejected.
 
 #![cfg(test)]
 
@@ -21,20 +26,64 @@ use rusqlite::Connection;
 use tokio::sync::RwLock;
 
 use super::authorize_request;
+use crate::crdt::hlc::HlcService;
+use crate::crdt::trigger::ensure_crdt_columns;
+use crate::database::connection_context::ConnectionContext;
+use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::test_support::{
     insert_identity, insert_member, make_ucan, setup_membership_db,
 };
 use crate::space_delivery::local::types::{ConnectedPeer, PeerClaim};
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 use crate::ucan::{CapabilityLevel, ValidatedUcan};
 
-/// Bare in-memory `DbConnection`. The no-Announce reject path short-circuits
-/// at the cache-lookup step before any SQL runs, so we deliberately do **not**
-/// reach for the heavier membership helper here.
-fn empty_db() -> DbConnection {
+/// In-memory DB without the membership tables, but with `haex_logs` +
+/// the HLC UDF + CRDT bookkeeping so `log_to_db` works for audit-row
+/// assertions. Used by tests that short-circuit before the membership
+/// check (stage 2 no-peer, stage 3 audience, stage 4 capability) and by
+/// the DB-error test that wants `is_active_space_member` to fail on the
+/// missing `haex_space_members` table.
+fn empty_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
     let conn = Connection::open_in_memory().expect("in-memory DB");
-    DbConnection(Arc::new(Mutex::new(Some(conn))))
+    let hlc_service = HlcService::new_for_testing("test-device");
+    let ctx = ConnectionContext::new();
+    register_current_hlc_udf(&conn, hlc_service.clone(), ctx.clone()).expect("register hlc udf");
+    install_tx_hlc_hooks(&conn, ctx).expect("install hlc hooks");
+
+    // CRDT bookkeeping table names are constants (the schema renamed them
+    // to `..._no_sync` at some point) — use the same constants
+    // `setup_membership_db` does so the in-memory schema mirrors production.
+    conn.execute_batch(&format!(
+        "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT NOT NULL, value TEXT NOT NULL);
+         CREATE TABLE {TABLE_CRDT_DIRTY_TABLES} (table_name TEXT PRIMARY KEY, last_modified TEXT);
+         CREATE TABLE haex_logs (
+             id TEXT PRIMARY KEY,
+             timestamp TEXT NOT NULL,
+             level TEXT NOT NULL,
+             source TEXT NOT NULL,
+             extension_id TEXT,
+             message TEXT NOT NULL,
+             metadata TEXT,
+             device_id TEXT NOT NULL
+         );",
+    ))
+    .expect("create logs schema");
+
+    // `log_to_db` writes through `execute_with_crdt`, which expects the
+    // target table to carry CRDT bookkeeping columns. Add them on the
+    // fly via `ensure_crdt_columns`, matching `setup_membership_db` +
+    // `space_delivery::local::tests::setup_test_db`.
+    {
+        let tx = conn.unchecked_transaction().expect("begin crdt-columns tx");
+        ensure_crdt_columns(&tx, "haex_logs").expect("ensure crdt columns on haex_logs");
+        tx.commit().expect("commit crdt-columns tx");
+    }
+
+    let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+    let hlc = Arc::new(Mutex::new(hlc_service));
+    (db, hlc)
 }
 
 /// Build a `ConnectedPeer` whose cached `validated_ucan` is the one the
@@ -51,9 +100,53 @@ fn make_peer(endpoint_id: &str, did: &str, validated_ucan: ValidatedUcan) -> Con
     }
 }
 
+/// Read all `(level, source, message)` rows from `haex_logs`, oldest first.
+/// Used by reject-path tests to assert that the gate wrote exactly one
+/// `warn` row tagged with the right op name.
+fn select_audit_logs(db: &DbConnection) -> Vec<(String, String, String)> {
+    let conn_guard = db.0.lock().expect("db lock");
+    let conn = conn_guard.as_ref().expect("db connection");
+    let mut stmt = conn
+        .prepare("SELECT level, source, message FROM haex_logs ORDER BY timestamp")
+        .expect("prepare select haex_logs");
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .expect("query haex_logs");
+    rows.collect::<Result<Vec<_>, _>>().expect("collect haex_logs rows")
+}
+
+/// Assert that the gate wrote exactly one audit row tagged with `expected_op`
+/// at `warn` level, and that its message contains `must_contain` (so the
+/// per-reject-path message detail stays pinned without being verbatim-coupled
+/// to the wording).
+fn assert_single_audit_row(db: &DbConnection, expected_op: &str, must_contain: &str) {
+    let rows = select_audit_logs(db);
+    assert_eq!(
+        rows.len(),
+        1,
+        "expected exactly one audit row for op={expected_op}, got: {rows:?}"
+    );
+    let (level, source, message) = &rows[0];
+    assert_eq!(level, "warn", "audit row must be warn-level, got {level}");
+    assert_eq!(
+        source, expected_op,
+        "audit row source must be op_name={expected_op}, got {source}"
+    );
+    assert!(
+        message.contains(must_contain),
+        "audit row message must mention {must_contain:?}, got: {message}"
+    );
+}
+
 #[tokio::test]
 async fn rejects_request_without_prior_announce() {
-    let db = empty_db();
+    let (db, hlc) = empty_db();
     let peers: RwLock<HashMap<String, ConnectedPeer>> = RwLock::new(HashMap::new());
 
     let request = Request::MlsUploadKeyPackages {
@@ -67,6 +160,7 @@ async fn rejects_request_without_prior_announce() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
@@ -76,6 +170,8 @@ async fn rejects_request_without_prior_announce() {
         }
         other => panic!("expected reject, got {other:?}"),
     }
+
+    assert_single_audit_row(&db, "MlsUploadKeyPackages", "no peer entry");
 }
 
 #[tokio::test]
@@ -84,7 +180,7 @@ async fn rejects_audience_mismatch() {
     // (e.g. a stolen-and-replayed token). The connection-authenticated DID
     // is `did:key:zPeer`, but the cached UCAN's audience is
     // `did:key:zSomeoneElse` — require_audience must reject.
-    let db = empty_db();
+    let (db, hlc) = empty_db();
     let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
     peers_map.insert(
         "endpoint-id".to_string(),
@@ -107,6 +203,7 @@ async fn rejects_audience_mismatch() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
@@ -117,6 +214,8 @@ async fn rejects_audience_mismatch() {
         ),
         other => panic!("expected audience-mismatch reject, got {other:?}"),
     }
+
+    assert_single_audit_row(&db, "MlsUploadKeyPackages", "audience");
 }
 
 #[tokio::test]
@@ -127,7 +226,7 @@ async fn rejects_insufficient_capability() {
     // is_active_space_member runs. (SyncPush is intentionally `Read` at the
     // gate; the Write refinement for non-membership tables lives in
     // `inbound_sync::authorize_inbound_sync_push`, not here.)
-    let db = empty_db();
+    let (db, hlc) = empty_db();
     let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
     peers_map.insert(
         "endpoint-id".to_string(),
@@ -151,6 +250,7 @@ async fn rejects_insufficient_capability() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
@@ -164,6 +264,8 @@ async fn rejects_insufficient_capability() {
         }
         other => panic!("expected capability reject, got {other:?}"),
     }
+
+    assert_single_audit_row(&db, "MlsSendMessage", "capability check failed");
 }
 
 #[tokio::test]
@@ -174,7 +276,7 @@ async fn accepts_read_member_sync_push_at_gate_level() {
     // guards against a future "tighten SyncPush to Write" that would
     // silently break read-only members trying to push their own
     // membership / device / KeyPackage rows.
-    let db = setup_membership_db();
+    let (db, hlc) = setup_membership_db();
     insert_identity(&db, "id-read-member", "did:key:zReadMember");
     insert_member(&db, "mem-read", "SPACE", "id-read-member", "read");
 
@@ -201,12 +303,18 @@ async fn accepts_read_member_sync_push_at_gate_level() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
     assert!(
         matches!(result, Ok(Some(_))),
         "Read member must pass the gate for SyncPush — per-batch Write refinement happens downstream, got {result:?}"
+    );
+
+    assert!(
+        select_audit_logs(&db).is_empty(),
+        "happy-path gate pass must not write any audit row"
     );
 }
 
@@ -217,7 +325,7 @@ async fn bypasses_claim_invite_cleanly() {
     // membership lookups can authorise them). `Request::required_capability`
     // returns `None`, so authorize_request must short-circuit with
     // `Ok(None)` — even with an empty connected_peers map and an empty DB.
-    let db = empty_db();
+    let (db, hlc) = empty_db();
     let peers: RwLock<HashMap<String, ConnectedPeer>> = RwLock::new(HashMap::new());
 
     let request = Request::ClaimInvite {
@@ -235,6 +343,7 @@ async fn bypasses_claim_invite_cleanly() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
@@ -242,6 +351,11 @@ async fn bypasses_claim_invite_cleanly() {
         Ok(None) => {}
         other => panic!("expected Ok(None) bypass, got {other:?}"),
     }
+
+    assert!(
+        select_audit_logs(&db).is_empty(),
+        "bypass path must not write any audit row"
+    );
 }
 
 #[tokio::test]
@@ -254,7 +368,7 @@ async fn rejects_revoked_member() {
     // which the gate must convert into a peer-facing "not an active
     // member" reject. This is the runtime revocation knob: it lets an
     // admin terminate a member's access without re-issuing keys.
-    let db = setup_membership_db();
+    let (db, hlc) = setup_membership_db();
     // Seed an identity but deliberately NOT a haex_space_members row for
     // this (space, identity) pair — equivalent to a tombstoned membership.
     insert_identity(&db, "id-revoked", "did:key:zRevoked");
@@ -282,6 +396,7 @@ async fn rejects_revoked_member() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
@@ -292,6 +407,8 @@ async fn rejects_revoked_member() {
         ),
         other => panic!("expected membership reject, got {other:?}"),
     }
+
+    assert_single_audit_row(&db, "MlsSendMessage", "not an active member");
 }
 
 #[tokio::test]
@@ -301,7 +418,7 @@ async fn accepts_valid_request_from_active_member() {
     // haex_space_members for the target space. The gate returns
     // `Ok(Some(validated))` so the dispatch site can use the UCAN for
     // origin attribution (`authored_by_did`).
-    let db = setup_membership_db();
+    let (db, hlc) = setup_membership_db();
     insert_identity(&db, "id-peer", "did:key:zPeer");
     insert_member(&db, "mem-peer", "SPACE", "id-peer", "write");
 
@@ -327,6 +444,7 @@ async fn accepts_valid_request_from_active_member() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
@@ -341,6 +459,11 @@ async fn accepts_valid_request_from_active_member() {
         }
         other => panic!("expected Ok(Some(_)) for active member, got {other:?}"),
     }
+
+    assert!(
+        select_audit_logs(&db).is_empty(),
+        "happy-path gate pass must not write any audit row"
+    );
 }
 
 #[tokio::test]
@@ -351,7 +474,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
     // reason `ConnectedPeer::validated_ucan` is `Option<ValidatedUcan>`
     // and the gate's `None` arm exists (see `auth_gate.rs:31-39`).
     // Silently treating `None` as a pass would defeat the entire gate.
-    let db = empty_db();
+    let (db, hlc) = empty_db();
     let peer = ConnectedPeer {
         endpoint_id: "endpoint-id".to_string(),
         did: "did:key:zPeer".to_string(),
@@ -375,6 +498,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
@@ -387,6 +511,8 @@ async fn rejects_request_when_peer_announced_without_ucan() {
         }
         other => panic!("expected reject, got {other:?}"),
     }
+
+    assert_single_audit_row(&db, "MlsUploadKeyPackages", "no cached UCAN");
 }
 
 #[tokio::test]
@@ -399,7 +525,7 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
     // the plain "not an active member" reject — so the dispatch site (and
     // any future log triage) can tell a DB outage apart from a revoked
     // member.
-    let db = empty_db(); // no haex_space_members table → SQL error
+    let (db, hlc) = empty_db(); // no haex_space_members table → SQL error
     let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
     peers_map.insert(
         "endpoint-id".to_string(),
@@ -422,6 +548,7 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         "endpoint-id",
         &peers,
         &db,
+        &hlc,
     )
     .await;
 
@@ -434,4 +561,6 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         }
         other => panic!("expected DB error response, got {other:?}"),
     }
+
+    assert_single_audit_row(&db, "MlsUploadKeyPackages", "membership check DB error");
 }

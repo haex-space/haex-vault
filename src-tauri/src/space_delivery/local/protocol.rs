@@ -266,6 +266,35 @@ impl Request {
             | Request::PushInvite { .. } => None,
         }
     }
+
+    /// Returns a stable, PascalCase name for this request variant.
+    ///
+    /// Used as the `source` field of `haex_logs` rows written from the
+    /// AuthGate's reject branches, so an operator triaging sync failures
+    /// in-app can filter by op without parsing free-text messages. The
+    /// strings here MUST stay in sync with the corresponding `op` tag the
+    /// `#[serde(tag = "op", rename_all = "SCREAMING_SNAKE_CASE")]` JSON
+    /// uses — but in PascalCase, matching the existing `log_to_db` calls
+    /// from `leader.rs` (e.g. `"Announce"`, `"ClaimInvite"`).
+    pub fn op_name(&self) -> &'static str {
+        match self {
+            Request::MlsUploadKeyPackages { .. } => "MlsUploadKeyPackages",
+            Request::MlsFetchKeyPackage { .. } => "MlsFetchKeyPackage",
+            Request::MlsSendMessage { .. } => "MlsSendMessage",
+            Request::MlsFetchMessages { .. } => "MlsFetchMessages",
+            Request::MlsSendWelcome { .. } => "MlsSendWelcome",
+            Request::MlsFetchWelcomes { .. } => "MlsFetchWelcomes",
+            Request::MlsAckCommit { .. } => "MlsAckCommit",
+            Request::MlsKeyPackageCount { .. } => "MlsKeyPackageCount",
+            Request::RequestRejoin { .. } => "RequestRejoin",
+            Request::SubmitExternalCommit { .. } => "SubmitExternalCommit",
+            Request::SyncPush { .. } => "SyncPush",
+            Request::SyncPull { .. } => "SyncPull",
+            Request::Announce { .. } => "Announce",
+            Request::ClaimInvite { .. } => "ClaimInvite",
+            Request::PushInvite { .. } => "PushInvite",
+        }
+    }
 }
 
 // ============================================================================

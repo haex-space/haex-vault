@@ -641,20 +641,17 @@ pub(super) async fn handle_delivery_request(
     // validate + cache the UCAN it just received before subsequent requests
     // on this connection can pass the gate.
     //
-    // Observability follow-up: pre-T6, the SyncPush / SyncPull arms wrote
-    // rejection rows to `haex_logs` via `log_to_db`, so an owner could see
-    // failed sync attempts in-app (CRDT-synced to owner devices). Gate
-    // rejections today only `eprintln!` to stderr — peers still receive the
-    // correct `Response::Error`, but in-app log visibility for rejected
-    // requests is reduced. Tracked as "AuthGate rejections must write
-    // haex_logs audit rows"; see the matching TODO at the top of
-    // `auth_gate::authorize_request`.
+    // Audit logging: the gate writes a `warn` row to `haex_logs` (via
+    // `log_to_db`, CRDT-synced to the owner) from every reject branch with
+    // `source = Request::op_name`, restoring the in-app log visibility the
+    // pre-T6 SyncPush / SyncPull arms used to emit directly.
     let gate_ucan = match super::auth_gate::authorize_request(
         &request,
         verified_did,
         peer_endpoint_id,
         &state.connected_peers,
         &state.db,
+        &state.hlc,
     )
     .await
     {

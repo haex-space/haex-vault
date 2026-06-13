@@ -37,12 +37,24 @@
 //! `connected_peers` map with `validated_ucan = None`. Silently treating
 //! that as a pass would defeat the entire gate — hence the explicit
 //! `None`-arm reject below, never `unwrap()` / `expect()`.
+//!
+//! ## Audit logging
+//!
+//! Every reject branch writes a `warn` row to `haex_logs` via
+//! [`log_to_db`], with `source = Request::op_name(&self)` so operators can
+//! filter the in-app log viewer by op when triaging sync failures. Rows
+//! are CRDT-synced to the owner; peers never see the audit log directly.
+//! Pre-T6, the SyncPush / SyncPull arms wrote these rows directly; the
+//! AuthGate consolidation briefly lost that visibility, restored here.
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::RwLock;
 
+use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
+use crate::logging::log_to_db;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::types::ConnectedPeer;
 use crate::ucan::{require_audience, require_capability, ValidatedUcan};
@@ -62,15 +74,8 @@ pub async fn authorize_request(
     peer_endpoint_id: &str,
     connected_peers: &RwLock<HashMap<String, ConnectedPeer>>,
     db: &DbConnection,
+    hlc: &Arc<Mutex<HlcService>>,
 ) -> Result<Option<ValidatedUcan>, Response> {
-    // TODO(observability): rejection paths log only via eprintln!, so they don't
-    // land in haex_logs (CRDT-synced to the owner). Pre-T6, SyncPush/SyncPull
-    // arms wrote audit rows via log_to_db. To restore parity, extend this
-    // function with `hlc: &Arc<Mutex<HlcService>>` and emit log_to_db rows
-    // from each reject branch with `op` derived from the Request variant.
-    // Not security-critical (peer still gets the right Response::Error), but
-    // reduces in-app log visibility for operators triaging sync failures.
-
     // 1. Bypass — requests that bootstrap the gate's own preconditions.
     let required = match request.required_capability() {
         Some(level) => level,
@@ -78,6 +83,7 @@ pub async fn authorize_request(
     };
 
     let space_id = request.space_id_of();
+    let op = request.op_name();
 
     // 2. Cache lookup. Split into two arms so the diagnostics distinguish
     //    "no peer entry at all" (forged endpoint-id / evicted connection)
@@ -87,16 +93,24 @@ pub async fn authorize_request(
     let validated = {
         let peers = connected_peers.read().await;
         let Some(peer) = peers.get(peer_endpoint_id) else {
-            eprintln!(
-                "[AuthGate] reject: no peer entry for endpoint={peer_endpoint_id} (forged endpoint-id or evicted connection?)"
+            log_to_db(
+                db,
+                hlc,
+                "warn",
+                op,
+                &format!("reject: no peer entry for endpoint={peer_endpoint_id} (forged endpoint-id or evicted connection?)"),
             );
             return Err(Response::Error {
                 message: "Access denied: must Announce before sending other requests".to_string(),
             });
         };
         let Some(validated) = peer.validated_ucan.clone() else {
-            eprintln!(
-                "[AuthGate] reject: peer endpoint={peer_endpoint_id} has no cached UCAN (ClaimInvite without Announce?)"
+            log_to_db(
+                db,
+                hlc,
+                "warn",
+                op,
+                &format!("reject: peer endpoint={peer_endpoint_id} has no cached UCAN (ClaimInvite without Announce?)"),
             );
             return Err(Response::Error {
                 message: "Access denied: must Announce before sending other requests".to_string(),
@@ -114,8 +128,12 @@ pub async fn authorize_request(
     if let Err(e) = require_audience(&validated, verified_did) {
         let aud_short: String = validated.audience.chars().take(24).collect();
         let verified_short: String = verified_did.chars().take(24).collect();
-        eprintln!(
-            "[AuthGate] reject: UCAN audience != verified peer DID (endpoint={peer_endpoint_id} aud={aud_short} verified={verified_short} err={e})"
+        log_to_db(
+            db,
+            hlc,
+            "warn",
+            op,
+            &format!("reject: UCAN audience != verified peer DID (endpoint={peer_endpoint_id} aud={aud_short} verified={verified_short} err={e})"),
         );
         return Err(Response::Error {
             message: "Access denied: UCAN audience does not match verified peer DID".to_string(),
@@ -124,8 +142,12 @@ pub async fn authorize_request(
 
     // 4. Capability.
     if let Err(e) = require_capability(&validated, space_id, required) {
-        eprintln!(
-            "[AuthGate] reject: capability check failed (endpoint={peer_endpoint_id} space={space_id} required={required:?} err={e})"
+        log_to_db(
+            db,
+            hlc,
+            "warn",
+            op,
+            &format!("reject: capability check failed (endpoint={peer_endpoint_id} space={space_id} required={required:?} err={e})"),
         );
         return Err(Response::Error {
             message: format!("Access denied: {e}"),
@@ -138,8 +160,12 @@ pub async fn authorize_request(
         Ok(false) => {
             let aud_short: String = validated.audience.chars().take(24).collect();
             let space_short: String = space_id.chars().take(24).collect();
-            eprintln!(
-                "[AuthGate] reject: not an active member (endpoint={peer_endpoint_id} aud={aud_short} space={space_short})"
+            log_to_db(
+                db,
+                hlc,
+                "warn",
+                op,
+                &format!("reject: not an active member (endpoint={peer_endpoint_id} aud={aud_short} space={space_short})"),
             );
             Err(Response::Error {
                 message: "Access denied: not an active member of this space".to_string(),
@@ -148,8 +174,12 @@ pub async fn authorize_request(
         Err(e) => {
             let aud_short: String = validated.audience.chars().take(24).collect();
             let space_short: String = space_id.chars().take(24).collect();
-            eprintln!(
-                "[AuthGate] reject: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"
+            log_to_db(
+                db,
+                hlc,
+                "warn",
+                op,
+                &format!("reject: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"),
             );
             Err(Response::Error {
                 message: format!("Membership check failed: {e}"),
