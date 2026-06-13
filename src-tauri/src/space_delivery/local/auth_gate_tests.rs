@@ -27,7 +27,7 @@ use tokio::sync::RwLock;
 
 use super::authorize_request;
 use crate::crdt::hlc::HlcService;
-use crate::crdt::trigger::ensure_crdt_columns;
+use crate::crdt::trigger::ensure_crdt_columns_and_triggers;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
@@ -72,12 +72,15 @@ fn empty_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
     .expect("create logs schema");
 
     // `log_to_db` writes through `execute_with_crdt`, which expects the
-    // target table to carry CRDT bookkeeping columns. Add them on the
-    // fly via `ensure_crdt_columns`, matching `setup_membership_db` +
-    // `space_delivery::local::tests::setup_test_db`.
+    // target table to carry the CRDT bookkeeping columns AND the
+    // dirty-table / BEFORE-DELETE triggers production installs via the
+    // migration pipeline. Mirror both via `ensure_crdt_columns_and_triggers`
+    // so any future DELETE-path test on `haex_logs` writes the expected
+    // `haex_deleted_rows` entry through the trigger.
     {
         let tx = conn.unchecked_transaction().expect("begin crdt-columns tx");
-        ensure_crdt_columns(&tx, "haex_logs").expect("ensure crdt columns on haex_logs");
+        ensure_crdt_columns_and_triggers(&tx, "haex_logs")
+            .expect("ensure crdt columns + triggers on haex_logs");
         tx.commit().expect("commit crdt-columns tx");
     }
 
