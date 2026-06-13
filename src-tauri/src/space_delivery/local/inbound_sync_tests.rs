@@ -36,6 +36,7 @@ use crate::database::DbConnection;
 use crate::space_delivery::local::inbound_sync::{
     authorize_inbound_sync_push, validate_and_attribute, InboundSyncPushOutcome,
 };
+use crate::space_delivery::local::test_support::{insert_identity, insert_member, make_ucan};
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 use crate::ucan::{CapabilityLevel, ValidatedUcan};
 
@@ -114,11 +115,20 @@ fn setup_authz_db() -> DbConnection {
     ))
     .unwrap();
 
+    // `haex_identities` schema mirrored from production so the shared
+    // `test_support::insert_identity` helper (which writes the
+    // `name NOT NULL` / `source NOT NULL DEFAULT 'contact'` columns
+    // present in `0000_slippery_black_tom.sql`) succeeds against this DB.
+    // Keeping the schema at full production parity also catches drift
+    // earlier — a future migration that adds another NOT NULL column on
+    // identities will fail loudly in both test fixtures at once.
     conn.execute_batch(
         "CREATE TABLE haex_identities (
             id TEXT PRIMARY KEY,
             did TEXT NOT NULL UNIQUE,
-            public_key TEXT,
+            name TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'contact',
+            private_key TEXT,
             created_at TEXT
         );
 
@@ -180,37 +190,6 @@ fn setup_authz_db() -> DbConnection {
     DbConnection(Arc::new(Mutex::new(Some(conn))))
 }
 
-fn insert_identity(db: &DbConnection, identity_id: &str, did: &str) {
-    core::execute(
-        "INSERT INTO haex_identities (id, did) VALUES (?1, ?2)".to_string(),
-        vec![json!(identity_id), json!(did)],
-        db,
-    )
-    .unwrap();
-}
-
-fn insert_member(
-    db: &DbConnection,
-    member_row_id: &str,
-    space_id: &str,
-    identity_id: &str,
-    role: &str,
-) {
-    core::execute(
-        "INSERT INTO haex_space_members (id, space_id, identity_id, role) \
-         VALUES (?1, ?2, ?3, ?4)"
-            .to_string(),
-        vec![
-            json!(member_row_id),
-            json!(space_id),
-            json!(identity_id),
-            json!(role),
-        ],
-        db,
-    )
-    .unwrap();
-}
-
 fn insert_device(
     db: &DbConnection,
     device_row_id: &str,
@@ -258,17 +237,6 @@ fn insert_share(
         db,
     )
     .unwrap();
-}
-
-fn make_ucan(audience: &str, space_id: &str, level: CapabilityLevel) -> ValidatedUcan {
-    let mut capabilities = HashMap::new();
-    capabilities.insert(space_id.to_string(), level);
-    ValidatedUcan {
-        issuer: "did:key:zIssuer".to_string(),
-        audience: audience.to_string(),
-        capabilities,
-        expires_at: u64::MAX,
-    }
 }
 
 // =========================================================================
