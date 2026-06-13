@@ -6,6 +6,11 @@
 mod authorization;
 mod crypto;
 mod error;
+// Types are exercised by the in-module tests today and will be wired into
+// the dispatcher in Task 1A.2; suppress the transient dead-code warnings
+// until then.
+#[allow(dead_code)]
+mod mcp;
 mod protocol;
 mod server;
 #[cfg(test)]
