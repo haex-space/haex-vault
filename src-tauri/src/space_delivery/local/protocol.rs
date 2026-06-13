@@ -141,7 +141,9 @@ pub enum Request {
         /// AuthGate's cached `ValidatedUcan` for the rest of the connection.
         /// Optional on the wire (forward-compat shape across all request
         /// variants), but receivers reject `None` here — the cache cannot
-        /// be populated without a token. Other request variants treat the
+        /// be populated without a token. Enforcement lives in
+        /// `leader.rs::handle_delivery_request` (Announce arm) before
+        /// `require_valid_ucan` runs. Other request variants treat the
         /// field as truly optional.
         #[serde(default)]
         ucan_token: Option<String>,

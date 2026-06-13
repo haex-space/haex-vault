@@ -312,3 +312,28 @@ fn non_bypass_requests_deserialize_without_ucan_token_field() {
         );
     }
 }
+
+/// Twin of `non_bypass_requests_deserialize_without_ucan_token_field` for the
+/// explicit-`null` wire shape. `#[serde(default)] Option<String>` accepts
+/// both "field absent" and `"field": null`, so today both yield `None`.
+/// Pin that contract: a Step-2 sender (or a foreign interop client) emitting
+/// `null` instead of dropping the field must still produce `None` on the
+/// receiver — not an empty-string sentinel or a deser error.
+#[test]
+fn sync_push_deserializes_with_explicit_null_ucan_token() {
+    let payload = serde_json::json!({
+        "op": "SYNC_PUSH",
+        "space_id": "SPACE",
+        "changes": [],
+        "ucan_token": null,
+    });
+    let req: Request = serde_json::from_value(payload)
+        .expect("SyncPush with explicit null ucan_token must deserialize");
+    match req {
+        Request::SyncPush { ucan_token, .. } => assert!(
+            ucan_token.is_none(),
+            "explicit null must deserialize to None, got {ucan_token:?}",
+        ),
+        other => panic!("expected SyncPush, got {other:?}"),
+    }
+}

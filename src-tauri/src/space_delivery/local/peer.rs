@@ -11,10 +11,15 @@ use super::ucan::load_active_ucan_for_audience;
 
 /// A connected peer session with the leader.
 ///
-/// The UCAN token passed on `connect` is stored and attached to every
-/// space-scoped request (Announce, SyncPush, SyncPull). The leader verifies
-/// the token against the target space on each call — so even a hijacked
-/// connection cannot pull or push data without a valid delegation.
+/// The UCAN token resolved at `connect` is only authoritative on the
+/// receiver for the initial `Announce` request — that bootstrap populates
+/// the leader's `ConnectedPeer::validated_ucan` cache which the unified
+/// AuthGate consumes for every subsequent request. The same token is still
+/// attached to `SyncPush` / `SyncPull` / `RequestRejoin` /
+/// `SubmitExternalCommit` purely for forward-compat with pre-AuthGate
+/// receivers; new receivers ignore the wire field and use the cached
+/// `ValidatedUcan`. See `space_delivery/local/auth_gate.rs` for the pipeline
+/// and `protocol.rs::Request::*::ucan_token` for the 3-step removal plan.
 pub struct PeerSession {
     conn: iroh::endpoint::Connection,
     ucan_token: String,
