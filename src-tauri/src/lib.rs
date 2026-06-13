@@ -11,6 +11,7 @@
 mod external_bridge;
 mod crypto;
 mod crdt;
+pub mod critical;
 pub mod database;
 mod device;
 mod extension;
