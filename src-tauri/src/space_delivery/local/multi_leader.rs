@@ -170,7 +170,7 @@ impl MultiSpaceLeaderHandler {
             None,
         );
 
-        let verified_short: String = verified_did.chars().take(24).collect();
+        let verified_short = crate::logging::log_truncate(&verified_did, 24);
         crate::logging::log_to_db(
             &self.db,
             &self.hlc,

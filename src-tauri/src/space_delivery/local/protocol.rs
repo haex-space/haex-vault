@@ -287,11 +287,17 @@ impl Request {
     ///
     /// Used as the `source` field of `haex_logs` rows written from the
     /// AuthGate's reject branches, so an operator triaging sync failures
-    /// in-app can filter by op without parsing free-text messages. The
-    /// strings here MUST stay in sync with the corresponding `op` tag the
-    /// `#[serde(tag = "op", rename_all = "SCREAMING_SNAKE_CASE")]` JSON
-    /// uses — but in PascalCase, matching the existing `log_to_db` calls
-    /// from `leader.rs` (e.g. `"Announce"`, `"ClaimInvite"`).
+    /// in-app can filter by op without parsing free-text messages.
+    ///
+    /// Note the deliberate case split: the on-the-wire JSON `op` tag is
+    /// SCREAMING_SNAKE_CASE (`"SYNC_PUSH"`, set by the `serde(tag = "op",
+    /// rename_all = "SCREAMING_SNAKE_CASE")` attribute on this enum), but
+    /// `op_name()` returns *PascalCase* (`"SyncPush"`) to match the existing
+    /// `log_to_db` `source` convention established by `leader.rs` calls
+    /// like `log_to_db(..., "Announce", ...)` and
+    /// `log_to_db(..., "ClaimInvite", ...)`. Keeping these tied to a
+    /// single match-arm avoids the renaming-skew failure mode where the
+    /// wire tag and the log source diverge silently.
     pub fn op_name(&self) -> &'static str {
         match self {
             Request::MlsUploadKeyPackages { .. } => "MlsUploadKeyPackages",

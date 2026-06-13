@@ -75,7 +75,7 @@ use tokio::sync::RwLock;
 
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
-use crate::logging::log_to_db;
+use crate::logging::{log_to_db, log_truncate};
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::types::ConnectedPeer;
 use crate::ucan::{require_audience, require_capability, require_not_expired, ValidatedUcan};
@@ -105,6 +105,27 @@ pub async fn authorize_request(
 
     let space_id = request.space_id_of();
     let op = request.op_name();
+
+    // Closure for the six reject paths below: emit one `haex_logs` row with
+    // the AuthGate subsystem tag and build the `Response::Error` returned to
+    // the caller. Captures `db`, `hlc`, `op` once so every branch reads as
+    // (level, log_msg, peer_msg) — the three things that actually differ.
+    //
+    // `peer_msg` is owned (`String`) on purpose: most callers want a fixed
+    // `"Access denied: …"` literal, but the capability arm needs to embed
+    // the underlying error via `format!`. Taking `String` lets both cases
+    // pass without an extra `.to_string()` on the literal side.
+    let gate_reject = |level: &str, log_msg: String, peer_msg: String| -> Response {
+        log_to_db(
+            db,
+            hlc,
+            level,
+            op,
+            &log_msg,
+            Some(serde_json::json!({"subsystem": "AuthGate"})),
+        );
+        Response::Error { message: peer_msg }
+    };
 
     // 2. Cache lookup. Split into three outcomes so the diagnostics distinguish
     //    "no peer entry at all" (forged endpoint-id / evicted connection) from
@@ -141,30 +162,18 @@ pub async fn authorize_request(
     let validated = match lookup {
         PeerLookup::Hit(v) => v,
         PeerLookup::NoEntry => {
-            log_to_db(
-                db,
-                hlc,
+            return Err(gate_reject(
                 "warn",
-                op,
-                &format!("reject: no peer entry for endpoint={peer_endpoint_id} (forged endpoint-id or evicted connection?)"),
-                Some(serde_json::json!({"subsystem":"AuthGate"})),
-            );
-            return Err(Response::Error {
-                message: "Access denied: must Announce before sending other requests".to_string(),
-            });
+                format!("reject: no peer entry for endpoint={peer_endpoint_id} (forged endpoint-id or evicted connection?)"),
+                "Access denied: must Announce before sending other requests".to_string(),
+            ));
         }
         PeerLookup::NoUcan => {
-            log_to_db(
-                db,
-                hlc,
+            return Err(gate_reject(
                 "warn",
-                op,
-                &format!("reject: peer endpoint={peer_endpoint_id} has no cached UCAN (ClaimInvite without Announce?)"),
-                Some(serde_json::json!({"subsystem":"AuthGate"})),
-            );
-            return Err(Response::Error {
-                message: "Access denied: must Announce before sending other requests".to_string(),
-            });
+                format!("reject: peer endpoint={peer_endpoint_id} has no cached UCAN (ClaimInvite without Announce?)"),
+                "Access denied: must Announce before sending other requests".to_string(),
+            ));
         }
     };
 
@@ -174,74 +183,50 @@ pub async fn authorize_request(
     //    Re-checking here forces a reconnect-after-renew once `expires_at`
     //    is reached.
     if let Err(e) = require_not_expired(&validated) {
-        let aud_short: String = validated.audience.chars().take(24).collect();
-        log_to_db(
-            db,
-            hlc,
+        let aud_short = log_truncate(&validated.audience, 24);
+        return Err(gate_reject(
             "warn",
-            op,
-            &format!("reject: cached UCAN expired (endpoint={peer_endpoint_id} aud={aud_short} expires_at={exp} err={e})", exp = validated.expires_at),
-            Some(serde_json::json!({"subsystem":"AuthGate"})),
-        );
-        return Err(Response::Error {
-            message: "Access denied: cached UCAN expired, please Announce again".to_string(),
-        });
+            format!("reject: cached UCAN expired (endpoint={peer_endpoint_id} aud={aud_short} expires_at={exp} err={e})", exp = validated.expires_at),
+            "Access denied: cached UCAN expired, please Announce again".to_string(),
+        ));
     }
 
     // 4. Audience binding. The underlying `UcanVerifyError::AudienceMismatch`
     //    Display includes both DIDs — that's useful in logs but is an
     //    enumeration aid for an attacker probing endpoints, so the
     //    peer-facing message is fixed-string and the detail goes only to the
-    //    log (with the same chars().take(24) truncation pattern used in
-    //    peer_storage/handlers.rs to stay UTF-8-safe).
+    //    log (with the same `log_truncate` 24-char cap as peer_storage and
+    //    multi_leader so DIDs don't sprawl across diagnostic lines).
     if let Err(e) = require_audience(&validated, verified_did) {
-        let aud_short: String = validated.audience.chars().take(24).collect();
-        let verified_short: String = verified_did.chars().take(24).collect();
-        log_to_db(
-            db,
-            hlc,
+        let aud_short = log_truncate(&validated.audience, 24);
+        let verified_short = log_truncate(verified_did, 24);
+        return Err(gate_reject(
             "warn",
-            op,
-            &format!("reject: UCAN audience != verified peer DID (endpoint={peer_endpoint_id} aud={aud_short} verified={verified_short} err={e})"),
-            Some(serde_json::json!({"subsystem":"AuthGate"})),
-        );
-        return Err(Response::Error {
-            message: "Access denied: UCAN audience does not match verified peer DID".to_string(),
-        });
+            format!("reject: UCAN audience != verified peer DID (endpoint={peer_endpoint_id} aud={aud_short} verified={verified_short} err={e})"),
+            "Access denied: UCAN audience does not match verified peer DID".to_string(),
+        ));
     }
 
     // 5. Capability.
     if let Err(e) = require_capability(&validated, space_id, required) {
-        log_to_db(
-            db,
-            hlc,
+        return Err(gate_reject(
             "warn",
-            op,
-            &format!("reject: capability check failed (endpoint={peer_endpoint_id} space={space_id} required={required:?} err={e})"),
-            Some(serde_json::json!({"subsystem":"AuthGate"})),
-        );
-        return Err(Response::Error {
-            message: format!("Access denied: {e}"),
-        });
+            format!("reject: capability check failed (endpoint={peer_endpoint_id} space={space_id} required={required:?} err={e})"),
+            format!("Access denied: {e}"),
+        ));
     }
 
     // 6. Active membership (revocation kill-switch).
     match super::ucan::is_active_space_member(db, space_id, &validated.audience) {
         Ok(true) => Ok(Some(validated)),
         Ok(false) => {
-            let aud_short: String = validated.audience.chars().take(24).collect();
-            let space_short: String = space_id.chars().take(24).collect();
-            log_to_db(
-                db,
-                hlc,
+            let aud_short = log_truncate(&validated.audience, 24);
+            let space_short = log_truncate(space_id, 24);
+            Err(gate_reject(
                 "warn",
-                op,
-                &format!("reject: not an active member (endpoint={peer_endpoint_id} aud={aud_short} space={space_short})"),
-                Some(serde_json::json!({"subsystem":"AuthGate"})),
-            );
-            Err(Response::Error {
-                message: "Access denied: not an active member of this space".to_string(),
-            })
+                format!("reject: not an active member (endpoint={peer_endpoint_id} aud={aud_short} space={space_short})"),
+                "Access denied: not an active member of this space".to_string(),
+            ))
         }
         Err(e) => {
             // Distinct severity from the peer-side rejects above: this branch
@@ -250,19 +235,13 @@ pub async fn authorize_request(
             // and prefixed `internal failure:` so an operator filtering
             // haex_logs by level=error or by message prefix can separate
             // actionable DB outages from benign peer rejects.
-            let aud_short: String = validated.audience.chars().take(24).collect();
-            let space_short: String = space_id.chars().take(24).collect();
-            log_to_db(
-                db,
-                hlc,
+            let aud_short = log_truncate(&validated.audience, 24);
+            let space_short = log_truncate(space_id, 24);
+            Err(gate_reject(
                 "error",
-                op,
-                &format!("internal failure: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"),
-                Some(serde_json::json!({"subsystem":"AuthGate"})),
-            );
-            Err(Response::Error {
-                message: format!("Membership check failed: {e}"),
-            })
+                format!("internal failure: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"),
+                format!("Membership check failed: {e}"),
+            ))
         }
     }
 }

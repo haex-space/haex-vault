@@ -23,67 +23,30 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use rusqlite::Connection;
 use tokio::sync::RwLock;
 
 use super::authorize_request;
 use crate::crdt::hlc::HlcService;
-use crate::crdt::trigger::ensure_crdt_columns;
-use crate::database::connection_context::ConnectionContext;
-use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::test_support::{
-    insert_identity, insert_member, make_ucan, setup_membership_db,
+    init_logs_db_inner, insert_identity, insert_member, make_ucan, setup_membership_db,
 };
 use crate::space_delivery::local::types::{ConnectedPeer, PeerClaim};
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 use crate::ucan::{CapabilityLevel, ValidatedUcan};
 
 /// In-memory DB without the membership tables, but with `haex_logs` +
 /// the HLC UDF + CRDT bookkeeping so `log_to_db` works for audit-row
 /// assertions. Used by tests that short-circuit before the membership
-/// check (stage 2 no-peer, stage 3 audience, stage 4 capability) and by
+/// check (stage 2 no-peer, stage 4 audience, stage 5 capability) and by
 /// the DB-error test that wants `is_active_space_member` to fail on the
 /// missing `haex_space_members` table.
+///
+/// Delegates the entire setup to `test_support::init_logs_db_inner` —
+/// keeps this fixture byte-identical to `setup_membership_db` on every
+/// shared knob (HLC, CRDT bookkeeping, `ensure_crdt_columns` policy).
 fn empty_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
-    let conn = Connection::open_in_memory().expect("in-memory DB");
-    let hlc_service = HlcService::new_for_testing("test-device");
-    let ctx = ConnectionContext::new();
-    register_current_hlc_udf(&conn, hlc_service.clone(), ctx.clone()).expect("register hlc udf");
-    install_tx_hlc_hooks(&conn, ctx).expect("install hlc hooks");
-
-    // CRDT bookkeeping table names are constants (the schema renamed them
-    // to `..._no_sync` at some point) — use the same constants
-    // `setup_membership_db` does so the in-memory schema mirrors production.
-    conn.execute_batch(&format!(
-        "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT NOT NULL, value TEXT NOT NULL);
-         CREATE TABLE {TABLE_CRDT_DIRTY_TABLES} (table_name TEXT PRIMARY KEY, last_modified TEXT);
-         CREATE TABLE haex_logs (
-             id TEXT PRIMARY KEY,
-             timestamp TEXT NOT NULL,
-             level TEXT NOT NULL,
-             source TEXT NOT NULL,
-             extension_id TEXT,
-             message TEXT NOT NULL,
-             metadata TEXT,
-             device_id TEXT NOT NULL
-         );",
-    ))
-    .expect("create logs schema");
-
-    // Mirror `setup_membership_db`: `log_to_db` writes through
-    // `execute_with_crdt` which needs the `haex_hlc` / `haex_column_hlcs`
-    // columns. We deliberately use `ensure_crdt_columns` (column-only) and
-    // not `ensure_crdt_columns_and_triggers` — see `setup_membership_db`
-    // for the rationale (no `haex_deleted_rows` table or UDFs seeded; a
-    // DELETE-path test would crash with `no such table`).
-    {
-        let tx = conn.unchecked_transaction().expect("begin crdt-columns tx");
-        ensure_crdt_columns(&tx, "haex_logs").expect("ensure crdt columns on haex_logs");
-        tx.commit().expect("commit crdt-columns tx");
-    }
-
+    let (conn, hlc_service) = init_logs_db_inner();
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
     let hlc = Arc::new(Mutex::new(hlc_service));
     (db, hlc)
@@ -103,63 +66,82 @@ fn make_peer(endpoint_id: &str, did: &str, validated_ucan: ValidatedUcan) -> Con
     }
 }
 
-/// Read all `(level, source, message, metadata)` rows from `haex_logs`,
-/// oldest first. Used by reject-path tests to assert that the gate wrote
-/// exactly one row tagged with the right op name and `subsystem = "AuthGate"`.
-fn select_audit_logs(db: &DbConnection) -> Vec<(String, String, String, Option<String>)> {
-    let conn_guard = db.0.lock().expect("db lock");
-    let conn = conn_guard.as_ref().expect("db connection");
-    let mut stmt = conn
-        .prepare("SELECT level, source, message, metadata FROM haex_logs ORDER BY timestamp")
-        .expect("prepare select haex_logs");
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, Option<String>>(3)?,
-            ))
-        })
-        .expect("query haex_logs");
-    rows.collect::<Result<Vec<_>, _>>().expect("collect haex_logs rows")
+/// Read all `haex_logs` rows via the same `logging::query_logs` the in-app
+/// log viewer uses. Going through the production query (rather than a
+/// bespoke `SELECT level, source, message, metadata FROM haex_logs`)
+/// means any future change to `query_logs` — added column, JSON
+/// normalisation, column-order change — gets exercised by these tests
+/// automatically; a SQL drift between production and tests can no longer
+/// pass silently.
+///
+/// (`select_with_crdt` is a no-op for `SELECT` statements in the
+/// delete-log model — see `crdt::transformer::transform_query` — so we
+/// do *not* get a hardened tombstone filter from this routing. The
+/// motivation is purely the schema-drift coverage above.)
+///
+/// Ordering: `query_logs` returns newest first; today's assertions check
+/// "exactly one row", so the order is moot. If a future test wants to
+/// inspect multiple rows in temporal order, reverse the slice at the
+/// callsite — don't reshape this helper.
+fn select_audit_logs(db: &DbConnection) -> Vec<crate::logging::LogEntry> {
+    crate::logging::query_logs(db, &crate::logging::LogQueryParams {
+        source: None,
+        extension_id: None,
+        level: None,
+        since: None,
+        until: None,
+        device_id: None,
+        limit: None,
+        offset: None,
+    })
+    .expect("query haex_logs")
 }
 
 /// Assert that the gate wrote exactly one audit row at `expected_level`
 /// (`"warn"` for peer-side rejects, `"error"` for internal vault failures),
-/// tagged with `expected_op` and the structured `subsystem` metadata field
-/// `expected_subsystem`, and whose message contains `must_contain`.
+/// tagged with the `request`'s [`Request::op_name`] and the structured
+/// `subsystem` metadata field `expected_subsystem`, and whose message
+/// contains `must_contain`.
 ///
-/// The `subsystem` check pins the metadata convention (always set to
-/// `"AuthGate"` for any reject row this module emits) so operators can
-/// filter `haex_logs` by subsystem independent of the per-op `source` tag.
+/// Taking the actual `&Request` (rather than a hardcoded op-name string)
+/// means a future rename of any `op_name` variant stays caught here — if
+/// the production tag drifts the test fails for the right reason, never
+/// "I edited only one of the two strings". The `subsystem` check pins the
+/// metadata convention (always set to `"AuthGate"` for any reject row
+/// this module emits) so operators can filter `haex_logs` by subsystem
+/// independent of the per-op `source` tag.
 fn assert_single_audit_row(
     db: &DbConnection,
     expected_level: &str,
     expected_subsystem: &str,
-    expected_op: &str,
+    request: &Request,
     must_contain: &str,
 ) {
+    let expected_op = request.op_name();
     let rows = select_audit_logs(db);
     assert_eq!(
         rows.len(),
         1,
         "expected exactly one audit row for op={expected_op}, got: {rows:?}"
     );
-    let (level, source, message, metadata) = &rows[0];
+    let row = &rows[0];
     assert_eq!(
-        level, expected_level,
-        "audit row level must be {expected_level}, got {level}"
+        row.level, expected_level,
+        "audit row level must be {expected_level}, got {}",
+        row.level
     );
     assert_eq!(
-        source, expected_op,
-        "audit row source must be op_name={expected_op}, got {source}"
+        row.source, expected_op,
+        "audit row source must be op_name={expected_op}, got {}",
+        row.source
     );
     assert!(
-        message.contains(must_contain),
-        "audit row message must mention {must_contain:?}, got: {message}"
+        row.message.contains(must_contain),
+        "audit row message must mention {must_contain:?}, got: {}",
+        row.message
     );
-    let metadata_str = metadata
+    let metadata_str = row
+        .metadata
         .as_deref()
         .expect("audit row must have metadata column populated (with subsystem field)");
     let metadata_json: serde_json::Value = serde_json::from_str(metadata_str)
@@ -198,7 +180,7 @@ async fn rejects_request_without_prior_announce() {
         other => panic!("expected reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "no peer entry");
+    assert_single_audit_row(&db, "warn", "AuthGate", &request, "no peer entry");
 }
 
 #[tokio::test]
@@ -251,7 +233,7 @@ async fn rejects_request_with_expired_cached_ucan() {
         other => panic!("expected expired-UCAN reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "cached UCAN expired");
+    assert_single_audit_row(&db, "warn", "AuthGate", &request, "cached UCAN expired");
 }
 
 #[tokio::test]
@@ -295,7 +277,7 @@ async fn rejects_audience_mismatch() {
         other => panic!("expected audience-mismatch reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "audience");
+    assert_single_audit_row(&db, "warn", "AuthGate", &request, "audience");
 }
 
 #[tokio::test]
@@ -345,7 +327,7 @@ async fn rejects_insufficient_capability() {
         other => panic!("expected capability reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "AuthGate", "MlsSendMessage", "capability check failed");
+    assert_single_audit_row(&db, "warn", "AuthGate", &request, "capability check failed");
 }
 
 #[tokio::test]
@@ -488,7 +470,7 @@ async fn rejects_revoked_member() {
         other => panic!("expected membership reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "AuthGate", "MlsSendMessage", "not an active member");
+    assert_single_audit_row(&db, "warn", "AuthGate", &request, "not an active member");
 }
 
 #[tokio::test]
@@ -592,7 +574,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
         other => panic!("expected reject, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "warn", "AuthGate", "MlsUploadKeyPackages", "no cached UCAN");
+    assert_single_audit_row(&db, "warn", "AuthGate", &request, "no cached UCAN");
 }
 
 #[tokio::test]
@@ -642,5 +624,5 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         other => panic!("expected DB error response, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "error", "AuthGate", "MlsUploadKeyPackages", "internal failure: membership check DB error");
+    assert_single_audit_row(&db, "error", "AuthGate", &request, "internal failure: membership check DB error");
 }
