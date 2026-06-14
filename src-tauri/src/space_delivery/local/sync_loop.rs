@@ -681,11 +681,21 @@ async fn run_sync_cycle(
 
                 // Apply remote changes to local DB (no backend_info for local delivery).
                 // HLC clock is advanced internally by apply_remote_changes_to_db.
-                let hlc_service = {
-                    let state: tauri::State<'_, crate::AppState> = app_handle.state();
-                    state.hlc.lock().ok().map(|guard| guard.clone())
-                };
-                apply_remote_changes_to_db(db, remote_changes, None, hlc_service.as_ref())
+                //
+                // Previous code locked HLC via `.lock().ok().map(...)` and
+                // tolerated `None` on poison — that path applies the
+                // remote changes WITHOUT advancing the local clock, so
+                // future local writes carry stale timestamps that lose
+                // merge conflicts on the next sync. `lock_or_fail`
+                // surfaces a banner-visible failure instead.
+                let state: tauri::State<'_, crate::AppState> = app_handle.state();
+                let hlc_service = state.lock_or_fail(
+                    &state.hlc,
+                    crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                    "space_delivery::local::sync_loop::run_sync_cycle::apply_remote",
+                    serde_json::json!({}),
+                )?;
+                apply_remote_changes_to_db(db, remote_changes, None, Some(&*hlc_service))
                     .map_err(|e| {
                         DeliveryError::Database {
                             reason: format!("Failed to apply remote changes: {}", e),

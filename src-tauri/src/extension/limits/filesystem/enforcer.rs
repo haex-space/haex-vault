@@ -1,6 +1,10 @@
 // src-tauri/src/extension/limits/filesystem/enforcer.rs
 //!
-//! Filesystem limit enforcement implementation
+//! Filesystem limit enforcement implementation.
+//!
+//! Locks in this module use `unwrap_or_else(|e| e.into_inner())` rather than
+//! `lock_or_fail` — see the SAFETY note in `extension::limits::shared` for
+//! why rate-limit counters are intentionally poison-tolerant.
 
 use crate::extension::limits::shared::ConcurrencyTracker;
 use crate::extension::limits::types::{FilesystemLimits, LimitError};
