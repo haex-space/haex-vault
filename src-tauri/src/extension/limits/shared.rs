@@ -1,3 +1,15 @@
+//! Rate-limit / concurrency primitives shared across extension enforcers.
+//!
+//! ## Mutex poisoning
+//!
+//! All `RwLock` accesses in this module and in `filesystem/enforcer.rs` /
+//! `web/enforcer.rs` use `unwrap_or_else(|e| e.into_inner())` rather than
+//! `lock_or_fail`. These locks guard *rate-limit counters*, not durable data.
+//! A poison means at worst a slightly incorrect count for one extension; the
+//! counter recovers on the next acquire/release cycle. Surfacing this as a
+//! critical-failure banner would mislead the user into restarting the vault
+//! to "fix" a non-issue.
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};

@@ -17,6 +17,7 @@ use crate::extension::permissions::types::SpaceAction;
 use crate::extension::utils::{
     emit_permission_prompt_if_needed, get_extension_table_prefix, resolve_extension_id,
 };
+use crate::critical::CriticalFailureCode;
 use crate::AppState;
 
 use serde::{Deserialize, Serialize};
@@ -129,9 +130,12 @@ pub async fn extension_space_assign(
         return Ok(0);
     }
 
-    let hlc_guard = state.hlc.lock().map_err(|_| ExtensionError::Database {
-        source: DatabaseError::MutexPoisoned { reason: "HLC lock poisoned".to_string() },
-    })?;
+    let hlc_guard = state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "extension::spaces::commands::extension_space_assign",
+        serde_json::json!({}),
+    )?;
 
     // Use the authenticated extension identity (resolved above via
     // `get_extension`), NOT the caller-provided `public_key` / `name`
@@ -206,9 +210,12 @@ pub async fn extension_space_unassign(
         return Ok(0);
     }
 
-    let hlc_guard = state.hlc.lock().map_err(|_| ExtensionError::Database {
-        source: DatabaseError::MutexPoisoned { reason: "HLC lock poisoned".to_string() },
-    })?;
+    let hlc_guard = state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "extension::spaces::commands::extension_space_unassign",
+        serde_json::json!({}),
+    )?;
 
     let mut total_deleted: u64 = 0;
     for assignment in &assignments {

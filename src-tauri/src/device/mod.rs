@@ -23,6 +23,7 @@ use serde_json::Value as JsonValue;
 use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 
+use crate::critical::CriticalFailureCode;
 use crate::AppState;
 use crate::database::core;
 use error::DeviceError;
@@ -236,9 +237,12 @@ pub async fn device_create_for_vault(
     let (secret_hex, endpoint_id) = generate_keypair();
     let row_id = uuid::Uuid::new_v4().to_string();
 
-    let hlc = state.hlc.lock().map_err(|_| DeviceError::Database {
-        reason: "HLC lock poisoned".to_string(),
-    })?;
+    let hlc = state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "device::device_create_for_vault",
+        serde_json::json!({}),
+    )?;
 
     core::execute_with_crdt(
         "INSERT INTO haex_devices \
@@ -313,9 +317,12 @@ pub async fn device_reclaim_existing(
         });
     }
 
-    let hlc = state.hlc.lock().map_err(|_| DeviceError::Database {
-        reason: "HLC lock poisoned".to_string(),
-    })?;
+    let hlc = state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "device::device_reclaim_existing",
+        serde_json::json!({}),
+    )?;
 
     // COALESCE keeps the existing column value whenever the caller passes
     // `None`. Avatars can be cleared explicitly with an empty string if needed.

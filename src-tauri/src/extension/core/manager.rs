@@ -142,6 +142,12 @@ impl ExtensionManager {
     }
 
     pub fn get_extension(&self, extension_id: &str) -> Option<Extension> {
+        // SAFETY: `available_extensions` is a read-mostly cache of installed
+        // extensions. Poison here means a previous panic occurred while the
+        // map was being modified (e.g. during install/uninstall); the worst
+        // case is a missing entry, which surfaces as "extension not found"
+        // at the API boundary — a recoverable, user-visible error, not a
+        // silent data-corruption risk. No CRDT or HLC involvement.
         let prod_extensions = self.available_extensions.lock().unwrap_or_else(|e| e.into_inner());
         prod_extensions.get(extension_id).cloned()
     }

@@ -47,3 +47,47 @@ impl From<MutexPoisonError> for crate::extension::error::ExtensionError {
         }
     }
 }
+
+/// Conversion for `DeliveryError` (space_delivery/local) — sites in
+/// `commands.rs`, `invite_tokens.rs`, `leader.rs`, `push_invite.rs`
+/// previously wrote `state.hlc.lock().map_err(|_| DeliveryError::Database
+/// { reason: ... })?` and now use `state.lock_or_fail(...)?`.
+impl From<MutexPoisonError> for crate::space_delivery::local::error::DeliveryError {
+    fn from(err: MutexPoisonError) -> Self {
+        Self::Database {
+            reason: err.to_string(),
+        }
+    }
+}
+
+/// Conversion for `DeviceError` (device/*) — `device::mod` HLC lock
+/// sites that previously mapped to `DeviceError::Database`.
+impl From<MutexPoisonError> for crate::device::error::DeviceError {
+    fn from(err: MutexPoisonError) -> Self {
+        Self::Database {
+            reason: err.to_string(),
+        }
+    }
+}
+
+/// Conversion for `StorageError` (remote_storage/*). Maps to the
+/// `Internal` variant rather than `DatabaseError`, matching the existing
+/// call-site convention in `remote_storage::commands` which treats
+/// HLC-lock failure as an internal-state error.
+impl From<MutexPoisonError> for crate::remote_storage::error::StorageError {
+    fn from(err: MutexPoisonError) -> Self {
+        Self::Internal {
+            reason: err.to_string(),
+        }
+    }
+}
+
+/// Conversion for `PeerStorageError` — `peer_storage::commands` HLC
+/// lock sites that previously mapped to `PeerStorageError::Database`.
+impl From<MutexPoisonError> for crate::peer_storage::error::PeerStorageError {
+    fn from(err: MutexPoisonError) -> Self {
+        Self::Database {
+            reason: err.to_string(),
+        }
+    }
+}

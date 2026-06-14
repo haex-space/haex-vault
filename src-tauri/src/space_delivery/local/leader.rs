@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
+use crate::critical::CriticalFailureCode;
 use crate::ucan::{require_audience, require_capability, validate_token, CapabilityLevel, ValidatedUcan};
 use crate::database::DbConnection;
 use super::buffer;
@@ -430,11 +431,17 @@ pub async fn handle_claim_invite(
     // `Send` bound required by `tokio::spawn` further up the call chain.
     let _ = public_key.as_ref();
     {
-        let hlc_guard = match state.hlc.lock() {
+        let app_state = state.app_handle.state::<crate::AppState>();
+        let hlc_guard = match app_state.lock_or_fail(
+            &state.hlc,
+            CriticalFailureCode::HlcMutexPoisoned,
+            "space_delivery::local::leader::handle_claim_invite::persist_new_member",
+            serde_json::json!({}),
+        ) {
             Ok(guard) => guard,
             Err(e) => {
                 return Response::Error {
-                    message: format!("Failed to persist new member: HLC lock error: {e}"),
+                    message: format!("Failed to persist new member: {e}"),
                 };
             }
         };
@@ -574,12 +581,15 @@ fn persist_admin_ucan(
         }
     };
 
-    let hlc_guard = match state.hlc.lock() {
+    let app_state = state.app_handle.state::<crate::AppState>();
+    let hlc_guard = match app_state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "space_delivery::local::leader::persist_admin_ucan",
+        serde_json::json!({}),
+    ) {
         Ok(g) => g,
-        Err(_) => {
-            eprintln!("[SpaceDelivery] persist_admin_ucan: HLC lock poisoned");
-            return;
-        }
+        Err(_) => return,
     };
 
     let ucan_id = uuid::Uuid::new_v4().to_string();
@@ -993,13 +1003,34 @@ pub(super) async fn handle_delivery_request(
                 .into_iter()
                 .collect();
 
-            // 3. Apply changes to DB (HLC clock is advanced internally)
-            let hlc_service = state.hlc.lock().ok().map(|guard| guard.clone());
+            // 3. Apply changes to DB (HLC clock is advanced internally).
+            //    Previous code locked HLC with `.lock().ok().map(...)` and
+            //    passed `None` on poison — that would apply remote changes
+            //    WITHOUT advancing the local clock, producing stale local
+            //    timestamps that lose merge conflicts on the next sync.
+            //    `lock_or_fail` propagates a banner-visible failure instead.
+            let app_state = state.app_handle.state::<crate::AppState>();
+            // Clone the HlcService out under the lock so the guard is
+            // dropped before the `.await` below — MutexGuard is `!Send`
+            // and would otherwise break the `tokio::spawn` Send bound.
+            let hlc_service = match app_state.lock_or_fail(
+                &state.hlc,
+                CriticalFailureCode::HlcMutexPoisoned,
+                "space_delivery::local::leader::handle_delivery_request::sync_push_apply",
+                serde_json::json!({}),
+            ) {
+                Ok(g) => g.clone(),
+                Err(e) => {
+                    return Response::Error {
+                        message: format!("Failed to lock HLC for SyncPush apply: {e}"),
+                    };
+                }
+            };
             if let Err(e) = apply_remote_changes_to_db(
                 &state.db,
                 remote_changes,
                 None,
-                hlc_service.as_ref(),
+                Some(&hlc_service),
             ) {
                 eprintln!("[SpaceDelivery] SyncPush: failed to apply changes: {e}");
                 return Response::Error {

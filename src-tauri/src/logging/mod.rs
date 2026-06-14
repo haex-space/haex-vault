@@ -282,9 +282,12 @@ pub fn insert_log(
         serde_json::Value::String(device_id.to_string()),
     ];
 
-    let hlc = state.hlc.lock().map_err(|_| crate::database::error::DatabaseError::ValidationError {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "logging::insert_log",
+        serde_json::json!({}),
+    )?;
 
     crate::database::core::execute_with_crdt(SQL_INSERT_LOG_FULL.clone(), params, &state.db, &hlc)?;
     Ok(())
@@ -471,9 +474,12 @@ fn get_retention_days(conn: &rusqlite::Connection, extension_id: Option<&str>) -
 pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::error::DatabaseError> {
     use serde_json::Value as JsonValue;
 
-    let hlc = state.hlc.lock().map_err(|_| crate::database::error::DatabaseError::ValidationError {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "logging::cleanup_logs",
+        serde_json::json!({}),
+    )?;
 
     // Read retention config using raw connection (read-only, no CRDT needed)
     let (global_cutoff_str, console_cutoff_str, custom_extensions) = crate::database::core::with_connection(&state.db, |conn| {

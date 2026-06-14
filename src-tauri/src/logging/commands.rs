@@ -67,9 +67,12 @@ pub fn log_delete(
         return Ok(0);
     }
 
-    let hlc = state.hlc.lock().map_err(|_| DatabaseError::ValidationError {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "logging::commands::log_delete",
+        serde_json::json!({}),
+    )?;
 
     let mut total_deleted = 0;
     for id in &ids {
@@ -90,9 +93,12 @@ pub fn log_delete(
 pub fn log_clear_all(
     state: State<'_, AppState>,
 ) -> Result<usize, DatabaseError> {
-    let hlc = state.hlc.lock().map_err(|_| DatabaseError::ValidationError {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "logging::commands::log_clear_all",
+        serde_json::json!({}),
+    )?;
 
     let ids: Vec<String> = with_connection(&state.db, |conn| {
         let sql = format!("SELECT id FROM {}", crate::table_names::TABLE_LOGS);

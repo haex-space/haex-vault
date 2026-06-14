@@ -21,6 +21,7 @@ use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{PasswordsAction, PasswordsScope};
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
+use crate::critical::CriticalFailureCode;
 use crate::AppState;
 
 use serde::{Deserialize, Serialize};
@@ -567,11 +568,14 @@ fn ensure_item_in_scope(
 fn lock_hlc<'a>(
     state: &'a State<'_, AppState>,
 ) -> Result<std::sync::MutexGuard<'a, crate::crdt::hlc::HlcService>, ExtensionError> {
-    state.hlc.lock().map_err(|_| ExtensionError::Database {
-        source: DatabaseError::MutexPoisoned {
-            reason: "HLC lock poisoned".to_string(),
-        },
-    })
+    state
+        .lock_or_fail(
+            &state.hlc,
+            CriticalFailureCode::HlcMutexPoisoned,
+            "passwords::commands::lock_hlc",
+            serde_json::json!({}),
+        )
+        .map_err(ExtensionError::from)
 }
 
 fn insert_item_row(
