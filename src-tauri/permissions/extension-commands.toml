@@ -240,6 +240,7 @@ commands.allow = [
   "critical_notifications_newest_unacked",
   "critical_notifications_acknowledge",
   "critical_notifications_cleanup",
+  "critical_app_restart",
 
   # MLS (group key management)
   "mls_init_tables",
