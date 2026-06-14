@@ -119,8 +119,13 @@ fn required_capability_matches_documented_mapping() {
     // refinement happens in `inbound_sync::authorize_inbound_sync_push`,
     // not at the gate; the gate only enforces "must be a member to push
     // at all" so read-only members can push their own
-    // membership / device / KeyPackage rows. See
-    // `Request::required_capability` doc-comment.
+    // membership / device / KeyPackage rows.
+    //
+    // All MLS-protocol variants live here too. UCAN capability classifies
+    // who can write *space content* (haex_peer_shares + file bytes); MLS
+    // membership is a separate domain and the MLS state machine itself
+    // enforces what each member may do inside the group. See
+    // `Request::required_capability` doc-comment for the full rationale.
     let read_variants: Vec<Request> = vec![
         Request::MlsFetchKeyPackage {
             space_id: space.into(),
@@ -135,6 +140,24 @@ fn required_capability_matches_documented_mapping() {
         },
         Request::MlsKeyPackageCount {
             space_id: space.into(),
+        },
+        Request::MlsUploadKeyPackages {
+            space_id: space.into(),
+            packages: vec![],
+        },
+        Request::MlsSendMessage {
+            space_id: space.into(),
+            message: "msg".into(),
+            message_type: "application".into(),
+        },
+        Request::MlsSendWelcome {
+            space_id: space.into(),
+            recipient_did: "did:key:abc".into(),
+            welcome: "welcome".into(),
+        },
+        Request::MlsAckCommit {
+            space_id: space.into(),
+            message_ids: vec![],
         },
         Request::SyncPull {
             space_id: space.into(),
@@ -164,27 +187,10 @@ fn required_capability_matches_documented_mapping() {
         );
     }
 
-    // Write-level operations
-    let write_variants: Vec<Request> = vec![
-        Request::MlsUploadKeyPackages {
-            space_id: space.into(),
-            packages: vec![],
-        },
-        Request::MlsSendMessage {
-            space_id: space.into(),
-            message: "msg".into(),
-            message_type: "application".into(),
-        },
-        Request::MlsSendWelcome {
-            space_id: space.into(),
-            recipient_did: "did:key:abc".into(),
-            welcome: "welcome".into(),
-        },
-        Request::MlsAckCommit {
-            space_id: space.into(),
-            message_ids: vec![],
-        },
-    ];
+    // No request variant currently floors at Write at the gate. Per-batch
+    // Write refinement for SyncPush happens downstream in
+    // `inbound_sync::authorize_inbound_sync_push`.
+    let write_variants: Vec<Request> = vec![];
     for req in &write_variants {
         assert_eq!(
             req.required_capability(),
