@@ -156,7 +156,7 @@ pub async fn extension_database_transaction(
         let hlc_service = state.lock_or_fail(
             &state.hlc,
             crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-            "extension::database::commands",
+            "extension::database::commands::extension_database_transaction",
             serde_json::json!({}),
         )?;
 

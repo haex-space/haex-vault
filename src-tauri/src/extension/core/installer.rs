@@ -219,7 +219,7 @@ impl ExtensionManager {
             let hlc_service_guard = state.lock_or_fail(
                 &state.hlc,
                 crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-                "extension::core::installer",
+                "extension::core::installer::register_extension_in_database",
                 serde_json::json!({}),
             )?;
             let hlc_service = hlc_service_guard.clone();
@@ -472,7 +472,7 @@ impl ExtensionManager {
             let hlc_service_guard = state.lock_or_fail(
                 &state.hlc,
                 crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-                "extension::core::installer",
+                "extension::core::installer::update_extension_version_in_database",
                 serde_json::json!({}),
             )?;
             let hlc_service = hlc_service_guard.clone();

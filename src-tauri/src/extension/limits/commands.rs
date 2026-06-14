@@ -157,7 +157,7 @@ pub fn update_extension_limits(
         let hlc_service = state.lock_or_fail(
             &state.hlc,
             crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-            "extension::limits::commands",
+            "extension::limits::commands::update_extension_limits",
             serde_json::json!({}),
         )?;
 
@@ -244,7 +244,7 @@ pub fn reset_extension_limits(
         let hlc_service = state.lock_or_fail(
             &state.hlc,
             crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-            "extension::limits::commands",
+            "extension::limits::commands::reset_extension_limits",
             serde_json::json!({}),
         )?;
 
