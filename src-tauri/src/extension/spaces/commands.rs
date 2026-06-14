@@ -136,6 +136,11 @@ pub async fn extension_space_assign(
         "extension::spaces::commands::extension_space_assign",
         serde_json::json!({}),
     )?;
+    // NB: this function is `pub async fn` but the loop below is fully
+    // synchronous — `hlc_guard` (a `MutexGuard<HlcService>`) is `!Send`,
+    // so a future `.await` added inside the for-body would silently break
+    // the `Send` bound required by the Tauri runtime. Keep the guard
+    // scope strictly synchronous.
 
     // Use the authenticated extension identity (resolved above via
     // `get_extension`), NOT the caller-provided `public_key` / `name`
@@ -216,6 +221,9 @@ pub async fn extension_space_unassign(
         "extension::spaces::commands::extension_space_unassign",
         serde_json::json!({}),
     )?;
+    // NB: `hlc_guard` is a `MutexGuard<HlcService>` (`!Send`). The loop
+    // body below is synchronous — adding an `.await` inside would break
+    // the `Send` bound required by the Tauri runtime.
 
     let mut total_deleted: u64 = 0;
     for assignment in &assignments {

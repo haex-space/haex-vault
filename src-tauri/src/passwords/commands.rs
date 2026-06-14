@@ -465,7 +465,7 @@ pub async fn extension_password_create(
     validate_tags_in_scope(&input.tags, &scope)?;
 
     let item_id = uuid::Uuid::new_v4().to_string();
-    let hlc = lock_hlc(&state)?;
+    let hlc = lock_hlc(&state, "passwords::commands::extension_password_create")?;
 
     insert_item_row(&state, &hlc, &item_id, &input)?;
     upsert_and_link_tags(&state, &hlc, &item_id, &input.tags)?;
@@ -503,7 +503,7 @@ pub async fn extension_password_update(
     ensure_item_in_scope(&state, &item_id, &scope)?;
     validate_tags_in_scope(&input.tags, &scope)?;
 
-    let hlc = lock_hlc(&state)?;
+    let hlc = lock_hlc(&state, "passwords::commands::extension_password_update")?;
 
     update_item_row(&state, &hlc, &item_id, &input)?;
 
@@ -565,14 +565,19 @@ fn ensure_item_in_scope(
     Ok(())
 }
 
+/// Per-callsite location string lets the banner UPSERT-dedup attribute the
+/// poison to a specific public command (`extension_password_create` vs
+/// `_update` vs `_delete`) instead of collapsing all three into the same
+/// row. Pass a unique `&'static str` from each caller.
 fn lock_hlc<'a>(
     state: &'a State<'_, AppState>,
+    location: &'static str,
 ) -> Result<std::sync::MutexGuard<'a, crate::crdt::hlc::HlcService>, ExtensionError> {
     state
         .lock_or_fail(
             &state.hlc,
             CriticalFailureCode::HlcMutexPoisoned,
-            "passwords::commands::lock_hlc",
+            location,
             serde_json::json!({}),
         )
         .map_err(ExtensionError::from)
@@ -821,7 +826,7 @@ pub async fn extension_password_delete(
 
     ensure_item_in_scope(&state, &item_id, &scope)?;
 
-    let hlc = lock_hlc(&state)?;
+    let hlc = lock_hlc(&state, "passwords::commands::extension_password_delete")?;
     execute_with_crdt(
         "DELETE FROM haex_passwords_item_details WHERE id = ?1".to_string(),
         vec![JsonValue::String(item_id)],

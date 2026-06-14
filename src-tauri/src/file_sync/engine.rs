@@ -1411,7 +1411,10 @@ async fn auto_disable_rule(
             &state.hlc,
             crate::critical::CriticalFailureCode::HlcMutexPoisoned,
             "file_sync::engine::auto_disable_rule",
-            serde_json::json!({}),
+            // Surface the failing rule_id in the banner row so an operator
+            // looking at `haex_critical_notifications_no_sync` can correlate
+            // the poison to a specific user-visible sync rule.
+            serde_json::json!({ "rule_id": rule_id }),
         ) {
             Ok(g) => g,
             Err(_) => return,

@@ -148,6 +148,15 @@ impl ExtensionManager {
         // case is a missing entry, which surfaces as "extension not found"
         // at the API boundary — a recoverable, user-visible error, not a
         // silent data-corruption risk. No CRDT or HLC involvement.
+        //
+        // Note the asymmetry vs. other methods on this struct: `add_extension`,
+        // `get_all_extensions`, etc. DO propagate the poison as
+        // `ExtensionError::MutexPoisoned`. We tolerate it here because the
+        // `Option<Extension>` return is already the documented "not found"
+        // signal — callers handle the None path. Other methods can't degrade
+        // that way because they need to mutate (add) or return a complete
+        // list, where a partial map yields wrong results, not a recoverable
+        // miss.
         let prod_extensions = self.available_extensions.lock().unwrap_or_else(|e| e.into_inner());
         prod_extensions.get(extension_id).cloned()
     }

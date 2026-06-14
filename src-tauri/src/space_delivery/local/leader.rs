@@ -1006,9 +1006,20 @@ pub(super) async fn handle_delivery_request(
             // 3. Apply changes to DB (HLC clock is advanced internally).
             //    Previous code locked HLC with `.lock().ok().map(...)` and
             //    passed `None` on poison — that would apply remote changes
-            //    WITHOUT advancing the local clock, producing stale local
-            //    timestamps that lose merge conflicts on the next sync.
+            //    WITHOUT advancing the LEADER-LOCAL HLC clock at all.
             //    `lock_or_fail` propagates a banner-visible failure instead.
+            //
+            //    NOTE: `state.hlc` here is the LeaderState's clone of
+            //    `HlcService` (see commands.rs::local_delivery_start —
+            //    `LeaderState { hlc: Arc::new(Mutex::new(hlc_clone)), ... }`).
+            //    `advance_past_remote` therefore only updates the leader's
+            //    local copy; the global `AppState.hlc` consumed by ordinary
+            //    Tauri commands is advanced separately through the per-pull
+            //    paths (see crdt::commands::apply_remote_changes_in_transaction
+            //    and sync_loop::run_sync_cycle, which both lock AppState.hlc
+            //    directly). This split is pre-existing architecture and is
+            //    why a poison on EITHER clock independently produces a
+            //    banner row at its own location.
             let app_state = state.app_handle.state::<crate::AppState>();
             // Clone the HlcService out under the lock so the guard is
             // dropped before the `.await` below — MutexGuard is `!Send`
