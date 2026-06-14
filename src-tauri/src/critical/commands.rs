@@ -7,7 +7,7 @@
 //!
 //! All three are no-ops when no vault is open (`state.critical_sink = None`).
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::critical::{sink::CriticalNotification, sink::SinkError};
 use crate::database::error::DatabaseError;
@@ -85,6 +85,26 @@ pub fn critical_notifications_cleanup(
         }
         None => Ok(0),
     }
+}
+
+/// Relaunch the Tauri application. Tied to the critical-failure flow
+/// because Critical-severity banner rows recommend a restart as their
+/// primary action; `app.restart()` is more reliable than asking the
+/// user to manually close and reopen (they may not realize an
+/// already-poisoned vault won't recover by itself).
+///
+/// Not gated on vault-open state — the banner can technically reach
+/// here on a vault-closed warning, and a restart from there is still
+/// the right action ("the locked-screen vault was left in a degraded
+/// state, restart to get a clean session").
+#[tauri::command]
+pub fn critical_app_restart(app: AppHandle) -> Result<(), DatabaseError> {
+    // `AppHandle::restart()` diverges (never returns) — it terminates
+    // the current process and relaunches the binary. The Result wrap is
+    // for symmetry with the other commands; in practice the frontend
+    // never sees a response because the JS context is gone before the
+    // IPC reply lands.
+    app.restart();
 }
 
 /// Flatten the sink's structured error into the existing `DatabaseError`

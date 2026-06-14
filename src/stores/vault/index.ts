@@ -219,6 +219,15 @@ export const useVaultStore = defineStore('vaultStore', () => {
       // Also clean up old log entries
       await invoke<number>('log_cleanup')
 
+      // Critical-failure notifications follow the same retention model
+      // (forensic trail acknowledged-and-old → deleted). See PR #433/#434
+      // for the design rationale (Q1: acknowledged rows persist for
+      // retention, banner respects acknowledged=0). Hardcoded 30-day
+      // retention on the Rust side (more generous than haex_logs' 14
+      // because the table is tiny and operators benefit from longer
+      // forensic visibility).
+      await invoke<number>('critical_notifications_cleanup')
+
       // Prune password binaries no longer referenced by any item or snapshot
       const { pruneOrphanedBinariesAsync } = await import('~/utils/passwords/binaries')
       await pruneOrphanedBinariesAsync()

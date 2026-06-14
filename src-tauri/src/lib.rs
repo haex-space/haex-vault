@@ -453,6 +453,7 @@ pub fn run() {
             critical::commands::critical_notifications_newest_unacked,
             critical::commands::critical_notifications_acknowledge,
             critical::commands::critical_notifications_cleanup,
+            critical::commands::critical_app_restart,
             crdt::commands::get_table_schema,
             crdt::commands::get_dirty_tables,
             crdt::commands::clear_dirty_table,
