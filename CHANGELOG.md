@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.7.0](https://github.com/haex-space/haex-vault/compare/v2.6.0...v2.7.0) (2026-06-14)
+
+
+### Features
+
+* **critical:** foundation for unified mutex-poison handling (Phase 2 PR A) ([#433](https://github.com/haex-space/haex-vault/issues/433)) ([4255bd7](https://github.com/haex-space/haex-vault/commit/4255bd7e0891830bf802cbc387840721aa405b4a))
+* **critical:** frontend banner + restart command (Phase 2 PR C) ([#437](https://github.com/haex-space/haex-vault/issues/437)) ([e7e9d27](https://github.com/haex-space/haex-vault/commit/e7e9d27e86d7cb42d89fc01b2ab6945b9ab1051d))
+* **critical:** migrate ~20 HLC lock sites to lock_or_fail (Phase 2 PR B2) ([#436](https://github.com/haex-space/haex-vault/issues/436)) ([434fee0](https://github.com/haex-space/haex-vault/commit/434fee093d3e55f245f9c313947ab11ce781ef52))
+* **critical:** migrate remaining HLC sites + fix silent degradation (Phase 2 PR B3) ([#438](https://github.com/haex-space/haex-vault/issues/438)) ([e848dac](https://github.com/haex-space/haex-vault/commit/e848dacd44c7dcd0e9d4fdd41a4416f1c30f2407))
+* **critical:** wire AppState + lifecycle + Tauri commands (Phase 2 PR B) ([#434](https://github.com/haex-space/haex-vault/issues/434)) ([f7b3ef9](https://github.com/haex-space/haex-vault/commit/f7b3ef995cc316833ee858812aff91330ab6677f))
+
+
+### Bug Fixes
+
+* **peer-storage:** surface QUIC connection errors in file browser ([#417](https://github.com/haex-space/haex-vault/issues/417)) ([61cbc2e](https://github.com/haex-space/haex-vault/commit/61cbc2e61d69b4ea17bfe943c85b8ca08d10c6b4))
+* **space_delivery:** classify MLS-protocol ops as Read at the AuthGate ([#435](https://github.com/haex-space/haex-vault/issues/435)) ([5f58347](https://github.com/haex-space/haex-vault/commit/5f583479086736c4d9a35fd90120bff6519538b9))
+* **space_delivery:** reject cached UCANs whose exp has elapsed ([#428](https://github.com/haex-space/haex-vault/issues/428)) ([7b5f34a](https://github.com/haex-space/haex-vault/commit/7b5f34a6a80f2b5974b88d85f07d1748fb7c0394))
+* **space_delivery:** restore haex_logs audit rows for AuthGate rejections ([#427](https://github.com/haex-space/haex-vault/issues/427)) ([f69aeea](https://github.com/haex-space/haex-vault/commit/f69aeea2d8b66d9fd14a53a1f40f33ba391a2413))
+
 ## [2.6.0](https://github.com/haex-space/haex-vault/compare/v2.5.0...v2.6.0) (2026-06-07)
 
 
