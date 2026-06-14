@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.6.0](https://github.com/haex-space/haex-vault/compare/v2.5.0...v2.6.0) (2026-06-07)
+
+
+### Features
+
+* **devices:** accordion per device in other-devices settings view ([#409](https://github.com/haex-space/haex-vault/issues/409)) ([7db7f9c](https://github.com/haex-space/haex-vault/commit/7db7f9cb8c85b26d99df26b090caed09981bbdbd))
+* **files:** show direct/relay connection type in peer status tooltip ([#410](https://github.com/haex-space/haex-vault/issues/410)) ([675dcda](https://github.com/haex-space/haex-vault/commit/675dcda73754ca61d6c11a612b2709861672a34c))
+* **marketplace:** multi-marketplace support (Phase 1 + Settings UI) ([#412](https://github.com/haex-space/haex-vault/issues/412)) ([90649b0](https://github.com/haex-space/haex-vault/commit/90649b07f619857d44c691a5f76e958740ad9d01))
+
+
+### Bug Fixes
+
+* **modal:** respect safe-area-inset for close button on mobile ([#408](https://github.com/haex-space/haex-vault/issues/408)) ([b53e134](https://github.com/haex-space/haex-vault/commit/b53e1345a1ef557813f0812a041ea609ce93dc61))
+* **space-publishing:** only list own devices in publishing dialog ([#407](https://github.com/haex-space/haex-vault/issues/407)) ([a50a85d](https://github.com/haex-space/haex-vault/commit/a50a85d4cddf3fb27d26b7e9f9c3c275d784333a))
+
 ## [2.5.0](https://github.com/haex-space/haex-vault/compare/v2.4.0...v2.5.0) (2026-06-04)
 
 
