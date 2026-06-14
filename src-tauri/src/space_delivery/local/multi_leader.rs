@@ -107,6 +107,7 @@ impl MultiSpaceLeaderHandler {
                     "Rejecting delivery connection from {remote_str}: own identity \
                      not configured (set_own_identity must run before start)"
                 ),
+                None,
             );
             conn.close(3u32.into(), b"no own identity");
             return;
@@ -135,6 +136,7 @@ impl MultiSpaceLeaderHandler {
                             "warn",
                             "MultiLeader",
                             &format!("DID-auth failed for {remote_str}: {e}"),
+                            None,
                         );
                         conn.close(2u32.into(), b"did-auth failed");
                         return;
@@ -148,6 +150,7 @@ impl MultiSpaceLeaderHandler {
                     "warn",
                     "MultiLeader",
                     &format!("Failed to open auth stream to {remote_str}: {e}"),
+                    None,
                 );
                 conn.close(2u32.into(), b"auth stream open failed");
                 return;
@@ -164,15 +167,17 @@ impl MultiSpaceLeaderHandler {
             "info",
             "MultiLeader",
             &format!("Connection accepted from {remote_str}"),
+            None,
         );
 
-        let verified_short: String = verified_did.chars().take(24).collect();
+        let verified_short = crate::logging::log_truncate(&verified_did, 24);
         crate::logging::log_to_db(
             &self.db,
             &self.hlc,
             "info",
             "MultiLeader",
             &format!("DID-auth ok: {remote_str} -> {verified_short}"),
+            None,
         );
 
         self.endpoint_dids
@@ -222,7 +227,7 @@ impl MultiSpaceLeaderHandler {
                             let msg = format!(
                                 "Stream {stream_index} error from {peer_endpoint_id}: {e}"
                             );
-                            crate::logging::log_to_db(&db, &hlc, "error", "MultiLeader", &msg);
+                            crate::logging::log_to_db(&db, &hlc, "error", "MultiLeader", &msg, None);
                         }
                     });
                 }
@@ -232,7 +237,7 @@ impl MultiSpaceLeaderHandler {
                         streams = stream_count,
                         secs = connection_start.elapsed().as_secs()
                     );
-                    crate::logging::log_to_db(&self.db, &self.hlc, "info", "MultiLeader", &msg);
+                    crate::logging::log_to_db(&self.db, &self.hlc, "info", "MultiLeader", &msg, None);
                     break;
                 }
                 Err(_) => {
@@ -245,7 +250,7 @@ impl MultiSpaceLeaderHandler {
                         idle_heartbeats,
                         MAX_IDLE_HEARTBEATS,
                     );
-                    crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg);
+                    crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg, None);
 
                     if idle_heartbeats >= MAX_IDLE_HEARTBEATS {
                         // Misbehaving client occupies a tokio task and spams
@@ -255,7 +260,7 @@ impl MultiSpaceLeaderHandler {
                             connection_start.elapsed().as_secs(),
                             idle_heartbeats,
                         );
-                        crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg);
+                        crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg, None);
                         conn.close(0u32.into(), b"idle timeout");
                         break;
                     }
@@ -342,7 +347,7 @@ async fn handle_stream(
             crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
                 "PushInvite received from {peer_endpoint_id} → space={} inviter={}",
                 &space_id[..8.min(space_id.len())], &inviter_did[..24.min(inviter_did.len())]
-            ));
+            ), None);
             push_invite::handle_push_invite(
                 db,
                 hlc,
@@ -369,20 +374,20 @@ async fn handle_stream(
             crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
                 "ClaimInvite received from {peer_endpoint_id} for space {}",
                 &space_id[..8.min(space_id.len())]
-            ));
+            ), None);
             let map = leaders.read().await;
             let active_spaces: Vec<String> = map.keys().map(|k| k[..8.min(k.len())].to_string()).collect();
             match map.get(space_id.as_str()) {
                 Some(leader) => {
                     crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
                         "Routing ClaimInvite to leader for space {}", &space_id[..8.min(space_id.len())]
-                    ));
+                    ), None);
                     super::leader::handle_claim_invite(leader, request, verified_did).await
                 }
                 None => {
                     crate::logging::log_to_db(db, hlc, "error", "MultiLeader", &format!(
                         "No leader active for space {} (active: {:?})", space_id, active_spaces
-                    ));
+                    ), None);
                     Response::Error {
                         message: format!("No leader active for space {space_id}"),
                     }

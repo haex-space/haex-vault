@@ -135,9 +135,12 @@ pub async fn register_bundle_migrations(
             let tx = conn.transaction().map_err(DatabaseError::from)?;
             let migration_id = uuid::Uuid::new_v4().to_string();
 
-            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::core::migrations",
+                serde_json::json!({}),
+            )?;
 
             let params: Vec<JsonValue> = vec![
                 JsonValue::String(migration_id),

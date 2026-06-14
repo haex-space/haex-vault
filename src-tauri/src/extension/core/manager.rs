@@ -142,6 +142,21 @@ impl ExtensionManager {
     }
 
     pub fn get_extension(&self, extension_id: &str) -> Option<Extension> {
+        // SAFETY: `available_extensions` is a read-mostly cache of installed
+        // extensions. Poison here means a previous panic occurred while the
+        // map was being modified (e.g. during install/uninstall); the worst
+        // case is a missing entry, which surfaces as "extension not found"
+        // at the API boundary — a recoverable, user-visible error, not a
+        // silent data-corruption risk. No CRDT or HLC involvement.
+        //
+        // Note the asymmetry vs. other methods on this struct: `add_extension`,
+        // `get_all_extensions`, etc. DO propagate the poison as
+        // `ExtensionError::MutexPoisoned`. We tolerate it here because the
+        // `Option<Extension>` return is already the documented "not found"
+        // signal — callers handle the None path. Other methods can't degrade
+        // that way because they need to mutate (add) or return a complete
+        // list, where a partial map yields wrong results, not a recoverable
+        // miss.
         let prod_extensions = self.available_extensions.lock().unwrap_or_else(|e| e.into_inner());
         prod_extensions.get(extension_id).cloned()
     }
@@ -235,9 +250,12 @@ impl ExtensionManager {
                 JsonValue::String(extension_id.to_string()),
             ];
 
-            let hlc_guard = state.hlc.lock().map_err(|e| ExtensionError::MutexPoisoned {
-                reason: format!("Failed to lock HLC: {}", e),
-            })?;
+            let hlc_guard = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::core::manager::update_display_mode",
+                serde_json::json!({}),
+            )?;
             execute_with_crdt(
                 SQL_UPDATE_EXTENSION_DISPLAY_MODE.clone(),
                 params,
@@ -264,9 +282,12 @@ impl ExtensionManager {
         with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::core::manager::set_enabled",
+                serde_json::json!({}),
+            )?;
 
             SqlExecutor::execute_internal_typed(
                 &tx,

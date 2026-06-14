@@ -72,9 +72,12 @@ pub fn sql_execute_with_crdt(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-    let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "database::sql_execute_with_crdt",
+        serde_json::json!({}),
+    )?;
     let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
     // Emit event to notify frontend that dirty tables may have changed
@@ -92,9 +95,12 @@ pub fn sql_query_with_crdt(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-    let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "database::sql_query_with_crdt",
+        serde_json::json!({}),
+    )?;
 
     let result = core::with_connection(&state.db, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
@@ -137,9 +143,12 @@ pub fn sql_with_crdt(
         Statement::Query(_) => core::select_with_crdt(sql, params, &state.db),
         // INSERT/UPDATE/DELETE: use execute_with_crdt (handles RETURNING via AST)
         Statement::Insert(_) | Statement::Update { .. } | Statement::Delete(_) => {
-            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "database::sql_with_crdt",
+                serde_json::json!({}),
+            )?;
 
             let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
@@ -553,9 +562,12 @@ fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(), DatabaseEr
     let (did, private_key_b64) = generate_default_identity_material();
     let id = uuid::Uuid::new_v4().to_string();
 
-    let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "database::ensure_default_identity",
+        serde_json::json!({}),
+    )?;
 
     // source='own' so downstream consumers (e.g. the Phase 2
     // haex_devices.owner_did join) can distinguish own identities from
@@ -734,6 +746,15 @@ fn create_encrypted_database_inner(
         migrations_applied
     );
 
+    // Step 3b: Open the critical-notification sink as soon as
+    // `haex_critical_notifications_no_sync` exists (i.e. after migrations
+    // ran). The sink has its own connection to the same SQLCipher file
+    // so subsequent `state.lock_or_fail` calls — including the ones in
+    // the seed-data steps below — can surface poison conditions to the
+    // user via the banner instead of dying silently.
+    open_critical_sink(&vault_path, key, state)?;
+    println!("[CREATE_DB] ✅ Critical-notification sink opened");
+
     // Step 4: Now initialize HLC and triggers (tables exist after migrations)
     println!("[CREATE_DB] Step 4: Initializing HLC and CRDT triggers...");
     initialize_session_post_migration(app_handle, state)?;
@@ -745,9 +766,12 @@ fn create_encrypted_database_inner(
     // so go through execute_with_crdt to attach HLC + column timestamps.
     println!("[CREATE_DB] Step 5: Seeding __core__ extension row...");
     {
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+        let hlc_service = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "database::create_encrypted_database_inner::seed_core",
+            serde_json::json!({}),
+        )?;
         core::execute_with_crdt(
             "INSERT OR IGNORE INTO haex_extensions \
              (id, public_key, name, version, signature, enabled, single_instance, display_mode, description) \
@@ -801,7 +825,29 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
     });
     println!("[CLOSE_DB] Runtime state cleared (sync loops, leaders, transfers)");
 
-    // 1. Close the database connection
+    // 1. Drop the critical-notification sink FIRST — its rusqlite
+    //    connection is held independently of `state.db`, so closing it
+    //    must not depend on the main DB mutex being healthy. Doing this
+    //    before the db.lock() at step 2 is the whole point of the
+    //    "separate connection" design: if `state.db.0` is poisoned (the
+    //    very scenario the sink exists to surface), the ?-propagation at
+    //    step 2 would otherwise return Err and leak the sink for the
+    //    process lifetime.
+    //
+    //    `unwrap_or_else(into_inner)` is correct here because this IS
+    //    the last layer of defense — there's no further mechanism to
+    //    surface a poisoned sink-slot mutex.
+    {
+        let mut sink_guard = state
+            .critical_sink
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        if sink_guard.take().is_some() {
+            println!("[CLOSE_DB] Critical-notification sink dropped");
+        }
+    }
+
+    // 2. Close the main database connection.
     {
         let mut db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
             reason: e.to_string(),
@@ -820,9 +866,12 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
 
     // 2. Reset HLC service
     {
-        let mut hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
-            reason: e.to_string(),
-        })?;
+        let mut hlc_guard = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "database::close_database",
+            serde_json::json!({}),
+        )?;
         *hlc_guard = HlcService::default();
         println!("[CLOSE_DB] HLC service reset");
     }
@@ -926,6 +975,30 @@ fn reject_if_vault_already_mounted(
     Ok(())
 }
 
+/// Open a `CriticalNotificationSink` against the just-mounted vault and
+/// install it into `state.critical_sink`. Called from both
+/// `create_encrypted_database_inner` (after migrations create the table)
+/// and `open_encrypted_database` (after the table is guaranteed-present
+/// by the migration check at startup). Failure to open is propagated as
+/// a `DatabaseError` so the surrounding vault-mount path can unwind via
+/// `close_database` — partial mount is worse than no mount.
+fn open_critical_sink(
+    vault_path: &str,
+    key: &str,
+    state: &State<'_, AppState>,
+) -> Result<(), DatabaseError> {
+    let sink = crate::critical::CriticalNotificationSink::open(Path::new(vault_path), key)
+        .map_err(|e| DatabaseError::DatabaseError {
+            reason: format!("Failed to open critical-notification sink: {e}"),
+        })?;
+    let mut sink_guard = state
+        .critical_sink
+        .lock()
+        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+    *sink_guard = Some(sink);
+    Ok(())
+}
+
 /// Drop any currently-held vault lock, releasing the OS advisory lock.
 /// Best-effort: a poisoned mutex here would only block future opens, which
 /// is preferable to panicking in shutdown / error-recovery paths.
@@ -1004,6 +1077,12 @@ pub fn open_encrypted_database(
         initialize_session(&app_handle, &vault_path, &key, &state)?;
         println!("[OPEN_DB] Checking for pending migrations...");
         crate::database::migrations::apply_core_migrations(app_handle.clone(), state.clone())?;
+        // Open the critical-notification sink right after migrations so
+        // `haex_critical_notifications_no_sync` exists. See the
+        // symmetric step in `create_encrypted_database_inner` for the
+        // rationale.
+        open_critical_sink(&vault_path, &key, &state)?;
+        println!("[OPEN_DB] ✅ Critical-notification sink opened");
         // Backfill a default own identity for vaults that predate the
         // seeding step in create_encrypted_database (idempotent — no-op
         // when one already exists).
@@ -1035,9 +1114,12 @@ fn initialize_session_post_migration(
         //    a clone of this HlcService inside the `current_hlc()` UDF closure,
         //    so we must mutate the existing instance rather than swapping it out
         //    — otherwise the UDF would keep looking at an uninitialized service.
-        let hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
-            reason: e.to_string(),
-        })?;
+        let hlc_guard = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "database::initialize_session_post_migration",
+            serde_json::json!({}),
+        )?;
         hlc_guard
             .initialize_in_place(conn, app_handle)
             .map_err(|e| DatabaseError::ExecutionError {
@@ -1095,9 +1177,12 @@ fn initialize_session(
     // 3. Initialize the HLC service *in place* on the AppState instance — the
     //    connection already holds a clone inside the `current_hlc()` UDF.
     {
-        let hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
-            reason: e.to_string(),
-        })?;
+        let hlc_guard = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "database::initialize_session",
+            serde_json::json!({}),
+        )?;
         hlc_guard
             .initialize_in_place(&conn, app_handle)
             .map_err(|e| DatabaseError::ExecutionError {

@@ -16,6 +16,21 @@
 //! The cache lives for the process lifetime — it is rebuilt on restart, but
 //! the per-rule sync state DB ensures the first sync after restart is the
 //! only slow one.
+//!
+//! ## Mutex poisoning
+//!
+//! HASH_CACHE locks use `unwrap_or_else(|e| e.into_inner())` rather than the
+//! `lock_or_fail` pattern used for HLC / SQL paths. Rationale:
+//! - The cache holds derived data only (SHA-256 of file content). Recomputing
+//!   on the next call is correct and cheap.
+//! - A poison here means a previous panic happened while a hash was being
+//!   inserted or read; the cache entry MAY be torn but the inserted value is
+//!   either correct or absent (we never partially update an entry — `insert`
+//!   replaces atomically once the lock is held). The worst-case is a missed
+//!   cache hit on the next scan.
+//! - No CRDT, no sync, no audit-log writes happen through this code path, so
+//!   there is nothing for the user to "restart to fix" — a banner row here
+//!   would be misleading. The cache continues to function correctly.
 
 use std::collections::HashMap;
 use std::fs::File;

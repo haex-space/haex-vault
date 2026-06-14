@@ -200,6 +200,33 @@ pub fn require_audience(
 }
 
 // ---------------------------------------------------------------------------
+// Layer 1.75: cached-UCAN expiry re-check
+// ---------------------------------------------------------------------------
+
+/// Re-check that a previously [`validate_token`]ed UCAN has not expired since
+/// it was cached.
+///
+/// `validate_token` enforces `exp` at decode time, but the cached
+/// [`ValidatedUcan`] stays in `ConnectedPeer::validated_ucan` for the lifetime
+/// of the QUIC connection. A long-lived session can therefore outlast its
+/// own UCAN. Callers that hold a cached `ValidatedUcan` should call this
+/// before trusting it.
+///
+/// Clock-skew semantics match `validate_token`: a system clock implausibly
+/// before UNIX epoch fails closed (`Err(Expired)`), never silently treated
+/// as `now = 0`.
+pub fn require_not_expired(validated: &ValidatedUcan) -> Result<(), UcanVerifyError> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| UcanVerifyError::Expired)?
+        .as_secs();
+    if now >= validated.expires_at {
+        return Err(UcanVerifyError::Expired);
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Layer 2: check capability matches operation
 // ---------------------------------------------------------------------------
 

@@ -205,7 +205,9 @@ pub fn execute_sql_with_context(
         });
     }
 
-    let mut statement = ast_vec.pop().unwrap();
+    let mut statement = ast_vec
+        .pop()
+        .expect("invariant: ast_vec.len() == 1 checked at the guard above");
 
     // If this is a SELECT statement, apply tombstone filter and execute
     if let Statement::Query(ref mut query) = statement {
@@ -343,9 +345,12 @@ pub fn execute_sql_with_context(
 
         // Use CRDT-aware execution for all extensions (dev and production)
         // Get HLC service reference
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+        let hlc_service = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "extension::database::helpers",
+            serde_json::json!({}),
+        )?;
 
         // Note: CRDT transformation (adding haex_hlc) is handled by
         // SqlExecutor::execute_internal_typed / query_internal_typed.

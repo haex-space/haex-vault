@@ -468,7 +468,7 @@ mod edge_case_tests {
                 json!(42),                                // number
                 json!("text"),                            // string
                 json!(true),                              // boolean
-                json!(3.14),                              // float
+                json!(2.5_f64),                           // float
                 json!(null),                              // null
                 json!({"nested": "object"}),              // object
                 json!(["array", "values"]),               // array

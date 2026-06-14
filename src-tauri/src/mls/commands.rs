@@ -6,6 +6,7 @@ use tauri::State;
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::mls::manager::MlsManager;
 use crate::mls::types::{MlsCommitBundle, MlsEpochKey, MlsExternalCommitResult, MlsGroupInfo, MlsIdentityInfo, MlsProcessedMessage};
+use crate::critical::CriticalFailureCode;
 use crate::AppState;
 
 fn with_mls_manager<T>(state: &State<'_, AppState>, f: impl FnOnce(&MlsManager) -> Result<T, String>) -> Result<T, String> {
@@ -81,7 +82,14 @@ pub fn mls_export_epoch_key(state: State<'_, AppState>, space_id: String) -> Res
     let epoch_key = with_mls_manager(&state, |mgr| mgr.derive_epoch_key(&space_id))?;
 
     // 2. Persist via CRDT (synced to all user devices)
-    let hlc = state.hlc.lock().map_err(|e| format!("Failed to lock HLC: {e}"))?;
+    let hlc = state
+        .lock_or_fail(
+            &state.hlc,
+            CriticalFailureCode::HlcMutexPoisoned,
+            "mls::commands::mls_export_epoch_key",
+            serde_json::json!({}),
+        )
+        .map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     let key_b64 = BASE64.encode(&epoch_key.key);
 

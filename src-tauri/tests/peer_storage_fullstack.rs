@@ -6,6 +6,12 @@
 //!
 //! Run: cargo test --test peer_storage_fullstack
 
+// Integration-test file: every fn is a test, `.unwrap()` is idiomatic for
+// failing assertions. The crate-level `#![cfg_attr(test, allow(...))]` in
+// `src/lib.rs` does not reach here because integration tests are their own
+// compilation unit — opt out explicitly.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::LazyLock;

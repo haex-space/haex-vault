@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
+use crate::critical::CriticalFailureCode;
 use crate::ucan::{require_audience, require_capability, validate_token, CapabilityLevel, ValidatedUcan};
 use crate::database::DbConnection;
 use super::buffer;
@@ -91,6 +92,15 @@ fn require_valid_ucan(ucan_token: &str, op: &str) -> Result<ValidatedUcan, Respo
 ///    cryptographically valid but every request is rejected here.
 ///
 /// Returns an Error response on any failure.
+///
+/// **Post-T6 usage.** After the unified `auth_gate` was wired in (T5) and
+/// the per-arm redundant checks were removed (T6), this helper has exactly
+/// one caller: the `Announce` arm. Announce is the gate's bypass —
+/// `auth_gate` returns `Ok(None)` for it because Announce is what
+/// *populates* the cached `ValidatedUcan` the gate reads on subsequent
+/// requests. So the same three concentric checks still need to run, just
+/// **here**, before the UCAN is cached. Every other request variant gets
+/// these checks from the gate.
 fn require_ucan_capability(
     validated: &ValidatedUcan,
     space_id: &str,
@@ -135,10 +145,12 @@ fn require_ucan_capability(
 
 // `check_space_membership` and `check_write_capability` have been removed.
 // They authorised peers by the DID they announced and a lookup against
-// `haex_ucan_tokens` — trusting an unauthenticated self-declaration. The
-// capability enforcement now happens via `require_valid_ucan` +
-// `require_ucan_capability` above, which verify the UCAN signature on
-// every request.
+// `haex_ucan_tokens` — trusting an unauthenticated self-declaration.
+// Capability enforcement now happens at the unified `auth_gate` for every
+// non-bypass request (see `super::auth_gate::authorize_request`); the
+// `require_valid_ucan` + `require_ucan_capability` helpers above are kept
+// only for the `Announce` bypass, which must validate and cache the UCAN
+// the gate later reads.
 
 /// Broadcast an MLS notification to all connected peers.
 async fn notify_all_mls(state: &LeaderState, space_id: &str, message_type: &str) {
@@ -401,6 +413,9 @@ pub async fn handle_claim_invite(
             connected_at: OffsetDateTime::now_utc()
                 .format(&time::format_description::well_known::Rfc3339)
                 .unwrap_or_default(),
+            // ClaimInvite issues the UCAN; the peer presents it on a
+            // subsequent Announce, which populates this cache.
+            validated_ucan: None,
         },
     );
 
@@ -416,11 +431,17 @@ pub async fn handle_claim_invite(
     // `Send` bound required by `tokio::spawn` further up the call chain.
     let _ = public_key.as_ref();
     {
-        let hlc_guard = match state.hlc.lock() {
+        let app_state = state.app_handle.state::<crate::AppState>();
+        let hlc_guard = match app_state.lock_or_fail(
+            &state.hlc,
+            CriticalFailureCode::HlcMutexPoisoned,
+            "space_delivery::local::leader::handle_claim_invite::persist_new_member",
+            serde_json::json!({}),
+        ) {
             Ok(guard) => guard,
             Err(e) => {
                 return Response::Error {
-                    message: format!("Failed to persist new member: HLC lock error: {e}"),
+                    message: format!("Failed to persist new member: {e}"),
                 };
             }
         };
@@ -560,12 +581,15 @@ fn persist_admin_ucan(
         }
     };
 
-    let hlc_guard = match state.hlc.lock() {
+    let app_state = state.app_handle.state::<crate::AppState>();
+    let hlc_guard = match app_state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "space_delivery::local::leader::persist_admin_ucan",
+        serde_json::json!({}),
+    ) {
         Ok(g) => g,
-        Err(_) => {
-            eprintln!("[SpaceDelivery] persist_admin_ucan: HLC lock poisoned");
-            return;
-        }
+        Err(_) => return,
     };
 
     let ucan_id = uuid::Uuid::new_v4().to_string();
@@ -608,6 +632,43 @@ pub(super) async fn handle_delivery_request(
     peer_endpoint_id: &str,
     verified_did: &str,
 ) -> Response {
+    // Unified auth choke point. Bypass requests (Announce, ClaimInvite,
+    // PushInvite) return `Ok(None)` and proceed unchanged; every other
+    // variant must come from a peer that already Announced on this
+    // connection, carry a UCAN whose audience matches the
+    // connection-authenticated DID, grant at least the per-request minimum
+    // capability, and still resolve to an active member.
+    //
+    // For non-bypass arms the gate's `ValidatedUcan` is the single source of
+    // UCAN truth — those arms read it via
+    // `gate_ucan.as_ref().expect("non-bypass <arm> must have ValidatedUcan from gate")`
+    // and **must not** re-validate the request's `ucan_token` field. The
+    // wire-format `ucan_token` is now redundant for non-bypass requests;
+    // removing it is left to a follow-up so this PR avoids a protocol break.
+    //
+    // Bypass arms (Announce, ClaimInvite, PushInvite) see `gate_ucan = None`
+    // and still run their own UCAN handling — Announce in particular must
+    // validate + cache the UCAN it just received before subsequent requests
+    // on this connection can pass the gate.
+    //
+    // Audit logging: the gate writes a `warn` row to `haex_logs` (via
+    // `log_to_db`, CRDT-synced to the owner) from every reject branch with
+    // `source = Request::op_name`, restoring the in-app log visibility the
+    // pre-T6 SyncPush / SyncPull arms used to emit directly.
+    let gate_ucan = match super::auth_gate::authorize_request(
+        &request,
+        verified_did,
+        peer_endpoint_id,
+        &state.connected_peers,
+        &state.db,
+        &state.hlc,
+    )
+    .await
+    {
+        Ok(maybe) => maybe,
+        Err(response) => return response,
+    };
+
     match request {
         Request::Announce {
             endpoint_id,
@@ -632,14 +693,34 @@ pub(super) async fn handle_delivery_request(
                     &did[..24.min(did.len())],
                     peer_endpoint_id,
                 ),
+                None,
             );
-            let validated = match require_valid_ucan(&ucan_token, "Announce") {
+            // Announce bootstraps the AuthGate cache, so its `ucan_token`
+            // must be present even though the wire field is now
+            // `Option<String>` (forward-compat shape for the other request
+            // variants; see protocol.rs for the rationale).
+            let ucan_token_str = match ucan_token.as_deref() {
+                Some(t) => t,
+                None => {
+                    crate::logging::log_to_db(
+                        &state.db, &state.hlc, "warn", "Announce",
+                        &format!("missing ucan_token: space={} did={}",
+                            &space_id[..8.min(space_id.len())], &did[..24.min(did.len())]),
+                        None,
+                    );
+                    return Response::Error {
+                        message: "Announce requires ucan_token".to_string(),
+                    };
+                }
+            };
+            let validated = match require_valid_ucan(ucan_token_str, "Announce") {
                 Ok(v) => v,
                 Err(r) => {
                     crate::logging::log_to_db(
                         &state.db, &state.hlc, "warn", "Announce",
                         &format!("UCAN validation failed: space={} did={}",
                             &space_id[..8.min(space_id.len())], &did[..24.min(did.len())]),
+                        None,
                     );
                     return r;
                 }
@@ -660,6 +741,7 @@ pub(super) async fn handle_delivery_request(
                     &format!("capability/membership rejected: space={} audience={}",
                         &space_id[..8.min(space_id.len())],
                         &validated.audience[..24.min(validated.audience.len())]),
+                    None,
                 );
                 return r;
             }
@@ -668,6 +750,7 @@ pub(super) async fn handle_delivery_request(
                 &format!("accepted: space={} audience={}",
                     &space_id[..8.min(space_id.len())],
                     &validated.audience[..24.min(validated.audience.len())]),
+                None,
             );
 
             let did_clone = did.clone();
@@ -686,6 +769,7 @@ pub(super) async fn handle_delivery_request(
                 connected_at: OffsetDateTime::now_utc()
                     .format(&time::format_description::well_known::Rfc3339)
                     .unwrap_or_default(),
+                validated_ucan: Some(validated.clone()),
             };
             state
                 .connected_peers
@@ -855,32 +939,18 @@ pub(super) async fn handle_delivery_request(
         Request::SyncPush {
             space_id,
             changes,
-            ucan_token,
+            // `ucan_token` is now dead on the wire for SyncPush — the gate
+            // authenticated this request against the cached UCAN from
+            // Announce. Keeping the destructure-ignore avoids a protocol
+            // break; a follow-up removes the field from `Request::SyncPush`.
+            ..
         } => {
-            // Authenticate first; everything that follows depends on the
-            // UCAN audience being trustworthy.
-            let validated = match require_valid_ucan(&ucan_token, "SyncPush") {
-                Ok(v) => v,
-                Err(r) => return r,
-            };
-
-            // Layer-0: UCAN audience must match the connection-bound DID.
-            // Without this gate a peer with a valid SyncPush capability for
-            // someone *else*'s DID (snooped or replayed UCAN) could push
-            // arbitrary CRDT rows attributed to that DID. Analog
-            // peer_storage::handle_stream Layer-1.25.
-            if let Err(e) = crate::ucan::require_audience(&validated, verified_did) {
-                crate::logging::log_to_db(
-                    &state.db, &state.hlc, "warn", "SyncPush",
-                    &format!("audience mismatch: space={} aud={} verified={}",
-                        &space_id[..8.min(space_id.len())],
-                        &validated.audience[..24.min(validated.audience.len())],
-                        &verified_did[..24.min(verified_did.len())]),
-                );
-                return Response::Error {
-                    message: format!("Access denied: {e}"),
-                };
-            }
+            // The gate proved this peer Announced, holds a valid UCAN whose
+            // audience matches `verified_did`, has at least SyncPush's
+            // capability for this space, and is still an active member.
+            let validated = gate_ucan
+                .as_ref()
+                .expect("non-bypass SyncPush must have ValidatedUcan from gate");
 
             // Parse changes JSON into Vec<LocalColumnChange>
             let local_changes: Vec<LocalColumnChange> = match serde_json::from_value(changes) {
@@ -902,7 +972,7 @@ pub(super) async fn handle_delivery_request(
                 &state.db,
                 &space_id,
                 peer_endpoint_id,
-                &validated,
+                validated,
                 local_changes,
             ) {
                 super::inbound_sync::InboundSyncPushOutcome::Accepted { changes } => changes,
@@ -933,13 +1003,45 @@ pub(super) async fn handle_delivery_request(
                 .into_iter()
                 .collect();
 
-            // 3. Apply changes to DB (HLC clock is advanced internally)
-            let hlc_service = state.hlc.lock().ok().map(|guard| guard.clone());
+            // 3. Apply changes to DB (HLC clock is advanced internally).
+            //    Previous code locked HLC with `.lock().ok().map(...)` and
+            //    passed `None` on poison — that would apply remote changes
+            //    WITHOUT advancing the LEADER-LOCAL HLC clock at all.
+            //    `lock_or_fail` propagates a banner-visible failure instead.
+            //
+            //    NOTE: `state.hlc` here is the LeaderState's clone of
+            //    `HlcService` (see commands.rs::local_delivery_start —
+            //    `LeaderState { hlc: Arc::new(Mutex::new(hlc_clone)), ... }`).
+            //    `advance_past_remote` therefore only updates the leader's
+            //    local copy; the global `AppState.hlc` consumed by ordinary
+            //    Tauri commands is advanced separately through the per-pull
+            //    paths (see crdt::commands::apply_remote_changes_in_transaction
+            //    and sync_loop::run_sync_cycle, which both lock AppState.hlc
+            //    directly). This split is pre-existing architecture and is
+            //    why a poison on EITHER clock independently produces a
+            //    banner row at its own location.
+            let app_state = state.app_handle.state::<crate::AppState>();
+            // Clone the HlcService out under the lock so the guard is
+            // dropped before the `.await` below — MutexGuard is `!Send`
+            // and would otherwise break the `tokio::spawn` Send bound.
+            let hlc_service = match app_state.lock_or_fail(
+                &state.hlc,
+                CriticalFailureCode::HlcMutexPoisoned,
+                "space_delivery::local::leader::handle_delivery_request::sync_push_apply",
+                serde_json::json!({}),
+            ) {
+                Ok(g) => g.clone(),
+                Err(e) => {
+                    return Response::Error {
+                        message: format!("Failed to lock HLC for SyncPush apply: {e}"),
+                    };
+                }
+            };
             if let Err(e) = apply_remote_changes_to_db(
                 &state.db,
                 remote_changes,
                 None,
-                hlc_service.as_ref(),
+                Some(&hlc_service),
             ) {
                 eprintln!("[SpaceDelivery] SyncPush: failed to apply changes: {e}");
                 return Response::Error {
@@ -986,40 +1088,17 @@ pub(super) async fn handle_delivery_request(
         Request::SyncPull {
             space_id,
             after_timestamp,
-            ucan_token,
+            // `ucan_token` is now redundant on the wire — the gate
+            // authenticated this request against the cached UCAN. Kept
+            // as `..` to avoid a protocol break this PR.
+            ..
         } => {
-            // Read capability is the minimum bar — any member (read / write /
-            // invite / admin) may pull. Non-members get no data at all.
-            let validated = match require_valid_ucan(&ucan_token, "SyncPull") {
-                Ok(v) => v,
-                Err(r) => {
-                    crate::logging::log_to_db(
-                        &state.db, &state.hlc, "warn", "SyncPull",
-                        &format!("UCAN validation failed: space={} peer={}",
-                            &space_id[..8.min(space_id.len())], peer_endpoint_id),
-                    );
-                    return r;
-                }
-            };
-            let peer_did = verified_did.to_string();
-            if let Err(r) = require_ucan_capability(
-                &validated,
-                &space_id,
-                CapabilityLevel::Read,
-                &peer_did,
-                "SyncPull",
-                &state.db,
-            ) {
-                crate::logging::log_to_db(
-                    &state.db, &state.hlc, "warn", "SyncPull",
-                    &format!("capability/membership rejected: space={} audience={} peer={}",
-                        &space_id[..8.min(space_id.len())],
-                        &validated.audience[..24.min(validated.audience.len())],
-                        peer_endpoint_id,
-                    ),
-                );
-                return r;
-            }
+            // The gate proved Read+ capability and active membership.
+            // `validated` is held only for the success-path audit log below
+            // (`audience=…`); no further auth decision is made here.
+            let validated = gate_ucan
+                .as_ref()
+                .expect("non-bypass SyncPull must have ValidatedUcan from gate");
 
             let device_id = "leader";
             // Origin filter is push-only (sync_loop). When *serving* a pull
@@ -1047,6 +1126,7 @@ pub(super) async fn handle_delivery_request(
                             after_timestamp.as_deref(),
                             by_table,
                         ),
+                        None,
                     );
                     match serde_json::to_value(&changes) {
                         Ok(json) => Response::SyncChanges { changes: json },
@@ -1064,6 +1144,7 @@ pub(super) async fn handle_delivery_request(
                         &state.db, &state.hlc, "error", "SyncPull",
                         &format!("scan failed: space={} err={}",
                             &space_id[..8.min(space_id.len())], e),
+                        None,
                     );
                     Response::Error {
                         message: format!("Failed to scan changes: {e}"),
@@ -1137,23 +1218,18 @@ pub(super) async fn handle_delivery_request(
 
         Request::RequestRejoin {
             space_id,
-            ucan_token,
+            // `ucan_token` is now redundant on the wire — the gate
+            // authenticated this request against the cached UCAN.
+            ..
         } => {
-            let validated = match require_valid_ucan(&ucan_token, "RequestRejoin") {
-                Ok(v) => v,
-                Err(r) => return r,
-            };
-            let peer_did = verified_did.to_string();
-            if let Err(r) = require_ucan_capability(
-                &validated,
-                &space_id,
-                CapabilityLevel::Read,
-                &peer_did,
-                "RequestRejoin",
-                &state.db,
-            ) {
-                return r;
-            }
+            // Gate-wire-up regression guard: this arm has no downstream
+            // consumer of `validated_ucan`, but we still assert the gate
+            // produced one so a future refactor that loses the dispatcher's
+            // gate call panics loudly here instead of silently leaking
+            // GroupInfo to unauthenticated peers.
+            let _ = gate_ucan
+                .as_ref()
+                .expect("non-bypass RequestRejoin must have ValidatedUcan from gate");
 
             // Export current GroupInfo with ratchet tree for External Commit
             match crate::mls::blocking::get_group_info(
@@ -1174,23 +1250,21 @@ pub(super) async fn handle_delivery_request(
         Request::SubmitExternalCommit {
             space_id,
             commit,
-            ucan_token,
+            // `ucan_token` is now redundant on the wire — the gate
+            // authenticated this request against the cached UCAN.
+            ..
         } => {
-            let validated = match require_valid_ucan(&ucan_token, "SubmitExternalCommit") {
-                Ok(v) => v,
-                Err(r) => return r,
-            };
+            // Gate-wire-up regression guard: this arm has no downstream
+            // consumer of `validated_ucan`, but we still assert the gate
+            // produced one so a future refactor that loses the dispatcher's
+            // gate call panics loudly here instead of silently storing an
+            // MLS commit attributed to an unauthenticated DID.
+            let _ = gate_ucan
+                .as_ref()
+                .expect("non-bypass SubmitExternalCommit must have ValidatedUcan from gate");
+            // `peer_did` is sourced from the connection-bound verified_did,
+            // not from the UCAN audience. The gate guarantees they're equal.
             let peer_did = verified_did.to_string();
-            if let Err(r) = require_ucan_capability(
-                &validated,
-                &space_id,
-                CapabilityLevel::Read,
-                &peer_did,
-                "SubmitExternalCommit",
-                &state.db,
-            ) {
-                return r;
-            }
 
             let commit_blob = match base64_decode(&commit) {
                 Ok(b) => b,
@@ -1290,15 +1364,26 @@ pub(super) async fn send_response(
 mod audience_check_tests {
     //! Regression guards for UCAN audience verification.
     //!
-    //! `require_ucan_capability` is the central gate for every authenticated
-    //! space-delivery request. Without an `aud == announced peer DID` check
-    //! it accepts UCANs issued to anyone as long as that anyone is still a
-    //! member — a replay window. These tests are static-source assertions:
-    //! the dispatcher requires `&mut LeaderState`, a tokio runtime, an
-    //! `iroh::Endpoint`, a populated `connected_peers` map, and a SQLite
-    //! schema with HLC triggers. Building all of that for a unit test costs
-    //! more than the linting checks below buy us. Behavioural coverage is
-    //! deferred to e2e in haex-e2e-tests.
+    //! Post-T6 reality: the unified `auth_gate::authorize_request` is the
+    //! central gate for every authenticated, non-bypass space-delivery
+    //! request. Its audience binding (`require_audience` against the
+    //! connection-bound DID) is covered by `auth_gate_tests`.
+    //!
+    //! What this module still pins is the **Announce bypass** path. Announce
+    //! cannot rely on the gate (the gate returns `Ok(None)` for it, because
+    //! Announce is what populates the cached UCAN the gate later reads), so
+    //! `require_ucan_capability` runs inline there. Without the `aud ==
+    //! announced peer DID` check inside the helper, a peer P could replay
+    //! another member's UCAN through its own QUIC channel and have it
+    //! cached — the gate would then trust the cached `validated_ucan` on
+    //! subsequent requests and the replay would pass. So the helper's
+    //! invariants matter exactly as much as before, just for one caller.
+    //!
+    //! These tests are static-source assertions because the dispatcher
+    //! requires `&mut LeaderState`, a tokio runtime, an `iroh::Endpoint`, a
+    //! populated `connected_peers` map, and a SQLite schema with HLC
+    //! triggers; building all of that costs more than the linting checks
+    //! buy us. Behavioural coverage is deferred to e2e in haex-e2e-tests.
     //!
     //! Unit coverage of the helper itself (`require_audience` accepts /
     //! rejects) lives in `ucan::verify::tests`.
@@ -1334,6 +1419,15 @@ mod audience_check_tests {
     /// Announce claimed", which is itself unsafe before the handshake binds
     /// the DID. After C7 every handler binds directly via
     /// `verified_did.to_string()`.
+    ///
+    /// **T6 update.** The pre-T6 invariant — "every UCAN-gated arm calls
+    /// `require_ucan_capability(…, peer_did, …)`" — is gone. Sync arms now
+    /// trust the unified `auth_gate` (which performs the same audience +
+    /// capability + active-membership checks once per request). Only the
+    /// Announce arm still calls the helper inline, because Announce is the
+    /// bypass that *populates* the cached UCAN the gate later reads from.
+    /// We keep the `verified_did.to_string()` guard below to pin that no
+    /// regression brings back `require_peer_did(state, peer_endpoint_id)`.
     #[test]
     fn every_require_ucan_capability_call_passes_a_peer_did() {
         let source = include_str!("leader.rs");
@@ -1341,18 +1435,6 @@ mod audience_check_tests {
             .split_once("#[cfg(test)]")
             .map(|(p, _)| p)
             .unwrap_or(source);
-
-        let total_calls = production.matches("require_ucan_capability(").count();
-        // The fn definition itself contains one occurrence; production
-        // call sites are the remainder.
-        let call_sites = total_calls.saturating_sub(1);
-
-        assert!(
-            call_sites >= 4,
-            "expected at least 4 call sites (Announce, SyncPull, \
-             RequestRejoin, SubmitExternalCommit); found {}",
-            call_sites
-        );
 
         // Every handler that needs a DID for capability/buffer keys/audit
         // logs now derives it from the connection-bound verified_did. The
@@ -1378,6 +1460,147 @@ mod audience_check_tests {
             "expected at least 4 `verified_did.to_string()` bindings inside \
              request handlers (covering MLS request envelope DIDs + the \
              three UCAN-audience-checked handlers); found {verified_bindings}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod auth_gate_wireup_tests {
+    //! Regression guards for the T5 wire-up: `handle_delivery_request` must
+    //! invoke `auth_gate::authorize_request` **before** the `match request`
+    //! dispatch, so every non-bypass request is authorised at one choke point.
+    //!
+    //! ## Deviation from the plan (Phase 4 Task 4.2)
+    //!
+    //! The plan prescribed a behavioural integration test
+    //! (`unannounced_mls_upload_is_rejected_at_dispatcher`) built against a
+    //! `build_test_leader_state("SPACE")` helper. We deviated and shipped the
+    //! three source-text assertions below instead. Rationale:
+    //!
+    //! - **Fixture cost is real.** `LeaderState` carries an `AppHandle`, an
+    //!   iroh `Endpoint`, an MLS provider, an HLC, a tokio runtime, plus a
+    //!   SQLite schema with HLC triggers. The existing
+    //!   `audience_check_tests` and `claim_invite_did_binding_tests` modules
+    //!   hit the same wall and resolved it the same way — source-text only.
+    //!   We follow that precedent.
+    //! - **Behavioural coverage already exists at the gate level.**
+    //!   `auth_gate_tests::rejects_request_without_prior_announce` (and
+    //!   sibling rejection-path tests) drive the gate against an in-memory
+    //!   DB. Those tests prove the gate works. The source-text assertions
+    //!   here prove the *wire-up*: the dispatcher actually calls the gate,
+    //!   and on `Err` it returns the response before reaching the match.
+    //! - **End-to-end coverage lives in `haex-e2e-tests`.** Real-network
+    //!   negative paths (un-announced peer, revoked member, etc.) run there.
+    //!
+    //! Net: gate behaviour is exercised against an in-memory DB;
+    //! dispatcher-to-gate wiring is pinned via static-source assertions;
+    //! the full path is covered e2e. The plan's `build_test_leader_state`
+    //! helper was not worth its weight given that triangulation.
+    //!
+    //! T6 has landed: the gate outcome is now `gate_ucan` (no prefix
+    //! underscore) and every non-bypass arm reads its `ValidatedUcan` from
+    //! the gate via `gate_ucan.as_ref().expect(...)`. SyncPush passes the
+    //! gate UCAN into `authorize_inbound_sync_push` for downstream origin
+    //! attribution; SyncPull keeps it for the success-path audit log;
+    //! RequestRejoin and SubmitExternalCommit bind it to `_gate_ucan`
+    //! solely so a future wire-up regression would panic loudly.
+
+    /// `handle_delivery_request` must call `auth_gate::authorize_request`
+    /// before the `match request` dispatch. Without this single choke point
+    /// the per-arm checks remain the only line of defence and the MLS-related
+    /// arms (which had no inline UCAN check pre-T5) stay un-gated.
+    #[test]
+    fn handle_delivery_request_invokes_gate_before_match() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        let fn_marker = "pub(super) async fn handle_delivery_request(";
+        let fn_start = production
+            .find(fn_marker)
+            .expect("handle_delivery_request must exist");
+        let body = &production[fn_start..];
+        let gate_call_pos = body
+            .find("auth_gate::authorize_request(")
+            .expect(
+                "handle_delivery_request must call auth_gate::authorize_request — \
+                 without this every per-arm check stays the only line of defence \
+                 and the MLS arms remain un-gated. See plan T5 §4.1.",
+            );
+        let match_pos = body
+            .find("match request {")
+            .expect("handle_delivery_request must contain `match request {`");
+
+        assert!(
+            gate_call_pos < match_pos,
+            "auth_gate::authorize_request must be invoked BEFORE the `match \
+             request` dispatch — gating after the match defeats the choke \
+             point. See plan T5 §4.1."
+        );
+    }
+
+    /// The gate-rejection arm in `handle_delivery_request` must `return` the
+    /// `Response::Error` it receives, never fall through to the match. The
+    /// `?` operator is impossible here because the fn returns `Response`,
+    /// not `Result`, so the explicit `return response` pattern is the only
+    /// safe shape.
+    #[test]
+    fn handle_delivery_request_returns_gate_rejection() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        let fn_marker = "pub(super) async fn handle_delivery_request(";
+        let fn_start = production
+            .find(fn_marker)
+            .expect("handle_delivery_request must exist");
+        let body = &production[fn_start..];
+        let gate_call = body
+            .find("auth_gate::authorize_request(")
+            .expect("gate call missing");
+        let match_pos = body.find("match request {").expect("match missing");
+        let between = &body[gate_call..match_pos];
+
+        assert!(
+            between.contains("Err(response) => return response"),
+            "expected gate-Err arm to be exactly \
+             `Err(response) => return response` so the dispatcher \
+             short-circuits before the match. A loose `return …(response)` \
+             could silently wrap, log, or mutate the rejection; we pin the \
+             exact shape. Found gate→match slice:\n{}",
+            &between[..between.len().min(200)]
+        );
+    }
+
+    /// Paranoid guard, **not load-bearing**: the compiler already catches
+    /// a rename of `LeaderState::connected_peers` or `LeaderState::db`
+    /// because the gate call-site in `handle_delivery_request` reads
+    /// `&state.connected_peers` / `&state.db` directly. This test only
+    /// matters for the narrow case where a future refactor introduces a
+    /// builder/getter that *re-exports the same identifier with different
+    /// semantics* — e.g. swapping the field for an `Arc<Mutex<…>>` wrapper
+    /// behind the same name. Three lines, zero runtime cost; kept for the
+    /// signal value to future readers.
+    #[test]
+    fn leader_state_exposes_fields_the_gate_consumes() {
+        let source = include_str!("leader.rs");
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map(|(p, _)| p)
+            .unwrap_or(source);
+
+        assert!(
+            production.contains("pub connected_peers: Arc<RwLock<HashMap<String, ConnectedPeer>>>"),
+            "LeaderState.connected_peers must remain the typed handle the \
+             gate reads from"
+        );
+        assert!(
+            production.contains("pub db: DbConnection"),
+            "LeaderState.db must remain the typed handle the gate reads from"
         );
     }
 }
