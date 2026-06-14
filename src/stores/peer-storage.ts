@@ -39,6 +39,12 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const acceptedInviteEndpoints = ref<Array<{ spaceId: string, endpointId: string }>>([])
 
   let stateEvents: OnceListener | null = null
+  // Guards against concurrent/duplicate starts. The endpoint can now be
+  // triggered from several places (mount-time gate, the deviceRowId watcher
+  // in vault.vue, the outbox processor, the post-close restart handler); two
+  // calls racing before `running` flips to true would otherwise both reach
+  // peer_storage_start and hit its EndpointAlreadyRunning assert.
+  let starting = false
 
   const refreshStatusAsync = async () => {
     try {
@@ -302,6 +308,18 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       )
     }
 
+    // Idempotent: a no-op when the endpoint is already up or a start is in
+    // flight, so the multiple autostart triggers can fire freely.
+    if (running.value || starting) return
+    starting = true
+    try {
+      await startEndpointAsync(deviceStore)
+    } finally {
+      starting = false
+    }
+  }
+
+  const startEndpointAsync = async (deviceStore: ReturnType<typeof useDeviceStore>) => {
     // Make sure the iroh endpoint runs with the device's persistent secret
     // key, not the ephemeral one PeerEndpoint::new_ephemeral created.
     await deviceStore.loadEndpointKeyAsync()
