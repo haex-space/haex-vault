@@ -99,12 +99,18 @@ pub fn critical_notifications_cleanup(
 /// state, restart to get a clean session").
 #[tauri::command]
 pub fn critical_app_restart(app: AppHandle) -> Result<(), DatabaseError> {
-    // `AppHandle::restart()` diverges (never returns) — it terminates
-    // the current process and relaunches the binary. The Result wrap is
-    // for symmetry with the other commands; in practice the frontend
-    // never sees a response because the JS context is gone before the
-    // IPC reply lands.
-    app.restart();
+    // `AppHandle::restart()` returns the never type `!` — it terminates
+    // the current process and relaunches the binary. The explicit
+    // `Ok(())` after it never runs, but spelling it out keeps the
+    // function shape obvious to readers and gives a clean compile
+    // error if `restart()` ever stops being `!` on a platform that
+    // can't restart in-process. The `#[allow]` silences the
+    // unreachable-code lint that would otherwise fire on the Ok line.
+    #[allow(unreachable_code)]
+    {
+        app.restart();
+        Ok(())
+    }
 }
 
 /// Flatten the sink's structured error into the existing `DatabaseError`

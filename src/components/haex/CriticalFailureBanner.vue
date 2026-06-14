@@ -70,30 +70,35 @@ const alertIcon = computed(() =>
               <p v-if="translated.action" class="text-sm opacity-90">
                 {{ translated.action }}
               </p>
-              <div class="flex gap-2 pt-1">
-                <UButton
-                  v-if="isCritical"
-                  :loading="acting"
-                  :disabled="acting"
-                  color="error"
-                  variant="solid"
-                  size="sm"
-                  @click="restartApp"
-                >
-                  {{ translated.actionLabel }}
-                </UButton>
-                <UButton
-                  :loading="acting && !isCritical"
-                  :disabled="acting"
-                  :color="isCritical ? 'neutral' : 'warning'"
-                  variant="soft"
-                  size="sm"
-                  @click="acknowledge"
-                >
-                  {{ isCritical ? $t('criticalFailures.dismissed') : translated.actionLabel }}
-                </UButton>
-              </div>
             </div>
+          </template>
+
+          <!-- Buttons live in UAlert's #actions slot rather than
+               #description so screenreaders announce them as the
+               distinct actions group (button1, button2) instead of
+               trailing description prose. -->
+          <template #actions>
+            <UButton
+              v-if="isCritical"
+              :loading="acting"
+              :disabled="acting"
+              color="error"
+              variant="solid"
+              size="sm"
+              @click="restartApp"
+            >
+              {{ translated.actionLabel }}
+            </UButton>
+            <UButton
+              :loading="acting && !isCritical"
+              :disabled="acting"
+              :color="isCritical ? 'neutral' : 'warning'"
+              variant="soft"
+              size="sm"
+              @click="acknowledge"
+            >
+              {{ isCritical ? $t('criticalFailures.dismissed') : translated.actionLabel }}
+            </UButton>
           </template>
         </UAlert>
       </div>

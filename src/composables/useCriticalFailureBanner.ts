@@ -148,7 +148,8 @@ export function useCriticalFailureBanner() {
    * missing translation gets caught in QA, not silent.
    */
   const severityForCode = (code: string): Severity => {
-    switch (code as CriticalFailureCode) {
+    const typed = code as CriticalFailureCode
+    switch (typed) {
       case 'HlcMutexPoisoned':
       case 'DbMutexPoisoned':
       case 'DbSchemaDrift':
@@ -156,8 +157,19 @@ export function useCriticalFailureBanner() {
       case 'AuditLogWriteFailed':
       case 'CrdtTransformFailed':
         return 'Warning'
-      default:
+      default: {
+        // Exhaustiveness check: if Rust adds a new CriticalFailureCode
+        // variant, TypeScript's narrowing turns `typed` into `never` here
+        // — assigning it to `_unreachable: never` triggers a build error
+        // forcing the maintainer to add the new case + i18n keys above.
+        // The unsafe fallback to 'Critical' only runs at runtime if the
+        // backend ever sends a code that's not in the ts-rs binding (e.g.
+        // schema drift between a stale frontend bundle and a newer
+        // backend) — visible-but-safe fallback.
+        const _unreachable: never = typed
+        console.warn('[CriticalBanner] unknown code from backend:', _unreachable)
         return 'Critical'
+      }
     }
   }
 
@@ -181,12 +193,12 @@ export function useCriticalFailureBanner() {
       actionLabel: hasTranslation
         ? t(`${base}.actionLabel`)
         : t('criticalFailures.dismissed'),
-      // `count` from the backend is `bigint` (i64) — coerce to number for
-      // display. Critical-notification counts realistically never exceed
-      // 2^53 (would need a sustained poison-event-per-microsecond rate).
+      // `count` is `bigint` (i64 from Rust). Render via .toString()
+      // so we never lose precision — Number(bigint) silently truncates
+      // above 2^53. vue-i18n accepts strings for the {count} param.
       countSuffix:
-        row.count > 1
-          ? t('criticalFailures.countSuffix', { count: Number(row.count) })
+        row.count > 1n
+          ? t('criticalFailures.countSuffix', { count: row.count.toString() })
           : '',
     }
   })
@@ -235,19 +247,37 @@ export function useCriticalFailureBanner() {
    * launch (which would be misleading — the user already responded).
    */
   const restartApp = async () => {
+    // Race guard: poll could have cleared `current` (e.g. row TTL'd
+    // out, or another tab acked it) between the button becoming
+    // visible and the click landing. Without this short-circuit we'd
+    // call acknowledge with id='' (no-op in Rust, 0 rows) and then
+    // restart the app for no reason.
+    const row = current.value
+    if (!row) return
     acting.value = true
     try {
-      await invoke<number>('critical_notifications_acknowledge', {
-        id: current.value?.id ?? '',
-      })
+      await invoke<number>('critical_notifications_acknowledge', { id: row.id })
       await invoke('critical_app_restart')
     } catch (err) {
       console.error('[CriticalBanner] restart failed:', err)
+      // The row is already acked in the DB at this point (acknowledge
+      // ran successfully before restart). Clear the local copy so the
+      // banner hides immediately rather than re-arming for another
+      // restart click during the next 5s poll window.
+      current.value = null
       acting.value = false
     }
   }
 
   // Polling lifecycle — start on mount, stop on unmount.
+  //
+  // Polling continues whether or not a vault is open: the backend
+  // short-circuits with Ok(None) when state.critical_sink is None, so
+  // each "vault-closed" tick is one cheap IPC roundtrip + one sink-
+  // slot mutex check. On mobile/battery-constrained devices this is
+  // measurable over hours; gating on the vault-open store state is a
+  // pure win but adds a cross-store dependency. Deferring that as a
+  // follow-up — first ship the banner, measure, then optimise.
   const POLL_INTERVAL_MS = 5_000
   onMounted(() => {
     void refresh()
