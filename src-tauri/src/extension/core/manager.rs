@@ -235,9 +235,12 @@ impl ExtensionManager {
                 JsonValue::String(extension_id.to_string()),
             ];
 
-            let hlc_guard = state.hlc.lock().map_err(|e| ExtensionError::MutexPoisoned {
-                reason: format!("Failed to lock HLC: {}", e),
-            })?;
+            let hlc_guard = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::core::manager::update_display_mode",
+                serde_json::json!({}),
+            )?;
             execute_with_crdt(
                 SQL_UPDATE_EXTENSION_DISPLAY_MODE.clone(),
                 params,
@@ -264,9 +267,12 @@ impl ExtensionManager {
         with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::core::manager::set_enabled",
+                serde_json::json!({}),
+            )?;
 
             SqlExecutor::execute_internal_typed(
                 &tx,

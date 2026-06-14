@@ -72,9 +72,12 @@ pub fn sql_execute_with_crdt(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-    let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "database::sql_execute_with_crdt",
+        serde_json::json!({}),
+    )?;
     let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
     // Emit event to notify frontend that dirty tables may have changed
@@ -92,9 +95,12 @@ pub fn sql_query_with_crdt(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-    let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "database::sql_query_with_crdt",
+        serde_json::json!({}),
+    )?;
 
     let result = core::with_connection(&state.db, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
@@ -137,9 +143,12 @@ pub fn sql_with_crdt(
         Statement::Query(_) => core::select_with_crdt(sql, params, &state.db),
         // INSERT/UPDATE/DELETE: use execute_with_crdt (handles RETURNING via AST)
         Statement::Insert(_) | Statement::Update { .. } | Statement::Delete(_) => {
-            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "database::sql_with_crdt",
+                serde_json::json!({}),
+            )?;
 
             let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
@@ -553,9 +562,12 @@ fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(), DatabaseEr
     let (did, private_key_b64) = generate_default_identity_material();
     let id = uuid::Uuid::new_v4().to_string();
 
-    let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "database::ensure_default_identity",
+        serde_json::json!({}),
+    )?;
 
     // source='own' so downstream consumers (e.g. the Phase 2
     // haex_devices.owner_did join) can distinguish own identities from
@@ -754,9 +766,12 @@ fn create_encrypted_database_inner(
     // so go through execute_with_crdt to attach HLC + column timestamps.
     println!("[CREATE_DB] Step 5: Seeding __core__ extension row...");
     {
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+        let hlc_service = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "database::create_encrypted_database_inner::seed_core",
+            serde_json::json!({}),
+        )?;
         core::execute_with_crdt(
             "INSERT OR IGNORE INTO haex_extensions \
              (id, public_key, name, version, signature, enabled, single_instance, display_mode, description) \
