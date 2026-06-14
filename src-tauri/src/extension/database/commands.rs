@@ -153,9 +153,12 @@ pub async fn extension_database_transaction(
     let total_affected = with_connection(&state.db, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+        let hlc_service = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "extension::database::commands",
+            serde_json::json!({}),
+        )?;
 
         let mut total = 0usize;
         for (sql, params) in &statements {
@@ -409,9 +412,12 @@ pub async fn extension_database_register_migrations(
             let tx = conn.transaction().map_err(DatabaseError::from)?;
             let migration_id = uuid::Uuid::new_v4().to_string();
 
-            let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::database::commands::register_migrations",
+                serde_json::json!({}),
+            )?;
 
             let params: Vec<JsonValue> = vec![
                 JsonValue::String(migration_id),

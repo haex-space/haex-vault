@@ -154,9 +154,12 @@ pub fn update_extension_limits(
     with_connection(&state.db, |conn| {
         let tx = conn.transaction()?;
 
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+        let hlc_service = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "extension::limits::commands",
+            serde_json::json!({}),
+        )?;
 
         // Check if record exists
         let exists: bool = tx
@@ -238,9 +241,12 @@ pub fn reset_extension_limits(
     with_connection(&state.db, |conn| {
         let tx = conn.transaction()?;
 
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+        let hlc_service = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "extension::limits::commands",
+            serde_json::json!({}),
+        )?;
 
         // Hard-delete the existing record. The BEFORE-DELETE trigger logs it to haex_deleted_rows.
         let sql = "DELETE FROM haex_extension_limits WHERE extension_id = ?";

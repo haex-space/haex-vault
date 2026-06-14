@@ -216,9 +216,12 @@ impl ExtensionManager {
         let actual_id = with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-            let hlc_service_guard = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service_guard = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::core::installer",
+                serde_json::json!({}),
+            )?;
             let hlc_service = hlc_service_guard.clone();
             drop(hlc_service_guard);
 
@@ -466,9 +469,12 @@ impl ExtensionManager {
         with_connection(&state.db, |conn| {
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-            let hlc_service_guard = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service_guard = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::core::installer",
+                serde_json::json!({}),
+            )?;
             let hlc_service = hlc_service_guard.clone();
             drop(hlc_service_guard);
 
