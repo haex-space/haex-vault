@@ -1,5 +1,6 @@
 //! Shared types for local space delivery.
 
+use crate::ucan::ValidatedUcan;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -13,6 +14,16 @@ pub struct ConnectedPeer {
     pub label: Option<String>,
     pub claims: Vec<PeerClaim>,
     pub connected_at: String,
+    /// UCAN presented at Announce. The future AuthGate uses this to
+    /// authorise every subsequent request on this connection without
+    /// requiring a per-request UCAN in the wire format. Refresh via
+    /// a fresh Announce on the same connection.
+    ///
+    /// `Option` only to satisfy `Deserialize` / `TS` (frontend never sees this);
+    /// is always `Some` after a successful Announce.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub validated_ucan: Option<ValidatedUcan>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -79,3 +90,7 @@ pub struct ClaimInviteResult {
     pub space_id: String,
     pub capability: String,
 }
+
+#[cfg(test)]
+#[path = "types_tests.rs"]
+mod tests;

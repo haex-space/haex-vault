@@ -1142,7 +1142,7 @@ async fn handle_connection(
         }
     };
 
-    let verified_short: String = verified_did.chars().take(24).collect();
+    let verified_short = crate::logging::log_truncate(&verified_did, 24);
     eprintln!("[PeerStorage] DID-auth ok: {remote} -> {verified_short}");
 
     // -- Phase 1.5: defense in depth — cross-check the crypto-verified DID
@@ -1161,7 +1161,7 @@ async fn handle_connection(
                 // happy path — DB and crypto agree
             }
             Some(expected) => {
-                let expected_short: String = expected.chars().take(24).collect();
+                let expected_short = crate::logging::log_truncate(expected, 24);
                 eprintln!(
                     "[PeerStorage] Closing connection to {remote}: verified DID does not match \
                      haex_devices.owner_did (verified={verified_short} db={expected_short})"

@@ -50,6 +50,13 @@
       "when": 1780300000000,
       "tag": "0006_add_marketplaces",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1781442000000,
+      "tag": "0007_add_critical_notifications",
+      "breakpoints": true
     }
   ]
 }

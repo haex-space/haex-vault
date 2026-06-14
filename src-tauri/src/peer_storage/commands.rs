@@ -1,4 +1,13 @@
 //! Tauri commands for peer storage
+//!
+//! ## Mutex poisoning in `last_emit` throttle locks
+//!
+//! The per-download progress callbacks (around lines 520-650 / 640-770) use
+//! `Mutex<Instant>` locks with `unwrap_or_else(|e| e.into_inner())`. These
+//! are throttling timestamps — a poison means at worst one extra progress
+//! event slips through before throttling resumes. No data is at risk and no
+//! CRDT path is involved, so a critical-failure banner would be misleading.
+//! The HLC lock at the top of `peer_storage_start` DOES use `lock_or_fail`.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -6,6 +15,7 @@ use std::sync::Arc;
 use tauri::{Manager, State};
 use tauri::ipc::Channel;
 
+use crate::critical::CriticalFailureCode;
 use crate::AppState;
 use crate::database::DbConnection;
 use crate::peer_storage::endpoint::is_content_uri;
@@ -169,8 +179,12 @@ fn load_peer_owner_dids(
     let mut map: HashMap<String, String> = HashMap::new();
     for (endpoint_id, dids) in candidates {
         if dids.len() == 1 {
-            // Safe to use .next().unwrap() — len == 1 guarantees one element.
-            map.insert(endpoint_id, dids.into_iter().next().unwrap());
+            map.insert(
+                endpoint_id,
+                dids.into_iter()
+                    .next()
+                    .expect("invariant: dids.len() == 1 checked above"),
+            );
         } else {
             // Multiple distinct owner_dids for the same endpoint_id: cannot
             // pick a side safely. Drop permanently so handle_connection
@@ -314,7 +328,14 @@ pub async fn peer_storage_start(
         let has_handler = endpoint.state.read().await.delivery_handler.is_some();
         if !has_handler {
             let db_conn = DbConnection(state.db.0.clone());
-            let hlc_clone = state.hlc.lock().map_err(|_| PeerStorageError::EndpointNotRunning)?.clone();
+            let hlc_clone = state
+                .lock_or_fail(
+                    &state.hlc,
+                    CriticalFailureCode::HlcMutexPoisoned,
+                    "peer_storage::commands::peer_storage_start",
+                    serde_json::json!({}),
+                )?
+                .clone();
             let handler = std::sync::Arc::new(
                 crate::space_delivery::local::multi_leader::MultiSpaceLeaderHandler {
                     leaders: state.leader_state.clone(),

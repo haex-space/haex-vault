@@ -5,6 +5,10 @@
 //!
 //! Run: cargo test --test mls_lifecycle
 
+// Integration-test file — opt out of unwrap/expect lints (see
+// peer_storage_fullstack.rs for the rationale).
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
@@ -563,7 +567,7 @@ mod protocol_tests {
     fn request_rejoin_serialization_roundtrip() {
         let req = Request::RequestRejoin {
             space_id: "space-123".to_string(),
-            ucan_token: "eyJ0eXAiOiJKV1Q...".to_string(),
+            ucan_token: Some("eyJ0eXAiOiJKV1Q...".to_string()),
         };
 
         let bytes = serde_json::to_vec(&req).unwrap();
@@ -572,7 +576,7 @@ mod protocol_tests {
         match deserialized {
             Request::RequestRejoin { space_id, ucan_token } => {
                 assert_eq!(space_id, "space-123");
-                assert_eq!(ucan_token, "eyJ0eXAiOiJKV1Q...");
+                assert_eq!(ucan_token.as_deref(), Some("eyJ0eXAiOiJKV1Q..."));
             }
             _ => panic!("Expected RequestRejoin"),
         }
@@ -583,7 +587,7 @@ mod protocol_tests {
         let req = Request::SubmitExternalCommit {
             space_id: "space-456".to_string(),
             commit: "base64-commit-data".to_string(),
-            ucan_token: "token".to_string(),
+            ucan_token: Some("token".to_string()),
         };
 
         let bytes = serde_json::to_vec(&req).unwrap();
@@ -593,7 +597,7 @@ mod protocol_tests {
             Request::SubmitExternalCommit { space_id, commit, ucan_token } => {
                 assert_eq!(space_id, "space-456");
                 assert_eq!(commit, "base64-commit-data");
-                assert_eq!(ucan_token, "token");
+                assert_eq!(ucan_token.as_deref(), Some("token"));
             }
             _ => panic!("Expected SubmitExternalCommit"),
         }

@@ -1,6 +1,19 @@
 //! Sync engine — orchestration, execution, and periodic loop.
 //!
 //! Ties together providers, diff computation, and database state tracking.
+//!
+//! ## Mutex poisoning in progress-tracking locks
+//!
+//! Many `Mutex`/`RwLock` accesses in this file (`speed_tracker`,
+//! `file_progress`, `byte_progress`, `last_emit` timestamps) use
+//! `unwrap_or_else(|e| e.into_inner())`. These guard *UI progress state* —
+//! transient counters and timestamps used to feed the sync-status emitter.
+//! A poison there results in a momentarily wrong byte counter; the next
+//! `add()` overwrites with fresh data. There is no durable state behind
+//! these locks and no CRDT involvement, so a banner row would be misleading.
+//!
+//! HLC and DB-mutating paths in this file (e.g. `update_last_synced_at`,
+//! `auto_disable_rule`) DO use `lock_or_fail` and surface a banner row.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{
@@ -244,8 +257,16 @@ impl SpeedTracker {
         if self.samples.len() < 2 {
             return 0;
         }
-        let oldest = self.samples.front().unwrap().0;
-        let newest = self.samples.back().unwrap().0;
+        let oldest = self
+            .samples
+            .front()
+            .expect("invariant: samples.len() >= 2 checked above")
+            .0;
+        let newest = self
+            .samples
+            .back()
+            .expect("invariant: samples.len() >= 2 checked above")
+            .0;
         let elapsed = newest.duration_since(oldest).as_secs_f64();
         let total: u64 = self.samples.iter().map(|(_, b)| b).sum();
         if elapsed < 0.05 {
@@ -565,7 +586,10 @@ pub async fn execute_sync(
             let cancel_task = cancel.clone();
 
             join_set.spawn(async move {
-                let _permit = sem.acquire().await.unwrap();
+                let _permit = sem
+                    .acquire()
+                    .await
+                    .expect("invariant: semaphore is never closed in this engine");
                 // Drop the task without doing any I/O if the rule was
                 // cancelled while this task was queued behind the semaphore.
                 if let Some(ref t) = cancel_task {
@@ -751,7 +775,10 @@ pub async fn execute_sync(
             let cancel_task = cancel.clone();
 
             join_set.spawn(async move {
-                let _permit = sem.acquire().await.unwrap();
+                let _permit = sem
+                    .acquire()
+                    .await
+                    .expect("invariant: semaphore is never closed in this engine");
                 if let Some(ref t) = cancel_task {
                     if t.is_cancelled() {
                         return;
@@ -1157,7 +1184,22 @@ fn make_conflict_path(relative_path: &str, timestamp: i64) -> String {
 fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
     use tauri::Manager;
     let state = app.state::<crate::AppState>();
-    let hlc = state.hlc.lock().unwrap();
+    // Phase 2: route HLC poison through `AppState::lock_or_fail` so the
+    // user sees a banner via `haex_critical_notifications_no_sync`
+    // instead of a silent skip + stderr-only log. Function returns ()
+    // so we can't propagate the Err — but the banner row is persisted
+    // regardless, and skipping the last-synced-at update is the
+    // correct fallback (the alternative would be writing a CRDT row
+    // with a corrupted HLC).
+    let hlc = match state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "file_sync::engine::update_last_synced_at",
+        serde_json::json!({"rule_id": rule_id}),
+    ) {
+        Ok(g) => g,
+        Err(_) => return,
+    };
     let now = unix_now();
 
     let sql = "UPDATE haex_sync_rules SET last_synced_at = ?1 WHERE id = ?2".to_string();
@@ -1365,15 +1407,17 @@ async fn auto_disable_rule(
     use tauri::{Emitter, Manager};
     let state = app.state::<crate::AppState>();
     {
-        let hlc = match state.hlc.lock() {
+        let hlc = match state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "file_sync::engine::auto_disable_rule",
+            // Surface the failing rule_id in the banner row so an operator
+            // looking at `haex_critical_notifications_no_sync` can correlate
+            // the poison to a specific user-visible sync rule.
+            serde_json::json!({ "rule_id": rule_id }),
+        ) {
             Ok(g) => g,
-            Err(_) => {
-                eprintln!(
-                    "[FileSyncEngine] Rule {} auto-pause failed: HLC lock poisoned",
-                    rule_id
-                );
-                return;
-            }
+            Err(_) => return,
         };
 
         let sql = "UPDATE haex_sync_rules SET enabled = 0 WHERE id = ?1".to_string();
