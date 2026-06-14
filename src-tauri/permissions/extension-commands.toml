@@ -236,6 +236,11 @@ commands.allow = [
   "log_clear_all",
   "log_cleanup",
 
+  # Critical-failure notifications (mutex poisoning, schema drift)
+  "critical_notifications_newest_unacked",
+  "critical_notifications_acknowledge",
+  "critical_notifications_cleanup",
+
   # MLS (group key management)
   "mls_init_tables",
   "mls_init_identity",
