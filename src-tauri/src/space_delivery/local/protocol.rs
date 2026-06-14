@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::ucan::CapabilityLevel;
+
 /// ALPN protocol identifier for space delivery.
 ///
 /// Version bumped from `haex-delivery/1` to `haex-delivery/2` when Phase 2 of
@@ -81,8 +83,13 @@ pub enum Request {
     /// Leader responds with current GroupInfo so peer can create External Commit.
     RequestRejoin {
         space_id: String,
-        /// UCAN token proving the peer's membership
-        ucan_token: String,
+        /// UCAN token — deprecated wire field. The AuthGate consumes the
+        /// connection-cached UCAN populated at Announce time, never this
+        /// payload field. Kept on the wire as `Option<String>` for forward
+        /// compatibility: future senders can omit it; older receivers that
+        /// still expect it parse `Some(...)` from current senders.
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
     /// Submit an External Commit to rejoin a group.
     /// Leader validates UCAN for the DID in the commit, then distributes it.
@@ -90,8 +97,9 @@ pub enum Request {
         space_id: String,
         /// Base64-encoded MLS commit message
         commit: String,
-        /// UCAN token proving the peer's membership
-        ucan_token: String,
+        /// UCAN token — deprecated wire field (see `RequestRejoin::ucan_token`).
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
 
     // -- CRDT Sync --
@@ -101,16 +109,18 @@ pub enum Request {
         space_id: String,
         /// JSON-serialized CRDT changes (same format as server push)
         changes: serde_json::Value,
-        /// UCAN token proving write capability for `space_id`
-        ucan_token: String,
+        /// UCAN token — deprecated wire field (see `RequestRejoin::ucan_token`).
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
     /// Pull CRDT changes from the leader.
     /// Requires UCAN with `space/read` capability (or higher) for the target space.
     SyncPull {
         space_id: String,
         after_timestamp: Option<String>,
-        /// UCAN token proving read capability for `space_id`
-        ucan_token: String,
+        /// UCAN token — deprecated wire field (see `RequestRejoin::ucan_token`).
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
 
     // -- Identity --
@@ -127,8 +137,16 @@ pub enum Request {
         space_id: String,
         label: Option<String>,
         claims: Option<Vec<IdentityClaim>>,
-        /// UCAN token proving membership in `space_id`
-        ucan_token: String,
+        /// UCAN token — required for Announce since this call bootstraps the
+        /// AuthGate's cached `ValidatedUcan` for the rest of the connection.
+        /// Optional on the wire (forward-compat shape across all request
+        /// variants), but receivers reject `None` here — the cache cannot
+        /// be populated without a token. Enforcement lives in
+        /// `leader.rs::handle_delivery_request` (Announce arm) before
+        /// `require_valid_ucan` runs. Other request variants treat the
+        /// field as truly optional.
+        #[serde(default)]
+        ucan_token: Option<String>,
     },
 
     // -- Invites --
@@ -181,6 +199,156 @@ pub enum Request {
         #[serde(default)]
         inviter_relay_url: Option<String>,
     },
+}
+
+impl Request {
+    /// Returns the `space_id` this request targets.
+    ///
+    /// Every `Request` variant carries a `space_id` because every request is
+    /// space-scoped — the unified AuthGate uses this to route the membership
+    /// + capability lookup before dispatching to the variant-specific handler.
+    pub fn space_id_of(&self) -> &str {
+        match self {
+            Request::Announce { space_id, .. }
+            | Request::MlsUploadKeyPackages { space_id, .. }
+            | Request::MlsFetchKeyPackage { space_id, .. }
+            | Request::MlsSendMessage { space_id, .. }
+            | Request::MlsFetchMessages { space_id, .. }
+            | Request::MlsSendWelcome { space_id, .. }
+            | Request::MlsFetchWelcomes { space_id, .. }
+            | Request::MlsAckCommit { space_id, .. }
+            | Request::MlsKeyPackageCount { space_id, .. }
+            | Request::RequestRejoin { space_id, .. }
+            | Request::SubmitExternalCommit { space_id, .. }
+            | Request::SyncPush { space_id, .. }
+            | Request::SyncPull { space_id, .. }
+            | Request::ClaimInvite { space_id, .. }
+            | Request::PushInvite { space_id, .. } => space_id,
+        }
+    }
+
+    /// Returns the minimum `CapabilityLevel` required to dispatch this
+    /// request, or `None` if it bypasses the AuthGate.
+    ///
+    /// For `Some(level)`, the level is a **minimum floor**: the gate (see
+    /// `auth_gate::authorize_request`, arriving in Phase 3 of the
+    /// unified-authgate refactor) permits any capability `>= level` via
+    /// `require_capability`. So a `Write` member always satisfies a `Read`
+    /// floor.
+    ///
+    /// - `Announce` bypasses because it bootstraps the membership cache the
+    ///   gate would query — gating it against itself is circular.
+    /// - `ClaimInvite` bypasses because authentication is by invite token,
+    ///   not by capability — the claimer is not yet a member.
+    /// - `PushInvite` bypasses because it is leader-internal delivery to the
+    ///   invitee's device, not a membership-scoped operation.
+    ///
+    /// `RequestRejoin` and `SubmitExternalCommit` are deliberately classified
+    /// as `Read` to mirror the existing inline UCAN checks in
+    /// `leader.rs::dispatch_request` (search for `CapabilityLevel::Read` in
+    /// the `RequestRejoin` / `SubmitExternalCommit` arms). This refactor must
+    /// not change behaviour — a read-only member that has fallen out of MLS
+    /// epoch can rejoin today, and must keep being able to rejoin after the
+    /// inline checks are deleted in Phase 5.
+    ///
+    /// `SyncPush` is intentionally `Read` here. Per-batch refinement happens
+    /// in `inbound_sync::authorize_inbound_sync_push` — pushes touching only
+    /// membership-system tables (MEMBERSHIP_SYSTEM_TABLES) are allowed for
+    /// any member, other tables require `Write`. The gate enforces only
+    /// "must be a member to push at all"; the inbound-sync validator
+    /// enforces the per-table refinement. Tightening this to `Write` would
+    /// silently break read-only members trying to push their own
+    /// membership / device / KeyPackage rows.
+    ///
+    /// **All MLS-protocol operations are `Read` at this gate.** UCAN
+    /// capability is the *sole* mechanism for authorising space-content
+    /// writes (`haex_peer_shares` and the file bytes those shares point at);
+    /// MLS itself has no concept of "may write resource X" — it only knows
+    /// "is in the group" / "is not in the group" — so MLS-message
+    /// classification is the wrong tool for that question.
+    ///
+    /// MLS-group membership is a separate domain: every active space member
+    /// is also an MLS-group member regardless of read/write capability, and
+    /// the MLS state machine itself enforces what each member may do inside
+    /// the group (signatures, epoch ordering, sender membership). Gating
+    /// MLS-protocol traffic by `Write` conflates the two layers —
+    /// concretely:
+    ///
+    /// - `MlsUploadKeyPackages`: the peer uploads its **own** KeyPackages
+    ///   (the leader tags each row with `verified_did` and stores them in
+    ///   the `_no_sync` buffer). A read-only member cannot inject packages
+    ///   for any other DID and the rows never leave the leader. Without
+    ///   this, read-only members exhaust the initial `ClaimInvite` batch
+    ///   and can never refill — every later Welcome that needs their
+    ///   KeyPackage silently fails and they fall out of the encrypted
+    ///   group while still listed as an active member.
+    /// - `MlsAckCommit`: pure bookkeeping per-DID — marks the caller's own
+    ///   pending-commit entries as acked so the leader can clean up. Every
+    ///   member must ack; gating it on `Write` strands read-only members'
+    ///   acks forever and stops cleanup for the whole group.
+    /// - `MlsSendMessage` / `MlsSendWelcome`: the leader is a relay. MLS
+    ///   message validity (signatures, epoch, sender membership) is
+    ///   enforced at the recipient by the MLS state machine; application
+    ///   policy ("only admins may invite") is enforced at *invite-token
+    ///   creation*, not at Welcome forwarding. An extra `Write` check
+    ///   here is layered defense, but it is the wrong layer — it makes
+    ///   "read-only space member" mean "second-class MLS member", which
+    ///   does not exist in the protocol.
+    pub fn required_capability(&self) -> Option<CapabilityLevel> {
+        match self {
+            Request::MlsFetchKeyPackage { .. }
+            | Request::MlsFetchMessages { .. }
+            | Request::MlsFetchWelcomes { .. }
+            | Request::MlsKeyPackageCount { .. }
+            | Request::MlsUploadKeyPackages { .. }
+            | Request::MlsSendMessage { .. }
+            | Request::MlsSendWelcome { .. }
+            | Request::MlsAckCommit { .. }
+            | Request::SyncPull { .. }
+            | Request::SyncPush { .. }
+            | Request::RequestRejoin { .. }
+            | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
+
+            Request::Announce { .. }
+            | Request::ClaimInvite { .. }
+            | Request::PushInvite { .. } => None,
+        }
+    }
+
+    /// Returns a stable, PascalCase name for this request variant.
+    ///
+    /// Used as the `source` field of `haex_logs` rows written from the
+    /// AuthGate's reject branches, so an operator triaging sync failures
+    /// in-app can filter by op without parsing free-text messages.
+    ///
+    /// Note the deliberate case split: the on-the-wire JSON `op` tag is
+    /// SCREAMING_SNAKE_CASE (`"SYNC_PUSH"`, set by the `serde(tag = "op",
+    /// rename_all = "SCREAMING_SNAKE_CASE")` attribute on this enum), but
+    /// `op_name()` returns *PascalCase* (`"SyncPush"`) to match the existing
+    /// `log_to_db` `source` convention established by `leader.rs` calls
+    /// like `log_to_db(..., "Announce", ...)` and
+    /// `log_to_db(..., "ClaimInvite", ...)`. Keeping these tied to a
+    /// single match-arm avoids the renaming-skew failure mode where the
+    /// wire tag and the log source diverge silently.
+    pub fn op_name(&self) -> &'static str {
+        match self {
+            Request::MlsUploadKeyPackages { .. } => "MlsUploadKeyPackages",
+            Request::MlsFetchKeyPackage { .. } => "MlsFetchKeyPackage",
+            Request::MlsSendMessage { .. } => "MlsSendMessage",
+            Request::MlsFetchMessages { .. } => "MlsFetchMessages",
+            Request::MlsSendWelcome { .. } => "MlsSendWelcome",
+            Request::MlsFetchWelcomes { .. } => "MlsFetchWelcomes",
+            Request::MlsAckCommit { .. } => "MlsAckCommit",
+            Request::MlsKeyPackageCount { .. } => "MlsKeyPackageCount",
+            Request::RequestRejoin { .. } => "RequestRejoin",
+            Request::SubmitExternalCommit { .. } => "SubmitExternalCommit",
+            Request::SyncPush { .. } => "SyncPush",
+            Request::SyncPull { .. } => "SyncPull",
+            Request::Announce { .. } => "Announce",
+            Request::ClaimInvite { .. } => "ClaimInvite",
+            Request::PushInvite { .. } => "PushInvite",
+        }
+    }
 }
 
 // ============================================================================
@@ -307,3 +475,7 @@ pub async fn read_response(
 ) -> Result<Response, PeerProtocolError> {
     crate::peer_storage::protocol::read_message(recv, MAX_RESPONSE_SIZE).await
 }
+
+#[cfg(test)]
+#[path = "protocol_tests.rs"]
+mod tests;

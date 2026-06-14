@@ -423,9 +423,12 @@ pub async fn load_dev_extension(
     let extension_id = with_connection(&state.db, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-        let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-            reason: "Failed to lock HLC service".to_string(),
-        })?;
+        let hlc_service = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "extension::mod::register_dev_extension",
+            serde_json::json!({}),
+        )?;
 
         let actual_id = if let Some(existing_id) = existing_id {
             // Update existing extension
@@ -583,9 +586,12 @@ pub fn remove_dev_extension(
         crate::crdt::cleanup::with_fk_disabled(conn, |conn| {
             let tx = conn.transaction().map_err(db::error::DatabaseError::from)?;
 
-            let hlc_service = state.hlc.lock().map_err(|_| db::error::DatabaseError::MutexPoisoned {
-                reason: "Failed to lock HLC service".to_string(),
-            })?;
+            let hlc_service = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "extension::mod::uninstall_dev_extension",
+                serde_json::json!({}),
+            )?;
 
             // Delete permissions for this extension
             PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &extension_id)?;

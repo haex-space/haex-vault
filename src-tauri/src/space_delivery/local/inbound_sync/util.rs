@@ -55,7 +55,10 @@ pub(super) fn read_existing_column(
         let mut stmt = conn.prepare(&sql)?;
         let mut rows = stmt.query(params_from_iter(pk_values.iter().map(|v| match v {
             JsonValue::String(s) => rusqlite::types::Value::Text(s.clone()),
-            JsonValue::Number(n) if n.is_i64() => rusqlite::types::Value::Integer(n.as_i64().unwrap()),
+            JsonValue::Number(n) if n.is_i64() => rusqlite::types::Value::Integer(
+                n.as_i64()
+                    .expect("invariant: is_i64() guard above guarantees Some"),
+            ),
             JsonValue::Number(n) => rusqlite::types::Value::Real(n.as_f64().unwrap_or_default()),
             JsonValue::Null => rusqlite::types::Value::Null,
             other => rusqlite::types::Value::Text(other.to_string()),

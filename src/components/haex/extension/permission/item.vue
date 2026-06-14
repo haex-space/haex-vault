@@ -12,8 +12,7 @@
           v-model="localTarget"
           class="font-medium w-full"
           :placeholder="t('targetPlaceholder')"
-          @keydown.enter="finishEditing"
-          @keydown.escape="isEditing = false"
+          @keydown="onInputKeydown"
         />
         <!-- Display mode -->
         <div
@@ -149,6 +148,11 @@ const toggleEditing = () => {
 const finishEditing = () => {
   permissionEntry.value.target = localTarget.value
   isEditing.value = false
+}
+
+const onInputKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Enter') finishEditing()
+  else if (e.key === 'Escape') isEditing.value = false
 }
 
 const menuEntry = computed({

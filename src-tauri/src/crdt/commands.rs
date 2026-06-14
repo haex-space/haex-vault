@@ -351,12 +351,23 @@ pub fn apply_remote_changes_in_transaction(
     max_hlc: String,
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
-    let hlc_service = state.hlc.lock().ok().map(|guard| guard.clone());
+    // Lock HLC via `lock_or_fail` so a poisoned mutex fails LOUD with a
+    // banner row. Previous behaviour was `.lock().ok().map(...)` which
+    // silently passed `hlc_service=None` to `apply_remote_changes_to_db`
+    // — that path applies the remote changes WITHOUT advancing the local
+    // HLC clock, so subsequent local writes carry stale timestamps that
+    // lose merge conflicts on the next sync round.
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+        "crdt::commands::apply_remote_changes_in_transaction",
+        serde_json::json!({}),
+    )?;
     apply_remote_changes_to_db(
         &state.db,
         changes,
         Some((&backend_id, &max_hlc)),
-        hlc_service.as_ref(),
+        Some(&*hlc_service),
     )
 }
 

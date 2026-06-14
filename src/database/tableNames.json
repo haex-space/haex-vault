@@ -774,6 +774,19 @@
         "createdAt": "created_at",
         "updatedAt": "updated_at"
       }
+    },
+    "critical_notifications_no_sync": {
+      "name": "haex_critical_notifications_no_sync",
+      "columns": {
+        "id": "id",
+        "code": "code",
+        "location": "location",
+        "params": "params",
+        "count": "count",
+        "firstSeen": "first_seen",
+        "lastSeen": "last_seen",
+        "acknowledged": "acknowledged"
+      }
     }
   }
 }

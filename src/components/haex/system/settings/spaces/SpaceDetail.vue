@@ -227,8 +227,7 @@
                   v-model="editLabel"
                   size="sm"
                   :placeholder="t('members.labelPlaceholder')"
-                  @keyup.enter="onUpdateProfileAsync"
-                  @keyup.escape="onCancelEditProfile"
+                  @keyup="onLabelKeyup"
                 />
                 <UiButton
                   color="primary"
@@ -472,6 +471,11 @@ const onStartEditProfile = (member: SpaceMemberWithIdentity) => {
 const onCancelEditProfile = () => {
   editingMemberId.value = null
   editLabel.value = ''
+}
+
+const onLabelKeyup = (e: KeyboardEvent) => {
+  if (e.key === 'Enter') onUpdateProfileAsync()
+  else if (e.key === 'Escape') onCancelEditProfile()
 }
 
 const onUpdateProfileAsync = async () => {

@@ -15,6 +15,7 @@ use super::types::{
 };
 use crate::database::core;
 use crate::database::row::{get_bool, get_string};
+use crate::critical::CriticalFailureCode;
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde_json::Value as JsonValue;
@@ -101,9 +102,12 @@ pub async fn remote_storage_add_backend(
             reason: format!("Failed to serialize config: {}", e),
         })?;
 
-    let hlc_service = state.hlc.lock().map_err(|_| StorageError::Internal {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "remote_storage::commands::remote_storage_add_backend",
+        serde_json::json!({}),
+    )?;
 
     let rows = core::execute_with_crdt(
         SQL_INSERT_BACKEND.clone(),
@@ -166,9 +170,12 @@ pub async fn remote_storage_remove_backend(
     state: State<'_, AppState>,
     backend_id: String,
 ) -> Result<(), StorageError> {
-    let hlc_service = state.hlc.lock().map_err(|_| StorageError::Internal {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "remote_storage::commands::remote_storage_remove_backend",
+        serde_json::json!({}),
+    )?;
 
     core::execute_with_crdt(
         SQL_DELETE_BACKEND.clone(),
@@ -255,9 +262,12 @@ pub async fn remote_storage_update_backend(
     // Build update query dynamically based on what's provided
     let (query, params) = build_update_query(&request, merged_config)?;
 
-    let hlc_service = state.hlc.lock().map_err(|_| StorageError::Internal {
-        reason: "Failed to lock HLC service".to_string(),
-    })?;
+    let hlc_service = state.lock_or_fail(
+        &state.hlc,
+        CriticalFailureCode::HlcMutexPoisoned,
+        "remote_storage::commands::remote_storage_update_backend",
+        serde_json::json!({}),
+    )?;
 
     let rows = core::execute_with_crdt(query, params, &state.db, &hlc_service).map_err(|e| {
         StorageError::DatabaseError {

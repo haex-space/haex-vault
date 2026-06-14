@@ -4,6 +4,13 @@
       <NuxtPage />
     </div>
 
+    <!-- Critical-Failure Banner — surfaces mutex-poison / schema-drift /
+         audit-log-write failures recorded by `crate::critical::lock_or_fail`.
+         Mounted at app root so it appears on every page; gating per-route
+         would risk hiding the banner during the navigation that exposes
+         the user to data risk. -->
+    <HaexCriticalFailureBanner />
+
     <!-- Global Permission Prompt Dialog -->
     <HaexExtensionDialogPermissionPrompt
       :open="permissionPrompt.isOpen.value"

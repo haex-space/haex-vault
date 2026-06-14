@@ -58,9 +58,12 @@ impl ExtensionManager {
 
                 let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-                let hlc_service = state.hlc.lock().map_err(|_| DatabaseError::MutexPoisoned {
-                    reason: "Failed to lock HLC service".to_string(),
-                })?;
+                let hlc_service = state.lock_or_fail(
+                    &state.hlc,
+                    crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                    "extension::core::removal",
+                    serde_json::json!({}),
+                )?;
 
                 // Delete all permissions for this extension
                 eprintln!(

@@ -164,3 +164,14 @@ jni = "0.22"
 
 [dev-dependencies]
 futures = "0.3"
+
+# Production-code hygiene per docs/plans/2026-06-13-critical-failure-pattern.md
+# Phase 1. `unwrap_used` denied so every unwrap is a deliberate decision —
+# tests opt back in via `#![cfg_attr(test, allow(clippy::unwrap_used))]` at
+# the top of every #[cfg(test)] module (or the `tests/*.rs` file itself).
+# `expect_used` warns rather than denies — `expect("invariant: …")` is the
+# escape hatch for genuinely-unreachable cases, but each one should still
+# be reviewed.
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"

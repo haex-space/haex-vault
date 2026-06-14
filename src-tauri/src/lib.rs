@@ -1,7 +1,17 @@
+// Tests live alongside production code (per project convention: every module
+// has its own `tests.rs` file imported via `#[cfg(test)] mod tests;`). The
+// `unwrap_used` / `expect_used` lints enforced by Cargo.toml are intended for
+// production code only — failing test assertions via `.unwrap()` is idiomatic
+// and adding `expect("…")` everywhere would just be noise. Opting out at the
+// crate root once is cleaner than scattering `#![cfg_attr(test, allow(…))]`
+// across every test module.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod external_bridge;
 mod crypto;
 mod crdt;
+pub mod critical;
 pub mod database;
 mod device;
 mod extension;
@@ -89,6 +99,16 @@ pub mod event_names {
 pub struct AppState {
     pub db: DbConnection,
     pub hlc: Mutex<HlcService>,
+    /// Persistent record of critical-failure events (mutex poisoning,
+    /// schema drift, audit-log write failures) — see `crate::critical`.
+    /// Wrapped in `Mutex<Option<...>>` with the same vault-open/close
+    /// lifecycle as `vault_lock`: opened alongside `db` in
+    /// `create_encrypted_database` / `open_encrypted_database`, cleared
+    /// in `close_database`. Uses its OWN SQLite connection so it stays
+    /// writable even when the main DB's mutex is poisoned. `None` means
+    /// no vault is currently open — `AppState::lock_or_fail` then degrades
+    /// gracefully (stderr only, no banner row).
+    pub critical_sink: Mutex<Option<critical::CriticalNotificationSink>>,
     /// Exclusive advisory lock on the currently-open vault's DB file.
     /// Populated by `open_encrypted_database` / `create_encrypted_database`
     /// and cleared by `close_database`. Prevents the same vault from being
@@ -137,6 +157,71 @@ pub struct AppState {
     /// URI schemes don't work for `<audio>`/`<video>` on WebKitGTK — this
     /// is the cross-platform workaround.
     pub media_server: media_server::MediaServer,
+}
+
+impl AppState {
+    /// `Mutex::lock` replacement that records mutex poisoning as a
+    /// banner-visible critical-failure event. Use this instead of
+    /// `.lock().unwrap()` / `.lock().unwrap_or_else(|e| e.into_inner())` /
+    /// `.lock().map_err(...MutexPoisoned)` everywhere a poisoned mutex
+    /// represents a real failure.
+    ///
+    /// `params` is a `serde_json::Value` (typically an object) for i18n
+    /// substitution in the banner message. Pass `serde_json::json!({})`
+    /// when no params are needed.
+    ///
+    /// **Vault closed (sink = None):** falls back to stderr-only output.
+    /// Production callsites only run while a vault is open, so this path
+    /// is hit only by tests or pre-open lifecycle code.
+    pub fn lock_or_fail<'a, T>(
+        &self,
+        mutex: &'a Mutex<T>,
+        code: critical::CriticalFailureCode,
+        location: &'static str,
+        params: serde_json::Value,
+    ) -> Result<std::sync::MutexGuard<'a, T>, critical::MutexPoisonError> {
+        // Snapshot the sink under the slot mutex, then DROP the guard
+        // before dispatching to the actual lock_or_fail. Holding the
+        // critical_sink guard across the caller's mutex.lock() would
+        // serialize EVERY lock_or_fail callsite in the app through a
+        // single global mutex — fine for HLC (rare contention) but
+        // unacceptable once PR B2 migrates the hot paths in
+        // peer_storage / file_sync. Sink is `Clone` via internal
+        // `Arc<Mutex<Connection>>`, so the clone is cheap.
+        //
+        // `unwrap_or_else(into_inner)` here is the documented exception:
+        // this is the very last layer of defense — even if the sink slot
+        // mutex itself is poisoned, we want the caller to still get a
+        // sensible result. Without it, a poisoned slot mutex would
+        // silently turn every later lock_or_fail into None-sink mode.
+        let sink_clone = {
+            let sink_guard = self
+                .critical_sink
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            sink_guard.clone()
+        };
+        match sink_clone {
+            Some(sink) => critical::lock_or_fail(mutex, code, location, &sink, params),
+            None => {
+                // No sink (vault closed): we can't emit a banner row.
+                // Try to lock anyway; on poison, emit the same
+                // [CRITICAL]-marker line `critical::handle_poison`
+                // would emit so on-call stderr/CI logs stay symmetric
+                // across the two paths.
+                match mutex.lock() {
+                    Ok(g) => Ok(g),
+                    Err(_) => {
+                        eprintln!(
+                            "[CRITICAL] {location}: mutex poisoned (code={code:?}, severity={severity:?}) — sink unavailable (vault closed), stderr-only",
+                            severity = code.severity(),
+                        );
+                        Err(critical::MutexPoisonError { code, location })
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -231,6 +316,7 @@ pub fn run() {
         .manage(AppState {
             db: DbConnection(Arc::new(Mutex::new(None))),
             hlc: Mutex::new(HlcService::new()),
+            critical_sink: Mutex::new(None),
             vault_lock: Mutex::new(None),
             connection_context: Mutex::new(ConnectionContext::new()),
             extension_manager: ExtensionManager::new(),
@@ -364,6 +450,10 @@ pub fn run() {
             logging::commands::log_cleanup,
             logging::commands::log_delete,
             logging::commands::log_clear_all,
+            critical::commands::critical_notifications_newest_unacked,
+            critical::commands::critical_notifications_acknowledge,
+            critical::commands::critical_notifications_cleanup,
+            critical::commands::critical_app_restart,
             crdt::commands::get_table_schema,
             crdt::commands::get_dirty_tables,
             crdt::commands::clear_dirty_table,
