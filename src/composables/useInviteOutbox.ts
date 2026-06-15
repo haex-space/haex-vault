@@ -18,6 +18,21 @@ function nextRetryDelay(retryCount: number): number {
   return BACKOFF_SECONDS_CAPPED[idx]! * 1000
 }
 
+/**
+ * Derive when the last delivery attempt completed: the processor sets
+ * `nextRetryAt = lastAttemptAt + backoff(retryCount)`, so we invert that.
+ * Returns null when no attempt has run yet.
+ */
+export function outboxLastAttemptAt(
+  retryCount: number,
+  nextRetryAtIso: string | null,
+): Date | null {
+  if (!nextRetryAtIso || retryCount <= 0) return null
+  const nextMs = Date.parse(nextRetryAtIso)
+  if (Number.isNaN(nextMs)) return null
+  return new Date(nextMs - nextRetryDelay(retryCount))
+}
+
 export type OutboxAttemptOutcome =
   | { delivered: true }
   | { delivered: false, error: string, transient: boolean }

@@ -19,6 +19,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   computeOutboxNextState,
+  outboxLastAttemptAt,
   type OutboxAttemptOutcome,
 } from '@/composables/useInviteOutbox'
 import { OutboxStatus } from '@/database/constants'
@@ -106,5 +107,32 @@ describe('computeOutboxNextState', () => {
     // a hypothetical retryCount=21 must produce the same delay (not larger).
     const sameAsCap = computeOutboxNextState(21, transient, NOW)
     expect(Date.parse(sameAsCap.nextRetryAt!)).toBe(Date.parse(late.nextRetryAt!))
+  })
+})
+
+describe('outboxLastAttemptAt', () => {
+  it('returns null when no attempt has run yet', () => {
+    expect(outboxLastAttemptAt(0, '2026-06-04T12:00:00.000Z')).toBeNull()
+    expect(outboxLastAttemptAt(3, null)).toBeNull()
+  })
+
+  it('inverts the backoff: nextRetryAt minus backoff(retryCount) is lastAttemptAt', () => {
+    // retryCount=1 means one failed attempt; the row was scheduled +5s
+    // ahead of that attempt completion. So lastAttemptAt = nextRetryAt - 5s.
+    const next = '2026-06-04T12:00:05.000Z'
+    const last = outboxLastAttemptAt(1, next)
+    expect(last).not.toBeNull()
+    expect(last!.toISOString()).toBe('2026-06-04T12:00:00.000Z')
+  })
+
+  it('uses the capped delay once retryCount exceeds the schedule length', () => {
+    // Cap is 3600s at retryCount>=7. retryCount=99 still inverts by 3600s.
+    const next = '2026-06-04T13:00:00.000Z'
+    const last = outboxLastAttemptAt(99, next)
+    expect(last!.toISOString()).toBe('2026-06-04T12:00:00.000Z')
+  })
+
+  it('returns null when nextRetryAt is unparseable', () => {
+    expect(outboxLastAttemptAt(1, 'not-a-date')).toBeNull()
   })
 })
