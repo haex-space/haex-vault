@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
@@ -184,6 +184,18 @@ impl MultiSpaceLeaderHandler {
             .write()
             .await
             .insert(remote_str.clone(), verified_did.clone());
+
+        // The peer just finished DID-auth, so we know their endpoint is
+        // live and verifiable. Flush any outbox rows targeting it without
+        // waiting for the 30s poll or their per-row backoff.
+        let _ = self.app_handle.emit_to(
+            "main",
+            crate::event_names::EVENT_PEER_CONNECTED,
+            super::types::PeerConnectedEvent {
+                endpoint_id: remote_str.clone(),
+                verified_did: Some(verified_did.clone()),
+            },
+        );
 
         // -- Phase 2: normal request loop --
 
