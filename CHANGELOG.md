@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.8.0](https://github.com/haex-space/haex-vault/compare/v2.7.0...v2.8.0) (2026-06-15)
+
+
+### Features
+
+* **spaces:** surface invite-outbox delivery status in members drawer ([#455](https://github.com/haex-space/haex-vault/issues/455)) ([b443444](https://github.com/haex-space/haex-vault/commit/b4434446b5f6c7d1b0ae970d667a6caad61ac7b6))
+
+
+### Bug Fixes
+
+* **p2p:** autostart peer_storage after device reconciliation ([#442](https://github.com/haex-space/haex-vault/issues/442)) ([92a82b7](https://github.com/haex-space/haex-vault/commit/92a82b797b8bc5a14750541891067b584ac31e3f))
+* **p2p:** invite-outbox keeps PENDING until expiresAt for transient failures ([#454](https://github.com/haex-space/haex-vault/issues/454)) ([c0ab83b](https://github.com/haex-space/haex-vault/commit/c0ab83b31fa0b515dd0692da8d6f05ff1d81f2c2))
+
 ## [2.7.0](https://github.com/haex-space/haex-vault/compare/v2.6.0...v2.7.0) (2026-06-14)
 
 
