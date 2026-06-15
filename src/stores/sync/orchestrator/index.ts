@@ -7,6 +7,7 @@ import { useTimeoutPoll } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
 import { emit, listen } from '@tauri-apps/api/event'
 import { RustEventGroup, RUST_EVENTS, type LocalSyncCompletedEvent } from '@/lib/rust-events'
+import type { PeerConnectedEvent } from '@bindings/PeerConnectedEvent'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { enterBulkMode, exitBulkMode } from '@/stores/logging'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
@@ -509,12 +510,37 @@ export const useSyncOrchestratorStore = defineStore(
               await emit(SYNC_TABLES_INTERNAL_EVENT, { tables })
             }
           })
+
+          // Connection-event-driven outbox flush: when Rust signals a peer's
+          // DID-auth handshake just completed (accept-side or connect-side),
+          // skip backoff for outbox rows targeting that endpoint and try
+          // right away. Debounced per endpoint to absorb reconnect-flapping
+          // bursts. The Map lives for the lifetime of this listener — when
+          // events.dispose() runs on stop, pending timeouts are no-ops at
+          // worst (the dynamic-imported composable just runs a SQL query).
+          const endpointFlushDebounce = new Map<string, ReturnType<typeof setTimeout>>()
+          await events.on<PeerConnectedEvent>(RUST_EVENTS.peerConnected, ({ endpointId }) => {
+            if (!endpointId) return
+            const existing = endpointFlushDebounce.get(endpointId)
+            if (existing) clearTimeout(existing)
+            endpointFlushDebounce.set(endpointId, setTimeout(async () => {
+              endpointFlushDebounce.delete(endpointId)
+              try {
+                const { useInviteOutbox } = await import('@/composables/useInviteOutbox')
+                const { processOutboxAsync } = useInviteOutbox()
+                await processOutboxAsync({ filterTargetEndpointId: endpointId })
+              } catch (error) {
+                log.warn(`[OUTBOX-FLUSH] peer-connected flush failed for ${endpointId.slice(0, 12)}…: ${error}`)
+              }
+            }, 1_000))
+          })
+
           localEvents = events
         } catch (err) {
           events.dispose()
           throw err
         }
-        log.info('[START-SYNC] Local sync listener registered')
+        log.info('[START-SYNC] Local sync + peer-connected listeners registered')
       }
 
       // Always start the invite outbox processor (works for local-only vaults too)

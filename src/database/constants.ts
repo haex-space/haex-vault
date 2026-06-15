@@ -49,7 +49,12 @@ export const OutboxStatus = {
   PENDING: 'pending',
   DELIVERED: 'delivered',
   EXPIRED: 'expired',
-  /** Max retries reached without a successful delivery — user intervention required. */
+  /**
+   * Permanent failure detected (auth reject, UCAN audience mismatch,
+   * unknown capability) — user intervention required. Transient liveness
+   * problems never land here; they stay PENDING with capped backoff until
+   * the invite's `expiresAt`.
+   */
   FAILED: 'failed',
 } as const
 

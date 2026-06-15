@@ -161,13 +161,16 @@
             class="flex items-center justify-between gap-2 p-2 rounded-md bg-warning-50 dark:bg-warning-950/30"
           >
             <div class="min-w-0">
-              <p class="text-sm truncate">
-                {{
-                  token.targetDid
-                    ? token.targetDid.slice(0, 24) + '…'
-                    : t('members.openInvite')
-                }}
-              </p>
+              <div class="flex items-center gap-1.5">
+                <p class="text-sm truncate">
+                  {{
+                    token.targetDid
+                      ? token.targetDid.slice(0, 24) + '…'
+                      : t('members.openInvite')
+                  }}
+                </p>
+                <InviteStatusBadge :outbox="outboxRowForToken(token.id)" />
+              </div>
               <p class="text-xs text-muted">
                 {{ formatCapabilities(token.capabilities) }}
                 ·
@@ -295,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { eq, and } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import type {
   SelectHaexInviteTokens,
   SelectHaexInviteOutbox,
@@ -306,6 +309,7 @@ import { OutboxStatus } from '~/database/constants'
 import type { SpaceMemberWithIdentity } from '@/stores/spaces/members'
 import SpaceLinkedItems from './SpaceLinkedItems.vue'
 import SpaceShares from './SpaceShares.vue'
+import InviteStatusBadge from './InviteStatusBadge.vue'
 
 const props = defineProps<{
   spaceId: string
@@ -341,6 +345,8 @@ const capabilities = ref<string[]>([])
 const members = ref<SpaceMemberWithIdentity[]>([])
 const pendingTokens = ref<SelectHaexInviteTokens[]>([])
 const failedOutboxEntries = ref<SelectHaexInviteOutbox[]>([])
+/** Outbox rows per tokenId — one token can fan out to multiple recipients. */
+const outboxRowsByTokenId = ref<Map<string, SelectHaexInviteOutbox[]>>(new Map())
 
 const editingMemberId = ref<string | null>(null)
 const editLabel = ref('')
@@ -421,15 +427,42 @@ const loadMembersAsync = async () => {
       (!t.expiresAt || new Date(t.expiresAt).getTime() > Date.now()),
   )
 
-  failedOutboxEntries.value = await db
+  // Skip EXPIRED in the query — those rows accumulate without bound and
+  // the badge never surfaces them (token-level filter above hides the
+  // matching invite anyway).
+  const liveOutboxEntries = await db
     .select()
     .from(haexInviteOutbox)
-    .where(
-      and(
-        eq(haexInviteOutbox.spaceId, props.spaceId),
-        eq(haexInviteOutbox.status, OutboxStatus.FAILED),
-      ),
-    )
+    .where(and(
+      eq(haexInviteOutbox.spaceId, props.spaceId),
+      ne(haexInviteOutbox.status, OutboxStatus.EXPIRED),
+    ))
+
+  failedOutboxEntries.value = liveOutboxEntries.filter(
+    (e) => e.status === OutboxStatus.FAILED,
+  )
+
+  // FAILED rows are surfaced in their own dedicated section above; the
+  // badge join would duplicate them, so they're skipped here.
+  const byToken = new Map<string, SelectHaexInviteOutbox[]>()
+  for (const entry of liveOutboxEntries) {
+    if (entry.status === OutboxStatus.FAILED) continue
+    const bucket = byToken.get(entry.tokenId) ?? []
+    bucket.push(entry)
+    byToken.set(entry.tokenId, bucket)
+  }
+  outboxRowsByTokenId.value = byToken
+}
+
+/** Pick the row that best represents the token's overall state — PENDING outranks DELIVERED via the (nextRetryAt ?? createdAt) sort key. */
+const outboxRowForToken = (tokenId: string): SelectHaexInviteOutbox | null => {
+  const rows = outboxRowsByTokenId.value.get(tokenId)
+  if (!rows || rows.length === 0) return null
+  return rows.reduce((latest, candidate) => {
+    const latestKey = latest.nextRetryAt ?? latest.createdAt ?? ''
+    const candidateKey = candidate.nextRetryAt ?? candidate.createdAt ?? ''
+    return candidateKey > latestKey ? candidate : latest
+  })
 }
 
 /** Resolve the DID of a failed invite target to a human-readable label,
@@ -610,6 +643,13 @@ onMounted(async () => {
   )
   await loadAsync()
   await loadMembersAsync()
+})
+
+// The outbox is mutated by background jobs (30s poll + peer-connected
+// listener); re-load on every drawer open so cached badge state doesn't
+// go stale.
+watch(showMembersDrawer, async (open) => {
+  if (open) await loadMembersAsync()
 })
 </script>
 

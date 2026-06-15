@@ -9,7 +9,8 @@
   },
   "peer": {
     "storageStateChanged": "peer-storage:state-changed",
-    "connectionChanged": "peer-storage:connection-changed"
+    "connectionChanged": "peer-storage:connection-changed",
+    "connected": "peer-storage:peer-connected"
   },
   "localSync": {
     "completed": "local-sync-completed",

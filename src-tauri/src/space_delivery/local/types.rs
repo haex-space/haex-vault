@@ -91,6 +91,45 @@ pub struct ClaimInviteResult {
     pub capability: String,
 }
 
+/// Result of an outbox delivery attempt.
+///
+/// Distinguishes transient (retry until `expiresAt`) from permanent (mark
+/// FAILED immediately) failures. Returned by `local_delivery_push_invite`
+/// instead of a bare `String` so the outbox processor can classify the
+/// failure without resorting to error-message string matching.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, thiserror::Error)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+#[error("{reason}")]
+pub struct OutboxAttemptError {
+    pub reason: String,
+    /// `true` if the failure is a network/liveness condition that may
+    /// succeed on a future attempt (recipient offline, relay flaky,
+    /// connect timeout). `false` for protocol/auth rejections that will
+    /// never succeed without intervention (UCAN audience mismatch,
+    /// signature failure, unknown capability).
+    pub transient: bool,
+}
+
+/// Emitted to the frontend whenever a peer's verified DID-auth handshake
+/// completes — both when we accept an inbound connection and when an
+/// outbound connection finishes its client-side handshake.
+///
+/// The outbox processor uses this to flush any PENDING rows that target
+/// this endpoint without waiting for its scheduled `nextRetryAt`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PeerConnectedEvent {
+    /// Iroh `EndpointId` of the verified peer, as the same hex string the
+    /// outbox stores in `haex_invite_outbox.targetEndpointId`.
+    pub endpoint_id: String,
+    /// Verified DID, when the side that emits the event knows it. The
+    /// accept side always has it (post-handshake); the connect side may
+    /// emit `None` for paths that don't track the remote DID.
+    pub verified_did: Option<String>,
+}
+
 #[cfg(test)]
 #[path = "types_tests.rs"]
 mod tests;
