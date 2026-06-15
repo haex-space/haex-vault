@@ -161,11 +161,11 @@ importers:
         specifier: ^1.2.29
         version: 1.2.29
       '@iconify-json/lucide':
-        specifier: ^1.2.111
-        version: 1.2.111
+        specifier: ^1.2.112
+        version: 1.2.112
       '@iconify/json':
-        specifier: ^2.2.483
-        version: 2.2.483
+        specifier: ^2.2.486
+        version: 2.2.486
       '@iconify/tailwind4':
         specifier: ^1.2.3
         version: 1.2.3(tailwindcss@4.3.0)
@@ -1540,14 +1540,14 @@ packages:
   '@iconify-json/hugeicons@1.2.29':
     resolution: {integrity: sha512-DyFZvinZudE1RvTmVEdC5Inwe7WKU6H0Rar69eWvo0qARpXOkKsQTg1sM+kgnfnkYklHUxjr8OEHZb4JYiTKhQ==}
 
-  '@iconify-json/lucide@1.2.111':
-    resolution: {integrity: sha512-S6oXom2YOKuXFxWofhHa2oq++Z3WeZ78dRFDA7aEEJqyNCJlQd1UGAfN8u2gD2NzvYotmm+j5kH678viWfZbGQ==}
+  '@iconify-json/lucide@1.2.112':
+    resolution: {integrity: sha512-B4sYH2Sm/UPNJYrhh4i+GFHeHfrYPQF9evX2QduJv08iSWw9Mfn1VvF28iIh6pBtZpYlMnuB8/P51mDYlYBYWg==}
 
   '@iconify/collections@1.0.693':
     resolution: {integrity: sha512-gY7LpY5x2hhZzuWZlsQ6Fl/vze2rfJA6C3NLHglha1pMCiC2IL1qsa1Xg8EpJPlKn80Kq3LhcEcRX1byZ+wMOg==}
 
-  '@iconify/json@2.2.483':
-    resolution: {integrity: sha512-LpxtDg0b1akhxSxXu0Kpx8Pz+wq3AAO9Nb4ZWAeTEG2tVcfonKLXdGAS1CWRsz6DTCliIema1kI5r1/7TI2VHw==}
+  '@iconify/json@2.2.486':
+    resolution: {integrity: sha512-ybeEhKPvniErZvczHk0p3xZgG/uAYT2Lo9YwkJr57cr6lr7xq8ezVWzzoAGaxZnsxSF54cyYmyPT/QIi9cc9Uw==}
 
   '@iconify/tailwind4@1.2.3':
     resolution: {integrity: sha512-z8SKiMHRASJKF/IY//87MF88lcB7ulxh8vlhQXXLWsBkNtOh6ese9R41MyGpQeqXdRvQVt+/fX2glQtHFjQ+MA==}
@@ -7025,6 +7025,11 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
+  semver@7.8.4:
+    resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
+    engines: {node: '>=10'}
+    hasBin: true
+
   send@1.2.1:
     resolution: {integrity: sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==}
     engines: {node: '>= 18'}
@@ -9253,7 +9258,7 @@ snapshots:
     dependencies:
       '@iconify/types': 2.0.0
 
-  '@iconify-json/lucide@1.2.111':
+  '@iconify-json/lucide@1.2.112':
     dependencies:
       '@iconify/types': 2.0.0
 
@@ -9261,7 +9266,7 @@ snapshots:
     dependencies:
       '@iconify/types': 2.0.0
 
-  '@iconify/json@2.2.483':
+  '@iconify/json@2.2.486':
     dependencies:
       '@iconify/types': 2.0.0
       pathe: 2.0.3
@@ -15356,6 +15361,9 @@ snapshots:
   semver@6.3.1: {}
 
   semver@7.8.4: {}
+
+  semver@7.8.4:
+    optional: true
 
   semver@7.8.4:
     optional: true
