@@ -1,6 +1,19 @@
 //! Sync engine — orchestration, execution, and periodic loop.
 //!
 //! Ties together providers, diff computation, and database state tracking.
+//!
+//! ## Mutex poisoning in progress-tracking locks
+//!
+//! Many `Mutex`/`RwLock` accesses in this file (`speed_tracker`,
+//! `file_progress`, `byte_progress`, `last_emit` timestamps) use
+//! `unwrap_or_else(|e| e.into_inner())`. These guard *UI progress state* —
+//! transient counters and timestamps used to feed the sync-status emitter.
+//! A poison there results in a momentarily wrong byte counter; the next
+//! `add()` overwrites with fresh data. There is no durable state behind
+//! these locks and no CRDT involvement, so a banner row would be misleading.
+//!
+//! HLC and DB-mutating paths in this file (e.g. `update_last_synced_at`,
+//! `auto_disable_rule`) DO use `lock_or_fail` and surface a banner row.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{
@@ -1394,15 +1407,17 @@ async fn auto_disable_rule(
     use tauri::{Emitter, Manager};
     let state = app.state::<crate::AppState>();
     {
-        let hlc = match state.hlc.lock() {
+        let hlc = match state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "file_sync::engine::auto_disable_rule",
+            // Surface the failing rule_id in the banner row so an operator
+            // looking at `haex_critical_notifications_no_sync` can correlate
+            // the poison to a specific user-visible sync rule.
+            serde_json::json!({ "rule_id": rule_id }),
+        ) {
             Ok(g) => g,
-            Err(_) => {
-                eprintln!(
-                    "[FileSyncEngine] Rule {} auto-pause failed: HLC lock poisoned",
-                    rule_id
-                );
-                return;
-            }
+            Err(_) => return,
         };
 
         let sql = "UPDATE haex_sync_rules SET enabled = 0 WHERE id = ?1".to_string();

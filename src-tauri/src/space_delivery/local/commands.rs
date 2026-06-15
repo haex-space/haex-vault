@@ -7,6 +7,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use tauri::State;
 use tokio::sync::RwLock;
 
+use crate::critical::CriticalFailureCode;
 use crate::database::DbConnection;
 use crate::AppState;
 
@@ -28,7 +29,15 @@ pub async fn local_delivery_start(
     let existing_tokens = invite_tokens::load_invite_tokens(&db_conn, &space_id)
         .unwrap_or_default();
 
-    let hlc_clone = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?.clone();
+    let hlc_clone = state
+        .lock_or_fail(
+            &state.hlc,
+            CriticalFailureCode::HlcMutexPoisoned,
+            "space_delivery::local::commands::local_delivery_start",
+            serde_json::json!({}),
+        )
+        .map_err(|e| e.to_string())?
+        .clone();
 
     let leader_state = Arc::new(LeaderState {
         db: db_conn,
@@ -771,7 +780,14 @@ pub async fn local_delivery_claim_invite(
     // eprintln! directly (not log()) because log() itself locks HLC — if the
     // mutex is contended, a log() call here would deadlock silently.
     eprintln!("[ClaimInvite] [trace] BEFORE hlc.lock()");
-    let hlc_guard = state.hlc.lock().map_err(|_| "HLC lock poisoned".to_string())?;
+    let hlc_guard = state
+        .lock_or_fail(
+            &state.hlc,
+            CriticalFailureCode::HlcMutexPoisoned,
+            "space_delivery::local::commands::claim_invite",
+            serde_json::json!({}),
+        )
+        .map_err(|e| e.to_string())?;
     eprintln!("[ClaimInvite] [trace] AFTER hlc.lock() — guard acquired");
 
     // owner_identity_id must reference the *inviter's* identity row — the

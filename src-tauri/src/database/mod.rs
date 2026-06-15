@@ -866,9 +866,12 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
 
     // 2. Reset HLC service
     {
-        let mut hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
-            reason: e.to_string(),
-        })?;
+        let mut hlc_guard = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "database::close_database",
+            serde_json::json!({}),
+        )?;
         *hlc_guard = HlcService::default();
         println!("[CLOSE_DB] HLC service reset");
     }
@@ -1111,9 +1114,12 @@ fn initialize_session_post_migration(
         //    a clone of this HlcService inside the `current_hlc()` UDF closure,
         //    so we must mutate the existing instance rather than swapping it out
         //    — otherwise the UDF would keep looking at an uninitialized service.
-        let hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
-            reason: e.to_string(),
-        })?;
+        let hlc_guard = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "database::initialize_session_post_migration",
+            serde_json::json!({}),
+        )?;
         hlc_guard
             .initialize_in_place(conn, app_handle)
             .map_err(|e| DatabaseError::ExecutionError {
@@ -1171,9 +1177,12 @@ fn initialize_session(
     // 3. Initialize the HLC service *in place* on the AppState instance — the
     //    connection already holds a clone inside the `current_hlc()` UDF.
     {
-        let hlc_guard = state.hlc.lock().map_err(|e| DatabaseError::LockError {
-            reason: e.to_string(),
-        })?;
+        let hlc_guard = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "database::initialize_session",
+            serde_json::json!({}),
+        )?;
         hlc_guard
             .initialize_in_place(&conn, app_handle)
             .map_err(|e| DatabaseError::ExecutionError {
