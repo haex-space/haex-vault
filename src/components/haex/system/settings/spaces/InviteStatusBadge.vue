@@ -1,28 +1,27 @@
 <script setup lang="ts">
 /**
- * Surfaces the delivery state of a targeted invite by joining the
- * `haex_invite_tokens` row the UI lists with the corresponding
- * `haex_invite_outbox` row (matched on `token_id`). Without this badge the
- * user sees "Pending invitation" indefinitely while the outbox silently
- * retries, has no idea whether the recipient ever saw it, and has no
- * recourse when a permanent rejection (auth mismatch, capability error)
- * occurs.
- *
- * State mapping mirrors docs/plans/2026-06-15-invite-outbox-resilience.md
- * Schicht 3. PENDING with retryCount=0 means "haven't tried yet";
- * retryCount>0 means at least one attempt failed transiently — typically
- * the recipient is offline. The detail tooltip carries the diagnostic
- * fields so the user can tell apart "their phone is off" from "their key
- * is wrong" without opening the logs.
+ * State mapping per docs/plans/2026-06-15-invite-outbox-resilience.md
+ * Schicht 3 — PENDING+retryCount=0 means "haven't tried yet";
+ * retryCount>0 means at least one transient failure. The tooltip surfaces
+ * timing + last error so the user can tell "their phone is off" from
+ * "their key is wrong" without opening logs.
  */
 import type { SelectHaexInviteOutbox } from '~/database/schemas'
 import { OutboxStatus } from '~/database/constants'
+import { outboxLastAttemptAt } from '~/composables/useInviteOutbox'
 
 const props = defineProps<{
   outbox: SelectHaexInviteOutbox | null
 }>()
 
 const { t } = useI18n()
+
+// Tick a reactive `now` so the relative-time tooltip keeps counting down
+// while the drawer stays open (Date.now() alone wouldn't re-evaluate).
+const now = ref(Date.now())
+useIntervalFn(() => {
+  now.value = Date.now()
+}, 15_000)
 
 type BadgeColor = 'info' | 'warning' | 'success' | 'error' | 'neutral'
 
@@ -32,10 +31,10 @@ interface BadgeState {
   detail?: string
 }
 
-function relativeTime(date: Date): string {
-  const diffMs = date.getTime() - Date.now()
-  if (diffMs <= 0) return t('invites.outboxStatus.relativeNow')
+function relativeDistance(date: Date): string {
+  const diffMs = Math.abs(date.getTime() - now.value)
   const sec = Math.round(diffMs / 1000)
+  if (sec < 1) return t('invites.outboxStatus.relativeNow')
   if (sec < 60) return t('invites.outboxStatus.relativeSeconds', { count: sec })
   const min = Math.round(sec / 60)
   if (min < 60) return t('invites.outboxStatus.relativeMinutes', { count: min })
@@ -65,20 +64,29 @@ const state = computed<BadgeState | null>(() => {
     return { color: 'info', label: t('invites.outboxStatus.sending') }
   }
   const nextRetryAt = o.nextRetryAt ? new Date(o.nextRetryAt) : null
-  let detail: string | undefined
-  if (nextRetryAt && o.lastError) {
-    detail = t('invites.outboxStatus.waitingDetail', {
-      next: relativeTime(nextRetryAt),
-      error: o.lastError,
-    })
-  } else if (nextRetryAt) {
-    detail = t('invites.outboxStatus.waitingDetailNoError', { next: relativeTime(nextRetryAt) })
+  const lastAttempt = outboxLastAttemptAt(o.retryCount, o.nextRetryAt)
+  const parts: string[] = []
+  if (lastAttempt) {
+    parts.push(t('invites.outboxStatus.waitingLast', { last: relativeDistance(lastAttempt) }))
+  }
+  if (nextRetryAt) {
+    parts.push(t('invites.outboxStatus.waitingNext', { next: relativeDistance(nextRetryAt) }))
+  }
+  if (o.lastError) {
+    parts.push(o.lastError)
   }
   return {
     color: 'warning',
     label: t('invites.outboxStatus.waitingForRecipient'),
-    detail,
+    detail: parts.length > 0 ? parts.join(' · ') : undefined,
   }
+})
+
+const ariaLabel = computed(() => {
+  if (!state.value) return undefined
+  return state.value.detail
+    ? `${state.value.label} — ${state.value.detail}`
+    : state.value.label
 })
 </script>
 
@@ -88,6 +96,8 @@ const state = computed<BadgeState | null>(() => {
     :color="state.color"
     variant="subtle"
     size="xs"
+    role="status"
+    :aria-label="ariaLabel"
     :title="state.detail"
   >
     {{ state.label }}
@@ -100,8 +110,8 @@ de:
     outboxStatus:
       sending: Wird gesendet
       waitingForRecipient: Warten auf Empfänger
-      waitingDetail: 'Nächster Versuch in {next} · {error}'
-      waitingDetailNoError: Nächster Versuch in {next}
+      waitingLast: 'Letzter Versuch vor {last}'
+      waitingNext: 'nächster in {next}'
       delivered: Zugestellt
       failed: Fehlgeschlagen
       expired: Einladung abgelaufen
@@ -114,8 +124,8 @@ en:
     outboxStatus:
       sending: Sending
       waitingForRecipient: Waiting for recipient
-      waitingDetail: 'Next attempt in {next} · {error}'
-      waitingDetailNoError: Next attempt in {next}
+      waitingLast: 'Last attempt {last} ago'
+      waitingNext: 'next in {next}'
       delivered: Delivered
       failed: Failed
       expired: Invitation expired

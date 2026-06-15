@@ -298,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import type {
   SelectHaexInviteTokens,
   SelectHaexInviteOutbox,
@@ -345,13 +345,7 @@ const capabilities = ref<string[]>([])
 const members = ref<SpaceMemberWithIdentity[]>([])
 const pendingTokens = ref<SelectHaexInviteTokens[]>([])
 const failedOutboxEntries = ref<SelectHaexInviteOutbox[]>([])
-/**
- * Outbox rows for this space, keyed by `tokenId`. Used to surface the
- * current delivery state next to each pending invite. A single token can
- * fan out to multiple recipients (different `targetDid`s), so each value
- * is an array — the UI shows the most recently updated row for that
- * token, which best reflects the user's last delivery attempt.
- */
+/** Outbox rows per tokenId — one token can fan out to multiple recipients. */
 const outboxRowsByTokenId = ref<Map<string, SelectHaexInviteOutbox[]>>(new Map())
 
 const editingMemberId = ref<string | null>(null)
@@ -433,21 +427,25 @@ const loadMembersAsync = async () => {
       (!t.expiresAt || new Date(t.expiresAt).getTime() > Date.now()),
   )
 
-  const allOutboxEntries = await db
+  // Skip EXPIRED in the query — those rows accumulate without bound and
+  // the badge never surfaces them (token-level filter above hides the
+  // matching invite anyway).
+  const liveOutboxEntries = await db
     .select()
     .from(haexInviteOutbox)
-    .where(eq(haexInviteOutbox.spaceId, props.spaceId))
+    .where(and(
+      eq(haexInviteOutbox.spaceId, props.spaceId),
+      ne(haexInviteOutbox.status, OutboxStatus.EXPIRED),
+    ))
 
-  failedOutboxEntries.value = allOutboxEntries.filter(
+  failedOutboxEntries.value = liveOutboxEntries.filter(
     (e) => e.status === OutboxStatus.FAILED,
   )
 
-  // Group non-FAILED outbox rows by tokenId so the badge can join them
-  // back to the rendered pending-invite list. FAILED rows are excluded
-  // here because they're already surfaced in their own dedicated section
-  // above — showing them twice would clutter without adding information.
+  // FAILED rows are surfaced in their own dedicated section above; the
+  // badge join would duplicate them, so they're skipped here.
   const byToken = new Map<string, SelectHaexInviteOutbox[]>()
-  for (const entry of allOutboxEntries) {
+  for (const entry of liveOutboxEntries) {
     if (entry.status === OutboxStatus.FAILED) continue
     const bucket = byToken.get(entry.tokenId) ?? []
     bucket.push(entry)
@@ -456,11 +454,7 @@ const loadMembersAsync = async () => {
   outboxRowsByTokenId.value = byToken
 }
 
-/**
- * Pick the most-recent outbox row for a token to drive the status badge.
- * A token can have many outbox rows (one per recipient endpoint); the
- * latest-touched row reflects what the user just did or last saw move.
- */
+/** Pick the row that best represents the token's overall state — PENDING outranks DELIVERED via the (nextRetryAt ?? createdAt) sort key. */
 const outboxRowForToken = (tokenId: string): SelectHaexInviteOutbox | null => {
   const rows = outboxRowsByTokenId.value.get(tokenId)
   if (!rows || rows.length === 0) return null
@@ -651,10 +645,9 @@ onMounted(async () => {
   await loadMembersAsync()
 })
 
-// Refresh outbox state whenever the user re-opens the drawer. The outbox
-// is updated by background jobs (30s poll + peer-connected listener), so
-// values cached at page-mount go stale fast — without this watch the user
-// would see a green "Delivered" badge minutes after the row already moved.
+// The outbox is mutated by background jobs (30s poll + peer-connected
+// listener); re-load on every drawer open so cached badge state doesn't
+// go stale.
 watch(showMembersDrawer, async (open) => {
   if (open) await loadMembersAsync()
 })
