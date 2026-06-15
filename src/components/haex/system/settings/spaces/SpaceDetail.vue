@@ -161,13 +161,16 @@
             class="flex items-center justify-between gap-2 p-2 rounded-md bg-warning-50 dark:bg-warning-950/30"
           >
             <div class="min-w-0">
-              <p class="text-sm truncate">
-                {{
-                  token.targetDid
-                    ? token.targetDid.slice(0, 24) + '…'
-                    : t('members.openInvite')
-                }}
-              </p>
+              <div class="flex items-center gap-1.5">
+                <p class="text-sm truncate">
+                  {{
+                    token.targetDid
+                      ? token.targetDid.slice(0, 24) + '…'
+                      : t('members.openInvite')
+                  }}
+                </p>
+                <InviteStatusBadge :outbox="outboxRowForToken(token.id)" />
+              </div>
               <p class="text-xs text-muted">
                 {{ formatCapabilities(token.capabilities) }}
                 ·
@@ -295,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type {
   SelectHaexInviteTokens,
   SelectHaexInviteOutbox,
@@ -306,6 +309,7 @@ import { OutboxStatus } from '~/database/constants'
 import type { SpaceMemberWithIdentity } from '@/stores/spaces/members'
 import SpaceLinkedItems from './SpaceLinkedItems.vue'
 import SpaceShares from './SpaceShares.vue'
+import InviteStatusBadge from './InviteStatusBadge.vue'
 
 const props = defineProps<{
   spaceId: string
@@ -341,6 +345,14 @@ const capabilities = ref<string[]>([])
 const members = ref<SpaceMemberWithIdentity[]>([])
 const pendingTokens = ref<SelectHaexInviteTokens[]>([])
 const failedOutboxEntries = ref<SelectHaexInviteOutbox[]>([])
+/**
+ * Outbox rows for this space, keyed by `tokenId`. Used to surface the
+ * current delivery state next to each pending invite. A single token can
+ * fan out to multiple recipients (different `targetDid`s), so each value
+ * is an array — the UI shows the most recently updated row for that
+ * token, which best reflects the user's last delivery attempt.
+ */
+const outboxRowsByTokenId = ref<Map<string, SelectHaexInviteOutbox[]>>(new Map())
 
 const editingMemberId = ref<string | null>(null)
 const editLabel = ref('')
@@ -421,15 +433,42 @@ const loadMembersAsync = async () => {
       (!t.expiresAt || new Date(t.expiresAt).getTime() > Date.now()),
   )
 
-  failedOutboxEntries.value = await db
+  const allOutboxEntries = await db
     .select()
     .from(haexInviteOutbox)
-    .where(
-      and(
-        eq(haexInviteOutbox.spaceId, props.spaceId),
-        eq(haexInviteOutbox.status, OutboxStatus.FAILED),
-      ),
-    )
+    .where(eq(haexInviteOutbox.spaceId, props.spaceId))
+
+  failedOutboxEntries.value = allOutboxEntries.filter(
+    (e) => e.status === OutboxStatus.FAILED,
+  )
+
+  // Group non-FAILED outbox rows by tokenId so the badge can join them
+  // back to the rendered pending-invite list. FAILED rows are excluded
+  // here because they're already surfaced in their own dedicated section
+  // above — showing them twice would clutter without adding information.
+  const byToken = new Map<string, SelectHaexInviteOutbox[]>()
+  for (const entry of allOutboxEntries) {
+    if (entry.status === OutboxStatus.FAILED) continue
+    const bucket = byToken.get(entry.tokenId) ?? []
+    bucket.push(entry)
+    byToken.set(entry.tokenId, bucket)
+  }
+  outboxRowsByTokenId.value = byToken
+}
+
+/**
+ * Pick the most-recent outbox row for a token to drive the status badge.
+ * A token can have many outbox rows (one per recipient endpoint); the
+ * latest-touched row reflects what the user just did or last saw move.
+ */
+const outboxRowForToken = (tokenId: string): SelectHaexInviteOutbox | null => {
+  const rows = outboxRowsByTokenId.value.get(tokenId)
+  if (!rows || rows.length === 0) return null
+  return rows.reduce((latest, candidate) => {
+    const latestKey = latest.nextRetryAt ?? latest.createdAt ?? ''
+    const candidateKey = candidate.nextRetryAt ?? candidate.createdAt ?? ''
+    return candidateKey > latestKey ? candidate : latest
+  })
 }
 
 /** Resolve the DID of a failed invite target to a human-readable label,
@@ -610,6 +649,14 @@ onMounted(async () => {
   )
   await loadAsync()
   await loadMembersAsync()
+})
+
+// Refresh outbox state whenever the user re-opens the drawer. The outbox
+// is updated by background jobs (30s poll + peer-connected listener), so
+// values cached at page-mount go stale fast — without this watch the user
+// would see a green "Delivered" badge minutes after the row already moved.
+watch(showMembersDrawer, async (open) => {
+  if (open) await loadMembersAsync()
 })
 </script>
 
