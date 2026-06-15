@@ -17,6 +17,7 @@ import eventNames from '@/constants/eventNames.json'
 export const RUST_EVENTS = {
   peerStorageStateChanged: eventNames.peer.storageStateChanged,
   peerConnectionChanged: eventNames.peer.connectionChanged,
+  peerConnected: eventNames.peer.connected,
   localSyncCompleted: eventNames.localSync.completed,
   localSyncError: eventNames.localSync.error,
 } as const

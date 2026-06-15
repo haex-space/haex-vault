@@ -3,20 +3,24 @@ import { invoke } from '@tauri-apps/api/core'
 import { haexInviteOutbox, haexInviteTokens, haexPendingInvites, haexSpaces, haexSpaceDevices, haexUcanTokens } from '~/database/schemas'
 import { OutboxStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
+import type { OutboxAttemptError } from '@bindings/OutboxAttemptError'
 
 const log = createLogger('INVITE-OUTBOX')
 
-const BACKOFF_SECONDS = [0, 5, 15, 60, 300, 900] // immediate, 5s, 15s, 1m, 5m, 15m
-export const MAX_OUTBOX_RETRIES = BACKOFF_SECONDS.length // after this many failures, surface as FAILED to the user
+// Capped exponential backoff. Unlike the prior fixed table whose length
+// doubled as a retry limit, this is purely a delay schedule — retries
+// continue as long as the invite has not yet expired (`expiresAt`).
+const BACKOFF_SECONDS_CAPPED = [0, 5, 15, 60, 300, 900, 1800, 3600] // immediate → 1h
+const BACKOFF_CAP_INDEX = BACKOFF_SECONDS_CAPPED.length - 1
 
 function nextRetryDelay(retryCount: number): number {
-  const seconds = BACKOFF_SECONDS[Math.min(retryCount, BACKOFF_SECONDS.length - 1)]!
-  return seconds * 1000
+  const idx = Math.min(retryCount, BACKOFF_CAP_INDEX)
+  return BACKOFF_SECONDS_CAPPED[idx]! * 1000
 }
 
 export type OutboxAttemptOutcome =
   | { delivered: true }
-  | { delivered: false, error: string }
+  | { delivered: false, error: string, transient: boolean }
 
 export type OutboxNextState =
   | { status: typeof OutboxStatus.DELIVERED, retryCount?: undefined, nextRetryAt?: undefined, lastError?: undefined }
@@ -27,8 +31,13 @@ export type OutboxNextState =
  * Decide the outbox row's next state after a `local_delivery_push_invite`
  * attempt. Pure function — same inputs always produce the same state, so
  * both the success path and the failure path (thrown error OR
- * `accepted === false`) route through the same retry/backoff/FAILED
- * transition.
+ * `accepted === false`) route through the same transition logic.
+ *
+ * Classification rule (from docs/plans/2026-06-15-invite-outbox-resilience.md):
+ * - transient failures keep the row PENDING with capped exponential backoff;
+ *   only `expiresAt` (handled by the processor) ever terminates them.
+ * - permanent failures (auth reject, UCAN audience mismatch, capability
+ *   unknown — anything that won't change on retry) go straight to FAILED.
  */
 export function computeOutboxNextState(
   retryCount: number,
@@ -39,7 +48,7 @@ export function computeOutboxNextState(
     return { status: OutboxStatus.DELIVERED }
   }
   const nextCount = retryCount + 1
-  if (nextCount >= MAX_OUTBOX_RETRIES) {
+  if (!outcome.transient) {
     return {
       status: OutboxStatus.FAILED,
       retryCount: nextCount,
@@ -52,6 +61,16 @@ export function computeOutboxNextState(
     nextRetryAt: new Date(now + nextRetryDelay(nextCount)).toISOString(),
     lastError: outcome.error,
   }
+}
+
+/** Type guard for the OutboxAttemptError shape thrown by invoke<bool>(). */
+function isOutboxAttemptError(value: unknown): value is OutboxAttemptError {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && typeof (value as Record<string, unknown>).reason === 'string'
+    && typeof (value as Record<string, unknown>).transient === 'boolean'
+  )
 }
 
 export function useInviteOutbox() {
@@ -85,27 +104,42 @@ export function useInviteOutbox() {
 
   /**
    * Process all pending outbox entries that are ready for retry.
-   * Called periodically by the sync orchestrator.
+   *
+   * Called periodically by the sync orchestrator. Also called immediately
+   * by the `peer-connected` listener when a previously-unreachable peer
+   * comes online — in that case `opts.filterTargetEndpointId` skips
+   * unrelated rows and bypasses `nextRetryAt` so the next attempt fires
+   * right away instead of waiting out a stale backoff slot.
    */
-  const processOutboxAsync = async () => {
+  const processOutboxAsync = async (opts?: { filterTargetEndpointId?: string }) => {
     const db = getDb()
     if (!db) return
 
     const now = new Date().toISOString()
+    const filter = opts?.filterTargetEndpointId
+
+    // Filter mode: a peer-connected event told us this endpoint is live
+    // right now, so ignore each row's nextRetryAt and only require PENDING.
+    // Without this, a row whose backoff still has 12 minutes to run would
+    // sit idle even though the recipient is reachable this very moment.
+    const whereClause = filter
+      ? and(
+          eq(haexInviteOutbox.status, OutboxStatus.PENDING),
+          eq(haexInviteOutbox.targetEndpointId, filter),
+        )
+      : and(
+          eq(haexInviteOutbox.status, OutboxStatus.PENDING),
+          lte(haexInviteOutbox.nextRetryAt, now),
+        )
 
     const entries = await db
       .select()
       .from(haexInviteOutbox)
-      .where(
-        and(
-          eq(haexInviteOutbox.status, OutboxStatus.PENDING),
-          lte(haexInviteOutbox.nextRetryAt, now),
-        ),
-      )
+      .where(whereClause)
 
     if (entries.length === 0) return
 
-    log.info(`Processing ${entries.length} pending outbox entries`)
+    log.info(`Processing ${entries.length} pending outbox entries${filter ? ` (event-flush for ${filter.slice(0, 12)}…)` : ''}`)
 
     // Ensure peer storage is running — local_delivery_push_invite requires it.
     // Without this, outbox entries silently fail and retry forever.
@@ -261,13 +295,27 @@ export function useInviteOutbox() {
           // mDNS / hole-punching until the real CRDT row arrives.
           inviterRelayUrl: peerStore.relayUrl ?? peerStore.configuredRelayUrl ?? null,
         })
+        // `accepted=false` means the recipient processed the request but
+        // declined to insert (HLC poison, DB locked, transient policy state).
+        // Treat as transient so the outbox keeps trying until expiresAt —
+        // a permanent receiver-side problem will burn out via expiry, but
+        // a transient one (DB busy, recipient restarting) recovers cleanly.
         outcome = accepted
           ? { delivered: true }
-          : { delivered: false, error: 'PushInvite rejected by recipient (accepted=false)' }
+          : { delivered: false, error: 'PushInvite rejected by recipient (accepted=false)', transient: true }
       } catch (error) {
-        outcome = {
-          delivered: false,
-          error: error instanceof Error ? error.message : String(error),
+        // Rust now throws OutboxAttemptError { reason, transient } from
+        // local_delivery_push_invite. Anything else (network layer
+        // exceptions, plugin errors) is treated as transient — better to
+        // retry until expiry than to FAIL on an unclassified glitch.
+        if (isOutboxAttemptError(error)) {
+          outcome = { delivered: false, error: error.reason, transient: error.transient }
+        } else {
+          outcome = {
+            delivered: false,
+            error: error instanceof Error ? error.message : String(error),
+            transient: true,
+          }
         }
       }
 
@@ -281,12 +329,13 @@ export function useInviteOutbox() {
       if (nextState.status === OutboxStatus.DELIVERED) {
         log.info(`Outbox ${entry.id}: DELIVERED ✓ (target=${targetTag}…)`)
       } else if (nextState.status === OutboxStatus.FAILED) {
-        // Exhausted all retries — surface to the user so they can decide
-        // whether to re-send the invite (the contact may be offline for
-        // days, or their endpoint may have changed).
-        log.error(`Outbox ${entry.id}: exhausted retries (${nextState.retryCount}/${MAX_OUTBOX_RETRIES}) → marked FAILED. target=${targetTag}… error="${nextState.lastError}"`)
+        // Permanent failure — surface to the user so they can decide
+        // whether to re-send the invite (e.g. via a fresh token). With
+        // the transient/permanent split this should now only fire for
+        // genuine auth/protocol rejections.
+        log.error(`Outbox ${entry.id}: permanent failure → marked FAILED. target=${targetTag}… error="${nextState.lastError}"`)
       } else {
-        log.warn(`Outbox ${entry.id}: retry ${nextState.retryCount}/${MAX_OUTBOX_RETRIES} → target=${targetTag}… next=${nextState.nextRetryAt} error="${nextState.lastError}"`)
+        log.warn(`Outbox ${entry.id}: transient retry ${nextState.retryCount} → target=${targetTag}… next=${nextState.nextRetryAt} error="${nextState.lastError}"`)
       }
     }
   }
