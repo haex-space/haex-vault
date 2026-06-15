@@ -173,8 +173,8 @@ importers:
         specifier: ^0.17.3
         version: 0.17.3
       '@oxc-minify/binding-linux-x64-gnu':
-        specifier: ^0.134.0
-        version: 0.134.0
+        specifier: ^0.135.0
+        version: 0.135.0
       '@playwright/test':
         specifier: ^1.60.0
         version: 1.60.0
@@ -2054,8 +2054,8 @@ packages:
     cpu: [x64]
     os: [linux]
 
-  '@oxc-minify/binding-linux-x64-gnu@0.134.0':
-    resolution: {integrity: sha512-+lkapk00SffNhL4kuKdncsCfqHzrBaDBX0j6MTirEyMq/j0zRcZmtIVadEBtYVT2gX3qST7M/AhMbRNbuXFYzA==}
+  '@oxc-minify/binding-linux-x64-gnu@0.135.0':
+    resolution: {integrity: sha512-36MQ5girodh40vwdoOEhvJeGlj1lADYq1+s8vQuS3GPqTXNwdV3A8dwSsciaNEPMXf192f6m2e0IXJSSs1I0qw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
@@ -3528,6 +3528,9 @@ packages:
 
   '@types/node@25.9.2':
     resolution: {integrity: sha512-G05zqtJhcDLb8uslf5EjCxXg9G1KQxiV8OS0R26IC//Eoyitzqe8z37I7cqvnZlrlSfgocQRfSn/AHBZJJFyGw==}
+
+  '@types/node@25.9.3':
+    resolution: {integrity: sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg==}
 
   '@types/qrcode@1.5.6':
     resolution: {integrity: sha512-te7NQcV2BOvdj2b1hCAHzAoMNuj65kNBMz0KBaxM6c3VGBOhU0dURQKOtH8CFNI/dsKkwlv32p26qYQTWoB5bw==}
@@ -6716,6 +6719,11 @@ packages:
 
   semver@7.8.2:
     resolution: {integrity: sha512-c8jsqUZm3omBOI66G90z1Dyw5z622G8oLG+omfsHBJf3CWQTlOcwOjvOG6wtiNfW6anKm/eA39LMwMtMez2TiQ==}
+    engines: {node: '>=10'}
+    hasBin: true
+
+  semver@7.8.4:
+    resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -10118,7 +10126,7 @@ snapshots:
   '@oxc-minify/binding-linux-x64-gnu@0.133.0':
     optional: true
 
-  '@oxc-minify/binding-linux-x64-gnu@0.134.0': {}
+  '@oxc-minify/binding-linux-x64-gnu@0.135.0': {}
 
   '@oxc-minify/binding-linux-x64-musl@0.133.0':
     optional: true
@@ -11159,7 +11167,7 @@ snapshots:
 
   '@types/better-sqlite3@7.6.13':
     dependencies:
-      '@types/node': 25.9.2
+      '@types/node': 25.9.3
     optional: true
 
   '@types/chai@5.2.3':
@@ -11189,6 +11197,11 @@ snapshots:
   '@types/node@25.9.2':
     dependencies:
       undici-types: 7.24.6
+
+  '@types/node@25.9.3':
+    dependencies:
+      undici-types: 7.24.6
+    optional: true
 
   '@types/qrcode@1.5.6':
     dependencies:
@@ -13812,7 +13825,7 @@ snapshots:
 
   node-abi@3.92.0:
     dependencies:
-      semver: 7.8.2
+      semver: 7.8.4
     optional: true
 
   node-addon-api@7.1.1: {}
@@ -14827,6 +14840,9 @@ snapshots:
   semver@6.3.1: {}
 
   semver@7.8.2: {}
+
+  semver@7.8.4:
+    optional: true
 
   send@1.2.1:
     dependencies:
