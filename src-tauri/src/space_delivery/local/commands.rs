@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use tauri::State;
+use tauri::{Emitter, State};
 use tokio::sync::RwLock;
 
 use crate::critical::CriticalFailureCode;
@@ -15,7 +15,6 @@ use super::invite_tokens;
 use super::leader::LeaderState;
 use super::protocol::{Request, Response};
 use super::types::{ClaimInviteResult, DeliveryStatus, ElectionResultInfo, LeaderInfo, LocalInviteInfo, OutboxAttemptError, PeerConnectedEvent};
-use tauri::Emitter;
 
 /// Start leader mode for a local space.
 /// Inserts a new LeaderState into the shared map. On the first call,
