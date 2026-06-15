@@ -32,6 +32,11 @@ const isWaitingForInitialSync = ref(false)
 const syncProgress = ref<{ synced: number; total: number } | undefined>()
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 
+// Watcher created after `await` in onMounted() — Vue 3 does not auto-bind it to
+// the component lifecycle, so we hold the stop handle and dispose it explicitly
+// in onBeforeUnmount to avoid duplicate startups and leaks across remounts.
+let stopDeviceRowWatch: (() => void) | null = null
+
 const { readNotificationsAsync } = useNotificationStore()
 const { loadExtensionsAsync } = useExtensionsStore()
 const { setupEventListeners: setupBroadcastListeners } = useExtensionBroadcastStore()
@@ -67,6 +72,8 @@ onBeforeRouteLeave(async () => {
 })
 
 onBeforeUnmount(async () => {
+  stopDeviceRowWatch?.()
+  stopDeviceRowWatch = null
   try {
     await vaultStore.closeAsync()
   } catch (error) {
@@ -146,8 +153,9 @@ onMounted(async () => {
     // Covers the fresh-vault path: the device row is committed later by the
     // reconciliation dialog (registerNewAsync / reclaimAsync), after this
     // onMounted block has already run.
-    watch(() => deviceStore.deviceRowId, (rowId) => {
-      if (rowId) tryStartPeerStorageAsync()
+    stopDeviceRowWatch?.()
+    stopDeviceRowWatch = watch(() => deviceStore.deviceRowId, (rowId) => {
+      if (rowId) void tryStartPeerStorageAsync()
     })
 
     // Set up file sync event listeners so progress/complete events are handled.

@@ -44,7 +44,13 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // in vault.vue, the outbox processor, the post-close restart handler); two
   // calls racing before `running` flips to true would otherwise both reach
   // peer_storage_start and hit its EndpointAlreadyRunning assert.
-  let starting = false
+  //
+  // Holding an in-flight promise (rather than a bool) lets concurrent callers
+  // await the same startup and observe the same outcome — `nodeId` is set,
+  // or the start error propagates to every caller. The outbox processor reads
+  // `nodeId` right after `await startAsync()`, so a boolean flag returning
+  // early would let it proceed against an empty endpoint.
+  let startingPromise: Promise<void> | null = null
 
   const refreshStatusAsync = async () => {
     try {
@@ -308,15 +314,22 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       )
     }
 
-    // Idempotent: a no-op when the endpoint is already up or a start is in
-    // flight, so the multiple autostart triggers can fire freely.
-    if (running.value || starting) return
-    starting = true
-    try {
-      await startEndpointAsync(deviceStore)
-    } finally {
-      starting = false
+    // Idempotent: a no-op when the endpoint is already up; concurrent callers
+    // wait on the in-flight start so they observe the post-start state (and
+    // surface any error) rather than returning before `running` is true.
+    if (running.value) return
+    if (startingPromise) {
+      await startingPromise
+      return
     }
+    startingPromise = (async () => {
+      try {
+        await startEndpointAsync(deviceStore)
+      } finally {
+        startingPromise = null
+      }
+    })()
+    await startingPromise
   }
 
   const startEndpointAsync = async (deviceStore: ReturnType<typeof useDeviceStore>) => {
