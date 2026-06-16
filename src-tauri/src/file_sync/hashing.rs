@@ -56,6 +56,54 @@ lazy_static! {
 /// syscall overhead, small enough to not bloat RAM with many parallel scans.
 const HASH_BUF: usize = 256 * 1024;
 
+/// Chunk size for the resumable file-sync chunk hasher. 1 MiB, aligned to
+/// `streaming::CHUNK_SIZE`.
+pub const CHUNK_HASH_SIZE: u32 = 1024 * 1024;
+
+/// Per-chunk + whole-file BLAKE3 hashes for resumable downloads.
+#[derive(Debug, Clone)]
+pub struct ChunkedHash {
+    /// BLAKE3 of the full file, lowercase hex.
+    pub file_hash: String,
+    /// Bytes per chunk (the last chunk may be shorter).
+    pub chunk_size: u32,
+    /// BLAKE3 of each chunk, lowercase hex, in order.
+    pub chunk_hashes: Vec<String>,
+}
+
+/// Compute BLAKE3 of a file in chunks of `CHUNK_HASH_SIZE`, returning both the
+/// per-chunk hashes and the whole-file hash in a single streaming pass.
+pub fn hash_file_chunked(path: &Path) -> io::Result<ChunkedHash> {
+    let mut file = File::open(path)?;
+    let mut file_hasher = blake3::Hasher::new();
+    let mut chunk_hashes = Vec::new();
+    let mut buf = vec![0u8; CHUNK_HASH_SIZE as usize];
+    let mut filled = 0usize;
+
+    loop {
+        let n = file.read(&mut buf[filled..])?;
+        if n == 0 {
+            break;
+        }
+        filled += n;
+        if filled == buf.len() {
+            file_hasher.update(&buf);
+            chunk_hashes.push(blake3::hash(&buf).to_hex().to_string());
+            filled = 0;
+        }
+    }
+    if filled > 0 {
+        file_hasher.update(&buf[..filled]);
+        chunk_hashes.push(blake3::hash(&buf[..filled]).to_hex().to_string());
+    }
+
+    Ok(ChunkedHash {
+        file_hash: blake3::Hasher::finalize(&file_hasher).to_hex().to_string(),
+        chunk_size: CHUNK_HASH_SIZE,
+        chunk_hashes,
+    })
+}
+
 /// Compute SHA-256 of a file. Streams in 256 KB chunks; lower-case hex output.
 pub fn hash_file_sync(path: &Path) -> io::Result<String> {
     let mut file = File::open(path)?;
@@ -203,5 +251,34 @@ mod tests {
         prime_cache(tmp.path(), 12, 7777, planted.to_string());
         let got = cached_hash(tmp.path(), 12, 7777).unwrap();
         assert_eq!(got, planted);
+    }
+
+    #[test]
+    fn chunk_hashes_compose_correctly() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let data: Vec<u8> = (0..(3 * 1024 * 1024 + 17)).map(|i| (i % 251) as u8).collect();
+        std::fs::write(tmp.path(), &data).unwrap();
+
+        let result = hash_file_chunked(tmp.path()).unwrap();
+
+        assert_eq!(result.chunk_size, CHUNK_HASH_SIZE);
+        assert_eq!(result.chunk_hashes.len(), 4, "3MiB + 17B → 4 chunks");
+
+        // First three chunks are exactly CHUNK_HASH_SIZE bytes
+        for i in 0..3 {
+            let start = i * CHUNK_HASH_SIZE as usize;
+            let end = start + CHUNK_HASH_SIZE as usize;
+            let expected = blake3::hash(&data[start..end]).to_hex().to_string();
+            assert_eq!(result.chunk_hashes[i], expected, "chunk {i} hash");
+        }
+
+        // Last chunk is the 17-byte tail
+        let tail_start = 3 * CHUNK_HASH_SIZE as usize;
+        let tail_hash = blake3::hash(&data[tail_start..]).to_hex().to_string();
+        assert_eq!(result.chunk_hashes[3], tail_hash, "tail chunk hash");
+
+        // File-level hash matches a fresh blake3 over the whole content
+        let expected_file = blake3::hash(&data).to_hex().to_string();
+        assert_eq!(result.file_hash, expected_file);
     }
 }
