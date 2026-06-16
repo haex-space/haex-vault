@@ -727,6 +727,19 @@ pub async fn execute_sync(
                 // data. Transient transfer errors deliberately leave the
                 // partial+sidecar intact so the engine's retry-once and
                 // the next sync cycle can resume.
+                //
+                // Defensive: in the verified peer-download path,
+                // download_file_to_path would have returned Err before
+                // reaching here if the per-chunk hash disagreed with the
+                // manifest — `read_result` would be `Err` and `verified`
+                // would short-circuit to `Ok(())`. This branch exists
+                // because (a) test doubles (e.g. RecordingSource in the
+                // engine tests) can produce the mismatch to exercise
+                // sidecar cleanup, and (b) future SyncProvider
+                // implementations may report a full-file hash without
+                // per-chunk verification — in which case a mismatch here
+                // means stale bytes from a drifted manifest and the
+                // sidecar must not survive into the next sync cycle.
                 if verified.is_err() && direct_target.is_some() {
                     let final_path = staging_path.clone();
                     if let Err(e) =
@@ -870,6 +883,13 @@ pub async fn execute_sync(
                         emit_cb(false);
                     });
 
+                // NB: target.read_file_to_path through a PeerProvider creates
+                // sidecar files (<tmppath>.haex-partial, .haex-partial.meta)
+                // for resume support. tempfile::NamedTempFile only auto-removes
+                // the tempfile itself; on failure of the read the sidecars
+                // remain in the OS temp directory until the OS reaper sweeps
+                // them. Acceptable trade-off: resume support for transient
+                // upload-mid-failure is worth the occasional bounded leak.
                 let tmp: tempfile::NamedTempFile = match tempfile::NamedTempFile::new() {
                     Ok(f) => f,
                     Err(e) => {
