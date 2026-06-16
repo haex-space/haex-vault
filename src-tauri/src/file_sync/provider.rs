@@ -142,10 +142,15 @@ pub trait SyncProvider: Send + Sync {
 
     /// Hook fired after a successful `write_file_from_path`. Implementations
     /// that own a local filesystem (e.g. `LocalProvider`) can use the sender's
-    /// announced SHA-256 to prime their hash cache so the next manifest scan
-    /// does not re-hash the freshly-written file. Default is a no-op for
-    /// providers without local storage (peer, cloud).
-    async fn prime_hash_after_write(&self, _relative_path: &str, _hash: &str) {}
+    /// announced BLAKE3 chunked hashes to prime their hash cache so the next
+    /// manifest scan does not re-hash the freshly-written file. Default is a
+    /// no-op for providers without local storage (peer, cloud).
+    ///
+    /// The full `FileState` is passed so the implementation can read both
+    /// `file_hash` and the per-chunk hashes. Sources without chunked hashes
+    /// (e.g. cloud manifests) leave `chunk_hashes = None`; the LocalProvider
+    /// then skips cache seeding for that file.
+    async fn prime_hash_after_write(&self, _file: &FileState) {}
 }
 
 /// Validate a relative path against path traversal attacks.

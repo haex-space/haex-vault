@@ -717,8 +717,8 @@ pub async fn execute_sync(
                         bytes_transferred.fetch_add(n, Ordering::Relaxed);
                         files_downloaded.fetch_add(1, Ordering::Relaxed);
                         // Speed tracker already fed per-chunk in progress_cb; no add here.
-                        if let Some(h) = file.hash.as_deref() {
-                            target.prime_hash_after_write(&file.relative_path, h).await;
+                        if file.hash.is_some() {
+                            target.prime_hash_after_write(&file).await;
                         }
                         if let Err(e) = upsert_sync_state(
                             &db_clone,
@@ -892,8 +892,8 @@ pub async fn execute_sync(
                         bytes_done.fetch_add(n, Ordering::Relaxed);
                         bytes_transferred.fetch_add(n, Ordering::Relaxed);
                         // Speed tracker already fed per-chunk in progress_cb; no add here.
-                        if let Some(h) = file.hash.as_deref() {
-                            source.prime_hash_after_write(&file.relative_path, h).await;
+                        if file.hash.is_some() {
+                            source.prime_hash_after_write(&file).await;
                         }
                         if let Err(e) = upsert_sync_state(
                             &db_clone,
@@ -1073,13 +1073,10 @@ pub async fn execute_sync(
                                                 conflicts_resolved
                                                     .fetch_add(1, Ordering::Relaxed);
                                                 resolved = true;
-                                                if let Some(h) =
-                                                    conflict.source_state.hash.as_deref()
-                                                {
+                                                if conflict.source_state.hash.is_some() {
                                                     target
                                                         .prime_hash_after_write(
-                                                            &conflict.relative_path,
-                                                            h,
+                                                            &conflict.source_state,
                                                         )
                                                         .await;
                                                 }

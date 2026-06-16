@@ -88,6 +88,10 @@ impl SyncProvider for CloudProvider {
                     // scheme). Leave empty until we wire up an ETag-based
                     // path; the diff falls back to size+mtime.
                     hash: None,
+                    // No local bytes are available to compute BLAKE3 chunks for
+                    // cloud objects — leave chunked fields None.
+                    chunk_size: None,
+                    chunk_hashes: None,
                 })
             })
             .collect();
