@@ -773,6 +773,7 @@ pub(crate) async fn download_file_to_path(
             output_path,
             stat.entry.size,
             streaming::MAX_PARALLEL_STREAMS_PER_FILE,
+            Some(&chunks_to_use),
             on_progress,
             cancel_token,
             pause_flag,
@@ -1061,14 +1062,35 @@ async fn download_single_stream_with_resume(
 
 /// Download a file as `parallelism` parallel range reads, each on its own
 /// QUIC stream. Faster than [`PeerEndpoint::read_open_streams_to_file`] for
-/// large files because per-stream throughput stops being the bottleneck —
-/// the cost is one stat round-trip (paid by the caller) plus a final
-/// sequential pass over the on-disk file to compute the SHA-256, since
-/// SHA-256 over `N` parallel byte ranges is not composable.
+/// large files because per-stream throughput stops being the bottleneck.
 ///
 /// `size` must be the authoritative file size from the sender (e.g. from
-/// the manifest or a stat call) — the function pre-allocates the output
+/// the manifest or a stat call) — the function pre-allocates the partial
 /// file to that exact length and writes each range at its own offset.
+///
+/// ## Per-range retry (Task 9)
+///
+/// Each range may fail up to [`streaming::MAX_RANGE_RETRIES`] times before
+/// the whole download surfaces an error. Failures are re-queued and a sibling
+/// worker (or the same worker after returning from one range to the pool)
+/// picks them up — sibling ranges continue transferring while a failed range
+/// is retried, so a single flaky stream no longer aborts the entire download.
+///
+/// ## Chunk-hash verification (Task 9)
+///
+/// When `chunks_to_use` is `Some(_)` (sync + file-browser flows both supply
+/// chunks via [`download_file_to_path`]), each worker streams into a
+/// [`streaming::ChunkVerifier`] over the slice of manifest hashes covering
+/// its range. Bytes are landed in `<output_path>.haex-partial` and the
+/// resume sidecar is rewritten after every verified chunk, mirroring the
+/// single-stream resume path. On full success the partial file is atomically
+/// renamed to `output_path` and the sidecar is cleared. On failure (after
+/// retries) both are deliberately left on disk for the next attempt to
+/// resume from (Task 10).
+///
+/// When `chunks_to_use` is `None`, the legacy SHA-256 post-pass is retained
+/// for callers that pre-date Task 6 (today only the direct test entry-points
+/// hit this; `download_file_to_path` always supplies chunks).
 pub(crate) async fn read_multipart_to_file(
     endpoint: Arc<tokio::sync::RwLock<PeerEndpoint>>,
     remote_id: EndpointId,
@@ -1077,12 +1099,13 @@ pub(crate) async fn read_multipart_to_file(
     output_path: std::path::PathBuf,
     size: u64,
     parallelism: usize,
+    chunks_to_use: Option<&ChunkedHash>,
     on_progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
     cancel_token: Option<tokio_util::sync::CancellationToken>,
     pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
     ucan_token: String,
 ) -> Result<StreamReadResult, PeerStorageError> {
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::AtomicU64;
 
     if size == 0 {
         tokio::fs::File::create(&output_path)
@@ -1099,36 +1122,87 @@ pub(crate) async fn read_multipart_to_file(
         .max(1)
         .min(streaming::MAX_PARALLEL_STREAMS_PER_FILE);
 
+    // Verified path streams bytes to `<output>.haex-partial`, then atomic-
+    // renames + clears the sidecar on success. Legacy (chunks == None) keeps
+    // writing directly to `output_path` so existing callers' on-disk layout
+    // doesn't change.
+    let verified = chunks_to_use.is_some();
+    let write_path: std::path::PathBuf = if verified {
+        crate::peer_storage::resume::PartialState::partial_path(&output_path)
+    } else {
+        output_path.clone()
+    };
+
     // Pre-allocate the target file so every spawned task can seek to its own
     // offset and write its range independently. truncate(true) discards any
-    // stale partial file from a previous failed download.
+    // stale partial file from a previous failed download — Task 10 will
+    // replace this with a sidecar-aware path that preserves already-verified
+    // chunks across invocations.
     {
         use tokio::io::AsyncWriteExt;
         let mut file = tokio::fs::OpenOptions::new()
             .create(true)
             .truncate(true)
             .write(true)
-            .open(&output_path)
+            .open(&write_path)
             .await
             .map_err(PeerStorageError::Io)?;
         file.set_len(size).await.map_err(PeerStorageError::Io)?;
         file.flush().await.map_err(PeerStorageError::Io)?;
     }
 
-    let total_received = Arc::new(AtomicU64::new(0));
+    // Initial split: N equal ranges, last one absorbs the remainder. Each
+    // entry is `(start, end, attempt)`. Workers pop from the back so the
+    // first-spawned worker drains the highest range — order doesn't matter
+    // for correctness, the pool just needs to bottom out.
     let chunk = size.div_ceil(n as u64);
+    let mut initial_ranges: Vec<(u64, u64, u32)> = (0..n)
+        .filter_map(|i| {
+            let start = (i as u64) * chunk;
+            if start >= size {
+                return None;
+            }
+            let end = (start + chunk).min(size);
+            Some((start, end, 0))
+        })
+        .collect();
+    // pop() drains from the back; reverse so the lowest range is popped first
+    // and progress reports run roughly in file order.
+    initial_ranges.reverse();
 
-    let mut join_set = tokio::task::JoinSet::new();
-    for i in 0..n {
-        let start = (i as u64) * chunk;
-        if start >= size {
-            break;
-        }
-        let end = (start + chunk).min(size);
-        let part_size = end - start;
+    // Shared bitmap: only populated on the verified path. Each worker writes
+    // true into `completed[absolute_chunk_idx]` as ChunkVerifier validates a
+    // chunk; the helper persists the sidecar after every chunk so a future
+    // resume can pick up from any point of progress.
+    let total_chunks = chunks_to_use
+        .map(|c| c.chunk_hashes.len())
+        .unwrap_or(0);
+    let completed: Arc<tokio::sync::Mutex<Vec<bool>>> =
+        Arc::new(tokio::sync::Mutex::new(vec![false; total_chunks]));
 
+    let pending: Arc<tokio::sync::Mutex<Vec<(u64, u64, u32)>>> =
+        Arc::new(tokio::sync::Mutex::new(initial_ranges));
+
+    // Progress accounting through retries: a failed attempt's contribution
+    // is rolled back from `total_received` before the retry starts, so the
+    // consumer never sees a decrement and the final report equals `size`.
+    let total_received = Arc::new(AtomicU64::new(0));
+    let range_progress: Arc<tokio::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>> =
+        Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new()));
+
+    let total_size = size;
+    let max_retries = streaming::MAX_RANGE_RETRIES;
+
+    let chunks_owned: Option<Arc<ChunkedHash>> =
+        chunks_to_use.map(|c| Arc::new(c.clone()));
+
+    // Wrap the per-range work in a closure the generic retry pool can drive.
+    // The closure clones the per-attempt state once and the pool calls it
+    // for every attempt against every range.
+    let fetcher = {
         let endpoint = endpoint.clone();
         let path = path.clone();
+        let write_path = write_path.clone();
         let output_path = output_path.clone();
         let ucan_token = ucan_token.clone();
         let relay_url = relay_url.clone();
@@ -1136,124 +1210,478 @@ pub(crate) async fn read_multipart_to_file(
         let pause_flag = pause_flag.clone();
         let on_progress = on_progress.clone();
         let total_received = total_received.clone();
-        let prev_in_stream = Arc::new(AtomicU64::new(0));
-        let total_size = size;
+        let range_progress = range_progress.clone();
+        let completed = completed.clone();
+        let chunks_owned = chunks_owned.clone();
 
-        join_set.spawn(async move {
-            let (mut send, mut recv) = endpoint
-                .read()
+        Arc::new(move |start: u64, end: u64| {
+            let endpoint = endpoint.clone();
+            let path = path.clone();
+            let write_path = write_path.clone();
+            let output_path = output_path.clone();
+            let ucan_token = ucan_token.clone();
+            let relay_url = relay_url.clone();
+            let cancel_token = cancel_token.clone();
+            let pause_flag = pause_flag.clone();
+            let on_progress = on_progress.clone();
+            let total_received = total_received.clone();
+            let range_progress = range_progress.clone();
+            let completed = completed.clone();
+            let chunks_owned = chunks_owned.clone();
+            Box::pin(async move {
+                download_range_attempt(
+                    &endpoint,
+                    remote_id,
+                    relay_url,
+                    &path,
+                    &write_path,
+                    &output_path,
+                    start,
+                    end,
+                    &ucan_token,
+                    cancel_token,
+                    pause_flag,
+                    on_progress,
+                    total_received,
+                    range_progress,
+                    total_size,
+                    chunks_owned.as_deref(),
+                    completed,
+                )
                 .await
-                .open_stream(remote_id, relay_url)
-                .await?;
+            })
+                as std::pin::Pin<
+                    Box<
+                        dyn std::future::Future<Output = Result<(), PeerStorageError>>
+                            + Send,
+                    >,
+                >
+        })
+    };
 
-            let req = Request::Read {
-                path,
-                range: Some([start, end]),
-                ucan_token,
-            };
-            let response = PeerEndpoint::send_request(&mut send, &mut recv, &req).await?;
-            let announced = match response {
-                Response::ReadHeader { size } => size,
-                Response::Error { message } => {
-                    return Err(PeerStorageError::ProtocolError { reason: message });
-                }
-                _ => {
-                    return Err(PeerStorageError::ProtocolError {
-                        reason: "Unexpected response in multipart read".to_string(),
-                    });
-                }
-            };
-            if announced != part_size {
-                return Err(PeerStorageError::ProtocolError {
-                    reason: format!(
-                        "multipart range size mismatch: requested {part_size}, peer announced {announced}"
-                    ),
-                });
+    // Per-range progress accounting bookkeeping needs to roll back failed
+    // attempts before retry. Pass that hook into the pool so it can clear
+    // partial counters between attempts.
+    let total_received_for_rollback = total_received.clone();
+    let range_progress_for_rollback = range_progress.clone();
+    let on_retry: Arc<
+        dyn Fn(
+                (u64, u64, u32),
+                &PeerStorageError,
+            )
+                -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+            + Send
+            + Sync,
+    > = Arc::new(move |(start, end, attempt), err| {
+        let total_received = total_received_for_rollback.clone();
+        let range_progress = range_progress_for_rollback.clone();
+        let msg = err.to_string();
+        Box::pin(async move {
+            let mut rp = range_progress.lock().await;
+            if let Some(prev) = rp.remove(&(start, end)) {
+                total_received
+                    .fetch_sub(prev, std::sync::atomic::Ordering::Relaxed);
             }
+            drop(rp);
+            eprintln!(
+                "[PeerStorage] multipart range [{start}, {end}) attempt {attempt} failed, retrying: {msg}",
+            );
+        })
+    });
 
-            let mut file = tokio::fs::OpenOptions::new()
-                .write(true)
-                .open(&output_path)
-                .await
-                .map_err(PeerStorageError::Io)?;
-            use tokio::io::AsyncSeekExt;
-            file.seek(std::io::SeekFrom::Start(start))
-                .await
-                .map_err(PeerStorageError::Io)?;
-
-            let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = on_progress.map(|cb| {
-                let total_received = total_received.clone();
-                let prev_in_stream = prev_in_stream.clone();
-                Box::new(move |done_in_stream: u64, _expected_in_stream: u64| {
-                    let prev = prev_in_stream.swap(done_in_stream, Ordering::Relaxed);
-                    let delta = done_in_stream.saturating_sub(prev);
-                    let new_total =
-                        total_received.fetch_add(delta, Ordering::Relaxed) + delta;
-                    cb(new_total, total_size);
-                }) as Box<dyn Fn(u64, u64) + Send>
-            });
-
-            let options = streaming::RecvOptions {
-                on_progress: progress_cb,
-                cancel_token,
-                pause_flag,
-                compute_hash: false,
-            };
-
-            let stats = streaming::pipe_recv_to_writer(&mut recv, file, part_size, options)
-                .await
-                .map_err(|e| match e {
-                    streaming::PipelineError::Io(e) => PeerStorageError::Io(e),
-                    streaming::PipelineError::Stream(reason) => {
-                        PeerStorageError::ConnectionFailed { reason }
-                    }
-                    streaming::PipelineError::Cancelled => PeerStorageError::ProtocolError {
-                        reason: "Transfer cancelled".to_string(),
-                    },
-                })?;
-            if stats.bytes != part_size {
-                return Err(PeerStorageError::ConnectionFailed {
-                    reason: format!(
-                        "multipart range short: expected {part_size}, received {}",
-                        stats.bytes
-                    ),
-                });
-            }
-            Ok::<(), PeerStorageError>(())
-        });
-    }
-
-    let mut first_err: Option<PeerStorageError> = None;
-    while let Some(res) = join_set.join_next().await {
-        let task_res = res.map_err(|e| PeerStorageError::ProtocolError {
-            reason: format!("multipart join: {e}"),
-        });
-        match task_res.and_then(|inner| inner) {
-            Ok(()) => {}
-            Err(e) => {
-                if first_err.is_none() {
-                    first_err = Some(e);
-                    join_set.abort_all();
-                }
-            }
-        }
-    }
+    let first_err = run_bounded_retry_pool(pending, n, max_retries, fetcher, Some(on_retry))
+        .await;
 
     if let Some(err) = first_err {
-        let _ = tokio::fs::remove_file(&output_path).await;
+        // Verified path: leave partial bytes + sidecar on disk so the next
+        // download attempt can resume from the chunks that did complete.
+        // Legacy path: scrub the half-written file to match pre-Task-9
+        // behavior (single-callsite tests rely on this).
+        if !verified {
+            let _ = tokio::fs::remove_file(&output_path).await;
+        }
         return Err(err);
     }
 
-    let hash = hash_file_sha256(&output_path).await.map_err(|e| {
-        PeerStorageError::ProtocolError {
-            reason: format!("post-download hash: {e}"),
+    if let Some(chunks) = chunks_to_use {
+        // Defensive: every chunk should be marked complete now. If not, a
+        // worker returned Ok despite leaving gaps — that's a bug, not a
+        // transport failure.
+        let completed_snapshot = completed.lock().await;
+        if !completed_snapshot.iter().all(|c| *c) {
+            return Err(PeerStorageError::ProtocolError {
+                reason: "multipart workers completed without filling chunk bitmap"
+                    .to_string(),
+            });
         }
-    })?;
+        drop(completed_snapshot);
 
-    Ok(StreamReadResult {
-        bytes: size,
-        hash: Some(hash),
-    })
+        tokio::fs::rename(&write_path, &output_path)
+            .await
+            .map_err(PeerStorageError::Io)?;
+        crate::peer_storage::resume::PartialState::clear(&output_path)
+            .await
+            .map_err(PeerStorageError::Io)?;
+
+        Ok(StreamReadResult {
+            bytes: size,
+            hash: Some(chunks.file_hash.clone()),
+        })
+    } else {
+        // Legacy path: no chunk metadata, so we still need a post-download
+        // SHA-256 to give callers a manifest-comparable hash.
+        let hash = hash_file_sha256(&output_path).await.map_err(|e| {
+            PeerStorageError::ProtocolError {
+                reason: format!("post-download hash: {e}"),
+            }
+        })?;
+
+        Ok(StreamReadResult {
+            bytes: size,
+            hash: Some(hash),
+        })
+    }
+}
+
+/// Generic worker pool with per-item bounded retry.
+///
+/// Spawns `concurrency` workers that pop `(start, end, attempt)` triples off
+/// the shared `pending` queue, invoke `fetcher(start, end)`, and on Err either
+/// re-queue with `attempt + 1` (while `attempt < max_retries`) or return the
+/// error from that worker. Sibling workers keep draining the queue regardless
+/// of whether one returned Err — the only thing that bubbles up is the first
+/// permanent failure (after retries) encountered across all workers.
+///
+/// `on_retry` is invoked once per failed attempt that is about to be
+/// re-queued, *before* the attempt is pushed back. The retry pool itself
+/// doesn't know about per-attempt side effects (progress counters that need
+/// rolling back, sidecar bytes from the failed attempt, etc.); the hook lets
+/// the caller clean those up.
+pub(crate) async fn run_bounded_retry_pool(
+    pending: Arc<tokio::sync::Mutex<Vec<(u64, u64, u32)>>>,
+    concurrency: usize,
+    max_retries: u32,
+    fetcher: Arc<
+        dyn Fn(
+                u64,
+                u64,
+            ) -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<(), PeerStorageError>> + Send,
+                >,
+            > + Send
+            + Sync,
+    >,
+    on_retry: Option<
+        Arc<
+            dyn Fn(
+                    (u64, u64, u32),
+                    &PeerStorageError,
+                )
+                    -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+                + Send
+                + Sync,
+        >,
+    >,
+) -> Option<PeerStorageError> {
+    let mut workers = Vec::with_capacity(concurrency);
+    for _ in 0..concurrency {
+        let pending = pending.clone();
+        let fetcher = fetcher.clone();
+        let on_retry = on_retry.clone();
+        workers.push(tokio::spawn(async move {
+            loop {
+                let next = pending.lock().await.pop();
+                let Some((start, end, attempt)) = next else {
+                    break;
+                };
+
+                match fetcher(start, end).await {
+                    Ok(()) => continue,
+                    Err(e) if attempt < max_retries => {
+                        if let Some(hook) = on_retry.as_ref() {
+                            hook((start, end, attempt), &e).await;
+                        }
+                        pending.lock().await.push((start, end, attempt + 1));
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok::<(), PeerStorageError>(())
+        }));
+    }
+
+    let mut first_err: Option<PeerStorageError> = None;
+    for handle in workers {
+        match handle.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                if first_err.is_none() {
+                    first_err = Some(e);
+                }
+            }
+            Err(join_err) => {
+                if first_err.is_none() {
+                    first_err = Some(PeerStorageError::ProtocolError {
+                        reason: format!("worker join: {join_err}"),
+                    });
+                }
+            }
+        }
+    }
+    first_err
+}
+
+/// One attempt at downloading a single range. Opens its own QUIC stream,
+/// sends `Read { range: Some([start, end]) }`, and pipes the response into
+/// `write_path` at offset `start`. When `chunks` is `Some`, the worker uses
+/// [`streaming::pipe_recv_to_writer_verified`] so each chunk is BLAKE3-hashed
+/// and the shared `completed` bitmap is mutated as chunks verify; when
+/// `chunks` is `None`, falls back to the legacy unverified pipeline so the
+/// pre-Task-6 callers still work.
+#[allow(clippy::too_many_arguments)]
+async fn download_range_attempt(
+    endpoint: &Arc<tokio::sync::RwLock<PeerEndpoint>>,
+    remote_id: EndpointId,
+    relay_url: Option<RelayUrl>,
+    path: &str,
+    write_path: &std::path::Path,
+    final_output_path: &std::path::Path,
+    start: u64,
+    end: u64,
+    ucan_token: &str,
+    cancel_token: Option<tokio_util::sync::CancellationToken>,
+    pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
+    on_progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
+    total_received: Arc<std::sync::atomic::AtomicU64>,
+    range_progress: Arc<
+        tokio::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>,
+    >,
+    total_size: u64,
+    chunks: Option<&ChunkedHash>,
+    completed: Arc<tokio::sync::Mutex<Vec<bool>>>,
+) -> Result<(), PeerStorageError> {
+    use std::sync::atomic::Ordering;
+
+    let part_size = end - start;
+
+    let (mut send, mut recv) = endpoint
+        .read()
+        .await
+        .open_stream(remote_id, relay_url)
+        .await?;
+
+    let req = Request::Read {
+        path: path.to_string(),
+        range: Some([start, end]),
+        ucan_token: ucan_token.to_string(),
+    };
+    let response = PeerEndpoint::send_request(&mut send, &mut recv, &req).await?;
+    let announced = match response {
+        Response::ReadHeader { size } => size,
+        Response::Error { message } => {
+            return Err(PeerStorageError::ProtocolError { reason: message });
+        }
+        _ => {
+            return Err(PeerStorageError::ProtocolError {
+                reason: "Unexpected response in multipart read".to_string(),
+            });
+        }
+    };
+    if announced != part_size {
+        return Err(PeerStorageError::ProtocolError {
+            reason: format!(
+                "multipart range size mismatch: requested {part_size}, peer announced {announced}"
+            ),
+        });
+    }
+
+    let mut file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create(false)
+        .open(write_path)
+        .await
+        .map_err(PeerStorageError::Io)?;
+    use tokio::io::AsyncSeekExt;
+    file.seek(std::io::SeekFrom::Start(start))
+        .await
+        .map_err(PeerStorageError::Io)?;
+
+    if let Some(chunks) = chunks {
+        // Verified branch: ChunkVerifier mutates the shared bitmap and the
+        // sidecar gets rewritten after every verified chunk. Map this byte
+        // range back to its chunk-bitmap slice; both bounds align on a
+        // chunk boundary for the initial equal split (and Task 10's
+        // resume-aware split will preserve that alignment).
+        let chunk_size = chunks.chunk_size as u64;
+        if chunk_size == 0 {
+            return Err(PeerStorageError::ProtocolError {
+                reason: "chunk_size must be > 0".to_string(),
+            });
+        }
+        if start % chunk_size != 0 {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!(
+                    "multipart range start {start} is not chunk-aligned (chunk_size {chunk_size})"
+                ),
+            });
+        }
+        let start_chunk_index = (start / chunk_size) as usize;
+        let chunks_in_range = part_size.div_ceil(chunk_size) as usize;
+        let end_chunk_index = start_chunk_index + chunks_in_range;
+        if end_chunk_index > chunks.chunk_hashes.len() {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!(
+                    "multipart range [{start}, {end}) covers chunks [{start_chunk_index}, {end_chunk_index}) but manifest only has {} chunks",
+                    chunks.chunk_hashes.len()
+                ),
+            });
+        }
+        let expected_hashes_for_range =
+            &chunks.chunk_hashes[start_chunk_index..end_chunk_index];
+
+        let mut writer = tokio::io::BufWriter::new(file);
+
+        // Take an owned copy of the bitmap into a local Vec for the duration
+        // of this attempt — ChunkVerifier needs `&mut [bool]` and the
+        // tokio Mutex can't be held across the verifier's await points
+        // without serialising all workers. We merge the local snapshot back
+        // into the shared bitmap after pipe_recv_to_writer_verified returns,
+        // so concurrent workers operating on disjoint ranges don't clobber
+        // each other's bits.
+        let mut local_completed: Vec<bool> = completed.lock().await.clone();
+
+        // Drive progress through a wrapping callback that updates the
+        // shared total + per-range last value. The verifier doesn't itself
+        // surface progress, so we tee it through a write-side wrapper.
+        let total_received_pc = total_received.clone();
+        let range_progress_pc = range_progress.clone();
+        let on_progress_pc = on_progress.clone();
+        let range_key = (start, end);
+
+        let verifier = streaming::ChunkVerifier {
+            expected_chunk_hashes: expected_hashes_for_range,
+            chunk_size: chunks.chunk_size,
+            start_chunk_index,
+            completed: &mut local_completed,
+        };
+
+        // pipe_recv_to_writer_verified persists the sidecar against
+        // `final_output_path` (the destination the partial file will be
+        // renamed to), so resume on the next invocation can find it.
+        let recv_result = streaming::pipe_recv_to_writer_verified(
+            &mut recv,
+            &mut writer,
+            part_size,
+            verifier,
+            Some((final_output_path, &chunks.file_hash)),
+        )
+        .await;
+
+        let _ = tokio::io::AsyncWriteExt::flush(&mut writer).await;
+        drop(writer);
+
+        match recv_result {
+            Ok(received) => {
+                // Merge local bits back into the shared bitmap. ChunkVerifier
+                // only sets bits to true, so OR-merging is safe.
+                {
+                    let mut shared = completed.lock().await;
+                    for (i, v) in local_completed.iter().enumerate() {
+                        if *v {
+                            shared[i] = true;
+                        }
+                    }
+                }
+                if received != part_size {
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: format!(
+                            "multipart range short: expected {part_size}, received {received}"
+                        ),
+                    });
+                }
+                // Report final progress for this range. Failed attempts'
+                // contributions are rolled back by the caller before retry,
+                // so on a successful attempt we can just add the full range
+                // size to total_received in one shot.
+                if let Some(cb) = on_progress_pc {
+                    let prev = {
+                        let mut rp = range_progress_pc.lock().await;
+                        let prev = rp.get(&range_key).copied().unwrap_or(0);
+                        rp.insert(range_key, part_size);
+                        prev
+                    };
+                    let delta = part_size.saturating_sub(prev);
+                    let new_total =
+                        total_received_pc.fetch_add(delta, Ordering::Relaxed) + delta;
+                    cb(new_total.min(total_size), total_size);
+                }
+                // pause / cancel are honoured by the underlying recv stream
+                // through TCP-style backpressure once we surface those into
+                // pipe_recv_to_writer_verified — for now keep the bindings
+                // alive so signatures don't drift.
+                let _ = (cancel_token, pause_flag);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    } else {
+        // Legacy unverified branch — preserved for tests that hit
+        // read_multipart_to_file directly without a manifest. New callers go
+        // through download_file_to_path, which always supplies chunks.
+        let prev_in_stream = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let total_received_pc = total_received.clone();
+        let range_progress_pc = range_progress.clone();
+        let range_key = (start, end);
+
+        let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = on_progress.map(|cb| {
+            Box::new(move |done_in_stream: u64, _expected_in_stream: u64| {
+                let prev = prev_in_stream.swap(done_in_stream, Ordering::Relaxed);
+                let delta = done_in_stream.saturating_sub(prev);
+                if delta == 0 {
+                    return;
+                }
+                let new_total =
+                    total_received_pc.fetch_add(delta, Ordering::Relaxed) + delta;
+                // Record per-range progress synchronously via try_lock; the
+                // mutex is only contended on attempt boundaries (rare) so a
+                // spin-free try is enough to keep the rollback bookkeeping
+                // up to date without making the progress callback async.
+                if let Ok(mut rp) = range_progress_pc.try_lock() {
+                    rp.insert(range_key, done_in_stream);
+                }
+                cb(new_total.min(total_size), total_size);
+            }) as Box<dyn Fn(u64, u64) + Send>
+        });
+
+        let options = streaming::RecvOptions {
+            on_progress: progress_cb,
+            cancel_token,
+            pause_flag,
+            compute_hash: false,
+        };
+
+        let stats = streaming::pipe_recv_to_writer(&mut recv, file, part_size, options)
+            .await
+            .map_err(|e| match e {
+                streaming::PipelineError::Io(e) => PeerStorageError::Io(e),
+                streaming::PipelineError::Stream(reason) => {
+                    PeerStorageError::ConnectionFailed { reason }
+                }
+                streaming::PipelineError::Cancelled => PeerStorageError::ProtocolError {
+                    reason: "Transfer cancelled".to_string(),
+                },
+            })?;
+        if stats.bytes != part_size {
+            return Err(PeerStorageError::ConnectionFailed {
+                reason: format!(
+                    "multipart range short: expected {part_size}, received {}",
+                    stats.bytes
+                ),
+            });
+        }
+        Ok(())
+    }
 }
 
 /// Sequentially read `path` and return the hex-encoded SHA-256 of its

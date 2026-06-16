@@ -43,6 +43,15 @@ pub const MULTI_STREAM_THRESHOLD: u64 = 16 * 1024 * 1024;
 /// can still transfer concurrently under the engine's `TRANSFER_CONCURRENCY`.
 pub const MAX_PARALLEL_STREAMS_PER_FILE: usize = 4;
 
+/// Per-range retry budget for multi-stream downloads. Each range may be
+/// re-requested up to this many times after its initial attempt before the
+/// download fails as a whole. With `MAX_PARALLEL_STREAMS_PER_FILE = 4` and
+/// `MAX_RANGE_RETRIES = 2`, a flaky stream can stutter once or twice without
+/// dragging its siblings down — sibling ranges keep transferring while a
+/// failed range is re-queued, and only after exhausting the budget does
+/// the worker pool surface the failure.
+pub const MAX_RANGE_RETRIES: u32 = 2;
+
 #[derive(Debug)]
 pub enum PipelineError {
     /// Disk-side I/O failure (read, write, flush).
