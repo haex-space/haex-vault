@@ -66,13 +66,13 @@
 </template>
 
 <script setup lang="ts">
-import { createAvatar } from '@dicebear/core'
-import * as toonHead from '@dicebear/toon-head'
-import * as bottts from '@dicebear/bottts'
+import { Avatar } from '@dicebear/core'
 import {
   type ToonHeadOptions,
   type BotttsOptions,
   type AvatarOptions,
+  botttsStyle,
+  toonHeadStyle,
   defaultToonHeadOptions,
   defaultBotttsOptions,
   randomToonHeadOptions,
@@ -137,10 +137,8 @@ const previewSvg = computed(() => {
       : value
   }
 
-  if (opts.style === 'toon-head') {
-    return createAvatar(toonHead, diceBearOptions).toString()
-  }
-  return createAvatar(bottts, diceBearOptions).toString()
+  const style = opts.style === 'toon-head' ? toonHeadStyle : botttsStyle
+  return new Avatar(style, diceBearOptions).toString()
 })
 
 function onConfirm() {

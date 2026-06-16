@@ -173,9 +173,8 @@
 </template>
 
 <script setup lang="ts">
-import { createAvatar } from '@dicebear/core'
-import * as bottts from '@dicebear/bottts'
-import type { BotttsOptions } from '~/utils/identityAvatar'
+import { Avatar } from '@dicebear/core'
+import { botttsStyle, type BotttsOptions } from '~/utils/identityAvatar'
 
 const options = defineModel<BotttsOptions>('options', { required: true })
 
@@ -250,7 +249,7 @@ function previewSvg(key: string, value: string): string {
     baseColor: [pick('baseColor')],
   }
 
-  const svg = createAvatar(bottts, previewOptions).toString()
+  const svg = new Avatar(botttsStyle, previewOptions).toString()
   previewCache.set(cacheKey, svg)
   return svg
 }

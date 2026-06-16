@@ -1,8 +1,19 @@
-import { createAvatar } from '@dicebear/core'
-import * as bottts from '@dicebear/bottts'
-import * as toonHead from '@dicebear/toon-head'
+import { Avatar, Style } from '@dicebear/core'
+import botttsDefinition from '@dicebear/styles/bottts.json'
+import toonHeadDefinition from '@dicebear/styles/toon-head.json'
 
 export type AvatarStyle = 'bottts' | 'toon-head'
+
+// ---------------------------------------------------------------------------
+// Style instances
+//
+// `new Style()` runs JSON-schema validation on the definition. Instantiate
+// once at module load and share — every customizer + the list-view avatar
+// reuse these so validation runs once per app session.
+// ---------------------------------------------------------------------------
+
+export const botttsStyle = new Style(botttsDefinition)
+export const toonHeadStyle = new Style(toonHeadDefinition)
 
 // ---------------------------------------------------------------------------
 // Option types — canonical home. The customizer sub-components import
@@ -151,12 +162,10 @@ function toDiceBearOptions(options: AvatarOptions): Record<string, unknown> {
   return dice
 }
 
-function buildDiceBearAvatar(options: AvatarOptions) {
+function buildDiceBearAvatar(options: AvatarOptions): Avatar {
   const dice = toDiceBearOptions(options)
-  if (options.style === 'toon-head') {
-    return createAvatar(toonHead, dice as Parameters<typeof createAvatar<toonHead.Options>>[1])
-  }
-  return createAvatar(bottts, dice as Parameters<typeof createAvatar<bottts.Options>>[1])
+  const style = options.style === 'toon-head' ? toonHeadStyle : botttsStyle
+  return new Avatar(style, dice)
 }
 
 /** SVG `data:` URI — what the DB persists as `avatar`. */

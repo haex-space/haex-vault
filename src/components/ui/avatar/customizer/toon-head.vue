@@ -205,9 +205,8 @@
 </template>
 
 <script setup lang="ts">
-import { createAvatar } from '@dicebear/core'
-import * as toonHead from '@dicebear/toon-head'
-import type { ToonHeadOptions } from '~/utils/identityAvatar'
+import { Avatar } from '@dicebear/core'
+import { toonHeadStyle, type ToonHeadOptions } from '~/utils/identityAvatar'
 
 const options = defineModel<ToonHeadOptions>('options', { required: true })
 
@@ -281,7 +280,7 @@ function previewSvg(key: string, value: string): string {
     clothesColor: [pick('clothesColor')],
   }
 
-  const svg = createAvatar(toonHead, previewOptions).toString()
+  const svg = new Avatar(toonHeadStyle, previewOptions).toString()
   previewCache.set(cacheKey, svg)
   return svg
 }
