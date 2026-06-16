@@ -485,11 +485,9 @@ pub async fn peer_storage_remote_read(
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
     // Determine output path: explicit save_to or system Downloads folder.
-    // On desktop, group peer-downloaded files under a `HaexVault` subfolder
-    // (NewPipe-style) so the user's Downloads root doesn't fill up. On Android
-    // the file ends up in MediaStore's public Downloads via
-    // `move_to_public_downloads`, which manages its own layout — leave the
-    // app-private staging dir flat there.
+    // The per-space subfolder layout is introduced separately by the
+    // peer-download-registry change — leave the layout flat here so the
+    // multi-stream perf change doesn't reshape the on-disk contract.
     let output_path = if let Some(ref dest) = save_to {
         PathBuf::from(dest)
     } else {
@@ -498,9 +496,6 @@ pub async fn peer_storage_remote_read(
             .map_err(|e| PeerStorageError::ProtocolError {
                 reason: format!("Failed to get downloads dir: {e}"),
             })?;
-
-        #[cfg(not(target_os = "android"))]
-        let downloads_dir = downloads_dir.join("HaexVault");
 
         std::fs::create_dir_all(&downloads_dir).map_err(|e| PeerStorageError::ProtocolError {
             reason: format!("Failed to create downloads dir: {e}"),
