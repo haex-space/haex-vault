@@ -737,7 +737,9 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     path: string,
     saveTo?: string,
     spaceIdHint?: string,
-    expectedSize?: number,
+    expectedSize?: number | bigint,
+    expectedModified?: number | bigint | null,
+    spaceFolder?: string | null,
   ) => {
     const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(
       remoteNodeId, path, spaceIdHint,
@@ -754,7 +756,10 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         path,
         transferId,
         saveTo: saveTo ?? null,
-        expectedSize: expectedSize ?? null,
+        expectedSize: expectedSize == null ? null : Number(expectedSize),
+        expectedModified: expectedModified == null ? null : Number(expectedModified),
+        spaceFolder: spaceFolder ?? null,
+        spaceId: spaceIdHint ?? null,
         ucanToken,
         onEvent: channel,
       })

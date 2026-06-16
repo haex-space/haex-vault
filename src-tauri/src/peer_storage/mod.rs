@@ -6,6 +6,7 @@
 mod android;
 pub(crate) mod client;
 pub mod commands;
+pub(crate) mod downloads;
 pub mod endpoint;
 pub mod error;
 mod handlers;
