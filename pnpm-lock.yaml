@@ -194,8 +194,8 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(vitest@4.1.8)
       '@vue-dnd-kit/core':
-        specifier: 1.7.0
-        version: 1.7.0(@vueuse/core@14.3.0(vue@3.5.38(typescript@5.9.3)))(vue@3.5.38(typescript@5.9.3))
+        specifier: 2.4.6
+        version: 2.4.6(vue@3.5.38(typescript@5.9.3))
       '@vue/compiler-sfc':
         specifier: ^3.5.38
         version: 3.5.38
@@ -3965,10 +3965,9 @@ packages:
   '@volar/typescript@2.4.28':
     resolution: {integrity: sha512-Ja6yvWrbis2QtN4ClAKreeUZPVYMARDYZl9LMEv1iQ1QdepB6wn0jTRxA9MftYmYa4DQ4k/DaSZpFPUfxl8giw==}
 
-  '@vue-dnd-kit/core@1.7.0':
-    resolution: {integrity: sha512-6Otpo/9Fp/cX5EiUoN6XmIPtm/mOreAXi8clr9HgzVvDHD0sfkgVOFxCUiVbH46yAzr6KBU1Q1tjSWLBqua+5g==}
+  '@vue-dnd-kit/core@2.4.6':
+    resolution: {integrity: sha512-MnfO05RTGyhxq0d0VmkPHoBbwa7U1Yt8MtE1s8ngnu9uyI3RC1t0IIi4/ULABDuTr6957IueYWHSdAt9hRZXqQ==}
     peerDependencies:
-      '@vueuse/core': ^13.1.0
       vue: ^3.5.13
 
   '@vue-macros/common@3.1.2':
@@ -11686,9 +11685,8 @@ snapshots:
       path-browserify: 1.0.1
       vscode-uri: 3.1.0
 
-  '@vue-dnd-kit/core@1.7.0(@vueuse/core@14.3.0(vue@3.5.38(typescript@5.9.3)))(vue@3.5.38(typescript@5.9.3))':
+  '@vue-dnd-kit/core@2.4.6(vue@3.5.38(typescript@5.9.3))':
     dependencies:
-      '@vueuse/core': 14.3.0(vue@3.5.38(typescript@5.9.3))
       vue: 3.5.38(typescript@5.9.3)
 
   '@vue-macros/common@3.1.2(vue@3.5.38(typescript@5.9.3))':
