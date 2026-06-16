@@ -314,6 +314,13 @@ impl SyncProvider for LocalProvider {
     fn supports_trash(&self) -> bool {
         Self::static_supports_trash()
     }
+
+    fn local_target_path(&self, relative_path: &str) -> Option<PathBuf> {
+        // resolve_path enforces path-traversal safety; if it rejects the
+        // path the engine falls back to its tempfile-staging path which
+        // will surface the same error via write_file_from_path.
+        self.resolve_path(relative_path).ok()
+    }
 }
 
 #[cfg(test)]

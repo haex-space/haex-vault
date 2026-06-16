@@ -159,6 +159,19 @@ pub trait SyncProvider: Send + Sync {
     /// (e.g. cloud manifests) leave `chunk_hashes = None`; the LocalProvider
     /// then skips cache seeding for that file.
     async fn prime_hash_after_write(&self, _file: &FileState) {}
+
+    /// If this provider can accept a download being streamed directly into
+    /// its final destination on the local filesystem, return that absolute
+    /// path. The engine then hands the path to the source's
+    /// `read_file_to_path` and skips the intermediate tempfile + final
+    /// `write_file_from_path` copy — letting the resume sidecar live next
+    /// to the destination so a transient failure survives engine retries.
+    ///
+    /// Default: `None` — provider is non-local (cloud, peer) and the engine
+    /// must stage to a tempfile and call `write_file_from_path`.
+    fn local_target_path(&self, _relative_path: &str) -> Option<std::path::PathBuf> {
+        None
+    }
 }
 
 /// Validate a relative path against path traversal attacks.
