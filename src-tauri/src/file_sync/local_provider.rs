@@ -201,8 +201,13 @@ impl SyncProvider for LocalProvider {
         &self,
         relative_path: &str,
         output_path: &std::path::Path,
+        expected_chunks: Option<crate::file_sync::hashing::ChunkedHash>,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<ReadFileResult, SyncProviderError> {
+        // Same-machine copy never crosses a network boundary; per-chunk
+        // verification adds no integrity guarantee the filesystem hasn't
+        // already provided.
+        let _ = expected_chunks;
         let src = self.resolve_path(relative_path)?;
         if !src.exists() {
             return Err(SyncProviderError::NotFound { path: relative_path.to_string() });

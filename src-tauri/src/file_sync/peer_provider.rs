@@ -13,6 +13,7 @@ use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, Request, Response};
 use crate::peer_storage::streaming;
 
+use super::hashing::ChunkedHash;
 use super::provider::{validate_relative_path, ReadFileResult, SyncProvider, SyncProviderError};
 use super::types::FileState;
 
@@ -253,6 +254,7 @@ impl SyncProvider for PeerProvider {
         &self,
         relative_path: &str,
         output_path: &std::path::Path,
+        expected_chunks: Option<ChunkedHash>,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<ReadFileResult, SyncProviderError> {
         validate_relative_path(relative_path)?;
@@ -264,6 +266,7 @@ impl SyncProvider for PeerProvider {
             self.relay_url.clone(),
             full_path,
             output_path.to_path_buf(),
+            expected_chunks,
             Some(on_progress),
             None,
             None,

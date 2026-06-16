@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use super::hashing::ChunkedHash;
 use super::types::FileState;
 
 /// Error type for sync provider operations
@@ -80,12 +81,19 @@ pub trait SyncProvider: Send + Sync {
     /// The returned `ReadFileResult.hash` lets the engine verify integrity
     /// against the sender-announced manifest hash. Override on providers that
     /// can hash inline with the receive loop (e.g. peer/QUIC) for free.
+    ///
+    /// `expected_chunks` (when `Some`) carries the BLAKE3 chunked-hash
+    /// manifest from the sender. Streaming providers that know how to
+    /// verify per-chunk (peer/QUIC) use it as the authoritative verifier;
+    /// other providers may ignore it.
     async fn read_file_to_path(
         &self,
         relative_path: &str,
         output_path: &std::path::Path,
+        expected_chunks: Option<ChunkedHash>,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<ReadFileResult, SyncProviderError> {
+        let _ = expected_chunks;
         let data = self.read_file(relative_path).await?;
         let n = data.len() as u64;
         tokio::fs::write(output_path, &data)

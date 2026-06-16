@@ -44,7 +44,9 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use ts_rs::TS;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 struct CacheKey {
@@ -66,7 +68,14 @@ const HASH_BUF: usize = 256 * 1024;
 pub const CHUNK_HASH_SIZE: u32 = 1024 * 1024;
 
 /// Per-chunk + whole-file BLAKE3 hashes for resumable downloads.
-#[derive(Debug, Clone)]
+///
+/// Travels on the wire: served by the peer_storage stat-probe so file-browser
+/// downloads can verify chunks without the receiver knowing the hashes in
+/// advance, and carried in `FileState` so sync-rule manifests authoritatively
+/// pin the expected hashes per chunk.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct ChunkedHash {
     /// BLAKE3 of the full file, lowercase hex.
     pub file_hash: String,

@@ -647,6 +647,9 @@ pub async fn peer_storage_remote_read(
             parsed_relay,
             path.clone(),
             output_path.clone(),
+            // File-browser flow has no manifest; the stat-probe response
+            // supplies the chunked hash that governs verification.
+            None,
             Some(progress_cb),
             cancel_token,
             pause_flag,

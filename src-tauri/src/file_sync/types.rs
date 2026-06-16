@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use super::hashing::ChunkedHash;
+
 /// Metadata for a single file or directory.
 /// Both local scans and remote manifests produce `Vec<FileState>`.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -27,6 +29,31 @@ pub struct FileState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub chunk_hashes: Option<Vec<String>>,
+}
+
+impl FileState {
+    /// If all three chunk fields are populated, construct the wire-typed
+    /// `ChunkedHash` view of this manifest entry. Returns `None` for
+    /// directories and for entries from providers (cloud, legacy) that do
+    /// not yet announce per-chunk hashes.
+    pub fn chunked_hash(&self) -> Option<ChunkedHash> {
+        match (
+            self.hash.as_deref(),
+            self.chunk_size,
+            self.chunk_hashes.as_ref(),
+        ) {
+            (Some(file_hash), Some(chunk_size), Some(chunk_hashes))
+                if !chunk_hashes.is_empty() =>
+            {
+                Some(ChunkedHash {
+                    file_hash: file_hash.to_string(),
+                    chunk_size,
+                    chunk_hashes: chunk_hashes.clone(),
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Sync direction

@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use iroh::{EndpointId, RelayUrl};
 
+use crate::file_sync::hashing::ChunkedHash;
 use crate::peer_storage::endpoint::PeerEndpoint;
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{FileEntry, Request, Response};
@@ -477,14 +478,15 @@ impl PeerEndpoint {
         }
     }
 
-    /// Fetch metadata for a single remote path (size, is_dir, modified).
+    /// Fetch metadata for a single remote path (size, is_dir, modified) and,
+    /// for files, the BLAKE3 chunked-hash manifest the server holds.
     pub async fn remote_stat(
         &self,
         remote_id: EndpointId,
         relay_url: Option<RelayUrl>,
         path: &str,
         ucan_token: &str,
-    ) -> Result<FileEntry, PeerStorageError> {
+    ) -> Result<RemoteStat, PeerStorageError> {
         let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
         let req = Request::Stat {
             path: path.to_string(),
@@ -492,7 +494,7 @@ impl PeerEndpoint {
         };
         let response = Self::send_request(&mut send, &mut recv, &req).await?;
         match response {
-            Response::Stat { entry } => Ok(entry),
+            Response::Stat { entry, chunks } => Ok(RemoteStat { entry, chunks }),
             Response::Error { message } => {
                 Err(PeerStorageError::ProtocolError { reason: message })
             }
@@ -501,6 +503,15 @@ impl PeerEndpoint {
             }),
         }
     }
+}
+
+/// Result of a remote stat-probe — file metadata plus, for files, the
+/// BLAKE3 chunked-hash manifest served from the peer's hash cache.
+#[derive(Debug, Clone)]
+pub struct RemoteStat {
+    pub entry: FileEntry,
+    /// `Some` for files, `None` for directories.
+    pub chunks: Option<ChunkedHash>,
 }
 
 /// Download a remote file to `output_path`, picking single-stream or
@@ -521,6 +532,7 @@ pub(crate) async fn download_file_to_path(
     relay_url: Option<RelayUrl>,
     path: String,
     output_path: std::path::PathBuf,
+    expected_chunks: Option<ChunkedHash>,
     on_progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
     cancel_token: Option<tokio_util::sync::CancellationToken>,
     pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
@@ -537,13 +549,64 @@ pub(crate) async fn download_file_to_path(
         .remote_stat(remote_id, relay_url.clone(), &path, &ucan_token)
         .await?;
 
-    if stat.is_dir {
+    if stat.entry.is_dir {
         return Err(PeerStorageError::ProtocolError {
             reason: format!("remote path is a directory, not a file: {path}"),
         });
     }
 
-    let use_multi = stat.size >= streaming::MULTI_STREAM_THRESHOLD;
+    // Resolve which ChunkedHash governs verification.
+    //
+    // - Sync-rule flow: caller supplied `expected_chunks` from the manifest.
+    //   The stat-probe also returns chunks (served from the sender's hash
+    //   cache). In steady state these agree; if they disagree the file has
+    //   changed on the sender between manifest scan and download — abort
+    //   loudly so the engine can re-scan rather than persisting bytes that
+    //   no longer match the announced hash.
+    // - File-browser flow: caller passes `None`; we adopt the stat-probe's
+    //   chunks as the verifier. The receiver therefore learns the hashes
+    //   from the peer it is downloading from — TLS already covers transport
+    //   integrity, and the stat-probe rides the same authenticated
+    //   connection as the bytes themselves.
+    //
+    // `chunks_to_use` is currently only retained for the throughput log;
+    // Task 7 plumbs it into per-chunk verification on the receive path.
+    let chunks_to_use = match (expected_chunks, stat.chunks.clone()) {
+        (Some(manifest), Some(stat_chunks)) => {
+            if manifest != stat_chunks {
+                return Err(PeerStorageError::ManifestHashMismatch {
+                    manifest_file_hash: manifest.file_hash,
+                    actual_file_hash: stat_chunks.file_hash,
+                });
+            }
+            // Functionally either — the manifest is the source of truth for
+            // the sync flow, so keep it.
+            manifest
+        }
+        (Some(manifest), None) => {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!(
+                    "manifest expected file with hash {} but stat returned no chunks (path likely a directory): {path}",
+                    manifest.file_hash
+                ),
+            });
+        }
+        (None, Some(stat_chunks)) => stat_chunks,
+        (None, None) => {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!(
+                    "stat returned no chunks for non-directory path (peer hash cache miss?): {path}"
+                ),
+            });
+        }
+    };
+    // Task 7 will pass `chunks_to_use` through to per-chunk verification on
+    // the receive path. For Task 6 the resolution alone is the contract —
+    // bind the variable so the compiler keeps the dead-code warning at bay
+    // until Task 7 wires it through.
+    let _ = &chunks_to_use;
+
+    let use_multi = stat.entry.size >= streaming::MULTI_STREAM_THRESHOLD;
 
     let result = if use_multi {
         read_multipart_to_file(
@@ -552,7 +615,7 @@ pub(crate) async fn download_file_to_path(
             relay_url,
             path,
             output_path,
-            stat.size,
+            stat.entry.size,
             streaming::MAX_PARALLEL_STREAMS_PER_FILE,
             on_progress,
             cancel_token,

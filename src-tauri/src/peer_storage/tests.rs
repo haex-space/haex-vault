@@ -447,14 +447,26 @@ mod tests {
         let h = setup_harness().await;
         let path = format!("/{}/ramp.bin", h.share_name);
 
-        let entry = h
+        let stat = h
             .client
             .remote_stat(h.server_remote_id, None, &path, &h.ucan)
             .await
             .expect("remote_stat");
 
-        assert_eq!(entry.size, 1024 * 1024, "ramp file is 1 MiB");
-        assert!(!entry.is_dir, "ramp.bin is a regular file");
+        assert_eq!(stat.entry.size, 1024 * 1024, "ramp file is 1 MiB");
+        assert!(!stat.entry.is_dir, "ramp.bin is a regular file");
+        let chunks = stat.chunks.expect("file stat must include chunks");
+        assert_eq!(chunks.chunk_size, crate::file_sync::hashing::CHUNK_HASH_SIZE);
+        assert_eq!(
+            chunks.chunk_hashes.len(),
+            1,
+            "1 MiB file with 1 MiB chunk size = exactly 1 chunk"
+        );
+        let expected_file_hash =
+            blake3::hash(&(0..1024u32 * 1024u32).map(|i| (i % 256) as u8).collect::<Vec<u8>>())
+                .to_hex()
+                .to_string();
+        assert_eq!(chunks.file_hash, expected_file_hash);
     }
 
     /// Defense-in-depth regression: when the DB's expected owner DID for a
@@ -1244,5 +1256,117 @@ mod tests {
 
         assert_eq!(result.bytes, 1024 * 1024, "clamped-parallelism download must complete");
         assert!(result.hash.is_some());
+    }
+
+    // -------------------------------------------------------------------------
+    // download_file_to_path: expected_chunks resolution (Task 6)
+    // -------------------------------------------------------------------------
+
+    /// File-browser flow: caller passes `expected_chunks = None`. The
+    /// stat-probe's chunks must be adopted silently and the download must
+    /// complete.
+    #[tokio::test]
+    async fn download_file_to_path_uses_stat_probe_chunks_when_none_supplied() {
+        let h = setup_multipart_harness().await;
+        let path = format!("/{}/ramp.bin", h.share_name);
+        let tmp_out = tempfile::tempdir().unwrap();
+        let out_path = tmp_out.path().join("out_none.bin");
+
+        let result = crate::peer_storage::client::download_file_to_path(
+            h.client.clone(),
+            h.server_remote_id,
+            None,
+            path,
+            out_path.clone(),
+            None,
+            None,
+            None,
+            None,
+            h.ucan.clone(),
+        )
+        .await
+        .expect("file-browser flow (no manifest) must succeed");
+
+        assert_eq!(result.bytes, 1024 * 1024);
+        assert!(result.hash.is_some());
+    }
+
+    /// Sync-rule flow: caller supplies the manifest's `ChunkedHash`. With
+    /// the file unchanged on disk, the manifest equals the stat-probe's
+    /// chunks and the download proceeds.
+    #[tokio::test]
+    async fn download_file_to_path_uses_caller_supplied_chunks_when_provided() {
+        let h = setup_multipart_harness().await;
+        let path = format!("/{}/ramp.bin", h.share_name);
+        let tmp_out = tempfile::tempdir().unwrap();
+        let out_path = tmp_out.path().join("out_some.bin");
+
+        // Pre-compute the chunked hash off the same bytes the harness wrote.
+        let ramp: Vec<u8> = (0..1024u32 * 1024u32).map(|i| (i % 256) as u8).collect();
+        let manifest_chunks = crate::file_sync::hashing::ChunkedHash {
+            file_hash: blake3::hash(&ramp).to_hex().to_string(),
+            chunk_size: crate::file_sync::hashing::CHUNK_HASH_SIZE,
+            chunk_hashes: vec![blake3::hash(&ramp).to_hex().to_string()],
+        };
+
+        let result = crate::peer_storage::client::download_file_to_path(
+            h.client.clone(),
+            h.server_remote_id,
+            None,
+            path,
+            out_path.clone(),
+            Some(manifest_chunks.clone()),
+            None,
+            None,
+            None,
+            h.ucan.clone(),
+        )
+        .await
+        .expect("sync-rule flow with matching manifest must succeed");
+
+        assert_eq!(result.bytes, 1024 * 1024);
+    }
+
+    /// Sync-rule flow with corrupted manifest: caller supplies a
+    /// ChunkedHash whose file_hash disagrees with what the stat-probe
+    /// reports. The download must abort with `ManifestHashMismatch` and
+    /// never touch the receive path — a signal that the file has changed on
+    /// the sender since the manifest was scanned.
+    #[tokio::test]
+    async fn download_file_to_path_rejects_when_manifest_and_stat_disagree() {
+        let h = setup_multipart_harness().await;
+        let path = format!("/{}/ramp.bin", h.share_name);
+        let tmp_out = tempfile::tempdir().unwrap();
+        let out_path = tmp_out.path().join("out_mismatch.bin");
+
+        let bogus = "deadbeef".repeat(8);
+        let bad_manifest = crate::file_sync::hashing::ChunkedHash {
+            file_hash: bogus.clone(),
+            chunk_size: crate::file_sync::hashing::CHUNK_HASH_SIZE,
+            chunk_hashes: vec![bogus],
+        };
+
+        let err = crate::peer_storage::client::download_file_to_path(
+            h.client.clone(),
+            h.server_remote_id,
+            None,
+            path,
+            out_path.clone(),
+            Some(bad_manifest),
+            None,
+            None,
+            None,
+            h.ucan.clone(),
+        )
+        .await
+        .expect_err("mismatched manifest must abort the download");
+
+        assert!(
+            matches!(
+                err,
+                crate::peer_storage::error::PeerStorageError::ManifestHashMismatch { .. }
+            ),
+            "expected ManifestHashMismatch, got {err:?}"
+        );
     }
 }

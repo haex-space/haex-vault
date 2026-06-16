@@ -656,8 +656,14 @@ pub async fn execute_sync(
                 };
 
                 // Transfer with one retry on failure
+                let expected_chunks = file.chunked_hash();
                 let read_result = source
-                    .read_file_to_path(&file.relative_path, tmp.path(), progress_cb.clone())
+                    .read_file_to_path(
+                        &file.relative_path,
+                        tmp.path(),
+                        expected_chunks.clone(),
+                        progress_cb.clone(),
+                    )
                     .await;
                 let read_result = if read_result.is_err() {
                     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -668,7 +674,12 @@ pub async fn execute_sync(
                         .insert(file.relative_path.clone(), (0, file.size));
                     last_chunk.store(0, std::sync::atomic::Ordering::Relaxed);
                     source
-                        .read_file_to_path(&file.relative_path, tmp.path(), progress_cb)
+                        .read_file_to_path(
+                            &file.relative_path,
+                            tmp.path(),
+                            expected_chunks,
+                            progress_cb,
+                        )
                         .await
                 } else {
                     read_result
@@ -838,8 +849,14 @@ pub async fn execute_sync(
                     }
                 };
 
+                let expected_chunks = file.chunked_hash();
                 let read_result = target
-                    .read_file_to_path(&file.relative_path, tmp.path(), progress_cb.clone())
+                    .read_file_to_path(
+                        &file.relative_path,
+                        tmp.path(),
+                        expected_chunks.clone(),
+                        progress_cb.clone(),
+                    )
                     .await;
                 let read_result = if read_result.is_err() {
                     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -849,7 +866,12 @@ pub async fn execute_sync(
                         .insert(file.relative_path.clone(), (0, file.size));
                     last_chunk.store(0, std::sync::atomic::Ordering::Relaxed);
                     target
-                        .read_file_to_path(&file.relative_path, tmp.path(), progress_cb)
+                        .read_file_to_path(
+                            &file.relative_path,
+                            tmp.path(),
+                            expected_chunks,
+                            progress_cb,
+                        )
                         .await
                 } else {
                     read_result
@@ -1001,7 +1023,12 @@ pub async fn execute_sync(
 
         if let Some(tmp) = target_tmp {
             match target
-                .read_file_to_path(&conflict.relative_path, tmp.path(), noop_progress.clone())
+                .read_file_to_path(
+                    &conflict.relative_path,
+                    tmp.path(),
+                    conflict.target_state.chunked_hash(),
+                    noop_progress.clone(),
+                )
                 .await
             {
                 Ok(_) => {
@@ -1032,6 +1059,7 @@ pub async fn execute_sync(
                                 .read_file_to_path(
                                     &conflict.relative_path,
                                     src_tmp.path(),
+                                    conflict.source_state.chunked_hash(),
                                     noop_progress.clone(),
                                 )
                                 .await
