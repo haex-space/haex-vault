@@ -21,6 +21,7 @@
 
 <script setup lang="ts">
 import { makeDraggable } from '@vue-dnd-kit/core'
+import type { IDragActivationOptions } from '@vue-dnd-kit/core'
 
 const props = defineProps<{
   id: string
@@ -41,13 +42,21 @@ const hasDragged = ref(false)
 const { isDragging } = makeDraggable(elementRef, {
   groups: ['launcher-item'],
   // Native activation rule replaces the v1 long-press + 5px pointer-threshold
-  // dance we had to script ourselves. `condition: 'any'` means EITHER 5px of
-  // movement OR a 500ms hold starts the drag, which keeps mouse-flick parity
-  // while still feeling natural under touch.
+  // dance we had to script ourselves. The root-level `condition: 'any'` means
+  // EITHER 5px of movement OR a 500ms hold starts the drag — mouse flicks
+  // anywhere past 5px, touch needs the long-press. (The library defaults to
+  // `'both'` when distance + delay are both set, which would force the user
+  // to satisfy both rules; we don't want that.)
+  //
+  // The cast is because `IDragActivationOptions` (the input type) omits the
+  // root-level `condition`, even though the runtime activation-gate reads it
+  // there. `IDragActivation` (the normalized internal shape) has it. We
+  // model the wider shape locally so the compiler stops complaining.
   activation: {
-    distance: { x: 5, y: 5, condition: 'any' },
+    distance: 5,
     delay: 500,
-  },
+    condition: 'any',
+  } as IDragActivationOptions & { condition: 'any' | 'both' },
   data: () => ({
     id: props.id,
     type: props.type,
