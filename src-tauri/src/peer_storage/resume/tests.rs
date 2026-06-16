@@ -20,6 +20,21 @@ async fn sidecar_roundtrip() {
 }
 
 #[tokio::test]
+async fn load_returns_none_for_corrupt_json() {
+    // A sidecar that fails to parse (torn write from an older non-atomic
+    // save(), bit-rot, or external edit) must be treated as missing so the
+    // caller can start from a clean slate. Returning an error here would
+    // permanently wedge resume for that file.
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("file.bin");
+    let meta = tmp.path().join("file.bin.haex-partial.meta");
+    tokio::fs::write(&meta, b"this is not json {{{").await.unwrap();
+
+    let result = PartialState::load(&target).await.unwrap();
+    assert!(result.is_none(), "corrupt sidecar must be treated as missing");
+}
+
+#[tokio::test]
 async fn sidecar_load_returns_none_on_hash_mismatch() {
     let tmp = tempfile::tempdir().unwrap();
     let target = tmp.path().join("file.bin");

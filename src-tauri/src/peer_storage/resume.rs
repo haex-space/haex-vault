@@ -45,6 +45,10 @@ impl PartialState {
     /// reader observes either the previous payload or the new one — never a
     /// tear. The per-call nonce keeps two concurrent saves from clobbering
     /// each other's tmp file before either rename completes.
+    ///
+    /// `load()` additionally treats any unparseable sidecar as missing —
+    /// that's the safety net for sidecars written by older versions of this
+    /// code that predate the atomic write dance below.
     pub async fn save(&self, target: &Path) -> std::io::Result<()> {
         use std::sync::atomic::{AtomicU64, Ordering};
         static NONCE: AtomicU64 = AtomicU64::new(0);
@@ -73,7 +77,15 @@ impl PartialState {
 
     pub async fn load(target: &Path) -> std::io::Result<Option<Self>> {
         match fs::read(Self::meta_path(target)).await {
-            Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
+            Ok(bytes) => match serde_json::from_slice(&bytes) {
+                Ok(state) => Ok(Some(state)),
+                // Corrupt sidecar (e.g. torn write from a version predating
+                // save()'s atomic tmp+rename dance, bit-rot, or an external
+                // edit) — treat as missing so the caller falls back to a
+                // fresh download instead of getting stuck on a sidecar
+                // that can never be parsed.
+                Err(_) => Ok(None),
+            },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(e) => Err(e),
         }
@@ -87,8 +99,18 @@ impl PartialState {
     }
 
     pub async fn clear(target: &Path) -> std::io::Result<()> {
-        let _ = fs::remove_file(Self::meta_path(target)).await;
-        let _ = fs::remove_file(Self::partial_path(target)).await;
+        for path in [Self::meta_path(target), Self::partial_path(target)] {
+            match fs::remove_file(&path).await {
+                Ok(()) => {}
+                // Acceptable: file was already absent.
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                // Real failure (permission denied, EBUSY, etc.) — surface it
+                // so callers can decide whether to retry, log, or escalate.
+                // A failed clear would otherwise leave stale sidecar bytes
+                // that a future resume could read and trust.
+                Err(e) => return Err(e),
+            }
+        }
         Ok(())
     }
 
