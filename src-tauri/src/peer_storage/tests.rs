@@ -632,11 +632,10 @@ mod tests {
     }
 
     #[test]
-    fn recv_stats_default_is_zero_and_no_hash() {
+    fn recv_stats_default_is_zero() {
         use crate::peer_storage::streaming::RecvStats;
         let s = RecvStats::default();
         assert_eq!(s.bytes, 0);
-        assert!(s.hash.is_none());
     }
 
     #[test]
@@ -646,7 +645,6 @@ mod tests {
         assert!(opts.on_progress.is_none());
         assert!(opts.cancel_token.is_none());
         assert!(opts.pause_flag.is_none());
-        assert!(!opts.compute_hash, "compute_hash should default to false");
     }
 
     // =========================================================================
@@ -726,265 +724,8 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // pipe_recv_to_writer (via remote_read_to_file) tests
+    // pipe_reader_to_send (via remote_write_file) tests
     // -------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn pipe_recv_to_writer_full_file_produces_correct_hash() {
-        let h = setup_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("ramp_out.bin");
-
-        let result = h
-            .client
-            .remote_read_to_file(
-                h.server_remote_id,
-                None,
-                &path,
-                &out_path,
-                None,
-                None,
-                None,
-                None,
-                &h.ucan,
-            )
-            .await
-            .expect("remote_read_to_file");
-
-        assert_eq!(result.bytes, 1024 * 1024, "should download all 1 MiB");
-        assert!(result.hash.is_some(), "full-file download must produce a hash");
-
-        // Independently compute the expected hash of the ramp data.
-        use sha2::Digest;
-        let mut hasher = sha2::Sha256::new();
-        let mut ramp = vec![0u8; 1024 * 1024];
-        for (i, b) in ramp.iter_mut().enumerate() {
-            *b = (i % 256) as u8;
-        }
-        hasher.update(&ramp);
-        let expected = hex::encode(hasher.finalize());
-        assert_eq!(result.hash.unwrap(), expected, "downloaded hash must match expected hash");
-
-        // Output file must exist and have the right length.
-        let meta = tokio::fs::metadata(&out_path).await.unwrap();
-        assert_eq!(meta.len(), 1024 * 1024);
-    }
-
-    #[tokio::test]
-    async fn pipe_recv_to_writer_range_has_no_hash() {
-        let h = setup_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("range_out.bin");
-
-        // A partial range: bytes [512, 1024) (half-open on the wire)
-        let result = h
-            .client
-            .remote_read_to_file(
-                h.server_remote_id,
-                None,
-                &path,
-                &out_path,
-                Some([512, 1024]),
-                None,
-                None,
-                None,
-                &h.ucan,
-            )
-            .await
-            .expect("remote_read_to_file range");
-
-        assert_eq!(result.bytes, 512, "range download must be 512 bytes");
-        assert!(result.hash.is_none(), "partial range must not produce a hash");
-    }
-
-    #[tokio::test]
-    async fn pipe_recv_to_writer_reports_progress() {
-        use std::sync::{Arc, Mutex};
-
-        let h = setup_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("progress_out.bin");
-
-        // Collect progress reports.
-        let reports: Arc<Mutex<Vec<(u64, u64)>>> = Arc::new(Mutex::new(Vec::new()));
-        let reports_clone = reports.clone();
-        let cb = Box::new(move |done: u64, total: u64| {
-            reports_clone.lock().unwrap().push((done, total));
-        });
-
-        h.client
-            .remote_read_to_file(
-                h.server_remote_id,
-                None,
-                &path,
-                &out_path,
-                None,
-                Some(cb),
-                None,
-                None,
-                &h.ucan,
-            )
-            .await
-            .expect("remote_read_to_file with progress");
-
-        let collected = reports.lock().unwrap();
-        assert!(!collected.is_empty(), "progress callback must have been called");
-
-        // All reported totals should match the file size.
-        for (_, total) in collected.iter() {
-            assert_eq!(*total, 1024 * 1024, "total passed to progress must be file size");
-        }
-
-        // Progress must be non-decreasing.
-        let mut prev = 0u64;
-        for (done, _) in collected.iter() {
-            assert!(*done >= prev, "progress must be non-decreasing");
-            prev = *done;
-        }
-
-        // Final progress value must equal total size.
-        let last_done = collected.last().map(|(d, _)| *d).unwrap_or(0);
-        assert_eq!(last_done, 1024 * 1024, "final progress must equal file size");
-    }
-
-    #[tokio::test]
-    async fn pipe_recv_to_writer_cancelled_token_aborts_download() {
-        let h = setup_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("cancel_out.bin");
-
-        // Pre-cancel the token so it is already cancelled when the transfer starts.
-        let token = tokio_util::sync::CancellationToken::new();
-        token.cancel();
-
-        let result = h
-            .client
-            .remote_read_to_file(
-                h.server_remote_id,
-                None,
-                &path,
-                &out_path,
-                None,
-                None,
-                Some(token),
-                None,
-                &h.ucan,
-            )
-            .await;
-
-        assert!(result.is_err(), "cancelled transfer must return an error");
-        let err_str = result.unwrap_err().to_string();
-        assert!(
-            err_str.contains("cancel") || err_str.contains("Cancel"),
-            "error must mention cancellation, got: {err_str}"
-        );
-
-        // Output file must have been cleaned up on cancellation.
-        assert!(
-            !out_path.exists(),
-            "partial output file must be removed on cancellation"
-        );
-    }
-
-    #[tokio::test]
-    async fn pipe_recv_to_writer_pause_flag_can_pause_and_resume() {
-        use std::sync::{Arc, atomic::AtomicBool};
-
-        let h = setup_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("pause_out.bin");
-
-        // Start with paused=false so the transfer completes normally.
-        let pause_flag = Arc::new(AtomicBool::new(false));
-
-        let result = h
-            .client
-            .remote_read_to_file(
-                h.server_remote_id,
-                None,
-                &path,
-                &out_path,
-                None,
-                None,
-                None,
-                Some(pause_flag),
-                &h.ucan,
-            )
-            .await
-            .expect("transfer with unset pause flag should succeed");
-
-        assert_eq!(result.bytes, 1024 * 1024);
-    }
-
-    // -------------------------------------------------------------------------
-    // pipe_reader_to_send (via remote_write_file + read-back) tests
-    // -------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn pipe_reader_to_send_upload_then_download_roundtrip() {
-        let h = setup_harness().await;
-        let upload_path = format!("/{}/uploaded.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("uploaded_out.bin");
-
-        // Build a small deterministic payload and persist it as the upload source.
-        let payload: Vec<u8> = (0u16..512).map(|i| (i % 256) as u8).collect();
-        let src_dir = tempfile::tempdir().unwrap();
-        let src_path = src_dir.path().join("payload.bin");
-        tokio::fs::write(&src_path, &payload).await.unwrap();
-
-        // The default harness UCAN only grants read; mint a write-capable
-        // one with a fresh random issuer key. UCAN verification only checks
-        // the signature against the token's own `iss` (not against any
-        // pre-shared identity), so any well-formed signing key works.
-        let seed: [u8; 32] = rand::random();
-        let write_signer = SigningKey::from_bytes(&seed);
-        let write_token = write_ucan(&write_signer, "test-space", &h.client_did);
-
-        // Upload a file to the server, then read it back. The read exercises
-        // pipe_reader_to_send through handlers::stream_file_to_send on the
-        // server side (disk → QUIC pipeline). The write exercises
-        // pipe_recv_to_writer through handlers::handle_write on the server side
-        // (QUIC → disk pipeline).
-        h.client
-            .remote_write_file(
-                h.server_remote_id,
-                None,
-                &upload_path,
-                &src_path,
-                &write_token,
-                crate::peer_storage::streaming::SendOptions::default(),
-            )
-            .await
-            .expect("remote_write_file");
-
-        // Read back via the streaming pipeline.
-        let result = h
-            .client
-            .remote_read_to_file(
-                h.server_remote_id,
-                None,
-                &upload_path,
-                &out_path,
-                None,
-                None,
-                None,
-                None,
-                &h.ucan,
-            )
-            .await
-            .expect("remote_read_to_file after upload");
-
-        assert_eq!(result.bytes, payload.len() as u64);
-
-        let downloaded = tokio::fs::read(&out_path).await.unwrap();
-        assert_eq!(downloaded, payload, "round-tripped bytes must match original");
-    }
 
     #[tokio::test]
     async fn pipe_reader_to_send_cancelled_token_aborts_upload() {
@@ -1052,215 +793,6 @@ mod tests {
             }
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         }
-    }
-
-    // -------------------------------------------------------------------------
-    // read_multipart_to_file tests
-    // -------------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn read_multipart_to_file_zero_size_creates_empty_file_with_hash() {
-        // For size == 0, read_multipart_to_file short-circuits and does not
-        // need a real peer connection — just create a dummy endpoint.
-        let endpoint = std::sync::Arc::new(tokio::sync::RwLock::new(
-            PeerEndpoint::new_ephemeral(),
-        ));
-        let tmp = tempfile::tempdir().unwrap();
-        let out_path = tmp.path().join("empty.bin");
-
-        // EndpointId is not constructible directly; use a nonsense remote_id
-        // that will never be contacted (size == 0 exits early).
-        let dummy_remote_id = endpoint.read().await.endpoint_id();
-
-        let result = crate::peer_storage::client::read_multipart_to_file(
-            endpoint,
-            dummy_remote_id,
-            None,
-            "/media/empty.bin".to_string(),
-            out_path.clone(),
-            0,
-            4,
-            None,
-            None,
-            None,
-            None,
-            "dummy-token".to_string(),
-        )
-        .await
-        .expect("zero-size multipart download");
-
-        assert_eq!(result.bytes, 0, "zero-size download must return 0 bytes");
-        assert!(result.hash.is_some(), "zero-size download must have a hash");
-
-        // SHA-256 of empty input is well-known.
-        use sha2::Digest;
-        let expected_empty_hash = hex::encode(sha2::Sha256::digest([]));
-        assert_eq!(
-            result.hash.unwrap(),
-            expected_empty_hash,
-            "hash of zero-size file must be SHA-256 of empty bytes"
-        );
-
-        assert!(out_path.exists(), "empty output file must be created");
-        let meta = tokio::fs::metadata(&out_path).await.unwrap();
-        assert_eq!(meta.len(), 0, "output file must be 0 bytes");
-    }
-
-    #[tokio::test]
-    async fn read_multipart_to_file_single_stream_matches_direct_download() {
-        let h = setup_multipart_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("multipart_out.bin");
-
-        let result = crate::peer_storage::client::read_multipart_to_file(
-            h.client.clone(),
-            h.server_remote_id,
-            None,
-            path,
-            out_path.clone(),
-            1024 * 1024,
-            1, // single stream
-            None,
-            None,
-            None,
-            None,
-            h.ucan.clone(),
-        )
-        .await
-        .expect("read_multipart_to_file single stream");
-
-        assert_eq!(result.bytes, 1024 * 1024);
-        assert!(result.hash.is_some(), "multipart download must produce a hash");
-
-        // Verify the expected hash.
-        use sha2::Digest;
-        let mut hasher = sha2::Sha256::new();
-        let mut ramp = vec![0u8; 1024 * 1024];
-        for (i, b) in ramp.iter_mut().enumerate() {
-            *b = (i % 256) as u8;
-        }
-        hasher.update(&ramp);
-        let expected = hex::encode(hasher.finalize());
-        assert_eq!(result.hash.unwrap(), expected, "multipart hash must match expected");
-
-        let meta = tokio::fs::metadata(&out_path).await.unwrap();
-        assert_eq!(meta.len(), 1024 * 1024, "output file must be correct size");
-    }
-
-    #[tokio::test]
-    async fn read_multipart_to_file_four_streams_matches_single_stream_hash() {
-        let h = setup_multipart_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("multi4_out.bin");
-
-        let result = crate::peer_storage::client::read_multipart_to_file(
-            h.client.clone(),
-            h.server_remote_id,
-            None,
-            path,
-            out_path.clone(),
-            1024 * 1024,
-            4, // four parallel streams
-            None,
-            None,
-            None,
-            None,
-            h.ucan.clone(),
-        )
-        .await
-        .expect("read_multipart_to_file 4 streams");
-
-        assert_eq!(result.bytes, 1024 * 1024);
-        assert!(result.hash.is_some());
-
-        // The hash must match the known SHA-256 of the ramp data regardless
-        // of how many streams were used.
-        use sha2::Digest;
-        let mut hasher = sha2::Sha256::new();
-        let mut ramp = vec![0u8; 1024 * 1024];
-        for (i, b) in ramp.iter_mut().enumerate() {
-            *b = (i % 256) as u8;
-        }
-        hasher.update(&ramp);
-        let expected = hex::encode(hasher.finalize());
-        assert_eq!(result.hash.unwrap(), expected, "4-stream hash must equal single-stream hash");
-
-        // File contents must also be bit-perfect.
-        let downloaded = tokio::fs::read(&out_path).await.unwrap();
-        assert_eq!(downloaded, ramp, "4-stream download must produce correct file bytes");
-    }
-
-    #[tokio::test]
-    async fn read_multipart_to_file_reports_aggregate_progress() {
-        use std::sync::{Arc, Mutex};
-
-        let h = setup_multipart_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("progress_multi_out.bin");
-
-        let reports: Arc<Mutex<Vec<(u64, u64)>>> = Arc::new(Mutex::new(Vec::new()));
-        let reports_clone = reports.clone();
-        let cb: std::sync::Arc<dyn Fn(u64, u64) + Send + Sync> =
-            std::sync::Arc::new(move |done: u64, total: u64| {
-                reports_clone.lock().unwrap().push((done, total));
-            });
-
-        crate::peer_storage::client::read_multipart_to_file(
-            h.client.clone(),
-            h.server_remote_id,
-            None,
-            path,
-            out_path.clone(),
-            1024 * 1024,
-            2,
-            None,
-            Some(cb),
-            None,
-            None,
-            h.ucan.clone(),
-        )
-        .await
-        .expect("read_multipart_to_file with progress");
-
-        let collected = reports.lock().unwrap();
-        assert!(!collected.is_empty(), "progress must have been reported");
-
-        for (_, total) in collected.iter() {
-            assert_eq!(*total, 1024 * 1024, "total must always be file size");
-        }
-    }
-
-    #[tokio::test]
-    async fn read_multipart_to_file_parallelism_clamped_to_max() {
-        // Parallelism above MAX_PARALLEL_STREAMS_PER_FILE must be silently clamped.
-        let h = setup_multipart_harness().await;
-        let path = format!("/{}/ramp.bin", h.share_name);
-        let tmp_out = tempfile::tempdir().unwrap();
-        let out_path = tmp_out.path().join("clamped_out.bin");
-
-        // Request far more streams than the cap allows.
-        let result = crate::peer_storage::client::read_multipart_to_file(
-            h.client.clone(),
-            h.server_remote_id,
-            None,
-            path,
-            out_path.clone(),
-            1024 * 1024,
-            1024, // way above MAX_PARALLEL_STREAMS_PER_FILE = 4
-            None,
-            None,
-            None,
-            None,
-            h.ucan.clone(),
-        )
-        .await
-        .expect("read_multipart_to_file with excessive parallelism");
-
-        assert_eq!(result.bytes, 1024 * 1024, "clamped-parallelism download must complete");
-        assert!(result.hash.is_some());
     }
 
     // -------------------------------------------------------------------------
@@ -1972,7 +1504,7 @@ mod tests {
             out_path.clone(),
             payload_len as u64,
             4,
-            Some(&manifest),
+            &manifest,
             None,
             None,
             None,
@@ -2119,7 +1651,7 @@ mod tests {
             out_path.clone(),
             payload_len as u64,
             4,
-            Some(&manifest),
+            &manifest,
             None,
             None,
             None,
@@ -2285,7 +1817,7 @@ mod tests {
             out_path.clone(),
             payload_len as u64,
             4,
-            Some(&manifest),
+            &manifest,
             None,
             None,
             None,
@@ -2421,7 +1953,7 @@ mod tests {
             out_path.clone(),
             payload_len as u64,
             4,
-            Some(&manifest),
+            &manifest,
             None,
             None,
             None,

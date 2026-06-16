@@ -13,10 +13,10 @@ use crate::peer_storage::streaming;
 
 /// Outcome of a streaming peer read into a local file.
 ///
-/// `hash` is the SHA-256 of the bytes that arrived over the wire (and were
-/// written to disk). It is `None` when only a partial range was requested,
-/// because a partial-content hash is not comparable to a full-file manifest
-/// hash.
+/// `hash` is the manifest's BLAKE3 `file_hash` that the chunked verifier
+/// confirmed against the bytes on disk. It is `None` only for paths that
+/// don't produce a comparable full-file hash (zero-byte short-circuit on
+/// the multi-stream entry-point with no manifest).
 #[derive(Debug, Clone)]
 pub struct StreamReadResult {
     pub bytes: u64,
@@ -50,111 +50,48 @@ impl PeerEndpoint {
         }
     }
 
-    /// Connect to a remote peer and download a file directly to disk.
-    /// Streams chunks from the iroh connection directly into the output file
-    /// without buffering the entire file in memory.
-    /// Returns the total file size and the SHA-256 of the bytes that landed
-    /// on disk so callers can verify integrity against the sender's manifest.
-    pub async fn remote_read_to_file(
-        &self,
-        remote_id: EndpointId,
-        relay_url: Option<RelayUrl>,
-        path: &str,
-        output_path: &std::path::Path,
-        range: Option<[u64; 2]>,
-        on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
-        cancel_token: Option<tokio_util::sync::CancellationToken>,
-        pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
-        ucan_token: &str,
-    ) -> Result<StreamReadResult, PeerStorageError> {
-        let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
-        Self::read_open_streams_to_file(
-            &mut send,
-            &mut recv,
-            path,
-            output_path,
-            range,
-            on_progress,
-            cancel_token,
-            pause_flag,
-            ucan_token,
-            None,
-        )
-        .await
-    }
-
     /// Transfer a file from already-opened QUIC streams to disk.
     /// Callers that hold a lock on `PeerEndpoint` should open the stream under
     /// the lock, drop it, then call this function so the lock is not held during I/O.
     ///
-    /// When `chunks_to_use` is `Some`, the receive loop verifies each chunk
-    /// against the manifest's BLAKE3 hashes inline and persists a resume
-    /// sidecar after every successful chunk — bytes only land on disk once
-    /// the corresponding chunk hash matches. The output stream is written
-    /// to `<output_path>.haex-partial` and atomically renamed to
-    /// `output_path` on full success; the sidecar metadata is cleared in
-    /// the same step. On a hash mismatch the partial bytes + sidecar are
-    /// left in place so a retry can resume from the surviving chunks.
-    ///
-    /// When `chunks_to_use` is `None`, falls back to the legacy whole-file
-    /// SHA-256 inline hash path (used by `remote_read_to_file` callers that
-    /// have no manifest, e.g. unit tests and provider hooks that don't yet
-    /// thread chunk metadata).
-    ///
-    /// `range` is currently only honoured by the legacy path — passing both
-    /// a range and `chunks_to_use` is unsupported here because range
-    /// semantics are handled by the multi-stream path in
-    /// [`read_multipart_to_file`].
+    /// The receive loop verifies each chunk against the manifest's BLAKE3
+    /// hashes inline and persists a resume sidecar after every successful
+    /// chunk — bytes only land on disk once the corresponding chunk hash
+    /// matches. The output stream is written to `<output_path>.haex-partial`
+    /// and atomically renamed to `output_path` on full success; the sidecar
+    /// metadata is cleared in the same step. On a hash mismatch the partial
+    /// bytes + sidecar are left in place so a retry can resume from the
+    /// surviving chunks.
     pub(crate) async fn read_open_streams_to_file(
         send: &mut iroh::endpoint::SendStream,
         recv: &mut iroh::endpoint::RecvStream,
         path: &str,
         output_path: &std::path::Path,
-        range: Option<[u64; 2]>,
         on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
         pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
         ucan_token: &str,
-        chunks_to_use: Option<&ChunkedHash>,
+        chunks_to_use: &ChunkedHash,
     ) -> Result<StreamReadResult, PeerStorageError> {
-        // Range + chunk-verification is not a supported combination in this
-        // helper. Range reads only exist for multi-stream + media seeking;
-        // both have their own verification path. Defensively force
-        // chunks_to_use off when range is set so callers can't slip past it.
-        let chunks_to_use = if range.is_some() { None } else { chunks_to_use };
-        let is_full_file = range.is_none();
         let req = Request::Read {
             path: path.to_string(),
-            range,
+            range: None,
             ucan_token: ucan_token.to_string(),
         };
         let response = Self::send_request(send, recv, &req).await?;
 
         match response {
             Response::ReadHeader { size } => {
-                if let Some(chunks) = chunks_to_use {
-                    Self::receive_with_chunk_verification(
-                        recv,
-                        output_path,
-                        size,
-                        chunks,
-                        on_progress,
-                        cancel_token,
-                        pause_flag,
-                    )
-                    .await
-                } else {
-                    Self::receive_legacy_sha256(
-                        recv,
-                        output_path,
-                        size,
-                        is_full_file,
-                        on_progress,
-                        cancel_token,
-                        pause_flag,
-                    )
-                    .await
-                }
+                Self::receive_with_chunk_verification(
+                    recv,
+                    output_path,
+                    size,
+                    chunks_to_use,
+                    on_progress,
+                    cancel_token,
+                    pause_flag,
+                )
+                .await
             }
             Response::Error { message } => {
                 Err(PeerStorageError::ProtocolError { reason: message })
@@ -237,11 +174,7 @@ impl PeerEndpoint {
                     });
                 }
                 // Atomic rename of the verified bytes onto the final path,
-                // then clear the sidecar metadata. We do the rename here
-                // (rather than deferring to Task 11) because the legacy
-                // SHA-256 path also lands bytes directly at `output_path`;
-                // keeping the single-stream contract symmetric avoids the
-                // engine having to know about partial-path indirection.
+                // then clear the sidecar metadata.
                 tokio::fs::rename(&partial_path, output_path)
                     .await
                     .map_err(PeerStorageError::Io)?;
@@ -260,69 +193,6 @@ impl PeerEndpoint {
                 Err(e)
             }
         }
-    }
-
-    /// Legacy single-stream receive path: inline SHA-256 over the streamed
-    /// bytes. Retained as the fallback when no chunk metadata is available
-    /// (callers of `remote_read_to_file` without a manifest hand-in).
-    async fn receive_legacy_sha256(
-        recv: &mut iroh::endpoint::RecvStream,
-        output_path: &std::path::Path,
-        size: u64,
-        is_full_file: bool,
-        on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
-        cancel_token: Option<tokio_util::sync::CancellationToken>,
-        pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
-    ) -> Result<StreamReadResult, PeerStorageError> {
-        let file = tokio::fs::File::create(output_path).await.map_err(|e| {
-            PeerStorageError::ProtocolError {
-                reason: format!("Failed to create output file: {e}"),
-            }
-        })?;
-
-        let options = streaming::RecvOptions {
-            on_progress,
-            cancel_token,
-            pause_flag,
-            compute_hash: is_full_file,
-        };
-
-        let result = streaming::pipe_recv_to_writer(recv, file, size, options).await;
-
-        let stats = match result {
-            Ok(s) => s,
-            Err(streaming::PipelineError::Cancelled) => {
-                let _ = tokio::fs::remove_file(output_path).await;
-                return Err(PeerStorageError::ProtocolError {
-                    reason: "Transfer cancelled".to_string(),
-                });
-            }
-            Err(streaming::PipelineError::Io(e)) => {
-                let _ = tokio::fs::remove_file(output_path).await;
-                return Err(PeerStorageError::ProtocolError {
-                    reason: format!("Failed to write to file: {e}"),
-                });
-            }
-            Err(streaming::PipelineError::Stream(reason)) => {
-                let _ = tokio::fs::remove_file(output_path).await;
-                return Err(PeerStorageError::ConnectionFailed { reason });
-            }
-        };
-
-        if stats.bytes != size {
-            let _ = tokio::fs::remove_file(output_path).await;
-            return Err(PeerStorageError::ConnectionFailed {
-                reason: format!(
-                    "Incomplete download: expected {size} bytes, received {}",
-                    stats.bytes
-                ),
-            });
-        }
-
-        Ok(StreamReadResult {
-            bytes: size,
-            hash: stats.hash,
-        })
     }
 
     /// Connect to a remote peer and get a recursive file manifest.
@@ -352,7 +222,7 @@ impl PeerEndpoint {
     }
 
     /// Connect to a remote peer and read a file into memory.
-    /// For large files prefer `remote_read_to_file`; this is for sync-sized reads.
+    /// For large files prefer `download_file_to_path`; this is for sync-sized reads.
     pub async fn remote_read_bytes(
         &self,
         remote_id: EndpointId,
@@ -773,7 +643,7 @@ pub(crate) async fn download_file_to_path(
             output_path,
             stat.entry.size,
             streaming::MAX_PARALLEL_STREAMS_PER_FILE,
-            Some(&chunks_to_use),
+            &chunks_to_use,
             on_progress,
             cancel_token,
             pause_flag,
@@ -877,12 +747,11 @@ async fn download_single_stream_with_resume(
             &mut recv,
             path,
             output_path,
-            None,
             on_progress_boxed,
             cancel_token,
             pause_flag,
             ucan_token,
-            Some(chunks_to_use),
+            chunks_to_use,
         )
         .await;
     };
@@ -1098,10 +967,6 @@ async fn download_single_stream_with_resume(
 /// shared bitmap and their bytes survive on disk. A drifted sidecar
 /// (mismatched chunk count or chunk_size) is treated like a missing one:
 /// the partial file is truncated and the download starts fresh.
-///
-/// When `chunks_to_use` is `None`, the legacy SHA-256 post-pass is retained
-/// for callers that pre-date Task 6 (today only the direct test entry-points
-/// hit this; `download_file_to_path` always supplies chunks).
 pub(crate) async fn read_multipart_to_file(
     endpoint: Arc<tokio::sync::RwLock<PeerEndpoint>>,
     remote_id: EndpointId,
@@ -1110,7 +975,7 @@ pub(crate) async fn read_multipart_to_file(
     output_path: std::path::PathBuf,
     size: u64,
     parallelism: usize,
-    chunks_to_use: Option<&ChunkedHash>,
+    chunks_to_use: &ChunkedHash,
     on_progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
     cancel_token: Option<tokio_util::sync::CancellationToken>,
     pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
@@ -1122,10 +987,9 @@ pub(crate) async fn read_multipart_to_file(
         tokio::fs::File::create(&output_path)
             .await
             .map_err(PeerStorageError::Io)?;
-        use sha2::Digest;
         return Ok(StreamReadResult {
             bytes: 0,
-            hash: Some(hex::encode(sha2::Sha256::digest([]))),
+            hash: Some(chunks_to_use.file_hash.clone()),
         });
     }
 
@@ -1134,35 +998,26 @@ pub(crate) async fn read_multipart_to_file(
         .min(streaming::MAX_PARALLEL_STREAMS_PER_FILE);
 
     // Verified path streams bytes to `<output>.haex-partial`, then atomic-
-    // renames + clears the sidecar on success. Legacy (chunks == None) keeps
-    // writing directly to `output_path` so existing callers' on-disk layout
-    // doesn't change.
-    let verified = chunks_to_use.is_some();
-    let write_path: std::path::PathBuf = if verified {
-        crate::peer_storage::resume::PartialState::partial_path(&output_path)
-    } else {
-        output_path.clone()
-    };
+    // renames + clears the sidecar on success.
+    let write_path: std::path::PathBuf =
+        crate::peer_storage::resume::PartialState::partial_path(&output_path);
 
-    // Resume probe: if the verified path has a surviving sidecar whose
-    // file_hash matches the manifest, re-use its bitmap + partial bytes.
-    // A drifted sidecar (mismatched chunk count or chunk_size) is treated
-    // exactly like a missing one — we discard it and start fresh so the
-    // worker pool never aligns chunks against the wrong manifest.
-    let resume_state: Option<crate::peer_storage::resume::PartialState> = if verified {
-        let chunks = chunks_to_use.expect("verified ⇒ chunks_to_use is Some");
+    // Resume probe: if a surviving sidecar's file_hash matches the manifest,
+    // re-use its bitmap + partial bytes. A drifted sidecar (mismatched chunk
+    // count or chunk_size) is treated exactly like a missing one — we
+    // discard it and start fresh so the worker pool never aligns chunks
+    // against the wrong manifest.
+    let resume_state: Option<crate::peer_storage::resume::PartialState> = {
         let candidate = crate::peer_storage::resume::PartialState::load_if_matches(
             &output_path,
-            &chunks.file_hash,
+            &chunks_to_use.file_hash,
         )
         .await
         .map_err(PeerStorageError::Io)?;
         candidate.filter(|s| {
-            s.completed.len() == chunks.chunk_hashes.len()
-                && s.chunk_size == chunks.chunk_size
+            s.completed.len() == chunks_to_use.chunk_hashes.len()
+                && s.chunk_size == chunks_to_use.chunk_size
         })
-    } else {
-        None
     };
 
     // Pre-allocation: on a fresh download we create+truncate the partial
@@ -1215,16 +1070,13 @@ pub(crate) async fn read_multipart_to_file(
     // and progress reports run roughly in file order.
     initial_ranges.reverse();
 
-    // Shared bitmap: only populated on the verified path. Each worker writes
-    // true into `completed[absolute_chunk_idx]` as ChunkVerifier validates a
-    // chunk; the helper persists the sidecar after every chunk so a future
-    // resume can pick up from any point of progress. On resume we re-seed
-    // the bitmap from the sidecar so chunks that already completed in a
-    // prior invocation stay marked done (and `missing_ranges()` already
-    // excluded their byte ranges from the pending pool).
-    let total_chunks = chunks_to_use
-        .map(|c| c.chunk_hashes.len())
-        .unwrap_or(0);
+    // Shared bitmap: each worker writes true into `completed[absolute_chunk_idx]`
+    // as ChunkVerifier validates a chunk; the helper persists the sidecar after
+    // every chunk so a future resume can pick up from any point of progress.
+    // On resume we re-seed the bitmap from the sidecar so chunks that already
+    // completed in a prior invocation stay marked done (and `missing_ranges()`
+    // already excluded their byte ranges from the pending pool).
+    let total_chunks = chunks_to_use.chunk_hashes.len();
     let initial_completed = match resume_state.as_ref() {
         Some(state) => state.completed.clone(),
         None => vec![false; total_chunks],
@@ -1257,8 +1109,7 @@ pub(crate) async fn read_multipart_to_file(
     let total_size = size;
     let max_retries = streaming::MAX_RANGE_RETRIES;
 
-    let chunks_owned: Option<Arc<ChunkedHash>> =
-        chunks_to_use.map(|c| Arc::new(c.clone()));
+    let chunks_owned: Arc<ChunkedHash> = Arc::new(chunks_to_use.clone());
 
     // Wrap the per-range work in a closure the generic retry pool can drive.
     // The closure clones the per-attempt state once and the pool calls it
@@ -1309,7 +1160,7 @@ pub(crate) async fn read_multipart_to_file(
                     total_received,
                     range_progress,
                     total_size,
-                    chunks_owned.as_deref(),
+                    &chunks_owned,
                     completed,
                 )
                 .await
@@ -1357,54 +1208,34 @@ pub(crate) async fn read_multipart_to_file(
         .await;
 
     if let Some(err) = first_err {
-        // Verified path: leave partial bytes + sidecar on disk so the next
-        // download attempt can resume from the chunks that did complete.
-        // Legacy path: scrub the half-written file to match pre-Task-9
-        // behavior (single-callsite tests rely on this).
-        if !verified {
-            let _ = tokio::fs::remove_file(&output_path).await;
-        }
+        // Leave partial bytes + sidecar on disk so the next download attempt
+        // can resume from the chunks that did complete.
         return Err(err);
     }
 
-    if let Some(chunks) = chunks_to_use {
-        // Defensive: every chunk should be marked complete now. If not, a
-        // worker returned Ok despite leaving gaps — that's a bug, not a
-        // transport failure.
-        let completed_snapshot = completed.lock().await;
-        if !completed_snapshot.iter().all(|c| *c) {
-            return Err(PeerStorageError::ProtocolError {
-                reason: "multipart workers completed without filling chunk bitmap"
-                    .to_string(),
-            });
-        }
-        drop(completed_snapshot);
-
-        tokio::fs::rename(&write_path, &output_path)
-            .await
-            .map_err(PeerStorageError::Io)?;
-        crate::peer_storage::resume::PartialState::clear(&output_path)
-            .await
-            .map_err(PeerStorageError::Io)?;
-
-        Ok(StreamReadResult {
-            bytes: size,
-            hash: Some(chunks.file_hash.clone()),
-        })
-    } else {
-        // Legacy path: no chunk metadata, so we still need a post-download
-        // SHA-256 to give callers a manifest-comparable hash.
-        let hash = hash_file_sha256(&output_path).await.map_err(|e| {
-            PeerStorageError::ProtocolError {
-                reason: format!("post-download hash: {e}"),
-            }
-        })?;
-
-        Ok(StreamReadResult {
-            bytes: size,
-            hash: Some(hash),
-        })
+    // Defensive: every chunk should be marked complete now. If not, a
+    // worker returned Ok despite leaving gaps — that's a bug, not a
+    // transport failure.
+    let completed_snapshot = completed.lock().await;
+    if !completed_snapshot.iter().all(|c| *c) {
+        return Err(PeerStorageError::ProtocolError {
+            reason: "multipart workers completed without filling chunk bitmap"
+                .to_string(),
+        });
     }
+    drop(completed_snapshot);
+
+    tokio::fs::rename(&write_path, &output_path)
+        .await
+        .map_err(PeerStorageError::Io)?;
+    crate::peer_storage::resume::PartialState::clear(&output_path)
+        .await
+        .map_err(PeerStorageError::Io)?;
+
+    Ok(StreamReadResult {
+        bytes: size,
+        hash: Some(chunks_to_use.file_hash.clone()),
+    })
 }
 
 /// Generic worker pool with per-item bounded retry.
@@ -1522,7 +1353,7 @@ async fn download_range_attempt(
         tokio::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>,
     >,
     total_size: u64,
-    chunks: Option<&ChunkedHash>,
+    chunks: &ChunkedHash,
     completed: Arc<tokio::sync::Mutex<Vec<bool>>>,
 ) -> Result<(), PeerStorageError> {
     use std::sync::atomic::Ordering;
@@ -1571,8 +1402,8 @@ async fn download_range_attempt(
         .await
         .map_err(PeerStorageError::Io)?;
 
-    if let Some(chunks) = chunks {
-        // Verified branch: ChunkVerifier mutates the shared bitmap and the
+    {
+        // ChunkVerifier mutates the shared bitmap and the
         // sidecar gets rewritten after every verified chunk. Map this byte
         // range back to its chunk-bitmap slice; both bounds align on a
         // chunk boundary for the initial equal split (and Task 10's
@@ -1689,82 +1520,5 @@ async fn download_range_attempt(
             }
             Err(e) => Err(e),
         }
-    } else {
-        // Legacy unverified branch — preserved for tests that hit
-        // read_multipart_to_file directly without a manifest. New callers go
-        // through download_file_to_path, which always supplies chunks.
-        let prev_in_stream = Arc::new(std::sync::atomic::AtomicU64::new(0));
-        let total_received_pc = total_received.clone();
-        let range_progress_pc = range_progress.clone();
-        let range_key = (start, end);
-
-        let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = on_progress.map(|cb| {
-            Box::new(move |done_in_stream: u64, _expected_in_stream: u64| {
-                let prev = prev_in_stream.swap(done_in_stream, Ordering::Relaxed);
-                let delta = done_in_stream.saturating_sub(prev);
-                if delta == 0 {
-                    return;
-                }
-                let new_total =
-                    total_received_pc.fetch_add(delta, Ordering::Relaxed) + delta;
-                // Record per-range progress synchronously via try_lock; the
-                // mutex is only contended on attempt boundaries (rare) so a
-                // spin-free try is enough to keep the rollback bookkeeping
-                // up to date without making the progress callback async.
-                if let Ok(mut rp) = range_progress_pc.try_lock() {
-                    rp.insert(range_key, done_in_stream);
-                }
-                cb(new_total.min(total_size), total_size);
-            }) as Box<dyn Fn(u64, u64) + Send>
-        });
-
-        let options = streaming::RecvOptions {
-            on_progress: progress_cb,
-            cancel_token,
-            pause_flag,
-            compute_hash: false,
-        };
-
-        let stats = streaming::pipe_recv_to_writer(&mut recv, file, part_size, options)
-            .await
-            .map_err(|e| match e {
-                streaming::PipelineError::Io(e) => PeerStorageError::Io(e),
-                streaming::PipelineError::Stream(reason) => {
-                    PeerStorageError::ConnectionFailed { reason }
-                }
-                streaming::PipelineError::Cancelled => PeerStorageError::ProtocolError {
-                    reason: "Transfer cancelled".to_string(),
-                },
-            })?;
-        if stats.bytes != part_size {
-            return Err(PeerStorageError::ConnectionFailed {
-                reason: format!(
-                    "multipart range short: expected {part_size}, received {}",
-                    stats.bytes
-                ),
-            });
-        }
-        Ok(())
     }
-}
-
-/// Sequentially read `path` and return the hex-encoded SHA-256 of its
-/// contents. Used after multi-stream downloads (whose per-range layout
-/// makes inline hashing impossible) to recover the manifest-comparable
-/// hash that single-stream downloads produce for free.
-async fn hash_file_sha256(path: &std::path::Path) -> Result<String, std::io::Error> {
-    use sha2::{Digest, Sha256};
-    use tokio::io::AsyncReadExt;
-
-    let mut file = tokio::fs::File::open(path).await?;
-    let mut hasher = Sha256::new();
-    let mut buf = vec![0u8; streaming::CHUNK_SIZE];
-    loop {
-        let n = file.read(&mut buf).await?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(hex::encode(hasher.finalize()))
 }

@@ -45,7 +45,6 @@ use std::sync::Mutex;
 
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use ts_rs::TS;
 
 #[derive(Hash, PartialEq, Eq, Clone)]
@@ -58,10 +57,6 @@ struct CacheKey {
 lazy_static! {
     static ref HASH_CACHE: Mutex<HashMap<CacheKey, ChunkedHash>> = Mutex::new(HashMap::new());
 }
-
-/// Hash buffer size — large enough to keep SHA-256 fed without excessive
-/// syscall overhead, small enough to not bloat RAM with many parallel scans.
-const HASH_BUF: usize = 256 * 1024;
 
 /// Chunk size for the resumable file-sync chunk hasher. 1 MiB, aligned to
 /// `streaming::CHUNK_SIZE`.
@@ -122,21 +117,6 @@ fn chunk_hash_reader<R: Read>(mut reader: R) -> io::Result<ChunkedHash> {
 /// per-chunk hashes and the whole-file hash in a single streaming pass.
 pub fn hash_file_chunked(path: &Path) -> io::Result<ChunkedHash> {
     chunk_hash_reader(File::open(path)?)
-}
-
-/// Compute SHA-256 of a file. Streams in 256 KB chunks; lower-case hex output.
-pub fn hash_file_sync(path: &Path) -> io::Result<String> {
-    let mut file = File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buf = vec![0u8; HASH_BUF];
-    loop {
-        let n = file.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(hex::encode(hasher.finalize()))
 }
 
 /// Seed the cache with a known `ChunkedHash` (e.g. from manifest after a

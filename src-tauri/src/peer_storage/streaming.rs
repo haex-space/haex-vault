@@ -15,7 +15,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use sha2::{Digest, Sha256};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -80,15 +79,11 @@ pub struct RecvOptions {
     pub on_progress: Option<Box<dyn Fn(u64, u64) + Send>>,
     pub cancel_token: Option<CancellationToken>,
     pub pause_flag: Option<Arc<AtomicBool>>,
-    /// Compute SHA-256 of the bytes written. Only meaningful for full-file
-    /// reads — a partial-range hash is not comparable to a manifest hash.
-    pub compute_hash: bool,
 }
 
 #[derive(Debug, Default)]
 pub struct RecvStats {
     pub bytes: u64,
-    pub hash: Option<String>,
 }
 
 /// Options for the disk → network direction. Same shape as [`RecvOptions`]
@@ -211,29 +206,23 @@ where
     W: AsyncWrite + Unpin + Send + 'static,
 {
     let (tx, mut rx) = mpsc::channel::<Vec<u8>>(CHANNEL_DEPTH);
-    let compute_hash = options.compute_hash;
 
-    let writer_task: tokio::task::JoinHandle<Result<(u64, Option<String>), std::io::Error>> =
+    let writer_task: tokio::task::JoinHandle<Result<u64, std::io::Error>> =
         tokio::spawn(async move {
             let mut writer = writer;
-            let mut hasher = compute_hash.then(Sha256::new);
             let mut bytes_written: u64 = 0;
             while let Some(chunk) = rx.recv().await {
                 writer.write_all(&chunk).await?;
-                if let Some(h) = hasher.as_mut() {
-                    h.update(&chunk);
-                }
                 bytes_written += chunk.len() as u64;
             }
             writer.flush().await?;
-            Ok((bytes_written, hasher.map(|h| hex::encode(h.finalize()))))
+            Ok(bytes_written)
         });
 
     let RecvOptions {
         on_progress,
         cancel_token,
         pause_flag,
-        compute_hash: _,
     } = options;
 
     let mut bytes_received: u64 = 0;
@@ -296,7 +285,7 @@ where
             format!("writer task: {e}"),
         ))
     })?;
-    let (bytes_written, hash) = join.map_err(PipelineError::Io)?;
+    let bytes_written = join.map_err(PipelineError::Io)?;
 
     if let Some(err) = io_err {
         return Err(err);
@@ -304,7 +293,6 @@ where
 
     Ok(RecvStats {
         bytes: bytes_written,
-        hash,
     })
 }
 
