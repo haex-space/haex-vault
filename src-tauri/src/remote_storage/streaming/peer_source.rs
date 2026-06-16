@@ -70,8 +70,8 @@ impl StreamingSource for PeerStreamingSource {
                 .await
         }
         .map_err(map_peer_error)?;
-        *cached = Some(entry.size);
-        Ok(entry.size)
+        *cached = Some(entry.entry.size);
+        Ok(entry.entry.size)
     }
 
     async fn read_range(&self, range: ByteRange) -> Result<Vec<u8>, StreamingError> {

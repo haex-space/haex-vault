@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use super::hashing::ChunkedHash;
 use super::types::FileState;
 
 /// Error type for sync provider operations
@@ -80,12 +81,19 @@ pub trait SyncProvider: Send + Sync {
     /// The returned `ReadFileResult.hash` lets the engine verify integrity
     /// against the sender-announced manifest hash. Override on providers that
     /// can hash inline with the receive loop (e.g. peer/QUIC) for free.
+    ///
+    /// `expected_chunks` (when `Some`) carries the BLAKE3 chunked-hash
+    /// manifest from the sender. Streaming providers that know how to
+    /// verify per-chunk (peer/QUIC) use it as the authoritative verifier;
+    /// other providers may ignore it.
     async fn read_file_to_path(
         &self,
         relative_path: &str,
         output_path: &std::path::Path,
+        expected_chunks: Option<ChunkedHash>,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<ReadFileResult, SyncProviderError> {
+        let _ = expected_chunks;
         let data = self.read_file(relative_path).await?;
         let n = data.len() as u64;
         tokio::fs::write(output_path, &data)
@@ -142,10 +150,28 @@ pub trait SyncProvider: Send + Sync {
 
     /// Hook fired after a successful `write_file_from_path`. Implementations
     /// that own a local filesystem (e.g. `LocalProvider`) can use the sender's
-    /// announced SHA-256 to prime their hash cache so the next manifest scan
-    /// does not re-hash the freshly-written file. Default is a no-op for
-    /// providers without local storage (peer, cloud).
-    async fn prime_hash_after_write(&self, _relative_path: &str, _hash: &str) {}
+    /// announced BLAKE3 chunked hashes to prime their hash cache so the next
+    /// manifest scan does not re-hash the freshly-written file. Default is a
+    /// no-op for providers without local storage (peer, cloud).
+    ///
+    /// The full `FileState` is passed so the implementation can read both
+    /// `file_hash` and the per-chunk hashes. Sources without chunked hashes
+    /// (e.g. cloud manifests) leave `chunk_hashes = None`; the LocalProvider
+    /// then skips cache seeding for that file.
+    async fn prime_hash_after_write(&self, _file: &FileState) {}
+
+    /// If this provider can accept a download being streamed directly into
+    /// its final destination on the local filesystem, return that absolute
+    /// path. The engine then hands the path to the source's
+    /// `read_file_to_path` and skips the intermediate tempfile + final
+    /// `write_file_from_path` copy — letting the resume sidecar live next
+    /// to the destination so a transient failure survives engine retries.
+    ///
+    /// Default: `None` — provider is non-local (cloud, peer) and the engine
+    /// must stage to a tempfile and call `write_file_from_path`.
+    fn local_target_path(&self, _relative_path: &str) -> Option<std::path::PathBuf> {
+        None
+    }
 }
 
 /// Validate a relative path against path traversal attacks.

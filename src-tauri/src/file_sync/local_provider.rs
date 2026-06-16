@@ -122,15 +122,15 @@ fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProvide
         let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
 
         let size = if metadata.is_dir() { 0 } else { metadata.len() };
-        let hash = if metadata.is_dir() {
+        let chunked = if metadata.is_dir() {
             None
         } else {
-            // Cached SHA-256 — reused when (path, size, mtime_nanos) is unchanged.
-            // On the first scan we eat the hashing cost once; subsequent
-            // scans are effectively free for unchanged files. Failures
-            // (e.g. file vanished mid-scan) leave hash=None; the diff falls
-            // back to size+mtime for that entry.
-            match super::hashing::cached_hash(&entry.path(), size, modified_nanos) {
+            // Cached BLAKE3 chunked — reused when (path, size, mtime_nanos) is
+            // unchanged. On the first scan we eat the hashing cost once;
+            // subsequent scans are effectively free for unchanged files.
+            // Failures (e.g. file vanished mid-scan) leave hash=None; the diff
+            // falls back to size+mtime for that entry.
+            match super::hashing::cached_hash_chunked(&entry.path(), size, modified_nanos) {
                 Ok(h) => Some(h),
                 Err(e) => {
                     eprintln!(
@@ -142,12 +142,20 @@ fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProvide
             }
         };
 
+        let is_directory = metadata.is_dir();
+        let (hash, chunk_size, chunk_hashes) = match chunked {
+            Some(c) => (Some(c.file_hash), Some(c.chunk_size), Some(c.chunk_hashes)),
+            None => (None, None, None),
+        };
+
         entries.push(FileState {
             relative_path: relative,
             size,
             modified_at,
-            is_directory: metadata.is_dir(),
+            is_directory,
             hash,
+            chunk_size,
+            chunk_hashes,
         });
 
         if metadata.is_dir() {
@@ -193,8 +201,13 @@ impl SyncProvider for LocalProvider {
         &self,
         relative_path: &str,
         output_path: &std::path::Path,
+        expected_chunks: Option<crate::file_sync::hashing::ChunkedHash>,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<ReadFileResult, SyncProviderError> {
+        // Same-machine copy never crosses a network boundary; per-chunk
+        // verification adds no integrity guarantee the filesystem hasn't
+        // already provided.
+        let _ = expected_chunks;
         let src = self.resolve_path(relative_path)?;
         if !src.exists() {
             return Err(SyncProviderError::NotFound { path: relative_path.to_string() });
@@ -220,12 +233,23 @@ impl SyncProvider for LocalProvider {
         Ok(())
     }
 
-    async fn prime_hash_after_write(&self, relative_path: &str, hash: &str) {
+    async fn prime_hash_after_write(&self, file: &FileState) {
         // Stat the freshly-written file and seed the in-memory hash cache so
         // the next manifest scan returns this hash without re-reading the
-        // file. The sender already proved this is the SHA-256 of the bytes
+        // file. The sender already proved this is the BLAKE3 of the bytes
         // we just wrote (the bytes came from them), so trusting it is safe.
-        let Ok(dst) = self.resolve_path(relative_path) else { return };
+        //
+        // Sources that only supplied a whole-file hash (cloud manifests etc.)
+        // have `chunk_hashes = None`; we skip seeding rather than seeding a
+        // half-populated entry — the next scan will compute fresh chunks.
+        let (Some(file_hash), Some(chunk_size), Some(chunk_hashes)) = (
+            file.hash.as_ref(),
+            file.chunk_size,
+            file.chunk_hashes.as_ref(),
+        ) else {
+            return;
+        };
+        let Ok(dst) = self.resolve_path(&file.relative_path) else { return };
         let Ok(meta) = tokio::fs::metadata(&dst).await else { return };
         let Some(size) = (!meta.is_dir()).then_some(meta.len()) else { return };
         let Some(mtime_nanos) = meta
@@ -234,7 +258,16 @@ impl SyncProvider for LocalProvider {
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_nanos())
         else { return };
-        super::hashing::prime_cache(&dst, size, mtime_nanos, hash.to_string());
+        super::hashing::prime_cache_chunked(
+            &dst,
+            size,
+            mtime_nanos,
+            super::hashing::ChunkedHash {
+                file_hash: file_hash.clone(),
+                chunk_size,
+                chunk_hashes: chunk_hashes.clone(),
+            },
+        );
     }
 
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
@@ -280,6 +313,13 @@ impl SyncProvider for LocalProvider {
 
     fn supports_trash(&self) -> bool {
         Self::static_supports_trash()
+    }
+
+    fn local_target_path(&self, relative_path: &str) -> Option<PathBuf> {
+        // resolve_path enforces path-traversal safety; if it rejects the
+        // path the engine falls back to its tempfile-staging path which
+        // will surface the same error via write_file_from_path.
+        self.resolve_path(relative_path).ok()
     }
 }
 

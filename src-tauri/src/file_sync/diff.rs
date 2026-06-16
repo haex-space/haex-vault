@@ -207,6 +207,8 @@ mod tests {
             modified_at,
             is_directory: false,
             hash: None,
+            chunk_size: None,
+            chunk_hashes: None,
         }
     }
 
@@ -217,6 +219,8 @@ mod tests {
             modified_at,
             is_directory: false,
             hash: Some(hash.to_string()),
+            chunk_size: None,
+            chunk_hashes: None,
         }
     }
 
@@ -227,6 +231,8 @@ mod tests {
             modified_at: 0,
             is_directory: true,
             hash: None,
+            chunk_size: None,
+            chunk_hashes: None,
         }
     }
 

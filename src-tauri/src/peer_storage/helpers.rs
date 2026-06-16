@@ -236,10 +236,14 @@ pub(super) fn scan_directory_recursive(
         let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
 
         let size = if metadata.is_dir() { 0 } else { metadata.len() };
-        let hash = if metadata.is_dir() {
+        let chunked = if metadata.is_dir() {
             None
         } else {
-            match crate::file_sync::hashing::cached_hash(&entry.path(), size, modified_nanos) {
+            match crate::file_sync::hashing::cached_hash_chunked(
+                &entry.path(),
+                size,
+                modified_nanos,
+            ) {
                 Ok(h) => Some(h),
                 Err(e) => {
                     eprintln!(
@@ -251,12 +255,20 @@ pub(super) fn scan_directory_recursive(
             }
         };
 
+        let is_directory = metadata.is_dir();
+        let (hash, chunk_size, chunk_hashes) = match chunked {
+            Some(c) => (Some(c.file_hash), Some(c.chunk_size), Some(c.chunk_hashes)),
+            None => (None, None, None),
+        };
+
         entries.push(crate::file_sync::types::FileState {
             relative_path: relative,
             size,
             modified_at,
-            is_directory: metadata.is_dir(),
+            is_directory,
             hash,
+            chunk_size,
+            chunk_hashes,
         });
 
         if metadata.is_dir() {

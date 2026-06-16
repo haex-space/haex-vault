@@ -88,6 +88,10 @@ impl SyncProvider for CloudProvider {
                     // scheme). Leave empty until we wire up an ETag-based
                     // path; the diff falls back to size+mtime.
                     hash: None,
+                    // No local bytes are available to compute BLAKE3 chunks for
+                    // cloud objects — leave chunked fields None.
+                    chunk_size: None,
+                    chunk_hashes: None,
                 })
             })
             .collect();
@@ -105,8 +109,12 @@ impl SyncProvider for CloudProvider {
         &self,
         relative_path: &str,
         output_path: &std::path::Path,
+        expected_chunks: Option<crate::file_sync::hashing::ChunkedHash>,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<ReadFileResult, SyncProviderError> {
+        // Cloud manifests carry no chunked hash today; integrity is delegated
+        // to the backend (S3 ETag, presigned URL TLS, etc.).
+        let _ = expected_chunks;
         validate_relative_path(relative_path)?;
         let key = self.full_key(relative_path);
         let bytes = self

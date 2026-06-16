@@ -100,8 +100,18 @@ impl Request {
 pub enum Response {
     /// Directory listing
     List { entries: Vec<FileEntry> },
-    /// File/directory metadata
-    Stat { entry: FileEntry },
+    /// File/directory metadata.
+    ///
+    /// `chunks` carries the BLAKE3 chunked-hash manifest for files (served
+    /// from the file_sync hash cache, so first-hit pays the hashing cost and
+    /// subsequent stats are free). `None` for directories. Intentionally
+    /// excluded from `FileEntry`/`Response::List` to keep directory listings
+    /// lean — a 1000-file listing would otherwise carry megabytes of hashes.
+    Stat {
+        entry: FileEntry,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        chunks: Option<crate::file_sync::hashing::ChunkedHash>,
+    },
     /// File data header (actual bytes follow on the stream)
     ReadHeader { size: u64 },
     /// Recursive manifest of all files

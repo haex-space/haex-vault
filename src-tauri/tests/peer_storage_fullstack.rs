@@ -462,11 +462,15 @@ async fn stat_file_returns_metadata() {
     ).await.unwrap();
 
     match resp {
-        Response::Stat { entry } => {
+        Response::Stat { entry, chunks } => {
             assert_eq!(entry.name, "hello.txt");
             assert!(!entry.is_dir);
             assert_eq!(entry.size, content.len() as u64);
             assert!(entry.modified.is_some());
+            // File stats carry the chunked BLAKE3 manifest so the receiver
+            // can verify the bytes it pulls over the wire.
+            let chunks = chunks.expect("file stat must include chunks");
+            assert_eq!(chunks.file_hash, blake3::hash(content).to_hex().to_string());
         }
         other => panic!("Expected Stat, got: {:?}", other),
     }
@@ -490,9 +494,10 @@ async fn stat_directory_returns_metadata() {
     ).await.unwrap();
 
     match resp {
-        Response::Stat { entry } => {
+        Response::Stat { entry, chunks } => {
             assert_eq!(entry.name, "subdir");
             assert!(entry.is_dir);
+            assert_eq!(chunks, None, "directory stats must omit chunks");
         }
         other => panic!("Expected Stat, got: {:?}", other),
     }
@@ -1352,7 +1357,7 @@ async fn leaked_endpoint_id_cannot_access_files() {
     ).await;
     match stat_result {
         Err(_) | Ok(Response::Error { .. }) => { /* rejected */ }
-        Ok(Response::Stat { entry }) => {
+        Ok(Response::Stat { entry, .. }) => {
             panic!("CRITICAL: attacker got file metadata: {:?}", entry);
         }
         other => panic!("Stat should fail for attacker, got: {:?}", other),
