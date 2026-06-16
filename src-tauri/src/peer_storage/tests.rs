@@ -1145,6 +1145,21 @@ mod tests {
         assert!(partial_path.exists(), "partial bytes seeded");
         assert_eq!(sidecar.missing_ranges(), vec![(chunk_size as u64, 3 * chunk_size as u64)]);
 
+        // Capture progress events to assert the resume loop emits at least
+        // one (>0, file_size) update — guards against a regression where
+        // on_progress is dropped on the resume path (finding I5).
+        let progress_log: std::sync::Arc<
+            std::sync::Mutex<Vec<(u64, u64)>>,
+        > = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let progress_log_cb = progress_log.clone();
+        let on_progress: std::sync::Arc<dyn Fn(u64, u64) + Send + Sync> =
+            std::sync::Arc::new(move |done, total| {
+                progress_log_cb
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push((done, total));
+            });
+
         let path = format!("/{share_name}/resume.bin");
         let result = crate::peer_storage::client::download_file_to_path(
             client,
@@ -1153,7 +1168,7 @@ mod tests {
             path,
             out_path.clone(),
             Some(manifest),
-            None,
+            Some(on_progress),
             None,
             None,
             ucan,
@@ -1179,6 +1194,18 @@ mod tests {
         assert!(
             !partial_path.exists(),
             "partial bytes file renamed away after successful resume: {partial_path:?}"
+        );
+
+        // Progress: the resume loop must surface at least one event whose
+        // `done` is positive and `total` matches `file_size`. Before the I5
+        // fix the callback was dropped via `let _ = on_progress;` so this
+        // assertion would catch any regression.
+        let events = progress_log.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        assert!(
+            events
+                .iter()
+                .any(|(done, total)| *done > 0 && *total == payload_len as u64),
+            "expected at least one progress event with done>0 and total=file_size during resume; got {events:?}"
         );
     }
 

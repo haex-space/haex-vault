@@ -299,11 +299,18 @@ where
 /// Per-chunk verifier state shared across one or more receive ranges of a
 /// single download.
 ///
-/// The `completed` slice is the *full-file* bitmap (one entry per chunk in
-/// the original manifest). `start_chunk_index` is the index of the first
-/// chunk being received in this call; `expected_chunk_hashes` is the slice
-/// of manifest hashes for the chunks in *this* range. Both invariants are
+/// The `completed` bitmap is the *full-file* completion vector (one entry per
+/// chunk in the original manifest), shared across every worker participating
+/// in the same download. `start_chunk_index` is the index of the first chunk
+/// being received in this call; `expected_chunk_hashes` is the slice of
+/// manifest hashes for the chunks in *this* range. Both invariants are
 /// enforced by [`pipe_recv_to_writer_verified`] up front.
+///
+/// `completed` is an `Arc<tokio::sync::Mutex<Vec<bool>>>` rather than a
+/// `&mut [bool]` so that concurrent multi-stream workers share one canonical
+/// bitmap. Each worker locks briefly to flip its bit and to take a snapshot
+/// for the sidecar write — the I/O happens with the lock released, so
+/// contention stays negligible.
 pub struct ChunkVerifier<'a> {
     /// Manifest BLAKE3 hashes for the chunks in this receive range
     /// (lowercase hex, in order).
@@ -313,8 +320,11 @@ pub struct ChunkVerifier<'a> {
     pub chunk_size: u32,
     /// Index of the first chunk in this range, into the full-file bitmap.
     pub start_chunk_index: usize,
-    /// Full-file completion bitmap, mutated as chunks verify.
-    pub completed: &'a mut [bool],
+    /// Shared full-file completion bitmap. Multiple workers may point at the
+    /// same `Arc`; the verifier locks only to flip its bit + snapshot for
+    /// the sidecar save, so concurrent updates from sibling workers cannot
+    /// overwrite each other.
+    pub completed: Arc<tokio::sync::Mutex<Vec<bool>>>,
 }
 
 /// Network → disk pipeline with per-chunk BLAKE3 verification and sidecar
@@ -375,13 +385,26 @@ where
     // file_hash and target path for sidecar persistence (cloned once).
     let sidecar: Option<(PathBuf, String)> = sidecar_target
         .map(|(p, h)| (p.to_path_buf(), h.to_string()));
-    let full_chunk_count = verifier.completed.len();
+    let full_chunk_count = verifier.completed.lock().await.len();
 
     let mut bytes_received: u64 = 0;
     let mut buf: Vec<u8> = Vec::with_capacity(verifier.chunk_size as usize);
 
     for (relative_idx, expected_hash) in verifier.expected_chunk_hashes.iter().enumerate() {
         let absolute_idx = verifier.start_chunk_index + relative_idx;
+        // Up-front contract check: every caller of this helper sizes the
+        // bitmap to `manifest.chunk_hashes.len()` and constrains the worker's
+        // (start_chunk_index, expected_chunk_hashes) so this index lands
+        // inside it. Hitting this branch means an upstream sizing bug; a
+        // ProtocolError is more debuggable than panicking on the indexing
+        // operation a few lines down.
+        if absolute_idx >= full_chunk_count {
+            return Err(PeerStorageError::ProtocolError {
+                reason: format!(
+                    "verifier chunk index {absolute_idx} out of bitmap range (size {full_chunk_count}) — caller did not size bitmap to manifest"
+                ),
+            });
+        }
         let remaining_in_file = expected_size - bytes_received;
         let this_chunk_size = remaining_in_file.min(chunk_size) as usize;
 
@@ -426,15 +449,24 @@ where
             .await
             .map_err(PeerStorageError::Io)?;
 
-        if absolute_idx < full_chunk_count {
-            verifier.completed[absolute_idx] = true;
-        }
+        // Flip the bit and snapshot the bitmap for sidecar persistence
+        // under the same lock — siblings cannot interleave between the flip
+        // and the snapshot, so the persisted state always reflects every
+        // bit any worker has flipped so far. The JSON write itself runs
+        // after the lock is dropped to keep contention to memcpy + memcmp.
+        let snapshot: Option<Vec<bool>> = {
+            let mut guard = verifier.completed.lock().await;
+            guard[absolute_idx] = true;
+            sidecar.as_ref().map(|_| guard.clone())
+        };
 
-        if let Some((target, file_hash)) = sidecar.as_ref() {
+        if let (Some((target, file_hash)), Some(completed_snapshot)) =
+            (sidecar.as_ref(), snapshot)
+        {
             let state = PartialState {
                 file_hash: file_hash.clone(),
                 chunk_size: verifier.chunk_size,
-                completed: verifier.completed.to_vec(),
+                completed: completed_snapshot,
             };
             state.save(target).await.map_err(PeerStorageError::Io)?;
         }

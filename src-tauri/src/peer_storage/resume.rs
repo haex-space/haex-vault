@@ -37,9 +37,38 @@ impl PartialState {
         PathBuf::from(p)
     }
 
+    /// Persist the sidecar atomically by writing to a uniquely-named sibling
+    /// `.tmp.<nonce>` file first and renaming over the final path. Without
+    /// this dance, two concurrent multi-stream workers (or any process crash
+    /// mid-write) can land a torn JSON payload that fails to parse on the
+    /// next resume. `tokio::fs::rename` is atomic within a filesystem, so a
+    /// reader observes either the previous payload or the new one — never a
+    /// tear. The per-call nonce keeps two concurrent saves from clobbering
+    /// each other's tmp file before either rename completes.
     pub async fn save(&self, target: &Path) -> std::io::Result<()> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NONCE: AtomicU64 = AtomicU64::new(0);
+        let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
+
         let json = serde_json::to_vec(self)?;
-        fs::write(Self::meta_path(target), json).await
+        let final_path = Self::meta_path(target);
+        let mut tmp_path = final_path.clone().into_os_string();
+        tmp_path.push(format!(".tmp.{nonce}"));
+        let tmp_path = PathBuf::from(tmp_path);
+        match fs::write(&tmp_path, json).await {
+            Ok(()) => {}
+            Err(e) => {
+                let _ = fs::remove_file(&tmp_path).await;
+                return Err(e);
+            }
+        }
+        match fs::rename(&tmp_path, &final_path).await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                let _ = fs::remove_file(&tmp_path).await;
+                Err(e)
+            }
+        }
     }
 
     pub async fn load(target: &Path) -> std::io::Result<Option<Self>> {

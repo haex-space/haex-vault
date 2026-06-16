@@ -131,12 +131,18 @@ impl PeerEndpoint {
         })?;
         let mut writer = tokio::io::BufWriter::new(file);
 
-        let mut completed = vec![false; chunks.chunk_hashes.len()];
+        // Single writer here, but the verifier API takes
+        // `Arc<Mutex<Vec<bool>>>` for consistency with the multi-stream path
+        // (and so PartialState::save always sees an authoritative snapshot).
+        // Lock contention with a single user is uncontended hot-path mutex
+        // acquisition — negligible.
+        let completed: Arc<tokio::sync::Mutex<Vec<bool>>> =
+            Arc::new(tokio::sync::Mutex::new(vec![false; chunks.chunk_hashes.len()]));
         let verifier = streaming::ChunkVerifier {
             expected_chunk_hashes: &chunks.chunk_hashes,
             chunk_size: chunks.chunk_size,
             start_chunk_index: 0,
-            completed: &mut completed,
+            completed: completed.clone(),
         };
 
         // Track progress at the writer level by polling the verifier's
@@ -165,7 +171,7 @@ impl PeerEndpoint {
 
         match result {
             Ok(bytes) => {
-                debug_assert!(completed.iter().all(|c| *c));
+                debug_assert!(completed.lock().await.iter().all(|c| *c));
                 if bytes != size {
                     return Err(PeerStorageError::ConnectionFailed {
                         reason: format!(
@@ -762,7 +768,6 @@ async fn download_single_stream_with_resume(
     // Resume path: completed bitmap survives across attempts; only the
     // false-runs need re-requesting. The sidecar was load_if_matches-guarded
     // so we know its file_hash equals the manifest we're verifying against.
-    let mut completed = state.completed.clone();
     let chunk_size = chunks_to_use.chunk_size as u64;
     let total_chunks = chunks_to_use.chunk_hashes.len();
 
@@ -770,11 +775,11 @@ async fn download_single_stream_with_resume(
     // so a healthy sidecar will satisfy these — only a tampered or otherwise
     // corrupt sidecar would trip them. Surfacing as a ProtocolError lets the
     // caller see a clean failure instead of silently mis-aligning chunks.
-    if completed.len() != total_chunks {
+    if state.completed.len() != total_chunks {
         return Err(PeerStorageError::ProtocolError {
             reason: format!(
                 "sidecar chunk count {} disagrees with manifest chunk count {}",
-                completed.len(),
+                state.completed.len(),
                 total_chunks
             ),
         });
@@ -791,11 +796,35 @@ async fn download_single_stream_with_resume(
     let partial_path =
         crate::peer_storage::resume::PartialState::partial_path(output_path);
 
-    // Pause/cancel/progress aren't plumbed through the resume loop yet —
+    // Shared bitmap for the resume loop. Seeded from the surviving sidecar
+    // so already-verified chunks stay marked done, then mutated by the
+    // verifier as each missing range fills in. Wrapping it in a tokio Mutex
+    // is the same API the multi-stream path uses — even though only one
+    // worker drives it here, consistency wins over micro-optimising for the
+    // uncontended case.
+    let completed: Arc<tokio::sync::Mutex<Vec<bool>>> =
+        Arc::new(tokio::sync::Mutex::new(state.completed.clone()));
+
+    // Cancel/pause aren't plumbed through the verified pipe yet —
     // single-stream resume only fires for files under MULTI_STREAM_THRESHOLD
     // (16 MiB), so chunk-boundary granularity is more than enough for the
-    // file-explorer surface. Multi-stream resume (Task 10) will wire these.
-    let _ = (cancel_token, pause_flag, on_progress);
+    // file-explorer surface. Multi-stream resume (Task 10) wires those into
+    // its retry pool.
+    let _ = (cancel_token, pause_flag);
+
+    // Bytes already on disk before any missing range fills in. Seed the
+    // progress callback with this so the consumer never sees the counter
+    // jump backwards when a resume picks up mid-file.
+    let already_done_bytes: u64 = {
+        let cs = chunks_to_use.chunk_size as u64;
+        let guard = completed.lock().await;
+        let n_done = guard.iter().filter(|c| **c).count() as u64;
+        (n_done * cs).min(file_size)
+    };
+    let mut bytes_so_far = already_done_bytes;
+    if let Some(ref cb) = on_progress {
+        cb(bytes_so_far, file_size);
+    }
 
     for (range_start, range_end_raw) in state.missing_ranges() {
         // missing_ranges() rounds end up to a chunk boundary regardless of
@@ -878,7 +907,7 @@ async fn download_single_stream_with_resume(
             expected_chunk_hashes: expected_hashes_for_range,
             chunk_size: chunks_to_use.chunk_size,
             start_chunk_index,
-            completed: &mut completed,
+            completed: completed.clone(),
         };
 
         let result = streaming::pipe_recv_to_writer_verified(
@@ -906,13 +935,20 @@ async fn download_single_stream_with_resume(
                 ),
             });
         }
+
+        // Report progress at the end of each missing range — consumers see a
+        // monotonic counter that converges on `file_size` as each gap fills.
+        bytes_so_far = bytes_so_far.saturating_add(received).min(file_size);
+        if let Some(ref cb) = on_progress {
+            cb(bytes_so_far, file_size);
+        }
     }
 
     // All missing ranges drained. Sanity-check that every chunk in the
     // bitmap is now true — if not, missing_ranges() returned a set that
     // didn't cover the full file (bug, not transport failure), and we
     // would otherwise rename a still-incomplete file into place.
-    if !completed.iter().all(|c| *c) {
+    if !completed.lock().await.iter().all(|c| *c) {
         return Err(PeerStorageError::ProtocolError {
             reason: "resume completed all missing ranges but bitmap still has gaps"
                 .to_string(),
@@ -1440,15 +1476,6 @@ async fn download_range_attempt(
 
         let mut writer = tokio::io::BufWriter::new(file);
 
-        // Take an owned copy of the bitmap into a local Vec for the duration
-        // of this attempt — ChunkVerifier needs `&mut [bool]` and the
-        // tokio Mutex can't be held across the verifier's await points
-        // without serialising all workers. We merge the local snapshot back
-        // into the shared bitmap after pipe_recv_to_writer_verified returns,
-        // so concurrent workers operating on disjoint ranges don't clobber
-        // each other's bits.
-        let mut local_completed: Vec<bool> = completed.lock().await.clone();
-
         // Drive progress through a wrapping callback that updates the
         // shared total + per-range last value. The verifier doesn't itself
         // surface progress, so we tee it through a write-side wrapper.
@@ -1457,11 +1484,17 @@ async fn download_range_attempt(
         let on_progress_pc = on_progress.clone();
         let range_key = (start, end);
 
+        // ChunkVerifier shares the bitmap directly with sibling workers via
+        // the Arc — no local clone, no end-of-attempt merge. Each chunk
+        // flips its own bit under the mutex and snapshots the bitmap in the
+        // same critical section for the sidecar save, so two workers can
+        // never race and overwrite each other's bits in the persisted
+        // sidecar.
         let verifier = streaming::ChunkVerifier {
             expected_chunk_hashes: expected_hashes_for_range,
             chunk_size: chunks.chunk_size,
             start_chunk_index,
-            completed: &mut local_completed,
+            completed: completed.clone(),
         };
 
         // pipe_recv_to_writer_verified persists the sidecar against
@@ -1481,16 +1514,6 @@ async fn download_range_attempt(
 
         match recv_result {
             Ok(received) => {
-                // Merge local bits back into the shared bitmap. ChunkVerifier
-                // only sets bits to true, so OR-merging is safe.
-                {
-                    let mut shared = completed.lock().await;
-                    for (i, v) in local_completed.iter().enumerate() {
-                        if *v {
-                            shared[i] = true;
-                        }
-                    }
-                }
                 if received != part_size {
                     return Err(PeerStorageError::ConnectionFailed {
                         reason: format!(

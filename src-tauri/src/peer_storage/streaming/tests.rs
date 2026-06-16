@@ -1,6 +1,8 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Mutex;
 
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::resume::PartialState;
@@ -51,12 +53,12 @@ async fn pipe_recv_verifies_happy_path() {
 
     let recv = duplex_with_bytes(payload.clone()).await;
     let mut sink: Vec<u8> = Vec::new();
-    let mut completed = vec![false; total_chunks];
+    let completed = Arc::new(Mutex::new(vec![false; total_chunks]));
     let verifier = ChunkVerifier {
         expected_chunk_hashes: &hashes,
         chunk_size,
         start_chunk_index: 0,
-        completed: &mut completed,
+        completed: completed.clone(),
     };
 
     let bytes = pipe_recv_to_writer_verified(recv, &mut sink, payload_len as u64, verifier, None)
@@ -65,7 +67,10 @@ async fn pipe_recv_verifies_happy_path() {
 
     assert_eq!(bytes, payload_len as u64);
     assert_eq!(sink, payload, "verified bytes written verbatim");
-    assert!(completed.iter().all(|c| *c), "all chunks marked completed");
+    assert!(
+        completed.lock().await.iter().all(|c| *c),
+        "all chunks marked completed"
+    );
 }
 
 #[tokio::test]
@@ -88,12 +93,12 @@ async fn pipe_recv_rejects_bad_chunk() {
 
     let recv = duplex_with_bytes(payload.clone()).await;
     let mut sink: Vec<u8> = Vec::new();
-    let mut completed = vec![false; total_chunks];
+    let completed = Arc::new(Mutex::new(vec![false; total_chunks]));
     let verifier = ChunkVerifier {
         expected_chunk_hashes: &hashes,
         chunk_size,
         start_chunk_index: 0,
-        completed: &mut completed,
+        completed: completed.clone(),
     };
 
     let err = pipe_recv_to_writer_verified(recv, &mut sink, payload_len as u64, verifier, None)
@@ -113,7 +118,7 @@ async fn pipe_recv_rejects_bad_chunk() {
     // failed; chunk 1 must NOT have been written.
     assert_eq!(sink.len(), chunk_size as usize);
     assert_eq!(&sink[..], &payload[..chunk_size as usize]);
-    assert_eq!(completed, vec![true, false, false]);
+    assert_eq!(*completed.lock().await, vec![true, false, false]);
 }
 
 #[tokio::test]
@@ -136,12 +141,12 @@ async fn pipe_recv_persists_sidecar_per_chunk() {
 
     let recv = duplex_with_bytes(payload.clone()).await;
     let mut sink: Vec<u8> = Vec::new();
-    let mut completed = vec![false; total_chunks];
+    let completed = Arc::new(Mutex::new(vec![false; total_chunks]));
     let verifier = ChunkVerifier {
         expected_chunk_hashes: &hashes,
         chunk_size,
         start_chunk_index: 0,
-        completed: &mut completed,
+        completed: completed.clone(),
     };
 
     let bytes = pipe_recv_to_writer_verified(
@@ -155,7 +160,7 @@ async fn pipe_recv_persists_sidecar_per_chunk() {
     .expect("verified pipe ok");
 
     assert_eq!(bytes, payload_len as u64);
-    assert!(completed.iter().all(|c| *c));
+    assert!(completed.lock().await.iter().all(|c| *c));
 
     // Sidecar exists and reflects the final state. Task 11 will clear it
     // after the caller renames the partial file into place; the helper
@@ -180,12 +185,12 @@ async fn pipe_recv_rejects_mismatched_chunk_count() {
 
     let recv = duplex_with_bytes(payload.clone()).await;
     let mut sink: Vec<u8> = Vec::new();
-    let mut completed = vec![false; 2];
+    let completed = Arc::new(Mutex::new(vec![false; 2]));
     let verifier = ChunkVerifier {
         expected_chunk_hashes: &hashes,
         chunk_size,
         start_chunk_index: 0,
-        completed: &mut completed,
+        completed: completed.clone(),
     };
 
     let err = pipe_recv_to_writer_verified(recv, &mut sink, payload_len as u64, verifier, None)
@@ -197,4 +202,114 @@ async fn pipe_recv_rejects_mismatched_chunk_count() {
         "unexpected error variant: {err:?}"
     );
     assert!(sink.is_empty(), "nothing written when contract is broken");
+}
+
+/// Two simulated workers operate on disjoint chunk ranges of the same
+/// download, sharing one `Arc<Mutex<Vec<bool>>>` for the bitmap and writing
+/// the sidecar against the same target path. After both finish, the
+/// persisted sidecar must reflect ALL bits set by ALL workers — neither
+/// worker's bit may overwrite the other's. This is the regression scenario
+/// for the I1+I4 race fix: before the change, each worker cloned the
+/// bitmap into a local Vec, called `state.save(target)` from that local
+/// snapshot, and the second writer would overwrite the first writer's bits
+/// in the persisted sidecar.
+#[tokio::test]
+async fn pipe_recv_concurrent_writers_dont_lose_bits() {
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("concurrent.bin");
+
+    let chunk_size: u32 = 256;
+    let total_chunks: usize = 8;
+    let payload_len = chunk_size as usize * total_chunks;
+    let payload = pattern_bytes(payload_len, 0xAA);
+    let file_hash = blake3::hash(&payload).to_hex().to_string();
+
+    let hashes: Vec<String> = (0..total_chunks)
+        .map(|i| {
+            let s = i * chunk_size as usize;
+            let e = (i + 1) * chunk_size as usize;
+            chunk_hash(&payload[s..e])
+        })
+        .collect();
+
+    // Worker A drives the first half (chunks 0..4); worker B drives the
+    // second half (chunks 4..8). Both share the same completion bitmap.
+    let half_chunks = total_chunks / 2;
+    let half_bytes = half_chunks * chunk_size as usize;
+
+    let payload_a = payload[..half_bytes].to_vec();
+    let payload_b = payload[half_bytes..].to_vec();
+    let hashes_a: Vec<String> = hashes[..half_chunks].to_vec();
+    let hashes_b: Vec<String> = hashes[half_chunks..].to_vec();
+
+    let completed = Arc::new(Mutex::new(vec![false; total_chunks]));
+    let target_a = target.clone();
+    let target_b = target.clone();
+    let completed_a = completed.clone();
+    let completed_b = completed.clone();
+    let file_hash_a = file_hash.clone();
+    let file_hash_b = file_hash.clone();
+
+    let task_a = tokio::spawn(async move {
+        let recv = duplex_with_bytes(payload_a).await;
+        let mut sink: Vec<u8> = Vec::new();
+        let verifier = ChunkVerifier {
+            expected_chunk_hashes: &hashes_a,
+            chunk_size,
+            start_chunk_index: 0,
+            completed: completed_a,
+        };
+        pipe_recv_to_writer_verified(
+            recv,
+            &mut sink,
+            half_bytes as u64,
+            verifier,
+            Some((target_a.as_path(), &file_hash_a)),
+        )
+        .await
+        .expect("worker A ok");
+    });
+
+    let task_b = tokio::spawn(async move {
+        let recv = duplex_with_bytes(payload_b).await;
+        let mut sink: Vec<u8> = Vec::new();
+        let verifier = ChunkVerifier {
+            expected_chunk_hashes: &hashes_b,
+            chunk_size,
+            start_chunk_index: half_chunks,
+            completed: completed_b,
+        };
+        pipe_recv_to_writer_verified(
+            recv,
+            &mut sink,
+            half_bytes as u64,
+            verifier,
+            Some((target_b.as_path(), &file_hash_b)),
+        )
+        .await
+        .expect("worker B ok");
+    });
+
+    task_a.await.unwrap();
+    task_b.await.unwrap();
+
+    // Shared bitmap reflects every bit set by either worker.
+    assert!(
+        completed.lock().await.iter().all(|c| *c),
+        "shared bitmap missing bits after concurrent verifiers",
+    );
+
+    // Persisted sidecar matches the shared bitmap — no torn write, no
+    // lost-update from racing snapshot+save pairs.
+    let loaded = PartialState::load(&target)
+        .await
+        .expect("sidecar load")
+        .expect("sidecar present");
+    assert_eq!(loaded.file_hash, file_hash);
+    assert_eq!(loaded.chunk_size, chunk_size);
+    assert_eq!(
+        loaded.completed,
+        vec![true; total_chunks],
+        "persisted sidecar lost bits to a racing writer",
+    );
 }
