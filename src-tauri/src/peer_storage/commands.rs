@@ -472,6 +472,7 @@ pub async fn peer_storage_remote_read(
     path: String,
     transfer_id: Option<String>,
     save_to: Option<String>,
+    expected_size: Option<u64>,
     ucan_token: String,
     on_event: Channel<TransferEvent>,
 ) -> Result<String, PeerStorageError> {
@@ -483,7 +484,10 @@ pub async fn peer_storage_remote_read(
 
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
-    // Determine output path: explicit save_to or system Downloads folder
+    // Determine output path: explicit save_to or system Downloads folder.
+    // The per-space subfolder layout is introduced separately by the
+    // peer-download-registry change — leave the layout flat here so the
+    // multi-stream perf change doesn't reshape the on-disk contract.
     let output_path = if let Some(ref dest) = save_to {
         PathBuf::from(dest)
     } else {
@@ -492,6 +496,7 @@ pub async fn peer_storage_remote_read(
             .map_err(|e| PeerStorageError::ProtocolError {
                 reason: format!("Failed to get downloads dir: {e}"),
             })?;
+
         std::fs::create_dir_all(&downloads_dir).map_err(|e| PeerStorageError::ProtocolError {
             reason: format!("Failed to create downloads dir: {e}"),
         })?;
@@ -500,6 +505,29 @@ pub async fn peer_storage_remote_read(
             .unwrap_or(std::ffi::OsStr::new("download"))
             .to_string_lossy()
             .to_string();
+
+        // Dedup-by-size: if a file with the exact same name and matching size
+        // already sits in the target dir, treat it as the same file and skip
+        // the network round-trip entirely. The frontend's transfer promise
+        // resolves off the `Complete` event, so emitting it here lets the
+        // caller (e.g. `playFile`) open the existing file immediately. On
+        // size mismatch we fall through to `deduplicate_path` which keeps the
+        // existing numbered-suffix behaviour — never clobber a different file
+        // that happens to share a name.
+        let candidate = downloads_dir.join(&file_name);
+        if let Some(expected) = expected_size {
+            if let Ok(metadata) = std::fs::metadata(&candidate) {
+                if metadata.is_file() && metadata.len() == expected {
+                    let path_str = candidate.to_string_lossy().to_string();
+                    let _ = on_event.send(TransferEvent::Complete {
+                        local_path: path_str.clone(),
+                        total_bytes: expected,
+                    });
+                    return Ok(path_str);
+                }
+            }
+        }
+
         deduplicate_path(&downloads_dir, &file_name)
     };
 
@@ -530,46 +558,47 @@ pub async fn peer_storage_remote_read(
 
         // Progress callback with throttling: at most every 100ms to avoid
         // overwhelming the IPC bridge on mobile (each message crosses JNI/WebView).
+        //
+        // Multi-stream downloads call this from up to 4 parallel tasks, so we
+        // hold the throttle timestamp and the last-emitted byte count under
+        // one lock and clamp `received` to the running max. Without the clamp
+        // a thread whose `cb()` runs after a larger `received` would emit a
+        // smaller `bytes_received`, breaking the frontend's delta-based EMA.
         let on_event_progress = on_event.clone();
-        let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = Some({
-            let last_emit = std::sync::Mutex::new(std::time::Instant::now() - std::time::Duration::from_secs(1));
-            Box::new(move |received: u64, total: u64| {
+        let progress_cb: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new({
+            let state = std::sync::Mutex::new((
+                std::time::Instant::now() - std::time::Duration::from_secs(1),
+                0_u64, // last emitted bytes_received — monotonically clamped
+            ));
+            move |received: u64, total: u64| {
                 let now = std::time::Instant::now();
-                let should_emit = {
-                    let last = last_emit.lock().unwrap_or_else(|e| e.into_inner());
-                    received >= total || now.duration_since(*last).as_millis() >= 100
-                };
+                let mut guard = state.lock().unwrap_or_else(|e| e.into_inner());
+                let monotonic = received.max(guard.1);
+                let should_emit =
+                    monotonic >= total || now.duration_since(guard.0).as_millis() >= 100;
                 if should_emit {
-                    *last_emit.lock().unwrap_or_else(|e| e.into_inner()) = now;
+                    guard.0 = now;
+                    guard.1 = monotonic;
                     let _ = on_event_progress.send(TransferEvent::Progress {
-                        bytes_received: received,
+                        bytes_received: monotonic,
                         total_bytes: total,
                     });
                 }
-            }) as Box<dyn Fn(u64, u64) + Send>
+            }
         });
 
-        // Hold the lock only for stream open (bounded by connection timeout ~3s).
-        // The actual file I/O runs without any lock so peer_storage_start/stop are
-        // not blocked for the duration of the download.
-        let streams = {
-            let endpoint = state.peer_storage.read().await;
-            endpoint.open_stream(remote_id, parsed_relay).await
-        };
-        let (mut send, mut recv) = match streams {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = on_event.send(TransferEvent::Error { error: e.to_string() });
-                if let Some(tid) = &transfer_id {
-                    state.transfer_tokens.lock().await.remove(tid);
-                }
-                return;
-            }
-        };
-        let result = crate::peer_storage::endpoint::PeerEndpoint::read_open_streams_to_file(
-            &mut send, &mut recv, &path, &output_path,
-            None, progress_cb, cancel_token, pause_flag, &ucan_token,
-        ).await;
+        let result = crate::peer_storage::client::download_file_to_path(
+            state.peer_storage.clone(),
+            remote_id,
+            parsed_relay,
+            path.clone(),
+            output_path.clone(),
+            Some(progress_cb),
+            cancel_token,
+            pause_flag,
+            ucan_token.clone(),
+        )
+        .await;
 
         // Clean up cancel token
         if let Some(tid) = &transfer_id {

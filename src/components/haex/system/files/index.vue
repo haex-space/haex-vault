@@ -65,6 +65,14 @@
                 size="sm"
                 @hover="refreshPeerStatus(browser.selectedPeer.value!.endpointId)"
               />
+              <span
+                v-if="!browser.selectedPeer.value?.s3BackendId && aggregateBytesPerSec > 0"
+                class="inline-flex items-center gap-1 text-xs font-mono text-muted tabular-nums"
+                :title="t('downloadThroughputTooltip')"
+              >
+                <UIcon name="i-lucide-arrow-down" class="w-3 h-3" />
+                {{ formatBytesPerSec(aggregateBytesPerSec) }}
+              </span>
               <template
                 v-for="(segment, i) in browser.pathSegments.value"
                 :key="i"
@@ -1211,6 +1219,19 @@ const refreshPeerStatus = (endpointId: string) => {
   void connectionType.refreshOne(endpointId)
 }
 
+// Aggregate live download throughput across all in-flight transfers.
+// Today TransferProgress is not peer-keyed so a multi-peer session would
+// sum everything; the file browser only ever displays one peer at a time,
+// so in practice this matches the visible context.
+const aggregateBytesPerSec = computed(() => peerStore.totalBytesPerSec)
+
+const formatBytesPerSec = (bps: number): string => {
+  if (bps < 1024) return `${bps.toFixed(0)} B/s`
+  if (bps < 1024 * 1024) return `${(bps / 1024).toFixed(1)} KB/s`
+  if (bps < 1024 * 1024 * 1024) return `${(bps / 1024 / 1024).toFixed(1)} MB/s`
+  return `${(bps / 1024 / 1024 / 1024).toFixed(2)} GB/s`
+}
+
 const parseAvatarOptions = (raw: string | null | undefined) => {
   if (!raw) return null
   try {
@@ -1740,6 +1761,7 @@ de:
   openFailed: Öffnen fehlgeschlagen
   cancelTransfer: Übertragung abbrechen
   cancelTransferFailed: Übertragung konnte nicht abgebrochen werden
+  downloadThroughputTooltip: Aktuelle Download-Geschwindigkeit
   sections:
     local: Dieses Gerät
     peers: Andere Geräte
@@ -1800,6 +1822,7 @@ en:
   openFailed: Open failed
   cancelTransfer: Cancel transfer
   cancelTransferFailed: Could not cancel transfer
+  downloadThroughputTooltip: Current download speed
   sections:
     local: This device
     peers: Other devices
