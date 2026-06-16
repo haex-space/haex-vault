@@ -42,8 +42,24 @@ impl FileState {
             self.chunk_size,
             self.chunk_hashes.as_ref(),
         ) {
+            // Three guards beyond "all fields populated":
+            // - `!self.is_directory` — directories never carry chunk hashes;
+            //   defence in depth against a literal FileState that fakes it.
+            // - `chunk_size > 0` — defensive against a future code path that
+            //   produces a malformed FileState; downstream verifiers reject
+            //   `chunk_size == 0` anyway.
+            // - `!chunk_hashes.is_empty() || self.size == 0` — a zero-byte
+            //   file legitimately has zero chunks (the streaming hasher's
+            //   tail-flush never fires), so its manifest entry is
+            //   `chunk_hashes: Some(vec![])`. We must accept that case or
+            //   the sync flow silently bypasses manifest pinning for
+            //   zero-byte files (caller falls back to stat-probe chunks).
+            //   A non-empty `size` paired with `Some(vec![])` is still
+            //   malformed and gets rejected.
             (Some(file_hash), Some(chunk_size), Some(chunk_hashes))
-                if !chunk_hashes.is_empty() =>
+                if !self.is_directory
+                    && chunk_size > 0
+                    && (!chunk_hashes.is_empty() || self.size == 0) =>
             {
                 Some(ChunkedHash {
                     file_hash: file_hash.to_string(),
@@ -126,3 +142,6 @@ pub struct SyncProgress {
     /// Current transfer rate in bytes/second
     pub bytes_per_second: u64,
 }
+
+#[cfg(test)]
+mod tests;

@@ -864,6 +864,111 @@ mod tests {
         assert_eq!(result.bytes, 1024 * 1024);
     }
 
+    /// Zero-byte file end-to-end. The streaming hasher emits
+    /// `chunk_hashes: vec![]` for empty input, so manifests for empty files
+    /// have an empty `Vec<String>`. `FileState::chunked_hash()` must accept
+    /// that case (CR1) and the verifier must walk through the empty hash
+    /// slice without error — together they ensure zero-byte sync downloads
+    /// don't silently bypass manifest pinning.
+    #[tokio::test]
+    async fn download_file_to_path_handles_zero_byte_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("empty.bin");
+        tokio::fs::write(&file_path, b"").await.unwrap();
+
+        let share_name = "media".to_string();
+        let space_id = "test-space".to_string();
+
+        let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
+        let server_id = server.start_for_test().await.expect("server bind");
+        server
+            .add_share(
+                "share-1".to_string(),
+                share_name.clone(),
+                tmp.path().to_string_lossy().to_string(),
+                space_id.clone(),
+            )
+            .await;
+
+        let mut client_inner = PeerEndpoint::new_ephemeral();
+        let client_did = client_inner.set_random_test_identity();
+        client_inner.start_for_test().await.expect("client bind");
+        let client_id = client_inner.endpoint_id();
+
+        let mut allowed = HashMap::new();
+        let mut spaces = HashSet::new();
+        spaces.insert(space_id.clone());
+        allowed.insert(client_id.to_string(), spaces);
+        server.set_allowed_peers(allowed).await;
+
+        let mut owner_dids = HashMap::new();
+        owner_dids.insert(client_id.to_string(), client_did.clone());
+        server.set_peer_owner_dids(owner_dids).await;
+
+        let server_addr = server.endpoint_ref().unwrap().addr();
+        client_inner
+            .connect_for_test(server_addr)
+            .await
+            .expect("client → server connect");
+
+        let seed: [u8; 32] = rand::random();
+        let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
+        let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
+        let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
+
+        let path = format!("/{share_name}/empty.bin");
+        let tmp_out = tempfile::tempdir().unwrap();
+        let out_path = tmp_out.path().join("out_empty.bin");
+
+        // Manifest entry produced by the scanner for a zero-byte file:
+        // `chunk_hashes` is an empty Vec because the streaming hasher's
+        // tail-flush block never fires when nothing was read.
+        let manifest = crate::file_sync::hashing::ChunkedHash {
+            file_hash: blake3::hash(&[]).to_hex().to_string(),
+            chunk_size: crate::file_sync::hashing::CHUNK_HASH_SIZE,
+            chunk_hashes: vec![],
+        };
+
+        let result = crate::peer_storage::client::download_file_to_path(
+            client,
+            server_id,
+            None,
+            path,
+            out_path.clone(),
+            Some(manifest),
+            None,
+            None,
+            None,
+            ucan,
+        )
+        .await
+        .expect("zero-byte download must succeed end-to-end");
+
+        assert_eq!(result.bytes, 0);
+        let on_disk = tokio::fs::read(&out_path).await.unwrap();
+        assert!(on_disk.is_empty(), "zero-byte file must land empty on disk");
+
+        // Sidecar + partial bytes must be cleaned up — the verifier writes
+        // the sidecar after every successful chunk, but with zero chunks
+        // the post-download clear() is still expected to run.
+        let partial_path =
+            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let meta_path = {
+            let mut p = out_path.as_os_str().to_owned();
+            p.push(".haex-partial.meta");
+            std::path::PathBuf::from(p)
+        };
+        assert!(
+            !meta_path.exists(),
+            "sidecar metadata should be cleared after success: {meta_path:?}"
+        );
+        assert!(
+            !partial_path.exists(),
+            "partial bytes file should be renamed away after success: {partial_path:?}"
+        );
+    }
+
     /// Multi-chunk single-stream download. 3 MiB file spans 3 chunks but
     /// stays below `MULTI_STREAM_THRESHOLD` (16 MiB), so it goes through
     /// `receive_with_chunk_verification`. Verifies that:
