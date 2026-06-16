@@ -615,22 +615,25 @@ pub(crate) async fn download_file_to_path(
             // the sync flow, so keep it.
             manifest
         }
-        (Some(manifest), None) => {
+        (manifest_opt, None) => {
+            // The early `stat.entry.is_dir` check above already rejected
+            // directories — reaching here means the server told us the
+            // path is a file but returned no chunks. That violates the
+            // server-side invariant Task 6 installs (the peer is required
+            // to send `chunks: Some(_)` for any non-directory entry it
+            // owns), so surface a ProtocolError rather than silently
+            // accepting a download with no per-chunk verification.
+            let manifest_detail = manifest_opt
+                .as_ref()
+                .map(|m| format!(" (manifest claimed file_hash {})", m.file_hash))
+                .unwrap_or_default();
             return Err(PeerStorageError::ProtocolError {
                 reason: format!(
-                    "manifest expected file with hash {} but stat returned no chunks (path likely a directory): {path}",
-                    manifest.file_hash
+                    "stat reported non-directory path with no chunks (server invariant violation): {path}{manifest_detail}"
                 ),
             });
         }
         (None, Some(stat_chunks)) => stat_chunks,
-        (None, None) => {
-            return Err(PeerStorageError::ProtocolError {
-                reason: format!(
-                    "stat returned no chunks for non-directory path (peer hash cache miss?): {path}"
-                ),
-            });
-        }
     };
     let use_multi = stat.entry.size >= streaming::MULTI_STREAM_THRESHOLD;
 
