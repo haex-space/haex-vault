@@ -531,9 +531,9 @@ pub async fn peer_storage_remote_read(
         // Progress callback with throttling: at most every 100ms to avoid
         // overwhelming the IPC bridge on mobile (each message crosses JNI/WebView).
         let on_event_progress = on_event.clone();
-        let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = Some({
+        let progress_cb: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new({
             let last_emit = std::sync::Mutex::new(std::time::Instant::now() - std::time::Duration::from_secs(1));
-            Box::new(move |received: u64, total: u64| {
+            move |received: u64, total: u64| {
                 let now = std::time::Instant::now();
                 let should_emit = {
                     let last = last_emit.lock().unwrap_or_else(|e| e.into_inner());
@@ -546,30 +546,21 @@ pub async fn peer_storage_remote_read(
                         total_bytes: total,
                     });
                 }
-            }) as Box<dyn Fn(u64, u64) + Send>
+            }
         });
 
-        // Hold the lock only for stream open (bounded by connection timeout ~3s).
-        // The actual file I/O runs without any lock so peer_storage_start/stop are
-        // not blocked for the duration of the download.
-        let streams = {
-            let endpoint = state.peer_storage.read().await;
-            endpoint.open_stream(remote_id, parsed_relay).await
-        };
-        let (mut send, mut recv) = match streams {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = on_event.send(TransferEvent::Error { error: e.to_string() });
-                if let Some(tid) = &transfer_id {
-                    state.transfer_tokens.lock().await.remove(tid);
-                }
-                return;
-            }
-        };
-        let result = crate::peer_storage::endpoint::PeerEndpoint::read_open_streams_to_file(
-            &mut send, &mut recv, &path, &output_path,
-            None, progress_cb, cancel_token, pause_flag, &ucan_token,
-        ).await;
+        let result = crate::peer_storage::client::download_file_to_path(
+            state.peer_storage.clone(),
+            remote_id,
+            parsed_relay,
+            path.clone(),
+            output_path.clone(),
+            Some(progress_cb),
+            cancel_token,
+            pause_flag,
+            ucan_token.clone(),
+        )
+        .await;
 
         // Clean up cancel token
         if let Some(tid) = &transfer_id {

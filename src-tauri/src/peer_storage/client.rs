@@ -503,6 +503,109 @@ impl PeerEndpoint {
     }
 }
 
+/// Download a remote file to `output_path`, picking single-stream or
+/// multi-stream automatically based on the announced size.
+///
+/// This is the single entry point both file_sync and the frontend
+/// `peer_storage_remote_read` Tauri command should use. The dispatch logic
+/// (stat probe → multi-stream above [`streaming::MULTI_STREAM_THRESHOLD`],
+/// single-stream below) used to be open-coded in `peer_provider`, while
+/// the frontend command path went straight to single-stream — so UI
+/// downloads of a 200 MB file ran ~4× slower than the same file via sync.
+///
+/// On success, logs the transfer rate to stderr so throughput regressions
+/// are visible without separate instrumentation.
+pub(crate) async fn download_file_to_path(
+    endpoint: Arc<tokio::sync::RwLock<PeerEndpoint>>,
+    remote_id: EndpointId,
+    relay_url: Option<RelayUrl>,
+    path: String,
+    output_path: std::path::PathBuf,
+    on_progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
+    cancel_token: Option<tokio_util::sync::CancellationToken>,
+    pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
+    ucan_token: String,
+) -> Result<StreamReadResult, PeerStorageError> {
+    let started = std::time::Instant::now();
+
+    // 1 RTT probe to learn the size. On LAN this is sub-millisecond; on
+    // any WAN/relay link it is repaid many times over by the multi-stream
+    // throughput gain it unlocks for large files.
+    let stat = endpoint
+        .read()
+        .await
+        .remote_stat(remote_id, relay_url.clone(), &path, &ucan_token)
+        .await?;
+
+    if stat.is_dir {
+        return Err(PeerStorageError::ProtocolError {
+            reason: format!("remote path is a directory, not a file: {path}"),
+        });
+    }
+
+    let use_multi = stat.size >= streaming::MULTI_STREAM_THRESHOLD;
+
+    let result = if use_multi {
+        read_multipart_to_file(
+            endpoint,
+            remote_id,
+            relay_url,
+            path,
+            output_path,
+            stat.size,
+            streaming::MAX_PARALLEL_STREAMS_PER_FILE,
+            on_progress,
+            cancel_token,
+            pause_flag,
+            ucan_token,
+        )
+        .await?
+    } else {
+        let (mut send, mut recv) = endpoint
+            .read()
+            .await
+            .open_stream(remote_id, relay_url)
+            .await?;
+        let on_progress_boxed: Option<Box<dyn Fn(u64, u64) + Send>> =
+            on_progress.map(|cb| {
+                Box::new(move |done: u64, total: u64| cb(done, total))
+                    as Box<dyn Fn(u64, u64) + Send>
+            });
+        PeerEndpoint::read_open_streams_to_file(
+            &mut send,
+            &mut recv,
+            &path,
+            &output_path,
+            None,
+            on_progress_boxed,
+            cancel_token,
+            pause_flag,
+            &ucan_token,
+        )
+        .await?
+    };
+
+    let elapsed = started.elapsed();
+    let secs = elapsed.as_secs_f64();
+    let mb = result.bytes as f64 / (1024.0 * 1024.0);
+    let rate = if secs > 0.0 { mb / secs } else { 0.0 };
+    let streams = if use_multi {
+        streaming::MAX_PARALLEL_STREAMS_PER_FILE
+    } else {
+        1
+    };
+    eprintln!(
+        "[PeerStorage] download {} bytes in {:.2}s = {:.2} MB/s ({} stream{})",
+        result.bytes,
+        secs,
+        rate,
+        streams,
+        if streams == 1 { "" } else { "s" }
+    );
+
+    Ok(result)
+}
+
 /// Download a file as `parallelism` parallel range reads, each on its own
 /// QUIC stream. Faster than [`PeerEndpoint::read_open_streams_to_file`] for
 /// large files because per-stream throughput stops being the bottleneck —

@@ -430,6 +430,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     bytesReceived: number
     totalBytes: number
     progress: number // 0-1
+    startedAt: number // Date.now() at first progress tick
+    bytesPerSec: number // EMA-smoothed throughput, alpha = 0.3
   }
 
   const transfers = ref<Map<string, TransferProgress>>(new Map())
@@ -444,6 +446,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     let rejectTransfer: ((error: Error) => void) | undefined
     const fileName = path.split('/').pop() || path
 
+    const startedAt = Date.now()
+    let lastSampleAt = startedAt
+    let lastBytes = 0
+    // EMA so the displayed rate doesn't twitch on every 100 ms progress tick.
+    // Seeded from the first instant rate so the chip is not stuck on 0 B/s
+    // for the first ~1 s of a transfer.
+    let smoothedBytesPerSec = 0
+
     const promise = new Promise<string>((resolve, reject) => {
       resolveTransfer = resolve
       rejectTransfer = reject
@@ -452,7 +462,17 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     const channel = new Channel<TransferEvent>()
     channel.onmessage = (msg) => {
       switch (msg.event) {
-        case 'progress':
+        case 'progress': {
+          const now = Date.now()
+          const dt = (now - lastSampleAt) / 1000
+          if (dt > 0) {
+            const instant = (msg.bytesReceived - lastBytes) / dt
+            smoothedBytesPerSec
+              = smoothedBytesPerSec === 0 ? instant : 0.3 * instant + 0.7 * smoothedBytesPerSec
+          }
+          lastSampleAt = now
+          lastBytes = msg.bytesReceived
+
           transfers.value.set(transferId, {
             transferId,
             path,
@@ -460,9 +480,12 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
             bytesReceived: msg.bytesReceived,
             totalBytes: msg.totalBytes,
             progress: msg.totalBytes > 0 ? msg.bytesReceived / msg.totalBytes : 0,
+            startedAt,
+            bytesPerSec: smoothedBytesPerSec,
           })
           transfers.value = new Map(transfers.value)
           break
+        }
         case 'complete': {
           const transfer = transfers.value.get(transferId)
           if (transfer) {
@@ -502,6 +525,17 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   const activeDownloads = computed(() => Array.from(transfers.value.values()))
+
+  /**
+   * Sum of EMA-smoothed throughput across all in-flight downloads. Surfaced
+   * next to the connection-status dot in the file browser so the user has
+   * a live "is this actually fast?" signal without opening dev-tools.
+   */
+  const totalBytesPerSec = computed(() => {
+    let total = 0
+    for (const t of transfers.value.values()) total += t.bytesPerSec
+    return total
+  })
 
   const cancelTransferAsync = async (transferId: string) => {
     await invoke('peer_storage_transfer_cancel', { transferId })
@@ -840,6 +874,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     localListAsync,
     transfers,
     activeDownloads,
+    totalBytesPerSec,
     getTransferProgress,
     getTransferIdForPath,
     cancelTransferAsync,
