@@ -516,7 +516,6 @@ dependencies = [
  "cfg-if",
  "constant_time_eq",
  "cpufeatures 0.2.17",
- "digest 0.10.7",
 ]
 
 [[package]]
