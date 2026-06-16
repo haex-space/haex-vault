@@ -205,9 +205,8 @@
 </template>
 
 <script setup lang="ts">
-import { createAvatar } from '@dicebear/core'
-import * as toonHead from '@dicebear/toon-head'
-import type { ToonHeadOptions } from '~/utils/identityAvatar'
+import { Avatar } from '@dicebear/core'
+import { toonHeadStyle, type ToonHeadOptions } from '~/utils/identityAvatar'
 
 const options = defineModel<ToonHeadOptions>('options', { required: true })
 
@@ -268,20 +267,20 @@ function previewSvg(key: string, value: string): string {
     beardProbability: key === 'beard' ? 100 : o.beardProbability,
     rearHairProbability: key === 'rearHair' ? 100 : o.rearHairProbability,
     hairProbability: 100,
-    // Wrap values into arrays for DiceBear
-    eyes: [pick('eyes')],
-    eyebrows: [pick('eyebrows')],
-    mouth: [pick('mouth')],
-    beard: [pick('beard')],
-    hair: [pick('hair')],
-    rearHair: [pick('rearHair')],
-    clothes: [pick('clothes')],
+    // DiceBear v10 uses `${component}Variant` keys for component selection.
+    eyesVariant: [pick('eyes')],
+    eyebrowsVariant: [pick('eyebrows')],
+    mouthVariant: [pick('mouth')],
+    beardVariant: [pick('beard')],
+    hairVariant: [pick('hair')],
+    rearHairVariant: [pick('rearHair')],
+    clothesVariant: [pick('clothes')],
     skinColor: [pick('skinColor')],
     hairColor: [pick('hairColor')],
     clothesColor: [pick('clothesColor')],
   }
 
-  const svg = createAvatar(toonHead, previewOptions).toString()
+  const svg = new Avatar(toonHeadStyle, previewOptions).toString()
   previewCache.set(cacheKey, svg)
   return svg
 }

@@ -15,8 +15,8 @@
 </template>
 
 <script setup lang="ts">
-import { useDroppable } from '@vue-dnd-kit/core'
-import type { IDnDStore } from '@vue-dnd-kit/core'
+import { makeDroppable } from '@vue-dnd-kit/core'
+import type { IDragEvent } from '@vue-dnd-kit/core'
 
 const props = defineProps<{
   workspaceId: string
@@ -32,38 +32,35 @@ const emit = defineEmits<{
 }>()
 
 const desktopStore = useDesktopStore()
+const elementRef = ref<HTMLElement | null>(null)
 
-const { elementRef, isOvered } = useDroppable({
+const { isDragOver } = makeDroppable(elementRef, {
   groups: ['launcher-item'],
   events: {
-    onDrop: async (store: IDnDStore) => {
-      // Get the dragged item data
-      const draggingElement = store.draggingElements.value.values().next().value
-      if (!draggingElement) return false
+    onDrop: async (event: IDragEvent) => {
+      const dragged = event.draggedItems[0]
+      if (!dragged) return false
 
-      const itemData = draggingElement.data as {
+      const itemData = dragged.data as {
         id: string
         type: 'system' | 'extension'
         name: string
         icon: string
-      }
+      } | undefined
+      if (!itemData) return false
 
-      // Get drop position from pointer
-      const pointerPos = store.pointerPosition.current.value
+      const pointerPos = event.provider.pointer.value?.current
       if (!pointerPos) return false
 
-      // Calculate position relative to desktop
       const desktopRect = elementRef.value?.getBoundingClientRect()
       if (!desktopRect) return false
 
-      const rawX = Math.max(0, pointerPos.x - desktopRect.left - 32) // Center icon
+      const rawX = Math.max(0, pointerPos.x - desktopRect.left - 32)
       const rawY = Math.max(0, pointerPos.y - desktopRect.top - 32)
 
-      // Snap to grid
       const snapped = desktopStore.snapToGrid(rawX, rawY)
 
       try {
-        // Add desktop item
         await desktopStore.addDesktopItemAsync(
           itemData.type,
           itemData.id,
@@ -81,8 +78,9 @@ const { elementRef, isOvered } = useDroppable({
   },
 })
 
+const isOvered = computed(() => isDragOver.value !== undefined)
+
 const handleMouseDown = (event: MouseEvent) => {
-  // Only emit if clicking directly on the drop zone (not on children)
   if (event.target === elementRef.value) {
     emit('areaSelectStart', event)
   }
