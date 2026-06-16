@@ -14,13 +14,19 @@ pub struct FileState {
     /// Unix timestamp in seconds
     pub modified_at: u64,
     pub is_directory: bool,
-    /// SHA-256 of file content as lowercase hex. `None` for directories or
-    /// when the provider has not (yet) computed it. The diff engine uses this
-    /// for authoritative equality — timestamps alone are unreliable because
-    /// `write` resets mtime on the receiver.
+    /// BLAKE3 of the full file, lowercase hex. None for directories.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub hash: Option<String>,
+    /// Chunk size in bytes. None for directories.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub chunk_size: Option<u32>,
+    /// BLAKE3 hash of each chunk, lowercase hex, in order. None for directories;
+    /// empty Vec is invalid for files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub chunk_hashes: Option<Vec<String>>,
 }
 
 /// Sync direction
