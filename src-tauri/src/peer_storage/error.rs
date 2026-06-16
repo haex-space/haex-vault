@@ -41,6 +41,17 @@ pub enum PeerStorageError {
         manifest_file_hash: String,
         actual_file_hash: String,
     },
+
+    /// A chunk delivered over the wire did not match the expected BLAKE3
+    /// hash. Distinct from `ManifestHashMismatch` (which fires before any
+    /// bytes are read) so the engine can react with per-range retry against
+    /// a different peer instead of aborting the whole sync.
+    #[error("Chunk hash mismatch at index {index}: expected {expected}, got {actual}")]
+    ChunkHashMismatch {
+        index: usize,
+        expected: String,
+        actual: String,
+    },
 }
 
 impl serde::Serialize for PeerStorageError {

@@ -1327,6 +1327,131 @@ mod tests {
         assert_eq!(result.bytes, 1024 * 1024);
     }
 
+    /// Multi-chunk single-stream download. 3 MiB file spans 3 chunks but
+    /// stays below `MULTI_STREAM_THRESHOLD` (16 MiB), so it goes through
+    /// `receive_with_chunk_verification`. Verifies that:
+    /// - bytes on disk match the source exactly
+    /// - the returned hash is the manifest BLAKE3 file_hash (verified path
+    ///   never falls back to SHA-256)
+    /// - the resume sidecar + partial bytes are cleared after success
+    #[tokio::test]
+    async fn download_file_to_path_verified_multi_chunk_clears_sidecar() {
+        // Build a custom harness with a 3 MiB ramp file (3 chunks of 1 MiB).
+        let tmp = tempfile::tempdir().unwrap();
+        let chunk_size = crate::file_sync::hashing::CHUNK_HASH_SIZE as usize;
+        let payload_len = chunk_size * 3;
+        let file_path = tmp.path().join("big.bin");
+        let mut ramp = vec![0u8; payload_len];
+        for (i, b) in ramp.iter_mut().enumerate() {
+            *b = ((i * 31 + 7) % 256) as u8;
+        }
+        tokio::fs::write(&file_path, &ramp).await.unwrap();
+
+        let share_name = "media".to_string();
+        let space_id = "test-space".to_string();
+
+        let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
+        let server_id = server.start_for_test().await.expect("server bind");
+        server
+            .add_share(
+                "share-1".to_string(),
+                share_name.clone(),
+                tmp.path().to_string_lossy().to_string(),
+                space_id.clone(),
+            )
+            .await;
+
+        let mut client_inner = PeerEndpoint::new_ephemeral();
+        let client_did = client_inner.set_random_test_identity();
+        client_inner.start_for_test().await.expect("client bind");
+        let client_id = client_inner.endpoint_id();
+
+        let mut allowed = HashMap::new();
+        let mut spaces = HashSet::new();
+        spaces.insert(space_id.clone());
+        allowed.insert(client_id.to_string(), spaces);
+        server.set_allowed_peers(allowed).await;
+
+        let mut owner_dids = HashMap::new();
+        owner_dids.insert(client_id.to_string(), client_did.clone());
+        server.set_peer_owner_dids(owner_dids).await;
+
+        let server_addr = server.endpoint_ref().unwrap().addr();
+        client_inner
+            .connect_for_test(server_addr)
+            .await
+            .expect("client → server connect");
+
+        let seed: [u8; 32] = rand::random();
+        let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
+        let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
+        let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
+
+        let path = format!("/{share_name}/big.bin");
+        let tmp_out = tempfile::tempdir().unwrap();
+        let out_path = tmp_out.path().join("out_big.bin");
+
+        // Build the manifest ChunkedHash off the same bytes the server holds.
+        let expected_file_hash = blake3::hash(&ramp).to_hex().to_string();
+        let chunk_hashes: Vec<String> = (0..3)
+            .map(|i| {
+                let s = i * chunk_size;
+                let e = (i + 1) * chunk_size;
+                blake3::hash(&ramp[s..e]).to_hex().to_string()
+            })
+            .collect();
+        let manifest = crate::file_sync::hashing::ChunkedHash {
+            file_hash: expected_file_hash.clone(),
+            chunk_size: crate::file_sync::hashing::CHUNK_HASH_SIZE,
+            chunk_hashes,
+        };
+
+        let result = crate::peer_storage::client::download_file_to_path(
+            client,
+            server_id,
+            None,
+            path,
+            out_path.clone(),
+            Some(manifest),
+            None,
+            None,
+            None,
+            ucan,
+        )
+        .await
+        .expect("verified multi-chunk download must succeed");
+
+        assert_eq!(result.bytes, payload_len as u64);
+        assert_eq!(
+            result.hash.as_deref(),
+            Some(expected_file_hash.as_str()),
+            "verified path returns the manifest BLAKE3 file_hash"
+        );
+
+        let on_disk = tokio::fs::read(&out_path).await.unwrap();
+        assert_eq!(on_disk, ramp, "bytes on disk match the source verbatim");
+
+        // After a clean download the sidecar metadata + partial bytes file
+        // must be gone — the engine should never see leftover resume state
+        // for a completed download.
+        let meta_path = {
+            let mut p = out_path.as_os_str().to_owned();
+            p.push(".haex-partial.meta");
+            std::path::PathBuf::from(p)
+        };
+        let partial_path =
+            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        assert!(
+            !meta_path.exists(),
+            "sidecar metadata should be cleared after success: {meta_path:?}"
+        );
+        assert!(
+            !partial_path.exists(),
+            "partial bytes file should be renamed away after success: {partial_path:?}"
+        );
+    }
+
     /// Sync-rule flow with corrupted manifest: caller supplies a
     /// ChunkedHash whose file_hash disagrees with what the stat-probe
     /// reports. The download must abort with `ManifestHashMismatch` and

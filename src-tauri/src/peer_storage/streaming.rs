@@ -11,6 +11,7 @@
 //! out of each call site also guarantees both directions use the same
 //! chunk size and channel depth, which used to drift independently.
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -18,6 +19,9 @@ use sha2::{Digest, Sha256};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+
+use crate::peer_storage::error::PeerStorageError;
+use crate::peer_storage::resume::PartialState;
 
 /// 1 MB chunks. Big enough to amortise per-syscall overhead on fast LAN
 /// links, small enough that `CHUNK_SIZE * CHANNEL_DEPTH * TRANSFER_CONCURRENCY`
@@ -294,3 +298,154 @@ where
         hash,
     })
 }
+
+/// Per-chunk verifier state shared across one or more receive ranges of a
+/// single download.
+///
+/// The `completed` slice is the *full-file* bitmap (one entry per chunk in
+/// the original manifest). `start_chunk_index` is the index of the first
+/// chunk being received in this call; `expected_chunk_hashes` is the slice
+/// of manifest hashes for the chunks in *this* range. Both invariants are
+/// enforced by [`pipe_recv_to_writer_verified`] up front.
+pub struct ChunkVerifier<'a> {
+    /// Manifest BLAKE3 hashes for the chunks in this receive range
+    /// (lowercase hex, in order).
+    pub expected_chunk_hashes: &'a [String],
+    /// Bytes per chunk. The last chunk in the *file* (not necessarily in
+    /// this range) may be shorter; the helper detects that via `expected_size`.
+    pub chunk_size: u32,
+    /// Index of the first chunk in this range, into the full-file bitmap.
+    pub start_chunk_index: usize,
+    /// Full-file completion bitmap, mutated as chunks verify.
+    pub completed: &'a mut [bool],
+}
+
+/// Network → disk pipeline with per-chunk BLAKE3 verification and sidecar
+/// persistence. Single-stream download flow only — multi-stream resume is
+/// handled by [`pipe_recv_to_writer`] today (see Tasks 9–10).
+///
+/// Reads `expected_size` bytes from `recv` in `chunk_size`-aligned slices,
+/// hashes each completed chunk, compares against the manifest, and only
+/// then writes it to `writer`. On hash mismatch returns
+/// `PeerStorageError::ChunkHashMismatch` immediately — no partial data
+/// is appended for the failing chunk, so a retry against a different peer
+/// can fill the same range cleanly.
+///
+/// When `sidecar_target` is `Some(_)`, the helper rewrites the resume
+/// sidecar (`<target>.haex-partial.meta`) after every successful chunk
+/// using `(file_hash, chunk_size, completed)`. Chunks are 1 MiB and the
+/// JSON payload is tiny; debouncing isn't worth the complexity until
+/// profiling proves otherwise.
+///
+/// `verifier.expected_chunk_hashes.len()` must match the number of chunks
+/// implied by `expected_size` and `verifier.chunk_size`, otherwise the
+/// helper returns a `ProtocolError` before touching the stream.
+pub async fn pipe_recv_to_writer_verified<R, W>(
+    mut recv: R,
+    mut writer: W,
+    expected_size: u64,
+    verifier: ChunkVerifier<'_>,
+    sidecar_target: Option<(&Path, &str)>,
+) -> Result<u64, PeerStorageError>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
+    let chunk_size = verifier.chunk_size as u64;
+    if chunk_size == 0 {
+        return Err(PeerStorageError::ProtocolError {
+            reason: "chunk_size must be > 0".to_string(),
+        });
+    }
+
+    let expected_chunks_in_range = if expected_size == 0 {
+        0
+    } else {
+        expected_size.div_ceil(chunk_size)
+    };
+    if verifier.expected_chunk_hashes.len() as u64 != expected_chunks_in_range {
+        return Err(PeerStorageError::ProtocolError {
+            reason: format!(
+                "verifier hash count {} does not match chunks implied by size {} / chunk_size {} = {}",
+                verifier.expected_chunk_hashes.len(),
+                expected_size,
+                chunk_size,
+                expected_chunks_in_range
+            ),
+        });
+    }
+
+    // file_hash and target path for sidecar persistence (cloned once).
+    let sidecar: Option<(PathBuf, String)> = sidecar_target
+        .map(|(p, h)| (p.to_path_buf(), h.to_string()));
+    let full_chunk_count = verifier.completed.len();
+
+    let mut bytes_received: u64 = 0;
+    let mut buf: Vec<u8> = Vec::with_capacity(verifier.chunk_size as usize);
+
+    for (relative_idx, expected_hash) in verifier.expected_chunk_hashes.iter().enumerate() {
+        let absolute_idx = verifier.start_chunk_index + relative_idx;
+        let remaining_in_file = expected_size - bytes_received;
+        let this_chunk_size = remaining_in_file.min(chunk_size) as usize;
+
+        buf.clear();
+        buf.resize(this_chunk_size, 0);
+        // Read exactly `this_chunk_size` bytes for this chunk. Short reads
+        // through the AsyncRead contract are allowed (especially over
+        // QUIC), so loop until we have a full chunk or hit EOF.
+        let mut filled = 0usize;
+        while filled < this_chunk_size {
+            match recv.read(&mut buf[filled..]).await {
+                Ok(0) => {
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: format!(
+                            "stream ended early in chunk {absolute_idx}: expected {this_chunk_size} bytes, received {filled}"
+                        ),
+                    });
+                }
+                Ok(n) => {
+                    filled += n;
+                }
+                Err(e) => {
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: format!("recv read in chunk {absolute_idx}: {e}"),
+                    });
+                }
+            }
+        }
+        bytes_received += this_chunk_size as u64;
+
+        let actual = blake3::hash(&buf[..this_chunk_size]).to_hex().to_string();
+        if &actual != expected_hash {
+            return Err(PeerStorageError::ChunkHashMismatch {
+                index: absolute_idx,
+                expected: expected_hash.clone(),
+                actual,
+            });
+        }
+
+        writer
+            .write_all(&buf[..this_chunk_size])
+            .await
+            .map_err(PeerStorageError::Io)?;
+
+        if absolute_idx < full_chunk_count {
+            verifier.completed[absolute_idx] = true;
+        }
+
+        if let Some((target, file_hash)) = sidecar.as_ref() {
+            let state = PartialState {
+                file_hash: file_hash.clone(),
+                chunk_size: verifier.chunk_size,
+                completed: verifier.completed.to_vec(),
+            };
+            state.save(target).await.map_err(PeerStorageError::Io)?;
+        }
+    }
+
+    writer.flush().await.map_err(PeerStorageError::Io)?;
+    Ok(bytes_received)
+}
+
+#[cfg(test)]
+mod tests;
