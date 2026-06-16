@@ -427,14 +427,21 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     transferId: string
     path: string
     fileName: string
+    direction: 'download' | 'upload'
     bytesReceived: number
     totalBytes: number
     progress: number // 0-1
+    startedAt: number // Date.now() at first progress tick
+    bytesPerSec: number // EMA-smoothed throughput, alpha = 0.3
   }
 
   const transfers = ref<Map<string, TransferProgress>>(new Map())
 
-  const createTransferChannel = (transferId: string, path: string) => {
+  const createTransferChannel = (
+    transferId: string,
+    path: string,
+    direction: 'download' | 'upload',
+  ) => {
     type TransferEvent =
       | { event: 'progress'; bytesReceived: number; totalBytes: number }
       | { event: 'complete'; localPath: string; totalBytes: number }
@@ -444,6 +451,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     let rejectTransfer: ((error: Error) => void) | undefined
     const fileName = path.split('/').pop() || path
 
+    const startedAt = Date.now()
+    let lastSampleAt = startedAt
+    let lastBytes = 0
+    // EMA so the displayed rate doesn't twitch on every 100 ms progress tick.
+    // Seeded from the first instant rate so the chip is not stuck on 0 B/s
+    // for the first ~1 s of a transfer.
+    let smoothedBytesPerSec = 0
+
     const promise = new Promise<string>((resolve, reject) => {
       resolveTransfer = resolve
       rejectTransfer = reject
@@ -452,21 +467,39 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     const channel = new Channel<TransferEvent>()
     channel.onmessage = (msg) => {
       switch (msg.event) {
-        case 'progress':
+        case 'progress': {
+          const now = Date.now()
+          const dt = (now - lastSampleAt) / 1000
+          if (dt > 0) {
+            const instant = (msg.bytesReceived - lastBytes) / dt
+            smoothedBytesPerSec
+              = smoothedBytesPerSec === 0 ? instant : 0.3 * instant + 0.7 * smoothedBytesPerSec
+          }
+          lastSampleAt = now
+          lastBytes = msg.bytesReceived
+
           transfers.value.set(transferId, {
             transferId,
             path,
             fileName,
+            direction,
             bytesReceived: msg.bytesReceived,
             totalBytes: msg.totalBytes,
             progress: msg.totalBytes > 0 ? msg.bytesReceived / msg.totalBytes : 0,
+            startedAt,
+            bytesPerSec: smoothedBytesPerSec,
           })
           transfers.value = new Map(transfers.value)
           break
+        }
         case 'complete': {
           const transfer = transfers.value.get(transferId)
           if (transfer) {
             transfer.progress = 1
+            // Zero the rate so the aggregate `totalBytesPerSec` chip doesn't
+            // keep the just-completed transfer's last sample alive during the
+            // 1.5 s linger window — otherwise the chip lies about being busy.
+            transfer.bytesPerSec = 0
             transfers.value = new Map(transfers.value)
             setTimeout(() => {
               transfers.value.delete(transferId)
@@ -502,6 +535,20 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   const activeDownloads = computed(() => Array.from(transfers.value.values()))
+
+  /**
+   * Sum of EMA-smoothed throughput across all in-flight **downloads**.
+   * Uploads share the same `transfers` map but the file-browser chip is
+   * labelled as a download indicator — mixing both would make the number
+   * lie when a user uploads and downloads simultaneously.
+   */
+  const totalBytesPerSec = computed(() => {
+    let total = 0
+    for (const t of transfers.value.values()) {
+      if (t.direction === 'download') total += t.bytesPerSec
+    }
+    return total
+  })
 
   const cancelTransferAsync = async (transferId: string) => {
     await invoke('peer_storage_transfer_cancel', { transferId })
@@ -690,13 +737,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     path: string,
     saveTo?: string,
     spaceIdHint?: string,
+    expectedSize?: number,
   ) => {
     const { ucanToken, relayUrl: deviceRelayUrl } = resolveRequestContext(
       remoteNodeId, path, spaceIdHint,
     )
     if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
     const transferId = crypto.randomUUID()
-    const { channel, promise } = createTransferChannel(transferId, path)
+    const { channel, promise } = createTransferChannel(transferId, path, 'download')
 
     activeTransfers.value++
     try {
@@ -706,6 +754,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         path,
         transferId,
         saveTo: saveTo ?? null,
+        expectedSize: expectedSize ?? null,
         ucanToken,
         onEvent: channel,
       })
@@ -728,7 +777,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     if (!ucanToken) throw new Error('No valid UCAN token for this peer\'s space')
 
     const transferId = crypto.randomUUID()
-    const { channel, promise } = createTransferChannel(transferId, remotePath)
+    const { channel, promise } = createTransferChannel(transferId, remotePath, 'upload')
 
     activeTransfers.value++
     try {
@@ -840,6 +889,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     localListAsync,
     transfers,
     activeDownloads,
+    totalBytesPerSec,
     getTransferProgress,
     getTransferIdForPath,
     cancelTransferAsync,
