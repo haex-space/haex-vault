@@ -1086,7 +1086,18 @@ async fn download_single_stream_with_resume(
 /// single-stream resume path. On full success the partial file is atomically
 /// renamed to `output_path` and the sidecar is cleared. On failure (after
 /// retries) both are deliberately left on disk for the next attempt to
-/// resume from (Task 10).
+/// resume from.
+///
+/// ## Cross-invocation resume (Task 10)
+///
+/// On entry the function probes for a surviving sidecar at
+/// `<output_path>.haex-partial.meta`. If `PartialState::load_if_matches`
+/// finds one (file_hash matches the manifest, chunk count + chunk_size
+/// agree), the worker pool is seeded with `missing_ranges()` instead of an
+/// equal N-way split — already-verified chunks stay marked done in the
+/// shared bitmap and their bytes survive on disk. A drifted sidecar
+/// (mismatched chunk count or chunk_size) is treated like a missing one:
+/// the partial file is truncated and the download starts fresh.
 ///
 /// When `chunks_to_use` is `None`, the legacy SHA-256 post-pass is retained
 /// for callers that pre-date Task 6 (today only the direct test entry-points
@@ -1133,12 +1144,33 @@ pub(crate) async fn read_multipart_to_file(
         output_path.clone()
     };
 
-    // Pre-allocate the target file so every spawned task can seek to its own
-    // offset and write its range independently. truncate(true) discards any
-    // stale partial file from a previous failed download — Task 10 will
-    // replace this with a sidecar-aware path that preserves already-verified
-    // chunks across invocations.
-    {
+    // Resume probe: if the verified path has a surviving sidecar whose
+    // file_hash matches the manifest, re-use its bitmap + partial bytes.
+    // A drifted sidecar (mismatched chunk count or chunk_size) is treated
+    // exactly like a missing one — we discard it and start fresh so the
+    // worker pool never aligns chunks against the wrong manifest.
+    let resume_state: Option<crate::peer_storage::resume::PartialState> = if verified {
+        let chunks = chunks_to_use.expect("verified ⇒ chunks_to_use is Some");
+        let candidate = crate::peer_storage::resume::PartialState::load_if_matches(
+            &output_path,
+            &chunks.file_hash,
+        )
+        .await
+        .map_err(PeerStorageError::Io)?;
+        candidate.filter(|s| {
+            s.completed.len() == chunks.chunk_hashes.len()
+                && s.chunk_size == chunks.chunk_size
+        })
+    } else {
+        None
+    };
+
+    // Pre-allocation: on a fresh download we create+truncate the partial
+    // file to `size` so every worker can seek to its own offset. On resume
+    // the partial file already exists at the right length with verified
+    // chunks at their correct offsets — truncating would discard them, so
+    // we leave it untouched.
+    if resume_state.is_none() {
         use tokio::io::AsyncWriteExt;
         let mut file = tokio::fs::OpenOptions::new()
             .create(true)
@@ -1151,21 +1183,34 @@ pub(crate) async fn read_multipart_to_file(
         file.flush().await.map_err(PeerStorageError::Io)?;
     }
 
-    // Initial split: N equal ranges, last one absorbs the remainder. Each
-    // entry is `(start, end, attempt)`. Workers pop from the back so the
-    // first-spawned worker drains the highest range — order doesn't matter
-    // for correctness, the pool just needs to bottom out.
-    let chunk = size.div_ceil(n as u64);
-    let mut initial_ranges: Vec<(u64, u64, u32)> = (0..n)
-        .filter_map(|i| {
-            let start = (i as u64) * chunk;
-            if start >= size {
-                return None;
-            }
-            let end = (start + chunk).min(size);
-            Some((start, end, 0))
-        })
-        .collect();
+    // Initial range pool: on fresh download we split `size` into N equal
+    // ranges; on resume we feed the pool the sidecar's `missing_ranges()`
+    // (end-clamped to `size` because the last chunk may overshoot the
+    // actual file end). Resume may produce N != concurrency entries —
+    // could be fewer if only one gap, more if many — and that's fine: the
+    // pool just drains until empty, the worker count stays at `n`.
+    let mut initial_ranges: Vec<(u64, u64, u32)> = if let Some(state) = resume_state.as_ref() {
+        state
+            .missing_ranges()
+            .into_iter()
+            .filter_map(|(s, e)| {
+                let end = e.min(size);
+                (end > s).then_some((s, end, 0))
+            })
+            .collect()
+    } else {
+        let chunk = size.div_ceil(n as u64);
+        (0..n)
+            .filter_map(|i| {
+                let start = (i as u64) * chunk;
+                if start >= size {
+                    return None;
+                }
+                let end = (start + chunk).min(size);
+                Some((start, end, 0))
+            })
+            .collect()
+    };
     // pop() drains from the back; reverse so the lowest range is popped first
     // and progress reports run roughly in file order.
     initial_ranges.reverse();
@@ -1173,12 +1218,19 @@ pub(crate) async fn read_multipart_to_file(
     // Shared bitmap: only populated on the verified path. Each worker writes
     // true into `completed[absolute_chunk_idx]` as ChunkVerifier validates a
     // chunk; the helper persists the sidecar after every chunk so a future
-    // resume can pick up from any point of progress.
+    // resume can pick up from any point of progress. On resume we re-seed
+    // the bitmap from the sidecar so chunks that already completed in a
+    // prior invocation stay marked done (and `missing_ranges()` already
+    // excluded their byte ranges from the pending pool).
     let total_chunks = chunks_to_use
         .map(|c| c.chunk_hashes.len())
         .unwrap_or(0);
+    let initial_completed = match resume_state.as_ref() {
+        Some(state) => state.completed.clone(),
+        None => vec![false; total_chunks],
+    };
     let completed: Arc<tokio::sync::Mutex<Vec<bool>>> =
-        Arc::new(tokio::sync::Mutex::new(vec![false; total_chunks]));
+        Arc::new(tokio::sync::Mutex::new(initial_completed));
 
     let pending: Arc<tokio::sync::Mutex<Vec<(u64, u64, u32)>>> =
         Arc::new(tokio::sync::Mutex::new(initial_ranges));
@@ -1186,7 +1238,19 @@ pub(crate) async fn read_multipart_to_file(
     // Progress accounting through retries: a failed attempt's contribution
     // is rolled back from `total_received` before the retry starts, so the
     // consumer never sees a decrement and the final report equals `size`.
-    let total_received = Arc::new(AtomicU64::new(0));
+    // On resume we seed `total_received` with the bytes already on disk so
+    // the progress callback stays monotonic across invocations (otherwise
+    // it would drop from `size` at the end of the first attempt back to
+    // ~0 at the start of the second).
+    let already_done_bytes: u64 = if let Some(state) = resume_state.as_ref() {
+        let cs = state.chunk_size as u64;
+        let n_done = state.completed.iter().filter(|c| **c).count() as u64;
+        // Last chunk may be partial — cap the final sum at `size`.
+        (n_done * cs).min(size)
+    } else {
+        0
+    };
+    let total_received = Arc::new(AtomicU64::new(already_done_bytes));
     let range_progress: Arc<tokio::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>> =
         Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new()));
 

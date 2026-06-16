@@ -2154,4 +2154,287 @@ mod tests {
             "sidecar metadata must be cleared after success: {meta_path:?}"
         );
     }
+
+    /// Cross-invocation resume on the multi-stream branch (Task 10).
+    ///
+    /// Pre-seeds the on-disk state a previous failed multi-stream attempt
+    /// would have left behind: a partial bytes file holding the file's real
+    /// content for some chunks (and zeros for the gaps) plus a sidecar bitmap
+    /// marking those chunks complete. The download is then invoked against
+    /// the same manifest — `read_multipart_to_file` must pick up the sidecar,
+    /// only request the missing ranges, and finish with the file
+    /// bit-perfectly on disk + sidecar cleared.
+    ///
+    /// The seed uses TWO disjoint gaps (chunks [5, 9) and [20, 25)) so the
+    /// initial pending pool has more than one entry — proving
+    /// `missing_ranges()` is what drives the worker queue, not the
+    /// equal-N-way split.
+    #[tokio::test]
+    async fn multi_stream_resumes_across_invocations() {
+        // 32 MiB file → 32 chunks of 1 MiB → comfortably above the 16 MiB
+        // multi-stream threshold so download_file_to_path would pick this
+        // branch in the real flow.
+        let tmp = tempfile::tempdir().unwrap();
+        let chunk_size = crate::file_sync::hashing::CHUNK_HASH_SIZE as usize;
+        let total_chunks = 32usize;
+        let payload_len = chunk_size * total_chunks;
+        let file_path = tmp.path().join("multi_resume.bin");
+        let mut ramp = vec![0u8; payload_len];
+        for (i, b) in ramp.iter_mut().enumerate() {
+            *b = ((i * 19 + 3) % 256) as u8;
+        }
+        tokio::fs::write(&file_path, &ramp).await.unwrap();
+
+        let share_name = "media".to_string();
+        let space_id = "test-space".to_string();
+
+        let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
+        let server_id = server.start_for_test().await.expect("server bind");
+        server
+            .add_share(
+                "share-1".to_string(),
+                share_name.clone(),
+                tmp.path().to_string_lossy().to_string(),
+                space_id.clone(),
+            )
+            .await;
+
+        let mut client_inner = PeerEndpoint::new_ephemeral();
+        let client_did = client_inner.set_random_test_identity();
+        client_inner.start_for_test().await.expect("client bind");
+        let client_id = client_inner.endpoint_id();
+
+        let mut allowed = HashMap::new();
+        let mut spaces = HashSet::new();
+        spaces.insert(space_id.clone());
+        allowed.insert(client_id.to_string(), spaces);
+        server.set_allowed_peers(allowed).await;
+
+        let mut owner_dids = HashMap::new();
+        owner_dids.insert(client_id.to_string(), client_did.clone());
+        server.set_peer_owner_dids(owner_dids).await;
+
+        let server_addr = server.endpoint_ref().unwrap().addr();
+        client_inner
+            .connect_for_test(server_addr)
+            .await
+            .expect("client → server connect");
+
+        let seed: [u8; 32] = rand::random();
+        let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
+        let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
+        let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
+
+        let file_hash = blake3::hash(&ramp).to_hex().to_string();
+        let chunk_hashes: Vec<String> = (0..total_chunks)
+            .map(|i| {
+                let s = i * chunk_size;
+                let e = (i + 1) * chunk_size;
+                blake3::hash(&ramp[s..e]).to_hex().to_string()
+            })
+            .collect();
+        let manifest = crate::file_sync::hashing::ChunkedHash {
+            file_hash: file_hash.clone(),
+            chunk_size: crate::file_sync::hashing::CHUNK_HASH_SIZE,
+            chunk_hashes,
+        };
+
+        // Pre-seed the on-disk state of a half-finished prior attempt:
+        // chunks 0..5, 9..20, and 25..32 are complete; gaps at 5..9 and 20..25.
+        let tmp_out = tempfile::tempdir().unwrap();
+        let out_path = tmp_out.path().join("out_multi_resume.bin");
+        let partial_path =
+            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let mut partial_bytes = vec![0u8; payload_len];
+        let mut completed = vec![false; total_chunks];
+        for i in 0..total_chunks {
+            let in_gap_a = (5..9).contains(&i);
+            let in_gap_b = (20..25).contains(&i);
+            if !in_gap_a && !in_gap_b {
+                let s = i * chunk_size;
+                let e = (i + 1) * chunk_size;
+                partial_bytes[s..e].copy_from_slice(&ramp[s..e]);
+                completed[i] = true;
+            }
+        }
+        tokio::fs::write(&partial_path, &partial_bytes).await.unwrap();
+
+        let sidecar = crate::peer_storage::resume::PartialState {
+            file_hash: file_hash.clone(),
+            chunk_size: crate::file_sync::hashing::CHUNK_HASH_SIZE,
+            completed: completed.clone(),
+        };
+        sidecar.save(&out_path).await.unwrap();
+
+        // Sanity: the seeded sidecar produces the two expected gaps.
+        let missing = sidecar.missing_ranges();
+        let cs = chunk_size as u64;
+        assert_eq!(
+            missing,
+            vec![(5 * cs, 9 * cs), (20 * cs, 25 * cs)],
+            "seeded sidecar must produce exactly two missing ranges"
+        );
+
+        let path = format!("/{share_name}/multi_resume.bin");
+        let result = crate::peer_storage::client::read_multipart_to_file(
+            client,
+            server_id,
+            None,
+            path,
+            out_path.clone(),
+            payload_len as u64,
+            4,
+            Some(&manifest),
+            None,
+            None,
+            None,
+            ucan,
+        )
+        .await
+        .expect("multi-stream resume must succeed");
+
+        assert_eq!(result.bytes, payload_len as u64);
+        assert_eq!(
+            result.hash.as_deref(),
+            Some(file_hash.as_str()),
+            "verified resume returns the manifest BLAKE3 file_hash"
+        );
+
+        let on_disk = tokio::fs::read(&out_path).await.unwrap();
+        assert_eq!(on_disk, ramp, "resumed bytes must match the source verbatim");
+
+        let meta_path = {
+            let mut p = out_path.as_os_str().to_owned();
+            p.push(".haex-partial.meta");
+            std::path::PathBuf::from(p)
+        };
+        assert!(
+            !partial_path.exists(),
+            "partial bytes file must be renamed away on resume success: {partial_path:?}"
+        );
+        assert!(
+            !meta_path.exists(),
+            "sidecar metadata must be cleared on resume success: {meta_path:?}"
+        );
+    }
+
+    /// Drift guard for the multi-stream resume probe. When the sidecar's
+    /// `file_hash` matches the manifest but its `chunk_size` (or chunk count)
+    /// disagrees, `read_multipart_to_file` must treat the sidecar as garbage
+    /// and start fresh — otherwise the worker pool would align bytes against
+    /// the wrong chunk indices and silently corrupt the output. The drift
+    /// branch also re-truncates the partial file, so seeded junk bytes get
+    /// overwritten.
+    #[tokio::test]
+    async fn multi_stream_resume_ignores_sidecar_with_drifting_chunk_size() {
+        let tmp = tempfile::tempdir().unwrap();
+        let chunk_size = crate::file_sync::hashing::CHUNK_HASH_SIZE as usize;
+        let payload_len = chunk_size * 4;
+        let file_path = tmp.path().join("drift_multi.bin");
+        let mut ramp = vec![0u8; payload_len];
+        for (i, b) in ramp.iter_mut().enumerate() {
+            *b = ((i * 23 + 9) % 256) as u8;
+        }
+        tokio::fs::write(&file_path, &ramp).await.unwrap();
+
+        let share_name = "media".to_string();
+        let space_id = "test-space".to_string();
+
+        let mut server = PeerEndpoint::new_ephemeral();
+        server.set_random_test_identity();
+        let server_id = server.start_for_test().await.expect("server bind");
+        server
+            .add_share(
+                "share-1".to_string(),
+                share_name.clone(),
+                tmp.path().to_string_lossy().to_string(),
+                space_id.clone(),
+            )
+            .await;
+
+        let mut client_inner = PeerEndpoint::new_ephemeral();
+        let client_did = client_inner.set_random_test_identity();
+        client_inner.start_for_test().await.expect("client bind");
+        let client_id = client_inner.endpoint_id();
+
+        let mut allowed = HashMap::new();
+        let mut spaces = HashSet::new();
+        spaces.insert(space_id.clone());
+        allowed.insert(client_id.to_string(), spaces);
+        server.set_allowed_peers(allowed).await;
+
+        let mut owner_dids = HashMap::new();
+        owner_dids.insert(client_id.to_string(), client_did.clone());
+        server.set_peer_owner_dids(owner_dids).await;
+
+        let server_addr = server.endpoint_ref().unwrap().addr();
+        client_inner
+            .connect_for_test(server_addr)
+            .await
+            .expect("client → server connect");
+
+        let seed: [u8; 32] = rand::random();
+        let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
+        let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
+        let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
+
+        let file_hash = blake3::hash(&ramp).to_hex().to_string();
+        let chunk_hashes: Vec<String> = (0..4)
+            .map(|i| {
+                let s = i * chunk_size;
+                let e = (i + 1) * chunk_size;
+                blake3::hash(&ramp[s..e]).to_hex().to_string()
+            })
+            .collect();
+        let manifest = crate::file_sync::hashing::ChunkedHash {
+            file_hash: file_hash.clone(),
+            chunk_size: crate::file_sync::hashing::CHUNK_HASH_SIZE,
+            chunk_hashes,
+        };
+
+        // Sidecar agrees on `file_hash` but lies about `chunk_size` (half
+        // the real value). The drift filter must reject it and the partial
+        // file must be re-truncated, so the junk bytes we seed cannot
+        // survive into the final output.
+        let tmp_out = tempfile::tempdir().unwrap();
+        let out_path = tmp_out.path().join("out_drift_multi.bin");
+        let partial_path =
+            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        tokio::fs::write(&partial_path, vec![0xCCu8; payload_len])
+            .await
+            .unwrap();
+
+        let stale = crate::peer_storage::resume::PartialState {
+            file_hash: file_hash.clone(),
+            chunk_size: crate::file_sync::hashing::CHUNK_HASH_SIZE / 2,
+            completed: vec![true, true, true, true, true, true, true, true],
+        };
+        stale.save(&out_path).await.unwrap();
+
+        let path = format!("/{share_name}/drift_multi.bin");
+        let result = crate::peer_storage::client::read_multipart_to_file(
+            client,
+            server_id,
+            None,
+            path,
+            out_path.clone(),
+            payload_len as u64,
+            4,
+            Some(&manifest),
+            None,
+            None,
+            None,
+            ucan,
+        )
+        .await
+        .expect("drift sidecar must fall back to fresh download");
+
+        assert_eq!(result.bytes, payload_len as u64);
+        let on_disk = tokio::fs::read(&out_path).await.unwrap();
+        assert_eq!(
+            on_disk, ramp,
+            "drift fallback must produce the real file, not the 0xCC junk seed"
+        );
+    }
 }
