@@ -73,6 +73,7 @@ import {
   type AvatarOptions,
   botttsStyle,
   toonHeadStyle,
+  toDiceBearOptions,
   defaultToonHeadOptions,
   defaultBotttsOptions,
   randomToonHeadOptions,
@@ -127,18 +128,8 @@ const currentOptions = computed<AvatarOptions>(() =>
 // Live preview SVG
 const previewSvg = computed(() => {
   const opts = currentOptions.value
-
-  // Build DiceBear-compatible options (values wrapped in arrays)
-  const diceBearOptions: Record<string, unknown> = { seed: props.seed }
-  for (const [key, value] of Object.entries(opts)) {
-    if (key === 'style') continue
-    diceBearOptions[key] = typeof value === 'string' && !key.endsWith('Probability')
-      ? [value]
-      : value
-  }
-
   const style = opts.style === 'toon-head' ? toonHeadStyle : botttsStyle
-  return new Avatar(style, diceBearOptions).toString()
+  return new Avatar(style, { seed: props.seed, ...toDiceBearOptions(opts) }).toString()
 })
 
 function onConfirm() {

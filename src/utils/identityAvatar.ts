@@ -40,7 +40,7 @@ export interface ToonHeadOptions {
 
 export interface BotttsOptions {
   style: 'bottts'
-  face: string
+  head: string
   eyes: string
   mouth: string
   mouthProbability: number
@@ -92,7 +92,7 @@ export function randomToonHeadOptions(): ToonHeadOptions {
 export function randomBotttsOptions(): BotttsOptions {
   return {
     style: 'bottts',
-    face: pick(['round01', 'round02', 'square01', 'square02', 'square03', 'square04'] as const),
+    head: pick(['round01', 'round02', 'square01', 'square02', 'square03', 'square04'] as const),
     eyes: pick(['bulging', 'dizzy', 'eva', 'frame1', 'frame2', 'glow', 'happy', 'hearts', 'robocop', 'round', 'roundFrame01', 'roundFrame02', 'sensor', 'shade01'] as const),
     mouth: pick(['bite', 'diagram', 'grill01', 'grill02', 'grill03', 'smile01', 'smile02', 'square01', 'square02'] as const),
     mouthProbability: Math.random() < 0.5 ? 100 : 0,
@@ -127,7 +127,7 @@ export function defaultToonHeadOptions(): ToonHeadOptions {
 export function defaultBotttsOptions(): BotttsOptions {
   return {
     style: 'bottts',
-    face: 'round01',
+    head: 'round01',
     eyes: 'round',
     mouth: 'smile01',
     mouthProbability: 100,
@@ -151,13 +151,18 @@ export function defaultBotttsOptions(): BotttsOptions {
 // customizer preview.
 // ---------------------------------------------------------------------------
 
-function toDiceBearOptions(options: AvatarOptions): Record<string, unknown> {
+// DiceBear v10 distinguishes component-variant keys (`${K}Variant`),
+// probability keys (`${K}Probability`), and color keys (`${K}Color`). Our
+// option type stores the bare component name, so on the way into Avatar we
+// append the `Variant` suffix to anything that isn't a color or probability.
+export function toDiceBearOptions(options: AvatarOptions): Record<string, unknown> {
   const dice: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(options)) {
     if (key === 'style') continue
-    dice[key] = typeof value === 'string' && !key.endsWith('Probability')
-      ? [value]
-      : value
+    const isColor = key.endsWith('Color')
+    const isProbability = key.endsWith('Probability')
+    const v10Key = isColor || isProbability ? key : `${key}Variant`
+    dice[v10Key] = typeof value === 'string' && !isProbability ? [value] : value
   }
   return dice
 }

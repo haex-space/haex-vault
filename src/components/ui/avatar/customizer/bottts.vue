@@ -17,10 +17,10 @@
             :key="option"
             type="button"
             class="rounded-lg border-2 p-1 transition-colors hover:border-primary"
-            :class="options.face === option ? 'border-primary bg-primary/10' : 'border-default'"
-            @click="updateOption('face', option)"
+            :class="options.head === option ? 'border-primary bg-primary/10' : 'border-default'"
+            @click="updateOption('head', option)"
           >
-            <div class="w-full aspect-square [&>svg]:w-full [&>svg]:h-full" v-html="previewSvg('face', option)" />
+            <div class="w-full aspect-square [&>svg]:w-full [&>svg]:h-full" v-html="previewSvg('head', option)" />
           </button>
         </div>
       </div>
@@ -239,13 +239,13 @@ function previewSvg(key: string, value: string): string {
     topProbability: key === 'top' ? 100 : o.topProbability,
     sidesProbability: key === 'sides' ? 100 : o.sidesProbability,
     textureProbability: key === 'texture' ? 100 : o.textureProbability,
-    // Wrap values into arrays for DiceBear
-    face: [pick('face')],
-    eyes: [pick('eyes')],
-    mouth: [pick('mouth')],
-    top: [pick('top')],
-    sides: [pick('sides')],
-    texture: [pick('texture')],
+    // DiceBear v10 uses `${component}Variant` keys.
+    headVariant: [pick('head')],
+    eyesVariant: [pick('eyes')],
+    mouthVariant: [pick('mouth')],
+    topVariant: [pick('top')],
+    sidesVariant: [pick('sides')],
+    textureVariant: [pick('texture')],
     baseColor: [pick('baseColor')],
   }
 
