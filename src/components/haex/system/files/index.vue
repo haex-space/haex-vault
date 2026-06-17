@@ -950,11 +950,20 @@ const setPreviewMaximized = async (maximized: boolean) => {
 const togglePreviewMaximized = () => setPreviewMaximized(!isPreviewMaximized.value)
 
 const onPreviewOpenChange = (open: boolean) => {
-  if (!open) {
-    if (isPreviewMaximized.value) void setPreviewMaximized(false)
-    browser.preview.close()
-  }
+  if (!open) browser.preview.close()
 }
+
+// Exit OS fullscreen whenever the preview closes — by any path. A programmatic
+// `preview.close()` (e.g. breadcrumb navigation via navigateToRoot) flips
+// `isOpen` without emitting the modal's `update:open`, so resetting here rather
+// than in `onPreviewOpenChange` covers both the user-driven and code-driven
+// close.
+watch(
+  () => browser.preview.isOpen.value,
+  (open) => {
+    if (!open && isPreviewMaximized.value) void setPreviewMaximized(false)
+  },
+)
 
 // Safety net: if this view unmounts while still maximized (e.g. navigating
 // away without closing the modal), the OS window would stay fullscreen.
@@ -1836,7 +1845,7 @@ de:
   cancelTransfer: Übertragung abbrechen
   cancelTransferFailed: Übertragung konnte nicht abgebrochen werden
   mediaPlaybackFailed: Wiedergabe fehlgeschlagen
-  mediaCodecMissing: 'Dieses Format kann nicht abgespielt werden – möglicherweise fehlt ein Codec (z. B. H.264). Unter Linux: „gstreamer1.0-libav" installieren.'
+  mediaCodecMissing: 'Dieses Format kann nicht abgespielt werden – möglicherweise fehlen Codecs (z. B. H.264/AAC). Unter Linux: „gstreamer1.0-libav" und „gstreamer1.0-plugins-bad" installieren.'
   maximizePreview: Maximieren
   restorePreview: Verkleinern
   downloadThroughputTooltip: Aktuelle Download-Geschwindigkeit
@@ -1901,7 +1910,7 @@ en:
   cancelTransfer: Cancel transfer
   cancelTransferFailed: Could not cancel transfer
   mediaPlaybackFailed: Playback failed
-  mediaCodecMissing: 'This format can''t be played – a codec may be missing (e.g. H.264). On Linux, install "gstreamer1.0-libav".'
+  mediaCodecMissing: 'This format can''t be played – codecs may be missing (e.g. H.264/AAC). On Linux, install "gstreamer1.0-libav" and "gstreamer1.0-plugins-bad".'
   maximizePreview: Maximize
   restorePreview: Restore
   downloadThroughputTooltip: Current download speed
