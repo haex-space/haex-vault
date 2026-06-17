@@ -10,9 +10,15 @@ export type FileState = { relativePath: string, size: bigint,
  */
 modifiedAt: bigint, isDirectory: boolean, 
 /**
- * SHA-256 of file content as lowercase hex. `None` for directories or
- * when the provider has not (yet) computed it. The diff engine uses this
- * for authoritative equality — timestamps alone are unreliable because
- * `write` resets mtime on the receiver.
+ * BLAKE3 of the full file, lowercase hex. None for directories.
  */
-hash?: string, };
+hash?: string, 
+/**
+ * Chunk size in bytes. None for directories.
+ */
+chunkSize?: number, 
+/**
+ * BLAKE3 hash of each chunk, lowercase hex, in order. None for directories;
+ * empty Vec is invalid for files.
+ */
+chunkHashes?: Array<string>, };

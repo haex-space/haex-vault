@@ -234,11 +234,18 @@ export function useMediaPlayback(deps: MediaPlaybackDeps) {
       } else if (peer.localPath) {
         absPath = resolveLocalAbsolutePath(file)
       } else {
+        const spaceId = file.spaceId ?? currentSpaceId.value ?? undefined
+        const spaceName = spaceId
+          ? useSpacesStore().spaces.find(s => s.id === spaceId)?.name ?? null
+          : null
         absPath = await peerStore.remoteReadAsync(
           peer.endpointId,
           resolveFilePath(file),
           undefined,
-          file.spaceId ?? currentSpaceId.value ?? undefined,
+          spaceId,
+          file.size,
+          file.modified ?? null,
+          spaceName,
         )
       }
     } catch (e) {

@@ -6,11 +6,13 @@
 mod android;
 pub(crate) mod client;
 pub mod commands;
+pub(crate) mod downloads;
 pub mod endpoint;
 pub mod error;
 mod handlers;
 mod helpers;
 pub mod protocol;
+pub(crate) mod resume;
 pub(crate) mod streaming;
 #[cfg(test)]
 mod tests;

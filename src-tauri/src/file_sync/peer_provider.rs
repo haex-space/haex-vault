@@ -13,6 +13,7 @@ use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::{self, Request, Response};
 use crate::peer_storage::streaming;
 
+use super::hashing::ChunkedHash;
 use super::provider::{validate_relative_path, ReadFileResult, SyncProvider, SyncProviderError};
 use super::types::FileState;
 
@@ -253,58 +254,23 @@ impl SyncProvider for PeerProvider {
         &self,
         relative_path: &str,
         output_path: &std::path::Path,
+        expected_chunks: Option<ChunkedHash>,
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<ReadFileResult, SyncProviderError> {
         validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
 
-        // Probe size first so we can pick between single-stream and
-        // multi-stream. The stat round-trip costs ~1 RTT — negligible on
-        // LAN, and easily repaid by the parallel-stream throughput gain on
-        // anything that crosses [`streaming::MULTI_STREAM_THRESHOLD`].
-        let stat = self
-            .endpoint
-            .read()
-            .await
-            .remote_stat(self.remote_id, self.relay_url.clone(), &full_path, &self.ucan_token)
-            .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
-
-        if !stat.is_dir && stat.size >= streaming::MULTI_STREAM_THRESHOLD {
-            let result = crate::peer_storage::client::read_multipart_to_file(
-                self.endpoint.clone(),
-                self.remote_id,
-                self.relay_url.clone(),
-                full_path,
-                output_path.to_path_buf(),
-                stat.size,
-                streaming::MAX_PARALLEL_STREAMS_PER_FILE,
-                Some(on_progress),
-                None,
-                None,
-                self.ucan_token.clone(),
-            )
-            .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
-            return Ok(ReadFileResult {
-                bytes: result.bytes,
-                hash: result.hash,
-            });
-        }
-
-        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
-            SyncProviderError::ConnectionFailed { reason: e.to_string() }
-        })?;
-        let result = crate::peer_storage::endpoint::PeerEndpoint::read_open_streams_to_file(
-            &mut send,
-            &mut recv,
-            &full_path,
-            output_path,
-            None,
-            Some(Box::new(move |done, total| on_progress(done, total))),
+        let result = crate::peer_storage::client::download_file_to_path(
+            self.endpoint.clone(),
+            self.remote_id,
+            self.relay_url.clone(),
+            full_path,
+            output_path.to_path_buf(),
+            expected_chunks,
+            Some(on_progress),
             None,
             None,
-            &self.ucan_token,
+            self.ucan_token.clone(),
         )
         .await
         .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;

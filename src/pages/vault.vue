@@ -81,10 +81,64 @@ onBeforeUnmount(async () => {
   }
 })
 
+const readAutostartEnabledAsync = async (deviceId: string): Promise<boolean> => {
+  const row = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
+    where: and(
+      eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
+      eq(haexVaultSettings.deviceId, deviceId),
+    ),
+  })
+  return row?.value !== 'false'
+}
+
 onMounted(async () => {
   try {
     // Initialize vault (device, spaces, cleanup) — must run after navigation
     await vaultStore.initVaultAsync()
+
+    // Auto-start P2P endpoint unless the user explicitly disabled it on this device.
+    // Default-on semantics: missing row = enabled; only 'false' disables.
+    //
+    // Start gates on `deviceRowId` (haex_devices.id). On a fresh vault,
+    // `resolveAsync()` returns 'pending' and the device row only appears once
+    // the user completes the Welcome/reconciliation dialog — so a one-shot
+    // gate at mount would never fire and the endpoint would stay down for the
+    // whole session (targeted invites then silently connect-timeout until the
+    // next app launch). We therefore react to `deviceRowId` becoming available
+    // instead of gating only on its mount-time value.
+    //
+    // The watcher MUST be registered before `isVaultReady` flips the
+    // WelcomeDialog visible — Welcome's `registerNewAsync` commits the device
+    // row the moment the user clicks Continue, and the rest of this onMounted
+    // block (Promise.allSettled below) can still be in flight at that point.
+    // Without `immediate: true` plus the early registration, a fast click
+    // would set deviceRowId before the watcher exists and the autostart would
+    // silently never fire for the session. `immediate: true` also covers the
+    // matched-device path where the row is already there at mount.
+    const deviceStore = useDeviceStore()
+    const peerStorageStore = usePeerStorageStore()
+
+    const tryStartPeerStorageAsync = async () => {
+      if (!deviceStore.deviceRowId || peerStorageStore.running) return
+      // Re-read the per-device setting at fire time: on a fresh vault,
+      // `deviceId` is only known after the Welcome dialog commits the device
+      // row, so a mount-time read would miss the per-device row.
+      const autostartEnabled = await readAutostartEnabledAsync(deviceStore.deviceId)
+      if (!autostartEnabled) return
+      try {
+        await peerStorageStore.startAsync()
+      } catch (error) {
+        console.warn('[P2P] Autostart failed:', error)
+      }
+    }
+
+    stopDeviceRowWatch?.()
+    stopDeviceRowWatch = watch(
+      () => deviceStore.deviceRowId,
+      (rowId) => { if (rowId) void tryStartPeerStorageAsync() },
+      { immediate: true },
+    )
+
     isVaultReady.value = true
 
     if (isRemoteSyncVault.value) {
@@ -119,45 +173,6 @@ onMounted(async () => {
     // extension-frame.vue renders.
     setupBroadcastListeners()
 
-    // Auto-start P2P endpoint unless the user explicitly disabled it on this device.
-    // Default-on semantics: missing row = enabled; only 'false' disables.
-    //
-    // Start gates on `deviceRowId` (haex_devices.id). On a fresh vault,
-    // `resolveAsync()` returns 'pending' and the device row only appears once
-    // the user completes the Welcome/reconciliation dialog — so a one-shot
-    // gate at mount would never fire and the endpoint would stay down for the
-    // whole session (targeted invites then silently connect-timeout until the
-    // next app launch). We therefore react to `deviceRowId` becoming available
-    // instead of gating only on its mount-time value.
-    const deviceStore = useDeviceStore()
-    const peerStorageStore = usePeerStorageStore()
-
-    const peerAutostart = await currentVault.value?.drizzle.query.haexVaultSettings.findFirst({
-      where: and(
-        eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
-        eq(haexVaultSettings.deviceId, deviceStore.deviceId),
-      ),
-    })
-    const autostartEnabled = peerAutostart?.value !== 'false'
-
-    const tryStartPeerStorageAsync = async () => {
-      if (!autostartEnabled || !deviceStore.deviceRowId || peerStorageStore.running) return
-      try {
-        await peerStorageStore.startAsync()
-      } catch (error) {
-        console.warn('[P2P] Autostart failed:', error)
-      }
-    }
-
-    await tryStartPeerStorageAsync()
-    // Covers the fresh-vault path: the device row is committed later by the
-    // reconciliation dialog (registerNewAsync / reclaimAsync), after this
-    // onMounted block has already run.
-    stopDeviceRowWatch?.()
-    stopDeviceRowWatch = watch(() => deviceStore.deviceRowId, (rowId) => {
-      if (rowId) void tryStartPeerStorageAsync()
-    })
-
     // Set up file sync event listeners so progress/complete events are handled.
     // When P2P is enabled, startAsync() calls loadRulesAsync() + startEnabledRulesAsync()
     // after the endpoint is up — starting rules here too would cause a double-start race.
@@ -166,7 +181,8 @@ onMounted(async () => {
     const fileSyncStore = useFileSyncStore()
     fileSyncStore.loadRulesAsync()
       .then(() => fileSyncStore.setupEventListeners())
-      .then(() => {
+      .then(async () => {
+        const autostartEnabled = await readAutostartEnabledAsync(deviceStore.deviceId)
         if (!autostartEnabled) {
           return fileSyncStore.startEnabledRulesAsync()
         }

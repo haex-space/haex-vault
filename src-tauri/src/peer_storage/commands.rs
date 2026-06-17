@@ -472,6 +472,10 @@ pub async fn peer_storage_remote_read(
     path: String,
     transfer_id: Option<String>,
     save_to: Option<String>,
+    expected_size: Option<u64>,
+    expected_modified: Option<u64>,
+    space_folder: Option<String>,
+    space_id: Option<String>,
     ucan_token: String,
     on_event: Channel<TransferEvent>,
 ) -> Result<String, PeerStorageError> {
@@ -483,7 +487,66 @@ pub async fn peer_storage_remote_read(
 
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
-    // Determine output path: explicit save_to or system Downloads folder
+    // Pre-flight dedup: if we've recorded a prior successful download for
+    // (endpoint_id, remote_path), and the peer's current FileEntry matches
+    // what we cached AND the local target is still intact, skip the network
+    // round-trip and resolve the transfer with the existing local path.
+    //
+    // Three independent checks must all pass — any miss drops the row and
+    // falls through to a fresh download:
+    //   1. size matches
+    //   2. modified matches (NULL == NULL counted as a match — some peers
+    //      don't expose mtime)
+    //   3. local target still exists with the recorded size on disk
+    //      (filesystem stat on desktop, MediaStore URI len on Android)
+    //
+    // Only kicks in when the caller hasn't passed an explicit `save_to`
+    // (which is a deliberate "write to this exact path" override).
+    if save_to.is_none() {
+        if let Some(expected) = expected_size {
+            if let Ok(Some(record)) =
+                crate::peer_storage::downloads::find(&state.db, &node_id, &path)
+            {
+                let modified_match = match (record.modified, expected_modified) {
+                    (Some(a), Some(b)) => a == b,
+                    (None, None) => true,
+                    _ => false,
+                };
+                if record.size == expected
+                    && modified_match
+                    && verify_local_target_intact(&app, &record.local_path, expected)
+                {
+                    let _ = on_event.send(TransferEvent::Complete {
+                        local_path: record.local_path.clone(),
+                        total_bytes: expected,
+                    });
+                    return Ok(record.local_path);
+                }
+                // Mismatch or local target gone — drop the dead row so the
+                // next round doesn't re-trip the same stale lookup.
+                let _ = crate::peer_storage::downloads::delete(&state.db, &node_id, &path);
+            }
+        }
+    }
+
+    // Sanitize the per-space subfolder once — same string flows into the
+    // desktop filesystem path and the Android MediaStore relative_path so
+    // dedup works identically across platforms.
+    let space_subfolder = match (&space_folder, &space_id) {
+        (Some(name), _) => crate::peer_storage::downloads::sanitize_folder_segment(
+            name,
+            space_id.as_deref().unwrap_or("default"),
+        ),
+        (None, Some(id)) => {
+            crate::peer_storage::downloads::sanitize_folder_segment(id, "default")
+        }
+        (None, None) => "default".to_string(),
+    };
+
+    // Determine the on-disk staging path. On desktop this is the final
+    // location (Downloads/HaexVault/<space>/<file>). On Android it's the
+    // app-private staging path — `move_to_public_downloads` later copies it
+    // into MediaStore's public Downloads under the same relative layout.
     let output_path = if let Some(ref dest) = save_to {
         PathBuf::from(dest)
     } else {
@@ -492,7 +555,10 @@ pub async fn peer_storage_remote_read(
             .map_err(|e| PeerStorageError::ProtocolError {
                 reason: format!("Failed to get downloads dir: {e}"),
             })?;
-        std::fs::create_dir_all(&downloads_dir).map_err(|e| PeerStorageError::ProtocolError {
+
+        let target_dir = downloads_dir.join("HaexVault").join(&space_subfolder);
+
+        std::fs::create_dir_all(&target_dir).map_err(|e| PeerStorageError::ProtocolError {
             reason: format!("Failed to create downloads dir: {e}"),
         })?;
         let file_name = std::path::Path::new(&path)
@@ -500,7 +566,16 @@ pub async fn peer_storage_remote_read(
             .unwrap_or(std::ffi::OsStr::new("download"))
             .to_string_lossy()
             .to_string();
-        deduplicate_path(&downloads_dir, &file_name)
+
+        // Land at the canonical name — no `(1)`/`(2)` suffixing. The
+        // HaexVault/<space>/ subfolder is our managed area, scoped to a
+        // single peer's view of a single space, so "the file at this
+        // (peer, remote_path)" has exactly one canonical local name. When
+        // the registry already records that download we short-circuit
+        // above; falling through to this point means we want a fresh copy,
+        // which should replace the previous bytes rather than accumulate
+        // numbered duplicates.
+        target_dir.join(&file_name)
     };
 
     // Create cancel + pause controls for this transfer. Reject duplicates so
@@ -522,6 +597,13 @@ pub async fn peer_storage_remote_read(
 
     let output_path_str = output_path.to_string_lossy().to_string();
     let app_handle = app.clone();
+    // Captures for the registry insert on successful completion. `node_id`
+    // and `path` are the lookup key; the others let us short-circuit a
+    // future re-download.
+    let registry_node_id = node_id.clone();
+    let registry_remote_path = path.clone();
+    let registry_modified = expected_modified;
+    let android_sub_path = format!("HaexVault/{space_subfolder}");
 
     // Spawn the download on a separate task. The IPC handler returns immediately
     // with the target path. Progress/completion/errors are streamed via the Channel.
@@ -530,46 +612,50 @@ pub async fn peer_storage_remote_read(
 
         // Progress callback with throttling: at most every 100ms to avoid
         // overwhelming the IPC bridge on mobile (each message crosses JNI/WebView).
+        //
+        // Multi-stream downloads call this from up to 4 parallel tasks, so we
+        // hold the throttle timestamp and the last-emitted byte count under
+        // one lock and clamp `received` to the running max. Without the clamp
+        // a thread whose `cb()` runs after a larger `received` would emit a
+        // smaller `bytes_received`, breaking the frontend's delta-based EMA.
         let on_event_progress = on_event.clone();
-        let progress_cb: Option<Box<dyn Fn(u64, u64) + Send>> = Some({
-            let last_emit = std::sync::Mutex::new(std::time::Instant::now() - std::time::Duration::from_secs(1));
-            Box::new(move |received: u64, total: u64| {
+        let progress_cb: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new({
+            let state = std::sync::Mutex::new((
+                std::time::Instant::now() - std::time::Duration::from_secs(1),
+                0_u64, // last emitted bytes_received — monotonically clamped
+            ));
+            move |received: u64, total: u64| {
                 let now = std::time::Instant::now();
-                let should_emit = {
-                    let last = last_emit.lock().unwrap_or_else(|e| e.into_inner());
-                    received >= total || now.duration_since(*last).as_millis() >= 100
-                };
+                let mut guard = state.lock().unwrap_or_else(|e| e.into_inner());
+                let monotonic = received.max(guard.1);
+                let should_emit =
+                    monotonic >= total || now.duration_since(guard.0).as_millis() >= 100;
                 if should_emit {
-                    *last_emit.lock().unwrap_or_else(|e| e.into_inner()) = now;
+                    guard.0 = now;
+                    guard.1 = monotonic;
                     let _ = on_event_progress.send(TransferEvent::Progress {
-                        bytes_received: received,
+                        bytes_received: monotonic,
                         total_bytes: total,
                     });
                 }
-            }) as Box<dyn Fn(u64, u64) + Send>
+            }
         });
 
-        // Hold the lock only for stream open (bounded by connection timeout ~3s).
-        // The actual file I/O runs without any lock so peer_storage_start/stop are
-        // not blocked for the duration of the download.
-        let streams = {
-            let endpoint = state.peer_storage.read().await;
-            endpoint.open_stream(remote_id, parsed_relay).await
-        };
-        let (mut send, mut recv) = match streams {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = on_event.send(TransferEvent::Error { error: e.to_string() });
-                if let Some(tid) = &transfer_id {
-                    state.transfer_tokens.lock().await.remove(tid);
-                }
-                return;
-            }
-        };
-        let result = crate::peer_storage::endpoint::PeerEndpoint::read_open_streams_to_file(
-            &mut send, &mut recv, &path, &output_path,
-            None, progress_cb, cancel_token, pause_flag, &ucan_token,
-        ).await;
+        let result = crate::peer_storage::client::download_file_to_path(
+            state.peer_storage.clone(),
+            remote_id,
+            parsed_relay,
+            path.clone(),
+            output_path.clone(),
+            // File-browser flow has no manifest; the stat-probe response
+            // supplies the chunked hash that governs verification.
+            None,
+            Some(progress_cb),
+            cancel_token,
+            pause_flag,
+            ucan_token.clone(),
+        )
+        .await;
 
         // Clean up cancel token
         if let Some(tid) = &transfer_id {
@@ -578,7 +664,26 @@ pub async fn peer_storage_remote_read(
 
         match result {
             Ok(stream_result) => {
-                let final_path = move_to_public_downloads(&app_handle, &output_path);
+                let final_path = move_to_public_downloads(
+                    &app_handle,
+                    &output_path,
+                    Some(&android_sub_path),
+                );
+                // Record the successful download so the next click on the
+                // same (peer, path) can skip the network. If the insert
+                // fails we log and keep going — a failed registry write
+                // just means the user pays the cost of one more re-download
+                // next time, not a transfer-failed outcome.
+                if let Err(e) = crate::peer_storage::downloads::upsert(
+                    &state.db,
+                    &registry_node_id,
+                    &registry_remote_path,
+                    stream_result.bytes,
+                    registry_modified,
+                    &final_path,
+                ) {
+                    eprintln!("[peer_storage] Failed to record download in registry: {e}");
+                }
                 let _ = on_event.send(TransferEvent::Complete {
                     local_path: final_path,
                     total_bytes: stream_result.bytes,
@@ -824,11 +929,14 @@ pub async fn open_file_system(
 
 /// On Android, copy a downloaded file from the app-private directory to the
 /// public Downloads folder via MediaStore so it becomes visible in the system
-/// file manager. Returns the FileUri JSON string of the public file on Android,
-/// or the original path string on other platforms.
+/// file manager. The `sub_path` parameter places the file under a relative
+/// directory inside Downloads (e.g. `HaexVault/My Space`) — MediaStore creates
+/// the directory chain on demand. Returns the FileUri JSON string of the
+/// public file on Android, or the original path string on other platforms.
 fn move_to_public_downloads(
     #[allow(unused_variables)] app_handle: &tauri::AppHandle,
     output_path: &std::path::Path,
+    #[allow(unused_variables)] sub_path: Option<&str>,
 ) -> String {
     #[cfg(target_os = "android")]
     {
@@ -839,16 +947,21 @@ fn move_to_public_downloads(
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
+        // MediaStore takes a single relative_path that includes the file name.
+        // Build `HaexVault/<space>/<file>` here so the dir chain materialises.
+        let relative_path = match sub_path {
+            Some(s) if !s.is_empty() => format!("{s}/{file_name}"),
+            _ => file_name.clone(),
+        };
 
         let result: Result<String, String> = (|| {
             let api = app_handle.android_fs();
             let ps = api.public_storage();
 
-            // Create empty file in public Downloads (MediaStore)
             let dest_uri = ps.create_new_file(
                 None,
                 PublicGeneralPurposeDir::Download,
-                &file_name,
+                &relative_path,
                 None,
             ).map_err(|e| format!("create_new_file: {e:?}"))?;
 
@@ -882,31 +995,40 @@ fn move_to_public_downloads(
     }
 }
 
-/// Find a non-colliding file path: photo.jpg → photo (1).jpg → photo (2).jpg → …
-fn deduplicate_path(dir: &std::path::Path, file_name: &str) -> PathBuf {
-    let candidate = dir.join(file_name);
-    if !candidate.exists() {
-        return candidate;
-    }
-
-    let stem = std::path::Path::new(file_name)
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy();
-    let ext = std::path::Path::new(file_name)
-        .extension()
-        .map(|e| format!(".{}", e.to_string_lossy()))
-        .unwrap_or_default();
-
-    for i in 1..10_000 {
-        let numbered = dir.join(format!("{stem} ({i}){ext}"));
-        if !numbered.exists() {
-            return numbered;
+/// Verify that a previously-recorded local path still references a file
+/// with the expected size. Returns `true` only on an exact match — any I/O
+/// error, missing target, or size mismatch is treated as a cache miss and
+/// triggers a fresh download.
+///
+/// On desktop, `local_path` is a filesystem path. On Android, it is a
+/// JSON-encoded `FileUri` pointing at a MediaStore entry; we call
+/// `android_fs.get_len` which returns an error if the user has deleted
+/// the file via the system file manager.
+fn verify_local_target_intact(
+    #[allow(unused_variables)] app_handle: &tauri::AppHandle,
+    local_path: &str,
+    expected_size: u64,
+) -> bool {
+    #[cfg(target_os = "android")]
+    {
+        if local_path.starts_with('{') {
+            use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+            let Ok(uri) = FileUri::from_json_str(local_path) else {
+                return false;
+            };
+            return app_handle
+                .android_fs()
+                .get_len(&uri)
+                .map(|len| len == expected_size)
+                .unwrap_or(false);
         }
+        // Fall through to filesystem check for non-URI paths (legacy rows).
     }
 
-    // Fallback: use UUID suffix
-    dir.join(format!("{stem}_{}{ext}", uuid::Uuid::new_v4()))
+    match std::fs::metadata(local_path) {
+        Ok(m) => m.is_file() && m.len() == expected_size,
+        Err(_) => false,
+    }
 }
 
 // ============================================================================

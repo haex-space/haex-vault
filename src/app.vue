@@ -1,35 +1,38 @@
 <template>
   <UApp :locale="locales[locale]">
-    <div data-vaul-drawer-wrapper>
-      <NuxtPage />
-    </div>
+    <DnDProvider preview-to="body">
+      <div data-vaul-drawer-wrapper>
+        <NuxtPage />
+      </div>
 
-    <!-- Critical-Failure Banner — surfaces mutex-poison / schema-drift /
-         audit-log-write failures recorded by `crate::critical::lock_or_fail`.
-         Mounted at app root so it appears on every page; gating per-route
-         would risk hiding the banner during the navigation that exposes
-         the user to data risk. -->
-    <HaexCriticalFailureBanner />
+      <!-- Critical-Failure Banner — surfaces mutex-poison / schema-drift /
+           audit-log-write failures recorded by `crate::critical::lock_or_fail`.
+           Mounted at app root so it appears on every page; gating per-route
+           would risk hiding the banner during the navigation that exposes
+           the user to data risk. -->
+      <HaexCriticalFailureBanner />
 
-    <!-- Global Permission Prompt Dialog -->
-    <HaexExtensionDialogPermissionPrompt
-      :open="permissionPrompt.isOpen.value"
-      :prompt-data="permissionPrompt.promptData.value"
-      :pending-count="permissionPrompt.pendingCount.value"
-      @update:open="(v) => !v && permissionPrompt.cancelPrompt()"
-      @decision="permissionPrompt.handleDecision"
-    />
+      <!-- Global Permission Prompt Dialog -->
+      <HaexExtensionDialogPermissionPrompt
+        :open="permissionPrompt.isOpen.value"
+        :prompt-data="permissionPrompt.promptData.value"
+        :pending-count="permissionPrompt.pendingCount.value"
+        @update:open="(v) => !v && permissionPrompt.cancelPrompt()"
+        @decision="permissionPrompt.handleDecision"
+      />
 
-    <!-- External Client Authorization Dialog -->
-    <HaexExtensionDialogExternalAuth
-      v-model:open="externalAuthOpen"
-      :pending-auth="externalAuth.pendingAuth.value"
-      @decision="externalAuth.handleDecision"
-    />
+      <!-- External Client Authorization Dialog -->
+      <HaexExtensionDialogExternalAuth
+        v-model:open="externalAuthOpen"
+        :pending-auth="externalAuth.pendingAuth.value"
+        @decision="externalAuth.handleDecision"
+      />
+    </DnDProvider>
   </UApp>
 </template>
 
 <script setup lang="ts">
+import { DnDProvider } from '@vue-dnd-kit/core'
 import * as locales from '@nuxt/ui/locale'
 import { setDebugEnabled, setModuleDebug } from '~/stores/logging'
 

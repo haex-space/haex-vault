@@ -787,6 +787,17 @@
         "lastSeen": "last_seen",
         "acknowledged": "acknowledged"
       }
+    },
+    "peer_downloads_no_sync": {
+      "name": "haex_peer_downloads_no_sync",
+      "columns": {
+        "endpointId": "endpoint_id",
+        "remotePath": "remote_path",
+        "size": "size",
+        "modified": "modified",
+        "localPath": "local_path",
+        "downloadedAt": "downloaded_at"
+      }
     }
   }
 }

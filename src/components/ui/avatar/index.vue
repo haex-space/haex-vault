@@ -44,11 +44,10 @@
 </template>
 
 <script setup lang="ts">
-import { createAvatar, type Style } from '@dicebear/core'
-import * as bottts from '@dicebear/bottts'
-import * as toonHead from '@dicebear/toon-head'
+import { Avatar } from '@dicebear/core'
+import { botttsStyle, toonHeadStyle } from '~/utils/identityAvatar'
 
-const avatarStyles: Record<string, Style<object>> = { bottts, 'toon-head': toonHead }
+const avatarStyles = { bottts: botttsStyle, 'toon-head': toonHeadStyle }
 
 const props = withDefaults(defineProps<{
   src?: string | null
@@ -91,15 +90,17 @@ const badgeSizeClasses: Record<string, string> = {
 const fallbackSvg = computed(() => {
   if (props.src) return ''
   if (props.avatarOptions) {
-    const style = avatarStyles[props.avatarOptions.style as string] ?? avatarStyles[props.avatarStyle] ?? bottts
-    return createAvatar(style, { seed: props.seed, ...props.avatarOptions }).toString()
+    const style = avatarStyles[props.avatarOptions.style as keyof typeof avatarStyles]
+      ?? avatarStyles[props.avatarStyle]
+      ?? botttsStyle
+    return new Avatar(style, { seed: props.seed, ...props.avatarOptions }).toString()
   }
   if (!props.seed) return ''
-  return createAvatar(avatarStyles[props.avatarStyle] ?? bottts, { seed: props.seed }).toString()
+  return new Avatar(avatarStyles[props.avatarStyle] ?? botttsStyle, { seed: props.seed }).toString()
 })
 
 const badgeFallbackSvg = computed(() => {
   if (!props.badgeSeed) return ''
-  return createAvatar(bottts, { seed: props.badgeSeed }).toString()
+  return new Avatar(botttsStyle, { seed: props.badgeSeed }).toString()
 })
 </script>

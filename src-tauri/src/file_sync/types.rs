@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use super::hashing::ChunkedHash;
+
 /// Metadata for a single file or directory.
 /// Both local scans and remote manifests produce `Vec<FileState>`.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -14,13 +16,60 @@ pub struct FileState {
     /// Unix timestamp in seconds
     pub modified_at: u64,
     pub is_directory: bool,
-    /// SHA-256 of file content as lowercase hex. `None` for directories or
-    /// when the provider has not (yet) computed it. The diff engine uses this
-    /// for authoritative equality — timestamps alone are unreliable because
-    /// `write` resets mtime on the receiver.
+    /// BLAKE3 of the full file, lowercase hex. None for directories.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub hash: Option<String>,
+    /// Chunk size in bytes. None for directories.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub chunk_size: Option<u32>,
+    /// BLAKE3 hash of each chunk, lowercase hex, in order. None for directories;
+    /// empty Vec is invalid for files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub chunk_hashes: Option<Vec<String>>,
+}
+
+impl FileState {
+    /// If all three chunk fields are populated, construct the wire-typed
+    /// `ChunkedHash` view of this manifest entry. Returns `None` for
+    /// directories and for entries from providers (cloud, legacy) that do
+    /// not yet announce per-chunk hashes.
+    pub fn chunked_hash(&self) -> Option<ChunkedHash> {
+        match (
+            self.hash.as_deref(),
+            self.chunk_size,
+            self.chunk_hashes.as_ref(),
+        ) {
+            // Three guards beyond "all fields populated":
+            // - `!self.is_directory` — directories never carry chunk hashes;
+            //   defence in depth against a literal FileState that fakes it.
+            // - `chunk_size > 0` — defensive against a future code path that
+            //   produces a malformed FileState; downstream verifiers reject
+            //   `chunk_size == 0` anyway.
+            // - `!chunk_hashes.is_empty() || self.size == 0` — a zero-byte
+            //   file legitimately has zero chunks (the streaming hasher's
+            //   tail-flush never fires), so its manifest entry is
+            //   `chunk_hashes: Some(vec![])`. We must accept that case or
+            //   the sync flow silently bypasses manifest pinning for
+            //   zero-byte files (caller falls back to stat-probe chunks).
+            //   A non-empty `size` paired with `Some(vec![])` is still
+            //   malformed and gets rejected.
+            (Some(file_hash), Some(chunk_size), Some(chunk_hashes))
+                if !self.is_directory
+                    && chunk_size > 0
+                    && (!chunk_hashes.is_empty() || self.size == 0) =>
+            {
+                Some(ChunkedHash {
+                    file_hash: file_hash.to_string(),
+                    chunk_size,
+                    chunk_hashes: chunk_hashes.clone(),
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Sync direction
@@ -93,3 +142,6 @@ pub struct SyncProgress {
     /// Current transfer rate in bytes/second
     pub bytes_per_second: u64,
 }
+
+#[cfg(test)]
+mod tests;

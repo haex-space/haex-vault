@@ -323,7 +323,9 @@ async fn handle_stat(
             })
             .await
             {
-                Ok(Ok(entry)) => Response::Stat { entry },
+                // Android Content URI stats do not currently populate chunks —
+                // chunk-hashing through the SAF JNI path is not wired up here.
+                Ok(Ok(entry)) => Response::Stat { entry, chunks: None },
                 Ok(Err(e)) => Response::Error { message: e },
                 Err(e) => Response::Error {
                     message: format!("Task failed: {e}"),
@@ -341,11 +343,66 @@ async fn handle_stat(
         Err(resp) => return resp,
     };
 
-    match file_entry_from_path(&local_path) {
-        Ok(entry) => Response::Stat { entry },
-        Err(e) => Response::Error {
-            message: format!("Failed to stat: {e}"),
-        },
+    stat_local_path(&local_path).await
+}
+
+/// Stat a local path and (for files) compute / fetch the cached
+/// BLAKE3 chunked hash. Split out so tests can exercise the file-vs-directory
+/// hash-population branch without spinning up a PeerState/UCAN harness.
+pub(super) async fn stat_local_path(local_path: &Path) -> Response {
+    let entry = match file_entry_from_path(local_path) {
+        Ok(e) => e,
+        Err(e) => {
+            return Response::Error {
+                message: format!("Failed to stat: {e}"),
+            };
+        }
+    };
+
+    if !entry.is_dir {
+        let path_for_hash = local_path.to_path_buf();
+        let size = entry.size;
+        let mtime_nanos = match std::fs::metadata(local_path)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_nanos())
+        {
+            Some(n) => n,
+            None => {
+                // No mtime (rare — e.g. some special filesystems). Skip
+                // chunk-hashing rather than poisoning the cache with a
+                // zero-nanos key that would alias unrelated files.
+                return Response::Stat {
+                    entry,
+                    chunks: None,
+                };
+            }
+        };
+
+        // `cached_hash_chunked` is synchronous and may hash a multi-GB file;
+        // spawn_blocking keeps the async runtime responsive.
+        match tokio::task::spawn_blocking(move || {
+            crate::file_sync::hashing::cached_hash_chunked(&path_for_hash, size, mtime_nanos)
+        })
+        .await
+        {
+            Ok(Ok(chunks)) => Response::Stat {
+                entry,
+                chunks: Some(chunks),
+            },
+            Ok(Err(e)) => Response::Error {
+                message: format!("Failed to hash file: {e}"),
+            },
+            Err(e) => Response::Error {
+                message: format!("Hash task failed: {e}"),
+            },
+        }
+    } else {
+        Response::Stat {
+            entry,
+            chunks: None,
+        }
     }
 }
 
@@ -815,5 +872,45 @@ async fn handle_create_directory(
         Err(e) => Response::Error {
             message: format!("Failed to create directory: {e}"),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn handle_stat_returns_chunks_for_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("hello.bin");
+        // 2 MiB + 5 bytes ⇒ exactly 3 chunks (chunk_size = 1 MiB).
+        let data: Vec<u8> = (0..(2 * 1024 * 1024 + 5))
+            .map(|i| (i % 251) as u8)
+            .collect();
+        tokio::fs::write(&file, &data).await.unwrap();
+
+        let response = stat_local_path(&file).await;
+
+        let Response::Stat { entry, chunks } = response else {
+            panic!("expected Stat response, got {response:?}");
+        };
+        assert_eq!(entry.size, data.len() as u64);
+        assert!(!entry.is_dir);
+        let chunks = chunks.expect("file stat must include chunks");
+        assert_eq!(chunks.chunk_size, crate::file_sync::hashing::CHUNK_HASH_SIZE);
+        assert_eq!(chunks.chunk_hashes.len(), 3);
+        let expected_file = blake3::hash(&data).to_hex().to_string();
+        assert_eq!(chunks.file_hash, expected_file);
+    }
+
+    #[tokio::test]
+    async fn handle_stat_returns_no_chunks_for_directories() {
+        let tmp = tempfile::tempdir().unwrap();
+        let response = stat_local_path(tmp.path()).await;
+        let Response::Stat { entry, chunks } = response else {
+            panic!("expected Stat response, got {response:?}");
+        };
+        assert!(entry.is_dir);
+        assert_eq!(chunks, None);
     }
 }

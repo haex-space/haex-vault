@@ -113,11 +113,18 @@ export function useFileMutations(deps: FileMutationsDeps) {
     } else {
       // Remote P2P file: existing streaming path already writes to disk
       // cache under the peer-storage's own location.
+      const spaceId = file.spaceId ?? currentSpaceId.value ?? undefined
+      const spaceName = spaceId
+        ? useSpacesStore().spaces.find(s => s.id === spaceId)?.name ?? null
+        : null
       await peerStore.remoteReadAsync(
         selectedPeer.value.endpointId,
         resolveFilePath(file),
         undefined,
-        file.spaceId ?? currentSpaceId.value ?? undefined,
+        spaceId,
+        file.size,
+        file.modified ?? null,
+        spaceName,
       )
       return true
     }

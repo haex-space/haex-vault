@@ -117,21 +117,22 @@ fn collect_content_uri_entries(
         let size = if is_directory { 0 } else { entry.file_len().unwrap_or(0) };
         let uri = entry.uri().clone();
 
-        // Compute SHA-256 for files. Without this, every sync between desktop
-        // and an Android Content URI share re-fires every cycle: the desktop
-        // side hashes (cached_hash on real paths), the Android side reported
-        // `hash: None`, and `files_equal` then fell back to size+mtime — which
-        // never matches because the receiver's mtime is the local write time.
+        // Compute BLAKE3 chunked hashes for files. Without this, every sync
+        // between desktop and an Android Content URI share re-fires every
+        // cycle: the desktop side hashes (cached_hash_chunked on real paths),
+        // the Android side reported `hash: None`, and `files_equal` then fell
+        // back to size+mtime — which never matches because the receiver's
+        // mtime is the local write time.
         //
         // Cost is bounded by the same `(uri, size, mtime_nanos)` cache the
         // LocalProvider uses, so unchanged files only pay the hash on first
         // scan. Cache misses cross the JNI boundary once per file (open via
         // ContentResolver) — acceptable for the symmetry it buys us.
-        let hash = if is_directory {
+        let chunked = if is_directory {
             None
         } else {
             let cache_key = uri.uri.clone();
-            match crate::file_sync::hashing::cached_hash_with_reader(
+            match crate::file_sync::hashing::cached_hash_chunked_with_reader(
                 cache_key,
                 size,
                 modified_nanos,
@@ -149,12 +150,19 @@ fn collect_content_uri_entries(
             }
         };
 
+        let (hash, chunk_size, chunk_hashes) = match chunked {
+            Some(c) => (Some(c.file_hash), Some(c.chunk_size), Some(c.chunk_hashes)),
+            None => (None, None, None),
+        };
+
         entries.push(crate::file_sync::types::FileState {
             relative_path: relative_path.clone(),
             size,
             modified_at,
             is_directory,
             hash,
+            chunk_size,
+            chunk_hashes,
         });
 
         if is_directory {
