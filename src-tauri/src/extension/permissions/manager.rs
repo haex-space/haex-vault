@@ -558,6 +558,11 @@ impl PermissionManager {
     /// Loads the extension's DB permissions + session state, then delegates
     /// the actual decision to the pure `PermissionChecker::can_read_path_silently`
     /// (which is exhaustively unit-tested).
+    ///
+    /// Desktop-only: the sole caller is the `#[cfg(desktop)]` filesystem
+    /// watcher's broadcast fan-out, so gating it here keeps the method off the
+    /// Android build (where it would otherwise be dead code).
+    #[cfg(desktop)]
     pub async fn is_fs_read_allowed_silently(
         app_state: &State<'_, AppState>,
         extension_id: &str,
