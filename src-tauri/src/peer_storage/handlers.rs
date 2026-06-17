@@ -104,8 +104,8 @@ pub(super) async fn handle_stream(
         // `log_truncate` truncates by chars (UTF-8 boundaries), not bytes —
         // a token whose `aud` claim contains non-ASCII text cannot crash
         // the log path with a "byte index not on a char boundary" panic.
-        let aud_short = crate::logging::log_truncate(&validated_ucan.audience, 24);
-        let verified_short = crate::logging::log_truncate(verified_remote_did, 24);
+        let aud_short = crate::logging::log_truncate(&validated_ucan.audience, crate::logging::LOG_TRUNCATE_DEFAULT);
+        let verified_short = crate::logging::log_truncate(verified_remote_did, crate::logging::LOG_TRUNCATE_DEFAULT);
         eprintln!(
             "[PeerStorage] UCAN audience != verified peer DID: aud={aud_short} verified={verified_short} err={e}"
         );
@@ -323,9 +323,10 @@ async fn handle_stat(
             })
             .await
             {
-                // Android Content URI stats do not currently populate chunks —
-                // chunk-hashing through the SAF JNI path is not wired up here.
-                Ok(Ok(entry)) => Response::Stat { entry, chunks: None },
+                // Android Content URI files now carry chunks too — hashed via
+                // the SAF reader, the same path the manifest scan uses
+                // (`collect_content_uri_entries`). Directories carry `None`.
+                Ok(Ok((entry, chunks))) => Response::Stat { entry, chunks },
                 Ok(Err(e)) => Response::Error { message: e },
                 Err(e) => Response::Error {
                     message: format!("Task failed: {e}"),
@@ -370,12 +371,27 @@ pub(super) async fn stat_local_path(local_path: &Path) -> Response {
         {
             Some(n) => n,
             None => {
-                // No mtime (rare — e.g. some special filesystems). Skip
-                // chunk-hashing rather than poisoning the cache with a
-                // zero-nanos key that would alias unrelated files.
-                return Response::Stat {
-                    entry,
-                    chunks: None,
+                // No usable mtime (rare — e.g. some special filesystems). A
+                // zero-nanos cache key would alias unrelated files, so hash
+                // uncached this once — the server must still report chunks for
+                // every file (see client::download_file_to_path) so the
+                // receiver can verify.
+                let path = local_path.to_path_buf();
+                return match tokio::task::spawn_blocking(move || {
+                    crate::file_sync::hashing::hash_file_chunked(&path)
+                })
+                .await
+                {
+                    Ok(Ok(chunks)) => Response::Stat {
+                        entry,
+                        chunks: Some(chunks),
+                    },
+                    Ok(Err(e)) => Response::Error {
+                        message: format!("Failed to hash file: {e}"),
+                    },
+                    Err(e) => Response::Error {
+                        message: format!("Hash task failed: {e}"),
+                    },
                 };
             }
         };

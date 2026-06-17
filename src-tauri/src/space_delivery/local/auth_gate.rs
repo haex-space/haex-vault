@@ -75,7 +75,7 @@ use tokio::sync::RwLock;
 
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
-use crate::logging::{log_to_db, log_truncate};
+use crate::logging::{log_to_db, log_truncate, LOG_TRUNCATE_DEFAULT};
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::types::ConnectedPeer;
 use crate::ucan::{require_audience, require_capability, require_not_expired, ValidatedUcan};
@@ -183,7 +183,7 @@ pub async fn authorize_request(
     //    Re-checking here forces a reconnect-after-renew once `expires_at`
     //    is reached.
     if let Err(e) = require_not_expired(&validated) {
-        let aud_short = log_truncate(&validated.audience, 24);
+        let aud_short = log_truncate(&validated.audience, LOG_TRUNCATE_DEFAULT);
         return Err(gate_reject(
             "warn",
             format!("reject: cached UCAN expired (endpoint={peer_endpoint_id} aud={aud_short} expires_at={exp} err={e})", exp = validated.expires_at),
@@ -198,8 +198,8 @@ pub async fn authorize_request(
     //    log (with the same `log_truncate` 24-char cap as peer_storage and
     //    multi_leader so DIDs don't sprawl across diagnostic lines).
     if let Err(e) = require_audience(&validated, verified_did) {
-        let aud_short = log_truncate(&validated.audience, 24);
-        let verified_short = log_truncate(verified_did, 24);
+        let aud_short = log_truncate(&validated.audience, LOG_TRUNCATE_DEFAULT);
+        let verified_short = log_truncate(verified_did, LOG_TRUNCATE_DEFAULT);
         return Err(gate_reject(
             "warn",
             format!("reject: UCAN audience != verified peer DID (endpoint={peer_endpoint_id} aud={aud_short} verified={verified_short} err={e})"),
@@ -220,8 +220,8 @@ pub async fn authorize_request(
     match super::ucan::is_active_space_member(db, space_id, &validated.audience) {
         Ok(true) => Ok(Some(validated)),
         Ok(false) => {
-            let aud_short = log_truncate(&validated.audience, 24);
-            let space_short = log_truncate(space_id, 24);
+            let aud_short = log_truncate(&validated.audience, LOG_TRUNCATE_DEFAULT);
+            let space_short = log_truncate(space_id, LOG_TRUNCATE_DEFAULT);
             Err(gate_reject(
                 "warn",
                 format!("reject: not an active member (endpoint={peer_endpoint_id} aud={aud_short} space={space_short})"),
@@ -235,8 +235,8 @@ pub async fn authorize_request(
             // and prefixed `internal failure:` so an operator filtering
             // haex_logs by level=error or by message prefix can separate
             // actionable DB outages from benign peer rejects.
-            let aud_short = log_truncate(&validated.audience, 24);
-            let space_short = log_truncate(space_id, 24);
+            let aud_short = log_truncate(&validated.audience, LOG_TRUNCATE_DEFAULT);
+            let space_short = log_truncate(space_id, LOG_TRUNCATE_DEFAULT);
             Err(gate_reject(
                 "error",
                 format!("internal failure: membership check DB error (endpoint={peer_endpoint_id} aud={aud_short} space={space_short} err={e})"),
