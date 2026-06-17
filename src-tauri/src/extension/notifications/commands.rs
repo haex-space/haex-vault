@@ -41,16 +41,6 @@ pub async fn extension_notifications_show(
 
     let id = uuid::Uuid::new_v4().to_string();
 
-    state.notifications.insert(
-        id.clone(),
-        NotificationRecord {
-            extension_id,
-            primary: options.primary.clone(),
-            actions: options.actions.clone(),
-            tag: options.tag.clone(),
-        },
-    );
-
     // Build the OS notification. On desktop only title/body/icon are honoured;
     // `extra`/actions are used on mobile. We still attach the id as `extra` so a
     // mobile click can correlate back to the registry.
@@ -71,6 +61,19 @@ pub async fn extension_notifications_show(
         .map_err(|e| ExtensionError::ValidationError {
             reason: format!("failed to show notification: {e}"),
         })?;
+
+    // Only record after a successful show: if `show()` fails we must not leave a
+    // stale entry behind, nor let the tag-based replace below evict a still-valid
+    // prior record for a notification that is actually on screen.
+    state.notifications.insert(
+        id.clone(),
+        NotificationRecord {
+            extension_id,
+            primary: options.primary.clone(),
+            actions: options.actions.clone(),
+            tag: options.tag.clone(),
+        },
+    );
 
     Ok(ShowResult { id })
 }
