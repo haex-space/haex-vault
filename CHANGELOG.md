@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.9.0](https://github.com/haex-space/haex-vault/compare/v2.8.0...v2.9.0) (2026-06-17)
+
+
+### Features
+
+* **file-sync:** add chunk_size + chunk_hashes to FileState ([064c671](https://github.com/haex-space/haex-vault/commit/064c67198a53b1aa8e23ed4f49ba288e4746fa58))
+* **file-sync:** add hash_file_chunked emitting blake3 per-chunk + file hashes ([9de9fb4](https://github.com/haex-space/haex-vault/commit/9de9fb4eadb53b79436d607a3050ecef02a19ccd))
+* **file-sync:** route local-target downloads to final destination for resume ([bf5f643](https://github.com/haex-space/haex-vault/commit/bf5f643815e37b197ffcc3a7e47c0966f413b68e))
+* **file-sync:** scanner emits per-chunk blake3 hashes in FileState ([58358c6](https://github.com/haex-space/haex-vault/commit/58358c6f4d1813d1ad5ec54d652c50a30a62c8bd))
+* **p2p:** resumable chunk-hashed downloads (BLAKE3) + sidecar resume + per-range retry ([d5342ec](https://github.com/haex-space/haex-vault/commit/d5342eccb78d1efcfab1f49212d1e9791f79142f))
+* **peer-storage:** add PartialState sidecar for resumable downloads ([689e590](https://github.com/haex-space/haex-vault/commit/689e590e64e827ea3663b7d01a06f9541327d584))
+* **peer-storage:** multi-stream downloads resume from partial state across invocations ([f2cb41a](https://github.com/haex-space/haex-vault/commit/f2cb41a3480be88454a6b95b291321bcd9571b35))
+* **peer-storage:** per-range retry replaces abort_all on multi-stream failure ([4a1273d](https://github.com/haex-space/haex-vault/commit/4a1273d21004783d6202cbd034b8d6ba28865a5b))
+* **peer-storage:** single-stream downloads resume from partial state ([f5b9d8b](https://github.com/haex-space/haex-vault/commit/f5b9d8b05b3c13bc950314e5e5b87f09fd89d0ce))
+* **peer-storage:** stat-probe + download_file_to_path carry chunk-metadata for both sync + file-browser flows ([e0794c6](https://github.com/haex-space/haex-vault/commit/e0794c6efb193ad6066f4d1a4bf49c5ba6520606))
+* **peer-storage:** verify chunks inline + persist resume sidecar on single-stream downloads ([287d029](https://github.com/haex-space/haex-vault/commit/287d029d0dfe28c343f5ab64c1a7f3a440dd984c))
+
+
+### Bug Fixes
+
+* **file-sync:** accept zero-byte file manifests in chunked_hash() ([60e6bd8](https://github.com/haex-space/haex-vault/commit/60e6bd808a92f9532bc219df1299344591029df4))
+* **p2p:** register deviceRow watcher before WelcomeDialog renders ([#462](https://github.com/haex-space/haex-vault/issues/462)) ([ce632ea](https://github.com/haex-space/haex-vault/commit/ce632eac2aa900b57d9ee21d49b6e3fb8339bfb6))
+* **p2p:** skip redundant downloads via per-peer registry ([#460](https://github.com/haex-space/haex-vault/issues/460)) ([0bb42ef](https://github.com/haex-space/haex-vault/commit/0bb42efa81f705bd4572ea86e6a57ca35b31e204))
+* **peer-storage:** I1+I4+I2+I5 race-free verifier, atomic sidecar, resume progress ([654c1bd](https://github.com/haex-space/haex-vault/commit/654c1bd9f4cc3fd1048f60a5ba23f6a00af6d641))
+* **peer-storage:** tolerate corrupt sidecars and surface real clear() failures ([9d0531d](https://github.com/haex-space/haex-vault/commit/9d0531dc40885e2fe247ed2ff55f25efbc61acc8))
+
+
+### Performance Improvements
+
+* **p2p:** route frontend downloads through multi-stream QUIC ([#459](https://github.com/haex-space/haex-vault/issues/459)) ([540b377](https://github.com/haex-space/haex-vault/commit/540b3772860a9a1eee0a55373f120142164ac019))
+
 ## [2.8.0](https://github.com/haex-space/haex-vault/compare/v2.7.0...v2.8.0) (2026-06-15)
 
 
