@@ -47,18 +47,24 @@ concurrency:
   #     release build never queues behind a push-Build for the same commit.
   #   - main branch: shared 'build-main' so a new push (sync after release)
   #     cancels the previous build (serial).
-  #   - everywhere else: keyed by commit SHA. Now that push and pull_request
-  #     can no longer both fire for the same SHA (push only runs on
-  #     develop/main), this grouping mostly matters for force-pushes to a
-  #     PR branch — the new pull_request run cancels the previous one
-  #     cleanly without leaving stale required-check entries.
+  #   - everywhere else: keyed by event_name + commit SHA. push (on
+  #     develop/main/sync-*) and pull_request can still fire for the SAME
+  #     SHA: a develop→main release PR (its head IS the develop tip that
+  #     push:develop already built) and sync-develop/* PRs (built by both
+  #     their push and their PR event). If those shared a group,
+  #     cancel-in-progress would kill one run, leaving a stale failed
+  #     "CI Success" that branch protection counts even after the survivor
+  #     passes — which is exactly what blocked the v2.9.1 release PR.
+  #     event_name in the key keeps push and PR runs separate so both
+  #     complete. (Safe to read event_name here: the workflow_call case is
+  #     already handled by the inputs.ref branch above.)
   #
   # workflow_call detection: use `inputs.ref != ''` rather than
   # `github.event_name == 'workflow_call'`. Inside a reusable workflow,
   # github.event (and event_name) reflect the CALLER's event — so the
   # event_name check would never match and the release build would share
   # a concurrency group with the parallel push-Build for the same SHA.
-  group: ${{ inputs.ref != '' && format('build-call-{0}', github.run_id) || (github.ref == 'refs/heads/main' && 'build-main') || format('build-{0}', github.event.pull_request.head.sha || github.sha) }}
+  group: ${{ inputs.ref != '' && format('build-call-{0}', github.run_id) || (github.ref == 'refs/heads/main' && 'build-main') || format('build-{0}-{1}', github.event_name, github.event.pull_request.head.sha || github.sha) }}
   cancel-in-progress: ${{ inputs.ref == '' }}
 
 jobs:
