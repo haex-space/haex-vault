@@ -32,6 +32,7 @@ pub mod filesystem;
 pub mod limits;
 pub mod logging;
 pub mod mail;
+pub mod notifications;
 pub mod permissions;
 pub mod remote_storage;
 pub mod shell;
@@ -670,6 +671,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
     let mut identities = Vec::new();
     let mut passwords = Vec::new();
     let mut mail = Vec::new();
+    let mut notifications = Vec::new();
 
     for perm in permissions {
         let entry = PermissionEntry {
@@ -691,6 +693,7 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             ResourceType::Identities => identities.push(entry),
             ResourceType::Passwords => passwords.push(entry),
             ResourceType::Mail => mail.push(entry),
+            ResourceType::Notifications => notifications.push(entry),
         }
     }
 
@@ -728,6 +731,11 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             Some(passwords)
         },
         mail: if mail.is_empty() { None } else { Some(mail) },
+        notifications: if notifications.is_empty() {
+            None
+        } else {
+            Some(notifications)
+        },
     }
 }
 

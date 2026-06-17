@@ -1,8 +1,8 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, IdentityAction, MailAction,
-    PasswordsAction, PermissionConstraints, PermissionStatus, ResourceType, ShellAction,
-    SpaceAction, WebAction,
+    NotificationsAction, PasswordsAction, PermissionConstraints, PermissionStatus, ResourceType,
+    ShellAction, SpaceAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -94,6 +94,8 @@ pub struct ExtensionPermissions {
     pub passwords: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub mail: Option<Vec<PermissionEntry>>,
+    #[serde(default)]
+    pub notifications: Option<Vec<PermissionEntry>>,
 }
 
 /// Typ-Alias für bessere Lesbarkeit, wenn die Struktur als UI-Modell verwendet wird.
@@ -188,6 +190,7 @@ impl ExtensionManifest {
         set_status_for_list(editable.identities.as_mut());
         set_status_for_list(editable.passwords.as_mut());
         set_status_for_list(editable.mail.as_mut());
+        set_status_for_list(editable.notifications.as_mut());
 
         editable
     }
@@ -263,6 +266,15 @@ impl ExtensionPermissions {
                 }
             }
         }
+        if let Some(entries) = &self.notifications {
+            for p in entries {
+                if let Some(perm) =
+                    Self::create_internal(extension_id, ResourceType::Notifications, p)
+                {
+                    permissions.push(perm);
+                }
+            }
+        }
 
         permissions
     }
@@ -302,6 +314,9 @@ impl ExtensionPermissions {
                 .ok()
                 .map(Action::Passwords),
             ResourceType::Mail => MailAction::from_str(operation_str).ok().map(Action::Mail),
+            ResourceType::Notifications => NotificationsAction::from_str(operation_str)
+                .ok()
+                .map(Action::Notifications),
         };
 
         action.map(|act| ExtensionPermission {

@@ -133,6 +133,8 @@ pub struct AppState {
     pub file_watcher: extension::filesystem::watcher::FileWatcherManager,
     /// Session-based permission store (in-memory, cleared on restart)
     pub session_permissions: extension::permissions::session::SessionPermissionStore,
+    /// In-memory registry of shown extension notifications (deep-link routing).
+    pub notifications: extension::notifications::NotificationRegistry,
     /// Extension resource limits service (database, filesystem, web)
     pub limits: extension::limits::LimitsService,
     /// Peer storage endpoint for P2P file sharing via iroh/QUIC
@@ -340,6 +342,7 @@ pub fn run() {
             external_bridge: tokio::sync::Mutex::new(ExternalBridge::new()),
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
+            notifications: extension::notifications::NotificationRegistry::new(),
             limits: extension::limits::LimitsService::new(),
             peer_storage: Arc::new(tokio::sync::RwLock::new(
                 peer_storage::endpoint::PeerEndpoint::new_ephemeral(),
@@ -505,6 +508,8 @@ pub fn run() {
             extension::mail::commands::extension_mail_append_message,
             extension::mail::commands::extension_mail_send_message,
             extension::mail::commands::extension_mail_build_rfc822,
+            extension::notifications::commands::extension_notifications_show,
+            extension::notifications::commands::extension_notifications_dismiss,
             extension::permissions::commands::extension_permissions_check_web,
             extension::permissions::commands::extension_permissions_check_database,
             extension::permissions::commands::extension_permissions_check_filesystem,
