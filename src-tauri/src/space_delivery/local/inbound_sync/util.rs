@@ -35,7 +35,10 @@ pub(super) fn read_existing_column(
         });
     }
 
-    let safe = |s: &str| s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    let safe = |s: &str| {
+        s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    };
     if !safe(table) || !safe(column) || !pks.keys().all(|k| safe(k)) {
         return Err(DeliveryError::ProtocolError {
             reason: format!("identifier contains unsafe characters: table={table} column={column}"),
@@ -53,15 +56,19 @@ pub(super) fn read_existing_column(
 
     with_connection(db, |conn| {
         let mut stmt = conn.prepare(&sql)?;
-        let mut rows = stmt.query(params_from_iter(pk_values.iter().map(|v| match v {
-            JsonValue::String(s) => rusqlite::types::Value::Text(s.clone()),
-            JsonValue::Number(n) if n.is_i64() => rusqlite::types::Value::Integer(
-                n.as_i64()
-                    .expect("invariant: is_i64() guard above guarantees Some"),
-            ),
-            JsonValue::Number(n) => rusqlite::types::Value::Real(n.as_f64().unwrap_or_default()),
-            JsonValue::Null => rusqlite::types::Value::Null,
-            other => rusqlite::types::Value::Text(other.to_string()),
+        let mut rows = stmt.query(params_from_iter(pk_values.iter().map(|v| {
+            match v {
+                JsonValue::String(s) => rusqlite::types::Value::Text(s.clone()),
+                JsonValue::Number(n) if n.is_i64() => rusqlite::types::Value::Integer(
+                    n.as_i64()
+                        .expect("invariant: is_i64() guard above guarantees Some"),
+                ),
+                JsonValue::Number(n) => {
+                    rusqlite::types::Value::Real(n.as_f64().unwrap_or_default())
+                }
+                JsonValue::Null => rusqlite::types::Value::Null,
+                other => rusqlite::types::Value::Text(other.to_string()),
+            }
         })))?;
 
         if let Some(row) = rows.next()? {

@@ -88,9 +88,7 @@ mod tests {
         let result = MigrationResult {
             applied_count: 999999,
             already_applied_count: 888888,
-            applied_migrations: (0..1000)
-                .map(|i| format!("migration_{:04}", i))
-                .collect(),
+            applied_migrations: (0..1000).map(|i| format!("migration_{:04}", i)).collect(),
         };
 
         let json = serde_json::to_string(&result).unwrap();

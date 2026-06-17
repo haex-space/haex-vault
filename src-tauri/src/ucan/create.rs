@@ -140,8 +140,8 @@ pub fn signing_key_from_pkcs8_base64(base64_key: &str) -> Result<SigningKey, Uca
 }
 
 fn encode_json_base64url<T: Serialize>(value: &T) -> Result<String, UcanCreateError> {
-    let json = serde_json::to_string(value)
-        .map_err(|e| UcanCreateError::Serialization(e.to_string()))?;
+    let json =
+        serde_json::to_string(value).map_err(|e| UcanCreateError::Serialization(e.to_string()))?;
     Ok(BASE64URL.encode(json.as_bytes()))
 }
 

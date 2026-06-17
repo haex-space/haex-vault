@@ -260,7 +260,9 @@ mod tests {
     #[test]
     fn chunk_hashes_compose_correctly() {
         let tmp = tempfile::NamedTempFile::new().unwrap();
-        let data: Vec<u8> = (0..(3 * 1024 * 1024 + 17)).map(|i| (i % 251) as u8).collect();
+        let data: Vec<u8> = (0..(3 * 1024 * 1024 + 17))
+            .map(|i| (i % 251) as u8)
+            .collect();
         std::fs::write(tmp.path(), &data).unwrap();
 
         let result = hash_file_chunked(tmp.path()).unwrap();

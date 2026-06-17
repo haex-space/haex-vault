@@ -16,7 +16,11 @@ pub struct MutexPoisonError {
 
 impl std::fmt::Display for MutexPoisonError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "mutex poisoned at {} (code={:?})", self.location, self.code)
+        write!(
+            f,
+            "mutex poisoned at {} (code={:?})",
+            self.location, self.code
+        )
     }
 }
 

@@ -190,8 +190,7 @@ pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
 /// opt in to that polarity explicitly instead of silently mis-asserting.
 pub(crate) fn insert_identity(db: &DbConnection, identity_id: &str, did: &str) {
     core::execute(
-        "INSERT INTO haex_identities (id, did, name, source) VALUES (?1, ?2, ?3, ?4)"
-            .to_string(),
+        "INSERT INTO haex_identities (id, did, name, source) VALUES (?1, ?2, ?3, ?4)".to_string(),
         vec![
             json!(identity_id),
             json!(did),
@@ -231,11 +230,7 @@ pub(crate) fn insert_member(
 /// Build a `ValidatedUcan` with a single capability entry. Mirrors the
 /// helper in `inbound_sync_tests` — kept in sync deliberately because
 /// the AuthGate consumes the same shape produced by `validate_token`.
-pub(crate) fn make_ucan(
-    audience: &str,
-    space_id: &str,
-    level: CapabilityLevel,
-) -> ValidatedUcan {
+pub(crate) fn make_ucan(audience: &str, space_id: &str, level: CapabilityLevel) -> ValidatedUcan {
     let mut capabilities = HashMap::new();
     capabilities.insert(space_id.to_string(), level);
     ValidatedUcan {

@@ -127,7 +127,11 @@ mod tests {
             &hlc_guard,
         );
 
-        assert!(result.is_ok(), "INSERT without role should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "INSERT without role should succeed: {:?}",
+            result.err()
+        );
     }
 
     // =========================================================================
@@ -172,7 +176,11 @@ mod tests {
             &hlc_guard,
         );
 
-        assert!(result.is_ok(), "UCAN INSERT with all fields should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "UCAN INSERT with all fields should succeed: {:?}",
+            result.err()
+        );
     }
 
     #[test]
@@ -209,7 +217,10 @@ mod tests {
             &hlc_guard,
         );
 
-        assert!(result.is_err(), "UCAN INSERT without issued_at/expires_at must fail");
+        assert!(
+            result.is_err(),
+            "UCAN INSERT without issued_at/expires_at must fail"
+        );
     }
 
     #[test]
@@ -249,7 +260,10 @@ mod tests {
             &hlc_guard,
         );
 
-        assert!(result.is_err(), "UCAN INSERT with NULL issuer_did must fail");
+        assert!(
+            result.is_err(),
+            "UCAN INSERT with NULL issuer_did must fail"
+        );
     }
 
     // =========================================================================
@@ -311,7 +325,10 @@ mod tests {
         let guard = db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         let dirty: Vec<String> = conn
-            .prepare(&format!("SELECT table_name FROM {}", TABLE_CRDT_DIRTY_TABLES))
+            .prepare(&format!(
+                "SELECT table_name FROM {}",
+                TABLE_CRDT_DIRTY_TABLES
+            ))
             .unwrap()
             .query_map([], |row| row.get::<_, String>(0))
             .unwrap()

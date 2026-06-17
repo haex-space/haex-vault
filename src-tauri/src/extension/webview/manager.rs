@@ -163,21 +163,23 @@ impl ExtensionWebviewManager {
         // Enable camera/media stream access in WebKitGTK on Linux
         #[cfg(target_os = "linux")]
         {
-            webview_window.with_webview(|webview| {
-                use webkit2gtk::{WebViewExt, SettingsExt, PermissionRequestExt};
-                let wv = webview.inner();
+            webview_window
+                .with_webview(|webview| {
+                    use webkit2gtk::{PermissionRequestExt, SettingsExt, WebViewExt};
+                    let wv = webview.inner();
 
-                if let Some(settings) = wv.settings() {
-                    settings.set_enable_media_stream(true);
-                    settings.set_enable_webrtc(true);
-                    settings.set_media_playback_requires_user_gesture(false);
-                }
+                    if let Some(settings) = wv.settings() {
+                        settings.set_enable_media_stream(true);
+                        settings.set_enable_webrtc(true);
+                        settings.set_media_playback_requires_user_gesture(false);
+                    }
 
-                wv.connect_permission_request(|_, request| {
-                    request.allow();
-                    true
-                });
-            }).ok();
+                    wv.connect_permission_request(|_, request| {
+                        request.allow();
+                        true
+                    });
+                })
+                .ok();
         }
 
         // Minimiert öffnen, falls angegeben (nur Desktop)
@@ -382,7 +384,10 @@ impl ExtensionWebviewManager {
 
     /// Closes all extension windows
     /// Called when the main app window is closed or when the vault becomes unavailable
-    pub fn close_all_extension_windows(&self, app_handle: &AppHandle) -> Result<(), ExtensionError> {
+    pub fn close_all_extension_windows(
+        &self,
+        app_handle: &AppHandle,
+    ) -> Result<(), ExtensionError> {
         let mut windows = self
             .windows
             .lock()

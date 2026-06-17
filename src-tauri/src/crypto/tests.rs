@@ -205,8 +205,7 @@ mod tests {
         let (pub_b64, priv_b64) = generate_test_identity(0x03);
         let plaintext = "A".repeat(100_000);
 
-        let sealed =
-            encrypt_for_identity(BASE64.encode(plaintext.as_bytes()), pub_b64).unwrap();
+        let sealed = encrypt_for_identity(BASE64.encode(plaintext.as_bytes()), pub_b64).unwrap();
         let decrypted_b64 = decrypt_for_identity(
             sealed.encrypted_data,
             sealed.nonce,
@@ -224,8 +223,7 @@ mod tests {
         let (pub_b64, priv_b64) = generate_test_identity(0x04);
         let plaintext = "Ünîcödé 🔐🗝️ Тест";
 
-        let sealed =
-            encrypt_for_identity(BASE64.encode(plaintext.as_bytes()), pub_b64).unwrap();
+        let sealed = encrypt_for_identity(BASE64.encode(plaintext.as_bytes()), pub_b64).unwrap();
         let decrypted_b64 = decrypt_for_identity(
             sealed.encrypted_data,
             sealed.nonce,

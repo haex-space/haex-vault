@@ -403,7 +403,10 @@ impl PeerEndpoint {
             eprintln!("[Endpoint] {msg}");
             let app_handle = watch_state.read().await.app_handle.clone();
             if let Some(app) = app_handle {
-                if let Some(state) = <tauri::AppHandle as tauri::Manager<tauri::Wry>>::try_state::<crate::AppState>(&app) {
+                if let Some(state) = <tauri::AppHandle as tauri::Manager<tauri::Wry>>::try_state::<
+                    crate::AppState,
+                >(&app)
+                {
                     let _ = crate::logging::insert_log(
                         &state, "error", "Endpoint", None, &msg, None, "rust",
                     );
@@ -510,11 +513,8 @@ impl PeerEndpoint {
             // stale connections via close_reason(), and bound open_bi() so a
             // connection that has silently died cannot stall the caller.
             if conn.close_reason().is_none() {
-                if let Ok(Ok(streams)) = tokio::time::timeout(
-                    std::time::Duration::from_secs(3),
-                    conn.open_bi(),
-                )
-                .await
+                if let Ok(Ok(streams)) =
+                    tokio::time::timeout(std::time::Duration::from_secs(3), conn.open_bi()).await
                 {
                     return Ok(streams);
                 }
@@ -564,17 +564,15 @@ impl PeerEndpoint {
         // avoids a both-sides-blocked-on-read deadlock — `open_bi` alone does
         // not materialise the stream on the wire, so client-initiated +
         // server-initiated reads would both block forever.
-        let identity = self.own_identity().ok_or_else(|| PeerStorageError::ConnectionFailed {
-            reason: "own identity not configured — call set_own_identity before open_stream".into(),
-        })?;
+        let identity = self
+            .own_identity()
+            .ok_or_else(|| PeerStorageError::ConnectionFailed {
+                reason: "own identity not configured — call set_own_identity before open_stream"
+                    .into(),
+            })?;
         let own_endpoint_id_str = endpoint.id().to_string();
 
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            conn.accept_bi(),
-        )
-        .await
-        {
+        match tokio::time::timeout(std::time::Duration::from_secs(5), conn.accept_bi()).await {
             Ok(Ok((mut auth_send, mut auth_recv))) => {
                 if let Err(e) = crate::quic_did_auth::respond_to_challenge(
                     &mut auth_send,
@@ -609,24 +607,20 @@ impl PeerEndpoint {
         //
         // Same rationale as the cached-path open_bi: never let stream open
         // outlast the connect bound.
-        let streams = match tokio::time::timeout(
-            std::time::Duration::from_secs(3),
-            conn.open_bi(),
-        )
-        .await
-        {
-            Ok(Ok(streams)) => streams,
-            Ok(Err(e)) => {
-                return Err(PeerStorageError::ConnectionFailed {
-                    reason: e.to_string(),
-                });
-            }
-            Err(_) => {
-                return Err(PeerStorageError::ConnectionFailed {
-                    reason: "open_bi timed out after 3s".to_string(),
-                });
-            }
-        };
+        let streams =
+            match tokio::time::timeout(std::time::Duration::from_secs(3), conn.open_bi()).await {
+                Ok(Ok(streams)) => streams,
+                Ok(Err(e)) => {
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: e.to_string(),
+                    });
+                }
+                Err(_) => {
+                    return Err(PeerStorageError::ConnectionFailed {
+                        reason: "open_bi timed out after 3s".to_string(),
+                    });
+                }
+            };
 
         if let Ok(mut cache) = self.connections.lock() {
             cache.insert(remote_id, conn.clone());
@@ -644,8 +638,8 @@ impl PeerEndpoint {
         recv: &mut iroh::endpoint::RecvStream,
         req: &Request,
     ) -> Result<Response, PeerStorageError> {
-        let req_bytes = protocol::encode_request(req)
-            .map_err(|e| PeerStorageError::ProtocolError {
+        let req_bytes =
+            protocol::encode_request(req).map_err(|e| PeerStorageError::ProtocolError {
                 reason: e.to_string(),
             })?;
         send.write_all(&req_bytes)
@@ -670,8 +664,8 @@ impl PeerEndpoint {
         send: &mut iroh::endpoint::SendStream,
         req: &Request,
     ) -> Result<(), PeerStorageError> {
-        let req_bytes = protocol::encode_request(req)
-            .map_err(|e| PeerStorageError::ProtocolError {
+        let req_bytes =
+            protocol::encode_request(req).map_err(|e| PeerStorageError::ProtocolError {
                 reason: e.to_string(),
             })?;
         send.write_all(&req_bytes)
@@ -818,24 +812,26 @@ impl PeerEndpoint {
             .as_ref()
             .ok_or(PeerStorageError::EndpointNotRunning)?;
         let remote_id = remote_addr.id;
-        let conn = endpoint
-            .connect(remote_addr, ALPN)
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
+        let conn = endpoint.connect(remote_addr, ALPN).await.map_err(|e| {
+            PeerStorageError::ConnectionFailed {
                 reason: format!("connect_for_test: {e}"),
-            })?;
+            }
+        })?;
 
         // Server-initiated auth bi-stream (see open_stream for protocol
         // reasoning). Client awaits on accept_bi, then responds.
-        let identity = self.own_identity().ok_or_else(|| PeerStorageError::ConnectionFailed {
-            reason: "connect_for_test: own identity not configured".into(),
-        })?;
+        let identity = self
+            .own_identity()
+            .ok_or_else(|| PeerStorageError::ConnectionFailed {
+                reason: "connect_for_test: own identity not configured".into(),
+            })?;
         let own_endpoint_id_str = endpoint.id().to_string();
-        let (mut auth_send, mut auth_recv) = conn.accept_bi().await.map_err(|e| {
-            PeerStorageError::ConnectionFailed {
-                reason: format!("connect_for_test accept auth stream: {e}"),
-            }
-        })?;
+        let (mut auth_send, mut auth_recv) =
+            conn.accept_bi()
+                .await
+                .map_err(|e| PeerStorageError::ConnectionFailed {
+                    reason: format!("connect_for_test accept auth stream: {e}"),
+                })?;
         crate::quic_did_auth::respond_to_challenge(
             &mut auth_send,
             &mut auth_recv,
@@ -1142,7 +1138,8 @@ async fn handle_connection(
         }
     };
 
-    let verified_short = crate::logging::log_truncate(&verified_did, crate::logging::LOG_TRUNCATE_DEFAULT);
+    let verified_short =
+        crate::logging::log_truncate(&verified_did, crate::logging::LOG_TRUNCATE_DEFAULT);
     eprintln!("[PeerStorage] DID-auth ok: {remote} -> {verified_short}");
 
     // -- Phase 1.5: defense in depth — cross-check the crypto-verified DID
@@ -1161,7 +1158,8 @@ async fn handle_connection(
                 // happy path — DB and crypto agree
             }
             Some(expected) => {
-                let expected_short = crate::logging::log_truncate(expected, crate::logging::LOG_TRUNCATE_DEFAULT);
+                let expected_short =
+                    crate::logging::log_truncate(expected, crate::logging::LOG_TRUNCATE_DEFAULT);
                 eprintln!(
                     "[PeerStorage] Closing connection to {remote}: verified DID does not match \
                      haex_devices.owner_did (verified={verified_short} db={expected_short})"

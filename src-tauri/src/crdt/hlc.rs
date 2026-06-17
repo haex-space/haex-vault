@@ -72,9 +72,19 @@ impl HlcService {
         use uuid::Uuid;
 
         let uuid = Uuid::parse_str(
-            &format!("{:0>32}", device_id.as_bytes().iter().map(|b| format!("{:02x}", b)).collect::<String>())
-                .chars().take(32).collect::<String>()
-        ).unwrap_or_else(|_| Uuid::new_v4());
+            &format!(
+                "{:0>32}",
+                device_id
+                    .as_bytes()
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            )
+            .chars()
+            .take(32)
+            .collect::<String>(),
+        )
+        .unwrap_or_else(|_| Uuid::new_v4());
 
         let node_id = ID::try_from(*uuid.as_bytes()).unwrap();
         let hlc = HLCBuilder::new().with_id(node_id).build();
@@ -682,10 +692,7 @@ mod tests {
     #[test]
     fn compare_with_different_node_ids_orders_numerically() {
         // Both have time=5; node 0x1 < node 0x2 numerically.
-        assert_eq!(
-            compare_hlc_strings("5/1", "5/2"),
-            std::cmp::Ordering::Less
-        );
+        assert_eq!(compare_hlc_strings("5/1", "5/2"), std::cmp::Ordering::Less);
         assert_eq!(
             compare_hlc_strings("5/2", "5/1"),
             std::cmp::Ordering::Greater

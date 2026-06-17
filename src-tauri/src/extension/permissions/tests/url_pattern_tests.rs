@@ -110,19 +110,13 @@ fn test_domain_prepending_attack_blocked() {
 fn test_protocol_must_match() {
     // HTTPS pattern should NOT match HTTP URL
     assert!(
-        !PermissionManager::matches_url_pattern(
-            "https://example.com/*",
-            "http://example.com/api"
-        ),
+        !PermissionManager::matches_url_pattern("https://example.com/*", "http://example.com/api"),
         "HTTPS pattern should not match HTTP URL"
     );
 
     // HTTP pattern should NOT match HTTPS URL
     assert!(
-        !PermissionManager::matches_url_pattern(
-            "http://example.com/*",
-            "https://example.com/api"
-        ),
+        !PermissionManager::matches_url_pattern("http://example.com/*", "https://example.com/api"),
         "HTTP pattern should not match HTTPS URL"
     );
 }
@@ -169,7 +163,7 @@ fn test_url_encoded_domain_does_not_bypass() {
     // it won't match, which is the safe-by-default behavior
     let matches = PermissionManager::matches_url_pattern(
         "https://example.com/*",
-        "https://%65%78%61%6d%70%6c%65.com/api"
+        "https://%65%78%61%6d%70%6c%65.com/api",
     );
     // Either it normalizes and matches (correct), or it doesn't match (safe)
     // Both are acceptable — the key is no panic
@@ -225,7 +219,7 @@ fn test_null_byte_in_url() {
     // the path which the wildcard covers. Document actual behavior:
     let result = PermissionManager::matches_url_pattern(
         "https://example.com/*",
-        "https://example.com/api\0/evil"
+        "https://example.com/api\0/evil",
     );
     // The url crate includes null bytes in the path — matches_url_pattern
     // may or may not match depending on path normalization.
@@ -239,7 +233,7 @@ fn test_unicode_domain() {
     // These should be handled consistently
     let result = PermissionManager::matches_url_pattern(
         "https://example.com/*",
-        "https://exаmple.com/api" // 'а' is Cyrillic, not Latin 'a'
+        "https://exаmple.com/api", // 'а' is Cyrillic, not Latin 'a'
     );
     assert!(
         !result,
@@ -282,10 +276,7 @@ fn test_localhost_patterns() {
 
     // localhost vs 127.0.0.1 should NOT match each other
     assert!(
-        !PermissionManager::matches_url_pattern(
-            "http://localhost/*",
-            "http://127.0.0.1/api"
-        ),
+        !PermissionManager::matches_url_pattern("http://localhost/*", "http://127.0.0.1/api"),
         "localhost and 127.0.0.1 are different hosts"
     );
 }

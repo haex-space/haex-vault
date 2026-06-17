@@ -43,9 +43,9 @@ impl S3StreamingSource {
         )
         .map_err(|e| StreamingError::Backend(format!("DB lookup: {e}")))?;
 
-        let row = rows.first().ok_or_else(|| {
-            StreamingError::NotFound(format!("backend {backend_id}"))
-        })?;
+        let row = rows
+            .first()
+            .ok_or_else(|| StreamingError::NotFound(format!("backend {backend_id}")))?;
 
         let backend_type = get_string(row, 0);
         if backend_type != "s3" {

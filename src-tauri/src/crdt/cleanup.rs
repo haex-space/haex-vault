@@ -161,11 +161,10 @@ mod fk_guard_tests {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
 
-        let result: Result<(), rusqlite::Error> =
-            with_fk_disabled(&mut conn, |c| {
-                c.execute("INVALID SQL", [])?;
-                Ok(())
-            });
+        let result: Result<(), rusqlite::Error> = with_fk_disabled(&mut conn, |c| {
+            c.execute("INVALID SQL", [])?;
+            Ok(())
+        });
 
         assert!(result.is_err(), "test setup expects body to fail");
         assert!(
@@ -201,7 +200,8 @@ mod fk_guard_tests {
         // not conflict with the &mut borrow the transaction takes.
         let mut conn = Connection::open_in_memory().unwrap();
         conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
-        conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)", []).unwrap();
+        conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)", [])
+            .unwrap();
 
         let result: Result<(), rusqlite::Error> = with_fk_disabled(&mut conn, |c| {
             let tx = c.transaction()?;

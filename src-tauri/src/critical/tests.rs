@@ -9,7 +9,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::{lock_or_fail, lock_or_fail_arc, CriticalFailureCode, CriticalNotificationSink, Severity};
+use super::{
+    lock_or_fail, lock_or_fail_arc, CriticalFailureCode, CriticalNotificationSink, Severity,
+};
 
 /// Poison a mutex deterministically by panicking with the guard held.
 /// `catch_unwind` swallows the panic so the test process survives.
@@ -18,7 +20,10 @@ fn poison_mutex<T>(mutex: &Mutex<T>) {
         let _guard = mutex.lock().expect("acquire mutex before poisoning");
         panic!("intentional poison for test");
     }));
-    assert!(mutex.is_poisoned(), "poison_mutex helper should leave mutex poisoned");
+    assert!(
+        mutex.is_poisoned(),
+        "poison_mutex helper should leave mutex poisoned"
+    );
 }
 
 // =========================================================================
@@ -27,25 +32,52 @@ fn poison_mutex<T>(mutex: &Mutex<T>) {
 
 #[test]
 fn severity_critical_for_data_corruption_codes() {
-    assert_eq!(CriticalFailureCode::HlcMutexPoisoned.severity(), Severity::Critical);
-    assert_eq!(CriticalFailureCode::DbMutexPoisoned.severity(), Severity::Critical);
-    assert_eq!(CriticalFailureCode::DbSchemaDrift.severity(), Severity::Critical);
+    assert_eq!(
+        CriticalFailureCode::HlcMutexPoisoned.severity(),
+        Severity::Critical
+    );
+    assert_eq!(
+        CriticalFailureCode::DbMutexPoisoned.severity(),
+        Severity::Critical
+    );
+    assert_eq!(
+        CriticalFailureCode::DbSchemaDrift.severity(),
+        Severity::Critical
+    );
 }
 
 #[test]
 fn severity_warning_for_observability_codes() {
-    assert_eq!(CriticalFailureCode::AuditLogWriteFailed.severity(), Severity::Warning);
-    assert_eq!(CriticalFailureCode::CrdtTransformFailed.severity(), Severity::Warning);
+    assert_eq!(
+        CriticalFailureCode::AuditLogWriteFailed.severity(),
+        Severity::Warning
+    );
+    assert_eq!(
+        CriticalFailureCode::CrdtTransformFailed.severity(),
+        Severity::Warning
+    );
 }
 
 #[test]
 fn code_as_str_matches_variant_name() {
     // Pinning the string ↔ variant mapping so a future rename touches both.
-    assert_eq!(CriticalFailureCode::HlcMutexPoisoned.as_str(), "HlcMutexPoisoned");
-    assert_eq!(CriticalFailureCode::DbMutexPoisoned.as_str(), "DbMutexPoisoned");
+    assert_eq!(
+        CriticalFailureCode::HlcMutexPoisoned.as_str(),
+        "HlcMutexPoisoned"
+    );
+    assert_eq!(
+        CriticalFailureCode::DbMutexPoisoned.as_str(),
+        "DbMutexPoisoned"
+    );
     assert_eq!(CriticalFailureCode::DbSchemaDrift.as_str(), "DbSchemaDrift");
-    assert_eq!(CriticalFailureCode::AuditLogWriteFailed.as_str(), "AuditLogWriteFailed");
-    assert_eq!(CriticalFailureCode::CrdtTransformFailed.as_str(), "CrdtTransformFailed");
+    assert_eq!(
+        CriticalFailureCode::AuditLogWriteFailed.as_str(),
+        "AuditLogWriteFailed"
+    );
+    assert_eq!(
+        CriticalFailureCode::CrdtTransformFailed.as_str(),
+        "CrdtTransformFailed"
+    );
 }
 
 // =========================================================================
@@ -94,8 +126,14 @@ fn emit_upserts_count_when_same_code_location_acknowledged_triple_repeats() {
         .expect("repeat emit");
     }
 
-    let row = sink.newest_unacked().expect("query").expect("still one row");
-    assert_eq!(row.count, 5, "five emits of the same triple must collapse to count=5");
+    let row = sink
+        .newest_unacked()
+        .expect("query")
+        .expect("still one row");
+    assert_eq!(
+        row.count, 5,
+        "five emits of the same triple must collapse to count=5"
+    );
 
     // The ON CONFLICT clause must preserve `id` and `first_seen` — these
     // are the row's identity (acknowledge-by-id from the frontend) and
@@ -116,8 +154,18 @@ fn emit_upserts_count_when_same_code_location_acknowledged_triple_repeats() {
 #[test]
 fn emit_with_different_location_creates_separate_row() {
     let sink = CriticalNotificationSink::in_memory().expect("in-memory sink");
-    sink.emit(CriticalFailureCode::HlcMutexPoisoned, "loc::A", serde_json::json!({})).unwrap();
-    sink.emit(CriticalFailureCode::HlcMutexPoisoned, "loc::B", serde_json::json!({})).unwrap();
+    sink.emit(
+        CriticalFailureCode::HlcMutexPoisoned,
+        "loc::A",
+        serde_json::json!({}),
+    )
+    .unwrap();
+    sink.emit(
+        CriticalFailureCode::HlcMutexPoisoned,
+        "loc::B",
+        serde_json::json!({}),
+    )
+    .unwrap();
 
     // newest_unacked returns only ONE row, but the second emit must NOT
     // have collapsed into the first. Validate by acknowledging the
@@ -141,7 +189,12 @@ fn emit_after_acknowledge_creates_fresh_unacked_row() {
     // banner stays silent on a recurring failure.
     let sink = CriticalNotificationSink::in_memory().expect("in-memory sink");
 
-    sink.emit(CriticalFailureCode::DbMutexPoisoned, "test::loc", serde_json::json!({})).unwrap();
+    sink.emit(
+        CriticalFailureCode::DbMutexPoisoned,
+        "test::loc",
+        serde_json::json!({}),
+    )
+    .unwrap();
     let first = sink.newest_unacked().unwrap().unwrap();
     assert_eq!(first.count, 1);
 
@@ -151,9 +204,20 @@ fn emit_after_acknowledge_creates_fresh_unacked_row() {
         "after ack, no unacked row should remain",
     );
 
-    sink.emit(CriticalFailureCode::DbMutexPoisoned, "test::loc", serde_json::json!({})).unwrap();
-    let second = sink.newest_unacked().unwrap().expect("new unacked row after re-emit");
-    assert_ne!(first.id, second.id, "the acknowledged row must NOT be reused");
+    sink.emit(
+        CriticalFailureCode::DbMutexPoisoned,
+        "test::loc",
+        serde_json::json!({}),
+    )
+    .unwrap();
+    let second = sink
+        .newest_unacked()
+        .unwrap()
+        .expect("new unacked row after re-emit");
+    assert_ne!(
+        first.id, second.id,
+        "the acknowledged row must NOT be reused"
+    );
     assert_eq!(second.count, 1, "fresh row starts at count=1");
 }
 
@@ -181,7 +245,12 @@ fn newest_unacked_returns_none_when_table_empty() {
 #[test]
 fn cleanup_deletes_rows_older_than_retention() {
     let sink = CriticalNotificationSink::in_memory().unwrap();
-    sink.emit(CriticalFailureCode::HlcMutexPoisoned, "test::loc", serde_json::json!({})).unwrap();
+    sink.emit(
+        CriticalFailureCode::HlcMutexPoisoned,
+        "test::loc",
+        serde_json::json!({}),
+    )
+    .unwrap();
 
     // 0-day retention: cutoff = now, every row's last_seen is older than now → deleted.
     // (Strictly: last_seen was set "now" too, but the test is OK with that
@@ -202,13 +271,21 @@ fn cleanup_deletes_rows_older_than_retention() {
 #[test]
 fn cleanup_does_not_delete_recent_rows() {
     let sink = CriticalNotificationSink::in_memory().unwrap();
-    sink.emit(CriticalFailureCode::DbMutexPoisoned, "test::loc", serde_json::json!({})).unwrap();
+    sink.emit(
+        CriticalFailureCode::DbMutexPoisoned,
+        "test::loc",
+        serde_json::json!({}),
+    )
+    .unwrap();
 
     // Generous retention — nothing older than 1000 days exists in a
     // fresh in-memory DB.
     let report = sink.cleanup(1000).unwrap();
     assert_eq!(report.deleted_rows, 0);
-    assert!(sink.newest_unacked().unwrap().is_some(), "row must survive cleanup");
+    assert!(
+        sink.newest_unacked().unwrap().is_some(),
+        "row must survive cleanup"
+    );
 }
 
 // =========================================================================
@@ -248,7 +325,10 @@ fn lock_or_fail_returns_err_and_emits_row_on_poison() {
     assert_eq!(err.code, CriticalFailureCode::DbMutexPoisoned);
     assert_eq!(err.location, "tests::poisoned");
 
-    let row = sink.newest_unacked().unwrap().expect("emit must have written a row");
+    let row = sink
+        .newest_unacked()
+        .unwrap()
+        .expect("emit must have written a row");
     assert_eq!(row.code, "DbMutexPoisoned");
     assert_eq!(row.location, "tests::poisoned");
     assert!(row.params.contains("detail"));
@@ -349,7 +429,10 @@ fn lock_or_fail_arc_returns_err_and_emits_row_on_poison() {
     );
     assert!(result.is_err());
 
-    let row = sink.newest_unacked().unwrap().expect("emit must have written a row");
+    let row = sink
+        .newest_unacked()
+        .unwrap()
+        .expect("emit must have written a row");
     assert_eq!(row.code, "DbMutexPoisoned");
     assert_eq!(row.location, "tests::arc_poisoned");
 }

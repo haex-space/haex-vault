@@ -28,11 +28,11 @@ pub fn critical_notifications_newest_unacked(
     let sink_guard = state
         .critical_sink
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
     match sink_guard.as_ref() {
-        Some(sink) => sink
-            .newest_unacked()
-            .map_err(sink_error_to_db_error),
+        Some(sink) => sink.newest_unacked().map_err(sink_error_to_db_error),
         None => Ok(None),
     }
 }
@@ -48,11 +48,11 @@ pub fn critical_notifications_acknowledge(
     let sink_guard = state
         .critical_sink
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
     match sink_guard.as_ref() {
-        Some(sink) => sink
-            .acknowledge(&id)
-            .map_err(sink_error_to_db_error),
+        Some(sink) => sink.acknowledge(&id).map_err(sink_error_to_db_error),
         None => Ok(0),
     }
 }
@@ -61,13 +61,13 @@ pub fn critical_notifications_acknowledge(
 /// number of rows deleted. Called from the same vault-store cleanup
 /// pass that runs `log_cleanup`.
 #[tauri::command]
-pub fn critical_notifications_cleanup(
-    state: State<'_, AppState>,
-) -> Result<usize, DatabaseError> {
+pub fn critical_notifications_cleanup(state: State<'_, AppState>) -> Result<usize, DatabaseError> {
     let sink_guard = state
         .critical_sink
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
     match sink_guard.as_ref() {
         Some(sink) => {
             let report = sink

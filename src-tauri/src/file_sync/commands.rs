@@ -137,14 +137,9 @@ async fn create_provider(
 ) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
     match provider_type {
         "local" => {
-            let path = config
-                .get("path")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    FileSyncCommandError::InvalidConfig(
-                        "local provider requires 'path'".into(),
-                    )
-                })?;
+            let path = config.get("path").and_then(|v| v.as_str()).ok_or_else(|| {
+                FileSyncCommandError::InvalidConfig("local provider requires 'path'".into())
+            })?;
             let provider = LocalProvider::new(std::path::PathBuf::from(path))
                 .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
             Ok(Arc::new(provider))
@@ -190,14 +185,13 @@ async fn create_provider(
                 .get("ucanToken")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| {
-                    FileSyncCommandError::InvalidConfig(
-                        "peer provider requires 'ucanToken'".into(),
-                    )
+                    FileSyncCommandError::InvalidConfig("peer provider requires 'ucanToken'".into())
                 })?
                 .to_string();
 
             let endpoint = state.peer_storage.clone();
-            let provider = PeerProvider::new(endpoint, endpoint_id, relay_url, base_path, ucan_token);
+            let provider =
+                PeerProvider::new(endpoint, endpoint_id, relay_url, base_path, ucan_token);
             Ok(Arc::new(provider))
         }
         "cloud" => {
@@ -219,13 +213,14 @@ async fn create_provider(
                 .and_then(|v| v.as_str())
                 .filter(|s| !s.is_empty());
 
-            let backend = crate::remote_storage::commands::get_backend_instance_from_db_with_overrides(
-                &state.db,
-                backend_id,
-                bucket_override,
-            )
-            .await
-            .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
+            let backend =
+                crate::remote_storage::commands::get_backend_instance_from_db_with_overrides(
+                    &state.db,
+                    backend_id,
+                    bucket_override,
+                )
+                .await
+                .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
 
             // Auto-create the bucket only when this provider is the sync
             // target — a missing *source* bucket is almost always a typo or
@@ -298,9 +293,11 @@ pub async fn file_sync_start_rule(
         manager.stop(&rule_id);
     }
 
-    let source = create_provider(&source_type, &source_config, &state, false).await
+    let source = create_provider(&source_type, &source_config, &state, false)
+        .await
         .inspect_err(|e| eprintln!("[FileSync] Failed to create source provider: {e}"))?;
-    let target = create_provider(&target_type, &target_config, &state, true).await
+    let target = create_provider(&target_type, &target_config, &state, true)
+        .await
         .inspect_err(|e| eprintln!("[FileSync] Failed to create target provider: {e}"))?;
 
     let cancel = CancellationToken::new();
@@ -317,17 +314,23 @@ pub async fn file_sync_start_rule(
     // Start file watcher for local providers — directly triggers sync loop
     if target_type == "local" {
         if let Some(path) = target_config.get("path").and_then(|v| v.as_str()) {
-            let _ = state
-                .file_watcher
-                .watch(app.clone(), rule_id.clone(), path.to_string(), Some(trigger_sender.clone()));
+            let _ = state.file_watcher.watch(
+                app.clone(),
+                rule_id.clone(),
+                path.to_string(),
+                Some(trigger_sender.clone()),
+            );
         }
     }
     if source_type == "local" {
         if let Some(path) = source_config.get("path").and_then(|v| v.as_str()) {
             let watcher_key = format!("{}_source", rule_id);
-            let _ = state
-                .file_watcher
-                .watch(app.clone(), watcher_key, path.to_string(), Some(trigger_sender.clone()));
+            let _ = state.file_watcher.watch(
+                app.clone(),
+                watcher_key,
+                path.to_string(),
+                Some(trigger_sender.clone()),
+            );
         }
     }
 
@@ -423,9 +426,7 @@ pub async fn file_sync_status(
 
 /// Stop all active sync loops.
 #[tauri::command]
-pub async fn file_sync_stop_all(
-    state: State<'_, AppState>,
-) -> Result<(), FileSyncCommandError> {
+pub async fn file_sync_stop_all(state: State<'_, AppState>) -> Result<(), FileSyncCommandError> {
     let mut manager = state.sync_manager.lock().await;
     manager.stop_all();
 

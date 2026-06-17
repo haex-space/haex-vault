@@ -18,10 +18,10 @@ use std::sync::LazyLock;
 use tokio::time::{sleep, Duration};
 
 use ed25519_dalek::SigningKey;
-use iroh::Endpoint;
 use haex_vault_lib::peer_storage::endpoint::{OwnIdentity, PeerEndpoint};
 use haex_vault_lib::peer_storage::protocol::{self, Request, Response, ALPN};
 use haex_vault_lib::quic_did_auth;
+use iroh::Endpoint;
 
 const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
 
@@ -130,7 +130,12 @@ fn test_ucan_token_for(space_ids: &[&str]) -> String {
 
     let cap: serde_json::Map<String, serde_json::Value> = space_ids
         .iter()
-        .map(|s| (format!("space:{}", s), serde_json::Value::String("space/admin".into())))
+        .map(|s| {
+            (
+                format!("space:{}", s),
+                serde_json::Value::String("space/admin".into()),
+            )
+        })
         .collect();
     let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
     let payload = serde_json::json!({
@@ -161,22 +166,17 @@ async fn connect_and_handshake(
     client_ep: &Endpoint,
     server_addr: iroh::EndpointAddr,
 ) -> Result<iroh::endpoint::Connection, String> {
-    let conn = tokio::time::timeout(
-        Duration::from_secs(5),
-        client_ep.connect(server_addr, ALPN),
-    )
-    .await
-    .map_err(|_| "connect timeout".to_string())?
-    .map_err(|e| format!("connect error: {e}"))?;
+    let conn = tokio::time::timeout(Duration::from_secs(5), client_ep.connect(server_addr, ALPN))
+        .await
+        .map_err(|_| "connect timeout".to_string())?
+        .map_err(|e| format!("connect error: {e}"))?;
 
     // Server-initiated DID-auth stream: client accepts and signs.
-    let (mut auth_send, mut auth_recv) = tokio::time::timeout(
-        Duration::from_secs(5),
-        conn.accept_bi(),
-    )
-    .await
-    .map_err(|_| "auth accept_bi timeout".to_string())?
-    .map_err(|e| format!("auth accept_bi: {e}"))?;
+    let (mut auth_send, mut auth_recv) =
+        tokio::time::timeout(Duration::from_secs(5), conn.accept_bi())
+            .await
+            .map_err(|_| "auth accept_bi timeout".to_string())?
+            .map_err(|e| format!("auth accept_bi: {e}"))?;
 
     let identity = test_client_identity();
     quic_did_auth::respond_to_challenge(
@@ -207,13 +207,11 @@ async fn send_request(
         .map_err(|e| format!("open_bi error: {e}"))?;
 
     // Send request with length prefix
-    let req_bytes = protocol::encode_request(request)
-        .map_err(|e| format!("encode: {e}"))?;
+    let req_bytes = protocol::encode_request(request).map_err(|e| format!("encode: {e}"))?;
     send.write_all(&req_bytes)
         .await
         .map_err(|e| format!("write: {e}"))?;
-    send.finish()
-        .map_err(|e| format!("finish: {e}"))?;
+    send.finish().map_err(|e| format!("finish: {e}"))?;
 
     // Read response with length prefix
     protocol::read_response(&mut recv)
@@ -246,14 +244,16 @@ async fn send_read_request_for_space(
         .await
         .map_err(|e| format!("open_bi error: {e}"))?;
 
-    let request = Request::Read { path: path.to_string(), range, ucan_token: test_ucan_token(space_id) };
-    let req_bytes = protocol::encode_request(&request)
-        .map_err(|e| format!("encode: {e}"))?;
+    let request = Request::Read {
+        path: path.to_string(),
+        range,
+        ucan_token: test_ucan_token(space_id),
+    };
+    let req_bytes = protocol::encode_request(&request).map_err(|e| format!("encode: {e}"))?;
     send.write_all(&req_bytes)
         .await
         .map_err(|e| format!("write: {e}"))?;
-    send.finish()
-        .map_err(|e| format!("finish: {e}"))?;
+    send.finish().map_err(|e| format!("finish: {e}"))?;
 
     // Read header
     let header: Response = protocol::read_response(&mut recv)
@@ -275,7 +275,12 @@ async fn setup_server_client(
     dirs: &[&str],
     share_name: &str,
     space_id: &str,
-) -> (PeerEndpoint, PeerEndpoint, iroh::EndpointAddr, tempfile::TempDir) {
+) -> (
+    PeerEndpoint,
+    PeerEndpoint,
+    iroh::EndpointAddr,
+    tempfile::TempDir,
+) {
     let mut server = PeerEndpoint::new_ephemeral();
     let mut client = PeerEndpoint::new_ephemeral();
 
@@ -296,12 +301,14 @@ async fn setup_server_client(
         std::fs::write(tmp.path().join(path), content).unwrap();
     }
 
-    server.add_share(
-        "share-1".to_string(),
-        share_name.to_string(),
-        tmp.path().to_string_lossy().to_string(),
-        space_id.to_string(),
-    ).await;
+    server
+        .add_share(
+            "share-1".to_string(),
+            share_name.to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            space_id.to_string(),
+        )
+        .await;
 
     // Allow client + matching DID expectation for the Layer 1.5 cross-check.
     let mut allowed = HashMap::new();
@@ -324,15 +331,20 @@ async fn setup_server_client(
 
 #[tokio::test]
 async fn list_root_shows_shared_folders() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("readme.txt", b"hello")],
-        &[],
-        "Documents",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("readme.txt", b"hello")], &[], "Documents", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr, &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        addr,
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
 
     match resp {
         Response::List { entries } => {
@@ -357,18 +369,44 @@ async fn list_share_shows_files_and_dirs() {
         &["emptydir"],
         "MyShare",
         "space-1",
-    ).await;
+    )
+    .await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr, &Request::List { path: "/MyShare".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        addr,
+        &Request::List {
+            path: "/MyShare".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
 
     match resp {
         Response::List { entries } => {
             let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
-            assert!(names.contains(&"file1.txt"), "missing file1.txt, got: {:?}", names);
-            assert!(names.contains(&"file2.md"), "missing file2.md, got: {:?}", names);
-            assert!(names.contains(&"subdir"), "missing subdir, got: {:?}", names);
-            assert!(names.contains(&"emptydir"), "missing emptydir, got: {:?}", names);
+            assert!(
+                names.contains(&"file1.txt"),
+                "missing file1.txt, got: {:?}",
+                names
+            );
+            assert!(
+                names.contains(&"file2.md"),
+                "missing file2.md, got: {:?}",
+                names
+            );
+            assert!(
+                names.contains(&"subdir"),
+                "missing subdir, got: {:?}",
+                names
+            );
+            assert!(
+                names.contains(&"emptydir"),
+                "missing emptydir, got: {:?}",
+                names
+            );
 
             let file1 = entries.iter().find(|e| e.name == "file1.txt").unwrap();
             assert!(!file1.is_dir);
@@ -393,15 +431,22 @@ async fn list_nested_directory() {
         &[],
         "DeepShare",
         "space-1",
-    ).await;
+    )
+    .await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     // List /DeepShare/deep/level1
     let resp = send_request(
-        &client_ep, addr,
-        &Request::List { path: "/DeepShare/deep/level1".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await.unwrap();
+        &client_ep,
+        addr,
+        &Request::List {
+            path: "/DeepShare/deep/level1".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
 
     match resp {
         Response::List { entries } => {
@@ -417,23 +462,28 @@ async fn list_nested_directory() {
 
 #[tokio::test]
 async fn list_nonexistent_path_returns_error() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("file.txt", b"x")],
-        &[],
-        "Share",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("file.txt", b"x")], &[], "Share", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
     let resp = send_request(
-        &client_ep, addr,
-        &Request::List { path: "/Share/nonexistent".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await.unwrap();
+        &client_ep,
+        addr,
+        &Request::List {
+            path: "/Share/nonexistent".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
 
     match resp {
         Response::Error { message } => {
-            assert!(message.contains("not found") || message.contains("Not a directory"),
-                "Unexpected error: {}", message);
+            assert!(
+                message.contains("not found") || message.contains("Not a directory"),
+                "Unexpected error: {}",
+                message
+            );
         }
         other => panic!("Expected Error, got: {:?}", other),
     }
@@ -448,18 +498,20 @@ async fn list_nonexistent_path_returns_error() {
 #[tokio::test]
 async fn stat_file_returns_metadata() {
     let content = b"Hello, World! This is a test file.";
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("hello.txt", content)],
-        &[],
-        "StatTest",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("hello.txt", content)], &[], "StatTest", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
     let resp = send_request(
-        &client_ep, addr,
-        &Request::Stat { path: "/StatTest/hello.txt".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await.unwrap();
+        &client_ep,
+        addr,
+        &Request::Stat {
+            path: "/StatTest/hello.txt".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
 
     match resp {
         Response::Stat { entry, chunks } => {
@@ -480,18 +532,20 @@ async fn stat_file_returns_metadata() {
 
 #[tokio::test]
 async fn stat_directory_returns_metadata() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("subdir/file.txt", b"x")],
-        &[],
-        "StatDir",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("subdir/file.txt", b"x")], &[], "StatDir", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
     let resp = send_request(
-        &client_ep, addr,
-        &Request::Stat { path: "/StatDir/subdir".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await.unwrap();
+        &client_ep,
+        addr,
+        &Request::Stat {
+            path: "/StatDir/subdir".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
 
     match resp {
         Response::Stat { entry, chunks } => {
@@ -512,17 +566,13 @@ async fn stat_directory_returns_metadata() {
 #[tokio::test]
 async fn read_small_file() {
     let content = b"Hello, P2P World!";
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("greeting.txt", content)],
-        &[],
-        "ReadTest",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("greeting.txt", content)], &[], "ReadTest", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let (header, data) = send_read_request(
-        &client_ep, addr, "/ReadTest/greeting.txt", None,
-    ).await.unwrap();
+    let (header, data) = send_read_request(&client_ep, addr, "/ReadTest/greeting.txt", None)
+        .await
+        .unwrap();
 
     match header {
         Response::ReadHeader { size } => {
@@ -540,17 +590,13 @@ async fn read_small_file() {
 async fn read_large_file_chunked() {
     // 256 KB file — will be sent in multiple 64 KB chunks
     let content: Vec<u8> = (0..256 * 1024).map(|i| (i % 256) as u8).collect();
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("large.bin", &content)],
-        &[],
-        "LargeFile",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("large.bin", &content)], &[], "LargeFile", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let (header, data) = send_read_request(
-        &client_ep, addr, "/LargeFile/large.bin", None,
-    ).await.unwrap();
+    let (header, data) = send_read_request(&client_ep, addr, "/LargeFile/large.bin", None)
+        .await
+        .unwrap();
 
     match header {
         Response::ReadHeader { size } => {
@@ -568,18 +614,14 @@ async fn read_large_file_chunked() {
 #[tokio::test]
 async fn read_with_byte_range() {
     let content = b"0123456789ABCDEF";
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("range.txt", content)],
-        &[],
-        "RangeTest",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("range.txt", content)], &[], "RangeTest", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
     // Read bytes 4..12 (8 bytes: "4567890A" — wait, "89AB")
-    let (header, data) = send_read_request(
-        &client_ep, addr, "/RangeTest/range.txt", Some([4, 12]),
-    ).await.unwrap();
+    let (header, data) = send_read_request(&client_ep, addr, "/RangeTest/range.txt", Some([4, 12]))
+        .await
+        .unwrap();
 
     match header {
         Response::ReadHeader { size } => {
@@ -595,22 +637,21 @@ async fn read_with_byte_range() {
 
 #[tokio::test]
 async fn read_nonexistent_file_returns_error() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("exists.txt", b"x")],
-        &[],
-        "ReadErr",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("exists.txt", b"x")], &[], "ReadErr", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let (header, _) = send_read_request(
-        &client_ep, addr, "/ReadErr/missing.txt", None,
-    ).await.unwrap();
+    let (header, _) = send_read_request(&client_ep, addr, "/ReadErr/missing.txt", None)
+        .await
+        .unwrap();
 
     match header {
         Response::Error { message } => {
-            assert!(message.contains("not found") || message.contains("Not a file"),
-                "Unexpected error: {}", message);
+            assert!(
+                message.contains("not found") || message.contains("Not a file"),
+                "Unexpected error: {}",
+                message
+            );
         }
         other => panic!("Expected Error, got: {:?}", other),
     }
@@ -620,21 +661,21 @@ async fn read_nonexistent_file_returns_error() {
 
 #[tokio::test]
 async fn read_directory_returns_error() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("subdir/file.txt", b"x")],
-        &[],
-        "ReadDir",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("subdir/file.txt", b"x")], &[], "ReadDir", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let (header, _) = send_read_request(
-        &client_ep, addr, "/ReadDir/subdir", None,
-    ).await.unwrap();
+    let (header, _) = send_read_request(&client_ep, addr, "/ReadDir/subdir", None)
+        .await
+        .unwrap();
 
     match header {
         Response::Error { message } => {
-            assert!(message.contains("Not a file"), "Unexpected error: {}", message);
+            assert!(
+                message.contains("Not a file"),
+                "Unexpected error: {}",
+                message
+            );
         }
         other => panic!("Expected Error, got: {:?}", other),
     }
@@ -648,26 +689,31 @@ async fn read_directory_returns_error() {
 
 #[tokio::test]
 async fn path_traversal_is_blocked() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("safe.txt", b"safe")],
-        &[],
-        "Secure",
-        "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("safe.txt", b"safe")], &[], "Secure", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     // Try to escape the share with ../
     let resp = send_request(
-        &client_ep, addr,
-        &Request::List { path: "/Secure/../../../etc".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await.unwrap();
+        &client_ep,
+        addr,
+        &Request::List {
+            path: "/Secure/../../../etc".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
 
     match resp {
         Response::Error { message } => {
             assert!(
-                message.contains("denied") || message.contains("outside") || message.contains("not found"),
-                "Path traversal should be blocked, got: {}", message,
+                message.contains("denied")
+                    || message.contains("outside")
+                    || message.contains("not found"),
+                "Path traversal should be blocked, got: {}",
+                message,
             );
         }
         other => panic!("Path traversal should return Error, got: {:?}", other),
@@ -690,8 +736,22 @@ async fn cross_space_isolation() {
     std::fs::write(tmp2.path().join("secret.txt"), b"secret").unwrap();
 
     // Add two shares in different spaces
-    server.add_share("s1".to_string(), "Public".to_string(), tmp1.path().to_string_lossy().to_string(), "space-public".to_string()).await;
-    server.add_share("s2".to_string(), "Private".to_string(), tmp2.path().to_string_lossy().to_string(), "space-private".to_string()).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Public".to_string(),
+            tmp1.path().to_string_lossy().to_string(),
+            "space-public".to_string(),
+        )
+        .await;
+    server
+        .add_share(
+            "s2".to_string(),
+            "Private".to_string(),
+            tmp2.path().to_string_lossy().to_string(),
+            "space-private".to_string(),
+        )
+        .await;
 
     // Client only has access to space-public
     let mut allowed = HashMap::new();
@@ -709,19 +769,41 @@ async fn cross_space_isolation() {
     // List root — should only show Public. UCAN claims space-public (the
     // space the peer is registered in); the new per-UCAN-space gate now
     // requires this to overlap with allowed_spaces.
-    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-public") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        server_addr.clone(),
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("space-public"),
+        },
+    )
+    .await
+    .unwrap();
     match resp {
         Response::List { entries } => {
             let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
             assert!(names.contains(&"Public"), "Should see Public share");
-            assert!(!names.contains(&"Private"), "Should NOT see Private share, got: {:?}", names);
+            assert!(
+                !names.contains(&"Private"),
+                "Should NOT see Private share, got: {:?}",
+                names
+            );
         }
         other => panic!("Expected List, got: {:?}", other),
     }
 
     // Try to access Private directly with the space-public UCAN — should
     // fail at the UCAN capability check (UCAN has no rights for space-private).
-    let resp = send_request(&client_ep, server_addr, &Request::List { path: "/Private".to_string(), ucan_token: test_ucan_token("space-public") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        server_addr,
+        &Request::List {
+            path: "/Private".to_string(),
+            ucan_token: test_ucan_token("space-public"),
+        },
+    )
+    .await
+    .unwrap();
     match resp {
         Response::Error { .. } => { /* expected */ }
         other => panic!("Accessing Private share should fail, got: {:?}", other),
@@ -747,8 +829,22 @@ async fn multiple_shares_in_same_space() {
     let tmp2 = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp2.path().join("photo.jpg"), b"\xFF\xD8\xFF\xE0").unwrap();
 
-    server.add_share("s1".to_string(), "Documents".to_string(), tmp1.path().to_string_lossy().to_string(), "shared-space".to_string()).await;
-    server.add_share("s2".to_string(), "Photos".to_string(), tmp2.path().to_string_lossy().to_string(), "shared-space".to_string()).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Documents".to_string(),
+            tmp1.path().to_string_lossy().to_string(),
+            "shared-space".to_string(),
+        )
+        .await;
+    server
+        .add_share(
+            "s2".to_string(),
+            "Photos".to_string(),
+            tmp2.path().to_string_lossy().to_string(),
+            "shared-space".to_string(),
+        )
+        .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -764,7 +860,16 @@ async fn multiple_shares_in_same_space() {
 
     // List root — should show both shares. UCAN claims shared-space (the
     // peer's only authorized space).
-    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("shared-space") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        server_addr.clone(),
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("shared-space"),
+        },
+    )
+    .await
+    .unwrap();
     match resp {
         Response::List { entries } => {
             assert_eq!(entries.len(), 2);
@@ -776,10 +881,26 @@ async fn multiple_shares_in_same_space() {
     }
 
     // Read file from each share
-    let (_, doc_data) = send_read_request_for_space(&client_ep, server_addr.clone(), "/Documents/doc.txt", None, "shared-space").await.unwrap();
+    let (_, doc_data) = send_read_request_for_space(
+        &client_ep,
+        server_addr.clone(),
+        "/Documents/doc.txt",
+        None,
+        "shared-space",
+    )
+    .await
+    .unwrap();
     assert_eq!(doc_data, b"document");
 
-    let (_, photo_data) = send_read_request_for_space(&client_ep, server_addr, "/Photos/photo.jpg", None, "shared-space").await.unwrap();
+    let (_, photo_data) = send_read_request_for_space(
+        &client_ep,
+        server_addr,
+        "/Photos/photo.jpg",
+        None,
+        "shared-space",
+    )
+    .await
+    .unwrap();
     assert_eq!(photo_data, b"\xFF\xD8\xFF\xE0");
 
     let _ = server.stop().await;
@@ -795,13 +916,19 @@ async fn concurrent_clients_can_connect() {
     let mut client1 = PeerEndpoint::new_ephemeral();
     let mut client2 = PeerEndpoint::new_ephemeral();
 
-    let client_did =
-        install_test_identities(&mut server, &mut [&mut client1, &mut client2]).await;
+    let client_did = install_test_identities(&mut server, &mut [&mut client1, &mut client2]).await;
 
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("shared.txt"), b"shared content").unwrap();
 
-    server.add_share("s1".to_string(), "Shared".to_string(), tmp.path().to_string_lossy().to_string(), "space-1".to_string()).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Shared".to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            "space-1".to_string(),
+        )
+        .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -839,9 +966,8 @@ async fn concurrent_clients_can_connect() {
 
 #[tokio::test]
 async fn malformed_json_request_does_not_crash_server() {
-    let (mut server, client, server_addr, _tmp) = setup_server_client(
-        &[("file.txt", b"x")], &[], "Robust", "space-1",
-    ).await;
+    let (mut server, client, server_addr, _tmp) =
+        setup_server_client(&[("file.txt", b"x")], &[], "Robust", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
@@ -849,7 +975,10 @@ async fn malformed_json_request_does_not_crash_server() {
     let conn = tokio::time::timeout(
         Duration::from_secs(5),
         client_ep.connect(server_addr.clone(), ALPN),
-    ).await.unwrap().unwrap();
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     let (mut send, mut _recv) = conn.open_bi().await.unwrap();
 
@@ -863,31 +992,43 @@ async fn malformed_json_request_does_not_crash_server() {
 
     // Verify server is still alive by making a valid request
     let valid_resp = send_request(
-        &client_ep, server_addr,
-        &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await;
-    assert!(valid_resp.is_ok(), "Server should still work after malformed request");
+        &client_ep,
+        server_addr,
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await;
+    assert!(
+        valid_resp.is_ok(),
+        "Server should still work after malformed request"
+    );
 
     server.stop().await.ok();
 }
 
 #[tokio::test]
 async fn oversized_length_prefix_is_rejected() {
-    let (mut server, client, server_addr, _tmp) = setup_server_client(
-        &[("file.txt", b"x")], &[], "Oversize", "space-1",
-    ).await;
+    let (mut server, client, server_addr, _tmp) =
+        setup_server_client(&[("file.txt", b"x")], &[], "Oversize", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     let conn = tokio::time::timeout(
         Duration::from_secs(5),
         client_ep.connect(server_addr.clone(), ALPN),
-    ).await.unwrap().unwrap();
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     let (mut send, mut _recv) = conn.open_bi().await.unwrap();
 
     // Claim 100 MB message (exceeds MAX_REQUEST_SIZE of 1 MB)
-    send.write_all(&(100 * 1024 * 1024u32).to_be_bytes()).await.unwrap();
+    send.write_all(&(100 * 1024 * 1024u32).to_be_bytes())
+        .await
+        .unwrap();
     send.write_all(b"{}").await.unwrap();
     send.finish().unwrap();
 
@@ -895,9 +1036,14 @@ async fn oversized_length_prefix_is_rejected() {
 
     // Server still alive
     let valid = send_request(
-        &client_ep, server_addr,
-        &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await;
+        &client_ep,
+        server_addr,
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await;
     assert!(valid.is_ok(), "Server must survive oversized requests");
 
     server.stop().await.ok();
@@ -905,16 +1051,18 @@ async fn oversized_length_prefix_is_rejected() {
 
 #[tokio::test]
 async fn empty_stream_does_not_crash() {
-    let (mut server, client, server_addr, _tmp) = setup_server_client(
-        &[("file.txt", b"x")], &[], "Empty", "space-1",
-    ).await;
+    let (mut server, client, server_addr, _tmp) =
+        setup_server_client(&[("file.txt", b"x")], &[], "Empty", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     let conn = tokio::time::timeout(
         Duration::from_secs(5),
         client_ep.connect(server_addr.clone(), ALPN),
-    ).await.unwrap().unwrap();
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     let (mut send, _recv) = conn.open_bi().await.unwrap();
     // Send nothing and close
@@ -924,9 +1072,14 @@ async fn empty_stream_does_not_crash() {
 
     // Server still alive
     let valid = send_request(
-        &client_ep, server_addr,
-        &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await;
+        &client_ep,
+        server_addr,
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await;
     assert!(valid.is_ok(), "Server must survive empty streams");
 
     server.stop().await.ok();
@@ -938,14 +1091,13 @@ async fn empty_stream_does_not_crash() {
 
 #[tokio::test]
 async fn empty_file_read_returns_zero_bytes() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("empty.txt", b"")], &[], "EmptyFile", "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("empty.txt", b"")], &[], "EmptyFile", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let (header, data) = send_read_request(
-        &client_ep, addr, "/EmptyFile/empty.txt", None,
-    ).await.unwrap();
+    let (header, data) = send_read_request(&client_ep, addr, "/EmptyFile/empty.txt", None)
+        .await
+        .unwrap();
 
     match header {
         Response::ReadHeader { size } => assert_eq!(size, 0),
@@ -965,11 +1117,23 @@ async fn filenames_with_spaces_and_special_chars() {
             ("file_under_scores.txt", b"underscores"),
             ("file.multiple.dots.txt", b"dots"),
         ],
-        &[], "SpecialNames", "space-1",
-    ).await;
+        &[],
+        "SpecialNames",
+        "space-1",
+    )
+    .await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/SpecialNames".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        addr.clone(),
+        &Request::List {
+            path: "/SpecialNames".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
     match &resp {
         Response::List { entries } => {
             assert_eq!(entries.len(), 4);
@@ -981,7 +1145,9 @@ async fn filenames_with_spaces_and_special_chars() {
     }
 
     // Read file with spaces in name
-    let (_, data) = send_read_request(&client_ep, addr, "/SpecialNames/file with spaces.txt", None).await.unwrap();
+    let (_, data) = send_read_request(&client_ep, addr, "/SpecialNames/file with spaces.txt", None)
+        .await
+        .unwrap();
     assert_eq!(data, b"spaces");
 
     server.stop().await.ok();
@@ -991,20 +1157,23 @@ async fn filenames_with_spaces_and_special_chars() {
 async fn deeply_nested_10_levels() {
     let mut path = String::new();
     for i in 0..10 {
-        if !path.is_empty() { path.push('/'); }
+        if !path.is_empty() {
+            path.push('/');
+        }
         path.push_str(&format!("level{i}"));
     }
     let file_path = format!("{path}/deep.txt");
 
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[(&file_path, b"found me!")], &[], "DeepNest", "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[(&file_path, b"found me!")], &[], "DeepNest", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     // Read the deep file
     let deep_file = format!("/DeepNest/{file_path}");
-    let (header, data) = send_read_request(&client_ep, addr, &deep_file, None).await.unwrap();
+    let (header, data) = send_read_request(&client_ep, addr, &deep_file, None)
+        .await
+        .unwrap();
     match header {
         Response::ReadHeader { size } => assert_eq!(size, 9), // "found me!"
         other => panic!("Expected ReadHeader, got: {:?}", other),
@@ -1016,12 +1185,20 @@ async fn deeply_nested_10_levels() {
 
 #[tokio::test]
 async fn empty_directory_listing_returns_zero_entries() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[], &["emptydir"], "EmptyDir", "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[], &["emptydir"], "EmptyDir", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr, &Request::List { path: "/EmptyDir/emptydir".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        addr,
+        &Request::List {
+            path: "/EmptyDir/emptydir".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
     match resp {
         Response::List { entries } => assert!(entries.is_empty()),
         other => panic!("Expected empty List, got: {:?}", other),
@@ -1042,7 +1219,14 @@ async fn share_removed_while_client_browsing() {
 
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("data.txt"), b"important").unwrap();
-    server.add_share("s1".to_string(), "Volatile".to_string(), tmp.path().to_string_lossy().to_string(), "space-1".to_string()).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Volatile".to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            "space-1".to_string(),
+        )
+        .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -1057,7 +1241,16 @@ async fn share_removed_while_client_browsing() {
     let server_addr = server.endpoint_ref().unwrap().addr();
 
     // First access succeeds
-    let resp = send_request(&client_ep, server_addr.clone(), &Request::List { path: "/Volatile".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        server_addr.clone(),
+        &Request::List {
+            path: "/Volatile".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 1),
         other => panic!("Expected List, got: {:?}", other),
@@ -1068,10 +1261,22 @@ async fn share_removed_while_client_browsing() {
     sleep(Duration::from_millis(50)).await;
 
     // Root listing should be empty
-    let resp = send_request(&client_ep, server_addr, &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        server_addr,
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
     match resp {
         Response::List { entries } => {
-            assert!(!entries.iter().any(|e| e.name == "Volatile"), "Removed share must not appear");
+            assert!(
+                !entries.iter().any(|e| e.name == "Volatile"),
+                "Removed share must not appear"
+            );
         }
         other => panic!("Expected List, got: {:?}", other),
     }
@@ -1083,13 +1288,25 @@ async fn share_removed_while_client_browsing() {
 async fn file_deleted_on_disk_between_list_and_read() {
     let (mut server, client, addr, tmp) = setup_server_client(
         &[("keep.txt", b"stays"), ("gone.txt", b"vanishes")],
-        &[], "DiskRace", "space-1",
-    ).await;
+        &[],
+        "DiskRace",
+        "space-1",
+    )
+    .await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     // Listing shows both
-    let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/DiskRace".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        addr.clone(),
+        &Request::List {
+            path: "/DiskRace".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 2),
         other => panic!("Expected 2 entries, got: {:?}", other),
@@ -1099,14 +1316,18 @@ async fn file_deleted_on_disk_between_list_and_read() {
     std::fs::remove_file(tmp.path().join("gone.txt")).unwrap();
 
     // Reading the deleted file should error, not crash
-    let (header, _) = send_read_request(&client_ep, addr.clone(), "/DiskRace/gone.txt", None).await.unwrap();
+    let (header, _) = send_read_request(&client_ep, addr.clone(), "/DiskRace/gone.txt", None)
+        .await
+        .unwrap();
     match header {
         Response::Error { .. } => { /* expected */ }
         other => panic!("Reading deleted file should fail, got: {:?}", other),
     }
 
     // Other file still works
-    let (_, data) = send_read_request(&client_ep, addr, "/DiskRace/keep.txt", None).await.unwrap();
+    let (_, data) = send_read_request(&client_ep, addr, "/DiskRace/keep.txt", None)
+        .await
+        .unwrap();
     assert_eq!(data, b"stays");
 
     server.stop().await.ok();
@@ -1118,9 +1339,8 @@ async fn file_deleted_on_disk_between_list_and_read() {
 
 #[tokio::test]
 async fn path_traversal_attack_vectors() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("safe.txt", b"safe")], &[], "Fort", "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("safe.txt", b"safe")], &[], "Fort", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
@@ -1133,14 +1353,24 @@ async fn path_traversal_attack_vectors() {
     ];
 
     for path in &attacks {
-        let resp = send_request(&client_ep, addr.clone(), &Request::List { path: path.to_string(), ucan_token: test_ucan_token("space-1") }).await;
+        let resp = send_request(
+            &client_ep,
+            addr.clone(),
+            &Request::List {
+                path: path.to_string(),
+                ucan_token: test_ucan_token("space-1"),
+            },
+        )
+        .await;
         match resp {
             Ok(Response::Error { .. }) => { /* blocked */ }
             Ok(Response::List { entries }) => {
                 for entry in &entries {
                     assert!(
                         entry.name != "passwd" && entry.name != "shadow" && entry.name != "etc",
-                        "Path traversal '{}' leaked: '{}'", path, entry.name,
+                        "Path traversal '{}' leaked: '{}'",
+                        path,
+                        entry.name,
                     );
                 }
             }
@@ -1157,7 +1387,11 @@ async fn path_traversal_attack_vectors() {
             Ok((Response::Error { .. }, _)) => { /* blocked */ }
             Ok((Response::ReadHeader { .. }, data)) => {
                 // If somehow it read something, it must be from within the share
-                assert!(data.is_empty() || data == b"safe", "Path traversal READ leaked data for '{}'", path);
+                assert!(
+                    data.is_empty() || data == b"safe",
+                    "Path traversal READ leaked data for '{}'",
+                    path
+                );
             }
             Err(_) => { /* connection error — fine */ }
             other => panic!("Unexpected READ for '{}': {:?}", path, other),
@@ -1174,14 +1408,14 @@ async fn path_traversal_attack_vectors() {
 #[tokio::test]
 async fn range_beyond_file_size_is_clamped() {
     let content = b"short";
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("short.txt", content)], &[], "Clamp", "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("short.txt", content)], &[], "Clamp", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let (header, data) = send_read_request(
-        &client_ep, addr, "/Clamp/short.txt", Some([0, 1_000_000]),
-    ).await.unwrap();
+    let (header, data) =
+        send_read_request(&client_ep, addr, "/Clamp/short.txt", Some([0, 1_000_000]))
+            .await
+            .unwrap();
 
     match header {
         Response::ReadHeader { size } => {
@@ -1196,14 +1430,13 @@ async fn range_beyond_file_size_is_clamped() {
 
 #[tokio::test]
 async fn range_start_equals_end_returns_zero() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("hello.txt", b"hello")], &[], "ZeroRange", "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("hello.txt", b"hello")], &[], "ZeroRange", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let (header, data) = send_read_request(
-        &client_ep, addr, "/ZeroRange/hello.txt", Some([3, 3]),
-    ).await.unwrap();
+    let (header, data) = send_read_request(&client_ep, addr, "/ZeroRange/hello.txt", Some([3, 3]))
+        .await
+        .unwrap();
 
     match header {
         Response::ReadHeader { size } => assert_eq!(size, 0),
@@ -1221,16 +1454,32 @@ async fn range_start_equals_end_returns_zero() {
 #[tokio::test]
 async fn listing_100_files() {
     let files: Vec<(String, Vec<u8>)> = (0..100)
-        .map(|i| (format!("file_{:03}.txt", i), format!("content_{i}").into_bytes()))
+        .map(|i| {
+            (
+                format!("file_{:03}.txt", i),
+                format!("content_{i}").into_bytes(),
+            )
+        })
         .collect();
-    let file_refs: Vec<(&str, &[u8])> = files.iter().map(|(n, c)| (n.as_str(), c.as_slice())).collect();
+    let file_refs: Vec<(&str, &[u8])> = files
+        .iter()
+        .map(|(n, c)| (n.as_str(), c.as_slice()))
+        .collect();
 
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &file_refs, &[], "Bulk", "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&file_refs, &[], "Bulk", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
-    let resp = send_request(&client_ep, addr, &Request::List { path: "/Bulk".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &client_ep,
+        addr,
+        &Request::List {
+            path: "/Bulk".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
 
     match resp {
         Response::List { entries } => {
@@ -1246,14 +1495,21 @@ async fn listing_100_files() {
 
 #[tokio::test]
 async fn rapid_20_sequential_requests() {
-    let (mut server, client, addr, _tmp) = setup_server_client(
-        &[("data.txt", b"rapid")], &[], "Rapid", "space-1",
-    ).await;
+    let (mut server, client, addr, _tmp) =
+        setup_server_client(&[("data.txt", b"rapid")], &[], "Rapid", "space-1").await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
 
     for i in 0..20 {
-        let resp = send_request(&client_ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await;
+        let resp = send_request(
+            &client_ep,
+            addr.clone(),
+            &Request::List {
+                path: "/".to_string(),
+                ucan_token: test_ucan_token("space-1"),
+            },
+        )
+        .await;
         assert!(resp.is_ok(), "Request {i}/20 failed: {:?}", resp.err());
     }
 
@@ -1279,20 +1535,21 @@ async fn leaked_endpoint_id_cannot_access_files() {
     let mut legitimate = PeerEndpoint::new_ephemeral();
     let mut attacker = PeerEndpoint::new_ephemeral();
 
-    let client_did = install_test_identities(
-        &mut server,
-        &mut [&mut legitimate, &mut attacker],
-    )
-    .await;
+    let client_did =
+        install_test_identities(&mut server, &mut [&mut legitimate, &mut attacker]).await;
 
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("confidential.txt"), b"TOP SECRET DATA").unwrap();
     std::fs::write(tmp.path().join("passwords.db"), b"admin:hunter2").unwrap();
 
-    server.add_share(
-        "s1".to_string(), "Secrets".to_string(),
-        tmp.path().to_string_lossy().to_string(), "private-space".to_string(),
-    ).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Secrets".to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            "private-space".to_string(),
+        )
+        .await;
 
     // Only legitimate peer is allowed; the attacker has its own iroh
     // endpoint but is not registered in allowed_peers, so the connection
@@ -1311,13 +1568,22 @@ async fn leaked_endpoint_id_cannot_access_files() {
 
     // Attempt LIST root
     let list_result = send_request(
-        &attacker_ep, server_addr.clone(),
-        &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await;
+        &attacker_ep,
+        server_addr.clone(),
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await;
     match list_result {
         Err(_) => { /* Connection rejected */ }
         Ok(Response::List { entries }) => {
-            assert!(entries.is_empty(), "Attacker must NOT see any shares, got: {:?}", entries);
+            assert!(
+                entries.is_empty(),
+                "Attacker must NOT see any shares, got: {:?}",
+                entries
+            );
         }
         Ok(Response::Error { .. }) => { /* Also acceptable */ }
         other => panic!("Attacker should be rejected, got: {:?}", other),
@@ -1325,9 +1591,14 @@ async fn leaked_endpoint_id_cannot_access_files() {
 
     // Attempt to LIST inside a share by guessing the name
     let direct_result = send_request(
-        &attacker_ep, server_addr.clone(),
-        &Request::List { path: "/Secrets".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await;
+        &attacker_ep,
+        server_addr.clone(),
+        &Request::List {
+            path: "/Secrets".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await;
     match direct_result {
         Err(_) | Ok(Response::Error { .. }) => { /* rejected */ }
         Ok(Response::List { entries }) => {
@@ -1338,23 +1609,34 @@ async fn leaked_endpoint_id_cannot_access_files() {
 
     // Attempt to READ a specific file by guessing the path
     let read_result = send_read_request(
-        &attacker_ep, server_addr.clone(),
-        "/Secrets/confidential.txt", None,
-    ).await;
+        &attacker_ep,
+        server_addr.clone(),
+        "/Secrets/confidential.txt",
+        None,
+    )
+    .await;
     match read_result {
         Err(_) | Ok((Response::Error { .. }, _)) => { /* rejected */ }
         Ok((Response::ReadHeader { .. }, data)) => {
             assert!(data.is_empty(), "Attacker must NOT read file data!");
-            assert_ne!(data, b"TOP SECRET DATA", "CRITICAL: attacker read confidential data!");
+            assert_ne!(
+                data, b"TOP SECRET DATA",
+                "CRITICAL: attacker read confidential data!"
+            );
         }
         other => panic!("File read should fail for attacker, got: {:?}", other),
     }
 
     // Attempt to STAT a file
     let stat_result = send_request(
-        &attacker_ep, server_addr.clone(),
-        &Request::Stat { path: "/Secrets/passwords.db".to_string(), ucan_token: test_ucan_token("space-1") },
-    ).await;
+        &attacker_ep,
+        server_addr.clone(),
+        &Request::Stat {
+            path: "/Secrets/passwords.db".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await;
     match stat_result {
         Err(_) | Ok(Response::Error { .. }) => { /* rejected */ }
         Ok(Response::Stat { entry, .. }) => {
@@ -1366,8 +1648,14 @@ async fn leaked_endpoint_id_cannot_access_files() {
     // Legitimate peer CAN access
     let legit_ep = legitimate.endpoint_ref().unwrap().clone();
     let (_, data) = send_read_request_for_space(
-        &legit_ep, server_addr, "/Secrets/confidential.txt", None, "private-space",
-    ).await.unwrap();
+        &legit_ep,
+        server_addr,
+        "/Secrets/confidential.txt",
+        None,
+        "private-space",
+    )
+    .await
+    .unwrap();
     assert_eq!(data, b"TOP SECRET DATA");
 
     server.stop().await.ok();
@@ -1387,8 +1675,22 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     let tmp_priv = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp_priv.path().join("api_keys.env"), b"SECRET=abc123").unwrap();
 
-    server.add_share("pub".to_string(), "PublicDocs".to_string(), tmp_pub.path().to_string_lossy().to_string(), "space-public".to_string()).await;
-    server.add_share("priv".to_string(), "InternalOps".to_string(), tmp_priv.path().to_string_lossy().to_string(), "space-internal".to_string()).await;
+    server
+        .add_share(
+            "pub".to_string(),
+            "PublicDocs".to_string(),
+            tmp_pub.path().to_string_lossy().to_string(),
+            "space-public".to_string(),
+        )
+        .await;
+    server
+        .add_share(
+            "priv".to_string(),
+            "InternalOps".to_string(),
+            tmp_priv.path().to_string_lossy().to_string(),
+            "space-internal".to_string(),
+        )
+        .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -1403,11 +1705,28 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     let addr = server.endpoint_ref().unwrap().addr();
 
     // Can access public
-    let (_, data) = send_read_request_for_space(&ep, addr.clone(), "/PublicDocs/readme.txt", None, "space-public").await.unwrap();
+    let (_, data) = send_read_request_for_space(
+        &ep,
+        addr.clone(),
+        "/PublicDocs/readme.txt",
+        None,
+        "space-public",
+    )
+    .await
+    .unwrap();
     assert_eq!(data, b"public");
 
     // Cannot access internal — by share name
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/InternalOps".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &ep,
+        addr.clone(),
+        &Request::List {
+            path: "/InternalOps".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
     match resp {
         Response::Error { .. } => { /* blocked */ }
         Response::List { entries } => panic!("LEAKED: listed internal files: {:?}", entries),
@@ -1415,7 +1734,16 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     }
 
     // Cannot access internal — by share ID
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/priv".to_string(), ucan_token: test_ucan_token("space-1") }).await.unwrap();
+    let resp = send_request(
+        &ep,
+        addr.clone(),
+        &Request::List {
+            path: "/priv".to_string(),
+            ucan_token: test_ucan_token("space-1"),
+        },
+    )
+    .await
+    .unwrap();
     match resp {
         Response::Error { .. } => { /* blocked */ }
         Response::List { entries } => panic!("LEAKED via ID: {:?}", entries),
@@ -1427,8 +1755,11 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     match read {
         Err(_) | Ok((Response::Error { .. }, _)) => { /* blocked */ }
         Ok((_, data)) => {
-            assert_ne!(String::from_utf8_lossy(&data), "SECRET=abc123",
-                "CRITICAL: read internal file from wrong space!");
+            assert_ne!(
+                String::from_utf8_lossy(&data),
+                "SECRET=abc123",
+                "CRITICAL: read internal file from wrong space!"
+            );
         }
     }
 
@@ -1446,7 +1777,14 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("secret.txt"), b"pre-revoke").unwrap();
 
-    server.add_share("s1".to_string(), "Data".to_string(), tmp.path().to_string_lossy().to_string(), "space-1".to_string()).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Data".to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            "space-1".to_string(),
+        )
+        .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
@@ -1461,7 +1799,9 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
     let addr = server.endpoint_ref().unwrap().addr();
 
     // Works before revoke
-    let (_, data) = send_read_request(&ep, addr.clone(), "/Data/secret.txt", None).await.unwrap();
+    let (_, data) = send_read_request(&ep, addr.clone(), "/Data/secret.txt", None)
+        .await
+        .unwrap();
     assert_eq!(data, b"pre-revoke");
 
     // Revoke
@@ -1474,12 +1814,24 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
 
     // 5 attempts — all must fail
     for i in 0..5 {
-        let list = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("space-1") }).await;
+        let list = send_request(
+            &ep,
+            addr.clone(),
+            &Request::List {
+                path: "/".to_string(),
+                ucan_token: test_ucan_token("space-1"),
+            },
+        )
+        .await;
         match list {
             Err(_) => { /* rejected */ }
             Ok(Response::Error { .. }) => { /* rejected */ }
             Ok(Response::List { entries }) => {
-                assert!(entries.is_empty(), "Attempt {i}: revoked peer sees shares: {:?}", entries);
+                assert!(
+                    entries.is_empty(),
+                    "Attempt {i}: revoked peer sees shares: {:?}",
+                    entries
+                );
             }
             other => panic!("Attempt {i}: unexpected: {:?}", other),
         }
@@ -1504,8 +1856,7 @@ async fn three_peers_three_spaces_complete_isolation() {
     let mut pb = PeerEndpoint::new_ephemeral();
     let mut pc = PeerEndpoint::new_ephemeral();
 
-    let client_did =
-        install_test_identities(&mut server, &mut [&mut pa, &mut pb, &mut pc]).await;
+    let client_did = install_test_identities(&mut server, &mut [&mut pa, &mut pb, &mut pc]).await;
 
     let ta = tempfile::TempDir::new().unwrap();
     std::fs::write(ta.path().join("a.txt"), b"alice").unwrap();
@@ -1514,14 +1865,38 @@ async fn three_peers_three_spaces_complete_isolation() {
     let tc = tempfile::TempDir::new().unwrap();
     std::fs::write(tc.path().join("c.txt"), b"charlie").unwrap();
 
-    server.add_share("sa".to_string(), "Alice".to_string(), ta.path().to_string_lossy().to_string(), "sp-a".to_string()).await;
-    server.add_share("sb".to_string(), "Bob".to_string(), tb.path().to_string_lossy().to_string(), "sp-b".to_string()).await;
-    server.add_share("sc".to_string(), "Charlie".to_string(), tc.path().to_string_lossy().to_string(), "sp-c".to_string()).await;
+    server
+        .add_share(
+            "sa".to_string(),
+            "Alice".to_string(),
+            ta.path().to_string_lossy().to_string(),
+            "sp-a".to_string(),
+        )
+        .await;
+    server
+        .add_share(
+            "sb".to_string(),
+            "Bob".to_string(),
+            tb.path().to_string_lossy().to_string(),
+            "sp-b".to_string(),
+        )
+        .await;
+    server
+        .add_share(
+            "sc".to_string(),
+            "Charlie".to_string(),
+            tc.path().to_string_lossy().to_string(),
+            "sp-c".to_string(),
+        )
+        .await;
 
     let mut allowed = HashMap::new();
-    let mut sa = HashSet::new(); sa.insert("sp-a".to_string());
-    let mut sb = HashSet::new(); sb.insert("sp-b".to_string());
-    let mut sc = HashSet::new(); sc.insert("sp-c".to_string());
+    let mut sa = HashSet::new();
+    sa.insert("sp-a".to_string());
+    let mut sb = HashSet::new();
+    sb.insert("sp-b".to_string());
+    let mut sc = HashSet::new();
+    sc.insert("sp-c".to_string());
     allowed.insert(pa.endpoint_id().to_string(), sa);
     allowed.insert(pb.endpoint_id().to_string(), sb);
     allowed.insert(pc.endpoint_id().to_string(), sc);
@@ -1543,9 +1918,25 @@ async fn three_peers_three_spaces_complete_isolation() {
     for (label, ep, expected, file, content, space) in [
         ("Alice", &ea, "Alice", "a.txt", b"alice".as_slice(), "sp-a"),
         ("Bob", &eb, "Bob", "b.txt", b"bob".as_slice(), "sp-b"),
-        ("Charlie", &ec, "Charlie", "c.txt", b"charlie".as_slice(), "sp-c"),
+        (
+            "Charlie",
+            &ec,
+            "Charlie",
+            "c.txt",
+            b"charlie".as_slice(),
+            "sp-c",
+        ),
     ] {
-        let resp = send_request(ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token(space) }).await.unwrap();
+        let resp = send_request(
+            ep,
+            addr.clone(),
+            &Request::List {
+                path: "/".to_string(),
+                ucan_token: test_ucan_token(space),
+            },
+        )
+        .await
+        .unwrap();
         match &resp {
             Response::List { entries } => {
                 assert_eq!(entries.len(), 1, "{label} should see exactly 1 share");
@@ -1553,22 +1944,44 @@ async fn three_peers_three_spaces_complete_isolation() {
             }
             other => panic!("{label}: Expected List, got: {:?}", other),
         }
-        let (_, data) = send_read_request_for_space(ep, addr.clone(), &format!("/{expected}/{file}"), None, space).await.unwrap();
+        let (_, data) = send_read_request_for_space(
+            ep,
+            addr.clone(),
+            &format!("/{expected}/{file}"),
+            None,
+            space,
+        )
+        .await
+        .unwrap();
         assert_eq!(data, content, "{label}: wrong file content");
     }
 
     // Cross-access attempts: Alice→Bob, Bob→Charlie, Charlie→Alice
     for (label, ep, target_share, target_file, forbidden_content) in [
         ("Alice→Bob", &ea, "Bob", "b.txt", b"bob".as_slice()),
-        ("Bob→Charlie", &eb, "Charlie", "c.txt", b"charlie".as_slice()),
+        (
+            "Bob→Charlie",
+            &eb,
+            "Charlie",
+            "c.txt",
+            b"charlie".as_slice(),
+        ),
         ("Charlie→Alice", &ec, "Alice", "a.txt", b"alice".as_slice()),
     ] {
-        let read = send_read_request(ep, addr.clone(), &format!("/{target_share}/{target_file}"), None).await;
+        let read = send_read_request(
+            ep,
+            addr.clone(),
+            &format!("/{target_share}/{target_file}"),
+            None,
+        )
+        .await;
         match read {
             Err(_) | Ok((Response::Error { .. }, _)) => { /* blocked — correct */ }
             Ok((_, data)) => {
-                assert_ne!(data, forbidden_content,
-                    "CRITICAL: {label} cross-space data leak!");
+                assert_ne!(
+                    data, forbidden_content,
+                    "CRITICAL: {label} cross-space data leak!"
+                );
             }
         }
     }
@@ -1589,8 +2002,22 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     let tmp_b = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp_b.path().join("premium.txt"), b"premium").unwrap();
 
-    server.add_share("sa".to_string(), "Basic".to_string(), tmp_a.path().to_string_lossy().to_string(), "tier-basic".to_string()).await;
-    server.add_share("sb".to_string(), "Premium".to_string(), tmp_b.path().to_string_lossy().to_string(), "tier-premium".to_string()).await;
+    server
+        .add_share(
+            "sa".to_string(),
+            "Basic".to_string(),
+            tmp_a.path().to_string_lossy().to_string(),
+            "tier-basic".to_string(),
+        )
+        .await;
+    server
+        .add_share(
+            "sb".to_string(),
+            "Premium".to_string(),
+            tmp_b.path().to_string_lossy().to_string(),
+            "tier-premium".to_string(),
+        )
+        .await;
 
     let addr = server.endpoint_ref().unwrap().addr();
     let ep = user.endpoint_ref().unwrap().clone();
@@ -1605,7 +2032,16 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     owner_dids.insert(user.endpoint_id().to_string(), client_did);
     server.set_peer_owner_dids(owner_dids).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("tier-basic") }).await.unwrap();
+    let resp = send_request(
+        &ep,
+        addr.clone(),
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("tier-basic"),
+        },
+    )
+    .await
+    .unwrap();
     match &resp {
         Response::List { entries } => assert_eq!(entries.len(), 1, "Phase 1: only basic"),
         other => panic!("Phase 1: {:?}", other),
@@ -1639,7 +2075,15 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
         Response::List { entries } => assert_eq!(entries.len(), 2, "Phase 2: basic + premium"),
         other => panic!("Phase 2: {:?}", other),
     }
-    let (_, data) = send_read_request_for_space(&ep, addr.clone(), "/Premium/premium.txt", None, "tier-premium").await.unwrap();
+    let (_, data) = send_read_request_for_space(
+        &ep,
+        addr.clone(),
+        "/Premium/premium.txt",
+        None,
+        "tier-premium",
+    )
+    .await
+    .unwrap();
     assert_eq!(data, b"premium");
 
     // Phase 3: Downgrade back to basic only
@@ -1650,7 +2094,16 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     server.set_allowed_peers(downgraded).await;
     sleep(Duration::from_millis(50)).await;
 
-    let resp = send_request(&ep, addr.clone(), &Request::List { path: "/".to_string(), ucan_token: test_ucan_token("tier-basic") }).await.unwrap();
+    let resp = send_request(
+        &ep,
+        addr.clone(),
+        &Request::List {
+            path: "/".to_string(),
+            ucan_token: test_ucan_token("tier-basic"),
+        },
+    )
+    .await
+    .unwrap();
     match &resp {
         Response::List { entries } => {
             assert_eq!(entries.len(), 1, "Phase 3: back to basic only");
@@ -1664,7 +2117,10 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     match premium_read {
         Err(_) | Ok((Response::Error { .. }, _)) => { /* blocked — correct */ }
         Ok((_, data)) => {
-            assert_ne!(data, b"premium", "CRITICAL: downgraded user still reads premium!");
+            assert_ne!(
+                data, b"premium",
+                "CRITICAL: downgraded user still reads premium!"
+            );
         }
     }
 

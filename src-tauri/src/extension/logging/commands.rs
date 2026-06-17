@@ -3,7 +3,9 @@ use tauri::State;
 
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
-use crate::logging::{LogEntry, LogLevel, LogQueryParams, get_effective_log_level, insert_log, query_logs};
+use crate::logging::{
+    get_effective_log_level, insert_log, query_logs, LogEntry, LogLevel, LogQueryParams,
+};
 use crate::AppState;
 
 /// Write an extension log entry.
@@ -17,8 +19,9 @@ pub fn extension_logging_write(
     metadata: Option<JsonValue>,
     device_id: String,
 ) -> Result<(), DatabaseError> {
-    let log_level = LogLevel::from_str(&level)
-        .ok_or_else(|| DatabaseError::ValidationError { reason: format!("Invalid log level: {level}") })?;
+    let log_level = LogLevel::from_str(&level).ok_or_else(|| DatabaseError::ValidationError {
+        reason: format!("Invalid log level: {level}"),
+    })?;
 
     let should_log = with_connection(&state.db, |conn| {
         Ok(log_level >= get_effective_log_level(conn, Some(&extension_id)))
@@ -28,7 +31,15 @@ pub fn extension_logging_write(
         return Ok(());
     }
 
-    insert_log(&state, &level, &extension_id, Some(&extension_id), &message, metadata, &device_id)
+    insert_log(
+        &state,
+        &level,
+        &extension_id,
+        Some(&extension_id),
+        &message,
+        metadata,
+        &device_id,
+    )
 }
 
 /// Read extension logs — only returns logs for the requesting extension.

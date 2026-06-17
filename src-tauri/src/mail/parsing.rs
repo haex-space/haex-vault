@@ -24,10 +24,7 @@ pub fn parse_message(rfc822: &[u8], fetch: &Fetch) -> Result<Message, MailError>
 
     let subject = parsed.subject().map(|s| s.to_string());
 
-    let from: Vec<Address> = parsed
-        .from()
-        .map(addresses_from_header)
-        .unwrap_or_default();
+    let from: Vec<Address> = parsed.from().map(addresses_from_header).unwrap_or_default();
     let to: Vec<Address> = parsed.to().map(addresses_from_header).unwrap_or_default();
     let cc: Vec<Address> = parsed.cc().map(addresses_from_header).unwrap_or_default();
 

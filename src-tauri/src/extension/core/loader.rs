@@ -2,12 +2,12 @@
 //
 // Extension loading from database and filesystem.
 
+use super::queries::SQL_LIST_EXTENSIONS;
 use crate::database::core::select_with_crdt;
 use crate::extension::core::manifest::{DisplayMode, ExtensionManifest, ExtensionPermissions};
 use crate::extension::core::path_utils::validate_path_in_directory;
 use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::error::ExtensionError;
-use super::queries::SQL_LIST_EXTENSIONS;
 use crate::AppState;
 use serde_json;
 use std::path::PathBuf;
@@ -156,7 +156,8 @@ impl ExtensionManager {
                     "auto" | _ => Some(DisplayMode::Auto),
                 }),
                 migrations_dir: None,
-                i18n: row.get(14)
+                i18n: row
+                    .get(14)
                     .and_then(|v| v.as_str())
                     .and_then(|s| serde_json::from_str(s).ok()),
             };
@@ -186,7 +187,9 @@ impl ExtensionManager {
             let extension_id = extension_data.id;
             eprintln!(
                 "DEBUG: Processing extension: {extension_id} (name={}, version={}, dev_path={:?})",
-                extension_data.manifest.name, extension_data.manifest.version, extension_data.dev_path
+                extension_data.manifest.name,
+                extension_data.manifest.version,
+                extension_data.dev_path
             );
 
             // Check if this is a dev extension (dev_path is set)
@@ -253,13 +256,16 @@ impl ExtensionManager {
 
         let config = read_haextension_config(&dev_path_buf);
         let dev_server_url = format!("http://{}:{}", config.host, config.port);
-        let manifest_path = dev_path_buf.join(&config.haextension_dir).join("manifest.json");
+        let manifest_path = dev_path_buf
+            .join(&config.haextension_dir)
+            .join("manifest.json");
 
         // Resolve icon path from relative (stored in DB) to absolute (for frontend)
         let mut manifest = manifest;
-        manifest.icon = manifest.icon.as_ref().map(|rel_path| {
-            dev_path_buf.join(rel_path).to_string_lossy().to_string()
-        });
+        manifest.icon = manifest
+            .icon
+            .as_ref()
+            .map(|rel_path| dev_path_buf.join(rel_path).to_string_lossy().to_string());
 
         let extension = Extension {
             id: extension_id.to_string(),
@@ -341,9 +347,10 @@ impl ExtensionManager {
 
         // Resolve icon path from relative (stored in DB) to absolute (for frontend)
         let mut manifest = manifest;
-        manifest.icon = manifest.icon.as_ref().map(|rel_path| {
-            extension_path.join(rel_path).to_string_lossy().to_string()
-        });
+        manifest.icon = manifest
+            .icon
+            .as_ref()
+            .map(|rel_path| extension_path.join(rel_path).to_string_lossy().to_string());
 
         let extension = Extension {
             id: extension_id.to_string(),

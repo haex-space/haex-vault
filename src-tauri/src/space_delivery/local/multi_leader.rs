@@ -92,11 +92,7 @@ impl MultiSpaceLeaderHandler {
         // request handlers (C4+ commits) to gate UCAN audience checks against
         // the connection-bound DID rather than the request-payload `did`
         // field. Mirrors `peer_storage/endpoint.rs:955-1010`.
-        let identity_snapshot = self
-            .own_identity
-            .lock()
-            .ok()
-            .and_then(|g| g.clone());
+        let identity_snapshot = self.own_identity.lock().ok().and_then(|g| g.clone());
         if identity_snapshot.is_none() {
             crate::logging::log_to_db(
                 &self.db,
@@ -170,7 +166,8 @@ impl MultiSpaceLeaderHandler {
             None,
         );
 
-        let verified_short = crate::logging::log_truncate(&verified_did, crate::logging::LOG_TRUNCATE_DEFAULT);
+        let verified_short =
+            crate::logging::log_truncate(&verified_did, crate::logging::LOG_TRUNCATE_DEFAULT);
         crate::logging::log_to_db(
             &self.db,
             &self.hlc,
@@ -206,11 +203,8 @@ impl MultiSpaceLeaderHandler {
             // Heartbeat every 10s while waiting for a stream — surfaces the
             // "QUIC TLS handshake done, but no bi-stream ever opens" failure
             // mode where the sender silently drops after its 10s send-timeout.
-            let accept = tokio::time::timeout(
-                std::time::Duration::from_secs(10),
-                conn.accept_bi(),
-            )
-            .await;
+            let accept =
+                tokio::time::timeout(std::time::Duration::from_secs(10), conn.accept_bi()).await;
 
             match accept {
                 Ok(Ok((send, mut recv))) => {
@@ -236,10 +230,16 @@ impl MultiSpaceLeaderHandler {
                         )
                         .await
                         {
-                            let msg = format!(
-                                "Stream {stream_index} error from {peer_endpoint_id}: {e}"
+                            let msg =
+                                format!("Stream {stream_index} error from {peer_endpoint_id}: {e}");
+                            crate::logging::log_to_db(
+                                &db,
+                                &hlc,
+                                "error",
+                                "MultiLeader",
+                                &msg,
+                                None,
                             );
-                            crate::logging::log_to_db(&db, &hlc, "error", "MultiLeader", &msg, None);
                         }
                     });
                 }
@@ -249,7 +249,14 @@ impl MultiSpaceLeaderHandler {
                         streams = stream_count,
                         secs = connection_start.elapsed().as_secs()
                     );
-                    crate::logging::log_to_db(&self.db, &self.hlc, "info", "MultiLeader", &msg, None);
+                    crate::logging::log_to_db(
+                        &self.db,
+                        &self.hlc,
+                        "info",
+                        "MultiLeader",
+                        &msg,
+                        None,
+                    );
                     break;
                 }
                 Err(_) => {
@@ -262,7 +269,14 @@ impl MultiSpaceLeaderHandler {
                         idle_heartbeats,
                         MAX_IDLE_HEARTBEATS,
                     );
-                    crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg, None);
+                    crate::logging::log_to_db(
+                        &self.db,
+                        &self.hlc,
+                        "warn",
+                        "MultiLeader",
+                        &msg,
+                        None,
+                    );
 
                     if idle_heartbeats >= MAX_IDLE_HEARTBEATS {
                         // Misbehaving client occupies a tokio task and spams
@@ -272,7 +286,14 @@ impl MultiSpaceLeaderHandler {
                             connection_start.elapsed().as_secs(),
                             idle_heartbeats,
                         );
-                        crate::logging::log_to_db(&self.db, &self.hlc, "warn", "MultiLeader", &msg, None);
+                        crate::logging::log_to_db(
+                            &self.db,
+                            &self.hlc,
+                            "warn",
+                            "MultiLeader",
+                            &msg,
+                            None,
+                        );
                         conn.close(0u32.into(), b"idle timeout");
                         break;
                     }
@@ -289,7 +310,11 @@ impl MultiSpaceLeaderHandler {
         let leaders = self.leaders.read().await;
         for leader in leaders.values() {
             leader.connected_peers.write().await.remove(&remote_str);
-            leader.notification_senders.write().await.remove(&remote_str);
+            leader
+                .notification_senders
+                .write()
+                .await
+                .remove(&remote_str);
         }
     }
 }
@@ -356,10 +381,18 @@ async fn handle_stream(
             expires_at: _,
             inviter_relay_url,
         } => {
-            crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
-                "PushInvite received from {peer_endpoint_id} → space={} inviter={}",
-                &space_id[..8.min(space_id.len())], &inviter_did[..24.min(inviter_did.len())]
-            ), None);
+            crate::logging::log_to_db(
+                db,
+                hlc,
+                "info",
+                "MultiLeader",
+                &format!(
+                    "PushInvite received from {peer_endpoint_id} → space={} inviter={}",
+                    &space_id[..8.min(space_id.len())],
+                    &inviter_did[..24.min(inviter_did.len())]
+                ),
+                None,
+            );
             push_invite::handle_push_invite(
                 db,
                 hlc,
@@ -383,23 +416,49 @@ async fn handle_stream(
 
         // ClaimInvite — look up the leader for the space
         Request::ClaimInvite { ref space_id, .. } => {
-            crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
-                "ClaimInvite received from {peer_endpoint_id} for space {}",
-                &space_id[..8.min(space_id.len())]
-            ), None);
+            crate::logging::log_to_db(
+                db,
+                hlc,
+                "info",
+                "MultiLeader",
+                &format!(
+                    "ClaimInvite received from {peer_endpoint_id} for space {}",
+                    &space_id[..8.min(space_id.len())]
+                ),
+                None,
+            );
             let map = leaders.read().await;
-            let active_spaces: Vec<String> = map.keys().map(|k| k[..8.min(k.len())].to_string()).collect();
+            let active_spaces: Vec<String> = map
+                .keys()
+                .map(|k| k[..8.min(k.len())].to_string())
+                .collect();
             match map.get(space_id.as_str()) {
                 Some(leader) => {
-                    crate::logging::log_to_db(db, hlc, "info", "MultiLeader", &format!(
-                        "Routing ClaimInvite to leader for space {}", &space_id[..8.min(space_id.len())]
-                    ), None);
+                    crate::logging::log_to_db(
+                        db,
+                        hlc,
+                        "info",
+                        "MultiLeader",
+                        &format!(
+                            "Routing ClaimInvite to leader for space {}",
+                            &space_id[..8.min(space_id.len())]
+                        ),
+                        None,
+                    );
                     super::leader::handle_claim_invite(leader, request, verified_did).await
                 }
                 None => {
-                    crate::logging::log_to_db(db, hlc, "error", "MultiLeader", &format!(
-                        "No leader active for space {} (active: {:?})", space_id, active_spaces
-                    ), None);
+                    crate::logging::log_to_db(
+                        db,
+                        hlc,
+                        "error",
+                        "MultiLeader",
+                        &format!(
+                            "No leader active for space {} (active: {:?})",
+                            space_id, active_spaces
+                        ),
+                        None,
+                    );
                     Response::Error {
                         message: format!("No leader active for space {space_id}"),
                     }

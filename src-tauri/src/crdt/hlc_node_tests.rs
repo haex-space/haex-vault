@@ -7,9 +7,7 @@
 
 #![cfg(test)]
 
-use super::hlc::{
-    device_uuid_to_hlc_node, hlc_is_from_node, hlc_node_id_suffix,
-};
+use super::hlc::{device_uuid_to_hlc_node, hlc_is_from_node, hlc_node_id_suffix};
 use uhlc::{HLCBuilder, ID};
 use uuid::Uuid;
 

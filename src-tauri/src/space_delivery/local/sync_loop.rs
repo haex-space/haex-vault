@@ -11,18 +11,20 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use tauri::{Emitter, Manager};
 use tokio::sync::{watch, Notify};
 
-use crate::crdt::commands::{apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange};
+use super::error::DeliveryError;
+use super::peer::PeerSession;
+use super::push_cursor::{
+    load_last_mls_cursor, load_last_push_hlc, save_last_mls_cursor, save_last_push_hlc,
+};
+use crate::crdt::commands::{
+    apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange,
+};
 use crate::crdt::hlc::hlc_max;
 use crate::crdt::scanner::{
     scan_membership_tables_for_local_changes, scan_space_scoped_tables_for_local_changes,
     LocalColumnChange,
 };
 use crate::database::DbConnection;
-use super::error::DeliveryError;
-use super::peer::PeerSession;
-use super::push_cursor::{
-    load_last_mls_cursor, load_last_push_hlc, save_last_mls_cursor, save_last_push_hlc,
-};
 
 /// Sync-loop DB logging helper — writes to `haex_logs` so the e2e harness
 /// can extract the trace via `sql_select_with_crdt`. The Tauri stderr is
@@ -36,7 +38,6 @@ fn log_sync(app_handle: &tauri::AppHandle, level: &str, message: &str) {
 
 /// Default poll interval between sync cycles.
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
-
 
 /// Maximum backoff duration for reconnection attempts.
 const MAX_RECONNECT_BACKOFF: Duration = Duration::from_secs(60);
@@ -67,8 +68,8 @@ fn chunk_changes_by_hlc(
     let mut chunk_len = 0usize;
 
     for i in 1..=changes.len() {
-        let boundary = i == changes.len()
-            || changes[i].hlc_timestamp != changes[i - 1].hlc_timestamp;
+        let boundary =
+            i == changes.len() || changes[i].hlc_timestamp != changes[i - 1].hlc_timestamp;
         if !boundary {
             continue;
         }
@@ -143,12 +144,16 @@ pub async fn start_peer_sync_loop(
     device_id: String,
     app_handle: tauri::AppHandle,
 ) -> Result<SyncLoopHandle, DeliveryError> {
-    log_sync(&app_handle, "info", &format!(
-        "connecting: space={} leader={} our_did={}",
-        &space_id[..8.min(space_id.len())],
-        &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
-        &our_did[..24.min(our_did.len())],
-    ));
+    log_sync(
+        &app_handle,
+        "info",
+        &format!(
+            "connecting: space={} leader={} our_did={}",
+            &space_id[..8.min(space_id.len())],
+            &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+            &our_did[..24.min(our_did.len())],
+        ),
+    );
 
     // Load the identity's signing key once for the lifetime of this loop.
     // Every (re)connect drives the server-initiated quic_did_auth handshake,
@@ -199,20 +204,28 @@ pub async fn start_peer_sync_loop(
     .await
     {
         Ok(s) => {
-            log_sync(&app_handle, "info", &format!(
-                "connected: space={} leader={}",
-                &space_id[..8.min(space_id.len())],
-                &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
-            ));
+            log_sync(
+                &app_handle,
+                "info",
+                &format!(
+                    "connected: space={} leader={}",
+                    &space_id[..8.min(space_id.len())],
+                    &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+                ),
+            );
             s
         }
         Err(e) => {
-            log_sync(&app_handle, "error", &format!(
-                "connect failed after retries: space={} leader={} err={}",
-                &space_id[..8.min(space_id.len())],
-                &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
-                e,
-            ));
+            log_sync(
+                &app_handle,
+                "error",
+                &format!(
+                    "connect failed after retries: space={} leader={} err={}",
+                    &space_id[..8.min(space_id.len())],
+                    &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+                    e,
+                ),
+            );
             return Err(e);
         }
     };
@@ -282,10 +295,14 @@ async fn run_sync_loop(
     // not push back to itself anyway.
     let our_node: Option<u128> = crate::crdt::hlc::device_uuid_to_hlc_node(&device_id);
     if our_node.is_none() {
-        log_sync(&app_handle, "warn", &format!(
-            "device_id is not a UUID, scanner origin filter disabled: device={}",
-            &device_id[..16.min(device_id.len())],
-        ));
+        log_sync(
+            &app_handle,
+            "warn",
+            &format!(
+                "device_id is not a UUID, scanner origin filter disabled: device={}",
+                &device_id[..16.min(device_id.len())],
+            ),
+        );
     }
 
     // Resolve our identity UUID once for the membership-row ownership filter.
@@ -300,19 +317,25 @@ async fn run_sync_loop(
     .ok()
     .and_then(|rows| rows.into_iter().next())
     .and_then(|row| row.into_iter().next())
-    .and_then(|v| match v { serde_json::Value::String(s) => Some(s), _ => None });
+    .and_then(|v| match v {
+        serde_json::Value::String(s) => Some(s),
+        _ => None,
+    });
 
     // Determine once whether this member may push user-content tables
     // (haex_peer_shares). Read-only members must not: the leader rejects any
     // batch containing non-membership-system rows without Write capability,
     // which would leave the push cursor stuck and block MLS KeyPackage uploads.
-    let can_push_user_content =
-        super::ucan::has_write_capability(&db, &space_id, &our_did);
+    let can_push_user_content = super::ucan::has_write_capability(&db, &space_id, &our_did);
     if !can_push_user_content {
-        log_sync(&app_handle, "info", &format!(
-            "read-only member: push restricted to membership-system tables for space={}",
-            &space_id[..8.min(space_id.len())],
-        ));
+        log_sync(
+            &app_handle,
+            "info",
+            &format!(
+                "read-only member: push restricted to membership-system tables for space={}",
+                &space_id[..8.min(space_id.len())],
+            ),
+        );
     }
 
     log_sync(
@@ -330,7 +353,14 @@ async fn run_sync_loop(
     loop {
         // Check if stop was requested
         if *stop_rx.borrow() {
-            log_sync(&app_handle, "info", &format!("stop signal received: space={}", &space_id[..8.min(space_id.len())]));
+            log_sync(
+                &app_handle,
+                "info",
+                &format!(
+                    "stop signal received: space={}",
+                    &space_id[..8.min(space_id.len())]
+                ),
+            );
             break;
         }
 
@@ -365,10 +395,16 @@ async fn run_sync_loop(
             }
             Err(e) => {
                 let endpoint_dead_at_failure = iroh_endpoint.is_closed();
-                log_sync(&app_handle, "error", &format!(
-                    "cycle failed: space={} err={} endpoint_closed={}",
-                    &space_id[..8.min(space_id.len())], e, endpoint_dead_at_failure,
-                ));
+                log_sync(
+                    &app_handle,
+                    "error",
+                    &format!(
+                        "cycle failed: space={} err={} endpoint_closed={}",
+                        &space_id[..8.min(space_id.len())],
+                        e,
+                        endpoint_dead_at_failure,
+                    ),
+                );
 
                 // Attempt reconnection with exponential backoff
                 let mut backoff = Duration::from_secs(5);
@@ -430,22 +466,31 @@ async fn run_sync_loop(
                     .await
                     {
                         Ok(new_session) => {
-                            log_sync(&app_handle, "info", &format!(
-                                "reconnected: space={} after {} attempt(s)",
-                                &space_id[..8.min(space_id.len())], reconnect_attempt,
-                            ));
+                            log_sync(
+                                &app_handle,
+                                "info",
+                                &format!(
+                                    "reconnected: space={} after {} attempt(s)",
+                                    &space_id[..8.min(space_id.len())],
+                                    reconnect_attempt,
+                                ),
+                            );
                             session = new_session;
                             break;
                         }
                         Err(reconnect_err) => {
                             let endpoint_closed_post = iroh_endpoint.is_closed();
-                            log_sync(&app_handle, "warn", &format!(
+                            log_sync(
+                                &app_handle,
+                                "warn",
+                                &format!(
                                 "reconnect failed: space={} attempt={} err={} endpoint_closed={}",
                                 &space_id[..8.min(space_id.len())],
                                 reconnect_attempt,
                                 reconnect_err,
                                 endpoint_closed_post,
-                            ));
+                            ),
+                            );
                             backoff = (backoff * 2).min(MAX_RECONNECT_BACKOFF);
                         }
                     }
@@ -527,21 +572,18 @@ async fn run_push_phase(
             space_id
         );
 
-        let pushed_table_names: HashSet<String> = changes
-            .iter()
-            .map(|c| c.table_name.clone())
-            .collect();
+        let pushed_table_names: HashSet<String> =
+            changes.iter().map(|c| c.table_name.clone()).collect();
 
         for (idx, chunk) in chunks.iter().enumerate() {
             let chunk_max_hlc = hlc_max(chunk.iter().map(|c| c.hlc_timestamp.as_str()))
                 .unwrap_or("")
                 .to_string();
 
-            let chunk_json = serde_json::to_value(chunk).map_err(|e| {
-                DeliveryError::ProtocolError {
+            let chunk_json =
+                serde_json::to_value(chunk).map_err(|e| DeliveryError::ProtocolError {
                     reason: format!("Failed to serialize chunk {}: {}", idx, e),
-                }
-            })?;
+                })?;
 
             session.push_changes(space_id, chunk_json).await?;
 
@@ -617,7 +659,19 @@ async fn run_sync_cycle(
     key_packages_refilled: &mut bool,
 ) -> Result<(), DeliveryError> {
     // 1. PUSH (best-effort) — never blocks the pull below.
-    if let Err(e) = run_push_phase(db, session, space_id, device_id, our_node, can_push_user_content, our_identity_id, our_endpoint_id, last_push_hlc).await {
+    if let Err(e) = run_push_phase(
+        db,
+        session,
+        space_id,
+        device_id,
+        our_node,
+        can_push_user_content,
+        our_identity_id,
+        our_endpoint_id,
+        last_push_hlc,
+    )
+    .await
+    {
         eprintln!("[SyncLoop] Push phase failed (pull continues): {}", e);
     }
 
@@ -632,18 +686,26 @@ async fn run_sync_cycle(
         // from "pull never happened" (loop never started / connect failed).
         let table_summary: std::collections::BTreeMap<String, usize> = changes_array
             .iter()
-            .filter_map(|c| c.get("tableName").and_then(|v| v.as_str()).map(String::from))
+            .filter_map(|c| {
+                c.get("tableName")
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+            })
             .fold(std::collections::BTreeMap::new(), |mut acc, t| {
                 *acc.entry(t).or_insert(0) += 1;
                 acc
             });
-        log_sync(app_handle, "info", &format!(
-            "pull: space={} count={} tables={:?} after={:?}",
-            &space_id[..8.min(space_id.len())],
-            changes_array.len(),
-            table_summary,
-            last_pull_timestamp.as_deref(),
-        ));
+        log_sync(
+            app_handle,
+            "info",
+            &format!(
+                "pull: space={} count={} tables={:?} after={:?}",
+                &space_id[..8.min(space_id.len())],
+                changes_array.len(),
+                table_summary,
+                last_pull_timestamp.as_deref(),
+            ),
+        );
         if !changes_array.is_empty() {
             eprintln!(
                 "[SyncLoop] Pulled {} changes for space {}",
@@ -661,15 +723,14 @@ async fn run_sync_cycle(
 
             if !remote_locals.is_empty() {
                 // Convert LocalColumnChange -> RemoteColumnChange (HLC is the grouping key)
-                let remote_changes: Vec<RemoteColumnChange> = remote_locals
-                    .iter()
-                    .map(local_to_remote_change)
-                    .collect();
+                let remote_changes: Vec<RemoteColumnChange> =
+                    remote_locals.iter().map(local_to_remote_change).collect();
 
                 // Find the max HLC from pulled changes
-                let max_pulled_hlc = hlc_max(remote_locals.iter().map(|c| c.hlc_timestamp.as_str()))
-                    .unwrap_or("")
-                    .to_string();
+                let max_pulled_hlc =
+                    hlc_max(remote_locals.iter().map(|c| c.hlc_timestamp.as_str()))
+                        .unwrap_or("")
+                        .to_string();
 
                 // Collect affected table names for the event
                 let affected_tables: Vec<String> = remote_locals
@@ -695,12 +756,11 @@ async fn run_sync_cycle(
                     "space_delivery::local::sync_loop::run_sync_cycle::apply_remote",
                     serde_json::json!({}),
                 )?;
-                apply_remote_changes_to_db(db, remote_changes, None, Some(&*hlc_service))
-                    .map_err(|e| {
-                        DeliveryError::Database {
-                            reason: format!("Failed to apply remote changes: {}", e),
-                        }
-                    })?;
+                apply_remote_changes_to_db(db, remote_changes, None, Some(&*hlc_service)).map_err(
+                    |e| DeliveryError::Database {
+                        reason: format!("Failed to apply remote changes: {}", e),
+                    },
+                )?;
 
                 // Update last_pull_timestamp
                 if !max_pulled_hlc.is_empty() {
@@ -721,7 +781,16 @@ async fn run_sync_cycle(
     }
 
     // 3. MLS: Fetch commits from leader, process, and ACK
-    if let Err(e) = fetch_and_process_mls_messages(db, session, space_id, device_id, last_mls_message_id, app_handle).await {
+    if let Err(e) = fetch_and_process_mls_messages(
+        db,
+        session,
+        space_id,
+        device_id,
+        last_mls_message_id,
+        app_handle,
+    )
+    .await
+    {
         eprintln!("[SyncLoop] MLS message processing failed: {e}");
         // Non-fatal: CRDT sync still worked, MLS will retry next cycle
     }
@@ -771,7 +840,8 @@ async fn fetch_and_process_mls_messages(
             }
         };
 
-        match crate::mls::blocking::process_message(db.0.clone(), space_id.to_string(), blob).await {
+        match crate::mls::blocking::process_message(db.0.clone(), space_id.to_string(), blob).await
+        {
             Ok(_) => {
                 acked_ids.push(msg.id);
                 *last_mls_message_id = Some(msg.id);
@@ -782,10 +852,7 @@ async fn fetch_and_process_mls_messages(
                 );
             }
             Err(e) => {
-                eprintln!(
-                    "[SyncLoop] Failed to process MLS message {}: {e}",
-                    msg.id
-                );
+                eprintln!("[SyncLoop] Failed to process MLS message {}: {e}", msg.id);
 
                 // Detect epoch gap — attempt rejoin via External Commit
                 if e.contains("epoch") || e.contains("Welcome") || e.contains("group") {
@@ -855,11 +922,12 @@ async fn attempt_rejoin(
     // 1. Request GroupInfo from leader
     let group_info_b64 = session.request_rejoin(space_id).await?;
 
-    let group_info_bytes = BASE64.decode(&group_info_b64).map_err(|e| {
-        DeliveryError::ProtocolError {
-            reason: format!("Failed to decode GroupInfo: {e}"),
-        }
-    })?;
+    let group_info_bytes =
+        BASE64
+            .decode(&group_info_b64)
+            .map_err(|e| DeliveryError::ProtocolError {
+                reason: format!("Failed to decode GroupInfo: {e}"),
+            })?;
 
     // 2. Create External Commit
     let (commit_bytes, epoch_key) = crate::mls::blocking::join_by_external_commit(
@@ -911,9 +979,7 @@ async fn refill_key_packages_if_needed(
         return Ok(());
     }
 
-    eprintln!(
-        "[SyncLoop] KeyPackage refill: {available} on leader, {needed} more requested"
-    );
+    eprintln!("[SyncLoop] KeyPackage refill: {available} on leader, {needed} more requested");
 
     let packages = crate::mls::blocking::generate_key_packages(db.0.clone(), needed)
         .await
@@ -921,16 +987,11 @@ async fn refill_key_packages_if_needed(
             reason: format!("Failed to generate key packages: {e}"),
         })?;
 
-    let packages_b64: Vec<String> = packages
-        .iter()
-        .map(|p| BASE64.encode(p))
-        .collect();
+    let packages_b64: Vec<String> = packages.iter().map(|p| BASE64.encode(p)).collect();
 
     session.upload_key_packages(space_id, packages_b64).await?;
 
-    eprintln!(
-        "[SyncLoop] Uploaded {needed} key packages for space {space_id}"
-    );
+    eprintln!("[SyncLoop] Uploaded {needed} key packages for space {space_id}");
 
     Ok(())
 }
@@ -1007,10 +1068,9 @@ fn filter_foreign_membership_rows(
                     change.table_name, change.row_pks,
                 );
             }
-            if foreign_max_hlc
-                .as_deref()
-                .map_or(true, |cur| crate::crdt::hlc::hlc_is_newer(&change.hlc_timestamp, cur))
-            {
+            if foreign_max_hlc.as_deref().map_or(true, |cur| {
+                crate::crdt::hlc::hlc_is_newer(&change.hlc_timestamp, cur)
+            }) {
                 foreign_max_hlc = Some(change.hlc_timestamp);
             }
         }
@@ -1097,7 +1157,10 @@ mod tests {
         let batch_max = message_ids.iter().copied().max().unwrap_or(failing_msg_id);
         let skip_to = batch_max.max(ec_msg_id);
 
-        assert_eq!(skip_to, 4, "cursor must advance past the EC (id=4), not stop at batch max (id=3)");
+        assert_eq!(
+            skip_to, 4,
+            "cursor must advance past the EC (id=4), not stop at batch max (id=3)"
+        );
     }
 
     /// EC arrives in the same batch as the failing message (unusual but possible).
@@ -1111,7 +1174,10 @@ mod tests {
         let batch_max = message_ids.iter().copied().max().unwrap_or(failing_msg_id);
         let skip_to = batch_max.max(ec_msg_id);
 
-        assert_eq!(skip_to, 5, "when batch_max > ec_msg_id, use batch_max to avoid losing later messages");
+        assert_eq!(
+            skip_to, 5,
+            "when batch_max > ec_msg_id, use batch_max to avoid losing later messages"
+        );
     }
 
     /// Single-message batch where that message is the failing one.

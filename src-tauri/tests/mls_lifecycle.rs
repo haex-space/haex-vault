@@ -159,7 +159,8 @@ mod buffer_tests {
         let conn = setup_test_db();
         let db = DbConnection(conn);
 
-        let count = buffer::count_key_packages_for_did(&db, "test-space-1", "did:key:alice").unwrap();
+        let count =
+            buffer::count_key_packages_for_did(&db, "test-space-1", "did:key:alice").unwrap();
         assert_eq!(count, 0);
     }
 
@@ -173,7 +174,8 @@ mod buffer_tests {
             buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"fake-kp").unwrap();
         }
 
-        let count = buffer::count_key_packages_for_did(&db, "test-space-1", "did:key:alice").unwrap();
+        let count =
+            buffer::count_key_packages_for_did(&db, "test-space-1", "did:key:alice").unwrap();
         assert_eq!(count, 3);
     }
 
@@ -448,7 +450,9 @@ mod mls_manager_tests {
         let bundle = admin.add_member("space-rejoin", &member_kps[0]).unwrap();
 
         // Member processes the welcome to join the group
-        member.process_welcome("space-rejoin", bundle.welcome.as_ref().unwrap()).unwrap();
+        member
+            .process_welcome("space-rejoin", bundle.welcome.as_ref().unwrap())
+            .unwrap();
 
         // Both should be in the group now
         assert!(admin.has_group("space-rejoin"));
@@ -459,12 +463,17 @@ mod mls_manager_tests {
         let member2 = setup_mls("did:key:member2");
         let member2_kps = member2.generate_key_packages(1).unwrap();
         let bundle2 = admin.add_member("space-rejoin", &member2_kps[0]).unwrap();
-        member2.process_welcome("space-rejoin", bundle2.welcome.as_ref().unwrap()).unwrap();
+        member2
+            .process_welcome("space-rejoin", bundle2.welcome.as_ref().unwrap())
+            .unwrap();
 
         // Admin's epoch has advanced, but original member is still on old epoch
         let admin_epoch = admin.derive_epoch_key("space-rejoin").unwrap().epoch;
         let member_epoch = member.derive_epoch_key("space-rejoin").unwrap().epoch;
-        assert!(admin_epoch > member_epoch, "Admin epoch ({admin_epoch}) should be ahead of member epoch ({member_epoch})");
+        assert!(
+            admin_epoch > member_epoch,
+            "Admin epoch ({admin_epoch}) should be ahead of member epoch ({member_epoch})"
+        );
 
         // Now member tries to rejoin via External Commit
         let group_info = admin.get_group_info("space-rejoin").unwrap();
@@ -473,10 +482,15 @@ mod mls_manager_tests {
             .unwrap();
 
         assert!(!commit_bytes.is_empty());
-        assert!(new_epoch_key.epoch >= admin_epoch, "Rejoined member epoch should be >= admin epoch");
+        assert!(
+            new_epoch_key.epoch >= admin_epoch,
+            "Rejoined member epoch should be >= admin epoch"
+        );
 
         // Admin processes the external commit
-        admin.process_message("space-rejoin", &commit_bytes).unwrap();
+        admin
+            .process_message("space-rejoin", &commit_bytes)
+            .unwrap();
 
         // Both should now be on the same epoch
         let admin_epoch_after = admin.derive_epoch_key("space-rejoin").unwrap().epoch;
@@ -552,7 +566,10 @@ mod mls_manager_tests {
         // Re-applying the *stale* welcome must fail — KP_1 is gone — proving
         // the failure mode is real and the regenerate path is the only fix.
         let stale_result = member.process_welcome("space-retry", &welcome1);
-        assert!(stale_result.is_err(), "stale welcome should not succeed twice");
+        assert!(
+            stale_result.is_err(),
+            "stale welcome should not succeed twice"
+        );
     }
 }
 
@@ -574,7 +591,10 @@ mod protocol_tests {
         let deserialized: Request = serde_json::from_slice(&bytes).unwrap();
 
         match deserialized {
-            Request::RequestRejoin { space_id, ucan_token } => {
+            Request::RequestRejoin {
+                space_id,
+                ucan_token,
+            } => {
                 assert_eq!(space_id, "space-123");
                 assert_eq!(ucan_token.as_deref(), Some("eyJ0eXAiOiJKV1Q..."));
             }
@@ -594,7 +614,11 @@ mod protocol_tests {
         let deserialized: Request = serde_json::from_slice(&bytes).unwrap();
 
         match deserialized {
-            Request::SubmitExternalCommit { space_id, commit, ucan_token } => {
+            Request::SubmitExternalCommit {
+                space_id,
+                commit,
+                ucan_token,
+            } => {
                 assert_eq!(space_id, "space-456");
                 assert_eq!(commit, "base64-commit-data");
                 assert_eq!(ucan_token.as_deref(), Some("token"));
@@ -687,7 +711,10 @@ mod protocol_tests {
         let stored_resp = Response::MessageStored { message_id: 1 };
         let stored_bytes = serde_json::to_vec(&stored_resp).unwrap();
         let stored_deserialized: Response = serde_json::from_slice(&stored_bytes).unwrap();
-        assert!(matches!(stored_deserialized, Response::MessageStored { .. }));
+        assert!(matches!(
+            stored_deserialized,
+            Response::MessageStored { .. }
+        ));
 
         // The two variants must not round-trip into each other
         assert!(!matches!(

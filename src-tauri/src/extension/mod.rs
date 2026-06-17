@@ -31,12 +31,12 @@ pub mod error;
 pub mod filesystem;
 pub mod limits;
 pub mod logging;
+pub mod mail;
 pub mod permissions;
 pub mod remote_storage;
-pub mod spaces;
 pub mod shell;
+pub mod spaces;
 pub mod utils;
-pub mod mail;
 pub mod web;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -406,16 +406,14 @@ pub async fn load_dev_extension(
     utils::validate_public_key(&manifest.public_key)?;
 
     // 4. Check if extension already exists in DB (UPSERT pattern)
-    let check_sql = format!(
-        "SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ?"
-    );
+    let check_sql = format!("SELECT id FROM {TABLE_EXTENSIONS} WHERE public_key = ? AND name = ?");
 
     let existing_id: Option<String> = with_connection(&state.db, |conn| {
         let mut stmt = conn.prepare(&check_sql)?;
-        let result: Result<String, _> = stmt.query_row(
-            rusqlite::params![&manifest.public_key, &name],
-            |row| row.get(0),
-        );
+        let result: Result<String, _> = stmt
+            .query_row(rusqlite::params![&manifest.public_key, &name], |row| {
+                row.get(0)
+            });
         Ok(result.ok())
     })?;
 
@@ -913,13 +911,8 @@ pub async fn extension_filter_sync_tables(
     state: State<'_, AppState>,
     tables: Vec<String>,
 ) -> Result<FilteredSyncTablesResult, ExtensionError> {
-    eprintln!(
-        "[SyncEvent] ========== FILTERING SYNC TABLES =========="
-    );
-    eprintln!(
-        "[SyncEvent] Tables to filter: {:?}",
-        tables
-    );
+    eprintln!("[SyncEvent] ========== FILTERING SYNC TABLES ==========");
+    eprintln!("[SyncEvent] Tables to filter: {:?}", tables);
 
     // Load extensions if not already loaded
     state
@@ -1006,9 +999,7 @@ pub async fn extension_emit_sync_tables(
     state: State<'_, AppState>,
     filtered_extensions: FilteredSyncTablesResult,
 ) -> Result<(), ExtensionError> {
-    eprintln!(
-        "[SyncEvent] ========== EMITTING SYNC TABLES TO WEBVIEWS =========="
-    );
+    eprintln!("[SyncEvent] ========== EMITTING SYNC TABLES TO WEBVIEWS ==========");
     eprintln!(
         "[SyncEvent] Extensions to emit to: {}",
         filtered_extensions.extensions.len()
@@ -1023,12 +1014,10 @@ pub async fn extension_emit_sync_tables(
             tables: allowed_tables.clone(),
         };
 
-        match state.extension_webview_manager.emit_to_all_extension_windows(
-            &app_handle,
-            &extension_id,
-            SYNC_TABLES_EVENT,
-            &payload,
-        ) {
+        match state
+            .extension_webview_manager
+            .emit_to_all_extension_windows(&app_handle, &extension_id, SYNC_TABLES_EVENT, &payload)
+        {
             Ok(true) => {
                 eprintln!(
                     "[SyncEvent] Emitted to WebView(s) for extension: {}",

@@ -12,8 +12,8 @@
 //! chunk size and channel depth, which used to drift independently.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc;
@@ -383,8 +383,8 @@ where
     }
 
     // file_hash and target path for sidecar persistence (cloned once).
-    let sidecar: Option<(PathBuf, String)> = sidecar_target
-        .map(|(p, h)| (p.to_path_buf(), h.to_string()));
+    let sidecar: Option<(PathBuf, String)> =
+        sidecar_target.map(|(p, h)| (p.to_path_buf(), h.to_string()));
     let full_chunk_count = verifier.completed.lock().await.len();
 
     let mut bytes_received: u64 = 0;
@@ -460,8 +460,7 @@ where
             sidecar.as_ref().map(|_| guard.clone())
         };
 
-        if let (Some((target, file_hash)), Some(completed_snapshot)) =
-            (sidecar.as_ref(), snapshot)
+        if let (Some((target, file_hash)), Some(completed_snapshot)) = (sidecar.as_ref(), snapshot)
         {
             let state = PartialState {
                 file_hash: file_hash.clone(),

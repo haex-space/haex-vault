@@ -21,8 +21,8 @@ pub(super) fn resolve_content_uri_subpath(
     crate::filesystem::reject_path_traversal(sub_path)?;
 
     let api = app_handle.android_fs();
-    let root = FileUri::from_json_str(root_uri_json)
-        .map_err(|e| format!("Invalid Content URI: {e:?}"))?;
+    let root =
+        FileUri::from_json_str(root_uri_json).map_err(|e| format!("Invalid Content URI: {e:?}"))?;
 
     let segments: Vec<&str> = sub_path
         .trim_start_matches('/')
@@ -108,9 +108,8 @@ fn hash_content_uri_file(
         size,
         modified_nanos,
         || {
-            api.open_file_readable(uri).map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-            })
+            api.open_file_readable(uri)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
         },
     )
 }
@@ -138,14 +137,16 @@ fn collect_content_uri_entries(
         };
 
         let last_modified = entry.last_modified();
-        let modified_duration = last_modified
-            .duration_since(std::time::UNIX_EPOCH)
-            .ok();
+        let modified_duration = last_modified.duration_since(std::time::UNIX_EPOCH).ok();
         let modified_at = modified_duration.map(|d| d.as_secs()).unwrap_or(0);
         let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
 
         let is_directory = entry.is_dir();
-        let size = if is_directory { 0 } else { entry.file_len().unwrap_or(0) };
+        let size = if is_directory {
+            0
+        } else {
+            entry.file_len().unwrap_or(0)
+        };
         let uri = entry.uri().clone();
 
         // Compute BLAKE3 chunked hashes for files. Without this, every sync
@@ -341,8 +342,8 @@ pub(super) async fn handle_read_content_uri(
 
     // Step 2: Send header
     let header = Response::ReadHeader { size: read_size };
-    let header_bytes = protocol::encode_response(&header)
-        .map_err(|e| PeerStorageError::ProtocolError {
+    let header_bytes =
+        protocol::encode_response(&header).map_err(|e| PeerStorageError::ProtocolError {
             reason: e.to_string(),
         })?;
     send.write_all(&header_bytes)
@@ -475,12 +476,11 @@ pub(super) async fn handle_write_content_uri(
     let mut remaining = size;
     while remaining > 0 {
         let to_read = (remaining as usize).min(buf.len());
-        let chunk = recv
-            .read(&mut buf[..to_read])
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
+        let chunk = recv.read(&mut buf[..to_read]).await.map_err(|e| {
+            PeerStorageError::ConnectionFailed {
                 reason: format!("Failed to read file data: {e}"),
-            })?;
+            }
+        })?;
         match chunk {
             Some(n) => {
                 data.extend_from_slice(&buf[..n]);

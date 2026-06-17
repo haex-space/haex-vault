@@ -441,11 +441,7 @@ pub fn is_pragma_statement(sql: &str) -> bool {
 /// Only PRAGMA foreign_keys=OFF/ON is permitted - used by Drizzle for table reconstruction.
 /// All other PRAGMAs are rejected for security reasons.
 pub fn is_allowed_pragma(sql: &str) -> bool {
-    let normalized = sql
-        .trim()
-        .to_uppercase()
-        .replace(" ", "")
-        .replace(";", "");
+    let normalized = sql.trim().to_uppercase().replace(" ", "").replace(";", "");
 
     // Only allow foreign_keys pragma for table reconstruction
     normalized == "PRAGMAFOREIGN_KEYS=OFF" || normalized == "PRAGMAFOREIGN_KEYS=ON"
@@ -676,4 +672,3 @@ mod placeholder_tests {
         );
     }
 }
-

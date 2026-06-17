@@ -13,9 +13,9 @@ use super::types::{
     StorageListDirResponse, StorageListRequest, StorageObjectInfo, StorageUploadRequest,
     UpdateStorageBackendRequest,
 };
+use crate::critical::CriticalFailureCode;
 use crate::database::core;
 use crate::database::row::{get_bool, get_string};
-use crate::critical::CriticalFailureCode;
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde_json::Value as JsonValue;
@@ -498,7 +498,11 @@ pub async fn remote_storage_download_to_path(
 
     // Always drop the token before returning so a follow-up resume doesn't
     // collide with a stale entry.
-    state.transfer_tokens.lock().await.remove(&request.transfer_id);
+    state
+        .transfer_tokens
+        .lock()
+        .await
+        .remove(&request.transfer_id);
 
     match result {
         Ok(bytes) => {
@@ -610,7 +614,11 @@ pub async fn remote_storage_upload_from_path(
         .upload_from_path_cancellable(&request.key, &source, Some(cb), Some(cancel))
         .await;
 
-    state.transfer_tokens.lock().await.remove(&request.transfer_id);
+    state
+        .transfer_tokens
+        .lock()
+        .await
+        .remove(&request.transfer_id);
 
     match result {
         Ok(bytes) => {

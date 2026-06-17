@@ -13,9 +13,8 @@ use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::database::helpers::{
-    execute_migration_statements, execute_sql_with_context, is_allowed_pragma,
-    is_pragma_statement, split_migration_statements, validate_sql_table_prefix,
-    ExtensionSqlContext,
+    execute_migration_statements, execute_sql_with_context, is_allowed_pragma, is_pragma_statement,
+    split_migration_statements, validate_sql_table_prefix, ExtensionSqlContext,
 };
 use crate::extension::database::queries::{
     SQL_COUNT_APPLIED_MIGRATIONS, SQL_GET_PENDING_MIGRATIONS, SQL_GET_SYNCED_PENDING_MIGRATIONS,
@@ -205,7 +204,10 @@ pub async fn extension_database_query(
 ) -> Result<DatabaseQueryResult, ExtensionError> {
     eprintln!("=== [EXT_QUERY] ENTRY === sql: {}", sql);
     let extension_id = resolve_extension_id(&window, &state, public_key.clone(), name.clone())?;
-    eprintln!("[EXT_QUERY] extension_id: {}, public_key: {:?}, name: {:?}", extension_id, public_key, name);
+    eprintln!(
+        "[EXT_QUERY] extension_id: {}, public_key: {:?}, name: {:?}",
+        extension_id, public_key, name
+    );
 
     let _extension = state
         .extension_manager
@@ -276,11 +278,9 @@ pub async fn extension_database_query(
 
     let rows = with_connection(&state.db, |conn| {
         let sql_params = ValueConverter::convert_params(&params)?;
-        let mut stmt_to_execute = ast_vec.pop().ok_or_else(|| {
-            DatabaseError::ParseError {
-                reason: "No statement found after validation".to_string(),
-                sql: sql.clone(),
-            }
+        let mut stmt_to_execute = ast_vec.pop().ok_or_else(|| DatabaseError::ParseError {
+            reason: "No statement found after validation".to_string(),
+            sql: sql.clone(),
         })?;
 
         // Apply CRDT tombstone filter to SELECT queries
@@ -426,7 +426,12 @@ pub async fn extension_database_register_migrations(
                 JsonValue::String(migration_name.to_string()),
                 JsonValue::String(sql_statement.to_string()),
             ];
-            SqlExecutor::execute_internal(&tx, &hlc_service, &SQL_INSERT_EXTENSION_MIGRATION, &params)?;
+            SqlExecutor::execute_internal(
+                &tx,
+                &hlc_service,
+                &SQL_INSERT_EXTENSION_MIGRATION,
+                &params,
+            )?;
 
             tx.commit().map_err(DatabaseError::from)?;
             Ok::<(), DatabaseError>(())
@@ -444,10 +449,9 @@ pub async fn extension_database_register_migrations(
     })?;
 
     let already_applied_count: usize = with_connection(&state.db, |conn| {
-        let count: i64 =
-            conn.query_row(&SQL_COUNT_APPLIED_MIGRATIONS, [&extension_id], |row| {
-                row.get(0)
-            })?;
+        let count: i64 = conn.query_row(&SQL_COUNT_APPLIED_MIGRATIONS, [&extension_id], |row| {
+            row.get(0)
+        })?;
         Ok(count as usize)
     })?;
 
@@ -483,7 +487,12 @@ pub async fn extension_database_register_migrations(
             let local_migration_id = uuid::Uuid::new_v4().to_string();
             conn.execute(
                 &SQL_INSERT_CRDT_MIGRATION,
-                rusqlite::params![local_migration_id, extension_id, migration_name, sql_content],
+                rusqlite::params![
+                    local_migration_id,
+                    extension_id,
+                    migration_name,
+                    sql_content
+                ],
             )
             .map_err(DatabaseError::from)?;
             Ok::<(), DatabaseError>(())
@@ -554,13 +563,17 @@ pub fn apply_synced_extension_migrations(
         .into_iter()
         .map(|row| {
             let mut cols = row.into_iter();
-            let pop = |it: &mut std::vec::IntoIter<JsonValue>, name: &str| -> Result<String, DatabaseError> {
+            let pop = |it: &mut std::vec::IntoIter<JsonValue>,
+                       name: &str|
+             -> Result<String, DatabaseError> {
                 it.next()
                     .and_then(|v| v.as_str().map(str::to_owned))
                     .ok_or_else(|| DatabaseError::ExecutionError {
                         sql: SQL_GET_SYNCED_PENDING_MIGRATIONS.clone(),
                         table: None,
-                        reason: format!("missing or non-string column `{name}` in pending migration row"),
+                        reason: format!(
+                            "missing or non-string column `{name}` in pending migration row"
+                        ),
                     })
             };
             Ok::<_, DatabaseError>((
@@ -596,7 +609,12 @@ pub fn apply_synced_extension_migrations(
             let local_migration_id = uuid::Uuid::new_v4().to_string();
             conn.execute(
                 &SQL_INSERT_CRDT_MIGRATION,
-                rusqlite::params![local_migration_id, extension_id, migration_name, sql_content],
+                rusqlite::params![
+                    local_migration_id,
+                    extension_id,
+                    migration_name,
+                    sql_content
+                ],
             )
             .map_err(DatabaseError::from)?;
             Ok::<(), DatabaseError>(())

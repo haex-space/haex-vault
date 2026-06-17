@@ -14,7 +14,10 @@ use crate::AppState;
 use super::invite_tokens;
 use super::leader::LeaderState;
 use super::protocol::{Request, Response};
-use super::types::{ClaimInviteResult, DeliveryStatus, ElectionResultInfo, LeaderInfo, LocalInviteInfo, OutboxAttemptError, PeerConnectedEvent};
+use super::types::{
+    ClaimInviteResult, DeliveryStatus, ElectionResultInfo, LeaderInfo, LocalInviteInfo,
+    OutboxAttemptError, PeerConnectedEvent,
+};
 
 /// Start leader mode for a local space.
 /// Inserts a new LeaderState into the shared map. On the first call,
@@ -26,8 +29,8 @@ pub async fn local_delivery_start(
     space_id: String,
 ) -> Result<(), String> {
     let db_conn = DbConnection(state.db.0.clone());
-    let existing_tokens = invite_tokens::load_invite_tokens(&db_conn, &space_id)
-        .unwrap_or_default();
+    let existing_tokens =
+        invite_tokens::load_invite_tokens(&db_conn, &space_id).unwrap_or_default();
 
     let hlc_clone = state
         .lock_or_fail(
@@ -75,17 +78,21 @@ pub async fn local_delivery_broadcast_commit(
     let leader_state = get_leader_state(&state, &space_id).await?;
 
     // Store commit in buffer
-    let msg_id = super::buffer::store_message(
-        &leader_state.db, &space_id, "leader", "commit", &commit,
-    )
-    .map_err(|e| format!("Failed to store commit: {e}"))?;
+    let msg_id =
+        super::buffer::store_message(&leader_state.db, &space_id, "leader", "commit", &commit)
+            .map_err(|e| format!("Failed to store commit: {e}"))?;
 
     // Track pending ACKs from all space members (not just connected peers)
-    let expected_dids: Vec<String> = super::buffer::get_space_member_dids(&leader_state.db, &space_id)
-        .unwrap_or_default();
+    let expected_dids: Vec<String> =
+        super::buffer::get_space_member_dids(&leader_state.db, &space_id).unwrap_or_default();
 
     if !expected_dids.is_empty() {
-        let _ = super::buffer::store_pending_commit(&leader_state.db, &space_id, msg_id, &expected_dids);
+        let _ = super::buffer::store_pending_commit(
+            &leader_state.db,
+            &space_id,
+            msg_id,
+            &expected_dids,
+        );
     }
 
     // Broadcast notification to all connected peers
@@ -97,7 +104,10 @@ pub async fn local_delivery_broadcast_commit(
         });
     }
 
-    eprintln!("[SpaceDelivery] Broadcast commit for space {space_id} (msg_id={msg_id}, expected_acks={})", expected_dids.len());
+    eprintln!(
+        "[SpaceDelivery] Broadcast commit for space {space_id} (msg_id={msg_id}, expected_acks={})",
+        expected_dids.len()
+    );
     Ok(())
 }
 
@@ -148,19 +158,36 @@ pub async fn local_delivery_connect(
     identity_did: String,
 ) -> Result<(), String> {
     let log = |level: &str, msg: &str| {
-        let _ = crate::logging::insert_log(&state, level, "LocalDeliveryConnect", None, msg, None, "rust");
+        let _ = crate::logging::insert_log(
+            &state,
+            level,
+            "LocalDeliveryConnect",
+            None,
+            msg,
+            None,
+            "rust",
+        );
     };
-    log("info", &format!(
-        "ENTER: space={} leader={} did={}",
-        &space_id[..8.min(space_id.len())],
-        &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
-        &identity_did[..24.min(identity_did.len())],
-    ));
+    log(
+        "info",
+        &format!(
+            "ENTER: space={} leader={} did={}",
+            &space_id[..8.min(space_id.len())],
+            &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+            &identity_did[..24.min(identity_did.len())],
+        ),
+    );
 
     // 1. Check if already connected
     let mut loops = state.local_sync_loops.lock().await;
     if loops.contains_key(&space_id) {
-        log("warn", &format!("already connected: space={}", &space_id[..8.min(space_id.len())]));
+        log(
+            "warn",
+            &format!(
+                "already connected: space={}",
+                &space_id[..8.min(space_id.len())]
+            ),
+        );
         return Err(format!("Already connected to space {space_id}"));
     }
 
@@ -202,16 +229,23 @@ pub async fn local_delivery_connect(
     {
         Ok(h) => h,
         Err(e) => {
-            log("error", &format!(
-                "start_peer_sync_loop failed: space={} err={}",
-                &space_id[..8.min(space_id.len())], e,
-            ));
+            log(
+                "error",
+                &format!(
+                    "start_peer_sync_loop failed: space={} err={}",
+                    &space_id[..8.min(space_id.len())],
+                    e,
+                ),
+            );
             return Err(e.to_string());
         }
     };
 
     loops.insert(space_id.clone(), handle);
-    log("info", &format!("loop started: space={}", &space_id[..8.min(space_id.len())]));
+    log(
+        "info",
+        &format!("loop started: space={}", &space_id[..8.min(space_id.len())]),
+    );
     eprintln!("[SpaceDelivery] Started sync loop for space {space_id}");
     Ok(())
 }
@@ -280,7 +314,10 @@ pub async fn local_delivery_get_leader(
                 space_id,
             }));
         }
-        (endpoint.endpoint_id().to_string(), endpoint.endpoint_ref().cloned())
+        (
+            endpoint.endpoint_id().to_string(),
+            endpoint.endpoint_ref().cloned(),
+        )
     };
 
     let result = super::election::elect_leader(&db, iroh_endpoint, &space_id, &own_endpoint_id)
@@ -288,16 +325,20 @@ pub async fn local_delivery_get_leader(
         .map_err(|e| e.to_string())?;
 
     match result {
-        super::election::ElectionResult::SelfIsLeader => {
-            Ok(Some(LeaderInfo {
-                endpoint_id: own_endpoint_id,
-                priority: 0,
-                space_id,
-            }))
-        }
-        super::election::ElectionResult::RemoteLeader { endpoint_id, priority, .. } => {
-            Ok(Some(LeaderInfo { endpoint_id, priority, space_id }))
-        }
+        super::election::ElectionResult::SelfIsLeader => Ok(Some(LeaderInfo {
+            endpoint_id: own_endpoint_id,
+            priority: 0,
+            space_id,
+        })),
+        super::election::ElectionResult::RemoteLeader {
+            endpoint_id,
+            priority,
+            ..
+        } => Ok(Some(LeaderInfo {
+            endpoint_id,
+            priority,
+            space_id,
+        })),
         super::election::ElectionResult::NoLeaderFound => Ok(None),
     }
 }
@@ -312,7 +353,10 @@ pub async fn local_delivery_elect(
     let db = DbConnection(state.db.0.clone());
     let (own_endpoint_id, iroh_endpoint) = {
         let endpoint = state.peer_storage.read().await;
-        (endpoint.endpoint_id().to_string(), endpoint.endpoint_ref().cloned())
+        (
+            endpoint.endpoint_id().to_string(),
+            endpoint.endpoint_ref().cloned(),
+        )
     };
 
     let result = super::election::elect_leader(&db, iroh_endpoint, &space_id, &own_endpoint_id)
@@ -320,30 +364,28 @@ pub async fn local_delivery_elect(
         .map_err(|e| e.to_string())?;
 
     match result {
-        super::election::ElectionResult::SelfIsLeader => {
-            Ok(ElectionResultInfo {
-                role: "leader".to_string(),
-                leader_endpoint_id: Some(own_endpoint_id),
-                leader_priority: None,
-                leader_relay_url: None,
-            })
-        }
-        super::election::ElectionResult::RemoteLeader { endpoint_id, relay_url, priority } => {
-            Ok(ElectionResultInfo {
-                role: "peer".to_string(),
-                leader_endpoint_id: Some(endpoint_id),
-                leader_priority: Some(priority),
-                leader_relay_url: relay_url,
-            })
-        }
-        super::election::ElectionResult::NoLeaderFound => {
-            Ok(ElectionResultInfo {
-                role: "none".to_string(),
-                leader_endpoint_id: None,
-                leader_priority: None,
-                leader_relay_url: None,
-            })
-        }
+        super::election::ElectionResult::SelfIsLeader => Ok(ElectionResultInfo {
+            role: "leader".to_string(),
+            leader_endpoint_id: Some(own_endpoint_id),
+            leader_priority: None,
+            leader_relay_url: None,
+        }),
+        super::election::ElectionResult::RemoteLeader {
+            endpoint_id,
+            relay_url,
+            priority,
+        } => Ok(ElectionResultInfo {
+            role: "peer".to_string(),
+            leader_endpoint_id: Some(endpoint_id),
+            leader_priority: Some(priority),
+            leader_relay_url: relay_url,
+        }),
+        super::election::ElectionResult::NoLeaderFound => Ok(ElectionResultInfo {
+            role: "none".to_string(),
+            leader_endpoint_id: None,
+            leader_priority: None,
+            leader_relay_url: None,
+        }),
     }
 }
 
@@ -639,8 +681,24 @@ pub async fn local_delivery_claim_invite(
     let lookup_db = DbConnection(state.db.0.clone());
     let inviter_did = resolve_inviter_did_for_invite(&space_id, &token_id, &lookup_db)?;
 
-    log("info", &format!("ENTER local_delivery_claim_invite space={} token={} inviter_did={}", &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())], &inviter_did[..20.min(inviter_did.len())]));
-    log("info", &format!("Starting claim: leader={} space={} token={}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())], &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())]));
+    log(
+        "info",
+        &format!(
+            "ENTER local_delivery_claim_invite space={} token={} inviter_did={}",
+            &space_id[..8.min(space_id.len())],
+            &token_id[..8.min(token_id.len())],
+            &inviter_did[..20.min(inviter_did.len())]
+        ),
+    );
+    log(
+        "info",
+        &format!(
+            "Starting claim: leader={} space={} token={}",
+            &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+            &space_id[..8.min(space_id.len())],
+            &token_id[..8.min(token_id.len())]
+        ),
+    );
 
     // 1. Get iroh endpoint
     let endpoint = state.peer_storage.read().await;
@@ -664,7 +722,10 @@ pub async fn local_delivery_claim_invite(
             format!("Failed to generate key packages: {e}")
         })?;
     let key_packages_b64: Vec<String> = key_packages_raw.iter().map(|p| BASE64.encode(p)).collect();
-    log("info", &format!("Generated {} MLS KeyPackages", key_packages_b64.len()));
+    log(
+        "info",
+        &format!("Generated {} MLS KeyPackages", key_packages_b64.len()),
+    );
 
     // 3. Connect to leader via QUIC and send ClaimInvite
     let (addr, relay) = super::quic_retry::build_endpoint_addr_with_relay(
@@ -675,7 +736,14 @@ pub async fn local_delivery_claim_invite(
     )
     .map_err(|e| format!("Invalid leader endpoint ID: {e}"))?;
 
-    log("info", &format!("Connecting to {} via relay {:?}", &leader_endpoint_id[..16.min(leader_endpoint_id.len())], relay.as_ref().map(|u| u.to_string())));
+    log(
+        "info",
+        &format!(
+            "Connecting to {} via relay {:?}",
+            &leader_endpoint_id[..16.min(leader_endpoint_id.len())],
+            relay.as_ref().map(|u| u.to_string())
+        ),
+    );
 
     // Encode once outside the retry loop — the request bytes are identical
     // across attempts, including the (expensively-generated) KeyPackages.
@@ -691,8 +759,8 @@ pub async fn local_delivery_claim_invite(
         label,
         public_key: identity_public_key,
     };
-    let bytes = super::protocol::encode(&req)
-        .map_err(|e| format!("Failed to encode request: {e}"))?;
+    let bytes =
+        super::protocol::encode(&req).map_err(|e| format!("Failed to encode request: {e}"))?;
 
     // Load the claimant's signing key for the server-initiated quic_did_auth
     // handshake. ClaimInvite is the first time this DID ever connects to the
@@ -700,14 +768,13 @@ pub async fn local_delivery_claim_invite(
     // this DID — without it the leader cannot tell us apart from any other
     // peer who happens to know the token (plan §4.2 scenarios 1+2).
     let db_for_identity = DbConnection(state.db.0.clone());
-    let our_identity = super::quic_retry::load_signing_identity_for_did(
-        &db_for_identity,
-        &identity_did,
-    )
-    .map_err(|e| {
-        log("error", &format!("identity load failed: {e}"));
-        e.to_string()
-    })?;
+    let our_identity =
+        super::quic_retry::load_signing_identity_for_did(&db_for_identity, &identity_did).map_err(
+            |e| {
+                log("error", &format!("identity load failed: {e}"));
+                e.to_string()
+            },
+        )?;
 
     // QUIC connect + send + read with automatic retry on transient failures.
     let response = super::quic_retry::send_request_with_retry(
@@ -731,7 +798,10 @@ pub async fn local_delivery_claim_invite(
             ucan,
             capability,
         } => {
-            log("info", &format!("Invite claimed successfully, capability={capability}"));
+            log(
+                "info",
+                &format!("Invite claimed successfully, capability={capability}"),
+            );
             (welcome, ucan, capability)
         }
         Response::Error { message } => {
@@ -796,7 +866,10 @@ pub async fn local_delivery_claim_invite(
     // command (see stores/spaces/invites.ts: ensureIdentityForDidAsync).
     eprintln!("[ClaimInvite] [trace] BEFORE resolve_owner_identity_id");
     let owner_identity_id = resolve_owner_identity_id(&inviter_did, &db)?;
-    eprintln!("[ClaimInvite] [trace] AFTER resolve_owner_identity_id → owner_id={}", &owner_identity_id[..8.min(owner_identity_id.len())]);
+    eprintln!(
+        "[ClaimInvite] [trace] AFTER resolve_owner_identity_id → owner_id={}",
+        &owner_identity_id[..8.min(owner_identity_id.len())]
+    );
 
     eprintln!("[ClaimInvite] [trace] BEFORE execute_with_crdt INSERT haex_spaces");
     crate::database::core::execute_with_crdt(
@@ -901,16 +974,31 @@ pub async fn local_delivery_push_invite(
     inviter_relay_url: Option<String>,
 ) -> Result<bool, OutboxAttemptError> {
     let log = |level: &str, msg: &str| {
-        let _ = crate::logging::insert_log(&state, level, "PushInvite-Send", None, msg, None, "rust");
+        let _ =
+            crate::logging::insert_log(&state, level, "PushInvite-Send", None, msg, None, "rust");
     };
 
     // Helper: classify recoverable preconditions as transient so the outbox
     // retries until expiry instead of giving up after a process restart that
     // hasn't finished bringing peer_storage back up.
-    let transient = |reason: String| OutboxAttemptError { reason, transient: true };
-    let permanent = |reason: String| OutboxAttemptError { reason, transient: false };
+    let transient = |reason: String| OutboxAttemptError {
+        reason,
+        transient: true,
+    };
+    let permanent = |reason: String| OutboxAttemptError {
+        reason,
+        transient: false,
+    };
 
-    log("info", &format!("Sending → target={} space={} token={}", &target_endpoint_id[..16.min(target_endpoint_id.len())], &space_id[..8.min(space_id.len())], &token_id[..8.min(token_id.len())]));
+    log(
+        "info",
+        &format!(
+            "Sending → target={} space={} token={}",
+            &target_endpoint_id[..16.min(target_endpoint_id.len())],
+            &space_id[..8.min(space_id.len())],
+            &token_id[..8.min(token_id.len())]
+        ),
+    );
 
     let endpoint = state.peer_storage.read().await;
     if !endpoint.is_running() {
@@ -937,7 +1025,13 @@ pub async fn local_delivery_push_invite(
         Some(url) => log("info", &format!("Connecting via relay: {url}")),
         None => log("warn", "Connecting without relay (mDNS only)"),
     }
-    log("info", &format!("Connecting to {target_endpoint_id} (relay={})", relay.is_some()));
+    log(
+        "info",
+        &format!(
+            "Connecting to {target_endpoint_id} (relay={})",
+            relay.is_some()
+        ),
+    );
 
     // The inviter authenticates as themself; the inviter_did inside the
     // payload must match the connection-verified DID (C8 enforces). Capture
@@ -962,20 +1056,18 @@ pub async fn local_delivery_push_invite(
         inviter_relay_url,
     };
 
-    let bytes = super::protocol::encode(&request)
-        .map_err(|e| permanent(format!("Encode error: {e}")))?;
+    let bytes =
+        super::protocol::encode(&request).map_err(|e| permanent(format!("Encode error: {e}")))?;
 
     let db_for_identity = DbConnection(state.db.0.clone());
-    let inviter_identity = super::quic_retry::load_signing_identity_for_did(
-        &db_for_identity,
-        &inviter_did_for_auth,
-    )
-    .map_err(|e| {
-        log("error", &format!("identity load failed: {e}"));
-        // Missing / drifted identity row won't fix itself by retrying — the
-        // user has to repair the identity. Surface immediately.
-        permanent(e.to_string())
-    })?;
+    let inviter_identity =
+        super::quic_retry::load_signing_identity_for_did(&db_for_identity, &inviter_did_for_auth)
+            .map_err(|e| {
+            log("error", &format!("identity load failed: {e}"));
+            // Missing / drifted identity row won't fix itself by retrying — the
+            // user has to repair the identity. Surface immediately.
+            permanent(e.to_string())
+        })?;
 
     // QUIC connect + send + read with automatic retry on transient failures.
     // `send_request_with_retry` itself retries connection-level blips; any

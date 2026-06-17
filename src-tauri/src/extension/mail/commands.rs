@@ -59,8 +59,7 @@ async fn check_send_permission(
     host: &str,
 ) -> Result<(), ExtensionError> {
     let result =
-        PermissionManager::check_mail_permission(state, extension_id, MailAction::Send, host)
-            .await;
+        PermissionManager::check_mail_permission(state, extension_id, MailAction::Send, host).await;
     if let Err(ref e) = result {
         emit_permission_prompt_if_needed(app_handle, e);
     }

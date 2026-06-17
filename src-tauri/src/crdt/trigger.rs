@@ -433,10 +433,7 @@ fn generate_delete_trigger_sql(table_name: &str, pks: &[String]) -> String {
 /// Ensures that a table has all required CRDT columns.
 /// If columns are missing, they are added via ALTER TABLE.
 /// Returns true if any columns were added, false if all columns already existed.
-pub fn ensure_crdt_columns(
-    tx: &Transaction,
-    table_name: &str,
-) -> Result<bool, CrdtSetupError> {
+pub fn ensure_crdt_columns(tx: &Transaction, table_name: &str) -> Result<bool, CrdtSetupError> {
     let columns = get_table_schema(tx, table_name)?;
 
     if columns.is_empty() {
@@ -507,10 +504,7 @@ pub fn ensure_crdt_columns_and_triggers(
         // Setup triggers (this requires CRDT columns to exist)
         match setup_triggers_for_table(tx, table_name, false) {
             Ok(TriggerSetupResult::Success) => {
-                println!(
-                    "[CRDT] Created triggers for table '{}'",
-                    table_name
-                );
+                println!("[CRDT] Created triggers for table '{}'", table_name);
                 true
             }
             Ok(TriggerSetupResult::TableNotFound) => false,

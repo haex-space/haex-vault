@@ -38,11 +38,7 @@ pub fn generate_event_names() {
         sorted_events.sort_by_key(|(k, _)| k.as_str());
 
         for (key, value) in sorted_events {
-            let const_name = format!(
-                "EVENT_{}_{}",
-                category_prefix,
-                to_screaming_snake_case(key)
-            );
+            let const_name = format!("EVENT_{}_{}", category_prefix, to_screaming_snake_case(key));
             code.push_str(&format!("pub const {const_name}: &str = \"{value}\";\n"));
         }
         code.push('\n');

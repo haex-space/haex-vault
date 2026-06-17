@@ -5,7 +5,9 @@
 //! which provides transport encryption.
 
 use crate::crdt::hlc::hlc_is_newer;
-use crate::crdt::trigger::{get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN};
+use crate::crdt::trigger::{
+    get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN,
+};
 use crate::database::core::{convert_value_ref_to_json, with_connection};
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
@@ -209,7 +211,9 @@ pub fn scan_table_for_local_changes_scoped(
     let param_refs: Vec<&dyn rusqlite::ToSql> =
         params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
 
-    let mut rows = stmt.query(param_refs.as_slice()).map_err(DatabaseError::from)?;
+    let mut rows = stmt
+        .query(param_refs.as_slice())
+        .map_err(DatabaseError::from)?;
 
     let mut changes: Vec<LocalColumnChange> = Vec::new();
 
@@ -344,13 +348,14 @@ pub fn scan_membership_tables_for_local_changes(
     device_id: &str,
     origin_node: Option<u128>,
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
-    scan_space_scoped_tables_for_local_changes(db, space_id, after_hlc, device_id, origin_node)
-        .map(|changes| {
+    scan_space_scoped_tables_for_local_changes(db, space_id, after_hlc, device_id, origin_node).map(
+        |changes| {
             changes
                 .into_iter()
                 .filter(|c| MEMBERSHIP_SYSTEM_TABLES.contains(&c.table_name.as_str()))
                 .collect()
-        })
+        },
+    )
 }
 
 // `scan_all_crdt_tables_for_local_changes` used to scan every CRDT table
@@ -393,18 +398,22 @@ mod tests {
     #[test]
     fn test_scan_empty_table_returns_no_changes() {
         let conn = setup_test_db();
-        let changes =
-            scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
+        let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
         assert!(changes.is_empty());
     }
 
     #[test]
     fn test_scan_full_returns_all_columns() {
         let conn = setup_test_db();
-        insert_row(&conn, "row-1", "hello", 42, "2025-01-01T00:00:00.000Z-0001-device1");
+        insert_row(
+            &conn,
+            "row-1",
+            "hello",
+            42,
+            "2025-01-01T00:00:00.000Z-0001-device1",
+        );
 
-        let changes =
-            scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
+        let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
 
         // 2 data columns: name, value
         assert_eq!(changes.len(), 2);
@@ -471,8 +480,7 @@ mod tests {
         )
         .unwrap();
 
-        let changes =
-            scan_table_for_local_changes(&conn, "with_meta", None, "device-1").unwrap();
+        let changes = scan_table_for_local_changes(&conn, "with_meta", None, "device-1").unwrap();
 
         let col_names: Vec<&str> = changes.iter().map(|c| c.column_name.as_str()).collect();
         // Only "data" should remain; all metadata/CRDT columns filtered out
@@ -496,16 +504,12 @@ mod tests {
         )
         .unwrap();
 
-        let changes =
-            scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
+        let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
 
         // Both data columns should be emitted using the row-level HLC
         assert_eq!(changes.len(), 2);
         for change in &changes {
-            assert_eq!(
-                change.hlc_timestamp,
-                "2025-01-01T00:00:00.000Z-0001-d1"
-            );
+            assert_eq!(change.hlc_timestamp, "2025-01-01T00:00:00.000Z-0001-d1");
         }
     }
 
@@ -513,7 +517,8 @@ mod tests {
     fn test_column_level_hlc_filtering() {
         let conn = setup_test_db();
         // Insert a row where 'name' has a newer HLC but 'value' has an older one
-        let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
+        let hlcs =
+            r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
         conn.execute(
             "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
              VALUES ('r1', 'updated', 10, '3000000000000000000/aabbccdd', ?1)",
@@ -579,8 +584,7 @@ mod tests {
         )
         .unwrap();
 
-        let changes =
-            scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
+        let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
 
         // NULL values should still produce changes for both data columns
         assert_eq!(changes.len(), 2);
@@ -591,8 +595,7 @@ mod tests {
     #[test]
     fn test_scan_nonexistent_table_returns_empty() {
         let conn = Connection::open_in_memory().unwrap();
-        let changes =
-            scan_table_for_local_changes(&conn, "nonexistent", None, "device-1").unwrap();
+        let changes = scan_table_for_local_changes(&conn, "nonexistent", None, "device-1").unwrap();
         assert!(changes.is_empty());
     }
 
@@ -651,13 +654,7 @@ mod tests {
         conn
     }
 
-    fn insert_scoped_row(
-        conn: &Connection,
-        id: &str,
-        space_id: &str,
-        data: &str,
-        hlc: &str,
-    ) {
+    fn insert_scoped_row(conn: &Connection, id: &str, space_id: &str, data: &str, hlc: &str) {
         let hlcs = format!("{{\"space_id\":\"{hlc}\",\"data\":\"{hlc}\"}}");
         conn.execute(
             "INSERT INTO scoped_items (id, space_id, data, haex_hlc, haex_column_hlcs)
@@ -670,9 +667,27 @@ mod tests {
     #[test]
     fn test_scoped_filter_returns_only_matching_space() {
         let conn = setup_scoped_test_db();
-        insert_scoped_row(&conn, "r1", "space-A", "hello", "2025-01-01T00:00:00.000Z-0001-d1");
-        insert_scoped_row(&conn, "r2", "space-A", "world", "2025-01-01T00:00:00.000Z-0002-d1");
-        insert_scoped_row(&conn, "r3", "space-B", "leak", "2025-01-01T00:00:00.000Z-0003-d1");
+        insert_scoped_row(
+            &conn,
+            "r1",
+            "space-A",
+            "hello",
+            "2025-01-01T00:00:00.000Z-0001-d1",
+        );
+        insert_scoped_row(
+            &conn,
+            "r2",
+            "space-A",
+            "world",
+            "2025-01-01T00:00:00.000Z-0002-d1",
+        );
+        insert_scoped_row(
+            &conn,
+            "r3",
+            "space-B",
+            "leak",
+            "2025-01-01T00:00:00.000Z-0003-d1",
+        );
 
         let changes = scan_table_for_local_changes_scoped(
             &conn,
@@ -692,7 +707,10 @@ mod tests {
             let pks: serde_json::Map<String, JsonValue> =
                 serde_json::from_str(&change.row_pks).unwrap();
             let id = pks.get("id").and_then(|v| v.as_str()).unwrap();
-            assert!(id == "r1" || id == "r2", "leaked row from other space: {id}");
+            assert!(
+                id == "r1" || id == "r2",
+                "leaked row from other space: {id}"
+            );
         }
     }
 

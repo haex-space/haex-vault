@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use openmls::prelude::*;
 use openmls::prelude::tls_codec::Serialize as TlsSerializeTrait;
+use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_traits::OpenMlsProvider;
 use rusqlite::Connection;
@@ -25,7 +25,9 @@ impl MlsManager {
     }
 
     pub fn init_tables(&self) -> Result<(), String> {
-        self.provider.storage().init_tables()
+        self.provider
+            .storage()
+            .init_tables()
             .map_err(|e| format!("Failed to init MLS tables: {e}"))
     }
 
@@ -33,7 +35,9 @@ impl MlsManager {
         // Return existing identity if one exists (idempotent)
         if let Ok(Some(pub_key)) = self.provider.storage().load_own_identity_key() {
             // Update stored DID (may have changed)
-            self.provider.storage().store_own_did(did)
+            self.provider
+                .storage()
+                .store_own_did(did)
                 .map_err(|e| format!("Failed to store DID: {e}"))?;
 
             let credential = BasicCredential::new(did.as_bytes().to_vec());
@@ -51,13 +55,18 @@ impl MlsManager {
         let credential = BasicCredential::new(did.as_bytes().to_vec());
         let signer = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm())
             .map_err(|e| format!("Failed to generate signature key pair: {e}"))?;
-        signer.store(self.provider.storage())
+        signer
+            .store(self.provider.storage())
             .map_err(|e| format!("Failed to store signature key pair: {e}"))?;
 
-        self.provider.storage().store_own_identity_key(&signer.to_public_vec())
+        self.provider
+            .storage()
+            .store_own_identity_key(&signer.to_public_vec())
             .map_err(|e| format!("Failed to store identity key: {e}"))?;
 
-        self.provider.storage().store_own_did(did)
+        self.provider
+            .storage()
+            .store_own_did(did)
             .map_err(|e| format!("Failed to store DID: {e}"))?;
 
         let credential_with_key = CredentialWithKey {
@@ -87,7 +96,8 @@ impl MlsManager {
             &group_config,
             group_id,
             credential_with_key,
-        ).map_err(|e| format!("Failed to create MLS group: {e}"))?;
+        )
+        .map_err(|e| format!("Failed to create MLS group: {e}"))?;
 
         Ok(MlsGroupInfo {
             group_id: space_id.to_string(),
@@ -96,7 +106,11 @@ impl MlsManager {
         })
     }
 
-    pub fn add_member(&self, space_id: &str, key_package_bytes: &[u8]) -> Result<MlsCommitBundle, String> {
+    pub fn add_member(
+        &self,
+        space_id: &str,
+        key_package_bytes: &[u8],
+    ) -> Result<MlsCommitBundle, String> {
         let signer = self.get_signer()?;
         let group_id = GroupId::from_slice(space_id.as_bytes());
         let mut group = MlsGroup::load(self.provider.storage(), &group_id)
@@ -114,7 +128,8 @@ impl MlsManager {
         // This can happen on re-invite after partial success or retry scenarios.
         let new_sig_key = key_package.leaf_node().signature_key().as_slice().to_vec();
         let own_leaf = group.own_leaf_index();
-        let conflicting_index = group.members()
+        let conflicting_index = group
+            .members()
             .find(|m| m.index != own_leaf && m.signature_key == new_sig_key.as_slice())
             .map(|m| m.index);
 
@@ -122,9 +137,11 @@ impl MlsManager {
             eprintln!(
                 "[MLS] Duplicate signature key at leaf {leaf_index:?} in group {space_id} — removing before re-add"
             );
-            group.remove_members(&self.provider, &signer, &[leaf_index])
+            group
+                .remove_members(&self.provider, &signer, &[leaf_index])
                 .map_err(|e| format!("Failed to remove conflicting member: {e}"))?;
-            group.merge_pending_commit(&self.provider)
+            group
+                .merge_pending_commit(&self.provider)
                 .map_err(|e| format!("Failed to merge remove commit: {e}"))?;
         }
 
@@ -142,16 +159,20 @@ impl MlsManager {
                 )
             })?;
 
-        group.merge_pending_commit(&self.provider)
+        group
+            .merge_pending_commit(&self.provider)
             .map_err(|e| format!("Failed to merge commit: {e}"))?;
 
-        let commit_bytes = commit.tls_serialize_detached()
+        let commit_bytes = commit
+            .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize commit: {e}"))?;
 
-        let welcome_bytes = welcome.tls_serialize_detached()
+        let welcome_bytes = welcome
+            .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize welcome: {e}"))?;
 
-        let group_info_bytes = group.export_group_info(self.provider.crypto(), &signer, true)
+        let group_info_bytes = group
+            .export_group_info(self.provider.crypto(), &signer, true)
             .map_err(|e| format!("Failed to export group info: {e}"))?
             .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize group info: {e}"))?;
@@ -163,7 +184,11 @@ impl MlsManager {
         })
     }
 
-    pub fn remove_member(&self, space_id: &str, member_index: u32) -> Result<MlsCommitBundle, String> {
+    pub fn remove_member(
+        &self,
+        space_id: &str,
+        member_index: u32,
+    ) -> Result<MlsCommitBundle, String> {
         let signer = self.get_signer()?;
         let group_id = GroupId::from_slice(space_id.as_bytes());
         let mut group = MlsGroup::load(self.provider.storage(), &group_id)
@@ -175,13 +200,16 @@ impl MlsManager {
             .remove_members(&self.provider, &signer, &[leaf_index])
             .map_err(|e| format!("Failed to remove member: {e}"))?;
 
-        group.merge_pending_commit(&self.provider)
+        group
+            .merge_pending_commit(&self.provider)
             .map_err(|e| format!("Failed to merge commit: {e}"))?;
 
-        let commit_bytes = commit.tls_serialize_detached()
+        let commit_bytes = commit
+            .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize commit: {e}"))?;
 
-        let group_info_bytes = group.export_group_info(self.provider.crypto(), &signer, true)
+        let group_info_bytes = group
+            .export_group_info(self.provider.crypto(), &signer, true)
             .map_err(|e| format!("Failed to export group info: {e}"))?
             .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize group info: {e}"))?;
@@ -200,7 +228,8 @@ impl MlsManager {
             .map_err(|e| format!("Failed to load group: {e}"))?
             .ok_or_else(|| format!("Group not found for space: {space_id}"))?;
 
-        let msg = group.create_message(&self.provider, &signer, plaintext)
+        let msg = group
+            .create_message(&self.provider, &signer, plaintext)
             .map_err(|e| format!("Failed to encrypt: {e}"))?;
 
         msg.tls_serialize_detached()
@@ -216,23 +245,26 @@ impl MlsManager {
         let mls_message_in = MlsMessageIn::tls_deserialize_exact_bytes(ciphertext)
             .map_err(|e| format!("Failed to deserialize message: {e}"))?;
 
-        let protocol_message = mls_message_in.try_into_protocol_message()
+        let protocol_message = mls_message_in
+            .try_into_protocol_message()
             .map_err(|e| format!("Not a protocol message: {e}"))?;
 
-        let processed = group.process_message(&self.provider, protocol_message)
+        let processed = group
+            .process_message(&self.provider, protocol_message)
             .map_err(|e| format!("Failed to process message: {e}"))?;
 
         match processed.into_content() {
-            ProcessedMessageContent::ApplicationMessage(app_msg) => {
-                Ok(app_msg.into_bytes())
-            }
+            ProcessedMessageContent::ApplicationMessage(app_msg) => Ok(app_msg.into_bytes()),
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                group.merge_staged_commit(&self.provider, *staged_commit)
+                group
+                    .merge_staged_commit(&self.provider, *staged_commit)
                     .map_err(|e| format!("Failed to merge staged commit: {e}"))?;
                 Ok(Vec::new())
             }
             ProcessedMessageContent::ProposalMessage(_) => {
-                eprintln!("[MLS] Unexpected ProposalMessage received for space {space_id}, ignoring");
+                eprintln!(
+                    "[MLS] Unexpected ProposalMessage received for space {space_id}, ignoring"
+                );
                 Ok(Vec::new())
             }
             _ => Err("Unknown message type".to_string()),
@@ -245,12 +277,20 @@ impl MlsManager {
 
     /// Process an MLS Welcome message to join an existing group.
     /// Creates the local group state from the Welcome (the group does NOT need to exist yet).
-    pub fn process_welcome(&self, space_id: &str, welcome_bytes: &[u8]) -> Result<MlsGroupInfo, String> {
+    pub fn process_welcome(
+        &self,
+        space_id: &str,
+        welcome_bytes: &[u8],
+    ) -> Result<MlsGroupInfo, String> {
         let mls_message_in = MlsMessageIn::tls_deserialize_exact_bytes(welcome_bytes)
             .map_err(|e| format!("Failed to deserialize welcome message: {e}"))?;
         let welcome = match mls_message_in.extract() {
             MlsMessageBodyIn::Welcome(w) => w,
-            _ => return Err("Expected Welcome message but got a different MLS message type".to_string()),
+            _ => {
+                return Err(
+                    "Expected Welcome message but got a different MLS message type".to_string(),
+                )
+            }
         };
 
         // If a stale MLS group exists for this space (e.g. from a prior membership
@@ -308,10 +348,17 @@ impl MlsManager {
         let mut packages = Vec::with_capacity(count as usize);
         for _ in 0..count {
             let bundle = KeyPackage::builder()
-                .build(CIPHERSUITE, &self.provider, &signer, credential_with_key.clone())
+                .build(
+                    CIPHERSUITE,
+                    &self.provider,
+                    &signer,
+                    credential_with_key.clone(),
+                )
                 .map_err(|e| format!("Failed to build key package: {e}"))?;
 
-            let bytes = bundle.key_package().tls_serialize_detached()
+            let bytes = bundle
+                .key_package()
+                .tls_serialize_detached()
                 .map_err(|e| format!("Failed to serialize key package: {e}"))?;
             packages.push(bytes);
         }
@@ -321,7 +368,10 @@ impl MlsManager {
     /// Check if this device has an MLS group for the given space.
     pub fn has_group(&self, space_id: &str) -> bool {
         let group_id = GroupId::from_slice(space_id.as_bytes());
-        matches!(MlsGroup::load(self.provider.storage(), &group_id), Ok(Some(_)))
+        matches!(
+            MlsGroup::load(self.provider.storage(), &group_id),
+            Ok(Some(_))
+        )
     }
 
     /// Derive the current epoch's sync encryption key from MLS group state.
@@ -373,7 +423,12 @@ impl MlsManager {
             .map_err(|e| format!("Failed to deserialize MLS message: {e}"))?;
         let verifiable_group_info = match mls_msg.extract() {
             MlsMessageBodyIn::GroupInfo(gi) => gi,
-            other => return Err(format!("Expected GroupInfo but got {:?}", std::mem::discriminant(&other))),
+            other => {
+                return Err(format!(
+                    "Expected GroupInfo but got {:?}",
+                    std::mem::discriminant(&other)
+                ))
+            }
         };
 
         let (mut group, commit_bundle) = MlsGroup::external_commit_builder()
@@ -406,7 +461,8 @@ impl MlsManager {
             ));
         }
 
-        group.merge_pending_commit(&self.provider)
+        group
+            .merge_pending_commit(&self.provider)
             .map_err(|e| format!("Failed to merge external commit: {e}"))?;
 
         let epoch = group.epoch().as_u64();
@@ -414,14 +470,17 @@ impl MlsManager {
             .export_secret(self.provider.crypto(), "haex-vault-sync", &[], 32)
             .map_err(|e| format!("Failed to export secret: {e}"))?;
 
-        let commit_bytes = commit.tls_serialize_detached()
+        let commit_bytes = commit
+            .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize commit: {e}"))?;
 
         Ok((commit_bytes, MlsEpochKey { epoch, key }))
     }
 
     fn get_signer(&self) -> Result<SignatureKeyPair, String> {
-        let pub_key_bytes = self.provider.storage()
+        let pub_key_bytes = self
+            .provider
+            .storage()
             .load_own_identity_key()
             .map_err(|e| format!("Failed to read identity: {e}"))?
             .ok_or_else(|| "No identity found. Call mls_init_identity first.".to_string())?;
@@ -430,10 +489,15 @@ impl MlsManager {
             self.provider.storage(),
             &pub_key_bytes,
             CIPHERSUITE.signature_algorithm(),
-        ).ok_or_else(|| "Signature key pair not found in storage".to_string())
+        )
+        .ok_or_else(|| "Signature key pair not found in storage".to_string())
     }
 
-    pub fn find_member_index_by_did(&self, space_id: &str, target_did: &str) -> Result<Option<u32>, String> {
+    pub fn find_member_index_by_did(
+        &self,
+        space_id: &str,
+        target_did: &str,
+    ) -> Result<Option<u32>, String> {
         let group_id = GroupId::from_slice(space_id.as_bytes());
         let group = MlsGroup::load(self.provider.storage(), &group_id)
             .map_err(|e| format!("Failed to load group: {e}"))?
@@ -449,7 +513,9 @@ impl MlsManager {
     }
 
     fn get_credential_with_key(&self, signer: &SignatureKeyPair) -> CredentialWithKey {
-        let did_bytes = self.provider.storage()
+        let did_bytes = self
+            .provider
+            .storage()
             .load_own_did()
             .ok()
             .flatten()

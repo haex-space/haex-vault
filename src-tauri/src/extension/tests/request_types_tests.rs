@@ -397,8 +397,7 @@ mod sql_context_tests {
     #[test]
     fn test_table_prefix_preserves_name() {
         // Extension name with hyphens is NOT sanitized - preserved as-is
-        let ctx =
-            ExtensionSqlContext::new("pubkey".to_string(), "my-cool-extension".to_string());
+        let ctx = ExtensionSqlContext::new("pubkey".to_string(), "my-cool-extension".to_string());
         let prefix = ctx.get_table_prefix();
 
         // Hyphens are preserved
@@ -465,13 +464,13 @@ mod edge_case_tests {
     fn test_database_result_with_various_types() {
         let result = DatabaseQueryResult {
             rows: vec![vec![
-                json!(42),                                // number
-                json!("text"),                            // string
-                json!(true),                              // boolean
-                json!(2.5_f64),                           // float
-                json!(null),                              // null
-                json!({"nested": "object"}),              // object
-                json!(["array", "values"]),               // array
+                json!(42),                   // number
+                json!("text"),               // string
+                json!(true),                 // boolean
+                json!(2.5_f64),              // float
+                json!(null),                 // null
+                json!({"nested": "object"}), // object
+                json!(["array", "values"]),  // array
             ]],
             rows_affected: 0,
             last_insert_id: None,

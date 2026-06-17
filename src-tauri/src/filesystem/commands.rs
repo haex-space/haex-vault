@@ -139,7 +139,11 @@ pub async fn filesystem_read_file(
         let handle = app_handle.clone();
         return tokio::task::spawn_blocking(move || read_file_android(&handle, &path))
             .await
-            .unwrap_or_else(|e| Err(FsError::IoError { reason: e.to_string() }));
+            .unwrap_or_else(|e| {
+                Err(FsError::IoError {
+                    reason: e.to_string(),
+                })
+            });
     }
 
     let path_ref = Path::new(&path);
@@ -168,10 +172,11 @@ fn read_file_android(app_handle: &tauri::AppHandle, path_json: &str) -> Result<S
 
     let api = app_handle.android_fs();
 
-    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json)
-        .map_err(|e| FsError::IoError {
+    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json).map_err(|e| {
+        FsError::IoError {
             reason: format!("Invalid Content URI: {:?}", e),
-        })?;
+        }
+    })?;
 
     let bytes = api.read(&uri).map_err(|e| FsError::IoError {
         reason: format!("Failed to read Android file: {:?}", e),
@@ -229,9 +234,15 @@ pub async fn filesystem_read_dir(
     #[cfg(target_os = "android")]
     if path.starts_with('{') {
         let handle = app_handle.clone();
-        return tokio::task::spawn_blocking(move || read_dir_android(&handle, &path, offset, limit))
-            .await
-            .unwrap_or_else(|e| Err(FsError::IoError { reason: e.to_string() }));
+        return tokio::task::spawn_blocking(move || {
+            read_dir_android(&handle, &path, offset, limit)
+        })
+        .await
+        .unwrap_or_else(|e| {
+            Err(FsError::IoError {
+                reason: e.to_string(),
+            })
+        });
     }
 
     let path_ref = Path::new(&path);
@@ -268,18 +279,20 @@ pub async fn filesystem_read_dir(
             path: entry.path().to_string_lossy().to_string(),
             is_file: metadata.is_file(),
             is_directory: metadata.is_dir(),
-            size: if metadata.is_file() { metadata.len() } else { 0 },
+            size: if metadata.is_file() {
+                metadata.len()
+            } else {
+                0
+            },
             modified,
         });
     }
 
     // Sort: directories first, then files, both alphabetically
-    entries.sort_by(|a, b| {
-        match (a.is_directory, b.is_directory) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
+    entries.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
 
     let total = entries.len();
@@ -308,10 +321,11 @@ fn read_dir_android(
     let api = app_handle.android_fs();
 
     // Parse the JSON Content URI
-    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json)
-        .map_err(|e| FsError::IoError {
+    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json).map_err(|e| {
+        FsError::IoError {
             reason: format!("Invalid Content URI: {:?}", e),
-        })?;
+        }
+    })?;
 
     let dir_entries = api.read_dir(&uri).map_err(|e| FsError::IoError {
         reason: format!("Failed to read Android directory: {:?}", e),
@@ -322,7 +336,8 @@ fn read_dir_android(
         .filter_map(|entry: tauri_plugin_android_fs::Entry| {
             let name = entry.name().to_string();
             let is_dir = entry.is_dir();
-            let modified = entry.last_modified()
+            let modified = entry
+                .last_modified()
                 .duration_since(UNIX_EPOCH)
                 .ok()
                 .map(|d: std::time::Duration| d.as_millis() as u64);
@@ -340,12 +355,10 @@ fn read_dir_android(
         })
         .collect();
 
-    entries.sort_by(|a, b| {
-        match (a.is_directory, b.is_directory) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
+    entries.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
 
     let total = entries.len();
@@ -362,10 +375,7 @@ fn read_dir_android(
 
 /// Create a directory (and parent directories if needed)
 #[tauri::command]
-pub async fn filesystem_mkdir(
-    _state: State<'_, AppState>,
-    path: String,
-) -> Result<(), FsError> {
+pub async fn filesystem_mkdir(_state: State<'_, AppState>, path: String) -> Result<(), FsError> {
     fs::create_dir_all(&path).map_err(|e| FsError::IoError {
         reason: format!("Failed to create directory '{}': {}", path, e),
     })?;
@@ -407,10 +417,7 @@ pub async fn filesystem_remove(
 
 /// Check if a path exists
 #[tauri::command]
-pub async fn filesystem_exists(
-    _state: State<'_, AppState>,
-    path: String,
-) -> Result<bool, FsError> {
+pub async fn filesystem_exists(_state: State<'_, AppState>, path: String) -> Result<bool, FsError> {
     Ok(Path::new(&path).exists())
 }
 
@@ -495,9 +502,11 @@ pub async fn filesystem_select_folder(
             Some(uri) => {
                 // Persist URI permission so it survives app restarts.
                 // Without this, Android revokes access when the app is terminated.
-                picker.persist_uri_permission(&uri).map_err(|e| FsError::IoError {
-                    reason: format!("Failed to persist URI permission: {:?}", e),
-                })?;
+                picker
+                    .persist_uri_permission(&uri)
+                    .map_err(|e| FsError::IoError {
+                        reason: format!("Failed to persist URI permission: {:?}", e),
+                    })?;
 
                 let uri_json = uri.to_json_string().map_err(|e| FsError::IoError {
                     reason: format!("Failed to serialize URI: {:?}", e),
@@ -550,7 +559,10 @@ pub async fn filesystem_select_file(
             }))
         } else {
             let selected = dialog.blocking_pick_file();
-            Ok(selected.and_then(|p| p.as_path().map(|path| vec![path.to_string_lossy().to_string()])))
+            Ok(selected.and_then(|p| {
+                p.as_path()
+                    .map(|path| vec![path.to_string_lossy().to_string()])
+            }))
         }
     }
 
@@ -600,9 +612,12 @@ pub async fn filesystem_select_file(
         };
 
         if multiple.unwrap_or(false) {
-            let selected = picker.pick_files(None, &mime_refs, false).map_err(|e| FsError::IoError {
-                reason: format!("Android file picker error: {:?}", e),
-            })?;
+            let selected =
+                picker
+                    .pick_files(None, &mime_refs, false)
+                    .map_err(|e| FsError::IoError {
+                        reason: format!("Android file picker error: {:?}", e),
+                    })?;
 
             if selected.is_empty() {
                 Ok(None)
@@ -610,9 +625,11 @@ pub async fn filesystem_select_file(
                 // Persist URI permissions so they survive app restarts.
                 // Without this, Android revokes access when the app is terminated.
                 for uri in &selected {
-                    picker.persist_uri_permission(uri).map_err(|e| FsError::IoError {
-                        reason: format!("Failed to persist URI permission: {:?}", e),
-                    })?;
+                    picker
+                        .persist_uri_permission(uri)
+                        .map_err(|e| FsError::IoError {
+                            reason: format!("Failed to persist URI permission: {:?}", e),
+                        })?;
                 }
                 let uris: Result<Vec<String>, FsError> = selected
                     .into_iter()
@@ -625,17 +642,22 @@ pub async fn filesystem_select_file(
                 Ok(Some(uris?))
             }
         } else {
-            let selected = picker.pick_file(None, &mime_refs, false).map_err(|e| FsError::IoError {
-                reason: format!("Android file picker error: {:?}", e),
-            })?;
+            let selected =
+                picker
+                    .pick_file(None, &mime_refs, false)
+                    .map_err(|e| FsError::IoError {
+                        reason: format!("Android file picker error: {:?}", e),
+                    })?;
 
             match selected {
                 Some(uri) => {
                     // Persist URI permission so it survives app restarts.
                     // Without this, Android revokes access when the app is terminated.
-                    picker.persist_uri_permission(&uri).map_err(|e| FsError::IoError {
-                        reason: format!("Failed to persist URI permission: {:?}", e),
-                    })?;
+                    picker
+                        .persist_uri_permission(&uri)
+                        .map_err(|e| FsError::IoError {
+                            reason: format!("Failed to persist URI permission: {:?}", e),
+                        })?;
                     let uri_json = uri.to_json_string().map_err(|e| FsError::IoError {
                         reason: format!("Failed to serialize URI: {:?}", e),
                     })?;

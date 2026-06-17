@@ -41,7 +41,11 @@ impl DatabaseLimitEnforcer {
     }
 
     /// Validate query size against limits
-    pub fn validate_query_size(&self, sql: &str, limits: &DatabaseLimits) -> Result<(), LimitError> {
+    pub fn validate_query_size(
+        &self,
+        sql: &str,
+        limits: &DatabaseLimits,
+    ) -> Result<(), LimitError> {
         let size = sql.len();
         if size as i64 > limits.max_query_size_bytes {
             return Err(LimitError::QueryTooLarge {

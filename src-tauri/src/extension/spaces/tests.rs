@@ -18,7 +18,9 @@ mod tests {
     use crate::database::connection_context::ConnectionContext;
     use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
     use crate::database::DbConnection;
-    use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC};
+    use crate::table_names::{
+        TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC,
+    };
 
     fn setup_test_db() -> (DbConnection, HlcService) {
         let conn = Connection::open_in_memory().expect("in-memory DB");
@@ -181,7 +183,10 @@ mod tests {
         let guard = db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         let dirty: Vec<String> = conn
-            .prepare(&format!("SELECT table_name FROM {}", TABLE_CRDT_DIRTY_TABLES))
+            .prepare(&format!(
+                "SELECT table_name FROM {}",
+                TABLE_CRDT_DIRTY_TABLES
+            ))
             .unwrap()
             .query_map([], |row| row.get::<_, String>(0))
             .unwrap()
@@ -251,13 +256,20 @@ mod tests {
             &db,
         )
         .unwrap();
-        assert_eq!(after.len(), 0, "Row must be hard-deleted from the main table");
+        assert_eq!(
+            after.len(),
+            0,
+            "Row must be hard-deleted from the main table"
+        );
 
         let guard = db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         let raw_count: i64 = conn
             .query_row(
-                &format!("SELECT COUNT(*) FROM {} WHERE id = 'del-1'", TABLE_SHARED_SPACE_SYNC),
+                &format!(
+                    "SELECT COUNT(*) FROM {} WHERE id = 'del-1'",
+                    TABLE_SHARED_SPACE_SYNC
+                ),
                 [],
                 |row| row.get(0),
             )
@@ -272,6 +284,9 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(delete_log_count, 1, "BEFORE-DELETE trigger must log to haex_deleted_rows");
+        assert_eq!(
+            delete_log_count, 1,
+            "BEFORE-DELETE trigger must log to haex_deleted_rows"
+        );
     }
 }

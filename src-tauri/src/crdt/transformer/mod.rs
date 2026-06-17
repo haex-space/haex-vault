@@ -37,9 +37,7 @@ impl CrdtColumns {
     /// Überschreibt vorhandene Spalten mit den gleichen Namen, um korrekte Datentypen zu garantieren
     fn add_to_table_definition(&self, columns: &mut Vec<ColumnDef>) {
         // Remove existing CRDT columns if present
-        columns.retain(|c| {
-            c.name.value != self.hlc_timestamp && c.name.value != self.column_hlcs
-        });
+        columns.retain(|c| c.name.value != self.hlc_timestamp && c.name.value != self.column_hlcs);
 
         // Add all CRDT columns with correct types
         columns.push(ColumnDef {
@@ -131,7 +129,9 @@ impl CrdtTransformer {
             TableFactor::TableFunction { .. } => {
                 // Table functions können auch Subqueries enthalten, aber das ist selten
             }
-            TableFactor::NestedJoin { table_with_joins, .. } => {
+            TableFactor::NestedJoin {
+                table_with_joins, ..
+            } => {
                 // Nested joins rekursiv behandeln
                 self.transform_table_factor(&mut table_with_joins.relation);
                 for join in &mut table_with_joins.joins {
@@ -254,12 +254,11 @@ impl CrdtTransformer {
         use sqlparser::parser::Parser;
 
         let dialect = SQLiteDialect {};
-        let mut statements = Parser::parse_sql(&dialect, sql).map_err(|e| {
-            DatabaseError::ParseError {
+        let mut statements =
+            Parser::parse_sql(&dialect, sql).map_err(|e| DatabaseError::ParseError {
                 reason: e.to_string(),
                 sql: sql.to_string(),
-            }
-        })?;
+            })?;
 
         if statements.is_empty() {
             return Ok(sql.to_string());

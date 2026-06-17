@@ -256,12 +256,11 @@ pub(crate) fn build_s3_bucket(config: &S3Config) -> Result<S3BucketSetup, Storag
         config.region.parse().unwrap_or(Region::UsEast1)
     };
 
-    let mut bucket =
-        Bucket::new(&effective_bucket, region, credentials).map_err(|e| {
-            StorageError::ConnectionFailed {
-                reason: format!("Failed to create bucket: {}", e),
-            }
-        })?;
+    let mut bucket = Bucket::new(&effective_bucket, region, credentials).map_err(|e| {
+        StorageError::ConnectionFailed {
+            reason: format!("Failed to create bucket: {}", e),
+        }
+    })?;
 
     if config.path_style.unwrap_or(false) {
         bucket = bucket.with_path_style();
@@ -420,16 +419,11 @@ impl StorageBackend for S3Backend {
             )
         };
 
-        let response = Bucket::create(
-            &self.effective_bucket,
-            region,
-            credentials,
-            bucket_config,
-        )
-        .await
-        .map_err(|e| StorageError::ConnectionFailed {
-            reason: format!("Bucket auto-create failed: {}", e),
-        })?;
+        let response = Bucket::create(&self.effective_bucket, region, credentials, bucket_config)
+            .await
+            .map_err(|e| StorageError::ConnectionFailed {
+                reason: format!("Bucket auto-create failed: {}", e),
+            })?;
 
         // S3 returns 200/conflict for "already owned by you" — both fine.
         if !response.success() {
@@ -568,11 +562,12 @@ impl StorageBackend for S3Backend {
             })?
             .len();
 
-        let file = tokio::fs::File::open(source_path)
-            .await
-            .map_err(|e| StorageError::UploadFailed {
-                reason: format!("open source: {}", e),
-            })?;
+        let file =
+            tokio::fs::File::open(source_path)
+                .await
+                .map_err(|e| StorageError::UploadFailed {
+                    reason: format!("open source: {}", e),
+                })?;
         let mut reader = ProgressReader::new(file, total, on_progress);
 
         self.bucket
@@ -624,11 +619,12 @@ impl StorageBackend for S3Backend {
             })?
             .len();
 
-        let mut file = tokio::fs::File::open(source_path)
-            .await
-            .map_err(|e| StorageError::UploadFailed {
-                reason: format!("open source: {}", e),
-            })?;
+        let mut file =
+            tokio::fs::File::open(source_path)
+                .await
+                .map_err(|e| StorageError::UploadFailed {
+                    reason: format!("open source: {}", e),
+                })?;
 
         // Tiny files: a single PUT is cheaper than multipart and has no
         // server-side state to clean up. Cancel before the PUT still works
@@ -758,15 +754,18 @@ impl StorageBackend for S3Backend {
         // the credentials), fall back to total = 0 — the callback then reports
         // bytes_done with `total = bytes_done` (monotone, always 100%).
         let total = match self.bucket.head_object(key).await {
-            Ok((head, _)) => head.content_length.and_then(|l| u64::try_from(l).ok()).unwrap_or(0),
+            Ok((head, _)) => head
+                .content_length
+                .and_then(|l| u64::try_from(l).ok())
+                .unwrap_or(0),
             Err(_) => 0,
         };
 
-        let file = tokio::fs::File::create(output_path)
-            .await
-            .map_err(|e| StorageError::DownloadFailed {
+        let file = tokio::fs::File::create(output_path).await.map_err(|e| {
+            StorageError::DownloadFailed {
                 reason: format!("create dest: {}", e),
-            })?;
+            }
+        })?;
         let mut writer = ProgressWriter::new(file, total, on_progress);
 
         self.bucket
@@ -806,7 +805,9 @@ impl StorageBackend for S3Backend {
             Err(e) => {
                 let msg = e.to_string();
                 if msg.contains("404") || msg.contains("NoSuchKey") {
-                    return Err(StorageError::ObjectNotFound { key: key.to_string() });
+                    return Err(StorageError::ObjectNotFound {
+                        key: key.to_string(),
+                    });
                 }
                 return Err(StorageError::DownloadFailed {
                     reason: format!("head_object: {}", e),

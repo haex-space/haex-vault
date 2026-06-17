@@ -58,17 +58,14 @@ pub(super) fn resolve_path_filtered(
 
     let full_path = PathBuf::from(&share.local_path).join(&sub_path);
 
-    let canonical = full_path
+    let canonical = full_path.canonicalize().map_err(|_| Response::Error {
+        message: "Path not found".to_string(),
+    })?;
+    let share_canonical = PathBuf::from(&share.local_path)
         .canonicalize()
         .map_err(|_| Response::Error {
-            message: "Path not found".to_string(),
+            message: "Share path invalid".to_string(),
         })?;
-    let share_canonical =
-        PathBuf::from(&share.local_path)
-            .canonicalize()
-            .map_err(|_| Response::Error {
-                message: "Share path invalid".to_string(),
-            })?;
 
     if !canonical.starts_with(&share_canonical) {
         return Err(Response::Error {
@@ -94,12 +91,11 @@ pub(super) fn resolve_path_for_write(
 
     let full_path = PathBuf::from(&share.local_path).join(&sub_path);
 
-    let share_canonical =
-        PathBuf::from(&share.local_path)
-            .canonicalize()
-            .map_err(|_| Response::Error {
-                message: "Share path invalid".to_string(),
-            })?;
+    let share_canonical = PathBuf::from(&share.local_path)
+        .canonicalize()
+        .map_err(|_| Response::Error {
+            message: "Share path invalid".to_string(),
+        })?;
 
     let parent = full_path.parent().unwrap_or(&full_path);
     if parent.exists() {

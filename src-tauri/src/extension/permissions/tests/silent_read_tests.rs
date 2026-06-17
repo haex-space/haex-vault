@@ -126,14 +126,22 @@ fn session_denial_overrides_missing_db_entry() {
 
 #[test]
 fn db_granted_exact_match_allows() {
-    let perms = vec![fs_perm(FsAction::Read, "/data/file.txt", PermissionStatus::Granted)];
+    let perms = vec![fs_perm(
+        FsAction::Read,
+        "/data/file.txt",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(make_extension(), perms);
     assert!(checker.can_read_path_silently(Path::new("/data/file.txt"), false, false));
 }
 
 #[test]
 fn db_granted_prefix_wildcard_allows_subpath() {
-    let perms = vec![fs_perm(FsAction::Read, "/data/*", PermissionStatus::Granted)];
+    let perms = vec![fs_perm(
+        FsAction::Read,
+        "/data/*",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(make_extension(), perms);
     assert!(checker.can_read_path_silently(Path::new("/data/sub/file.txt"), false, false));
 }
@@ -158,14 +166,22 @@ fn db_granted_readwrite_also_allows_read() {
 
 #[test]
 fn db_granted_does_not_match_outside_prefix() {
-    let perms = vec![fs_perm(FsAction::Read, "/data/*", PermissionStatus::Granted)];
+    let perms = vec![fs_perm(
+        FsAction::Read,
+        "/data/*",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(make_extension(), perms);
     assert!(!checker.can_read_path_silently(Path::new("/other/file.txt"), false, false));
 }
 
 #[test]
 fn session_denial_blocks_even_when_db_granted() {
-    let perms = vec![fs_perm(FsAction::Read, "/data/*", PermissionStatus::Granted)];
+    let perms = vec![fs_perm(
+        FsAction::Read,
+        "/data/*",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(make_extension(), perms);
     assert!(!checker.can_read_path_silently(Path::new("/data/file.txt"), false, true));
 }
@@ -332,13 +348,13 @@ fn attack_url_encoded_traversal_is_blocked() {
 #[test]
 fn attack_null_byte_injection_is_blocked() {
     // Null bytes can truncate strings in some C-level APIs — must not match.
-    let perms = vec![fs_perm(FsAction::Read, "/data/*", PermissionStatus::Granted)];
+    let perms = vec![fs_perm(
+        FsAction::Read,
+        "/data/*",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(make_extension(), perms);
-    assert!(!checker.can_read_path_silently(
-        Path::new("/data/file.txt\0.secret"),
-        false,
-        false
-    ));
+    assert!(!checker.can_read_path_silently(Path::new("/data/file.txt\0.secret"), false, false));
 }
 
 #[test]
@@ -354,11 +370,7 @@ fn attack_extension_constraint_cannot_be_bypassed_by_path_match() {
         vec![".md"],
     )];
     let checker = PermissionChecker::new(make_extension(), perms);
-    assert!(!checker.can_read_path_silently(
-        Path::new("/data/fake.md.key"),
-        false,
-        false
-    ));
+    assert!(!checker.can_read_path_silently(Path::new("/data/fake.md.key"), false, false));
 }
 
 #[test]
@@ -371,11 +383,7 @@ fn attack_unrelated_prefix_does_not_leak_access() {
         PermissionStatus::Granted,
     )];
     let checker = PermissionChecker::new(make_extension(), perms);
-    assert!(!checker.can_read_path_silently(
-        Path::new("/data/private/secret.txt"),
-        false,
-        false
-    ));
+    assert!(!checker.can_read_path_silently(Path::new("/data/private/secret.txt"), false, false));
 }
 
 #[test]
@@ -387,17 +395,9 @@ fn attack_exact_match_does_not_leak_sibling_files() {
         PermissionStatus::Granted,
     )];
     let checker = PermissionChecker::new(make_extension(), perms);
-    assert!(!checker.can_read_path_silently(
-        Path::new("/data/private.txt"),
-        false,
-        false
-    ));
+    assert!(!checker.can_read_path_silently(Path::new("/data/private.txt"), false, false));
     // Also not directories that happen to start with the same name.
-    assert!(!checker.can_read_path_silently(
-        Path::new("/data/public.txt.bak"),
-        false,
-        false
-    ));
+    assert!(!checker.can_read_path_silently(Path::new("/data/public.txt.bak"), false, false));
 }
 
 #[test]

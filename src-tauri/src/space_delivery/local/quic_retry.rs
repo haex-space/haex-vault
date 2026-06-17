@@ -192,9 +192,7 @@ impl QuicSendError {
 fn is_connection_transient(ce: &ConnectionError) -> bool {
     matches!(
         ce,
-        ConnectionError::TimedOut
-            | ConnectionError::Reset
-            | ConnectionError::ConnectionClosed(_),
+        ConnectionError::TimedOut | ConnectionError::Reset | ConnectionError::ConnectionClosed(_),
     )
 }
 
@@ -242,10 +240,7 @@ pub async fn send_request_once(
     let own_endpoint_id = endpoint.id().to_string();
     complete_client_did_auth(&conn, our_did, our_signing_key, &own_endpoint_id).await?;
 
-    let (mut send, mut recv) = conn
-        .open_bi()
-        .await
-        .map_err(QuicSendError::OpenStream)?;
+    let (mut send, mut recv) = conn.open_bi().await.map_err(QuicSendError::OpenStream)?;
 
     send.write_all(request_bytes).await?;
     send.finish()
@@ -256,9 +251,11 @@ pub async fn send_request_once(
         protocol::read_response(&mut recv),
     )
     .await
-    .map_err(|_| QuicSendError::Read(crate::peer_storage::protocol::PeerProtocolError::Read(
-        format!("read timeout after {READ_TIMEOUT_SECS}s"),
-    )))??;
+    .map_err(|_| {
+        QuicSendError::Read(crate::peer_storage::protocol::PeerProtocolError::Read(
+            format!("read timeout after {READ_TIMEOUT_SECS}s"),
+        ))
+    })??;
 
     // Best-effort close; ignore errors since we already have the response.
     conn.close(0u32.into(), b"done");
@@ -291,9 +288,7 @@ pub async fn send_request_with_retry(
         {
             Ok(response) => {
                 if attempt > 1 {
-                    eprintln!(
-                        "[{operation}] succeeded on attempt {attempt}/{MAX_ATTEMPTS}"
-                    );
+                    eprintln!("[{operation}] succeeded on attempt {attempt}/{MAX_ATTEMPTS}");
                 }
                 return Ok(response);
             }
@@ -329,10 +324,7 @@ pub(super) async fn complete_client_did_auth(
     our_signing_key: &ed25519_dalek::SigningKey,
     own_endpoint_id: &str,
 ) -> Result<(), QuicSendError> {
-    let (mut send, mut recv) = conn
-        .accept_bi()
-        .await
-        .map_err(QuicSendError::OpenStream)?;
+    let (mut send, mut recv) = conn.accept_bi().await.map_err(QuicSendError::OpenStream)?;
 
     crate::quic_did_auth::respond_to_challenge(
         &mut send,
@@ -389,17 +381,17 @@ pub fn load_signing_identity_for_did(
         })?
         .to_string();
 
-    let private_key_b64 = row
-        .get(1)
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| super::error::DeliveryError::AccessDenied {
+    let private_key_b64 = row.get(1).and_then(|v| v.as_str()).ok_or_else(|| {
+        super::error::DeliveryError::AccessDenied {
             reason: format!("identity {did} has no private_key — cannot sign DID-auth"),
-        })?;
+        }
+    })?;
 
-    let signing_key = crate::ucan::signing_key_from_pkcs8_base64(private_key_b64)
-        .map_err(|e| super::error::DeliveryError::Database {
+    let signing_key = crate::ucan::signing_key_from_pkcs8_base64(private_key_b64).map_err(|e| {
+        super::error::DeliveryError::Database {
             reason: format!("decoding private_key for {did}: {e}"),
-        })?;
+        }
+    })?;
 
     let derived_did = crate::ucan::did_key_from_public_key(&signing_key.verifying_key());
     if derived_did != stored_did {
@@ -480,10 +472,7 @@ mod tests {
         let err = QuicSendError::Read(PeerProtocolError::InvalidJson("bad".into()));
         assert!(!err.is_transient());
 
-        let err = QuicSendError::Read(PeerProtocolError::MessageTooLarge {
-            size: 100,
-            max: 50,
-        });
+        let err = QuicSendError::Read(PeerProtocolError::MessageTooLarge { size: 100, max: 50 });
         assert!(!err.is_transient());
     }
 
@@ -547,10 +536,13 @@ mod tests {
     // the retry loop re-establishes a clean connection instead of giving up.
     #[test]
     fn read_timeout_error_is_transient() {
-        let err = QuicSendError::Read(PeerProtocolError::Read(
-            format!("read timeout after {READ_TIMEOUT_SECS}s"),
-        ));
-        assert!(err.is_transient(), "read timeout must be retried, got: {err}");
+        let err = QuicSendError::Read(PeerProtocolError::Read(format!(
+            "read timeout after {READ_TIMEOUT_SECS}s"
+        )));
+        assert!(
+            err.is_transient(),
+            "read timeout must be retried, got: {err}"
+        );
     }
 
     // Regression: after MAX_ATTEMPTS persistently transient errors the loop

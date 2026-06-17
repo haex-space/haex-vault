@@ -10,18 +10,20 @@ use tokio::sync::RwLock;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
-use crate::crdt::hlc::HlcService;
-use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
-use crate::critical::CriticalFailureCode;
-use crate::ucan::{require_audience, require_capability, validate_token, CapabilityLevel, ValidatedUcan};
-use crate::database::DbConnection;
 use super::buffer;
 use super::error::DeliveryError;
 use super::invite_tokens::{self, LocalInviteToken};
 use super::protocol::{self, MlsMessageEntry, Notification, Request, Response};
 use super::push_invite;
 use super::types::{ConnectedPeer, PeerClaim};
+use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
+use crate::crdt::hlc::HlcService;
+use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
+use crate::critical::CriticalFailureCode;
+use crate::database::DbConnection;
+use crate::ucan::{
+    require_audience, require_capability, validate_token, CapabilityLevel, ValidatedUcan,
+};
 use serde_json::Value as JsonValue;
 
 /// Target number of key packages the leader wants each peer to maintain.
@@ -44,8 +46,7 @@ pub struct LeaderState {
     /// Currently connected peers (endpoint_id → peer info) — IN-MEMORY ONLY, never persisted
     pub connected_peers: Arc<RwLock<HashMap<String, ConnectedPeer>>>,
     /// Notification senders for connected peers (endpoint_id → sender)
-    pub notification_senders:
-        Arc<RwLock<HashMap<String, tokio::sync::mpsc::Sender<Notification>>>>,
+    pub notification_senders: Arc<RwLock<HashMap<String, tokio::sync::mpsc::Sender<Notification>>>>,
     /// In-memory invite tokens (loaded from DB on start, synced back on changes)
     pub invite_tokens: Arc<RwLock<Vec<LocalInviteToken>>>,
 }
@@ -59,7 +60,9 @@ fn base64_encode(data: &[u8]) -> String {
 }
 
 fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
-    BASE64.decode(s).map_err(|e| format!("base64 decode error: {e}"))
+    BASE64
+        .decode(s)
+        .map_err(|e| format!("base64 decode error: {e}"))
 }
 
 /// Validate a UCAN token carried in a space-delivery request and return a
@@ -208,7 +211,14 @@ pub async fn handle_claim_invite(
             key_packages,
             label,
             public_key,
-        } => (space_id, token, endpoint_id, key_packages, label, public_key),
+        } => (
+            space_id,
+            token,
+            endpoint_id,
+            key_packages,
+            label,
+            public_key,
+        ),
         _ => {
             return Response::Error {
                 message: "Expected ClaimInvite request".to_string(),
@@ -223,7 +233,10 @@ pub async fn handle_claim_invite(
     // cryptographically authenticated `verified_did` instead.
     let did: String = verified_did.to_string();
 
-    debug_assert_eq!(space_id, state.space_id, "ClaimInvite routed to wrong leader");
+    debug_assert_eq!(
+        space_id, state.space_id,
+        "ClaimInvite routed to wrong leader"
+    );
 
     // 1. Detect retry: a prior attempt may have already added the member to
     //    the MLS group and consumed the invite token. We do NOT short-circuit
@@ -354,13 +367,14 @@ pub async fn handle_claim_invite(
 
     // 7. Store and broadcast commit to existing members
     if !bundle.commit.is_empty() {
-        let msg_id = match buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit) {
-            Ok(id) => id,
-            Err(e) => {
-                eprintln!("[SpaceDelivery] Failed to store commit: {e}");
-                0
-            }
-        };
+        let msg_id =
+            match buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit) {
+                Ok(id) => id,
+                Err(e) => {
+                    eprintln!("[SpaceDelivery] Failed to store commit: {e}");
+                    0
+                }
+            };
 
         // Track pending ACKs from all space members (not just connected peers)
         if msg_id > 0 {
@@ -448,8 +462,7 @@ pub async fn handle_claim_invite(
         let now = OffsetDateTime::now_utc()
             .format(&time::format_description::well_known::Rfc3339)
             .unwrap_or_default();
-        let resolved_label = member_label
-            .unwrap_or_else(|| did.chars().take(16).collect());
+        let resolved_label = member_label.unwrap_or_else(|| did.chars().take(16).collect());
 
         let ensure_identity_sql = "INSERT OR IGNORE INTO haex_identities \
             (id, did, name, source) VALUES (?1, ?2, ?3, 'contact')"
@@ -502,13 +515,8 @@ pub async fn handle_claim_invite(
     //     single-use contact invites and (b) double-count for multi-use
     //     conference invites.
     if !is_retry {
-        if let Err(e) = invite_tokens::consume_invite(
-            &state.db,
-            &state.hlc,
-            &state.invite_tokens,
-            &token,
-        )
-        .await
+        if let Err(e) =
+            invite_tokens::consume_invite(&state.db, &state.hlc, &state.invite_tokens, &token).await
         {
             // Log but don't fail the response — the claim succeeded, only the
             // usage-count persistence failed. At worst the token is usable once
@@ -613,9 +621,7 @@ fn persist_admin_ucan(
             now_secs + super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
         )),
     ];
-    if let Err(e) =
-        crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc_guard)
-    {
+    if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc_guard) {
         eprintln!("[SpaceDelivery] persist_admin_ucan: insert failed: {e}");
     }
 }
@@ -687,8 +693,12 @@ pub(super) async fn handle_delivery_request(
             // we must verify the UCAN before trusting `did` and before
             // populating `connected_peers` (which later handlers rely on).
             crate::logging::log_to_db(
-                &state.db, &state.hlc, "info", "Announce",
-                &format!("received: space={} did={} peer={}",
+                &state.db,
+                &state.hlc,
+                "info",
+                "Announce",
+                &format!(
+                    "received: space={} did={} peer={}",
                     &space_id[..8.min(space_id.len())],
                     &did[..24.min(did.len())],
                     peer_endpoint_id,
@@ -703,9 +713,15 @@ pub(super) async fn handle_delivery_request(
                 Some(t) => t,
                 None => {
                     crate::logging::log_to_db(
-                        &state.db, &state.hlc, "warn", "Announce",
-                        &format!("missing ucan_token: space={} did={}",
-                            &space_id[..8.min(space_id.len())], &did[..24.min(did.len())]),
+                        &state.db,
+                        &state.hlc,
+                        "warn",
+                        "Announce",
+                        &format!(
+                            "missing ucan_token: space={} did={}",
+                            &space_id[..8.min(space_id.len())],
+                            &did[..24.min(did.len())]
+                        ),
                         None,
                     );
                     return Response::Error {
@@ -717,9 +733,15 @@ pub(super) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => {
                     crate::logging::log_to_db(
-                        &state.db, &state.hlc, "warn", "Announce",
-                        &format!("UCAN validation failed: space={} did={}",
-                            &space_id[..8.min(space_id.len())], &did[..24.min(did.len())]),
+                        &state.db,
+                        &state.hlc,
+                        "warn",
+                        "Announce",
+                        &format!(
+                            "UCAN validation failed: space={} did={}",
+                            &space_id[..8.min(space_id.len())],
+                            &did[..24.min(did.len())]
+                        ),
                         None,
                     );
                     return r;
@@ -737,19 +759,29 @@ pub(super) async fn handle_delivery_request(
                 &state.db,
             ) {
                 crate::logging::log_to_db(
-                    &state.db, &state.hlc, "warn", "Announce",
-                    &format!("capability/membership rejected: space={} audience={}",
+                    &state.db,
+                    &state.hlc,
+                    "warn",
+                    "Announce",
+                    &format!(
+                        "capability/membership rejected: space={} audience={}",
                         &space_id[..8.min(space_id.len())],
-                        &validated.audience[..24.min(validated.audience.len())]),
+                        &validated.audience[..24.min(validated.audience.len())]
+                    ),
                     None,
                 );
                 return r;
             }
             crate::logging::log_to_db(
-                &state.db, &state.hlc, "info", "Announce",
-                &format!("accepted: space={} audience={}",
+                &state.db,
+                &state.hlc,
+                "info",
+                "Announce",
+                &format!(
+                    "accepted: space={} audience={}",
                     &space_id[..8.min(space_id.len())],
-                    &validated.audience[..24.min(validated.audience.len())]),
+                    &validated.audience[..24.min(validated.audience.len())]
+                ),
                 None,
             );
 
@@ -778,12 +810,9 @@ pub(super) async fn handle_delivery_request(
                 .insert(endpoint_id.clone(), peer);
 
             // Re-notify about unacked commits for this peer
-            let unacked = buffer::get_unacked_message_ids_for_member(
-                &state.db,
-                &state.space_id,
-                &did_clone,
-            )
-            .unwrap_or_default();
+            let unacked =
+                buffer::get_unacked_message_ids_for_member(&state.db, &state.space_id, &did_clone)
+                    .unwrap_or_default();
 
             if !unacked.is_empty() {
                 eprintln!(
@@ -804,10 +833,7 @@ pub(super) async fn handle_delivery_request(
         }
 
         // -- MLS Key Packages --
-        Request::MlsUploadKeyPackages {
-            space_id,
-            packages,
-        } => {
+        Request::MlsUploadKeyPackages { space_id, packages } => {
             let did = verified_did.to_string();
             for pkg_b64 in &packages {
                 if let Ok(blob) = base64_decode(pkg_b64) {
@@ -815,31 +841,25 @@ pub(super) async fn handle_delivery_request(
                 }
             }
             // Trim excess packages — keep only the target amount, discard oldest
-            let _ = buffer::trim_key_packages(
-                &state.db,
-                &space_id,
-                &did,
-                TARGET_KEY_PACKAGES_PER_PEER,
-            );
+            let _ =
+                buffer::trim_key_packages(&state.db, &space_id, &did, TARGET_KEY_PACKAGES_PER_PEER);
             Response::Ok
         }
 
         Request::MlsFetchKeyPackage {
             space_id,
             target_did,
-        } => {
-            match buffer::consume_key_package(&state.db, &space_id, &target_did) {
-                Ok(Some(blob)) => Response::KeyPackage {
-                    package: base64_encode(&blob),
-                },
-                Ok(None) => Response::Error {
-                    message: format!("No key package for {target_did}"),
-                },
-                Err(e) => Response::Error {
-                    message: e.to_string(),
-                },
-            }
-        }
+        } => match buffer::consume_key_package(&state.db, &space_id, &target_did) {
+            Ok(Some(blob)) => Response::KeyPackage {
+                package: base64_encode(&blob),
+            },
+            Ok(None) => Response::Error {
+                message: format!("No key package for {target_did}"),
+            },
+            Err(e) => Response::Error {
+                message: e.to_string(),
+            },
+        },
 
         // -- MLS Messages --
         Request::MlsSendMessage {
@@ -854,13 +874,19 @@ pub(super) async fn handle_delivery_request(
                         Ok(id) => {
                             // Track pending ACKs for commits
                             if message_type == "commit" {
-                                let expected_dids: Vec<String> = buffer::get_space_member_dids(&state.db, &space_id)
-                                    .unwrap_or_default()
-                                    .into_iter()
-                                    .filter(|d| d != &did) // exclude sender
-                                    .collect();
+                                let expected_dids: Vec<String> =
+                                    buffer::get_space_member_dids(&state.db, &space_id)
+                                        .unwrap_or_default()
+                                        .into_iter()
+                                        .filter(|d| d != &did) // exclude sender
+                                        .collect();
                                 if !expected_dids.is_empty() {
-                                    let _ = buffer::store_pending_commit(&state.db, &space_id, id, &expected_dids);
+                                    let _ = buffer::store_pending_commit(
+                                        &state.db,
+                                        &space_id,
+                                        id,
+                                        &expected_dids,
+                                    );
                                 }
                             }
 
@@ -876,21 +902,20 @@ pub(super) async fn handle_delivery_request(
             }
         }
 
-        Request::MlsFetchMessages {
-            space_id,
-            after_id,
-        } => {
+        Request::MlsFetchMessages { space_id, after_id } => {
             match buffer::fetch_messages(&state.db, &space_id, after_id) {
                 Ok(msgs) => {
                     let entries: Vec<MlsMessageEntry> = msgs
                         .into_iter()
-                        .map(|(id, sender_did, msg_type, blob, created_at)| MlsMessageEntry {
-                            id,
-                            sender_did,
-                            message_type: msg_type,
-                            message: base64_encode(&blob),
-                            created_at,
-                        })
+                        .map(
+                            |(id, sender_did, msg_type, blob, created_at)| MlsMessageEntry {
+                                id,
+                                sender_did,
+                                message_type: msg_type,
+                                message: base64_encode(&blob),
+                                created_at,
+                            },
+                        )
                         .collect();
                     Response::Messages { messages: entries }
                 }
@@ -905,25 +930,24 @@ pub(super) async fn handle_delivery_request(
             space_id,
             recipient_did,
             welcome,
-        } => {
-            match base64_decode(&welcome) {
-                Ok(blob) => {
-                    match buffer::store_welcome(&state.db, &space_id, &recipient_did, &blob) {
-                        Ok(_) => Response::Ok,
-                        Err(e) => Response::Error {
-                            message: e.to_string(),
-                        },
-                    }
-                }
-                Err(e) => Response::Error { message: e },
-            }
-        }
+        } => match base64_decode(&welcome) {
+            Ok(blob) => match buffer::store_welcome(&state.db, &space_id, &recipient_did, &blob) {
+                Ok(_) => Response::Ok,
+                Err(e) => Response::Error {
+                    message: e.to_string(),
+                },
+            },
+            Err(e) => Response::Error { message: e },
+        },
 
         Request::MlsFetchWelcomes { space_id } => {
             let did = verified_did.to_string();
             match buffer::fetch_welcomes(&state.db, &space_id, &did) {
                 Ok(entries) => {
-                    let encoded: Vec<String> = entries.iter().map(|(_, blob)| base64_encode(blob)).collect();
+                    let encoded: Vec<String> = entries
+                        .iter()
+                        .map(|(_, blob)| base64_encode(blob))
+                        .collect();
                     for (id, _) in &entries {
                         let _ = buffer::mark_welcome_consumed(&state.db, id);
                     }
@@ -1037,12 +1061,9 @@ pub(super) async fn handle_delivery_request(
                     };
                 }
             };
-            if let Err(e) = apply_remote_changes_to_db(
-                &state.db,
-                remote_changes,
-                None,
-                Some(&hlc_service),
-            ) {
+            if let Err(e) =
+                apply_remote_changes_to_db(&state.db, remote_changes, None, Some(&hlc_service))
+            {
                 eprintln!("[SpaceDelivery] SyncPush: failed to apply changes: {e}");
                 return Response::Error {
                     message: format!("Failed to apply changes: {e}"),
@@ -1059,10 +1080,9 @@ pub(super) async fn handle_delivery_request(
             if affected_tables.iter().any(|t| t == "haex_space_devices") {
                 let app_state: tauri::State<'_, crate::AppState> = state.app_handle.state();
                 let endpoint = app_state.peer_storage.read().await;
-                if let Err(e) = crate::peer_storage::commands::reload_allowed_peers(
-                    &app_state,
-                    &endpoint,
-                ).await {
+                if let Err(e) =
+                    crate::peer_storage::commands::reload_allowed_peers(&app_state, &endpoint).await
+                {
                     eprintln!("[SpaceDelivery] Failed to reload allowed_peers after space_devices push: {e}");
                     return Response::Error {
                         message: format!("Failed to reload allowed_peers: {e}"),
@@ -1113,13 +1133,19 @@ pub(super) async fn handle_delivery_request(
             ) {
                 Ok(changes) => {
                     let by_table: std::collections::BTreeMap<&str, usize> =
-                        changes.iter().fold(std::collections::BTreeMap::new(), |mut acc, c| {
-                            *acc.entry(c.table_name.as_str()).or_insert(0) += 1;
-                            acc
-                        });
+                        changes
+                            .iter()
+                            .fold(std::collections::BTreeMap::new(), |mut acc, c| {
+                                *acc.entry(c.table_name.as_str()).or_insert(0) += 1;
+                                acc
+                            });
                     crate::logging::log_to_db(
-                        &state.db, &state.hlc, "info", "SyncPull",
-                        &format!("served: space={} audience={} count={} after={:?} tables={:?}",
+                        &state.db,
+                        &state.hlc,
+                        "info",
+                        "SyncPull",
+                        &format!(
+                            "served: space={} audience={} count={} after={:?} tables={:?}",
                             &space_id[..8.min(space_id.len())],
                             &validated.audience[..24.min(validated.audience.len())],
                             changes.len(),
@@ -1141,9 +1167,15 @@ pub(super) async fn handle_delivery_request(
                 Err(e) => {
                     eprintln!("[SpaceDelivery] SyncPull: failed to scan changes: {e}");
                     crate::logging::log_to_db(
-                        &state.db, &state.hlc, "error", "SyncPull",
-                        &format!("scan failed: space={} err={}",
-                            &space_id[..8.min(space_id.len())], e),
+                        &state.db,
+                        &state.hlc,
+                        "error",
+                        "SyncPull",
+                        &format!(
+                            "scan failed: space={} err={}",
+                            &space_id[..8.min(space_id.len())],
+                            e
+                        ),
                         None,
                     );
                     Response::Error {
@@ -1154,9 +1186,7 @@ pub(super) async fn handle_delivery_request(
         }
 
         // -- Invites (ClaimInvite) --
-        req @ Request::ClaimInvite { .. } => {
-            handle_claim_invite(state, req, verified_did).await
-        }
+        req @ Request::ClaimInvite { .. } => handle_claim_invite(state, req, verified_did).await,
 
         // -- Push Invites (peer-to-peer, invitee side) --
         Request::PushInvite {
@@ -1232,12 +1262,7 @@ pub(super) async fn handle_delivery_request(
                 .expect("non-bypass RequestRejoin must have ValidatedUcan from gate");
 
             // Export current GroupInfo with ratchet tree for External Commit
-            match crate::mls::blocking::get_group_info(
-                state.db.0.clone(),
-                space_id.clone(),
-            )
-            .await
-            {
+            match crate::mls::blocking::get_group_info(state.db.0.clone(), space_id.clone()).await {
                 Ok(group_info_bytes) => Response::GroupInfo {
                     group_info: base64_encode(&group_info_bytes),
                 },
@@ -1299,8 +1324,8 @@ pub(super) async fn handle_delivery_request(
             match buffer::store_message(&state.db, &space_id, &peer_did, "commit", &commit_blob) {
                 Ok(msg_id) => {
                     // Track pending ACKs from all space members
-                    let expected_dids = buffer::get_space_member_dids(&state.db, &space_id)
-                        .unwrap_or_default();
+                    let expected_dids =
+                        buffer::get_space_member_dids(&state.db, &space_id).unwrap_or_default();
                     if !expected_dids.is_empty() {
                         let _ = buffer::store_pending_commit(
                             &state.db,
@@ -1452,9 +1477,7 @@ mod audience_check_tests {
              Found {legacy_lookups} legacy call sites."
         );
 
-        let verified_bindings = production
-            .matches("verified_did.to_string()")
-            .count();
+        let verified_bindings = production.matches("verified_did.to_string()").count();
         assert!(
             verified_bindings >= 4,
             "expected at least 4 `verified_did.to_string()` bindings inside \
@@ -1522,13 +1545,11 @@ mod auth_gate_wireup_tests {
             .find(fn_marker)
             .expect("handle_delivery_request must exist");
         let body = &production[fn_start..];
-        let gate_call_pos = body
-            .find("auth_gate::authorize_request(")
-            .expect(
-                "handle_delivery_request must call auth_gate::authorize_request — \
+        let gate_call_pos = body.find("auth_gate::authorize_request(").expect(
+            "handle_delivery_request must call auth_gate::authorize_request — \
                  without this every per-arm check stays the only line of defence \
                  and the MLS arms remain un-gated. See plan T5 §4.1.",
-            );
+        );
         let match_pos = body
             .find("match request {")
             .expect("handle_delivery_request must contain `match request {`");

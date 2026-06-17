@@ -114,7 +114,11 @@ fn test_comment_injection_single_line() {
         if let Ok(stmts) = result {
             // If it parses as single statement, DROP is commented out (safe)
             // If multiple statements, we catch it elsewhere
-            println!("Comment injection '{}' parsed as {} statements", sql, stmts.len());
+            println!(
+                "Comment injection '{}' parsed as {} statements",
+                sql,
+                stmts.len()
+            );
         }
     }
 }
@@ -186,10 +190,7 @@ fn test_table_prefix_validation_create_table() {
     let expected = get_expected_prefix();
 
     // Valid: correct prefix
-    let valid_sql = format!(
-        "CREATE TABLE {}users (id TEXT PRIMARY KEY)",
-        expected
-    );
+    let valid_sql = format!("CREATE TABLE {}users (id TEXT PRIMARY KEY)", expected);
     assert!(validate_sql_table_prefix(&ctx, &valid_sql).is_ok());
 
     // Invalid: wrong prefix
@@ -211,10 +212,7 @@ fn test_table_prefix_validation_alter_table() {
     let expected = get_expected_prefix();
 
     // Valid
-    let valid_sql = format!(
-        "ALTER TABLE {}users ADD COLUMN email TEXT",
-        expected
-    );
+    let valid_sql = format!("ALTER TABLE {}users ADD COLUMN email TEXT", expected);
     assert!(validate_sql_table_prefix(&ctx, &valid_sql).is_ok());
 
     // Invalid
@@ -228,10 +226,7 @@ fn test_table_prefix_validation_create_index() {
     let expected = get_expected_prefix();
 
     // Valid
-    let valid_sql = format!(
-        "CREATE INDEX idx_users ON {}users (email)",
-        expected
-    );
+    let valid_sql = format!("CREATE INDEX idx_users ON {}users (email)", expected);
     assert!(validate_sql_table_prefix(&ctx, &valid_sql).is_ok());
 
     // Invalid: index on system table
@@ -259,17 +254,11 @@ fn test_table_prefix_with_quoted_names() {
     let expected = get_expected_prefix();
 
     // Double-quoted table names
-    let valid_sql = format!(
-        r#"CREATE TABLE "{0}users" (id TEXT PRIMARY KEY)"#,
-        expected
-    );
+    let valid_sql = format!(r#"CREATE TABLE "{0}users" (id TEXT PRIMARY KEY)"#, expected);
     assert!(validate_sql_table_prefix(&ctx, &valid_sql).is_ok());
 
     // Backtick-quoted table names
-    let valid_sql = format!(
-        "CREATE TABLE `{0}users` (id TEXT PRIMARY KEY)",
-        expected
-    );
+    let valid_sql = format!("CREATE TABLE `{0}users` (id TEXT PRIMARY KEY)", expected);
     assert!(validate_sql_table_prefix(&ctx, &valid_sql).is_ok());
 
     // Invalid quoted
@@ -532,7 +521,8 @@ fn test_subquery_to_system_table() {
 
 #[test]
 fn test_exists_subquery_injection() {
-    let sql = "SELECT * FROM users WHERE EXISTS (SELECT 1 FROM haex_vault_settings WHERE value='admin')";
+    let sql =
+        "SELECT * FROM users WHERE EXISTS (SELECT 1 FROM haex_vault_settings WHERE value='admin')";
     let result = parse_sql_statements(sql);
 
     assert!(result.is_ok());
@@ -569,7 +559,8 @@ fn test_time_based_injection() {
 
     for sql in attacks {
         let result = parse_sql_statements(sql);
-        println!("Time-based injection '{}' parse result: {:?}",
+        println!(
+            "Time-based injection '{}' parse result: {:?}",
             sql.chars().take(50).collect::<String>(),
             result.is_ok()
         );
@@ -619,7 +610,11 @@ fn test_boolean_injection_or() {
     for sql in attacks {
         let result = parse_sql_statements(sql);
         // These parse as valid SQL - protection comes from parameterized queries
-        assert!(result.is_ok(), "Should parse (but be protected by params): {}", sql);
+        assert!(
+            result.is_ok(),
+            "Should parse (but be protected by params): {}",
+            sql
+        );
     }
 }
 
@@ -658,14 +653,16 @@ fn test_limit_injection() {
     let sql = "SELECT * FROM users LIMIT 1; SELECT * FROM haex_extensions; --";
     let result = SqlExecutionPlanner::parse_single_statement(sql);
     // Should reject multiple statements
-    assert!(result.is_err() || {
-        // If it parses, the second part should be identified as another statement
-        if let Ok(stmts) = parse_sql_statements(sql) {
-            stmts.len() > 1
-        } else {
-            true
+    assert!(
+        result.is_err() || {
+            // If it parses, the second part should be identified as another statement
+            if let Ok(stmts) = parse_sql_statements(sql) {
+                stmts.len() > 1
+            } else {
+                true
+            }
         }
-    });
+    );
 }
 
 // ============================================================================
@@ -725,8 +722,7 @@ fn test_subquery_in_update_set_clause_detected() {
 
 #[test]
 fn test_subquery_in_delete_where_clause_detected() {
-    let sql =
-        "DELETE FROM test_pub__test_ext__users WHERE id IN (SELECT id FROM haex_extensions)";
+    let sql = "DELETE FROM test_pub__test_ext__users WHERE id IN (SELECT id FROM haex_extensions)";
     let tables = extract_table_names_from_sql(sql).unwrap();
     assert!(
         tables.iter().any(|t| t.contains("haex_extensions")),

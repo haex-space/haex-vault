@@ -65,9 +65,7 @@ pub enum Request {
         welcome: String,
     },
     /// Fetch welcome messages for the caller
-    MlsFetchWelcomes {
-        space_id: String,
-    },
+    MlsFetchWelcomes { space_id: String },
     /// Acknowledge successful processing of MLS messages (commits).
     /// Sent by peer after processing commits from MlsFetchMessages.
     MlsAckCommit {
@@ -76,9 +74,7 @@ pub enum Request {
         message_ids: Vec<i64>,
     },
     /// Query how many key packages the leader has stored for the calling peer.
-    MlsKeyPackageCount {
-        space_id: String,
-    },
+    MlsKeyPackageCount { space_id: String },
     /// Request rejoin via External Commit. Peer is stuck on old epoch.
     /// Leader responds with current GroupInfo so peer can create External Commit.
     RequestRejoin {
@@ -309,9 +305,9 @@ impl Request {
             | Request::RequestRejoin { .. }
             | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
 
-            Request::Announce { .. }
-            | Request::ClaimInvite { .. }
-            | Request::PushInvite { .. } => None,
+            Request::Announce { .. } | Request::ClaimInvite { .. } | Request::PushInvite { .. } => {
+                None
+            }
         }
     }
 
@@ -399,9 +395,7 @@ pub enum Response {
         capability: String,
     },
     /// Acknowledgment for a push invite
-    PushInviteAck {
-        accepted: bool,
-    },
+    PushInviteAck { accepted: bool },
     /// Error response
     Error { message: String },
 }
@@ -415,9 +409,15 @@ pub enum Response {
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum Notification {
     /// New sync data available
-    Sync { space_id: String, tables: Vec<String> },
+    Sync {
+        space_id: String,
+        tables: Vec<String>,
+    },
     /// New MLS message available
-    Mls { space_id: String, message_type: String },
+    Mls {
+        space_id: String,
+        message_type: String,
+    },
     /// New invite available
     Invite { space_id: String, invite_id: String },
     /// Leader is shutting down (handoff or stop)

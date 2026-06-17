@@ -71,19 +71,12 @@ impl SessionPermissionStore {
         resource_type: ResourceType,
         target: &str,
     ) -> bool {
-        self.get_permission(extension_id, resource_type, target)
-            == Some(PermissionStatus::Granted)
+        self.get_permission(extension_id, resource_type, target) == Some(PermissionStatus::Granted)
     }
 
     /// Check if a session permission denies access (returns true if denied)
-    pub fn is_denied(
-        &self,
-        extension_id: &str,
-        resource_type: ResourceType,
-        target: &str,
-    ) -> bool {
-        self.get_permission(extension_id, resource_type, target)
-            == Some(PermissionStatus::Denied)
+    pub fn is_denied(&self, extension_id: &str, resource_type: ResourceType, target: &str) -> bool {
+        self.get_permission(extension_id, resource_type, target) == Some(PermissionStatus::Denied)
     }
 
     /// Clear all session permissions for an extension
@@ -116,12 +109,7 @@ impl SessionPermissionStore {
     }
 
     /// Remove a specific session permission
-    pub fn remove_permission(
-        &self,
-        extension_id: &str,
-        resource_type: ResourceType,
-        target: &str,
-    ) {
+    pub fn remove_permission(&self, extension_id: &str, resource_type: ResourceType, target: &str) {
         let key = SessionPermissionKey {
             extension_id: extension_id.to_string(),
             resource_type,

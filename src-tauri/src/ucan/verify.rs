@@ -146,9 +146,9 @@ pub fn validate_token(token: &str) -> Result<ValidatedUcan, UcanVerifyError> {
     let mut capabilities = HashMap::new();
     for (resource, capability_value) in cap_obj {
         if let Some(space_id) = resource.strip_prefix("space:") {
-            let cap_str = capability_value
-                .as_str()
-                .ok_or_else(|| UcanVerifyError::MalformedToken("capability must be string".into()))?;
+            let cap_str = capability_value.as_str().ok_or_else(|| {
+                UcanVerifyError::MalformedToken("capability must be string".into())
+            })?;
             let level = CapabilityLevel::from_capability_string(cap_str)
                 .ok_or_else(|| UcanVerifyError::UnknownCapability(cap_str.into()))?;
             capabilities.insert(space_id.to_string(), level);
@@ -238,12 +238,13 @@ pub fn require_capability(
     space_id: &str,
     required: CapabilityLevel,
 ) -> Result<(), UcanVerifyError> {
-    let actual = validated
-        .capabilities
-        .get(space_id)
-        .ok_or_else(|| UcanVerifyError::MissingCapability {
-            space_id: space_id.to_string(),
-        })?;
+    let actual =
+        validated
+            .capabilities
+            .get(space_id)
+            .ok_or_else(|| UcanVerifyError::MissingCapability {
+                space_id: space_id.to_string(),
+            })?;
 
     if *actual >= required {
         Ok(())
@@ -365,7 +366,10 @@ mod tests {
         let key = random_signing_key();
         let token = make_test_token(&key, "space-123", "space/read", 3600);
         let validated = validate_token(&token).unwrap();
-        assert_eq!(validated.capabilities.get("space-123"), Some(&CapabilityLevel::Read));
+        assert_eq!(
+            validated.capabilities.get("space-123"),
+            Some(&CapabilityLevel::Read)
+        );
     }
 
     #[test]
@@ -373,14 +377,20 @@ mod tests {
         let key = random_signing_key();
         let token = make_test_token(&key, "space-123", "space/write", 3600);
         let validated = validate_token(&token).unwrap();
-        assert_eq!(validated.capabilities.get("space-123"), Some(&CapabilityLevel::Write));
+        assert_eq!(
+            validated.capabilities.get("space-123"),
+            Some(&CapabilityLevel::Write)
+        );
     }
 
     #[test]
     fn expired_token_rejected() {
         let key = random_signing_key();
         let token = make_test_token(&key, "s", "space/read", 0);
-        assert!(matches!(validate_token(&token), Err(UcanVerifyError::Expired)));
+        assert!(matches!(
+            validate_token(&token),
+            Err(UcanVerifyError::Expired)
+        ));
     }
 
     #[test]
@@ -479,7 +489,10 @@ mod tests {
         // common sentinel for "no own DID known" and would be a security bug
         // if it matched a token with aud == "").
         let result = require_audience(&validated, "");
-        assert!(matches!(result, Err(UcanVerifyError::EmptyExpectedAudience)));
+        assert!(matches!(
+            result,
+            Err(UcanVerifyError::EmptyExpectedAudience)
+        ));
     }
 
     #[test]

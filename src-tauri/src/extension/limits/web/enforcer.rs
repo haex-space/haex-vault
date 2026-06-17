@@ -56,7 +56,6 @@ impl RateLimitWindow {
     }
 }
 
-
 /// RAII guard for concurrent web requests
 pub struct WebRequestGuard<'a> {
     tracker: &'a ConcurrencyTracker,

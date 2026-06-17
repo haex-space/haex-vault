@@ -102,7 +102,7 @@ mod manager_tests {
                 let mut windows = manager_clone.windows.lock().unwrap();
                 windows.insert(
                     format!("ext_window_{}", i),
-                    format!("extension_{}", i % 3),  // 3 different extensions
+                    format!("extension_{}", i % 3), // 3 different extensions
                 );
             });
             handles.push(handle);
