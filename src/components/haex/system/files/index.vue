@@ -749,11 +749,27 @@
     <UModal
       :open="browser.preview.isOpen.value"
       :title="browser.preview.previewFilename.value ?? ' '"
-      :ui="{ content: 'max-w-3xl' }"
-      @update:open="(v) => !v && browser.preview.close()"
+      :fullscreen="isPreviewMaximized"
+      :ui="{ content: isPreviewMaximized ? '' : 'max-w-3xl' }"
+      @update:open="onPreviewOpenChange"
     >
+      <template #actions>
+        <UButton
+          v-if="browser.preview.previewType.value !== 'audio'"
+          :icon="isPreviewMaximized ? 'i-lucide-minimize' : 'i-lucide-maximize'"
+          color="neutral"
+          variant="ghost"
+          :aria-label="isPreviewMaximized ? t('restorePreview') : t('maximizePreview')"
+          @click="togglePreviewMaximized"
+        />
+      </template>
       <template #body>
-        <div class="flex items-center justify-center min-h-32">
+        <div
+          :class="[
+            'flex items-center justify-center',
+            isPreviewMaximized ? 'h-full' : 'min-h-32',
+          ]"
+        >
           <audio
             v-if="
               browser.preview.previewType.value === 'audio' &&
@@ -764,6 +780,7 @@
             autoplay
             class="w-full"
             :src="browser.preview.previewUrl.value"
+            @error="onMediaError"
           />
           <video
             v-else-if="
@@ -773,8 +790,9 @@
             data-testid="file-preview-video"
             controls
             autoplay
-            class="max-h-[70vh] w-full"
+            :class="isPreviewMaximized ? 'max-h-full w-full' : 'max-h-[70vh] w-full'"
             :src="browser.preview.previewUrl.value"
+            @error="onMediaError"
           />
           <img
             v-else-if="
@@ -783,7 +801,7 @@
             "
             :src="browser.preview.previewUrl.value"
             :alt="browser.preview.previewFilename.value ?? ''"
-            class="max-h-[70vh] object-contain"
+            :class="isPreviewMaximized ? 'max-h-full object-contain' : 'max-h-[70vh] object-contain'"
           >
           <iframe
             v-else-if="
@@ -791,7 +809,7 @@
                 browser.preview.previewUrl.value
             "
             :src="browser.preview.previewUrl.value"
-            class="w-full h-[70vh] border-0"
+            :class="isPreviewMaximized ? 'w-full h-full border-0' : 'w-full h-[70vh] border-0'"
           />
         </div>
       </template>
@@ -801,6 +819,7 @@
 
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/fileBrowserHelpers'
 import { usePeerPing } from '~/composables/usePeerPing'
@@ -888,6 +907,55 @@ const toggleEndpointAsync = async () => {
 
 // --- Upload + create folder ---
 const toast = useToast()
+
+// --- Media preview error handling ---
+//
+// WebKitGTK (Linux) decodes <audio>/<video> via GStreamer. Patent-encumbered
+// formats like H.264/AAC (.mp4) need gstreamer1.0-libav, which isn't part of
+// the base install on many distros — without it the player just shows a black
+// frame and stays silent. Surface a clear, actionable message instead.
+const onMediaError = (event: Event) => {
+  const el = event.target as HTMLMediaElement | null
+  const code = el?.error?.code
+  const isFormatError =
+    code === MediaError.MEDIA_ERR_DECODE ||
+    code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+  toast.add({
+    title: t('mediaPlaybackFailed'),
+    description: isFormatError
+      ? t('mediaCodecMissing')
+      : el?.error?.message || undefined,
+    color: 'error',
+  })
+}
+
+// Fullscreen preview. We deliberately avoid the browser Fullscreen API
+// (`video.requestFullscreen()`) — it aborts WebKitGTK on some Linux/NVIDIA
+// setups, so it's disabled in the Rust webview setup. Instead we drive the
+// real OS window into fullscreen via Tauri's window API (GTK's
+// `gtk_window_fullscreen`, a different code path that doesn't crash) and let
+// the modal fill that window via Nuxt UI's `fullscreen` prop.
+const isPreviewMaximized = ref(false)
+
+const setPreviewMaximized = async (maximized: boolean) => {
+  isPreviewMaximized.value = maximized
+  try {
+    await getCurrentWindow().setFullscreen(maximized)
+  } catch {
+    // Window fullscreen is best-effort (e.g. unsupported platform); the modal
+    // still expands to fill the window either way.
+  }
+}
+
+const togglePreviewMaximized = () => setPreviewMaximized(!isPreviewMaximized.value)
+
+const onPreviewOpenChange = (open: boolean) => {
+  if (!open) {
+    if (isPreviewMaximized.value) void setPreviewMaximized(false)
+    browser.preview.close()
+  }
+}
+
 const isUploading = ref(false)
 const isCreatingFolder = ref(false)
 const newFolderOpen = ref(false)
@@ -1761,6 +1829,10 @@ de:
   openFailed: Öffnen fehlgeschlagen
   cancelTransfer: Übertragung abbrechen
   cancelTransferFailed: Übertragung konnte nicht abgebrochen werden
+  mediaPlaybackFailed: Wiedergabe fehlgeschlagen
+  mediaCodecMissing: 'Dieses Format kann nicht abgespielt werden – möglicherweise fehlt ein Codec (z. B. H.264). Unter Linux: „gstreamer1.0-libav" installieren.'
+  maximizePreview: Maximieren
+  restorePreview: Verkleinern
   downloadThroughputTooltip: Aktuelle Download-Geschwindigkeit
   sections:
     local: Dieses Gerät
@@ -1822,6 +1894,10 @@ en:
   openFailed: Open failed
   cancelTransfer: Cancel transfer
   cancelTransferFailed: Could not cancel transfer
+  mediaPlaybackFailed: Playback failed
+  mediaCodecMissing: 'This format can''t be played – a codec may be missing (e.g. H.264). On Linux, install "gstreamer1.0-libav".'
+  maximizePreview: Maximize
+  restorePreview: Restore
   downloadThroughputTooltip: Current download speed
   sections:
     local: This device
