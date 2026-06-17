@@ -25,9 +25,8 @@ use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::AppState;
 use authorization::{
-    parse_authorized_client, parse_blocked_client,
-    SQL_DELETE_CLIENT, SQL_GET_ALL_CLIENTS, SQL_INSERT_CLIENT,
-    SQL_GET_ALL_BLOCKED_CLIENTS, SQL_INSERT_BLOCKED_CLIENT, SQL_DELETE_BLOCKED_CLIENT,
+    parse_authorized_client, parse_blocked_client, SQL_DELETE_BLOCKED_CLIENT, SQL_DELETE_CLIENT,
+    SQL_GET_ALL_BLOCKED_CLIENTS, SQL_GET_ALL_CLIENTS, SQL_INSERT_BLOCKED_CLIENT, SQL_INSERT_CLIENT,
 };
 use serde_json::Value as JsonValue;
 use tauri::{AppHandle, Emitter, State};
@@ -78,7 +77,9 @@ pub fn external_bridge_get_default_port() -> u16 {
 
 /// Get all authorized external clients from database
 #[tauri::command]
-pub fn external_bridge_get_authorized_clients(state: State<'_, AppState>) -> Result<Vec<AuthorizedClient>, String> {
+pub fn external_bridge_get_authorized_clients(
+    state: State<'_, AppState>,
+) -> Result<Vec<AuthorizedClient>, String> {
     let rows = select_with_crdt(SQL_GET_ALL_CLIENTS.to_string(), vec![], &state.db)
         .map_err(|e| e.to_string())?;
 
@@ -111,7 +112,10 @@ pub async fn external_bridge_revoke_session_authorization(
     let session_auths = bridge.get_session_authorizations();
     let mut auths = session_auths.write().await;
     auths.remove(&client_id);
-    println!("[ExternalAuth] Session authorization revoked for client: {}", client_id);
+    println!(
+        "[ExternalAuth] Session authorization revoked for client: {}",
+        client_id
+    );
     Ok(())
 }
 
@@ -132,7 +136,10 @@ pub async fn external_bridge_unblock_session_client(
 ) -> Result<(), String> {
     let bridge = state.external_bridge.lock().await;
     bridge.remove_session_blocked(&client_id).await;
-    println!("[ExternalAuth] Session block removed for client: {}", client_id);
+    println!(
+        "[ExternalAuth] Session block removed for client: {}",
+        client_id
+    );
     Ok(())
 }
 
@@ -213,7 +220,8 @@ pub async fn external_bridge_respond(
     match sender {
         Some(tx) => {
             // Send response through the oneshot channel
-            tx.send(response).map_err(|_| "Failed to send response: receiver dropped".to_string())
+            tx.send(response)
+                .map_err(|_| "Failed to send response: receiver dropped".to_string())
         }
         None => {
             // No pending request with this ID (may have timed out)
@@ -303,8 +311,13 @@ pub async fn external_bridge_client_block(
                 JsonValue::String(public_key),
             ];
 
-            execute_with_crdt(SQL_INSERT_BLOCKED_CLIENT.to_string(), params, &state.db, &hlc_guard)
-                .map_err(|e| e.to_string())?;
+            execute_with_crdt(
+                SQL_INSERT_BLOCKED_CLIENT.to_string(),
+                params,
+                &state.db,
+                &hlc_guard,
+            )
+            .map_err(|e| e.to_string())?;
         }
 
         // Emit event to notify frontend
@@ -324,7 +337,9 @@ pub async fn external_bridge_client_block(
 
 /// Get all blocked external clients from database
 #[tauri::command]
-pub fn external_bridge_get_blocked_clients(state: State<'_, AppState>) -> Result<Vec<BlockedClient>, String> {
+pub fn external_bridge_get_blocked_clients(
+    state: State<'_, AppState>,
+) -> Result<Vec<BlockedClient>, String> {
     let rows = select_with_crdt(SQL_GET_ALL_BLOCKED_CLIENTS.to_string(), vec![], &state.db)
         .map_err(|e| e.to_string())?;
 
@@ -350,8 +365,13 @@ pub fn external_bridge_unblock_client(
 
     let params = vec![JsonValue::String(client_id)];
 
-    execute_with_crdt(SQL_DELETE_BLOCKED_CLIENT.to_string(), params, &state.db, &hlc_guard)
-        .map_err(|e| e.to_string())?;
+    execute_with_crdt(
+        SQL_DELETE_BLOCKED_CLIENT.to_string(),
+        params,
+        &state.db,
+        &hlc_guard,
+    )
+    .map_err(|e| e.to_string())?;
 
     // Emit event to notify frontend
     let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
@@ -371,4 +391,3 @@ pub async fn extension_signal_ready(
     bridge.signal_extension_ready(&extension_id).await;
     Ok(())
 }
-

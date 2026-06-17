@@ -29,11 +29,7 @@ fn mls_cursor_key(space_id: &str) -> String {
 /// Read the persisted push cursor for `(space_id, device_id)`. Returns
 /// `None` on first run, on missing row, or on any DB error — the caller
 /// then scans from t=0, which is correct (just slower) on first run.
-pub fn load_last_push_hlc(
-    db: &DbConnection,
-    space_id: &str,
-    device_id: &str,
-) -> Option<String> {
+pub fn load_last_push_hlc(db: &DbConnection, space_id: &str, device_id: &str) -> Option<String> {
     let key = cursor_key(space_id);
     with_connection(db, |conn| {
         let value: Option<String> = conn
@@ -55,12 +51,7 @@ pub fn load_last_push_hlc(
 /// `ON CONFLICT (key, device_id) DO UPDATE`. Errors are logged and
 /// swallowed — a failed checkpoint just means the next session re-scans
 /// from the previous cursor (or t=0), never a data-loss risk.
-pub fn save_last_push_hlc(
-    db: &DbConnection,
-    space_id: &str,
-    device_id: &str,
-    hlc: &str,
-) {
+pub fn save_last_push_hlc(db: &DbConnection, space_id: &str, device_id: &str, hlc: &str) {
     let key = cursor_key(space_id);
     let row_id = uuid::Uuid::new_v4().to_string();
 
@@ -87,11 +78,7 @@ pub fn save_last_push_hlc(
 /// Returns `None` on first run or any DB error — the caller then fetches
 /// from id=0, which is safe (just fetches historical messages that will
 /// be skipped or processed from scratch).
-pub fn load_last_mls_cursor(
-    db: &DbConnection,
-    space_id: &str,
-    device_id: &str,
-) -> Option<i64> {
+pub fn load_last_mls_cursor(db: &DbConnection, space_id: &str, device_id: &str) -> Option<i64> {
     let key = mls_cursor_key(space_id);
     with_connection(db, |conn| {
         let value: Option<String> = conn
@@ -108,23 +95,19 @@ pub fn load_last_mls_cursor(
     .ok()
     .flatten()
     .and_then(|s| {
-        s.parse::<i64>().map_err(|e| {
-            eprintln!(
-                "[SyncLoop] Failed to parse MLS cursor value '{s}' for \
+        s.parse::<i64>()
+            .map_err(|e| {
+                eprintln!(
+                    "[SyncLoop] Failed to parse MLS cursor value '{s}' for \
                  space={space_id} device={device_id}: {e}"
-            );
-        })
-        .ok()
+                );
+            })
+            .ok()
     })
 }
 
 /// Persist the MLS message cursor for `(space_id, device_id)`.
-pub fn save_last_mls_cursor(
-    db: &DbConnection,
-    space_id: &str,
-    device_id: &str,
-    message_id: i64,
-) {
+pub fn save_last_mls_cursor(db: &DbConnection, space_id: &str, device_id: &str, message_id: i64) {
     let key = mls_cursor_key(space_id);
     let row_id = uuid::Uuid::new_v4().to_string();
     let value = message_id.to_string();

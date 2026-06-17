@@ -95,7 +95,9 @@ impl PartialState {
         target: &Path,
         expected_hash: &str,
     ) -> std::io::Result<Option<Self>> {
-        Ok(Self::load(target).await?.filter(|s| s.file_hash == expected_hash))
+        Ok(Self::load(target)
+            .await?
+            .filter(|s| s.file_hash == expected_hash))
     }
 
     pub async fn clear(target: &Path) -> std::io::Result<()> {

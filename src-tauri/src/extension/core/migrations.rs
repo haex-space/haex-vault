@@ -2,6 +2,7 @@
 //
 // Extension migration registration and execution.
 
+use super::queries::SQL_INSERT_EXTENSION_MIGRATION;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::extension::core::manifest::{ExtensionManifest, MigrationJournal};
@@ -9,7 +10,6 @@ use crate::extension::core::path_utils::validate_path_in_directory;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::database::{execute_migration_statements, ExtensionSqlContext};
 use crate::extension::error::ExtensionError;
-use super::queries::SQL_INSERT_EXTENSION_MIGRATION;
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use std::fs;
@@ -50,37 +50,32 @@ pub async fn register_bundle_migrations(
 
     // Validate migrations_dir path to prevent path traversal attacks
     // The migrations directory MUST be within the extension directory
-    let _migrations_path =
-        validate_path_in_directory(extension_dir, migrations_dir, true)?.ok_or_else(|| {
+    let _migrations_path = validate_path_in_directory(extension_dir, migrations_dir, true)?
+        .ok_or_else(|| ExtensionError::ValidationError {
+            reason: format!(
+                "Migrations directory '{}' does not exist or is outside extension directory",
+                migrations_dir
+            ),
+        })?;
+
+    // Read _journal.json to get migration order
+    let journal_relative_path = format!("{}/meta/_journal.json", migrations_dir);
+    let journal_path = validate_path_in_directory(extension_dir, &journal_relative_path, true)?
+        .ok_or_else(|| {
+            eprintln!(
+                "[INSTALL_MIGRATIONS] No _journal.json found at {}",
+                journal_relative_path
+            );
             ExtensionError::ValidationError {
                 reason: format!(
-                    "Migrations directory '{}' does not exist or is outside extension directory",
+                    "_journal.json not found at {}/meta/_journal.json",
                     migrations_dir
                 ),
             }
         })?;
 
-    // Read _journal.json to get migration order
-    let journal_relative_path = format!("{}/meta/_journal.json", migrations_dir);
-    let journal_path =
-        validate_path_in_directory(extension_dir, &journal_relative_path, true)?.ok_or_else(
-            || {
-                eprintln!(
-                    "[INSTALL_MIGRATIONS] No _journal.json found at {}",
-                    journal_relative_path
-                );
-                ExtensionError::ValidationError {
-                    reason: format!(
-                        "_journal.json not found at {}/meta/_journal.json",
-                        migrations_dir
-                    ),
-                }
-            },
-        )?;
-
-    let journal_content = fs::read_to_string(&journal_path).map_err(|e| {
-        ExtensionError::filesystem_with_path(journal_path.display().to_string(), e)
-    })?;
+    let journal_content = fs::read_to_string(&journal_path)
+        .map_err(|e| ExtensionError::filesystem_with_path(journal_path.display().to_string(), e))?;
 
     let journal: MigrationJournal =
         serde_json::from_str(&journal_content).map_err(|e| ExtensionError::ManifestError {
@@ -149,7 +144,12 @@ pub async fn register_bundle_migrations(
                 JsonValue::String(entry.tag.clone()),
                 JsonValue::String(sql_content.clone()),
             ];
-            SqlExecutor::execute_internal(&tx, &hlc_service, &SQL_INSERT_EXTENSION_MIGRATION, &params)?;
+            SqlExecutor::execute_internal(
+                &tx,
+                &hlc_service,
+                &SQL_INSERT_EXTENSION_MIGRATION,
+                &params,
+            )?;
 
             tx.commit().map_err(DatabaseError::from)?;
             Ok::<(), DatabaseError>(())

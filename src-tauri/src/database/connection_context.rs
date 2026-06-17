@@ -35,10 +35,7 @@ impl ConnectionContext {
     /// write transaction could inherit. Once `mark_write_pending` fires
     /// from the update_hook, subsequent calls within the same transaction
     /// return the first cached value until commit or rollback.
-    pub fn current_or_new_tx_hlc(
-        &self,
-        hlc_service: &HlcService,
-    ) -> Result<Timestamp, HlcError> {
+    pub fn current_or_new_tx_hlc(&self, hlc_service: &HlcService) -> Result<Timestamp, HlcError> {
         let writes = *self
             .write_pending
             .lock()

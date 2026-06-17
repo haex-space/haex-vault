@@ -53,7 +53,10 @@ impl LocalProvider {
             full.clone()
         };
 
-        let canonical_base = self.base_path.canonicalize().map_err(SyncProviderError::Io)?;
+        let canonical_base = self
+            .base_path
+            .canonicalize()
+            .map_err(SyncProviderError::Io)?;
         if !check_path.starts_with(&canonical_base) {
             return Err(SyncProviderError::PathTraversal {
                 path: relative_path.to_string(),
@@ -88,7 +91,10 @@ fn scan_directory(dir: &Path, base: &Path) -> Result<Vec<FileState>, SyncProvide
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
-                eprintln!("[LocalProvider] Skipping unreadable entry in {}: {e}", dir.display());
+                eprintln!(
+                    "[LocalProvider] Skipping unreadable entry in {}: {e}",
+                    dir.display()
+                );
                 continue;
             }
         };
@@ -210,14 +216,21 @@ impl SyncProvider for LocalProvider {
         let _ = expected_chunks;
         let src = self.resolve_path(relative_path)?;
         if !src.exists() {
-            return Err(SyncProviderError::NotFound { path: relative_path.to_string() });
+            return Err(SyncProviderError::NotFound {
+                path: relative_path.to_string(),
+            });
         }
         // Use the actual bytes copied — `tokio::fs::copy` is the source of
         // truth, so we do not race a separate metadata() against it.
-        let copied = tokio::fs::copy(&src, output_path).await.map_err(SyncProviderError::Io)?;
+        let copied = tokio::fs::copy(&src, output_path)
+            .await
+            .map_err(SyncProviderError::Io)?;
         on_progress(copied, copied);
         // Same-machine copy — no integrity boundary worth re-hashing.
-        Ok(ReadFileResult { bytes: copied, hash: None })
+        Ok(ReadFileResult {
+            bytes: copied,
+            hash: None,
+        })
     }
 
     async fn write_file_from_path(
@@ -227,9 +240,13 @@ impl SyncProvider for LocalProvider {
     ) -> Result<(), SyncProviderError> {
         let dst = self.resolve_path(relative_path)?;
         if let Some(parent) = dst.parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(SyncProviderError::Io)?;
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(SyncProviderError::Io)?;
         }
-        tokio::fs::copy(source_path, &dst).await.map_err(SyncProviderError::Io)?;
+        tokio::fs::copy(source_path, &dst)
+            .await
+            .map_err(SyncProviderError::Io)?;
         Ok(())
     }
 
@@ -249,15 +266,23 @@ impl SyncProvider for LocalProvider {
         ) else {
             return;
         };
-        let Ok(dst) = self.resolve_path(&file.relative_path) else { return };
-        let Ok(meta) = tokio::fs::metadata(&dst).await else { return };
-        let Some(size) = (!meta.is_dir()).then_some(meta.len()) else { return };
+        let Ok(dst) = self.resolve_path(&file.relative_path) else {
+            return;
+        };
+        let Ok(meta) = tokio::fs::metadata(&dst).await else {
+            return;
+        };
+        let Some(size) = (!meta.is_dir()).then_some(meta.len()) else {
+            return;
+        };
         let Some(mtime_nanos) = meta
             .modified()
             .ok()
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_nanos())
-        else { return };
+        else {
+            return;
+        };
         super::hashing::prime_cache_chunked(
             &dst,
             size,
@@ -352,7 +377,10 @@ mod tests {
         assert!(dir_entry.is_directory);
         assert_eq!(dir_entry.size, 0);
 
-        let file_entry = manifest.iter().find(|f| f.relative_path == "a.txt").unwrap();
+        let file_entry = manifest
+            .iter()
+            .find(|f| f.relative_path == "a.txt")
+            .unwrap();
         assert!(!file_entry.is_directory);
         assert_eq!(file_entry.size, 5);
     }

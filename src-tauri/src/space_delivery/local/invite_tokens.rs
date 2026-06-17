@@ -160,12 +160,13 @@ pub async fn validate_invite(
         }
     }
 
-    let token = tokens
-        .iter()
-        .find(|t| t.id == token_id)
-        .ok_or_else(|| DeliveryError::AccessDenied {
-            reason: "Invalid invite token".to_string(),
-        })?;
+    let token =
+        tokens
+            .iter()
+            .find(|t| t.id == token_id)
+            .ok_or_else(|| DeliveryError::AccessDenied {
+                reason: "Invalid invite token".to_string(),
+            })?;
 
     if !token.can_claim(claimer_did) {
         return Err(DeliveryError::AccessDenied {
@@ -277,8 +278,16 @@ pub fn load_invite_tokens(
 
     let mut tokens = Vec::new();
     for row in rows {
-        let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let space_id = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let id = row
+            .get(0)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let space_id = row
+            .get(1)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
         let target_did = row.get(2).and_then(|v| v.as_str()).map(|s| s.to_string());
         let caps_json = row.get(3).and_then(|v| v.as_str()).unwrap_or("[]");
         let capability = serde_json::from_str::<Vec<String>>(caps_json)
@@ -341,8 +350,16 @@ fn load_invite_token_by_id(
         None => return Ok(None),
     };
 
-    let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-    let space_id = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let id = row
+        .get(0)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let space_id = row
+        .get(1)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
     let target_did = row.get(2).and_then(|v| v.as_str()).map(|s| s.to_string());
     let caps_json = row.get(3).and_then(|v| v.as_str()).unwrap_or("[]");
     let capability = serde_json::from_str::<Vec<String>>(caps_json)
@@ -356,16 +373,12 @@ fn load_invite_token_by_id(
     let expires_str = row.get(8).and_then(|v| v.as_str()).unwrap_or_default();
     let created_str = row.get(9).and_then(|v| v.as_str()).unwrap_or_default();
 
-    let expires_at = time::OffsetDateTime::parse(
-        expires_str,
-        &time::format_description::well_known::Rfc3339,
-    )
-    .unwrap_or_else(|_| OffsetDateTime::now_utc());
-    let created_at = time::OffsetDateTime::parse(
-        created_str,
-        &time::format_description::well_known::Rfc3339,
-    )
-    .unwrap_or_else(|_| OffsetDateTime::now_utc());
+    let expires_at =
+        time::OffsetDateTime::parse(expires_str, &time::format_description::well_known::Rfc3339)
+            .unwrap_or_else(|_| OffsetDateTime::now_utc());
+    let created_at =
+        time::OffsetDateTime::parse(created_str, &time::format_description::well_known::Rfc3339)
+            .unwrap_or_else(|_| OffsetDateTime::now_utc());
 
     Ok(Some(LocalInviteToken {
         id,
@@ -501,8 +514,7 @@ mod target_did_anti_manipulation_tests {
              value"
         );
         assert!(
-            production
-                .contains("self.target_did.as_ref().map_or(true, |t| t == did)"),
+            production.contains("self.target_did.as_ref().map_or(true, |t| t == did)"),
             "LocalInviteToken::can_claim must compare claimer DID against \
              the row's own target_did field — the entire authoritative \
              chain hinges on this exact comparison"

@@ -52,7 +52,9 @@ fn test_validate_file_size_valid() {
         max_operations_per_minute: 120,
     };
 
-    assert!(enforcer.validate_file_size(5 * 1024 * 1024, &limits).is_ok());
+    assert!(enforcer
+        .validate_file_size(5 * 1024 * 1024, &limits)
+        .is_ok());
 }
 
 #[test]
@@ -65,7 +67,9 @@ fn test_validate_file_size_at_limit() {
         max_operations_per_minute: 120,
     };
 
-    assert!(enforcer.validate_file_size(10 * 1024 * 1024, &limits).is_ok());
+    assert!(enforcer
+        .validate_file_size(10 * 1024 * 1024, &limits)
+        .is_ok());
 }
 
 #[test]
@@ -108,7 +112,10 @@ fn test_validate_storage_quota_exceeded() {
     };
 
     let result = enforcer.validate_storage_quota(90 * 1024 * 1024, 20 * 1024 * 1024, &limits);
-    assert!(matches!(result, Err(LimitError::StorageQuotaExceeded { .. })));
+    assert!(matches!(
+        result,
+        Err(LimitError::StorageQuotaExceeded { .. })
+    ));
 }
 
 #[test]

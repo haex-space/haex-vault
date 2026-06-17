@@ -21,8 +21,8 @@ pub(super) fn resolve_content_uri_subpath(
     crate::filesystem::reject_path_traversal(sub_path)?;
 
     let api = app_handle.android_fs();
-    let root = FileUri::from_json_str(root_uri_json)
-        .map_err(|e| format!("Invalid Content URI: {e:?}"))?;
+    let root =
+        FileUri::from_json_str(root_uri_json).map_err(|e| format!("Invalid Content URI: {e:?}"))?;
 
     let segments: Vec<&str> = sub_path
         .trim_start_matches('/')
@@ -84,6 +84,36 @@ pub(super) fn scan_content_uri_recursive(
     Ok(entries)
 }
 
+/// Cached BLAKE3 chunked hash of a single Content-URI file.
+///
+/// Opens the URI once across the JNI boundary on a cache miss and streams it
+/// through the chunked hasher, keyed on `(uri, size, mtime_nanos)`. Shared by
+/// the manifest scan ([`collect_content_uri_entries`]) and the download
+/// stat-probe ([`stat_content_uri`]) so both reuse one cache entry per file
+/// instead of each re-reading it. Callers pick the failure policy: the scan
+/// tolerates errors (logs, falls back to size+mtime), the stat-probe
+/// propagates them (the server must report chunks for every file).
+#[cfg(target_os = "android")]
+fn hash_content_uri_file(
+    app_handle: &tauri::AppHandle,
+    uri: &tauri_plugin_android_fs::FileUri,
+    size: u64,
+    modified_nanos: u128,
+) -> std::io::Result<crate::file_sync::hashing::ChunkedHash> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let api = app_handle.android_fs();
+    crate::file_sync::hashing::cached_hash_chunked_with_reader(
+        uri.uri.clone(),
+        size,
+        modified_nanos,
+        || {
+            api.open_file_readable(uri)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        },
+    )
+}
+
 #[cfg(target_os = "android")]
 fn collect_content_uri_entries(
     app_handle: &tauri::AppHandle,
@@ -107,14 +137,16 @@ fn collect_content_uri_entries(
         };
 
         let last_modified = entry.last_modified();
-        let modified_duration = last_modified
-            .duration_since(std::time::UNIX_EPOCH)
-            .ok();
+        let modified_duration = last_modified.duration_since(std::time::UNIX_EPOCH).ok();
         let modified_at = modified_duration.map(|d| d.as_secs()).unwrap_or(0);
         let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
 
         let is_directory = entry.is_dir();
-        let size = if is_directory { 0 } else { entry.file_len().unwrap_or(0) };
+        let size = if is_directory {
+            0
+        } else {
+            entry.file_len().unwrap_or(0)
+        };
         let uri = entry.uri().clone();
 
         // Compute BLAKE3 chunked hashes for files. Without this, every sync
@@ -122,26 +154,12 @@ fn collect_content_uri_entries(
         // cycle: the desktop side hashes (cached_hash_chunked on real paths),
         // the Android side reported `hash: None`, and `files_equal` then fell
         // back to size+mtime — which never matches because the receiver's
-        // mtime is the local write time.
-        //
-        // Cost is bounded by the same `(uri, size, mtime_nanos)` cache the
-        // LocalProvider uses, so unchanged files only pay the hash on first
-        // scan. Cache misses cross the JNI boundary once per file (open via
-        // ContentResolver) — acceptable for the symmetry it buys us.
+        // mtime is the local write time. A hash failure here is tolerated:
+        // log and fall back to size+mtime rather than aborting the whole scan.
         let chunked = if is_directory {
             None
         } else {
-            let cache_key = uri.uri.clone();
-            match crate::file_sync::hashing::cached_hash_chunked_with_reader(
-                cache_key,
-                size,
-                modified_nanos,
-                || {
-                    api.open_file_readable(&uri).map_err(|e| {
-                        std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-                    })
-                },
-            ) {
+            match hash_content_uri_file(app_handle, &uri, size, modified_nanos) {
                 Ok(h) => Some(h),
                 Err(e) => {
                     eprintln!("[PeerStorage] Hash failed for {}: {e}", uri.uri);
@@ -215,13 +233,18 @@ pub(super) fn list_content_uri(
     Ok(entries)
 }
 
-/// Get file/dir metadata via Content URI.
+/// Get file/dir metadata via Content URI, plus (for files) the BLAKE3 chunked
+/// hash the receiver verifies against.
+///
+/// Files carry `Some(chunks)`; directories carry `None`. A hash failure is a
+/// hard error rather than `None`, so the server upholds the invariant that
+/// every file stat reports chunks (see `client::download_file_to_path`).
 #[cfg(target_os = "android")]
 pub(super) fn stat_content_uri(
     app_handle: &tauri::AppHandle,
     root_uri_json: &str,
     sub_path: &str,
-) -> Result<FileEntry, String> {
+) -> Result<(FileEntry, Option<crate::file_sync::hashing::ChunkedHash>), String> {
     use tauri_plugin_android_fs::AndroidFsExt;
 
     let (target_uri, is_dir) = resolve_content_uri_subpath(app_handle, root_uri_json, sub_path)?;
@@ -231,18 +254,33 @@ pub(super) fn stat_content_uri(
         .get_info(&target_uri)
         .map_err(|e| format!("Failed to get info: {e:?}"))?;
 
-    let modified = info
+    let modified_duration = info
         .last_modified()
         .duration_since(std::time::UNIX_EPOCH)
-        .ok()
-        .map(|d| d.as_secs());
+        .ok();
+    let size = info.file_len().unwrap_or(0);
 
-    Ok(FileEntry {
+    let entry = FileEntry {
         name: info.name().to_string(),
-        size: info.file_len().unwrap_or(0),
+        size,
         is_dir,
-        modified,
-    })
+        modified: modified_duration.map(|d| d.as_secs()),
+    };
+
+    // Files must report chunks so the receiver can verify per chunk; a hash
+    // failure is a hard error, not a silent `None`. Shares the cache with the
+    // manifest scan via [`hash_content_uri_file`].
+    let chunks = if is_dir {
+        None
+    } else {
+        let modified_nanos = modified_duration.map(|d| d.as_nanos()).unwrap_or(0);
+        Some(
+            hash_content_uri_file(app_handle, &target_uri, size, modified_nanos)
+                .map_err(|e| format!("Failed to hash file: {e}"))?,
+        )
+    };
+
+    Ok((entry, chunks))
 }
 
 /// Stream a file via Content URI to the QUIC send stream.
@@ -304,8 +342,8 @@ pub(super) async fn handle_read_content_uri(
 
     // Step 2: Send header
     let header = Response::ReadHeader { size: read_size };
-    let header_bytes = protocol::encode_response(&header)
-        .map_err(|e| PeerStorageError::ProtocolError {
+    let header_bytes =
+        protocol::encode_response(&header).map_err(|e| PeerStorageError::ProtocolError {
             reason: e.to_string(),
         })?;
     send.write_all(&header_bytes)
@@ -438,12 +476,11 @@ pub(super) async fn handle_write_content_uri(
     let mut remaining = size;
     while remaining > 0 {
         let to_read = (remaining as usize).min(buf.len());
-        let chunk = recv
-            .read(&mut buf[..to_read])
-            .await
-            .map_err(|e| PeerStorageError::ConnectionFailed {
+        let chunk = recv.read(&mut buf[..to_read]).await.map_err(|e| {
+            PeerStorageError::ConnectionFailed {
                 reason: format!("Failed to read file data: {e}"),
-            })?;
+            }
+        })?;
         match chunk {
             Some(n) => {
                 data.extend_from_slice(&buf[..n]);

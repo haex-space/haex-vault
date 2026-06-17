@@ -280,8 +280,12 @@ mod tests {
         let source = vec![];
         let target = vec![file("old.txt", 50, 500)];
 
-        let actions =
-            compute_sync_actions(&source, &target, SyncDirection::OneWay, DeleteMode::Permanent);
+        let actions = compute_sync_actions(
+            &source,
+            &target,
+            SyncDirection::OneWay,
+            DeleteMode::Permanent,
+        );
 
         assert_eq!(actions.to_delete.len(), 1);
         assert_eq!(actions.to_delete[0], "old.txt");
@@ -385,12 +389,7 @@ mod tests {
 
     #[test]
     fn directories_sorted_parents_first() {
-        let source = vec![
-            dir("a/b/c"),
-            dir("a"),
-            dir("a/b"),
-            dir("x"),
-        ];
+        let source = vec![dir("a/b/c"), dir("a"), dir("a/b"), dir("x")];
         let target = vec![];
 
         let actions =
@@ -416,8 +415,13 @@ mod tests {
         // One-way: source is authoritative — overwrites target even when target is newer
         let source = vec![file("a.txt", 200, 1000)];
         let target = vec![file("a.txt", 100, 2000)];
-        let actions = compute_sync_actions(&source, &target, SyncDirection::OneWay, DeleteMode::Trash);
-        assert_eq!(actions.to_download.len(), 1, "source overwrites newer target in one-way mode");
+        let actions =
+            compute_sync_actions(&source, &target, SyncDirection::OneWay, DeleteMode::Trash);
+        assert_eq!(
+            actions.to_download.len(),
+            1,
+            "source overwrites newer target in one-way mode"
+        );
         assert_eq!(actions.to_download[0].size, 200);
     }
 
@@ -426,10 +430,14 @@ mod tests {
         // Both sides changed (different size AND different timestamp) — newer wins, no conflict
         let source = vec![file("a.txt", 300, 2000)];
         let target = vec![file("a.txt", 400, 1500)];
-        let actions = compute_sync_actions(&source, &target, SyncDirection::TwoWay, DeleteMode::Trash);
+        let actions =
+            compute_sync_actions(&source, &target, SyncDirection::TwoWay, DeleteMode::Trash);
         assert_eq!(actions.to_download.len(), 1, "source is newer → download");
         assert!(actions.to_upload.is_empty());
-        assert!(actions.conflicts.is_empty(), "no conflict when timestamps differ");
+        assert!(
+            actions.conflicts.is_empty(),
+            "no conflict when timestamps differ"
+        );
     }
 
     #[test]
@@ -442,7 +450,10 @@ mod tests {
         let actions =
             compute_sync_actions(&source, &target, SyncDirection::OneWay, DeleteMode::Trash);
 
-        assert!(actions.to_download.is_empty(), "matching hash → no transfer");
+        assert!(
+            actions.to_download.is_empty(),
+            "matching hash → no transfer"
+        );
     }
 
     #[test]
@@ -459,7 +470,11 @@ mod tests {
 
         let two_way =
             compute_sync_actions(&source, &target, SyncDirection::TwoWay, DeleteMode::Trash);
-        assert_eq!(two_way.conflicts.len(), 1, "two-way: same mtime + diff hash → conflict");
+        assert_eq!(
+            two_way.conflicts.len(),
+            1,
+            "two-way: same mtime + diff hash → conflict"
+        );
     }
 
     #[test]
@@ -478,8 +493,7 @@ mod tests {
 
     #[test]
     fn empty_manifests_produce_empty_actions() {
-        let actions =
-            compute_sync_actions(&[], &[], SyncDirection::OneWay, DeleteMode::Trash);
+        let actions = compute_sync_actions(&[], &[], SyncDirection::OneWay, DeleteMode::Trash);
 
         assert!(actions.to_download.is_empty());
         assert!(actions.to_upload.is_empty());
@@ -487,8 +501,7 @@ mod tests {
         assert!(actions.to_create_directories.is_empty());
         assert!(actions.conflicts.is_empty());
 
-        let actions =
-            compute_sync_actions(&[], &[], SyncDirection::TwoWay, DeleteMode::Trash);
+        let actions = compute_sync_actions(&[], &[], SyncDirection::TwoWay, DeleteMode::Trash);
 
         assert!(actions.to_download.is_empty());
         assert!(actions.to_upload.is_empty());

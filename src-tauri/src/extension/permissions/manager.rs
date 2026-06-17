@@ -80,7 +80,7 @@ impl PermissionManager {
                 })?;
 
             let db_perm: HaexExtensionPermissions = permission.into();
-            
+
             let sql = format!(
                 "UPDATE {TABLE_EXTENSION_PERMISSIONS} SET resource_type = ?, action = ?, target = ?, constraints = ?, status = ? WHERE id = ?"
             );
@@ -203,14 +203,15 @@ impl PermissionManager {
                 let action = row[3]
                     .as_str()
                     .and_then(|s| Action::from_str(&resource_type, s).ok())
-                    .unwrap_or(Action::Database(crate::extension::permissions::types::DbAction::Read));
+                    .unwrap_or(Action::Database(
+                        crate::extension::permissions::types::DbAction::Read,
+                    ));
                 let status = row[6]
                     .as_str()
                     .and_then(|s| PermissionStatus::from_str(s).ok())
                     .unwrap_or(PermissionStatus::Denied);
-                let constraints: Option<PermissionConstraints> = row[5]
-                    .as_str()
-                    .and_then(|s| serde_json::from_str(s).ok());
+                let constraints: Option<PermissionConstraints> =
+                    row[5].as_str().and_then(|s| serde_json::from_str(s).ok());
 
                 ExtensionPermission {
                     id: row[0].as_str().unwrap_or_default().to_string(),
@@ -291,16 +292,18 @@ impl PermissionManager {
             },
             // No matching permission in database - check session permissions
             None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Db, table_name)
-                {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    ResourceType::Db,
+                    table_name,
+                ) {
                     return Ok(());
                 }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Db, table_name)
-                {
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    ResourceType::Db,
+                    table_name,
+                ) {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         db_action.as_str(),
@@ -356,14 +359,15 @@ impl PermissionManager {
                 let action = row[3]
                     .as_str()
                     .and_then(|s| Action::from_str(&resource_type, s).ok())
-                    .unwrap_or(Action::Web(crate::extension::permissions::types::WebAction::Get));
+                    .unwrap_or(Action::Web(
+                        crate::extension::permissions::types::WebAction::Get,
+                    ));
                 let status = row[6]
                     .as_str()
                     .and_then(|s| PermissionStatus::from_str(s).ok())
                     .unwrap_or(PermissionStatus::Denied);
-                let constraints: Option<PermissionConstraints> = row[5]
-                    .as_str()
-                    .and_then(|s| serde_json::from_str(s).ok());
+                let constraints: Option<PermissionConstraints> =
+                    row[5].as_str().and_then(|s| serde_json::from_str(s).ok());
 
                 ExtensionPermission {
                     id: row[0].as_str().unwrap_or_default().to_string(),
@@ -518,16 +522,18 @@ impl PermissionManager {
             }
             // No matching permission in database - check session permissions
             None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Fs, &file_path_str)
-                {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    ResourceType::Fs,
+                    &file_path_str,
+                ) {
                     return Ok(());
                 }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Fs, &file_path_str)
-                {
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    ResourceType::Fs,
+                    &file_path_str,
+                ) {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         &action.as_str(),
@@ -558,6 +564,11 @@ impl PermissionManager {
     /// Loads the extension's DB permissions + session state, then delegates
     /// the actual decision to the pure `PermissionChecker::can_read_path_silently`
     /// (which is exhaustively unit-tested).
+    ///
+    /// Desktop-only: the sole caller is the `#[cfg(desktop)]` filesystem
+    /// watcher's broadcast fan-out, so gating it here keeps the method off the
+    /// Android build (where it would otherwise be dead code).
+    #[cfg(desktop)]
     pub async fn is_fs_read_allowed_silently(
         app_state: &State<'_, AppState>,
         extension_id: &str,
@@ -576,11 +587,10 @@ impl PermissionManager {
             ResourceType::Fs,
             &file_path_str,
         );
-        let session_denied = app_state.session_permissions.is_denied(
-            extension_id,
-            ResourceType::Fs,
-            &file_path_str,
-        );
+        let session_denied =
+            app_state
+                .session_permissions
+                .is_denied(extension_id, ResourceType::Fs, &file_path_str);
 
         PermissionChecker::new(extension, permissions).can_read_path_silently(
             file_path,
@@ -611,9 +621,7 @@ impl PermissionManager {
         let permissions = Self::get_permissions(app_state, extension_id).await?;
 
         // Helper to check if command matches target pattern
-        let matches_command = |target: &str| -> bool {
-            target == command || target == "*"
-        };
+        let matches_command = |target: &str| -> bool { target == command || target == "*" };
 
         // Helper to check constraints
         let passes_constraints = |perm: &ExtensionPermission| -> bool {
@@ -660,7 +668,10 @@ impl PermissionManager {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         "execute",
-                        &format!("shell command '{}' with args {:?} (constraint violation)", command, args),
+                        &format!(
+                            "shell command '{}' with args {:?} (constraint violation)",
+                            command, args
+                        ),
                     ));
                 }
                 match perm.status {
@@ -681,16 +692,18 @@ impl PermissionManager {
             }
             // No matching permission in database - check session permissions
             None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Shell, command)
-                {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    ResourceType::Shell,
+                    command,
+                ) {
                     return Ok(());
                 }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Shell, command)
-                {
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    ResourceType::Shell,
+                    command,
+                ) {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         "execute",
@@ -789,16 +802,18 @@ impl PermissionManager {
             // No matching permission in database - check session permissions
             None => {
                 // Check session permissions first
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Filesync, target_str)
-                {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    ResourceType::Filesync,
+                    target_str,
+                ) {
                     return Ok(());
                 }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Filesync, target_str)
-                {
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    ResourceType::Filesync,
+                    target_str,
+                ) {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         action_str,
@@ -1220,9 +1235,9 @@ impl PermissionManager {
         // Extension wildcard: *.ext
         if pattern.starts_with("*.") {
             let suffix = &pattern[1..]; // includes the dot
-            // For extension wildcards, the normalized path must end with the suffix
-            // AND must not have originally contained traversal sequences (even if normalized away)
-            // This prevents attacks where "../../../etc/secret.txt" normalizes to "/etc/secret.txt"
+                                        // For extension wildcards, the normalized path must end with the suffix
+                                        // AND must not have originally contained traversal sequences (even if normalized away)
+                                        // This prevents attacks where "../../../etc/secret.txt" normalizes to "/etc/secret.txt"
             let original_had_traversal = decoded_path.contains("..")
                 || decoded_path.contains("./")
                 || decoded_path.contains(".\\");
@@ -1334,10 +1349,7 @@ impl PermissionManager {
     /// Check if a path contains traversal sequences (after normalization)
     fn has_traversal(path: &str) -> bool {
         // After proper normalization, these shouldn't exist in valid paths
-        path.contains("../")
-            || path.contains("..\\")
-            || path.ends_with("..")
-            || path.contains("\0")
+        path.contains("../") || path.contains("..\\") || path.ends_with("..") || path.contains("\0")
     }
 
     /// Matches a URL against a URL pattern
@@ -1463,7 +1475,8 @@ impl PermissionManager {
 
                 // Check if the normalized path starts with the pattern prefix
                 return normalized_url_path.starts_with(path_prefix)
-                    || normalized_url_path == &path_prefix[..path_prefix.len() - 1]; // Allow exact match without trailing /
+                    || normalized_url_path == &path_prefix[..path_prefix.len() - 1];
+                // Allow exact match without trailing /
             }
         }
 

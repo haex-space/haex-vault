@@ -41,9 +41,7 @@ impl PeerEndpoint {
 
         match response {
             Response::List { entries } => Ok(entries),
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -93,9 +91,7 @@ impl PeerEndpoint {
                 )
                 .await
             }
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -121,8 +117,7 @@ impl PeerEndpoint {
         // into the multi-stream path which does need finer-grained control.
         let _ = (cancel_token, pause_flag);
 
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(output_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(output_path);
 
         let file = tokio::fs::File::create(&partial_path).await.map_err(|e| {
             PeerStorageError::ProtocolError {
@@ -137,7 +132,10 @@ impl PeerEndpoint {
         // Lock contention with a single user is uncontended hot-path mutex
         // acquisition — negligible.
         let completed: Arc<tokio::sync::Mutex<Vec<bool>>> =
-            Arc::new(tokio::sync::Mutex::new(vec![false; chunks.chunk_hashes.len()]));
+            Arc::new(tokio::sync::Mutex::new(vec![
+                false;
+                chunks.chunk_hashes.len()
+            ]));
         let verifier = streaming::ChunkVerifier {
             expected_chunk_hashes: &chunks.chunk_hashes,
             chunk_size: chunks.chunk_size,
@@ -218,9 +216,7 @@ impl PeerEndpoint {
 
         match response {
             Response::Manifest { entries } => Ok(entries),
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -282,9 +278,7 @@ impl PeerEndpoint {
 
                 Ok(data)
             }
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -322,11 +316,11 @@ impl PeerEndpoint {
                 reason: format!("stat source '{}': {e}", source_path.display()),
             })?
             .len();
-        let file = tokio::fs::File::open(source_path)
-            .await
-            .map_err(|e| PeerStorageError::ProtocolError {
+        let file = tokio::fs::File::open(source_path).await.map_err(|e| {
+            PeerStorageError::ProtocolError {
                 reason: format!("open source '{}': {e}", source_path.display()),
-            })?;
+            }
+        })?;
 
         let (mut send, mut recv) = self.open_stream(remote_id, relay_url).await?;
 
@@ -361,9 +355,7 @@ impl PeerEndpoint {
 
         match response {
             Response::WriteOk => Ok(stats.bytes),
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -389,9 +381,7 @@ impl PeerEndpoint {
 
         match response {
             Response::DeleteOk => Ok(()),
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -415,9 +405,7 @@ impl PeerEndpoint {
 
         match response {
             Response::CreateDirectoryOk => Ok(()),
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "Unexpected response type".to_string(),
             }),
@@ -507,9 +495,7 @@ impl PeerEndpoint {
                 }
                 Ok(data)
             }
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "unexpected response (read range)".to_string(),
             }),
@@ -533,9 +519,7 @@ impl PeerEndpoint {
         let response = Self::send_request(&mut send, &mut recv, &req).await?;
         match response {
             Response::Stat { entry, chunks } => Ok(RemoteStat { entry, chunks }),
-            Response::Error { message } => {
-                Err(PeerStorageError::ProtocolError { reason: message })
-            }
+            Response::Error { message } => Err(PeerStorageError::ProtocolError { reason: message }),
             _ => Err(PeerStorageError::ProtocolError {
                 reason: "unexpected response (stat)".to_string(),
             }),
@@ -738,19 +722,17 @@ async fn download_single_stream_with_resume(
     // happen in normal flow but is cheap to guard) or if no chunk is done yet —
     // in both edge cases there's no benefit to going through the range-Read
     // loop, so we re-use the simpler single-shot path.
-    let Some(state) = existing
-        .filter(|s| s.completed.iter().any(|c| *c) && !s.completed.iter().all(|c| *c))
+    let Some(state) =
+        existing.filter(|s| s.completed.iter().any(|c| *c) && !s.completed.iter().all(|c| *c))
     else {
         let (mut send, mut recv) = endpoint
             .read()
             .await
             .open_stream(remote_id, relay_url)
             .await?;
-        let on_progress_boxed: Option<Box<dyn Fn(u64, u64) + Send>> =
-            on_progress.map(|cb| {
-                Box::new(move |done: u64, total: u64| cb(done, total))
-                    as Box<dyn Fn(u64, u64) + Send>
-            });
+        let on_progress_boxed: Option<Box<dyn Fn(u64, u64) + Send>> = on_progress.map(|cb| {
+            Box::new(move |done: u64, total: u64| cb(done, total)) as Box<dyn Fn(u64, u64) + Send>
+        });
         return PeerEndpoint::read_open_streams_to_file(
             &mut send,
             &mut recv,
@@ -793,8 +775,7 @@ async fn download_single_stream_with_resume(
         });
     }
 
-    let partial_path =
-        crate::peer_storage::resume::PartialState::partial_path(output_path);
+    let partial_path = crate::peer_storage::resume::PartialState::partial_path(output_path);
 
     // Shared bitmap for the resume loop. Seeded from the surviving sidecar
     // so already-verified chunks stay marked done, then mutated by the
@@ -950,8 +931,7 @@ async fn download_single_stream_with_resume(
     // would otherwise rename a still-incomplete file into place.
     if !completed.lock().await.iter().all(|c| *c) {
         return Err(PeerStorageError::ProtocolError {
-            reason: "resume completed all missing ranges but bitmap still has gaps"
-                .to_string(),
+            reason: "resume completed all missing ranges but bitmap still has gaps".to_string(),
         });
     }
 
@@ -1205,10 +1185,7 @@ pub(crate) async fn read_multipart_to_file(
                 .await
             })
                 as std::pin::Pin<
-                    Box<
-                        dyn std::future::Future<Output = Result<(), PeerStorageError>>
-                            + Send,
-                    >,
+                    Box<dyn std::future::Future<Output = Result<(), PeerStorageError>> + Send>,
                 >
         })
     };
@@ -1222,8 +1199,7 @@ pub(crate) async fn read_multipart_to_file(
         dyn Fn(
                 (u64, u64, u32),
                 &PeerStorageError,
-            )
-                -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
             + Send
             + Sync,
     > = Arc::new(move |(start, end, attempt), err| {
@@ -1233,8 +1209,7 @@ pub(crate) async fn read_multipart_to_file(
         Box::pin(async move {
             let mut rp = range_progress.lock().await;
             if let Some(prev) = rp.remove(&(start, end)) {
-                total_received
-                    .fetch_sub(prev, std::sync::atomic::Ordering::Relaxed);
+                total_received.fetch_sub(prev, std::sync::atomic::Ordering::Relaxed);
             }
             drop(rp);
             eprintln!(
@@ -1243,8 +1218,7 @@ pub(crate) async fn read_multipart_to_file(
         })
     });
 
-    let first_err = run_bounded_retry_pool(pending, n, max_retries, fetcher, Some(on_retry))
-        .await;
+    let first_err = run_bounded_retry_pool(pending, n, max_retries, fetcher, Some(on_retry)).await;
 
     if let Some(err) = first_err {
         // Leave partial bytes + sidecar on disk so the next download attempt
@@ -1258,8 +1232,7 @@ pub(crate) async fn read_multipart_to_file(
     let completed_snapshot = completed.lock().await;
     if !completed_snapshot.iter().all(|c| *c) {
         return Err(PeerStorageError::ProtocolError {
-            reason: "multipart workers completed without filling chunk bitmap"
-                .to_string(),
+            reason: "multipart workers completed without filling chunk bitmap".to_string(),
         });
     }
     drop(completed_snapshot);
@@ -1300,9 +1273,7 @@ pub(crate) async fn run_bounded_retry_pool(
                 u64,
                 u64,
             ) -> std::pin::Pin<
-                Box<
-                    dyn std::future::Future<Output = Result<(), PeerStorageError>> + Send,
-                >,
+                Box<dyn std::future::Future<Output = Result<(), PeerStorageError>> + Send>,
             > + Send
             + Sync,
     >,
@@ -1388,9 +1359,7 @@ async fn download_range_attempt(
     pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
     on_progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
     total_received: Arc<std::sync::atomic::AtomicU64>,
-    range_progress: Arc<
-        tokio::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>,
-    >,
+    range_progress: Arc<tokio::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>>,
     total_size: u64,
     chunks: &ChunkedHash,
     completed: Arc<tokio::sync::Mutex<Vec<bool>>>,
@@ -1471,8 +1440,7 @@ async fn download_range_attempt(
                 ),
             });
         }
-        let expected_hashes_for_range =
-            &chunks.chunk_hashes[start_chunk_index..end_chunk_index];
+        let expected_hashes_for_range = &chunks.chunk_hashes[start_chunk_index..end_chunk_index];
 
         let mut writer = tokio::io::BufWriter::new(file);
 
@@ -1533,8 +1501,7 @@ async fn download_range_attempt(
                         prev
                     };
                     let delta = part_size.saturating_sub(prev);
-                    let new_total =
-                        total_received_pc.fetch_add(delta, Ordering::Relaxed) + delta;
+                    let new_total = total_received_pc.fetch_add(delta, Ordering::Relaxed) + delta;
                     cb(new_total.min(total_size), total_size);
                 }
                 // pause / cancel are honoured by the underlying recv stream

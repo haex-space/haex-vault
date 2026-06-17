@@ -23,7 +23,9 @@ pub struct DownloadRecord {
 }
 
 fn map_db(e: crate::database::error::DatabaseError) -> PeerStorageError {
-    PeerStorageError::Database { reason: e.to_string() }
+    PeerStorageError::Database {
+        reason: e.to_string(),
+    }
 }
 
 /// Look up a previously-recorded download for (endpoint_id, remote_path).
@@ -37,13 +39,15 @@ pub fn find(
         "SELECT size, modified, local_path \
          FROM haex_peer_downloads_no_sync \
          WHERE endpoint_id = ?1 AND remote_path = ?2 \
-         LIMIT 1".to_string(),
+         LIMIT 1"
+            .to_string(),
         vec![
             serde_json::Value::String(endpoint_id.to_string()),
             serde_json::Value::String(remote_path.to_string()),
         ],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
 
     let Some(row) = rows.first() else {
         return Ok(None);
@@ -51,9 +55,17 @@ pub fn find(
 
     let size = row.first().and_then(|v| v.as_u64()).unwrap_or(0);
     let modified = row.get(1).and_then(|v| v.as_u64());
-    let local_path = row.get(2).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let local_path = row
+        .get(2)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
 
-    Ok(Some(DownloadRecord { size, modified, local_path }))
+    Ok(Some(DownloadRecord {
+        size,
+        modified,
+        local_path,
+    }))
 }
 
 /// Insert or update the registry row for a successfully completed download.
@@ -67,9 +79,12 @@ pub fn upsert(
     modified: Option<u64>,
     local_path: &str,
 ) -> Result<(), PeerStorageError> {
-    let now = OffsetDateTime::now_utc()
-        .format(&Rfc3339)
-        .map_err(|e| PeerStorageError::Database { reason: format!("rfc3339: {e}") })?;
+    let now =
+        OffsetDateTime::now_utc()
+            .format(&Rfc3339)
+            .map_err(|e| PeerStorageError::Database {
+                reason: format!("rfc3339: {e}"),
+            })?;
 
     let modified_json = modified
         .and_then(|m| serde_json::Number::from_u128(m as u128).map(serde_json::Value::Number))
@@ -83,7 +98,8 @@ pub fn upsert(
            size = excluded.size, \
            modified = excluded.modified, \
            local_path = excluded.local_path, \
-           downloaded_at = excluded.downloaded_at".to_string(),
+           downloaded_at = excluded.downloaded_at"
+            .to_string(),
         vec![
             serde_json::Value::String(endpoint_id.to_string()),
             serde_json::Value::String(remote_path.to_string()),
@@ -93,7 +109,8 @@ pub fn upsert(
             serde_json::Value::String(now),
         ],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
 
     Ok(())
 }
@@ -108,13 +125,15 @@ pub fn delete(
 ) -> Result<(), PeerStorageError> {
     core::execute(
         "DELETE FROM haex_peer_downloads_no_sync \
-         WHERE endpoint_id = ?1 AND remote_path = ?2".to_string(),
+         WHERE endpoint_id = ?1 AND remote_path = ?2"
+            .to_string(),
         vec![
             serde_json::Value::String(endpoint_id.to_string()),
             serde_json::Value::String(remote_path.to_string()),
         ],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
     Ok(())
 }
 

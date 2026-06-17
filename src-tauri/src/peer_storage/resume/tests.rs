@@ -28,10 +28,15 @@ async fn load_returns_none_for_corrupt_json() {
     let tmp = tempfile::tempdir().unwrap();
     let target = tmp.path().join("file.bin");
     let meta = tmp.path().join("file.bin.haex-partial.meta");
-    tokio::fs::write(&meta, b"this is not json {{{").await.unwrap();
+    tokio::fs::write(&meta, b"this is not json {{{")
+        .await
+        .unwrap();
 
     let result = PartialState::load(&target).await.unwrap();
-    assert!(result.is_none(), "corrupt sidecar must be treated as missing");
+    assert!(
+        result.is_none(),
+        "corrupt sidecar must be treated as missing"
+    );
 }
 
 #[tokio::test]

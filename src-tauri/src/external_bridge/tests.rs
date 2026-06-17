@@ -124,10 +124,8 @@ mod tests {
 
     #[test]
     fn test_bridge_response_success() {
-        let response = BridgeResponse::success(
-            "req-123".to_string(),
-            serde_json::json!({"entries": []}),
-        );
+        let response =
+            BridgeResponse::success("req-123".to_string(), serde_json::json!({"entries": []}));
 
         assert!(response.success);
         assert_eq!(response.id, "req-123");
@@ -137,10 +135,8 @@ mod tests {
 
     #[test]
     fn test_bridge_response_error() {
-        let response = BridgeResponse::error(
-            "req-456".to_string(),
-            "Extension not found".to_string(),
-        );
+        let response =
+            BridgeResponse::error("req-456".to_string(), "Extension not found".to_string());
 
         assert!(!response.success);
         assert_eq!(response.id, "req-456");
@@ -166,7 +162,10 @@ mod tests {
         assert_eq!(client.client_name, "Test Client");
         assert_eq!(client.public_key, "public-key-xyz");
         assert_eq!(client.extension_id, "haex-pass");
-        assert_eq!(client.authorized_at, Some("2024-01-01T00:00:00Z".to_string()));
+        assert_eq!(
+            client.authorized_at,
+            Some("2024-01-01T00:00:00Z".to_string())
+        );
         assert_eq!(client.last_seen, Some("2024-01-02T00:00:00Z".to_string()));
     }
 
@@ -249,7 +248,9 @@ mod tests {
             iv: "random-iv-12".to_string(),
             client_id: "browser-ext-123".to_string(),
             public_key: "client-ephemeral-key".to_string(),
-            extension_public_key: Some("b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca".to_string()),
+            extension_public_key: Some(
+                "b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca".to_string(),
+            ),
             extension_name: Some("haex-pass".to_string()),
         };
 
@@ -261,7 +262,10 @@ mod tests {
 
         // Verify deserialization preserves the values
         let deserialized: EncryptedEnvelope = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.extension_public_key, Some("b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca".to_string()));
+        assert_eq!(
+            deserialized.extension_public_key,
+            Some("b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca".to_string())
+        );
         assert_eq!(deserialized.extension_name, Some("haex-pass".to_string()));
     }
 
@@ -306,7 +310,8 @@ mod tests {
     fn test_requested_extension_serialization() {
         let ext = RequestedExtension {
             name: "haex-pass".to_string(),
-            extension_public_key: "b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca".to_string(),
+            extension_public_key:
+                "b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca".to_string(),
         };
 
         let json = serde_json::to_string(&ext).unwrap();
@@ -344,7 +349,10 @@ mod tests {
         let deserialized: ClientInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.requested_extensions.len(), 2);
         assert_eq!(deserialized.requested_extensions[0].name, "haex-pass");
-        assert_eq!(deserialized.requested_extensions[1].name, "another-extension");
+        assert_eq!(
+            deserialized.requested_extensions[1].name,
+            "another-extension"
+        );
     }
 
     #[test]
@@ -353,12 +361,10 @@ mod tests {
             client_id: "pending-client".to_string(),
             client_name: "Pending Extension".to_string(),
             public_key: "pending-pk".to_string(),
-            requested_extensions: vec![
-                RequestedExtension {
-                    name: "haex-pass".to_string(),
-                    extension_public_key: "b4401f13".to_string(),
-                },
-            ],
+            requested_extensions: vec![RequestedExtension {
+                name: "haex-pass".to_string(),
+                extension_public_key: "b4401f13".to_string(),
+            }],
         };
 
         let json = serde_json::to_string(&pending).unwrap();
@@ -411,19 +417,40 @@ mod tests {
         let query = &*SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION;
 
         // Should have all three placeholders
-        assert!(query.contains("?1"), "Query should have ?1 placeholder for client_id");
-        assert!(query.contains("?2"), "Query should have ?2 placeholder for extension public_key");
-        assert!(query.contains("?3"), "Query should have ?3 placeholder for extension name");
+        assert!(
+            query.contains("?1"),
+            "Query should have ?1 placeholder for client_id"
+        );
+        assert!(
+            query.contains("?2"),
+            "Query should have ?2 placeholder for extension public_key"
+        );
+        assert!(
+            query.contains("?3"),
+            "Query should have ?3 placeholder for extension name"
+        );
 
         // Should reference both tables
-        assert!(query.contains(crate::table_names::TABLE_EXTERNAL_AUTHORIZED_CLIENTS), "Query should reference authorized clients table");
-        assert!(query.contains("haex_extensions"), "Query should reference extensions table");
+        assert!(
+            query.contains(crate::table_names::TABLE_EXTERNAL_AUTHORIZED_CLIENTS),
+            "Query should reference authorized clients table"
+        );
+        assert!(
+            query.contains("haex_extensions"),
+            "Query should reference extensions table"
+        );
 
         // Should use JOIN
-        assert!(query.to_lowercase().contains("join"), "Query should use JOIN");
+        assert!(
+            query.to_lowercase().contains("join"),
+            "Query should use JOIN"
+        );
 
         // Should check public_key and name columns of extensions table
-        assert!(query.contains("public_key"), "Query should check public_key");
+        assert!(
+            query.contains("public_key"),
+            "Query should check public_key"
+        );
         assert!(query.contains("name"), "Query should check name");
     }
 
@@ -433,17 +460,32 @@ mod tests {
         let query = &*SQL_GET_EXTENSION_ID_BY_PUBLIC_KEY_AND_NAME;
 
         // Should have both placeholders
-        assert!(query.contains("?1"), "Query should have ?1 placeholder for public_key");
-        assert!(query.contains("?2"), "Query should have ?2 placeholder for name");
+        assert!(
+            query.contains("?1"),
+            "Query should have ?1 placeholder for public_key"
+        );
+        assert!(
+            query.contains("?2"),
+            "Query should have ?2 placeholder for name"
+        );
 
         // Should reference extensions table
-        assert!(query.contains("haex_extensions"), "Query should reference extensions table");
+        assert!(
+            query.contains("haex_extensions"),
+            "Query should reference extensions table"
+        );
 
         // Should select id
-        assert!(query.to_lowercase().contains("select id"), "Query should select id");
+        assert!(
+            query.to_lowercase().contains("select id"),
+            "Query should select id"
+        );
 
         // Should filter by public_key and name
-        assert!(query.contains("public_key"), "Query should filter by public_key");
+        assert!(
+            query.contains("public_key"),
+            "Query should filter by public_key"
+        );
         assert!(query.contains("name"), "Query should filter by name");
     }
 
@@ -686,10 +728,7 @@ mod tests {
 
     #[test]
     fn test_blocked_client_parsing_insufficient_columns() {
-        let row = vec![
-            serde_json::json!("id"),
-            serde_json::json!("client_id"),
-        ];
+        let row = vec![serde_json::json!("id"), serde_json::json!("client_id")];
 
         assert!(parse_blocked_client(&row).is_none());
     }
@@ -702,12 +741,12 @@ mod tests {
                 client_id: "client-abc".to_string(),
                 client_name: "haex-pass Browser Extension".to_string(),
                 public_key: "pk123".to_string(),
-                requested_extensions: vec![
-                    RequestedExtension {
-                        name: "haex-pass".to_string(),
-                        extension_public_key: "b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca".to_string(),
-                    },
-                ],
+                requested_extensions: vec![RequestedExtension {
+                    name: "haex-pass".to_string(),
+                    extension_public_key:
+                        "b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca"
+                            .to_string(),
+                }],
             },
         };
 
@@ -748,9 +787,8 @@ mod tests {
         // Spawn a task that waits for the extension to be ready
         let bridge_clone = bridge.clone();
         let ext_id = extension_id.to_string();
-        let wait_handle = tokio::spawn(async move {
-            bridge_clone.wait_for_extension_ready(&ext_id, 5000).await
-        });
+        let wait_handle =
+            tokio::spawn(async move { bridge_clone.wait_for_extension_ready(&ext_id, 5000).await });
 
         // Give the wait task time to set up
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -760,7 +798,10 @@ mod tests {
 
         // The wait should complete successfully
         let result = wait_handle.await.unwrap();
-        assert!(result, "wait_for_extension_ready should return true when signaled");
+        assert!(
+            result,
+            "wait_for_extension_ready should return true when signaled"
+        );
     }
 
     #[tokio::test]
@@ -773,7 +814,10 @@ mod tests {
         // Wait for an extension that never signals ready (with short timeout)
         let result = bridge.wait_for_extension_ready(extension_id, 50).await;
 
-        assert!(!result, "wait_for_extension_ready should return false on timeout");
+        assert!(
+            !result,
+            "wait_for_extension_ready should return false on timeout"
+        );
     }
 
     #[tokio::test]
@@ -787,9 +831,8 @@ mod tests {
         // Start waiting (this creates an entry in extension_ready_signals)
         let bridge_clone = bridge.clone();
         let ext_id = extension_id.to_string();
-        let wait_handle = tokio::spawn(async move {
-            bridge_clone.wait_for_extension_ready(&ext_id, 5000).await
-        });
+        let wait_handle =
+            tokio::spawn(async move { bridge_clone.wait_for_extension_ready(&ext_id, 5000).await });
 
         // Give the wait task time to set up
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -806,7 +849,10 @@ mod tests {
         // (the previous entry was cleaned up)
         let signals = bridge.get_extension_ready_signals();
         let signals_read = signals.read().await;
-        assert!(!signals_read.contains_key(extension_id), "Signal entry should be cleaned up after wait completes");
+        assert!(
+            !signals_read.contains_key(extension_id),
+            "Signal entry should be cleaned up after wait completes"
+        );
     }
 
     #[tokio::test]
@@ -820,13 +866,11 @@ mod tests {
         let bridge1 = bridge.clone();
         let bridge2 = bridge.clone();
 
-        let wait1 = tokio::spawn(async move {
-            bridge1.wait_for_extension_ready("ext-1", 5000).await
-        });
+        let wait1 =
+            tokio::spawn(async move { bridge1.wait_for_extension_ready("ext-1", 5000).await });
 
-        let wait2 = tokio::spawn(async move {
-            bridge2.wait_for_extension_ready("ext-2", 5000).await
-        });
+        let wait2 =
+            tokio::spawn(async move { bridge2.wait_for_extension_ready("ext-2", 5000).await });
 
         // Give wait tasks time to set up
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -864,9 +908,8 @@ mod tests {
         // (this happens in ensure_extension_loaded)
         let bridge_clone = bridge.clone();
         let ext_id = extension_id.to_string();
-        let wait_handle = tokio::spawn(async move {
-            bridge_clone.wait_for_extension_ready(&ext_id, 5000).await
-        });
+        let wait_handle =
+            tokio::spawn(async move { bridge_clone.wait_for_extension_ready(&ext_id, 5000).await });
 
         // Give the wait task time to set up (minimal delay)
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
@@ -897,9 +940,8 @@ mod tests {
         // Start waiting
         let bridge_clone = bridge.clone();
         let ext_id = extension_id.to_string();
-        let wait_handle = tokio::spawn(async move {
-            bridge_clone.wait_for_extension_ready(&ext_id, 5000).await
-        });
+        let wait_handle =
+            tokio::spawn(async move { bridge_clone.wait_for_extension_ready(&ext_id, 5000).await });
 
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 

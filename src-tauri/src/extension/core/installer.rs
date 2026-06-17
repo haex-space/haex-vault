@@ -2,6 +2,10 @@
 //
 // Extension extraction, validation, and installation.
 
+use super::queries::{
+    SQL_INSERT_EXTENSION, SQL_INSERT_EXTENSION_PERMISSION, SQL_SELECT_EXTENSION_ID_BY_PUBKEY_NAME,
+    SQL_UPDATE_EXTENSION_METADATA, SQL_UPDATE_EXTENSION_ON_INSTALL,
+};
 use crate::database::core::{select_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::extension::core::manifest::{EditablePermissions, ExtensionManifest, ExtensionPreview};
@@ -12,10 +16,6 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::utils::validate_public_key;
-use super::queries::{
-    SQL_INSERT_EXTENSION, SQL_INSERT_EXTENSION_PERMISSION, SQL_SELECT_EXTENSION_ID_BY_PUBKEY_NAME,
-    SQL_UPDATE_EXTENSION_METADATA, SQL_UPDATE_EXTENSION_ON_INSTALL,
-};
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use std::fs;
@@ -231,7 +231,10 @@ impl ExtensionManager {
                     "Extension {}:{} already exists with id {}, updating instead of inserting",
                     manifest.public_key, manifest.name, existing_id
                 );
-                let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
+                let i18n_json = manifest
+                    .i18n
+                    .as_ref()
+                    .and_then(|m| serde_json::to_string(m).ok());
 
                 SqlExecutor::execute_internal_typed(
                     &tx,
@@ -264,7 +267,10 @@ impl ExtensionManager {
                     "DEBUG: [register_extension_in_database] Inserting NEW extension: id={}, name={}, version={}",
                     new_extension_id, manifest.name, manifest.version
                 );
-                let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
+                let i18n_json = manifest
+                    .i18n
+                    .as_ref()
+                    .and_then(|m| serde_json::to_string(m).ok());
 
                 SqlExecutor::execute_internal_typed(
                     &tx,
@@ -483,7 +489,10 @@ impl ExtensionManager {
                 extension_id, manifest.version
             );
 
-            let i18n_json = manifest.i18n.as_ref().and_then(|m| serde_json::to_string(m).ok());
+            let i18n_json = manifest
+                .i18n
+                .as_ref()
+                .and_then(|m| serde_json::to_string(m).ok());
 
             SqlExecutor::execute_internal_typed(
                 &tx,

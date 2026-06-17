@@ -33,5 +33,8 @@ fn sanitize_empty_falls_back() {
 
 #[test]
 fn sanitize_keeps_unicode() {
-    assert_eq!(sanitize_folder_segment("Mein Räumchen 🌱", "fb"), "Mein Räumchen 🌱");
+    assert_eq!(
+        sanitize_folder_segment("Mein Räumchen 🌱", "fb"),
+        "Mein Räumchen 🌱"
+    );
 }

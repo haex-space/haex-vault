@@ -75,11 +75,8 @@ pub fn find_icon(
     let is_safe_path = |path: &str| -> bool { !path.contains("..") };
 
     // Helper to clean relative path
-    let clean_relative = |path: &str| -> String {
-        path.replace('\\', "/")
-            .trim_start_matches('/')
-            .to_string()
-    };
+    let clean_relative =
+        |path: &str| -> String { path.replace('\\', "/").trim_start_matches('/').to_string() };
 
     // Helper to check if file exists using FsExt
     // We try to read a small portion of the file to check existence

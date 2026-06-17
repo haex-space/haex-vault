@@ -133,14 +133,8 @@ pub fn load_sync_state(
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string(),
-            file_size: row
-                .get(3)
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0),
-            modified_at: row
-                .get(4)
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0),
+            file_size: row.get(3).and_then(|v| v.as_u64()).unwrap_or(0),
+            modified_at: row.get(4).and_then(|v| v.as_u64()).unwrap_or(0),
             synced_at: row
                 .get(5)
                 .and_then(|v| v.as_str())
@@ -151,10 +145,7 @@ pub fn load_sync_state(
                 .and_then(|v| v.as_i64())
                 .map(|v| v != 0)
                 .unwrap_or(false),
-            hash: row
-                .get(7)
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
+            hash: row.get(7).and_then(|v| v.as_str()).map(|s| s.to_string()),
         })
         .collect();
 
@@ -222,8 +213,7 @@ pub fn mark_deleted(
 
 /// Clear all sync state for a rule (when the rule is deleted).
 pub fn clear_sync_state(db: &DbConnection, rule_id: &str) -> Result<(), SyncEngineError> {
-    let sql =
-        "DELETE FROM haex_sync_state_no_sync WHERE rule_id = ?1".to_string();
+    let sql = "DELETE FROM haex_sync_state_no_sync WHERE rule_id = ?1".to_string();
     let params = vec![JsonValue::String(rule_id.to_string())];
 
     crate::database::core::execute(sql, params, db)
@@ -242,13 +232,20 @@ struct SpeedTracker {
 
 impl SpeedTracker {
     fn new() -> Self {
-        Self { samples: VecDeque::new() }
+        Self {
+            samples: VecDeque::new(),
+        }
     }
 
     fn add(&mut self, bytes: u64) {
         self.samples.push_back((Instant::now(), bytes));
         let cutoff = Instant::now() - Duration::from_secs(5);
-        while self.samples.front().map(|(t, _)| *t < cutoff).unwrap_or(false) {
+        while self
+            .samples
+            .front()
+            .map(|(t, _)| *t < cutoff)
+            .unwrap_or(false)
+        {
             self.samples.pop_front();
         }
     }
@@ -345,7 +342,8 @@ pub async fn execute_sync(
     check_cancel!();
 
     // 2. Compute diff
-    let mut actions = compute_sync_actions(&source_manifest, &target_manifest, direction, delete_mode);
+    let mut actions =
+        compute_sync_actions(&source_manifest, &target_manifest, direction, delete_mode);
 
     // Drop `mkdir` actions when the target has no real directories (cloud
     // object stores: directories are implicit from object keys and never
@@ -369,22 +367,34 @@ pub async fn execute_sync(
         + actions.conflicts.len()) as u32;
     let total_bytes: u64 = actions.to_download.iter().map(|f| f.size).sum::<u64>()
         + actions.to_upload.iter().map(|f| f.size).sum::<u64>()
-        + actions.conflicts.iter().map(|c| c.source_state.size).sum::<u64>();
+        + actions
+            .conflicts
+            .iter()
+            .map(|c| c.source_state.size)
+            .sum::<u64>();
 
     // Diff diagnostics — only emit when the planner produced work or
     // detected conflicts. Logging every cycle would spam stderr on idle
     // rules (sync runs on a poll interval and most cycles are no-ops).
     if total_files > 0 {
-        let source_hashed = source_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
+        let source_hashed = source_manifest
+            .iter()
+            .filter(|f| !f.is_directory && f.hash.is_some())
+            .count();
         let source_files = source_manifest.iter().filter(|f| !f.is_directory).count();
-        let target_hashed = target_manifest.iter().filter(|f| !f.is_directory && f.hash.is_some()).count();
+        let target_hashed = target_manifest
+            .iter()
+            .filter(|f| !f.is_directory && f.hash.is_some())
+            .count();
         let target_files = target_manifest.iter().filter(|f| !f.is_directory).count();
         eprintln!(
             "[FileSyncEngine] Rule {} diff: source={}f ({}h), target={}f ({}h). \
              Plan: dl={}, up={}, del={}, mkdir={}, conflicts={}. Bytes={} ({:.1} MB)",
             rule_id,
-            source_files, source_hashed,
-            target_files, target_hashed,
+            source_files,
+            source_hashed,
+            target_files,
+            target_hashed,
             actions.to_download.len(),
             actions.to_upload.len(),
             actions.to_delete.len(),
@@ -544,7 +554,9 @@ pub async fn execute_sync(
             .push((seq, dir_path.clone()));
         emit_progress(true);
         match target.create_directory(dir_path).await {
-            Ok(()) => { directories_created.fetch_add(1, Ordering::Relaxed); }
+            Ok(()) => {
+                directories_created.fetch_add(1, Ordering::Relaxed);
+            }
             Err(e) => {
                 errors
                     .lock()
@@ -627,7 +639,10 @@ pub async fn execute_sync(
                         let prev = last_chunk_cb.swap(done, std::sync::atomic::Ordering::Relaxed);
                         let delta = done.saturating_sub(prev);
                         if delta > 0 {
-                            speed_cb.lock().unwrap_or_else(|e| e.into_inner()).add(delta);
+                            speed_cb
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner())
+                                .add(delta);
                         }
                         emit_cb(false);
                     });
@@ -878,7 +893,10 @@ pub async fn execute_sync(
                         let prev = last_chunk_cb.swap(done, std::sync::atomic::Ordering::Relaxed);
                         let delta = done.saturating_sub(prev);
                         if delta > 0 {
-                            speed_cb.lock().unwrap_or_else(|e| e.into_inner()).add(delta);
+                            speed_cb
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner())
+                                .add(delta);
                         }
                         emit_cb(false);
                     });
@@ -1094,7 +1112,10 @@ pub async fn execute_sync(
                 .await
             {
                 Ok(_) => {
-                    if let Err(e) = target.write_file_from_path(&conflict_path, tmp.path()).await {
+                    if let Err(e) = target
+                        .write_file_from_path(&conflict_path, tmp.path())
+                        .await
+                    {
                         errors
                             .lock()
                             .unwrap_or_else(|e2| e2.into_inner())
@@ -1134,15 +1155,14 @@ pub async fn execute_sync(
                                         (Some(c), Some(o)) if c != o
                                     );
                                     if mismatch {
-                                        errors
-                                            .lock()
-                                            .unwrap_or_else(|e2| e2.into_inner())
-                                            .push(format!(
+                                        errors.lock().unwrap_or_else(|e2| e2.into_inner()).push(
+                                            format!(
                                                 "conflict hash mismatch {}: claimed {} received {}",
                                                 conflict.relative_path,
                                                 claimed.unwrap_or("?"),
                                                 observed.unwrap_or("?"),
-                                            ));
+                                            ),
+                                        );
                                     } else {
                                         match target
                                             .write_file_from_path(
@@ -1152,16 +1172,14 @@ pub async fn execute_sync(
                                             .await
                                         {
                                             Ok(()) => {
-                                                bytes_done
-                                                    .fetch_add(info.bytes, Ordering::Relaxed);
+                                                bytes_done.fetch_add(info.bytes, Ordering::Relaxed);
                                                 bytes_transferred
                                                     .fetch_add(info.bytes, Ordering::Relaxed);
                                                 speed_tracker
                                                     .lock()
                                                     .unwrap_or_else(|e| e.into_inner())
                                                     .add(info.bytes);
-                                                conflicts_resolved
-                                                    .fetch_add(1, Ordering::Relaxed);
+                                                conflicts_resolved.fetch_add(1, Ordering::Relaxed);
                                                 resolved = true;
                                                 if conflict.source_state.hash.is_some() {
                                                     target
@@ -1192,13 +1210,12 @@ pub async fn execute_sync(
                                     }
                                 }
                                 Err(e) => {
-                                    errors
-                                        .lock()
-                                        .unwrap_or_else(|e2| e2.into_inner())
-                                        .push(format!(
+                                    errors.lock().unwrap_or_else(|e2| e2.into_inner()).push(
+                                        format!(
                                             "conflict read source {}: {e}",
                                             conflict.relative_path
-                                        ));
+                                        ),
+                                    );
                                 }
                             }
                         }
@@ -1301,7 +1318,11 @@ fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
 
     // Notify frontend that CRDT dirty tables changed (triggers sync push)
     use tauri::Emitter;
-    let _ = app.emit_to("main", crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    let _ = app.emit_to(
+        "main",
+        crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED,
+        (),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1477,20 +1498,13 @@ fn backoff_duration(consecutive_failures: u32) -> Duration {
         return INITIAL_RETRY;
     }
     let shift = (consecutive_failures - 1).min(10);
-    let secs = INITIAL_RETRY
-        .as_secs()
-        .saturating_mul(1u64 << shift);
+    let secs = INITIAL_RETRY.as_secs().saturating_mul(1u64 << shift);
     Duration::from_secs(secs.min(MAX_RETRY_INTERVAL.as_secs()))
 }
 
 /// Persist `enabled = false` on a sync rule, tear down its runtime
 /// state (SyncManager registration + file watchers) and notify the frontend.
-async fn auto_disable_rule(
-    app: &tauri::AppHandle,
-    rule_id: &str,
-    failures: u32,
-    last_error: &str,
-) {
+async fn auto_disable_rule(app: &tauri::AppHandle, rule_id: &str, failures: u32, last_error: &str) {
     use tauri::{Emitter, Manager};
     let state = app.state::<crate::AppState>();
     {
@@ -1511,9 +1525,7 @@ async fn auto_disable_rule(
         let params = vec![JsonValue::String(rule_id.to_string())];
 
         if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc) {
-            eprintln!(
-                "[FileSyncEngine] Failed to persist auto-pause for rule {rule_id}: {e}"
-            );
+            eprintln!("[FileSyncEngine] Failed to persist auto-pause for rule {rule_id}: {e}");
         }
     }
 
@@ -1585,7 +1597,11 @@ pub async fn run_sync_loop(
         Some(cancel.clone()),
     )
     .await;
-    eprintln!("[FileSyncEngine] Rule {} initial sync done: {:?}", rule_id, result.as_ref().map(|r| r.files_downloaded));
+    eprintln!(
+        "[FileSyncEngine] Rule {} initial sync done: {:?}",
+        rule_id,
+        result.as_ref().map(|r| r.files_downloaded)
+    );
 
     // Two independent counters:
     // - `consecutive_failures` drives the exponential backoff (any failure
@@ -1603,7 +1619,11 @@ pub async fn run_sync_loop(
     }
     let initial_is_unavail = result.as_ref().err().map(is_unavailable).unwrap_or(false);
     let mut consecutive_failures: u32 = if result.is_err() { 1 } else { 0 };
-    let mut pause_failures: u32 = if result.is_err() && !initial_is_unavail { 1 } else { 0 };
+    let mut pause_failures: u32 = if result.is_err() && !initial_is_unavail {
+        1
+    } else {
+        0
+    };
     let mut next_wait = if consecutive_failures > 0 {
         let w = backoff_duration(consecutive_failures);
         eprintln!(

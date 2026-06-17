@@ -50,7 +50,10 @@ impl PtyManager {
             #[cfg(target_os = "windows")]
             {
                 &[
-                    ("PowerShell", "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"),
+                    (
+                        "PowerShell",
+                        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                    ),
                     ("CMD", "C:\\Windows\\System32\\cmd.exe"),
                     ("Git Bash", "C:\\Program Files\\Git\\bin\\bash.exe"),
                 ]
@@ -179,10 +182,9 @@ impl PtyManager {
             let emit_to_owner = |event_name: &str, payload: serde_json::Value| {
                 #[cfg(not(any(target_os = "android", target_os = "ios")))]
                 {
-                    if let Some(state) =
-                        <tauri::AppHandle as tauri::Manager<tauri::Wry>>::try_state::<
-                            crate::AppState,
-                        >(&app_handle)
+                    if let Some(state) = <tauri::AppHandle as tauri::Manager<tauri::Wry>>::try_state::<
+                        crate::AppState,
+                    >(&app_handle)
                     {
                         let _ = state.extension_webview_manager.emit_to_extension_or_main(
                             &app_handle,
@@ -375,8 +377,10 @@ impl PtyManager {
         _extension_id: &str,
         _options: ShellCreateOptions,
     ) -> Result<(String, String), String> {
-        Err("Local shell is not available on this platform. Use SSH to connect to a remote server."
-            .to_string())
+        Err(
+            "Local shell is not available on this platform. Use SSH to connect to a remote server."
+                .to_string(),
+        )
     }
 
     #[cfg(not(any(desktop, target_os = "android")))]

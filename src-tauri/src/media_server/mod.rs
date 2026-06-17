@@ -199,9 +199,7 @@ async fn handle_connection(
             };
             let size = match file.metadata().await {
                 Ok(m) => m.len(),
-                Err(_) => {
-                    return write_status(&mut stream, 500, "Internal Server Error").await
-                }
+                Err(_) => return write_status(&mut stream, 500, "Internal Server Error").await,
             };
             (size, mime_for(path).to_string(), Some(file))
         }
@@ -253,19 +251,18 @@ async fn handle_connection(
         return Ok(());
     }
 
-    let (start, mut end, mut status, mut status_text) =
-        if let Some(spec) = range_header {
-            match parse_range(&spec, total) {
-                Some((s, e)) => (s, e, 206u16, "Partial Content"),
-                None => {
-                    // Unsatisfiable — RFC 7233 wants `bytes */<total>` so the
-                    // client knows the real size.
-                    return write_range_unsatisfiable(&mut stream, total).await;
-                }
+    let (start, mut end, mut status, mut status_text) = if let Some(spec) = range_header {
+        match parse_range(&spec, total) {
+            Some((s, e)) => (s, e, 206u16, "Partial Content"),
+            None => {
+                // Unsatisfiable — RFC 7233 wants `bytes */<total>` so the
+                // client knows the real size.
+                return write_range_unsatisfiable(&mut stream, total).await;
             }
-        } else {
-            (0, total - 1, 200u16, "OK")
-        };
+        }
+    } else {
+        (0, total - 1, 200u16, "OK")
+    };
 
     // Cap responses from `Stream` sources so a `bytes=0-` against a multi-
     // GiB media file does not allocate the entire object into a single
@@ -440,11 +437,7 @@ fn mime_for(path: &std::path::Path) -> &'static str {
     }
 }
 
-async fn write_status(
-    stream: &mut TcpStream,
-    code: u16,
-    text: &str,
-) -> std::io::Result<()> {
+async fn write_status(stream: &mut TcpStream, code: u16, text: &str) -> std::io::Result<()> {
     let body = text.to_string();
     let response = format!(
         "HTTP/1.1 {} {}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n{}",
@@ -460,7 +453,9 @@ async fn write_status(
 /// Map a `StreamingError` to an HTTP status code + reason phrase. Only
 /// usable before any response headers have been written — once the wire
 /// is committed to e.g. 200 OK, the body must follow that status.
-fn streaming_status(err: &crate::remote_storage::streaming::source::StreamingError) -> (u16, &'static str) {
+fn streaming_status(
+    err: &crate::remote_storage::streaming::source::StreamingError,
+) -> (u16, &'static str) {
     use crate::remote_storage::streaming::source::StreamingError;
     match err {
         StreamingError::NotFound(_) => (404, "Not Found"),
@@ -485,15 +480,15 @@ pub async fn media_server_register(
 ) -> Result<String, String> {
     let pb = PathBuf::from(&path);
     if !pb.is_absolute() {
-        return Err(format!("media_server_register requires absolute path: {path}"));
+        return Err(format!(
+            "media_server_register requires absolute path: {path}"
+        ));
     }
     let meta = tokio::fs::metadata(&pb)
         .await
         .map_err(|e| format!("media_server_register: cannot stat {path}: {e}"))?;
     if !meta.is_file() {
-        return Err(format!(
-            "media_server_register: not a regular file: {path}"
-        ));
+        return Err(format!("media_server_register: not a regular file: {path}"));
     }
     Ok(state.media_server.register(pb).await)
 }
@@ -517,7 +512,10 @@ pub async fn media_server_register_s3_stream(
     // we ask for it once, cache it in the registry, and the per-request
     // path then avoids a second HEAD round-trip per range.
     let ct = source.content_type().await;
-    Ok(state.media_server.register_source(Arc::new(source), ct).await)
+    Ok(state
+        .media_server
+        .register_source(Arc::new(source), ct)
+        .await)
 }
 
 /// Register a remote-peer file as a streaming source. Returns a
@@ -552,7 +550,10 @@ pub async fn media_server_register_peer_stream(
         ucan_token,
     );
     let ct = source.content_type().await;
-    Ok(state.media_server.register_source(Arc::new(source), ct).await)
+    Ok(state
+        .media_server
+        .register_source(Arc::new(source), ct)
+        .await)
 }
 
 /// Register an Android Content URI as a streaming source. Returns a
@@ -577,7 +578,10 @@ pub async fn media_server_register_content_uri(
     use crate::remote_storage::streaming::source::StreamingSource;
     let source = ContentUriStreamingSource::new(app_handle, uri_json, name_hint);
     let ct = source.content_type().await;
-    Ok(state.media_server.register_source(Arc::new(source), ct).await)
+    Ok(state
+        .media_server
+        .register_source(Arc::new(source), ct)
+        .await)
 }
 
 #[cfg(test)]

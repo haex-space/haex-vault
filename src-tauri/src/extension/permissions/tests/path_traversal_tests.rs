@@ -28,7 +28,10 @@ fn test_matches_path_pattern_basic_functionality() {
     ));
 
     // Full wildcard
-    assert!(PermissionManager::matches_path_pattern("*", "/any/path/file.txt"));
+    assert!(PermissionManager::matches_path_pattern(
+        "*",
+        "/any/path/file.txt"
+    ));
 
     // Exact match
     assert!(PermissionManager::matches_path_pattern(
@@ -37,8 +40,14 @@ fn test_matches_path_pattern_basic_functionality() {
     ));
 
     // Extension wildcard
-    assert!(PermissionManager::matches_path_pattern("*.txt", "/any/file.txt"));
-    assert!(!PermissionManager::matches_path_pattern("*.txt", "/any/file.pdf"));
+    assert!(PermissionManager::matches_path_pattern(
+        "*.txt",
+        "/any/file.txt"
+    ));
+    assert!(!PermissionManager::matches_path_pattern(
+        "*.txt",
+        "/any/file.pdf"
+    ));
 }
 
 // ============================================================================
@@ -50,19 +59,13 @@ fn test_matches_path_pattern_basic_functionality() {
 fn test_path_traversal_blocked() {
     // Simple traversal - MUST be rejected
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "/home/user/*",
-            "/home/user/../etc/passwd"
-        ),
+        !PermissionManager::matches_path_pattern("/home/user/*", "/home/user/../etc/passwd"),
         "Path traversal '../' must be blocked"
     );
 
     // Multiple traversals - MUST be rejected
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "/home/user/*",
-            "/home/user/../../etc/passwd"
-        ),
+        !PermissionManager::matches_path_pattern("/home/user/*", "/home/user/../../etc/passwd"),
         "Multiple '../' traversals must be blocked"
     );
 
@@ -80,19 +83,13 @@ fn test_path_traversal_blocked() {
 #[test]
 fn test_windows_style_traversal_blocked() {
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "/home/user/*",
-            "/home/user/..\\etc\\passwd"
-        ),
+        !PermissionManager::matches_path_pattern("/home/user/*", "/home/user/..\\etc\\passwd"),
         "Windows-style backslash traversal must be blocked"
     );
 
     // Mixed separators
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "/home/user/*",
-            "/home/user\\..\\etc\\passwd"
-        ),
+        !PermissionManager::matches_path_pattern("/home/user/*", "/home/user\\..\\etc\\passwd"),
         "Mixed path separators with traversal must be blocked"
     );
 }
@@ -102,10 +99,7 @@ fn test_windows_style_traversal_blocked() {
 fn test_url_encoded_traversal_blocked() {
     // URL-encoded "../" (%2e%2e%2f)
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "/home/user/*",
-            "/home/user/%2e%2e%2fetc/passwd"
-        ),
+        !PermissionManager::matches_path_pattern("/home/user/*", "/home/user/%2e%2e%2fetc/passwd"),
         "URL-encoded traversal (%2e%2e%2f) must be blocked"
     );
 
@@ -140,10 +134,7 @@ fn test_null_byte_injection_blocked() {
     );
 
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "/home/user/*",
-            "\0/etc/passwd"
-        ),
+        !PermissionManager::matches_path_pattern("/home/user/*", "\0/etc/passwd"),
         "Null byte at start must be blocked"
     );
 }
@@ -159,10 +150,7 @@ fn test_current_directory_traversal_blocked() {
 
     // But /./../ traversal must be blocked
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "/home/user/*",
-            "/home/user/./../etc/passwd"
-        ),
+        !PermissionManager::matches_path_pattern("/home/user/*", "/home/user/./../etc/passwd"),
         "Path traversal via ./../ must be blocked"
     );
 }
@@ -178,10 +166,7 @@ fn test_double_slashes_with_traversal_blocked() {
 
     // Traversal with double slashes must be blocked
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "/home/user/*",
-            "/home/user//../etc/passwd"
-        ),
+        !PermissionManager::matches_path_pattern("/home/user/*", "/home/user//../etc/passwd"),
         "Path traversal with double slashes must be blocked"
     );
 }
@@ -190,22 +175,19 @@ fn test_double_slashes_with_traversal_blocked() {
 #[test]
 fn test_extension_wildcard_traversal_blocked() {
     // Normal extension matching works
-    assert!(PermissionManager::matches_path_pattern("*.txt", "/home/file.txt"));
+    assert!(PermissionManager::matches_path_pattern(
+        "*.txt",
+        "/home/file.txt"
+    ));
 
     // But traversal with extension must be blocked
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "*.txt",
-            "../../../etc/passwd.txt"
-        ),
+        !PermissionManager::matches_path_pattern("*.txt", "../../../etc/passwd.txt"),
         "Extension wildcard must not allow relative traversal"
     );
 
     assert!(
-        !PermissionManager::matches_path_pattern(
-            "*.txt",
-            "/home/user/../../../etc/secret.txt"
-        ),
+        !PermissionManager::matches_path_pattern("*.txt", "/home/user/../../../etc/secret.txt"),
         "Absolute path traversal with extension wildcard must be blocked"
     );
 }
@@ -228,7 +210,10 @@ fn test_correctly_rejected_paths() {
     ));
 
     // Root path doesn't match subdirectory pattern
-    assert!(!PermissionManager::matches_path_pattern("/home/user/*", "/"));
+    assert!(!PermissionManager::matches_path_pattern(
+        "/home/user/*",
+        "/"
+    ));
 }
 
 #[test]
@@ -271,7 +256,10 @@ fn test_empty_paths() {
     assert!(!PermissionManager::matches_path_pattern("/home/user/*", ""));
 
     // Empty pattern doesn't match non-empty path
-    assert!(!PermissionManager::matches_path_pattern("", "/home/user/file.txt"));
+    assert!(!PermissionManager::matches_path_pattern(
+        "",
+        "/home/user/file.txt"
+    ));
 
     // Both empty - exact match
     assert!(PermissionManager::matches_path_pattern("", ""));
@@ -280,8 +268,14 @@ fn test_empty_paths() {
 #[test]
 fn test_special_directory_entries() {
     // Just .. doesn't match (normalized away or not in prefix)
-    assert!(!PermissionManager::matches_path_pattern("/home/user/*", ".."));
-    assert!(!PermissionManager::matches_path_pattern("/home/user/*", "."));
+    assert!(!PermissionManager::matches_path_pattern(
+        "/home/user/*",
+        ".."
+    ));
+    assert!(!PermissionManager::matches_path_pattern(
+        "/home/user/*",
+        "."
+    ));
 
     // /home/user/.. normalizes to /home, which doesn't match /home/user/*
     assert!(

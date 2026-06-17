@@ -131,9 +131,8 @@ impl CriticalNotificationSink {
     /// file is automatically picked up by tests on next build, no
     /// possibility of schema drift between fixture and live DB.
     #[cfg(test)]
-    const TABLE_MIGRATION_SQL: &str = include_str!(
-        "../../database/migrations/0007_add_critical_notifications.sql"
-    );
+    const TABLE_MIGRATION_SQL: &str =
+        include_str!("../../database/migrations/0007_add_critical_notifications.sql");
 
     /// In-memory factory for tests. Executes the bundled migration SQL
     /// against an in-memory DB so the fixture stays byte-for-byte
@@ -194,10 +193,7 @@ impl CriticalNotificationSink {
         ";
 
         let conn = self.conn.lock().map_err(|_| SinkError::SinkMutexPoisoned)?;
-        conn.execute(
-            sql,
-            params![id, code_str, location, params_json, now],
-        )?;
+        conn.execute(sql, params![id, code_str, location, params_json, now])?;
         Ok(())
     }
 

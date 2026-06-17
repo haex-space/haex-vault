@@ -63,8 +63,7 @@ mod tests {
         });
 
         // Write to file for TypeScript test to read
-        let out_path = std::env::var("CARGO_TARGET_DIR")
-            .unwrap_or_else(|_| "target".to_string());
+        let out_path = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
         let file_path = format!("{}/rust_constants.json", out_path);
         std::fs::write(&file_path, serde_json::to_string_pretty(&output).unwrap())
             .expect("Failed to write constants file");

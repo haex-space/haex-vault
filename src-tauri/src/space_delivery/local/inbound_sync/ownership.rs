@@ -134,7 +134,9 @@ pub fn filter_ownership_violations(
         let existing = match read_existing_column(db, &table, &row_pks, owner_col) {
             Ok(v) => v,
             Err(e) => {
-                violations.push(format!("ownership lookup failed for {table} row {row_pks}: {e}"));
+                violations.push(format!(
+                    "ownership lookup failed for {table} row {row_pks}: {e}"
+                ));
                 skip_rows.insert((table, row_pks));
                 continue;
             }

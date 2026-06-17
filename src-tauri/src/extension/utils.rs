@@ -144,7 +144,9 @@ pub fn resolve_extension_id(
             get_extension_id_by_key_and_name(state, &pk, &n)
         }
         _ => Err(ExtensionError::ValidationError {
-            reason: "Cannot identify extension: not an extension window and no public_key/name provided".to_string(),
+            reason:
+                "Cannot identify extension: not an extension window and no public_key/name provided"
+                    .to_string(),
         }),
     }
 }
@@ -184,8 +186,9 @@ pub fn discover_extension_tables(
     let prefix = get_extension_table_prefix(public_key, extension_name);
     let pattern = format!("{}%", prefix);
 
-    let mut stmt =
-        conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?1 ORDER BY name")?;
+    let mut stmt = conn.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?1 ORDER BY name",
+    )?;
 
     let table_names: Vec<String> = stmt
         .query_map([&pattern], |row| row.get(0))?

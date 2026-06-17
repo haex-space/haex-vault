@@ -13,7 +13,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-
 /// RAII guard for concurrent file operations
 pub struct FileOpGuard<'a> {
     tracker: &'a ConcurrencyTracker,
@@ -120,7 +119,11 @@ impl FilesystemLimitEnforcer {
     }
 
     /// Validate file size against limits
-    pub fn validate_file_size(&self, size: i64, limits: &FilesystemLimits) -> Result<(), LimitError> {
+    pub fn validate_file_size(
+        &self,
+        size: i64,
+        limits: &FilesystemLimits,
+    ) -> Result<(), LimitError> {
         if size > limits.max_file_size_bytes {
             return Err(LimitError::FileTooLarge {
                 size,
@@ -161,7 +164,10 @@ impl FilesystemLimitEnforcer {
             });
         }
 
-        Ok(FileOpGuard::new(&self.concurrency, extension_id.to_string()))
+        Ok(FileOpGuard::new(
+            &self.concurrency,
+            extension_id.to_string(),
+        ))
     }
 
     /// Get the concurrency tracker reference

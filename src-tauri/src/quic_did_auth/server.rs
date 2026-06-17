@@ -16,7 +16,9 @@ use tokio::time::timeout;
 
 use crate::ucan::public_key_from_did;
 
-use super::wire::{build_sig_input, Challenge, Response, MAX_MESSAGE_SIZE, NONCE_LEN, PROTOCOL_VERSION};
+use super::wire::{
+    build_sig_input, Challenge, Response, MAX_MESSAGE_SIZE, NONCE_LEN, PROTOCOL_VERSION,
+};
 
 /// Read/write timeout for the handshake. Matches `quic_retry::READ_TIMEOUT_SECS`
 /// (the existing slow-peer budget for sync requests).
@@ -106,9 +108,14 @@ pub(crate) fn verify_response(
         .decode(&response.signature)
         .map_err(|_| ChallengeError::MalformedBase64)?;
 
-    let signature = Signature::from_slice(&sig_bytes).map_err(|_| ChallengeError::SignatureInvalid)?;
+    let signature =
+        Signature::from_slice(&sig_bytes).map_err(|_| ChallengeError::SignatureInvalid)?;
 
-    let sig_input = build_sig_input(expected_nonce, &response.client_endpoint_id, server_endpoint_id);
+    let sig_input = build_sig_input(
+        expected_nonce,
+        &response.client_endpoint_id,
+        server_endpoint_id,
+    );
 
     verifying_key
         .verify_strict(&sig_input, &signature)

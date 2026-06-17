@@ -69,7 +69,9 @@ impl CriticalFailureCode {
     /// `crate::critical::tests`) pin every variant to its severity.
     pub fn severity(&self) -> Severity {
         match self {
-            Self::HlcMutexPoisoned | Self::DbMutexPoisoned | Self::DbSchemaDrift => Severity::Critical,
+            Self::HlcMutexPoisoned | Self::DbMutexPoisoned | Self::DbSchemaDrift => {
+                Severity::Critical
+            }
             Self::AuditLogWriteFailed | Self::CrdtTransformFailed => Severity::Warning,
         }
     }

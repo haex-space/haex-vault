@@ -327,8 +327,7 @@ pub(crate) fn group_row_changes_in_hlc_order(
             .or_default()
             .push(change);
     }
-    let mut entries: Vec<((String, String), Vec<RemoteColumnChange>)> =
-        map.into_iter().collect();
+    let mut entries: Vec<((String, String), Vec<RemoteColumnChange>)> = map.into_iter().collect();
     entries.sort_by(|a, b| {
         let a_min = crate::crdt::hlc::hlc_min(a.1.iter().map(|c| c.hlc_timestamp.as_str()));
         let b_min = crate::crdt::hlc::hlc_min(b.1.iter().map(|c| c.hlc_timestamp.as_str()));
@@ -472,7 +471,8 @@ fn propagate_deleted_rows_to_target_tables(
             continue;
         }
 
-        let row_pks: serde_json::Map<String, JsonValue> = match serde_json::from_str(&row_pks_json) {
+        let row_pks: serde_json::Map<String, JsonValue> = match serde_json::from_str(&row_pks_json)
+        {
             Ok(m) => m,
             Err(e) => {
                 eprintln!(
@@ -499,8 +499,10 @@ fn propagate_deleted_rows_to_target_tables(
             }
         };
         let sql_params = json_values_to_sql_params(&values)?;
-        let param_refs: Vec<&dyn rusqlite::ToSql> =
-            sql_params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+        let param_refs: Vec<&dyn rusqlite::ToSql> = sql_params
+            .iter()
+            .map(|v| v as &dyn rusqlite::ToSql)
+            .collect();
 
         // Resurrection check: if the target row was inserted/updated after
         // this delete-log entry, the row's haex_hlc is strictly newer and
@@ -521,10 +523,7 @@ fn propagate_deleted_rows_to_target_tables(
             continue;
         }
 
-        let delete_sql = format!(
-            "DELETE FROM \"{}\" WHERE {}",
-            target_table, where_clause
-        );
+        let delete_sql = format!("DELETE FROM \"{}\" WHERE {}", target_table, where_clause);
 
         match tx.execute(&delete_sql, param_refs.as_slice()) {
             Ok(n) => {
@@ -597,318 +596,319 @@ pub fn apply_remote_changes_to_db(
         // See: https://sqlite.org/foreignkeys.html
         eprintln!("[SYNC RUST] Disabling foreign_keys BEFORE transaction");
         let applied_hlc_timestamps = crate::crdt::cleanup::with_fk_disabled(conn, |conn| {
-        // Start transaction - all changes in the batch are applied atomically
-        eprintln!("[SYNC RUST] Starting transaction...");
-        let tx = conn.transaction().map_err(DatabaseError::from)?;
+            // Start transaction - all changes in the batch are applied atomically
+            eprintln!("[SYNC RUST] Starting transaction...");
+            let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-        // Disable triggers temporarily to prevent marking tables as dirty
-        // when applying remote changes (we don't want to re-sync changes we just pulled)
-        eprintln!("[SYNC RUST] Disabling triggers for remote changes");
-        let disable_sql = format!(
+            // Disable triggers temporarily to prevent marking tables as dirty
+            // when applying remote changes (we don't want to re-sync changes we just pulled)
+            eprintln!("[SYNC RUST] Disabling triggers for remote changes");
+            let disable_sql = format!(
             "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '0')
              ON CONFLICT(key) DO UPDATE SET value = '0'"
         );
-        tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
+            tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
 
-        // Collect side-data needed after the apply loop:
-        //   1. all HLC timestamps for advancing the local clock,
-        //   2. IDs of haex_deleted_rows entries arriving in this batch so
-        //      the corresponding DELETE on the target table can run after
-        //      the apply loop (triggers are still disabled then).
-        let mut all_hlc_timestamps: Vec<String> = Vec::with_capacity(changes.len());
-        let mut inbound_delete_log_ids: HashSet<String> = HashSet::new();
-        for change in &changes {
-            all_hlc_timestamps.push(change.hlc_timestamp.clone());
-            if change.table_name == DELETED_ROWS_TABLE {
-                if let Ok(map) =
-                    serde_json::from_str::<serde_json::Map<String, JsonValue>>(&change.row_pks)
-                {
-                    if let Some(JsonValue::String(id)) = map.get("id") {
-                        inbound_delete_log_ids.insert(id.clone());
+            // Collect side-data needed after the apply loop:
+            //   1. all HLC timestamps for advancing the local clock,
+            //   2. IDs of haex_deleted_rows entries arriving in this batch so
+            //      the corresponding DELETE on the target table can run after
+            //      the apply loop (triggers are still disabled then).
+            let mut all_hlc_timestamps: Vec<String> = Vec::with_capacity(changes.len());
+            let mut inbound_delete_log_ids: HashSet<String> = HashSet::new();
+            for change in &changes {
+                all_hlc_timestamps.push(change.hlc_timestamp.clone());
+                if change.table_name == DELETED_ROWS_TABLE {
+                    if let Ok(map) =
+                        serde_json::from_str::<serde_json::Map<String, JsonValue>>(&change.row_pks)
+                    {
+                        if let Some(JsonValue::String(id)) = map.get("id") {
+                            inbound_delete_log_ids.insert(id.clone());
+                        }
                     }
                 }
             }
-        }
 
-        // Group by (table, row) so all columns of one row are written
-        // together — and keep iteration ordered by the row's earliest
-        // HLC. Plain HashMap iteration would discard the careful HLC
-        // ordering that group_by_transaction_hlc just established.
-        let row_changes = group_row_changes_in_hlc_order(changes);
+            // Group by (table, row) so all columns of one row are written
+            // together — and keep iteration ordered by the row's earliest
+            // HLC. Plain HashMap iteration would discard the careful HLC
+            // ordering that group_by_transaction_hlc just established.
+            let row_changes = group_row_changes_in_hlc_order(changes);
 
-        // Apply changes grouped by row
-        for ((_table_name, row_pks_str), row_change_list) in row_changes {
-            // Use the first change to get common data
-            let first_change = &row_change_list[0];
+            // Apply changes grouped by row
+            for ((_table_name, row_pks_str), row_change_list) in row_changes {
+                // Use the first change to get common data
+                let first_change = &row_change_list[0];
 
-            // Get table schema to identify PK columns
-            // If table doesn't exist (e.g., from a dev extension not installed here), skip it
-            let schema = get_table_schema_internal(&tx, &first_change.table_name)
-                .map_err(DatabaseError::from)?;
+                // Get table schema to identify PK columns
+                // If table doesn't exist (e.g., from a dev extension not installed here), skip it
+                let schema = get_table_schema_internal(&tx, &first_change.table_name)
+                    .map_err(DatabaseError::from)?;
 
-            if schema.is_empty() {
-                eprintln!(
+                if schema.is_empty() {
+                    eprintln!(
                     "[SYNC RUST] Skipping table '{}' - table does not exist (extension not installed?)",
                     first_change.table_name
                 );
-                continue;
-            }
+                    continue;
+                }
 
-            // Ensure table has CRDT columns (haex_hlc, haex_column_hlcs)
-            // This handles tables created in dev mode that don't have CRDT columns yet.
-            // When sync data arrives, we know it's from a production extension, so we need CRDT.
-            let has_hlcs_column = schema.iter().any(|col| col.name == "haex_column_hlcs");
-            if !has_hlcs_column {
-                eprintln!(
+                // Ensure table has CRDT columns (haex_hlc, haex_column_hlcs)
+                // This handles tables created in dev mode that don't have CRDT columns yet.
+                // When sync data arrives, we know it's from a production extension, so we need CRDT.
+                let has_hlcs_column = schema.iter().any(|col| col.name == "haex_column_hlcs");
+                if !has_hlcs_column {
+                    eprintln!(
                     "[SYNC RUST] Table '{}' missing CRDT columns (created in dev mode?) - upgrading now",
                     first_change.table_name
                 );
-                match trigger::ensure_crdt_columns_and_triggers(&tx, &first_change.table_name) {
-                    Ok((columns_added, triggers_created)) => {
-                        eprintln!(
-                            "[SYNC RUST] Upgraded '{}': columns={}, triggers={}",
-                            first_change.table_name, columns_added, triggers_created
-                        );
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "[SYNC RUST] Failed to upgrade '{}': {} - skipping this table",
-                            first_change.table_name, e
-                        );
-                        continue;
+                    match trigger::ensure_crdt_columns_and_triggers(&tx, &first_change.table_name) {
+                        Ok((columns_added, triggers_created)) => {
+                            eprintln!(
+                                "[SYNC RUST] Upgraded '{}': columns={}, triggers={}",
+                                first_change.table_name, columns_added, triggers_created
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "[SYNC RUST] Failed to upgrade '{}': {} - skipping this table",
+                                first_change.table_name, e
+                            );
+                            continue;
+                        }
                     }
                 }
-            }
 
-            // Parse row PKs (same for all changes in this row)
-            let row_pks: serde_json::Map<String, JsonValue> = serde_json::from_str(&row_pks_str)
-                .map_err(|e| DatabaseError::SerializationError {
-                    reason: format!("Failed to parse row PKs: {}", e),
-                })?;
+                // Parse row PKs (same for all changes in this row)
+                let row_pks: serde_json::Map<String, JsonValue> =
+                    serde_json::from_str(&row_pks_str).map_err(|e| {
+                        DatabaseError::SerializationError {
+                            reason: format!("Failed to parse row PKs: {}", e),
+                        }
+                    })?;
 
-            let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
+                let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
 
-            // Build WHERE clause for PKs, handling NULL values properly
-            let (pk_where_clause, pk_values_for_query) =
-                build_pk_where_clause(&pk_columns, &row_pks);
+                // Build WHERE clause for PKs, handling NULL values properly
+                let (pk_where_clause, pk_values_for_query) =
+                    build_pk_where_clause(&pk_columns, &row_pks);
 
-            // Check if row exists and get current HLCs
-            let check_sql = format!(
-                "SELECT haex_column_hlcs FROM \"{}\" WHERE {}",
-                first_change.table_name, pk_where_clause
-            );
+                // Check if row exists and get current HLCs
+                let check_sql = format!(
+                    "SELECT haex_column_hlcs FROM \"{}\" WHERE {}",
+                    first_change.table_name, pk_where_clause
+                );
 
-            let current_hlcs: Option<String> = {
-                let mut stmt = tx.prepare(&check_sql).map_err(DatabaseError::from)?;
-                let params = json_values_to_sql_params(&pk_values_for_query)?;
-                let params_refs: Vec<&dyn rusqlite::ToSql> =
-                    params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+                let current_hlcs: Option<String> = {
+                    let mut stmt = tx.prepare(&check_sql).map_err(DatabaseError::from)?;
+                    let params = json_values_to_sql_params(&pk_values_for_query)?;
+                    let params_refs: Vec<&dyn rusqlite::ToSql> =
+                        params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
 
-                // Only `QueryReturnedNoRows` means "row absent" — any other
-                // error (locking, schema mismatch, etc.) must surface so the
-                // caller does not silently treat a transient failure as
-                // "no existing row" and overwrite live state.
-                match stmt.query_row(&*params_refs, |row| row.get(0)) {
-                    Ok(hlcs) => Some(hlcs),
-                    Err(rusqlite::Error::QueryReturnedNoRows) => None,
-                    Err(e) => return Err(DatabaseError::from(e)),
-                }
-            };
-
-            // Track if row exists
-            let row_exists = current_hlcs.is_some();
-
-            // Parse current HLCs
-            let mut column_hlcs: serde_json::Map<String, JsonValue> =
-                if let Some(hlcs_str) = current_hlcs {
-                    serde_json::from_str(&hlcs_str).unwrap_or_default()
-                } else {
-                    serde_json::Map::new()
+                    // Only `QueryReturnedNoRows` means "row absent" — any other
+                    // error (locking, schema mismatch, etc.) must surface so the
+                    // caller does not silently treat a transient failure as
+                    // "no existing row" and overwrite live state.
+                    match stmt.query_row(&*params_refs, |row| row.get(0)) {
+                        Ok(hlcs) => Some(hlcs),
+                        Err(rusqlite::Error::QueryReturnedNoRows) => None,
+                        Err(e) => return Err(DatabaseError::from(e)),
+                    }
                 };
 
-            // Build a set of existing column names for quick lookup
-            let existing_columns: std::collections::HashSet<&str> =
-                schema.iter().map(|col| col.name.as_str()).collect();
+                // Track if row exists
+                let row_exists = current_hlcs.is_some();
 
-            // Collect all column changes that are newer than current
-            let mut columns_to_update: Vec<(String, JsonValue, String)> = Vec::new(); // (column_name, json_value, hlc)
-            let mut max_hlc_for_row = first_change.hlc_timestamp.clone();
+                // Parse current HLCs
+                let mut column_hlcs: serde_json::Map<String, JsonValue> =
+                    if let Some(hlcs_str) = current_hlcs {
+                        serde_json::from_str(&hlcs_str).unwrap_or_default()
+                    } else {
+                        serde_json::Map::new()
+                    };
 
-            for change in &row_change_list {
-                // Skip columns that don't exist in the local schema
-                // This handles schema version differences between devices
-                if !existing_columns.contains(change.column_name.as_str()) {
-                    eprintln!(
+                // Build a set of existing column names for quick lookup
+                let existing_columns: std::collections::HashSet<&str> =
+                    schema.iter().map(|col| col.name.as_str()).collect();
+
+                // Collect all column changes that are newer than current
+                let mut columns_to_update: Vec<(String, JsonValue, String)> = Vec::new(); // (column_name, json_value, hlc)
+                let mut max_hlc_for_row = first_change.hlc_timestamp.clone();
+
+                for change in &row_change_list {
+                    // Skip columns that don't exist in the local schema
+                    // This handles schema version differences between devices
+                    if !existing_columns.contains(change.column_name.as_str()) {
+                        eprintln!(
                         "[SYNC RUST] Skipping unknown column '{}' in table '{}' - column not in local schema (older app version?)",
                         change.column_name, first_change.table_name
                     );
 
-                    // Track this as a pending column that needs to be pulled after migration
-                    // Uses INSERT OR IGNORE to avoid duplicates (composite PK on table_name, column_name)
-                    // Only stores table_name + column_name - row PKs come from server during re-pull
-                    tx.execute(
-                        &format!(
-                            "INSERT OR IGNORE INTO {} (table_name, column_name) VALUES (?, ?)",
-                            TABLE_CRDT_PENDING_COLUMNS
-                        ),
-                        params![&first_change.table_name, &change.column_name],
-                    ).map_err(DatabaseError::from)?;
-
-                    // Still track the HLC for this column so we know we've "seen" this change
-                    // This prevents re-processing when the column is later added via migration
-                    column_hlcs.insert(
-                        change.column_name.clone(),
-                        JsonValue::String(change.hlc_timestamp.clone()),
-                    );
-                    continue;
-                }
-
-                let current_hlc = column_hlcs
-                    .get(&change.column_name)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-
-                if hlc_is_newer(change.hlc_timestamp.as_str(), current_hlc) {
-                    // Remote change is newer, include it
-                    column_hlcs.insert(
-                        change.column_name.clone(),
-                        JsonValue::String(change.hlc_timestamp.clone()),
-                    );
-                    columns_to_update.push((
-                        change.column_name.clone(),
-                        change.decrypted_value.clone(),
-                        change.hlc_timestamp.clone(),
-                    ));
-
-                    // Track max HLC for row timestamp
-                    if hlc_is_newer(&change.hlc_timestamp, &max_hlc_for_row) {
-                        max_hlc_for_row = change.hlc_timestamp.clone();
-                    }
-                }
-            }
-
-            // Only apply if there are columns to update
-            if !columns_to_update.is_empty() {
-                let new_hlcs_json = serde_json::to_string(&column_hlcs).map_err(|e| {
-                    DatabaseError::SerializationError {
-                        reason: format!("Failed to serialize column HLCs: {}", e),
-                    }
-                })?;
-
-                if row_exists {
-                    // Row exists, update it with all changed columns
-                    let set_clauses: Vec<String> = columns_to_update
-                        .iter()
-                        .map(|(col_name, _, _)| format!("\"{}\" = ?", col_name))
-                        .collect();
-
-                    let update_sql = format!(
-                        "UPDATE \"{}\" SET {}, haex_column_hlcs = ?, haex_hlc = ? WHERE {}",
-                        first_change.table_name,
-                        set_clauses.join(", "),
-                        pk_where_clause
-                    );
-
-                    let mut params_vec: Vec<SqlValue> = Vec::new();
-
-                    // Add column values (convert JSON to SQL values)
-                    for (_col_name, json_value, _) in &columns_to_update {
-                        let sql_value = ValueConverter::json_to_rusqlite_value(json_value)?;
-                        params_vec.push(sql_value);
-                    }
-
-                    // Add HLCs and timestamp
-                    params_vec.push(SqlValue::Text(new_hlcs_json));
-                    params_vec.push(SqlValue::Text(max_hlc_for_row.clone()));
-
-                    // Add PK values for WHERE clause (only non-NULL values, NULL uses IS NULL)
-                    for sql_val in json_values_to_sql_params(&pk_values_for_query)? {
-                        params_vec.push(sql_val);
-                    }
-
-                    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec
-                        .iter()
-                        .map(|v| v as &dyn rusqlite::ToSql)
-                        .collect();
-
-                    tx.execute(&update_sql, &*params_refs)
+                        // Track this as a pending column that needs to be pulled after migration
+                        // Uses INSERT OR IGNORE to avoid duplicates (composite PK on table_name, column_name)
+                        // Only stores table_name + column_name - row PKs come from server during re-pull
+                        tx.execute(
+                            &format!(
+                                "INSERT OR IGNORE INTO {} (table_name, column_name) VALUES (?, ?)",
+                                TABLE_CRDT_PENDING_COLUMNS
+                            ),
+                            params![&first_change.table_name, &change.column_name],
+                        )
                         .map_err(DatabaseError::from)?;
-                } else {
-                    // Row doesn't exist, insert it with all changed columns + PKs
-                    let mut columns = Vec::new();
-                    let mut values: Vec<SqlValue> = Vec::new();
 
-                    // Add PKs first (use json_values_to_sql_params for consistent null handling)
-                    let pk_json_values: Vec<JsonValue> = pk_columns
-                        .iter()
-                        .filter_map(|col| row_pks.get(&col.name).cloned())
-                        .collect();
-                    let pk_sql_values = json_values_to_sql_params(&pk_json_values)?;
-                    for (col, sql_val) in pk_columns.iter().zip(pk_sql_values.into_iter()) {
-                        columns.push(col.name.clone());
-                        values.push(sql_val);
+                        // Still track the HLC for this column so we know we've "seen" this change
+                        // This prevents re-processing when the column is later added via migration
+                        column_hlcs.insert(
+                            change.column_name.clone(),
+                            JsonValue::String(change.hlc_timestamp.clone()),
+                        );
+                        continue;
                     }
 
-                    // Add changed columns (convert JSON to SQL values)
-                    for (col_name, json_value, _) in &columns_to_update {
-                        columns.push(col_name.clone());
-                        let sql_value = ValueConverter::json_to_rusqlite_value(json_value)?;
-                        values.push(sql_value);
+                    let current_hlc = column_hlcs
+                        .get(&change.column_name)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    if hlc_is_newer(change.hlc_timestamp.as_str(), current_hlc) {
+                        // Remote change is newer, include it
+                        column_hlcs.insert(
+                            change.column_name.clone(),
+                            JsonValue::String(change.hlc_timestamp.clone()),
+                        );
+                        columns_to_update.push((
+                            change.column_name.clone(),
+                            change.decrypted_value.clone(),
+                            change.hlc_timestamp.clone(),
+                        ));
+
+                        // Track max HLC for row timestamp
+                        if hlc_is_newer(&change.hlc_timestamp, &max_hlc_for_row) {
+                            max_hlc_for_row = change.hlc_timestamp.clone();
+                        }
                     }
+                }
 
-                    // Add CRDT metadata
-                    columns.push(COLUMN_HLCS_COLUMN.to_string());
-                    columns.push(HLC_TIMESTAMP_COLUMN.to_string());
-                    values.push(SqlValue::Text(new_hlcs_json));
-                    values.push(SqlValue::Text(max_hlc_for_row.clone()));
+                // Only apply if there are columns to update
+                if !columns_to_update.is_empty() {
+                    let new_hlcs_json = serde_json::to_string(&column_hlcs).map_err(|e| {
+                        DatabaseError::SerializationError {
+                            reason: format!("Failed to serialize column HLCs: {}", e),
+                        }
+                    })?;
 
-                    let placeholders = vec!["?"; columns.len()].join(", ");
-                    let quoted_columns: Vec<String> = columns
-                        .iter()
-                        .map(|c| format!("\"{}\"", c))
-                        .collect();
-                    let insert_sql = format!(
-                        "INSERT INTO \"{}\" ({}) VALUES ({})",
-                        first_change.table_name,
-                        quoted_columns.join(", "),
-                        placeholders
-                    );
+                    if row_exists {
+                        // Row exists, update it with all changed columns
+                        let set_clauses: Vec<String> = columns_to_update
+                            .iter()
+                            .map(|(col_name, _, _)| format!("\"{}\" = ?", col_name))
+                            .collect();
 
-                    let params_refs: Vec<&dyn rusqlite::ToSql> =
-                        values.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+                        let update_sql = format!(
+                            "UPDATE \"{}\" SET {}, haex_column_hlcs = ?, haex_hlc = ? WHERE {}",
+                            first_change.table_name,
+                            set_clauses.join(", "),
+                            pk_where_clause
+                        );
 
-                    // Try to insert - if it fails with constraint, log detailed error
-                    match tx.execute(&insert_sql, &*params_refs) {
-                        Ok(_) => {} // Success - continue
-                        Err(rusqlite::Error::SqliteFailure(err, msg))
-                            if err.code == rusqlite::ErrorCode::ConstraintViolation =>
-                        {
-                            // Log the constraint violation details
-                            let error_msg =
-                                msg.as_deref().unwrap_or("Unknown constraint violation");
-                            eprintln!(
-                                "[SYNC RUST] Constraint violation for table {}: {}",
-                                first_change.table_name, error_msg
-                            );
-                            eprintln!("[SYNC RUST] Failed INSERT SQL: {}", insert_sql);
-                            eprintln!("[SYNC RUST] Values: {:?}", values);
+                        let mut params_vec: Vec<SqlValue> = Vec::new();
 
-                            // Check if it's a NOT NULL constraint violation
-                            if error_msg.contains("NOT NULL constraint failed") {
+                        // Add column values (convert JSON to SQL values)
+                        for (_col_name, json_value, _) in &columns_to_update {
+                            let sql_value = ValueConverter::json_to_rusqlite_value(json_value)?;
+                            params_vec.push(sql_value);
+                        }
+
+                        // Add HLCs and timestamp
+                        params_vec.push(SqlValue::Text(new_hlcs_json));
+                        params_vec.push(SqlValue::Text(max_hlc_for_row.clone()));
+
+                        // Add PK values for WHERE clause (only non-NULL values, NULL uses IS NULL)
+                        for sql_val in json_values_to_sql_params(&pk_values_for_query)? {
+                            params_vec.push(sql_val);
+                        }
+
+                        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec
+                            .iter()
+                            .map(|v| v as &dyn rusqlite::ToSql)
+                            .collect();
+
+                        tx.execute(&update_sql, &*params_refs)
+                            .map_err(DatabaseError::from)?;
+                    } else {
+                        // Row doesn't exist, insert it with all changed columns + PKs
+                        let mut columns = Vec::new();
+                        let mut values: Vec<SqlValue> = Vec::new();
+
+                        // Add PKs first (use json_values_to_sql_params for consistent null handling)
+                        let pk_json_values: Vec<JsonValue> = pk_columns
+                            .iter()
+                            .filter_map(|col| row_pks.get(&col.name).cloned())
+                            .collect();
+                        let pk_sql_values = json_values_to_sql_params(&pk_json_values)?;
+                        for (col, sql_val) in pk_columns.iter().zip(pk_sql_values.into_iter()) {
+                            columns.push(col.name.clone());
+                            values.push(sql_val);
+                        }
+
+                        // Add changed columns (convert JSON to SQL values)
+                        for (col_name, json_value, _) in &columns_to_update {
+                            columns.push(col_name.clone());
+                            let sql_value = ValueConverter::json_to_rusqlite_value(json_value)?;
+                            values.push(sql_value);
+                        }
+
+                        // Add CRDT metadata
+                        columns.push(COLUMN_HLCS_COLUMN.to_string());
+                        columns.push(HLC_TIMESTAMP_COLUMN.to_string());
+                        values.push(SqlValue::Text(new_hlcs_json));
+                        values.push(SqlValue::Text(max_hlc_for_row.clone()));
+
+                        let placeholders = vec!["?"; columns.len()].join(", ");
+                        let quoted_columns: Vec<String> =
+                            columns.iter().map(|c| format!("\"{}\"", c)).collect();
+                        let insert_sql = format!(
+                            "INSERT INTO \"{}\" ({}) VALUES ({})",
+                            first_change.table_name,
+                            quoted_columns.join(", "),
+                            placeholders
+                        );
+
+                        let params_refs: Vec<&dyn rusqlite::ToSql> =
+                            values.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+
+                        // Try to insert - if it fails with constraint, log detailed error
+                        match tx.execute(&insert_sql, &*params_refs) {
+                            Ok(_) => {} // Success - continue
+                            Err(rusqlite::Error::SqliteFailure(err, msg))
+                                if err.code == rusqlite::ErrorCode::ConstraintViolation =>
+                            {
+                                // Log the constraint violation details
+                                let error_msg =
+                                    msg.as_deref().unwrap_or("Unknown constraint violation");
                                 eprintln!(
+                                    "[SYNC RUST] Constraint violation for table {}: {}",
+                                    first_change.table_name, error_msg
+                                );
+                                eprintln!("[SYNC RUST] Failed INSERT SQL: {}", insert_sql);
+                                eprintln!("[SYNC RUST] Values: {:?}", values);
+
+                                // Check if it's a NOT NULL constraint violation
+                                if error_msg.contains("NOT NULL constraint failed") {
+                                    eprintln!(
                                     "[SYNC RUST] ⚠️ NOT NULL constraint failed! This usually means the sync data is incomplete."
                                 );
-                                eprintln!(
-                                    "[SYNC RUST] Columns in INSERT: {:?}",
-                                    columns
-                                );
-                                eprintln!(
-                                    "[SYNC RUST] Received {} changes for this row: {:?}",
-                                    row_change_list.len(),
-                                    row_change_list.iter().map(|c| &c.column_name).collect::<Vec<_>>()
-                                );
-                                // Re-throw with detailed error
-                                return Err(DatabaseError::ExecutionError {
+                                    eprintln!("[SYNC RUST] Columns in INSERT: {:?}", columns);
+                                    eprintln!(
+                                        "[SYNC RUST] Received {} changes for this row: {:?}",
+                                        row_change_list.len(),
+                                        row_change_list
+                                            .iter()
+                                            .map(|c| &c.column_name)
+                                            .collect::<Vec<_>>()
+                                    );
+                                    // Re-throw with detailed error
+                                    return Err(DatabaseError::ExecutionError {
                                     sql: insert_sql,
                                     reason: format!(
                                         "NOT NULL constraint failed. Received columns: {:?}. This indicates incomplete sync data - the server may not have all columns for this row.",
@@ -916,103 +916,103 @@ pub fn apply_remote_changes_to_db(
                                     ),
                                     table: Some(first_change.table_name.clone()),
                                 });
-                            }
+                                }
 
-                            // Check if it's a UNIQUE constraint violation
-                            if error_msg.contains("UNIQUE constraint failed") {
-                                eprintln!("[SYNC RUST] UNIQUE constraint conflict - creating conflict entry");
+                                // Check if it's a UNIQUE constraint violation
+                                if error_msg.contains("UNIQUE constraint failed") {
+                                    eprintln!("[SYNC RUST] UNIQUE constraint conflict - creating conflict entry");
 
-                                // Build remote row data from all columns being inserted
-                                let mut remote_row_data = serde_json::Map::new();
-                                for (i, col_name) in columns.iter().enumerate() {
-                                    if let Some(sql_value) = values.get(i) {
-                                        let json_value =
-                                            ValueConverter::rusqlite_value_to_json(sql_value);
-                                        remote_row_data.insert(col_name.clone(), json_value);
+                                    // Build remote row data from all columns being inserted
+                                    let mut remote_row_data = serde_json::Map::new();
+                                    for (i, col_name) in columns.iter().enumerate() {
+                                        if let Some(sql_value) = values.get(i) {
+                                            let json_value =
+                                                ValueConverter::rusqlite_value_to_json(sql_value);
+                                            remote_row_data.insert(col_name.clone(), json_value);
+                                        }
                                     }
+
+                                    // Create conflict entry
+                                    if let Err(e) = create_conflict_entry(
+                                        &tx,
+                                        &first_change.table_name,
+                                        error_msg,
+                                        &remote_row_data,
+                                        &max_hlc_for_row,
+                                        &schema,
+                                    ) {
+                                        eprintln!(
+                                            "[SYNC RUST] Failed to create conflict entry: {:?}",
+                                            e
+                                        );
+                                    }
+
+                                    continue; // Skip this row and continue with next
                                 }
 
-                                // Create conflict entry
-                                if let Err(e) = create_conflict_entry(
-                                    &tx,
-                                    &first_change.table_name,
-                                    error_msg,
-                                    &remote_row_data,
-                                    &max_hlc_for_row,
-                                    &schema,
-                                ) {
-                                    eprintln!(
-                                        "[SYNC RUST] Failed to create conflict entry: {:?}",
-                                        e
-                                    );
-                                }
-
-                                continue; // Skip this row and continue with next
+                                // For other constraints (CHECK, etc.), re-throw the error
+                                return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(
+                                    err, msg,
+                                )));
                             }
-
-                            // For other constraints (CHECK, etc.), re-throw the error
-                            return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(
-                                err, msg,
-                            )));
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "[SYNC RUST] INSERT failed for table {}: {:?}",
-                                first_change.table_name, e
-                            );
-                            return Err(DatabaseError::from(e));
+                            Err(e) => {
+                                eprintln!(
+                                    "[SYNC RUST] INSERT failed for table {}: {:?}",
+                                    first_change.table_name, e
+                                );
+                                return Err(DatabaseError::from(e));
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Propagate delete-log entries received in this batch to their target tables.
-        // Triggers are still disabled, so the DELETEs won't re-log into haex_deleted_rows.
-        if !inbound_delete_log_ids.is_empty() {
-            eprintln!(
-                "[SYNC RUST] Propagating {} delete-log entries to target tables",
-                inbound_delete_log_ids.len()
-            );
-            propagate_deleted_rows_to_target_tables(&tx, &inbound_delete_log_ids)?;
-        }
+            // Propagate delete-log entries received in this batch to their target tables.
+            // Triggers are still disabled, so the DELETEs won't re-log into haex_deleted_rows.
+            if !inbound_delete_log_ids.is_empty() {
+                eprintln!(
+                    "[SYNC RUST] Propagating {} delete-log entries to target tables",
+                    inbound_delete_log_ids.len()
+                );
+                propagate_deleted_rows_to_target_tables(&tx, &inbound_delete_log_ids)?;
+            }
 
-        // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled
-        // Note: lastPullServerTimestamp is now updated by TypeScript using the server timestamp
-        // Only applicable for server sync (not local delivery)
-        if let Some((backend_id, max_hlc)) = backend_info {
-            eprintln!(
-                "[SYNC RUST] Updating last_push_hlc_timestamp to {}",
-                max_hlc
-            );
-            tx.execute(
-                "UPDATE haex_sync_backends SET last_push_hlc_timestamp = ? WHERE id = ?",
-                params![max_hlc, backend_id],
-            )
-            .map_err(DatabaseError::from)?;
-        }
+            // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled
+            // Note: lastPullServerTimestamp is now updated by TypeScript using the server timestamp
+            // Only applicable for server sync (not local delivery)
+            if let Some((backend_id, max_hlc)) = backend_info {
+                eprintln!(
+                    "[SYNC RUST] Updating last_push_hlc_timestamp to {}",
+                    max_hlc
+                );
+                tx.execute(
+                    "UPDATE haex_sync_backends SET last_push_hlc_timestamp = ? WHERE id = ?",
+                    params![max_hlc, backend_id],
+                )
+                .map_err(DatabaseError::from)?;
+            }
 
-        // Re-enable triggers before committing
-        eprintln!("[SYNC RUST] Re-enabling triggers");
-        let enable_sql = format!(
+            // Re-enable triggers before committing
+            eprintln!("[SYNC RUST] Re-enabling triggers");
+            let enable_sql = format!(
             "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '1')
              ON CONFLICT(key) DO UPDATE SET value = '1'"
         );
-        tx.execute(&enable_sql, []).map_err(DatabaseError::from)?;
+            tx.execute(&enable_sql, []).map_err(DatabaseError::from)?;
 
-        // Commit transaction (with FK constraints disabled)
-        eprintln!("[SYNC RUST] Committing transaction");
-        match tx.commit() {
-            Ok(_) => {
-                eprintln!("[SYNC RUST] Transaction committed successfully");
+            // Commit transaction (with FK constraints disabled)
+            eprintln!("[SYNC RUST] Committing transaction");
+            match tx.commit() {
+                Ok(_) => {
+                    eprintln!("[SYNC RUST] Transaction committed successfully");
+                }
+                Err(e) => {
+                    eprintln!("[SYNC RUST] Transaction commit failed: {:?}", e);
+                    return Err(DatabaseError::from(e));
+                }
             }
-            Err(e) => {
-                eprintln!("[SYNC RUST] Transaction commit failed: {:?}", e);
-                return Err(DatabaseError::from(e));
-            }
-        }
 
-        Ok(all_hlc_timestamps)
+            Ok(all_hlc_timestamps)
         })?;
         // FK constraints are now re-enabled by with_fk_disabled (even if
         // the closure above returned Err mid-body).
@@ -1226,8 +1226,7 @@ mod hlc_grouping_tests {
             .collect();
 
         let baseline = group_row_changes_in_hlc_order(baseline_changes);
-        let baseline_keys: Vec<String> =
-            baseline.iter().map(|(k, _)| k.1.clone()).collect();
+        let baseline_keys: Vec<String> = baseline.iter().map(|(k, _)| k.1.clone()).collect();
 
         // Reverse input order and re-run.
         let reversed: Vec<RemoteColumnChange> = (0..16)
@@ -1238,8 +1237,7 @@ mod hlc_grouping_tests {
             })
             .collect();
         let reversed_out = group_row_changes_in_hlc_order(reversed);
-        let reversed_keys: Vec<String> =
-            reversed_out.iter().map(|(k, _)| k.1.clone()).collect();
+        let reversed_keys: Vec<String> = reversed_out.iter().map(|(k, _)| k.1.clone()).collect();
 
         assert_eq!(
             baseline_keys, reversed_keys,

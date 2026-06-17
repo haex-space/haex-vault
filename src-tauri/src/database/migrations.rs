@@ -295,7 +295,10 @@ fn load_migration_journal(app_handle: &tauri::AppHandle) -> Result<Vec<String>, 
 
     let journal_path = app_handle
         .path()
-        .resolve("database/migrations/meta/_journal.json", BaseDirectory::Resource)
+        .resolve(
+            "database/migrations/meta/_journal.json",
+            BaseDirectory::Resource,
+        )
         .map_err(|e| DatabaseError::MigrationError {
             reason: format!("Failed to resolve journal path: {}", e),
         })?;
@@ -595,7 +598,9 @@ pub struct PendingColumn {
 /// (due to schema version differences). After the app is updated and
 /// migrations add these columns, we need to pull all data for them.
 #[tauri::command]
-pub fn get_pending_columns(state: State<'_, AppState>) -> Result<Vec<PendingColumn>, DatabaseError> {
+pub fn get_pending_columns(
+    state: State<'_, AppState>,
+) -> Result<Vec<PendingColumn>, DatabaseError> {
     with_connection(&state.db, |conn| {
         let mut stmt = conn
             .prepare(&format!(

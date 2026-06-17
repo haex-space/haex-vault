@@ -3,24 +3,25 @@
 //! Handles incoming connections from external clients (browser extensions,
 //! CLI tools, servers, etc.) and routes requests to haex-vault extensions.
 
-use crate::AppState;
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::event_names::EVENT_EXTENSION_AUTO_START_REQUEST;
+use crate::AppState;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::net::{TcpListener, TcpStream};
-use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, Notify, RwLock};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use super::authorization::{
     PendingAuthorization, SQL_GET_CLIENT_EXTENSION, SQL_GET_EXTENSION_ID_BY_PUBLIC_KEY_AND_NAME,
-    SQL_IS_BLOCKED, SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION, SQL_IS_CLIENT_KNOWN, SQL_UPDATE_LAST_SEEN,
+    SQL_IS_BLOCKED, SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION, SQL_IS_CLIENT_KNOWN,
+    SQL_UPDATE_LAST_SEEN,
 };
-use super::crypto::{ServerKeyPair, create_encrypted_response};
+use super::crypto::{create_encrypted_response, ServerKeyPair};
 use super::error::BridgeError;
 use super::protocol::{HandshakeResponse, ProtocolMessage};
 
@@ -229,11 +230,8 @@ impl ExternalBridge {
         };
 
         // Wait for notification with timeout
-        let result = tokio::time::timeout(
-            Duration::from_millis(timeout_ms),
-            notify.notified(),
-        )
-        .await;
+        let result =
+            tokio::time::timeout(Duration::from_millis(timeout_ms), notify.notified()).await;
 
         // Cleanup the signal entry
         {
@@ -259,7 +257,11 @@ impl ExternalBridge {
     }
 
     /// Start the WebSocket server on the specified port
-    pub async fn start(&mut self, app_handle: AppHandle, port: Option<u16>) -> Result<(), BridgeError> {
+    pub async fn start(
+        &mut self,
+        app_handle: AppHandle,
+        port: Option<u16>,
+    ) -> Result<(), BridgeError> {
         if self.running {
             return Err(BridgeError::AlreadyRunning);
         }
@@ -350,15 +352,10 @@ impl ExternalBridge {
             match tokio::time::timeout(Duration::from_secs(2), task).await {
                 Ok(Ok(())) => {}
                 Ok(Err(e)) => {
-                    eprintln!(
-                        "[ExternalBridge] Server task ended with error: {}",
-                        e
-                    );
+                    eprintln!("[ExternalBridge] Server task ended with error: {}", e);
                 }
                 Err(_) => {
-                    eprintln!(
-                        "[ExternalBridge] Server task did not exit within 2s; aborting"
-                    );
+                    eprintln!("[ExternalBridge] Server task did not exit within 2s; aborting");
                     // The handle was moved into the timeout future and is
                     // unreachable on the timeout branch — that's fine, the
                     // task will be cancelled when its JoinHandle is dropped
@@ -627,8 +624,9 @@ async fn handle_connection(
                                 public_key: handshake.client.public_key.clone(),
                                 requested_extensions: handshake.client.requested_extensions.clone(),
                             };
-                            let already_pending =
-                                pending_guard.insert(cid.clone(), pending_auth.clone()).is_some();
+                            let already_pending = pending_guard
+                                .insert(cid.clone(), pending_auth.clone())
+                                .is_some();
 
                             if !already_pending {
                                 // Emit event to frontend to show authorization dialog.
@@ -732,7 +730,8 @@ async fn handle_connection(
                                     &app_handle,
                                     pending_responses.clone(),
                                     session_authorizations.clone(),
-                                ).await;
+                                )
+                                .await;
 
                                 // Send encrypted response back
                                 if let Some(client_pk) = &client_public_key_spki {
@@ -742,12 +741,16 @@ async fn handle_connection(
                                         client_pk,
                                     ) {
                                         Ok(response_envelope) => {
-                                            let response = ProtocolMessage::Response(response_envelope);
+                                            let response =
+                                                ProtocolMessage::Response(response_envelope);
                                             let json = serde_json::to_string(&response)?;
                                             tx.send(Message::Text(json.into()))?;
                                         }
                                         Err(e) => {
-                                            eprintln!("[ExternalBridge] Failed to encrypt response: {}", e);
+                                            eprintln!(
+                                                "[ExternalBridge] Failed to encrypt response: {}",
+                                                e
+                                            );
                                             let error_msg = ProtocolMessage::Error {
                                                 code: "ENCRYPTION_ERROR".to_string(),
                                                 message: "Failed to encrypt response".to_string(),
@@ -967,10 +970,7 @@ async fn check_client_authorized_for_core(app_handle: &AppHandle, client_id: &st
             .map(|c| c > 0)
             .unwrap_or(false),
         Err(e) => {
-            eprintln!(
-                "[ExternalBridge] Failed to check core authorization: {}",
-                e
-            );
+            eprintln!("[ExternalBridge] Failed to check core authorization: {}", e);
             false
         }
     }
@@ -1019,10 +1019,7 @@ const EXTENSION_READY_TIMEOUT_MS: u64 = 30000;
 /// 1. Checks if extension already has an open window (Desktop only)
 /// 2. If not, emits an event to the frontend to request extension loading
 /// 3. Waits for the extension to signal it's ready (via extension_signal_ready)
-async fn ensure_extension_loaded(
-    app_handle: &AppHandle,
-    extension_id: &str,
-) -> Result<(), String> {
+async fn ensure_extension_loaded(app_handle: &AppHandle, extension_id: &str) -> Result<(), String> {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let state = app_handle.state::<AppState>();
@@ -1110,10 +1107,7 @@ async fn ensure_extension_loaded(
             // Don't fail - the extension might still be usable, just slow to initialize
             // The request will timeout naturally if the extension truly isn't working
         } else {
-            eprintln!(
-                "[ExternalBridge] Extension {} signaled ready",
-                extension_id
-            );
+            eprintln!("[ExternalBridge] Extension {} signaled ready", extension_id);
         }
     }
 
@@ -1184,8 +1178,8 @@ async fn process_request(
 
     // Core-target detection: requests addressed to the haex-vault core itself
     // (not a specific extension) carry the CORE sentinel as extensionPublicKey/name.
-    let is_core = ext_public_key == super::CORE_EXTENSION_ID
-        && ext_name == super::CORE_EXTENSION_NAME;
+    let is_core =
+        ext_public_key == super::CORE_EXTENSION_ID && ext_name == super::CORE_EXTENSION_NAME;
 
     // Lookup the extension's internal ID first (needed for session auth check)
     let extension_id = if is_core {
@@ -1212,7 +1206,10 @@ async fn process_request(
     };
     let session_authorized = {
         let auths = session_authorizations.read().await;
-        auths.get(client_id).map(|sa| sa.extension_id == extension_id).unwrap_or(false)
+        auths
+            .get(client_id)
+            .map(|sa| sa.extension_id == extension_id)
+            .unwrap_or(false)
     };
 
     if !db_authorized && !session_authorized {
@@ -1231,7 +1228,10 @@ async fn process_request(
     // Core requests are handled by the main window — no extension to load.
     if !is_core {
         if let Err(e) = ensure_extension_loaded(app_handle, &extension_id).await {
-            eprintln!("[ExternalBridge] Failed to ensure extension is loaded: {}", e);
+            eprintln!(
+                "[ExternalBridge] Failed to ensure extension is loaded: {}",
+                e
+            );
             return serde_json::json!({
                 "requestId": request_id,
                 "success": false,
@@ -1269,7 +1269,11 @@ async fn process_request(
     //   (incl. publicKey, action, payload) to unrelated extensions.
     let emit_result = if is_core {
         let ok = app_handle
-            .emit_to("main", "haextension:external:core-request", &external_request)
+            .emit_to(
+                "main",
+                "haextension:external:core-request",
+                &external_request,
+            )
             .is_ok();
         if ok {
             eprintln!("[ExternalBridge] Emitted core request to main window");
@@ -1289,17 +1293,26 @@ async fn process_request(
                 external_request.clone(),
             ) {
                 Ok(true) => {
-                    eprintln!("[ExternalBridge] Emitted request to extension webview(s): {}", extension_id);
+                    eprintln!(
+                        "[ExternalBridge] Emitted request to extension webview(s): {}",
+                        extension_id
+                    );
                     true
                 }
                 Ok(false) => {
-                    eprintln!("[ExternalBridge] No webview for extension {}, emitting to main window", extension_id);
+                    eprintln!(
+                        "[ExternalBridge] No webview for extension {}, emitting to main window",
+                        extension_id
+                    );
                     app_handle
                         .emit_to("main", "haextension:external:request", &external_request)
                         .is_ok()
                 }
                 Err(e) => {
-                    eprintln!("[ExternalBridge] Error emitting to webview(s): {}, trying main window", e);
+                    eprintln!(
+                        "[ExternalBridge] Error emitting to webview(s): {}, trying main window",
+                        e
+                    );
                     app_handle
                         .emit_to("main", "haextension:external:request", &external_request)
                         .is_ok()

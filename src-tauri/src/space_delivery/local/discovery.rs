@@ -1,8 +1,8 @@
 //! Peer discovery: query CRDT for space devices, probe reachability in parallel.
 
-use crate::database::DbConnection;
 use super::error::DeliveryError;
 use super::protocol::ALPN;
+use crate::database::DbConnection;
 
 /// A candidate device for leader election.
 #[derive(Debug, Clone)]
@@ -24,10 +24,11 @@ pub fn get_space_device_candidates(
         .to_string();
     let params = vec![serde_json::Value::String(space_id.to_string())];
 
-    let rows = crate::database::core::select_with_crdt(sql, params, db)
-        .map_err(|e| DeliveryError::Database {
+    let rows = crate::database::core::select_with_crdt(sql, params, db).map_err(|e| {
+        DeliveryError::Database {
             reason: e.to_string(),
-        })?;
+        }
+    })?;
 
     Ok(rows
         .into_iter()

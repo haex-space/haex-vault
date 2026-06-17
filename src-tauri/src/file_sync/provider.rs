@@ -100,7 +100,10 @@ pub trait SyncProvider: Send + Sync {
             .await
             .map_err(SyncProviderError::Io)?;
         on_progress(n, n);
-        Ok(ReadFileResult { bytes: n, hash: None })
+        Ok(ReadFileResult {
+            bytes: n,
+            hash: None,
+        })
     }
 
     /// Write a file from a local path. Default: reads into memory then calls write_file.
@@ -177,8 +180,9 @@ pub trait SyncProvider: Send + Sync {
 /// Validate a relative path against path traversal attacks.
 /// Call this at the start of every `SyncProvider` method that takes a path.
 pub fn validate_relative_path(path: &str) -> Result<(), SyncProviderError> {
-    crate::filesystem::check_relative_path(path)
-        .map_err(|_| SyncProviderError::PathTraversal { path: path.to_string() })
+    crate::filesystem::check_relative_path(path).map_err(|_| SyncProviderError::PathTraversal {
+        path: path.to_string(),
+    })
 }
 
 #[cfg(test)]

@@ -7,9 +7,9 @@
 //!
 
 #[cfg(desktop)]
-use notify_debouncer_mini::{new_debouncer, DebouncedEventKind, Debouncer};
-#[cfg(desktop)]
 use notify::RecursiveMode;
+#[cfg(desktop)]
+use notify_debouncer_mini::{new_debouncer, DebouncedEventKind, Debouncer};
 #[cfg(desktop)]
 use std::collections::HashMap;
 #[cfg(desktop)]
@@ -166,7 +166,9 @@ impl FileWatcherManager {
                         let rule_for_emit = rule_id_clone.clone();
                         tauri::async_runtime::spawn(async move {
                             let reader_extension_ids = match absolute_path.as_ref() {
-                                Some(abs) => compute_fs_read_readers(&app_handle_for_emit, abs).await,
+                                Some(abs) => {
+                                    compute_fs_read_readers(&app_handle_for_emit, abs).await
+                                }
                                 None => Vec::new(),
                             };
 
@@ -195,10 +197,7 @@ impl FileWatcherManager {
                             if let Err(e) =
                                 app_handle_for_emit.emit_to("main", FILE_CHANGE_EVENT, &main_event)
                             {
-                                eprintln!(
-                                    "[FileWatcher] Failed to emit to main window: {}",
-                                    e
-                                );
+                                eprintln!("[FileWatcher] Failed to emit to main window: {}", e);
                             }
 
                             // 2. Send the sanitized event to the webview windows of
@@ -219,11 +218,15 @@ impl FileWatcherManager {
                         });
                     }
                     Err(e) => {
-                        eprintln!("[FileWatcher] Watch error for rule {}: {:?}", rule_id_clone, e);
+                        eprintln!(
+                            "[FileWatcher] Watch error for rule {}: {:?}",
+                            rule_id_clone, e
+                        );
                     }
                 }
             },
-        ).map_err(|e| format!("Failed to create watcher: {}", e))?;
+        )
+        .map_err(|e| format!("Failed to create watcher: {}", e))?;
 
         // Start watching the directory
         debouncer
@@ -243,7 +246,10 @@ impl FileWatcherManager {
             path_to_rule.insert(path_buf, rule_id.clone());
         }
 
-        println!("[FileWatcher] Started watching rule {} at path: {}", rule_id, path);
+        println!(
+            "[FileWatcher] Started watching rule {} at path: {}",
+            rule_id, path
+        );
         Ok(())
     }
 
@@ -322,7 +328,9 @@ async fn compute_fs_read_readers(
 
     let mut allowed = Vec::new();
     for extension in extensions {
-        if PermissionManager::is_fs_read_allowed_silently(&state, &extension.id, absolute_path).await {
+        if PermissionManager::is_fs_read_allowed_silently(&state, &extension.id, absolute_path)
+            .await
+        {
             allowed.push(extension.id);
         }
     }

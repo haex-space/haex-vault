@@ -470,11 +470,18 @@ pub async fn extension_filesystem_select_file(
     let _extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     // Delegate to internal filesystem command (no permission check - user explicitly selects)
-    crate::filesystem::filesystem_select_file(window, title, default_path, filters, multiple, app_handle)
-        .await
-        .map_err(|e| ExtensionError::FilesystemError {
-            reason: e.to_string(),
-        })
+    crate::filesystem::filesystem_select_file(
+        window,
+        title,
+        default_path,
+        filters,
+        multiple,
+        app_handle,
+    )
+    .await
+    .map_err(|e| ExtensionError::FilesystemError {
+        reason: e.to_string(),
+    })
 }
 
 // ============================================================================

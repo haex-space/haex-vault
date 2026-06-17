@@ -14,9 +14,7 @@ struct DummySource {
 
 #[async_trait]
 impl crate::remote_storage::streaming::source::StreamingSource for DummySource {
-    async fn size(
-        &self,
-    ) -> Result<u64, crate::remote_storage::streaming::source::StreamingError> {
+    async fn size(&self) -> Result<u64, crate::remote_storage::streaming::source::StreamingError> {
         Ok(self.data.len() as u64)
     }
     async fn read_range(
@@ -123,17 +121,12 @@ async fn size_returning_not_found_yields_http_404() {
         async fn read_range(
             &self,
             _: crate::remote_storage::streaming::source::ByteRange,
-        ) -> Result<
-            Vec<u8>,
-            crate::remote_storage::streaming::source::StreamingError,
-        > {
+        ) -> Result<Vec<u8>, crate::remote_storage::streaming::source::StreamingError> {
             unreachable!("size() returns first")
         }
     }
     let server = MediaServer::start().await.unwrap();
-    let url = server
-        .register_source(Arc::new(NotFoundSource), None)
-        .await;
+    let url = server.register_source(Arc::new(NotFoundSource), None).await;
     let client = reqwest::Client::builder().no_proxy().build().unwrap();
     let resp = client.get(&url).send().await.unwrap();
     assert_eq!(resp.status().as_u16(), 404);
@@ -166,7 +159,10 @@ async fn serves_local_media_file_with_range_and_seek() {
         .await
         .unwrap();
     assert_eq!(resp.status().as_u16(), 206);
-    assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 0-9/100");
+    assert_eq!(
+        resp.headers().get("Content-Range").unwrap(),
+        "bytes 0-9/100"
+    );
     assert_eq!(resp.headers().get("Accept-Ranges").unwrap(), "bytes");
     assert_eq!(resp.headers().get("Content-Type").unwrap(), "video/mp4");
     assert_eq!(
@@ -183,7 +179,10 @@ async fn serves_local_media_file_with_range_and_seek() {
         .await
         .unwrap();
     assert_eq!(resp.status().as_u16(), 206);
-    assert_eq!(resp.headers().get("Content-Range").unwrap(), "bytes 50-59/100");
+    assert_eq!(
+        resp.headers().get("Content-Range").unwrap(),
+        "bytes 50-59/100"
+    );
     assert_eq!(
         resp.bytes().await.unwrap().as_ref(),
         &(50u8..=59).collect::<Vec<u8>>()[..],

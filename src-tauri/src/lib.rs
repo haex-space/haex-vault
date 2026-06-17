@@ -7,26 +7,26 @@
 // across every test module.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-mod external_bridge;
-mod crypto;
 mod crdt;
 pub mod critical;
+mod crypto;
 pub mod database;
 mod device;
 mod extension;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod external_bridge;
 pub mod file_sync;
 mod filesystem;
 mod logging;
 pub mod mail;
 mod media_server;
 pub mod mls;
-#[cfg(desktop)]
-mod shortcuts;
 mod passwords;
 pub mod peer_storage;
 pub mod quic_did_auth;
 mod remote_storage;
+#[cfg(desktop)]
+mod shortcuts;
 pub mod space_delivery;
 pub mod ucan;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -138,7 +138,15 @@ pub struct AppState {
     /// Peer storage endpoint for P2P file sharing via iroh/QUIC
     pub peer_storage: Arc<tokio::sync::RwLock<peer_storage::endpoint::PeerEndpoint>>,
     /// Active P2P transfer control (transfer_id → (cancel_token, pause_flag))
-    pub transfer_tokens: tokio::sync::Mutex<HashMap<String, (tokio_util::sync::CancellationToken, Arc<std::sync::atomic::AtomicBool>)>>,
+    pub transfer_tokens: tokio::sync::Mutex<
+        HashMap<
+            String,
+            (
+                tokio_util::sync::CancellationToken,
+                Arc<std::sync::atomic::AtomicBool>,
+            ),
+        >,
+    >,
     /// Active file sync loops (rule_id → cancellation token)
     pub sync_manager: tokio::sync::Mutex<SyncManager>,
     /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
@@ -146,11 +154,13 @@ pub struct AppState {
     /// PTY manager for shell/terminal sessions
     pub pty_manager: extension::shell::pty::PtyManager,
     /// Active local sync loops (space_id -> handle)
-    pub local_sync_loops: tokio::sync::Mutex<HashMap<String, space_delivery::local::sync_loop::SyncLoopHandle>>,
+    pub local_sync_loops:
+        tokio::sync::Mutex<HashMap<String, space_delivery::local::sync_loop::SyncLoopHandle>>,
     /// Leader states for local space delivery, keyed by space_id.
     /// RwLock because reads (QUIC stream routing) are frequent and concurrent,
     /// writes (start/stop leader) are rare.
-    pub leader_state: Arc<tokio::sync::RwLock<HashMap<String, Arc<space_delivery::local::leader::LeaderState>>>>,
+    pub leader_state:
+        Arc<tokio::sync::RwLock<HashMap<String, Arc<space_delivery::local::leader::LeaderState>>>>,
     /// Loopback HTTP range server. Exposes registered file paths as
     /// `http://127.0.0.1:<port>/<token>` so the WebView's media element
     /// can stream large files without loading them into RAM. Custom Tauri
@@ -195,10 +205,7 @@ impl AppState {
         // sensible result. Without it, a poisoned slot mutex would
         // silently turn every later lock_or_fail into None-sink mode.
         let sink_clone = {
-            let sink_guard = self
-                .critical_sink
-                .lock()
-                .unwrap_or_else(|p| p.into_inner());
+            let sink_guard = self.critical_sink.lock().unwrap_or_else(|p| p.into_inner());
             sink_guard.clone()
         };
         match sink_clone {
@@ -334,7 +341,9 @@ pub fn run() {
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
             limits: extension::limits::LimitsService::new(),
-            peer_storage: Arc::new(tokio::sync::RwLock::new(peer_storage::endpoint::PeerEndpoint::new_ephemeral())),
+            peer_storage: Arc::new(tokio::sync::RwLock::new(
+                peer_storage::endpoint::PeerEndpoint::new_ephemeral(),
+            )),
             transfer_tokens: tokio::sync::Mutex::new(HashMap::new()),
             sync_manager: tokio::sync::Mutex::new(SyncManager::new()),
             auth_token: Arc::new(Mutex::new(None)),
@@ -365,21 +374,23 @@ pub fn run() {
             #[cfg(target_os = "linux")]
             {
                 if let Some(main_window) = app.get_webview_window("main") {
-                    main_window.with_webview(|webview| {
-                        use webkit2gtk::{WebViewExt, SettingsExt, PermissionRequestExt};
-                        let wv = webview.inner();
+                    main_window
+                        .with_webview(|webview| {
+                            use webkit2gtk::{PermissionRequestExt, SettingsExt, WebViewExt};
+                            let wv = webview.inner();
 
-                        if let Some(settings) = wv.settings() {
-                            settings.set_enable_media_stream(true);
-                            settings.set_enable_webrtc(true);
-                            settings.set_media_playback_requires_user_gesture(false);
-                        }
+                            if let Some(settings) = wv.settings() {
+                                settings.set_enable_media_stream(true);
+                                settings.set_enable_webrtc(true);
+                                settings.set_media_playback_requires_user_gesture(false);
+                            }
 
-                        wv.connect_permission_request(|_, request| {
-                            request.allow();
-                            true
-                        });
-                    }).ok();
+                            wv.connect_permission_request(|_, request| {
+                                request.allow();
+                                true
+                            });
+                        })
+                        .ok();
                 }
             }
 
@@ -405,10 +416,18 @@ pub fn run() {
                     let app_handle_for_close = app_handle.clone();
                     main_window.on_window_event(move |event| {
                         if let tauri::WindowEvent::CloseRequested { .. } = event {
-                            eprintln!("[Main Window] Close requested, closing all extension windows...");
+                            eprintln!(
+                                "[Main Window] Close requested, closing all extension windows..."
+                            );
                             let state = app_handle_for_close.state::<AppState>();
-                            if let Err(e) = state.extension_webview_manager.close_all_extension_windows(&app_handle_for_close) {
-                                eprintln!("[Main Window] Failed to close extension windows: {:?}", e);
+                            if let Err(e) = state
+                                .extension_webview_manager
+                                .close_all_extension_windows(&app_handle_for_close)
+                            {
+                                eprintln!(
+                                    "[Main Window] Failed to close extension windows: {:?}",
+                                    e
+                                );
                             }
                         }
                     });

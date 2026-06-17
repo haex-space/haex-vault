@@ -16,10 +16,12 @@ use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::extension::database::executor::SqlExecutor;
-use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS};
+use crate::table_names::{
+    COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS,
+};
+use crate::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use constants::vault_settings_key;
-use crate::AppState;
 use ed25519_dalek::SigningKey;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -289,7 +291,11 @@ pub fn vault_exists(app_handle: AppHandle, vault_name: String) -> Result<bool, D
 /// Returns the new path of the imported vault.
 /// Fails if a vault with the same name already exists.
 #[tauri::command]
-pub fn import_vault(app_handle: AppHandle, source_path: String, vault_name: Option<String>) -> Result<String, DatabaseError> {
+pub fn import_vault(
+    app_handle: AppHandle,
+    source_path: String,
+    vault_name: Option<String>,
+) -> Result<String, DatabaseError> {
     // Android: source comes as a Content URI JSON envelope (SAF). std::fs cannot
     // open content:// URIs, so we read through ContentResolver via android_fs.
     #[cfg(target_os = "android")]
@@ -366,12 +372,18 @@ fn import_vault_from_content_uri(
         reason: format!("Invalid Content URI: {e:?}"),
     })?;
 
-    let display_name = api.get_name(&uri).map_err(|e| DatabaseError::ValidationError {
-        reason: format!("Could not read file name from Content URI: {e:?}"),
-    })?;
+    let display_name = api
+        .get_name(&uri)
+        .map_err(|e| DatabaseError::ValidationError {
+            reason: format!("Could not read file name from Content URI: {e:?}"),
+        })?;
 
     // Match desktop import validation: source must be a .db file.
-    if Path::new(&display_name).extension().and_then(|e| e.to_str()) != Some("db") {
+    if Path::new(&display_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        != Some("db")
+    {
         return Err(DatabaseError::ValidationError {
             reason: "Source file must have .db extension".to_string(),
         });
@@ -586,7 +598,10 @@ fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(), DatabaseEr
         &hlc_service,
     )?;
 
-    println!("[IDENTITY] ✅ default identity seeded ({})", &did[..30.min(did.len())]);
+    println!(
+        "[IDENTITY] ✅ default identity seeded ({})",
+        &did[..30.min(did.len())]
+    );
     Ok(())
 }
 
@@ -630,9 +645,8 @@ pub fn create_encrypted_database(
     // runs a full teardown on the way out. Releasing only the lock would
     // leave a half-initialized session (connection, HLC, ctx) in AppState
     // which breaks subsequent `open_encrypted_database` retries.
-    let outcome: Result<String, DatabaseError> = (|| {
-        create_encrypted_database_inner(&app_handle, &vault_path, &key, space_id, &state)
-    })();
+    let outcome: Result<String, DatabaseError> =
+        (|| create_encrypted_database_inner(&app_handle, &vault_path, &key, space_id, &state))();
 
     if outcome.is_err() {
         let _ = close_database(state.clone());
@@ -716,12 +730,16 @@ fn create_encrypted_database_inner(
     let hlc_for_conn = state
         .hlc
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?
         .clone();
     let ctx_for_conn = state
         .connection_context
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?
         .clone();
     let conn = core::open_and_init_db(&vault_path, &key, false, hlc_for_conn, ctx_for_conn)?;
     println!("[CREATE_DB] Database connection opened successfully");
@@ -856,7 +874,10 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
         if let Some(conn) = db_guard.take() {
             // Close the connection explicitly
             if let Err((_, e)) = conn.close() {
-                eprintln!("[CLOSE_DB] Warning: Failed to close database cleanly: {}", e);
+                eprintln!(
+                    "[CLOSE_DB] Warning: Failed to close database cleanly: {}",
+                    e
+                );
             }
             println!("[CLOSE_DB] Database connection closed");
         } else {
@@ -879,10 +900,13 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
     // 3. Reset the per-session connection context so any leftover tx-HLC slot
     //    from the previous vault cannot leak into the next one.
     {
-        let mut ctx_guard = state
-            .connection_context
-            .lock()
-            .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+        let mut ctx_guard =
+            state
+                .connection_context
+                .lock()
+                .map_err(|e| DatabaseError::LockError {
+                    reason: e.to_string(),
+                })?;
         *ctx_guard = connection_context::ConnectionContext::new();
         println!("[CLOSE_DB] ConnectionContext reset");
     }
@@ -933,9 +957,12 @@ fn acquire_vault_lock_or_error(
         },
     })?;
 
-    let mut guard = state.vault_lock.lock().map_err(|e| DatabaseError::LockError {
-        reason: e.to_string(),
-    })?;
+    let mut guard = state
+        .vault_lock
+        .lock()
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
     *guard = Some(lock);
     Ok(())
 }
@@ -955,7 +982,9 @@ fn reject_if_vault_already_mounted(
         let lock_guard = state
             .vault_lock
             .lock()
-            .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+            .map_err(|e| DatabaseError::LockError {
+                reason: e.to_string(),
+            })?;
         lock_guard
             .as_ref()
             .map(|lock| lock.vault_path().display().to_string())
@@ -964,7 +993,9 @@ fn reject_if_vault_already_mounted(
         .db
         .0
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?
         .is_some();
     if existing_path.is_some() || has_connection {
         return Err(DatabaseError::VaultAlreadyMountedInProcess {
@@ -994,7 +1025,9 @@ fn open_critical_sink(
     let mut sink_guard = state
         .critical_sink
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?;
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
     *sink_guard = Some(sink);
     Ok(())
 }
@@ -1033,12 +1066,18 @@ pub fn open_encrypted_database(
     // identity — without that normalization the create→open flow could
     // misclassify itself as a cross-vault collision.
     let already_mounted = {
-        let lock_guard = state.vault_lock.lock().map_err(|e| DatabaseError::LockError {
-            reason: e.to_string(),
-        })?;
-        lock_guard
-            .as_ref()
-            .map(|lock| (lock.matches(Path::new(&vault_path)), lock.vault_path().to_path_buf()))
+        let lock_guard = state
+            .vault_lock
+            .lock()
+            .map_err(|e| DatabaseError::LockError {
+                reason: e.to_string(),
+            })?;
+        lock_guard.as_ref().map(|lock| {
+            (
+                lock.matches(Path::new(&vault_path)),
+                lock.vault_path().to_path_buf(),
+            )
+        })
     };
 
     if let Some((matches, existing)) = already_mounted {
@@ -1162,12 +1201,16 @@ fn initialize_session(
     let hlc_for_conn = state
         .hlc
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?
         .clone();
     let ctx_for_conn = state
         .connection_context
         .lock()
-        .map_err(|e| DatabaseError::LockError { reason: e.to_string() })?
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?
         .clone();
     let mut conn = core::open_and_init_db(path, key, false, hlc_for_conn, ctx_for_conn)?;
 

@@ -48,8 +48,8 @@ pub(super) async fn send_response_and_finish(
     send: &mut iroh::endpoint::SendStream,
     response: &Response,
 ) -> Result<(), PeerStorageError> {
-    let bytes = protocol::encode_response(response)
-        .map_err(|e| PeerStorageError::ProtocolError {
+    let bytes =
+        protocol::encode_response(response).map_err(|e| PeerStorageError::ProtocolError {
             reason: e.to_string(),
         })?;
     send.write_all(&bytes)
@@ -75,11 +75,12 @@ pub(super) async fn handle_stream(
     allowed_spaces: &HashSet<String>,
     verified_remote_did: &str,
 ) -> Result<(), PeerStorageError> {
-    let request = protocol::read_request(recv)
-        .await
-        .map_err(|e| PeerStorageError::ProtocolError {
-            reason: e.to_string(),
-        })?;
+    let request =
+        protocol::read_request(recv)
+            .await
+            .map_err(|e| PeerStorageError::ProtocolError {
+                reason: e.to_string(),
+            })?;
 
     // ── Layer 1 (first line of defense): validate UCAN signature + expiry ──
     let validated_ucan = match crate::ucan::validate_token(request.ucan_token()) {
@@ -104,15 +105,17 @@ pub(super) async fn handle_stream(
         // `log_truncate` truncates by chars (UTF-8 boundaries), not bytes —
         // a token whose `aud` claim contains non-ASCII text cannot crash
         // the log path with a "byte index not on a char boundary" panic.
-        let aud_short = crate::logging::log_truncate(&validated_ucan.audience, 24);
-        let verified_short = crate::logging::log_truncate(verified_remote_did, 24);
+        let aud_short = crate::logging::log_truncate(
+            &validated_ucan.audience,
+            crate::logging::LOG_TRUNCATE_DEFAULT,
+        );
+        let verified_short =
+            crate::logging::log_truncate(verified_remote_did, crate::logging::LOG_TRUNCATE_DEFAULT);
         eprintln!(
             "[PeerStorage] UCAN audience != verified peer DID: aud={aud_short} verified={verified_short} err={e}"
         );
         let resp = Response::Error {
-            message: format!(
-                "Access denied: UCAN audience does not match verified peer DID: {e}"
-            ),
+            message: format!("Access denied: UCAN audience does not match verified peer DID: {e}"),
         };
         send_response_and_finish(&mut send, &resp).await.ok();
         return Ok(());
@@ -184,9 +187,7 @@ pub(super) async fn handle_stream(
         Request::List { path, .. } => handle_list(state, &path, allowed_spaces).await,
         Request::Stat { path, .. } => handle_stat(state, &path, allowed_spaces).await,
         Request::Manifest { path, .. } => handle_manifest(state, &path, allowed_spaces).await,
-        Request::Read {
-            path, range, ..
-        } => {
+        Request::Read { path, range, .. } => {
             if let Err(e) = handle_read(&mut send, state, &path, range, allowed_spaces).await {
                 eprintln!("[PeerStorage] Read error for '{path}': {e}");
                 let error_resp = Response::Error {
@@ -198,8 +199,7 @@ pub(super) async fn handle_stream(
             return Ok(());
         }
         Request::Write { path, size, .. } => {
-            if let Err(e) =
-                handle_write(&mut send, recv, state, &path, size, allowed_spaces).await
+            if let Err(e) = handle_write(&mut send, recv, state, &path, size, allowed_spaces).await
             {
                 eprintln!("[PeerStorage] Write error for '{path}': {e}");
                 let error_resp = Response::Error {
@@ -210,9 +210,9 @@ pub(super) async fn handle_stream(
             }
             return Ok(());
         }
-        Request::Delete {
-            path, to_trash, ..
-        } => handle_delete(state, &path, to_trash, allowed_spaces).await,
+        Request::Delete { path, to_trash, .. } => {
+            handle_delete(state, &path, to_trash, allowed_spaces).await
+        }
         Request::CreateDirectory { path, .. } => {
             handle_create_directory(state, &path, allowed_spaces).await
         }
@@ -323,9 +323,10 @@ async fn handle_stat(
             })
             .await
             {
-                // Android Content URI stats do not currently populate chunks —
-                // chunk-hashing through the SAF JNI path is not wired up here.
-                Ok(Ok(entry)) => Response::Stat { entry, chunks: None },
+                // Android Content URI files now carry chunks too — hashed via
+                // the SAF reader, the same path the manifest scan uses
+                // (`collect_content_uri_entries`). Directories carry `None`.
+                Ok(Ok((entry, chunks))) => Response::Stat { entry, chunks },
                 Ok(Err(e)) => Response::Error { message: e },
                 Err(e) => Response::Error {
                     message: format!("Task failed: {e}"),
@@ -370,12 +371,27 @@ pub(super) async fn stat_local_path(local_path: &Path) -> Response {
         {
             Some(n) => n,
             None => {
-                // No mtime (rare — e.g. some special filesystems). Skip
-                // chunk-hashing rather than poisoning the cache with a
-                // zero-nanos key that would alias unrelated files.
-                return Response::Stat {
-                    entry,
-                    chunks: None,
+                // No usable mtime (rare — e.g. some special filesystems). A
+                // zero-nanos cache key would alias unrelated files, so hash
+                // uncached this once — the server must still report chunks for
+                // every file (see client::download_file_to_path) so the
+                // receiver can verify.
+                let path = local_path.to_path_buf();
+                return match tokio::task::spawn_blocking(move || {
+                    crate::file_sync::hashing::hash_file_chunked(&path)
+                })
+                .await
+                {
+                    Ok(Ok(chunks)) => Response::Stat {
+                        entry,
+                        chunks: Some(chunks),
+                    },
+                    Ok(Err(e)) => Response::Error {
+                        message: format!("Failed to hash file: {e}"),
+                    },
+                    Err(e) => Response::Error {
+                        message: format!("Hash task failed: {e}"),
+                    },
                 };
             }
         };
@@ -493,11 +509,12 @@ async fn handle_read(
     if let Some(uri_info) = content_uri_info {
         #[cfg(target_os = "android")]
         {
-            let app_handle = uri_info
-                .app_handle
-                .ok_or_else(|| PeerStorageError::ProtocolError {
-                    reason: "AppHandle not available".to_string(),
-                })?;
+            let app_handle =
+                uri_info
+                    .app_handle
+                    .ok_or_else(|| PeerStorageError::ProtocolError {
+                        reason: "AppHandle not available".to_string(),
+                    })?;
             return super::android::handle_read_content_uri(
                 send,
                 &app_handle,
@@ -565,8 +582,8 @@ async fn stream_file_to_send(
     };
 
     let header = Response::ReadHeader { size: read_size };
-    let header_bytes = protocol::encode_response(&header)
-        .map_err(|e| PeerStorageError::ProtocolError {
+    let header_bytes =
+        protocol::encode_response(&header).map_err(|e| PeerStorageError::ProtocolError {
             reason: e.to_string(),
         })?;
     send.write_all(&header_bytes)
@@ -731,8 +748,7 @@ async fn handle_delete(
     // Check for Content URI shares (Android)
     if let Ok((share, _sub)) = {
         let s = state.read().await;
-        find_share_and_subpath(&s.shares, allowed_spaces, path)
-            .map(|(sh, sub)| (sh.clone(), sub))
+        find_share_and_subpath(&s.shares, allowed_spaces, path).map(|(sh, sub)| (sh.clone(), sub))
     } {
         if is_content_uri(&share.local_path) {
             #[cfg(target_os = "android")]
@@ -822,8 +838,7 @@ async fn handle_create_directory(
     // Check for Content URI shares (Android)
     if let Ok((share, _sub)) = {
         let s = state.read().await;
-        find_share_and_subpath(&s.shares, allowed_spaces, path)
-            .map(|(sh, sub)| (sh.clone(), sub))
+        find_share_and_subpath(&s.shares, allowed_spaces, path).map(|(sh, sub)| (sh.clone(), sub))
     } {
         if is_content_uri(&share.local_path) {
             #[cfg(target_os = "android")]
@@ -897,7 +912,10 @@ mod tests {
         assert_eq!(entry.size, data.len() as u64);
         assert!(!entry.is_dir);
         let chunks = chunks.expect("file stat must include chunks");
-        assert_eq!(chunks.chunk_size, crate::file_sync::hashing::CHUNK_HASH_SIZE);
+        assert_eq!(
+            chunks.chunk_size,
+            crate::file_sync::hashing::CHUNK_HASH_SIZE
+        );
         assert_eq!(chunks.chunk_hashes.len(), 3);
         let expected_file = blake3::hash(&data).to_hex().to_string();
         assert_eq!(chunks.file_hash, expected_file);

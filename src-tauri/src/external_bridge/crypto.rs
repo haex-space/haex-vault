@@ -63,7 +63,10 @@ pub fn import_public_key(base64_key: &str) -> Result<PublicKey, BridgeError> {
 }
 
 /// Encrypt a message using AES-256-GCM
-pub fn encrypt_message(plaintext: &[u8], shared_key: &[u8; 32]) -> Result<(Vec<u8>, [u8; IV_LENGTH]), BridgeError> {
+pub fn encrypt_message(
+    plaintext: &[u8],
+    shared_key: &[u8; 32],
+) -> Result<(Vec<u8>, [u8; IV_LENGTH]), BridgeError> {
     let cipher = Aes256Gcm::new_from_slice(shared_key)
         .map_err(|e| BridgeError::Crypto(format!("Invalid key: {}", e)))?;
 
@@ -99,10 +102,10 @@ pub fn decrypt_message(
 #[serde(rename_all = "camelCase")]
 pub struct EncryptedEnvelope {
     pub action: String,
-    pub message: String,      // Base64 encrypted payload
-    pub iv: String,           // Base64 12-byte IV
+    pub message: String, // Base64 encrypted payload
+    pub iv: String,      // Base64 12-byte IV
     pub client_id: String,
-    pub public_key: String,   // Ephemeral public key (Base64 raw 32 bytes)
+    pub public_key: String, // Ephemeral public key (Base64 raw 32 bytes)
     /// Target extension's public key (from manifest) - identifies the developer
     #[serde(default)]
     pub extension_public_key: Option<String>,
@@ -113,7 +116,10 @@ pub struct EncryptedEnvelope {
 
 impl EncryptedEnvelope {
     /// Decrypt this envelope using the server's private key
-    pub fn decrypt(&self, server_keypair: &ServerKeyPair) -> Result<serde_json::Value, BridgeError> {
+    pub fn decrypt(
+        &self,
+        server_keypair: &ServerKeyPair,
+    ) -> Result<serde_json::Value, BridgeError> {
         // Import client's ephemeral public key
         let client_public_key = import_public_key(&self.public_key)?;
 

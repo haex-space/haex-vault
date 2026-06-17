@@ -240,9 +240,7 @@ mod permission_bypass_attacks {
         assert!(legit_checker.can_access_table("legit_pubkey__haex-pass__secrets", DbAction::Read));
 
         // Evil extension CANNOT access legit extension's tables
-        assert!(
-            !evil_checker.can_access_table("legit_pubkey__haex-pass__secrets", DbAction::Read)
-        );
+        assert!(!evil_checker.can_access_table("legit_pubkey__haex-pass__secrets", DbAction::Read));
     }
 
     #[test]
@@ -379,9 +377,7 @@ mod cross_extension_isolation {
 
         // Extension A cannot access Extension B's tables without permission
         assert!(!checker_a.can_access_table("pubkey_b__extension_b__secrets", DbAction::Read));
-        assert!(
-            !checker_a.can_access_table("pubkey_b__extension_b__users", DbAction::ReadWrite)
-        );
+        assert!(!checker_a.can_access_table("pubkey_b__extension_b__users", DbAction::ReadWrite));
 
         // Extension A CAN access its own tables
         assert!(checker_a.can_access_table("pubkey_a__extension_a__data", DbAction::ReadWrite));
@@ -463,10 +459,7 @@ mod malformed_input_tests {
     #[test]
     fn test_unicode_in_extension_name() {
         // Unicode characters should be handled correctly
-        let ctx = ExtensionSqlContext::new(
-            "pubkey".to_string(),
-            "extension-日本語".to_string(),
-        );
+        let ctx = ExtensionSqlContext::new("pubkey".to_string(), "extension-日本語".to_string());
 
         let prefix = ctx.get_table_prefix();
         // Should produce a valid prefix
@@ -487,7 +480,11 @@ mod malformed_input_tests {
 mod cross_extension_asset_disclosure {
     use super::*;
 
-    fn create_test_extension_with_version(public_key: &str, name: &str, version: &str) -> Extension {
+    fn create_test_extension_with_version(
+        public_key: &str,
+        name: &str,
+        version: &str,
+    ) -> Extension {
         let mut ext = create_test_extension(public_key, name);
         ext.manifest.version = version.to_string();
         ext
@@ -541,7 +538,10 @@ mod cross_extension_asset_disclosure {
             .unwrap();
 
         let result = manager.verify_extension_installed("test_pubkey", "test_ext", "1.0.0");
-        assert!(result.is_ok(), "matching installed extension must be accepted");
+        assert!(
+            result.is_ok(),
+            "matching installed extension must be accepted"
+        );
     }
 
     #[test]

@@ -2,13 +2,13 @@
 //
 // Extension removal logic.
 
+use super::queries::{SQL_DELETE_EXTENSION, SQL_UPDATE_EXTENSION_ENABLED};
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::utils::drop_extension_tables;
-use super::queries::{SQL_DELETE_EXTENSION, SQL_UPDATE_EXTENSION_ENABLED};
 use crate::AppState;
 use tauri::{AppHandle, State};
 
@@ -88,7 +88,10 @@ impl ExtensionManager {
 
                 // First disable the extension before deleting (tombstoning)
                 // This ensures the extension won't be loaded even if tombstone filter fails
-                eprintln!("DEBUG: Disabling extension before delete: id = {}", extension.id);
+                eprintln!(
+                    "DEBUG: Disabling extension before delete: id = {}",
+                    extension.id
+                );
                 SqlExecutor::execute_internal_typed(
                     &tx,
                     &hlc_service,
@@ -97,7 +100,10 @@ impl ExtensionManager {
                 )?;
 
                 // Delete extension entry (will be transformed to tombstone)
-                eprintln!("DEBUG: Executing DELETE for extension id = {}", extension.id);
+                eprintln!(
+                    "DEBUG: Executing DELETE for extension id = {}",
+                    extension.id
+                );
                 SqlExecutor::execute_internal_typed(
                     &tx,
                     &hlc_service,
@@ -117,9 +123,7 @@ impl ExtensionManager {
 
             eprintln!("DEBUG: Transaction committed successfully");
         } else {
-            eprintln!(
-                "DEBUG: Keeping DB entry and permissions (delete_data=false, update mode)"
-            );
+            eprintln!("DEBUG: Keeping DB entry and permissions (delete_data=false, update mode)");
         }
 
         // Remove from in-memory manager

@@ -12,7 +12,9 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::timeout;
 
 use super::server::{ChallengeError, CHALLENGE_TIMEOUT};
-use super::wire::{build_sig_input, Challenge, Response, MAX_MESSAGE_SIZE, NONCE_LEN, PROTOCOL_VERSION};
+use super::wire::{
+    build_sig_input, Challenge, Response, MAX_MESSAGE_SIZE, NONCE_LEN, PROTOCOL_VERSION,
+};
 
 /// Run the client side of the handshake: read the server's Challenge, sign
 /// the canonical payload, write the Response.
@@ -203,8 +205,12 @@ mod tests {
         let did_a = did_from_signing_key(&sk_a);
         let did_b = did_from_signing_key(&sk_b);
 
-        let got_a = run_handshake(&did_a, &sk_a, "ep-a", "server", "ep-a").await.unwrap();
-        let got_b = run_handshake(&did_b, &sk_b, "ep-b", "server", "ep-b").await.unwrap();
+        let got_a = run_handshake(&did_a, &sk_a, "ep-a", "server", "ep-a")
+            .await
+            .unwrap();
+        let got_b = run_handshake(&did_b, &sk_b, "ep-b", "server", "ep-b")
+            .await
+            .unwrap();
         assert_eq!(got_a, did_a);
         assert_eq!(got_b, did_b);
         assert_ne!(got_a, got_b);

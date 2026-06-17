@@ -38,9 +38,11 @@ pub fn load_admin_identity(
         .to_string();
     let ucan_params = vec![serde_json::Value::String(space_id.to_string())];
 
-    let ucan_rows = crate::database::core::select_with_crdt(ucan_sql, ucan_params, db)
-        .map_err(|e| DeliveryError::Database {
-            reason: format!("Failed to query UCAN tokens: {}", e),
+    let ucan_rows =
+        crate::database::core::select_with_crdt(ucan_sql, ucan_params, db).map_err(|e| {
+            DeliveryError::Database {
+                reason: format!("Failed to query UCAN tokens: {}", e),
+            }
         })?;
 
     let ucan_row = ucan_rows.first().ok_or_else(|| DeliveryError::Database {
@@ -71,12 +73,10 @@ pub fn load_admin_identity(
         .to_string();
     let identity_params = vec![serde_json::Value::String(issuer_did.clone())];
 
-    let identity_rows =
-        crate::database::core::select_with_crdt(identity_sql, identity_params, db).map_err(
-            |e| DeliveryError::Database {
-                reason: format!("Failed to query identities: {}", e),
-            },
-        )?;
+    let identity_rows = crate::database::core::select_with_crdt(identity_sql, identity_params, db)
+        .map_err(|e| DeliveryError::Database {
+            reason: format!("Failed to query identities: {}", e),
+        })?;
 
     let identity_row = identity_rows
         .first()
@@ -185,11 +185,7 @@ pub fn is_active_space_member(
 /// the outgoing batch. Read-only members must never attempt to push that table:
 /// the leader rejects the entire batch when it sees any non-membership-system
 /// row, which leaves the push cursor at t=0 and blocks membership-data uploads.
-pub fn has_write_capability(
-    db: &DbConnection,
-    space_id: &str,
-    audience_did: &str,
-) -> bool {
+pub fn has_write_capability(db: &DbConnection, space_id: &str, audience_did: &str) -> bool {
     let sql = "SELECT capability FROM haex_ucan_tokens \
                WHERE space_id = ?1 AND audience_did = ?2 \
                ORDER BY issued_at DESC LIMIT 1"

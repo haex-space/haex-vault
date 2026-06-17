@@ -5,7 +5,10 @@ use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::AppState;
 
-use super::{LogEntry, LogLevel, LogQueryParams, count_logs, get_effective_log_level, insert_log, query_logs, cleanup_logs};
+use super::{
+    cleanup_logs, count_logs, get_effective_log_level, insert_log, query_logs, LogEntry, LogLevel,
+    LogQueryParams,
+};
 
 /// Write a system log entry.
 #[tauri::command]
@@ -17,8 +20,9 @@ pub fn log_write_system(
     metadata: Option<JsonValue>,
     device_id: String,
 ) -> Result<(), DatabaseError> {
-    let log_level = LogLevel::from_str(&level)
-        .ok_or_else(|| DatabaseError::ValidationError { reason: format!("Invalid log level: {level}") })?;
+    let log_level = LogLevel::from_str(&level).ok_or_else(|| DatabaseError::ValidationError {
+        reason: format!("Invalid log level: {level}"),
+    })?;
 
     let should_log = with_connection(&state.db, |conn| {
         Ok(log_level >= get_effective_log_level(conn, None))
@@ -28,7 +32,9 @@ pub fn log_write_system(
         return Ok(());
     }
 
-    insert_log(&state, &level, &source, None, &message, metadata, &device_id)
+    insert_log(
+        &state, &level, &source, None, &message, metadata, &device_id,
+    )
 }
 
 /// Read logs (system has full access to all logs).
@@ -42,27 +48,19 @@ pub fn log_read(
 
 /// Count logs matching the given filters. Used by paginated UIs.
 #[tauri::command]
-pub fn log_count(
-    state: State<'_, AppState>,
-    query: LogQueryParams,
-) -> Result<i64, DatabaseError> {
+pub fn log_count(state: State<'_, AppState>, query: LogQueryParams) -> Result<i64, DatabaseError> {
     count_logs(&state.db, &query)
 }
 
 /// Clean up old log entries based on retention settings.
 #[tauri::command]
-pub fn log_cleanup(
-    state: State<'_, AppState>,
-) -> Result<usize, DatabaseError> {
+pub fn log_cleanup(state: State<'_, AppState>) -> Result<usize, DatabaseError> {
     cleanup_logs(&state)
 }
 
 /// Delete specific log entries by ID.
 #[tauri::command]
-pub fn log_delete(
-    state: State<'_, AppState>,
-    ids: Vec<String>,
-) -> Result<usize, DatabaseError> {
+pub fn log_delete(state: State<'_, AppState>, ids: Vec<String>) -> Result<usize, DatabaseError> {
     if ids.is_empty() {
         return Ok(0);
     }
@@ -76,7 +74,10 @@ pub fn log_delete(
 
     let mut total_deleted = 0;
     for id in &ids {
-        let sql = format!("DELETE FROM {} WHERE id = ?1", crate::table_names::TABLE_LOGS);
+        let sql = format!(
+            "DELETE FROM {} WHERE id = ?1",
+            crate::table_names::TABLE_LOGS
+        );
         crate::database::core::execute_with_crdt(
             sql,
             vec![JsonValue::String(id.clone())],
@@ -90,9 +91,7 @@ pub fn log_delete(
 
 /// Delete all log entries.
 #[tauri::command]
-pub fn log_clear_all(
-    state: State<'_, AppState>,
-) -> Result<usize, DatabaseError> {
+pub fn log_clear_all(state: State<'_, AppState>) -> Result<usize, DatabaseError> {
     let hlc = state.lock_or_fail(
         &state.hlc,
         crate::critical::CriticalFailureCode::HlcMutexPoisoned,
@@ -102,16 +101,26 @@ pub fn log_clear_all(
 
     let ids: Vec<String> = with_connection(&state.db, |conn| {
         let sql = format!("SELECT id FROM {}", crate::table_names::TABLE_LOGS);
-        let mut stmt = conn.prepare(&sql).map_err(|e| DatabaseError::QueryError { reason: e.to_string() })?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))
-            .map_err(|e| DatabaseError::QueryError { reason: e.to_string() })?;
+        let mut stmt = conn.prepare(&sql).map_err(|e| DatabaseError::QueryError {
+            reason: e.to_string(),
+        })?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| DatabaseError::QueryError {
+                reason: e.to_string(),
+            })?;
         rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| DatabaseError::QueryError { reason: e.to_string() })
+            .map_err(|e| DatabaseError::QueryError {
+                reason: e.to_string(),
+            })
     })?;
 
     let count = ids.len();
     for id in ids {
-        let sql = format!("DELETE FROM {} WHERE id = ?1", crate::table_names::TABLE_LOGS);
+        let sql = format!(
+            "DELETE FROM {} WHERE id = ?1",
+            crate::table_names::TABLE_LOGS
+        );
         crate::database::core::execute_with_crdt(
             sql,
             vec![JsonValue::String(id)],
