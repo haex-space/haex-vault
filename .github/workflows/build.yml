@@ -239,6 +239,26 @@ jobs:
       - name: Run TypeScript tests
         run: pnpm test
 
+  # Rust formatting gate — fast, independent of the build.
+  fmt:
+    needs: check-skip
+    if: needs.check-skip.outputs.should_skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cd src-tauri && cargo fmt --check
+
   # Desktop E2E tests (run after desktop build, independent of Android)
   e2e-tests:
     needs: [test, check-skip, build-desktop]
@@ -795,7 +815,7 @@ jobs:
   # E2E is skipped only for confirmed patch/minor Dependabot updates.
   ci-success:
     name: CI Success
-    needs: [check-skip, test, build-desktop, build-android, e2e-tests, e2e-tests-android]
+    needs: [check-skip, fmt, test, build-desktop, build-android, e2e-tests, e2e-tests-android]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -805,6 +825,7 @@ jobs:
           SKIP_E2E: ${{ needs.check-skip.outputs.skip_e2e }}
           IS_DEPENDABOT: ${{ needs.check-skip.outputs.is_dependabot }}
           DEP_TYPE: ${{ needs.check-skip.outputs.dep_update_type }}
+          FMT: ${{ needs.fmt.result }}
           TEST: ${{ needs.test.result }}
           BUILD_DESKTOP: ${{ needs.build-desktop.result }}
           BUILD_ANDROID: ${{ needs.build-android.result }}
@@ -817,7 +838,7 @@ jobs:
           fi
 
           echo "Context: is_dependabot=$IS_DEPENDABOT dep_type='$DEP_TYPE' skip_e2e=$SKIP_E2E"
-          echo "Results: test=$TEST build-desktop=$BUILD_DESKTOP build-android=$BUILD_ANDROID e2e=$E2E_DESKTOP e2e-android=$E2E_ANDROID"
+          echo "Results: fmt=$FMT test=$TEST build-desktop=$BUILD_DESKTOP build-android=$BUILD_ANDROID e2e=$E2E_DESKTOP e2e-android=$E2E_ANDROID"
 
           fail=0
           require() {
@@ -829,6 +850,7 @@ jobs:
           }
 
           # Pragmatic gate: always required
+          require "fmt" "$FMT"
           require "test" "$TEST"
           require "build-desktop" "$BUILD_DESKTOP"
           require "build-android" "$BUILD_ANDROID"
