@@ -346,6 +346,40 @@ impl FromStr for MailAction {
     }
 }
 
+/// Aktionen auf dem generischen Notifications-Modul.
+///
+/// Aktuell nur `Show` (OS-Notification anzeigen). `target` ist immer "*" —
+/// Notifications sind nicht ressourcen-gescoped; die Identität wird über den
+/// Public Key der aufrufenden Extension gepinnt (siehe `extension::notifications`).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum NotificationsAction {
+    Show,
+}
+
+impl NotificationsAction {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NotificationsAction::Show => "show",
+        }
+    }
+}
+
+impl FromStr for NotificationsAction {
+    type Err = ExtensionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "show" => Ok(NotificationsAction::Show),
+            _ => Err(ExtensionError::InvalidActionString {
+                input: s.to_string(),
+                resource_type: "notifications".to_string(),
+            }),
+        }
+    }
+}
+
 /// Aktionen auf dem Core-Passworttresor.
 ///
 /// Scope wird über `ExtensionPermission.target` als Tag-Filter gesteuert
@@ -414,6 +448,7 @@ pub enum Action {
     Identities(IdentityAction),
     Passwords(PasswordsAction),
     Mail(MailAction),
+    Notifications(NotificationsAction),
 }
 
 /// Die interne Repräsentation einer einzelnen, gewährten Berechtigung.
@@ -444,6 +479,7 @@ pub enum ResourceType {
     Identities,
     Passwords,
     Mail,
+    Notifications,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, TS)]
@@ -530,6 +566,7 @@ impl ResourceType {
             ResourceType::Identities => "identities",
             ResourceType::Passwords => "passwords",
             ResourceType::Mail => "mail",
+            ResourceType::Notifications => "notifications",
         }
     }
 
@@ -544,6 +581,7 @@ impl ResourceType {
             "identities" => Ok(ResourceType::Identities),
             "passwords" => Ok(ResourceType::Passwords),
             "mail" => Ok(ResourceType::Mail),
+            "notifications" => Ok(ResourceType::Notifications),
             _ => Err(ExtensionError::ValidationError {
                 reason: format!("Unknown resource type: {s}"),
             }),
@@ -590,6 +628,10 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
+            Action::Notifications(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
         }
     }
 
@@ -613,6 +655,9 @@ impl Action {
             ResourceType::Identities => Ok(Action::Identities(IdentityAction::from_str(s)?)),
             ResourceType::Passwords => Ok(Action::Passwords(PasswordsAction::from_str(s)?)),
             ResourceType::Mail => Ok(Action::Mail(MailAction::from_str(s)?)),
+            ResourceType::Notifications => {
+                Ok(Action::Notifications(NotificationsAction::from_str(s)?))
+            }
         }
     }
 }

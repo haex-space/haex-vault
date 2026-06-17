@@ -5,8 +5,9 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, MailAction, PasswordsAction,
-    PasswordsScope, PermissionConstraints, PermissionStatus, ResourceType, SpaceAction,
+    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, MailAction, NotificationsAction,
+    PasswordsAction, PasswordsScope, PermissionConstraints, PermissionStatus, ResourceType,
+    SpaceAction,
 };
 use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
 use crate::AppState;
@@ -1155,6 +1156,81 @@ impl PermissionManager {
             action.as_str(),
             host,
         ))
+    }
+
+    /// Prüft die generische Notifications-Berechtigung (`notifications.show`).
+    ///
+    /// Notifications sind nicht ressourcen-gescoped, daher ist `target` immer
+    /// "*". Analog zu `check_spaces_permission`: Granted → Ok, Denied → Fehler,
+    /// Ask/keine Permission → Prompt (Session-Grants haben Vorrang).
+    pub async fn check_notifications_permission(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        action: NotificationsAction,
+    ) -> Result<(), ExtensionError> {
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
+        let permissions = Self::get_permissions(app_state, extension_id).await?;
+
+        let action_matches = |perm_action: &Action| -> bool {
+            matches!(perm_action, Action::Notifications(a) if *a == action)
+        };
+
+        let matching_permission = permissions.iter().find(|perm| {
+            perm.resource_type == ResourceType::Notifications && action_matches(&perm.action)
+        });
+
+        match matching_permission {
+            Some(perm) => match perm.status {
+                PermissionStatus::Granted => Ok(()),
+                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
+                    extension_id,
+                    action.as_str(),
+                    "notifications:*",
+                )),
+                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "notifications",
+                    action.as_str(),
+                    "*",
+                )),
+            },
+            None => {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    ResourceType::Notifications,
+                    "*",
+                ) {
+                    return Ok(());
+                }
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    ResourceType::Notifications,
+                    "*",
+                ) {
+                    return Err(ExtensionError::permission_denied(
+                        extension_id,
+                        action.as_str(),
+                        "notifications:*",
+                    ));
+                }
+
+                Err(ExtensionError::permission_prompt_required(
+                    extension_id,
+                    &extension.manifest.name,
+                    "notifications",
+                    action.as_str(),
+                    "*",
+                ))
+            }
+        }
     }
 
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben

@@ -243,6 +243,7 @@ pub async fn resolve_permission_prompt(
         "identities" => ResourceType::Identities,
         "passwords" => ResourceType::Passwords,
         "mail" => ResourceType::Mail,
+        "notifications" => ResourceType::Notifications,
         _ => {
             return Err(ExtensionError::ValidationError {
                 reason: format!("Invalid resource type: {}", resource_type),
@@ -323,6 +324,17 @@ pub async fn resolve_permission_prompt(
                 }
             };
             Action::Mail(mail_action)
+        }
+        ResourceType::Notifications => {
+            let notifications_action = match action.to_lowercase().as_str() {
+                "show" => crate::extension::permissions::types::NotificationsAction::Show,
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!("Invalid notifications action: {action} (expected 'show')"),
+                    })
+                }
+            };
+            Action::Notifications(notifications_action)
         }
     };
 

@@ -365,6 +365,7 @@ fn test_permission_checker_cross_extension() {
                 identities: None,
                 passwords: None,
                 mail: None,
+                notifications: None,
             },
             homepage: None,
             description: None,
