@@ -251,7 +251,7 @@ async fn handle_connection(
         return Ok(());
     }
 
-    let (start, mut end, mut status, mut status_text) = if let Some(spec) = range_header {
+    let (start, end, status, status_text) = if let Some(spec) = range_header {
         match parse_range(&spec, total) {
             Some((s, e)) => (s, e, 206u16, "Partial Content"),
             None => {
@@ -264,21 +264,13 @@ async fn handle_connection(
         (0, total - 1, 200u16, "OK")
     };
 
-    // Cap responses from `Stream` sources so a `bytes=0-` against a multi-
-    // GiB media file does not allocate the entire object into a single
-    // `Vec<u8>`. Local files use a lazy seek+chunk-read loop, so no cap
-    // there. A browser receiving a smaller-than-requested 206 just sends
-    // the next range — standard HTTP behaviour.
-    const STREAM_RANGE_CAP_BYTES: u64 = 8 * 1024 * 1024;
-    if matches!(media_source, MediaSource::Stream { .. }) {
-        let capped_end = start + STREAM_RANGE_CAP_BYTES - 1;
-        if capped_end < end {
-            end = capped_end;
-            status = 206;
-            status_text = "Partial Content";
-        }
-    }
-
+    // The response always advertises the *real* requested span — no capping.
+    // An earlier 8 MiB cap on `Stream` sources shrank Content-Length, which
+    // made WebKit's media source adopt 8 MiB as the whole file size: forward
+    // seeks then resolved to a byte offset past the perceived end and the
+    // player jumped straight to EOS. Memory stays flat regardless of span
+    // because the body is streamed in bounded sub-chunks (see
+    // `stream_source_chunks` / `stream_local_chunks`).
     let content_length = end - start + 1;
 
     // Response header. CORS open — these URLs only resolve inside the
@@ -313,18 +305,7 @@ async fn handle_connection(
             stream_local_chunks(&mut stream, file, start, content_length).await
         }
         MediaSource::Stream { source, .. } => {
-            let range = match ByteRange::new(start, end) {
-                Ok(r) => r,
-                Err(_) => return Ok(()), // headers already sent; bail
-            };
-            let bytes = match source.read_range(range).await {
-                Ok(b) => b,
-                // Headers are already on the wire — we can't switch status
-                // codes now. Drop the connection; the client will see a
-                // truncated body, which is the best signal available.
-                Err(_) => return Ok(()),
-            };
-            write_body_chunks(&mut stream, &bytes).await
+            stream_source_chunks(&mut stream, source.as_ref(), start, end).await
         }
     }
 }
@@ -363,9 +344,51 @@ async fn stream_local_chunks(
     Ok(())
 }
 
-/// Write an in-memory buffer to the TCP stream in 64 KiB chunks,
-/// swallowing the broken-pipe family (client disconnected).
-async fn write_body_chunks(stream: &mut TcpStream, bytes: &[u8]) -> std::io::Result<()> {
+/// Stream a byte range from a virtual [`StreamingSource`] in bounded
+/// sub-chunks so peak memory stays flat no matter how large the requested
+/// span is — the on-disk equivalent is [`stream_local_chunks`]. The response
+/// headers already advertise the real total size, so the player can seek to
+/// any offset; we just feed it the bytes in pieces here.
+async fn stream_source_chunks(
+    stream: &mut TcpStream,
+    source: &dyn StreamingSource,
+    start: u64,
+    end: u64,
+) -> std::io::Result<()> {
+    const STREAM_CHUNK_BYTES: u64 = 8 * 1024 * 1024;
+    let mut pos = start;
+    while pos <= end {
+        let chunk_end = (pos + STREAM_CHUNK_BYTES - 1).min(end);
+        let range = match ByteRange::new(pos, chunk_end) {
+            Ok(r) => r,
+            Err(_) => return Ok(()),
+        };
+        // Headers are already on the wire — on a read error we can't switch
+        // status codes, so drop the connection (truncated body is the best
+        // signal left).
+        let bytes = match source.read_range(range).await {
+            Ok(b) => b,
+            Err(_) => return Ok(()),
+        };
+        if bytes.is_empty() {
+            break;
+        }
+        let advanced = bytes.len() as u64;
+        // Stop pulling once the client has gone away (e.g. it seeked and
+        // dropped this request) — otherwise we'd keep fetching from S3/peer
+        // for a socket nobody is reading.
+        if !write_body_chunks(stream, &bytes).await? {
+            return Ok(());
+        }
+        pos += advanced;
+    }
+    Ok(())
+}
+
+/// Write an in-memory buffer to the TCP stream in 64 KiB chunks. Returns
+/// `Ok(false)` if the client disconnected mid-write (broken-pipe family) so
+/// the caller can stop fetching; `Ok(true)` once all bytes are flushed.
+async fn write_body_chunks(stream: &mut TcpStream, bytes: &[u8]) -> std::io::Result<bool> {
     for chunk in bytes.chunks(64 * 1024) {
         if let Err(e) = stream.write_all(chunk).await {
             if matches!(
@@ -374,12 +397,12 @@ async fn write_body_chunks(stream: &mut TcpStream, bytes: &[u8]) -> std::io::Res
                     | std::io::ErrorKind::ConnectionReset
                     | std::io::ErrorKind::ConnectionAborted,
             ) {
-                return Ok(());
+                return Ok(false);
             }
             return Err(e);
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 fn parse_range(spec: &str, total: u64) -> Option<(u64, u64)> {
