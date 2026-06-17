@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.1](https://github.com/haex-space/haex-vault/compare/v2.9.0...v2.9.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* **peer-storage:** serve chunk hashes for Android Content-URI stat ([#468](https://github.com/haex-space/haex-vault/issues/468)) ([4b48784](https://github.com/haex-space/haex-vault/commit/4b48784a0fc1b9a1e09ed567f6154ff0896e7647))
+
 ## [2.9.0](https://github.com/haex-space/haex-vault/compare/v2.8.0...v2.9.0) (2026-06-17)
 
 
