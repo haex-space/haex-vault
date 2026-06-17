@@ -956,6 +956,12 @@ const onPreviewOpenChange = (open: boolean) => {
   }
 }
 
+// Safety net: if this view unmounts while still maximized (e.g. navigating
+// away without closing the modal), the OS window would stay fullscreen.
+onBeforeUnmount(() => {
+  if (isPreviewMaximized.value) void setPreviewMaximized(false)
+})
+
 const isUploading = ref(false)
 const isCreatingFolder = ref(false)
 const newFolderOpen = ref(false)

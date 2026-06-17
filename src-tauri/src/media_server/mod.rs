@@ -358,7 +358,7 @@ async fn stream_source_chunks(
     const STREAM_CHUNK_BYTES: u64 = 8 * 1024 * 1024;
     let mut pos = start;
     while pos <= end {
-        let chunk_end = (pos + STREAM_CHUNK_BYTES - 1).min(end);
+        let chunk_end = pos.saturating_add(STREAM_CHUNK_BYTES - 1).min(end);
         let range = match ByteRange::new(pos, chunk_end) {
             Ok(r) => r,
             Err(_) => return Ok(()),
