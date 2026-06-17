@@ -14,10 +14,10 @@ use std::collections::{HashMap, HashSet};
 use tokio::time::{sleep, Duration};
 
 use ed25519_dalek::SigningKey;
-use iroh::Endpoint;
 use haex_vault_lib::peer_storage::endpoint::{OwnIdentity, PeerEndpoint};
 use haex_vault_lib::peer_storage::protocol::ALPN;
 use haex_vault_lib::quic_did_auth;
+use iroh::Endpoint;
 
 const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
 
@@ -67,23 +67,18 @@ async fn raw_list(
     server_addr: iroh::EndpointAddr,
     client_identity: &OwnIdentity,
 ) -> Result<String, String> {
-    let conn = tokio::time::timeout(
-        Duration::from_secs(5),
-        client_ep.connect(server_addr, ALPN),
-    )
-    .await
-    .map_err(|_| "connect timeout".to_string())?
-    .map_err(|e| format!("connect error: {e}"))?;
+    let conn = tokio::time::timeout(Duration::from_secs(5), client_ep.connect(server_addr, ALPN))
+        .await
+        .map_err(|_| "connect timeout".to_string())?
+        .map_err(|e| format!("connect error: {e}"))?;
 
     // Phase 1: server-initiated DID-auth handshake (server opens the
     // bidirectional auth stream, client accepts and signs the response).
-    let (mut auth_send, mut auth_recv) = tokio::time::timeout(
-        Duration::from_secs(5),
-        conn.accept_bi(),
-    )
-    .await
-    .map_err(|_| "auth accept_bi timeout".to_string())?
-    .map_err(|e| format!("auth accept_bi error: {e}"))?;
+    let (mut auth_send, mut auth_recv) =
+        tokio::time::timeout(Duration::from_secs(5), conn.accept_bi())
+            .await
+            .map_err(|_| "auth accept_bi timeout".to_string())?
+            .map_err(|e| format!("auth accept_bi error: {e}"))?;
 
     quic_did_auth::respond_to_challenge(
         &mut auth_send,
@@ -109,8 +104,7 @@ async fn raw_list(
     send.write_all(&request)
         .await
         .map_err(|e| format!("write error: {e}"))?;
-    send.finish()
-        .map_err(|e| format!("finish error: {e}"))?;
+    send.finish().map_err(|e| format!("finish error: {e}"))?;
 
     let response = recv
         .read_to_end(1024 * 1024)
@@ -131,10 +125,14 @@ async fn allowed_peer_can_connect() {
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("test.txt"), b"hello").unwrap();
 
-    server.add_share(
-        "s1".to_string(), "Test".to_string(),
-        tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
-    ).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Test".to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            "space-1".to_string(),
+        )
+        .await;
 
     // Allow client + mirror the DB-side `(endpoint_id -> owner_did)`
     // expectation that handle_connection cross-checks against the
@@ -145,14 +143,21 @@ async fn allowed_peer_can_connect() {
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();
-    owner_dids.insert(client.endpoint_id().to_string(), client_identity.did.clone());
+    owner_dids.insert(
+        client.endpoint_id().to_string(),
+        client_identity.did.clone(),
+    );
     server.set_peer_owner_dids(owner_dids).await;
 
     // Connect and send LIST
     let client_ep = client.endpoint_ref().unwrap().clone();
     let result = raw_list(&client_ep, server_addr, &client_identity).await;
 
-    assert!(result.is_ok(), "allowed peer should get a response, got: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "allowed peer should get a response, got: {:?}",
+        result
+    );
 
     let _ = client.stop().await;
     let _ = server.stop().await;
@@ -165,10 +170,14 @@ async fn unknown_peer_is_rejected() {
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("secret.txt"), b"secret").unwrap();
 
-    server.add_share(
-        "s1".to_string(), "Secrets".to_string(),
-        tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
-    ).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Secrets".to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            "space-1".to_string(),
+        )
+        .await;
 
     // No peers allowed — the server's accept loop closes the connection
     // before the auth handshake even starts.
@@ -177,7 +186,11 @@ async fn unknown_peer_is_rejected() {
     let attacker_ep = attacker.endpoint_ref().unwrap().clone();
     let result = raw_list(&attacker_ep, server_addr, &attacker_identity).await;
 
-    assert!(result.is_err(), "unknown peer must be rejected, got: {:?}", result);
+    assert!(
+        result.is_err(),
+        "unknown peer must be rejected, got: {:?}",
+        result
+    );
 
     let _ = attacker.stop().await;
     let _ = server.stop().await;
@@ -190,10 +203,14 @@ async fn access_revoked_mid_session() {
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("data.txt"), b"secret").unwrap();
 
-    server.add_share(
-        "s1".to_string(), "Data".to_string(),
-        tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
-    ).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Data".to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            "space-1".to_string(),
+        )
+        .await;
 
     // Allow client + matching owner_did expectation.
     let mut allowed = HashMap::new();
@@ -202,7 +219,10 @@ async fn access_revoked_mid_session() {
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();
-    owner_dids.insert(client.endpoint_id().to_string(), client_identity.did.clone());
+    owner_dids.insert(
+        client.endpoint_id().to_string(),
+        client_identity.did.clone(),
+    );
     server.set_peer_owner_dids(owner_dids).await;
 
     let client_ep = client.endpoint_ref().unwrap().clone();
@@ -218,7 +238,11 @@ async fn access_revoked_mid_session() {
 
     // Second request should fail
     let result = raw_list(&client_ep, server_addr, &client_identity).await;
-    assert!(result.is_err(), "should fail after revocation, got: {:?}", result);
+    assert!(
+        result.is_err(),
+        "should fail after revocation, got: {:?}",
+        result
+    );
 
     let _ = client.stop().await;
     let _ = server.stop().await;
@@ -245,10 +269,14 @@ async fn partial_revoke_only_blocks_target() {
     let tmp = tempfile::TempDir::new().unwrap();
     std::fs::write(tmp.path().join("file.txt"), b"content").unwrap();
 
-    server.add_share(
-        "s1".to_string(), "Files".to_string(),
-        tmp.path().to_string_lossy().to_string(), "space-1".to_string(),
-    ).await;
+    server
+        .add_share(
+            "s1".to_string(),
+            "Files".to_string(),
+            tmp.path().to_string_lossy().to_string(),
+            "space-1".to_string(),
+        )
+        .await;
 
     // Allow both + matching owner_did expectations.
     let mut allowed = HashMap::new();
@@ -266,8 +294,12 @@ async fn partial_revoke_only_blocks_target() {
     let evil_ep = evil.endpoint_ref().unwrap().clone();
 
     // Both succeed
-    assert!(raw_list(&good_ep, server_addr.clone(), &good_identity).await.is_ok());
-    assert!(raw_list(&evil_ep, server_addr.clone(), &evil_identity).await.is_ok());
+    assert!(raw_list(&good_ep, server_addr.clone(), &good_identity)
+        .await
+        .is_ok());
+    assert!(raw_list(&evil_ep, server_addr.clone(), &evil_identity)
+        .await
+        .is_ok());
 
     // Revoke only evil — drop from both maps in lock-step.
     let mut new_allowed = HashMap::new();

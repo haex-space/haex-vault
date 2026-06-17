@@ -12,15 +12,15 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{Manager, State};
 use tauri::ipc::Channel;
+use tauri::{Manager, State};
 
 use crate::critical::CriticalFailureCode;
-use crate::AppState;
 use crate::database::DbConnection;
 use crate::peer_storage::endpoint::is_content_uri;
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::FileEntry;
+use crate::AppState;
 
 // ============================================================================
 // Channel message types
@@ -40,9 +40,7 @@ pub enum TransferEvent {
         total_bytes: u64,
     },
     #[serde(rename_all = "camelCase")]
-    Error {
-        error: String,
-    },
+    Error { error: String },
 }
 
 // ============================================================================
@@ -55,19 +53,42 @@ fn load_shares_from_db(
     state: &AppState,
     endpoint_id: &str,
 ) -> Result<Vec<(String, String, String, String)>, PeerStorageError> {
-    let sql = "SELECT id, name, local_path, space_id FROM haex_peer_shares WHERE endpoint_id = ?1".to_string();
+    let sql = "SELECT id, name, local_path, space_id FROM haex_peer_shares WHERE endpoint_id = ?1"
+        .to_string();
     let params = vec![serde_json::Value::String(endpoint_id.to_string())];
 
-    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
-        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db).map_err(|e| {
+        PeerStorageError::Database {
+            reason: e.to_string(),
+        }
+    })?;
 
-    let shares = rows.iter().map(|row| {
-        let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let name = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let path = row.get(2).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let space_id = row.get(3).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        (id, name, path, space_id)
-    }).collect();
+    let shares = rows
+        .iter()
+        .map(|row| {
+            let id = row
+                .get(0)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let name = row
+                .get(1)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let path = row
+                .get(2)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let space_id = row
+                .get(3)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            (id, name, path, space_id)
+        })
+        .collect();
 
     Ok(shares)
 }
@@ -88,8 +109,11 @@ fn load_own_identity_for_device(
         .to_string();
     let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
 
-    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
-        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db).map_err(|e| {
+        PeerStorageError::Database {
+            reason: e.to_string(),
+        }
+    })?;
 
     let row = rows.first().ok_or_else(|| PeerStorageError::Database {
         reason: format!("no haex_devices row for endpoint_id {own_endpoint_id}"),
@@ -111,9 +135,11 @@ fn load_own_identity_for_device(
         })?
         .to_string();
 
-    let signing_key = crate::ucan::signing_key_from_pkcs8_base64(&private_key_b64)
-        .map_err(|e| PeerStorageError::Database {
-            reason: format!("decoding identity private_key for {did}: {e}"),
+    let signing_key =
+        crate::ucan::signing_key_from_pkcs8_base64(&private_key_b64).map_err(|e| {
+            PeerStorageError::Database {
+                reason: format!("decoding identity private_key for {did}: {e}"),
+            }
         })?;
 
     // Refuse to load a (did, private_key) pair whose halves don't match:
@@ -157,8 +183,11 @@ fn load_peer_owner_dids(
         .to_string();
     let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
 
-    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
-        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db).map_err(|e| {
+        PeerStorageError::Database {
+            reason: e.to_string(),
+        }
+    })?;
 
     // Two passes: first gather every distinct (endpoint_id, owner_did)
     // pair, then accept only endpoint_ids that map to exactly one DID.
@@ -168,8 +197,16 @@ fn load_peer_owner_dids(
     use std::collections::HashSet as StdHashSet;
     let mut candidates: HashMap<String, StdHashSet<String>> = HashMap::new();
     for row in &rows {
-        let endpoint_id = row.first().and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let owner_did = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let endpoint_id = row
+            .first()
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let owner_did = row
+            .get(1)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
         if endpoint_id.is_empty() || owner_did.is_empty() {
             continue;
         }
@@ -206,16 +243,28 @@ fn load_allowed_peers_from_db(
     state: &AppState,
     own_endpoint_id: &str,
 ) -> Result<HashMap<String, HashSet<String>>, PeerStorageError> {
-    let sql = "SELECT endpoint_id, space_id FROM haex_space_devices WHERE endpoint_id != ?1".to_string();
+    let sql =
+        "SELECT endpoint_id, space_id FROM haex_space_devices WHERE endpoint_id != ?1".to_string();
     let params = vec![serde_json::Value::String(own_endpoint_id.to_string())];
 
-    let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
-        .map_err(|e| PeerStorageError::Database { reason: e.to_string() })?;
+    let rows = crate::database::core::select_with_crdt(sql, params, &state.db).map_err(|e| {
+        PeerStorageError::Database {
+            reason: e.to_string(),
+        }
+    })?;
 
     let mut allowed: HashMap<String, HashSet<String>> = HashMap::new();
     for row in &rows {
-        let endpoint_id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let space_id = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let endpoint_id = row
+            .get(0)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let space_id = row
+            .get(1)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
         allowed.entry(endpoint_id).or_default().insert(space_id);
     }
 
@@ -261,12 +310,26 @@ async fn reload_state_from_db(
         if is_content_uri(local_path) {
             // Android Content URI — cannot validate with std::fs, always load.
             // The android_fs plugin handles validation when actually serving files.
-            endpoint.add_share(id.clone(), name.clone(), local_path.clone(), space_id.clone()).await;
+            endpoint
+                .add_share(
+                    id.clone(),
+                    name.clone(),
+                    local_path.clone(),
+                    space_id.clone(),
+                )
+                .await;
             loaded += 1;
         } else {
             let path = PathBuf::from(local_path);
             if path.exists() && path.is_dir() {
-                endpoint.add_share(id.clone(), name.clone(), local_path.clone(), space_id.clone()).await;
+                endpoint
+                    .add_share(
+                        id.clone(),
+                        name.clone(),
+                        local_path.clone(),
+                        space_id.clone(),
+                    )
+                    .await;
                 loaded += 1;
             } else {
                 eprintln!(
@@ -280,7 +343,10 @@ async fn reload_state_from_db(
     endpoint.set_allowed_peers(allowed_peers).await;
     endpoint.set_peer_owner_dids(peer_owner_dids).await;
 
-    eprintln!("[PeerStorage] Loaded {loaded}/{} shares from DB", shares.len());
+    eprintln!(
+        "[PeerStorage] Loaded {loaded}/{} shares from DB",
+        shares.len()
+    );
     Ok(loaded)
 }
 
@@ -344,9 +410,9 @@ pub async fn peer_storage_start(
                     app_handle: app.clone(),
                     own_endpoint_id: own_endpoint_id.clone(),
                     own_identity: std::sync::Arc::new(std::sync::Mutex::new(None)),
-                    endpoint_dids: std::sync::Arc::new(
-                        tokio::sync::RwLock::new(std::collections::HashMap::new()),
-                    ),
+                    endpoint_dids: std::sync::Arc::new(tokio::sync::RwLock::new(
+                        std::collections::HashMap::new(),
+                    )),
                 },
             );
             // Mirror the same device identity onto the delivery handler so
@@ -367,7 +433,12 @@ pub async fn peer_storage_start(
     // Wait briefly for relay connection so we can advertise our relay URL to peers
     let relay_url = if let Some(ep) = iroh_ep {
         match tokio::time::timeout(std::time::Duration::from_secs(5), ep.online()).await {
-            Ok(()) => ep.addr().relay_urls().next().cloned().map(|u| u.to_string()),
+            Ok(()) => ep
+                .addr()
+                .relay_urls()
+                .next()
+                .cloned()
+                .map(|u| u.to_string()),
             Err(_) => None,
         }
     } else {
@@ -382,9 +453,7 @@ pub async fn peer_storage_start(
 
 /// Stop the peer storage endpoint
 #[tauri::command]
-pub async fn peer_storage_stop(
-    state: State<'_, AppState>,
-) -> Result<(), PeerStorageError> {
+pub async fn peer_storage_stop(state: State<'_, AppState>) -> Result<(), PeerStorageError> {
     let mut endpoint = state.peer_storage.write().await;
     endpoint.stop().await
 }
@@ -423,11 +492,12 @@ pub async fn peer_storage_diagnose_connection(
     state: State<'_, AppState>,
     node_id: String,
 ) -> Result<Option<crate::peer_storage::endpoint::ConnectionDiagnostics>, PeerStorageError> {
-    let remote_id: iroh::EndpointId = node_id
-        .parse()
-        .map_err(|e| PeerStorageError::ConnectionFailed {
-            reason: format!("Invalid EndpointId: {e}"),
-        })?;
+    let remote_id: iroh::EndpointId =
+        node_id
+            .parse()
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("Invalid EndpointId: {e}"),
+            })?;
 
     let endpoint = state.peer_storage.read().await;
     Ok(endpoint.diagnose_connection(remote_id))
@@ -446,16 +516,19 @@ pub async fn peer_storage_remote_list(
     path: String,
     ucan_token: String,
 ) -> Result<Vec<FileEntry>, PeerStorageError> {
-    let remote_id: iroh::EndpointId = node_id
-        .parse()
-        .map_err(|e| PeerStorageError::ConnectionFailed {
-            reason: format!("Invalid EndpointId: {e}"),
-        })?;
+    let remote_id: iroh::EndpointId =
+        node_id
+            .parse()
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("Invalid EndpointId: {e}"),
+            })?;
 
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
     let endpoint = state.peer_storage.read().await;
-    endpoint.remote_list(remote_id, parsed_relay, &path, &ucan_token).await
+    endpoint
+        .remote_list(remote_id, parsed_relay, &path, &ucan_token)
+        .await
 }
 
 /// Download a file from a remote peer directly to disk.
@@ -479,11 +552,12 @@ pub async fn peer_storage_remote_read(
     ucan_token: String,
     on_event: Channel<TransferEvent>,
 ) -> Result<String, PeerStorageError> {
-    let remote_id: iroh::EndpointId = node_id
-        .parse()
-        .map_err(|e| PeerStorageError::ConnectionFailed {
-            reason: format!("Invalid EndpointId: {e}"),
-        })?;
+    let remote_id: iroh::EndpointId =
+        node_id
+            .parse()
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("Invalid EndpointId: {e}"),
+            })?;
 
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
@@ -537,9 +611,7 @@ pub async fn peer_storage_remote_read(
             name,
             space_id.as_deref().unwrap_or("default"),
         ),
-        (None, Some(id)) => {
-            crate::peer_storage::downloads::sanitize_folder_segment(id, "default")
-        }
+        (None, Some(id)) => crate::peer_storage::downloads::sanitize_folder_segment(id, "default"),
         (None, None) => "default".to_string(),
     };
 
@@ -550,7 +622,9 @@ pub async fn peer_storage_remote_read(
     let output_path = if let Some(ref dest) = save_to {
         PathBuf::from(dest)
     } else {
-        let downloads_dir = app.path().download_dir()
+        let downloads_dir = app
+            .path()
+            .download_dir()
             .or_else(|_| app.path().cache_dir())
             .map_err(|e| PeerStorageError::ProtocolError {
                 reason: format!("Failed to get downloads dir: {e}"),
@@ -664,11 +738,8 @@ pub async fn peer_storage_remote_read(
 
         match result {
             Ok(stream_result) => {
-                let final_path = move_to_public_downloads(
-                    &app_handle,
-                    &output_path,
-                    Some(&android_sub_path),
-                );
+                let final_path =
+                    move_to_public_downloads(&app_handle, &output_path, Some(&android_sub_path));
                 // Record the successful download so the next click on the
                 // same (peer, path) can skip the network. If the insert
                 // fails we log and keep going — a failed registry write
@@ -721,11 +792,12 @@ pub async fn peer_storage_remote_write(
     ucan_token: String,
     on_event: Channel<TransferEvent>,
 ) -> Result<(), PeerStorageError> {
-    let remote_id: iroh::EndpointId = node_id
-        .parse()
-        .map_err(|e| PeerStorageError::ConnectionFailed {
-            reason: format!("Invalid EndpointId: {e}"),
-        })?;
+    let remote_id: iroh::EndpointId =
+        node_id
+            .parse()
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("Invalid EndpointId: {e}"),
+            })?;
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
     // Register cancel token under the transfer id so the existing
@@ -824,11 +896,12 @@ pub async fn peer_storage_remote_create_directory(
     path: String,
     ucan_token: String,
 ) -> Result<(), PeerStorageError> {
-    let remote_id: iroh::EndpointId = node_id
-        .parse()
-        .map_err(|e| PeerStorageError::ConnectionFailed {
-            reason: format!("Invalid EndpointId: {e}"),
-        })?;
+    let remote_id: iroh::EndpointId =
+        node_id
+            .parse()
+            .map_err(|e| PeerStorageError::ConnectionFailed {
+                reason: format!("Invalid EndpointId: {e}"),
+            })?;
     let parsed_relay = relay_url.and_then(|s| s.parse::<iroh::RelayUrl>().ok());
 
     let endpoint = state.peer_storage.read().await;
@@ -900,15 +973,19 @@ pub fn open_file_with_system(
         } else {
             FileUri::from_path(path)
         };
-        api.file_opener().open_file(&uri).map_err(|e| PeerStorageError::ProtocolError {
-            reason: format!("Failed to open file: {e:?}"),
-        })?;
+        api.file_opener()
+            .open_file(&uri)
+            .map_err(|e| PeerStorageError::ProtocolError {
+                reason: format!("Failed to open file: {e:?}"),
+            })?;
     }
     #[cfg(not(target_os = "android"))]
     {
         use tauri_plugin_opener::OpenerExt;
-        app.opener().open_path(path, None::<String>).map_err(|e| PeerStorageError::ProtocolError {
-            reason: format!("Failed to open file: {e}"),
+        app.opener().open_path(path, None::<String>).map_err(|e| {
+            PeerStorageError::ProtocolError {
+                reason: format!("Failed to open file: {e}"),
+            }
         })?;
     }
     Ok(())
@@ -916,10 +993,7 @@ pub fn open_file_with_system(
 
 /// Tauri command wrapper for open_file_with_system.
 #[tauri::command(rename_all = "camelCase")]
-pub async fn open_file_system(
-    app: tauri::AppHandle,
-    path: String,
-) -> Result<(), PeerStorageError> {
+pub async fn open_file_system(app: tauri::AppHandle, path: String) -> Result<(), PeerStorageError> {
     open_file_with_system(&app, &path)
 }
 
@@ -958,26 +1032,29 @@ fn move_to_public_downloads(
             let api = app_handle.android_fs();
             let ps = api.public_storage();
 
-            let dest_uri = ps.create_new_file(
-                None,
-                PublicGeneralPurposeDir::Download,
-                &relative_path,
-                None,
-            ).map_err(|e| format!("create_new_file: {e:?}"))?;
+            let dest_uri = ps
+                .create_new_file(
+                    None,
+                    PublicGeneralPurposeDir::Download,
+                    &relative_path,
+                    None,
+                )
+                .map_err(|e| format!("create_new_file: {e:?}"))?;
 
             // Stream-copy from app-private temp file to public Downloads
-            let mut src = std::fs::File::open(output_path)
-                .map_err(|e| format!("open src: {e}"))?;
-            let mut dest = api.open_file_writable(&dest_uri)
+            let mut src = std::fs::File::open(output_path).map_err(|e| format!("open src: {e}"))?;
+            let mut dest = api
+                .open_file_writable(&dest_uri)
                 .map_err(|e| format!("open dest: {e:?}"))?;
-            std::io::copy(&mut src, &mut dest)
-                .map_err(|e| format!("copy: {e}"))?;
+            std::io::copy(&mut src, &mut dest).map_err(|e| format!("copy: {e}"))?;
             drop(dest);
 
             // Clean up temp file
             let _ = std::fs::remove_file(output_path);
 
-            Ok(dest_uri.to_json_string().map_err(|e| format!("to_json: {e:?}"))?)
+            Ok(dest_uri
+                .to_json_string()
+                .map_err(|e| format!("to_json: {e:?}"))?)
         })();
 
         match result {

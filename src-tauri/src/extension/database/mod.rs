@@ -14,7 +14,4 @@ pub mod queries;
 mod tests;
 pub mod types;
 
-pub use helpers::{
-    execute_migration_statements,
-    ExtensionSqlContext,
-};
+pub use helpers::{execute_migration_statements, ExtensionSqlContext};

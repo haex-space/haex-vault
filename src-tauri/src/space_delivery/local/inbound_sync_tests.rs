@@ -251,11 +251,7 @@ fn rejects_non_whitelisted_table() {
         "1000/abcd",
         json!("leaked-key"),
     )];
-    let reason = expect_rejected(validate_and_attribute(
-        "space-A",
-        "did:key:zAlice",
-        changes,
-    ));
+    let reason = expect_rejected(validate_and_attribute("space-A", "did:key:zAlice", changes));
     assert!(
         reason.contains("haex_identities"),
         "reason should name the bad table: {reason}"
@@ -271,11 +267,7 @@ fn rejects_foreign_space_id_column_value() {
         "1000/abcd",
         json!("space-B"),
     )];
-    let reason = expect_rejected(validate_and_attribute(
-        "space-A",
-        "did:key:zAlice",
-        changes,
-    ));
+    let reason = expect_rejected(validate_and_attribute("space-A", "did:key:zAlice", changes));
     assert!(
         reason.contains("space-A") || reason.contains("space-B"),
         "reason should mention the space_id mismatch: {reason}"
@@ -291,11 +283,7 @@ fn accepts_matching_space_id_column_value() {
         "1000/abcd",
         json!("space-A"),
     )];
-    let out = expect_accepted(validate_and_attribute(
-        "space-A",
-        "did:key:zAlice",
-        changes,
-    ));
+    let out = expect_accepted(validate_and_attribute("space-A", "did:key:zAlice", changes));
     assert!(out.iter().any(|c| c.column_name == "space_id"));
 }
 
@@ -372,11 +360,7 @@ fn injects_one_authored_by_did_per_unique_row() {
             json!("share-two"),
         ),
     ];
-    let out = expect_accepted(validate_and_attribute(
-        "space-A",
-        "did:key:zAlice",
-        changes,
-    ));
+    let out = expect_accepted(validate_and_attribute("space-A", "did:key:zAlice", changes));
 
     let mut author_rows: Vec<&str> = out
         .iter()
@@ -413,11 +397,7 @@ fn authored_by_did_uses_max_hlc_within_row_group() {
             json!("m"),
         ),
     ];
-    let out = expect_accepted(validate_and_attribute(
-        "space-A",
-        "did:key:zAlice",
-        changes,
-    ));
+    let out = expect_accepted(validate_and_attribute("space-A", "did:key:zAlice", changes));
 
     let author = out
         .iter()
@@ -440,11 +420,7 @@ fn origin_always_comes_from_audience_never_from_payload() {
         "1000/abcd",
         json!("write"),
     )];
-    let out = expect_accepted(validate_and_attribute(
-        "space-A",
-        "did:key:zAlice",
-        changes,
-    ));
+    let out = expect_accepted(validate_and_attribute("space-A", "did:key:zAlice", changes));
 
     let author = out
         .iter()
@@ -455,11 +431,7 @@ fn origin_always_comes_from_audience_never_from_payload() {
 
 #[test]
 fn empty_batch_stays_empty() {
-    let out = expect_accepted(validate_and_attribute(
-        "space-A",
-        "did:key:zAlice",
-        vec![],
-    ));
+    let out = expect_accepted(validate_and_attribute("space-A", "did:key:zAlice", vec![]));
     assert!(out.is_empty());
 }
 
@@ -473,11 +445,7 @@ fn preserves_non_attribution_changes() {
         "1000/abcd",
         json!("my-share"),
     )];
-    let out = expect_accepted(validate_and_attribute(
-        "space-A",
-        "did:key:zAlice",
-        changes,
-    ));
+    let out = expect_accepted(validate_and_attribute("space-A", "did:key:zAlice", changes));
     assert!(
         out.iter()
             .any(|c| c.column_name == "name" && c.value.as_str() == Some("my-share")),
@@ -561,7 +529,13 @@ fn authz_write_member_can_push_peer_shares() {
             "100/abcd",
             json!("endpoint-alice"),
         ),
-        change("haex_peer_shares", "share-1", "name", "100/abcd", json!("docs")),
+        change(
+            "haex_peer_shares",
+            "share-1",
+            "name",
+            "100/abcd",
+            json!("docs"),
+        ),
         change(
             "haex_peer_shares",
             "share-1",

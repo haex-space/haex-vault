@@ -9,7 +9,8 @@ use crate::extension::core::manifest::{DisplayMode, ExtensionManifest, Extension
 use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::permissions::checker::{is_system_table, matches_target, PermissionChecker};
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, PermissionStatus, ResourceType, WebAction, FileSyncAction,
+    Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, PermissionStatus,
+    ResourceType, WebAction,
 };
 use std::path::PathBuf;
 
@@ -55,7 +56,12 @@ fn create_extension(public_key: &str, name: &str) -> Extension {
     }
 }
 
-fn create_db_permission(extension_id: &str, action: DbAction, target: &str, status: PermissionStatus) -> ExtensionPermission {
+fn create_db_permission(
+    extension_id: &str,
+    action: DbAction,
+    target: &str,
+    status: PermissionStatus,
+) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
         extension_id: extension_id.to_string(),
@@ -67,7 +73,12 @@ fn create_db_permission(extension_id: &str, action: DbAction, target: &str, stat
     }
 }
 
-fn create_fs_permission(extension_id: &str, action: FsAction, target: &str, status: PermissionStatus) -> ExtensionPermission {
+fn create_fs_permission(
+    extension_id: &str,
+    action: FsAction,
+    target: &str,
+    status: PermissionStatus,
+) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
         extension_id: extension_id.to_string(),
@@ -79,7 +90,11 @@ fn create_fs_permission(extension_id: &str, action: FsAction, target: &str, stat
     }
 }
 
-fn create_web_permission(extension_id: &str, target: &str, status: PermissionStatus) -> ExtensionPermission {
+fn create_web_permission(
+    extension_id: &str,
+    target: &str,
+    status: PermissionStatus,
+) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
         extension_id: extension_id.to_string(),
@@ -91,7 +106,12 @@ fn create_web_permission(extension_id: &str, target: &str, status: PermissionSta
     }
 }
 
-fn create_filesync_permission(extension_id: &str, action: FileSyncAction, target: &str, status: PermissionStatus) -> ExtensionPermission {
+fn create_filesync_permission(
+    extension_id: &str,
+    action: FileSyncAction,
+    target: &str,
+    status: PermissionStatus,
+) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
         extension_id: extension_id.to_string(),
@@ -141,9 +161,12 @@ fn test_other_extension_tables_require_permission() {
 #[test]
 fn test_granted_permission_allows_access() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "otherpubkey__otherext__*", PermissionStatus::Granted),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::Read,
+        "otherpubkey__otherext__*",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     // With granted permission, can access other extension's tables
@@ -154,9 +177,12 @@ fn test_granted_permission_allows_access() {
 #[test]
 fn test_denied_permission_blocks_access() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "otherpubkey__otherext__*", PermissionStatus::Denied),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::Read,
+        "otherpubkey__otherext__*",
+        PermissionStatus::Denied,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     // Denied permission should block access
@@ -166,9 +192,12 @@ fn test_denied_permission_blocks_access() {
 #[test]
 fn test_ask_permission_blocks_access() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "custom_table", PermissionStatus::Ask),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::Read,
+        "custom_table",
+        PermissionStatus::Ask,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     // Ask (pending) permission should NOT grant access
@@ -178,9 +207,12 @@ fn test_ask_permission_blocks_access() {
 #[test]
 fn test_read_permission_does_not_grant_write() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "shared_table", PermissionStatus::Granted),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::Read,
+        "shared_table",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     assert!(checker.can_access_table("shared_table", DbAction::Read));
@@ -190,9 +222,12 @@ fn test_read_permission_does_not_grant_write() {
 #[test]
 fn test_write_permission_includes_read() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::ReadWrite, "shared_table", PermissionStatus::Granted),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::ReadWrite,
+        "shared_table",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     assert!(checker.can_access_table("shared_table", DbAction::Read));
@@ -202,9 +237,12 @@ fn test_write_permission_includes_read() {
 #[test]
 fn test_exact_table_permission() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "specific_table", PermissionStatus::Granted),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::Read,
+        "specific_table",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     assert!(checker.can_access_table("specific_table", DbAction::Read));
@@ -216,9 +254,12 @@ fn test_exact_table_permission() {
 #[test]
 fn test_wildcard_permission_does_not_grant_system_access() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::ReadWrite, "*", PermissionStatus::Granted),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::ReadWrite,
+        "*",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     // Wildcard should allow access to non-system tables
@@ -235,7 +276,12 @@ fn test_prefix_wildcard_cannot_access_system_prefix() {
     let extension = create_extension("pubkey", "myext");
     let permissions = vec![
         // Try to get haex_* access via wildcard
-        create_db_permission("pubkey_myext", DbAction::Read, "haex_*", PermissionStatus::Granted),
+        create_db_permission(
+            "pubkey_myext",
+            DbAction::Read,
+            "haex_*",
+            PermissionStatus::Granted,
+        ),
     ];
     let checker = PermissionChecker::new(extension, permissions);
 
@@ -270,9 +316,12 @@ fn test_all_system_tables_protected() {
 
     let extension = create_extension("pubkey", "myext");
     // Give wildcard permission
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::ReadWrite, "*", PermissionStatus::Granted),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::ReadWrite,
+        "*",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     for table in system_tables {
@@ -320,7 +369,8 @@ fn test_extension_cannot_impersonate_prefix() {
     // Cannot access tables with slightly different prefix
     assert!(!checker.can_access_table("pubkey__myext_extra__users", DbAction::Read)); // extra underscore
     assert!(!checker.can_access_table("pubkey_myext__users", DbAction::Read)); // missing double underscore
-    assert!(!checker.can_access_table("pubkey2__myext__users", DbAction::Read)); // different pubkey
+    assert!(!checker.can_access_table("pubkey2__myext__users", DbAction::Read));
+    // different pubkey
 }
 
 // ============================================================================
@@ -365,7 +415,8 @@ fn test_matches_target_does_not_match_system_tables() {
             assert!(
                 !matches_target(pattern, table),
                 "Pattern '{}' should NOT match system table '{}'",
-                pattern, table
+                pattern,
+                table
             );
         }
     }
@@ -378,9 +429,12 @@ fn test_matches_target_does_not_match_system_tables() {
 #[test]
 fn test_permission_status_granted() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "table_a", PermissionStatus::Granted),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::Read,
+        "table_a",
+        PermissionStatus::Granted,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     assert!(checker.can_access_table("table_a", DbAction::Read));
@@ -389,9 +443,12 @@ fn test_permission_status_granted() {
 #[test]
 fn test_permission_status_denied() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "table_a", PermissionStatus::Denied),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::Read,
+        "table_a",
+        PermissionStatus::Denied,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     assert!(!checker.can_access_table("table_a", DbAction::Read));
@@ -400,9 +457,12 @@ fn test_permission_status_denied() {
 #[test]
 fn test_permission_status_ask() {
     let extension = create_extension("pubkey", "myext");
-    let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "table_a", PermissionStatus::Ask),
-    ];
+    let permissions = vec![create_db_permission(
+        "pubkey_myext",
+        DbAction::Read,
+        "table_a",
+        PermissionStatus::Ask,
+    )];
     let checker = PermissionChecker::new(extension, permissions);
 
     // Ask should NOT grant access - requires user confirmation
@@ -417,9 +477,24 @@ fn test_permission_status_ask() {
 fn test_multiple_permissions_combined() {
     let extension = create_extension("pubkey", "myext");
     let permissions = vec![
-        create_db_permission("pubkey_myext", DbAction::Read, "table_a", PermissionStatus::Granted),
-        create_db_permission("pubkey_myext", DbAction::ReadWrite, "table_b", PermissionStatus::Granted),
-        create_db_permission("pubkey_myext", DbAction::Read, "prefix_*", PermissionStatus::Granted),
+        create_db_permission(
+            "pubkey_myext",
+            DbAction::Read,
+            "table_a",
+            PermissionStatus::Granted,
+        ),
+        create_db_permission(
+            "pubkey_myext",
+            DbAction::ReadWrite,
+            "table_b",
+            PermissionStatus::Granted,
+        ),
+        create_db_permission(
+            "pubkey_myext",
+            DbAction::Read,
+            "prefix_*",
+            PermissionStatus::Granted,
+        ),
     ];
     let checker = PermissionChecker::new(extension, permissions);
 
@@ -441,9 +516,19 @@ fn test_conflicting_permissions_denied_wins() {
     let extension = create_extension("pubkey", "myext");
     let permissions = vec![
         // Wildcard grant
-        create_db_permission("pubkey_myext", DbAction::Read, "*", PermissionStatus::Granted),
+        create_db_permission(
+            "pubkey_myext",
+            DbAction::Read,
+            "*",
+            PermissionStatus::Granted,
+        ),
         // Specific denial
-        create_db_permission("pubkey_myext", DbAction::Read, "sensitive_table", PermissionStatus::Denied),
+        create_db_permission(
+            "pubkey_myext",
+            DbAction::Read,
+            "sensitive_table",
+            PermissionStatus::Denied,
+        ),
     ];
     let checker = PermissionChecker::new(extension, permissions);
 
@@ -471,8 +556,12 @@ fn test_permission_resource_types() {
     let web_perm = create_web_permission("ext", "https://*", PermissionStatus::Granted);
     assert!(matches!(web_perm.resource_type, ResourceType::Web));
 
-    let filesync_perm = create_filesync_permission("ext", FileSyncAction::Read, "*", PermissionStatus::Granted);
-    assert!(matches!(filesync_perm.resource_type, ResourceType::Filesync));
+    let filesync_perm =
+        create_filesync_permission("ext", FileSyncAction::Read, "*", PermissionStatus::Granted);
+    assert!(matches!(
+        filesync_perm.resource_type,
+        ResourceType::Filesync
+    ));
 }
 
 // ============================================================================
@@ -493,9 +582,12 @@ fn test_empty_permission_list() {
 fn test_permission_for_different_extension_ignored() {
     let extension = create_extension("pubkey", "myext");
     // Permission for a DIFFERENT extension
-    let permissions = vec![
-        create_db_permission("different_ext", DbAction::Read, "shared_table", PermissionStatus::Granted),
-    ];
+    let permissions = vec![create_db_permission(
+        "different_ext",
+        DbAction::Read,
+        "shared_table",
+        PermissionStatus::Granted,
+    )];
     // Permission targets "different_ext" table, not our extension's own table.
     // PermissionChecker sees the permission but shared_table doesn't match our prefix.
     let checker = PermissionChecker::new(extension, permissions);

@@ -88,16 +88,19 @@ fn make_peer(endpoint_id: &str, did: &str, validated_ucan: ValidatedUcan) -> Con
 /// inspect multiple rows in temporal order, reverse the slice at the
 /// callsite — don't reshape this helper.
 fn select_audit_logs(db: &DbConnection) -> Vec<crate::logging::LogEntry> {
-    crate::logging::query_logs(db, &crate::logging::LogQueryParams {
-        source: None,
-        extension_id: None,
-        level: None,
-        since: None,
-        until: None,
-        device_id: None,
-        limit: None,
-        offset: None,
-    })
+    crate::logging::query_logs(
+        db,
+        &crate::logging::LogQueryParams {
+            source: None,
+            extension_id: None,
+            level: None,
+            since: None,
+            until: None,
+            device_id: None,
+            limit: None,
+            offset: None,
+        },
+    )
     .expect("query haex_logs")
 }
 
@@ -148,8 +151,8 @@ fn assert_single_audit_row(
         .metadata
         .as_deref()
         .expect("audit row must have metadata column populated (with subsystem field)");
-    let metadata_json: serde_json::Value = serde_json::from_str(metadata_str)
-        .expect("audit row metadata must be valid JSON");
+    let metadata_json: serde_json::Value =
+        serde_json::from_str(metadata_str).expect("audit row metadata must be valid JSON");
     assert_eq!(
         metadata_json.get("subsystem").and_then(|s| s.as_str()),
         Some(expected_subsystem),
@@ -167,15 +170,8 @@ async fn rejects_request_without_prior_announce() {
         packages: vec![],
     };
 
-    let result = authorize_request(
-        &request,
-        "did:key:zPeer",
-        "endpoint-id",
-        &peers,
-        &db,
-        &hlc,
-    )
-    .await;
+    let result =
+        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => {
@@ -219,15 +215,8 @@ async fn rejects_request_with_expired_cached_ucan() {
         packages: vec![],
     };
 
-    let result = authorize_request(
-        &request,
-        "did:key:zPeer",
-        "endpoint-id",
-        &peers,
-        &db,
-        &hlc,
-    )
-    .await;
+    let result =
+        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => assert!(
@@ -263,15 +252,8 @@ async fn rejects_audience_mismatch() {
         packages: vec![],
     };
 
-    let result = authorize_request(
-        &request,
-        "did:key:zPeer",
-        "endpoint-id",
-        &peers,
-        &db,
-        &hlc,
-    )
-    .await;
+    let result =
+        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => assert!(
@@ -313,15 +295,8 @@ async fn rejects_missing_capability_for_requested_space() {
         ucan_token: Some("irrelevant — gate uses cached UCAN".into()),
     };
 
-    let result = authorize_request(
-        &request,
-        "did:key:zPeer",
-        "endpoint-id",
-        &peers,
-        &db,
-        &hlc,
-    )
-    .await;
+    let result =
+        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => {
@@ -713,15 +688,8 @@ async fn accepts_valid_request_from_active_member() {
         packages: vec![],
     };
 
-    let result = authorize_request(
-        &request,
-        "did:key:zPeer",
-        "endpoint-id",
-        &peers,
-        &db,
-        &hlc,
-    )
-    .await;
+    let result =
+        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Ok(Some(validated)) => {
@@ -767,15 +735,8 @@ async fn rejects_request_when_peer_announced_without_ucan() {
         packages: vec![],
     };
 
-    let result = authorize_request(
-        &request,
-        "did:key:zPeer",
-        "endpoint-id",
-        &peers,
-        &db,
-        &hlc,
-    )
-    .await;
+    let result =
+        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => {
@@ -817,15 +778,8 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         packages: vec![],
     };
 
-    let result = authorize_request(
-        &request,
-        "did:key:zPeer",
-        "endpoint-id",
-        &peers,
-        &db,
-        &hlc,
-    )
-    .await;
+    let result =
+        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => {
@@ -837,5 +791,11 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         other => panic!("expected DB error response, got {other:?}"),
     }
 
-    assert_single_audit_row(&db, "error", "AuthGate", &request, "internal failure: membership check DB error");
+    assert_single_audit_row(
+        &db,
+        "error",
+        "AuthGate",
+        &request,
+        "internal failure: membership check DB error",
+    );
 }

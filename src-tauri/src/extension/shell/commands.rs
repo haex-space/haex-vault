@@ -56,7 +56,10 @@ pub async fn extension_shell_create(
             exit_code: None,
         })?;
 
-    Ok(ShellCreateResponse { session_id, shell_name })
+    Ok(ShellCreateResponse {
+        session_id,
+        shell_name,
+    })
 }
 
 /// Write data to a shell session's stdin

@@ -224,7 +224,10 @@ pub async fn resolve_permission_prompt(
         "denied" => PermissionStatus::Denied,
         _ => {
             return Err(ExtensionError::ValidationError {
-                reason: format!("Invalid decision: {}. Expected 'granted', 'denied', or 'ask'", decision),
+                reason: format!(
+                    "Invalid decision: {}. Expected 'granted', 'denied', or 'ask'",
+                    decision
+                ),
             })
         }
     };
@@ -269,11 +272,15 @@ pub async fn resolve_permission_prompt(
             };
             Action::Filesystem(fs_action)
         }
-        ResourceType::Shell => Action::Shell(crate::extension::permissions::types::ShellAction::Execute),
+        ResourceType::Shell => {
+            Action::Shell(crate::extension::permissions::types::ShellAction::Execute)
+        }
         ResourceType::Filesync => {
             let filesync_action = match action.to_lowercase().as_str() {
                 "read" => crate::extension::permissions::types::FileSyncAction::Read,
-                "readwrite" | "read_write" => crate::extension::permissions::types::FileSyncAction::ReadWrite,
+                "readwrite" | "read_write" => {
+                    crate::extension::permissions::types::FileSyncAction::ReadWrite
+                }
                 _ => crate::extension::permissions::types::FileSyncAction::Read,
             };
             Action::FileSync(filesync_action)
@@ -281,7 +288,9 @@ pub async fn resolve_permission_prompt(
         ResourceType::Spaces => {
             let space_action = match action.to_lowercase().as_str() {
                 "read" => crate::extension::permissions::types::SpaceAction::Read,
-                "readwrite" | "read_write" => crate::extension::permissions::types::SpaceAction::ReadWrite,
+                "readwrite" | "read_write" => {
+                    crate::extension::permissions::types::SpaceAction::ReadWrite
+                }
                 _ => crate::extension::permissions::types::SpaceAction::Read,
             };
             Action::Spaces(space_action)
@@ -293,9 +302,11 @@ pub async fn resolve_permission_prompt(
             let passwords_action = match action.to_lowercase().as_str() {
                 "read" => PasswordsAction::Read,
                 "readwrite" | "read_write" => PasswordsAction::ReadWrite,
-                _ => return Err(ExtensionError::ValidationError {
-                    reason: format!("Invalid passwords action: {action}"),
-                }),
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!("Invalid passwords action: {action}"),
+                    })
+                }
             };
             Action::Passwords(passwords_action)
         }
@@ -303,9 +314,13 @@ pub async fn resolve_permission_prompt(
             let mail_action = match action.to_lowercase().as_str() {
                 "fetch" => crate::extension::permissions::types::MailAction::Fetch,
                 "send" => crate::extension::permissions::types::MailAction::Send,
-                _ => return Err(ExtensionError::ValidationError {
-                    reason: format!("Invalid mail action: {action} (expected 'fetch' or 'send')"),
-                }),
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!(
+                            "Invalid mail action: {action} (expected 'fetch' or 'send')"
+                        ),
+                    })
+                }
             };
             Action::Mail(mail_action)
         }

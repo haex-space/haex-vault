@@ -225,8 +225,20 @@ mod tests {
     async fn endpoint_clear_shares() {
         let ep = PeerEndpoint::new_ephemeral();
 
-        ep.add_share("s1".to_string(), "A".to_string(), "/a".to_string(), "sp1".to_string()).await;
-        ep.add_share("s2".to_string(), "B".to_string(), "/b".to_string(), "sp1".to_string()).await;
+        ep.add_share(
+            "s1".to_string(),
+            "A".to_string(),
+            "/a".to_string(),
+            "sp1".to_string(),
+        )
+        .await;
+        ep.add_share(
+            "s2".to_string(),
+            "B".to_string(),
+            "/b".to_string(),
+            "sp1".to_string(),
+        )
+        .await;
 
         assert_eq!(ep.list_shares().await.len(), 2);
         ep.clear_shares().await;
@@ -456,16 +468,22 @@ mod tests {
         assert_eq!(stat.entry.size, 1024 * 1024, "ramp file is 1 MiB");
         assert!(!stat.entry.is_dir, "ramp.bin is a regular file");
         let chunks = stat.chunks.expect("file stat must include chunks");
-        assert_eq!(chunks.chunk_size, crate::file_sync::hashing::CHUNK_HASH_SIZE);
+        assert_eq!(
+            chunks.chunk_size,
+            crate::file_sync::hashing::CHUNK_HASH_SIZE
+        );
         assert_eq!(
             chunks.chunk_hashes.len(),
             1,
             "1 MiB file with 1 MiB chunk size = exactly 1 chunk"
         );
-        let expected_file_hash =
-            blake3::hash(&(0..1024u32 * 1024u32).map(|i| (i % 256) as u8).collect::<Vec<u8>>())
-                .to_hex()
-                .to_string();
+        let expected_file_hash = blake3::hash(
+            &(0..1024u32 * 1024u32)
+                .map(|i| (i % 256) as u8)
+                .collect::<Vec<u8>>(),
+        )
+        .to_hex()
+        .to_string();
         assert_eq!(chunks.file_hash, expected_file_hash);
     }
 
@@ -594,13 +612,19 @@ mod tests {
 
     #[test]
     fn streaming_max_parallel_streams_is_four() {
-        assert_eq!(crate::peer_storage::streaming::MAX_PARALLEL_STREAMS_PER_FILE, 4);
+        assert_eq!(
+            crate::peer_storage::streaming::MAX_PARALLEL_STREAMS_PER_FILE,
+            4
+        );
     }
 
     #[test]
     fn pipeline_error_display_io() {
         use crate::peer_storage::streaming::PipelineError;
-        let e = PipelineError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "file gone"));
+        let e = PipelineError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "file gone",
+        ));
         let s = e.to_string();
         assert!(s.starts_with("io:"), "expected 'io:' prefix, got: {s}");
         assert!(s.contains("file gone"));
@@ -611,7 +635,10 @@ mod tests {
         use crate::peer_storage::streaming::PipelineError;
         let e = PipelineError::Stream("unexpected EOF".to_string());
         let s = e.to_string();
-        assert!(s.starts_with("stream:"), "expected 'stream:' prefix, got: {s}");
+        assert!(
+            s.starts_with("stream:"),
+            "expected 'stream:' prefix, got: {s}"
+        );
         assert!(s.contains("unexpected EOF"));
     }
 
@@ -952,8 +979,7 @@ mod tests {
         // Sidecar + partial bytes must be cleaned up — the verifier writes
         // the sidecar after every successful chunk, but with zero chunks
         // the post-download clear() is still expected to run.
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(&out_path);
         let meta_path = {
             let mut p = out_path.as_os_str().to_owned();
             p.push(".haex-partial.meta");
@@ -1082,8 +1108,7 @@ mod tests {
             p.push(".haex-partial.meta");
             std::path::PathBuf::from(p)
         };
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(&out_path);
         assert!(
             !meta_path.exists(),
             "sidecar metadata should be cleared after success: {meta_path:?}"
@@ -1227,11 +1252,12 @@ mod tests {
         // returns [(chunk_size, 3*chunk_size)] — i.e. chunks 1 and 2.
         let tmp_out = tempfile::tempdir().unwrap();
         let out_path = tmp_out.path().join("out_resume.bin");
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(&out_path);
         let mut partial_bytes = vec![0u8; payload_len];
         partial_bytes[..chunk_size].copy_from_slice(&ramp[..chunk_size]);
-        tokio::fs::write(&partial_path, &partial_bytes).await.unwrap();
+        tokio::fs::write(&partial_path, &partial_bytes)
+            .await
+            .unwrap();
 
         let sidecar = crate::peer_storage::resume::PartialState {
             file_hash: expected_file_hash.clone(),
@@ -1248,14 +1274,16 @@ mod tests {
         };
         assert!(meta_path.exists(), "sidecar meta seeded");
         assert!(partial_path.exists(), "partial bytes seeded");
-        assert_eq!(sidecar.missing_ranges(), vec![(chunk_size as u64, 3 * chunk_size as u64)]);
+        assert_eq!(
+            sidecar.missing_ranges(),
+            vec![(chunk_size as u64, 3 * chunk_size as u64)]
+        );
 
         // Capture progress events to assert the resume loop emits at least
         // one (>0, file_size) update — guards against a regression where
         // on_progress is dropped on the resume path (finding I5).
-        let progress_log: std::sync::Arc<
-            std::sync::Mutex<Vec<(u64, u64)>>,
-        > = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let progress_log: std::sync::Arc<std::sync::Mutex<Vec<(u64, u64)>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let progress_log_cb = progress_log.clone();
         let on_progress: std::sync::Arc<dyn Fn(u64, u64) + Send + Sync> =
             std::sync::Arc::new(move |done, total| {
@@ -1305,7 +1333,10 @@ mod tests {
         // `done` is positive and `total` matches `file_size`. Before the I5
         // fix the callback was dropped via `let _ = on_progress;` so this
         // assertion would catch any regression.
-        let events = progress_log.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let events = progress_log
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
         assert!(
             events
                 .iter()
@@ -1333,8 +1364,7 @@ mod tests {
             completed: vec![true],
         };
         stale.save(&out_path).await.unwrap();
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(&out_path);
         // The stale partial-bytes file has nonsense data — the fresh download
         // path must overwrite it entirely.
         tokio::fs::write(&partial_path, b"junk").await.unwrap();
@@ -1371,8 +1401,8 @@ mod tests {
     /// needing a real flaky peer.
     #[tokio::test]
     async fn multi_stream_retry_pool_retries_only_failed_range() {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering};
+        use std::sync::Arc;
 
         // Four equal 8 MiB ranges; 0..8M succeeds, 8..16M fails once then
         // succeeds, 16..24M and 24..32M succeed. Track call counts per range
@@ -1383,8 +1413,7 @@ mod tests {
             (8 * 1024 * 1024, 16 * 1024 * 1024, 0),
             (0, 8 * 1024 * 1024, 0),
         ];
-        let pending =
-            Arc::new(tokio::sync::Mutex::new(ranges.clone()));
+        let pending = Arc::new(tokio::sync::Mutex::new(ranges.clone()));
 
         // Per-range call counts.
         let calls: Arc<std::sync::Mutex<std::collections::HashMap<(u64, u64), u32>>> =
@@ -1400,9 +1429,11 @@ mod tests {
                 *calls.lock().unwrap().entry((start, end)).or_insert(0) += 1;
                 let is_flaky_range = start == 8 * 1024 * 1024;
                 if is_flaky_range && flaky.fetch_sub(1, Ordering::SeqCst) > 0 {
-                    Err(crate::peer_storage::error::PeerStorageError::ConnectionFailed {
-                        reason: "deterministic mid-stream abort".to_string(),
-                    })
+                    Err(
+                        crate::peer_storage::error::PeerStorageError::ConnectionFailed {
+                            reason: "deterministic mid-stream abort".to_string(),
+                        },
+                    )
                 } else {
                     Ok(())
                 }
@@ -1410,10 +1441,7 @@ mod tests {
                 as std::pin::Pin<
                     Box<
                         dyn std::future::Future<
-                                Output = Result<
-                                    (),
-                                    crate::peer_storage::error::PeerStorageError,
-                                >,
+                                Output = Result<(), crate::peer_storage::error::PeerStorageError>,
                             > + Send,
                     >,
                 >
@@ -1442,17 +1470,23 @@ mod tests {
             "range [0, 8M) is never retried"
         );
         assert_eq!(
-            final_calls.get(&(8 * 1024 * 1024, 16 * 1024 * 1024)).copied(),
+            final_calls
+                .get(&(8 * 1024 * 1024, 16 * 1024 * 1024))
+                .copied(),
             Some(2),
             "flaky range [8M, 16M) is called twice (fail + success)"
         );
         assert_eq!(
-            final_calls.get(&(16 * 1024 * 1024, 24 * 1024 * 1024)).copied(),
+            final_calls
+                .get(&(16 * 1024 * 1024, 24 * 1024 * 1024))
+                .copied(),
             Some(1),
             "range [16M, 24M) is never retried"
         );
         assert_eq!(
-            final_calls.get(&(24 * 1024 * 1024, 32 * 1024 * 1024)).copied(),
+            final_calls
+                .get(&(24 * 1024 * 1024, 32 * 1024 * 1024))
+                .copied(),
             Some(1),
             "range [24M, 32M) is never retried"
         );
@@ -1485,9 +1519,11 @@ mod tests {
                 *calls.lock().unwrap().entry((start, end)).or_insert(0) += 1;
                 let is_doomed_range = start == 8 * 1024 * 1024;
                 if is_doomed_range {
-                    Err(crate::peer_storage::error::PeerStorageError::ConnectionFailed {
-                        reason: "permanent fault".to_string(),
-                    })
+                    Err(
+                        crate::peer_storage::error::PeerStorageError::ConnectionFailed {
+                            reason: "permanent fault".to_string(),
+                        },
+                    )
                 } else {
                     Ok(())
                 }
@@ -1495,10 +1531,7 @@ mod tests {
                 as std::pin::Pin<
                     Box<
                         dyn std::future::Future<
-                                Output = Result<
-                                    (),
-                                    crate::peer_storage::error::PeerStorageError,
-                                >,
+                                Output = Result<(), crate::peer_storage::error::PeerStorageError>,
                             > + Send,
                     >,
                 >
@@ -1523,14 +1556,17 @@ mod tests {
             .get(&(8 * 1024 * 1024, 16 * 1024 * 1024))
             .copied()
             .unwrap_or(0);
-        let expected_total =
-            1 + crate::peer_storage::streaming::MAX_RANGE_RETRIES;
+        let expected_total = 1 + crate::peer_storage::streaming::MAX_RANGE_RETRIES;
         assert_eq!(
             doomed_calls, expected_total,
             "doomed range gets initial attempt + MAX_RANGE_RETRIES retries = {expected_total} calls"
         );
         // Siblings must still have completed exactly once — no abort_all.
-        for sibling in [(0, 8 * 1024 * 1024), (16 * 1024 * 1024, 24 * 1024 * 1024), (24 * 1024 * 1024, 32 * 1024 * 1024)] {
+        for sibling in [
+            (0, 8 * 1024 * 1024),
+            (16 * 1024 * 1024, 24 * 1024 * 1024),
+            (24 * 1024 * 1024, 32 * 1024 * 1024),
+        ] {
             assert_eq!(
                 final_calls.get(&sibling).copied(),
                 Some(1),
@@ -1657,8 +1693,7 @@ mod tests {
         // Resume contract: partial bytes file + sidecar must remain on disk
         // so a future attempt (with a corrected manifest) can pick up where
         // siblings left off.
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(&out_path);
         let meta_path = {
             let mut p = out_path.as_os_str().to_owned();
             p.push(".haex-partial.meta");
@@ -1802,8 +1837,7 @@ mod tests {
         let on_disk = tokio::fs::read(&out_path).await.unwrap();
         assert_eq!(on_disk, ramp, "downloaded bytes must equal source");
 
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(&out_path);
         let meta_path = {
             let mut p = out_path.as_os_str().to_owned();
             p.push(".haex-partial.meta");
@@ -1908,8 +1942,7 @@ mod tests {
         // chunks 0..5, 9..20, and 25..32 are complete; gaps at 5..9 and 20..25.
         let tmp_out = tempfile::tempdir().unwrap();
         let out_path = tmp_out.path().join("out_multi_resume.bin");
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(&out_path);
         let mut partial_bytes = vec![0u8; payload_len];
         let mut completed = vec![false; total_chunks];
         for i in 0..total_chunks {
@@ -1922,7 +1955,9 @@ mod tests {
                 completed[i] = true;
             }
         }
-        tokio::fs::write(&partial_path, &partial_bytes).await.unwrap();
+        tokio::fs::write(&partial_path, &partial_bytes)
+            .await
+            .unwrap();
 
         let sidecar = crate::peer_storage::resume::PartialState {
             file_hash: file_hash.clone(),
@@ -1966,7 +2001,10 @@ mod tests {
         );
 
         let on_disk = tokio::fs::read(&out_path).await.unwrap();
-        assert_eq!(on_disk, ramp, "resumed bytes must match the source verbatim");
+        assert_eq!(
+            on_disk, ramp,
+            "resumed bytes must match the source verbatim"
+        );
 
         let meta_path = {
             let mut p = out_path.as_os_str().to_owned();
@@ -2063,8 +2101,7 @@ mod tests {
         // survive into the final output.
         let tmp_out = tempfile::tempdir().unwrap();
         let out_path = tmp_out.path().join("out_drift_multi.bin");
-        let partial_path =
-            crate::peer_storage::resume::PartialState::partial_path(&out_path);
+        let partial_path = crate::peer_storage::resume::PartialState::partial_path(&out_path);
         tokio::fs::write(&partial_path, vec![0xCCu8; payload_len])
             .await
             .unwrap();

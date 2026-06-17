@@ -112,10 +112,11 @@ pub async fn extension_filesystem_open_file(
 
     // Open file with system's default viewer
     let path_str = temp_file_path.to_string_lossy().to_string();
-    crate::peer_storage::open_file_with_system(window.app_handle(), &path_str)
-        .map_err(|e| ExtensionError::ValidationError {
+    crate::peer_storage::open_file_with_system(window.app_handle(), &path_str).map_err(|e| {
+        ExtensionError::ValidationError {
             reason: format!("Failed to open file: {e}"),
-        })?;
+        }
+    })?;
 
     Ok(serde_json::json!({
         "success": true

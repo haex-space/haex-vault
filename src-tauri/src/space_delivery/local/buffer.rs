@@ -5,8 +5,8 @@
 
 use base64::Engine;
 
-use crate::database::{core, core::select_with_crdt};
 use crate::database::DbConnection;
+use crate::database::{core, core::select_with_crdt};
 use uuid::Uuid;
 
 use super::error::DeliveryError;
@@ -21,7 +21,10 @@ fn map_db(e: crate::database::error::DatabaseError) -> DeliveryError {
 /// Used to determine expected ACKers for pending commits (all members, not just connected peers).
 /// Members reference their identity via `identity_id`, so we join `haex_identities`
 /// to resolve the DID back out.
-pub fn get_space_member_dids(db: &DbConnection, space_id: &str) -> Result<Vec<String>, DeliveryError> {
+pub fn get_space_member_dids(
+    db: &DbConnection,
+    space_id: &str,
+) -> Result<Vec<String>, DeliveryError> {
     let rows = select_with_crdt(
         "SELECT i.did FROM haex_space_members m \
          JOIN haex_identities i ON i.id = m.identity_id \
@@ -76,23 +79,38 @@ pub fn fetch_messages(
         "SELECT id, sender_did, message_type, message_blob, created_at \
          FROM haex_local_delivery_messages_no_sync \
          WHERE space_id = ?1 AND id > ?2 \
-         ORDER BY id ASC".to_string(),
+         ORDER BY id ASC"
+            .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::Number(serde_json::Number::from(after)),
         ],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
 
     let mut result = Vec::new();
     for row in rows {
         let id = row.get(0).and_then(|v| v.as_i64()).unwrap_or(0);
-        let sender_did = row.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        let msg_type = row.get(2).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let sender_did = row
+            .get(1)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let msg_type = row
+            .get(2)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
         let blob_b64 = row.get(3).and_then(|v| v.as_str()).unwrap_or_default();
-        let blob = base64::engine::general_purpose::STANDARD.decode(blob_b64)
+        let blob = base64::engine::general_purpose::STANDARD
+            .decode(blob_b64)
             .unwrap_or_default();
-        let created_at = row.get(4).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let created_at = row
+            .get(4)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
         result.push((id, sender_did, msg_type, blob, created_at));
     }
     Ok(result)
@@ -130,18 +148,27 @@ pub fn consume_key_package(
     let rows = core::select(
         "SELECT id, package_blob FROM haex_local_delivery_key_packages_no_sync \
          WHERE space_id = ?1 AND target_did = ?2 \
-         ORDER BY created_at ASC LIMIT 1".to_string(),
+         ORDER BY created_at ASC LIMIT 1"
+            .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::String(target_did.to_string()),
         ],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
 
-    let Some(row) = rows.first() else { return Ok(None) };
-    let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let Some(row) = rows.first() else {
+        return Ok(None);
+    };
+    let id = row
+        .get(0)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
     let blob_b64 = row.get(1).and_then(|v| v.as_str()).unwrap_or_default();
-    let blob = base64::engine::general_purpose::STANDARD.decode(blob_b64)
+    let blob = base64::engine::general_purpose::STANDARD
+        .decode(blob_b64)
         .unwrap_or_default();
 
     // Delete after consuming
@@ -149,7 +176,8 @@ pub fn consume_key_package(
         "DELETE FROM haex_local_delivery_key_packages_no_sync WHERE id = ?1".to_string(),
         vec![serde_json::Value::String(id)],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
 
     Ok(Some(blob))
 }
@@ -240,19 +268,26 @@ pub fn fetch_welcomes(
     let rows = core::select(
         "SELECT id, welcome_blob FROM haex_local_delivery_welcomes_no_sync \
          WHERE space_id = ?1 AND recipient_did = ?2 AND consumed = 0 \
-         ORDER BY created_at ASC".to_string(),
+         ORDER BY created_at ASC"
+            .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::String(recipient_did.to_string()),
         ],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
 
     let mut results = Vec::new();
     for row in &rows {
-        let id = row.get(0).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let id = row
+            .get(0)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
         let blob_b64 = row.get(1).and_then(|v| v.as_str()).unwrap_or_default();
-        let blob = base64::engine::general_purpose::STANDARD.decode(blob_b64)
+        let blob = base64::engine::general_purpose::STANDARD
+            .decode(blob_b64)
             .unwrap_or_default();
         results.push((id, blob));
     }
@@ -266,7 +301,8 @@ pub fn mark_welcome_consumed(db: &DbConnection, welcome_id: &str) -> Result<(), 
         "UPDATE haex_local_delivery_welcomes_no_sync SET consumed = 1 WHERE id = ?1".to_string(),
         vec![serde_json::Value::String(welcome_id.to_string())],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
     Ok(())
 }
 
@@ -416,10 +452,8 @@ pub fn get_unacked_message_ids_for_member(
         let expected_str = row.get(1).and_then(|v| v.as_str()).unwrap_or("[]");
         let acked_str = row.get(2).and_then(|v| v.as_str()).unwrap_or("[]");
 
-        let expected: Vec<String> =
-            serde_json::from_str(expected_str).unwrap_or_default();
-        let acked: Vec<String> =
-            serde_json::from_str(acked_str).unwrap_or_default();
+        let expected: Vec<String> = serde_json::from_str(expected_str).unwrap_or_default();
+        let acked: Vec<String> = serde_json::from_str(acked_str).unwrap_or_default();
 
         if expected.contains(&member_did.to_string()) && !acked.contains(&member_did.to_string()) {
             result.push(msg_id);
@@ -441,7 +475,8 @@ pub fn clear_buffers(db: &DbConnection, space_id: &str) -> Result<(), DeliveryEr
             format!("DELETE FROM {table} WHERE space_id = ?1"),
             vec![serde_json::Value::String(space_id.to_string())],
             db,
-        ).map_err(map_db)?;
+        )
+        .map_err(map_db)?;
     }
     Ok(())
 }
@@ -460,13 +495,15 @@ pub fn clear_key_packages_for_did(
 ) -> Result<(), DeliveryError> {
     core::execute(
         "DELETE FROM haex_local_delivery_key_packages_no_sync \
-         WHERE space_id = ?1 AND target_did = ?2".to_string(),
+         WHERE space_id = ?1 AND target_did = ?2"
+            .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::String(target_did.to_string()),
         ],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
     Ok(())
 }
 
@@ -482,13 +519,15 @@ pub fn clear_welcomes_for_did(
 ) -> Result<(), DeliveryError> {
     core::execute(
         "DELETE FROM haex_local_delivery_welcomes_no_sync \
-         WHERE space_id = ?1 AND recipient_did = ?2".to_string(),
+         WHERE space_id = ?1 AND recipient_did = ?2"
+            .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::String(recipient_did.to_string()),
         ],
         db,
-    ).map_err(map_db)?;
+    )
+    .map_err(map_db)?;
     Ok(())
 }
 

@@ -8,13 +8,13 @@
 // - migrations.rs: register_bundle_migrations
 // - path_utils.rs: path validation helpers
 
+use super::queries::{SQL_UPDATE_EXTENSION_DISPLAY_MODE, SQL_UPDATE_EXTENSION_ENABLED};
 use crate::database::core::{execute_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::extension::core::types::Extension;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::ExtensionPermission;
-use super::queries::{SQL_UPDATE_EXTENSION_DISPLAY_MODE, SQL_UPDATE_EXTENSION_ENABLED};
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -132,11 +132,12 @@ impl ExtensionManager {
             });
         }
 
-        let mut extensions = self.available_extensions.lock().map_err(|e| {
-            ExtensionError::MutexPoisoned {
-                reason: e.to_string(),
-            }
-        })?;
+        let mut extensions =
+            self.available_extensions
+                .lock()
+                .map_err(|e| ExtensionError::MutexPoisoned {
+                    reason: e.to_string(),
+                })?;
         extensions.insert(extension.id.clone(), extension);
         Ok(())
     }
@@ -157,18 +158,21 @@ impl ExtensionManager {
         // that way because they need to mutate (add) or return a complete
         // list, where a partial map yields wrong results, not a recoverable
         // miss.
-        let prod_extensions = self.available_extensions.lock().unwrap_or_else(|e| e.into_inner());
+        let prod_extensions = self
+            .available_extensions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         prod_extensions.get(extension_id).cloned()
     }
 
     /// Get all installed extensions
     pub fn get_all_extensions(&self) -> Result<Vec<Extension>, ExtensionError> {
-        let prod_extensions = self
-            .available_extensions
-            .lock()
-            .map_err(|e| ExtensionError::MutexPoisoned {
-                reason: e.to_string(),
-            })?;
+        let prod_extensions =
+            self.available_extensions
+                .lock()
+                .map_err(|e| ExtensionError::MutexPoisoned {
+                    reason: e.to_string(),
+                })?;
         Ok(prod_extensions.values().cloned().collect())
     }
 
@@ -301,12 +305,12 @@ impl ExtensionManager {
         })?;
 
         // Update in memory
-        let mut extensions = self
-            .available_extensions
-            .lock()
-            .map_err(|e| ExtensionError::MutexPoisoned {
-                reason: e.to_string(),
-            })?;
+        let mut extensions =
+            self.available_extensions
+                .lock()
+                .map_err(|e| ExtensionError::MutexPoisoned {
+                    reason: e.to_string(),
+                })?;
 
         if let Some(ext) = extensions.get_mut(extension_id) {
             ext.enabled = enabled;

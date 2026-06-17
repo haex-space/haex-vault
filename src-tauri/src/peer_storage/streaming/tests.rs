@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::resume::PartialState;
-use crate::peer_storage::streaming::{ChunkVerifier, pipe_recv_to_writer_verified};
+use crate::peer_storage::streaming::{pipe_recv_to_writer_verified, ChunkVerifier};
 
 /// Build a vector with `len` bytes whose contents are deterministic and
 /// unique enough that different chunks hash differently.
@@ -106,7 +106,11 @@ async fn pipe_recv_rejects_bad_chunk() {
         .expect_err("bad chunk must fail");
 
     match err {
-        PeerStorageError::ChunkHashMismatch { index, expected, actual } => {
+        PeerStorageError::ChunkHashMismatch {
+            index,
+            expected,
+            actual,
+        } => {
             assert_eq!(index, 1);
             assert_eq!(expected, "0".repeat(64));
             assert_ne!(actual, expected);

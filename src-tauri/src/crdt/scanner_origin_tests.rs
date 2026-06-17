@@ -67,7 +67,10 @@ fn drops_rows_from_other_node() {
     // Only the row with our node-id may pass — without this filter the
     // ping-pong re-push of inbound rows would smuggle "theirs" back to
     // the leader.
-    assert!(!changes.is_empty(), "expected at least one change for our row");
+    assert!(
+        !changes.is_empty(),
+        "expected at least one change for our row"
+    );
     for change in &changes {
         let pks: serde_json::Map<String, JsonValue> =
             serde_json::from_str(&change.row_pks).unwrap();
@@ -86,8 +89,20 @@ fn filter_off_returns_all_origins() {
     let our_node = device_uuid_to_hlc_node(our_uuid).unwrap();
     let other_node = device_uuid_to_hlc_node(other_uuid).unwrap();
 
-    insert_row(&conn, "ours", "space-A", "keep", &format!("1000/{our_node:x}"));
-    insert_row(&conn, "theirs", "space-A", "keep", &format!("2000/{other_node:x}"));
+    insert_row(
+        &conn,
+        "ours",
+        "space-A",
+        "keep",
+        &format!("1000/{our_node:x}"),
+    );
+    insert_row(
+        &conn,
+        "theirs",
+        "space-A",
+        "keep",
+        &format!("2000/{other_node:x}"),
+    );
 
     let changes = scan_table_for_local_changes_scoped(
         &conn,
@@ -102,8 +117,7 @@ fn filter_off_returns_all_origins() {
     let ids: std::collections::HashSet<String> = changes
         .iter()
         .map(|c| {
-            let pks: serde_json::Map<String, JsonValue> =
-                serde_json::from_str(&c.row_pks).unwrap();
+            let pks: serde_json::Map<String, JsonValue> = serde_json::from_str(&c.row_pks).unwrap();
             pks.get("id").and_then(|v| v.as_str()).unwrap().to_string()
         })
         .collect();

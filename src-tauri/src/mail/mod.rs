@@ -23,6 +23,6 @@ pub mod types;
 
 pub use error::MailError;
 pub use types::{
-    Account, Address, Attachment, ConnectionSecurity, FetchRange, ImapConfig, MailboxInfo,
-    Message, MessageEnvelope, OutgoingAttachment, OutgoingMessage, SmtpConfig,
+    Account, Address, Attachment, ConnectionSecurity, FetchRange, ImapConfig, MailboxInfo, Message,
+    MessageEnvelope, OutgoingAttachment, OutgoingMessage, SmtpConfig,
 };

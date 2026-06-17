@@ -68,10 +68,7 @@ async fn handle(app_handle: &AppHandle, request: &Request<Vec<u8>>) -> Response<
         Err(e) => return streaming_error_response(e),
     };
 
-    let range_header = request
-        .headers()
-        .get("range")
-        .and_then(|v| v.to_str().ok());
+    let range_header = request.headers().get("range").and_then(|v| v.to_str().ok());
 
     // Empty object: skip range parsing entirely. `bytes=0-0` over a 0-byte
     // body is not satisfiable; any `Range:` header is also unsatisfiable.

@@ -48,12 +48,13 @@ async fn login(config: &ImapConfig) -> Result<ImapSession, MailError> {
             source: e,
         })?;
 
-    let connector_inner = native_tls::TlsConnector::builder().build().map_err(|e| {
-        MailError::Tls {
-            host: config.host.clone(),
-            reason: format!("connector build: {e}"),
-        }
-    })?;
+    let connector_inner =
+        native_tls::TlsConnector::builder()
+            .build()
+            .map_err(|e| MailError::Tls {
+                host: config.host.clone(),
+                reason: format!("connector build: {e}"),
+            })?;
     let connector = tokio_native_tls::TlsConnector::from(connector_inner);
 
     let tls = connector
@@ -117,8 +118,7 @@ async fn list_mailboxes_inner(
         .await
         .map_err(imap_err)?;
 
-    let raw: Vec<async_imap::types::Name> =
-        names.try_collect().await.map_err(imap_err)?;
+    let raw: Vec<async_imap::types::Name> = names.try_collect().await.map_err(imap_err)?;
     // NameAttribute (mailbox-list flags like \HasNoChildren) is a
     // separate type from Flag, so we keep the Debug rendering here.
     let mut entries: Vec<MailboxInfo> = raw
@@ -144,10 +144,7 @@ async fn list_mailboxes_inner(
         // include_status=false and request status lazily.
         for info in entries.iter_mut() {
             if let Ok(status) = session
-                .status(
-                    &info.name,
-                    "(MESSAGES UNSEEN UIDVALIDITY UIDNEXT)",
-                )
+                .status(&info.name, "(MESSAGES UNSEEN UIDVALIDITY UIDNEXT)")
                 .await
             {
                 info.exists = Some(status.exists);
@@ -225,7 +222,10 @@ async fn fetch_message_inner(
     session.select(mailbox).await.map_err(imap_err)?;
 
     let stream = session
-        .uid_fetch(uid.to_string(), "(UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[])")
+        .uid_fetch(
+            uid.to_string(),
+            "(UID FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[])",
+        )
         .await
         .map_err(imap_err)?;
 
@@ -279,10 +279,7 @@ async fn set_flags_inner(
     let flag_list = flags.join(" ");
     let query = format!("{op} ({flag_list})");
 
-    let stream = session
-        .uid_store(uid_set, query)
-        .await
-        .map_err(imap_err)?;
+    let stream = session.uid_store(uid_set, query).await.map_err(imap_err)?;
     // Drain the response stream; the per-message echoes aren't needed,
     // but we propagate any per-item Err so a partial failure surfaces.
     let _: Vec<_> = stream.try_collect().await.map_err(imap_err)?;
@@ -425,10 +422,7 @@ async fn build_uid_set(
             // `session.search()` would return sequence numbers, which would
             // then be misinterpreted as UIDs by the caller's `uid_fetch`.
             let seq_set = format!("{}:{}", start_seq, exists);
-            let uids = session
-                .uid_search(seq_set)
-                .await
-                .map_err(imap_err)?;
+            let uids = session.uid_search(seq_set).await.map_err(imap_err)?;
             if uids.is_empty() {
                 return Ok(String::new());
             }

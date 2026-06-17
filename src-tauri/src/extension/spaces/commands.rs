@@ -5,9 +5,9 @@
 //! - List shared spaces from the local database
 
 use super::queries::{
-    SQL_DELETE_SHARED_SPACE_SYNC, SQL_INSERT_SHARED_SPACE_SYNC,
-    SQL_SHARED_SPACE_SYNC_SELECT_COLS,
+    SQL_DELETE_SHARED_SPACE_SYNC, SQL_INSERT_SHARED_SPACE_SYNC, SQL_SHARED_SPACE_SYNC_SELECT_COLS,
 };
+use crate::critical::CriticalFailureCode;
 use crate::database::core;
 use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
@@ -17,7 +17,6 @@ use crate::extension::permissions::types::SpaceAction;
 use crate::extension::utils::{
     emit_permission_prompt_if_needed, get_extension_table_prefix, resolve_extension_id,
 };
-use crate::critical::CriticalFailureCode;
 use crate::AppState;
 
 use serde::{Deserialize, Serialize};
@@ -75,10 +74,7 @@ fn validate_table_prefixes(
 }
 
 /// Validates that a single table name starts with the extension's prefix.
-fn validate_single_table_prefix(
-    table_name: &str,
-    prefix: &str,
-) -> Result<(), ExtensionError> {
+fn validate_single_table_prefix(table_name: &str, prefix: &str) -> Result<(), ExtensionError> {
     if !table_name.starts_with(prefix) {
         return Err(ExtensionError::SecurityViolation {
             reason: format!(
@@ -119,10 +115,8 @@ pub async fn extension_space_assign(
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    let prefix = get_extension_table_prefix(
-        &extension.manifest.public_key,
-        &extension.manifest.name,
-    );
+    let prefix =
+        get_extension_table_prefix(&extension.manifest.public_key, &extension.manifest.name);
 
     validate_table_prefixes(&assignments, &prefix)?;
 
@@ -161,9 +155,24 @@ pub async fn extension_space_assign(
                 serde_json::Value::String(assignment.space_id.clone()),
                 serde_json::Value::String(ext_public_key.clone()),
                 serde_json::Value::String(ext_name.clone()),
-                assignment.group_id.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
-                assignment.type_name.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
-                assignment.label.as_ref().map_or(serde_json::Value::Null, |v| serde_json::Value::String(v.clone())),
+                assignment
+                    .group_id
+                    .as_ref()
+                    .map_or(serde_json::Value::Null, |v| {
+                        serde_json::Value::String(v.clone())
+                    }),
+                assignment
+                    .type_name
+                    .as_ref()
+                    .map_or(serde_json::Value::Null, |v| {
+                        serde_json::Value::String(v.clone())
+                    }),
+                assignment
+                    .label
+                    .as_ref()
+                    .map_or(serde_json::Value::Null, |v| {
+                        serde_json::Value::String(v.clone())
+                    }),
             ],
             &state.db,
             &hlc_guard,
@@ -204,10 +213,8 @@ pub async fn extension_space_unassign(
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    let prefix = get_extension_table_prefix(
-        &extension.manifest.public_key,
-        &extension.manifest.name,
-    );
+    let prefix =
+        get_extension_table_prefix(&extension.manifest.public_key, &extension.manifest.name);
 
     validate_table_prefixes(&assignments, &prefix)?;
 
@@ -260,8 +267,7 @@ pub async fn extension_space_get_assignments(
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     let perm_result =
-        PermissionManager::check_spaces_permission(&state, &extension_id, SpaceAction::Read)
-            .await;
+        PermissionManager::check_spaces_permission(&state, &extension_id, SpaceAction::Read).await;
     if let Err(ref e) = perm_result {
         emit_permission_prompt_if_needed(&app_handle, e);
     }
@@ -274,10 +280,8 @@ pub async fn extension_space_get_assignments(
             reason: format!("Extension with ID {} not found", extension_id),
         })?;
 
-    let prefix = get_extension_table_prefix(
-        &extension.manifest.public_key,
-        &extension.manifest.name,
-    );
+    let prefix =
+        get_extension_table_prefix(&extension.manifest.public_key, &extension.manifest.name);
 
     validate_single_table_prefix(&table_name, &prefix)?;
 
@@ -297,7 +301,10 @@ pub async fn extension_space_get_assignments(
             (sql, params)
         }
         _ => {
-            let sql = format!("{} WHERE table_name = ?1", *SQL_SHARED_SPACE_SYNC_SELECT_COLS);
+            let sql = format!(
+                "{} WHERE table_name = ?1",
+                *SQL_SHARED_SPACE_SYNC_SELECT_COLS
+            );
             (sql, vec![serde_json::Value::String(table_name.clone())])
         }
     };
@@ -371,8 +378,7 @@ pub async fn extension_space_list(
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
     let perm_result =
-        PermissionManager::check_spaces_permission(&state, &extension_id, SpaceAction::Read)
-            .await;
+        PermissionManager::check_spaces_permission(&state, &extension_id, SpaceAction::Read).await;
     if let Err(ref e) = perm_result {
         emit_permission_prompt_if_needed(&app_handle, e);
     }
@@ -417,5 +423,3 @@ pub async fn extension_space_list(
 
     Ok(spaces)
 }
-
-

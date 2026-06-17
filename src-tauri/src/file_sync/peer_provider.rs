@@ -17,8 +17,6 @@ use super::hashing::ChunkedHash;
 use super::provider::{validate_relative_path, ReadFileResult, SyncProvider, SyncProviderError};
 use super::types::FileState;
 
-
-
 pub struct PeerProvider {
     endpoint: Arc<tokio::sync::RwLock<PeerEndpoint>>,
     remote_id: EndpointId,
@@ -73,29 +71,41 @@ impl SyncProvider for PeerProvider {
     }
 
     async fn manifest(&self) -> Result<Vec<FileState>, SyncProviderError> {
-        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
-            SyncProviderError::ConnectionFailed { reason: e.to_string() }
-        })?;
+        let (mut send, mut recv) =
+            self.open_stream()
+                .await
+                .map_err(|e| SyncProviderError::ConnectionFailed {
+                    reason: e.to_string(),
+                })?;
         let req = Request::Manifest {
             path: self.remote_base_path.clone(),
             ucan_token: self.ucan_token.clone(),
         };
         let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
         match response {
             Response::Manifest { entries } => Ok(entries),
-            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
-            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+            Response::Error { message } => {
+                Err(SyncProviderError::ConnectionFailed { reason: message })
+            }
+            _ => Err(SyncProviderError::ConnectionFailed {
+                reason: "Unexpected response".to_string(),
+            }),
         }
     }
 
     async fn read_file(&self, relative_path: &str) -> Result<Vec<u8>, SyncProviderError> {
         validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
-        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
-            SyncProviderError::ConnectionFailed { reason: e.to_string() }
-        })?;
+        let (mut send, mut recv) =
+            self.open_stream()
+                .await
+                .map_err(|e| SyncProviderError::ConnectionFailed {
+                    reason: e.to_string(),
+                })?;
         let req = Request::Read {
             path: full_path,
             range: None,
@@ -103,14 +113,18 @@ impl SyncProvider for PeerProvider {
         };
         let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
         match response {
             Response::ReadHeader { size } => {
                 let mut data = Vec::with_capacity(size as usize);
                 let mut buf = [0u8; 64 * 1024];
                 loop {
                     let chunk = recv.read(&mut buf).await.map_err(|e| {
-                        SyncProviderError::ConnectionFailed { reason: e.to_string() }
+                        SyncProviderError::ConnectionFailed {
+                            reason: e.to_string(),
+                        }
                     })?;
                     match chunk {
                         Some(n) => data.extend_from_slice(&buf[..n]),
@@ -124,8 +138,12 @@ impl SyncProvider for PeerProvider {
                 }
                 Ok(data)
             }
-            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
-            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+            Response::Error { message } => {
+                Err(SyncProviderError::ConnectionFailed { reason: message })
+            }
+            _ => Err(SyncProviderError::ConnectionFailed {
+                reason: "Unexpected response".to_string(),
+            }),
         }
     }
 
@@ -136,9 +154,12 @@ impl SyncProvider for PeerProvider {
     ) -> Result<Vec<u8>, SyncProviderError> {
         validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
-        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
-            SyncProviderError::ConnectionFailed { reason: e.to_string() }
-        })?;
+        let (mut send, mut recv) =
+            self.open_stream()
+                .await
+                .map_err(|e| SyncProviderError::ConnectionFailed {
+                    reason: e.to_string(),
+                })?;
         let req = Request::Read {
             path: full_path,
             range: None,
@@ -146,7 +167,9 @@ impl SyncProvider for PeerProvider {
         };
         let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
         match response {
             Response::ReadHeader { size } => {
                 let mut data = Vec::with_capacity(size as usize);
@@ -154,7 +177,9 @@ impl SyncProvider for PeerProvider {
                 let mut bytes_received: u64 = 0;
                 loop {
                     let chunk = recv.read(&mut buf).await.map_err(|e| {
-                        SyncProviderError::ConnectionFailed { reason: e.to_string() }
+                        SyncProviderError::ConnectionFailed {
+                            reason: e.to_string(),
+                        }
                     })?;
                     match chunk {
                         Some(n) => {
@@ -172,17 +197,24 @@ impl SyncProvider for PeerProvider {
                 }
                 Ok(data)
             }
-            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
-            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+            Response::Error { message } => {
+                Err(SyncProviderError::ConnectionFailed { reason: message })
+            }
+            _ => Err(SyncProviderError::ConnectionFailed {
+                reason: "Unexpected response".to_string(),
+            }),
         }
     }
 
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
-        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
-            SyncProviderError::ConnectionFailed { reason: e.to_string() }
-        })?;
+        let (mut send, mut recv) =
+            self.open_stream()
+                .await
+                .map_err(|e| SyncProviderError::ConnectionFailed {
+                    reason: e.to_string(),
+                })?;
         let req = Request::Write {
             path: full_path,
             size: data.len() as u64,
@@ -190,18 +222,33 @@ impl SyncProvider for PeerProvider {
         };
         PeerEndpoint::send_request_header(&mut send, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
 
-        send.write_all(data).await.map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
-        send.finish().map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
-
-        let response: Response = protocol::read_response(&mut recv)
+        send.write_all(data)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+        send.finish()
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        let response: Response = protocol::read_response(&mut recv).await.map_err(|e| {
+            SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            }
+        })?;
         match response {
             Response::WriteOk => Ok(()),
-            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
-            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+            Response::Error { message } => {
+                Err(SyncProviderError::ConnectionFailed { reason: message })
+            }
+            _ => Err(SyncProviderError::ConnectionFailed {
+                reason: "Unexpected response".to_string(),
+            }),
         }
     }
 
@@ -212,9 +259,12 @@ impl SyncProvider for PeerProvider {
     ) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
-        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
-            SyncProviderError::ConnectionFailed { reason: e.to_string() }
-        })?;
+        let (mut send, mut recv) =
+            self.open_stream()
+                .await
+                .map_err(|e| SyncProviderError::ConnectionFailed {
+                    reason: e.to_string(),
+                })?;
         let req = Request::Delete {
             path: full_path,
             to_trash,
@@ -222,31 +272,46 @@ impl SyncProvider for PeerProvider {
         };
         let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
         match response {
             Response::DeleteOk => Ok(()),
-            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
-            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+            Response::Error { message } => {
+                Err(SyncProviderError::ConnectionFailed { reason: message })
+            }
+            _ => Err(SyncProviderError::ConnectionFailed {
+                reason: "Unexpected response".to_string(),
+            }),
         }
     }
 
     async fn create_directory(&self, relative_path: &str) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
         let full_path = self.full_remote_path(relative_path);
-        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
-            SyncProviderError::ConnectionFailed { reason: e.to_string() }
-        })?;
+        let (mut send, mut recv) =
+            self.open_stream()
+                .await
+                .map_err(|e| SyncProviderError::ConnectionFailed {
+                    reason: e.to_string(),
+                })?;
         let req = Request::CreateDirectory {
             path: full_path,
             ucan_token: self.ucan_token.clone(),
         };
         let response = PeerEndpoint::send_request(&mut send, &mut recv, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
         match response {
             Response::CreateDirectoryOk => Ok(()),
-            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
-            _ => Err(SyncProviderError::ConnectionFailed { reason: "Unexpected response".to_string() }),
+            Response::Error { message } => {
+                Err(SyncProviderError::ConnectionFailed { reason: message })
+            }
+            _ => Err(SyncProviderError::ConnectionFailed {
+                reason: "Unexpected response".to_string(),
+            }),
         }
     }
 
@@ -273,7 +338,9 @@ impl SyncProvider for PeerProvider {
             self.ucan_token.clone(),
         )
         .await
-        .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+        .map_err(|e| SyncProviderError::ConnectionFailed {
+            reason: e.to_string(),
+        })?;
         Ok(ReadFileResult {
             bytes: result.bytes,
             hash: result.hash,
@@ -291,9 +358,12 @@ impl SyncProvider for PeerProvider {
             .await
             .map_err(SyncProviderError::Io)?
             .len();
-        let (mut send, mut recv) = self.open_stream().await.map_err(|e| {
-            SyncProviderError::ConnectionFailed { reason: e.to_string() }
-        })?;
+        let (mut send, mut recv) =
+            self.open_stream()
+                .await
+                .map_err(|e| SyncProviderError::ConnectionFailed {
+                    reason: e.to_string(),
+                })?;
         let req = Request::Write {
             path: full_path,
             size,
@@ -301,10 +371,13 @@ impl SyncProvider for PeerProvider {
         };
         PeerEndpoint::send_request_header(&mut send, &req)
             .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
 
-        let file =
-            tokio::fs::File::open(source_path).await.map_err(SyncProviderError::Io)?;
+        let file = tokio::fs::File::open(source_path)
+            .await
+            .map_err(SyncProviderError::Io)?;
 
         streaming::pipe_reader_to_send(&mut send, file, size, streaming::SendOptions::default())
             .await
@@ -319,13 +392,19 @@ impl SyncProvider for PeerProvider {
             })?;
 
         send.finish()
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
-        let response: Response = protocol::read_response(&mut recv)
-            .await
-            .map_err(|e| SyncProviderError::ConnectionFailed { reason: e.to_string() })?;
+            .map_err(|e| SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+        let response: Response = protocol::read_response(&mut recv).await.map_err(|e| {
+            SyncProviderError::ConnectionFailed {
+                reason: e.to_string(),
+            }
+        })?;
         match response {
             Response::WriteOk => Ok(()),
-            Response::Error { message } => Err(SyncProviderError::ConnectionFailed { reason: message }),
+            Response::Error { message } => {
+                Err(SyncProviderError::ConnectionFailed { reason: message })
+            }
             _ => Err(SyncProviderError::ConnectionFailed {
                 reason: "Unexpected response".to_string(),
             }),

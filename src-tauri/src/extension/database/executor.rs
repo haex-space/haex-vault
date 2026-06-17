@@ -19,12 +19,11 @@ use uhlc::Timestamp;
 ///
 /// The returned timestamp is also fed back into the HLC service (so the clock
 /// keeps advancing across transactions) and persisted to `haex_crdt_configs`.
-fn tx_scoped_hlc(
-    tx: &Transaction,
-    hlc_service: &HlcService,
-) -> Result<Timestamp, DatabaseError> {
+fn tx_scoped_hlc(tx: &Transaction, hlc_service: &HlcService) -> Result<Timestamp, DatabaseError> {
     let hlc_str: String = tx
-        .query_row(&format!("SELECT {HLC_FUNCTION_NAME}()"), [], |row| row.get(0))
+        .query_row(&format!("SELECT {HLC_FUNCTION_NAME}()"), [], |row| {
+            row.get(0)
+        })
         .map_err(|e| DatabaseError::HlcError {
             reason: format!("Failed to read {HLC_FUNCTION_NAME}(): {e}"),
         })?;
@@ -37,7 +36,9 @@ fn tx_scoped_hlc(
     // that draw from hlc_service keep monotonic with what we just handed out.
     hlc_service
         .update_with_timestamp(&timestamp)
-        .map_err(|e: HlcError| DatabaseError::HlcError { reason: e.to_string() })?;
+        .map_err(|e: HlcError| DatabaseError::HlcError {
+            reason: e.to_string(),
+        })?;
 
     HlcService::persist_timestamp(tx, &timestamp).map_err(|e| DatabaseError::HlcError {
         reason: e.to_string(),

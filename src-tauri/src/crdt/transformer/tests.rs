@@ -46,9 +46,7 @@ fn test_delete_stays_delete() {
 
 #[test]
 fn test_update_adds_hlc_assignment() {
-    let result = parse_and_transform_execute(
-        "UPDATE items SET name = 'foo' WHERE id = 'x'",
-    );
+    let result = parse_and_transform_execute("UPDATE items SET name = 'foo' WHERE id = 'x'");
     assert!(
         result.contains("haex_hlc"),
         "UPDATE must add haex_hlc assignment. Got: {result}"
@@ -58,9 +56,7 @@ fn test_update_adds_hlc_assignment() {
 
 #[test]
 fn test_create_table_adds_crdt_columns() {
-    let result = parse_and_transform_execute(
-        "CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT)",
-    );
+    let result = parse_and_transform_execute("CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT)");
     assert!(result.contains("haex_hlc"), "Got: {result}");
     assert!(result.contains("haex_column_hlcs"), "Got: {result}");
     assert!(
@@ -71,9 +67,7 @@ fn test_create_table_adds_crdt_columns() {
 
 #[test]
 fn test_create_unique_index_is_not_rewritten_to_partial() {
-    let result = parse_and_transform_execute(
-        "CREATE UNIQUE INDEX idx_items_name ON items(name)",
-    );
+    let result = parse_and_transform_execute("CREATE UNIQUE INDEX idx_items_name ON items(name)");
     assert!(
         !result.to_uppercase().contains("WHERE"),
         "UNIQUE index must stay full (no partial rewrite). Got: {result}"
@@ -94,9 +88,7 @@ fn test_create_table_no_sync_skipped() {
 
 #[test]
 fn test_insert_into_sync_table_gets_hlc_column() {
-    let result = parse_and_transform_execute(
-        "INSERT INTO items (id, name) VALUES ('a', 'b')",
-    );
+    let result = parse_and_transform_execute("INSERT INTO items (id, name) VALUES ('a', 'b')");
     // InsertTransformer adds haex_hlc as a literal column/value
     assert!(result.contains("haex_hlc"), "Got: {result}");
 }

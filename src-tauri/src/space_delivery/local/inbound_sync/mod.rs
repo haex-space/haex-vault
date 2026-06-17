@@ -50,8 +50,8 @@
 
 pub mod ownership;
 pub mod space_scope;
-pub mod validate;
 mod util;
+pub mod validate;
 
 use crate::crdt::scanner::{is_membership_system_table, LocalColumnChange};
 use crate::database::DbConnection;
@@ -81,7 +81,10 @@ pub enum InboundSyncPushOutcome {
 ///
 /// [membership-system tables]: crate::crdt::scanner::MEMBERSHIP_SYSTEM_TABLES
 fn required_capability_for(changes: &[LocalColumnChange]) -> CapabilityLevel {
-    if changes.iter().all(|c| is_membership_system_table(&c.table_name)) {
+    if changes
+        .iter()
+        .all(|c| is_membership_system_table(&c.table_name))
+    {
         CapabilityLevel::Read
     } else {
         CapabilityLevel::Write
@@ -185,5 +188,7 @@ pub fn authorize_inbound_sync_push(
         eprintln!("[InboundSync] Skipping foreign-owned row: {reason}");
     }
 
-    InboundSyncPushOutcome::Accepted { changes: attributed }
+    InboundSyncPushOutcome::Accepted {
+        changes: attributed,
+    }
 }

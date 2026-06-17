@@ -385,7 +385,10 @@ mod tests {
         let cleaned = sanitize_shortcut_label(injected);
         assert!(!cleaned.contains('/'), "forward slash must be stripped");
         assert!(!cleaned.contains('\\'), "backslash must be stripped");
-        assert!(!cleaned.contains(".."), "parent-dir sequence must not survive");
+        assert!(
+            !cleaned.contains(".."),
+            "parent-dir sequence must not survive"
+        );
     }
 
     #[test]
@@ -400,7 +403,10 @@ mod tests {
     fn sanitize_bounds_length() {
         let huge: String = "a".repeat(10_000);
         let cleaned = sanitize_shortcut_label(&huge);
-        assert!(cleaned.len() <= 64, "label must be bounded to prevent oversized files");
+        assert!(
+            cleaned.len() <= 64,
+            "label must be bounded to prevent oversized files"
+        );
     }
 
     #[test]
@@ -446,7 +452,17 @@ mod tests {
         // arguments — a newline, double-quote, or backtick would close the
         // quoted argument and inject a new `.desktop` key or PowerShell
         // statement. Reject every non-URL-safe char outright.
-        for breaker in ["with space", "ext\"id", "ext\nid", "ext`id", "ext$id", "ext/id", "ext\\id", "ext;id", "ext id\nExec=evil"] {
+        for breaker in [
+            "with space",
+            "ext\"id",
+            "ext\nid",
+            "ext`id",
+            "ext$id",
+            "ext/id",
+            "ext\\id",
+            "ext;id",
+            "ext id\nExec=evil",
+        ] {
             assert!(
                 matches!(
                     validate_extension_id_for_url(breaker),

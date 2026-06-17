@@ -42,12 +42,14 @@ impl PeerSession {
         label: Option<&str>,
         db: &DbConnection,
     ) -> Result<Self, DeliveryError> {
-        let ucan_token = load_active_ucan_for_audience(db, space_id, our_did)?
-            .ok_or_else(|| DeliveryError::AccessDenied {
-                reason: format!(
-                    "No active UCAN token for space {} audience {} — cannot connect",
-                    space_id, our_did
-                ),
+        let ucan_token =
+            load_active_ucan_for_audience(db, space_id, our_did)?.ok_or_else(|| {
+                DeliveryError::AccessDenied {
+                    reason: format!(
+                        "No active UCAN token for space {} audience {} — cannot connect",
+                        space_id, our_did
+                    ),
+                }
             })?;
 
         // Relay-URL fallback shared with the other QUIC entry points
@@ -115,18 +117,17 @@ impl PeerSession {
 
     /// Send a request and read the response.
     async fn request(&self, req: Request) -> Result<Response, DeliveryError> {
-        let (mut send, mut recv) = self
-            .conn
-            .open_bi()
-            .await
-            .map_err(|e| DeliveryError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
+        let (mut send, mut recv) =
+            self.conn
+                .open_bi()
+                .await
+                .map_err(|e| DeliveryError::ConnectionFailed {
+                    reason: e.to_string(),
+                })?;
 
-        let bytes =
-            protocol::encode(&req).map_err(|e| DeliveryError::ProtocolError {
-                reason: e.to_string(),
-            })?;
+        let bytes = protocol::encode(&req).map_err(|e| DeliveryError::ProtocolError {
+            reason: e.to_string(),
+        })?;
 
         send.write_all(&bytes)
             .await
@@ -134,11 +135,9 @@ impl PeerSession {
                 reason: e.to_string(),
             })?;
 
-
-        send.finish()
-            .map_err(|e| DeliveryError::ConnectionFailed {
-                reason: e.to_string(),
-            })?;
+        send.finish().map_err(|e| DeliveryError::ConnectionFailed {
+            reason: e.to_string(),
+        })?;
 
         // Bound the response wait. A QUIC connection whose path silently
         // degrades after the handshake (e.g. relay-only after a direct-path
@@ -280,10 +279,7 @@ impl PeerSession {
     }
 
     /// Fetch unconsumed welcome messages from the leader.
-    pub async fn fetch_welcomes(
-        &self,
-        space_id: &str,
-    ) -> Result<Vec<String>, DeliveryError> {
+    pub async fn fetch_welcomes(&self, space_id: &str) -> Result<Vec<String>, DeliveryError> {
         let req = Request::MlsFetchWelcomes {
             space_id: space_id.to_string(),
         };
@@ -297,10 +293,7 @@ impl PeerSession {
     }
 
     /// Request rejoin via External Commit. Returns base64-encoded GroupInfo.
-    pub async fn request_rejoin(
-        &self,
-        space_id: &str,
-    ) -> Result<String, DeliveryError> {
+    pub async fn request_rejoin(&self, space_id: &str) -> Result<String, DeliveryError> {
         let req = Request::RequestRejoin {
             space_id: space_id.to_string(),
             ucan_token: Some(self.ucan_token.clone()),

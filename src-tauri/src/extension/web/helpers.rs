@@ -11,7 +11,9 @@ use std::time::Duration;
 use tauri_plugin_http::reqwest;
 
 /// Performs the actual HTTP request without CORS restrictions
-pub async fn fetch_web_request(request: WebFetchRequest) -> Result<WebFetchResponse, ExtensionError> {
+pub async fn fetch_web_request(
+    request: WebFetchRequest,
+) -> Result<WebFetchResponse, ExtensionError> {
     let method_str = request.method.as_deref().unwrap_or("GET");
     let timeout_ms = request.timeout.unwrap_or(30000);
 
@@ -24,9 +26,11 @@ pub async fn fetch_web_request(request: WebFetchRequest) -> Result<WebFetchRespo
         })?;
 
     // Build request — support any valid HTTP method (including WebDAV: PROPFIND, REPORT, etc.)
-    let method = reqwest::Method::from_bytes(method_str.to_uppercase().as_bytes())
-        .map_err(|e| ExtensionError::WebError {
-            reason: format!("Invalid HTTP method '{}': {}", method_str, e),
+    let method =
+        reqwest::Method::from_bytes(method_str.to_uppercase().as_bytes()).map_err(|e| {
+            ExtensionError::WebError {
+                reason: format!("Invalid HTTP method '{}': {}", method_str, e),
+            }
         })?;
     let mut req_builder = client.request(method, &request.url);
 

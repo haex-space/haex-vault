@@ -24,8 +24,8 @@ use tauri::{AppHandle, Manager, State};
 use ts_rs::TS;
 
 use crate::critical::CriticalFailureCode;
-use crate::AppState;
 use crate::database::core;
+use crate::AppState;
 use error::DeviceError;
 
 const DEVICE_ID_FILE: &str = "device_id";
@@ -408,6 +408,8 @@ pub async fn endpoint_load_for_device(
         endpoint.replace_key(secret_key);
     }
 
-    eprintln!("[Device] Endpoint key loaded for device row {device_row_id}, EndpointId: {endpoint_id}");
+    eprintln!(
+        "[Device] Endpoint key loaded for device row {device_row_id}, EndpointId: {endpoint_id}"
+    );
     Ok(endpoint_id)
 }

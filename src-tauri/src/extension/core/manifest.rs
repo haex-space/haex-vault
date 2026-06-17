@@ -242,14 +242,16 @@ impl ExtensionPermissions {
         }
         if let Some(entries) = &self.identities {
             for p in entries {
-                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Identities, p) {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Identities, p)
+                {
                     permissions.push(perm);
                 }
             }
         }
         if let Some(entries) = &self.passwords {
             for p in entries {
-                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Passwords, p) {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Passwords, p)
+                {
                     permissions.push(perm);
                 }
             }
@@ -287,21 +289,19 @@ impl ExtensionPermissions {
                 }
             }
             ResourceType::Shell => ShellAction::from_str(operation_str).ok().map(Action::Shell),
-            ResourceType::Filesync => {
-                FileSyncAction::from_str(operation_str).ok().map(Action::FileSync)
-            }
-            ResourceType::Spaces => {
-                SpaceAction::from_str(operation_str).ok().map(Action::Spaces)
-            }
-            ResourceType::Identities => {
-                IdentityAction::from_str(operation_str).ok().map(Action::Identities)
-            }
-            ResourceType::Passwords => {
-                PasswordsAction::from_str(operation_str).ok().map(Action::Passwords)
-            }
-            ResourceType::Mail => {
-                MailAction::from_str(operation_str).ok().map(Action::Mail)
-            }
+            ResourceType::Filesync => FileSyncAction::from_str(operation_str)
+                .ok()
+                .map(Action::FileSync),
+            ResourceType::Spaces => SpaceAction::from_str(operation_str)
+                .ok()
+                .map(Action::Spaces),
+            ResourceType::Identities => IdentityAction::from_str(operation_str)
+                .ok()
+                .map(Action::Identities),
+            ResourceType::Passwords => PasswordsAction::from_str(operation_str)
+                .ok()
+                .map(Action::Passwords),
+            ResourceType::Mail => MailAction::from_str(operation_str).ok().map(Action::Mail),
         };
 
         action.map(|act| ExtensionPermission {

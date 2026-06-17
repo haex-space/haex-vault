@@ -124,7 +124,10 @@ fn normalize_vault_path(vault_path: &Path) -> Result<PathBuf, VaultLockError> {
     // catches the symlinked-dir case while permitting create-then-open.
     let parent = vault_path.parent().ok_or_else(|| VaultLockError::Io {
         path: vault_path.display().to_string(),
-        source: io::Error::new(io::ErrorKind::InvalidInput, "vault path has no parent directory"),
+        source: io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "vault path has no parent directory",
+        ),
     })?;
     let file_name = vault_path.file_name().ok_or_else(|| VaultLockError::Io {
         path: vault_path.display().to_string(),

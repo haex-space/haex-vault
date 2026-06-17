@@ -14,6 +14,7 @@
 //! write is rejected (SecurityViolation). This prevents an extension from
 //! tagging items out of its own reach.
 
+use crate::critical::CriticalFailureCode;
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
@@ -21,7 +22,6 @@ use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{PasswordsAction, PasswordsScope};
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
-use crate::critical::CriticalFailureCode;
 use crate::AppState;
 
 use serde::{Deserialize, Serialize};
@@ -229,9 +229,11 @@ pub async fn extension_password_read(
         })?
     };
 
-    let row = item_rows.first().ok_or_else(|| ExtensionError::ValidationError {
-        reason: format!("Password item {} not found", item_id),
-    })?;
+    let row = item_rows
+        .first()
+        .ok_or_else(|| ExtensionError::ValidationError {
+            reason: format!("Password item {} not found", item_id),
+        })?;
 
     let tags = read_item_tags(&state, &item_id)?;
     let key_values = read_item_key_values(&state, &item_id)?;
@@ -272,8 +274,9 @@ fn build_read_item_query(scope: &PasswordsScope, item_id: &str) -> (String, Vec<
             vec![JsonValue::String(item_id.to_string())],
         ),
         PasswordsScope::Tags(allowed_tags) => {
-            let placeholders: Vec<String> =
-                (2..=allowed_tags.len() + 1).map(|i| format!("?{}", i)).collect();
+            let placeholders: Vec<String> = (2..=allowed_tags.len() + 1)
+                .map(|i| format!("?{}", i))
+                .collect();
             let sql = format!(
                 "SELECT {cols} FROM haex_passwords_item_details \
                  WHERE id = ?1 \
@@ -358,8 +361,9 @@ fn build_list_query(scope: &PasswordsScope) -> (String, Vec<JsonValue>) {
             (sql, vec![])
         }
         PasswordsScope::Tags(allowed_tags) => {
-            let placeholders: Vec<String> =
-                (1..=allowed_tags.len()).map(|i| format!("?{}", i)).collect();
+            let placeholders: Vec<String> = (1..=allowed_tags.len())
+                .map(|i| format!("?{}", i))
+                .collect();
             let sql = format!(
                 "SELECT {cols} \
                  FROM haex_passwords_item_details i \
@@ -611,9 +615,8 @@ fn insert_item_row(
         serialize_aliases(&input.autofill_aliases),
         opt_str_param(&input.expires_at),
     ];
-    execute_with_crdt(sql, params, &state.db, hlc).map_err(|e| ExtensionError::Database {
-        source: e,
-    })?;
+    execute_with_crdt(sql, params, &state.db, hlc)
+        .map_err(|e| ExtensionError::Database { source: e })?;
     Ok(())
 }
 
@@ -646,9 +649,8 @@ fn update_item_row(
         serialize_aliases(&input.autofill_aliases),
         opt_str_param(&input.expires_at),
     ];
-    execute_with_crdt(sql, params, &state.db, hlc).map_err(|e| ExtensionError::Database {
-        source: e,
-    })?;
+    execute_with_crdt(sql, params, &state.db, hlc)
+        .map_err(|e| ExtensionError::Database { source: e })?;
     Ok(())
 }
 
@@ -671,9 +673,8 @@ fn upsert_and_link_tags(
             JsonValue::String(item_id.to_string()),
             JsonValue::String(tag_id),
         ];
-        execute_with_crdt(sql, params, &state.db, hlc).map_err(|e| {
-            ExtensionError::Database { source: e }
-        })?;
+        execute_with_crdt(sql, params, &state.db, hlc)
+            .map_err(|e| ExtensionError::Database { source: e })?;
     }
     Ok(())
 }

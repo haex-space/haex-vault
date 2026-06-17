@@ -95,7 +95,10 @@ pub const LOG_TRUNCATE_DEFAULT: usize = 24;
 /// identifier: AuthGate reject paths, peer_storage handlers,
 /// multi_leader.rs, endpoint.rs — always at [`LOG_TRUNCATE_DEFAULT`].
 pub fn log_truncate(s: &str, max: usize) -> String {
-    debug_assert!(max > 0, "log_truncate called with max=0 — would erase identifier");
+    debug_assert!(
+        max > 0,
+        "log_truncate called with max=0 — would erase identifier"
+    );
     s.chars().take(max).collect()
 }
 
@@ -105,22 +108,17 @@ pub fn get_effective_log_level(
     extension_id: Option<&str>,
 ) -> LogLevel {
     if let Some(ext_id) = extension_id {
-        if let Ok(level) = conn.query_row(
-            &SQL_GET_LOG_LEVEL_BY_EXTENSION,
-            [ext_id],
-            |row| row.get::<_, String>(0),
-        ) {
+        if let Ok(level) = conn.query_row(&SQL_GET_LOG_LEVEL_BY_EXTENSION, [ext_id], |row| {
+            row.get::<_, String>(0)
+        }) {
             if let Some(l) = LogLevel::from_str(&level) {
                 return l;
             }
         }
     }
 
-    if let Ok(level) = conn.query_row(
-        &SQL_GET_LOG_LEVEL_GLOBAL,
-        [],
-        |row| row.get::<_, String>(0),
-    ) {
+    if let Ok(level) = conn.query_row(&SQL_GET_LOG_LEVEL_GLOBAL, [], |row| row.get::<_, String>(0))
+    {
         if let Some(l) = LogLevel::from_str(&level) {
             return l;
         }
@@ -209,7 +207,9 @@ pub fn log_to_db(
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = time::OffsetDateTime::now_utc();
-    let timestamp = now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+    let timestamp = now
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default();
 
     // Choose minimal vs full insert based on whether metadata was supplied.
     // The minimal path keeps the historical behaviour for callers that
@@ -262,7 +262,9 @@ pub fn insert_log(
 ) -> Result<(), crate::database::error::DatabaseError> {
     let id = uuid::Uuid::new_v4().to_string();
     let now = time::OffsetDateTime::now_utc();
-    let timestamp = now.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+    let timestamp = now
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default();
     let metadata_str = metadata.map(|m| m.to_string());
 
     let params: Vec<serde_json::Value> = vec![
@@ -328,12 +330,19 @@ fn build_log_filter(query: &LogQueryParams) -> (String, Vec<serde_json::Value>, 
     }
     if let Some(ref level) = query.level {
         if let Some(min_level) = LogLevel::from_str(level) {
-            let levels: Vec<&str> = [LogLevel::Debug, LogLevel::Info, LogLevel::Warn, LogLevel::Error]
+            let levels: Vec<&str> = [
+                LogLevel::Debug,
+                LogLevel::Info,
+                LogLevel::Warn,
+                LogLevel::Error,
+            ]
+            .iter()
+            .filter(|l| **l >= min_level)
+            .map(|l| l.as_str())
+            .collect();
+            let placeholders: Vec<String> = levels
                 .iter()
-                .filter(|l| **l >= min_level)
-                .map(|l| l.as_str())
-                .collect();
-            let placeholders: Vec<String> = levels.iter().enumerate()
+                .enumerate()
                 .map(|(i, _)| format!("?{}", idx + i))
                 .collect();
             conditions.push(format!("level IN ({})", placeholders.join(",")));
@@ -396,18 +405,25 @@ pub fn query_logs(
         }
     }
 
-    rows.iter().map(|row| {
-        Ok(LogEntry {
-            id: json_to_opt_string(row.get(0).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
-            timestamp: json_to_opt_string(row.get(1).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
-            level: json_to_opt_string(row.get(2).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
-            source: json_to_opt_string(row.get(3).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
-            extension_id: json_to_opt_string(row.get(4).unwrap_or(&JsonValue::Null)),
-            message: json_to_opt_string(row.get(5).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
-            metadata: json_to_opt_string(row.get(6).unwrap_or(&JsonValue::Null)),
-            device_id: json_to_opt_string(row.get(7).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
+    rows.iter()
+        .map(|row| {
+            Ok(LogEntry {
+                id: json_to_opt_string(row.get(0).unwrap_or(&JsonValue::Null)).unwrap_or_default(),
+                timestamp: json_to_opt_string(row.get(1).unwrap_or(&JsonValue::Null))
+                    .unwrap_or_default(),
+                level: json_to_opt_string(row.get(2).unwrap_or(&JsonValue::Null))
+                    .unwrap_or_default(),
+                source: json_to_opt_string(row.get(3).unwrap_or(&JsonValue::Null))
+                    .unwrap_or_default(),
+                extension_id: json_to_opt_string(row.get(4).unwrap_or(&JsonValue::Null)),
+                message: json_to_opt_string(row.get(5).unwrap_or(&JsonValue::Null))
+                    .unwrap_or_default(),
+                metadata: json_to_opt_string(row.get(6).unwrap_or(&JsonValue::Null)),
+                device_id: json_to_opt_string(row.get(7).unwrap_or(&JsonValue::Null))
+                    .unwrap_or_default(),
+            })
         })
-    }).collect()
+        .collect()
 }
 
 /// Count logs matching the same filters used by `query_logs` (limit/offset are ignored).
@@ -443,22 +459,18 @@ const DEFAULT_RETENTION_DAYS: i64 = 14;
 /// Get the retention days for a source (extension or global).
 fn get_retention_days(conn: &rusqlite::Connection, extension_id: Option<&str>) -> i64 {
     if let Some(ext_id) = extension_id {
-        if let Ok(days) = conn.query_row(
-            &SQL_GET_RETENTION_DAYS_BY_EXTENSION,
-            [ext_id],
-            |row| row.get::<_, String>(0),
-        ) {
+        if let Ok(days) = conn.query_row(&SQL_GET_RETENTION_DAYS_BY_EXTENSION, [ext_id], |row| {
+            row.get::<_, String>(0)
+        }) {
             if let Ok(d) = days.parse::<i64>() {
                 return d;
             }
         }
     }
 
-    if let Ok(days) = conn.query_row(
-        &SQL_GET_RETENTION_DAYS_GLOBAL,
-        [],
-        |row| row.get::<_, String>(0),
-    ) {
+    if let Ok(days) = conn.query_row(&SQL_GET_RETENTION_DAYS_GLOBAL, [], |row| {
+        row.get::<_, String>(0)
+    }) {
         if let Ok(d) = days.parse::<i64>() {
             return d;
         }
@@ -471,7 +483,9 @@ fn get_retention_days(conn: &rusqlite::Connection, extension_id: Option<&str>) -
 /// Handles per-extension retention: extensions with custom retention
 /// are cleaned separately, remaining logs use the global retention.
 /// Uses execute_with_crdt to properly create tombstones instead of hard-deleting.
-pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::error::DatabaseError> {
+pub fn cleanup_logs(
+    state: &crate::AppState,
+) -> Result<usize, crate::database::error::DatabaseError> {
     use serde_json::Value as JsonValue;
 
     let hlc = state.lock_or_fail(
@@ -482,29 +496,35 @@ pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::e
     )?;
 
     // Read retention config using raw connection (read-only, no CRDT needed)
-    let (global_cutoff_str, console_cutoff_str, custom_extensions) = crate::database::core::with_connection(&state.db, |conn| {
-        let global_retention = get_retention_days(conn, None);
-        let global_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(global_retention);
-        let global_cutoff_str = global_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+    let (global_cutoff_str, console_cutoff_str, custom_extensions) =
+        crate::database::core::with_connection(&state.db, |conn| {
+            let global_retention = get_retention_days(conn, None);
+            let global_cutoff =
+                time::OffsetDateTime::now_utc() - time::Duration::days(global_retention);
+            let global_cutoff_str = global_cutoff
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default();
 
-        let console_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(1);
-        let console_cutoff_str = console_cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+            let console_cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(1);
+            let console_cutoff_str = console_cutoff
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap_or_default();
 
-        let mut custom_extensions: Vec<(String, i64)> = Vec::new();
-        if let Ok(mut stmt) = conn.prepare(&SQL_LIST_CUSTOM_RETENTION_EXTENSIONS) {
-            if let Ok(rows) = stmt.query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            }) {
-                for row in rows.flatten() {
-                    if let Ok(days) = row.1.parse::<i64>() {
-                        custom_extensions.push((row.0, days));
+            let mut custom_extensions: Vec<(String, i64)> = Vec::new();
+            if let Ok(mut stmt) = conn.prepare(&SQL_LIST_CUSTOM_RETENTION_EXTENSIONS) {
+                if let Ok(rows) = stmt.query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                }) {
+                    for row in rows.flatten() {
+                        if let Ok(days) = row.1.parse::<i64>() {
+                            custom_extensions.push((row.0, days));
+                        }
                     }
                 }
             }
-        }
 
-        Ok((global_cutoff_str, console_cutoff_str, custom_extensions))
-    })?;
+            Ok((global_cutoff_str, console_cutoff_str, custom_extensions))
+        })?;
 
     let mut total_deleted = 0;
 
@@ -520,10 +540,15 @@ pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::e
     // Extensions with custom retention
     for (ext_id, days) in &custom_extensions {
         let cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(*days);
-        let cutoff_str = cutoff.format(&time::format_description::well_known::Rfc3339).unwrap_or_default();
+        let cutoff_str = cutoff
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default();
         crate::database::core::execute_with_crdt(
             SQL_DELETE_EXTENSION_LOGS_BEFORE.clone(),
-            vec![JsonValue::String(ext_id.clone()), JsonValue::String(cutoff_str)],
+            vec![
+                JsonValue::String(ext_id.clone()),
+                JsonValue::String(cutoff_str),
+            ],
             &state.db,
             &hlc,
         )?;
@@ -531,7 +556,10 @@ pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::e
     }
 
     // Everything else: global retention (excluding already-handled console + custom extensions)
-    let custom_ids: Vec<&str> = custom_extensions.iter().map(|(id, _)| id.as_str()).collect();
+    let custom_ids: Vec<&str> = custom_extensions
+        .iter()
+        .map(|(id, _)| id.as_str())
+        .collect();
     if custom_ids.is_empty() {
         crate::database::core::execute_with_crdt(
             SQL_DELETE_LOGS_EXCEPT_CONSOLE_BEFORE.clone(),
@@ -541,7 +569,9 @@ pub fn cleanup_logs(state: &crate::AppState) -> Result<usize, crate::database::e
         )?;
     } else {
         let mut params: Vec<JsonValue> = vec![JsonValue::String(global_cutoff_str)];
-        let placeholders: Vec<String> = custom_ids.iter().enumerate()
+        let placeholders: Vec<String> = custom_ids
+            .iter()
+            .enumerate()
             .map(|(i, _)| format!("?{}", i + 2))
             .collect();
         for id in &custom_ids {

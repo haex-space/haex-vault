@@ -4,7 +4,9 @@
 use crate::crdt::trigger;
 use crate::database::constants::vault_settings_key;
 use crate::database::error::DatabaseError;
-use crate::table_names::{COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS};
+use crate::table_names::{
+    COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS,
+};
 use rusqlite::{params, Connection};
 
 /// Current version of the CRDT trigger logic.
@@ -82,7 +84,9 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
             true
         }
         None if initialized.is_some() => {
-            eprintln!("INFO: Triggers initialized but no version, upgrading to v{TRIGGER_VERSION}...");
+            eprintln!(
+                "INFO: Triggers initialized but no version, upgrading to v{TRIGGER_VERSION}..."
+            );
             true
         }
         None => {

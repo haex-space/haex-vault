@@ -59,9 +59,7 @@ impl<R: AsyncRead + Unpin> AsyncRead for ProgressReader<R> {
                     let now = Instant::now();
                     let reached_total = self.total > 0 && self.bytes_read >= self.total;
                     if let Some(cb) = self.cb.clone() {
-                        if reached_total
-                            || now.duration_since(self.last_emit) >= EMIT_INTERVAL
-                        {
+                        if reached_total || now.duration_since(self.last_emit) >= EMIT_INTERVAL {
                             self.last_emit = now;
                             cb(self.bytes_read, self.total.max(self.bytes_read));
                         }
@@ -129,17 +127,11 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for ProgressWriter<W> {
         }
     }
 
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
 
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         if let Some(cb) = self.cb.clone() {
             let total = self.total.max(self.bytes_written);
             cb(self.bytes_written, total);
@@ -156,7 +148,11 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[allow(clippy::type_complexity)]
-    fn counter_cb() -> (Arc<AtomicU64>, Arc<Mutex<Vec<(u64, u64)>>>, ProgressCallback) {
+    fn counter_cb() -> (
+        Arc<AtomicU64>,
+        Arc<Mutex<Vec<(u64, u64)>>>,
+        ProgressCallback,
+    ) {
         let calls = Arc::new(AtomicU64::new(0));
         let samples = Arc::new(Mutex::new(Vec::new()));
         let calls_c = calls.clone();

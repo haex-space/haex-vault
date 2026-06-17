@@ -3,9 +3,9 @@
 //! Tests for web request limit enforcement
 
 use super::*;
+use crate::extension::limits::shared::ConcurrencyTracker;
 use crate::extension::limits::types::{LimitError, WebLimits};
 use crate::extension::limits::web::enforcer::WebRequestGuard;
-use crate::extension::limits::shared::ConcurrencyTracker;
 
 #[test]
 fn test_web_request_tracker_initial_count() {
@@ -88,8 +88,12 @@ fn test_check_bandwidth_valid() {
         max_concurrent_requests: 5,
     };
 
-    assert!(enforcer.check_bandwidth("ext1", 1024 * 1024, &limits).is_ok());
-    assert!(enforcer.check_bandwidth("ext1", 1024 * 1024, &limits).is_ok());
+    assert!(enforcer
+        .check_bandwidth("ext1", 1024 * 1024, &limits)
+        .is_ok());
+    assert!(enforcer
+        .check_bandwidth("ext1", 1024 * 1024, &limits)
+        .is_ok());
 }
 
 #[test]
@@ -102,10 +106,14 @@ fn test_check_bandwidth_exceeded() {
     };
 
     // First 1MB should succeed
-    assert!(enforcer.check_bandwidth("ext1", 1024 * 1024, &limits).is_ok());
+    assert!(enforcer
+        .check_bandwidth("ext1", 1024 * 1024, &limits)
+        .is_ok());
 
     // Second 1MB should succeed (now at 2MB)
-    assert!(enforcer.check_bandwidth("ext1", 1024 * 1024, &limits).is_ok());
+    assert!(enforcer
+        .check_bandwidth("ext1", 1024 * 1024, &limits)
+        .is_ok());
 
     // Third 1MB should fail (would exceed 2MB limit)
     let result = enforcer.check_bandwidth("ext1", 1024 * 1024, &limits);

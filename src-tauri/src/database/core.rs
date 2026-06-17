@@ -347,7 +347,10 @@ pub fn register_current_hlc_udf(
 /// - update_hook: flip the write-pending flag on the first row-level
 ///   INSERT/UPDATE/DELETE in a transaction, so that a stray read-only
 ///   `SELECT current_hlc()` cannot poison the HLC of a later write.
-pub fn install_tx_hlc_hooks(conn: &Connection, context: ConnectionContext) -> Result<(), DatabaseError> {
+pub fn install_tx_hlc_hooks(
+    conn: &Connection,
+    context: ConnectionContext,
+) -> Result<(), DatabaseError> {
     let ctx_commit = context.clone();
     conn.commit_hook(Some(move || {
         ctx_commit.reset_tx_slot();
@@ -366,9 +369,11 @@ pub fn install_tx_hlc_hooks(conn: &Connection, context: ConnectionContext) -> Re
     })?;
 
     let ctx_update = context;
-    conn.update_hook(Some(move |_action, _db: &str, _table: &str, _row_id: i64| {
-        ctx_update.mark_write_pending();
-    }))
+    conn.update_hook(Some(
+        move |_action, _db: &str, _table: &str, _row_id: i64| {
+            ctx_update.mark_write_pending();
+        },
+    ))
     .map_err(|e| DatabaseError::DatabaseError {
         reason: format!("Failed to install update_hook: {e}"),
     })?;
@@ -485,8 +490,7 @@ pub fn execute_with_crdt(
                 SqlExecutor::query_internal(&tx, hlc_service, &sql, &params)?;
             rows
         } else {
-            let _modified_tables =
-                SqlExecutor::execute_internal(&tx, hlc_service, &sql, &params)?;
+            let _modified_tables = SqlExecutor::execute_internal(&tx, hlc_service, &sql, &params)?;
             vec![]
         };
 
@@ -1084,13 +1088,14 @@ mod tests {
         )
         .unwrap();
 
-        conn.execute_batch(
-            "CREATE TABLE test_uuids (id TEXT NOT NULL, other_id TEXT NOT NULL);",
-        )
-        .unwrap();
+        conn.execute_batch("CREATE TABLE test_uuids (id TEXT NOT NULL, other_id TEXT NOT NULL);")
+            .unwrap();
 
         conn.execute(
-            &format!("INSERT INTO test_uuids (id, other_id) VALUES ({fn_name}(), {fn_name}());", fn_name = UUID_FUNCTION_NAME),
+            &format!(
+                "INSERT INTO test_uuids (id, other_id) VALUES ({fn_name}(), {fn_name}());",
+                fn_name = UUID_FUNCTION_NAME
+            ),
             [],
         )
         .unwrap();
@@ -1139,7 +1144,8 @@ mod tests {
             .query_row("SELECT current_hlc()", [], |row| row.get(0))
             .unwrap();
         // Any non-query statement forces the auto-commit transaction to close.
-        conn.execute_batch("CREATE TABLE _tick (id INTEGER);").unwrap();
+        conn.execute_batch("CREATE TABLE _tick (id INTEGER);")
+            .unwrap();
         let second: String = conn
             .query_row("SELECT current_hlc()", [], |row| row.get(0))
             .unwrap();

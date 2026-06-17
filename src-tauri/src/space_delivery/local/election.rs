@@ -7,9 +7,9 @@
 //! 4. If we ARE the leader → caller starts leader mode
 //! 5. If someone else is leader → caller connects as peer
 
-use crate::database::DbConnection;
 use super::discovery;
 use super::error::DeliveryError;
+use crate::database::DbConnection;
 
 /// Result of a leader election round.
 #[derive(Debug)]
@@ -44,7 +44,8 @@ pub async fn elect_leader(
     }
 
     // 2. Probe all in parallel — iroh_endpoint is cloned out of the lock before call
-    let reachable = discovery::probe_reachable_candidates(iroh_endpoint, &candidates, own_endpoint_id).await;
+    let reachable =
+        discovery::probe_reachable_candidates(iroh_endpoint, &candidates, own_endpoint_id).await;
 
     if reachable.is_empty() {
         return Ok(ElectionResult::NoLeaderFound);

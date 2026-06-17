@@ -86,8 +86,7 @@ mod database_commands {
 
     #[test]
     fn test_extension_sql_context_table_prefix() {
-        let ctx =
-            ExtensionSqlContext::new("b4401f13f65e576b".to_string(), "haex-pass".to_string());
+        let ctx = ExtensionSqlContext::new("b4401f13f65e576b".to_string(), "haex-pass".to_string());
 
         let prefix = ctx.get_table_prefix();
         // Name is NOT sanitized - hyphens are preserved
@@ -97,8 +96,7 @@ mod database_commands {
     #[test]
     fn test_extension_sql_context_preserves_special_chars() {
         // Extension name with special chars is preserved (not sanitized)
-        let ctx =
-            ExtensionSqlContext::new("pubkey".to_string(), "my-extension-name".to_string());
+        let ctx = ExtensionSqlContext::new("pubkey".to_string(), "my-extension-name".to_string());
 
         let prefix = ctx.get_table_prefix();
         assert_eq!(prefix, "pubkey__my-extension-name__");
@@ -329,10 +327,7 @@ mod extension_identification {
 
     #[test]
     fn test_extension_table_prefix_format() {
-        let ctx = ExtensionSqlContext::new(
-            "b4401f13f65e576b".to_string(),
-            "haex-pass".to_string(),
-        );
+        let ctx = ExtensionSqlContext::new("b4401f13f65e576b".to_string(), "haex-pass".to_string());
 
         let prefix = ctx.get_table_prefix();
 

@@ -28,15 +28,9 @@ const MAX_RESPONSE_META_SIZE: usize = 10 * 1024 * 1024;
 #[serde(tag = "op", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Request {
     /// List directory contents
-    List {
-        path: String,
-        ucan_token: String,
-    },
+    List { path: String, ucan_token: String },
     /// Get file/directory metadata
-    Stat {
-        path: String,
-        ucan_token: String,
-    },
+    Stat { path: String, ucan_token: String },
     /// Read a file (with optional byte range)
     Read {
         path: String,
@@ -45,10 +39,7 @@ pub enum Request {
         ucan_token: String,
     },
     /// Recursive file manifest for sync
-    Manifest {
-        path: String,
-        ucan_token: String,
-    },
+    Manifest { path: String, ucan_token: String },
     /// Write a file. File data follows on the stream after this header.
     Write {
         path: String,
@@ -62,10 +53,7 @@ pub enum Request {
         ucan_token: String,
     },
     /// Create a directory (including parents)
-    CreateDirectory {
-        path: String,
-        ucan_token: String,
-    },
+    CreateDirectory { path: String, ucan_token: String },
 }
 
 impl Request {
@@ -115,7 +103,9 @@ pub enum Response {
     /// File data header (actual bytes follow on the stream)
     ReadHeader { size: u64 },
     /// Recursive manifest of all files
-    Manifest { entries: Vec<crate::file_sync::types::FileState> },
+    Manifest {
+        entries: Vec<crate::file_sync::types::FileState>,
+    },
     /// Write completed successfully
     WriteOk,
     /// Delete completed successfully
@@ -172,7 +162,10 @@ pub async fn read_message<T: serde::de::DeserializeOwned>(
     let len = u32::from_be_bytes(len_buf) as usize;
 
     if len > max_size {
-        return Err(PeerProtocolError::MessageTooLarge { size: len, max: max_size });
+        return Err(PeerProtocolError::MessageTooLarge {
+            size: len,
+            max: max_size,
+        });
     }
 
     let mut buf = vec![0u8; len];

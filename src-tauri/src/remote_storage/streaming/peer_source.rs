@@ -150,9 +150,18 @@ mod tests {
 
     #[test]
     fn content_type_recognises_common_media_extensions() {
-        assert_eq!(content_type_from_path("foo/bar.mp4").as_deref(), Some("video/mp4"));
-        assert_eq!(content_type_from_path("song.flac").as_deref(), Some("audio/flac"));
-        assert_eq!(content_type_from_path("clip.WEBM").as_deref(), Some("video/webm")); // case-insensitive
+        assert_eq!(
+            content_type_from_path("foo/bar.mp4").as_deref(),
+            Some("video/mp4")
+        );
+        assert_eq!(
+            content_type_from_path("song.flac").as_deref(),
+            Some("audio/flac")
+        );
+        assert_eq!(
+            content_type_from_path("clip.WEBM").as_deref(),
+            Some("video/webm")
+        ); // case-insensitive
     }
 
     #[test]

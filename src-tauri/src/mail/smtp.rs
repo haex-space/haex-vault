@@ -16,10 +16,7 @@ use crate::mail::types::{Address, ConnectionSecurity, OutgoingMessage, SmtpConfi
 
 /// Send an outgoing message. Returns the Message-ID assigned by lettre,
 /// useful for storing a reference locally and for threading follow-ups.
-pub async fn send_message(
-    config: &SmtpConfig,
-    msg: &OutgoingMessage,
-) -> Result<String, MailError> {
+pub async fn send_message(config: &SmtpConfig, msg: &OutgoingMessage) -> Result<String, MailError> {
     let lettre_msg = build_lettre_message(msg)?;
     let message_id = lettre_msg
         .headers()
@@ -34,7 +31,11 @@ pub async fn send_message(
         .await
         .map_err(|e| match (e.is_permanent(), e.is_transient()) {
             // Permanent failures often include auth errors (5.7.x).
-            (true, _) if format!("{e}").to_ascii_lowercase().contains("authentication") => {
+            (true, _)
+                if format!("{e}")
+                    .to_ascii_lowercase()
+                    .contains("authentication") =>
+            {
                 MailError::SmtpAuth {
                     username: config.username.clone(),
                     reason: e.to_string(),
@@ -59,21 +60,17 @@ pub fn build_message_bytes(msg: &OutgoingMessage) -> Result<Vec<u8>, MailError> 
 // Internals
 // ---------------------------------------------------------------------------
 
-fn build_transport(
-    config: &SmtpConfig,
-) -> Result<AsyncSmtpTransport<Tokio1Executor>, MailError> {
+fn build_transport(config: &SmtpConfig) -> Result<AsyncSmtpTransport<Tokio1Executor>, MailError> {
     let creds = Credentials::new(config.username.clone(), config.password.clone());
 
     let transport = match config.security {
-        ConnectionSecurity::Tls => {
-            AsyncSmtpTransport::<Tokio1Executor>::relay(&config.host)
-                .map_err(|e| MailError::Smtp {
-                    reason: format!("relay({}): {e}", config.host),
-                })?
-                .port(config.port)
-                .credentials(creds)
-                .build()
-        }
+        ConnectionSecurity::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(&config.host)
+            .map_err(|e| MailError::Smtp {
+                reason: format!("relay({}): {e}", config.host),
+            })?
+            .port(config.port)
+            .credentials(creds)
+            .build(),
         ConnectionSecurity::StartTls => {
             AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.host)
                 .map_err(|e| MailError::Smtp {
@@ -124,9 +121,11 @@ fn build_lettre_message(msg: &OutgoingMessage) -> Result<LettreMessage, MailErro
     }
 
     let body = build_body(msg)?;
-    builder.multipart(body).map_err(|e| MailError::MessageBuild {
-        reason: e.to_string(),
-    })
+    builder
+        .multipart(body)
+        .map_err(|e| MailError::MessageBuild {
+            reason: e.to_string(),
+        })
 }
 
 fn build_body(msg: &OutgoingMessage) -> Result<MultiPart, MailError> {
@@ -136,8 +135,12 @@ fn build_body(msg: &OutgoingMessage) -> Result<MultiPart, MailError> {
                 .singlepart(SinglePart::plain(text.clone()))
                 .singlepart(SinglePart::html(html.clone())),
         ),
-        (Some(text), None) => Some(MultiPart::alternative().singlepart(SinglePart::plain(text.clone()))),
-        (None, Some(html)) => Some(MultiPart::alternative().singlepart(SinglePart::html(html.clone()))),
+        (Some(text), None) => {
+            Some(MultiPart::alternative().singlepart(SinglePart::plain(text.clone())))
+        }
+        (None, Some(html)) => {
+            Some(MultiPart::alternative().singlepart(SinglePart::html(html.clone())))
+        }
         (None, None) => None,
     };
 
@@ -149,15 +152,20 @@ fn build_body(msg: &OutgoingMessage) -> Result<MultiPart, MailError> {
     }
     let mut decoded = Vec::with_capacity(msg.attachments.len());
     for att in &msg.attachments {
-        let bytes = STANDARD.decode(&att.data).map_err(|e| MailError::MessageBuild {
-            reason: format!("base64-decode attachment '{}': {e}", att.filename),
-        })?;
-        let content_type = ContentType::parse(&att.content_type).map_err(|e| {
-            MailError::MessageBuild {
+        let bytes = STANDARD
+            .decode(&att.data)
+            .map_err(|e| MailError::MessageBuild {
+                reason: format!("base64-decode attachment '{}': {e}", att.filename),
+            })?;
+        let content_type =
+            ContentType::parse(&att.content_type).map_err(|e| MailError::MessageBuild {
                 reason: format!("invalid content-type '{}': {e}", att.content_type),
-            }
-        })?;
-        decoded.push(Decoded { att, bytes, content_type });
+            })?;
+        decoded.push(Decoded {
+            att,
+            bytes,
+            content_type,
+        });
     }
     let has_inline = decoded.iter().any(|d| d.att.content_id.is_some());
     let has_regular = decoded.iter().any(|d| d.att.content_id.is_none());
@@ -179,7 +187,8 @@ fn build_body(msg: &OutgoingMessage) -> Result<MultiPart, MailError> {
         for d in decoded.iter().filter(|d| d.att.content_id.is_some()) {
             let cid = d.att.content_id.as_ref().expect("checked above");
             related = related.singlepart(
-                LettreAttachment::new_inline(cid.clone()).body(d.bytes.clone(), d.content_type.clone()),
+                LettreAttachment::new_inline(cid.clone())
+                    .body(d.bytes.clone(), d.content_type.clone()),
             );
         }
         Some(related)
@@ -199,7 +208,8 @@ fn build_body(msg: &OutgoingMessage) -> Result<MultiPart, MailError> {
     }
     for d in decoded.iter().filter(|d| d.att.content_id.is_none()) {
         mixed = mixed.singlepart(
-            LettreAttachment::new(d.att.filename.clone()).body(d.bytes.clone(), d.content_type.clone()),
+            LettreAttachment::new(d.att.filename.clone())
+                .body(d.bytes.clone(), d.content_type.clone()),
         );
     }
 

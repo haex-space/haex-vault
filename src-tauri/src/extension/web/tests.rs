@@ -39,8 +39,14 @@ mod tests {
         assert_eq!(request.method.as_deref(), Some("POST"));
         assert!(request.headers.is_some());
         let headers = request.headers.unwrap();
-        assert_eq!(headers.get("Content-Type"), Some(&"application/json".to_string()));
-        assert_eq!(headers.get("Authorization"), Some(&"Bearer token".to_string()));
+        assert_eq!(
+            headers.get("Content-Type"),
+            Some(&"application/json".to_string())
+        );
+        assert_eq!(
+            headers.get("Authorization"),
+            Some(&"Bearer token".to_string())
+        );
         assert_eq!(request.body.as_deref(), Some("eyJrZXkiOiAidmFsdWUifQ=="));
         assert_eq!(request.timeout, Some(5000));
     }
@@ -50,7 +56,10 @@ mod tests {
         let methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
 
         for method in methods {
-            let json = format!(r#"{{"url": "https://example.com", "method": "{}"}}"#, method);
+            let json = format!(
+                r#"{{"url": "https://example.com", "method": "{}"}}"#,
+                method
+            );
             let request: WebFetchRequest = serde_json::from_str(&json).unwrap();
             assert_eq!(request.method.as_deref(), Some(method));
         }
@@ -70,7 +79,10 @@ mod tests {
         let timeouts = [0, 1000, 30000, 60000, 120000];
 
         for timeout in timeouts {
-            let json = format!(r#"{{"url": "https://example.com", "timeout": {}}}"#, timeout);
+            let json = format!(
+                r#"{{"url": "https://example.com", "timeout": {}}}"#,
+                timeout
+            );
             let request: WebFetchRequest = serde_json::from_str(&json).unwrap();
             assert_eq!(request.timeout, Some(timeout));
         }
@@ -165,7 +177,10 @@ mod tests {
     #[test]
     fn test_web_fetch_response_special_headers() {
         let mut headers = HashMap::new();
-        headers.insert("set-cookie".to_string(), "session=abc123; Path=/; HttpOnly".to_string());
+        headers.insert(
+            "set-cookie".to_string(),
+            "session=abc123; Path=/; HttpOnly".to_string(),
+        );
         headers.insert("content-encoding".to_string(), "gzip".to_string());
         headers.insert("cache-control".to_string(), "no-cache".to_string());
         headers.insert("access-control-allow-origin".to_string(), "*".to_string());
@@ -369,8 +384,14 @@ mod tests {
         assert_eq!(headers.len(), 4);
         assert_eq!(headers.get("Accept"), Some(&"application/json".to_string()));
         assert_eq!(headers.get("Accept-Language"), Some(&"en-US".to_string()));
-        assert_eq!(headers.get("User-Agent"), Some(&"TestClient/1.0".to_string()));
-        assert_eq!(headers.get("X-Custom-Header"), Some(&"custom-value".to_string()));
+        assert_eq!(
+            headers.get("User-Agent"),
+            Some(&"TestClient/1.0".to_string())
+        );
+        assert_eq!(
+            headers.get("X-Custom-Header"),
+            Some(&"custom-value".to_string())
+        );
     }
 
     #[test]
