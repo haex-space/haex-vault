@@ -243,5 +243,10 @@ jobs:
             --body "Brings version bumps from the v${NEW_VERSION} release (CHANGELOG, package.json, Cargo.toml, Cargo.lock) back into develop.")
           PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 
-          gh pr merge "$PR_NUMBER" --squash --auto || \
+          # Merge commit (NOT squash): a squash gives develop the bumps as a
+          # fresh commit without main's release commit in its ancestry, so the
+          # next `develop -> main` PR shows up as "BEHIND" under strict branch
+          # protection and needs a manual back-merge. A merge commit keeps
+          # main's tip reachable from develop, so develop stays in lock-step.
+          gh pr merge "$PR_NUMBER" --merge --auto || \
             echo "::warning::Auto-merge enable failed for sync PR #${PR_NUMBER}. PR remains open for manual review."
