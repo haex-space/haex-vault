@@ -893,29 +893,36 @@ pub fn apply_remote_changes_to_db(
                                 eprintln!("[SYNC RUST] Failed INSERT SQL: {}", insert_sql);
                                 eprintln!("[SYNC RUST] Values: {:?}", values);
 
-                                // Check if it's a NOT NULL constraint violation
+                                // A NOT NULL violation on an *absent* row means
+                                // the change set carried only a subset of the
+                                // row's columns — a later column-level update
+                                // whose creation columns are below the pull
+                                // cursor, or a row that is itself partial on the
+                                // leader (column-level CRDT lets a row's columns
+                                // arrive out of order). A partial INSERT can never
+                                // satisfy the NOT NULL columns, so there is
+                                // nothing to insert here.
+                                //
+                                // Crucially, throwing wedges the entire sync loop:
+                                // the apply errors, the pull cursor never advances
+                                // (sync_loop only advances last_pull_timestamp on
+                                // success), and the same batch is re-pulled every
+                                // cycle forever. Skip the row instead — exactly
+                                // like the UNIQUE path below — so the rest of the
+                                // batch applies and the cursor moves on. It
+                                // self-heals when the remaining columns later
+                                // propagate: a full pull on loop restart delivers
+                                // all of the row's columns together and inserts it.
                                 if error_msg.contains("NOT NULL constraint failed") {
                                     eprintln!(
-                                    "[SYNC RUST] ⚠️ NOT NULL constraint failed! This usually means the sync data is incomplete."
-                                );
-                                    eprintln!("[SYNC RUST] Columns in INSERT: {:?}", columns);
-                                    eprintln!(
-                                        "[SYNC RUST] Received {} changes for this row: {:?}",
-                                        row_change_list.len(),
+                                        "[SYNC RUST] Skipping row in '{}' — partial change set cannot satisfy NOT NULL columns (incomplete sync data). Received columns: {:?}",
+                                        first_change.table_name,
                                         row_change_list
                                             .iter()
                                             .map(|c| &c.column_name)
                                             .collect::<Vec<_>>()
                                     );
-                                    // Re-throw with detailed error
-                                    return Err(DatabaseError::ExecutionError {
-                                    sql: insert_sql,
-                                    reason: format!(
-                                        "NOT NULL constraint failed. Received columns: {:?}. This indicates incomplete sync data - the server may not have all columns for this row.",
-                                        row_change_list.iter().map(|c| &c.column_name).collect::<Vec<_>>()
-                                    ),
-                                    table: Some(first_change.table_name.clone()),
-                                });
+                                    continue; // Skip this row, keep applying the batch
                                 }
 
                                 // Check if it's a UNIQUE constraint violation
@@ -1261,5 +1268,107 @@ mod hlc_grouping_tests {
                 "consecutive rows must be in non-decreasing HLC order"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod apply_partial_row_tests {
+    use super::*;
+    use crate::database::DbConnection;
+    use std::sync::{Arc, Mutex};
+
+    // Minimal apply harness: the CRDT configs table (for the triggers-enabled
+    // toggle) + a target table with a NOT NULL no-default column (`space_id`)
+    // next to a nullable one (`avatar`), mirroring haex_space_devices.
+    fn setup_db() -> DbConnection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+             CREATE TABLE devices (
+                 id TEXT PRIMARY KEY,
+                 space_id TEXT NOT NULL,
+                 avatar TEXT,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );"
+        ))
+        .unwrap();
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    fn change(pk: &str, col: &str, val: &str, hlc: &str) -> RemoteColumnChange {
+        RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: pk.to_string(),
+            column_name: col.to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::String(val.to_string()),
+        }
+    }
+
+    fn row_count(db: &DbConnection, where_sql: &str) -> i64 {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            &format!("SELECT COUNT(*) FROM devices WHERE {where_sql}"),
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    // Regression for the haex_space_devices sync wedge: a change set carrying
+    // only a nullable column for a row that doesn't exist locally (its NOT NULL
+    // creation columns are below the pull cursor, or the row is partial on the
+    // leader) can never satisfy a partial INSERT. Throwing here wedged the
+    // whole sync loop forever — the cursor never advanced and the same batch
+    // was re-pulled every cycle. The apply must skip the row and succeed.
+    #[test]
+    fn partial_insert_missing_notnull_is_skipped_not_wedged() {
+        let db = setup_db();
+        let changes = vec![change(
+            r#"{"id":"dev-1"}"#,
+            "avatar",
+            "face.png",
+            "2/abcdef",
+        )];
+
+        let result = apply_remote_changes_to_db(&db, changes, None, None);
+
+        assert!(
+            result.is_ok(),
+            "partial-column INSERT must not error the whole apply: {result:?}"
+        );
+        assert_eq!(
+            row_count(&db, "id = 'dev-1'"),
+            0,
+            "row with a missing NOT NULL column must be skipped, not inserted"
+        );
+    }
+
+    // The skip is surgical: a complete row in the same batch still applies and
+    // the apply as a whole succeeds (so the sync cursor advances).
+    #[test]
+    fn complete_row_applies_while_partial_sibling_is_skipped() {
+        let db = setup_db();
+        let changes = vec![
+            change(r#"{"id":"ok"}"#, "space_id", "s1", "1/abcdef"),
+            change(r#"{"id":"ok"}"#, "avatar", "a.png", "1/abcdef"),
+            change(r#"{"id":"bad"}"#, "avatar", "b.png", "2/abcdef"),
+        ];
+
+        let result = apply_remote_changes_to_db(&db, changes, None, None);
+
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(
+            row_count(&db, "id = 'ok'"),
+            1,
+            "complete row must be inserted"
+        );
+        assert_eq!(
+            row_count(&db, "id = 'bad'"),
+            0,
+            "partial row must be skipped"
+        );
     }
 }
