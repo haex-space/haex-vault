@@ -49,6 +49,7 @@ fn make_extension() -> Extension {
                 identities: None,
                 passwords: None,
                 mail: None,
+                notifications: None,
             },
             homepage: None,
             description: None,

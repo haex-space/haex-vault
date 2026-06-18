@@ -71,13 +71,15 @@ async fn serves_full_body_from_streaming_source_without_range_header() {
     assert!(body.iter().all(|b| *b == 0xAB));
 }
 
-/// A `bytes=0-` request against a multi-MiB stream source must NOT
-/// allocate the entire object — the server caps any single response
-/// at 8 MiB and returns 206 with a partial Content-Range so the
-/// browser can pull the remainder in subsequent requests.
+/// A `bytes=0-` request against a multi-MiB stream source must serve the
+/// *full* requested span and advertise the real total size. An earlier
+/// version capped the response at 8 MiB, which made WebKit's media source
+/// believe the whole file was 8 MiB — every forward seek then jumped to EOS.
+/// Memory stays flat because the body is streamed in bounded sub-chunks, not
+/// because the advertised range is shrunk.
 #[tokio::test]
-async fn caps_open_ended_range_at_8_mib_for_stream_source() {
-    const TOTAL: usize = 10 * 1024 * 1024; // 10 MiB
+async fn serves_full_open_ended_range_from_stream_source() {
+    const TOTAL: usize = 10 * 1024 * 1024; // 10 MiB, larger than one sub-chunk
     let server = MediaServer::start().await.unwrap();
     let source = Arc::new(DummySource {
         data: vec![0u8; TOTAL],
@@ -94,10 +96,44 @@ async fn caps_open_ended_range_at_8_mib_for_stream_source() {
     assert_eq!(resp.status().as_u16(), 206);
     assert_eq!(
         resp.headers().get("Content-Range").unwrap(),
-        format!("bytes 0-{}/{}", 8 * 1024 * 1024 - 1, TOTAL).as_str(),
+        format!("bytes 0-{}/{}", TOTAL - 1, TOTAL).as_str(),
     );
     let body = resp.bytes().await.unwrap();
-    assert_eq!(body.len(), 8 * 1024 * 1024);
+    assert_eq!(body.len(), TOTAL);
+}
+
+/// Seeking forward resolves to a byte offset that may sit far past the first
+/// 8 MiB. The server must honour such a range with the real total in
+/// Content-Range — this is the exact request a video scrub issues, and the
+/// capping bug used to answer it with EOS.
+#[tokio::test]
+async fn serves_range_beyond_8_mib_for_stream_source() {
+    const TOTAL: usize = 10 * 1024 * 1024; // 10 MiB
+    let start = 9_000_000u64;
+    let end = 9_000_099u64;
+    let server = MediaServer::start().await.unwrap();
+    let source = Arc::new(DummySource {
+        // Byte N holds (N % 256) so the slice is trivially checkable.
+        data: (0..TOTAL).map(|i| i as u8).collect(),
+    });
+    let url = server.register_source(source, None).await;
+
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let resp = client
+        .get(&url)
+        .header("Range", format!("bytes={start}-{end}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 206);
+    assert_eq!(
+        resp.headers().get("Content-Range").unwrap(),
+        format!("bytes {start}-{end}/{TOTAL}").as_str(),
+    );
+    let body = resp.bytes().await.unwrap();
+    assert_eq!(body.len(), (end - start + 1) as usize);
+    let expected: Vec<u8> = (start..=end).map(|i| i as u8).collect();
+    assert_eq!(body.as_ref(), &expected[..]);
 }
 
 /// `StreamingError::NotFound` from `size()` (i.e. before any
