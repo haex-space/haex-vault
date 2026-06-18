@@ -150,11 +150,15 @@
     ],
     "linux": {
       "appimage": {
-        "bundleMediaFramework": false,
+        "bundleMediaFramework": true,
         "files": {}
       },
       "deb": {
         "desktopTemplate": "packaging/linux/main.desktop",
+        "recommends": [
+          "gstreamer1.0-libav",
+          "gstreamer1.0-plugins-bad"
+        ],
         "files": {
           "/usr/share/metainfo/space.haex.vault.metainfo.xml": "packaging/linux/space.haex.vault.metainfo.xml"
         }
@@ -162,6 +166,10 @@
       "rpm": {
         "desktopTemplate": "packaging/linux/main.desktop",
         "epoch": 0,
+        "recommends": [
+          "gstreamer1(decoder-video/x-h264)",
+          "gstreamer1(decoder-audio/mpeg)"
+        ],
         "files": {
           "/usr/share/metainfo/space.haex.vault.metainfo.xml": "packaging/linux/space.haex.vault.metainfo.xml"
         },

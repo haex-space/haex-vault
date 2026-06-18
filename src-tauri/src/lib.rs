@@ -386,6 +386,14 @@ pub fn run() {
                                 settings.set_enable_media_stream(true);
                                 settings.set_enable_webrtc(true);
                                 settings.set_media_playback_requires_user_gesture(false);
+                                // Disable WebKitGTK's native Fullscreen API. On
+                                // this stack (WebKitGTK 2.50 + NVIDIA hybrid
+                                // GPU) a `video.requestFullscreen()` aborts
+                                // inside WebKit's fullscreen controller, taking
+                                // the whole app down. The file preview offers an
+                                // in-app maximize instead, so nothing here needs
+                                // the browser's fullscreen path.
+                                settings.set_enable_fullscreen(false);
                             }
 
                             wv.connect_permission_request(|_, request| {
