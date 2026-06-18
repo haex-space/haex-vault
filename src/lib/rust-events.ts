@@ -16,6 +16,7 @@ import eventNames from '@/constants/eventNames.json'
 
 export const RUST_EVENTS = {
   peerStorageStateChanged: eventNames.peer.storageStateChanged,
+  peerConnectionChanged: eventNames.peer.connectionChanged,
   localSyncCompleted: eventNames.localSync.completed,
   localSyncError: eventNames.localSync.error,
 } as const
@@ -30,6 +31,21 @@ export interface PeerStorageStateEvent {
   reason: 'endpoint-closed' | 'user-stopped'
   /** How long the endpoint was alive before it closed, in seconds. */
   uptimeSecs: number
+}
+
+/** What kind of network path a QUIC connection is currently using. */
+export type PathType = 'direct' | 'relay' | 'unknown' | 'closed'
+
+export interface PeerConnectionDiagnostics {
+  pathType: PathType
+  remoteAddr: string | null
+  rttMs: number | null
+}
+
+export interface PeerConnectionChangedEvent {
+  /** Endpoint ID of the remote peer whose path changed. */
+  nodeId: string
+  diagnostics: PeerConnectionDiagnostics
 }
 
 export interface LocalSyncCompletedEvent {
