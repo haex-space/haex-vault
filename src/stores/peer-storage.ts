@@ -433,6 +433,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     progress: number // 0-1
     startedAt: number // Date.now() at first progress tick
     bytesPerSec: number // EMA-smoothed throughput, alpha = 0.3
+    paused: boolean
   }
 
   const transfers = ref<Map<string, TransferProgress>>(new Map())
@@ -468,9 +469,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     channel.onmessage = (msg) => {
       switch (msg.event) {
         case 'progress': {
+          // Snapshot the paused flag from the prior tick. A trailing chunk can
+          // still arrive after pause (the backend cancels at the next chunk
+          // boundary, not mid-chunk); skipping the EMA update there keeps the
+          // displayed rate honest at 0 B/s for paused transfers.
+          const paused = transfers.value.get(transferId)?.paused ?? false
           const now = Date.now()
           const dt = (now - lastSampleAt) / 1000
-          if (dt > 0) {
+          if (!paused && dt > 0) {
             const instant = (msg.bytesReceived - lastBytes) / dt
             smoothedBytesPerSec
               = smoothedBytesPerSec === 0 ? instant : 0.3 * instant + 0.7 * smoothedBytesPerSec
@@ -487,7 +493,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
             totalBytes: msg.totalBytes,
             progress: msg.totalBytes > 0 ? msg.bytesReceived / msg.totalBytes : 0,
             startedAt,
-            bytesPerSec: smoothedBytesPerSec,
+            bytesPerSec: paused ? 0 : smoothedBytesPerSec,
+            paused,
           })
           transfers.value = new Map(transfers.value)
           break
@@ -556,12 +563,32 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     transfers.value = new Map(transfers.value)
   }
 
+  const setTransferPaused = (transferId: string, paused: boolean) => {
+    const t = transfers.value.get(transferId)
+    if (t) {
+      t.paused = paused
+      // Zero the throughput chip while paused so it doesn't keep showing the
+      // pre-pause rate; it recovers from the next progress tick after resume.
+      if (paused) t.bytesPerSec = 0
+      transfers.value = new Map(transfers.value)
+    }
+  }
+
   const pauseTransferAsync = async (transferId: string) => {
     await invoke('peer_storage_transfer_pause', { transferId })
+    setTransferPaused(transferId, true)
   }
 
   const resumeTransferAsync = async (transferId: string) => {
     await invoke('peer_storage_transfer_resume', { transferId })
+    setTransferPaused(transferId, false)
+  }
+
+  const getTransferPaused = (filePath: string): boolean => {
+    for (const t of transfers.value.values()) {
+      if (t.path === filePath) return t.paused
+    }
+    return false
   }
 
   // Resolve which space a remote request belongs to, so the matching UCAN
@@ -897,6 +924,7 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     totalBytesPerSec,
     getTransferProgress,
     getTransferIdForPath,
+    getTransferPaused,
     cancelTransferAsync,
     pauseTransferAsync,
     resumeTransferAsync,

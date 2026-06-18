@@ -113,6 +113,51 @@ impl PartialState {
                 Err(e) => return Err(e),
             }
         }
+        // A completed download also clears any temp files an interrupted
+        // save() left behind, so the download directory doesn't keep them.
+        Self::sweep_tmp(target).await?;
+        Ok(())
+    }
+
+    /// Remove orphaned atomic-write temp files (`<meta>.tmp.<nonce>`).
+    ///
+    /// `save()` writes to a uniquely-named `.tmp.<nonce>` sibling and renames
+    /// it over the final `.meta`. If the future is dropped *between* the write
+    /// and the rename — which happens routinely when a worker is torn down on
+    /// cancellation or a connection timeout — the temp file is orphaned.
+    /// `save()`'s own error path only cleans up on a returned error, not on a
+    /// drop, and `clear()` historically removed only the `.meta`/`.haex-partial`
+    /// pair. Without this sweep those orphans accumulated without bound in the
+    /// download directory across repeated interrupted downloads.
+    ///
+    /// Call it at the start of a download attempt (the previous attempt's
+    /// worker pool has fully unwound, so no save is in flight and every
+    /// remaining `.tmp.*` is garbage) and from `clear()` on success. Keeping
+    /// the `.meta`/`.haex-partial` pair lets resume still work; only the
+    /// orphaned temp files are removed.
+    pub async fn sweep_tmp(target: &Path) -> std::io::Result<()> {
+        let meta = Self::meta_path(target);
+        let (Some(dir), Some(meta_name)) =
+            (meta.parent(), meta.file_name().and_then(|n| n.to_str()))
+        else {
+            return Ok(());
+        };
+        let tmp_prefix = format!("{meta_name}.tmp.");
+        let mut entries = match fs::read_dir(dir).await {
+            Ok(e) => e,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name();
+            if name.to_str().is_some_and(|n| n.starts_with(&tmp_prefix)) {
+                match fs::remove_file(entry.path()).await {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(e),
+                }
+            }
+        }
         Ok(())
     }
 

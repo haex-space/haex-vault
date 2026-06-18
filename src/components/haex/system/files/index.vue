@@ -374,6 +374,22 @@
                     </div>
                   </div>
                   <UButton
+                    v-if="showPauseControl(file)"
+                    :icon="
+                      getFileTransferPaused(file) ? 'i-lucide-play' : 'i-lucide-pause'
+                    "
+                    color="neutral"
+                    variant="ghost"
+                    size="xs"
+                    class="relative z-10 shrink-0"
+                    :aria-label="
+                      getFileTransferPaused(file)
+                        ? t('resumeTransfer')
+                        : t('pauseTransfer')
+                    "
+                    @click.stop="togglePauseTransferAsync(file)"
+                  />
+                  <UButton
                     v-if="getFileTransferProgress(file) !== undefined"
                     icon="i-lucide-x"
                     color="error"
@@ -427,6 +443,22 @@
                     :style="{
                       width: `${(getFileTransferProgress(file) ?? 0) * 100}%`,
                     }"
+                  />
+                  <UButton
+                    v-if="showPauseControl(file)"
+                    :icon="
+                      getFileTransferPaused(file) ? 'i-lucide-play' : 'i-lucide-pause'
+                    "
+                    color="neutral"
+                    variant="solid"
+                    size="xs"
+                    class="absolute top-2 right-9 z-10"
+                    :aria-label="
+                      getFileTransferPaused(file)
+                        ? t('resumeTransfer')
+                        : t('pauseTransfer')
+                    "
+                    @click.stop="togglePauseTransferAsync(file)"
                   />
                   <UButton
                     v-if="getFileTransferProgress(file) !== undefined"
@@ -894,6 +926,32 @@ const getFileTransferProgress = (file: { name: string; path?: string; isDir?: bo
   return peerStore.getTransferProgress(fullPath)
 }
 
+/**
+ * Whether the P2P transfer for `file` is currently paused. Only P2P transfers
+ * (iroh streaming) support pause; S3 and local shares always report false.
+ */
+const getFileTransferPaused = (file: { name: string; path?: string }) => {
+  const peer = browser.selectedPeer.value
+  if (!peer || peer.s3BackendId || peer.localPath) return false
+  const fullPath = (
+    file.path || `${browser.currentPath.value}/${file.name}`
+  ).replace(/\/+/g, '/')
+  return peerStore.getTransferPaused(fullPath)
+}
+
+/**
+ * Show the pause/resume toggle only for an in-flight P2P transfer — S3 chunked
+ * downloads have no pause control, and local shares never stream. A completed
+ * transfer lingers in the store for ~1.5 s with `progress=1` so the bar can
+ * animate the fill; the pause control must hide during that window.
+ */
+const showPauseControl = (file: { name: string; path?: string; isDir?: boolean }) => {
+  const peer = browser.selectedPeer.value
+  if (!peer || peer.s3BackendId || peer.localPath) return false
+  const progress = getFileTransferProgress(file)
+  return progress !== undefined && progress < 1
+}
+
 const isTogglingEndpoint = ref(false)
 const toggleEndpointAsync = async () => {
   isTogglingEndpoint.value = true
@@ -1050,6 +1108,18 @@ const cancelTransferAsync = async (file: NonNullable<RenameTarget>) => {
   }
 }
 
+const togglePauseTransferAsync = async (file: NonNullable<RenameTarget>) => {
+  try {
+    await browser.togglePauseFileTransferAsync(file)
+  } catch (error) {
+    toast.add({
+      title: t('pauseTransferFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
 const deleteFileAsync = async (file: NonNullable<RenameTarget>) => {
   try {
     await browser.deleteFile(file)
@@ -1106,6 +1176,13 @@ const buildContextMenuItems = (file: NonNullable<RenameTarget>) => {
       icon: 'i-lucide-download',
       onSelect: () => downloadFileAsync(file),
     })
+    if (showPauseControl(file)) {
+      fileActions.push({
+        label: getFileTransferPaused(file) ? t('resumeTransfer') : t('pauseTransfer'),
+        icon: getFileTransferPaused(file) ? 'i-lucide-play' : 'i-lucide-pause',
+        onSelect: () => togglePauseTransferAsync(file),
+      })
+    }
     if (getFileTransferProgress(file) !== undefined) {
       fileActions.push({
         label: t('cancelTransfer'),
@@ -1844,6 +1921,9 @@ de:
   openFailed: Öffnen fehlgeschlagen
   cancelTransfer: Übertragung abbrechen
   cancelTransferFailed: Übertragung konnte nicht abgebrochen werden
+  pauseTransfer: Übertragung pausieren
+  resumeTransfer: Übertragung fortsetzen
+  pauseTransferFailed: Übertragung konnte nicht pausiert werden
   mediaPlaybackFailed: Wiedergabe fehlgeschlagen
   mediaCodecMissing: 'Dieses Format kann nicht abgespielt werden – möglicherweise fehlen Codecs (z. B. H.264/AAC). Unter Linux: „gstreamer1.0-libav" und „gstreamer1.0-plugins-bad" installieren.'
   maximizePreview: Maximieren
@@ -1909,6 +1989,9 @@ en:
   openFailed: Open failed
   cancelTransfer: Cancel transfer
   cancelTransferFailed: Could not cancel transfer
+  pauseTransfer: Pause transfer
+  resumeTransfer: Resume transfer
+  pauseTransferFailed: Could not pause transfer
   mediaPlaybackFailed: Playback failed
   mediaCodecMissing: 'This format can''t be played – codecs may be missing (e.g. H.264/AAC). On Linux, install "gstreamer1.0-libav" and "gstreamer1.0-plugins-bad".'
   maximizePreview: Maximize

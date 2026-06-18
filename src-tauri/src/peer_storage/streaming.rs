@@ -86,6 +86,20 @@ pub struct RecvStats {
     pub bytes: u64,
 }
 
+/// Control knobs for [`pipe_recv_to_writer_verified`]: per-chunk progress plus
+/// cancel/pause. Mirrors [`RecvOptions`] but `on_chunk` reports a per-chunk
+/// *delta* rather than a cumulative count — the verified pipe only ever sees
+/// one range of a (possibly multi-stream) file, so the caller owns the running
+/// total and maps the delta onto whatever progress surface it reports to.
+#[derive(Default)]
+pub struct VerifiedRecvControls {
+    /// Invoked once per verified-and-written chunk with that chunk's byte
+    /// count. `FnMut` so the caller can accumulate into a captured total.
+    pub on_chunk: Option<Box<dyn FnMut(u64) + Send>>,
+    pub cancel_token: Option<CancellationToken>,
+    pub pause_flag: Option<Arc<AtomicBool>>,
+}
+
 /// Options for the disk → network direction. Same shape as [`RecvOptions`]
 /// minus the receive-only fields (no pause for uploads — the API surface
 /// keeps mirroring the read path but pause is not wired through yet).
@@ -352,6 +366,7 @@ pub async fn pipe_recv_to_writer_verified<R, W>(
     expected_size: u64,
     verifier: ChunkVerifier<'_>,
     sidecar_target: Option<(&Path, &str)>,
+    mut controls: VerifiedRecvControls,
 ) -> Result<u64, PeerStorageError>
 where
     R: AsyncRead + Unpin,
@@ -404,6 +419,30 @@ where
                 ),
             });
         }
+        // Honour cancel/pause at chunk boundaries (1 MiB granularity, same as
+        // the unverified pipe). Cancellation aborts with
+        // `PeerStorageError::Cancelled`, which the multi-stream retry pool
+        // treats as non-retryable so the whole download unwinds promptly.
+        if controls
+            .cancel_token
+            .as_ref()
+            .is_some_and(|t| t.is_cancelled())
+        {
+            return Err(PeerStorageError::Cancelled);
+        }
+        if let Some(flag) = controls.pause_flag.as_ref() {
+            while flag.load(Ordering::Relaxed) {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                if controls
+                    .cancel_token
+                    .as_ref()
+                    .is_some_and(|t| t.is_cancelled())
+                {
+                    return Err(PeerStorageError::Cancelled);
+                }
+            }
+        }
+
         let remaining_in_file = expected_size - bytes_received;
         let this_chunk_size = remaining_in_file.min(chunk_size) as usize;
 
@@ -469,6 +508,14 @@ where
                 };
                 state.save(target).await.map_err(PeerStorageError::Io)?;
             }
+        }
+
+        // Report this chunk's bytes now that they're verified, written, and
+        // recorded in the sidecar. The caller accumulates the delta into its
+        // own running total (single-stream: the file; multi-stream: the
+        // shared cross-worker counter).
+        if let Some(cb) = controls.on_chunk.as_mut() {
+            cb(this_chunk_size as u64);
         }
     }
 

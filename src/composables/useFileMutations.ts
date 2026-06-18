@@ -117,16 +117,25 @@ export function useFileMutations(deps: FileMutationsDeps) {
       const spaceName = spaceId
         ? useSpacesStore().spaces.find(s => s.id === spaceId)?.name ?? null
         : null
-      await peerStore.remoteReadAsync(
-        selectedPeer.value.endpointId,
-        resolveFilePath(file),
-        undefined,
-        spaceId,
-        file.size,
-        file.modified ?? null,
-        spaceName,
-      )
-      return true
+      try {
+        await peerStore.remoteReadAsync(
+          selectedPeer.value.endpointId,
+          resolveFilePath(file),
+          undefined,
+          spaceId,
+          file.size,
+          file.modified ?? null,
+          spaceName,
+        )
+        return true
+      } catch (e) {
+        // A user-initiated cancel surfaces as an error whose message contains
+        // "cancelled" (PeerStorageError::Cancelled). Treat it as a deliberate
+        // action, not a failure, so the cancel button doesn't trigger a toast.
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('cancelled')) return false
+        throw e
+      }
     }
   }
 

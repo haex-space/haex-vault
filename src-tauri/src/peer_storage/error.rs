@@ -52,6 +52,14 @@ pub enum PeerStorageError {
         expected: String,
         actual: String,
     },
+
+    /// The transfer was aborted via its cancellation token (user pressed
+    /// cancel). Distinct from a transport failure so the retry pool does NOT
+    /// re-attempt it and the frontend can treat it as a deliberate action
+    /// rather than an error. The message contains "cancelled" so existing
+    /// substring checks keep working.
+    #[error("Transfer cancelled")]
+    Cancelled,
 }
 
 impl serde::Serialize for PeerStorageError {
