@@ -308,9 +308,8 @@ where
 ///
 /// `completed` is an `Arc<tokio::sync::Mutex<Vec<bool>>>` rather than a
 /// `&mut [bool]` so that concurrent multi-stream workers share one canonical
-/// bitmap. Each worker locks briefly to flip its bit and to take a snapshot
-/// for the sidecar write — the I/O happens with the lock released, so
-/// contention stays negligible.
+/// bitmap. Each worker holds the lock to flip its bit *and* write the sidecar,
+/// serialising the saves so a stale snapshot can't overwrite a fuller one.
 pub struct ChunkVerifier<'a> {
     /// Manifest BLAKE3 hashes for the chunks in this receive range
     /// (lowercase hex, in order).
@@ -321,8 +320,8 @@ pub struct ChunkVerifier<'a> {
     /// Index of the first chunk in this range, into the full-file bitmap.
     pub start_chunk_index: usize,
     /// Shared full-file completion bitmap. Multiple workers may point at the
-    /// same `Arc`; the verifier locks only to flip its bit + snapshot for
-    /// the sidecar save, so concurrent updates from sibling workers cannot
+    /// same `Arc`; the verifier holds the lock to flip its bit and persist the
+    /// sidecar together, so concurrent updates from sibling workers cannot
     /// overwrite each other.
     pub completed: Arc<tokio::sync::Mutex<Vec<bool>>>,
 }
@@ -449,25 +448,27 @@ where
             .await
             .map_err(PeerStorageError::Io)?;
 
-        // Flip the bit and snapshot the bitmap for sidecar persistence
-        // under the same lock — siblings cannot interleave between the flip
-        // and the snapshot, so the persisted state always reflects every
-        // bit any worker has flipped so far. The JSON write itself runs
-        // after the lock is dropped to keep contention to memcpy + memcmp.
-        let snapshot: Option<Vec<bool>> = {
+        // Flip the bit and persist the sidecar under the *same* lock. The
+        // earlier version dropped the lock after snapshotting and wrote the
+        // JSON outside it — `save()`'s atomic tmp+rename prevents a torn
+        // payload, but "last rename wins", so a worker that snapshotted
+        // earlier could rename its staler bitmap on top of a fuller one a
+        // sibling had just saved (lost update: a `true` bit silently reverting
+        // to `false`). Holding the lock across the write serialises the saves;
+        // because bits only ever flip false→true, the last save in lock order
+        // carries every bit any worker has set. Contention is negligible —
+        // receiving a 1 MiB chunk dwarfs the tiny sidecar write.
+        {
             let mut guard = verifier.completed.lock().await;
             guard[absolute_idx] = true;
-            sidecar.as_ref().map(|_| guard.clone())
-        };
-
-        if let (Some((target, file_hash)), Some(completed_snapshot)) = (sidecar.as_ref(), snapshot)
-        {
-            let state = PartialState {
-                file_hash: file_hash.clone(),
-                chunk_size: verifier.chunk_size,
-                completed: completed_snapshot,
-            };
-            state.save(target).await.map_err(PeerStorageError::Io)?;
+            if let Some((target, file_hash)) = sidecar.as_ref() {
+                let state = PartialState {
+                    file_hash: file_hash.clone(),
+                    chunk_size: verifier.chunk_size,
+                    completed: guard.clone(),
+                };
+                state.save(target).await.map_err(PeerStorageError::Io)?;
+            }
         }
     }
 

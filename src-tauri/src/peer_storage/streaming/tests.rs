@@ -217,8 +217,18 @@ async fn pipe_recv_rejects_mismatched_chunk_count() {
 /// bitmap into a local Vec, called `state.save(target)` from that local
 /// snapshot, and the second writer would overwrite the first writer's bits
 /// in the persisted sidecar.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn pipe_recv_concurrent_writers_dont_lose_bits() {
+    // A single interleaving rarely trips the lost-update, and a current-thread
+    // runtime can't race the saves at all. Repeat the two-worker scenario on a
+    // multi-thread runtime so a racing snapshot+save pair reliably surfaces a
+    // regression of the under-lock-save fix.
+    for _ in 0..64 {
+        concurrent_writers_round().await;
+    }
+}
+
+async fn concurrent_writers_round() {
     let tmp = tempfile::tempdir().unwrap();
     let target = tmp.path().join("concurrent.bin");
 
