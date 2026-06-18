@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.10.0](https://github.com/haex-space/haex-vault/compare/v2.9.1...v2.10.0) (2026-06-18)
+
+
+### Features
+
+* **extension:** add generic notifications permission and host bridge ([#471](https://github.com/haex-space/haex-vault/issues/471)) ([f67118c](https://github.com/haex-space/haex-vault/commit/f67118ca1190088d358a575b01082a09553a14b6))
+
+
+### Bug Fixes
+
+* media playback in file browser (codec, seeking, fullscreen crash) ([#477](https://github.com/haex-space/haex-vault/issues/477)) ([0600e38](https://github.com/haex-space/haex-vault/commit/0600e382d6be2c3acd73dcdb92b30c2a16e09263))
+
 ## [2.9.1](https://github.com/haex-space/haex-vault/compare/v2.9.0...v2.9.1) (2026-06-17)
 
 
