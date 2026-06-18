@@ -757,6 +757,15 @@ async fn download_single_stream_with_resume(
     // Resume path: completed bitmap survives across attempts; only the
     // false-runs need re-requesting. The sidecar was load_if_matches-guarded
     // so we know its file_hash equals the manifest we're verifying against.
+    //
+    // Sweep orphaned `.meta.tmp.<nonce>` files before the resume loop opens
+    // any new streams. Unlike the fresh path (which sweeps inside
+    // receive_with_chunk_verification) the resume branch never reaches that
+    // function, so prior interrupted saves would otherwise accumulate
+    // unbounded across retries. The resume sidecar pair (`.meta` /
+    // `.haex-partial`) is preserved by sweep_tmp.
+    let _ = crate::peer_storage::resume::PartialState::sweep_tmp(output_path).await;
+
     let chunk_size = chunks_to_use.chunk_size as u64;
     let total_chunks = chunks_to_use.chunk_hashes.len();
 

@@ -941,16 +941,15 @@ const getFileTransferPaused = (file: { name: string; path?: string }) => {
 
 /**
  * Show the pause/resume toggle only for an in-flight P2P transfer — S3 chunked
- * downloads have no pause control, and local shares never stream.
+ * downloads have no pause control, and local shares never stream. A completed
+ * transfer lingers in the store for ~1.5 s with `progress=1` so the bar can
+ * animate the fill; the pause control must hide during that window.
  */
 const showPauseControl = (file: { name: string; path?: string; isDir?: boolean }) => {
   const peer = browser.selectedPeer.value
-  return (
-    !!peer
-    && !peer.s3BackendId
-    && !peer.localPath
-    && getFileTransferProgress(file) !== undefined
-  )
+  if (!peer || peer.s3BackendId || peer.localPath) return false
+  const progress = getFileTransferProgress(file)
+  return progress !== undefined && progress < 1
 }
 
 const isTogglingEndpoint = ref(false)

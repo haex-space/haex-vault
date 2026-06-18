@@ -469,9 +469,14 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     channel.onmessage = (msg) => {
       switch (msg.event) {
         case 'progress': {
+          // Snapshot the paused flag from the prior tick. A trailing chunk can
+          // still arrive after pause (the backend cancels at the next chunk
+          // boundary, not mid-chunk); skipping the EMA update there keeps the
+          // displayed rate honest at 0 B/s for paused transfers.
+          const paused = transfers.value.get(transferId)?.paused ?? false
           const now = Date.now()
           const dt = (now - lastSampleAt) / 1000
-          if (dt > 0) {
+          if (!paused && dt > 0) {
             const instant = (msg.bytesReceived - lastBytes) / dt
             smoothedBytesPerSec
               = smoothedBytesPerSec === 0 ? instant : 0.3 * instant + 0.7 * smoothedBytesPerSec
@@ -488,11 +493,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
             totalBytes: msg.totalBytes,
             progress: msg.totalBytes > 0 ? msg.bytesReceived / msg.totalBytes : 0,
             startedAt,
-            bytesPerSec: smoothedBytesPerSec,
-            // Preserve the paused flag across progress ticks. (While paused the
-            // backend stops sending progress, so this only matters for the tick
-            // right after resume.)
-            paused: transfers.value.get(transferId)?.paused ?? false,
+            bytesPerSec: paused ? 0 : smoothedBytesPerSec,
+            paused,
           })
           transfers.value = new Map(transfers.value)
           break
