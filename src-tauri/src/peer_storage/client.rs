@@ -110,12 +110,11 @@ impl PeerEndpoint {
         cancel_token: Option<tokio_util::sync::CancellationToken>,
         pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
     ) -> Result<StreamReadResult, PeerStorageError> {
-        // The optional knobs aren't plumbed through the verified pipe yet —
-        // single-stream downloads under MULTI_STREAM_THRESHOLD finish in
-        // sub-second wall-clock on LAN, so pause/cancel granularity at the
-        // chunk boundary is more than enough. Tasks 9–10 will wire these
-        // into the multi-stream path which does need finer-grained control.
-        let _ = (cancel_token, pause_flag);
+        // Sweep orphaned `.haex-partial.meta.tmp.<nonce>` files left by a prior
+        // interrupted attempt before starting — nothing is mid-save here, so
+        // every remaining temp file is garbage. Best-effort; the resume pair
+        // (`.meta`/`.haex-partial`) is preserved.
+        let _ = crate::peer_storage::resume::PartialState::sweep_tmp(output_path).await;
 
         let partial_path = crate::peer_storage::resume::PartialState::partial_path(output_path);
 
@@ -143,12 +142,21 @@ impl PeerEndpoint {
             completed: completed.clone(),
         };
 
-        // Track progress at the writer level by polling the verifier's
-        // completed bitmap as chunks land. The verified pipe doesn't expose
-        // a callback yet, so emulate progress by snapshotting completion
-        // count between chunks. For files < MULTI_STREAM_THRESHOLD this is
-        // a single-stream stream of ≤16 chunks so the granularity is fine.
-        let _ = on_progress; // TODO: thread per-chunk progress in Task 8
+        // Per-chunk progress: accumulate each chunk's delta into the running
+        // total and report (bytes_done, total) to the caller. cancel/pause are
+        // honoured at chunk boundaries inside the verified pipe.
+        let mut sent: u64 = 0;
+        let on_chunk: Option<Box<dyn FnMut(u64) + Send>> = on_progress.map(|cb| {
+            Box::new(move |delta: u64| {
+                sent += delta;
+                cb(sent.min(size), size);
+            }) as Box<dyn FnMut(u64) + Send>
+        });
+        let controls = streaming::VerifiedRecvControls {
+            on_chunk,
+            cancel_token,
+            pause_flag,
+        };
 
         let result = streaming::pipe_recv_to_writer_verified(
             &mut *recv,
@@ -156,6 +164,7 @@ impl PeerEndpoint {
             size,
             verifier,
             Some((output_path, &chunks.file_hash)),
+            controls,
         )
         .await;
 
@@ -338,9 +347,7 @@ impl PeerEndpoint {
                 streaming::PipelineError::Stream(reason) => {
                     PeerStorageError::ConnectionFailed { reason }
                 }
-                streaming::PipelineError::Cancelled => PeerStorageError::ProtocolError {
-                    reason: "cancelled".to_string(),
-                },
+                streaming::PipelineError::Cancelled => PeerStorageError::Cancelled,
             })?;
         send.finish()
             .map_err(|e| PeerStorageError::ConnectionFailed {
@@ -786,25 +793,19 @@ async fn download_single_stream_with_resume(
     let completed: Arc<tokio::sync::Mutex<Vec<bool>>> =
         Arc::new(tokio::sync::Mutex::new(state.completed.clone()));
 
-    // Cancel/pause aren't plumbed through the verified pipe yet —
-    // single-stream resume only fires for files under MULTI_STREAM_THRESHOLD
-    // (16 MiB), so chunk-boundary granularity is more than enough for the
-    // file-explorer surface. Multi-stream resume (Task 10) wires those into
-    // its retry pool.
-    let _ = (cancel_token, pause_flag);
-
     // Bytes already on disk before any missing range fills in. Seed the
-    // progress callback with this so the consumer never sees the counter
-    // jump backwards when a resume picks up mid-file.
+    // progress counter with this so the consumer never sees it jump backwards
+    // when a resume picks up mid-file. Shared across the per-range pipes via an
+    // atomic so each verified chunk can bump it from the pipe's on_chunk hook.
     let already_done_bytes: u64 = {
         let cs = chunks_to_use.chunk_size as u64;
         let guard = completed.lock().await;
         let n_done = guard.iter().filter(|c| **c).count() as u64;
         (n_done * cs).min(file_size)
     };
-    let mut bytes_so_far = already_done_bytes;
-    if let Some(ref cb) = on_progress {
-        cb(bytes_so_far, file_size);
+    let sent = Arc::new(std::sync::atomic::AtomicU64::new(already_done_bytes));
+    if let Some(cb) = on_progress.as_ref() {
+        cb(already_done_bytes.min(file_size), file_size);
     }
 
     for (range_start, range_end_raw) in state.missing_ranges() {
@@ -835,6 +836,11 @@ async fn download_single_stream_with_resume(
         }
         let expected_hashes_for_range =
             &chunks_to_use.chunk_hashes[start_chunk_index..end_chunk_index];
+
+        // Abort promptly if cancelled before spending a stream on this range.
+        if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+            return Err(PeerStorageError::Cancelled);
+        }
 
         // Open a fresh stream + send a Read for this range. The server's
         // wire range is half-open [start, end), matching missing_ranges().
@@ -891,12 +897,30 @@ async fn download_single_stream_with_resume(
             completed: completed.clone(),
         };
 
+        // Per-chunk progress: bump the shared counter and report a monotonic
+        // (bytes_done, file_size) as each verified chunk lands. cancel/pause
+        // are honoured at chunk boundaries inside the pipe.
+        let on_chunk: Option<Box<dyn FnMut(u64) + Send>> = on_progress.as_ref().map(|cb| {
+            let cb = cb.clone();
+            let sent = sent.clone();
+            Box::new(move |delta: u64| {
+                let n = sent.fetch_add(delta, std::sync::atomic::Ordering::Relaxed) + delta;
+                cb(n.min(file_size), file_size);
+            }) as Box<dyn FnMut(u64) + Send>
+        });
+        let controls = streaming::VerifiedRecvControls {
+            on_chunk,
+            cancel_token: cancel_token.clone(),
+            pause_flag: pause_flag.clone(),
+        };
+
         let result = streaming::pipe_recv_to_writer_verified(
             &mut recv,
             &mut writer,
             range_len,
             verifier,
             Some((output_path, &chunks_to_use.file_hash)),
+            controls,
         )
         .await;
 
@@ -917,12 +941,9 @@ async fn download_single_stream_with_resume(
             });
         }
 
-        // Report progress at the end of each missing range — consumers see a
-        // monotonic counter that converges on `file_size` as each gap fills.
-        bytes_so_far = bytes_so_far.saturating_add(received).min(file_size);
-        if let Some(ref cb) = on_progress {
-            cb(bytes_so_far, file_size);
-        }
+        // Progress is reported per chunk from inside the pipe (above), so the
+        // shared counter already reflects this range's bytes — nothing to add
+        // at the range boundary.
     }
 
     // All missing ranges drained. Sanity-check that every chunk in the
@@ -1020,6 +1041,14 @@ pub(crate) async fn read_multipart_to_file(
     // renames + clears the sidecar on success.
     let write_path: std::path::PathBuf =
         crate::peer_storage::resume::PartialState::partial_path(&output_path);
+
+    // Sweep any orphaned `.haex-partial.meta.tmp.<nonce>` files a previous
+    // attempt left behind (interrupted save() between write + rename). The
+    // prior pool has fully unwound by now, so nothing is mid-save and every
+    // remaining temp file is garbage. Best-effort: a sweep failure must not
+    // block the download. The `.meta`/`.haex-partial` pair is preserved for
+    // the resume probe below.
+    let _ = crate::peer_storage::resume::PartialState::sweep_tmp(&output_path).await;
 
     // Resume probe: if a surviving sidecar's file_hash matches the manifest,
     // re-use its bitmap + partial bytes. A drifted sidecar (mismatched chunk
@@ -1122,8 +1151,11 @@ pub(crate) async fn read_multipart_to_file(
         0
     };
     let total_received = Arc::new(AtomicU64::new(already_done_bytes));
-    let range_progress: Arc<tokio::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>> =
-        Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new()));
+    // std::sync::Mutex (not tokio) so the synchronous per-chunk progress
+    // callback can update it without awaiting. It's locked only for a tiny
+    // map insert/remove and never held across an await point.
+    let range_progress: Arc<std::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>> =
+        Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
 
     let total_size = size;
     let max_retries = streaming::MAX_RANGE_RETRIES;
@@ -1207,7 +1239,7 @@ pub(crate) async fn read_multipart_to_file(
         let range_progress = range_progress_for_rollback.clone();
         let msg = err.to_string();
         Box::pin(async move {
-            let mut rp = range_progress.lock().await;
+            let mut rp = range_progress.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(prev) = rp.remove(&(start, end)) {
                 total_received.fetch_sub(prev, std::sync::atomic::Ordering::Relaxed);
             }
@@ -1303,6 +1335,10 @@ pub(crate) async fn run_bounded_retry_pool(
 
                 match fetcher(start, end).await {
                     Ok(()) => continue,
+                    // A cancelled transfer is a deliberate abort, not a
+                    // transient transport failure — return it immediately so
+                    // the pool unwinds instead of burning through retries.
+                    Err(PeerStorageError::Cancelled) => return Err(PeerStorageError::Cancelled),
                     Err(e) if attempt < max_retries => {
                         if let Some(hook) = on_retry.as_ref() {
                             hook((start, end, attempt), &e).await;
@@ -1359,7 +1395,7 @@ async fn download_range_attempt(
     pause_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
     on_progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
     total_received: Arc<std::sync::atomic::AtomicU64>,
-    range_progress: Arc<tokio::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>>,
+    range_progress: Arc<std::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>>,
     total_size: u64,
     chunks: &ChunkedHash,
     completed: Arc<tokio::sync::Mutex<Vec<bool>>>,
@@ -1367,6 +1403,12 @@ async fn download_range_attempt(
     use std::sync::atomic::Ordering;
 
     let part_size = end - start;
+
+    // Bail before opening a stream if the transfer was already cancelled, so a
+    // cancel doesn't cost an extra range round-trip per idle worker.
+    if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+        return Err(PeerStorageError::Cancelled);
+    }
 
     let (mut send, mut recv) = endpoint
         .read()
@@ -1444,13 +1486,30 @@ async fn download_range_attempt(
 
         let mut writer = tokio::io::BufWriter::new(file);
 
-        // Drive progress through a wrapping callback that updates the
-        // shared total + per-range last value. The verifier doesn't itself
-        // surface progress, so we tee it through a write-side wrapper.
+        // Per-chunk progress: each verified chunk reports its delta. We add it
+        // to this range's running tally (so a failed attempt can be rolled
+        // back by the pool's on_retry hook before the retry) and to the shared
+        // cross-worker total, then report (bytes_done, file_size) to the
+        // caller. cancel/pause are honoured at chunk boundaries inside the pipe.
         let total_received_pc = total_received.clone();
         let range_progress_pc = range_progress.clone();
         let on_progress_pc = on_progress.clone();
         let range_key = (start, end);
+        let on_chunk: Option<Box<dyn FnMut(u64) + Send>> = Some(Box::new(move |delta: u64| {
+            {
+                let mut rp = range_progress_pc.lock().unwrap_or_else(|e| e.into_inner());
+                *rp.entry(range_key).or_insert(0) += delta;
+            }
+            let new_total = total_received_pc.fetch_add(delta, Ordering::Relaxed) + delta;
+            if let Some(cb) = on_progress_pc.as_ref() {
+                cb(new_total.min(total_size), total_size);
+            }
+        }));
+        let controls = streaming::VerifiedRecvControls {
+            on_chunk,
+            cancel_token,
+            pause_flag,
+        };
 
         // ChunkVerifier shares the bitmap directly with sibling workers via
         // the Arc — no local clone, no end-of-attempt merge. Each chunk
@@ -1474,6 +1533,7 @@ async fn download_range_attempt(
             part_size,
             verifier,
             Some((final_output_path, &chunks.file_hash)),
+            controls,
         )
         .await;
 
@@ -1489,26 +1549,6 @@ async fn download_range_attempt(
                         ),
                     });
                 }
-                // Report final progress for this range. Failed attempts'
-                // contributions are rolled back by the caller before retry,
-                // so on a successful attempt we can just add the full range
-                // size to total_received in one shot.
-                if let Some(cb) = on_progress_pc {
-                    let prev = {
-                        let mut rp = range_progress_pc.lock().await;
-                        let prev = rp.get(&range_key).copied().unwrap_or(0);
-                        rp.insert(range_key, part_size);
-                        prev
-                    };
-                    let delta = part_size.saturating_sub(prev);
-                    let new_total = total_received_pc.fetch_add(delta, Ordering::Relaxed) + delta;
-                    cb(new_total.min(total_size), total_size);
-                }
-                // pause / cancel are honoured by the underlying recv stream
-                // through TCP-style backpressure once we surface those into
-                // pipe_recv_to_writer_verified — for now keep the bindings
-                // alive so signatures don't drift.
-                let _ = (cancel_token, pause_flag);
                 Ok(())
             }
             Err(e) => Err(e),

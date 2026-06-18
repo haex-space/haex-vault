@@ -6,7 +6,9 @@ use tokio::sync::Mutex;
 
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::resume::PartialState;
-use crate::peer_storage::streaming::{pipe_recv_to_writer_verified, ChunkVerifier};
+use crate::peer_storage::streaming::{
+    pipe_recv_to_writer_verified, ChunkVerifier, VerifiedRecvControls,
+};
 
 /// Build a vector with `len` bytes whose contents are deterministic and
 /// unique enough that different chunks hash differently.
@@ -61,9 +63,16 @@ async fn pipe_recv_verifies_happy_path() {
         completed: completed.clone(),
     };
 
-    let bytes = pipe_recv_to_writer_verified(recv, &mut sink, payload_len as u64, verifier, None)
-        .await
-        .expect("verified pipe ok");
+    let bytes = pipe_recv_to_writer_verified(
+        recv,
+        &mut sink,
+        payload_len as u64,
+        verifier,
+        None,
+        VerifiedRecvControls::default(),
+    )
+    .await
+    .expect("verified pipe ok");
 
     assert_eq!(bytes, payload_len as u64);
     assert_eq!(sink, payload, "verified bytes written verbatim");
@@ -101,9 +110,16 @@ async fn pipe_recv_rejects_bad_chunk() {
         completed: completed.clone(),
     };
 
-    let err = pipe_recv_to_writer_verified(recv, &mut sink, payload_len as u64, verifier, None)
-        .await
-        .expect_err("bad chunk must fail");
+    let err = pipe_recv_to_writer_verified(
+        recv,
+        &mut sink,
+        payload_len as u64,
+        verifier,
+        None,
+        VerifiedRecvControls::default(),
+    )
+    .await
+    .expect_err("bad chunk must fail");
 
     match err {
         PeerStorageError::ChunkHashMismatch {
@@ -159,6 +175,7 @@ async fn pipe_recv_persists_sidecar_per_chunk() {
         payload_len as u64,
         verifier,
         Some((target.as_path() as &Path, &file_hash)),
+        VerifiedRecvControls::default(),
     )
     .await
     .expect("verified pipe ok");
@@ -197,9 +214,16 @@ async fn pipe_recv_rejects_mismatched_chunk_count() {
         completed: completed.clone(),
     };
 
-    let err = pipe_recv_to_writer_verified(recv, &mut sink, payload_len as u64, verifier, None)
-        .await
-        .expect_err("count mismatch must fail");
+    let err = pipe_recv_to_writer_verified(
+        recv,
+        &mut sink,
+        payload_len as u64,
+        verifier,
+        None,
+        VerifiedRecvControls::default(),
+    )
+    .await
+    .expect_err("count mismatch must fail");
 
     assert!(
         matches!(err, PeerStorageError::ProtocolError { .. }),
@@ -269,6 +293,7 @@ async fn pipe_recv_concurrent_writers_dont_lose_bits() {
             half_bytes as u64,
             verifier,
             Some((target_a.as_path(), &file_hash_a)),
+            VerifiedRecvControls::default(),
         )
         .await
         .expect("worker A ok");
@@ -289,6 +314,7 @@ async fn pipe_recv_concurrent_writers_dont_lose_bits() {
             half_bytes as u64,
             verifier,
             Some((target_b.as_path(), &file_hash_b)),
+            VerifiedRecvControls::default(),
         )
         .await
         .expect("worker B ok");
@@ -315,5 +341,103 @@ async fn pipe_recv_concurrent_writers_dont_lose_bits() {
         loaded.completed,
         vec![true; total_chunks],
         "persisted sidecar lost bits to a racing writer",
+    );
+}
+
+#[tokio::test]
+async fn pipe_recv_verified_aborts_on_cancel() {
+    let chunk_size: u32 = 1024;
+    let total_chunks = 4;
+    let payload_len = chunk_size as usize * total_chunks;
+    let payload = pattern_bytes(payload_len, 0x33);
+    let hashes: Vec<String> = (0..total_chunks)
+        .map(|i| chunk_hash(&payload[i * chunk_size as usize..(i + 1) * chunk_size as usize]))
+        .collect();
+
+    let recv = duplex_with_bytes(payload.clone()).await;
+    let mut sink: Vec<u8> = Vec::new();
+    let completed = Arc::new(Mutex::new(vec![false; total_chunks]));
+    let verifier = ChunkVerifier {
+        expected_chunk_hashes: &hashes,
+        chunk_size,
+        start_chunk_index: 0,
+        completed: completed.clone(),
+    };
+
+    // A token cancelled before the first chunk is read → the pipe bails with
+    // Cancelled and never writes a byte. The retry pool relies on this exact
+    // variant to stop re-attempting a deliberately-aborted transfer.
+    let token = tokio_util::sync::CancellationToken::new();
+    token.cancel();
+    let controls = VerifiedRecvControls {
+        cancel_token: Some(token),
+        ..Default::default()
+    };
+
+    let err = pipe_recv_to_writer_verified(
+        recv,
+        &mut sink,
+        payload_len as u64,
+        verifier,
+        None,
+        controls,
+    )
+    .await
+    .expect_err("cancelled transfer must error");
+    assert!(matches!(err, PeerStorageError::Cancelled), "got {err:?}");
+    assert!(sink.is_empty(), "cancel before first chunk writes nothing");
+}
+
+#[tokio::test]
+async fn pipe_recv_verified_reports_per_chunk_progress() {
+    let chunk_size: u32 = 1024;
+    let total_chunks = 4;
+    // 3 full chunks + a 512-byte tail so the last delta is short.
+    let payload_len = chunk_size as usize * 3 + 512;
+    let payload = pattern_bytes(payload_len, 0x55);
+    let hashes: Vec<String> = (0..total_chunks)
+        .map(|i| {
+            let s = i * chunk_size as usize;
+            let e = ((i + 1) * chunk_size as usize).min(payload_len);
+            chunk_hash(&payload[s..e])
+        })
+        .collect();
+
+    let recv = duplex_with_bytes(payload.clone()).await;
+    let mut sink: Vec<u8> = Vec::new();
+    let completed = Arc::new(Mutex::new(vec![false; total_chunks]));
+    let verifier = ChunkVerifier {
+        expected_chunk_hashes: &hashes,
+        chunk_size,
+        start_chunk_index: 0,
+        completed: completed.clone(),
+    };
+
+    // Collect the per-chunk deltas the pipe reports. std::sync::Mutex (not the
+    // tokio one aliased at the top) so the synchronous FnMut can lock it.
+    let deltas = Arc::new(std::sync::Mutex::new(Vec::<u64>::new()));
+    let deltas_cb = deltas.clone();
+    let controls = VerifiedRecvControls {
+        on_chunk: Some(Box::new(move |d: u64| deltas_cb.lock().unwrap().push(d))),
+        ..Default::default()
+    };
+
+    pipe_recv_to_writer_verified(
+        recv,
+        &mut sink,
+        payload_len as u64,
+        verifier,
+        None,
+        controls,
+    )
+    .await
+    .expect("verified pipe ok");
+
+    let got = deltas.lock().unwrap().clone();
+    assert_eq!(got, vec![1024, 1024, 1024, 512], "per-chunk deltas");
+    assert_eq!(
+        got.iter().sum::<u64>(),
+        payload_len as u64,
+        "deltas sum to file size"
     );
 }
