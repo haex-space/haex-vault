@@ -8,6 +8,8 @@ mod path_traversal_tests;
 #[cfg(test)]
 mod permission_enforcement_tests;
 #[cfg(test)]
+mod principal;
+#[cfg(test)]
 mod silent_read_tests;
 #[cfg(test)]
 mod url_pattern_tests;
