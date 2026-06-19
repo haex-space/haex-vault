@@ -798,6 +798,18 @@
         "localPath": "local_path",
         "downloadedAt": "downloaded_at"
       }
+    },
+    "principals": {
+      "name": "haex_principals",
+      "columns": {
+        "id": "id",
+        "kind": "kind",
+        "publicKey": "public_key",
+        "name": "name",
+        "enabled": "enabled",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at"
+      }
     }
   }
 }

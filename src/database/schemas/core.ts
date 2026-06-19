@@ -330,3 +330,34 @@ export const haexExtensionLimits = sqliteTable(
 )
 export type InsertHaexExtensionLimits = typeof haexExtensionLimits.$inferInsert
 export type SelectHaexExtensionLimits = typeof haexExtensionLimits.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Principals — unified actor identity (extension | external_client)
+// ---------------------------------------------------------------------------
+
+export const haexPrincipals = sqliteTable(
+  tableNames.haex.principals.name,
+  {
+    id: text(tableNames.haex.principals.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    // logical values: 'extension' | 'external_client'
+    kind: text(tableNames.haex.principals.columns.kind).notNull(),
+    public_key: text(tableNames.haex.principals.columns.publicKey).notNull(),
+    name: text(tableNames.haex.principals.columns.name).notNull(),
+    enabled: integer(tableNames.haex.principals.columns.enabled, {
+      mode: 'boolean',
+    }).default(true),
+    createdAt: text(tableNames.haex.principals.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+    updatedAt: integer(tableNames.haex.principals.columns.updatedAt, {
+      mode: 'timestamp',
+    }).$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex('haex_principals_public_key_kind_unique').on(table.public_key, table.kind),
+  ],
+)
+export type InsertHaexPrincipals = typeof haexPrincipals.$inferInsert
+export type SelectHaexPrincipals = typeof haexPrincipals.$inferSelect
