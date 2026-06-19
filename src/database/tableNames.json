@@ -46,11 +46,11 @@
         "updatedAt": "updated_at"
       }
     },
-    "extension_permissions": {
-      "name": "haex_extension_permissions",
+    "principal_permissions": {
+      "name": "haex_principal_permissions",
       "columns": {
         "id": "id",
-        "extensionId": "extension_id",
+        "principalId": "principal_id",
         "resourceType": "resource_type",
         "action": "action",
         "target": "target",

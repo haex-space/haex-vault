@@ -70,13 +70,13 @@ export const haexExtensions = sqliteTable(
 export type InsertHaexExtensions = typeof haexExtensions.$inferInsert
 export type SelectHaexExtensions = typeof haexExtensions.$inferSelect
 
-export const haexExtensionPermissions = sqliteTable(
-  tableNames.haex.extension_permissions.name,
+export const haexPrincipalPermissions = sqliteTable(
+  tableNames.haex.principal_permissions.name,
   {
     id: text()
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    extensionId: text(tableNames.haex.extension_permissions.columns.extensionId)
+    principalId: text(tableNames.haex.principal_permissions.columns.principalId)
       .notNull()
       .references((): AnySQLiteColumn => haexExtensions.id, {
         onDelete: 'cascade',
@@ -96,14 +96,14 @@ export const haexExtensionPermissions = sqliteTable(
     ),
   },
   (table) => [
-    uniqueIndex('haex_extension_permissions_extension_id_resource_type_action_target_unique')
-      .on(table.extensionId, table.resourceType, table.action, table.target),
+    uniqueIndex('haex_principal_permissions_principal_id_resource_type_action_target_unique')
+      .on(table.principalId, table.resourceType, table.action, table.target),
   ],
 )
-export type InserthaexExtensionPermissions =
-  typeof haexExtensionPermissions.$inferInsert
-export type SelecthaexExtensionPermissions =
-  typeof haexExtensionPermissions.$inferSelect
+export type InsertHaexPrincipalPermissions =
+  typeof haexPrincipalPermissions.$inferInsert
+export type SelectHaexPrincipalPermissions =
+  typeof haexPrincipalPermissions.$inferSelect
 
 // ---------------------------------------------------------------------------
 // Logs — structured logging for system processes and extensions

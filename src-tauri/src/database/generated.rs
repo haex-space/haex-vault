@@ -88,9 +88,9 @@ impl HaexExtensions {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HaexExtensionPermissions {
+pub struct HaexPrincipalPermissions {
     pub id: String,
-    pub extension_id: String,
+    pub principal_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,11 +106,11 @@ pub struct HaexExtensionPermissions {
     pub updated_at: Option<String>,
 }
 
-impl HaexExtensionPermissions {
+impl HaexPrincipalPermissions {
     pub fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
         Ok(Self {
             id: row.get(0)?,
-            extension_id: row.get(1)?,
+            principal_id: row.get(1)?,
             resource_type: row.get(2)?,
             action: row.get(3)?,
             target: row.get(4)?,
@@ -639,3 +639,4 @@ impl HaexPrincipals {
         })
     }
 }
+
