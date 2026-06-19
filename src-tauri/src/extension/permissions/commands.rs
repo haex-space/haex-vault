@@ -27,6 +27,10 @@ use tauri::Emitter;
 /// Parses a read/readWrite action string for the shared sync resources
 /// (`syncServers`, `cloudStorage`, `syncRules`). Defaults to `Read` for
 /// unknown values, mirroring the lenient parsing used for other resources.
+///
+/// Note: this lenient default is deliberate and matches the sibling Db/Spaces
+/// command arms — do NOT "fix" it by swapping in `RwAction::from_str`, which
+/// errors on unknown input instead.
 fn parse_rw_action(action: &str) -> RwAction {
     match action.to_lowercase().as_str() {
         "readwrite" | "read_write" => RwAction::ReadWrite,

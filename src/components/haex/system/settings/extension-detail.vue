@@ -819,9 +819,9 @@ en:
     filesystem: Filesystem
     http: Internet
     shell: Shell Commands
-    syncServers: Sync servers
-    cloudStorage: Cloud storage
-    syncRules: Sync rules
+    syncServers: Sync Servers
+    cloudStorage: Cloud Storage
+    syncRules: Sync Rules
   noPermissions: This extension has no permissions.
   savePermissions: Save Permissions
   dangerZone: Danger Zone

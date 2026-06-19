@@ -35,9 +35,7 @@ fn create_extension(public_key: &str, name: &str) -> Extension {
                 http: None,
                 shell: None,
                 sync_servers: None,
-
                 cloud_storage: None,
-
                 sync_rules: None,
                 spaces: None,
                 identities: None,

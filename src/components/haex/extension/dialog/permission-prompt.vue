@@ -248,9 +248,9 @@ en:
     web: Network Access
     fs: Filesystem Access
     shell: Shell Command
-    syncServers: Sync servers
-    cloudStorage: Cloud storage
-    syncRules: Sync rules
+    syncServers: Sync Servers
+    cloudStorage: Cloud Storage
+    syncRules: Sync Rules
     spaces: Shared Spaces
     passwords: Password Access
     unknown: Unknown
