@@ -347,7 +347,9 @@ export const haexPrincipals = sqliteTable(
     name: text(tableNames.haex.principals.columns.name).notNull(),
     enabled: integer(tableNames.haex.principals.columns.enabled, {
       mode: 'boolean',
-    }).default(true),
+    })
+      .notNull()
+      .default(true),
     createdAt: text(tableNames.haex.principals.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),

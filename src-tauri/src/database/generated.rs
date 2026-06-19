@@ -619,8 +619,7 @@ pub struct HaexPrincipals {
     pub kind: String,
     pub public_key: String,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled: Option<bool>,
+    pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

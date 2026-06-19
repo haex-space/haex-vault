@@ -21,7 +21,7 @@ CREATE TABLE `haex_principals` (
   `kind` text NOT NULL,
   `public_key` text NOT NULL,
   `name` text NOT NULL,
-  `enabled` integer DEFAULT 1,
+  `enabled` integer NOT NULL DEFAULT 1,
   `created_at` text DEFAULT (CURRENT_TIMESTAMP),
   `updated_at` integer
 );
