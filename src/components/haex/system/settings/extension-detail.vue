@@ -212,9 +212,19 @@
                 v-model="editablePermissions.shell"
               />
             </template>
-            <template #filesync>
+            <template #syncServers>
               <HaexExtensionPermissionList
-                v-model="editablePermissions.filesync"
+                v-model="editablePermissions.syncServers"
+              />
+            </template>
+            <template #cloudStorage>
+              <HaexExtensionPermissionList
+                v-model="editablePermissions.cloudStorage"
+              />
+            </template>
+            <template #syncRules>
+              <HaexExtensionPermissionList
+                v-model="editablePermissions.syncRules"
               />
             </template>
           </UAccordion>
@@ -309,7 +319,9 @@ interface ExtensionPermissionsEditable {
   filesystem?: PermissionEntry[] | null
   http?: PermissionEntry[] | null
   shell?: PermissionEntry[] | null
-  filesync?: PermissionEntry[] | null
+  syncServers?: PermissionEntry[] | null
+  cloudStorage?: PermissionEntry[] | null
+  syncRules?: PermissionEntry[] | null
 }
 
 const props = defineProps<{
@@ -443,14 +455,18 @@ const originalPermissions = ref<ExtensionPermissionsEditable>({
   filesystem: null,
   http: null,
   shell: null,
-  filesync: null,
+  syncServers: null,
+  cloudStorage: null,
+  syncRules: null,
 })
 const editablePermissions = ref<ExtensionPermissionsEditable>({
   database: null,
   filesystem: null,
   http: null,
   shell: null,
-  filesync: null,
+  syncServers: null,
+  cloudStorage: null,
+  syncRules: null,
 })
 
 // Session permissions (in-memory, not persisted)
@@ -476,7 +492,9 @@ const hasAnyPermissions = computed(() => {
     (editablePermissions.value.filesystem?.length ?? 0) > 0 ||
     (editablePermissions.value.http?.length ?? 0) > 0 ||
     (editablePermissions.value.shell?.length ?? 0) > 0 ||
-    (editablePermissions.value.filesync?.length ?? 0) > 0
+    (editablePermissions.value.syncServers?.length ?? 0) > 0 ||
+    (editablePermissions.value.cloudStorage?.length ?? 0) > 0 ||
+    (editablePermissions.value.syncRules?.length ?? 0) > 0
   )
 })
 
@@ -496,7 +514,9 @@ const hasPermissionChanges = computed(() => {
     !compareArrays(editablePermissions.value.filesystem, originalPermissions.value.filesystem) ||
     !compareArrays(editablePermissions.value.http, originalPermissions.value.http) ||
     !compareArrays(editablePermissions.value.shell, originalPermissions.value.shell) ||
-    !compareArrays(editablePermissions.value.filesync, originalPermissions.value.filesync)
+    !compareArrays(editablePermissions.value.syncServers, originalPermissions.value.syncServers) ||
+    !compareArrays(editablePermissions.value.cloudStorage, originalPermissions.value.cloudStorage) ||
+    !compareArrays(editablePermissions.value.syncRules, originalPermissions.value.syncRules)
   )
 })
 
@@ -536,11 +556,27 @@ const permissionAccordionItems = computed(() => {
     })
   }
 
-  if ((editablePermissions.value.filesync?.length ?? 0) > 0) {
+  if ((editablePermissions.value.syncServers?.length ?? 0) > 0) {
     items.push({
-      label: t('permissionTypes.filesync'),
+      label: t('permissionTypes.syncServers'),
+      icon: 'i-heroicons-server',
+      slot: 'syncServers',
+    })
+  }
+
+  if ((editablePermissions.value.cloudStorage?.length ?? 0) > 0) {
+    items.push({
+      label: t('permissionTypes.cloudStorage'),
       icon: 'i-heroicons-cloud-arrow-up',
-      slot: 'filesync',
+      slot: 'cloudStorage',
+    })
+  }
+
+  if ((editablePermissions.value.syncRules?.length ?? 0) > 0) {
+    items.push({
+      label: t('permissionTypes.syncRules'),
+      icon: 'i-heroicons-arrow-path',
+      slot: 'syncRules',
     })
   }
 
@@ -554,7 +590,9 @@ const getPermissionIcon = (resourceType: string): string => {
     fs: 'i-heroicons-folder',
     web: 'i-heroicons-globe-alt',
     shell: 'i-heroicons-command-line',
-    filesync: 'i-heroicons-cloud-arrow-up',
+    syncServers: 'i-heroicons-server',
+    cloudStorage: 'i-heroicons-cloud-arrow-up',
+    syncRules: 'i-heroicons-arrow-path',
   }
   return icons[resourceType] || 'i-heroicons-shield-check'
 }
@@ -565,7 +603,9 @@ const getPermissionTypeKey = (resourceType: string): string => {
     fs: 'filesystem',
     web: 'http',
     shell: 'shell',
-    filesync: 'filesync',
+    syncServers: 'syncServers',
+    cloudStorage: 'cloudStorage',
+    syncRules: 'syncRules',
   }
   return keys[resourceType] || resourceType
 }
@@ -721,7 +761,9 @@ de:
     filesystem: Dateisystem
     http: Internet
     shell: Systembefehle
-    filesync: Dateisynchronisierung
+    syncServers: Sync-Server
+    cloudStorage: Cloud-Speicher
+    syncRules: Sync-Regeln
   noPermissions: Diese Erweiterung hat keine Berechtigungen.
   savePermissions: Berechtigungen speichern
   dangerZone: Gefahrenzone
@@ -777,7 +819,9 @@ en:
     filesystem: Filesystem
     http: Internet
     shell: Shell Commands
-    filesync: File Sync
+    syncServers: Sync servers
+    cloudStorage: Cloud storage
+    syncRules: Sync rules
   noPermissions: This extension has no permissions.
   savePermissions: Save Permissions
   dangerZone: Danger Zone

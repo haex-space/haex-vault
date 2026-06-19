@@ -159,8 +159,12 @@ const resourceTypeIcon = computed(() => {
       return 'i-heroicons-folder'
     case 'shell':
       return 'i-heroicons-command-line'
-    case 'filesync':
+    case 'syncServers':
+      return 'i-heroicons-server'
+    case 'cloudStorage':
       return 'i-heroicons-cloud-arrow-up'
+    case 'syncRules':
+      return 'i-heroicons-arrow-path'
     case 'spaces':
       return 'i-heroicons-user-group'
     case 'passwords':
@@ -180,8 +184,12 @@ const resourceTypeLabel = computed(() => {
       return t('resourceType.fs')
     case 'shell':
       return t('resourceType.shell')
-    case 'filesync':
-      return t('resourceType.filesync')
+    case 'syncServers':
+      return t('resourceType.syncServers')
+    case 'cloudStorage':
+      return t('resourceType.cloudStorage')
+    case 'syncRules':
+      return t('resourceType.syncRules')
     case 'spaces':
       return t('resourceType.spaces')
     case 'passwords':
@@ -216,7 +224,9 @@ de:
     web: Netzwerkzugriff
     fs: Dateisystemzugriff
     shell: Shell-Befehl
-    filesync: Dateisynchronisation
+    syncServers: Sync-Server
+    cloudStorage: Cloud-Speicher
+    syncRules: Sync-Regeln
     spaces: Shared Spaces
     passwords: Passwortzugriff
     unknown: Unbekannt
@@ -238,7 +248,9 @@ en:
     web: Network Access
     fs: Filesystem Access
     shell: Shell Command
-    filesync: File Sync
+    syncServers: Sync servers
+    cloudStorage: Cloud storage
+    syncRules: Sync rules
     spaces: Shared Spaces
     passwords: Password Access
     unknown: Unknown
