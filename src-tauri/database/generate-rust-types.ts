@@ -230,6 +230,10 @@ use serde::{Deserialize, Serialize};
       name: tablesNames.haex.passwords_passkeys.name,
       table: schema.haexPasswordsPasskeys,
     },
+    {
+      name: tablesNames.haex.principals.name,
+      table: schema.haexPrincipals,
+    },
   ]
 
   for (const { name, table } of schemas) {
