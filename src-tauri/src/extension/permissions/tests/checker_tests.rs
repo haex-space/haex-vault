@@ -60,6 +60,7 @@ fn create_permission(action: DbAction, target: &str) -> ExtensionPermission {
         target: target.to_string(),
         constraints: None,
         status: PermissionStatus::Granted,
+        raw_constraints: None,
     }
 }
 

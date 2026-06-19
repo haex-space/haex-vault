@@ -377,6 +377,7 @@ mod permission_types_tests {
             target: "other__ext__*".to_string(),
             constraints: None,
             status: PermissionStatus::Granted,
+            raw_constraints: None,
         };
 
         assert_eq!(permission.id, "perm_123");

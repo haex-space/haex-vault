@@ -679,9 +679,13 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
         let entry = PermissionEntry {
             target: perm.target,
             operation: Some(perm.action.as_str()),
-            constraints: perm
-                .constraints
-                .map(|c| serde_json::to_value(c).unwrap_or_default()),
+            // Prefer the raw constraints (passwords `{"default":true}`) so the
+            // marker survives a get -> edit -> update round-trip; fall back to
+            // the typed constraints for all other resource types.
+            constraints: perm.raw_constraints.or_else(|| {
+                perm.constraints
+                    .map(|c| serde_json::to_value(c).unwrap_or_default())
+            }),
             status: Some(perm.status),
         };
 

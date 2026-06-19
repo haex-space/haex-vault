@@ -73,6 +73,7 @@ fn create_db_permission(
         target: target.to_string(),
         constraints: None,
         status,
+        raw_constraints: None,
     }
 }
 
@@ -90,6 +91,7 @@ fn create_fs_permission(
         target: target.to_string(),
         constraints: None,
         status,
+        raw_constraints: None,
     }
 }
 
@@ -106,6 +108,7 @@ fn create_web_permission(
         target: target.to_string(),
         constraints: None,
         status,
+        raw_constraints: None,
     }
 }
 
@@ -123,6 +126,7 @@ fn create_cloud_storage_permission(
         target: target.to_string(),
         constraints: None,
         status,
+        raw_constraints: None,
     }
 }
 

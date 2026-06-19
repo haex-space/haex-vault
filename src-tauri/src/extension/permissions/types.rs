@@ -454,10 +454,33 @@ impl FromStr for PasswordsAction {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PasswordsScope {
     /// Wildcard — Extension darf auf Einträge mit beliebigen Tags zugreifen.
+    /// Vollzugriff hat kein Default-Label (nichts wird beim Erstellen erzwungen).
     All,
     /// Extension darf nur auf Einträge zugreifen die mindestens eines dieser
     /// Tags haben.
-    Tags(Vec<String>),
+    ///
+    /// `default` ist das *Default-Label*, das neu erstellten Einträgen
+    /// automatisch zugewiesen wird:
+    /// - Genau ein erlaubtes Label → dieses ist implizit der Default.
+    /// - Mehrere erlaubte Labels → genau eine Permission-Row muss explizit per
+    ///   `{"default":true}` markiert sein; `default` trägt dann dieses Label.
+    /// - Read-only-Scopes brauchen keinen Default (`None` ist erlaubt).
+    Tags {
+        tags: Vec<String>,
+        default: Option<String>,
+    },
+}
+
+impl PasswordsScope {
+    /// Das Default-Label dieses Scopes (das neu erstellten Einträgen
+    /// zugewiesen wird). `All` und ein Read-only-`Tags`-Scope ohne Default
+    /// liefern `None`.
+    pub fn default_label(&self) -> Option<&str> {
+        match self {
+            PasswordsScope::All => None,
+            PasswordsScope::Tags { default, .. } => default.as_deref(),
+        }
+    }
 }
 
 // --- Haupt-Typen für Berechtigungen ---
@@ -493,6 +516,19 @@ pub struct ExtensionPermission {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<PermissionConstraints>,
     pub status: PermissionStatus,
+    /// Raw, free-form constraints JSON for resource types whose constraints
+    /// can't be represented by the typed (untagged) [`PermissionConstraints`]
+    /// enum — currently only `passwords`, which marks its *default label* row
+    /// via `{"default": true}`.
+    ///
+    /// Backend-only write-path carrier: populated from the manifest in
+    /// `create_internal` and written to the DB `constraints` column by
+    /// `From<&ExtensionPermission> for HaexPrincipalPermissions`. The typed
+    /// `constraints` field above is left `None` for these rows. Never crosses
+    /// the JSON boundary to the frontend, hence `#[serde(skip)]` / `#[ts(skip)]`.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub raw_constraints: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, TS)]
@@ -739,10 +775,18 @@ impl From<&ExtensionPermission> for crate::database::generated::HaexPrincipalPer
             resource_type: Some(perm.resource_type.as_str().to_string()),
             action: Some(perm.action.as_str().to_string()),
             target: Some(perm.target.clone()),
+            // Prefer the raw, free-form constraints (passwords `{"default":true}`)
+            // when present — the typed enum can't represent them. Otherwise fall
+            // back to serializing the typed constraints (Db/Fs/Web/Shell).
             constraints: perm
-                .constraints
+                .raw_constraints
                 .as_ref()
-                .and_then(|c| serde_json::to_string(c).ok()),
+                .and_then(|c| serde_json::to_string(c).ok())
+                .or_else(|| {
+                    perm.constraints
+                        .as_ref()
+                        .and_then(|c| serde_json::to_string(c).ok())
+                }),
             status: perm.status.as_str().to_string(),
             created_at: None,
             updated_at: None,
@@ -767,10 +811,22 @@ impl From<crate::database::generated::HaexPrincipalPermissions> for ExtensionPer
         let status =
             PermissionStatus::from_str(db_perm.status.as_str()).unwrap_or(PermissionStatus::Denied);
 
-        let constraints = db_perm
-            .constraints
-            .as_deref()
-            .and_then(|s| serde_json::from_str(s).ok());
+        // Passwords constraints (`{"default":true}`) can't be represented by the
+        // typed (untagged) enum, so keep them raw and leave `constraints` None.
+        // All other resource types parse into the typed enum as before.
+        let (constraints, raw_constraints) = if resource_type == ResourceType::Passwords {
+            let raw = db_perm
+                .constraints
+                .as_deref()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
+            (None, raw)
+        } else {
+            let typed = db_perm
+                .constraints
+                .as_deref()
+                .and_then(|s| serde_json::from_str(s).ok());
+            (typed, None)
+        };
 
         Self {
             id: db_perm.id,
@@ -780,6 +836,7 @@ impl From<crate::database::generated::HaexPrincipalPermissions> for ExtensionPer
             target: db_perm.target.unwrap_or_default(),
             constraints,
             status,
+            raw_constraints,
         }
     }
 }

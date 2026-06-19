@@ -210,8 +210,23 @@ impl PermissionManager {
                     .as_str()
                     .and_then(|s| PermissionStatus::from_str(s).ok())
                     .unwrap_or(PermissionStatus::Denied);
-                let constraints: Option<PermissionConstraints> =
-                    row[5].as_str().and_then(|s| serde_json::from_str(s).ok());
+                // Passwords keep their free-form `{"default":true}` constraint
+                // raw (the typed untagged enum can't represent it); all other
+                // resource types parse into the typed enum as before.
+                let (constraints, raw_constraints): (
+                    Option<PermissionConstraints>,
+                    Option<JsonValue>,
+                ) = if resource_type == ResourceType::Passwords {
+                    (
+                        None,
+                        row[5].as_str().and_then(|s| serde_json::from_str(s).ok()),
+                    )
+                } else {
+                    (
+                        row[5].as_str().and_then(|s| serde_json::from_str(s).ok()),
+                        None,
+                    )
+                };
 
                 ExtensionPermission {
                     id: row[0].as_str().unwrap_or_default().to_string(),
@@ -221,6 +236,7 @@ impl PermissionManager {
                     target: row[4].as_str().unwrap_or_default().to_string(),
                     constraints,
                     status,
+                    raw_constraints,
                 }
             })
             .collect();
@@ -384,6 +400,8 @@ impl PermissionManager {
                     target: row[4].as_str().unwrap_or_default().to_string(),
                     constraints,
                     status,
+                    // web-only loader (WHERE resource_type = 'web'); never passwords
+                    raw_constraints: None,
                 }
             })
             .collect();
@@ -1061,8 +1079,22 @@ impl PermissionManager {
             return Ok(PasswordsScope::All);
         }
 
-        let tags: Vec<String> = granted.iter().map(|p| p.target.clone()).collect();
-        Ok(PasswordsScope::Tags(tags))
+        // Non-wildcard Tag-Scope: pro Row das Default-Label-Marker aus den rohen
+        // Passwords-Constraints (`{"default":true}`) lesen. `get_permissions`
+        // trägt diese rohen Constraints bereits in `raw_constraints` (der
+        // typisierte untagged-Enum kann sie nicht repräsentieren), also keine
+        // zweite SQL-Abfrage nötig.
+        let rows: Vec<PasswordsGrantRow> = granted
+            .iter()
+            .map(|p| PasswordsGrantRow {
+                target: p.target.clone(),
+                is_default: parse_passwords_default_marker(p.raw_constraints.as_ref()),
+            })
+            .collect();
+
+        // Default-Label nur beim Schreiben (Erstellen) relevant.
+        let write_granted = matches!(action, PasswordsAction::ReadWrite);
+        resolve_passwords_tags_scope(rows, write_granted, extension_id)
     }
 
     /// Prüft Mail-Berechtigungen für IMAP-Fetch oder SMTP-Send.
@@ -1648,6 +1680,95 @@ impl PermissionManager {
         }
 
         components.join("/")
+    }
+}
+
+/// Liest das Passwords-Default-Marker-Flag aus den rohen Constraints einer
+/// Permission-Row. Passwords markieren ihre Default-Label-Row per free-form
+/// `{"default": true}` (das der typisierte [`PermissionConstraints`]-Enum nicht
+/// repräsentieren kann). Fehlende/abweichende Constraints ⇒ `false`.
+pub(crate) fn parse_passwords_default_marker(raw: Option<&JsonValue>) -> bool {
+    #[derive(serde::Deserialize)]
+    struct DefaultMarker {
+        #[serde(default)]
+        default: bool,
+    }
+    raw.and_then(|v| serde_json::from_value::<DefaultMarker>(v.clone()).ok())
+        .map(|m| m.default)
+        .unwrap_or(false)
+}
+
+/// Eine gewährte (non-wildcard) Passwords-Permission-Row, reduziert auf die
+/// für die Scope-Auflösung relevanten Felder.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PasswordsGrantRow {
+    /// Das Tag/Label, auf das diese Row Zugriff gewährt.
+    pub target: String,
+    /// Ob diese Row explizit als Default-Label markiert ist (`{"default":true}`).
+    pub is_default: bool,
+}
+
+/// Löst die gewährten (non-wildcard) Passwords-Tag-Rows zu einem
+/// [`PasswordsScope::Tags`] inkl. aufgelöstem Default-Label auf.
+///
+/// Aufrufer-Vertrag: wird NUR aufgerufen, wenn KEINE Wildcard-`*`-Row gewährt
+/// ist (die wird vorher direkt zu [`PasswordsScope::All`] aufgelöst) und `rows`
+/// nicht leer ist.
+///
+/// Regeln (sicherheitsrelevant):
+/// - Genau EIN erlaubtes Label → dieses ist implizit der Default (keine
+///   explizite Markierung nötig).
+/// - MEHRERE Labels + `write_granted` → es muss GENAU EINE Row als Default
+///   markiert sein. Null oder >1 markierte Rows ⇒ der Grant ist ungültig ⇒
+///   Reject ([`ExtensionError::SecurityViolation`]). Das markierte Default ist
+///   per Konstruktion eines der erlaubten Labels (es IST eine der Rows).
+/// - MEHRERE Labels, NUR Read (kein Write) → kein Default nötig (`None`); eine
+///   etwaige Markierung wird ignoriert, da Defaults nur beim Erstellen zählen.
+pub(crate) fn resolve_passwords_tags_scope(
+    rows: Vec<PasswordsGrantRow>,
+    write_granted: bool,
+    extension_id: &str,
+) -> Result<PasswordsScope, ExtensionError> {
+    let tags: Vec<String> = rows.iter().map(|r| r.target.clone()).collect();
+
+    // Genau ein erlaubtes Label → implizit der Default.
+    if tags.len() == 1 {
+        return Ok(PasswordsScope::Tags {
+            default: Some(tags[0].clone()),
+            tags,
+        });
+    }
+
+    // Mehrere Labels.
+    if !write_granted {
+        // Read-only: kein Default nötig.
+        return Ok(PasswordsScope::Tags {
+            tags,
+            default: None,
+        });
+    }
+
+    // Mehrere Labels + Write: genau eine Row muss als Default markiert sein.
+    let marked: Vec<&PasswordsGrantRow> = rows.iter().filter(|r| r.is_default).collect();
+    match marked.as_slice() {
+        [single] => Ok(PasswordsScope::Tags {
+            default: Some(single.target.clone()),
+            tags,
+        }),
+        [] => Err(ExtensionError::SecurityViolation {
+            reason: format!(
+                "Passwords write grant for extension '{extension_id}' allows multiple labels \
+                 ({tags:?}) but none is marked as the default (constraints {{\"default\":true}}). \
+                 Exactly one default label is required."
+            ),
+        }),
+        _ => Err(ExtensionError::SecurityViolation {
+            reason: format!(
+                "Passwords write grant for extension '{extension_id}' marks multiple default \
+                 labels ({:?}). Exactly one default label is required.",
+                marked.iter().map(|r| &r.target).collect::<Vec<_>>()
+            ),
+        }),
     }
 }
 

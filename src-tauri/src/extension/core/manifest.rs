@@ -350,17 +350,30 @@ impl ExtensionPermissions {
                 .map(Action::Notifications),
         };
 
+        // Passwords mark their default-label row via a free-form `{"default":true}`
+        // constraint that the typed (untagged) `PermissionConstraints` enum can't
+        // represent. Keep it raw so it survives intact to the DB `constraints`
+        // column (read directly by `check_passwords_permission`). Every other
+        // resource type parses into the typed enum as before.
+        let (constraints, raw_constraints) = if resource_type == ResourceType::Passwords {
+            (None, p.constraints.clone())
+        } else {
+            let typed = p
+                .constraints
+                .as_ref()
+                .and_then(|c| serde_json::from_value::<PermissionConstraints>(c.clone()).ok());
+            (typed, None)
+        };
+
         action.map(|act| ExtensionPermission {
             id: uuid::Uuid::new_v4().to_string(),
             principal_id: extension_id.to_string(),
             resource_type: resource_type.clone(),
             action: act,
             target: p.target.clone(),
-            constraints: p
-                .constraints
-                .as_ref()
-                .and_then(|c| serde_json::from_value::<PermissionConstraints>(c.clone()).ok()),
+            constraints,
             status: p.status.clone().unwrap_or(PermissionStatus::Ask),
+            raw_constraints,
         })
     }
 }

@@ -80,6 +80,7 @@ fn fs_perm(action: FsAction, target: &str, status: PermissionStatus) -> Extensio
         target: target.to_string(),
         constraints: None,
         status,
+        raw_constraints: None,
     }
 }
 
@@ -100,6 +101,7 @@ fn fs_perm_with_extension_constraint(
             ..Default::default()
         })),
         status,
+        raw_constraints: None,
     }
 }
 
@@ -288,6 +290,7 @@ fn non_fs_resource_type_does_not_match_fs_check() {
         target: "/data/*".to_string(),
         constraints: None,
         status: PermissionStatus::Granted,
+        raw_constraints: None,
     }];
     let checker = PermissionChecker::new(make_extension(), perms);
     assert!(!checker.can_read_path_silently(Path::new("/data/file.txt"), false, false));
