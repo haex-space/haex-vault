@@ -39,7 +39,15 @@ fn manual_journal_and_sql_files_are_in_sync() {
     let journal: ManualJournal =
         serde_json::from_str(&journal_content).expect("manual _journal.json must be valid JSON");
 
-    let journaled_tags: HashSet<String> = journal.entries.iter().map(|e| e.tag.clone()).collect();
+    // Collect into a Vec first so duplicate tags are detectable — building a
+    // HashSet directly would silently dedupe a duplicated manual tag.
+    let journaled_tags_vec: Vec<String> = journal.entries.iter().map(|e| e.tag.clone()).collect();
+    let journaled_tags: HashSet<String> = journaled_tags_vec.iter().cloned().collect();
+    assert_eq!(
+        journaled_tags_vec.len(),
+        journaled_tags.len(),
+        "manual _journal.json contains duplicate tags: {journaled_tags_vec:?}"
+    );
 
     // Every manual tag must carry the `manual_` prefix. This is the naming
     // convention that keeps manual tags from colliding by-name with drizzle

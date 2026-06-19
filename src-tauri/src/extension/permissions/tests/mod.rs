@@ -14,6 +14,8 @@ mod permission_enforcement_tests;
 #[cfg(test)]
 mod principal;
 #[cfg(test)]
+mod session_tests;
+#[cfg(test)]
 mod silent_read_tests;
 #[cfg(test)]
 mod types_tests;

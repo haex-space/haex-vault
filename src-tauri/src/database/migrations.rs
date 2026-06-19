@@ -428,15 +428,20 @@ fn load_manual_migration_journal(
         journal_path
     );
 
-    // Absent journal is fine — no manual migrations to apply.
+    // An absent journal is fine — no manual migrations to apply. Any other read
+    // failure (corruption, permissions, a broken bundle) must NOT be silently
+    // swallowed: that would skip the manual migrations and leave the DB missing
+    // their effects (e.g. replication triggers).
     let content = match fs.read_to_string(&journal_path) {
         Ok(content) => content,
-        Err(e) => {
-            println!(
-                "[MIGRATIONS] load_manual_migration_journal: no manual journal ({}), skipping",
-                e
-            );
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            println!("[MIGRATIONS] load_manual_migration_journal: no manual journal, skipping");
             return Ok(Vec::new());
+        }
+        Err(e) => {
+            return Err(DatabaseError::MigrationError {
+                reason: format!("Failed to read manual migration journal: {}", e),
+            });
         }
     };
 

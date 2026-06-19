@@ -46,7 +46,7 @@ impl Principal {
 // --- Spezifische Aktionen ---
 
 /// Definiert Aktionen, die auf eine Datenbank angewendet werden können.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum DbAction {
@@ -102,7 +102,7 @@ impl FromStr for DbAction {
 }
 
 /// Definiert Aktionen, die auf das Dateisystem angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum FsAction {
@@ -146,7 +146,7 @@ impl FromStr for FsAction {
 }
 
 /// Definiert Aktionen (HTTP-Methoden), die auf Web-Anfragen angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "UPPERCASE")]
 #[ts(export)]
 pub enum WebAction {
@@ -179,7 +179,7 @@ impl FromStr for WebAction {
 }
 
 /// Definiert Aktionen, die auf Shell-Befehle angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum ShellAction {
@@ -202,7 +202,7 @@ impl FromStr for ShellAction {
 
 /// Generische Read/ReadWrite-Aktion, geteilt von den Sync-Ressourcen
 /// (`SyncServers`, `CloudStorage`, `SyncRules`).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum RwAction {
@@ -247,7 +247,7 @@ impl FromStr for RwAction {
 
 /// Definiert Aktionen, die auf Shared Spaces angewendet werden können.
 /// Read = Spaces lesen/anzeigen, ReadWrite = zusätzlich Spaces anlegen.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum SpaceAction {
@@ -261,7 +261,7 @@ pub enum SpaceAction {
 /// (private_key NULL); never returns/sets private_key, never creates/deletes
 /// owned identities. Enforcement lives in the identity bridge commands
 /// (later phase).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum IdentityAction {
@@ -341,7 +341,7 @@ impl FromStr for IdentityAction {
 /// `Fetch` umfasst alle IMAP-Operationen (LIST, FETCH, STORE/Flags, MOVE,
 /// DELETE, APPEND) — extra read/write-Trennung lohnt nicht, weil "lesen"
 /// bei IMAP bereits den vollen Datenzugriff bedeutet.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum MailAction {
@@ -378,7 +378,7 @@ impl FromStr for MailAction {
 /// Aktuell nur `Show` (OS-Notification anzeigen). `target` ist immer "*" —
 /// Notifications sind nicht ressourcen-gescoped; die Identität wird über den
 /// Public Key der aufrufenden Extension gepinnt (siehe `extension::notifications`).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum NotificationsAction {
@@ -413,7 +413,7 @@ impl FromStr for NotificationsAction {
 /// (z.B. target="calendar" => nur Items mit Tag "calendar", target="*" => alle).
 /// Writes müssen mindestens ein Tag innerhalb des erlaubten Scopes setzen –
 /// Enforcement geschieht in den Bridge-Commands.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum PasswordsAction {
@@ -486,7 +486,7 @@ impl PasswordsScope {
 // --- Haupt-Typen für Berechtigungen ---
 
 /// Ein typsicherer Container, der die spezifische Aktion für einen Ressourcentyp enthält.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub enum Action {
     Database(DbAction),

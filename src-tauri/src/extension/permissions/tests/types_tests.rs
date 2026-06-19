@@ -132,9 +132,16 @@ fn split_then_combine_roundtrip_non_passwords() {
 
 #[test]
 fn combine_constraints_prefers_raw_over_typed() {
-    // The write side prefers raw (passwords) when both are somehow present.
+    // The write side prefers raw (passwords) when both are somehow present, so
+    // pass BOTH and assert raw still wins (otherwise precedence is never tested).
+    let typed =
+        PermissionConstraints::Database(crate::extension::permissions::types::DbConstraints {
+            where_clause: Some("id > 0".to_string()),
+            columns: None,
+            limit: Some(10),
+        });
     let raw = json!({ "default": true });
-    let combined = combine_constraints(None, Some(&raw)).expect("combined text");
+    let combined = combine_constraints(Some(&typed), Some(&raw)).expect("combined text");
     let parsed: serde_json::Value = serde_json::from_str(&combined).unwrap();
     assert_eq!(parsed, raw);
 }

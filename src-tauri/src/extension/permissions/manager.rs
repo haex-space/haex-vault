@@ -7,7 +7,7 @@ use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
     split_constraints, Action, ExtensionPermission, IdentityAction, MailAction,
     NotificationsAction, PasswordsAction, PasswordsScope, PermissionConstraints, PermissionStatus,
-    Principal, ResourceType, RwAction, SpaceAction,
+    Principal, ResourceType, RwAction, ShellAction, SpaceAction, WebAction,
 };
 use crate::table_names::TABLE_PRINCIPAL_PERMISSIONS;
 use crate::AppState;
@@ -306,6 +306,7 @@ impl PermissionManager {
             None => {
                 if app_state.session_permissions.is_granted(
                     extension_id,
+                    &Action::Database(db_action),
                     ResourceType::Db,
                     table_name,
                 ) {
@@ -313,6 +314,7 @@ impl PermissionManager {
                 }
                 if app_state.session_permissions.is_denied(
                     extension_id,
+                    &Action::Database(db_action),
                     ResourceType::Db,
                     table_name,
                 ) {
@@ -437,16 +439,20 @@ impl PermissionManager {
             },
             // No matching permission in database - check session permissions
             None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Web, url)
-                {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    &Action::Web(WebAction::All),
+                    ResourceType::Web,
+                    url,
+                ) {
                     return Ok(());
                 }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Web, url)
-                {
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    &Action::Web(WebAction::All),
+                    ResourceType::Web,
+                    url,
+                ) {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         "web request",
@@ -542,6 +548,7 @@ impl PermissionManager {
             None => {
                 if app_state.session_permissions.is_granted(
                     extension_id,
+                    &action,
                     ResourceType::Fs,
                     &file_path_str,
                 ) {
@@ -549,6 +556,7 @@ impl PermissionManager {
                 }
                 if app_state.session_permissions.is_denied(
                     extension_id,
+                    &action,
                     ResourceType::Fs,
                     &file_path_str,
                 ) {
@@ -601,15 +609,20 @@ impl PermissionManager {
         };
 
         let file_path_str = file_path.to_string_lossy();
+        // Silent read predicate: the action is implicitly a filesystem Read.
+        let read_action = Action::Filesystem(crate::extension::permissions::types::FsAction::Read);
         let session_granted = app_state.session_permissions.is_granted(
             extension_id,
+            &read_action,
             ResourceType::Fs,
             &file_path_str,
         );
-        let session_denied =
-            app_state
-                .session_permissions
-                .is_denied(extension_id, ResourceType::Fs, &file_path_str);
+        let session_denied = app_state.session_permissions.is_denied(
+            extension_id,
+            &read_action,
+            ResourceType::Fs,
+            &file_path_str,
+        );
 
         PermissionChecker::new(extension, permissions).can_read_path_silently(
             file_path,
@@ -715,6 +728,7 @@ impl PermissionManager {
             None => {
                 if app_state.session_permissions.is_granted(
                     extension_id,
+                    &Action::Shell(ShellAction::Execute),
                     ResourceType::Shell,
                     command,
                 ) {
@@ -722,6 +736,7 @@ impl PermissionManager {
                 }
                 if app_state.session_permissions.is_denied(
                     extension_id,
+                    &Action::Shell(ShellAction::Execute),
                     ResourceType::Shell,
                     command,
                 ) {
@@ -825,71 +840,103 @@ impl PermissionManager {
 
         let permissions = Self::get_permissions(app_state, principal).await?;
 
-        // Action allows the required action if it is the matching RwAction
-        // variant for this resource and ReadWrite implicitly grants Read.
-        let action_allows = |perm_action: &Action| -> bool {
-            let perm_rw = match (resource_type, perm_action) {
-                (ResourceType::SyncServers, Action::SyncServers(a)) => Some(a),
-                (ResourceType::CloudStorage, Action::CloudStorage(a)) => Some(a),
-                (ResourceType::SyncRules, Action::SyncRules(a)) => Some(a),
+        // The matching RwAction variant for this resource, by value (`None` for
+        // any other resource/action shape).
+        let perm_rw_action = |perm_action: &Action| -> Option<RwAction> {
+            match (resource_type, perm_action) {
+                (ResourceType::SyncServers, Action::SyncServers(a)) => Some(*a),
+                (ResourceType::CloudStorage, Action::CloudStorage(a)) => Some(*a),
+                (ResourceType::SyncRules, Action::SyncRules(a)) => Some(*a),
                 _ => None,
-            };
-            match perm_rw {
-                Some(a) if *a == action => true,
+            }
+        };
+        // Grants escalate: a `ReadWrite` grant covers a `Read` request.
+        let action_allows = |perm_action: &Action| -> bool {
+            match perm_rw_action(perm_action) {
+                Some(a) if a == action => true,
                 Some(RwAction::ReadWrite) if action == RwAction::Read => true,
                 _ => false,
             }
         };
-
-        let matching_permission = permissions
-            .iter()
-            .find(|perm| perm.resource_type == resource_type && action_allows(&perm.action));
+        // Denies are exact: a `ReadWrite` deny must not block a separately
+        // granted `Read`.
+        let action_denies =
+            |perm_action: &Action| -> bool { perm_rw_action(perm_action) == Some(action) };
+        // These resources are wildcard-only — a sub-target row never matches.
+        let is_wildcard =
+            |perm: &&ExtensionPermission| perm.resource_type == resource_type && perm.target == "*";
 
         let action_str = action.as_str();
 
-        match matching_permission {
-            Some(perm) => match perm.status {
-                PermissionStatus::Granted => Ok(()),
-                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
-                    extension_id,
-                    action_str,
-                    &format!("{resource_label}:*"),
-                )),
-                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
-                    extension_id,
-                    &extension.manifest.name,
-                    resource_label,
-                    action_str,
-                    "*",
-                )),
-            },
-            None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, resource_type, "*")
-                {
-                    return Ok(());
-                }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, resource_type, "*")
-                {
-                    return Err(ExtensionError::permission_denied(
-                        extension_id,
-                        action_str,
-                        &format!("{resource_label}:*"),
-                    ));
-                }
-
-                Err(ExtensionError::permission_prompt_required(
-                    extension_id,
-                    &extension.manifest.name,
-                    resource_label,
-                    action_str,
-                    "*",
-                ))
-            }
+        // DB permissions, deny-first: an explicit deny wins over any grant.
+        if permissions
+            .iter()
+            .filter(is_wildcard)
+            .any(|perm| perm.status == PermissionStatus::Denied && action_denies(&perm.action))
+        {
+            return Err(ExtensionError::permission_denied(
+                extension_id,
+                action_str,
+                &format!("{resource_label}:*"),
+            ));
         }
+        if permissions
+            .iter()
+            .filter(is_wildcard)
+            .any(|perm| perm.status == PermissionStatus::Granted && action_allows(&perm.action))
+        {
+            return Ok(());
+        }
+        if permissions
+            .iter()
+            .filter(is_wildcard)
+            .any(|perm| perm.status == PermissionStatus::Ask && action_allows(&perm.action))
+        {
+            return Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                resource_label,
+                action_str,
+                "*",
+            ));
+        }
+
+        // No matching DB permission — check session permissions. Map the RW
+        // action onto its `Action` variant for the session key (target "*").
+        let session_action = match resource_type {
+            ResourceType::SyncServers => Action::SyncServers(action),
+            ResourceType::CloudStorage => Action::CloudStorage(action),
+            ResourceType::SyncRules => Action::SyncRules(action),
+            _ => unreachable!("check_rw_resource_permission only handles RW resources"),
+        };
+        if app_state.session_permissions.is_granted(
+            extension_id,
+            &session_action,
+            resource_type,
+            "*",
+        ) {
+            return Ok(());
+        }
+        if app_state.session_permissions.is_denied(
+            extension_id,
+            &session_action,
+            resource_type,
+            "*",
+        ) {
+            return Err(ExtensionError::permission_denied(
+                extension_id,
+                action_str,
+                &format!("{resource_label}:*"),
+            ));
+        }
+
+        Err(ExtensionError::permission_prompt_required(
+            extension_id,
+            &extension.manifest.name,
+            resource_label,
+            action_str,
+            "*",
+        ))
     }
 
     /// Prüft Shared-Spaces-Berechtigungen.
@@ -948,16 +995,20 @@ impl PermissionManager {
                 )),
             },
             None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Spaces, "*")
-                {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    &Action::Spaces(action.clone()),
+                    ResourceType::Spaces,
+                    "*",
+                ) {
                     return Ok(());
                 }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Spaces, "*")
-                {
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    &Action::Spaces(action.clone()),
+                    ResourceType::Spaces,
+                    "*",
+                ) {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         action_str,
@@ -1285,6 +1336,7 @@ impl PermissionManager {
             None => {
                 if app_state.session_permissions.is_granted(
                     extension_id,
+                    &Action::Notifications(action),
                     ResourceType::Notifications,
                     "*",
                 ) {
@@ -1292,6 +1344,7 @@ impl PermissionManager {
                 }
                 if app_state.session_permissions.is_denied(
                     extension_id,
+                    &Action::Notifications(action),
                     ResourceType::Notifications,
                     "*",
                 ) {
@@ -1346,14 +1399,18 @@ impl PermissionManager {
         // Read und Write sind DISTINCT — exakter Action-Match, keine Hierarchie.
         let matching_status = identities_matching_status(&permissions, action);
 
-        let session_granted =
-            app_state
-                .session_permissions
-                .is_granted(extension_id, ResourceType::Identities, "*");
-        let session_denied =
-            app_state
-                .session_permissions
-                .is_denied(extension_id, ResourceType::Identities, "*");
+        let session_granted = app_state.session_permissions.is_granted(
+            extension_id,
+            &Action::Identities(action),
+            ResourceType::Identities,
+            "*",
+        );
+        let session_denied = app_state.session_permissions.is_denied(
+            extension_id,
+            &Action::Identities(action),
+            ResourceType::Identities,
+            "*",
+        );
 
         match resolve_identities_decision(matching_status, session_granted, session_denied) {
             IdentitiesDecision::Allow => Ok(()),
@@ -1840,13 +1897,28 @@ pub(crate) fn identities_matching_status(
     permissions: &[ExtensionPermission],
     action: IdentityAction,
 ) -> Option<PermissionStatus> {
-    permissions
+    // Identities are wildcard-only (`target == "*"`); a sub-target row never
+    // matches. Read and Write are DISTINCT (no escalation). Resolve deny-first
+    // so a deny can never be hidden behind a grant if both are ever present.
+    let statuses: Vec<PermissionStatus> = permissions
         .iter()
-        .find(|perm| {
+        .filter(|perm| {
             perm.resource_type == ResourceType::Identities
+                && perm.target == "*"
                 && matches!(&perm.action, Action::Identities(a) if *a == action)
         })
         .map(|perm| perm.status)
+        .collect();
+
+    if statuses.contains(&PermissionStatus::Denied) {
+        Some(PermissionStatus::Denied)
+    } else if statuses.contains(&PermissionStatus::Granted) {
+        Some(PermissionStatus::Granted)
+    } else if statuses.contains(&PermissionStatus::Ask) {
+        Some(PermissionStatus::Ask)
+    } else {
+        None
+    }
 }
 
 /// Löst die Identitäten-Permission-Entscheidung auf — identische Präzedenz wie

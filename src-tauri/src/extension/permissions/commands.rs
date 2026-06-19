@@ -321,7 +321,18 @@ pub async fn resolve_permission_prompt(
             Action::Spaces(space_action)
         }
         ResourceType::Identities => {
-            Action::Identities(crate::extension::permissions::types::IdentityAction::Read)
+            let identity_action = match action.to_lowercase().as_str() {
+                "read" => crate::extension::permissions::types::IdentityAction::Read,
+                "write" => crate::extension::permissions::types::IdentityAction::Write,
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!(
+                            "Invalid identities action: {action} (expected 'read' or 'write')"
+                        ),
+                    })
+                }
+            };
+            Action::Identities(identity_action)
         }
         ResourceType::Passwords => {
             let passwords_action = match action.to_lowercase().as_str() {
@@ -436,9 +447,11 @@ pub fn remove_extension_session_permission(
 ) -> Result<(), ExtensionError> {
     let resource_type_enum = ResourceType::from_str(&resource_type)?;
 
-    state
-        .session_permissions
-        .remove_permission(&extension_id, resource_type_enum, &target);
+    state.session_permissions.remove_permissions_for_target(
+        &extension_id,
+        resource_type_enum,
+        &target,
+    );
 
     eprintln!(
         "[SessionPermission] Removed {} permission for extension {} on {}",

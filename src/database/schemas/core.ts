@@ -358,7 +358,14 @@ export const haexPrincipals = sqliteTable(
     }).$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex('haex_principals_public_key_kind_unique').on(table.public_key, table.kind),
+    // Mirror the `haex_extensions` identity contract — which is unique on
+    // (public_key, name) — so two extensions signed by the same key but with
+    // different names do not collide once mirrored into principals.
+    uniqueIndex('haex_principals_public_key_kind_name_unique').on(
+      table.public_key,
+      table.kind,
+      table.name,
+    ),
   ],
 )
 export type InsertHaexPrincipals = typeof haexPrincipals.$inferInsert

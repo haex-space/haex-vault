@@ -146,9 +146,9 @@ After manual testing, verify results by checking:
 SELECT id, name, public_key FROM haex_extensions;
 
 -- Check permissions were granted correctly
-SELECT extension_id, resource_type, action, target, status
+SELECT principal_id, resource_type, action, target, status
 FROM haex_principal_permissions
-WHERE extension_id = '{your_extension_id}';
+WHERE principal_id = '{your_extension_id}';
 
 -- Check which migrations were stored (should only be valid ones)
 SELECT extension_id, migration_name, sql_statement
