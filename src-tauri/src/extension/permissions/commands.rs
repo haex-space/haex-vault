@@ -214,6 +214,8 @@ pub fn grant_session_permission(
         target: target.clone(),
         constraints: None,
         status,
+        // Passwords default-labels (`{"default":true}`) originate only from the
+        // manifest, never from interactive prompts — `None` is correct here.
         raw_constraints: None,
     };
 
@@ -392,6 +394,8 @@ pub async fn resolve_permission_prompt(
             target,
             constraints: None,
             status,
+            // Passwords default-labels (`{"default":true}`) originate only from
+            // the manifest, never from interactive prompts — `None` is correct here.
             raw_constraints: None,
         };
 

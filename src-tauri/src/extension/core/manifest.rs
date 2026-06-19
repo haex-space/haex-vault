@@ -1,8 +1,8 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, IdentityAction, MailAction,
-    NotificationsAction, PasswordsAction, PermissionConstraints, PermissionStatus, ResourceType,
-    RwAction, ShellAction, SpaceAction, WebAction,
+    split_constraints_value, Action, DbAction, ExtensionPermission, FsAction, IdentityAction,
+    MailAction, NotificationsAction, PasswordsAction, PermissionStatus, ResourceType, RwAction,
+    ShellAction, SpaceAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -352,18 +352,11 @@ impl ExtensionPermissions {
 
         // Passwords mark their default-label row via a free-form `{"default":true}`
         // constraint that the typed (untagged) `PermissionConstraints` enum can't
-        // represent. Keep it raw so it survives intact to the DB `constraints`
-        // column (read directly by `check_passwords_permission`). Every other
-        // resource type parses into the typed enum as before.
-        let (constraints, raw_constraints) = if resource_type == ResourceType::Passwords {
-            (None, p.constraints.clone())
-        } else {
-            let typed = p
-                .constraints
-                .as_ref()
-                .and_then(|c| serde_json::from_value::<PermissionConstraints>(c.clone()).ok());
-            (typed, None)
-        };
+        // represent. The passwords-vs-other invariant lives in
+        // `permissions::types::split_constraints_value` (single source of truth)
+        // so a construction site can't silently get it wrong.
+        let (constraints, raw_constraints) =
+            split_constraints_value(resource_type, p.constraints.as_ref());
 
         action.map(|act| ExtensionPermission {
             id: uuid::Uuid::new_v4().to_string(),

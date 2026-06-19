@@ -5,8 +5,9 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, MailAction, NotificationsAction, PasswordsAction, PasswordsScope,
-    PermissionConstraints, PermissionStatus, Principal, ResourceType, RwAction, SpaceAction,
+    split_constraints, Action, ExtensionPermission, MailAction, NotificationsAction,
+    PasswordsAction, PasswordsScope, PermissionConstraints, PermissionStatus, Principal,
+    ResourceType, RwAction, SpaceAction,
 };
 use crate::table_names::TABLE_PRINCIPAL_PERMISSIONS;
 use crate::AppState;
@@ -212,21 +213,11 @@ impl PermissionManager {
                     .unwrap_or(PermissionStatus::Denied);
                 // Passwords keep their free-form `{"default":true}` constraint
                 // raw (the typed untagged enum can't represent it); all other
-                // resource types parse into the typed enum as before.
-                let (constraints, raw_constraints): (
-                    Option<PermissionConstraints>,
-                    Option<JsonValue>,
-                ) = if resource_type == ResourceType::Passwords {
-                    (
-                        None,
-                        row[5].as_str().and_then(|s| serde_json::from_str(s).ok()),
-                    )
-                } else {
-                    (
-                        row[5].as_str().and_then(|s| serde_json::from_str(s).ok()),
-                        None,
-                    )
-                };
+                // resource types parse into the typed enum. The invariant lives
+                // in `split_constraints` (single source of truth) — this is the
+                // live `check_passwords_permission` read path.
+                let (constraints, raw_constraints) =
+                    split_constraints(resource_type, row[5].as_str());
 
                 ExtensionPermission {
                     id: row[0].as_str().unwrap_or_default().to_string(),

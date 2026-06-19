@@ -624,6 +624,63 @@ pub struct ShellConstraints {
 
 // --- Konvertierungen zwischen ExtensionPermission und HaexPrincipalPermissions ---
 
+/// Splits a constraints **Value** into the `(typed, raw)` pair used by
+/// `ExtensionPermission`.
+///
+/// This is the single place that encodes the passwords-vs-other invariant:
+/// `passwords` rows mark their *default label* via a free-form
+/// `{"default":true}` constraint that the typed (untagged)
+/// [`PermissionConstraints`] enum can't represent, so they are kept *raw*
+/// (`constraints = None`, `raw_constraints = Some`). Every other resource type
+/// parses into the typed enum (`constraints = Some`, `raw_constraints = None`).
+///
+/// Used by the manifest path, whose input is already a `serde_json::Value`.
+pub(crate) fn split_constraints_value(
+    resource_type: ResourceType,
+    value: Option<&serde_json::Value>,
+) -> (Option<PermissionConstraints>, Option<serde_json::Value>) {
+    if resource_type == ResourceType::Passwords {
+        (None, value.cloned())
+    } else {
+        let typed = value.and_then(|v| serde_json::from_value(v.clone()).ok());
+        (typed, None)
+    }
+}
+
+/// Splits a constraints **text** column (DB `constraints`) into the
+/// `(typed, raw)` pair used by `ExtensionPermission`.
+///
+/// Same passwords-vs-other invariant as [`split_constraints_value`], but the
+/// input is the raw DB text (the READ/DB-text direction): for `passwords` the
+/// text is parsed into a free-form `Value` and kept raw; every other resource
+/// type parses the text into the typed enum.
+pub(crate) fn split_constraints(
+    resource_type: ResourceType,
+    raw_text: Option<&str>,
+) -> (Option<PermissionConstraints>, Option<serde_json::Value>) {
+    if resource_type == ResourceType::Passwords {
+        let raw = raw_text.and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
+        (None, raw)
+    } else {
+        let typed = raw_text.and_then(|s| serde_json::from_str(s).ok());
+        (typed, None)
+    }
+}
+
+/// Combines the `(typed, raw)` constraints pair back into the DB `constraints`
+/// text column (the WRITE direction).
+///
+/// Prefers the raw, free-form constraints (passwords `{"default":true}`) when
+/// present — the typed enum can't represent them. Otherwise falls back to
+/// serializing the typed constraints (Db/Fs/Web/Shell).
+pub(crate) fn combine_constraints(
+    typed: Option<&PermissionConstraints>,
+    raw: Option<&serde_json::Value>,
+) -> Option<String> {
+    raw.and_then(|c| serde_json::to_string(c).ok())
+        .or_else(|| typed.and_then(|c| serde_json::to_string(c).ok()))
+}
+
 impl ResourceType {
     pub fn as_str(&self) -> &str {
         match self {
@@ -775,18 +832,10 @@ impl From<&ExtensionPermission> for crate::database::generated::HaexPrincipalPer
             resource_type: Some(perm.resource_type.as_str().to_string()),
             action: Some(perm.action.as_str().to_string()),
             target: Some(perm.target.clone()),
-            // Prefer the raw, free-form constraints (passwords `{"default":true}`)
-            // when present — the typed enum can't represent them. Otherwise fall
-            // back to serializing the typed constraints (Db/Fs/Web/Shell).
-            constraints: perm
-                .raw_constraints
-                .as_ref()
-                .and_then(|c| serde_json::to_string(c).ok())
-                .or_else(|| {
-                    perm.constraints
-                        .as_ref()
-                        .and_then(|c| serde_json::to_string(c).ok())
-                }),
+            constraints: combine_constraints(
+                perm.constraints.as_ref(),
+                perm.raw_constraints.as_ref(),
+            ),
             status: perm.status.as_str().to_string(),
             created_at: None,
             updated_at: None,
@@ -811,22 +860,8 @@ impl From<crate::database::generated::HaexPrincipalPermissions> for ExtensionPer
         let status =
             PermissionStatus::from_str(db_perm.status.as_str()).unwrap_or(PermissionStatus::Denied);
 
-        // Passwords constraints (`{"default":true}`) can't be represented by the
-        // typed (untagged) enum, so keep them raw and leave `constraints` None.
-        // All other resource types parse into the typed enum as before.
-        let (constraints, raw_constraints) = if resource_type == ResourceType::Passwords {
-            let raw = db_perm
-                .constraints
-                .as_deref()
-                .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
-            (None, raw)
-        } else {
-            let typed = db_perm
-                .constraints
-                .as_deref()
-                .and_then(|s| serde_json::from_str(s).ok());
-            (typed, None)
-        };
+        let (constraints, raw_constraints) =
+            split_constraints(resource_type, db_perm.constraints.as_deref());
 
         Self {
             id: db_perm.id,
