@@ -1,4 +1,5 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
 
 /**
@@ -38,6 +39,22 @@ export const haexCriticalNotificationsNoSync = sqliteTable(
     /** 0 = unacked (drives banner), 1 = user dismissed (kept as forensic trail until retention cleanup). */
     acknowledged: integer(tableNames.haex.critical_notifications_no_sync.columns.acknowledged, { mode: 'boolean' }).notNull().default(false),
   },
+  (table) => [
+    // Banner query: WHERE acknowledged = 0 ORDER BY last_seen DESC LIMIT 1.
+    // Partial index keeps it tight to the unacked rows the banner reads.
+    index('haex_critical_notifications_unacked_idx')
+      .on(table.acknowledged, table.lastSeen)
+      .where(sql`${table.acknowledged} = 0`),
+    // UPSERT dedup key (Q3): the sink's ON CONFLICT(code, location,
+    // acknowledged) targets this unique index for count++ deduplication.
+    // Dropping it would break the sink's UPSERT — it is a correctness
+    // constraint, not just a performance index.
+    uniqueIndex('haex_critical_notifications_dedup_idx').on(
+      table.code,
+      table.location,
+      table.acknowledged,
+    ),
+  ],
 )
 
 export type InsertHaexCriticalNotification = typeof haexCriticalNotificationsNoSync.$inferInsert

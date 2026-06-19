@@ -124,24 +124,39 @@ impl CriticalNotificationSink {
         })
     }
 
-    /// SQL of the bundled migration that creates
-    /// `haex_critical_notifications_no_sync`. Embedded at compile time so
-    /// the in-memory test fixture below runs the *exact same* SQL as
-    /// production — a future ALTER TABLE migration that touches this
-    /// file is automatically picked up by tests on next build, no
-    /// possibility of schema drift between fixture and live DB.
+    /// SQL of the bundled drizzle baseline that creates
+    /// `haex_critical_notifications_no_sync` (and its dedup / unacked
+    /// indexes). Embedded at compile time so the in-memory test fixture
+    /// below runs the *exact same* DDL as production — a future schema
+    /// change to this table is automatically picked up by tests on next
+    /// build, no possibility of schema drift between fixture and live DB.
+    ///
+    /// Since the drizzle rebaseline (single clean baseline) this is the
+    /// one-and-only baseline migration. The table + the
+    /// `haex_critical_notifications_dedup_idx` UNIQUE index it creates are
+    /// what `emit()`'s `ON CONFLICT(code, location, acknowledged)` UPSERT
+    /// depends on.
     #[cfg(test)]
-    const TABLE_MIGRATION_SQL: &str =
-        include_str!("../../database/migrations/0007_add_critical_notifications.sql");
+    const BASELINE_MIGRATION_SQL: &str =
+        include_str!("../../database/migrations/0000_jazzy_chat.sql");
 
-    /// In-memory factory for tests. Executes the bundled migration SQL
+    /// In-memory factory for tests. Executes the bundled baseline SQL
     /// against an in-memory DB so the fixture stays byte-for-byte
-    /// identical to the production schema.
+    /// identical to the production schema. The baseline uses Drizzle's
+    /// `--> statement-breakpoint` separator (same as the live migration
+    /// runner in `database::migrations`), so we split on it and run each
+    /// statement — `execute_batch` cannot parse the breakpoint markers.
     #[cfg(test)]
     pub fn in_memory() -> Result<Self, SinkError> {
         let conn = Connection::open_in_memory()?;
         conn.busy_timeout(std::time::Duration::from_millis(500))?;
-        conn.execute_batch(Self::TABLE_MIGRATION_SQL)?;
+        for statement in Self::BASELINE_MIGRATION_SQL.split("--> statement-breakpoint") {
+            let statement = statement.trim();
+            if statement.is_empty() {
+                continue;
+            }
+            conn.execute_batch(statement)?;
+        }
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
