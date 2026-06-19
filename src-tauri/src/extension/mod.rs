@@ -15,7 +15,7 @@ use crate::{
         error::ExtensionError,
         permissions::{
             manager::PermissionManager,
-            types::{ExtensionPermission, ResourceType},
+            types::{ExtensionPermission, Principal, ResourceType},
         },
     },
     table_names::TABLE_EXTENSIONS,
@@ -666,7 +666,9 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
     let mut filesystem = Vec::new();
     let mut http = Vec::new();
     let mut shell = Vec::new();
-    let mut filesync = Vec::new();
+    let mut sync_servers = Vec::new();
+    let mut cloud_storage = Vec::new();
+    let mut sync_rules = Vec::new();
     let mut spaces = Vec::new();
     let mut identities = Vec::new();
     let mut passwords = Vec::new();
@@ -677,9 +679,13 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
         let entry = PermissionEntry {
             target: perm.target,
             operation: Some(perm.action.as_str()),
-            constraints: perm
-                .constraints
-                .map(|c| serde_json::to_value(c).unwrap_or_default()),
+            // Prefer the raw constraints (passwords `{"default":true}`) so the
+            // marker survives a get -> edit -> update round-trip; fall back to
+            // the typed constraints for all other resource types.
+            constraints: perm.raw_constraints.or_else(|| {
+                perm.constraints
+                    .map(|c| serde_json::to_value(c).unwrap_or_default())
+            }),
             status: Some(perm.status),
         };
 
@@ -688,7 +694,9 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             ResourceType::Fs => filesystem.push(entry),
             ResourceType::Web => http.push(entry),
             ResourceType::Shell => shell.push(entry),
-            ResourceType::Filesync => filesync.push(entry),
+            ResourceType::SyncServers => sync_servers.push(entry),
+            ResourceType::CloudStorage => cloud_storage.push(entry),
+            ResourceType::SyncRules => sync_rules.push(entry),
             ResourceType::Spaces => spaces.push(entry),
             ResourceType::Identities => identities.push(entry),
             ResourceType::Passwords => passwords.push(entry),
@@ -710,10 +718,20 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
         },
         http: if http.is_empty() { None } else { Some(http) },
         shell: if shell.is_empty() { None } else { Some(shell) },
-        filesync: if filesync.is_empty() {
+        sync_servers: if sync_servers.is_empty() {
             None
         } else {
-            Some(filesync)
+            Some(sync_servers)
+        },
+        cloud_storage: if cloud_storage.is_empty() {
+            None
+        } else {
+            Some(cloud_storage)
+        },
+        sync_rules: if sync_rules.is_empty() {
+            None
+        } else {
+            Some(sync_rules)
         },
         spaces: if spaces.is_empty() {
             None
@@ -745,7 +763,9 @@ pub async fn get_extension_permissions(
     state: State<'_, AppState>,
 ) -> Result<EditablePermissions, ExtensionError> {
     // Load permissions from database (same for dev and production extensions)
-    let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
+    let permissions =
+        PermissionManager::get_permissions(&state, &Principal::Extension(extension_id.clone()))
+            .await?;
     Ok(convert_to_editable_permissions(permissions))
 }
 
@@ -943,7 +963,9 @@ pub async fn extension_filter_sync_tables(
         let extension_id = extension.id.clone();
 
         // Get permissions for this extension
-        let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
+        let permissions =
+            PermissionManager::get_permissions(&state, &Principal::Extension(extension_id.clone()))
+                .await?;
 
         // Filter tables based on:
         // 1. Extension's own tables (prefix match) - always allowed without explicit permissions

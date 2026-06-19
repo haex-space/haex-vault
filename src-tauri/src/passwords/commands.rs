@@ -20,7 +20,7 @@ use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::{PasswordsAction, PasswordsScope};
+use crate::extension::permissions::types::{PasswordsAction, PasswordsScope, Principal};
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
 use crate::AppState;
 
@@ -72,9 +72,12 @@ pub async fn extension_password_list(
 ) -> Result<Vec<PasswordItemSummary>, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    let perm_result =
-        PermissionManager::check_passwords_permission(&state, &extension_id, PasswordsAction::Read)
-            .await;
+    let perm_result = PermissionManager::check_passwords_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        PasswordsAction::Read,
+    )
+    .await;
     if let Err(ref e) = perm_result {
         emit_permission_prompt_if_needed(&app_handle, e);
     }
@@ -212,9 +215,12 @@ pub async fn extension_password_read(
 ) -> Result<PasswordItemFull, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    let perm_result =
-        PermissionManager::check_passwords_permission(&state, &extension_id, PasswordsAction::Read)
-            .await;
+    let perm_result = PermissionManager::check_passwords_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        PasswordsAction::Read,
+    )
+    .await;
     if let Err(ref e) = perm_result {
         emit_permission_prompt_if_needed(&app_handle, e);
     }
@@ -273,7 +279,9 @@ fn build_read_item_query(scope: &PasswordsScope, item_id: &str) -> (String, Vec<
             ),
             vec![JsonValue::String(item_id.to_string())],
         ),
-        PasswordsScope::Tags(allowed_tags) => {
+        PasswordsScope::Tags {
+            tags: allowed_tags, ..
+        } => {
             let placeholders: Vec<String> = (2..=allowed_tags.len() + 1)
                 .map(|i| format!("?{}", i))
                 .collect();
@@ -360,7 +368,9 @@ fn build_list_query(scope: &PasswordsScope) -> (String, Vec<JsonValue>) {
             );
             (sql, vec![])
         }
-        PasswordsScope::Tags(allowed_tags) => {
+        PasswordsScope::Tags {
+            tags: allowed_tags, ..
+        } => {
             let placeholders: Vec<String> = (1..=allowed_tags.len())
                 .map(|i| format!("?{}", i))
                 .collect();
@@ -457,7 +467,7 @@ pub async fn extension_password_create(
 
     let perm_result = PermissionManager::check_passwords_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         PasswordsAction::ReadWrite,
     )
     .await;
@@ -466,13 +476,25 @@ pub async fn extension_password_create(
     }
     let scope = perm_result?;
 
-    validate_tags_in_scope(&input.tags, &scope)?;
+    // Validate the caller's SUBMITTED tags first, so an out-of-scope tag is
+    // still rejected exactly as before — the default-label injection below must
+    // not mask a no-overlap submission. The one relaxation: a scoped (Tags)
+    // extension may submit no tags, because the default label is injected next
+    // and guarantees ≥1 in-scope tag. All scope keeps requiring ≥1 tag.
+    if !(input.tags.is_empty() && matches!(scope, PasswordsScope::Tags { .. })) {
+        validate_tags_in_scope(&input.tags, &scope)?;
+    }
+
+    // Inject the scope's default label (the explicitly resolved default) so
+    // every entry a scoped extension creates lands within its own reach. For
+    // All scope this is a passthrough.
+    let tags = resolve_create_tags(&input.tags, &scope);
 
     let item_id = uuid::Uuid::new_v4().to_string();
     let hlc = lock_hlc(&state, "passwords::commands::extension_password_create")?;
 
     insert_item_row(&state, &hlc, &item_id, &input)?;
-    upsert_and_link_tags(&state, &hlc, &item_id, &input.tags)?;
+    upsert_and_link_tags(&state, &hlc, &item_id, &tags)?;
     insert_key_values(&state, &hlc, &item_id, &input.key_values)?;
 
     Ok(item_id)
@@ -495,7 +517,7 @@ pub async fn extension_password_update(
 
     let perm_result = PermissionManager::check_passwords_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         PasswordsAction::ReadWrite,
     )
     .await;
@@ -524,7 +546,36 @@ pub async fn extension_password_update(
 
 // --- Internal helpers -------------------------------------------------------
 
-fn validate_tags_in_scope(tags: &[String], scope: &PasswordsScope) -> Result<(), ExtensionError> {
+/// Computes the final tag set written for a newly created entry.
+///
+/// Every newly created entry receives the scope's *default label* (the
+/// explicitly resolved default — see [`PasswordsScope::default_label`]) so it
+/// always lands within the extension's own reach. The default is ALWAYS applied
+/// — even when the caller passed other allowed tags, the entry ends up carrying
+/// both. The default is never duplicated if the caller already passed it.
+///
+/// For `PasswordsScope::All` (unscoped) there is no default label, so the
+/// caller's tags pass through unchanged. A `Tags` scope with no resolved
+/// default (multi-label read-only) also injects nothing — but the create path
+/// only reaches here for write scopes, where a default is guaranteed (or the
+/// grant was already rejected at check time).
+///
+/// This helper only *injects*; it never drops caller tags. Out-of-scope tags
+/// are rejected separately by [`validate_tags_in_scope`] before this runs.
+pub(crate) fn resolve_create_tags(submitted: &[String], scope: &PasswordsScope) -> Vec<String> {
+    let mut tags = submitted.to_vec();
+    if let Some(default) = scope.default_label() {
+        if !tags.iter().any(|t| t == default) {
+            tags.push(default.to_string());
+        }
+    }
+    tags
+}
+
+pub(crate) fn validate_tags_in_scope(
+    tags: &[String],
+    scope: &PasswordsScope,
+) -> Result<(), ExtensionError> {
     if tags.is_empty() {
         return Err(ExtensionError::ValidationError {
             reason: "At least one tag is required for a password entry".to_string(),
@@ -532,7 +583,7 @@ fn validate_tags_in_scope(tags: &[String], scope: &PasswordsScope) -> Result<(),
     }
     match scope {
         PasswordsScope::All => Ok(()),
-        PasswordsScope::Tags(allowed) => {
+        PasswordsScope::Tags { tags: allowed, .. } => {
             if tags.iter().any(|t| allowed.contains(t)) {
                 Ok(())
             } else {
@@ -816,7 +867,7 @@ pub async fn extension_password_delete(
 
     let perm_result = PermissionManager::check_passwords_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         PasswordsAction::ReadWrite,
     )
     .await;

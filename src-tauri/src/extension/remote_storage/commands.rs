@@ -3,12 +3,12 @@
 //! Extension Remote Storage Commands
 //!
 //! Permission-checked wrappers around the internal storage API.
-//! Extensions must have `filesync` permission with `backends` target to access storage backends.
+//! Extensions must have `cloudStorage` permission to access object-storage backends.
 //!
 
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::{FileSyncAction, FileSyncTarget};
+use crate::extension::permissions::types::{Principal, RwAction};
 use crate::extension::utils::{emit_permission_prompt_if_needed, get_extension_id_by_key_and_name};
 use crate::remote_storage;
 use crate::remote_storage::types::{
@@ -22,7 +22,7 @@ use tauri::{AppHandle, State};
 // Backend Management Commands (with permission checks)
 // ============================================================================
 
-/// List all storage backends (requires filesync:backends:read permission)
+/// List all storage backends (requires cloudStorage:read permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_list_backends(
     app_handle: AppHandle,
@@ -32,12 +32,11 @@ pub async fn extension_remote_storage_list_backends(
 ) -> Result<Vec<StorageBackendInfo>, ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (read)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (read)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::Read,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::Read,
     )
     .await;
 
@@ -52,7 +51,7 @@ pub async fn extension_remote_storage_list_backends(
         .map_err(|e| ExtensionError::StorageError { source: e })
 }
 
-/// Add a new storage backend (requires filesync:backends:readWrite permission)
+/// Add a new storage backend (requires cloudStorage:readWrite permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_add_backend(
     app_handle: AppHandle,
@@ -63,12 +62,11 @@ pub async fn extension_remote_storage_add_backend(
 ) -> Result<StorageBackendInfo, ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (write)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (write)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::ReadWrite,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::ReadWrite,
     )
     .await;
 
@@ -83,7 +81,7 @@ pub async fn extension_remote_storage_add_backend(
         .map_err(|e| ExtensionError::StorageError { source: e })
 }
 
-/// Update a storage backend (requires filesync:backends:readWrite permission)
+/// Update a storage backend (requires cloudStorage:readWrite permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_update_backend(
     app_handle: AppHandle,
@@ -94,12 +92,11 @@ pub async fn extension_remote_storage_update_backend(
 ) -> Result<StorageBackendInfo, ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (write)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (write)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::ReadWrite,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::ReadWrite,
     )
     .await;
 
@@ -114,7 +111,7 @@ pub async fn extension_remote_storage_update_backend(
         .map_err(|e| ExtensionError::StorageError { source: e })
 }
 
-/// Remove a storage backend (requires filesync:backends:readWrite permission)
+/// Remove a storage backend (requires cloudStorage:readWrite permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_remove_backend(
     app_handle: AppHandle,
@@ -125,12 +122,11 @@ pub async fn extension_remote_storage_remove_backend(
 ) -> Result<(), ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (write)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (write)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::ReadWrite,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::ReadWrite,
     )
     .await;
 
@@ -145,7 +141,7 @@ pub async fn extension_remote_storage_remove_backend(
         .map_err(|e| ExtensionError::StorageError { source: e })
 }
 
-/// Test a storage backend connection (requires filesync:backends:read permission)
+/// Test a storage backend connection (requires cloudStorage:read permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_test_backend(
     app_handle: AppHandle,
@@ -156,12 +152,11 @@ pub async fn extension_remote_storage_test_backend(
 ) -> Result<(), ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (read is sufficient for testing)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (read is sufficient for testing)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::Read,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::Read,
     )
     .await;
 
@@ -180,7 +175,7 @@ pub async fn extension_remote_storage_test_backend(
 // Storage Operations Commands (with permission checks)
 // ============================================================================
 
-/// Upload data to a storage backend (requires filesync:backends:readWrite permission)
+/// Upload data to a storage backend (requires cloudStorage:readWrite permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_upload(
     app_handle: AppHandle,
@@ -191,12 +186,11 @@ pub async fn extension_remote_storage_upload(
 ) -> Result<(), ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (write)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (write)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::ReadWrite,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::ReadWrite,
     )
     .await;
 
@@ -211,7 +205,7 @@ pub async fn extension_remote_storage_upload(
         .map_err(|e| ExtensionError::StorageError { source: e })
 }
 
-/// Download data from a storage backend (requires filesync:backends:read permission)
+/// Download data from a storage backend (requires cloudStorage:read permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_download(
     app_handle: AppHandle,
@@ -222,12 +216,11 @@ pub async fn extension_remote_storage_download(
 ) -> Result<String, ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (read)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (read)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::Read,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::Read,
     )
     .await;
 
@@ -242,7 +235,7 @@ pub async fn extension_remote_storage_download(
         .map_err(|e| ExtensionError::StorageError { source: e })
 }
 
-/// Delete an object from a storage backend (requires filesync:backends:readWrite permission)
+/// Delete an object from a storage backend (requires cloudStorage:readWrite permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_delete(
     app_handle: AppHandle,
@@ -253,12 +246,11 @@ pub async fn extension_remote_storage_delete(
 ) -> Result<(), ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (write)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (write)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::ReadWrite,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::ReadWrite,
     )
     .await;
 
@@ -273,7 +265,7 @@ pub async fn extension_remote_storage_delete(
         .map_err(|e| ExtensionError::StorageError { source: e })
 }
 
-/// List objects in a storage backend (requires filesync:backends:read permission)
+/// List objects in a storage backend (requires cloudStorage:read permission)
 #[tauri::command(rename_all = "camelCase")]
 pub async fn extension_remote_storage_list(
     app_handle: AppHandle,
@@ -284,12 +276,11 @@ pub async fn extension_remote_storage_list(
 ) -> Result<Vec<StorageObjectInfo>, ExtensionError> {
     let extension_id = get_extension_id_by_key_and_name(&state, &public_key, &name)?;
 
-    // Check filesync permission for backends (read)
-    let permission_result = PermissionManager::check_filesync_permission(
+    // Check cloudStorage permission (read)
+    let permission_result = PermissionManager::check_cloud_storage_permission(
         &state,
-        &extension_id,
-        FileSyncAction::Read,
-        FileSyncTarget::Backends,
+        &Principal::Extension(extension_id.clone()),
+        RwAction::Read,
     )
     .await;
 

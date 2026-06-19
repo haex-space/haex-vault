@@ -70,13 +70,13 @@ export const haexExtensions = sqliteTable(
 export type InsertHaexExtensions = typeof haexExtensions.$inferInsert
 export type SelectHaexExtensions = typeof haexExtensions.$inferSelect
 
-export const haexExtensionPermissions = sqliteTable(
-  tableNames.haex.extension_permissions.name,
+export const haexPrincipalPermissions = sqliteTable(
+  tableNames.haex.principal_permissions.name,
   {
     id: text()
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    extensionId: text(tableNames.haex.extension_permissions.columns.extensionId)
+    principalId: text(tableNames.haex.principal_permissions.columns.principalId)
       .notNull()
       .references((): AnySQLiteColumn => haexExtensions.id, {
         onDelete: 'cascade',
@@ -96,14 +96,14 @@ export const haexExtensionPermissions = sqliteTable(
     ),
   },
   (table) => [
-    uniqueIndex('haex_extension_permissions_extension_id_resource_type_action_target_unique')
-      .on(table.extensionId, table.resourceType, table.action, table.target),
+    uniqueIndex('haex_principal_permissions_principal_id_resource_type_action_target_unique')
+      .on(table.principalId, table.resourceType, table.action, table.target),
   ],
 )
-export type InserthaexExtensionPermissions =
-  typeof haexExtensionPermissions.$inferInsert
-export type SelecthaexExtensionPermissions =
-  typeof haexExtensionPermissions.$inferSelect
+export type InsertHaexPrincipalPermissions =
+  typeof haexPrincipalPermissions.$inferInsert
+export type SelectHaexPrincipalPermissions =
+  typeof haexPrincipalPermissions.$inferSelect
 
 // ---------------------------------------------------------------------------
 // Logs — structured logging for system processes and extensions
@@ -330,3 +330,43 @@ export const haexExtensionLimits = sqliteTable(
 )
 export type InsertHaexExtensionLimits = typeof haexExtensionLimits.$inferInsert
 export type SelectHaexExtensionLimits = typeof haexExtensionLimits.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Principals — unified actor identity (extension | external_client)
+// ---------------------------------------------------------------------------
+
+export const haexPrincipals = sqliteTable(
+  tableNames.haex.principals.name,
+  {
+    id: text(tableNames.haex.principals.columns.id)
+      .$defaultFn(() => crypto.randomUUID())
+      .primaryKey(),
+    // logical values: 'extension' | 'external_client'
+    kind: text(tableNames.haex.principals.columns.kind).notNull(),
+    public_key: text(tableNames.haex.principals.columns.publicKey).notNull(),
+    name: text(tableNames.haex.principals.columns.name).notNull(),
+    enabled: integer(tableNames.haex.principals.columns.enabled, {
+      mode: 'boolean',
+    })
+      .notNull()
+      .default(true),
+    createdAt: text(tableNames.haex.principals.columns.createdAt).default(
+      sql`(CURRENT_TIMESTAMP)`,
+    ),
+    updatedAt: integer(tableNames.haex.principals.columns.updatedAt, {
+      mode: 'timestamp',
+    }).$onUpdate(() => new Date()),
+  },
+  (table) => [
+    // Mirror the `haex_extensions` identity contract — which is unique on
+    // (public_key, name) — so two extensions signed by the same key but with
+    // different names do not collide once mirrored into principals.
+    uniqueIndex('haex_principals_public_key_kind_name_unique').on(
+      table.public_key,
+      table.kind,
+      table.name,
+    ),
+  ],
+)
+export type InsertHaexPrincipals = typeof haexPrincipals.$inferInsert
+export type SelectHaexPrincipals = typeof haexPrincipals.$inferSelect

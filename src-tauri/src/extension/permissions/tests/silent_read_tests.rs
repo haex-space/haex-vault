@@ -44,7 +44,11 @@ fn make_extension() -> Extension {
                 filesystem: None,
                 http: None,
                 shell: None,
-                filesync: None,
+                sync_servers: None,
+
+                cloud_storage: None,
+
+                sync_rules: None,
                 spaces: None,
                 identities: None,
                 passwords: None,
@@ -70,12 +74,13 @@ fn make_extension() -> Extension {
 fn fs_perm(action: FsAction, target: &str, status: PermissionStatus) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: "pubkey_myext".to_string(),
+        principal_id: "pubkey_myext".to_string(),
         resource_type: ResourceType::Fs,
         action: Action::Filesystem(action),
         target: target.to_string(),
         constraints: None,
         status,
+        raw_constraints: None,
     }
 }
 
@@ -87,7 +92,7 @@ fn fs_perm_with_extension_constraint(
 ) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: "pubkey_myext".to_string(),
+        principal_id: "pubkey_myext".to_string(),
         resource_type: ResourceType::Fs,
         action: Action::Filesystem(action),
         target: target.to_string(),
@@ -96,6 +101,7 @@ fn fs_perm_with_extension_constraint(
             ..Default::default()
         })),
         status,
+        raw_constraints: None,
     }
 }
 
@@ -278,12 +284,13 @@ fn non_fs_resource_type_does_not_match_fs_check() {
     // even if the target string happens to look like a path.
     let perms = vec![ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: "pubkey_myext".to_string(),
+        principal_id: "pubkey_myext".to_string(),
         resource_type: ResourceType::Db,
         action: Action::Database(crate::extension::permissions::types::DbAction::Read),
         target: "/data/*".to_string(),
         constraints: None,
         status: PermissionStatus::Granted,
+        raw_constraints: None,
     }];
     let checker = PermissionChecker::new(make_extension(), perms);
     assert!(!checker.can_read_path_silently(Path::new("/data/file.txt"), false, false));

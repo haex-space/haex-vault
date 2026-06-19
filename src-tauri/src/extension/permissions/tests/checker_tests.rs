@@ -24,7 +24,11 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
                 filesystem: None,
                 http: None,
                 shell: None,
-                filesync: None,
+                sync_servers: None,
+
+                cloud_storage: None,
+
+                sync_rules: None,
                 spaces: None,
                 identities: None,
                 passwords: None,
@@ -50,12 +54,13 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
 fn create_permission(action: DbAction, target: &str) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: "test_ext".to_string(),
+        principal_id: "test_ext".to_string(),
         resource_type: ResourceType::Db,
         action: Action::Database(action),
         target: target.to_string(),
         constraints: None,
         status: PermissionStatus::Granted,
+        raw_constraints: None,
     }
 }
 

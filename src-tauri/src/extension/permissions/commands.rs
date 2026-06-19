@@ -10,8 +10,8 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, PasswordsAction, PermissionStatus,
-    ResourceType, WebAction,
+    Action, DbAction, ExtensionPermission, FsAction, PasswordsAction, PermissionStatus, Principal,
+    ResourceType, RwAction, WebAction,
 };
 use crate::extension::utils::{
     resolve_extension_id, PermissionResolvedPayload, EVENT_PERMISSION_RESOLVED,
@@ -23,6 +23,20 @@ use tauri::{AppHandle, State, WebviewWindow};
 // emitted to the main window directly, which needs the Emitter trait in scope.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 use tauri::Emitter;
+
+/// Parses a read/readWrite action string for the shared sync resources
+/// (`syncServers`, `cloudStorage`, `syncRules`). Defaults to `Read` for
+/// unknown values, mirroring the lenient parsing used for other resources.
+///
+/// Note: this lenient default is deliberate and matches the sibling Db/Spaces
+/// command arms — do NOT "fix" it by swapping in `RwAction::from_str`, which
+/// errors on unknown input instead.
+fn parse_rw_action(action: &str) -> RwAction {
+    match action.to_lowercase().as_str() {
+        "readwrite" | "read_write" => RwAction::ReadWrite,
+        _ => RwAction::Read,
+    }
+}
 
 // =============================================================================
 // Permission Check Commands (unified for WebView and iframe)
@@ -39,7 +53,7 @@ pub async fn extension_permissions_check_web(
     name: Option<String>,
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
-    PermissionManager::check_web_permission(&state, &extension_id, &url).await
+    PermissionManager::check_web_permission(&state, &Principal::Extension(extension_id), &url).await
 }
 
 /// Check database permission
@@ -65,7 +79,13 @@ pub async fn extension_permissions_check_database(
         }
     };
 
-    PermissionManager::check_database_permission(&state, &extension_id, action, &resource).await
+    PermissionManager::check_database_permission(
+        &state,
+        &Principal::Extension(extension_id),
+        action,
+        &resource,
+    )
+    .await
 }
 
 /// Check filesystem permission
@@ -92,7 +112,13 @@ pub async fn extension_permissions_check_filesystem(
     };
 
     let file_path = Path::new(&path);
-    PermissionManager::check_filesystem_permission(&state, &extension_id, action, file_path).await
+    PermissionManager::check_filesystem_permission(
+        &state,
+        &Principal::Extension(extension_id),
+        action,
+        file_path,
+    )
+    .await
 }
 
 // =============================================================================
@@ -182,12 +208,15 @@ pub fn grant_session_permission(
 
     let permission = ExtensionPermission {
         id: format!("session-{}", uuid::Uuid::new_v4()),
-        extension_id: extension_id.clone(),
+        principal_id: extension_id.clone(),
         resource_type: resource_type_enum,
         action: action_enum,
         target: target.clone(),
         constraints: None,
         status,
+        // Passwords default-labels (`{"default":true}`) originate only from the
+        // manifest, never from interactive prompts — `None` is correct here.
+        raw_constraints: None,
     };
 
     state.session_permissions.set_permission(permission);
@@ -238,7 +267,9 @@ pub async fn resolve_permission_prompt(
         "web" => ResourceType::Web,
         "fs" => ResourceType::Fs,
         "shell" => ResourceType::Shell,
-        "filesync" => ResourceType::Filesync,
+        "syncServers" => ResourceType::SyncServers,
+        "cloudStorage" => ResourceType::CloudStorage,
+        "syncRules" => ResourceType::SyncRules,
         "spaces" => ResourceType::Spaces,
         "identities" => ResourceType::Identities,
         "passwords" => ResourceType::Passwords,
@@ -276,16 +307,9 @@ pub async fn resolve_permission_prompt(
         ResourceType::Shell => {
             Action::Shell(crate::extension::permissions::types::ShellAction::Execute)
         }
-        ResourceType::Filesync => {
-            let filesync_action = match action.to_lowercase().as_str() {
-                "read" => crate::extension::permissions::types::FileSyncAction::Read,
-                "readwrite" | "read_write" => {
-                    crate::extension::permissions::types::FileSyncAction::ReadWrite
-                }
-                _ => crate::extension::permissions::types::FileSyncAction::Read,
-            };
-            Action::FileSync(filesync_action)
-        }
+        ResourceType::SyncServers => Action::SyncServers(parse_rw_action(&action)),
+        ResourceType::CloudStorage => Action::CloudStorage(parse_rw_action(&action)),
+        ResourceType::SyncRules => Action::SyncRules(parse_rw_action(&action)),
         ResourceType::Spaces => {
             let space_action = match action.to_lowercase().as_str() {
                 "read" => crate::extension::permissions::types::SpaceAction::Read,
@@ -297,7 +321,18 @@ pub async fn resolve_permission_prompt(
             Action::Spaces(space_action)
         }
         ResourceType::Identities => {
-            Action::Identities(crate::extension::permissions::types::IdentityAction::Read)
+            let identity_action = match action.to_lowercase().as_str() {
+                "read" => crate::extension::permissions::types::IdentityAction::Read,
+                "write" => crate::extension::permissions::types::IdentityAction::Write,
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!(
+                            "Invalid identities action: {action} (expected 'read' or 'write')"
+                        ),
+                    })
+                }
+            };
+            Action::Identities(identity_action)
         }
         ResourceType::Passwords => {
             let passwords_action = match action.to_lowercase().as_str() {
@@ -343,7 +378,9 @@ pub async fn resolve_permission_prompt(
     // Mail allows multiple permissions per host (one each for `fetch`
     // and `send`), so for `Mail` we also match on the action to avoid
     // a `send` decision overwriting a stored `fetch` decision.
-    let existing_permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
+    let existing_permissions =
+        PermissionManager::get_permissions(&state, &Principal::Extension(extension_id.clone()))
+            .await?;
 
     let existing_permission = existing_permissions.iter().find(|p| {
         if p.resource_type != resource_type_enum || p.target != target {
@@ -362,12 +399,15 @@ pub async fn resolve_permission_prompt(
         // Create new permission
         let new_permission = ExtensionPermission {
             id: uuid::Uuid::new_v4().to_string(),
-            extension_id: extension_id.clone(),
+            principal_id: extension_id.clone(),
             resource_type: resource_type_enum,
             action: action_enum,
             target,
             constraints: None,
             status,
+            // Passwords default-labels (`{"default":true}`) originate only from
+            // the manifest, never from interactive prompts — `None` is correct here.
+            raw_constraints: None,
         };
 
         PermissionManager::save_permissions(&state, &[new_permission]).await?;
@@ -407,9 +447,11 @@ pub fn remove_extension_session_permission(
 ) -> Result<(), ExtensionError> {
     let resource_type_enum = ResourceType::from_str(&resource_type)?;
 
-    state
-        .session_permissions
-        .remove_permission(&extension_id, resource_type_enum, &target);
+    state.session_permissions.remove_permissions_for_target(
+        &extension_id,
+        resource_type_enum,
+        &target,
+    );
 
     eprintln!(
         "[SessionPermission] Removed {} permission for extension {} on {}",

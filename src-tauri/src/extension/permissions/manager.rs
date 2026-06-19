@@ -1,15 +1,15 @@
 use crate::database::core::{select_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
-use crate::database::generated::HaexExtensionPermissions;
+use crate::database::generated::HaexPrincipalPermissions;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, MailAction, NotificationsAction,
-    PasswordsAction, PasswordsScope, PermissionConstraints, PermissionStatus, ResourceType,
-    SpaceAction,
+    split_constraints, Action, ExtensionPermission, IdentityAction, MailAction,
+    NotificationsAction, PasswordsAction, PasswordsScope, PermissionConstraints, PermissionStatus,
+    Principal, ResourceType, RwAction, ShellAction, SpaceAction, WebAction,
 };
-use crate::table_names::TABLE_EXTENSION_PERMISSIONS;
+use crate::table_names::TABLE_PRINCIPAL_PERMISSIONS;
 use crate::AppState;
 use rusqlite::params;
 use serde_json::Value as JsonValue;
@@ -35,17 +35,17 @@ impl PermissionManager {
                 })?;
 
             let sql = format!(
-                "INSERT INTO {TABLE_EXTENSION_PERMISSIONS} (id, extension_id, resource_type, action, target, constraints, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO {TABLE_PRINCIPAL_PERMISSIONS} (id, principal_id, resource_type, action, target, constraints, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
             );
 
             for perm in permissions {
                 // 1. Konvertiere App-Struct zu DB-Struct
-                let db_perm: HaexExtensionPermissions = perm.into();
+                let db_perm: HaexPrincipalPermissions = perm.into();
 
                 // 2. Erstelle typsichere Parameter
                 let params = params![
                     db_perm.id,
-                    db_perm.extension_id,
+                    db_perm.principal_id,
                     db_perm.resource_type,
                     db_perm.action,
                     db_perm.target,
@@ -80,10 +80,10 @@ impl PermissionManager {
                     reason: "Failed to lock HLC service".to_string(),
                 })?;
 
-            let db_perm: HaexExtensionPermissions = permission.into();
+            let db_perm: HaexPrincipalPermissions = permission.into();
 
             let sql = format!(
-                "UPDATE {TABLE_EXTENSION_PERMISSIONS} SET resource_type = ?, action = ?, target = ?, constraints = ?, status = ? WHERE id = ?"
+                "UPDATE {TABLE_PRINCIPAL_PERMISSIONS} SET resource_type = ?, action = ?, target = ?, constraints = ?, status = ? WHERE id = ?"
             );
 
             let params = params![
@@ -117,7 +117,7 @@ impl PermissionManager {
                     reason: "Failed to lock HLC service".to_string(),
                 })?;
 
-            let sql = format!("UPDATE {TABLE_EXTENSION_PERMISSIONS} SET status = ? WHERE id = ?");
+            let sql = format!("UPDATE {TABLE_PRINCIPAL_PERMISSIONS} SET status = ? WHERE id = ?");
             let params = params![new_status.as_str(), permission_id];
             SqlExecutor::execute_internal_typed(&tx, &hlc_service, &sql, params)?;
             tx.commit().map_err(DatabaseError::from)
@@ -142,7 +142,7 @@ impl PermissionManager {
                 })?;
 
             // Echtes DELETE - wird vom CrdtTransformer zu UPDATE umgewandelt
-            let sql = format!("DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE id = ?");
+            let sql = format!("DELETE FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE id = ?");
             SqlExecutor::execute_internal_typed(&tx, &hlc_service, &sql, params![permission_id])?;
             tx.commit().map_err(DatabaseError::from)
         })
@@ -164,7 +164,7 @@ impl PermissionManager {
                     reason: "Failed to lock HLC service".to_string(),
                 })?;
 
-            let sql = format!("DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
+            let sql = format!("DELETE FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ?");
             SqlExecutor::execute_internal_typed(&tx, &hlc_service, &sql, params![extension_id])?;
             tx.commit().map_err(DatabaseError::from)
         })
@@ -177,7 +177,7 @@ impl PermissionManager {
         hlc_service: &crate::crdt::hlc::HlcService,
         extension_id: &str,
     ) -> Result<(), DatabaseError> {
-        let sql = format!("DELETE FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?");
+        let sql = format!("DELETE FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ?");
         SqlExecutor::execute_internal_typed(tx, hlc_service, &sql, params![extension_id])?;
         Ok(())
     }
@@ -185,12 +185,12 @@ impl PermissionManager {
     /// Uses select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
     pub async fn get_permissions(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
     ) -> Result<Vec<ExtensionPermission>, ExtensionError> {
         let sql = format!(
-            "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_hlc FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ?"
+            "SELECT id, principal_id, resource_type, action, target, constraints, status, haex_hlc FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ?"
         );
-        let params = vec![JsonValue::String(extension_id.to_string())];
+        let params = vec![JsonValue::String(principal.id().to_string())];
 
         let results = select_with_crdt(sql, params, &app_state.db)?;
 
@@ -211,17 +211,23 @@ impl PermissionManager {
                     .as_str()
                     .and_then(|s| PermissionStatus::from_str(s).ok())
                     .unwrap_or(PermissionStatus::Denied);
-                let constraints: Option<PermissionConstraints> =
-                    row[5].as_str().and_then(|s| serde_json::from_str(s).ok());
+                // Passwords keep their free-form `{"default":true}` constraint
+                // raw (the typed untagged enum can't represent it); all other
+                // resource types parse into the typed enum. The invariant lives
+                // in `split_constraints` (single source of truth) — this is the
+                // live `check_passwords_permission` read path.
+                let (constraints, raw_constraints) =
+                    split_constraints(resource_type, row[5].as_str());
 
                 ExtensionPermission {
                     id: row[0].as_str().unwrap_or_default().to_string(),
-                    extension_id: row[1].as_str().unwrap_or_default().to_string(),
+                    principal_id: row[1].as_str().unwrap_or_default().to_string(),
                     resource_type,
                     action,
                     target: row[4].as_str().unwrap_or_default().to_string(),
                     constraints,
                     status,
+                    raw_constraints,
                 }
             })
             .collect();
@@ -234,10 +240,12 @@ impl PermissionManager {
     /// Returns PermissionDenied if status is explicitly Denied
     pub async fn check_database_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
         action: Action,
         table_name: &str,
     ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
         // Extract DbAction from Action enum
         let db_action = match action {
             Action::Database(db_action) => db_action,
@@ -258,13 +266,16 @@ impl PermissionManager {
             .clone();
 
         // Load permissions
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
 
         // Create checker and validate
         let checker = PermissionChecker::new(extension.clone(), permissions.clone());
 
-        // First check if auto-allowed (extension's own tables)
-        if checker.is_auto_allowed_table(table_name) {
+        // First check if auto-allowed (extension's own tables).
+        // External clients have no own DB tables, so this auto-allow path is
+        // extension-only. Today every principal is an extension, so this is
+        // behavior-preserving.
+        if principal.is_extension() && checker.is_auto_allowed_table(table_name) {
             return Ok(());
         }
 
@@ -295,6 +306,7 @@ impl PermissionManager {
             None => {
                 if app_state.session_permissions.is_granted(
                     extension_id,
+                    &Action::Database(db_action),
                     ResourceType::Db,
                     table_name,
                 ) {
@@ -302,6 +314,7 @@ impl PermissionManager {
                 }
                 if app_state.session_permissions.is_denied(
                     extension_id,
+                    &Action::Database(db_action),
                     ResourceType::Db,
                     table_name,
                 ) {
@@ -330,9 +343,11 @@ impl PermissionManager {
     /// Returns PermissionDenied if status is explicitly Denied
     pub async fn check_web_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
         url: &str,
     ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
         // Get extension for name lookup
         let extension = app_state
             .extension_manager
@@ -344,7 +359,7 @@ impl PermissionManager {
 
         // Load permissions from database (same for dev and production extensions)
         let sql = format!(
-            "SELECT id, extension_id, resource_type, action, target, constraints, status, haex_hlc FROM {TABLE_EXTENSION_PERMISSIONS} WHERE extension_id = ? AND resource_type = 'web'"
+            "SELECT id, principal_id, resource_type, action, target, constraints, status, haex_hlc FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ? AND resource_type = 'web'"
         );
         let params = vec![JsonValue::String(extension_id.to_string())];
 
@@ -372,12 +387,14 @@ impl PermissionManager {
 
                 ExtensionPermission {
                     id: row[0].as_str().unwrap_or_default().to_string(),
-                    extension_id: row[1].as_str().unwrap_or_default().to_string(),
+                    principal_id: row[1].as_str().unwrap_or_default().to_string(),
                     resource_type,
                     action,
                     target: row[4].as_str().unwrap_or_default().to_string(),
                     constraints,
                     status,
+                    // web-only loader (WHERE resource_type = 'web'); never passwords
+                    raw_constraints: None,
                 }
             })
             .collect();
@@ -422,16 +439,20 @@ impl PermissionManager {
             },
             // No matching permission in database - check session permissions
             None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Web, url)
-                {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    &Action::Web(WebAction::All),
+                    ResourceType::Web,
+                    url,
+                ) {
                     return Ok(());
                 }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Web, url)
-                {
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    &Action::Web(WebAction::All),
+                    ResourceType::Web,
+                    url,
+                ) {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         "web request",
@@ -456,10 +477,12 @@ impl PermissionManager {
     /// Returns PermissionDenied if status is explicitly Denied
     pub async fn check_filesystem_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
         action: Action,
         file_path: &Path,
     ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
         // Get extension for name lookup
         let extension = app_state
             .extension_manager
@@ -469,7 +492,7 @@ impl PermissionManager {
             })?
             .clone();
 
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
         let file_path_str = file_path.to_string_lossy();
 
         // Find matching permission for this path and action
@@ -525,6 +548,7 @@ impl PermissionManager {
             None => {
                 if app_state.session_permissions.is_granted(
                     extension_id,
+                    &action,
                     ResourceType::Fs,
                     &file_path_str,
                 ) {
@@ -532,6 +556,7 @@ impl PermissionManager {
                 }
                 if app_state.session_permissions.is_denied(
                     extension_id,
+                    &action,
                     ResourceType::Fs,
                     &file_path_str,
                 ) {
@@ -575,7 +600,8 @@ impl PermissionManager {
         extension_id: &str,
         file_path: &Path,
     ) -> bool {
-        let Ok(permissions) = Self::get_permissions(app_state, extension_id).await else {
+        let principal = Principal::Extension(extension_id.to_string());
+        let Ok(permissions) = Self::get_permissions(app_state, &principal).await else {
             return false;
         };
         let Some(extension) = app_state.extension_manager.get_extension(extension_id) else {
@@ -583,15 +609,20 @@ impl PermissionManager {
         };
 
         let file_path_str = file_path.to_string_lossy();
+        // Silent read predicate: the action is implicitly a filesystem Read.
+        let read_action = Action::Filesystem(crate::extension::permissions::types::FsAction::Read);
         let session_granted = app_state.session_permissions.is_granted(
             extension_id,
+            &read_action,
             ResourceType::Fs,
             &file_path_str,
         );
-        let session_denied =
-            app_state
-                .session_permissions
-                .is_denied(extension_id, ResourceType::Fs, &file_path_str);
+        let session_denied = app_state.session_permissions.is_denied(
+            extension_id,
+            &read_action,
+            ResourceType::Fs,
+            &file_path_str,
+        );
 
         PermissionChecker::new(extension, permissions).can_read_path_silently(
             file_path,
@@ -606,10 +637,12 @@ impl PermissionManager {
     #[allow(dead_code)]
     pub async fn check_shell_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
         command: &str,
         args: &[String],
     ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
         // Get extension for name lookup
         let extension = app_state
             .extension_manager
@@ -619,7 +652,7 @@ impl PermissionManager {
             })?
             .clone();
 
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
 
         // Helper to check if command matches target pattern
         let matches_command = |target: &str| -> bool { target == command || target == "*" };
@@ -695,6 +728,7 @@ impl PermissionManager {
             None => {
                 if app_state.session_permissions.is_granted(
                     extension_id,
+                    &Action::Shell(ShellAction::Execute),
                     ResourceType::Shell,
                     command,
                 ) {
@@ -702,6 +736,7 @@ impl PermissionManager {
                 }
                 if app_state.session_permissions.is_denied(
                     extension_id,
+                    &Action::Shell(ShellAction::Execute),
                     ResourceType::Shell,
                     command,
                 ) {
@@ -724,22 +759,77 @@ impl PermissionManager {
         }
     }
 
-    /// Prüft FileSync-Berechtigungen (Cloud-Sync-API)
-    /// Returns PermissionPromptRequired if status is Ask or no permission exists
-    /// Returns PermissionDenied if status is explicitly Denied
+    /// Prüft Sync-Home-Server-Berechtigungen (`haex_sync_backends`).
     ///
-    /// Targets:
-    /// - "*" → All FileSync resources
-    /// - "spaces" → File spaces
-    /// - "backends" → Storage backends
-    /// - "rules" → Sync rules
-    pub async fn check_filesync_permission(
+    /// Action-level wie `check_spaces_permission`; `target` ist immer "*".
+    /// Read = lesen/auflisten, ReadWrite = zusätzlich anlegen/ändern/löschen.
+    #[allow(dead_code)]
+    pub async fn check_sync_servers_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
-        action: FileSyncAction,
-        target: FileSyncTarget,
+        principal: &Principal,
+        action: RwAction,
     ) -> Result<(), ExtensionError> {
-        // Get extension for name lookup
+        Self::check_rw_resource_permission(
+            app_state,
+            principal,
+            action,
+            ResourceType::SyncServers,
+            "syncServers",
+        )
+        .await
+    }
+
+    /// Prüft Cloud-Storage-Berechtigungen (`haex_storage_backends`, S3/WebDAV).
+    ///
+    /// Action-level wie `check_spaces_permission`; `target` ist immer "*".
+    /// Read = lesen/auflisten, ReadWrite = zusätzlich anlegen/ändern/löschen.
+    pub async fn check_cloud_storage_permission(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+        action: RwAction,
+    ) -> Result<(), ExtensionError> {
+        Self::check_rw_resource_permission(
+            app_state,
+            principal,
+            action,
+            ResourceType::CloudStorage,
+            "cloudStorage",
+        )
+        .await
+    }
+
+    /// Prüft Sync-Rules-Berechtigungen (`haex_sync_rules`).
+    ///
+    /// Action-level wie `check_spaces_permission`; `target` ist immer "*".
+    /// Read = lesen/auflisten, ReadWrite = zusätzlich anlegen/ändern/löschen.
+    #[allow(dead_code)]
+    pub async fn check_sync_rules_permission(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+        action: RwAction,
+    ) -> Result<(), ExtensionError> {
+        Self::check_rw_resource_permission(
+            app_state,
+            principal,
+            action,
+            ResourceType::SyncRules,
+            "syncRules",
+        )
+        .await
+    }
+
+    /// Gemeinsame Logik für die action-level Read/ReadWrite-Ressourcen
+    /// (`SyncServers`, `CloudStorage`, `SyncRules`). `target` ist immer "*";
+    /// es wird kein Sub-Target-Matching mehr durchgeführt.
+    async fn check_rw_resource_permission(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+        action: RwAction,
+        resource_type: ResourceType,
+        resource_label: &str,
+    ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
         let extension = app_state
             .extension_manager
             .get_extension(extension_id)
@@ -748,99 +838,116 @@ impl PermissionManager {
             })?
             .clone();
 
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
 
-        // Helper to check if action allows the required action
-        let action_allows = |perm_action: &Action, required: &FileSyncAction| -> bool {
-            match perm_action {
-                Action::FileSync(fs_action) => match (fs_action, required) {
-                    // Exact match
-                    (a, b) if a == b => true,
-                    // ReadWrite includes Read
-                    (FileSyncAction::ReadWrite, FileSyncAction::Read) => true,
-                    _ => false,
-                },
+        // The matching RwAction variant for this resource, by value (`None` for
+        // any other resource/action shape).
+        let perm_rw_action = |perm_action: &Action| -> Option<RwAction> {
+            match (resource_type, perm_action) {
+                (ResourceType::SyncServers, Action::SyncServers(a)) => Some(*a),
+                (ResourceType::CloudStorage, Action::CloudStorage(a)) => Some(*a),
+                (ResourceType::SyncRules, Action::SyncRules(a)) => Some(*a),
+                _ => None,
+            }
+        };
+        // Grants escalate: a `ReadWrite` grant covers a `Read` request.
+        let action_allows = |perm_action: &Action| -> bool {
+            match perm_rw_action(perm_action) {
+                Some(a) if a == action => true,
+                Some(RwAction::ReadWrite) if action == RwAction::Read => true,
                 _ => false,
             }
         };
+        // Denies are exact: a `ReadWrite` deny must not block a separately
+        // granted `Read`.
+        let action_denies =
+            |perm_action: &Action| -> bool { perm_rw_action(perm_action) == Some(action) };
+        // These resources are wildcard-only — a sub-target row never matches.
+        let is_wildcard =
+            |perm: &&ExtensionPermission| perm.resource_type == resource_type && perm.target == "*";
 
-        // Helper to check if target matches
-        let target_matches = |perm_target: &str, required: FileSyncTarget| -> bool {
-            FileSyncTarget::from_str(perm_target)
-                .map(|t| t.matches(required))
-                .unwrap_or(false)
-        };
+        let action_str = action.as_str();
 
-        // Find matching permission for this target and action
-        let matching_permission = permissions.iter().find(|perm| {
-            perm.resource_type == ResourceType::Filesync
-                && action_allows(&perm.action, &action)
-                && target_matches(&perm.target, target)
-        });
-
-        let target_str = target.as_str();
-        let action_str = match action {
-            FileSyncAction::Read => "read",
-            FileSyncAction::ReadWrite => "readWrite",
-        };
-
-        match matching_permission {
-            Some(perm) => match perm.status {
-                PermissionStatus::Granted => Ok(()),
-                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
-                    extension_id,
-                    action_str,
-                    &format!("filesync:{}", target_str),
-                )),
-                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
-                    extension_id,
-                    &extension.manifest.name,
-                    "filesync",
-                    action_str,
-                    target_str,
-                )),
-            },
-            // No matching permission in database - check session permissions
-            None => {
-                // Check session permissions first
-                if app_state.session_permissions.is_granted(
-                    extension_id,
-                    ResourceType::Filesync,
-                    target_str,
-                ) {
-                    return Ok(());
-                }
-                if app_state.session_permissions.is_denied(
-                    extension_id,
-                    ResourceType::Filesync,
-                    target_str,
-                ) {
-                    return Err(ExtensionError::permission_denied(
-                        extension_id,
-                        action_str,
-                        &format!("filesync:{}", target_str),
-                    ));
-                }
-
-                // No session permission either - prompt the user
-                Err(ExtensionError::permission_prompt_required(
-                    extension_id,
-                    &extension.manifest.name,
-                    "filesync",
-                    action_str,
-                    target_str,
-                ))
-            }
+        // DB permissions, deny-first: an explicit deny wins over any grant.
+        if permissions
+            .iter()
+            .filter(is_wildcard)
+            .any(|perm| perm.status == PermissionStatus::Denied && action_denies(&perm.action))
+        {
+            return Err(ExtensionError::permission_denied(
+                extension_id,
+                action_str,
+                &format!("{resource_label}:*"),
+            ));
         }
+        if permissions
+            .iter()
+            .filter(is_wildcard)
+            .any(|perm| perm.status == PermissionStatus::Granted && action_allows(&perm.action))
+        {
+            return Ok(());
+        }
+        if permissions
+            .iter()
+            .filter(is_wildcard)
+            .any(|perm| perm.status == PermissionStatus::Ask && action_allows(&perm.action))
+        {
+            return Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                resource_label,
+                action_str,
+                "*",
+            ));
+        }
+
+        // No matching DB permission — check session permissions. Map the RW
+        // action onto its `Action` variant for the session key (target "*").
+        let session_action = match resource_type {
+            ResourceType::SyncServers => Action::SyncServers(action),
+            ResourceType::CloudStorage => Action::CloudStorage(action),
+            ResourceType::SyncRules => Action::SyncRules(action),
+            _ => unreachable!("check_rw_resource_permission only handles RW resources"),
+        };
+        if app_state.session_permissions.is_granted(
+            extension_id,
+            &session_action,
+            resource_type,
+            "*",
+        ) {
+            return Ok(());
+        }
+        if app_state.session_permissions.is_denied(
+            extension_id,
+            &session_action,
+            resource_type,
+            "*",
+        ) {
+            return Err(ExtensionError::permission_denied(
+                extension_id,
+                action_str,
+                &format!("{resource_label}:*"),
+            ));
+        }
+
+        Err(ExtensionError::permission_prompt_required(
+            extension_id,
+            &extension.manifest.name,
+            resource_label,
+            action_str,
+            "*",
+        ))
     }
 
     /// Prüft Shared-Spaces-Berechtigungen.
     /// Read = Spaces lesen/anzeigen, ReadWrite = zusätzlich Spaces anlegen.
     pub async fn check_spaces_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
         action: SpaceAction,
     ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
         let extension = app_state
             .extension_manager
             .get_extension(extension_id)
@@ -849,7 +956,7 @@ impl PermissionManager {
             })?
             .clone();
 
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
 
         let action_allows = |perm_action: &Action, required: &SpaceAction| -> bool {
             match perm_action {
@@ -888,16 +995,20 @@ impl PermissionManager {
                 )),
             },
             None => {
-                if app_state
-                    .session_permissions
-                    .is_granted(extension_id, ResourceType::Spaces, "*")
-                {
+                if app_state.session_permissions.is_granted(
+                    extension_id,
+                    &Action::Spaces(action.clone()),
+                    ResourceType::Spaces,
+                    "*",
+                ) {
                     return Ok(());
                 }
-                if app_state
-                    .session_permissions
-                    .is_denied(extension_id, ResourceType::Spaces, "*")
-                {
+                if app_state.session_permissions.is_denied(
+                    extension_id,
+                    &Action::Spaces(action.clone()),
+                    ResourceType::Spaces,
+                    "*",
+                ) {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         action_str,
@@ -929,9 +1040,11 @@ impl PermissionManager {
     /// `check_*_permission`-Funktionen.
     pub async fn check_passwords_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
         action: PasswordsAction,
     ) -> Result<PasswordsScope, ExtensionError> {
+        let extension_id = principal.id();
+
         let extension = app_state
             .extension_manager
             .get_extension(extension_id)
@@ -940,7 +1053,7 @@ impl PermissionManager {
             })?
             .clone();
 
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
 
         let action_allows = |perm_action: &Action, required: &PasswordsAction| -> bool {
             match perm_action {
@@ -1008,8 +1121,22 @@ impl PermissionManager {
             return Ok(PasswordsScope::All);
         }
 
-        let tags: Vec<String> = granted.iter().map(|p| p.target.clone()).collect();
-        Ok(PasswordsScope::Tags(tags))
+        // Non-wildcard Tag-Scope: pro Row das Default-Label-Marker aus den rohen
+        // Passwords-Constraints (`{"default":true}`) lesen. `get_permissions`
+        // trägt diese rohen Constraints bereits in `raw_constraints` (der
+        // typisierte untagged-Enum kann sie nicht repräsentieren), also keine
+        // zweite SQL-Abfrage nötig.
+        let rows: Vec<PasswordsGrantRow> = granted
+            .iter()
+            .map(|p| PasswordsGrantRow {
+                target: p.target.clone(),
+                is_default: parse_passwords_default_marker(p.raw_constraints.as_ref()),
+            })
+            .collect();
+
+        // Default-Label nur beim Schreiben (Erstellen) relevant.
+        let write_granted = matches!(action, PasswordsAction::ReadWrite);
+        resolve_passwords_tags_scope(rows, write_granted, extension_id)
     }
 
     /// Prüft Mail-Berechtigungen für IMAP-Fetch oder SMTP-Send.
@@ -1021,10 +1148,12 @@ impl PermissionManager {
     ///   (Subdomain-Match)
     pub async fn check_mail_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
         action: MailAction,
         host: &str,
     ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
         let extension = app_state
             .extension_manager
             .get_extension(extension_id)
@@ -1033,7 +1162,7 @@ impl PermissionManager {
             })?
             .clone();
 
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
 
         let action_matches = |perm_action: &Action| -> bool {
             matches!(perm_action, Action::Mail(a) if *a == action)
@@ -1165,9 +1294,11 @@ impl PermissionManager {
     /// Ask/keine Permission → Prompt (Session-Grants haben Vorrang).
     pub async fn check_notifications_permission(
         app_state: &State<'_, AppState>,
-        extension_id: &str,
+        principal: &Principal,
         action: NotificationsAction,
     ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
         let extension = app_state
             .extension_manager
             .get_extension(extension_id)
@@ -1176,7 +1307,7 @@ impl PermissionManager {
             })?
             .clone();
 
-        let permissions = Self::get_permissions(app_state, extension_id).await?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
 
         let action_matches = |perm_action: &Action| -> bool {
             matches!(perm_action, Action::Notifications(a) if *a == action)
@@ -1205,6 +1336,7 @@ impl PermissionManager {
             None => {
                 if app_state.session_permissions.is_granted(
                     extension_id,
+                    &Action::Notifications(action),
                     ResourceType::Notifications,
                     "*",
                 ) {
@@ -1212,6 +1344,7 @@ impl PermissionManager {
                 }
                 if app_state.session_permissions.is_denied(
                     extension_id,
+                    &Action::Notifications(action),
                     ResourceType::Notifications,
                     "*",
                 ) {
@@ -1233,6 +1366,69 @@ impl PermissionManager {
         }
     }
 
+    /// Prüft Identitäten-Berechtigungen (`haex_identities`).
+    ///
+    /// Action-level wie `check_notifications_permission`; `target` ist immer
+    /// "*". `IdentityAction::Read` und `IdentityAction::Write` sind DISTINCT
+    /// capabilities — Write impliziert KEIN Read (siehe `IdentityAction`-Enum,
+    /// Phase 3B). Read = DID/Name/Avatar/Notes lesen (NIEMALS `private_key`,
+    /// erzwungen durch das `IdentityReadView`-DTO + `project_identity_read`).
+    /// Write = ausschließlich neuen Kontakt anlegen (`validate_contact_insert`).
+    ///
+    /// Wird heute von keinem exponierten Command aufgerufen — Identitäten sind
+    /// noch nicht an Principals exponiert. Existiert als Enforcement-Primitive,
+    /// damit jede künftige Exposition zwingend hierdurch laufen muss.
+    #[allow(dead_code)]
+    pub async fn check_identities_permission(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+        action: IdentityAction,
+    ) -> Result<(), ExtensionError> {
+        let extension_id = principal.id();
+
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension not found: {}", extension_id),
+            })?
+            .clone();
+
+        let permissions = Self::get_permissions(app_state, principal).await?;
+
+        // Read und Write sind DISTINCT — exakter Action-Match, keine Hierarchie.
+        let matching_status = identities_matching_status(&permissions, action);
+
+        let session_granted = app_state.session_permissions.is_granted(
+            extension_id,
+            &Action::Identities(action),
+            ResourceType::Identities,
+            "*",
+        );
+        let session_denied = app_state.session_permissions.is_denied(
+            extension_id,
+            &Action::Identities(action),
+            ResourceType::Identities,
+            "*",
+        );
+
+        match resolve_identities_decision(matching_status, session_granted, session_denied) {
+            IdentitiesDecision::Allow => Ok(()),
+            IdentitiesDecision::Deny => Err(ExtensionError::permission_denied(
+                extension_id,
+                action.as_str(),
+                "identities:*",
+            )),
+            IdentitiesDecision::Prompt => Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "identities",
+                action.as_str(),
+                "*",
+            )),
+        }
+    }
+
     // Helper-Methoden - müssen DatabaseError statt ExtensionError zurückgeben
     #[allow(dead_code)]
     pub fn parse_resource_type(s: &str) -> Result<ResourceType, DatabaseError> {
@@ -1241,7 +1437,9 @@ impl PermissionManager {
             "web" => Ok(ResourceType::Web),
             "db" => Ok(ResourceType::Db),
             "shell" => Ok(ResourceType::Shell),
-            "filesync" => Ok(ResourceType::Filesync),
+            "syncServers" => Ok(ResourceType::SyncServers),
+            "cloudStorage" => Ok(ResourceType::CloudStorage),
+            "syncRules" => Ok(ResourceType::SyncRules),
             "spaces" => Ok(ResourceType::Spaces),
             "identities" => Ok(ResourceType::Identities),
             _ => Err(DatabaseError::SerializationError {
@@ -1589,6 +1787,165 @@ impl PermissionManager {
         }
 
         components.join("/")
+    }
+}
+
+/// Liest das Passwords-Default-Marker-Flag aus den rohen Constraints einer
+/// Permission-Row. Passwords markieren ihre Default-Label-Row per free-form
+/// `{"default": true}` (das der typisierte [`PermissionConstraints`]-Enum nicht
+/// repräsentieren kann). Fehlende/abweichende Constraints ⇒ `false`.
+pub(crate) fn parse_passwords_default_marker(raw: Option<&JsonValue>) -> bool {
+    #[derive(serde::Deserialize)]
+    struct DefaultMarker {
+        #[serde(default)]
+        default: bool,
+    }
+    raw.and_then(|v| serde_json::from_value::<DefaultMarker>(v.clone()).ok())
+        .map(|m| m.default)
+        .unwrap_or(false)
+}
+
+/// Eine gewährte (non-wildcard) Passwords-Permission-Row, reduziert auf die
+/// für die Scope-Auflösung relevanten Felder.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PasswordsGrantRow {
+    /// Das Tag/Label, auf das diese Row Zugriff gewährt.
+    pub target: String,
+    /// Ob diese Row explizit als Default-Label markiert ist (`{"default":true}`).
+    pub is_default: bool,
+}
+
+/// Löst die gewährten (non-wildcard) Passwords-Tag-Rows zu einem
+/// [`PasswordsScope::Tags`] inkl. aufgelöstem Default-Label auf.
+///
+/// Aufrufer-Vertrag: wird NUR aufgerufen, wenn KEINE Wildcard-`*`-Row gewährt
+/// ist (die wird vorher direkt zu [`PasswordsScope::All`] aufgelöst) und `rows`
+/// nicht leer ist.
+///
+/// Regeln (sicherheitsrelevant):
+/// - Genau EIN erlaubtes Label → dieses ist implizit der Default (keine
+///   explizite Markierung nötig).
+/// - MEHRERE Labels + `write_granted` → es muss GENAU EINE Row als Default
+///   markiert sein. Null oder >1 markierte Rows ⇒ der Grant ist ungültig ⇒
+///   Reject ([`ExtensionError::SecurityViolation`]). Das markierte Default ist
+///   per Konstruktion eines der erlaubten Labels (es IST eine der Rows).
+/// - MEHRERE Labels, NUR Read (kein Write) → kein Default nötig (`None`); eine
+///   etwaige Markierung wird ignoriert, da Defaults nur beim Erstellen zählen.
+pub(crate) fn resolve_passwords_tags_scope(
+    rows: Vec<PasswordsGrantRow>,
+    write_granted: bool,
+    extension_id: &str,
+) -> Result<PasswordsScope, ExtensionError> {
+    let tags: Vec<String> = rows.iter().map(|r| r.target.clone()).collect();
+
+    // Genau ein erlaubtes Label → implizit der Default.
+    if tags.len() == 1 {
+        return Ok(PasswordsScope::Tags {
+            default: Some(tags[0].clone()),
+            tags,
+        });
+    }
+
+    // Mehrere Labels.
+    if !write_granted {
+        // Read-only: kein Default nötig.
+        return Ok(PasswordsScope::Tags {
+            tags,
+            default: None,
+        });
+    }
+
+    // Mehrere Labels + Write: genau eine Row muss als Default markiert sein.
+    let marked: Vec<&PasswordsGrantRow> = rows.iter().filter(|r| r.is_default).collect();
+    match marked.as_slice() {
+        [single] => Ok(PasswordsScope::Tags {
+            default: Some(single.target.clone()),
+            tags,
+        }),
+        [] => Err(ExtensionError::SecurityViolation {
+            reason: format!(
+                "Passwords write grant for extension '{extension_id}' allows multiple labels \
+                 ({tags:?}) but none is marked as the default (constraints {{\"default\":true}}). \
+                 Exactly one default label is required."
+            ),
+        }),
+        _ => Err(ExtensionError::SecurityViolation {
+            reason: format!(
+                "Passwords write grant for extension '{extension_id}' marks multiple default \
+                 labels ({:?}). Exactly one default label is required.",
+                marked.iter().map(|r| &r.target).collect::<Vec<_>>()
+            ),
+        }),
+    }
+}
+
+/// Das Ergebnis einer Identitäten-Permission-Entscheidung.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IdentitiesDecision {
+    Allow,
+    Deny,
+    Prompt,
+}
+
+/// Findet den `PermissionStatus` der DB-Permission, die exakt zur angefragten
+/// [`IdentityAction`] passt (Read und Write sind DISTINCT — kein
+/// `ReadWrite`-Implikation). `None`, wenn keine passende Row existiert.
+///
+/// Pure Helper, damit das sicherheitsrelevante Action-Matching unit-testbar
+/// ist, ohne ein `State<AppState>` aufzubauen.
+pub(crate) fn identities_matching_status(
+    permissions: &[ExtensionPermission],
+    action: IdentityAction,
+) -> Option<PermissionStatus> {
+    // Identities are wildcard-only (`target == "*"`); a sub-target row never
+    // matches. Read and Write are DISTINCT (no escalation). Resolve deny-first
+    // so a deny can never be hidden behind a grant if both are ever present.
+    let statuses: Vec<PermissionStatus> = permissions
+        .iter()
+        .filter(|perm| {
+            perm.resource_type == ResourceType::Identities
+                && perm.target == "*"
+                && matches!(&perm.action, Action::Identities(a) if *a == action)
+        })
+        .map(|perm| perm.status)
+        .collect();
+
+    if statuses.contains(&PermissionStatus::Denied) {
+        Some(PermissionStatus::Denied)
+    } else if statuses.contains(&PermissionStatus::Granted) {
+        Some(PermissionStatus::Granted)
+    } else if statuses.contains(&PermissionStatus::Ask) {
+        Some(PermissionStatus::Ask)
+    } else {
+        None
+    }
+}
+
+/// Löst die Identitäten-Permission-Entscheidung auf — identische Präzedenz wie
+/// `check_notifications_permission`:
+/// - DB-Permission gefunden: Granted → Allow, Denied → Deny, Ask → Prompt.
+/// - Keine DB-Permission: Session-Grant → Allow, Session-Deny → Deny,
+///   sonst → Prompt.
+///
+/// Pure Helper (kein `State`), damit die Entscheidungslogik unit-testbar ist.
+pub(crate) fn resolve_identities_decision(
+    matching_status: Option<PermissionStatus>,
+    session_granted: bool,
+    session_denied: bool,
+) -> IdentitiesDecision {
+    match matching_status {
+        Some(PermissionStatus::Granted) => IdentitiesDecision::Allow,
+        Some(PermissionStatus::Denied) => IdentitiesDecision::Deny,
+        Some(PermissionStatus::Ask) => IdentitiesDecision::Prompt,
+        None => {
+            if session_granted {
+                IdentitiesDecision::Allow
+            } else if session_denied {
+                IdentitiesDecision::Deny
+            } else {
+                IdentitiesDecision::Prompt
+            }
+        }
     }
 }
 

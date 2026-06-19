@@ -3,52 +3,50 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use ts_rs::TS;
 
-/// FileSync target types for permission matching
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum FileSyncTarget {
-    /// All FileSync resources
-    All,
-    /// File spaces
-    Spaces,
-    /// Storage backends
-    Backends,
-    /// Sync rules
-    Rules,
+/// A permission principal — the actor a permission check is performed against.
+///
+/// Today every principal is an extension (`principal_id == extension_id`), so
+/// the permission layer behaves exactly as before. `ExternalClient` is wired in
+/// ahead of the external-bridge work where clients become first-class
+/// principals sharing the same `haex_principal_permissions` machinery.
+//
+// `ExternalClient` + `kind_str` are not constructed/called in production yet
+// (only in unit tests) — they exist for the upcoming external-client phases.
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum Principal {
+    Extension(String),
+    ExternalClient(String),
 }
 
-impl FileSyncTarget {
-    pub fn as_str(&self) -> &str {
+impl Principal {
+    /// The principal's id — the value stored in `haex_principal_permissions.principal_id`.
+    pub fn id(&self) -> &str {
         match self {
-            FileSyncTarget::All => "*",
-            FileSyncTarget::Spaces => "spaces",
-            FileSyncTarget::Backends => "backends",
-            FileSyncTarget::Rules => "rules",
+            Self::Extension(i) | Self::ExternalClient(i) => i,
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "*" => Some(FileSyncTarget::All),
-            "spaces" => Some(FileSyncTarget::Spaces),
-            "backends" => Some(FileSyncTarget::Backends),
-            "rules" => Some(FileSyncTarget::Rules),
-            _ => None,
+    /// The principal kind as it is persisted in `haex_principals.kind`.
+    #[allow(dead_code)]
+    pub fn kind_str(&self) -> &'static str {
+        match self {
+            Self::Extension(_) => "extension",
+            Self::ExternalClient(_) => "external_client",
         }
     }
 
-    /// Checks if this target matches the required target
-    pub fn matches(&self, required: FileSyncTarget) -> bool {
-        match self {
-            FileSyncTarget::All => true, // * matches everything
-            other => *other == required,
-        }
+    /// Whether this principal is an extension. Used to gate extension-only
+    /// behaviour (e.g. auto-allowed own tables) that external clients lack.
+    pub fn is_extension(&self) -> bool {
+        matches!(self, Self::Extension(_))
     }
 }
 
 // --- Spezifische Aktionen ---
 
 /// Definiert Aktionen, die auf eine Datenbank angewendet werden können.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum DbAction {
@@ -104,7 +102,7 @@ impl FromStr for DbAction {
 }
 
 /// Definiert Aktionen, die auf das Dateisystem angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum FsAction {
@@ -148,7 +146,7 @@ impl FromStr for FsAction {
 }
 
 /// Definiert Aktionen (HTTP-Methoden), die auf Web-Anfragen angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "UPPERCASE")]
 #[ts(export)]
 pub enum WebAction {
@@ -181,7 +179,7 @@ impl FromStr for WebAction {
 }
 
 /// Definiert Aktionen, die auf Shell-Befehle angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum ShellAction {
@@ -202,37 +200,46 @@ impl FromStr for ShellAction {
     }
 }
 
-/// Definiert Aktionen, die auf FileSync (Cloud-Sync) angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+/// Generische Read/ReadWrite-Aktion, geteilt von den Sync-Ressourcen
+/// (`SyncServers`, `CloudStorage`, `SyncRules`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub enum FileSyncAction {
+pub enum RwAction {
     Read,
     ReadWrite,
 }
 
-impl FileSyncAction {
+impl RwAction {
     /// Prüft, ob diese Aktion Lesezugriff gewährt.
     pub fn allows_read(&self) -> bool {
-        matches!(self, FileSyncAction::Read | FileSyncAction::ReadWrite)
+        matches!(self, RwAction::Read | RwAction::ReadWrite)
     }
 
     /// Prüft, ob diese Aktion Schreibzugriff gewährt.
     pub fn allows_write(&self) -> bool {
-        matches!(self, FileSyncAction::ReadWrite)
+        matches!(self, RwAction::ReadWrite)
+    }
+
+    /// Returns the action as a string for serialization
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RwAction::Read => "read",
+            RwAction::ReadWrite => "readWrite",
+        }
     }
 }
 
-impl FromStr for FileSyncAction {
+impl FromStr for RwAction {
     type Err = ExtensionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "read" => Ok(FileSyncAction::Read),
-            "readwrite" | "read_write" => Ok(FileSyncAction::ReadWrite),
+            "read" => Ok(RwAction::Read),
+            "readwrite" | "read_write" => Ok(RwAction::ReadWrite),
             _ => Err(ExtensionError::InvalidActionString {
                 input: s.to_string(),
-                resource_type: "filesync".to_string(),
+                resource_type: "rwAction".to_string(),
             }),
         }
     }
@@ -240,7 +247,7 @@ impl FromStr for FileSyncAction {
 
 /// Definiert Aktionen, die auf Shared Spaces angewendet werden können.
 /// Read = Spaces lesen/anzeigen, ReadWrite = zusätzlich Spaces anlegen.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum SpaceAction {
@@ -249,13 +256,17 @@ pub enum SpaceAction {
 }
 
 /// Definiert Aktionen, die auf Identitäten angewendet werden können.
-/// Read-only: Extensions können Identitäten nur auflisten/anzeigen.
-/// Erstellen und Löschen bleibt haex-vault vorbehalten.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+///
+/// Read = list/view identities + contacts. Write = add a NEW contact only
+/// (private_key NULL); never returns/sets private_key, never creates/deletes
+/// owned identities. Enforcement lives in the identity bridge commands
+/// (later phase).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum IdentityAction {
     Read,
+    Write,
 }
 
 impl SpaceAction {
@@ -284,8 +295,23 @@ impl FromStr for SpaceAction {
 }
 
 impl IdentityAction {
+    /// Read und Write sind DISTINCT capabilities, keine Hierarchie:
+    /// Write impliziert kein Read.
     pub fn allows_read(&self) -> bool {
         matches!(self, IdentityAction::Read)
+    }
+
+    /// Write = add a NEW contact only; impliziert kein Read.
+    pub fn allows_write(&self) -> bool {
+        matches!(self, IdentityAction::Write)
+    }
+
+    /// Returns the action as a string for serialization
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            IdentityAction::Read => "read",
+            IdentityAction::Write => "write",
+        }
     }
 }
 
@@ -295,6 +321,7 @@ impl FromStr for IdentityAction {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "read" => Ok(IdentityAction::Read),
+            "write" => Ok(IdentityAction::Write),
             _ => Err(ExtensionError::InvalidActionString {
                 input: s.to_string(),
                 resource_type: "identities".to_string(),
@@ -314,7 +341,7 @@ impl FromStr for IdentityAction {
 /// `Fetch` umfasst alle IMAP-Operationen (LIST, FETCH, STORE/Flags, MOVE,
 /// DELETE, APPEND) — extra read/write-Trennung lohnt nicht, weil "lesen"
 /// bei IMAP bereits den vollen Datenzugriff bedeutet.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum MailAction {
@@ -351,7 +378,7 @@ impl FromStr for MailAction {
 /// Aktuell nur `Show` (OS-Notification anzeigen). `target` ist immer "*" —
 /// Notifications sind nicht ressourcen-gescoped; die Identität wird über den
 /// Public Key der aufrufenden Extension gepinnt (siehe `extension::notifications`).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum NotificationsAction {
@@ -386,7 +413,7 @@ impl FromStr for NotificationsAction {
 /// (z.B. target="calendar" => nur Items mit Tag "calendar", target="*" => alle).
 /// Writes müssen mindestens ein Tag innerhalb des erlaubten Scopes setzen –
 /// Enforcement geschieht in den Bridge-Commands.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum PasswordsAction {
@@ -427,23 +454,48 @@ impl FromStr for PasswordsAction {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PasswordsScope {
     /// Wildcard — Extension darf auf Einträge mit beliebigen Tags zugreifen.
+    /// Vollzugriff hat kein Default-Label (nichts wird beim Erstellen erzwungen).
     All,
     /// Extension darf nur auf Einträge zugreifen die mindestens eines dieser
     /// Tags haben.
-    Tags(Vec<String>),
+    ///
+    /// `default` ist das *Default-Label*, das neu erstellten Einträgen
+    /// automatisch zugewiesen wird:
+    /// - Genau ein erlaubtes Label → dieses ist implizit der Default.
+    /// - Mehrere erlaubte Labels → genau eine Permission-Row muss explizit per
+    ///   `{"default":true}` markiert sein; `default` trägt dann dieses Label.
+    /// - Read-only-Scopes brauchen keinen Default (`None` ist erlaubt).
+    Tags {
+        tags: Vec<String>,
+        default: Option<String>,
+    },
+}
+
+impl PasswordsScope {
+    /// Das Default-Label dieses Scopes (das neu erstellten Einträgen
+    /// zugewiesen wird). `All` und ein Read-only-`Tags`-Scope ohne Default
+    /// liefern `None`.
+    pub fn default_label(&self) -> Option<&str> {
+        match self {
+            PasswordsScope::All => None,
+            PasswordsScope::Tags { default, .. } => default.as_deref(),
+        }
+    }
 }
 
 // --- Haupt-Typen für Berechtigungen ---
 
 /// Ein typsicherer Container, der die spezifische Aktion für einen Ressourcentyp enthält.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub enum Action {
     Database(DbAction),
     Filesystem(FsAction),
     Web(WebAction),
     Shell(ShellAction),
-    FileSync(FileSyncAction),
+    SyncServers(RwAction),
+    CloudStorage(RwAction),
+    SyncRules(RwAction),
     Spaces(SpaceAction),
     Identities(IdentityAction),
     Passwords(PasswordsAction),
@@ -457,13 +509,26 @@ pub enum Action {
 #[ts(export)]
 pub struct ExtensionPermission {
     pub id: String,
-    pub extension_id: String,
+    pub principal_id: String,
     pub resource_type: ResourceType,
     pub action: Action,
     pub target: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<PermissionConstraints>,
     pub status: PermissionStatus,
+    /// Raw, free-form constraints JSON for resource types whose constraints
+    /// can't be represented by the typed (untagged) [`PermissionConstraints`]
+    /// enum — currently only `passwords`, which marks its *default label* row
+    /// via `{"default": true}`.
+    ///
+    /// Backend-only write-path carrier: populated from the manifest in
+    /// `create_internal` and written to the DB `constraints` column by
+    /// `From<&ExtensionPermission> for HaexPrincipalPermissions`. The typed
+    /// `constraints` field above is left `None` for these rows. Never crosses
+    /// the JSON boundary to the frontend, hence `#[serde(skip)]` / `#[ts(skip)]`.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub raw_constraints: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, TS)]
@@ -474,7 +539,12 @@ pub enum ResourceType {
     Web,
     Db,
     Shell,
-    Filesync,
+    #[serde(rename = "syncServers")]
+    SyncServers,
+    #[serde(rename = "cloudStorage")]
+    CloudStorage,
+    #[serde(rename = "syncRules")]
+    SyncRules,
     Spaces,
     Identities,
     Passwords,
@@ -552,7 +622,64 @@ pub struct ShellConstraints {
     pub forbidden_args: Option<Vec<String>>,
 }
 
-// --- Konvertierungen zwischen ExtensionPermission und HaexExtensionPermissions ---
+// --- Konvertierungen zwischen ExtensionPermission und HaexPrincipalPermissions ---
+
+/// Splits a constraints **Value** into the `(typed, raw)` pair used by
+/// `ExtensionPermission`.
+///
+/// This is the single place that encodes the passwords-vs-other invariant:
+/// `passwords` rows mark their *default label* via a free-form
+/// `{"default":true}` constraint that the typed (untagged)
+/// [`PermissionConstraints`] enum can't represent, so they are kept *raw*
+/// (`constraints = None`, `raw_constraints = Some`). Every other resource type
+/// parses into the typed enum (`constraints = Some`, `raw_constraints = None`).
+///
+/// Used by the manifest path, whose input is already a `serde_json::Value`.
+pub(crate) fn split_constraints_value(
+    resource_type: ResourceType,
+    value: Option<&serde_json::Value>,
+) -> (Option<PermissionConstraints>, Option<serde_json::Value>) {
+    if resource_type == ResourceType::Passwords {
+        (None, value.cloned())
+    } else {
+        let typed = value.and_then(|v| serde_json::from_value(v.clone()).ok());
+        (typed, None)
+    }
+}
+
+/// Splits a constraints **text** column (DB `constraints`) into the
+/// `(typed, raw)` pair used by `ExtensionPermission`.
+///
+/// Same passwords-vs-other invariant as [`split_constraints_value`], but the
+/// input is the raw DB text (the READ/DB-text direction): for `passwords` the
+/// text is parsed into a free-form `Value` and kept raw; every other resource
+/// type parses the text into the typed enum.
+pub(crate) fn split_constraints(
+    resource_type: ResourceType,
+    raw_text: Option<&str>,
+) -> (Option<PermissionConstraints>, Option<serde_json::Value>) {
+    if resource_type == ResourceType::Passwords {
+        let raw = raw_text.and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
+        (None, raw)
+    } else {
+        let typed = raw_text.and_then(|s| serde_json::from_str(s).ok());
+        (typed, None)
+    }
+}
+
+/// Combines the `(typed, raw)` constraints pair back into the DB `constraints`
+/// text column (the WRITE direction).
+///
+/// Prefers the raw, free-form constraints (passwords `{"default":true}`) when
+/// present — the typed enum can't represent them. Otherwise falls back to
+/// serializing the typed constraints (Db/Fs/Web/Shell).
+pub(crate) fn combine_constraints(
+    typed: Option<&PermissionConstraints>,
+    raw: Option<&serde_json::Value>,
+) -> Option<String> {
+    raw.and_then(|c| serde_json::to_string(c).ok())
+        .or_else(|| typed.and_then(|c| serde_json::to_string(c).ok()))
+}
 
 impl ResourceType {
     pub fn as_str(&self) -> &str {
@@ -561,7 +688,9 @@ impl ResourceType {
             ResourceType::Web => "web",
             ResourceType::Db => "db",
             ResourceType::Shell => "shell",
-            ResourceType::Filesync => "filesync",
+            ResourceType::SyncServers => "syncServers",
+            ResourceType::CloudStorage => "cloudStorage",
+            ResourceType::SyncRules => "syncRules",
             ResourceType::Spaces => "spaces",
             ResourceType::Identities => "identities",
             ResourceType::Passwords => "passwords",
@@ -576,7 +705,9 @@ impl ResourceType {
             "web" => Ok(ResourceType::Web),
             "db" => Ok(ResourceType::Db),
             "shell" => Ok(ResourceType::Shell),
-            "filesync" => Ok(ResourceType::Filesync),
+            "syncServers" => Ok(ResourceType::SyncServers),
+            "cloudStorage" => Ok(ResourceType::CloudStorage),
+            "syncRules" => Ok(ResourceType::SyncRules),
             "spaces" => Ok(ResourceType::Spaces),
             "identities" => Ok(ResourceType::Identities),
             "passwords" => Ok(ResourceType::Passwords),
@@ -608,7 +739,15 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
-            Action::FileSync(action) => serde_json::to_string(action)
+            Action::SyncServers(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
+            Action::CloudStorage(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
+            Action::SyncRules(action) => serde_json::to_string(action)
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
@@ -650,7 +789,9 @@ impl Action {
                 Ok(Action::Web(action))
             }
             ResourceType::Shell => Ok(Action::Shell(ShellAction::from_str(s)?)),
-            ResourceType::Filesync => Ok(Action::FileSync(FileSyncAction::from_str(s)?)),
+            ResourceType::SyncServers => Ok(Action::SyncServers(RwAction::from_str(s)?)),
+            ResourceType::CloudStorage => Ok(Action::CloudStorage(RwAction::from_str(s)?)),
+            ResourceType::SyncRules => Ok(Action::SyncRules(RwAction::from_str(s)?)),
             ResourceType::Spaces => Ok(Action::Spaces(SpaceAction::from_str(s)?)),
             ResourceType::Identities => Ok(Action::Identities(IdentityAction::from_str(s)?)),
             ResourceType::Passwords => Ok(Action::Passwords(PasswordsAction::from_str(s)?)),
@@ -683,18 +824,18 @@ impl PermissionStatus {
     }
 }
 
-impl From<&ExtensionPermission> for crate::database::generated::HaexExtensionPermissions {
+impl From<&ExtensionPermission> for crate::database::generated::HaexPrincipalPermissions {
     fn from(perm: &ExtensionPermission) -> Self {
         Self {
             id: perm.id.clone(),
-            extension_id: perm.extension_id.clone(),
+            principal_id: perm.principal_id.clone(),
             resource_type: Some(perm.resource_type.as_str().to_string()),
             action: Some(perm.action.as_str().to_string()),
             target: Some(perm.target.clone()),
-            constraints: perm
-                .constraints
-                .as_ref()
-                .and_then(|c| serde_json::to_string(c).ok()),
+            constraints: combine_constraints(
+                perm.constraints.as_ref(),
+                perm.raw_constraints.as_ref(),
+            ),
             status: perm.status.as_str().to_string(),
             created_at: None,
             updated_at: None,
@@ -702,8 +843,8 @@ impl From<&ExtensionPermission> for crate::database::generated::HaexExtensionPer
     }
 }
 
-impl From<crate::database::generated::HaexExtensionPermissions> for ExtensionPermission {
-    fn from(db_perm: crate::database::generated::HaexExtensionPermissions) -> Self {
+impl From<crate::database::generated::HaexPrincipalPermissions> for ExtensionPermission {
+    fn from(db_perm: crate::database::generated::HaexPrincipalPermissions) -> Self {
         let resource_type = db_perm
             .resource_type
             .as_deref()
@@ -719,19 +860,18 @@ impl From<crate::database::generated::HaexExtensionPermissions> for ExtensionPer
         let status =
             PermissionStatus::from_str(db_perm.status.as_str()).unwrap_or(PermissionStatus::Denied);
 
-        let constraints = db_perm
-            .constraints
-            .as_deref()
-            .and_then(|s| serde_json::from_str(s).ok());
+        let (constraints, raw_constraints) =
+            split_constraints(resource_type, db_perm.constraints.as_deref());
 
         Self {
             id: db_perm.id,
-            extension_id: db_perm.extension_id,
+            principal_id: db_perm.principal_id,
             resource_type,
             action,
             target: db_perm.target.unwrap_or_default(),
             constraints,
             status,
+            raw_constraints,
         }
     }
 }

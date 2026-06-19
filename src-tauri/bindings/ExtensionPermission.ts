@@ -7,4 +7,4 @@ import type { ResourceType } from "./ResourceType";
 /**
  * Die interne Repräsentation einer einzelnen, gewährten Berechtigung.
  */
-export type ExtensionPermission = { id: string, extensionId: string, resourceType: ResourceType, action: Action, target: string, constraints: PermissionConstraints | null, status: PermissionStatus, };
+export type ExtensionPermission = { id: string, principalId: string, resourceType: ResourceType, action: Action, target: string, constraints: PermissionConstraints | null, status: PermissionStatus, };

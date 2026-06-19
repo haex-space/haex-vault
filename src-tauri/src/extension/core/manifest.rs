@@ -1,7 +1,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, IdentityAction, MailAction,
-    NotificationsAction, PasswordsAction, PermissionConstraints, PermissionStatus, ResourceType,
+    split_constraints_value, Action, DbAction, ExtensionPermission, FsAction, IdentityAction,
+    MailAction, NotificationsAction, PasswordsAction, PermissionStatus, ResourceType, RwAction,
     ShellAction, SpaceAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
@@ -84,8 +84,12 @@ pub struct ExtensionPermissions {
     pub http: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub shell: Option<Vec<PermissionEntry>>,
-    #[serde(default)]
-    pub filesync: Option<Vec<PermissionEntry>>,
+    #[serde(default, rename = "syncServers")]
+    pub sync_servers: Option<Vec<PermissionEntry>>,
+    #[serde(default, rename = "cloudStorage")]
+    pub cloud_storage: Option<Vec<PermissionEntry>>,
+    #[serde(default, rename = "syncRules")]
+    pub sync_rules: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub spaces: Option<Vec<PermissionEntry>>,
     #[serde(default)]
@@ -185,7 +189,9 @@ impl ExtensionManifest {
         set_status_for_list(editable.filesystem.as_mut());
         set_status_for_list(editable.http.as_mut());
         set_status_for_list(editable.shell.as_mut());
-        set_status_for_list(editable.filesync.as_mut());
+        set_status_for_list(editable.sync_servers.as_mut());
+        set_status_for_list(editable.cloud_storage.as_mut());
+        set_status_for_list(editable.sync_rules.as_mut());
         set_status_for_list(editable.spaces.as_mut());
         set_status_for_list(editable.identities.as_mut());
         set_status_for_list(editable.passwords.as_mut());
@@ -229,9 +235,28 @@ impl ExtensionPermissions {
                 }
             }
         }
-        if let Some(entries) = &self.filesync {
+        if let Some(entries) = &self.sync_servers {
             for p in entries {
-                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Filesync, p) {
+                if let Some(perm) =
+                    Self::create_internal(extension_id, ResourceType::SyncServers, p)
+                {
+                    permissions.push(perm);
+                }
+            }
+        }
+        if let Some(entries) = &self.cloud_storage {
+            for p in entries {
+                if let Some(perm) =
+                    Self::create_internal(extension_id, ResourceType::CloudStorage, p)
+                {
+                    permissions.push(perm);
+                }
+            }
+        }
+        if let Some(entries) = &self.sync_rules {
+            for p in entries {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::SyncRules, p)
+                {
                     permissions.push(perm);
                 }
             }
@@ -301,9 +326,15 @@ impl ExtensionPermissions {
                 }
             }
             ResourceType::Shell => ShellAction::from_str(operation_str).ok().map(Action::Shell),
-            ResourceType::Filesync => FileSyncAction::from_str(operation_str)
+            ResourceType::SyncServers => RwAction::from_str(operation_str)
                 .ok()
-                .map(Action::FileSync),
+                .map(Action::SyncServers),
+            ResourceType::CloudStorage => RwAction::from_str(operation_str)
+                .ok()
+                .map(Action::CloudStorage),
+            ResourceType::SyncRules => RwAction::from_str(operation_str)
+                .ok()
+                .map(Action::SyncRules),
             ResourceType::Spaces => SpaceAction::from_str(operation_str)
                 .ok()
                 .map(Action::Spaces),
@@ -319,17 +350,23 @@ impl ExtensionPermissions {
                 .map(Action::Notifications),
         };
 
+        // Passwords mark their default-label row via a free-form `{"default":true}`
+        // constraint that the typed (untagged) `PermissionConstraints` enum can't
+        // represent. The passwords-vs-other invariant lives in
+        // `permissions::types::split_constraints_value` (single source of truth)
+        // so a construction site can't silently get it wrong.
+        let (constraints, raw_constraints) =
+            split_constraints_value(resource_type, p.constraints.as_ref());
+
         action.map(|act| ExtensionPermission {
             id: uuid::Uuid::new_v4().to_string(),
-            extension_id: extension_id.to_string(),
+            principal_id: extension_id.to_string(),
             resource_type: resource_type.clone(),
             action: act,
             target: p.target.clone(),
-            constraints: p
-                .constraints
-                .as_ref()
-                .and_then(|c| serde_json::from_value::<PermissionConstraints>(c.clone()).ok()),
+            constraints,
             status: p.status.clone().unwrap_or(PermissionStatus::Ask),
+            raw_constraints,
         })
     }
 }

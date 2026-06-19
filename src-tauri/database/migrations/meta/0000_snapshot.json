@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "22fa68b8-1451-4dc4-a64d-905f4aa4b2c1",
+  "id": "10d1c118-f5c9-4145-b536-bbdfc497eb47",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_desktop_items_no_sync": {
@@ -798,6 +798,76 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "haex_principals": {
+      "name": "haex_principals",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "haex_principals_public_key_kind_unique": {
+          "name": "haex_principals_public_key_kind_unique",
+          "columns": [
+            "public_key",
+            "kind"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "haex_vault_settings": {
       "name": "haex_vault_settings",
       "columns": {
@@ -1219,6 +1289,93 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "haex_critical_notifications_no_sync": {
+      "name": "haex_critical_notifications_no_sync",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "params": {
+          "name": "params",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "first_seen": {
+          "name": "first_seen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_seen": {
+          "name": "last_seen",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "acknowledged": {
+          "name": "acknowledged",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "haex_critical_notifications_unacked_idx": {
+          "name": "haex_critical_notifications_unacked_idx",
+          "columns": [
+            "acknowledged",
+            "last_seen"
+          ],
+          "isUnique": false,
+          "where": "\"haex_critical_notifications_no_sync\".\"acknowledged\" = 0"
+        },
+        "haex_critical_notifications_dedup_idx": {
+          "name": "haex_critical_notifications_dedup_idx",
+          "columns": [
+            "code",
+            "location",
+            "acknowledged"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "haex_devices": {
       "name": "haex_devices",
       "columns": {
@@ -1229,11 +1386,18 @@
           "notNull": true,
           "autoincrement": false
         },
+        "owner_did": {
+          "name": "owner_did",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "device_id": {
           "name": "device_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "endpoint_id": {
@@ -1247,7 +1411,7 @@
           "name": "secret_key",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "name": {
@@ -1303,8 +1467,82 @@
           "isUnique": true
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "haex_devices_owner_did_fk": {
+          "name": "haex_devices_owner_did_fk",
+          "tableFrom": "haex_devices",
+          "tableTo": "haex_identities",
+          "columnsFrom": [
+            "owner_did"
+          ],
+          "columnsTo": [
+            "did"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "haex_peer_downloads_no_sync": {
+      "name": "haex_peer_downloads_no_sync",
+      "columns": {
+        "endpoint_id": {
+          "name": "endpoint_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "remote_path": {
+          "name": "remote_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "modified": {
+          "name": "modified",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "local_path": {
+          "name": "local_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "downloaded_at": {
+          "name": "downloaded_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "haex_peer_downloads_no_sync_endpoint_id_remote_path_pk": {
+          "columns": [
+            "endpoint_id",
+            "remote_path"
+          ],
+          "name": "haex_peer_downloads_no_sync_endpoint_id_remote_path_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -1788,6 +2026,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "inviter_relay_url": {
+          "name": "inviter_relay_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "capabilities": {
           "name": "capabilities",
           "type": "text",
@@ -2141,6 +2386,113 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "haex_marketplaces": {
+      "name": "haex_marketplaces",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "base_url": {
+          "name": "base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 100
+        },
+        "auth_type": {
+          "name": "auth_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'none'"
+        },
+        "auth_token": {
+          "name": "auth_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "auth_username": {
+          "name": "auth_username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "auth_password": {
+          "name": "auth_password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "auth_identity_id": {
+          "name": "auth_identity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -3490,6 +3842,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "haex_peer_shares_device_id_haex_devices_id_fk": {
+          "name": "haex_peer_shares_device_id_haex_devices_id_fk",
+          "tableFrom": "haex_peer_shares",
+          "tableTo": "haex_devices",
+          "columnsFrom": [
+            "device_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -3726,6 +4091,14 @@
             "device_id"
           ],
           "isUnique": true
+        },
+        "haex_space_devices_space_endpoint_unique": {
+          "name": "haex_space_devices_space_endpoint_unique",
+          "columns": [
+            "space_id",
+            "endpoint_id"
+          ],
+          "isUnique": true
         }
       },
       "foreignKeys": {
@@ -3752,7 +4125,20 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "haex_space_devices_device_id_haex_devices_id_fk": {
+          "name": "haex_space_devices_device_id_haex_devices_id_fk",
+          "tableFrom": "haex_space_devices",
+          "tableTo": "haex_devices",
+          "columnsFrom": [
+            "device_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

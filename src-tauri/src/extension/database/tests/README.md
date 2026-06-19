@@ -97,7 +97,7 @@ Due to Tauri State dependencies, permission validation logic requires manual tes
 1. Extension with `database.read` permission on `*`
 2. Try to execute: `SELECT * FROM haex_extensions`
 3. **Expected**: PermissionDenied error
-4. Repeat for other system tables: `haex_extension_permissions`, `haex_vault_settings`, `haex_passwords`
+4. Repeat for other system tables: `haex_principal_permissions`, `haex_vault_settings`, `haex_passwords`
 
 ### Test 4: Extension Cannot Access sqlite_master ✗
 1. Extension with `database.read` permission on `*`
@@ -146,9 +146,9 @@ After manual testing, verify results by checking:
 SELECT id, name, public_key FROM haex_extensions;
 
 -- Check permissions were granted correctly
-SELECT extension_id, resource_type, action, target, status
-FROM haex_extension_permissions
-WHERE extension_id = '{your_extension_id}';
+SELECT principal_id, resource_type, action, target, status
+FROM haex_principal_permissions
+WHERE principal_id = '{your_extension_id}';
 
 -- Check which migrations were stored (should only be valid ones)
 SELECT extension_id, migration_name, sql_statement
