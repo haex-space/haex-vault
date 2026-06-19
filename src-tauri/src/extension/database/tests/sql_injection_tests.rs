@@ -276,7 +276,7 @@ fn test_system_table_detection_comprehensive() {
     let system_tables = [
         "haex_extensions",
         "haex_vault_settings",
-        "haex_extension_permissions",
+        "haex_principal_permissions",
         crate::table_names::TABLE_EXTENSION_MIGRATIONS,
         "haex_crdt_migrations",
         "haex_crdt_tombstones",
