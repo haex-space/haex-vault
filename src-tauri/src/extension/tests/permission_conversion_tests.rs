@@ -7,8 +7,11 @@
 //! the DB `constraints` column intact.
 
 use crate::database::generated::HaexPrincipalPermissions;
+use crate::extension::convert_to_editable_permissions;
 use crate::extension::core::manifest::{ExtensionPermissions, PermissionEntry};
-use crate::extension::permissions::types::ResourceType;
+use crate::extension::permissions::types::{
+    Action, ExtensionPermission, PasswordsAction, PermissionStatus, ResourceType,
+};
 use serde_json::json;
 
 fn passwords_entry(target: &str, default: bool) -> PermissionEntry {
@@ -93,4 +96,30 @@ fn passwords_db_roundtrip_preserves_marker() {
     assert_eq!(restored.resource_type, ResourceType::Passwords);
     assert!(restored.constraints.is_none());
     assert_eq!(restored.raw_constraints, Some(json!({ "default": true })));
+}
+
+#[test]
+fn convert_to_editable_preserves_passwords_default_marker() {
+    // The editable-view conversion (get -> edit UI) must surface the raw
+    // `{"default":true}` marker carried in `raw_constraints` — it is NOT routed
+    // through the split helper, so it gets its own focused coverage.
+    let perm = ExtensionPermission {
+        id: "perm_1".to_string(),
+        principal_id: "ext_1".to_string(),
+        resource_type: ResourceType::Passwords,
+        action: Action::Passwords(PasswordsAction::ReadWrite),
+        target: "work".to_string(),
+        constraints: None,
+        status: PermissionStatus::Granted,
+        raw_constraints: Some(json!({ "default": true })),
+    };
+
+    let editable = convert_to_editable_permissions(vec![perm]);
+    let passwords = editable.passwords.expect("passwords bucket present");
+    assert_eq!(passwords.len(), 1);
+    assert_eq!(
+        passwords[0].constraints,
+        Some(json!({ "default": true })),
+        "default-label marker must survive the editable-view conversion"
+    );
 }
