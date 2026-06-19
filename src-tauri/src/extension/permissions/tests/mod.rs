@@ -12,4 +12,6 @@ mod principal;
 #[cfg(test)]
 mod silent_read_tests;
 #[cfg(test)]
+mod types_tests;
+#[cfg(test)]
 mod url_pattern_tests;

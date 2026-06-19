@@ -2,7 +2,10 @@
 
 /**
  * Definiert Aktionen, die auf Identitäten angewendet werden können.
- * Read-only: Extensions können Identitäten nur auflisten/anzeigen.
- * Erstellen und Löschen bleibt haex-vault vorbehalten.
+ *
+ * Read = list/view identities + contacts. Write = add a NEW contact only
+ * (private_key NULL); never returns/sets private_key, never creates/deletes
+ * owned identities. Enforcement lives in the identity bridge commands
+ * (later phase).
  */
-export type IdentityAction = "read";
+export type IdentityAction = "read" | "write";

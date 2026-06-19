@@ -256,13 +256,17 @@ pub enum SpaceAction {
 }
 
 /// Definiert Aktionen, die auf Identitäten angewendet werden können.
-/// Read-only: Extensions können Identitäten nur auflisten/anzeigen.
-/// Erstellen und Löschen bleibt haex-vault vorbehalten.
+///
+/// Read = list/view identities + contacts. Write = add a NEW contact only
+/// (private_key NULL); never returns/sets private_key, never creates/deletes
+/// owned identities. Enforcement lives in the identity bridge commands
+/// (later phase).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum IdentityAction {
     Read,
+    Write,
 }
 
 impl SpaceAction {
@@ -291,8 +295,23 @@ impl FromStr for SpaceAction {
 }
 
 impl IdentityAction {
+    /// Read und Write sind DISTINCT capabilities, keine Hierarchie:
+    /// Write impliziert kein Read.
     pub fn allows_read(&self) -> bool {
         matches!(self, IdentityAction::Read)
+    }
+
+    /// Write = add a NEW contact only; impliziert kein Read.
+    pub fn allows_write(&self) -> bool {
+        matches!(self, IdentityAction::Write)
+    }
+
+    /// Returns the action as a string for serialization
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            IdentityAction::Read => "read",
+            IdentityAction::Write => "write",
+        }
     }
 }
 
@@ -302,6 +321,7 @@ impl FromStr for IdentityAction {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "read" => Ok(IdentityAction::Read),
+            "write" => Ok(IdentityAction::Write),
             _ => Err(ExtensionError::InvalidActionString {
                 input: s.to_string(),
                 resource_type: "identities".to_string(),
