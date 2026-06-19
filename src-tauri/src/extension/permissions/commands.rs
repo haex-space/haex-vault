@@ -11,7 +11,7 @@ use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FsAction, PasswordsAction, PermissionStatus, Principal,
-    ResourceType, WebAction,
+    ResourceType, RwAction, WebAction,
 };
 use crate::extension::utils::{
     resolve_extension_id, PermissionResolvedPayload, EVENT_PERMISSION_RESOLVED,
@@ -23,6 +23,16 @@ use tauri::{AppHandle, State, WebviewWindow};
 // emitted to the main window directly, which needs the Emitter trait in scope.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 use tauri::Emitter;
+
+/// Parses a read/readWrite action string for the shared sync resources
+/// (`syncServers`, `cloudStorage`, `syncRules`). Defaults to `Read` for
+/// unknown values, mirroring the lenient parsing used for other resources.
+fn parse_rw_action(action: &str) -> RwAction {
+    match action.to_lowercase().as_str() {
+        "readwrite" | "read_write" => RwAction::ReadWrite,
+        _ => RwAction::Read,
+    }
+}
 
 // =============================================================================
 // Permission Check Commands (unified for WebView and iframe)
@@ -250,7 +260,9 @@ pub async fn resolve_permission_prompt(
         "web" => ResourceType::Web,
         "fs" => ResourceType::Fs,
         "shell" => ResourceType::Shell,
-        "filesync" => ResourceType::Filesync,
+        "syncServers" => ResourceType::SyncServers,
+        "cloudStorage" => ResourceType::CloudStorage,
+        "syncRules" => ResourceType::SyncRules,
         "spaces" => ResourceType::Spaces,
         "identities" => ResourceType::Identities,
         "passwords" => ResourceType::Passwords,
@@ -288,16 +300,9 @@ pub async fn resolve_permission_prompt(
         ResourceType::Shell => {
             Action::Shell(crate::extension::permissions::types::ShellAction::Execute)
         }
-        ResourceType::Filesync => {
-            let filesync_action = match action.to_lowercase().as_str() {
-                "read" => crate::extension::permissions::types::FileSyncAction::Read,
-                "readwrite" | "read_write" => {
-                    crate::extension::permissions::types::FileSyncAction::ReadWrite
-                }
-                _ => crate::extension::permissions::types::FileSyncAction::Read,
-            };
-            Action::FileSync(filesync_action)
-        }
+        ResourceType::SyncServers => Action::SyncServers(parse_rw_action(&action)),
+        ResourceType::CloudStorage => Action::CloudStorage(parse_rw_action(&action)),
+        ResourceType::SyncRules => Action::SyncRules(parse_rw_action(&action)),
         ResourceType::Spaces => {
             let space_action = match action.to_lowercase().as_str() {
                 "read" => crate::extension::permissions::types::SpaceAction::Read,

@@ -5,9 +5,8 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, FileSyncAction, FileSyncTarget, MailAction, NotificationsAction,
-    PasswordsAction, PasswordsScope, PermissionConstraints, PermissionStatus, Principal,
-    ResourceType, SpaceAction,
+    Action, ExtensionPermission, MailAction, NotificationsAction, PasswordsAction, PasswordsScope,
+    PermissionConstraints, PermissionStatus, Principal, ResourceType, RwAction, SpaceAction,
 };
 use crate::table_names::TABLE_PRINCIPAL_PERMISSIONS;
 use crate::AppState;
@@ -736,24 +735,77 @@ impl PermissionManager {
         }
     }
 
-    /// Prüft FileSync-Berechtigungen (Cloud-Sync-API)
-    /// Returns PermissionPromptRequired if status is Ask or no permission exists
-    /// Returns PermissionDenied if status is explicitly Denied
+    /// Prüft Sync-Home-Server-Berechtigungen (`haex_sync_backends`).
     ///
-    /// Targets:
-    /// - "*" → All FileSync resources
-    /// - "spaces" → File spaces
-    /// - "backends" → Storage backends
-    /// - "rules" → Sync rules
-    pub async fn check_filesync_permission(
+    /// Action-level wie `check_spaces_permission`; `target` ist immer "*".
+    /// Read = lesen/auflisten, ReadWrite = zusätzlich anlegen/ändern/löschen.
+    #[allow(dead_code)]
+    pub async fn check_sync_servers_permission(
         app_state: &State<'_, AppState>,
         principal: &Principal,
-        action: FileSyncAction,
-        target: FileSyncTarget,
+        action: RwAction,
+    ) -> Result<(), ExtensionError> {
+        Self::check_rw_resource_permission(
+            app_state,
+            principal,
+            action,
+            ResourceType::SyncServers,
+            "syncServers",
+        )
+        .await
+    }
+
+    /// Prüft Cloud-Storage-Berechtigungen (`haex_storage_backends`, S3/WebDAV).
+    ///
+    /// Action-level wie `check_spaces_permission`; `target` ist immer "*".
+    /// Read = lesen/auflisten, ReadWrite = zusätzlich anlegen/ändern/löschen.
+    pub async fn check_cloud_storage_permission(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+        action: RwAction,
+    ) -> Result<(), ExtensionError> {
+        Self::check_rw_resource_permission(
+            app_state,
+            principal,
+            action,
+            ResourceType::CloudStorage,
+            "cloudStorage",
+        )
+        .await
+    }
+
+    /// Prüft Sync-Rules-Berechtigungen (`haex_sync_rules`).
+    ///
+    /// Action-level wie `check_spaces_permission`; `target` ist immer "*".
+    /// Read = lesen/auflisten, ReadWrite = zusätzlich anlegen/ändern/löschen.
+    #[allow(dead_code)]
+    pub async fn check_sync_rules_permission(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+        action: RwAction,
+    ) -> Result<(), ExtensionError> {
+        Self::check_rw_resource_permission(
+            app_state,
+            principal,
+            action,
+            ResourceType::SyncRules,
+            "syncRules",
+        )
+        .await
+    }
+
+    /// Gemeinsame Logik für die action-level Read/ReadWrite-Ressourcen
+    /// (`SyncServers`, `CloudStorage`, `SyncRules`). `target` ist immer "*";
+    /// es wird kein Sub-Target-Matching mehr durchgeführt.
+    async fn check_rw_resource_permission(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+        action: RwAction,
+        resource_type: ResourceType,
+        resource_label: &str,
     ) -> Result<(), ExtensionError> {
         let extension_id = principal.id();
 
-        // Get extension for name lookup
         let extension = app_state
             .extension_manager
             .get_extension(extension_id)
@@ -764,39 +816,27 @@ impl PermissionManager {
 
         let permissions = Self::get_permissions(app_state, principal).await?;
 
-        // Helper to check if action allows the required action
-        let action_allows = |perm_action: &Action, required: &FileSyncAction| -> bool {
-            match perm_action {
-                Action::FileSync(fs_action) => match (fs_action, required) {
-                    // Exact match
-                    (a, b) if a == b => true,
-                    // ReadWrite includes Read
-                    (FileSyncAction::ReadWrite, FileSyncAction::Read) => true,
-                    _ => false,
-                },
+        // Action allows the required action if it is the matching RwAction
+        // variant for this resource and ReadWrite implicitly grants Read.
+        let action_allows = |perm_action: &Action| -> bool {
+            let perm_rw = match (resource_type, perm_action) {
+                (ResourceType::SyncServers, Action::SyncServers(a)) => Some(a),
+                (ResourceType::CloudStorage, Action::CloudStorage(a)) => Some(a),
+                (ResourceType::SyncRules, Action::SyncRules(a)) => Some(a),
+                _ => None,
+            };
+            match perm_rw {
+                Some(a) if *a == action => true,
+                Some(RwAction::ReadWrite) if action == RwAction::Read => true,
                 _ => false,
             }
         };
 
-        // Helper to check if target matches
-        let target_matches = |perm_target: &str, required: FileSyncTarget| -> bool {
-            FileSyncTarget::from_str(perm_target)
-                .map(|t| t.matches(required))
-                .unwrap_or(false)
-        };
+        let matching_permission = permissions
+            .iter()
+            .find(|perm| perm.resource_type == resource_type && action_allows(&perm.action));
 
-        // Find matching permission for this target and action
-        let matching_permission = permissions.iter().find(|perm| {
-            perm.resource_type == ResourceType::Filesync
-                && action_allows(&perm.action, &action)
-                && target_matches(&perm.target, target)
-        });
-
-        let target_str = target.as_str();
-        let action_str = match action {
-            FileSyncAction::Read => "read",
-            FileSyncAction::ReadWrite => "readWrite",
-        };
+        let action_str = action.as_str();
 
         match matching_permission {
             Some(perm) => match perm.status {
@@ -804,45 +844,40 @@ impl PermissionManager {
                 PermissionStatus::Denied => Err(ExtensionError::permission_denied(
                     extension_id,
                     action_str,
-                    &format!("filesync:{}", target_str),
+                    &format!("{resource_label}:*"),
                 )),
                 PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
                     extension_id,
                     &extension.manifest.name,
-                    "filesync",
+                    resource_label,
                     action_str,
-                    target_str,
+                    "*",
                 )),
             },
-            // No matching permission in database - check session permissions
             None => {
-                // Check session permissions first
-                if app_state.session_permissions.is_granted(
-                    extension_id,
-                    ResourceType::Filesync,
-                    target_str,
-                ) {
+                if app_state
+                    .session_permissions
+                    .is_granted(extension_id, resource_type, "*")
+                {
                     return Ok(());
                 }
-                if app_state.session_permissions.is_denied(
-                    extension_id,
-                    ResourceType::Filesync,
-                    target_str,
-                ) {
+                if app_state
+                    .session_permissions
+                    .is_denied(extension_id, resource_type, "*")
+                {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         action_str,
-                        &format!("filesync:{}", target_str),
+                        &format!("{resource_label}:*"),
                     ));
                 }
 
-                // No session permission either - prompt the user
                 Err(ExtensionError::permission_prompt_required(
                     extension_id,
                     &extension.manifest.name,
-                    "filesync",
+                    resource_label,
                     action_str,
-                    target_str,
+                    "*",
                 ))
             }
         }
@@ -1263,7 +1298,9 @@ impl PermissionManager {
             "web" => Ok(ResourceType::Web),
             "db" => Ok(ResourceType::Db),
             "shell" => Ok(ResourceType::Shell),
-            "filesync" => Ok(ResourceType::Filesync),
+            "syncServers" => Ok(ResourceType::SyncServers),
+            "cloudStorage" => Ok(ResourceType::CloudStorage),
+            "syncRules" => Ok(ResourceType::SyncRules),
             "spaces" => Ok(ResourceType::Spaces),
             "identities" => Ok(ResourceType::Identities),
             _ => Err(DatabaseError::SerializationError {

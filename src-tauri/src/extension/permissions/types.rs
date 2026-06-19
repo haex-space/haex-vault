@@ -43,48 +43,6 @@ impl Principal {
     }
 }
 
-/// FileSync target types for permission matching
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum FileSyncTarget {
-    /// All FileSync resources
-    All,
-    /// File spaces
-    Spaces,
-    /// Storage backends
-    Backends,
-    /// Sync rules
-    Rules,
-}
-
-impl FileSyncTarget {
-    pub fn as_str(&self) -> &str {
-        match self {
-            FileSyncTarget::All => "*",
-            FileSyncTarget::Spaces => "spaces",
-            FileSyncTarget::Backends => "backends",
-            FileSyncTarget::Rules => "rules",
-        }
-    }
-
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "*" => Some(FileSyncTarget::All),
-            "spaces" => Some(FileSyncTarget::Spaces),
-            "backends" => Some(FileSyncTarget::Backends),
-            "rules" => Some(FileSyncTarget::Rules),
-            _ => None,
-        }
-    }
-
-    /// Checks if this target matches the required target
-    pub fn matches(&self, required: FileSyncTarget) -> bool {
-        match self {
-            FileSyncTarget::All => true, // * matches everything
-            other => *other == required,
-        }
-    }
-}
-
 // --- Spezifische Aktionen ---
 
 /// Definiert Aktionen, die auf eine Datenbank angewendet werden können.
@@ -242,37 +200,46 @@ impl FromStr for ShellAction {
     }
 }
 
-/// Definiert Aktionen, die auf FileSync (Cloud-Sync) angewendet werden können.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+/// Generische Read/ReadWrite-Aktion, geteilt von den Sync-Ressourcen
+/// (`SyncServers`, `CloudStorage`, `SyncRules`).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub enum FileSyncAction {
+pub enum RwAction {
     Read,
     ReadWrite,
 }
 
-impl FileSyncAction {
+impl RwAction {
     /// Prüft, ob diese Aktion Lesezugriff gewährt.
     pub fn allows_read(&self) -> bool {
-        matches!(self, FileSyncAction::Read | FileSyncAction::ReadWrite)
+        matches!(self, RwAction::Read | RwAction::ReadWrite)
     }
 
     /// Prüft, ob diese Aktion Schreibzugriff gewährt.
     pub fn allows_write(&self) -> bool {
-        matches!(self, FileSyncAction::ReadWrite)
+        matches!(self, RwAction::ReadWrite)
+    }
+
+    /// Returns the action as a string for serialization
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RwAction::Read => "read",
+            RwAction::ReadWrite => "readWrite",
+        }
     }
 }
 
-impl FromStr for FileSyncAction {
+impl FromStr for RwAction {
     type Err = ExtensionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "read" => Ok(FileSyncAction::Read),
-            "readwrite" | "read_write" => Ok(FileSyncAction::ReadWrite),
+            "read" => Ok(RwAction::Read),
+            "readwrite" | "read_write" => Ok(RwAction::ReadWrite),
             _ => Err(ExtensionError::InvalidActionString {
                 input: s.to_string(),
-                resource_type: "filesync".to_string(),
+                resource_type: "rwAction".to_string(),
             }),
         }
     }
@@ -483,7 +450,9 @@ pub enum Action {
     Filesystem(FsAction),
     Web(WebAction),
     Shell(ShellAction),
-    FileSync(FileSyncAction),
+    SyncServers(RwAction),
+    CloudStorage(RwAction),
+    SyncRules(RwAction),
     Spaces(SpaceAction),
     Identities(IdentityAction),
     Passwords(PasswordsAction),
@@ -514,7 +483,12 @@ pub enum ResourceType {
     Web,
     Db,
     Shell,
-    Filesync,
+    #[serde(rename = "syncServers")]
+    SyncServers,
+    #[serde(rename = "cloudStorage")]
+    CloudStorage,
+    #[serde(rename = "syncRules")]
+    SyncRules,
     Spaces,
     Identities,
     Passwords,
@@ -601,7 +575,9 @@ impl ResourceType {
             ResourceType::Web => "web",
             ResourceType::Db => "db",
             ResourceType::Shell => "shell",
-            ResourceType::Filesync => "filesync",
+            ResourceType::SyncServers => "syncServers",
+            ResourceType::CloudStorage => "cloudStorage",
+            ResourceType::SyncRules => "syncRules",
             ResourceType::Spaces => "spaces",
             ResourceType::Identities => "identities",
             ResourceType::Passwords => "passwords",
@@ -616,7 +592,9 @@ impl ResourceType {
             "web" => Ok(ResourceType::Web),
             "db" => Ok(ResourceType::Db),
             "shell" => Ok(ResourceType::Shell),
-            "filesync" => Ok(ResourceType::Filesync),
+            "syncServers" => Ok(ResourceType::SyncServers),
+            "cloudStorage" => Ok(ResourceType::CloudStorage),
+            "syncRules" => Ok(ResourceType::SyncRules),
             "spaces" => Ok(ResourceType::Spaces),
             "identities" => Ok(ResourceType::Identities),
             "passwords" => Ok(ResourceType::Passwords),
@@ -648,7 +626,15 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
-            Action::FileSync(action) => serde_json::to_string(action)
+            Action::SyncServers(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
+            Action::CloudStorage(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
+            Action::SyncRules(action) => serde_json::to_string(action)
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
@@ -690,7 +676,9 @@ impl Action {
                 Ok(Action::Web(action))
             }
             ResourceType::Shell => Ok(Action::Shell(ShellAction::from_str(s)?)),
-            ResourceType::Filesync => Ok(Action::FileSync(FileSyncAction::from_str(s)?)),
+            ResourceType::SyncServers => Ok(Action::SyncServers(RwAction::from_str(s)?)),
+            ResourceType::CloudStorage => Ok(Action::CloudStorage(RwAction::from_str(s)?)),
+            ResourceType::SyncRules => Ok(Action::SyncRules(RwAction::from_str(s)?)),
             ResourceType::Spaces => Ok(Action::Spaces(SpaceAction::from_str(s)?)),
             ResourceType::Identities => Ok(Action::Identities(IdentityAction::from_str(s)?)),
             ResourceType::Passwords => Ok(Action::Passwords(PasswordsAction::from_str(s)?)),

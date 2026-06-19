@@ -666,7 +666,9 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
     let mut filesystem = Vec::new();
     let mut http = Vec::new();
     let mut shell = Vec::new();
-    let mut filesync = Vec::new();
+    let mut sync_servers = Vec::new();
+    let mut cloud_storage = Vec::new();
+    let mut sync_rules = Vec::new();
     let mut spaces = Vec::new();
     let mut identities = Vec::new();
     let mut passwords = Vec::new();
@@ -688,7 +690,9 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
             ResourceType::Fs => filesystem.push(entry),
             ResourceType::Web => http.push(entry),
             ResourceType::Shell => shell.push(entry),
-            ResourceType::Filesync => filesync.push(entry),
+            ResourceType::SyncServers => sync_servers.push(entry),
+            ResourceType::CloudStorage => cloud_storage.push(entry),
+            ResourceType::SyncRules => sync_rules.push(entry),
             ResourceType::Spaces => spaces.push(entry),
             ResourceType::Identities => identities.push(entry),
             ResourceType::Passwords => passwords.push(entry),
@@ -710,10 +714,20 @@ fn convert_to_editable_permissions(permissions: Vec<ExtensionPermission>) -> Edi
         },
         http: if http.is_empty() { None } else { Some(http) },
         shell: if shell.is_empty() { None } else { Some(shell) },
-        filesync: if filesync.is_empty() {
+        sync_servers: if sync_servers.is_empty() {
             None
         } else {
-            Some(filesync)
+            Some(sync_servers)
+        },
+        cloud_storage: if cloud_storage.is_empty() {
+            None
+        } else {
+            Some(cloud_storage)
+        },
+        sync_rules: if sync_rules.is_empty() {
+            None
+        } else {
+            Some(sync_rules)
         },
         spaces: if spaces.is_empty() {
             None
