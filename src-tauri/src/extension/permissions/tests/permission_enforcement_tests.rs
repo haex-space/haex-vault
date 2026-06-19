@@ -3,14 +3,14 @@
 //! Comprehensive permission enforcement tests
 //!
 //! These tests ensure that extensions cannot access resources without proper permissions.
-//! Tests cover database, filesystem, HTTP, shell, and filesync permissions.
+//! Tests cover database, filesystem, HTTP, shell, and cloud-storage permissions.
 
 use crate::extension::core::manifest::{DisplayMode, ExtensionManifest, ExtensionPermissions};
 use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::permissions::checker::{is_system_table, matches_target, PermissionChecker};
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FileSyncAction, FsAction, PermissionStatus,
-    ResourceType, WebAction,
+    Action, DbAction, ExtensionPermission, FsAction, PermissionStatus, ResourceType, RwAction,
+    WebAction,
 };
 use std::path::PathBuf;
 
@@ -34,7 +34,11 @@ fn create_extension(public_key: &str, name: &str) -> Extension {
                 filesystem: None,
                 http: None,
                 shell: None,
-                filesync: None,
+                sync_servers: None,
+
+                cloud_storage: None,
+
+                sync_rules: None,
                 spaces: None,
                 identities: None,
                 passwords: None,
@@ -107,17 +111,17 @@ fn create_web_permission(
     }
 }
 
-fn create_filesync_permission(
+fn create_cloud_storage_permission(
     extension_id: &str,
-    action: FileSyncAction,
+    action: RwAction,
     target: &str,
     status: PermissionStatus,
 ) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
         principal_id: extension_id.to_string(),
-        resource_type: ResourceType::Filesync,
-        action: Action::FileSync(action),
+        resource_type: ResourceType::CloudStorage,
+        action: Action::CloudStorage(action),
         target: target.to_string(),
         constraints: None,
         status,
@@ -557,11 +561,11 @@ fn test_permission_resource_types() {
     let web_perm = create_web_permission("ext", "https://*", PermissionStatus::Granted);
     assert!(matches!(web_perm.resource_type, ResourceType::Web));
 
-    let filesync_perm =
-        create_filesync_permission("ext", FileSyncAction::Read, "*", PermissionStatus::Granted);
+    let cloud_storage_perm =
+        create_cloud_storage_permission("ext", RwAction::Read, "*", PermissionStatus::Granted);
     assert!(matches!(
-        filesync_perm.resource_type,
-        ResourceType::Filesync
+        cloud_storage_perm.resource_type,
+        ResourceType::CloudStorage
     ));
 }
 
