@@ -146,7 +146,9 @@
     ],
     "resources": [
       "database/migrations/*.sql",
-      "database/migrations/meta/_journal.json"
+      "database/migrations/meta/_journal.json",
+      "database/migrations-manual/*.sql",
+      "database/migrations-manual/_journal.json"
     ],
     "linux": {
       "appimage": {
