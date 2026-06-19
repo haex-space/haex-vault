@@ -41,6 +41,18 @@ fn manual_journal_and_sql_files_are_in_sync() {
 
     let journaled_tags: HashSet<String> = journal.entries.iter().map(|e| e.tag.clone()).collect();
 
+    // Every manual tag must carry the `manual_` prefix. This is the naming
+    // convention that keeps manual tags from colliding by-name with drizzle
+    // tags in the applied-migrations tracking (see `load_bundled_migrations`).
+    let missing_prefix: Vec<&String> = journaled_tags
+        .iter()
+        .filter(|tag| !tag.starts_with("manual_"))
+        .collect();
+    assert!(
+        missing_prefix.is_empty(),
+        "manual journal tags must start with the 'manual_' prefix: {missing_prefix:?}"
+    );
+
     // Collect the .sql files actually present in the folder.
     let mut sql_tags: HashSet<String> = HashSet::new();
     for entry in std::fs::read_dir(&dir).expect("manual migrations folder must be readable") {

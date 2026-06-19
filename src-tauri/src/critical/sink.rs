@@ -150,7 +150,9 @@ impl CriticalNotificationSink {
     pub fn in_memory() -> Result<Self, SinkError> {
         let conn = Connection::open_in_memory()?;
         conn.busy_timeout(std::time::Duration::from_millis(500))?;
-        for statement in Self::BASELINE_MIGRATION_SQL.split("--> statement-breakpoint") {
+        for statement in
+            Self::BASELINE_MIGRATION_SQL.split(crate::database::core::DRIZZLE_STATEMENT_BREAKPOINT)
+        {
             let statement = statement.trim();
             if statement.is_empty() {
                 continue;

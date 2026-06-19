@@ -345,9 +345,10 @@ fn load_migration_journal(app_handle: &tauri::AppHandle) -> Result<Vec<String>, 
 /// that drizzle-kit cannot model) from the separate `migrations-manual` folder.
 ///
 /// Ordering is significant: drizzle migrations first (journal order), manual
-/// migrations second (manual journal order). Manual tags carry a `manual_`
-/// prefix so they never collide with drizzle tags in the by-name applied
-/// tracking.
+/// migrations second (manual journal order). By naming convention, manual tags
+/// carry a `manual_` prefix so they never collide with drizzle tags in the
+/// by-name applied tracking. Nothing in this function enforces the prefix; the
+/// convention is guarded at test time by the manual-journal sync test.
 fn load_bundled_migrations(
     app_handle: &tauri::AppHandle,
 ) -> Result<Vec<(String, String)>, DatabaseError> {
