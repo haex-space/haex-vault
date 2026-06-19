@@ -20,7 +20,7 @@ use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::{PasswordsAction, PasswordsScope};
+use crate::extension::permissions::types::{PasswordsAction, PasswordsScope, Principal};
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
 use crate::AppState;
 
@@ -72,9 +72,12 @@ pub async fn extension_password_list(
 ) -> Result<Vec<PasswordItemSummary>, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    let perm_result =
-        PermissionManager::check_passwords_permission(&state, &extension_id, PasswordsAction::Read)
-            .await;
+    let perm_result = PermissionManager::check_passwords_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        PasswordsAction::Read,
+    )
+    .await;
     if let Err(ref e) = perm_result {
         emit_permission_prompt_if_needed(&app_handle, e);
     }
@@ -212,9 +215,12 @@ pub async fn extension_password_read(
 ) -> Result<PasswordItemFull, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    let perm_result =
-        PermissionManager::check_passwords_permission(&state, &extension_id, PasswordsAction::Read)
-            .await;
+    let perm_result = PermissionManager::check_passwords_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        PasswordsAction::Read,
+    )
+    .await;
     if let Err(ref e) = perm_result {
         emit_permission_prompt_if_needed(&app_handle, e);
     }
@@ -457,7 +463,7 @@ pub async fn extension_password_create(
 
     let perm_result = PermissionManager::check_passwords_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         PasswordsAction::ReadWrite,
     )
     .await;
@@ -495,7 +501,7 @@ pub async fn extension_password_update(
 
     let perm_result = PermissionManager::check_passwords_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         PasswordsAction::ReadWrite,
     )
     .await;
@@ -816,7 +822,7 @@ pub async fn extension_password_delete(
 
     let perm_result = PermissionManager::check_passwords_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         PasswordsAction::ReadWrite,
     )
     .await;

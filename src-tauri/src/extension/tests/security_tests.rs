@@ -71,7 +71,7 @@ fn create_db_permission(
 ) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: extension_id.to_string(),
+        principal_id: extension_id.to_string(),
         resource_type: ResourceType::Db,
         action: Action::Database(action),
         target: target.to_string(),

@@ -5,6 +5,7 @@
 
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
+use crate::extension::permissions::types::Principal;
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
 use crate::AppState;
 use tauri::{AppHandle, State, WebviewWindow};
@@ -17,8 +18,13 @@ async fn check_shell_execute_permission(
     state: &State<'_, AppState>,
     extension_id: &str,
 ) -> Result<(), ExtensionError> {
-    let permission_result =
-        PermissionManager::check_shell_permission(state, extension_id, "*", &[]).await;
+    let permission_result = PermissionManager::check_shell_permission(
+        state,
+        &Principal::Extension(extension_id.to_string()),
+        "*",
+        &[],
+    )
+    .await;
 
     if let Err(ref e) = permission_result {
         emit_permission_prompt_if_needed(app_handle, e);

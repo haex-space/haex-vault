@@ -365,7 +365,7 @@ mod permission_types_tests {
     fn test_extension_permission_creation() {
         let permission = ExtensionPermission {
             id: "perm_123".to_string(),
-            extension_id: "ext_456".to_string(),
+            principal_id: "ext_456".to_string(),
             resource_type: ResourceType::Db,
             action: Action::Database(DbAction::Read),
             target: "other__ext__*".to_string(),
@@ -374,7 +374,7 @@ mod permission_types_tests {
         };
 
         assert_eq!(permission.id, "perm_123");
-        assert_eq!(permission.extension_id, "ext_456");
+        assert_eq!(permission.principal_id, "ext_456");
         assert!(matches!(permission.resource_type, ResourceType::Db));
         assert!(matches!(permission.status, PermissionStatus::Granted));
     }

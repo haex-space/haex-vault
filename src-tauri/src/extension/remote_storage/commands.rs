@@ -8,7 +8,7 @@
 
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::{FileSyncAction, FileSyncTarget};
+use crate::extension::permissions::types::{FileSyncAction, FileSyncTarget, Principal};
 use crate::extension::utils::{emit_permission_prompt_if_needed, get_extension_id_by_key_and_name};
 use crate::remote_storage;
 use crate::remote_storage::types::{
@@ -35,7 +35,7 @@ pub async fn extension_remote_storage_list_backends(
     // Check filesync permission for backends (read)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::Read,
         FileSyncTarget::Backends,
     )
@@ -66,7 +66,7 @@ pub async fn extension_remote_storage_add_backend(
     // Check filesync permission for backends (write)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::ReadWrite,
         FileSyncTarget::Backends,
     )
@@ -97,7 +97,7 @@ pub async fn extension_remote_storage_update_backend(
     // Check filesync permission for backends (write)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::ReadWrite,
         FileSyncTarget::Backends,
     )
@@ -128,7 +128,7 @@ pub async fn extension_remote_storage_remove_backend(
     // Check filesync permission for backends (write)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::ReadWrite,
         FileSyncTarget::Backends,
     )
@@ -159,7 +159,7 @@ pub async fn extension_remote_storage_test_backend(
     // Check filesync permission for backends (read is sufficient for testing)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::Read,
         FileSyncTarget::Backends,
     )
@@ -194,7 +194,7 @@ pub async fn extension_remote_storage_upload(
     // Check filesync permission for backends (write)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::ReadWrite,
         FileSyncTarget::Backends,
     )
@@ -225,7 +225,7 @@ pub async fn extension_remote_storage_download(
     // Check filesync permission for backends (read)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::Read,
         FileSyncTarget::Backends,
     )
@@ -256,7 +256,7 @@ pub async fn extension_remote_storage_delete(
     // Check filesync permission for backends (write)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::ReadWrite,
         FileSyncTarget::Backends,
     )
@@ -287,7 +287,7 @@ pub async fn extension_remote_storage_list(
     // Check filesync permission for backends (read)
     let permission_result = PermissionManager::check_filesync_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         FileSyncAction::Read,
         FileSyncTarget::Backends,
     )

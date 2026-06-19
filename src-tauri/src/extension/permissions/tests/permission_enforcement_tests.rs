@@ -65,7 +65,7 @@ fn create_db_permission(
 ) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: extension_id.to_string(),
+        principal_id: extension_id.to_string(),
         resource_type: ResourceType::Db,
         action: Action::Database(action),
         target: target.to_string(),
@@ -82,7 +82,7 @@ fn create_fs_permission(
 ) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: extension_id.to_string(),
+        principal_id: extension_id.to_string(),
         resource_type: ResourceType::Fs,
         action: Action::Filesystem(action),
         target: target.to_string(),
@@ -98,7 +98,7 @@ fn create_web_permission(
 ) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: extension_id.to_string(),
+        principal_id: extension_id.to_string(),
         resource_type: ResourceType::Web,
         action: Action::Web(WebAction::Get),
         target: target.to_string(),
@@ -115,7 +115,7 @@ fn create_filesync_permission(
 ) -> ExtensionPermission {
     ExtensionPermission {
         id: uuid::Uuid::new_v4().to_string(),
-        extension_id: extension_id.to_string(),
+        principal_id: extension_id.to_string(),
         resource_type: ResourceType::Filesync,
         action: Action::FileSync(action),
         target: target.to_string(),

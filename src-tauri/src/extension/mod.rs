@@ -15,7 +15,7 @@ use crate::{
         error::ExtensionError,
         permissions::{
             manager::PermissionManager,
-            types::{ExtensionPermission, ResourceType},
+            types::{ExtensionPermission, Principal, ResourceType},
         },
     },
     table_names::TABLE_EXTENSIONS,
@@ -745,7 +745,9 @@ pub async fn get_extension_permissions(
     state: State<'_, AppState>,
 ) -> Result<EditablePermissions, ExtensionError> {
     // Load permissions from database (same for dev and production extensions)
-    let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
+    let permissions =
+        PermissionManager::get_permissions(&state, &Principal::Extension(extension_id.clone()))
+            .await?;
     Ok(convert_to_editable_permissions(permissions))
 }
 
@@ -943,7 +945,9 @@ pub async fn extension_filter_sync_tables(
         let extension_id = extension.id.clone();
 
         // Get permissions for this extension
-        let permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
+        let permissions =
+            PermissionManager::get_permissions(&state, &Principal::Extension(extension_id.clone()))
+                .await?;
 
         // Filter tables based on:
         // 1. Extension's own tables (prefix match) - always allowed without explicit permissions

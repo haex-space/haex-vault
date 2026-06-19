@@ -6,7 +6,7 @@ use crate::database::core::{
 use crate::database::error::DatabaseError;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::Action;
+use crate::extension::permissions::types::{Action, Principal};
 use crate::AppState;
 use sqlparser::ast::Statement;
 use tauri::State;
@@ -59,7 +59,7 @@ impl SqlPermissionValidator {
         for table_name in tables {
             PermissionManager::check_database_permission(
                 app_state,
-                extension_id,
+                &Principal::Extension(extension_id.to_string()),
                 Action::Database(super::types::DbAction::Read),
                 &table_name,
             )
@@ -80,7 +80,7 @@ impl SqlPermissionValidator {
         for table_name in table_names {
             PermissionManager::check_database_permission(
                 app_state,
-                extension_id,
+                &Principal::Extension(extension_id.to_string()),
                 Action::Database(super::types::DbAction::ReadWrite),
                 &table_name,
             )
@@ -128,7 +128,7 @@ impl SqlPermissionValidator {
             // Also check if extension has CREATE permission
             PermissionManager::check_database_permission(
                 app_state,
-                extension_id,
+                &Principal::Extension(extension_id.to_string()),
                 Action::Database(super::types::DbAction::Create),
                 clean_table_name,
             )
@@ -176,7 +176,7 @@ impl SqlPermissionValidator {
             // Also check if extension has ALTER/DROP permission
             PermissionManager::check_database_permission(
                 app_state,
-                extension_id,
+                &Principal::Extension(extension_id.to_string()),
                 Action::Database(super::types::DbAction::AlterDrop),
                 clean_table_name,
             )

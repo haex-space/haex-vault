@@ -13,7 +13,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::limits::types::LimitError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::{Action, FsAction};
+use crate::extension::permissions::types::{Action, FsAction, Principal};
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
 use crate::filesystem::{DirEntry, FileStat};
 use crate::AppState;
@@ -63,7 +63,7 @@ pub async fn extension_filesystem_read_file(
     // Check fs permission for this path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::Read),
         Path::new(&path),
     )
@@ -101,7 +101,7 @@ pub async fn extension_filesystem_read_dir(
     // Check fs permission for this path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::Read),
         Path::new(&path),
     )
@@ -140,7 +140,7 @@ pub async fn extension_filesystem_exists(
     // Check fs permission for this path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::Read),
         Path::new(&path),
     )
@@ -178,7 +178,7 @@ pub async fn extension_filesystem_stat(
     // Check fs permission for this path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::Read),
         Path::new(&path),
     )
@@ -221,7 +221,7 @@ pub async fn extension_filesystem_write_file(
     // Check fs permission for this path (write)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::ReadWrite),
         Path::new(&path),
     )
@@ -259,7 +259,7 @@ pub async fn extension_filesystem_mkdir(
     // Check fs permission for this path (write)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::ReadWrite),
         Path::new(&path),
     )
@@ -298,7 +298,7 @@ pub async fn extension_filesystem_remove(
     // Check fs permission for this path (write)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::ReadWrite),
         Path::new(&path),
     )
@@ -337,7 +337,7 @@ pub async fn extension_filesystem_rename(
     // Check fs permission for source path (write - we're removing from here)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::ReadWrite),
         Path::new(&from),
     )
@@ -351,7 +351,7 @@ pub async fn extension_filesystem_rename(
     // Check fs permission for destination path (write - we're creating here)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::ReadWrite),
         Path::new(&to),
     )
@@ -390,7 +390,7 @@ pub async fn extension_filesystem_copy(
     // Check fs permission for source path (read)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::Read),
         Path::new(&from),
     )
@@ -404,7 +404,7 @@ pub async fn extension_filesystem_copy(
     // Check fs permission for destination path (write)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::ReadWrite),
         Path::new(&to),
     )
@@ -553,7 +553,7 @@ pub async fn extension_filesystem_watch(
     // Check fs permission for this path (read - we're watching for changes)
     let permission_result = PermissionManager::check_filesystem_permission(
         &state,
-        &extension_id,
+        &Principal::Extension(extension_id.clone()),
         Action::Filesystem(FsAction::Read),
         Path::new(&path),
     )

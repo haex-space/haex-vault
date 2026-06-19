@@ -10,7 +10,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, PasswordsAction, PermissionStatus,
+    Action, DbAction, ExtensionPermission, FsAction, PasswordsAction, PermissionStatus, Principal,
     ResourceType, WebAction,
 };
 use crate::extension::utils::{
@@ -39,7 +39,7 @@ pub async fn extension_permissions_check_web(
     name: Option<String>,
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
-    PermissionManager::check_web_permission(&state, &extension_id, &url).await
+    PermissionManager::check_web_permission(&state, &Principal::Extension(extension_id), &url).await
 }
 
 /// Check database permission
@@ -65,7 +65,13 @@ pub async fn extension_permissions_check_database(
         }
     };
 
-    PermissionManager::check_database_permission(&state, &extension_id, action, &resource).await
+    PermissionManager::check_database_permission(
+        &state,
+        &Principal::Extension(extension_id),
+        action,
+        &resource,
+    )
+    .await
 }
 
 /// Check filesystem permission
@@ -92,7 +98,13 @@ pub async fn extension_permissions_check_filesystem(
     };
 
     let file_path = Path::new(&path);
-    PermissionManager::check_filesystem_permission(&state, &extension_id, action, file_path).await
+    PermissionManager::check_filesystem_permission(
+        &state,
+        &Principal::Extension(extension_id),
+        action,
+        file_path,
+    )
+    .await
 }
 
 // =============================================================================
@@ -182,7 +194,7 @@ pub fn grant_session_permission(
 
     let permission = ExtensionPermission {
         id: format!("session-{}", uuid::Uuid::new_v4()),
-        extension_id: extension_id.clone(),
+        principal_id: extension_id.clone(),
         resource_type: resource_type_enum,
         action: action_enum,
         target: target.clone(),
@@ -343,7 +355,9 @@ pub async fn resolve_permission_prompt(
     // Mail allows multiple permissions per host (one each for `fetch`
     // and `send`), so for `Mail` we also match on the action to avoid
     // a `send` decision overwriting a stored `fetch` decision.
-    let existing_permissions = PermissionManager::get_permissions(&state, &extension_id).await?;
+    let existing_permissions =
+        PermissionManager::get_permissions(&state, &Principal::Extension(extension_id.clone()))
+            .await?;
 
     let existing_permission = existing_permissions.iter().find(|p| {
         if p.resource_type != resource_type_enum || p.target != target {
@@ -362,7 +376,7 @@ pub async fn resolve_permission_prompt(
         // Create new permission
         let new_permission = ExtensionPermission {
             id: uuid::Uuid::new_v4().to_string(),
-            extension_id: extension_id.clone(),
+            principal_id: extension_id.clone(),
             resource_type: resource_type_enum,
             action: action_enum,
             target,

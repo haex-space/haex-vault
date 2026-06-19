@@ -67,7 +67,7 @@ pub async fn extension_web_open(
     let permission_result =
         crate::extension::permissions::manager::PermissionManager::check_web_permission(
             &state,
-            &extension_id,
+            &crate::extension::permissions::types::Principal::Extension(extension_id.clone()),
             &url,
         )
         .await;
@@ -113,7 +113,7 @@ pub async fn extension_web_fetch(
     let permission_result =
         crate::extension::permissions::manager::PermissionManager::check_web_permission(
             &state,
-            &extension_id,
+            &crate::extension::permissions::types::Principal::Extension(extension_id.clone()),
             &url,
         )
         .await;
