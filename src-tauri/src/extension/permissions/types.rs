@@ -261,7 +261,7 @@ pub enum SpaceAction {
 /// (private_key NULL); never returns/sets private_key, never creates/deletes
 /// owned identities. Enforcement lives in the identity bridge commands
 /// (later phase).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum IdentityAction {
