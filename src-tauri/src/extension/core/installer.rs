@@ -307,8 +307,8 @@ impl ExtensionManager {
             // 3. Permissions: Recreate with correct extension_id
             let permissions = custom_permissions.to_internal_permissions(&actual_id);
             for perm in &permissions {
-                use crate::database::generated::HaexExtensionPermissions;
-                let db_perm: HaexExtensionPermissions = perm.into();
+                use crate::database::generated::HaexPrincipalPermissions;
+                let db_perm: HaexPrincipalPermissions = perm.into();
 
                 SqlExecutor::execute_internal_typed(
                     &tx,
@@ -316,7 +316,7 @@ impl ExtensionManager {
                     &SQL_INSERT_EXTENSION_PERMISSION,
                     rusqlite::params![
                         db_perm.id,
-                        db_perm.extension_id,
+                        db_perm.principal_id,
                         db_perm.resource_type,
                         db_perm.action,
                         db_perm.target,

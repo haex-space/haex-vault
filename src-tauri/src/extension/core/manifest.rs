@@ -321,7 +321,7 @@ impl ExtensionPermissions {
 
         action.map(|act| ExtensionPermission {
             id: uuid::Uuid::new_v4().to_string(),
-            extension_id: extension_id.to_string(),
+            principal_id: extension_id.to_string(),
             resource_type: resource_type.clone(),
             action: act,
             target: p.target.clone(),

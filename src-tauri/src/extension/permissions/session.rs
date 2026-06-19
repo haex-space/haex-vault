@@ -34,7 +34,7 @@ impl SessionPermissionStore {
     /// Store a permission for the current session
     pub fn set_permission(&self, permission: ExtensionPermission) {
         let key = SessionPermissionKey {
-            extension_id: permission.extension_id.clone(),
+            extension_id: permission.principal_id.clone(),
             resource_type: permission.resource_type,
             target: permission.target.clone(),
         };
