@@ -23,3 +23,25 @@ pub fn resolve_vault_owner_did(conn: &Connection) -> rusqlite::Result<Option<Str
     )
     .optional()
 }
+
+/// How a verified peer relates to this vault's owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeerClass {
+    /// The peer proved (via DID-auth) it holds the same vault-owner DID, so it
+    /// is another device of the owner and may receive the full vault.
+    OwnerDevice,
+    /// Any other peer; it may only receive the narrow space-scoped table set.
+    Foreign,
+}
+
+/// Classify a peer by comparing its verified DID against the vault-owner DID.
+///
+/// Exact, case-sensitive string equality — DIDs are case-sensitive identifiers,
+/// so no trimming or normalization is applied.
+pub fn classify_peer(verified_did: &str, vault_owner_did: &str) -> PeerClass {
+    if verified_did == vault_owner_did {
+        PeerClass::OwnerDevice
+    } else {
+        PeerClass::Foreign
+    }
+}

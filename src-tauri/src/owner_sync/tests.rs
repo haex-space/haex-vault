@@ -3,7 +3,7 @@ mod tests {
     use rusqlite::Connection;
     use uuid::Uuid;
 
-    use crate::owner_sync::scope::resolve_vault_owner_did;
+    use crate::owner_sync::scope::{classify_peer, resolve_vault_owner_did, PeerClass};
 
     /// Create the minimal subset of `haex_identities` + `haex_spaces` the
     /// resolver joins over. Columns mirror the production Drizzle schema
@@ -75,5 +75,36 @@ mod tests {
 
         let resolved = resolve_vault_owner_did(&conn);
         assert_eq!(resolved, Ok(None));
+    }
+
+    #[test]
+    fn classifies_matching_did_as_owner_device() {
+        let owner_did = format!("did:key:{}", Uuid::new_v4());
+        assert_eq!(
+            classify_peer(&owner_did, &owner_did),
+            PeerClass::OwnerDevice
+        );
+    }
+
+    #[test]
+    fn classifies_different_did_as_foreign() {
+        let owner_did = format!("did:key:{}", Uuid::new_v4());
+        let peer_did = format!("did:key:{}", Uuid::new_v4());
+        assert_eq!(classify_peer(&peer_did, &owner_did), PeerClass::Foreign);
+    }
+
+    #[test]
+    fn classification_is_case_sensitive_and_untrimmed() {
+        let owner_did = "did:key:zABC".to_string();
+        // Case difference must not match — DIDs are case-sensitive identifiers.
+        assert_eq!(
+            classify_peer("did:key:zabc", &owner_did),
+            PeerClass::Foreign
+        );
+        // Surrounding whitespace must not be normalized away.
+        assert_eq!(
+            classify_peer(" did:key:zABC", &owner_did),
+            PeerClass::Foreign
+        );
     }
 }
