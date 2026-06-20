@@ -209,6 +209,30 @@ fn pull_columns_serves_multiple_pairs() {
         .all(|c| c.column_name == "body" || c.column_name == "label"));
 }
 
+/// Repeated `(table, column)` pairs in the request must NOT trigger repeated
+/// scans or duplicate rows in the response — the handler dedups pairs that
+/// arrive over the wire (defence against a malformed/misbehaving owner device).
+#[test]
+fn pull_columns_dedups_repeated_pairs() {
+    let db = setup_two_table_db();
+
+    let resp = handle_owner_pull_columns(
+        &[
+            ("notes".to_string(), "title".to_string()),
+            ("notes".to_string(), "title".to_string()),
+            ("notes".to_string(), "title".to_string()),
+        ],
+        &db,
+    );
+    let changes = changes_from_response(resp);
+
+    // Still exactly the three rows' `title` values — not 9.
+    assert_eq!(changes.len(), 3, "duplicate pairs must not duplicate rows");
+    let mut titles: Vec<&str> = changes.iter().map(|c| c.value.as_str().unwrap()).collect();
+    titles.sort();
+    assert_eq!(titles, vec!["first", "second", "third"]);
+}
+
 /// A requested column that does not exist yields an empty/those-only set,
 /// never an error response. (`scan_single_column_for_owner` filters by name,
 /// so a missing column simply contributes nothing.)

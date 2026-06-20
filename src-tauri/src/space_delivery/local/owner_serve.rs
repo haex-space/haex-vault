@@ -18,6 +18,7 @@
 //! therefore only ever be invoked from the owner branch in
 //! `multi_leader::handle_stream`.
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Manager};
@@ -171,7 +172,17 @@ pub(super) fn handle_owner_pull_columns(
 
     let scan_result = with_connection(db, |conn| {
         let mut changes: Vec<LocalColumnChange> = Vec::new();
+        // Dedup pairs: `columns` arrives over the wire, and each pair triggers a
+        // full-column scan. A repeated pair would redo an identical scan and
+        // duplicate its rows in the response (amplifying CPU/memory and the
+        // oversized-frame risk from network input). The legitimate caller never
+        // repeats (its source PK is `(table, column)`), so this only guards
+        // against a malformed/misbehaving owner device. Order is preserved.
+        let mut seen: HashSet<(&str, &str)> = HashSet::new();
         for (table_name, column_name) in columns {
+            if !seen.insert((table_name.as_str(), column_name.as_str())) {
+                continue;
+            }
             let column_changes =
                 scan_single_column_for_owner(conn, table_name, column_name, device_id)?;
             changes.extend(column_changes);
