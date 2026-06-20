@@ -186,6 +186,54 @@ impl SyncLoopHandle {
     }
 }
 
+/// Open a `PeerSession` appropriate for `mode`.
+///
+/// [`SyncMode::SpaceScoped`] uses [`PeerSession::connect`] (DID-auth + UCAN +
+/// Announce) — the existing shared-space path, unchanged. [`SyncMode::OwnerVault`]
+/// uses [`PeerSession::connect_owner`] (DID-auth only, NO UCAN, NO Announce):
+/// the owner's own devices have no UCAN for themselves, and the security gate
+/// is the same-owner DID-auth handshake which `connect_owner` still runs.
+#[allow(clippy::too_many_arguments)]
+async fn connect_for_mode(
+    mode: &SyncMode,
+    iroh_endpoint: &iroh::Endpoint,
+    leader_endpoint_id: &str,
+    leader_relay_url: Option<&str>,
+    space_id: &str,
+    our_did: &str,
+    our_signing_key: &ed25519_dalek::SigningKey,
+    our_endpoint_id: &str,
+    db: &DbConnection,
+) -> Result<PeerSession, DeliveryError> {
+    match mode {
+        SyncMode::SpaceScoped => {
+            PeerSession::connect(
+                iroh_endpoint,
+                leader_endpoint_id,
+                leader_relay_url,
+                space_id,
+                our_did,
+                our_signing_key,
+                our_endpoint_id,
+                Some("sync-loop"),
+                db,
+            )
+            .await
+        }
+        SyncMode::OwnerVault { .. } => {
+            PeerSession::connect_owner(
+                iroh_endpoint,
+                leader_endpoint_id,
+                leader_relay_url,
+                our_did,
+                our_signing_key,
+                our_endpoint_id,
+            )
+            .await
+        }
+    }
+}
+
 /// Start the sync loop as a peer connecting to a leader.
 ///
 /// The loop will:
@@ -243,7 +291,8 @@ pub async fn start_peer_sync_loop(
         || async {
             match tokio::time::timeout(
                 Duration::from_secs(10),
-                PeerSession::connect(
+                connect_for_mode(
+                    &mode,
                     &iroh_endpoint,
                     &leader_endpoint_id,
                     leader_relay_url.as_deref(),
@@ -251,7 +300,6 @@ pub async fn start_peer_sync_loop(
                     &our_did,
                     &our_identity.signing_key,
                     &our_endpoint_id,
-                    Some("sync-loop"),
                     &db,
                 ),
             )
@@ -517,9 +565,12 @@ async fn run_sync_loop(
                         },
                     }
 
-                    // Try to reconnect — pulls the current UCAN from the DB,
-                    // so a token renewed during the outage takes effect here.
-                    match PeerSession::connect(
+                    // Try to reconnect — in space mode this pulls the current
+                    // UCAN from the DB so a token renewed during the outage
+                    // takes effect here; in owner mode reconnect re-runs only
+                    // the DID-auth handshake (no UCAN).
+                    match connect_for_mode(
+                        &mode,
                         &iroh_endpoint,
                         &leader_endpoint_id,
                         leader_relay_url.as_deref(),
@@ -527,7 +578,6 @@ async fn run_sync_loop(
                         &our_did,
                         &our_signing_key,
                         &our_endpoint_id,
-                        Some("sync-loop"),
                         &db,
                     )
                     .await
