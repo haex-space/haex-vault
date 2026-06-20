@@ -292,6 +292,42 @@ impl PeerSession {
         }
     }
 
+    /// Build the `SyncPullColumns` request, attaching `ucan_token` (`None` for an
+    /// owner-mesh session). Extracted as an associated fn — independent of the
+    /// live `conn` — so the owner-mode wiring is unit-testable without a QUIC
+    /// endpoint.
+    fn pull_columns_request(
+        ucan_token: &Option<String>,
+        space_id: &str,
+        columns: &[(String, String)],
+        after_row_pks: Option<&str>,
+    ) -> Request {
+        Request::SyncPullColumns {
+            space_id: space_id.to_string(),
+            columns: columns.to_vec(),
+            after_row_pks: after_row_pks.map(|s| s.to_string()),
+            ucan_token: ucan_token.clone(),
+        }
+    }
+
+    /// Owner-mesh: recover values for columns this device skipped during a
+    /// schema-skew apply. Pagination is not used yet (`after_row_pks: None`);
+    /// the serving side returns all rows for the requested columns in one shot.
+    pub async fn pull_columns(
+        &self,
+        space_id: &str,
+        columns: &[(String, String)],
+    ) -> Result<serde_json::Value, DeliveryError> {
+        let req = Self::pull_columns_request(&self.ucan_token, space_id, columns, None);
+        match self.request(req).await? {
+            Response::SyncChanges { changes } => Ok(changes),
+            Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
+            _ => Err(DeliveryError::ProtocolError {
+                reason: "unexpected response to SyncPullColumns".to_string(),
+            }),
+        }
+    }
+
     /// Fetch MLS messages from the leader after a given ID.
     pub async fn fetch_mls_messages(
         &self,
