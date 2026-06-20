@@ -3,7 +3,9 @@ mod tests {
     use rusqlite::Connection;
     use uuid::Uuid;
 
-    use crate::owner_sync::scope::{classify_peer, resolve_vault_owner_did, PeerClass};
+    use crate::owner_sync::scope::{
+        classify_peer, resolve_vault_owner_did, select_sync_scope, PeerClass,
+    };
 
     /// Create the minimal subset of `haex_identities` + `haex_spaces` the
     /// resolver joins over. Columns mirror the production Drizzle schema
@@ -106,5 +108,58 @@ mod tests {
             classify_peer(" did:key:zABC", &owner_did),
             PeerClass::Foreign
         );
+    }
+
+    fn tables(names: &[&str]) -> Vec<String> {
+        names.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn owner_device_gets_full_table_set() {
+        let all = tables(&["haex_passwords", "haex_space_devices"]);
+        let space_scoped = tables(&["haex_space_devices"]);
+        assert_eq!(
+            select_sync_scope(PeerClass::OwnerDevice, &all, &space_scoped),
+            all
+        );
+    }
+
+    #[test]
+    fn foreign_gets_only_space_scoped_set() {
+        let all = tables(&["haex_passwords", "haex_space_devices"]);
+        let space_scoped = tables(&["haex_space_devices"]);
+        assert_eq!(
+            select_sync_scope(PeerClass::Foreign, &all, &space_scoped),
+            space_scoped
+        );
+    }
+
+    /// Security gate: a foreign peer must never be offered vault-private tables,
+    /// while an owner device must receive the full set including them.
+    #[test]
+    fn foreign_peer_never_receives_vault_private_tables() {
+        let private = ["haex_passwords", "haex_vault_settings", "haex_identities"];
+        let space_scoped_names = ["haex_space_devices", "haex_space_members"];
+
+        let mut all_names: Vec<&str> = private.to_vec();
+        all_names.extend_from_slice(&space_scoped_names);
+        let all = tables(&all_names);
+        let space_scoped = tables(&space_scoped_names);
+
+        let foreign_scope = select_sync_scope(PeerClass::Foreign, &all, &space_scoped);
+        for private_table in private {
+            assert!(
+                !foreign_scope.contains(&private_table.to_string()),
+                "foreign peer must not receive private table {private_table}"
+            );
+        }
+
+        let owner_scope = select_sync_scope(PeerClass::OwnerDevice, &all, &space_scoped);
+        for private_table in private {
+            assert!(
+                owner_scope.contains(&private_table.to_string()),
+                "owner device must receive private table {private_table}"
+            );
+        }
     }
 }
