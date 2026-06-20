@@ -40,6 +40,6 @@ pub fn classify(count: usize, cfg: &DosDefenceConfig) -> LoggingMode {
 pub fn should_log_this_reject(count: usize, mode: LoggingMode) -> bool {
     match mode {
         LoggingMode::Normal | LoggingMode::Warning => true,
-        LoggingMode::Sampled => count % SAMPLE_LOG_EVERY_N == 0,
+        LoggingMode::Sampled => count.is_multiple_of(SAMPLE_LOG_EVERY_N),
     }
 }

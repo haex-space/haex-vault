@@ -70,12 +70,16 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use tokio::sync::RwLock;
 
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
 use crate::logging::{log_to_db, log_truncate, LOG_TRUNCATE_DEFAULT};
+use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
+use crate::space_delivery::local::dos_defence::decision::{classify, should_log_this_reject};
+use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::types::ConnectedPeer;
 use crate::ucan::{require_audience, require_capability, require_not_expired, ValidatedUcan};
@@ -89,6 +93,7 @@ use crate::ucan::{require_audience, require_capability, require_not_expired, Val
 /// - `Ok(None)` — request bypasses the gate (see `Request::required_capability`).
 /// - `Err(Response::Error { .. })` — auth failed; the caller should send the
 ///   response back to the peer and return.
+#[allow(clippy::too_many_arguments)]
 pub async fn authorize_request(
     request: &Request,
     verified_did: &str,
@@ -96,6 +101,8 @@ pub async fn authorize_request(
     connected_peers: &RwLock<HashMap<String, ConnectedPeer>>,
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
+    reject_tracker: &RejectRateTracker,
+    dos_config: &DosDefenceConfig,
 ) -> Result<Option<ValidatedUcan>, Response> {
     // 1. Bypass — requests that bootstrap the gate's own preconditions.
     let required = match request.required_capability() {
@@ -116,14 +123,24 @@ pub async fn authorize_request(
     // the underlying error via `format!`. Taking `String` lets both cases
     // pass without an extra `.to_string()` on the literal side.
     let gate_reject = |level: &str, log_msg: String, peer_msg: String| -> Response {
-        log_to_db(
-            db,
-            hlc,
-            level,
-            op,
-            &log_msg,
-            Some(serde_json::json!({"subsystem": "AuthGate"})),
-        );
+        // L4 rate-limiting tap: record the reject keyed by verified DID
+        // (stable across endpoint rotation — see plan D1). At Sampled
+        // intensity we skip most haex_logs writes to avoid Owner-side
+        // write-amplification under a flood.
+        let now = Instant::now();
+        reject_tracker.record(verified_did, now);
+        let count = reject_tracker.count_within_window(verified_did, now);
+        let mode = classify(count, dos_config);
+        if should_log_this_reject(count, mode) {
+            log_to_db(
+                db,
+                hlc,
+                level,
+                op,
+                &log_msg,
+                Some(serde_json::json!({"subsystem": "AuthGate"})),
+            );
+        }
         Response::Error { message: peer_msg }
     };
 

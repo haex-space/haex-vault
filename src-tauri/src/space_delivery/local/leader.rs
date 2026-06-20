@@ -49,6 +49,14 @@ pub struct LeaderState {
     pub notification_senders: Arc<RwLock<HashMap<String, tokio::sync::mpsc::Sender<Notification>>>>,
     /// In-memory invite tokens (loaded from DB on start, synced back on changes)
     pub invite_tokens: Arc<RwLock<Vec<LocalInviteToken>>>,
+    /// Sliding-window reject-rate counter for L4 DoS-defence. Per-DID
+    /// counters; shared by every `authorize_request` invocation on this
+    /// leader. Lifetime = leader-lifetime, lost on restart by design.
+    pub reject_tracker: Arc<super::dos_defence::tracker::RejectRateTracker>,
+    /// Cached DoS-defence config loaded once on leader start. Re-loaded
+    /// only on full leader restart — Phase 1 favours simplicity over
+    /// hot-reload.
+    pub dos_config: Arc<super::dos_defence::config::DosDefenceConfig>,
 }
 
 // ============================================================================
@@ -668,6 +676,8 @@ pub(super) async fn handle_delivery_request(
         &state.connected_peers,
         &state.db,
         &state.hlc,
+        &state.reject_tracker,
+        &state.dos_config,
     )
     .await
     {

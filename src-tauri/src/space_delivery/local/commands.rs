@@ -42,6 +42,10 @@ pub async fn local_delivery_start(
         .map_err(|e| e.to_string())?
         .clone();
 
+    let dos_config = super::dos_defence::config::DosDefenceConfig::load(&db_conn);
+    let reject_tracker =
+        super::dos_defence::tracker::RejectRateTracker::new(std::time::Duration::from_secs(1));
+
     let leader_state = Arc::new(LeaderState {
         db: db_conn,
         hlc: Arc::new(std::sync::Mutex::new(hlc_clone)),
@@ -50,6 +54,8 @@ pub async fn local_delivery_start(
         connected_peers: Arc::new(RwLock::new(HashMap::new())),
         notification_senders: Arc::new(RwLock::new(HashMap::new())),
         invite_tokens: Arc::new(RwLock::new(existing_tokens)),
+        reject_tracker: Arc::new(reject_tracker),
+        dos_config: Arc::new(dos_config),
     });
 
     let mut leaders = state.leader_state.write().await;
