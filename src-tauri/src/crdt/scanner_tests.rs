@@ -485,3 +485,90 @@ fn test_scoped_filter_on_table_without_space_id_returns_empty() {
 
     assert!(changes.is_empty());
 }
+
+#[test]
+fn scan_single_column_for_owner_returns_only_requested_column() {
+    // `test_items` has two data columns: `name` and `value`. Scanning for
+    // `name` must never return a `value` change, and vice versa.
+    let conn = setup_test_db();
+    insert_row(&conn, "r1", "hello", 42, "1000000000000000000/aabbccdd");
+    insert_row(&conn, "r2", "world", 99, "2000000000000000000/aabbccdd");
+
+    let changes = scan_single_column_for_owner(&conn, "test_items", "name", "device-1").unwrap();
+
+    // Two rows, one `name` change each — and nothing for `value`.
+    assert_eq!(changes.len(), 2);
+    assert!(changes.iter().all(|c| c.column_name == "name"));
+    assert!(
+        changes.iter().all(|c| c.table_name == "test_items"),
+        "table name must be carried through"
+    );
+}
+
+#[test]
+fn scan_single_column_for_owner_full_dump_ignores_hlc_threshold() {
+    // Recovery has no cursor: every row's value for the column must come back,
+    // even rows whose HLC would be "old" relative to any threshold. There is
+    // no `after_hlc` parameter, so all rows are returned regardless of age.
+    let conn = setup_test_db();
+    insert_row(&conn, "ancient", "a", 1, "1000000000000000000/aabbccdd");
+    insert_row(&conn, "recent", "b", 2, "9000000000000000000/aabbccdd");
+
+    let changes = scan_single_column_for_owner(&conn, "test_items", "value", "device-1").unwrap();
+
+    // Both rows present — the "ancient" one is NOT filtered out.
+    assert_eq!(changes.len(), 2);
+    let pks: std::collections::HashSet<String> =
+        changes.iter().map(|c| c.row_pks.clone()).collect();
+    assert!(
+        pks.contains("{\"id\":\"ancient\"}"),
+        "full dump must include the old row"
+    );
+    assert!(
+        pks.contains("{\"id\":\"recent\"}"),
+        "full dump must include the new row"
+    );
+}
+
+#[test]
+fn scan_single_column_for_owner_does_not_origin_filter() {
+    // Rows authored by OTHER devices carry a different node-id in the HLC
+    // suffix. Recovery wants the COMPLETE column state, so those rows must
+    // still be returned — the opposite of the origin-filtered push path.
+    let conn = setup_test_db();
+    // Two distinct HLC node-id suffixes => two distinct authoring nodes.
+    insert_row(&conn, "mine", "x", 1, "1000000000000000000/aabbccdd");
+    insert_row(&conn, "theirs", "y", 2, "2000000000000000000/11223344");
+
+    let changes = scan_single_column_for_owner(&conn, "test_items", "name", "device-1").unwrap();
+
+    // Sanity: the two rows genuinely carry different node-ids.
+    let mine = crate::crdt::hlc::parse_hlc_node_hex("aabbccdd").unwrap();
+    let theirs = crate::crdt::hlc::parse_hlc_node_hex("11223344").unwrap();
+    assert_ne!(mine, theirs);
+
+    // Both rows returned despite differing authoring nodes => no origin filter.
+    assert_eq!(changes.len(), 2);
+    let suffixes: std::collections::HashSet<Option<&str>> = changes
+        .iter()
+        .map(|c| crate::crdt::hlc::hlc_node_id_suffix(&c.hlc_timestamp))
+        .collect();
+    assert!(suffixes.contains(&Some("aabbccdd")));
+    assert!(suffixes.contains(&Some("11223344")));
+}
+
+#[test]
+fn scan_single_column_for_owner_nonexistent_table_or_column_is_empty() {
+    let conn = setup_test_db();
+    insert_row(&conn, "r1", "hello", 42, "1000000000000000000/aabbccdd");
+
+    // Nonexistent table => empty, no error.
+    let no_table =
+        scan_single_column_for_owner(&conn, "does_not_exist", "name", "device-1").unwrap();
+    assert!(no_table.is_empty());
+
+    // Existing table, but a column no row has => empty, no error.
+    let no_column =
+        scan_single_column_for_owner(&conn, "test_items", "nonexistent_col", "device-1").unwrap();
+    assert!(no_column.is_empty());
+}
