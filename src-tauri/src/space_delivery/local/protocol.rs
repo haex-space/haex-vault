@@ -118,6 +118,19 @@ pub enum Request {
         #[serde(default)]
         ucan_token: Option<String>,
     },
+    /// Owner-mesh ONLY: recover values for columns this device skipped during a
+    /// schema-skew apply (haex_crdt_pending_columns). The serving owner returns
+    /// ALL rows' values+HLC for each (table_name, column_name), unscoped by space.
+    /// MUST route through the same owner gate as SyncPull (full-vault exposure);
+    /// a foreign peer that reaches the space path gets no handler. Serving +
+    /// recovery logic land in later tasks.
+    SyncPullColumns {
+        space_id: String,               // = vault_space_id; the owner gate matches this
+        columns: Vec<(String, String)>, // (table_name, column_name) pairs
+        after_row_pks: Option<String>,  // pagination cursor; None = from start
+        #[serde(default)]
+        ucan_token: Option<String>, // owner sessions send None (wire-shape parity)
+    },
 
     // -- Identity --
     /// Announce identity to the leader (sent on connect).
@@ -218,6 +231,7 @@ impl Request {
             | Request::SubmitExternalCommit { space_id, .. }
             | Request::SyncPush { space_id, .. }
             | Request::SyncPull { space_id, .. }
+            | Request::SyncPullColumns { space_id, .. }
             | Request::ClaimInvite { space_id, .. }
             | Request::PushInvite { space_id, .. } => space_id,
         }
@@ -301,6 +315,7 @@ impl Request {
             | Request::MlsSendWelcome { .. }
             | Request::MlsAckCommit { .. }
             | Request::SyncPull { .. }
+            | Request::SyncPullColumns { .. }
             | Request::SyncPush { .. }
             | Request::RequestRejoin { .. }
             | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
@@ -340,6 +355,7 @@ impl Request {
             Request::SubmitExternalCommit { .. } => "SubmitExternalCommit",
             Request::SyncPush { .. } => "SyncPush",
             Request::SyncPull { .. } => "SyncPull",
+            Request::SyncPullColumns { .. } => "SyncPullColumns",
             Request::Announce { .. } => "Announce",
             Request::ClaimInvite { .. } => "ClaimInvite",
             Request::PushInvite { .. } => "PushInvite",
