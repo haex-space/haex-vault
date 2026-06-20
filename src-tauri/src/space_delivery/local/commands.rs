@@ -1172,29 +1172,24 @@ pub async fn owner_sync_start(
 ) -> Result<(), String> {
     let db = DbConnection(state.db.0.clone());
 
-    // 1+2. Resolve the vault owner DID and vault space id. Either being absent
-    // means there is nothing to sync — return Ok gracefully.
-    let owner_did = crate::database::core::with_connection(&db, |conn| {
-        crate::owner_sync::scope::resolve_vault_owner_did(conn).map_err(|e| {
-            crate::database::error::DatabaseError::QueryError {
+    // 1+2. Resolve the vault owner DID and vault space id in a single DB pass.
+    // Either being absent means there is nothing to sync — return Ok gracefully.
+    let (owner_did, vault_space_id) = crate::database::core::with_connection(&db, |conn| {
+        let map_query_err =
+            |e: rusqlite::Error| crate::database::error::DatabaseError::QueryError {
                 reason: e.to_string(),
-            }
-        })
+            };
+        let owner_did =
+            crate::owner_sync::scope::resolve_vault_owner_did(conn).map_err(map_query_err)?;
+        let vault_space_id =
+            crate::owner_sync::scope::resolve_vault_space_id(conn).map_err(map_query_err)?;
+        Ok((owner_did, vault_space_id))
     })
     .map_err(|e| e.to_string())?;
     let owner_did = match owner_did {
         Some(d) => d,
         None => return Ok(()),
     };
-
-    let vault_space_id = crate::database::core::with_connection(&db, |conn| {
-        crate::owner_sync::scope::resolve_vault_space_id(conn).map_err(|e| {
-            crate::database::error::DatabaseError::QueryError {
-                reason: e.to_string(),
-            }
-        })
-    })
-    .map_err(|e| e.to_string())?;
     let vault_space_id = match vault_space_id {
         Some(s) => s,
         None => return Ok(()),
@@ -1220,18 +1215,19 @@ pub async fn owner_sync_start(
     let device_id = crate::crdt::hlc::HlcService::get_or_create_device_id(&app)
         .map_err(|e| format!("Failed to read device UUID: {e}"))?;
 
-    // 4. Resolve the full CRDT table list for the owner-vault scan.
-    let tables = crate::database::core::with_connection(&db, |conn| {
-        crate::database::init::discover_crdt_tables(conn)
-    })
-    .map_err(|e| e.to_string())?;
-
-    // 5. Enumerate the owner's OTHER device endpoints.
-    let peers = crate::database::core::with_connection(&db, |conn| {
-        crate::owner_sync::scope::resolve_owner_device_endpoints(conn, &owner_did, &our_endpoint_id)
-            .map_err(|e| crate::database::error::DatabaseError::QueryError {
-                reason: e.to_string(),
-            })
+    // 4+5. Resolve the full CRDT table list for the owner-vault scan and
+    // enumerate the owner's OTHER device endpoints in a single DB pass.
+    let (tables, peers) = crate::database::core::with_connection(&db, |conn| {
+        let tables = crate::database::init::discover_crdt_tables(conn)?;
+        let peers = crate::owner_sync::scope::resolve_owner_device_endpoints(
+            conn,
+            &owner_did,
+            &our_endpoint_id,
+        )
+        .map_err(|e| crate::database::error::DatabaseError::QueryError {
+            reason: e.to_string(),
+        })?;
+        Ok((tables, peers))
     })
     .map_err(|e| e.to_string())?;
 
