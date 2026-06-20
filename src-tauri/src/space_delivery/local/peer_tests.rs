@@ -86,6 +86,32 @@ mod owner_mode_tests {
         }
     }
 
+    /// Owner-mesh pending-column recovery builds `SyncPullColumns` with
+    /// `ucan_token: None` (owner sessions carry no UCAN), the requested
+    /// `columns` verbatim, and `after_row_pks: None` (pagination unused).
+    #[test]
+    fn owner_session_builds_pull_columns_request_without_ucan() {
+        let owner: Option<String> = None;
+        let columns = vec![("notes".to_string(), "title".to_string())];
+        match PeerSession::pull_columns_request(&owner, "space-1", &columns, None) {
+            Request::SyncPullColumns {
+                space_id,
+                columns: req_columns,
+                after_row_pks,
+                ucan_token,
+            } => {
+                assert_eq!(
+                    ucan_token, None,
+                    "owner SyncPullColumns must not carry a UCAN"
+                );
+                assert_eq!(space_id, "space-1");
+                assert_eq!(req_columns, columns);
+                assert_eq!(after_row_pks, None, "pagination cursor must be None");
+            }
+            other => panic!("expected SyncPullColumns, got {other:?}"),
+        }
+    }
+
     /// `connect_owner` must NOT load a UCAN, and the source must NOT send an
     /// `Announce` (the owner mesh skips the announce round-trip entirely).
     /// A source-level guard keeps both invariants from silently regressing —

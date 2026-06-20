@@ -65,8 +65,12 @@ fn cursor_handles_single_failing_message_in_batch() {
 // or QUIC session. They run against an in-memory DbConnection, mirroring
 // the scanner unit tests.
 // =====================================================================
-use super::{collect_push_changes, SyncMode};
+use super::{
+    collect_push_changes, columns_present_in_changes, recoverable_pending_columns, SyncMode,
+};
+use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
+use crate::table_names::TABLE_CRDT_PENDING_COLUMNS;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
 
@@ -200,4 +204,129 @@ fn space_scoped_mode_collects_only_space_tables() {
         !tables_seen.contains("haex_passwords"),
         "space-scoped mode leaked the off-whitelist vault-private table"
     );
+}
+
+// =====================================================================
+// recoverable_pending_columns tests.
+//
+// This filter is the data-loss guard: it must drop pending entries whose
+// column has NOT yet been re-added locally, so the recovery step never
+// clears a marker for a value it cannot actually apply.
+// =====================================================================
+
+/// In-memory connection with the pending-columns table, created via the real
+/// const so the schema tracks the production table name.
+fn pending_filter_conn() -> Connection {
+    let conn = Connection::open_in_memory().expect("open in-memory connection");
+    conn.execute_batch(&format!(
+        "CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
+            table_name TEXT NOT NULL,
+            column_name TEXT NOT NULL,
+            PRIMARY KEY(table_name, column_name)
+        );"
+    ))
+    .expect("create pending-columns table");
+    conn
+}
+
+fn insert_pending(conn: &Connection, table_name: &str, column_name: &str) {
+    conn.execute(
+        &format!(
+            "INSERT INTO {TABLE_CRDT_PENDING_COLUMNS} (table_name, column_name) VALUES (?, ?)"
+        ),
+        rusqlite::params![table_name, column_name],
+    )
+    .expect("insert pending column");
+}
+
+/// Pending `(notes, title)` where `notes` HAS `title` → recoverable.
+#[test]
+fn recoverable_returns_pending_column_that_exists_locally() {
+    let conn = pending_filter_conn();
+    conn.execute_batch("CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT);")
+        .unwrap();
+    insert_pending(&conn, "notes", "title");
+
+    let recoverable = recoverable_pending_columns(&conn).unwrap();
+    assert_eq!(
+        recoverable,
+        vec![("notes".to_string(), "title".to_string())],
+    );
+}
+
+/// Pending `(notes, bio)` where `notes` LACKS `bio` (migration not applied yet)
+/// → filtered out. THIS is the data-loss guard: clearing it would lose the
+/// skipped values forever.
+#[test]
+fn recoverable_filters_pending_column_not_yet_migrated() {
+    let conn = pending_filter_conn();
+    // `notes` exists but has no `bio` column yet.
+    conn.execute_batch("CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT);")
+        .unwrap();
+    insert_pending(&conn, "notes", "bio");
+
+    let recoverable = recoverable_pending_columns(&conn).unwrap();
+    assert!(
+        recoverable.is_empty(),
+        "a pending column the local schema lacks must NOT be recoverable \
+         (clearing it would be silent data loss)"
+    );
+}
+
+/// Pending `(ghost_table, x)` where the table doesn't exist → filtered out.
+#[test]
+fn recoverable_filters_pending_column_on_missing_table() {
+    let conn = pending_filter_conn();
+    insert_pending(&conn, "ghost_table", "x");
+
+    let recoverable = recoverable_pending_columns(&conn).unwrap();
+    assert!(
+        recoverable.is_empty(),
+        "a pending column on a non-existent table must NOT be recoverable"
+    );
+}
+
+/// No pending entries → empty result (the cheap path).
+#[test]
+fn recoverable_returns_empty_when_no_pending() {
+    let conn = pending_filter_conn();
+    let recoverable = recoverable_pending_columns(&conn).unwrap();
+    assert!(recoverable.is_empty());
+}
+
+fn change(table: &str, column: &str) -> LocalColumnChange {
+    LocalColumnChange {
+        table_name: table.to_string(),
+        row_pks: "{\"id\":\"r1\"}".to_string(),
+        column_name: column.to_string(),
+        hlc_timestamp: "1000000000000000000/aabbccdd".to_string(),
+        value: serde_json::Value::String("v".to_string()),
+        device_id: "leader".to_string(),
+    }
+}
+
+/// The clear-set is exactly the `(table, column)` pairs the dump carried a value
+/// for — this is the guard that stops an empty/absent column from being cleared
+/// (which would be silent data loss under owner-device version skew).
+#[test]
+fn columns_present_in_changes_collects_only_returned_pairs() {
+    let changes = vec![
+        change("notes", "title"),
+        change("notes", "title"), // duplicate row → still one pair
+        change("tags", "label"),
+    ];
+    let present = columns_present_in_changes(&changes);
+    assert_eq!(present.len(), 2);
+    assert!(present.contains(&("notes".to_string(), "title".to_string())));
+    assert!(present.contains(&("tags".to_string(), "label".to_string())));
+    // A requested-but-absent column is NOT in the set → recovery must leave it
+    // pending rather than clear it.
+    assert!(!present.contains(&("notes".to_string(), "bio".to_string())));
+}
+
+/// An empty dump yields an empty clear-set → nothing is cleared.
+#[test]
+fn columns_present_in_changes_empty_dump_clears_nothing() {
+    let present = columns_present_in_changes(&[]);
+    assert!(present.is_empty());
 }

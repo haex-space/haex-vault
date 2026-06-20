@@ -399,6 +399,73 @@ pub(crate) fn scan_all_crdt_tables_for_owner(
     Ok(all_changes)
 }
 
+/// **OWNER-ONLY, UNSCOPED BY DESIGN.** Dumps every row's current value for a
+/// single `(table_name, column_name)` pair, with **no `space_id` filter, no
+/// HLC threshold, and no origin-node filter**. This is the single-column
+/// analogue of [`scan_all_crdt_tables_for_owner`].
+///
+/// It exists solely to RECOVER a column that a device skipped during apply
+/// because it was missing the column locally (schema skew). After a migration
+/// re-adds the column, the recovering device pulls the column's complete state
+/// from another of the owner's own devices over P2P.
+///
+/// Two deliberate `None`s, both required for correct recovery:
+///
+/// * `after_hlc = None` — **FULL DUMP, no HLC threshold.** The recovering
+///   device never held this column, so it has no meaningful cursor; it must
+///   receive every row's current value regardless of how "old" the row's HLC
+///   is. Threading an HLC threshold here would silently drop rows that were
+///   last written before some arbitrary cursor — exactly the values recovery
+///   needs.
+/// * `origin_node_filter = None` — **NO ping-pong/origin filter.** The
+///   recovering device wants the COMPLETE column state across all rows,
+///   including rows authored by other devices — not just rows this serving
+///   device wrote. This is the deliberate opposite of the push path's origin
+///   filtering: there, filtering stops re-pushing peer-authored rows; here,
+///   peer-authored rows are precisely what must be returned.
+///
+/// # Security
+///
+/// Because it applies **no** space filter, its output is the UNSCOPED
+/// full-vault dump for the requested column and is therefore a
+/// cross-space-leak hazard. It MUST only be invoked from a branch that has
+/// already proven, via DID-auth, that the remote peer is the *same owner* on
+/// another of the owner's own devices. The dump produced here must never reach
+/// a non-owner peer. For peer-to-peer sync of a *shared space* use
+/// [`scan_space_scoped_tables_for_local_changes`] instead.
+///
+/// # Caller notes
+///
+/// * `device_id` is stamped onto every returned `LocalColumnChange.device_id`
+///   as the **serving** device — it is NOT the row's author (peer-authored rows
+///   are returned with this serving device's id). Do not read provenance from
+///   it.
+/// * Results are **unordered** (raw scan order); unlike
+///   [`scan_all_crdt_tables_for_owner`] this does not sort by HLC. A consumer
+///   that needs HLC order must sort itself.
+/// * An empty result is **ambiguous**: it means either the column legitimately
+///   has no rows, or the requested `(table, column)` is wrong/excluded. Validate
+///   the pair before treating an empty dump as "recovery complete".
+pub fn scan_single_column_for_owner(
+    conn: &Connection,
+    table_name: &str,
+    column_name: &str,
+    device_id: &str,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    // FULL DUMP (after_hlc = None): recovery has no cursor for a column it
+    // never held. NO space filter (space_id_filter = None): owner gets the
+    // full vault by design. NO origin filter (origin_node_filter = None):
+    // recovery needs the complete column, including rows authored by other
+    // devices.
+    let changes =
+        scan_table_for_local_changes_scoped(conn, table_name, None, device_id, None, None)?;
+
+    Ok(changes
+        .into_iter()
+        .filter(|c| c.column_name == column_name)
+        .collect())
+}
+
 // `scan_all_crdt_tables_for_local_changes` used to scan every CRDT table
 // without a space filter. That function powered the old peer SyncPull and
 // was the root of a cross-space data leak — a peer asking for space X

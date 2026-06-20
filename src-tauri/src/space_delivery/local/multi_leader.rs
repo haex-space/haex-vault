@@ -330,6 +330,7 @@ fn extract_space_id(request: &Request) -> Option<&str> {
         | Request::MlsFetchWelcomes { space_id }
         | Request::SyncPush { space_id, .. }
         | Request::SyncPull { space_id, .. }
+        | Request::SyncPullColumns { space_id, .. }
         | Request::Announce { space_id, .. }
         | Request::ClaimInvite { space_id, .. }
         | Request::MlsAckCommit { space_id, .. }

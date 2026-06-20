@@ -1185,6 +1185,15 @@ pub(super) async fn handle_delivery_request(
             }
         }
 
+        // Owner-mesh-only pending-column recovery. No serving handler exists
+        // on the space path yet — it lands in a later task that wires it
+        // exclusively behind the owner gate (full-vault exposure). A foreign
+        // peer that reaches this arm must get the "no handler" Error, not a
+        // partial response.
+        Request::SyncPullColumns { .. } => Response::Error {
+            message: "SyncPullColumns is not served on the space path".to_string(),
+        },
+
         // -- Invites (ClaimInvite) --
         req @ Request::ClaimInvite { .. } => handle_claim_invite(state, req, verified_did).await,
 

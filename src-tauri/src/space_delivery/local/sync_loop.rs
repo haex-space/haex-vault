@@ -24,8 +24,12 @@ use crate::crdt::scanner::{
     scan_all_crdt_tables_for_owner, scan_membership_tables_for_local_changes,
     scan_space_scoped_tables_for_local_changes, LocalColumnChange,
 };
+use crate::crdt::trigger::get_table_schema;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
+use crate::database::migrations::{
+    clear_pending_column_inner, get_pending_columns_inner, pending_columns_count,
+};
 use crate::database::DbConnection;
 
 /// Selects what the push phase scans and which phases run in a sync cycle.
@@ -378,6 +382,180 @@ pub fn local_to_remote_change(local: &LocalColumnChange) -> RemoteColumnChange {
         hlc_timestamp: local.hlc_timestamp.clone(),
         decrypted_value: local.value.clone(),
     }
+}
+
+/// The pending columns we can recover THIS cycle: only those whose column
+/// already exists in the local schema. A pending entry may reference a column
+/// the local migration has not re-added yet (the loop runs continuously between
+/// the skip and the app update that migrates). If we recovered+cleared such an
+/// entry, `apply_remote_changes_to_db` would just re-skip the still-missing
+/// column and we'd have cleared the pending marker — the skipped values would
+/// then NEVER be recovered (silent data loss). So filter to columns that exist
+/// locally; leave the rest pending for a later cycle.
+fn recoverable_pending_columns(
+    conn: &rusqlite::Connection,
+) -> Result<Vec<(String, String)>, DatabaseError> {
+    let pending = get_pending_columns_inner(conn)?;
+    let mut recoverable = Vec::new();
+    for crate::database::migrations::PendingColumn {
+        table_name,
+        column_name,
+    } in pending
+    {
+        // A missing table (PRAGMA returns an empty schema) or an unsafe table
+        // name (Err) both yield "column not present" → not recoverable. We
+        // intentionally swallow the schema error here: the pair simply stays
+        // pending and is retried on a later cycle once the table exists.
+        let column_exists = get_table_schema(conn, &table_name)
+            .map(|cols| cols.iter().any(|c| c.name == column_name))
+            .unwrap_or(false);
+        if column_exists {
+            recoverable.push((table_name, column_name));
+        }
+    }
+    Ok(recoverable)
+}
+
+/// The `(table_name, column_name)` pairs the pulled dump actually carried at
+/// least one value for. Recovery clears a pending marker ONLY for these.
+///
+/// An empty/absent column in the dump is ambiguous: the serving owner device may
+/// itself lack the column (normal version skew across the owner's own devices).
+/// Clearing the marker on such an empty result would drop it while the skipped
+/// value still lives only behind this device's incremental pull cursor — lost
+/// forever. Leaving the column pending instead lets a later cycle retry against
+/// whichever peer the loop connects to next.
+fn columns_present_in_changes(
+    changes: &[LocalColumnChange],
+) -> std::collections::HashSet<(String, String)> {
+    changes
+        .iter()
+        .map(|c| (c.table_name.clone(), c.column_name.clone()))
+        .collect()
+}
+
+/// Owner-vault pending-column recovery. Best-effort; the caller logs errors and
+/// continues the cycle. Clears a pending entry ONLY after its value applied.
+///
+/// NOT unit-tested: this is `AppHandle`-bound (it reaches `app_handle.state`,
+/// `lock_or_fail`, and a live `PeerSession` over QUIC), none of which exist as
+/// cargo-test fixtures. Behavioural coverage is the later e2e (Pfad A). The pure
+/// data-loss-guarding logic it depends on lives in `recoverable_pending_columns`
+/// and `columns_present_in_changes`, which ARE unit-tested.
+///
+/// # Known limitation (row granularity — follow-up)
+///
+/// The pending marker in `haex_crdt_pending_columns` is column-granular
+/// (`table_name`, `column_name`) with no row identity — a model that is safe only
+/// when the recovery source is AUTHORITATIVE (the HTTP home server has every
+/// row). A P2P peer is NOT authoritative: it can be row-incomplete. In a mesh of
+/// 3+ owner devices a peer may serve some rows of a column but lack others
+/// (e.g. a row originating on a third device it never received). Because the
+/// marker can't express "row r2 still owed", clearing on a partial dump can drop
+/// the marker while a skipped value still sits behind this device's pull cursor —
+/// silently lost. The 2-device mesh (the e2e Pfad-A target) cannot hit this: a
+/// device only ever skips values its single peer sent, which that peer still has.
+/// The durable fix is row-aware markers (record owed `row_pks` at skip time in
+/// `crdt::commands`, clear per `(table, column, row_pks)`, reconcile the shared
+/// HTTP path) — deferred as a follow-up.
+async fn run_owner_pending_column_recovery(
+    db: &DbConnection,
+    session: &PeerSession,
+    space_id: &str,
+    app_handle: &tauri::AppHandle,
+) -> Result<(), DeliveryError> {
+    // 1. Cheap gate (indexed COUNT) — runs every cycle.
+    let count =
+        with_connection(db, |c| pending_columns_count(c)).map_err(|e| DeliveryError::Database {
+            reason: format!("Failed to count pending columns: {e}"),
+        })?;
+    if count == 0 {
+        return Ok(());
+    }
+
+    // 2. Only recover columns the local migration has already re-added; the rest
+    //    stay pending (clearing them now would be silent data loss).
+    let columns = with_connection(db, |c| recoverable_pending_columns(c)).map_err(|e| {
+        DeliveryError::Database {
+            reason: format!("Failed to read recoverable pending columns: {e}"),
+        }
+    })?;
+    if columns.is_empty() {
+        return Ok(());
+    }
+
+    // 3. Pull from a serving owner device. A serving-side Error (e.g. oversize)
+    //    surfaces here, propagates to the caller's log, and leaves the pending
+    //    markers in place so the next cycle retries.
+    let json = session.pull_columns(space_id, &columns).await?;
+
+    let local_changes: Vec<LocalColumnChange> =
+        serde_json::from_value(json).map_err(|e| DeliveryError::ProtocolError {
+            reason: format!("Failed to deserialize pulled columns: {e}"),
+        })?;
+
+    // 4. Apply the pulled values (if any). An empty result is NOT proof a column
+    //    is fully recovered: the serving owner device may also lack the column
+    //    (normal version skew). We therefore clear a marker only for columns the
+    //    dump actually carried a value for (step 5); columns with no returned
+    //    value stay pending and are retried next cycle against whichever peer the
+    //    loop connects to. (A column genuinely unavailable on every reachable
+    //    device re-pulls each cycle until found — bounded by the cheap COUNT gate
+    //    and MAX_RESPONSE_SIZE; per-column backoff is a follow-up.)
+    if !local_changes.is_empty() {
+        let remote_changes: Vec<RemoteColumnChange> =
+            local_changes.iter().map(local_to_remote_change).collect();
+
+        // Mirror the pull block's HLC lock + apply: lock_or_fail surfaces a
+        // banner-visible failure on poison rather than silently applying
+        // without advancing the local clock.
+        let state: tauri::State<'_, crate::AppState> = app_handle.state();
+        let hlc_service = state.lock_or_fail(
+            &state.hlc,
+            crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+            "space_delivery::local::sync_loop::run_owner_pending_column_recovery",
+            serde_json::json!({}),
+        )?;
+        apply_remote_changes_to_db(db, remote_changes, None, Some(&*hlc_service)).map_err(|e| {
+            DeliveryError::Database {
+                reason: format!("Failed to apply recovered columns: {e}"),
+            }
+        })?;
+    }
+
+    // 5. Clear ONLY columns the dump actually carried a value for, and only after
+    //    the apply above succeeded. Clearing an empty/absent column would be
+    //    silent data loss (see step 4 + `columns_present_in_changes`).
+    let recovered = columns_present_in_changes(&local_changes);
+    let mut cleared = 0usize;
+    with_connection(db, |conn| {
+        for (t, c) in &columns {
+            if recovered.contains(&(t.clone(), c.clone())) {
+                clear_pending_column_inner(conn, t, c)?;
+                cleared += 1;
+            }
+        }
+        Ok::<(), DatabaseError>(())
+    })
+    .map_err(|e| DeliveryError::Database {
+        reason: format!("Failed to clear pending columns: {e}"),
+    })?;
+
+    // 6. Observable trace for the e2e harness: how many of the requested columns
+    //    were recovered+cleared vs left pending for a later cycle.
+    log_sync(
+        app_handle,
+        "info",
+        &format!(
+            "owner pending-column recovery: space={} requested={} recovered={} left_pending={}",
+            &space_id[..8.min(space_id.len())],
+            columns.len(),
+            cleared,
+            columns.len() - cleared,
+        ),
+    );
+
+    Ok(())
 }
 
 /// The main sync loop. Runs until the stop signal is received.
@@ -904,6 +1082,13 @@ async fn run_sync_cycle(
                     }),
                 );
             }
+        }
+    }
+
+    // 2b. OWNER-VAULT pending-column recovery (best-effort, owner mode only).
+    if let SyncMode::OwnerVault { .. } = mode {
+        if let Err(e) = run_owner_pending_column_recovery(db, session, space_id, app_handle).await {
+            eprintln!("[SyncLoop] Owner pending-column recovery failed (cycle continues): {e}");
         }
     }
 

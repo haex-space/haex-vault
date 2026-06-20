@@ -756,12 +756,18 @@ pub fn apply_remote_changes_to_db(
                         )
                         .map_err(DatabaseError::from)?;
 
-                        // Still track the HLC for this column so we know we've "seen" this change
-                        // This prevents re-processing when the column is later added via migration
-                        column_hlcs.insert(
-                            change.column_name.clone(),
-                            JsonValue::String(change.hlc_timestamp.clone()),
-                        );
+                        // Deliberately do NOT record this column's HLC into
+                        // `haex_column_hlcs`. That map is the per-column HLC of
+                        // the last *applied* value; a skipped (never-applied)
+                        // column must not appear there. If we recorded its HLC
+                        // `H` here, the post-migration recovery re-pull — which
+                        // carries the SAME original HLC `H` — would be gated out
+                        // by the strict `hlc_is_newer(H, H)` check (`H > H` is
+                        // false) and silently no-op. Leaving it absent means
+                        // recovery applies normally (`H > ""`). The
+                        // pending-columns table above is the tracker for skipped
+                        // columns; re-skipping on each subsequent pre-migration
+                        // sync is harmless (idempotent INSERT OR IGNORE).
                         continue;
                     }
 
@@ -1043,6 +1049,10 @@ pub fn apply_remote_changes_to_db(
         Ok(())
     })
 }
+
+#[cfg(test)]
+#[path = "commands_pending_columns_tests.rs"]
+mod pending_columns_tests;
 
 #[cfg(test)]
 mod hlc_grouping_tests {

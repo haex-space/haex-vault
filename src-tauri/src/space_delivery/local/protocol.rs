@@ -21,8 +21,14 @@ pub const ALPN: &[u8] = b"haex-delivery/2";
 /// Maximum request size (10 MB — CRDT changes can be large)
 const MAX_REQUEST_SIZE: usize = 10 * 1024 * 1024;
 
-/// Maximum response size (10 MB)
-const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
+/// Maximum response size (10 MB).
+///
+/// `read_response` rejects any frame larger than this with
+/// `PeerProtocolError::MessageTooLarge`. The owner column-dump path
+/// (`owner_serve::handle_owner_pull_columns`) reads this bound to guard its
+/// single-frame dump and degrade gracefully to a clear `Response::Error`
+/// instead of emitting an oversized frame the wire would reject cryptically.
+pub(crate) const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
 
 // ============================================================================
 // Request types
@@ -117,6 +123,19 @@ pub enum Request {
         /// UCAN token — deprecated wire field (see `RequestRejoin::ucan_token`).
         #[serde(default)]
         ucan_token: Option<String>,
+    },
+    /// Owner-mesh ONLY: recover values for columns this device skipped during a
+    /// schema-skew apply (haex_crdt_pending_columns). The serving owner returns
+    /// ALL rows' values+HLC for each (table_name, column_name), unscoped by space.
+    /// MUST route through the same owner gate as SyncPull (full-vault exposure);
+    /// a foreign peer that reaches the space path gets no handler. Serving +
+    /// recovery logic land in later tasks.
+    SyncPullColumns {
+        space_id: String,               // = vault_space_id; the owner gate matches this
+        columns: Vec<(String, String)>, // (table_name, column_name) pairs
+        after_row_pks: Option<String>,  // pagination cursor; None = from start
+        #[serde(default)]
+        ucan_token: Option<String>, // owner sessions send None (wire-shape parity)
     },
 
     // -- Identity --
@@ -218,6 +237,7 @@ impl Request {
             | Request::SubmitExternalCommit { space_id, .. }
             | Request::SyncPush { space_id, .. }
             | Request::SyncPull { space_id, .. }
+            | Request::SyncPullColumns { space_id, .. }
             | Request::ClaimInvite { space_id, .. }
             | Request::PushInvite { space_id, .. } => space_id,
         }
@@ -301,6 +321,7 @@ impl Request {
             | Request::MlsSendWelcome { .. }
             | Request::MlsAckCommit { .. }
             | Request::SyncPull { .. }
+            | Request::SyncPullColumns { .. }
             | Request::SyncPush { .. }
             | Request::RequestRejoin { .. }
             | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
@@ -340,6 +361,7 @@ impl Request {
             Request::SubmitExternalCommit { .. } => "SubmitExternalCommit",
             Request::SyncPush { .. } => "SyncPush",
             Request::SyncPull { .. } => "SyncPull",
+            Request::SyncPullColumns { .. } => "SyncPullColumns",
             Request::Announce { .. } => "Announce",
             Request::ClaimInvite { .. } => "ClaimInvite",
             Request::PushInvite { .. } => "PushInvite",

@@ -100,3 +100,117 @@ fn manual_journal_and_sql_files_are_in_sync() {
         "manual journal tags with no matching .sql file: {missing_files:?}"
     );
 }
+
+// ===== Pending-column inner-helper tests =====
+//
+// These exercise the free helpers that operate on a bare `&Connection`
+// (no Tauri State), so the owner-sync request handler and the sync-loop
+// recovery step can reuse them.
+
+use crate::table_names::TABLE_CRDT_PENDING_COLUMNS;
+use rusqlite::Connection;
+
+/// Build an in-memory connection with the pending-columns table created using
+/// the real table-name const, so the schema tracks the production table name.
+fn pending_columns_conn() -> Connection {
+    let conn = Connection::open_in_memory().expect("open in-memory connection");
+    conn.execute_batch(&format!(
+        "CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
+            table_name TEXT NOT NULL,
+            column_name TEXT NOT NULL,
+            PRIMARY KEY(table_name, column_name)
+        );"
+    ))
+    .expect("create pending-columns table");
+    conn
+}
+
+fn insert_pending(conn: &Connection, table_name: &str, column_name: &str) {
+    conn.execute(
+        &format!(
+            "INSERT INTO {TABLE_CRDT_PENDING_COLUMNS} (table_name, column_name) VALUES (?, ?)"
+        ),
+        rusqlite::params![table_name, column_name],
+    )
+    .expect("insert pending column");
+}
+
+#[test]
+fn pending_columns_count_is_zero_on_empty() {
+    let conn = pending_columns_conn();
+    assert_eq!(super::pending_columns_count(&conn).unwrap(), 0);
+}
+
+#[test]
+fn pending_columns_count_matches_inserted_rows() {
+    let conn = pending_columns_conn();
+    insert_pending(&conn, "haex_files", "thumbnail");
+    insert_pending(&conn, "haex_files", "duration");
+    insert_pending(&conn, "haex_notes", "color");
+    assert_eq!(super::pending_columns_count(&conn).unwrap(), 3);
+}
+
+#[test]
+fn get_pending_columns_inner_returns_inserted_pairs() {
+    let conn = pending_columns_conn();
+    insert_pending(&conn, "haex_files", "thumbnail");
+    insert_pending(&conn, "haex_notes", "color");
+
+    let mut pairs: Vec<(String, String)> = super::get_pending_columns_inner(&conn)
+        .unwrap()
+        .into_iter()
+        .map(|c| (c.table_name, c.column_name))
+        .collect();
+    pairs.sort();
+
+    assert_eq!(
+        pairs,
+        vec![
+            ("haex_files".to_string(), "thumbnail".to_string()),
+            ("haex_notes".to_string(), "color".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn get_pending_columns_inner_is_empty_on_empty_table() {
+    let conn = pending_columns_conn();
+    assert!(super::get_pending_columns_inner(&conn).unwrap().is_empty());
+}
+
+#[test]
+fn clear_pending_column_inner_deletes_only_matching_row() {
+    let conn = pending_columns_conn();
+    insert_pending(&conn, "haex_files", "thumbnail");
+    insert_pending(&conn, "haex_files", "duration");
+    insert_pending(&conn, "haex_notes", "color");
+
+    super::clear_pending_column_inner(&conn, "haex_files", "thumbnail").unwrap();
+
+    let mut remaining: Vec<(String, String)> = super::get_pending_columns_inner(&conn)
+        .unwrap()
+        .into_iter()
+        .map(|c| (c.table_name, c.column_name))
+        .collect();
+    remaining.sort();
+
+    assert_eq!(
+        remaining,
+        vec![
+            ("haex_files".to_string(), "duration".to_string()),
+            ("haex_notes".to_string(), "color".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn clear_pending_column_inner_nonexistent_pair_is_noop_ok() {
+    let conn = pending_columns_conn();
+    insert_pending(&conn, "haex_files", "thumbnail");
+
+    // Clearing a pair that does not exist must succeed and leave the row intact.
+    super::clear_pending_column_inner(&conn, "haex_files", "does_not_exist").unwrap();
+    super::clear_pending_column_inner(&conn, "no_such_table", "thumbnail").unwrap();
+
+    assert_eq!(super::pending_columns_count(&conn).unwrap(), 1);
+}
