@@ -24,6 +24,38 @@ pub fn resolve_vault_owner_did(conn: &Connection) -> rusqlite::Result<Option<Str
     .optional()
 }
 
+/// Enumerate the iroh `endpoint_id`s of the owner's OTHER devices.
+///
+/// Selects every `haex_devices` row owned by `owner_did` except the one whose
+/// `endpoint_id` is `own_endpoint_id`, so the caller can connect to the owner's
+/// remaining devices for owner-vault sync. The `IS NOT NULL` guard is defensive
+/// against pre-`endpoint_id` rows.
+pub fn resolve_owner_device_endpoints(
+    conn: &Connection,
+    owner_did: &str,
+    own_endpoint_id: &str,
+) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT endpoint_id FROM haex_devices \
+         WHERE owner_did = ?1 AND endpoint_id != ?2 AND endpoint_id IS NOT NULL",
+    )?;
+    let rows = stmt.query_map([owner_did, own_endpoint_id], |row| row.get::<_, String>(0))?;
+    rows.collect()
+}
+
+/// Resolve the id of the VAULT-type space.
+///
+/// The VAULT space id doubles as the owner-sync cursor namespace. Returns
+/// `Ok(None)` when there is no vault space.
+pub fn resolve_vault_space_id(conn: &Connection) -> rusqlite::Result<Option<String>> {
+    conn.query_row(
+        "SELECT id FROM haex_spaces WHERE type = ?1 LIMIT 1",
+        [VAULT_SPACE_TYPE],
+        |row| row.get(0),
+    )
+    .optional()
+}
+
 /// How a verified peer relates to this vault's owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PeerClass {

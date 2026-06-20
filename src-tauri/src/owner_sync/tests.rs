@@ -4,7 +4,8 @@ mod tests {
     use uuid::Uuid;
 
     use crate::owner_sync::scope::{
-        classify_peer, resolve_vault_owner_did, select_sync_scope, PeerClass,
+        classify_peer, resolve_owner_device_endpoints, resolve_vault_owner_did,
+        resolve_vault_space_id, select_sync_scope, PeerClass,
     };
 
     /// Create the minimal subset of `haex_identities` + `haex_spaces` the
@@ -161,5 +162,108 @@ mod tests {
                 "owner device must receive private table {private_table}"
             );
         }
+    }
+
+    /// Create the minimal subset of `haex_devices` the endpoint resolver scans.
+    /// Columns mirror the production Drizzle schema (`src/database/schemas/devices.ts`)
+    /// for the `NOT NULL` constraints; purely cosmetic columns are omitted.
+    fn setup_devices_db() -> Connection {
+        let conn = Connection::open_in_memory().expect("in-memory DB");
+        conn.execute_batch(
+            "CREATE TABLE haex_devices (
+                id TEXT PRIMARY KEY NOT NULL,
+                owner_did TEXT NOT NULL,
+                endpoint_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                platform TEXT NOT NULL
+            );",
+        )
+        .expect("create table");
+        conn
+    }
+
+    fn insert_device(conn: &Connection, owner_did: &str, endpoint_id: &str) {
+        conn.execute(
+            "INSERT INTO haex_devices (id, owner_did, endpoint_id, name, platform) \
+             VALUES (?1, ?2, ?3, 'Device', 'desktop')",
+            rusqlite::params![Uuid::new_v4().to_string(), owner_did, endpoint_id],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn enumerates_other_owner_devices_excluding_self() {
+        let conn = setup_devices_db();
+        let owner_did = format!("did:key:{}", Uuid::new_v4());
+        let other_owner_did = format!("did:key:{}", Uuid::new_v4());
+        let self_ep = format!("ep-{}", Uuid::new_v4());
+        let ep_b = format!("ep-{}", Uuid::new_v4());
+        let ep_c = format!("ep-{}", Uuid::new_v4());
+
+        // (a) own device, (b) owner's other device, (c) a foreign owner's device.
+        insert_device(&conn, &owner_did, &self_ep);
+        insert_device(&conn, &owner_did, &ep_b);
+        insert_device(&conn, &other_owner_did, &ep_c);
+
+        let resolved = resolve_owner_device_endpoints(&conn, &owner_did, &self_ep);
+        assert_eq!(resolved, Ok(vec![ep_b]));
+    }
+
+    #[test]
+    fn returns_empty_when_only_self() {
+        let conn = setup_devices_db();
+        let owner_did = format!("did:key:{}", Uuid::new_v4());
+        let self_ep = format!("ep-{}", Uuid::new_v4());
+
+        insert_device(&conn, &owner_did, &self_ep);
+
+        let resolved = resolve_owner_device_endpoints(&conn, &owner_did, &self_ep);
+        assert_eq!(resolved, Ok(Vec::<String>::new()));
+    }
+
+    #[test]
+    fn resolve_vault_space_id_returns_vault_row() {
+        let conn = setup_db();
+        let identity_id = Uuid::new_v4().to_string();
+        let some_did = format!("did:key:{}", Uuid::new_v4());
+        let space_id = Uuid::new_v4().to_string();
+
+        conn.execute(
+            "INSERT INTO haex_identities (id, did, name, source) VALUES (?1, ?2, 'Me', 'own')",
+            rusqlite::params![identity_id, some_did],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_spaces (id, type, name, owner_identity_id) \
+             VALUES (?1, 'vault', 'My Vault', ?2)",
+            rusqlite::params![space_id, identity_id],
+        )
+        .unwrap();
+
+        let resolved = resolve_vault_space_id(&conn);
+        assert_eq!(resolved, Ok(Some(space_id)));
+    }
+
+    #[test]
+    fn resolve_vault_space_id_returns_none_without_vault() {
+        let conn = setup_db();
+        let identity_id = Uuid::new_v4().to_string();
+        let some_did = format!("did:key:{}", Uuid::new_v4());
+
+        conn.execute(
+            "INSERT INTO haex_identities (id, did, name, source) VALUES (?1, ?2, 'Me', 'own')",
+            rusqlite::params![identity_id, some_did],
+        )
+        .unwrap();
+        // Only a non-vault space present.
+        conn.execute(
+            "INSERT INTO haex_spaces (id, type, name, owner_identity_id) \
+             VALUES (?1, 'online', 'A Shared Space', ?2)",
+            rusqlite::params![Uuid::new_v4().to_string(), identity_id],
+        )
+        .unwrap();
+
+        let resolved = resolve_vault_space_id(&conn);
+        assert_eq!(resolved, Ok(None));
     }
 }
