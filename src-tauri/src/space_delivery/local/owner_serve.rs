@@ -24,7 +24,9 @@ use tauri::{AppHandle, Manager};
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
-use crate::crdt::scanner::{scan_all_crdt_tables_for_owner, LocalColumnChange};
+use crate::crdt::scanner::{
+    scan_all_crdt_tables_for_owner, scan_single_column_for_owner, LocalColumnChange,
+};
 use crate::critical::CriticalFailureCode;
 use crate::database::core::with_connection;
 use crate::database::init::discover_crdt_tables;
@@ -37,13 +39,14 @@ use super::sync_loop::local_to_remote_change;
 /// as a pure classifier so the request-variant routing is unit-testable
 /// without a live QUIC endpoint or database.
 ///
-/// Only `SyncPull` and `SyncPush` are valid owner-sync operations; everything
-/// else is rejected so an owner-classified connection can never fall through
-/// into space-scoped logic via this handler.
+/// Only `SyncPull`, `SyncPush` and `SyncPullColumns` are valid owner-sync
+/// operations; everything else is rejected so an owner-classified connection
+/// can never fall through into space-scoped logic via this handler.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum OwnerRequestAction {
     Pull,
     Push,
+    PullColumns,
     Reject,
 }
 
@@ -52,6 +55,7 @@ pub(super) fn owner_request_action(request: &Request) -> OwnerRequestAction {
     match request {
         Request::SyncPull { .. } => OwnerRequestAction::Pull,
         Request::SyncPush { .. } => OwnerRequestAction::Push,
+        Request::SyncPullColumns { .. } => OwnerRequestAction::PullColumns,
         _ => OwnerRequestAction::Reject,
     }
 }
@@ -63,6 +67,8 @@ pub(super) fn owner_request_action(request: &Request) -> OwnerRequestAction {
 ///   changes the same way the space `SyncPull` handler serializes them.
 /// - `SyncPush` → apply the incoming changes RAW (no UCAN/membership check),
 ///   advancing the HLC clock via `lock_or_fail` exactly like the space path.
+/// - `SyncPullColumns` → dump every row's value for each requested
+///   `(table, column)` pair (unscoped full-vault), same serialization as pull.
 /// - anything else → `Response::Error` (never falls through to space logic).
 ///
 /// `ucan_token` on the wire is ignored entirely — owner peers send `None`.
@@ -90,8 +96,20 @@ pub(super) fn handle_owner_sync_request(
             };
             handle_owner_push(changes, db, hlc, app_handle)
         }
+        OwnerRequestAction::PullColumns => {
+            // `after_row_pks` and `ucan_token` are intentionally IGNORED here:
+            // pagination is a separate later task, and owner peers send no UCAN.
+            let columns = match request {
+                Request::SyncPullColumns { columns, .. } => columns,
+                _ => unreachable!(
+                    "owner_request_action returned PullColumns for a non-SyncPullColumns request"
+                ),
+            };
+            handle_owner_pull_columns(&columns, db)
+        }
         OwnerRequestAction::Reject => Response::Error {
-            message: "Owner-sync connection only serves SyncPull/SyncPush".to_string(),
+            message: "Owner-sync connection only serves SyncPull/SyncPush/SyncPullColumns"
+                .to_string(),
         },
     }
 }
@@ -126,6 +144,53 @@ pub(super) fn handle_owner_pull(after_timestamp: Option<&str>, db: &DbConnection
         },
         Err(e) => {
             eprintln!("[OwnerSync] SyncPull: failed to scan changes: {e}");
+            Response::Error {
+                message: format!("Failed to scan changes: {e}"),
+            }
+        }
+    }
+}
+
+/// Owner `SyncPullColumns`: for each requested `(table_name, column_name)`
+/// pair, dump EVERY row's current value (full unscoped dump, no HLC threshold,
+/// no origin filter — see `scan_single_column_for_owner`) and return the
+/// concatenated changes. This lets a device that skipped columns during a
+/// schema-skew apply recover the missing values from another owner device.
+///
+/// `pub(super)` so it can be driven directly by the owner-sync capstone test,
+/// like `handle_owner_pull` — it is AppHandle-free (read path).
+pub(super) fn handle_owner_pull_columns(
+    columns: &[(String, String)],
+    db: &DbConnection,
+) -> Response {
+    // The serving side is a source of truth and hands out every row for the
+    // requested columns regardless of who wrote it; `device_id` is stamped as
+    // the serving device, not the row author (same convention as
+    // `handle_owner_pull`).
+    let device_id = "leader";
+
+    let scan_result = with_connection(db, |conn| {
+        let mut changes: Vec<LocalColumnChange> = Vec::new();
+        for (table_name, column_name) in columns {
+            let column_changes =
+                scan_single_column_for_owner(conn, table_name, column_name, device_id)?;
+            changes.extend(column_changes);
+        }
+        Ok(changes)
+    });
+
+    match scan_result {
+        Ok(changes) => match serde_json::to_value(&changes) {
+            Ok(json) => Response::SyncChanges { changes: json },
+            Err(e) => {
+                eprintln!("[OwnerSync] SyncPullColumns: failed to serialize changes: {e}");
+                Response::Error {
+                    message: format!("Failed to serialize changes: {e}"),
+                }
+            }
+        },
+        Err(e) => {
+            eprintln!("[OwnerSync] SyncPullColumns: failed to scan changes: {e}");
             Response::Error {
                 message: format!("Failed to scan changes: {e}"),
             }
