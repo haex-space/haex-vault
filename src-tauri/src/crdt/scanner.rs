@@ -358,6 +358,64 @@ pub fn scan_membership_tables_for_local_changes(
     )
 }
 
+/// **OWNER-ONLY, UNSCOPED BY DESIGN.** Scans every table named in
+/// `table_names` for local CRDT changes with **no `space_id` filter**, then
+/// returns the concatenated changes in a single global HLC-ascending order.
+///
+/// This exists solely for serverless P2P sync of the owner's own vault across
+/// the owner's own devices: that path replicates the *full* CRDT table set
+/// (all `haex_*` tables carrying a `haex_hlc` column, including vault-private
+/// and extension tables), not just the space-scoped whitelist.
+///
+/// # Security
+///
+/// Because it applies **no** space filter, its output is the entire vault and
+/// is therefore a cross-space-leak hazard. It MUST only be invoked from the
+/// branch that has already proven, via DID-auth, that the remote peer is the
+/// *same owner* on another of the owner's own devices. The full-vault scope
+/// produced here must never reach a non-owner peer. For peer-to-peer sync of a
+/// *shared space* use [`scan_space_scoped_tables_for_local_changes`] instead —
+/// a previous general unscoped scanner was removed precisely because it leaked
+/// cross-space rows.
+///
+/// The caller supplies the exact `table_names` to scan; this function never
+/// derives the list itself, so scope stays in the caller's hands and the
+/// behaviour is "scan exactly the tables the caller passes" — nothing more.
+///
+/// `origin_node` (when `Some`) restricts the result to rows whose HLC was
+/// originally written by this node — see the doc on
+/// [`scan_table_for_local_changes_scoped`] for the rationale.
+// Wired into the owner-device sync branch in a follow-up; lands here first so
+// the security-sensitive scanner can be reviewed and tested in isolation.
+#[allow(dead_code)]
+pub fn scan_all_crdt_tables_for_owner(
+    conn: &Connection,
+    table_names: &[String],
+    after_hlc: Option<&str>,
+    device_id: &str,
+    origin_node: Option<u128>,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    let mut all_changes: Vec<LocalColumnChange> = Vec::new();
+    for table_name in table_names {
+        let changes = scan_table_for_local_changes_scoped(
+            conn,
+            table_name,
+            after_hlc,
+            device_id,
+            None, // NO space filter — owner gets the full vault by design.
+            origin_node,
+        )?;
+        all_changes.extend(changes);
+    }
+
+    // Global sort by transaction-HLC ascending so downstream chunking can
+    // respect HLC-group boundaries without further grouping logic.
+    all_changes
+        .sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp));
+
+    Ok(all_changes)
+}
+
 // `scan_all_crdt_tables_for_local_changes` used to scan every CRDT table
 // without a space filter. That function powered the old peer SyncPull and
 // was the root of a cross-space data leak — a peer asking for space X
@@ -712,6 +770,115 @@ mod tests {
                 "leaked row from other space: {id}"
             );
         }
+    }
+
+    /// Creates a "vault-private-like" CRDT table that is NOT in
+    /// [`SPACE_SCOPED_CRDT_TABLES`] and carries no `space_id` column — the
+    /// shape of a per-vault private table (e.g. passwords). Used to prove the
+    /// owner scanner ships such tables, which a space-scoped scan never would.
+    fn setup_vault_private_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE haex_passwords (
+                id TEXT PRIMARY KEY,
+                secret TEXT,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+            );",
+        )
+        .unwrap();
+        conn
+    }
+
+    fn insert_private_row(conn: &Connection, id: &str, secret: &str, hlc: &str) {
+        let hlcs = format!("{{\"secret\":\"{hlc}\"}}");
+        conn.execute(
+            "INSERT INTO haex_passwords (id, secret, haex_hlc, haex_column_hlcs)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![id, secret, hlc, hlcs],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn scan_all_crdt_tables_for_owner_includes_vault_private_and_space_tables() {
+        // One vault-private table (no space_id, off the space whitelist) and
+        // one space-scoped-like table sharing the same connection.
+        let conn = setup_vault_private_test_db();
+        conn.execute_batch(
+            "CREATE TABLE scoped_items (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                data TEXT,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+            );",
+        )
+        .unwrap();
+
+        // Distinct HLC timestamps so we can assert global ordering. Use known
+        // monotonically increasing logical-clock values (no secret literals).
+        let secret_a: u64 = rand::random();
+        let secret_b: u64 = rand::random();
+        insert_private_row(
+            &conn,
+            "p1",
+            &format!("v{secret_a}"),
+            "1000000000000000000/aabbccdd",
+        );
+        insert_private_row(
+            &conn,
+            "p2",
+            &format!("v{secret_b}"),
+            "3000000000000000000/aabbccdd",
+        );
+        insert_scoped_row(
+            &conn,
+            "s1",
+            "space-A",
+            "hello",
+            "2000000000000000000/aabbccdd",
+        );
+
+        let table_names = vec!["haex_passwords".to_string(), "scoped_items".to_string()];
+        let changes =
+            scan_all_crdt_tables_for_owner(&conn, &table_names, None, "device-1", None).unwrap();
+
+        // Rows from BOTH tables must appear — proving no space filter is
+        // applied. The vault-private table is the leak-relevant one: a
+        // space-scoped scan would never return it.
+        let tables: std::collections::HashSet<&str> =
+            changes.iter().map(|c| c.table_name.as_str()).collect();
+        assert!(
+            tables.contains("haex_passwords"),
+            "owner scan dropped vault-private table"
+        );
+        assert!(
+            tables.contains("scoped_items"),
+            "owner scan dropped space-scoped table"
+        );
+
+        // Result must be globally HLC-ordered (non-decreasing), mirroring the
+        // sibling fn's global sort.
+        for pair in changes.windows(2) {
+            assert_ne!(
+                crate::crdt::hlc::compare_hlc_strings(
+                    &pair[0].hlc_timestamp,
+                    &pair[1].hlc_timestamp,
+                ),
+                std::cmp::Ordering::Greater,
+                "owner scan result is not globally HLC-ordered"
+            );
+        }
+    }
+
+    #[test]
+    fn scan_all_crdt_tables_for_owner_empty_table_list_returns_empty() {
+        let conn = setup_vault_private_test_db();
+        insert_private_row(&conn, "p1", "x", "1000000000000000000/aabbccdd");
+
+        let changes = scan_all_crdt_tables_for_owner(&conn, &[], None, "device-1", None).unwrap();
+        assert!(changes.is_empty());
     }
 
     #[test]
