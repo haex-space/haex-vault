@@ -10,6 +10,7 @@ import type { PeerStorageStartInfo } from '~/../src-tauri/bindings/PeerStorageSt
 import type { FileEntry } from '~/../src-tauri/bindings/FileEntry'
 import type { DirEntry } from '~/../src-tauri/bindings/DirEntry'
 import {
+  haexDevices,
   haexIdentities,
   haexPeerShares,
   haexPendingInvites,
@@ -246,6 +247,23 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
       || deviceStore.hostname
       || `Device ${deviceStore.deviceId.slice(0, 8)}`
 
+    // Carry the avatar from the vault-private haex_devices row over to the
+    // per-space replica so other members see the same avatar the owner chose
+    // in the Welcome dialog. Without this the haex_space_devices row would
+    // be inserted with avatar=NULL and the settings UI (which reads from
+    // haex_space_devices) would fall back to a seed-only render, diverging
+    // from the avatar the user just confirmed.
+    const [ownDeviceRow] = await db
+      .select({
+        avatar: haexDevices.avatar,
+        avatarOptions: haexDevices.avatarOptions,
+      })
+      .from(haexDevices)
+      .where(eq(haexDevices.id, deviceStore.deviceRowId))
+      .limit(1)
+    const avatar = ownDeviceRow?.avatar ?? null
+    const avatarOptions = ownDeviceRow?.avatarOptions ?? null
+
     // Idempotent publish: a previous membership (e.g. leave → re-invite)
     // leaves the haex_space_devices row behind because self-leave only
     // tears down haex_space_members. Re-publishing would otherwise hit a
@@ -278,6 +296,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
           platform: deviceStore.platform,
           relayUrl: relayUrl.value,
           authoredByDid,
+          avatar,
+          avatarOptions,
         })
         .where(eq(haexSpaceDevices.id, existing[0].id))
     } else {
@@ -290,6 +310,8 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
         platform: deviceStore.platform,
         relayUrl: relayUrl.value,
         authoredByDid,
+        avatar,
+        avatarOptions,
       })
     }
 

@@ -16,10 +16,25 @@
         class="space-y-4"
       >
         <div class="flex justify-center">
-          <UiAvatar
-            :seed="deviceStore.localDeviceId"
-            size="xl"
-          />
+          <div class="relative">
+            <UiAvatarPicker
+              v-model="identityAvatar"
+              v-model:avatar-options="identityAvatarOptions"
+              :seed="defaultIdentity?.id"
+              avatar-style="toon-head"
+              size="xl"
+              :show-remove="false"
+            />
+            <div class="absolute -bottom-1 -right-1 z-10 rounded-full ring-2 ring-default bg-default">
+              <UiAvatarPicker
+                v-model="deviceAvatar"
+                v-model:avatar-options="deviceAvatarOptions"
+                avatar-style="bottts"
+                size="sm"
+                :show-remove="false"
+              />
+            </div>
+          </div>
         </div>
 
         <UiInput
@@ -167,6 +182,8 @@
 </template>
 
 <script setup lang="ts">
+import { buildDefaultAvatarSet } from '~/utils/identityAvatar'
+
 const deviceStore = useDeviceStore()
 const identityStore = useIdentityStore()
 const publishingStore = useSpacePublishingStore()
@@ -178,6 +195,18 @@ const visible = ref(false)
 const step = ref<1 | 2>(1)
 const userName = ref('')
 const deviceName = ref('')
+
+// Avatar state for the two stacked pickers in Step 1. Identity uses the
+// existing row's avatar (if any) so the user sees what's already persisted;
+// device gets a freshly randomized bottts since no row exists yet at this
+// point in the flow. `avatarOptions` round-trip as a JSON string in the DB
+// but the picker speaks `Record<string, unknown>`, so we parse on open and
+// re-stringify on submit.
+const identityAvatar = ref<string | null>(null)
+const identityAvatarOptions = ref<Record<string, unknown> | null>(null)
+const initialIdentityAvatar = ref<string | null>(null)
+const deviceAvatar = ref<string | null>(null)
+const deviceAvatarOptions = ref<Record<string, unknown> | null>(null)
 // The device-name baseline at the moment the dialog was last (re-)opened.
 // Combined with the computed `deviceNameTouched` below, this lets the hostname-
 // backfill watcher distinguish "untouched default" from "user explicitly typed
@@ -220,6 +249,33 @@ const openDialog = () => {
   const baseline = deviceStore.hostname ?? ''
   deviceName.value = baseline
   initialDeviceName.value = baseline
+
+  // Identity avatar: pre-fill from the existing row so the user sees what
+  // is already on disk; remember the source URI so onProceed only writes
+  // back when the customizer actually changed something. Parse defensively
+  // — a malformed JSON blob in the DB would otherwise throw here and stop
+  // the dialog from ever opening, leaving the user without a way to set up
+  // their device. Mirrors the same defensive parse in current.vue.
+  const identity = defaultIdentity.value
+  identityAvatar.value = identity?.avatar ?? null
+  initialIdentityAvatar.value = identity?.avatar ?? null
+  if (identity?.avatarOptions) {
+    try {
+      identityAvatarOptions.value = JSON.parse(identity.avatarOptions) as Record<string, unknown>
+    } catch {
+      identityAvatarOptions.value = null
+    }
+  } else {
+    identityAvatarOptions.value = null
+  }
+
+  // Device avatar: no row yet — seed a random bottts so the picker has a
+  // hydratable starting state instead of showing a seed-only fallback that
+  // would diverge from whatever the customizer would build on first open.
+  const deviceSet = buildDefaultAvatarSet('bottts')
+  deviceAvatar.value = deviceSet.avatar
+  deviceAvatarOptions.value = JSON.parse(deviceSet.avatarOptions) as Record<string, unknown>
+
   visible.value = true
 }
 
@@ -275,11 +331,26 @@ const onProceed = async () => {
       await identityStore.updateNameAsync(identity.id, name)
     }
 
+    // Only write the identity avatar back when it actually changed — the
+    // customizer rewrites `avatar` on every confirm, so comparing the data
+    // URI is the cheapest "did the user touch it" check.
+    if (identity && identityAvatar.value !== initialIdentityAvatar.value) {
+      await identityStore.updateAvatarAsync(
+        identity.id,
+        identityAvatar.value,
+        identityAvatarOptions.value ? JSON.stringify(identityAvatarOptions.value) : null,
+      )
+    }
+
     const devName = deviceName.value.trim()
+    const devAvatar = deviceAvatar.value ?? undefined
+    const devAvatarOptions = deviceAvatarOptions.value
+      ? JSON.stringify(deviceAvatarOptions.value)
+      : undefined
     if (selectedReclaimId.value) {
-      await deviceStore.reclaimAsync(selectedReclaimId.value, devName)
+      await deviceStore.reclaimAsync(selectedReclaimId.value, devName, devAvatar, devAvatarOptions)
     } else {
-      await deviceStore.registerNewAsync(devName)
+      await deviceStore.registerNewAsync(devName, devAvatar, devAvatarOptions)
     }
 
     // registerNewAsync/reclaimAsync clear pendingResolution; `visible` is owned
