@@ -21,7 +21,7 @@
 
     <!-- Remove button -->
     <button
-      v-if="modelValue || avatarOptions"
+      v-if="showRemove && (modelValue || avatarOptions)"
       type="button"
       class="text-xs text-muted hover:text-error transition-colors"
       @click="onRemove"
@@ -90,13 +90,21 @@ import 'vue-advanced-cropper/dist/style.css'
 import { compressCanvasToBase64, compressSvgToBase64 } from '~/utils/imageCompression'
 import { renderAvatarSvg, type AvatarOptions } from '~/utils/identityAvatar'
 
-defineProps<{
+withDefaults(defineProps<{
   modelValue?: string | null
   avatarOptions?: Record<string, unknown> | null
   seed?: string
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   avatarStyle?: 'bottts' | 'toon-head'
-}>()
+  showRemove?: boolean
+}>(), {
+  modelValue: null,
+  avatarOptions: null,
+  seed: undefined,
+  size: 'md',
+  avatarStyle: 'bottts',
+  showRemove: true,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | null]
