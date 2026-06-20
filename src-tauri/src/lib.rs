@@ -21,6 +21,7 @@ mod logging;
 pub mod mail;
 mod media_server;
 pub mod mls;
+pub mod owner_sync;
 mod passwords;
 pub mod peer_storage;
 pub mod quic_did_auth;
