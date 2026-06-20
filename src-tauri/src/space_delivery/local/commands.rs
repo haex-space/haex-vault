@@ -1251,6 +1251,20 @@ pub async fn owner_sync_start(
             relay_url.clone(),
             // The vault space id doubles as the cursor namespace AND the
             // SyncPull/SyncPush space_id the serving gate matches against.
+            //
+            // PUSH-CURSOR SHARING CAVEAT: because every owner loop on this
+            // device passes the same `space_id` (= vault_space_id) and the same
+            // `device_id`, they all share ONE push cursor row
+            // (`local_sync_push_hlc:<vault_space_id>`, device_id). With 3+ owner
+            // devices the per-peer push cursor is therefore last-writer-wins, so
+            // push-side delivery is NOT per-peer-correct (one peer's advance can
+            // hide rows from another peer). Convergence is still guaranteed: the
+            // symmetric FULL pull (`handle_owner_pull`, `origin_node = None`,
+            // serves everything) closes any push gap on the next pull.
+            // FOLLOW-UP: to make push-side per-peer-correct, decouple the cursor
+            // namespace from the request `space_id` (which the serving gate
+            // matches against `vault_space_id`) and key the owner push cursor
+            // per peer endpoint — deferred to a later phase.
             vault_space_id.clone(),
             // our_did = the vault-owner DID; the loop loads this identity's
             // signing key, so DID-auth proves the owner DID.

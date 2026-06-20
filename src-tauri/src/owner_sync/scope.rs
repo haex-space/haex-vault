@@ -109,20 +109,3 @@ pub fn owner_route_decision(
     classify_peer(verified_did, vault_owner_did) == PeerClass::OwnerDevice
         && target_space_id == vault_space_id
 }
-
-/// Select which CRDT tables a peer of the given class may receive.
-///
-/// A [`PeerClass::OwnerDevice`] receives the full `all_crdt_tables` set; a
-/// [`PeerClass::Foreign`] peer receives only `space_scoped_tables`. This is a
-/// pure decision over the two provided lists — the caller supplies the real
-/// table sets in a later phase.
-pub fn select_sync_scope(
-    class: PeerClass,
-    all_crdt_tables: &[String],
-    space_scoped_tables: &[String],
-) -> Vec<String> {
-    match class {
-        PeerClass::OwnerDevice => all_crdt_tables.to_vec(),
-        PeerClass::Foreign => space_scoped_tables.to_vec(),
-    }
-}
