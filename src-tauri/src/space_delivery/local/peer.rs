@@ -22,7 +22,13 @@ use super::ucan::load_active_ucan_for_audience;
 /// and `protocol.rs::Request::*::ucan_token` for the 3-step removal plan.
 pub struct PeerSession {
     conn: iroh::endpoint::Connection,
-    ucan_token: String,
+    /// UCAN attached to the deprecated `ucan_token` wire field on
+    /// `SyncPush` / `SyncPull` / `RequestRejoin` / `SubmitExternalCommit`.
+    ///
+    /// `Some(token)` for a regular space session (resolved at `connect`).
+    /// `None` for an owner-mesh session (`connect_owner`): owner devices have
+    /// no UCAN for themselves, so every request emits `ucan_token: None`.
+    ucan_token: Option<String>,
 }
 
 impl PeerSession {
@@ -92,7 +98,10 @@ impl PeerSession {
             reason: format!("DID-auth: {e}"),
         })?;
 
-        let session = Self { conn, ucan_token };
+        let session = Self {
+            conn,
+            ucan_token: Some(ucan_token),
+        };
 
         // Send Announce request. The DID is no longer carried on the wire —
         // the leader reads it from the quic_did_auth handshake state for this
@@ -102,7 +111,7 @@ impl PeerSession {
             space_id: space_id.to_string(),
             label: label.map(|s| s.to_string()),
             claims: None,
-            ucan_token: Some(session.ucan_token.clone()),
+            ucan_token: session.ucan_token.clone(),
         };
 
         let resp = session.request(req).await?;
@@ -113,6 +122,65 @@ impl PeerSession {
                 reason: "unexpected response to Announce".to_string(),
             }),
         }
+    }
+
+    /// Connect to an owner-mesh leader (the owner's OWN device) without UCAN.
+    ///
+    /// The owner mesh syncs the owner's own vault across the owner's own
+    /// devices. There is no delegation involved — the security gate is the
+    /// same-owner DID-auth, so this mirrors [`connect`] EXCEPT:
+    ///
+    /// - DID-auth still runs (it is the whole security model — kept).
+    /// - No UCAN is loaded (`load_active_ucan_for_audience` is skipped):
+    ///   owner devices have no UCAN for themselves.
+    /// - No `Announce` round-trip: the owner mesh skips it entirely.
+    ///
+    /// The resulting session holds `ucan_token: None`, so every request it
+    /// builds emits `ucan_token: None` on the wire.
+    pub async fn connect_owner(
+        iroh_endpoint: &iroh::Endpoint,
+        leader_endpoint_id: &str,
+        leader_relay_url: Option<&str>,
+        our_did: &str,
+        our_signing_key: &ed25519_dalek::SigningKey,
+        our_endpoint_id: &str,
+    ) -> Result<Self, DeliveryError> {
+        let addr = super::quic_retry::build_endpoint_addr(
+            iroh_endpoint,
+            leader_endpoint_id,
+            leader_relay_url,
+            None,
+        )
+        .map_err(|reason| DeliveryError::ConnectionFailed { reason })?;
+
+        let conn = iroh_endpoint
+            .connect(addr, protocol::ALPN)
+            .await
+            .map_err(|e| DeliveryError::ConnectionFailed {
+                reason: e.to_string(),
+            })?;
+
+        // Server-initiated quic_did_auth handshake — identical to `connect`.
+        // This is the owner mesh's only security gate: the leader verifies the
+        // signed challenge proves the same-owner DID before accepting any sync.
+        super::quic_retry::complete_client_did_auth(
+            &conn,
+            our_did,
+            our_signing_key,
+            our_endpoint_id,
+        )
+        .await
+        .map_err(|e| DeliveryError::ConnectionFailed {
+            reason: format!("DID-auth: {e}"),
+        })?;
+
+        // No Announce: the owner mesh skips it. `haex_space_devices` bootstrap
+        // and the AuthGate's cached `ValidatedUcan` are space-delegation
+        // concerns that do not apply to the owner's own devices.
+        Ok(Self {
+            conn,
+            ucan_token: None,
+        })
     }
 
     /// Send a request and read the response.
@@ -160,17 +228,45 @@ impl PeerSession {
         }
     }
 
+    /// Build the `SyncPush` request, attaching `ucan_token` (`None` for an
+    /// owner-mesh session). Extracted as an associated fn — independent of the
+    /// live `conn` — so the owner-mode wiring is unit-testable without a QUIC
+    /// endpoint.
+    fn sync_push_request(
+        ucan_token: &Option<String>,
+        space_id: &str,
+        changes: serde_json::Value,
+    ) -> Request {
+        Request::SyncPush {
+            space_id: space_id.to_string(),
+            changes,
+            ucan_token: ucan_token.clone(),
+        }
+    }
+
+    /// Build the `SyncPull` request, attaching `ucan_token` (`None` for an
+    /// owner-mesh session). Extracted as an associated fn — independent of the
+    /// live `conn` — so the owner-mode wiring is unit-testable without a QUIC
+    /// endpoint.
+    fn sync_pull_request(
+        ucan_token: &Option<String>,
+        space_id: &str,
+        after_timestamp: Option<&str>,
+    ) -> Request {
+        Request::SyncPull {
+            space_id: space_id.to_string(),
+            after_timestamp: after_timestamp.map(|s| s.to_string()),
+            ucan_token: ucan_token.clone(),
+        }
+    }
+
     /// Push local CRDT changes to the leader.
     pub async fn push_changes(
         &self,
         space_id: &str,
         changes: serde_json::Value,
     ) -> Result<(), DeliveryError> {
-        let req = Request::SyncPush {
-            space_id: space_id.to_string(),
-            changes,
-            ucan_token: Some(self.ucan_token.clone()),
-        };
+        let req = Self::sync_push_request(&self.ucan_token, space_id, changes);
         match self.request(req).await? {
             Response::Ok => Ok(()),
             Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
@@ -186,11 +282,7 @@ impl PeerSession {
         space_id: &str,
         after_timestamp: Option<&str>,
     ) -> Result<serde_json::Value, DeliveryError> {
-        let req = Request::SyncPull {
-            space_id: space_id.to_string(),
-            after_timestamp: after_timestamp.map(|s| s.to_string()),
-            ucan_token: Some(self.ucan_token.clone()),
-        };
+        let req = Self::sync_pull_request(&self.ucan_token, space_id, after_timestamp);
         match self.request(req).await? {
             Response::SyncChanges { changes } => Ok(changes),
             Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
@@ -296,7 +388,7 @@ impl PeerSession {
     pub async fn request_rejoin(&self, space_id: &str) -> Result<String, DeliveryError> {
         let req = Request::RequestRejoin {
             space_id: space_id.to_string(),
-            ucan_token: Some(self.ucan_token.clone()),
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::GroupInfo { group_info } => Ok(group_info),
@@ -318,7 +410,7 @@ impl PeerSession {
         let req = Request::SubmitExternalCommit {
             space_id: space_id.to_string(),
             commit: commit_b64.to_string(),
-            ucan_token: Some(self.ucan_token.clone()),
+            ucan_token: self.ucan_token.clone(),
         };
         match self.request(req).await? {
             Response::MessageStored { message_id } => Ok(message_id),
@@ -338,31 +430,5 @@ impl PeerSession {
 }
 
 #[cfg(test)]
-mod read_timeout_tests {
-    //! Regression guard: PeerSession::request must bound the response wait.
-    //!
-    //! Behavioural verification requires a live iroh::Endpoint pair and a
-    //! controllable path-degradation, which doesn't exist as a test fixture.
-    //! A source-level guard catches accidental removal of the timeout.
-
-    #[test]
-    fn request_must_apply_read_timeout() {
-        let source = include_str!("peer.rs");
-        let production = source
-            .split_once("#[cfg(test)]")
-            .map(|(p, _)| p)
-            .unwrap_or(source);
-
-        assert!(
-            production.contains("tokio::time::timeout"),
-            "PeerSession::request must wrap protocol::read_response in \
-             tokio::time::timeout; otherwise a degraded QUIC path blocks \
-             read for ~150s until the connection's idle timer fires"
-        );
-        assert!(
-            production.contains("READ_TIMEOUT_SECS"),
-            "the bound should reuse READ_TIMEOUT_SECS from quic_retry for \
-             consistency with the invite-flow timeout"
-        );
-    }
-}
+#[path = "peer_tests.rs"]
+mod tests;

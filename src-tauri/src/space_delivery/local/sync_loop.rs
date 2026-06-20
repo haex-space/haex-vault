@@ -21,10 +21,73 @@ use crate::crdt::commands::{
 };
 use crate::crdt::hlc::hlc_max;
 use crate::crdt::scanner::{
-    scan_membership_tables_for_local_changes, scan_space_scoped_tables_for_local_changes,
-    LocalColumnChange,
+    scan_all_crdt_tables_for_owner, scan_membership_tables_for_local_changes,
+    scan_space_scoped_tables_for_local_changes, LocalColumnChange,
 };
+use crate::database::core::with_connection;
+use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
+
+/// Selects what the push phase scans and which phases run in a sync cycle.
+///
+/// The default, [`SyncMode::SpaceScoped`], is the existing shared-space sync:
+/// only the space-scoped whitelist (filtered by `space_id`) is pushed and the
+/// MLS phases run. [`SyncMode::OwnerVault`] is serverless sync of the owner's
+/// OWN vault across the owner's OWN devices — it pushes the FULL CRDT table
+/// set (no `space_id` filter) and skips the MLS phases.
+#[derive(Clone)]
+pub enum SyncMode {
+    /// Existing behaviour: space-scoped whitelist push + MLS phases.
+    SpaceScoped,
+    /// Owner-mesh behaviour: full-vault push over the caller-resolved table
+    /// list, no membership filtering, no MLS phases. The caller MUST resolve
+    /// the table list (the loop never derives it).
+    OwnerVault { tables: Vec<String> },
+}
+
+/// Decide which scanner produces the push batch for `mode` and return its
+/// changes. Extracted from [`run_push_phase`] so the mode→scanner decision is
+/// unit-testable without an `AppHandle` or QUIC session (a `DbConnection` over
+/// an in-memory `rusqlite::Connection` is enough).
+///
+/// The `SpaceScoped` branch calls the existing space-scoped scanners verbatim,
+/// so its output is byte-identical to the previous inline logic. The
+/// `OwnerVault` branch runs the full-vault scanner over the caller-supplied
+/// table list.
+fn collect_push_changes(
+    mode: &SyncMode,
+    db: &DbConnection,
+    space_id: &str,
+    after_hlc: Option<&str>,
+    device_id: &str,
+    our_node: Option<u128>,
+    can_push_user_content: bool,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    match mode {
+        // EXISTING behaviour, unchanged. Read-only members must not include
+        // haex_peer_shares (the leader rejects a batch touching a
+        // non-membership-system table without Write capability), so they scan
+        // only the membership-system subset.
+        SyncMode::SpaceScoped => {
+            if can_push_user_content {
+                scan_space_scoped_tables_for_local_changes(
+                    db, space_id, after_hlc, device_id, our_node,
+                )
+            } else {
+                scan_membership_tables_for_local_changes(
+                    db, space_id, after_hlc, device_id, our_node,
+                )
+            }
+        }
+        // Reachable only after same-owner DID-auth — the security boundary that
+        // proves the remote peer holds the SAME vault-owner DID lives in the
+        // serving/connect gate (added in later tasks), not here. With that gate
+        // in place this full-vault scan is sound; without it, it MUST NOT run.
+        SyncMode::OwnerVault { tables } => with_connection(db, |conn| {
+            scan_all_crdt_tables_for_owner(conn, tables, after_hlc, device_id, our_node)
+        }),
+    }
+}
 
 /// Sync-loop DB logging helper — writes to `haex_logs` so the e2e harness
 /// can extract the trace via `sql_select_with_crdt`. The Tauri stderr is
@@ -123,6 +186,54 @@ impl SyncLoopHandle {
     }
 }
 
+/// Open a `PeerSession` appropriate for `mode`.
+///
+/// [`SyncMode::SpaceScoped`] uses [`PeerSession::connect`] (DID-auth + UCAN +
+/// Announce) — the existing shared-space path, unchanged. [`SyncMode::OwnerVault`]
+/// uses [`PeerSession::connect_owner`] (DID-auth only, NO UCAN, NO Announce):
+/// the owner's own devices have no UCAN for themselves, and the security gate
+/// is the same-owner DID-auth handshake which `connect_owner` still runs.
+#[allow(clippy::too_many_arguments)]
+async fn connect_for_mode(
+    mode: &SyncMode,
+    iroh_endpoint: &iroh::Endpoint,
+    leader_endpoint_id: &str,
+    leader_relay_url: Option<&str>,
+    space_id: &str,
+    our_did: &str,
+    our_signing_key: &ed25519_dalek::SigningKey,
+    our_endpoint_id: &str,
+    db: &DbConnection,
+) -> Result<PeerSession, DeliveryError> {
+    match mode {
+        SyncMode::SpaceScoped => {
+            PeerSession::connect(
+                iroh_endpoint,
+                leader_endpoint_id,
+                leader_relay_url,
+                space_id,
+                our_did,
+                our_signing_key,
+                our_endpoint_id,
+                Some("sync-loop"),
+                db,
+            )
+            .await
+        }
+        SyncMode::OwnerVault { .. } => {
+            PeerSession::connect_owner(
+                iroh_endpoint,
+                leader_endpoint_id,
+                leader_relay_url,
+                our_did,
+                our_signing_key,
+                our_endpoint_id,
+            )
+            .await
+        }
+    }
+}
+
 /// Start the sync loop as a peer connecting to a leader.
 ///
 /// The loop will:
@@ -136,6 +247,7 @@ impl SyncLoopHandle {
 pub async fn start_peer_sync_loop(
     db: DbConnection,
     iroh_endpoint: iroh::Endpoint,
+    mode: SyncMode,
     leader_endpoint_id: String,
     leader_relay_url: Option<String>,
     space_id: String,
@@ -179,7 +291,8 @@ pub async fn start_peer_sync_loop(
         || async {
             match tokio::time::timeout(
                 Duration::from_secs(10),
-                PeerSession::connect(
+                connect_for_mode(
+                    &mode,
                     &iroh_endpoint,
                     &leader_endpoint_id,
                     leader_relay_url.as_deref(),
@@ -187,7 +300,6 @@ pub async fn start_peer_sync_loop(
                     &our_did,
                     &our_identity.signing_key,
                     &our_endpoint_id,
-                    Some("sync-loop"),
                     &db,
                 ),
             )
@@ -237,6 +349,7 @@ pub async fn start_peer_sync_loop(
         db,
         iroh_endpoint,
         session,
+        mode,
         leader_endpoint_id,
         leader_relay_url,
         space_id,
@@ -272,6 +385,7 @@ async fn run_sync_loop(
     db: DbConnection,
     iroh_endpoint: iroh::Endpoint,
     mut session: PeerSession,
+    mode: SyncMode,
     leader_endpoint_id: String,
     leader_relay_url: Option<String>,
     space_id: String,
@@ -367,6 +481,7 @@ async fn run_sync_loop(
         match run_sync_cycle(
             &db,
             &session,
+            &mode,
             &space_id,
             &device_id,
             our_node,
@@ -450,9 +565,12 @@ async fn run_sync_loop(
                         },
                     }
 
-                    // Try to reconnect — pulls the current UCAN from the DB,
-                    // so a token renewed during the outage takes effect here.
-                    match PeerSession::connect(
+                    // Try to reconnect — in space mode this pulls the current
+                    // UCAN from the DB so a token renewed during the outage
+                    // takes effect here; in owner mode reconnect re-runs only
+                    // the DID-auth handshake (no UCAN).
+                    match connect_for_mode(
+                        &mode,
                         &iroh_endpoint,
                         &leader_endpoint_id,
                         leader_relay_url.as_deref(),
@@ -460,7 +578,6 @@ async fn run_sync_loop(
                         &our_did,
                         &our_signing_key,
                         &our_endpoint_id,
-                        Some("sync-loop"),
                         &db,
                     )
                     .await
@@ -513,6 +630,7 @@ async fn run_sync_loop(
 async fn run_push_phase(
     db: &DbConnection,
     session: &PeerSession,
+    mode: &SyncMode,
     space_id: &str,
     device_id: &str,
     our_node: Option<u128>,
@@ -525,25 +643,20 @@ async fn run_push_phase(
     // The leader rejects any batch that touches a non-membership-system table
     // without Write capability, which would leave the cursor stuck at t=0 and
     // block membership-data (e.g. MLS KeyPackages) from ever reaching the leader.
-    let all_changes = if can_push_user_content {
-        scan_space_scoped_tables_for_local_changes(
-            db,
-            space_id,
-            last_push_hlc.as_deref(),
-            device_id,
-            our_node,
-        )
-    } else {
-        scan_membership_tables_for_local_changes(
-            db,
-            space_id,
-            last_push_hlc.as_deref(),
-            device_id,
-            our_node,
-        )
-    }
+    // In owner-vault mode the full caller-resolved table set is scanned with no
+    // space filter (the can_push_user_content gate does not apply — there is no
+    // leader capability check on the owner's own mesh).
+    let all_changes = collect_push_changes(
+        mode,
+        db,
+        space_id,
+        last_push_hlc.as_deref(),
+        device_id,
+        our_node,
+        can_push_user_content,
+    )
     .map_err(|e| DeliveryError::Database {
-        reason: format!("Failed to scan space-scoped tables: {}", e),
+        reason: format!("Failed to scan CRDT tables: {}", e),
     })?;
 
     if all_changes.is_empty() {
@@ -556,8 +669,20 @@ async fn run_push_phase(
     // stamping the leader's HLC node so they pass the origin filter but fail
     // the server's per-row ownership check. Filtering here prevents the push
     // cursor from stalling on an unresolvable ownership violation.
-    let (changes, foreign_max_hlc) =
-        filter_foreign_membership_rows(db, space_id, all_changes, our_identity_id, our_endpoint_id);
+    //
+    // Owner-vault mode skips this filter: there is no leader writing rows on
+    // others' behalf in the owner's own device mesh, so every scanned row is
+    // legitimately the owner's to push.
+    let (changes, foreign_max_hlc) = match mode {
+        SyncMode::SpaceScoped => filter_foreign_membership_rows(
+            db,
+            space_id,
+            all_changes,
+            our_identity_id,
+            our_endpoint_id,
+        ),
+        SyncMode::OwnerVault { .. } => (all_changes, None),
+    };
 
     if !changes.is_empty() {
         // Chunk at HLC boundaries so a transaction-HLC group is never split
@@ -646,6 +771,7 @@ async fn run_push_phase(
 async fn run_sync_cycle(
     db: &DbConnection,
     session: &PeerSession,
+    mode: &SyncMode,
     space_id: &str,
     device_id: &str,
     our_node: Option<u128>,
@@ -662,6 +788,7 @@ async fn run_sync_cycle(
     if let Err(e) = run_push_phase(
         db,
         session,
+        mode,
         space_id,
         device_id,
         our_node,
@@ -780,26 +907,34 @@ async fn run_sync_cycle(
         }
     }
 
-    // 3. MLS: Fetch commits from leader, process, and ACK
-    if let Err(e) = fetch_and_process_mls_messages(
-        db,
-        session,
-        space_id,
-        device_id,
-        last_mls_message_id,
-        app_handle,
-    )
-    .await
-    {
-        eprintln!("[SyncLoop] MLS message processing failed: {e}");
-        // Non-fatal: CRDT sync still worked, MLS will retry next cycle
-    }
+    // 3 + 4. MLS phases run only in space-scoped mode. The owner's own device
+    // mesh has no MLS group: there is no leader distributing commits and no
+    // KeyPackage exchange, so both phases are skipped. The CRDT push+pull above
+    // run in BOTH modes.
+    if matches!(mode, SyncMode::SpaceScoped) {
+        // 3. MLS: Fetch commits from leader, process, and ACK
+        if let Err(e) = fetch_and_process_mls_messages(
+            db,
+            session,
+            space_id,
+            device_id,
+            last_mls_message_id,
+            app_handle,
+        )
+        .await
+        {
+            eprintln!("[SyncLoop] MLS message processing failed: {e}");
+            // Non-fatal: CRDT sync still worked, MLS will retry next cycle
+        }
 
-    // 4. KeyPackage refill: run once per session (ClaimInvite already uploads 10)
-    if !*key_packages_refilled {
-        match refill_key_packages_if_needed(db, session, space_id).await {
-            Ok(()) => *key_packages_refilled = true,
-            Err(e) => eprintln!("[SyncLoop] KeyPackage refill failed (will retry next cycle): {e}"),
+        // 4. KeyPackage refill: run once per session (ClaimInvite already uploads 10)
+        if !*key_packages_refilled {
+            match refill_key_packages_if_needed(db, session, space_id).await {
+                Ok(()) => *key_packages_refilled = true,
+                Err(e) => {
+                    eprintln!("[SyncLoop] KeyPackage refill failed (will retry next cycle): {e}")
+                }
+            }
         }
     }
 
@@ -1133,63 +1268,5 @@ fn sqlite_datetime_now() -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    // Regression tests for the MLS cursor-skip logic in fetch_and_process_mls_messages.
-    //
-    // Root cause of the infinite rejoin loop:
-    //   1. Peer submits External Commit → leader stores it as message id=N.
-    //   2. Old code set cursor to batch_max (id of last message in the *current*
-    //      fetch batch, which was < N since the EC wasn't in the batch yet).
-    //   3. Next fetch: WHERE id > batch_max returned the EC (id=N) again.
-    //   4. EC had the old epoch → "Wrong Epoch" error → another rejoin → new EC
-    //      stored at id=N+1 → infinite loop.
-    //
-    // Fix: cursor = max(batch_max, ec_msg_id) so the EC itself is skipped.
-
-    /// Simulate: fetch returned [id=1,2,3], EC stored by leader as id=4.
-    /// skip_to must be 4 so the next fetch (WHERE id > 4) misses the EC.
-    #[test]
-    fn cursor_skips_ec_when_ec_is_beyond_batch() {
-        let message_ids: Vec<i64> = vec![1, 2, 3];
-        let failing_msg_id: i64 = 3;
-        let ec_msg_id: i64 = 4;
-
-        let batch_max = message_ids.iter().copied().max().unwrap_or(failing_msg_id);
-        let skip_to = batch_max.max(ec_msg_id);
-
-        assert_eq!(
-            skip_to, 4,
-            "cursor must advance past the EC (id=4), not stop at batch max (id=3)"
-        );
-    }
-
-    /// EC arrives in the same batch as the failing message (unusual but possible).
-    /// skip_to must be batch_max so no messages are dropped.
-    #[test]
-    fn cursor_uses_batch_max_when_ec_already_in_batch() {
-        let message_ids: Vec<i64> = vec![1, 2, 3, 4, 5];
-        let failing_msg_id: i64 = 3;
-        let ec_msg_id: i64 = 2; // hypothetically already in the batch
-
-        let batch_max = message_ids.iter().copied().max().unwrap_or(failing_msg_id);
-        let skip_to = batch_max.max(ec_msg_id);
-
-        assert_eq!(
-            skip_to, 5,
-            "when batch_max > ec_msg_id, use batch_max to avoid losing later messages"
-        );
-    }
-
-    /// Single-message batch where that message is the failing one.
-    /// unwrap_or(msg.id) kicks in → batch_max = failing_msg_id.
-    #[test]
-    fn cursor_handles_single_failing_message_in_batch() {
-        let ec_msg_id: i64 = 8;
-
-        // messages = [failing_msg with id=7], batch_max = max of [7] = 7
-        let batch_max: i64 = 7;
-        let skip_to = batch_max.max(ec_msg_id);
-
-        assert_eq!(skip_to, 8);
-    }
-}
+#[path = "sync_loop_tests.rs"]
+mod tests;

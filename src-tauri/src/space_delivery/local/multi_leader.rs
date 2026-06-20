@@ -340,6 +340,38 @@ fn extract_space_id(request: &Request) -> Option<&str> {
     }
 }
 
+/// Defensive serving-side gate: should this verified peer be served the FULL
+/// vault (owner-on-another-device) rather than the space-scoped path?
+///
+/// Resolves the vault owner DID and vault space id from the local DB and
+/// delegates the actual decision to
+/// [`crate::owner_sync::scope::owner_route_decision`]. Any failure to resolve
+/// them — no vault space/owner, a poisoned DB lock, or a query error — yields
+/// `false`, so the connection falls through to the existing space dispatch.
+/// Never panics.
+fn is_owner_vault_route(db: &DbConnection, verified_did: &str, target_space_id: &str) -> bool {
+    // Atomic resolve: both gate inputs MUST come from the same vault row, so
+    // a schema-invariant violation (multiple `type='vault'` rows) cannot
+    // combine the `owner_did` from one row with the `space_id` from another.
+    let resolved = crate::database::core::with_connection(db, |conn| {
+        Ok(crate::owner_sync::scope::resolve_vault_owner_route_context(
+            conn,
+        )?)
+    });
+
+    match resolved {
+        Ok(Some((owner_did, vault_space_id))) => crate::owner_sync::scope::owner_route_decision(
+            verified_did,
+            target_space_id,
+            &owner_did,
+            &vault_space_id,
+        ),
+        // No vault owner/space configured, or a resolution error: not an
+        // owner-vault route. Fall through to the existing space path.
+        _ => false,
+    }
+}
+
 /// Handle a single bidirectional QUIC stream: read request, route, respond.
 ///
 /// `verified_did` is the cryptographically authenticated DID of the connected
@@ -471,6 +503,23 @@ async fn handle_stream(
             let space_id = extract_space_id(&other);
             match space_id {
                 Some(sid) => {
+                    // OWNER-VAULT PRE-CHECK (security gate). Before the normal
+                    // space dispatch, classify the peer: if it proved the SAME
+                    // vault-owner DID (via quic_did_auth) AND targets the vault
+                    // space, serve the FULL vault instead of the space-scoped
+                    // path. Resolved defensively — no vault owner/space, or any
+                    // DB error, means the decision is `false` and we fall
+                    // through to the existing path completely unchanged.
+                    if is_owner_vault_route(db, verified_did, sid) {
+                        return super::leader::send_response(
+                            &mut send,
+                            &super::owner_serve::handle_owner_sync_request(
+                                other, db, hlc, app_handle,
+                            ),
+                        )
+                        .await;
+                    }
+
                     let map = leaders.read().await;
                     match map.get(sid) {
                         Some(leader) => {

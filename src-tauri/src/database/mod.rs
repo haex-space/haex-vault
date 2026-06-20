@@ -836,6 +836,9 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
         for (_, handle) in state.local_sync_loops.lock().await.drain() {
             handle.stop();
         }
+        for (_, handle) in state.owner_sync_loops.lock().await.drain() {
+            handle.stop();
+        }
         state.leader_state.write().await.clear();
         for (_, (cancel, _)) in state.transfer_tokens.lock().await.drain() {
             cancel.cancel();

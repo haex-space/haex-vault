@@ -21,6 +21,7 @@ mod logging;
 pub mod mail;
 mod media_server;
 pub mod mls;
+pub mod owner_sync;
 mod passwords;
 pub mod peer_storage;
 pub mod quic_did_auth;
@@ -157,6 +158,10 @@ pub struct AppState {
     pub pty_manager: extension::shell::pty::PtyManager,
     /// Active local sync loops (space_id -> handle)
     pub local_sync_loops:
+        tokio::sync::Mutex<HashMap<String, space_delivery::local::sync_loop::SyncLoopHandle>>,
+    /// Active owner-vault sync loops (peer endpoint_id -> handle). One loop per
+    /// owner device the local vault syncs its full state with.
+    pub owner_sync_loops:
         tokio::sync::Mutex<HashMap<String, space_delivery::local::sync_loop::SyncLoopHandle>>,
     /// Leader states for local space delivery, keyed by space_id.
     /// RwLock because reads (QUIC stream routing) are frequent and concurrent,
@@ -352,6 +357,7 @@ pub fn run() {
             auth_token: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
+            owner_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
             leader_state: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             // Bind the loopback media server up-front. Failure to bind a
             // random port is so unusual that crashing here is the right
@@ -727,6 +733,9 @@ pub fn run() {
             space_delivery::local::commands::local_delivery_revoke_invite,
             space_delivery::local::commands::local_delivery_claim_invite,
             space_delivery::local::commands::local_delivery_push_invite,
+            space_delivery::local::commands::owner_sync_start,
+            space_delivery::local::commands::owner_sync_stop,
+            space_delivery::local::commands::owner_sync_force,
             // MLS (RFC 9420) group key management
             mls::commands::mls_init_tables,
             mls::commands::mls_init_identity,
