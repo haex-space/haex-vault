@@ -252,13 +252,22 @@ const openDialog = () => {
 
   // Identity avatar: pre-fill from the existing row so the user sees what
   // is already on disk; remember the source URI so onProceed only writes
-  // back when the customizer actually changed something.
+  // back when the customizer actually changed something. Parse defensively
+  // — a malformed JSON blob in the DB would otherwise throw here and stop
+  // the dialog from ever opening, leaving the user without a way to set up
+  // their device. Mirrors the same defensive parse in current.vue.
   const identity = defaultIdentity.value
   identityAvatar.value = identity?.avatar ?? null
   initialIdentityAvatar.value = identity?.avatar ?? null
-  identityAvatarOptions.value = identity?.avatarOptions
-    ? (JSON.parse(identity.avatarOptions) as Record<string, unknown>)
-    : null
+  if (identity?.avatarOptions) {
+    try {
+      identityAvatarOptions.value = JSON.parse(identity.avatarOptions) as Record<string, unknown>
+    } catch {
+      identityAvatarOptions.value = null
+    }
+  } else {
+    identityAvatarOptions.value = null
+  }
 
   // Device avatar: no row yet — seed a random bottts so the picker has a
   // hydratable starting state instead of showing a seed-only fallback that
