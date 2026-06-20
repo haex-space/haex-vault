@@ -726,6 +726,69 @@ pub struct PendingColumn {
     pub column_name: String,
 }
 
+/// Reads all pending columns from a bare connection.
+///
+/// Free helper so non-Tauri call sites (the owner-sync request handler and the
+/// sync-loop recovery step) can operate on a `&Connection` directly.
+pub fn get_pending_columns_inner(conn: &Connection) -> Result<Vec<PendingColumn>, DatabaseError> {
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT table_name, column_name FROM {}",
+            TABLE_CRDT_PENDING_COLUMNS
+        ))
+        .map_err(DatabaseError::from)?;
+
+    let columns = stmt
+        .query_map([], |row| {
+            Ok(PendingColumn {
+                table_name: row.get(0)?,
+                column_name: row.get(1)?,
+            })
+        })
+        .map_err(DatabaseError::from)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(DatabaseError::from)?;
+
+    Ok(columns)
+}
+
+/// Deletes a specific pending column from a bare connection.
+///
+/// Free helper for non-Tauri call sites. Clearing a non-existent pair is a
+/// no-op `Ok` (DELETE affecting zero rows is not an error).
+pub fn clear_pending_column_inner(
+    conn: &Connection,
+    table_name: &str,
+    column_name: &str,
+) -> Result<(), DatabaseError> {
+    conn.execute(
+        &format!(
+            "DELETE FROM {} WHERE table_name = ? AND column_name = ?",
+            TABLE_CRDT_PENDING_COLUMNS
+        ),
+        params![table_name, column_name],
+    )
+    .map_err(DatabaseError::from)?;
+
+    Ok(())
+}
+
+/// Counts pending columns on a bare connection.
+///
+/// Cheap gate the sync-loop recovery step calls every cycle before doing any
+/// recovery work.
+pub fn pending_columns_count(conn: &Connection) -> Result<i64, DatabaseError> {
+    let count = conn
+        .query_row(
+            &format!("SELECT COUNT(*) FROM {}", TABLE_CRDT_PENDING_COLUMNS),
+            [],
+            |row| row.get(0),
+        )
+        .map_err(DatabaseError::from)?;
+
+    Ok(count)
+}
+
 /// Gets all pending columns that were skipped during sync
 ///
 /// These are columns that existed on remote devices but not locally
@@ -735,27 +798,7 @@ pub struct PendingColumn {
 pub fn get_pending_columns(
     state: State<'_, AppState>,
 ) -> Result<Vec<PendingColumn>, DatabaseError> {
-    with_connection(&state.db, |conn| {
-        let mut stmt = conn
-            .prepare(&format!(
-                "SELECT table_name, column_name FROM {}",
-                TABLE_CRDT_PENDING_COLUMNS
-            ))
-            .map_err(DatabaseError::from)?;
-
-        let columns = stmt
-            .query_map([], |row| {
-                Ok(PendingColumn {
-                    table_name: row.get(0)?,
-                    column_name: row.get(1)?,
-                })
-            })
-            .map_err(DatabaseError::from)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(DatabaseError::from)?;
-
-        Ok(columns)
-    })
+    with_connection(&state.db, |conn| get_pending_columns_inner(conn))
 }
 
 /// Clears a specific pending column after its data has been successfully pulled
@@ -766,15 +809,6 @@ pub fn clear_pending_column(
     column_name: String,
 ) -> Result<(), DatabaseError> {
     with_connection(&state.db, |conn| {
-        conn.execute(
-            &format!(
-                "DELETE FROM {} WHERE table_name = ? AND column_name = ?",
-                TABLE_CRDT_PENDING_COLUMNS
-            ),
-            params![table_name, column_name],
-        )
-        .map_err(DatabaseError::from)?;
-
-        Ok(())
+        clear_pending_column_inner(conn, &table_name, &column_name)
     })
 }
