@@ -8,6 +8,7 @@ pub mod inbound_sync;
 pub mod invite_tokens;
 pub mod leader;
 pub mod multi_leader;
+pub mod owner_serve;
 pub mod peer;
 pub mod protocol;
 pub mod push_cursor;

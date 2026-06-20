@@ -4,8 +4,8 @@ mod tests {
     use uuid::Uuid;
 
     use crate::owner_sync::scope::{
-        classify_peer, resolve_owner_device_endpoints, resolve_vault_owner_did,
-        resolve_vault_space_id, select_sync_scope, PeerClass,
+        classify_peer, owner_route_decision, resolve_owner_device_endpoints,
+        resolve_vault_owner_did, resolve_vault_space_id, select_sync_scope, PeerClass,
     };
 
     /// Create the minimal subset of `haex_identities` + `haex_spaces` the
@@ -265,5 +265,79 @@ mod tests {
 
         let resolved = resolve_vault_space_id(&conn);
         assert_eq!(resolved, Ok(None));
+    }
+
+    // ------------------------------------------------------------------
+    // owner_route_decision — THE serving-side security gate.
+    //
+    // Returns true (→ serve full vault) only when the verified DID equals
+    // the vault-owner DID AND the targeted space is the vault space.
+    // Any other combination must return false so the connection falls
+    // through to the existing space-scoped path (UCAN/membership-gated).
+    // ------------------------------------------------------------------
+
+    /// Same owner DID + the vault space id → serve the full vault.
+    #[test]
+    fn owner_route_decision_same_did_vault_sid_is_true() {
+        let owner_did = format!("did:key:{}", Uuid::new_v4());
+        let vault_sid = Uuid::new_v4().to_string();
+        assert!(owner_route_decision(
+            &owner_did, &vault_sid, &owner_did, &vault_sid
+        ));
+    }
+
+    /// CRITICAL LEAK GUARD: a *different* (foreign) verified DID targeting the
+    /// vault space must NOT route to the full-vault path, even though the sid
+    /// matches the vault space. A true here would hand the entire vault
+    /// (passwords, identities, …) to a non-owner peer.
+    #[test]
+    fn owner_route_decision_foreign_did_vault_sid_is_false() {
+        let owner_did = format!("did:key:{}", Uuid::new_v4());
+        let foreign_did = format!("did:key:{}", Uuid::new_v4());
+        let vault_sid = Uuid::new_v4().to_string();
+        assert!(!owner_route_decision(
+            &foreign_did,
+            &vault_sid,
+            &owner_did,
+            &vault_sid
+        ));
+    }
+
+    /// Same owner DID but targeting a NON-vault space → false. The owner path
+    /// is only for the vault space; other spaces of the owner still use the
+    /// normal space dispatch.
+    #[test]
+    fn owner_route_decision_same_did_non_vault_sid_is_false() {
+        let owner_did = format!("did:key:{}", Uuid::new_v4());
+        let vault_sid = Uuid::new_v4().to_string();
+        let other_sid = Uuid::new_v4().to_string();
+        assert!(!owner_route_decision(
+            &owner_did, &other_sid, &owner_did, &vault_sid
+        ));
+    }
+
+    /// Empty / edge DIDs must never accidentally match. An empty verified DID
+    /// (e.g. a malformed handshake result) against an empty owner DID would be
+    /// string-equal — but the vault-owner DID is never empty in production, so
+    /// the realistic edge is "empty verified DID, real owner DID" → false.
+    #[test]
+    fn owner_route_decision_empty_verified_did_is_false() {
+        let owner_did = format!("did:key:{}", Uuid::new_v4());
+        let vault_sid = Uuid::new_v4().to_string();
+        assert!(!owner_route_decision(
+            "", &vault_sid, &owner_did, &vault_sid
+        ));
+    }
+
+    /// Case difference in the DID must not match — DIDs are case-sensitive.
+    #[test]
+    fn owner_route_decision_case_mismatch_is_false() {
+        let vault_sid = Uuid::new_v4().to_string();
+        assert!(!owner_route_decision(
+            "did:key:zabc",
+            &vault_sid,
+            "did:key:zABC",
+            &vault_sid
+        ));
     }
 }

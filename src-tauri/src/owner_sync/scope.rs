@@ -78,6 +78,38 @@ pub fn classify_peer(verified_did: &str, vault_owner_did: &str) -> PeerClass {
     }
 }
 
+/// The serving-side routing gate: should a verified peer be served the FULL
+/// vault instead of the narrow space-scoped path?
+///
+/// Returns `true` only when BOTH hold:
+///
+/// 1. the cryptographically `verified_did` is the SAME as `vault_owner_did`
+///    (so the peer is another device of this vault's owner), **and**
+/// 2. the request targets `vault_space_id` (the owner-sync namespace).
+///
+/// Every other combination returns `false`, so the connection falls through
+/// to the existing space-scoped dispatch where UCAN + membership are enforced.
+///
+/// # Security
+///
+/// This is THE gate that decides full-vault exposure. A `false`-negative just
+/// downgrades an owner device to the space path (no leak); a `false`-positive
+/// would hand the entire vault — passwords, identities, vault settings — to a
+/// non-owner peer. It is therefore deliberately a single, isolated, exact
+/// equality over already-verified inputs: `verified_did` MUST come from the
+/// `quic_did_auth` handshake (never the request payload), and `vault_owner_did`
+/// MUST be the DID resolved from the local `haex_spaces`/`haex_identities`
+/// join. No trimming, no normalization, no substring matching.
+pub fn owner_route_decision(
+    verified_did: &str,
+    target_space_id: &str,
+    vault_owner_did: &str,
+    vault_space_id: &str,
+) -> bool {
+    classify_peer(verified_did, vault_owner_did) == PeerClass::OwnerDevice
+        && target_space_id == vault_space_id
+}
+
 /// Select which CRDT tables a peer of the given class may receive.
 ///
 /// A [`PeerClass::OwnerDevice`] receives the full `all_crdt_tables` set; a
