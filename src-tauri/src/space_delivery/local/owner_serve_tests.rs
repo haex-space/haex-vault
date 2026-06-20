@@ -15,7 +15,9 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 
-use super::{handle_owner_pull_columns, owner_request_action, OwnerRequestAction};
+use super::{
+    handle_owner_pull_columns, owner_request_action, sync_changes_within_limit, OwnerRequestAction,
+};
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
 use crate::space_delivery::local::protocol::{Request, Response};
@@ -237,5 +239,77 @@ fn pull_columns_missing_table_is_empty_not_error() {
     assert!(
         changes.is_empty(),
         "missing table must produce an empty dump, not an error"
+    );
+}
+
+// ---- Size guard for the column-recovery response (sync_changes_within_limit) --
+
+/// Construct a small non-empty change set for the size-guard tests.
+fn sample_changes() -> Vec<LocalColumnChange> {
+    vec![
+        LocalColumnChange {
+            table_name: "notes".to_string(),
+            row_pks: "{\"id\":\"n1\"}".to_string(),
+            column_name: "title".to_string(),
+            hlc_timestamp: "1000000000000000000/aabbccdd".to_string(),
+            value: serde_json::json!("first"),
+            device_id: "leader".to_string(),
+        },
+        LocalColumnChange {
+            table_name: "notes".to_string(),
+            row_pks: "{\"id\":\"n2\"}".to_string(),
+            column_name: "title".to_string(),
+            hlc_timestamp: "2000000000000000000/aabbccdd".to_string(),
+            value: serde_json::json!("second"),
+            device_id: "leader".to_string(),
+        },
+    ]
+}
+
+/// A small change set under a generous limit serializes to `SyncChanges` whose
+/// deserialized changes match the input count and values.
+#[test]
+fn sync_changes_within_limit_under_limit_returns_sync_changes() {
+    let changes = sample_changes();
+
+    let resp = sync_changes_within_limit(&changes, 10 * 1024 * 1024);
+    let round_tripped = changes_from_response(resp);
+
+    assert_eq!(round_tripped.len(), changes.len());
+    let values: Vec<&str> = round_tripped
+        .iter()
+        .map(|c| c.value.as_str().unwrap())
+        .collect();
+    assert_eq!(values, vec!["first", "second"]);
+}
+
+/// The SAME small change set with a tiny `max_size` (10 bytes) exceeds the limit
+/// once serialized, so the guard degrades to `Response::Error` instead of
+/// emitting an oversized frame the wire would reject.
+#[test]
+fn sync_changes_within_limit_over_limit_returns_error() {
+    let changes = sample_changes();
+
+    let resp = sync_changes_within_limit(&changes, 10);
+    match resp {
+        Response::Error { message } => {
+            assert!(
+                message.contains("10"),
+                "error message should mention the limit, got: {message}"
+            );
+        }
+        other => panic!("expected Error for over-limit dump, got {other:?}"),
+    }
+}
+
+/// The empty/normal recovery case must NOT be an error: an empty change set
+/// under a generous limit is a valid empty `SyncChanges`.
+#[test]
+fn sync_changes_within_limit_empty_is_sync_changes() {
+    let resp = sync_changes_within_limit(&[], 10 * 1024 * 1024);
+    let changes = changes_from_response(resp);
+    assert!(
+        changes.is_empty(),
+        "empty dump must be SyncChanges, not Error"
     );
 }

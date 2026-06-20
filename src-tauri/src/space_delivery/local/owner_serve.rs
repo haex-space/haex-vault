@@ -32,7 +32,7 @@ use crate::database::core::with_connection;
 use crate::database::init::discover_crdt_tables;
 use crate::database::DbConnection;
 
-use super::protocol::{Request, Response};
+use super::protocol::{Request, Response, MAX_RESPONSE_SIZE};
 use super::sync_loop::local_to_remote_change;
 
 /// The action the owner-serve handler will take for a given request. Extracted
@@ -180,15 +180,7 @@ pub(super) fn handle_owner_pull_columns(
     });
 
     match scan_result {
-        Ok(changes) => match serde_json::to_value(&changes) {
-            Ok(json) => Response::SyncChanges { changes: json },
-            Err(e) => {
-                eprintln!("[OwnerSync] SyncPullColumns: failed to serialize changes: {e}");
-                Response::Error {
-                    message: format!("Failed to serialize changes: {e}"),
-                }
-            }
-        },
+        Ok(changes) => sync_changes_within_limit(&changes, MAX_RESPONSE_SIZE),
         Err(e) => {
             eprintln!("[OwnerSync] SyncPullColumns: failed to scan changes: {e}");
             Response::Error {
@@ -196,6 +188,53 @@ pub(super) fn handle_owner_pull_columns(
             }
         }
     }
+}
+
+/// Serialize a column-recovery dump into a `SyncChanges` response, refusing to
+/// emit a frame larger than `max_size`. The wire `read_response` would reject
+/// an oversized frame with a cryptic `MessageTooLarge`; converting it to a clear
+/// `Response::Error` here lets the recovering loop log it and leave the column
+/// pending. Pagination via `Request::SyncPullColumns.after_row_pks` is a
+/// planned follow-up — until then an over-limit single column degrades to Error.
+///
+/// The bound is measured against the serialized `changes` array, not the full
+/// `Response` envelope: the envelope overhead (tens of bytes) is negligible
+/// against the 10 MB limit, and this is a protective bound, not exact wire
+/// accounting. A dump landing in the final ~tens of bytes below the cap can
+/// therefore still be rejected by the wire's `read_message`; that thin band is
+/// not worth a second serialize to close. `max_size` is a parameter so tests
+/// can inject a tiny limit.
+fn sync_changes_within_limit(changes: &[LocalColumnChange], max_size: usize) -> Response {
+    let json = match serde_json::to_value(changes) {
+        Ok(json) => json,
+        Err(e) => {
+            eprintln!("[OwnerSync] SyncPullColumns: failed to serialize changes: {e}");
+            return Response::Error {
+                message: format!("Failed to serialize changes: {e}"),
+            };
+        }
+    };
+
+    // Fail closed: if the size can't be measured (unreachable for a Value we
+    // just built), treat it as over-limit rather than waving an unsized frame
+    // through.
+    let serialized_len = serde_json::to_vec(&json)
+        .map(|v| v.len())
+        .unwrap_or(usize::MAX);
+    if serialized_len > max_size {
+        eprintln!(
+            "[OwnerSync] SyncPullColumns: dump of {serialized_len} bytes exceeds limit \
+             of {max_size} bytes; refusing oversized frame (pagination not yet implemented)"
+        );
+        return Response::Error {
+            message: format!(
+                "Column dump of {serialized_len} bytes exceeds the response limit of \
+                 {max_size} bytes and pagination is not yet implemented"
+            ),
+        };
+    }
+
+    Response::SyncChanges { changes: json }
 }
 
 /// Owner `SyncPush`: apply the incoming changes RAW — no UCAN, no membership,

@@ -21,8 +21,14 @@ pub const ALPN: &[u8] = b"haex-delivery/2";
 /// Maximum request size (10 MB — CRDT changes can be large)
 const MAX_REQUEST_SIZE: usize = 10 * 1024 * 1024;
 
-/// Maximum response size (10 MB)
-const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
+/// Maximum response size (10 MB).
+///
+/// `read_response` rejects any frame larger than this with
+/// `PeerProtocolError::MessageTooLarge`. The owner column-dump path
+/// (`owner_serve::handle_owner_pull_columns`) reads this bound to guard its
+/// single-frame dump and degrade gracefully to a clear `Response::Error`
+/// instead of emitting an oversized frame the wire would reject cryptically.
+pub(crate) const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
 
 // ============================================================================
 // Request types
