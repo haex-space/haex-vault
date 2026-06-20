@@ -21,6 +21,9 @@ pub mod ucan;
 #[cfg(test)]
 mod inbound_sync_tests;
 #[cfg(test)]
+#[path = "owner_sync_integration_tests.rs"]
+mod owner_sync_integration_tests;
+#[cfg(test)]
 mod test_support;
 #[cfg(test)]
 mod tests;

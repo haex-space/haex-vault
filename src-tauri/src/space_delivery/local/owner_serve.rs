@@ -99,7 +99,12 @@ pub(super) fn handle_owner_sync_request(
 /// Owner `SyncPull`: scan EVERY CRDT table (no space filter) for changes after
 /// `after_timestamp` and return them. Mirrors the serialization of the
 /// space-scoped `SyncPull` handler in `leader.rs`.
-fn handle_owner_pull(after_timestamp: Option<&str>, db: &DbConnection) -> Response {
+///
+/// `pub(super)` so the real-QUIC owner-sync integration capstone
+/// (`owner_sync_integration_tests.rs`) can drive the genuine pull handler from
+/// its reconstructed accept loop without an `AppHandle` — the full
+/// `handle_owner_sync_request` requires one only for the push path.
+pub(super) fn handle_owner_pull(after_timestamp: Option<&str>, db: &DbConnection) -> Response {
     // Origin filter is push-only; when serving a pull this device is a source
     // of truth and hands out every row it has, regardless of who wrote it.
     let device_id = "leader";
