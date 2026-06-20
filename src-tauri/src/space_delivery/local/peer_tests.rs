@@ -17,14 +17,25 @@ mod read_timeout_tests {
     fn request_must_apply_read_timeout() {
         let source = include_str!("peer.rs");
 
+        // Scope the guard to PeerSession::request — a file-wide `contains`
+        // would still pass if the timeout appeared elsewhere in peer.rs while
+        // `request` itself lost its bound. Same scoping pattern as the
+        // `connect_owner_skips_ucan_load_and_announce` test below.
+        let request_fn = source
+            .split_once("async fn request")
+            .map(|(_, rest)| rest)
+            .and_then(|rest| rest.split_once("\n    /// "))
+            .map(|(body, _)| body)
+            .expect("PeerSession::request must exist in peer.rs");
+
         assert!(
-            source.contains("tokio::time::timeout"),
+            request_fn.contains("tokio::time::timeout"),
             "PeerSession::request must wrap protocol::read_response in \
              tokio::time::timeout; otherwise a degraded QUIC path blocks \
              read for ~150s until the connection's idle timer fires"
         );
         assert!(
-            source.contains("READ_TIMEOUT_SECS"),
+            request_fn.contains("READ_TIMEOUT_SECS"),
             "the bound should reuse READ_TIMEOUT_SECS from quic_retry for \
              consistency with the invite-flow timeout"
         );

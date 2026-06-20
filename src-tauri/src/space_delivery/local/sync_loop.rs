@@ -656,7 +656,7 @@ async fn run_push_phase(
         can_push_user_content,
     )
     .map_err(|e| DeliveryError::Database {
-        reason: format!("Failed to scan space-scoped tables: {}", e),
+        reason: format!("Failed to scan CRDT tables: {}", e),
     })?;
 
     if all_changes.is_empty() {

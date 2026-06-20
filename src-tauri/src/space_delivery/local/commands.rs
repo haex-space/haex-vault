@@ -1274,8 +1274,13 @@ pub async fn owner_sync_start(
         {
             Ok(h) => h,
             Err(e) => {
+                // Best-effort: a single unreachable owner device must not
+                // abandon the whole batch. Successfully-started loops have
+                // already been inserted into `loops` and continue running; on
+                // the next `owner_sync_start` call `peers_to_start` will skip
+                // them and retry only the peers that failed here.
                 eprintln!("[OwnerSync] start_peer_sync_loop failed for peer {peer_endpoint}: {e}");
-                return Err(e.to_string());
+                continue;
             }
         };
         loops.insert(peer_endpoint, handle);

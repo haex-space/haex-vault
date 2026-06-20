@@ -350,21 +350,22 @@ fn extract_space_id(request: &Request) -> Option<&str> {
 /// `false`, so the connection falls through to the existing space dispatch.
 /// Never panics.
 fn is_owner_vault_route(db: &DbConnection, verified_did: &str, target_space_id: &str) -> bool {
+    // Atomic resolve: both gate inputs MUST come from the same vault row, so
+    // a schema-invariant violation (multiple `type='vault'` rows) cannot
+    // combine the `owner_did` from one row with the `space_id` from another.
     let resolved = crate::database::core::with_connection(db, |conn| {
-        let owner_did = crate::owner_sync::scope::resolve_vault_owner_did(conn)?;
-        let space_id = crate::owner_sync::scope::resolve_vault_space_id(conn)?;
-        Ok((owner_did, space_id))
+        Ok(crate::owner_sync::scope::resolve_vault_owner_route_context(
+            conn,
+        )?)
     });
 
     match resolved {
-        Ok((Some(owner_did), Some(vault_space_id))) => {
-            crate::owner_sync::scope::owner_route_decision(
-                verified_did,
-                target_space_id,
-                &owner_did,
-                &vault_space_id,
-            )
-        }
+        Ok(Some((owner_did, vault_space_id))) => crate::owner_sync::scope::owner_route_decision(
+            verified_did,
+            target_space_id,
+            &owner_did,
+            &vault_space_id,
+        ),
         // No vault owner/space configured, or a resolution error: not an
         // owner-vault route. Fall through to the existing space path.
         _ => false,

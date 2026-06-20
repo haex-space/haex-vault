@@ -56,6 +56,30 @@ pub fn resolve_vault_space_id(conn: &Connection) -> rusqlite::Result<Option<Stri
     .optional()
 }
 
+/// Resolve the vault-owner DID and vault space id in a single atomic query.
+///
+/// This is the serving-gate inputs combined: the routing decision must compare
+/// the verified peer DID against the OWNER of the same vault row whose id is
+/// the target space id — so both values must come from one row. Reading them
+/// via two separate `LIMIT 1` queries would, if the schema invariant of a
+/// single vault row were ever violated, allow the gate to combine
+/// `owner_did` from row A with `space_id` from row B. Returns `Ok(None)` when
+/// no vault space exists.
+pub fn resolve_vault_owner_route_context(
+    conn: &Connection,
+) -> rusqlite::Result<Option<(String, String)>> {
+    conn.query_row(
+        "SELECT i.did, s.id \
+         FROM haex_spaces s \
+         JOIN haex_identities i ON i.id = s.owner_identity_id \
+         WHERE s.type = ?1 \
+         LIMIT 1",
+        [VAULT_SPACE_TYPE],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+    )
+    .optional()
+}
+
 /// How a verified peer relates to this vault's owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PeerClass {

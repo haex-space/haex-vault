@@ -371,7 +371,7 @@ pub fn scan_membership_tables_for_local_changes(
 /// `origin_node` (when `Some`) restricts the result to rows whose HLC was
 /// originally written by this node — see the doc on
 /// [`scan_table_for_local_changes_scoped`] for the rationale.
-pub fn scan_all_crdt_tables_for_owner(
+pub(crate) fn scan_all_crdt_tables_for_owner(
     conn: &Connection,
     table_names: &[String],
     after_hlc: Option<&str>,
