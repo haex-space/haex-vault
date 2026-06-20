@@ -385,9 +385,6 @@ pub fn scan_membership_tables_for_local_changes(
 /// `origin_node` (when `Some`) restricts the result to rows whose HLC was
 /// originally written by this node — see the doc on
 /// [`scan_table_for_local_changes_scoped`] for the rationale.
-// Wired into the owner-device sync branch in a follow-up; lands here first so
-// the security-sensitive scanner can be reviewed and tested in isolation.
-#[allow(dead_code)]
 pub fn scan_all_crdt_tables_for_owner(
     conn: &Connection,
     table_names: &[String],

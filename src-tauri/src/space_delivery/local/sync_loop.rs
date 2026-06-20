@@ -21,10 +21,73 @@ use crate::crdt::commands::{
 };
 use crate::crdt::hlc::hlc_max;
 use crate::crdt::scanner::{
-    scan_membership_tables_for_local_changes, scan_space_scoped_tables_for_local_changes,
-    LocalColumnChange,
+    scan_all_crdt_tables_for_owner, scan_membership_tables_for_local_changes,
+    scan_space_scoped_tables_for_local_changes, LocalColumnChange,
 };
+use crate::database::core::with_connection;
+use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
+
+/// Selects what the push phase scans and which phases run in a sync cycle.
+///
+/// The default, [`SyncMode::SpaceScoped`], is the existing shared-space sync:
+/// only the space-scoped whitelist (filtered by `space_id`) is pushed and the
+/// MLS phases run. [`SyncMode::OwnerVault`] is serverless sync of the owner's
+/// OWN vault across the owner's OWN devices — it pushes the FULL CRDT table
+/// set (no `space_id` filter) and skips the MLS phases.
+#[derive(Clone)]
+pub enum SyncMode {
+    /// Existing behaviour: space-scoped whitelist push + MLS phases.
+    SpaceScoped,
+    /// Owner-mesh behaviour: full-vault push over the caller-resolved table
+    /// list, no membership filtering, no MLS phases. The caller MUST resolve
+    /// the table list (the loop never derives it).
+    OwnerVault { tables: Vec<String> },
+}
+
+/// Decide which scanner produces the push batch for `mode` and return its
+/// changes. Extracted from [`run_push_phase`] so the mode→scanner decision is
+/// unit-testable without an `AppHandle` or QUIC session (a `DbConnection` over
+/// an in-memory `rusqlite::Connection` is enough).
+///
+/// The `SpaceScoped` branch calls the existing space-scoped scanners verbatim,
+/// so its output is byte-identical to the previous inline logic. The
+/// `OwnerVault` branch runs the full-vault scanner over the caller-supplied
+/// table list.
+fn collect_push_changes(
+    mode: &SyncMode,
+    db: &DbConnection,
+    space_id: &str,
+    after_hlc: Option<&str>,
+    device_id: &str,
+    our_node: Option<u128>,
+    can_push_user_content: bool,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    match mode {
+        // EXISTING behaviour, unchanged. Read-only members must not include
+        // haex_peer_shares (the leader rejects a batch touching a
+        // non-membership-system table without Write capability), so they scan
+        // only the membership-system subset.
+        SyncMode::SpaceScoped => {
+            if can_push_user_content {
+                scan_space_scoped_tables_for_local_changes(
+                    db, space_id, after_hlc, device_id, our_node,
+                )
+            } else {
+                scan_membership_tables_for_local_changes(
+                    db, space_id, after_hlc, device_id, our_node,
+                )
+            }
+        }
+        // Reachable only after same-owner DID-auth — the security boundary that
+        // proves the remote peer holds the SAME vault-owner DID lives in the
+        // serving/connect gate (added in later tasks), not here. With that gate
+        // in place this full-vault scan is sound; without it, it MUST NOT run.
+        SyncMode::OwnerVault { tables } => with_connection(db, |conn| {
+            scan_all_crdt_tables_for_owner(conn, tables, after_hlc, device_id, our_node)
+        }),
+    }
+}
 
 /// Sync-loop DB logging helper — writes to `haex_logs` so the e2e harness
 /// can extract the trace via `sql_select_with_crdt`. The Tauri stderr is
@@ -136,6 +199,7 @@ impl SyncLoopHandle {
 pub async fn start_peer_sync_loop(
     db: DbConnection,
     iroh_endpoint: iroh::Endpoint,
+    mode: SyncMode,
     leader_endpoint_id: String,
     leader_relay_url: Option<String>,
     space_id: String,
@@ -237,6 +301,7 @@ pub async fn start_peer_sync_loop(
         db,
         iroh_endpoint,
         session,
+        mode,
         leader_endpoint_id,
         leader_relay_url,
         space_id,
@@ -272,6 +337,7 @@ async fn run_sync_loop(
     db: DbConnection,
     iroh_endpoint: iroh::Endpoint,
     mut session: PeerSession,
+    mode: SyncMode,
     leader_endpoint_id: String,
     leader_relay_url: Option<String>,
     space_id: String,
@@ -367,6 +433,7 @@ async fn run_sync_loop(
         match run_sync_cycle(
             &db,
             &session,
+            &mode,
             &space_id,
             &device_id,
             our_node,
@@ -513,6 +580,7 @@ async fn run_sync_loop(
 async fn run_push_phase(
     db: &DbConnection,
     session: &PeerSession,
+    mode: &SyncMode,
     space_id: &str,
     device_id: &str,
     our_node: Option<u128>,
@@ -525,23 +593,18 @@ async fn run_push_phase(
     // The leader rejects any batch that touches a non-membership-system table
     // without Write capability, which would leave the cursor stuck at t=0 and
     // block membership-data (e.g. MLS KeyPackages) from ever reaching the leader.
-    let all_changes = if can_push_user_content {
-        scan_space_scoped_tables_for_local_changes(
-            db,
-            space_id,
-            last_push_hlc.as_deref(),
-            device_id,
-            our_node,
-        )
-    } else {
-        scan_membership_tables_for_local_changes(
-            db,
-            space_id,
-            last_push_hlc.as_deref(),
-            device_id,
-            our_node,
-        )
-    }
+    // In owner-vault mode the full caller-resolved table set is scanned with no
+    // space filter (the can_push_user_content gate does not apply — there is no
+    // leader capability check on the owner's own mesh).
+    let all_changes = collect_push_changes(
+        mode,
+        db,
+        space_id,
+        last_push_hlc.as_deref(),
+        device_id,
+        our_node,
+        can_push_user_content,
+    )
     .map_err(|e| DeliveryError::Database {
         reason: format!("Failed to scan space-scoped tables: {}", e),
     })?;
@@ -556,8 +619,20 @@ async fn run_push_phase(
     // stamping the leader's HLC node so they pass the origin filter but fail
     // the server's per-row ownership check. Filtering here prevents the push
     // cursor from stalling on an unresolvable ownership violation.
-    let (changes, foreign_max_hlc) =
-        filter_foreign_membership_rows(db, space_id, all_changes, our_identity_id, our_endpoint_id);
+    //
+    // Owner-vault mode skips this filter: there is no leader writing rows on
+    // others' behalf in the owner's own device mesh, so every scanned row is
+    // legitimately the owner's to push.
+    let (changes, foreign_max_hlc) = match mode {
+        SyncMode::SpaceScoped => filter_foreign_membership_rows(
+            db,
+            space_id,
+            all_changes,
+            our_identity_id,
+            our_endpoint_id,
+        ),
+        SyncMode::OwnerVault { .. } => (all_changes, None),
+    };
 
     if !changes.is_empty() {
         // Chunk at HLC boundaries so a transaction-HLC group is never split
@@ -646,6 +721,7 @@ async fn run_push_phase(
 async fn run_sync_cycle(
     db: &DbConnection,
     session: &PeerSession,
+    mode: &SyncMode,
     space_id: &str,
     device_id: &str,
     our_node: Option<u128>,
@@ -662,6 +738,7 @@ async fn run_sync_cycle(
     if let Err(e) = run_push_phase(
         db,
         session,
+        mode,
         space_id,
         device_id,
         our_node,
@@ -780,26 +857,34 @@ async fn run_sync_cycle(
         }
     }
 
-    // 3. MLS: Fetch commits from leader, process, and ACK
-    if let Err(e) = fetch_and_process_mls_messages(
-        db,
-        session,
-        space_id,
-        device_id,
-        last_mls_message_id,
-        app_handle,
-    )
-    .await
-    {
-        eprintln!("[SyncLoop] MLS message processing failed: {e}");
-        // Non-fatal: CRDT sync still worked, MLS will retry next cycle
-    }
+    // 3 + 4. MLS phases run only in space-scoped mode. The owner's own device
+    // mesh has no MLS group: there is no leader distributing commits and no
+    // KeyPackage exchange, so both phases are skipped. The CRDT push+pull above
+    // run in BOTH modes.
+    if matches!(mode, SyncMode::SpaceScoped) {
+        // 3. MLS: Fetch commits from leader, process, and ACK
+        if let Err(e) = fetch_and_process_mls_messages(
+            db,
+            session,
+            space_id,
+            device_id,
+            last_mls_message_id,
+            app_handle,
+        )
+        .await
+        {
+            eprintln!("[SyncLoop] MLS message processing failed: {e}");
+            // Non-fatal: CRDT sync still worked, MLS will retry next cycle
+        }
 
-    // 4. KeyPackage refill: run once per session (ClaimInvite already uploads 10)
-    if !*key_packages_refilled {
-        match refill_key_packages_if_needed(db, session, space_id).await {
-            Ok(()) => *key_packages_refilled = true,
-            Err(e) => eprintln!("[SyncLoop] KeyPackage refill failed (will retry next cycle): {e}"),
+        // 4. KeyPackage refill: run once per session (ClaimInvite already uploads 10)
+        if !*key_packages_refilled {
+            match refill_key_packages_if_needed(db, session, space_id).await {
+                Ok(()) => *key_packages_refilled = true,
+                Err(e) => {
+                    eprintln!("[SyncLoop] KeyPackage refill failed (will retry next cycle): {e}")
+                }
+            }
         }
     }
 
@@ -1191,5 +1276,150 @@ mod tests {
         let skip_to = batch_max.max(ec_msg_id);
 
         assert_eq!(skip_to, 8);
+    }
+
+    // =====================================================================
+    // SyncMode push-collection tests.
+    //
+    // These exercise `collect_push_changes` — the pure-ish helper that
+    // decides WHICH scanner produces the push batch — without an AppHandle
+    // or QUIC session. They run against an in-memory DbConnection, mirroring
+    // the scanner unit tests.
+    // =====================================================================
+    use super::{collect_push_changes, SyncMode};
+    use crate::database::DbConnection;
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
+
+    /// Build an in-memory DB with one space-scoped whitelist table
+    /// (`haex_peer_shares`, carrying a `space_id`) and one off-whitelist,
+    /// vault-private table (`haex_passwords`, no `space_id`). Used to prove
+    /// that owner mode ships BOTH while space-scoped mode ships only the
+    /// whitelisted one.
+    fn setup_owner_vs_space_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE haex_peer_shares (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                data TEXT,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+            );
+             CREATE TABLE haex_passwords (
+                id TEXT PRIMARY KEY,
+                secret TEXT,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+            );",
+        )
+        .unwrap();
+        conn
+    }
+
+    fn insert_peer_share(conn: &Connection, id: &str, space_id: &str, data: &str, hlc: &str) {
+        let hlcs = format!("{{\"space_id\":\"{hlc}\",\"data\":\"{hlc}\"}}");
+        conn.execute(
+            "INSERT INTO haex_peer_shares (id, space_id, data, haex_hlc, haex_column_hlcs)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![id, space_id, data, hlc, hlcs],
+        )
+        .unwrap();
+    }
+
+    fn insert_password(conn: &Connection, id: &str, secret: &str, hlc: &str) {
+        let hlcs = format!("{{\"secret\":\"{hlc}\"}}");
+        conn.execute(
+            "INSERT INTO haex_passwords (id, secret, haex_hlc, haex_column_hlcs)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![id, secret, hlc, hlcs],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn owner_mode_push_collects_all_tables() {
+        let conn = setup_owner_vs_space_db();
+        insert_peer_share(
+            &conn,
+            "s1",
+            "space-A",
+            "shared",
+            "1000000000000000000/aabbccdd",
+        );
+        let secret: u64 = rand::random();
+        insert_password(
+            &conn,
+            "p1",
+            &format!("v{secret}"),
+            "2000000000000000000/aabbccdd",
+        );
+        let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+
+        // Owner mode is handed the FULL table list explicitly (caller resolves
+        // it). Include the off-whitelist private table.
+        let tables = vec!["haex_peer_shares".to_string(), "haex_passwords".to_string()];
+        let mode = SyncMode::OwnerVault { tables };
+
+        let changes = collect_push_changes(
+            &mode, &db, "space-A", None, "device-1", None, // our_node
+            true, // can_push_user_content (irrelevant for owner mode)
+        )
+        .unwrap();
+
+        let tables_seen: std::collections::HashSet<&str> =
+            changes.iter().map(|c| c.table_name.as_str()).collect();
+        assert!(
+            tables_seen.contains("haex_peer_shares"),
+            "owner mode dropped space-scoped table"
+        );
+        assert!(
+            tables_seen.contains("haex_passwords"),
+            "owner mode dropped the off-whitelist vault-private table"
+        );
+    }
+
+    #[test]
+    fn space_scoped_mode_collects_only_space_tables() {
+        let conn = setup_owner_vs_space_db();
+        insert_peer_share(
+            &conn,
+            "s1",
+            "space-A",
+            "shared",
+            "1000000000000000000/aabbccdd",
+        );
+        let secret: u64 = rand::random();
+        insert_password(
+            &conn,
+            "p1",
+            &format!("v{secret}"),
+            "2000000000000000000/aabbccdd",
+        );
+        let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+
+        let changes = collect_push_changes(
+            &SyncMode::SpaceScoped,
+            &db,
+            "space-A",
+            None,
+            "device-1",
+            None,
+            true, // can_push_user_content → peer_shares included
+        )
+        .unwrap();
+
+        let tables_seen: std::collections::HashSet<&str> =
+            changes.iter().map(|c| c.table_name.as_str()).collect();
+        // The on-whitelist table is present...
+        assert!(
+            tables_seen.contains("haex_peer_shares"),
+            "space-scoped mode dropped a whitelisted table"
+        );
+        // ...but the off-whitelist vault-private table must NEVER appear.
+        assert!(
+            !tables_seen.contains("haex_passwords"),
+            "space-scoped mode leaked the off-whitelist vault-private table"
+        );
     }
 }

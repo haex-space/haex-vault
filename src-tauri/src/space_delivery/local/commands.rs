@@ -217,6 +217,8 @@ pub async fn local_delivery_connect(
     let handle = match super::sync_loop::start_peer_sync_loop(
         db,
         iroh_endpoint,
+        // Existing shared-space sync: keep the space-scoped behaviour unchanged.
+        super::sync_loop::SyncMode::SpaceScoped,
         leader_endpoint_id.clone(),
         leader_relay_url,
         space_id.clone(),
