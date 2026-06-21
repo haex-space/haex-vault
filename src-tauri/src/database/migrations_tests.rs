@@ -214,3 +214,62 @@ fn clear_pending_column_inner_nonexistent_pair_is_noop_ok() {
 
     assert_eq!(super::pending_columns_count(&conn).unwrap(), 1);
 }
+
+#[test]
+fn pending_columns_migration_0003_widens_pk_to_row_aware() {
+    // The shipped 0003 migration must produce a (table_name, column_name,
+    // row_pks) PK: the same (table,column) for two different rows must coexist.
+    let mig_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("database/migrations");
+    let sql_path = std::fs::read_dir(&mig_dir)
+        .unwrap()
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("0003_") && n.ends_with(".sql"))
+        })
+        .expect("0003 migration must exist");
+    let sql = std::fs::read_to_string(&sql_path).unwrap();
+
+    let conn = Connection::open_in_memory().unwrap();
+    // Old (pre-0003) table shape so the migration's DROP has a target.
+    conn.execute_batch(
+        "CREATE TABLE haex_crdt_pending_columns_no_sync (
+             table_name TEXT NOT NULL,
+             column_name TEXT NOT NULL,
+             PRIMARY KEY(table_name, column_name)
+         );",
+    )
+    .unwrap();
+    // Apply the shipped migration (runner splits on the breakpoint marker).
+    for stmt in sql.split("--> statement-breakpoint") {
+        let stmt = stmt.trim();
+        if !stmt.is_empty() {
+            conn.execute_batch(stmt).unwrap();
+        }
+    }
+
+    // Two rows differing ONLY by row_pks must both insert (new PK admits them).
+    conn.execute(
+        "INSERT INTO haex_crdt_pending_columns_no_sync (table_name, column_name, row_pks)
+         VALUES ('devices','bio','{\"id\":\"r1\"}')",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO haex_crdt_pending_columns_no_sync (table_name, column_name, row_pks)
+         VALUES ('devices','bio','{\"id\":\"r2\"}')",
+        [],
+    )
+    .unwrap();
+    // Exact triple-duplicate must violate the new PK.
+    let dup = conn.execute(
+        "INSERT INTO haex_crdt_pending_columns_no_sync (table_name, column_name, row_pks)
+         VALUES ('devices','bio','{\"id\":\"r1\"}')",
+        [],
+    );
+    assert!(
+        dup.is_err(),
+        "exact (table,column,row_pks) duplicate must be rejected"
+    );
+}

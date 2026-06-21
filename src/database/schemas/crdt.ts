@@ -173,8 +173,9 @@ export type SelectHaexCrdtMigrations = typeof haexCrdtMigrations.$inferSelect
  * After the local device updates and migrations add the missing columns,
  * we need to pull ALL data for these columns from the server.
  *
- * Only stores (table_name, column_name) - the actual row PKs come from the server
- * during the re-pull after migration.
+ * Stores (table_name, column_name, row_pks) so a skipped column can be tracked
+ * per row. P2P recovery clears the marker for each row once its value is
+ * re-pulled, instead of clearing the whole column at once.
  */
 export const haexCrdtPendingColumns = sqliteTable(
   crdtTableNames.pending_columns.name,
@@ -183,10 +184,11 @@ export const haexCrdtPendingColumns = sqliteTable(
     columnName: text(
       crdtTableNames.pending_columns.columns.columnName,
     ).notNull(),
+    rowPks: text(crdtTableNames.pending_columns.columns.rowPks).notNull(),
   },
   (table) => [
-    // Composite primary key on (table_name, column_name)
-    primaryKey({ columns: [table.tableName, table.columnName] }),
+    // Row-aware composite primary key: a column may be owed for several rows.
+    primaryKey({ columns: [table.tableName, table.columnName, table.rowPks] }),
   ],
 )
 export type InsertHaexCrdtPendingColumns =
