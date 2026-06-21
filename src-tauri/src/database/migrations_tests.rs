@@ -322,6 +322,10 @@ fn pending_columns_migration_0003_widens_pk_to_row_aware() {
     )
     .unwrap();
     // Apply the shipped migration (runner splits on the breakpoint marker).
+    // Faithful to the production runner: it splits on the same breakpoint marker
+    // and additionally pipes each statement through CrdtTransformer, which is a
+    // no-op for `_no_sync` tables (this marker table is one), so the SQL executed
+    // here is byte-identical to what the runner applies.
     for stmt in sql.split("--> statement-breakpoint") {
         let stmt = stmt.trim();
         if !stmt.is_empty() {
