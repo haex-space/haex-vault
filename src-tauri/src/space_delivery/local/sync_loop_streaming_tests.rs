@@ -7,8 +7,9 @@
 // it is held back. With `has_more = false` the page is complete and everything
 // applies.
 
-use super::split_complete_groups;
+use super::{apply_groups_advancing_cursor, split_complete_groups};
 use crate::crdt::commands::RemoteColumnChange;
+use crate::space_delivery::local::error::DeliveryError;
 
 /// Build a `RemoteColumnChange` with a given HLC. The other fields are
 /// irrelevant to `split_complete_groups` (it partitions purely on
@@ -119,5 +120,94 @@ fn multiple_changes_same_hlc_grouped_together() {
         hlcs(&hold_back),
         vec![HLC_C, HLC_C],
         "both changes sharing the trailing HLC are held back together"
+    );
+}
+
+// --- apply_groups_advancing_cursor: per-group apply + cursor advance + failure
+// isolation. The apply closure is injected so the control flow is tested without
+// a live QUIC session or database. ---
+
+/// Build an ascending-HLC group list with empty change vecs — the function under
+/// test never inspects the changes, only iterates groups and advances the cursor.
+fn groups(hlcs: &[&str]) -> Vec<(String, Vec<RemoteColumnChange>)> {
+    hlcs.iter().map(|h| (h.to_string(), Vec::new())).collect()
+}
+
+#[test]
+fn applies_all_groups_and_advances_cursor_to_last() {
+    let mut applied: Vec<String> = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    let result = apply_groups_advancing_cursor(
+        groups(&[HLC_A, HLC_B, HLC_C]),
+        &mut cursor,
+        |hlc, _changes| {
+            applied.push(hlc.to_string());
+            Ok(())
+        },
+    );
+
+    assert!(result.is_ok(), "all groups apply cleanly");
+    assert_eq!(
+        applied,
+        vec![HLC_A, HLC_B, HLC_C],
+        "every group is applied in ascending order"
+    );
+    assert_eq!(
+        cursor.as_deref(),
+        Some(HLC_C),
+        "cursor ends at the last (max) applied group's HLC"
+    );
+}
+
+#[test]
+fn stops_on_failing_group_leaving_cursor_at_last_applied() {
+    let mut applied: Vec<String> = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    let result = apply_groups_advancing_cursor(
+        groups(&[HLC_A, HLC_B, HLC_C]),
+        &mut cursor,
+        |hlc, _changes| {
+            applied.push(hlc.to_string());
+            // Fail on the second group.
+            if applied.len() == 2 {
+                return Err(DeliveryError::Database {
+                    reason: "boom".to_string(),
+                });
+            }
+            Ok(())
+        },
+    );
+
+    assert!(result.is_err(), "the failing group propagates its error");
+    assert_eq!(
+        applied,
+        vec![HLC_A, HLC_B],
+        "group C is NOT attempted after group B fails (failure isolation)"
+    );
+    assert_eq!(
+        cursor.as_deref(),
+        Some(HLC_A),
+        "cursor stays at the last successfully-applied group (A), not the failed one"
+    );
+}
+
+#[test]
+fn empty_groups_leaves_cursor_unchanged() {
+    let mut cursor: Option<String> = Some("999/zz".to_string());
+    let mut called = false;
+
+    let result = apply_groups_advancing_cursor(groups(&[]), &mut cursor, |_hlc, _changes| {
+        called = true;
+        Ok(())
+    });
+
+    assert!(result.is_ok());
+    assert!(!called, "apply is never invoked for an empty group list");
+    assert_eq!(
+        cursor.as_deref(),
+        Some("999/zz"),
+        "an empty batch must not move the cursor"
     );
 }

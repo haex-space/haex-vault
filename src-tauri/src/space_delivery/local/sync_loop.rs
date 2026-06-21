@@ -1008,6 +1008,39 @@ fn split_complete_groups(
     })
 }
 
+/// Apply already-grouped changes (ascending transaction-HLC order) one DB
+/// transaction per group, advancing `cursor` to each group's HLC after it
+/// applies successfully.
+///
+/// Failure isolation: on the FIRST group whose `apply` returns `Err`, stops and
+/// returns that error. `cursor` is left at the last successfully-applied group's
+/// HLC (groups are ascending), so the next cycle resumes from there and the
+/// deferred groups are re-pulled. Later groups are NOT attempted.
+///
+/// Pure control flow over an injected `apply` closure — the real caller passes a
+/// closure wrapping [`apply_remote_changes_to_db`]; tests inject a recording /
+/// failing closure so the isolation + cursor behaviour is unit-testable without
+/// a live QUIC session or database. The group HLC is passed to the closure so it
+/// can log which group failed.
+fn apply_groups_advancing_cursor<F>(
+    groups: Vec<(String, Vec<RemoteColumnChange>)>,
+    cursor: &mut Option<String>,
+    mut apply: F,
+) -> Result<(), DeliveryError>
+where
+    F: FnMut(&str, Vec<RemoteColumnChange>) -> Result<(), DeliveryError>,
+{
+    for (group_hlc, group_changes) in groups {
+        apply(&group_hlc, group_changes)?;
+        // Advance the cursor only after the group committed. Empty HLCs (never
+        // produced for real sync data) are skipped, matching the prior guard.
+        if !group_hlc.is_empty() {
+            *cursor = Some(group_hlc);
+        }
+    }
+    Ok(())
+}
+
 /// Execute a single push+pull sync cycle.
 ///
 /// Push and pull are independent phases: a failing push (e.g. insufficient
@@ -1137,29 +1170,35 @@ async fn run_sync_cycle(
                 // paginated transport that lands next.
                 let (to_apply, _hold_back) = split_complete_groups(remote_changes, false);
 
-                // Failure isolation: if one group fails, stop and leave the
-                // cursor at the last successfully-applied group's HLC so the
-                // next cycle resumes from there. The error is propagated AFTER
+                // Apply per transaction-HLC group with failure isolation; the
+                // cursor advances per committed group (see
+                // `apply_groups_advancing_cursor`). The error is propagated AFTER
                 // the cursor has advanced for the groups that DID succeed,
                 // matching the cycle's `?`-propagation convention.
-                for (group_hlc, group_changes) in group_by_transaction_hlc(to_apply) {
-                    apply_remote_changes_to_db(db, group_changes, None, Some(&*hlc_service))
-                        .map_err(|e| {
-                            eprintln!(
-                                "[SyncLoop] Failed to apply transaction-HLC group {}: {} \
-                                 (cursor stays at last applied group; later groups deferred)",
-                                group_hlc, e
-                            );
-                            DeliveryError::Database {
-                                reason: format!("Failed to apply remote changes: {}", e),
-                            }
-                        })?;
-
-                    // Advance the cursor per successfully-applied group.
-                    if !group_hlc.is_empty() {
-                        *last_pull_timestamp = Some(group_hlc);
-                    }
-                }
+                apply_groups_advancing_cursor(
+                    group_by_transaction_hlc(to_apply),
+                    last_pull_timestamp,
+                    |group_hlc, group_changes| {
+                        apply_remote_changes_to_db(db, group_changes, None, Some(&*hlc_service))
+                            .map_err(|e| {
+                                // log_sync (not eprintln) so the e2e harness can
+                                // observe a per-group apply failure on the same
+                                // structured channel as the pull outcomes above.
+                                log_sync(
+                                    app_handle,
+                                    "warn",
+                                    &format!(
+                                        "apply: transaction-HLC group {} failed: {} \
+                                         (cursor at last applied; later groups deferred)",
+                                        group_hlc, e
+                                    ),
+                                );
+                                DeliveryError::Database {
+                                    reason: format!("Failed to apply remote changes: {}", e),
+                                }
+                            })
+                    },
+                )?;
 
                 // Emit Tauri event for frontend UI refresh (main window only).
                 let _ = app_handle.emit_to(
