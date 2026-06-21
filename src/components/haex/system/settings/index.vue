@@ -47,6 +47,7 @@
         <HaexSystemSettingsStorage v-else-if="activeCategory === SettingsCategory.Storage" />
         <HaexSystemSettingsDevices v-else-if="activeCategory === SettingsCategory.Devices" />
         <HaexSystemSettingsLogs v-else-if="activeCategory === SettingsCategory.Logs" />
+        <HaexSystemSettingsDosDefence v-else-if="activeCategory === SettingsCategory.Security" />
         <HaexSystemSettingsDeveloper v-else-if="activeCategory === SettingsCategory.Developer" />
       </div>
     </Transition>
@@ -194,6 +195,15 @@ const categories = computed(() => [
     },
   },
   {
+    value: SettingsCategory.Security,
+    label: t('categories.security'),
+    icon: SettingsCategoryIcon[SettingsCategory.Security],
+    active: activeCategory.value === 'security',
+    click: () => {
+      navigateToCategory(SettingsCategory.Security)
+    },
+  },
+  {
     value: SettingsCategory.Developer,
     label: t('categories.developer'),
     icon: SettingsCategoryIcon[SettingsCategory.Developer],
@@ -220,6 +230,7 @@ de:
     storage: Cloud Storage
     devices: Geräte
     logs: Logs
+    security: Sicherheit & Schutz
     developer: Entwickler
 en:
   categories:
@@ -235,5 +246,6 @@ en:
     storage: Cloud Storage
     devices: Devices
     logs: Logs
+    security: Security & Protection
     developer: Developer
 </i18n>
