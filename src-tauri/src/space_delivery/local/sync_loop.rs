@@ -28,7 +28,8 @@ use crate::crdt::trigger::get_table_schema;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::database::migrations::{
-    clear_pending_column_inner, get_pending_columns_inner, pending_columns_count,
+    clear_pending_column_row_inner, get_pending_column_rows_inner, pending_columns_count,
+    PendingColumnRow,
 };
 use crate::database::DbConnection;
 
@@ -384,53 +385,76 @@ pub fn local_to_remote_change(local: &LocalColumnChange) -> RemoteColumnChange {
     }
 }
 
-/// The pending columns we can recover THIS cycle: only those whose column
-/// already exists in the local schema. A pending entry may reference a column
-/// the local migration has not re-added yet (the loop runs continuously between
-/// the skip and the app update that migrates). If we recovered+cleared such an
+/// Owed row-aware markers we can recover THIS cycle: those whose column exists
+/// in the local schema now. (Same per-column existence filter as before, now
+/// carried at row granularity.) A pending entry may reference a column the
+/// local migration has not re-added yet (the loop runs continuously between the
+/// skip and the app update that migrates). If we recovered+cleared such an
 /// entry, `apply_remote_changes_to_db` would just re-skip the still-missing
 /// column and we'd have cleared the pending marker — the skipped values would
-/// then NEVER be recovered (silent data loss). So filter to columns that exist
-/// locally; leave the rest pending for a later cycle.
+/// then NEVER be recovered (silent data loss). So columns the migration has not
+/// re-added stay pending for a later cycle.
 fn recoverable_pending_columns(
     conn: &rusqlite::Connection,
-) -> Result<Vec<(String, String)>, DatabaseError> {
-    let pending = get_pending_columns_inner(conn)?;
+) -> Result<Vec<PendingColumnRow>, DatabaseError> {
+    let pending = get_pending_column_rows_inner(conn)?;
     let mut recoverable = Vec::new();
-    for crate::database::migrations::PendingColumn {
-        table_name,
-        column_name,
-    } in pending
-    {
+    for row in pending {
         // A missing table (PRAGMA returns an empty schema) or an unsafe table
         // name (Err) both yield "column not present" → not recoverable. We
-        // intentionally swallow the schema error here: the pair simply stays
+        // intentionally swallow the schema error here: the row simply stays
         // pending and is retried on a later cycle once the table exists.
-        let column_exists = get_table_schema(conn, &table_name)
-            .map(|cols| cols.iter().any(|c| c.name == column_name))
+        let column_exists = get_table_schema(conn, &row.table_name)
+            .map(|cols| cols.iter().any(|c| c.name == row.column_name))
             .unwrap_or(false);
         if column_exists {
-            recoverable.push((table_name, column_name));
+            recoverable.push(row);
         }
     }
     Ok(recoverable)
 }
 
-/// The `(table_name, column_name)` pairs the pulled dump actually carried at
-/// least one value for. Recovery clears a pending marker ONLY for these.
+/// The `(table, column, row_pks)` triples the pulled dump actually carried a
+/// value for. Recovery clears a marker ONLY for these.
 ///
-/// An empty/absent column in the dump is ambiguous: the serving owner device may
-/// itself lack the column (normal version skew across the owner's own devices).
-/// Clearing the marker on such an empty result would drop it while the skipped
+/// An owed row absent from the dump is ambiguous: the serving owner device may
+/// be row-incomplete (it never received that row from a third device) or lack
+/// the column entirely (normal version skew across the owner's own devices).
+/// Clearing the marker on such an absent row would drop it while the skipped
 /// value still lives only behind this device's incremental pull cursor — lost
-/// forever. Leaving the column pending instead lets a later cycle retry against
+/// forever. Leaving the row pending instead lets a later cycle retry against
 /// whichever peer the loop connects to next.
-fn columns_present_in_changes(
+fn rows_present_in_changes(
     changes: &[LocalColumnChange],
-) -> std::collections::HashSet<(String, String)> {
+) -> std::collections::HashSet<(String, String, String)> {
     changes
         .iter()
-        .map(|c| (c.table_name.clone(), c.column_name.clone()))
+        .map(|c| {
+            (
+                c.table_name.clone(),
+                c.column_name.clone(),
+                c.row_pks.clone(),
+            )
+        })
+        .collect()
+}
+
+/// Of the owed markers we tried to recover, the ones safe to clear: present in
+/// the dump. Owed rows the (non-authoritative) peer did not serve stay pending
+/// — clearing them would be silent data loss.
+fn pending_rows_to_clear(
+    owed: &[PendingColumnRow],
+    present: &std::collections::HashSet<(String, String, String)>,
+) -> Vec<PendingColumnRow> {
+    owed.iter()
+        .filter(|r| {
+            present.contains(&(
+                r.table_name.clone(),
+                r.column_name.clone(),
+                r.row_pks.clone(),
+            ))
+        })
+        .cloned()
         .collect()
 }
 
@@ -440,24 +464,21 @@ fn columns_present_in_changes(
 /// NOT unit-tested: this is `AppHandle`-bound (it reaches `app_handle.state`,
 /// `lock_or_fail`, and a live `PeerSession` over QUIC), none of which exist as
 /// cargo-test fixtures. Behavioural coverage is the later e2e (Pfad A). The pure
-/// data-loss-guarding logic it depends on lives in `recoverable_pending_columns`
-/// and `columns_present_in_changes`, which ARE unit-tested.
+/// data-loss-guarding logic it depends on lives in `recoverable_pending_columns`,
+/// `rows_present_in_changes`, and `pending_rows_to_clear`, which ARE unit-tested.
 ///
-/// # Known limitation (row granularity — follow-up)
+/// # Row granularity
 ///
-/// The pending marker in `haex_crdt_pending_columns` is column-granular
-/// (`table_name`, `column_name`) with no row identity — a model that is safe only
-/// when the recovery source is AUTHORITATIVE (the HTTP home server has every
-/// row). A P2P peer is NOT authoritative: it can be row-incomplete. In a mesh of
-/// 3+ owner devices a peer may serve some rows of a column but lack others
-/// (e.g. a row originating on a third device it never received). Because the
-/// marker can't express "row r2 still owed", clearing on a partial dump can drop
-/// the marker while a skipped value still sits behind this device's pull cursor —
-/// silently lost. The 2-device mesh (the e2e Pfad-A target) cannot hit this: a
-/// device only ever skips values its single peer sent, which that peer still has.
-/// The durable fix is row-aware markers (record owed `row_pks` at skip time in
-/// `crdt::commands`, clear per `(table, column, row_pks)`, reconcile the shared
-/// HTTP path) — deferred as a follow-up.
+/// The pending marker in `haex_crdt_pending_columns` is ROW-granular
+/// (`table_name`, `column_name`, `row_pks`). A P2P peer is NOT authoritative: it
+/// can be row-incomplete. In a mesh of 3+ owner devices a peer may serve some
+/// rows of a column but lack others (e.g. a row originating on a third device it
+/// never received). Recovery therefore clears a marker ONLY for the
+/// `(table, column, row_pks)` triples the dump actually carried (see
+/// `rows_present_in_changes` / `pending_rows_to_clear`); owed rows the peer did
+/// not serve stay pending and are retried against whichever peer the loop reaches
+/// next. Pulls are still issued per distinct `(table, column)` so a column with
+/// many owed rows is requested once, not once per row.
 async fn run_owner_pending_column_recovery(
     db: &DbConnection,
     session: &PeerSession,
@@ -473,8 +494,9 @@ async fn run_owner_pending_column_recovery(
         return Ok(());
     }
 
-    // 2. Only recover columns the local migration has already re-added; the rest
-    //    stay pending (clearing them now would be silent data loss).
+    // 2. Only recover owed rows whose column the local migration has already
+    //    re-added; the rest stay pending (clearing them now would be silent data
+    //    loss).
     let columns = with_connection(db, |c| recoverable_pending_columns(c)).map_err(|e| {
         DeliveryError::Database {
             reason: format!("Failed to read recoverable pending columns: {e}"),
@@ -484,24 +506,35 @@ async fn run_owner_pending_column_recovery(
         return Ok(());
     }
 
-    // 3. Pull from a serving owner device. A serving-side Error (e.g. oversize)
-    //    surfaces here, propagates to the caller's log, and leaves the pending
-    //    markers in place so the next cycle retries.
-    let json = session.pull_columns(space_id, &columns).await?;
+    // 3. Pull from a serving owner device. The pull is per distinct
+    //    `(table, column)` — a column with many owed rows is requested once, not
+    //    once per row. A serving-side Error (e.g. oversize) surfaces here,
+    //    propagates to the caller's log, and leaves the pending markers in place
+    //    so the next cycle retries.
+    let request_pairs: Vec<(String, String)> = {
+        let mut seen = std::collections::HashSet::new();
+        columns
+            .iter()
+            .filter(|r| seen.insert((r.table_name.clone(), r.column_name.clone())))
+            .map(|r| (r.table_name.clone(), r.column_name.clone()))
+            .collect()
+    };
+    let json = session.pull_columns(space_id, &request_pairs).await?;
 
     let local_changes: Vec<LocalColumnChange> =
         serde_json::from_value(json).map_err(|e| DeliveryError::ProtocolError {
             reason: format!("Failed to deserialize pulled columns: {e}"),
         })?;
 
-    // 4. Apply the pulled values (if any). An empty result is NOT proof a column
-    //    is fully recovered: the serving owner device may also lack the column
-    //    (normal version skew). We therefore clear a marker only for columns the
-    //    dump actually carried a value for (step 5); columns with no returned
-    //    value stay pending and are retried next cycle against whichever peer the
-    //    loop connects to. (A column genuinely unavailable on every reachable
-    //    device re-pulls each cycle until found — bounded by the cheap COUNT gate
-    //    and MAX_RESPONSE_SIZE; per-column backoff is a follow-up.)
+    // 4. Apply the pulled values (if any). An empty/partial result is NOT proof a
+    //    row is fully recovered: the serving owner device may itself be
+    //    row-incomplete or lack the column (normal version skew). We therefore
+    //    clear a marker only for the rows the dump actually carried a value for
+    //    (step 5); owed rows with no returned value stay pending and are retried
+    //    next cycle against whichever peer the loop connects to. (A row genuinely
+    //    unavailable on every reachable device re-pulls each cycle until found —
+    //    bounded by the cheap COUNT gate and MAX_RESPONSE_SIZE; per-column backoff
+    //    is a follow-up.)
     if !local_changes.is_empty() {
         let remote_changes: Vec<RemoteColumnChange> =
             local_changes.iter().map(local_to_remote_change).collect();
@@ -523,17 +556,15 @@ async fn run_owner_pending_column_recovery(
         })?;
     }
 
-    // 5. Clear ONLY columns the dump actually carried a value for, and only after
-    //    the apply above succeeded. Clearing an empty/absent column would be
-    //    silent data loss (see step 4 + `columns_present_in_changes`).
-    let recovered = columns_present_in_changes(&local_changes);
-    let mut cleared = 0usize;
+    // 5. Clear ONLY the rows the dump actually carried a value for, and only after
+    //    the apply above succeeded. Clearing an absent row would be silent data
+    //    loss (see step 4 + `rows_present_in_changes` / `pending_rows_to_clear`).
+    let present = rows_present_in_changes(&local_changes);
+    let to_clear = pending_rows_to_clear(&columns, &present);
+    let cleared = to_clear.len();
     with_connection(db, |conn| {
-        for (t, c) in &columns {
-            if recovered.contains(&(t.clone(), c.clone())) {
-                clear_pending_column_inner(conn, t, c)?;
-                cleared += 1;
-            }
+        for r in &to_clear {
+            clear_pending_column_row_inner(conn, &r.table_name, &r.column_name, &r.row_pks)?;
         }
         Ok::<(), DatabaseError>(())
     })
@@ -541,14 +572,17 @@ async fn run_owner_pending_column_recovery(
         reason: format!("Failed to clear pending columns: {e}"),
     })?;
 
-    // 6. Observable trace for the e2e harness: how many of the requested columns
-    //    were recovered+cleared vs left pending for a later cycle.
+    // 6. Observable trace for the e2e harness: how many distinct columns were
+    //    pulled and how many owed ROWS were recovered+cleared vs left pending for
+    //    a later cycle. The invariant requested == recovered + left_pending is
+    //    row-aware (requested = owed rows we attempted this cycle).
     log_sync(
         app_handle,
         "info",
         &format!(
-            "owner pending-column recovery: space={} requested={} recovered={} left_pending={}",
+            "owner pending-column recovery: space={} columns={} requested={} recovered={} left_pending={}",
             &space_id[..8.min(space_id.len())],
+            request_pairs.len(),
             columns.len(),
             cleared,
             columns.len() - cleared,
