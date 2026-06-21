@@ -45,6 +45,19 @@ pub async fn local_delivery_start(
     let dos_config = super::dos_defence::config::DosDefenceConfig::load(&db_conn);
     let reject_tracker =
         super::dos_defence::tracker::RejectRateTracker::new(std::time::Duration::from_secs(1));
+    let flood_notifier = super::dos_defence::notifier::SingleSourceNotifier::new();
+
+    // Snapshot the sink so the leader can emit single-source-flood
+    // banners without holding the global sink-slot mutex across reject
+    // paths. Falls back to None when the vault is opened without a sink
+    // (pre-mount or tests) — emission becomes a silent no-op.
+    let critical_sink = {
+        let guard = state
+            .critical_sink
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        guard.clone()
+    };
 
     let leader_state = Arc::new(LeaderState {
         db: db_conn,
@@ -56,6 +69,8 @@ pub async fn local_delivery_start(
         invite_tokens: Arc::new(RwLock::new(existing_tokens)),
         reject_tracker: Arc::new(reject_tracker),
         dos_config: Arc::new(dos_config),
+        flood_notifier: Arc::new(flood_notifier),
+        critical_sink,
     });
 
     let mut leaders = state.leader_state.write().await;

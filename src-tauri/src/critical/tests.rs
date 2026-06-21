@@ -56,6 +56,10 @@ fn severity_warning_for_observability_codes() {
         CriticalFailureCode::CrdtTransformFailed.severity(),
         Severity::Warning
     );
+    assert_eq!(
+        CriticalFailureCode::SingleSourceFlood.severity(),
+        Severity::Warning
+    );
 }
 
 #[test]
@@ -77,6 +81,10 @@ fn code_as_str_matches_variant_name() {
     assert_eq!(
         CriticalFailureCode::CrdtTransformFailed.as_str(),
         "CrdtTransformFailed"
+    );
+    assert_eq!(
+        CriticalFailureCode::SingleSourceFlood.as_str(),
+        "SingleSourceFlood"
     );
 }
 

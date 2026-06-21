@@ -34,6 +34,7 @@ use super::authorize_request;
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
 use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
+use crate::space_delivery::local::dos_defence::notifier::SingleSourceNotifier;
 use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::test_support::{
@@ -58,6 +59,7 @@ async fn authorize_default(
 ) -> Result<Option<ValidatedUcan>, Response> {
     let tracker = RejectRateTracker::new(Duration::from_secs(1));
     let cfg = DosDefenceConfig::defaults();
+    let notifier = SingleSourceNotifier::new();
     authorize_request(
         request,
         verified_did,
@@ -67,6 +69,8 @@ async fn authorize_default(
         hlc,
         &tracker,
         &cfg,
+        &notifier,
+        None,
     )
     .await
 }

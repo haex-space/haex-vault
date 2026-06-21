@@ -20,4 +20,4 @@
  * operator can grep `haex_critical_notifications_no_sync` directly. A
  * numeric tag would require a separate code → name map.
  */
-export type CriticalFailureCode = "HlcMutexPoisoned" | "DbMutexPoisoned" | "DbSchemaDrift" | "AuditLogWriteFailed" | "CrdtTransformFailed";
+export type CriticalFailureCode = "HlcMutexPoisoned" | "DbMutexPoisoned" | "DbSchemaDrift" | "AuditLogWriteFailed" | "CrdtTransformFailed" | "SingleSourceFlood";

@@ -6,11 +6,14 @@
 
 pub mod config;
 pub mod decision;
+pub mod notifier;
 pub mod tracker;
 
 #[cfg(test)]
 mod config_tests;
 #[cfg(test)]
 mod decision_tests;
+#[cfg(test)]
+mod notifier_tests;
 #[cfg(test)]
 mod tracker_tests;
