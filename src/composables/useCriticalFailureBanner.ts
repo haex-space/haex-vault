@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 
+import * as schema from '~/database/schemas'
+import { requireDb } from '~/stores/vault'
+
 import type { CriticalNotification } from '~/../src-tauri/bindings/CriticalNotification'
 import type { CriticalFailureCode } from '~/../src-tauri/bindings/CriticalFailureCode'
 import type { Severity } from '~/../src-tauri/bindings/Severity'
@@ -81,6 +84,7 @@ export function useCriticalFailureBanner() {
             actionLabel: 'Verstanden',
           },
           dismissed: 'Verstanden',
+          blockDidLabel: 'DID blockieren',
           unknownCode: 'Unbekannter Kritischer Fehler',
           countSuffix: '(×{count})',
         },
@@ -143,6 +147,7 @@ export function useCriticalFailureBanner() {
             actionLabel: 'Understood',
           },
           dismissed: 'Understood',
+          blockDidLabel: 'Block DID',
           unknownCode: 'Unknown critical failure',
           countSuffix: '(×{count})',
         },
@@ -311,12 +316,54 @@ export function useCriticalFailureBanner() {
     }
   })
 
+  /**
+   * SingleSourceFlood-specific action: block the offending DID by
+   * inserting it into `haex_blocked_dids`, then acknowledge the banner
+   * row. If the params payload has no `did` field (shouldn't happen for
+   * SingleSourceFlood — Rust always populates it), we still ack so the
+   * banner doesn't get stuck.
+   */
+  const blockDidFromCurrent = async () => {
+    const row = current.value
+    if (!row) return
+    acting.value = true
+    try {
+      let did: string | undefined
+      try {
+        const params = JSON.parse(row.params) as { did?: unknown }
+        if (typeof params.did === 'string' && params.did.length > 0) {
+          did = params.did
+        }
+      } catch {
+        // Malformed params — fall through to ack-only.
+      }
+      if (did) {
+        const db = requireDb()
+        await db
+          .insert(schema.haexBlockedDids)
+          .values({
+            id: crypto.randomUUID(),
+            did,
+            label: null,
+          })
+          .onConflictDoNothing()
+      }
+      await invoke<number>('critical_notifications_acknowledge', { id: row.id })
+      await refresh()
+    } catch (err) {
+      console.error('[CriticalBanner] block-did failed:', err)
+    } finally {
+      acting.value = false
+    }
+  }
+
   return {
     current: readonly(current),
     translated: translatedContent,
     acting: readonly(acting),
     acknowledge,
     restartApp,
+    blockDidFromCurrent,
     /** Exposed for tests / explicit pull (e.g. after a known poison trigger). */
     refresh,
     /** Exposed for components that need to format severity differently. */

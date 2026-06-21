@@ -15,10 +15,13 @@
  * page; gating per-route would risk hiding the banner during exactly
  * the navigation that exposes the user to data risk.
  */
-const { translated, current, acting, acknowledge, restartApp } =
+const { translated, current, acting, acknowledge, restartApp, blockDidFromCurrent } =
   useCriticalFailureBanner()
 
 const isCritical = computed(() => translated.value?.severity === 'Critical')
+const isSingleSourceFlood = computed(
+  () => current.value?.code === 'SingleSourceFlood',
+)
 
 // UAlert color mapping. We keep this here (not in the composable) so a
 // designer tweaking the visual hierarchy doesn't have to touch backend-
@@ -90,7 +93,18 @@ const alertIcon = computed(() =>
               {{ translated.actionLabel }}
             </UButton>
             <UButton
-              :loading="acting && !isCritical"
+              v-if="isSingleSourceFlood"
+              :loading="acting"
+              :disabled="acting"
+              color="error"
+              variant="solid"
+              size="sm"
+              @click="blockDidFromCurrent"
+            >
+              {{ $t('criticalFailures.blockDidLabel') }}
+            </UButton>
+            <UButton
+              :loading="acting && !isCritical && !isSingleSourceFlood"
               :disabled="acting"
               :color="isCritical ? 'neutral' : 'warning'"
               variant="soft"
