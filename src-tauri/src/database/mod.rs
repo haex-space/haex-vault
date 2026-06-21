@@ -15,7 +15,6 @@ use crate::crdt::hlc::HlcService;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
-use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::{
     COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS,
 };
@@ -88,36 +87,6 @@ pub fn sql_execute_with_crdt(
     Ok(result)
 }
 
-/// DEPRECATED: Use sql_with_crdt instead
-/// This command is kept for backwards compatibility
-#[tauri::command]
-pub fn sql_query_with_crdt(
-    sql: String,
-    params: Vec<JsonValue>,
-    app_handle: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-    let hlc_service = state.lock_or_fail(
-        &state.hlc,
-        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-        "database::sql_query_with_crdt",
-        serde_json::json!({}),
-    )?;
-
-    let result = core::with_connection(&state.db, |conn| {
-        let tx = conn.transaction().map_err(DatabaseError::from)?;
-        let (_modified_tables, result) =
-            SqlExecutor::query_internal(&tx, &hlc_service, &sql, &params)?;
-        tx.commit().map_err(DatabaseError::from)?;
-        Ok(result)
-    })?;
-
-    // Emit event to notify frontend that dirty tables may have changed
-    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
-
-    Ok(result)
-}
-
 /// Unified SQL command with CRDT support
 ///
 /// This command automatically detects the SQL statement type using AST parsing:
@@ -126,8 +95,8 @@ pub fn sql_query_with_crdt(
 ///   - If RETURNING clause is present, returns the result rows
 ///   - Otherwise returns empty array
 ///
-/// This replaces the need for separate sql_select_with_crdt, sql_execute_with_crdt,
-/// and sql_query_with_crdt commands in the frontend.
+/// This replaces the need for separate sql_select_with_crdt and
+/// sql_execute_with_crdt commands in the frontend.
 #[tauri::command]
 pub fn sql_with_crdt(
     sql: String,
