@@ -65,7 +65,11 @@ fn cursor_handles_single_failing_message_in_batch() {
 // or QUIC session. They run against an in-memory DbConnection, mirroring
 // the scanner unit tests.
 // =====================================================================
-use super::{collect_push_changes, recoverable_pending_columns, rows_present_in_changes, SyncMode};
+use super::pending_columns::{
+    pending_rows_to_clear, recoverable_pending_columns, rows_present_in_changes,
+};
+use super::push::collect_push_changes;
+use super::SyncMode;
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
 use crate::table_names::TABLE_CRDT_PENDING_COLUMNS;
@@ -375,7 +379,7 @@ fn partial_dump_keeps_unserved_rows_pending() {
     .into_iter()
     .collect();
 
-    let to_clear = super::pending_rows_to_clear(&owed, &present);
+    let to_clear = pending_rows_to_clear(&owed, &present);
 
     // r1 is recovered and clearable; r2 stays pending (its value still lives
     // only behind this device's pull cursor on some other peer — clearing it
@@ -392,5 +396,5 @@ fn pending_rows_to_clear_empty_present_clears_nothing() {
         column_name: "c".to_string(),
         row_pks: r#"{"id":"r"}"#.to_string(),
     }];
-    assert!(super::pending_rows_to_clear(&owed, &Default::default()).is_empty());
+    assert!(pending_rows_to_clear(&owed, &Default::default()).is_empty());
 }
