@@ -17,9 +17,10 @@ use super::push_cursor::{
     load_last_mls_cursor, load_last_push_hlc, save_last_mls_cursor, save_last_push_hlc,
 };
 use crate::crdt::commands::{
-    apply_remote_changes_to_db, clear_dirty_table_inner, RemoteColumnChange,
+    apply_remote_changes_to_db, clear_dirty_table_inner, group_by_transaction_hlc,
+    RemoteColumnChange,
 };
-use crate::crdt::hlc::hlc_max;
+use crate::crdt::hlc::{compare_hlc_strings, hlc_max};
 use crate::crdt::scanner::{
     scan_all_crdt_tables_for_owner, scan_membership_tables_for_local_changes,
     scan_space_scoped_tables_for_local_changes, LocalColumnChange,
@@ -974,6 +975,39 @@ async fn run_push_phase(
     Ok(())
 }
 
+/// Split a pulled batch into the changes that are safe to apply now versus the
+/// trailing transaction to hold back until a later page confirms it.
+///
+/// HLC == one source transaction (the HLC SQL UDF is transaction-scoped), so
+/// all changes sharing an `hlc_timestamp` belong to the same source
+/// transaction and must apply atomically — never split across a page boundary.
+///
+/// When `has_more == true` the transport is paginating and the highest-HLC
+/// group in this page may be only partially delivered, so it is held back:
+/// `to_apply` gets every change strictly below the max HLC, `hold_back` gets
+/// every change at the max HLC. When `has_more == false` the page is complete
+/// and everything applies (`hold_back` is empty).
+///
+/// Pure and deterministic: no I/O, comparison is numeric via
+/// [`compare_hlc_strings`].
+fn split_complete_groups(
+    changes: Vec<RemoteColumnChange>,
+    has_more: bool,
+) -> (Vec<RemoteColumnChange>, Vec<RemoteColumnChange>) {
+    if changes.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+    if !has_more {
+        return (changes, Vec::new());
+    }
+    let max_hlc = hlc_max(changes.iter().map(|c| c.hlc_timestamp.as_str()))
+        .unwrap_or("")
+        .to_string();
+    changes.into_iter().partition(|change| {
+        compare_hlc_strings(&change.hlc_timestamp, &max_hlc) == std::cmp::Ordering::Less
+    })
+}
+
 /// Execute a single push+pull sync cycle.
 ///
 /// Push and pull are independent phases: a failing push (e.g. insufficient
@@ -1065,12 +1099,6 @@ async fn run_sync_cycle(
                 let remote_changes: Vec<RemoteColumnChange> =
                     remote_locals.iter().map(local_to_remote_change).collect();
 
-                // Find the max HLC from pulled changes
-                let max_pulled_hlc =
-                    hlc_max(remote_locals.iter().map(|c| c.hlc_timestamp.as_str()))
-                        .unwrap_or("")
-                        .to_string();
-
                 // Collect affected table names for the event
                 let affected_tables: Vec<String> = remote_locals
                     .iter()
@@ -1095,15 +1123,42 @@ async fn run_sync_cycle(
                     "space_delivery::local::sync_loop::run_sync_cycle::apply_remote",
                     serde_json::json!({}),
                 )?;
-                apply_remote_changes_to_db(db, remote_changes, None, Some(&*hlc_service)).map_err(
-                    |e| DeliveryError::Database {
-                        reason: format!("Failed to apply remote changes: {}", e),
-                    },
-                )?;
 
-                // Update last_pull_timestamp
-                if !max_pulled_hlc.is_empty() {
-                    *last_pull_timestamp = Some(max_pulled_hlc);
+                // Apply per transaction-HLC group, not the whole batch at once.
+                //
+                // One HLC == one source transaction; the accumulated history can
+                // far exceed any single transaction's size, so applying the
+                // entire pulled batch in ONE DB transaction is both wrong
+                // (mirrors no real transaction boundary) and unbounded. Splitting
+                // by HLC mirrors the sender's transaction boundaries.
+                //
+                // Single-frame transport ⇒ `has_more = false` ⇒ the whole batch
+                // is complete; the `split_complete_groups` seam is here for the
+                // paginated transport that lands next.
+                let (to_apply, _hold_back) = split_complete_groups(remote_changes, false);
+
+                // Failure isolation: if one group fails, stop and leave the
+                // cursor at the last successfully-applied group's HLC so the
+                // next cycle resumes from there. The error is propagated AFTER
+                // the cursor has advanced for the groups that DID succeed,
+                // matching the cycle's `?`-propagation convention.
+                for (group_hlc, group_changes) in group_by_transaction_hlc(to_apply) {
+                    apply_remote_changes_to_db(db, group_changes, None, Some(&*hlc_service))
+                        .map_err(|e| {
+                            eprintln!(
+                                "[SyncLoop] Failed to apply transaction-HLC group {}: {} \
+                                 (cursor stays at last applied group; later groups deferred)",
+                                group_hlc, e
+                            );
+                            DeliveryError::Database {
+                                reason: format!("Failed to apply remote changes: {}", e),
+                            }
+                        })?;
+
+                    // Advance the cursor per successfully-applied group.
+                    if !group_hlc.is_empty() {
+                        *last_pull_timestamp = Some(group_hlc);
+                    }
                 }
 
                 // Emit Tauri event for frontend UI refresh (main window only).
@@ -1489,3 +1544,7 @@ fn sqlite_datetime_now() -> String {
 #[cfg(test)]
 #[path = "sync_loop_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "sync_loop_streaming_tests.rs"]
+mod streaming_tests;

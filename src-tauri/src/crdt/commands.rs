@@ -286,7 +286,7 @@ fn create_conflict_entry(
 /// returns them sorted ascending by HLC. All writes issued inside the same
 /// sender-side transaction share a timestamp, so `hlc_timestamp` is the
 /// semantic grouping key — there is no separate batch id anymore.
-fn group_by_transaction_hlc(
+pub(crate) fn group_by_transaction_hlc(
     changes: Vec<RemoteColumnChange>,
 ) -> Vec<(String, Vec<RemoteColumnChange>)> {
     let mut groups: HashMap<String, Vec<RemoteColumnChange>> = HashMap::new();
