@@ -497,12 +497,12 @@ async fn run_owner_pending_column_recovery(
     // 2. Only recover owed rows whose column the local migration has already
     //    re-added; the rest stay pending (clearing them now would be silent data
     //    loss).
-    let columns = with_connection(db, |c| recoverable_pending_columns(c)).map_err(|e| {
+    let owed_rows = with_connection(db, |c| recoverable_pending_columns(c)).map_err(|e| {
         DeliveryError::Database {
             reason: format!("Failed to read recoverable pending columns: {e}"),
         }
     })?;
-    if columns.is_empty() {
+    if owed_rows.is_empty() {
         return Ok(());
     }
 
@@ -513,7 +513,7 @@ async fn run_owner_pending_column_recovery(
     //    so the next cycle retries.
     let request_pairs: Vec<(String, String)> = {
         let mut seen = std::collections::HashSet::new();
-        columns
+        owed_rows
             .iter()
             .filter(|r| seen.insert((r.table_name.clone(), r.column_name.clone())))
             .map(|r| (r.table_name.clone(), r.column_name.clone()))
@@ -560,7 +560,7 @@ async fn run_owner_pending_column_recovery(
     //    the apply above succeeded. Clearing an absent row would be silent data
     //    loss (see step 4 + `rows_present_in_changes` / `pending_rows_to_clear`).
     let present = rows_present_in_changes(&local_changes);
-    let to_clear = pending_rows_to_clear(&columns, &present);
+    let to_clear = pending_rows_to_clear(&owed_rows, &present);
     let cleared = to_clear.len();
     with_connection(db, |conn| {
         for r in &to_clear {
@@ -583,9 +583,9 @@ async fn run_owner_pending_column_recovery(
             "owner pending-column recovery: space={} columns={} requested={} recovered={} left_pending={}",
             &space_id[..8.min(space_id.len())],
             request_pairs.len(),
-            columns.len(),
+            owed_rows.len(),
             cleared,
-            columns.len() - cleared,
+            owed_rows.len() - cleared,
         ),
     );
 
