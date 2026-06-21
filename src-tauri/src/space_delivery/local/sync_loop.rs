@@ -1089,13 +1089,16 @@ async fn run_sync_cycle(
     // attachment blob) traverse the wire one page at a time.
     //
     // Two cursors are in play:
-    //   - `page_after`: the IN-CYCLE pull cursor. Starts at the persisted apply
+    //   - `page_after`: the IN-CYCLE pull cursor. Starts at the cumulative apply
     //     cursor and advances to the MAX HLC of each page so the next page's
     //     strictly-greater scan resumes correctly (HLC is unique per source
     //     transaction → no skips/dups).
-    //   - `last_pull_timestamp`: the PERSISTED apply cursor, advanced ONLY by
-    //     `apply_groups_advancing_cursor` after a group actually commits. A page
-    //     pulled but not yet applied must NOT move it.
+    //   - `last_pull_timestamp`: the cumulative apply cursor (in-memory, carried
+    //     across cycles for this loop's lifetime — NOT persisted to disk; it
+    //     resets to `None` on restart, which is safe because re-apply is
+    //     idempotent LWW). Advanced ONLY by `apply_groups_advancing_cursor`
+    //     after a group actually commits. A page pulled but not yet applied
+    //     must NOT move it.
     //
     // `split_complete_groups` holds back the trailing (max-HLC) group while more
     // pages are coming — with HLC-aligned pages that group is complete and
@@ -1113,6 +1116,11 @@ async fn run_sync_cycle(
     let mut affected_tables: HashSet<String> = HashSet::new();
 
     loop {
+        // Snapshot the cursor we are about to request with, so we can detect a
+        // leader that claims `has_more` without making progress (see the
+        // stall guard at the bottom of the loop).
+        let prev_after = page_after.clone();
+
         let (page_json, has_more) = session
             .pull_changes(space_id, page_after.as_deref())
             .await?;
@@ -1228,6 +1236,27 @@ async fn run_sync_cycle(
         buffer = hold_back;
 
         if !has_more {
+            break;
+        }
+
+        // Stall guard: a correct leader paginating with `has_more = true` always
+        // returns at least one new HLC-group, so `page_after` advances past
+        // `prev_after`. If it did NOT advance — an empty page with `has_more`, or
+        // a leader that ignores the cursor and replays the same page — continuing
+        // would spin this loop forever issuing QUIC requests (the apply is an
+        // idempotent no-op each time). Stop instead; the next cycle retries from
+        // the cumulative apply cursor.
+        if page_after == prev_after {
+            log_sync(
+                app_handle,
+                "warn",
+                &format!(
+                    "pull: has_more=true but cursor did not advance (after={:?}, count={}); \
+                     stopping to avoid an infinite pull loop",
+                    page_after.as_deref(),
+                    page_count
+                ),
+            );
             break;
         }
     }
