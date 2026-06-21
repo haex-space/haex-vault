@@ -469,6 +469,27 @@ impl ValueConverter {
     }
 }
 
+/// Maximum serialized size of a single CRDT transaction (ADR 0001).
+///
+/// One `execute_with_crdt` call parses one statement and runs it in its own
+/// `conn.transaction()` — and nothing nests `execute_with_crdt` calls — so one
+/// call is exactly one SQLite transaction (one HLC). Enforcing the cap per call
+/// is therefore equivalent to a per-transaction byte counter, with no extra
+/// plumbing. Larger payloads must use file storage, never CRDT columns.
+pub const MAX_CRDT_TRANSACTION_BYTES: usize = 100 * 1024 * 1024;
+
+/// Returns `Some(bytes)` if the serialized size of `params` exceeds `limit`,
+/// else `None`. Fail-closed: an unmeasurable payload counts as over-limit.
+///
+/// `limit` is a parameter (not the const) so tests can inject a tiny limit
+/// instead of allocating `MAX_CRDT_TRANSACTION_BYTES`.
+fn write_payload_too_large(params: &[JsonValue], limit: usize) -> Option<usize> {
+    let bytes = serde_json::to_vec(&params)
+        .map(|v| v.len())
+        .unwrap_or(usize::MAX);
+    (bytes > limit).then_some(bytes)
+}
+
 /// Execute SQL mit CRDT-Transformation (für Drizzle-Integration)
 /// Diese Funktion sollte von Drizzle verwendet werden, um CRDT-Support zu erhalten
 /// Unterstützt RETURNING-Klausel: Falls vorhanden, werden die Ergebnis-Rows zurückgegeben
@@ -478,6 +499,14 @@ pub fn execute_with_crdt(
     connection: &DbConnection,
     hlc_service: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
+    // ADR 0001: reject an oversized single transaction before writing anything.
+    if let Some(bytes) = write_payload_too_large(&params, MAX_CRDT_TRANSACTION_BYTES) {
+        return Err(DatabaseError::TransactionTooLarge {
+            bytes,
+            limit: MAX_CRDT_TRANSACTION_BYTES,
+        });
+    }
+
     // Parse statement to check for RETURNING clause (AST-basiert)
     let statement = parse_single_statement(&sql)?;
     let has_returning = statement_has_returning(&statement);
@@ -1219,3 +1248,7 @@ mod tests {
         assert_ne!(a, b, "current_hlc() must be fresh after a rollback");
     }
 }
+
+#[cfg(test)]
+#[path = "core_max_tx_size_tests.rs"]
+mod max_tx_size_tests;
