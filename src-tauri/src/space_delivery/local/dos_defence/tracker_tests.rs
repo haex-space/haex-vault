@@ -85,3 +85,38 @@ fn distinct_keys_count_excludes_keys_whose_records_all_expired() {
     let now = start + Duration::from_secs(70);
     assert_eq!(tracker.distinct_keys_count(now), 1);
 }
+
+#[test]
+fn evicts_keys_with_empty_buckets_to_prevent_unbounded_growth() {
+    // Without eviction, a long-lived leader that sees a million one-off DIDs
+    // (e.g. a flood with rotating endpoint_ids that all get rejected once)
+    // accumulates a million HashMap entries forever — the very DoS the
+    // tracker is meant to defend against.
+    let tracker = RejectRateTracker::new(Duration::from_secs(60));
+    let start = Instant::now();
+    tracker.record("did:key:transient", start);
+    // After window expiry, querying the key must evict it.
+    let later = start + Duration::from_secs(61);
+    assert_eq!(tracker.count_within_window("did:key:transient", later), 0);
+    assert_eq!(
+        tracker.bucket_count(),
+        0,
+        "empty bucket must be evicted from the map"
+    );
+}
+
+#[test]
+fn distinct_keys_count_evicts_expired_keys_from_storage() {
+    // distinct_keys_count walks all buckets — same eviction guarantee.
+    let tracker = RejectRateTracker::new(Duration::from_secs(60));
+    let start = Instant::now();
+    tracker.record("did:key:old", start);
+    tracker.record("did:key:current", start + Duration::from_secs(30));
+    let later = start + Duration::from_secs(70);
+    tracker.distinct_keys_count(later);
+    assert_eq!(
+        tracker.bucket_count(),
+        1,
+        "the fully-expired key must be evicted"
+    );
+}

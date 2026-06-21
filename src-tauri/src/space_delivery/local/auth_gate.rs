@@ -130,46 +130,61 @@ pub async fn authorize_request(
     // the underlying error via `format!`. Taking `String` lets both cases
     // pass without an extra `.to_string()` on the literal side.
     let gate_reject = |level: &str, log_msg: String, peer_msg: String| -> Response {
-        // L4 rate-limiting tap: record the reject keyed by verified DID
-        // (stable across endpoint rotation — see plan D1). At Sampled
-        // intensity we skip most haex_logs writes to avoid Owner-side
-        // write-amplification under a flood.
-        let now = Instant::now();
-        reject_tracker.record(verified_did, now);
-        let count = reject_tracker.count_within_window(verified_did, now);
-        let mode = classify(count, dos_config);
+        // Discriminate peer-caused rejects (level="warn") from internal
+        // vault failures (level="error", e.g. stage-6b DB error). DoS
+        // rate-tracking + sampling only applies to peer-caused rejects:
+        // (a) a degraded DB must not raise SingleSourceFlood banners
+        //     against healthy peers, and
+        // (b) sampling must never drop an "error" log — those are
+        //     operator-actionable signals about the vault itself.
+        // See CodeRabbit review on PR #491.
+        let is_peer_caused = level != "error";
 
-        // On the warn-threshold crossing, raise a single-source-flood
-        // banner exactly once per (leader-session, DID). The
-        // [`SingleSourceNotifier`] dedups in-memory; the sink's UPSERT
-        // dedup is the second line of defence. Sink errors are best-
-        // effort — a missed banner is preferable to crashing the gate.
-        if matches!(mode, LoggingMode::Warning | LoggingMode::Sampled)
-            && flood_notifier.should_notify(verified_did)
-        {
-            if let Some(sink) = critical_sink {
-                let _ = sink.emit(
-                    CriticalFailureCode::SingleSourceFlood,
-                    "space_delivery::local::auth_gate::gate_reject",
-                    serde_json::json!({
-                        "did": verified_did,
-                        "endpointId": peer_endpoint_id,
-                        "rateRejectsPerSec": count,
-                    }),
-                );
+        if is_peer_caused {
+            // L4 rate-limiting tap: record the reject keyed by verified
+            // DID (stable across endpoint rotation — see plan D1). At
+            // Sampled intensity we skip most haex_logs writes to avoid
+            // Owner-side write-amplification under a flood.
+            let now = Instant::now();
+            reject_tracker.record(verified_did, now);
+            let count = reject_tracker.count_within_window(verified_did, now);
+            let mode = classify(count, dos_config);
+
+            // On the warn-threshold crossing, raise a single-source-flood
+            // banner exactly once per (leader-session, DID). The
+            // [`SingleSourceNotifier`] dedups in-memory; the sink's
+            // UPSERT dedup is the second line of defence. Sink errors are
+            // best-effort — a missed banner is preferable to crashing
+            // the gate.
+            if matches!(mode, LoggingMode::Warning | LoggingMode::Sampled)
+                && flood_notifier.should_notify(verified_did)
+            {
+                if let Some(sink) = critical_sink {
+                    let _ = sink.emit(
+                        CriticalFailureCode::SingleSourceFlood,
+                        "space_delivery::local::auth_gate::gate_reject",
+                        serde_json::json!({
+                            "did": verified_did,
+                            "endpointId": peer_endpoint_id,
+                            "rateRejectsPerSec": count,
+                        }),
+                    );
+                }
+            }
+
+            if !should_log_this_reject(count, mode) {
+                return Response::Error { message: peer_msg };
             }
         }
 
-        if should_log_this_reject(count, mode) {
-            log_to_db(
-                db,
-                hlc,
-                level,
-                op,
-                &log_msg,
-                Some(serde_json::json!({"subsystem": "AuthGate"})),
-            );
-        }
+        log_to_db(
+            db,
+            hlc,
+            level,
+            op,
+            &log_msg,
+            Some(serde_json::json!({"subsystem": "AuthGate"})),
+        );
         Response::Error { message: peer_msg }
     };
 

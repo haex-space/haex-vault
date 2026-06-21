@@ -51,6 +51,14 @@ impl RejectRateTracker {
             return 0;
         };
         prune_expired(entries, cutoff);
+        if entries.is_empty() {
+            // Evict empty buckets — without this, every transient DID
+            // permanently retains its (empty) `VecDeque` and `buckets`
+            // grows unbounded under endpoint-rotation floods. See
+            // CodeRabbit review on PR #491.
+            buckets.remove(key);
+            return 0;
+        }
         entries.len()
     }
 
@@ -60,14 +68,21 @@ impl RejectRateTracker {
             .buckets
             .lock()
             .expect("RejectRateTracker mutex poisoned");
-        let mut count = 0;
-        for entries in buckets.values_mut() {
+        buckets.retain(|_, entries| {
             prune_expired(entries, cutoff);
-            if !entries.is_empty() {
-                count += 1;
-            }
-        }
-        count
+            !entries.is_empty()
+        });
+        buckets.len()
+    }
+
+    /// Number of keys currently stored. Exposed for memory-leak tests —
+    /// production code only needs `distinct_keys_count` (which prunes).
+    #[cfg(test)]
+    pub fn bucket_count(&self) -> usize {
+        self.buckets
+            .lock()
+            .expect("RejectRateTracker mutex poisoned")
+            .len()
     }
 }
 

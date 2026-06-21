@@ -118,64 +118,93 @@ const dirty = computed(() =>
   ),
 )
 
+/**
+ * Coerce any user-entered or DB-stored value to a positive integer at or
+ * above `min`. The Rust-side parser is strict: `"20.5"`, `"-5"`, or
+ * `"abc"` all fail `.parse::<u32>()` and silently fall back to defaults
+ * on the next leader restart. Without the same coercion here the UI
+ * would show a value the backend never actually applies. See CodeRabbit
+ * review on PR #491.
+ */
+const clampToInt = (value: unknown, min: number, fallback: number): number => {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  const i = Math.floor(n)
+  return i >= min ? i : fallback
+}
+
 const loadAsync = async () => {
   const db = requireDb()
   const rows = await db.query.haexVaultSettings.findMany()
   const map = new Map<string, string>()
   for (const r of rows) if (r.value) map.set(r.key, r.value)
 
-  const num = (key: string, fallback: number) => {
-    const raw = map.get(key)
-    if (raw === undefined) return fallback
-    const n = Number(raw)
-    return Number.isFinite(n) ? n : fallback
-  }
-
-  form.l1GlobalPerSec = num(KEYS.l1GlobalPerSec, DEFAULTS.l1GlobalPerSec)
-  form.l1PerSourcePerSec = num(KEYS.l1PerSourcePerSec, DEFAULTS.l1PerSourcePerSec)
-  form.l2MaxStreams = num(KEYS.l2MaxStreams, DEFAULTS.l2MaxStreams)
-  form.l3TimeoutSecs = num(KEYS.l3TimeoutSecs, DEFAULTS.l3TimeoutSecs)
-  form.l4WarnPerSec = num(KEYS.l4WarnPerSec, DEFAULTS.l4WarnPerSec)
-  form.l4SamplePerSec = num(KEYS.l4SamplePerSec, DEFAULTS.l4SamplePerSec)
-  form.ddosDistinctSources = num(KEYS.ddosDistinctSources, DEFAULTS.ddosDistinctSources)
-  form.ddosAutoExpirySecs = num(KEYS.ddosAutoExpirySecs, DEFAULTS.ddosAutoExpirySecs)
+  form.l1GlobalPerSec = clampToInt(map.get(KEYS.l1GlobalPerSec), 1, DEFAULTS.l1GlobalPerSec)
+  form.l1PerSourcePerSec = clampToInt(map.get(KEYS.l1PerSourcePerSec), 1, DEFAULTS.l1PerSourcePerSec)
+  form.l2MaxStreams = clampToInt(map.get(KEYS.l2MaxStreams), 1, DEFAULTS.l2MaxStreams)
+  form.l3TimeoutSecs = clampToInt(map.get(KEYS.l3TimeoutSecs), 1, DEFAULTS.l3TimeoutSecs)
+  form.l4WarnPerSec = clampToInt(map.get(KEYS.l4WarnPerSec), 1, DEFAULTS.l4WarnPerSec)
+  form.l4SamplePerSec = clampToInt(map.get(KEYS.l4SamplePerSec), 1, DEFAULTS.l4SamplePerSec)
+  form.ddosDistinctSources = clampToInt(map.get(KEYS.ddosDistinctSources), 1, DEFAULTS.ddosDistinctSources)
+  form.ddosAutoExpirySecs = clampToInt(map.get(KEYS.ddosAutoExpirySecs), 60, DEFAULTS.ddosAutoExpirySecs)
   const esc = map.get(KEYS.ddosEscalation)
   form.ddosEscalation = esc === 'off' ? 'off' : 'contacts_only'
 
   Object.assign(original, form)
 }
 
-const upsertAsync = async (key: string, value: string) => {
-  const db = requireDb()
-  const existing = await db.query.haexVaultSettings.findFirst({
-    where: eq(schema.haexVaultSettings.key, key),
-  })
-  if (existing) {
-    await db
-      .update(schema.haexVaultSettings)
-      .set({ value })
-      .where(eq(schema.haexVaultSettings.key, key))
-  } else {
-    await db.insert(schema.haexVaultSettings).values({
-      id: crypto.randomUUID(),
-      key,
-      value,
-    })
-  }
+const validateForm = () => {
+  form.l1GlobalPerSec = clampToInt(form.l1GlobalPerSec, 1, DEFAULTS.l1GlobalPerSec)
+  form.l1PerSourcePerSec = clampToInt(form.l1PerSourcePerSec, 1, DEFAULTS.l1PerSourcePerSec)
+  form.l2MaxStreams = clampToInt(form.l2MaxStreams, 1, DEFAULTS.l2MaxStreams)
+  form.l3TimeoutSecs = clampToInt(form.l3TimeoutSecs, 1, DEFAULTS.l3TimeoutSecs)
+  form.l4WarnPerSec = clampToInt(form.l4WarnPerSec, 1, DEFAULTS.l4WarnPerSec)
+  form.l4SamplePerSec = clampToInt(form.l4SamplePerSec, 1, DEFAULTS.l4SamplePerSec)
+  form.ddosDistinctSources = clampToInt(form.ddosDistinctSources, 1, DEFAULTS.ddosDistinctSources)
+  form.ddosAutoExpirySecs = clampToInt(form.ddosAutoExpirySecs, 60, DEFAULTS.ddosAutoExpirySecs)
 }
 
 const onSaveAsync = async () => {
   saving.value = true
   try {
-    await upsertAsync(KEYS.l1GlobalPerSec, String(form.l1GlobalPerSec))
-    await upsertAsync(KEYS.l1PerSourcePerSec, String(form.l1PerSourcePerSec))
-    await upsertAsync(KEYS.l2MaxStreams, String(form.l2MaxStreams))
-    await upsertAsync(KEYS.l3TimeoutSecs, String(form.l3TimeoutSecs))
-    await upsertAsync(KEYS.l4WarnPerSec, String(form.l4WarnPerSec))
-    await upsertAsync(KEYS.l4SamplePerSec, String(form.l4SamplePerSec))
-    await upsertAsync(KEYS.ddosDistinctSources, String(form.ddosDistinctSources))
-    await upsertAsync(KEYS.ddosEscalation, form.ddosEscalation)
-    await upsertAsync(KEYS.ddosAutoExpirySecs, String(form.ddosAutoExpirySecs))
+    validateForm()
+
+    const writes: Array<[string, string]> = [
+      [KEYS.l1GlobalPerSec, String(form.l1GlobalPerSec)],
+      [KEYS.l1PerSourcePerSec, String(form.l1PerSourcePerSec)],
+      [KEYS.l2MaxStreams, String(form.l2MaxStreams)],
+      [KEYS.l3TimeoutSecs, String(form.l3TimeoutSecs)],
+      [KEYS.l4WarnPerSec, String(form.l4WarnPerSec)],
+      [KEYS.l4SamplePerSec, String(form.l4SamplePerSec)],
+      [KEYS.ddosDistinctSources, String(form.ddosDistinctSources)],
+      [KEYS.ddosEscalation, form.ddosEscalation],
+      [KEYS.ddosAutoExpirySecs, String(form.ddosAutoExpirySecs)],
+    ]
+
+    // Atomic batch: a partial write would leave the DoS policy in a
+    // mixed state at next leader restart. Wrap all nine upserts in a
+    // single transaction so either all land or none do. See CodeRabbit
+    // review on PR #491.
+    const db = requireDb()
+    await db.transaction(async (tx) => {
+      for (const [key, value] of writes) {
+        const existing = await tx.query.haexVaultSettings.findFirst({
+          where: eq(schema.haexVaultSettings.key, key),
+        })
+        if (existing) {
+          await tx
+            .update(schema.haexVaultSettings)
+            .set({ value })
+            .where(eq(schema.haexVaultSettings.key, key))
+        } else {
+          await tx.insert(schema.haexVaultSettings).values({
+            id: crypto.randomUUID(),
+            key,
+            value,
+          })
+        }
+      }
+    })
     Object.assign(original, form)
     add({
       title: t('success.saved'),
