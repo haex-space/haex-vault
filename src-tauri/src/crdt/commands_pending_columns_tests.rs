@@ -34,6 +34,13 @@ fn setup_db() -> DbConnection {
              row_pks TEXT NOT NULL,
              PRIMARY KEY(table_name, column_name, row_pks)
          );
+         CREATE TABLE {DELETED_ROWS_TABLE} (
+             id TEXT PRIMARY KEY,
+             table_name TEXT NOT NULL,
+             row_pks TEXT NOT NULL,
+             haex_hlc TEXT,
+             haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+         );
          CREATE TABLE devices (
              id TEXT PRIMARY KEY,
              name TEXT,
