@@ -744,15 +744,20 @@ pub fn apply_remote_changes_to_db(
                         change.column_name, first_change.table_name
                     );
 
-                        // Track this as a pending column that needs to be pulled after migration
-                        // Uses INSERT OR IGNORE to avoid duplicates (composite PK on table_name, column_name)
-                        // Only stores table_name + column_name - row PKs come from server during re-pull
+                        // Track this row's owed column as pending. Row-aware: the marker
+                        // carries the owed row's PKs so P2P recovery can clear per
+                        // (table, column, row_pks) and a row-incomplete peer dump can't
+                        // drop a still-owed value (silent loss).
                         tx.execute(
                             &format!(
-                                "INSERT OR IGNORE INTO {} (table_name, column_name) VALUES (?, ?)",
+                                "INSERT OR IGNORE INTO {} (table_name, column_name, row_pks) VALUES (?, ?, ?)",
                                 TABLE_CRDT_PENDING_COLUMNS
                             ),
-                            params![&first_change.table_name, &change.column_name],
+                            params![
+                                &first_change.table_name,
+                                &change.column_name,
+                                &first_change.row_pks
+                            ],
                         )
                         .map_err(DatabaseError::from)?;
 
