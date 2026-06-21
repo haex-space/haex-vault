@@ -401,7 +401,7 @@ async fn owner_device_pulls_full_vault_over_real_quic() {
     .await
     .expect("B → A connect_owner");
 
-    let changes_json = session
+    let (changes_json, _has_more) = session
         .pull_changes(&vault_space_id, None)
         .await
         .expect("B pull_changes");
@@ -571,7 +571,7 @@ async fn foreign_peer_gets_zero_vault_rows_over_real_quic() {
     // row crosses the wire.
     match pull_result {
         Err(_) => { /* expected: foreign peer is rejected, no vault served */ }
-        Ok(changes_json) => {
+        Ok((changes_json, _has_more)) => {
             // Defense-in-depth: even if a future change made the fall-through
             // return an (empty) SyncChanges, assert there are zero password
             // rows in whatever was sent.

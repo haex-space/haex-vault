@@ -8,7 +8,7 @@
 // applies.
 
 use super::{apply_groups_advancing_cursor, split_complete_groups};
-use crate::crdt::commands::RemoteColumnChange;
+use crate::crdt::commands::{group_by_transaction_hlc, RemoteColumnChange};
 use crate::space_delivery::local::error::DeliveryError;
 
 /// Build a `RemoteColumnChange` with a given HLC. The other fields are
@@ -209,5 +209,91 @@ fn empty_groups_leaves_cursor_unchanged() {
         cursor.as_deref(),
         Some("999/zz"),
         "an empty batch must not move the cursor"
+    );
+}
+
+// --- Multi-page reassembly: the trailing transaction-HLC group held back on
+// page 1 must be applied exactly ONCE, as a whole, when its continuation lands
+// on page 2. This drives the same buffer/split/apply pipeline the real pull loop
+// in `run_sync_cycle` uses (two `split_complete_groups` calls with a carried-over
+// buffer), but purely — no QUIC session, no DB, no fake session object. ---
+
+#[test]
+fn trailing_group_spanning_two_pages_is_applied_once_whole() {
+    // Page 1 (has_more=true): a complete group A, then the FIRST part of the
+    // trailing group C (one change). With HLC-aligned serve pages C would never
+    // actually be split, but the buffer pipeline must still be robust if the max
+    // HLC group only partially appears here — it must be held back.
+    let page1 = vec![change_at(HLC_A, "a"), change_at(HLC_C, "c1")];
+    // Page 2 (has_more=false): the REMAINDER of group C, then a later group is
+    // impossible (C is the max), so just C's second change closes it out.
+    let page2 = vec![change_at(HLC_C, "c2")];
+
+    let mut cursor: Option<String> = None;
+    // Record every (hlc, change_count) actually applied across both pages.
+    let mut applied: Vec<(String, usize)> = Vec::new();
+
+    // ---- Page 1 ----
+    let mut buffer: Vec<RemoteColumnChange> = Vec::new();
+    buffer.extend(page1);
+    let (to_apply, hold_back) = split_complete_groups(std::mem::take(&mut buffer), true);
+    apply_groups_advancing_cursor(
+        group_by_transaction_hlc(to_apply),
+        &mut cursor,
+        |hlc, changes| {
+            applied.push((hlc.to_string(), changes.len()));
+            Ok::<(), DeliveryError>(())
+        },
+    )
+    .unwrap();
+    buffer = hold_back;
+
+    // After page 1: only group A applied; group C is fully held back (its one
+    // change so far waits in the buffer).
+    assert_eq!(
+        applied,
+        vec![(HLC_A.to_string(), 1)],
+        "page 1 applies only the complete group A; the trailing group C is held back"
+    );
+    assert_eq!(
+        cursor.as_deref(),
+        Some(HLC_A),
+        "cursor advanced only to A — C has not committed yet"
+    );
+    assert_eq!(
+        hlcs(&buffer),
+        vec![HLC_C],
+        "C's first change waits in the buffer"
+    );
+
+    // ---- Page 2 ----
+    buffer.extend(page2);
+    let (to_apply, hold_back) = split_complete_groups(std::mem::take(&mut buffer), false);
+    apply_groups_advancing_cursor(
+        group_by_transaction_hlc(to_apply),
+        &mut cursor,
+        |hlc, changes| {
+            applied.push((hlc.to_string(), changes.len()));
+            Ok::<(), DeliveryError>(())
+        },
+    )
+    .unwrap();
+    buffer = hold_back;
+
+    // C is applied EXACTLY ONCE, as a single group carrying BOTH its changes
+    // (c1 buffered from page 1 + c2 from page 2). Never split, never duplicated.
+    assert_eq!(
+        applied,
+        vec![(HLC_A.to_string(), 1), (HLC_C.to_string(), 2)],
+        "group C applies once as a whole (both changes together) on page 2"
+    );
+    assert_eq!(
+        cursor.as_deref(),
+        Some(HLC_C),
+        "cursor advances to C after its single whole-group apply"
+    );
+    assert!(
+        buffer.is_empty(),
+        "nothing left buffered after the final page"
     );
 }

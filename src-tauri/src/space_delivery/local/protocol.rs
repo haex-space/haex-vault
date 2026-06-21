@@ -405,8 +405,16 @@ pub enum Response {
         /// How many more the leader wants the peer to upload (0 = sufficient)
         needed: u32,
     },
-    /// CRDT sync changes
-    SyncChanges { changes: serde_json::Value },
+    /// CRDT sync changes.
+    ///
+    /// `has_more` is `true` when the serve side paginated at a whole-HLC-group
+    /// boundary and more pages remain. The client resumes the next page with
+    /// `after_timestamp` = the MAX HLC of this page (HLC is unique per source
+    /// transaction, so the strictly-greater scan cursor never skips or dups).
+    SyncChanges {
+        changes: serde_json::Value,
+        has_more: bool,
+    },
     /// Invite claimed successfully — includes MLS welcome and delegated UCAN
     InviteClaimed {
         /// Base64-encoded MLS welcome message

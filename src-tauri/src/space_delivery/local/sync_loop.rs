@@ -1081,136 +1081,167 @@ async fn run_sync_cycle(
         eprintln!("[SyncLoop] Push phase failed (pull continues): {}", e);
     }
 
-    // 2. PULL: Get changes from leader
-    let remote_changes_json = session
-        .pull_changes(space_id, last_pull_timestamp.as_deref())
-        .await?;
+    // 2. PULL: paginated by transaction-HLC group.
+    //
+    // The serve side packs WHOLE HLC-groups into each page up to a byte budget
+    // and reports `has_more`; a transaction is never split across a page. This
+    // lets a transaction larger than the legacy 10 MB wire cap (e.g. a password
+    // attachment blob) traverse the wire one page at a time.
+    //
+    // Two cursors are in play:
+    //   - `page_after`: the IN-CYCLE pull cursor. Starts at the persisted apply
+    //     cursor and advances to the MAX HLC of each page so the next page's
+    //     strictly-greater scan resumes correctly (HLC is unique per source
+    //     transaction → no skips/dups).
+    //   - `last_pull_timestamp`: the PERSISTED apply cursor, advanced ONLY by
+    //     `apply_groups_advancing_cursor` after a group actually commits. A page
+    //     pulled but not yet applied must NOT move it.
+    //
+    // `split_complete_groups` holds back the trailing (max-HLC) group while more
+    // pages are coming — with HLC-aligned pages that group is complete and
+    // applies on the next page (or at `has_more = false`), via the carried-over
+    // `buffer`.
+    //
+    // The HLC lock is re-acquired per page, scoped to the apply: a
+    // `std::sync::MutexGuard` is not `Send`, so it cannot be held across the
+    // `pull_changes().await` at the top of the loop (the future is spawned via
+    // `tokio::spawn`, which requires `Send`). Re-locking per page is cheap — the
+    // apply is the dominant work — and `lock_or_fail` surfaces a banner-visible
+    // failure on poison instead of silently applying without advancing the clock.
+    let mut page_after: Option<String> = last_pull_timestamp.clone();
+    let mut buffer: Vec<RemoteColumnChange> = Vec::new();
+    let mut affected_tables: HashSet<String> = HashSet::new();
 
-    if let Some(changes_array) = remote_changes_json.as_array() {
-        // Log every cycle's pull result so the e2e harness can tell
-        // "leader returned 0 changes" (membership/scope problem) apart
-        // from "pull never happened" (loop never started / connect failed).
-        let table_summary: std::collections::BTreeMap<String, usize> = changes_array
-            .iter()
-            .filter_map(|c| {
-                c.get("tableName")
-                    .and_then(|v| v.as_str())
-                    .map(String::from)
+    loop {
+        let (page_json, has_more) = session
+            .pull_changes(space_id, page_after.as_deref())
+            .await?;
+
+        let page_count = page_json.as_array().map(|a| a.len()).unwrap_or(0);
+        // Per-page pull summary so the e2e harness can tell "leader returned 0
+        // changes" (membership/scope problem) apart from "pull never happened"
+        // (loop never started / connect failed), and observe pagination.
+        let table_summary: std::collections::BTreeMap<String, usize> = page_json
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|c| {
+                        c.get("tableName")
+                            .and_then(|v| v.as_str())
+                            .map(String::from)
+                    })
+                    .fold(std::collections::BTreeMap::new(), |mut acc, t| {
+                        *acc.entry(t).or_insert(0) += 1;
+                        acc
+                    })
             })
-            .fold(std::collections::BTreeMap::new(), |mut acc, t| {
-                *acc.entry(t).or_insert(0) += 1;
-                acc
-            });
+            .unwrap_or_default();
         log_sync(
             app_handle,
             "info",
             &format!(
-                "pull: space={} count={} tables={:?} after={:?}",
+                "pull: space={} count={} has_more={} tables={:?} after={:?}",
                 &space_id[..8.min(space_id.len())],
-                changes_array.len(),
+                page_count,
+                has_more,
                 table_summary,
-                last_pull_timestamp.as_deref(),
+                page_after.as_deref(),
             ),
         );
-        if !changes_array.is_empty() {
+
+        if page_count > 0 {
             eprintln!(
-                "[SyncLoop] Pulled {} changes for space {}",
-                changes_array.len(),
-                space_id
+                "[SyncLoop] Pulled {} changes (has_more={}) for space {}",
+                page_count, has_more, space_id
             );
 
-            // Deserialize into LocalColumnChange format (same JSON shape)
+            // Deserialize this page into LocalColumnChange (same JSON shape).
             let remote_locals: Vec<LocalColumnChange> =
-                serde_json::from_value(remote_changes_json.clone()).map_err(|e| {
-                    DeliveryError::ProtocolError {
-                        reason: format!("Failed to deserialize pulled changes: {}", e),
-                    }
+                serde_json::from_value(page_json).map_err(|e| DeliveryError::ProtocolError {
+                    reason: format!("Failed to deserialize pulled changes: {}", e),
                 })?;
 
-            if !remote_locals.is_empty() {
-                // Convert LocalColumnChange -> RemoteColumnChange (HLC is the grouping key)
-                let remote_changes: Vec<RemoteColumnChange> =
-                    remote_locals.iter().map(local_to_remote_change).collect();
-
-                // Collect affected table names for the event
-                let affected_tables: Vec<String> = remote_locals
-                    .iter()
-                    .map(|c| c.table_name.clone())
-                    .collect::<HashSet<_>>()
-                    .into_iter()
-                    .collect();
-
-                // Apply remote changes to local DB (no backend_info for local delivery).
-                // HLC clock is advanced internally by apply_remote_changes_to_db.
-                //
-                // Previous code locked HLC via `.lock().ok().map(...)` and
-                // tolerated `None` on poison — that path applies the
-                // remote changes WITHOUT advancing the local clock, so
-                // future local writes carry stale timestamps that lose
-                // merge conflicts on the next sync. `lock_or_fail`
-                // surfaces a banner-visible failure instead.
-                let state: tauri::State<'_, crate::AppState> = app_handle.state();
-                let hlc_service = state.lock_or_fail(
-                    &state.hlc,
-                    crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-                    "space_delivery::local::sync_loop::run_sync_cycle::apply_remote",
-                    serde_json::json!({}),
-                )?;
-
-                // Apply per transaction-HLC group, not the whole batch at once.
-                //
-                // One HLC == one source transaction; the accumulated history can
-                // far exceed any single transaction's size, so applying the
-                // entire pulled batch in ONE DB transaction is both wrong
-                // (mirrors no real transaction boundary) and unbounded. Splitting
-                // by HLC mirrors the sender's transaction boundaries.
-                //
-                // Single-frame transport ⇒ `has_more = false` ⇒ the whole batch
-                // is complete; the `split_complete_groups` seam is here for the
-                // paginated transport that lands next.
-                let (to_apply, _hold_back) = split_complete_groups(remote_changes, false);
-
-                // Apply per transaction-HLC group with failure isolation; the
-                // cursor advances per committed group (see
-                // `apply_groups_advancing_cursor`). The error is propagated AFTER
-                // the cursor has advanced for the groups that DID succeed,
-                // matching the cycle's `?`-propagation convention.
-                apply_groups_advancing_cursor(
-                    group_by_transaction_hlc(to_apply),
-                    last_pull_timestamp,
-                    |group_hlc, group_changes| {
-                        apply_remote_changes_to_db(db, group_changes, None, Some(&*hlc_service))
-                            .map_err(|e| {
-                                // log_sync (not eprintln) so the e2e harness can
-                                // observe a per-group apply failure on the same
-                                // structured channel as the pull outcomes above.
-                                log_sync(
-                                    app_handle,
-                                    "warn",
-                                    &format!(
-                                        "apply: transaction-HLC group {} failed: {} \
-                                         (cursor at last applied; later groups deferred)",
-                                        group_hlc, e
-                                    ),
-                                );
-                                DeliveryError::Database {
-                                    reason: format!("Failed to apply remote changes: {}", e),
-                                }
-                            })
-                    },
-                )?;
-
-                // Emit Tauri event for frontend UI refresh (main window only).
-                let _ = app_handle.emit_to(
-                    "main",
-                    "local-sync-completed",
-                    serde_json::json!({
-                        "spaceId": space_id,
-                        "tables": affected_tables,
-                    }),
-                );
+            for c in &remote_locals {
+                affected_tables.insert(c.table_name.clone());
             }
+
+            // Advance the in-cycle pull cursor to this page's MAX HLC so the
+            // next page resumes strictly after it (distinct from the persisted
+            // apply cursor advanced inside `apply_groups_advancing_cursor`).
+            if let Some(page_max_hlc) =
+                hlc_max(remote_locals.iter().map(|c| c.hlc_timestamp.as_str()))
+            {
+                page_after = Some(page_max_hlc.to_string());
+            }
+
+            // Carry over any held-back trailing group from the prior page, then
+            // add this page's changes.
+            buffer.extend(remote_locals.iter().map(local_to_remote_change));
         }
+
+        // Hold back the trailing (max-HLC) group while more pages are coming;
+        // with HLC-aligned pages it is complete and applies next page (or now,
+        // when has_more=false).
+        let (to_apply, hold_back) = split_complete_groups(std::mem::take(&mut buffer), has_more);
+
+        // Apply per transaction-HLC group with failure isolation; the PERSISTED
+        // cursor advances per committed group. The error is propagated AFTER the
+        // cursor has advanced for the groups that DID succeed, matching the
+        // cycle's `?`-propagation convention. The HLC guard is scoped to this
+        // block so it drops before the next page's `pull_changes().await` (the
+        // guard is not `Send`).
+        {
+            let state: tauri::State<'_, crate::AppState> = app_handle.state();
+            let hlc_service = state.lock_or_fail(
+                &state.hlc,
+                crate::critical::CriticalFailureCode::HlcMutexPoisoned,
+                "space_delivery::local::sync_loop::run_sync_cycle::apply_remote",
+                serde_json::json!({}),
+            )?;
+
+            apply_groups_advancing_cursor(
+                group_by_transaction_hlc(to_apply),
+                last_pull_timestamp,
+                |group_hlc, group_changes| {
+                    apply_remote_changes_to_db(db, group_changes, None, Some(&*hlc_service))
+                        .map_err(|e| {
+                            // log_sync (not eprintln) so the e2e harness can
+                            // observe a per-group apply failure on the same
+                            // structured channel as the pull outcomes above.
+                            log_sync(
+                                app_handle,
+                                "warn",
+                                &format!(
+                                    "apply: transaction-HLC group {} failed: {} \
+                                     (cursor at last applied; later groups deferred)",
+                                    group_hlc, e
+                                ),
+                            );
+                            DeliveryError::Database {
+                                reason: format!("Failed to apply remote changes: {}", e),
+                            }
+                        })
+                },
+            )?;
+        }
+
+        buffer = hold_back;
+
+        if !has_more {
+            break;
+        }
+    }
+
+    // Emit the UI-refresh event once after all pages applied (main window only).
+    if !affected_tables.is_empty() {
+        let _ = app_handle.emit_to(
+            "main",
+            "local-sync-completed",
+            serde_json::json!({
+                "spaceId": space_id,
+                "tables": affected_tables.into_iter().collect::<Vec<_>>(),
+            }),
+        );
     }
 
     // 2b. OWNER-VAULT pending-column recovery (best-effort, owner mode only).

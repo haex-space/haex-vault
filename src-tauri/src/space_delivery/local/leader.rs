@@ -18,7 +18,10 @@ use super::push_invite;
 use super::types::{ConnectedPeer, PeerClaim};
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
-use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
+use crate::crdt::scanner::{
+    paginate_changes, scan_space_scoped_tables_for_local_changes, LocalColumnChange,
+    PULL_PAGE_BUDGET,
+};
 use crate::critical::CriticalFailureCode;
 use crate::database::DbConnection;
 use crate::ucan::{
@@ -1153,9 +1156,14 @@ pub(super) async fn handle_delivery_request(
                 None,
             ) {
                 Ok(changes) => {
+                    // Paginate at whole-HLC-group boundaries (uniform with the
+                    // owner path) so a transaction larger than the legacy 10 MB
+                    // wire cap still traverses the wire, one page per cycle. The
+                    // cursor stays HLC-only: the client resumes at the page's MAX
+                    // HLC, and HLC is unique per source transaction.
+                    let (page, has_more) = paginate_changes(changes, PULL_PAGE_BUDGET);
                     let by_table: std::collections::BTreeMap<&str, usize> =
-                        changes
-                            .iter()
+                        page.iter()
                             .fold(std::collections::BTreeMap::new(), |mut acc, c| {
                                 *acc.entry(c.table_name.as_str()).or_insert(0) += 1;
                                 acc
@@ -1166,17 +1174,21 @@ pub(super) async fn handle_delivery_request(
                         "info",
                         "SyncPull",
                         &format!(
-                            "served: space={} audience={} count={} after={:?} tables={:?}",
+                            "served: space={} audience={} count={} has_more={} after={:?} tables={:?}",
                             &space_id[..8.min(space_id.len())],
                             &validated.audience[..24.min(validated.audience.len())],
-                            changes.len(),
+                            page.len(),
+                            has_more,
                             after_timestamp.as_deref(),
                             by_table,
                         ),
                         None,
                     );
-                    match serde_json::to_value(&changes) {
-                        Ok(json) => Response::SyncChanges { changes: json },
+                    match serde_json::to_value(&page) {
+                        Ok(json) => Response::SyncChanges {
+                            changes: json,
+                            has_more,
+                        },
                         Err(e) => {
                             eprintln!("[SpaceDelivery] SyncPull: failed to serialize changes: {e}");
                             Response::Error {
