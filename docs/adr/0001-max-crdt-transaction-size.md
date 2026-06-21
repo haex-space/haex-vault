@@ -36,14 +36,16 @@ Enforcement is a hard guard in Rust, not a convention:
   (every write to a synced `haex_*` table goes through it — see the
   "SQL must use CRDT helpers" rule). This binds core, the password manager, and
   all extensions equally.
-- **How:** reuse the per-transaction machinery that already exists for the
-  transaction-scoped HLC slot (`ConnectionContext` + `install_tx_hlc_hooks`
-  commit/rollback hooks). Add a per-transaction written-bytes counter: each
-  write adds the byte length of its bind values; if the cumulative total for the
-  current transaction exceeds the cap, the write fails with a typed
-  `TransactionTooLarge { size, max }` error and the transaction rolls back. This
-  catches both the single oversized blob and the many-small-rows case, and the
-  counter resets on commit/rollback alongside the HLC slot.
+- **How:** a per-CALL size check inside `execute_with_crdt`, before the write.
+  Measure the serialized byte size of the statement's bind parameters; if it
+  exceeds the cap, fail with a typed `TransactionTooLarge { bytes, limit }` error
+  and write nothing. This is provably equivalent to a per-transaction byte
+  counter here because `execute_with_crdt` parses exactly one statement and wraps
+  it in its own `BEGIN…COMMIT`, and rusqlite cannot nest transactions — so one
+  call IS one whole transaction (one HLC). No running counter or commit/rollback
+  hook is needed. The single-oversized-blob and many-small-rows cases are both
+  covered: a multi-row `INSERT ... VALUES (..),(..)` is one statement whose
+  params already contain every row, so their sizes sum in the one measurement.
 - **UX:** `TransactionTooLarge` maps to a clear, localized message ("this
   attachment exceeds the 100 MB sync limit — store large files via file
   storage") surfaced to the user, instead of a silent sync wedge.
@@ -58,9 +60,11 @@ for larger single-transaction payloads appears.
 - Per-transaction pagination becomes clean: with a page budget ≥ 100 MB, every
   HLC-group fits wholly inside one page, so pagination never splits a
   transaction.
-- The QUIC wire cap can be lifted on the **owner** (same-owner, DID-authed,
-  trusted) sync path; the **shared-space** path keeps a bound (untrusted peers →
-  DoS surface).
+- The QUIC wire cap is raised **uniformly on all paths** (owner mesh and shared
+  spaces alike) to carry a 100 MB transaction: a transaction a user can create
+  locally must be shareable into a space, so the cap cannot differ by path.
+  Shared-space DoS is bounded by leader rate-limiting (PR #491), not by an
+  artificially low frame size.
 - Large attachments must round-trip through file storage; the password manager
   and extensions get a clear error rather than a wedge if they exceed the cap.
 - Existing rows already larger than the cap (none expected — no production
