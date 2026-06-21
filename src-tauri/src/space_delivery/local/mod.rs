@@ -2,6 +2,7 @@ pub mod auth_gate;
 pub mod buffer;
 pub mod commands;
 pub mod discovery;
+pub mod dos_defence;
 pub mod election;
 pub mod error;
 pub mod inbound_sync;

@@ -11,6 +11,7 @@ export enum SettingsCategory {
   Database = 'database',
   Devices = 'devices',
   Logs = 'logs',
+  Security = 'security',
   Developer = 'developer',
 }
 
@@ -27,5 +28,6 @@ export const SettingsCategoryIcon: Record<SettingsCategory, string> = {
   [SettingsCategory.Database]: 'i-mdi-safe-square-outline',
   [SettingsCategory.Devices]: 'i-lucide-monitor-smartphone',
   [SettingsCategory.Logs]: 'i-lucide-bug',
+  [SettingsCategory.Security]: 'i-lucide-shield',
   [SettingsCategory.Developer]: 'i-hugeicons-developer',
 }

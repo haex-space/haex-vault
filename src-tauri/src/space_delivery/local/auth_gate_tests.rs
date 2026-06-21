@@ -26,18 +26,54 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tokio::sync::RwLock;
 
 use super::authorize_request;
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
+use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
+use crate::space_delivery::local::dos_defence::notifier::SingleSourceNotifier;
+use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::test_support::{
     init_logs_db_inner, insert_identity, insert_member, make_ucan, setup_membership_db,
 };
 use crate::space_delivery::local::types::{ConnectedPeer, PeerClaim};
 use crate::ucan::{CapabilityLevel, ValidatedUcan};
+
+/// Wrapper around [`authorize_request`] that injects a fresh DoS-defence
+/// tracker and the default config. Each test gets its own tracker, so
+/// rate-limiting state never crosses test boundaries. With count=1 per
+/// call, every reject stays well below the warn threshold (default 20),
+/// so the gate continues to log every reject as Stage-1 / pre-rate-limit
+/// behaviour.
+async fn authorize_default(
+    request: &Request,
+    verified_did: &str,
+    peer_endpoint_id: &str,
+    peers: &RwLock<HashMap<String, ConnectedPeer>>,
+    db: &DbConnection,
+    hlc: &Arc<Mutex<HlcService>>,
+) -> Result<Option<ValidatedUcan>, Response> {
+    let tracker = RejectRateTracker::new(Duration::from_secs(1));
+    let cfg = DosDefenceConfig::defaults();
+    let notifier = SingleSourceNotifier::new();
+    authorize_request(
+        request,
+        verified_did,
+        peer_endpoint_id,
+        peers,
+        db,
+        hlc,
+        &tracker,
+        &cfg,
+        &notifier,
+        None,
+    )
+    .await
+}
 
 /// In-memory DB without the membership tables, but with `haex_logs` +
 /// the HLC UDF + CRDT bookkeeping so `log_to_db` works for audit-row
@@ -171,7 +207,7 @@ async fn rejects_request_without_prior_announce() {
     };
 
     let result =
-        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => {
@@ -216,7 +252,7 @@ async fn rejects_request_with_expired_cached_ucan() {
     };
 
     let result =
-        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => assert!(
@@ -253,7 +289,7 @@ async fn rejects_audience_mismatch() {
     };
 
     let result =
-        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => assert!(
@@ -296,7 +332,7 @@ async fn rejects_missing_capability_for_requested_space() {
     };
 
     let result =
-        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => {
@@ -341,7 +377,7 @@ async fn accepts_read_member_sync_push_at_gate_level() {
         ucan_token: Some("irrelevant — gate uses cached UCAN".into()),
     };
 
-    let result = authorize_request(
+    let result = authorize_default(
         &request,
         "did:key:zReadMember",
         "endpoint-id",
@@ -396,7 +432,7 @@ async fn accepts_read_member_mls_upload_key_packages_at_gate_level() {
         packages: vec![],
     };
 
-    let result = authorize_request(
+    let result = authorize_default(
         &request,
         "did:key:zReadMember",
         "endpoint-id",
@@ -444,7 +480,7 @@ async fn accepts_read_member_mls_ack_commit_at_gate_level() {
         message_ids: vec![],
     };
 
-    let result = authorize_request(
+    let result = authorize_default(
         &request,
         "did:key:zReadMember",
         "endpoint-id",
@@ -494,7 +530,7 @@ async fn accepts_read_member_mls_send_message_at_gate_level() {
         message_type: "application".into(),
     };
 
-    let result = authorize_request(
+    let result = authorize_default(
         &request,
         "did:key:zReadMember",
         "endpoint-id",
@@ -547,7 +583,7 @@ async fn accepts_read_member_mls_send_welcome_at_gate_level() {
         welcome: String::new(),
     };
 
-    let result = authorize_request(
+    let result = authorize_default(
         &request,
         "did:key:zReadMember",
         "endpoint-id",
@@ -587,7 +623,7 @@ async fn bypasses_claim_invite_cleanly() {
         public_key: None,
     };
 
-    let result = authorize_request(
+    let result = authorize_default(
         &request,
         "did:key:zNewcomer",
         "endpoint-id",
@@ -640,7 +676,7 @@ async fn rejects_revoked_member() {
         message_type: "application".into(),
     };
 
-    let result = authorize_request(
+    let result = authorize_default(
         &request,
         "did:key:zRevoked",
         "endpoint-id",
@@ -689,7 +725,7 @@ async fn accepts_valid_request_from_active_member() {
     };
 
     let result =
-        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Ok(Some(validated)) => {
@@ -736,7 +772,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
     };
 
     let result =
-        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => {
@@ -779,7 +815,7 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
     };
 
     let result =
-        authorize_request(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
 
     match result {
         Err(Response::Error { message }) => {

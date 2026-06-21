@@ -45,6 +45,13 @@ pub enum CriticalFailureCode {
     /// Some queries will return wrong results until the underlying schema
     /// issue is fixed. No restart needed — Warning severity.
     CrdtTransformFailed,
+    /// L4 reject-rate-tracking detected a sustained burst of authorisation
+    /// rejects from a single peer DID (above
+    /// `dosDefence.l4.rejectRateThresholdPerSec`). No data corruption,
+    /// but the operator should investigate — peer may be misbehaving
+    /// (buggy client) or actively probing. Warning severity. See
+    /// `docs/plans/2026-06-13-leader-reject-rate-limit.md`.
+    SingleSourceFlood,
 }
 
 /// Severity is a property of the code (see Q2 in the plan), so the
@@ -72,7 +79,9 @@ impl CriticalFailureCode {
             Self::HlcMutexPoisoned | Self::DbMutexPoisoned | Self::DbSchemaDrift => {
                 Severity::Critical
             }
-            Self::AuditLogWriteFailed | Self::CrdtTransformFailed => Severity::Warning,
+            Self::AuditLogWriteFailed | Self::CrdtTransformFailed | Self::SingleSourceFlood => {
+                Severity::Warning
+            }
         }
     }
 
@@ -87,6 +96,7 @@ impl CriticalFailureCode {
             Self::DbSchemaDrift => "DbSchemaDrift",
             Self::AuditLogWriteFailed => "AuditLogWriteFailed",
             Self::CrdtTransformFailed => "CrdtTransformFailed",
+            Self::SingleSourceFlood => "SingleSourceFlood",
         }
     }
 }
