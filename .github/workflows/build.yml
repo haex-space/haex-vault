@@ -202,7 +202,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # When invoked as a reusable workflow from release-please.yml,
           # inputs.ref points at the release tag we want to build. For
@@ -253,7 +253,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
 
@@ -296,7 +296,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout E2E tests
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: haex-space/haex-e2e-tests
           ref: ${{ needs.check-skip.outputs.e2e_tests_ref }}
@@ -411,7 +411,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
 
@@ -584,7 +584,7 @@ jobs:
           df -h
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
 
