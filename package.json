@@ -81,7 +81,7 @@
     "@iconify-json/lucide": "^1.2.112",
     "@iconify/json": "^2.2.486",
     "@iconify/tailwind4": "^1.2.3",
-    "@libsql/client": "^0.17.3",
+    "@libsql/client": "^0.17.4",
     "@oxc-minify/binding-linux-x64-gnu": "^0.135.0",
     "@playwright/test": "^1.60.0",
     "@tauri-apps/cli": "^2.11.2",
