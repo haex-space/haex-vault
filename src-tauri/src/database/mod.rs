@@ -14,7 +14,6 @@ pub mod vault_lock;
 use crate::crdt::hlc::HlcService;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
-use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::table_names::{
     COL_CRDT_CONFIGS_KEY, COL_CRDT_CONFIGS_TYPE, COL_CRDT_CONFIGS_VALUE, TABLE_CRDT_CONFIGS,
 };
@@ -29,7 +28,7 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 use std::{fs, sync::Arc};
-use tauri::{path::BaseDirectory, AppHandle, Emitter, Manager, State};
+use tauri::{path::BaseDirectory, AppHandle, Manager, State};
 #[cfg(not(target_os = "android"))]
 use trash;
 use ts_rs::TS;
@@ -82,7 +81,7 @@ pub fn sql_execute_with_crdt(
     let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
     // Emit event to notify frontend that dirty tables may have changed
-    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    crate::crdt::notify_dirty_tables_changed(&app_handle);
 
     Ok(result)
 }
@@ -124,7 +123,7 @@ pub fn sql_with_crdt(
             let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
 
             // Emit event to notify frontend that dirty tables may have changed
-            let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+            crate::crdt::notify_dirty_tables_changed(&app_handle);
 
             Ok(result)
         }

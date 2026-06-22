@@ -1317,12 +1317,7 @@ fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
     }
 
     // Notify frontend that CRDT dirty tables changed (triggers sync push)
-    use tauri::Emitter;
-    let _ = app.emit_to(
-        "main",
-        crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED,
-        (),
-    );
+    crate::crdt::notify_dirty_tables_changed(&app);
 }
 
 // ---------------------------------------------------------------------------
@@ -1557,11 +1552,7 @@ async fn auto_disable_rule(app: &tauri::AppHandle, rule_id: &str, failures: u32,
             "lastError": last_error,
         }),
     );
-    let _ = app.emit_to(
-        "main",
-        crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED,
-        (),
-    );
+    crate::crdt::notify_dirty_tables_changed(&app);
 }
 
 /// Run periodic sync for a rule. Cancellable via `CancellationToken`.
