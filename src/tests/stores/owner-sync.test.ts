@@ -36,6 +36,9 @@ describe('ownerSyncAutostartEnabled (default-ON)', () => {
   it('missing setting → enabled', () => {
     expect(ownerSyncAutostartEnabled(undefined)).toBe(true)
   })
+  it('null setting → enabled', () => {
+    expect(ownerSyncAutostartEnabled(null)).toBe(true)
+  })
   it("'false' → disabled", () => {
     expect(ownerSyncAutostartEnabled('false')).toBe(false)
   })
