@@ -173,10 +173,8 @@
           />
         </div>
 
-        <p class="text-sm" :class="peerStore.ownerSyncRunning ? 'text-success' : 'text-muted'">
-          {{ peerStore.ownerSyncRunning
-            ? t('config.ownerSync.statusOn', { count: ownerDeviceCount })
-            : t('config.ownerSync.statusOff') }}
+        <p class="text-sm" :class="ownerSyncStatusActive ? 'text-success' : 'text-muted'">
+          {{ ownerSyncStatusText }}
         </p>
       </div>
     </div>
@@ -307,6 +305,15 @@ const ownerSyncAutostart = ref(true) // default-on; overwritten in onMounted
 
 const ownerDeviceCount = computed(
   () => [...deviceStore.knownDevices.values()].filter((d) => !d.isCurrentDevice).length,
+)
+
+const ownerSyncStatusText = computed(() => {
+  if (!peerStore.ownerSyncRunning) return t('config.ownerSync.statusOff')
+  if (ownerDeviceCount.value === 0) return t('config.ownerSync.statusNoDevices')
+  return t('config.ownerSync.statusOn', { count: ownerDeviceCount.value })
+})
+const ownerSyncStatusActive = computed(
+  () => peerStore.ownerSyncRunning && ownerDeviceCount.value > 0,
 )
 
 const onToggleOwnerSyncAsync = async () => {
@@ -443,6 +450,7 @@ de:
       syncNow: Jetzt synchronisieren
       autostart: Automatisch starten
       statusOn: 'Aktiv · {count} eigene(s) Gerät(e) bekannt'
+      statusNoDevices: 'Aktiviert · noch keine anderen Geräte'
       statusOff: Inaktiv
       toast:
         started: Geräte-Sync gestartet
@@ -490,6 +498,7 @@ en:
       syncNow: Sync now
       autostart: Start automatically
       statusOn: 'Active · {count} of your device(s) known'
+      statusNoDevices: 'Enabled · no other devices yet'
       statusOff: Inactive
       toast:
         started: Device sync started
