@@ -377,6 +377,9 @@ const onToggleOwnerSyncAutostartAsync = async (value: boolean | 'indeterminate')
 
 onMounted(async () => {
   await peerStore.refreshStatusAsync()
+  // Populate known devices so the owner-sync status count is accurate even
+  // when Settings → Sync is opened directly (otherwise reads "0 known").
+  deviceStore.loadKnownDevicesAsync().catch(() => { /* best effort */ })
   if (db && deviceStore.deviceId) {
     const row = await db.query.haexVaultSettings.findFirst({
       where: and(
