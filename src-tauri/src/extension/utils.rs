@@ -67,6 +67,28 @@ pub fn emit_permission_prompt_if_needed(app_handle: &AppHandle, error: &Extensio
     }
 }
 
+/// Propagates the result of an extension permission check, first emitting a
+/// permission-prompt event when the error warrants one.
+///
+/// Every extension command repeats the same `check → emit-if-prompt →
+/// propagate` triad after calling a `PermissionManager::check_*` function.
+/// Routing the result through this helper keeps that behaviour in one place,
+/// so the prompt emit can never be accidentally omitted:
+///
+/// ```ignore
+/// let permission_result = PermissionManager::check_filesystem_permission(..).await;
+/// prompt_on_err(&app_handle, permission_result)?;
+/// ```
+pub fn prompt_on_err<T>(
+    app_handle: &AppHandle,
+    result: Result<T, ExtensionError>,
+) -> Result<T, ExtensionError> {
+    if let Err(ref e) = result {
+        emit_permission_prompt_if_needed(app_handle, e);
+    }
+    result
+}
+
 // ============================================================================
 // Extension Identification
 // ============================================================================

@@ -9,7 +9,7 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Principal, RwAction};
-use crate::extension::utils::{emit_permission_prompt_if_needed, get_extension_id_by_key_and_name};
+use crate::extension::utils::{get_extension_id_by_key_and_name, prompt_on_err};
 use crate::remote_storage;
 use crate::remote_storage::types::{
     AddStorageBackendRequest, StorageBackendInfo, StorageDeleteRequest, StorageDownloadRequest,
@@ -40,10 +40,7 @@ pub async fn extension_remote_storage_list_backends(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_list_backends(state)
@@ -70,10 +67,7 @@ pub async fn extension_remote_storage_add_backend(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_add_backend(state, request)
@@ -100,10 +94,7 @@ pub async fn extension_remote_storage_update_backend(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_update_backend(state, request)
@@ -130,10 +121,7 @@ pub async fn extension_remote_storage_remove_backend(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_remove_backend(state, backend_id)
@@ -160,10 +148,7 @@ pub async fn extension_remote_storage_test_backend(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_test_backend(state, backend_id)
@@ -194,10 +179,7 @@ pub async fn extension_remote_storage_upload(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_upload(state, request)
@@ -224,10 +206,7 @@ pub async fn extension_remote_storage_download(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_download(state, request)
@@ -254,10 +233,7 @@ pub async fn extension_remote_storage_delete(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_delete(state, request)
@@ -284,10 +260,7 @@ pub async fn extension_remote_storage_list(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal remote storage command
     remote_storage::remote_storage_list(state, request)

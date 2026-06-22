@@ -12,7 +12,7 @@ use crate::extension::notifications::types::{NotificationOptions, ShowResult};
 use crate::extension::notifications::NotificationRecord;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{NotificationsAction, Principal};
-use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
+use crate::extension::utils::{prompt_on_err, resolve_extension_id};
 use crate::AppState;
 
 /// Show an OS notification on behalf of an extension. Requires the
@@ -34,10 +34,7 @@ pub async fn extension_notifications_show(
         NotificationsAction::Show,
     )
     .await;
-    if let Err(ref e) = check {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    check?;
+    prompt_on_err(&app_handle, check)?;
 
     let id = uuid::Uuid::new_v4().to_string();
 
