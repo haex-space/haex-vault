@@ -22,6 +22,12 @@ import {
 import { VaultSettingsKeyEnum } from '~/config/vault-settings'
 import { getUcanForSpaceAsync } from '~/utils/auth/ucanStore'
 import { decodeUcan, type Capability } from '@haex-space/ucan'
+import {
+  startOwnerSyncAsync as invokeStartOwnerSync,
+  stopOwnerSyncAsync as invokeStopOwnerSync,
+  forceOwnerSyncAsync as invokeForceOwnerSync,
+  ownerSyncAutostartEnabled,
+} from '~/stores/peer-storage/owner-sync'
 
 const log = createLogger('PEER_STORAGE')
 
@@ -38,6 +44,10 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   // can map an inviter's endpoint to its space immediately after accept,
   // closing the race window between accept-complete and CRDT-row-arrived.
   const acceptedInviteEndpoints = ref<Array<{ spaceId: string, endpointId: string }>>([])
+  // Whether owner-device sync (serverless P2P sync of the owner's own vault
+  // across the owner's other devices) is currently running. Driven by the
+  // endpoint lifecycle: set true on autostart, false on stop/close.
+  const ownerSyncRunning = ref(false)
 
   let stateEvents: OnceListener | null = null
   // Guards against concurrent/duplicate starts. The endpoint can now be
@@ -325,6 +335,32 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   }
 
   // =========================================================================
+  // Owner-device sync control
+  // =========================================================================
+
+  const startOwnerSyncAsync = async () => {
+    try {
+      await invokeStartOwnerSync()
+      ownerSyncRunning.value = true
+    } catch (error) {
+      log.error('[owner-sync] start failed:', error)
+      throw error
+    }
+  }
+
+  const stopOwnerSyncAsync = async () => {
+    try {
+      await invokeStopOwnerSync()
+    } finally {
+      ownerSyncRunning.value = false
+    }
+  }
+
+  const forceOwnerSyncAsync = async () => {
+    await invokeForceOwnerSync()
+  }
+
+  // =========================================================================
   // Endpoint control
   // =========================================================================
 
@@ -388,6 +424,25 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     // sync loop so we pull CRDT history.
     await spacesStore.startLocalSpacePeerSyncAsync()
 
+    // Owner-device sync: serverless P2P sync of the owner's OWN vault across the
+    // owner's other devices. Default-ON (a missing per-device setting = enabled).
+    try {
+      const ownerDb = requireDb()
+      const row = deviceStore.deviceId
+        ? await ownerDb.query.haexVaultSettings.findFirst({
+            where: and(
+              eq(haexVaultSettings.key, VaultSettingsKeyEnum.ownerSyncAutostart),
+              eq(haexVaultSettings.deviceId, deviceStore.deviceId),
+            ),
+          })
+        : undefined
+      if (ownerSyncAutostartEnabled(row?.value)) {
+        await startOwnerSyncAsync()
+      }
+    } catch (error) {
+      log.warn('[owner-sync] autostart skipped:', error)
+    }
+
     // Start enabled file sync rules
     const fileSyncStore = useFileSyncStore()
     await fileSyncStore.loadRulesAsync()
@@ -409,6 +464,10 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
             if (!isRunning && running.value) {
               log.warn(`[P2P] Endpoint closed (reason=${reason}, uptime=${uptimeSecs}s), restarting`)
               running.value = false
+              // The Rust owner-sync loops are torn down with the endpoint; just
+              // reset the flag. The startAsync() restart re-runs the autostart
+              // path, so don't issue a Rust stop here.
+              ownerSyncRunning.value = false
               startAsync().catch(err => log.error('[P2P] Post-close restart failed:', err))
             }
           },
@@ -422,6 +481,13 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
   const stopAsync = async () => {
     stateEvents?.dispose()
     stateEvents = null
+
+    // Best-effort: a failure here must not block tearing down the endpoint.
+    try {
+      await stopOwnerSyncAsync()
+    } catch (error) {
+      log.warn('[owner-sync] stop failed:', error)
+    }
 
     try {
       await invoke('file_sync_stop_all')
@@ -928,6 +994,10 @@ export const usePeerStorageStore = defineStore('peerStorageStore', () => {
     startAsync,
     stopAsync,
     restartAfterResumeAsync,
+    ownerSyncRunning,
+    startOwnerSyncAsync,
+    stopOwnerSyncAsync,
+    forceOwnerSyncAsync,
     addShareAsync,
     removeShareAsync,
     registerDeviceInSpaceAsync,
