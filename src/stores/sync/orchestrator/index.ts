@@ -13,8 +13,7 @@ import { enterBulkMode, exitBulkMode } from '@/stores/logging'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
 import {
   pullFromBackendAsync,
-  pullChangesFromServerAsync,
-  applyAllChangesWithMigrationsAsync,
+  streamPullAndApplyAsync,
 } from './pull'
 import {
   subscribeToBackendAsync,
@@ -741,31 +740,30 @@ log.info('[START-SYNC] Initializing backends...')
           homeServerUrl: tempBackend.homeServerUrl,
         })
 
-        // Pull ALL changes (no cursor since this is initial sync)
-        log.info('Downloading all changes from server...')
-        const pullResult = await pullChangesFromServerAsync({
+        // Stream pages from the server, applying each per-HLC-group with
+        // cross-page hold-back. No `onPageCommitted` callback: the temporary
+        // backend isn't persisted yet, so cursor advances happen at the end via
+        // `persistedBackend` updates below. On mid-stream failure the partial
+        // commits on disk remain (idempotent under CRDT LWW) and the user can
+        // retry the initial sync.
+        log.info('Streaming all changes from server (initial pull)...')
+        const streamResult = await streamPullAndApplyAsync({
           homeServerUrl: tempBackend.homeServerUrl,
           spaceId: tempBackend.spaceId,
-          lastPullServerTimestamp: null,
-          syncEngineStore,
+          initialCursor: null,
+          encryptionKey: vaultKey,
+          backendId,
           backendIdentityId: tempBackend.identityId,
         })
 
-        const { changes: allChanges, serverTimestamp } = pullResult
-
-        let maxHlc = ''
-        if (allChanges.length === 0) {
+        const { totalApplied, pageCount, tablesAffected, maxHlc, lastServerTimestamp: serverTimestamp } = streamResult
+        if (totalApplied === 0) {
           log.info('INITIAL PULL: No data on server (empty vault)')
         } else {
-          log.info(`Downloaded ${allChanges.length} changes from server`)
-
-          // Log unique tables for debugging
-          const uniqueTables = [...new Set(allChanges.map((c) => c.tableName))]
-          log.info('INITIAL PULL: Tables in server data:', uniqueTables)
-
-          // Apply all changes with proper migration ordering
-          // This ensures extension tables are created before their data is applied
-          maxHlc = await applyAllChangesWithMigrationsAsync(allChanges, vaultKey, backendId)
+          log.info(
+            `INITIAL PULL: Streamed ${totalApplied} changes across ${pageCount} pages ` +
+            `(tables: ${tablesAffected.size})`,
+          )
         }
 
         // Now persist the backend to DB

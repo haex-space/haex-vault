@@ -3,7 +3,6 @@
  * Shared types and interfaces for sync operations
  */
 
-import type { ColumnChange } from '../tableScanner'
 import { createLogger } from '@/stores/logging'
 
 export interface SyncState {
@@ -14,14 +13,6 @@ export interface SyncState {
 
 export interface BackendSyncState {
   [backendId: string]: SyncState
-}
-
-/**
- * Result from pulling changes from server
- */
-export interface PullResult {
-  changes: ColumnChange[]
-  serverTimestamp: string | null
 }
 
 /**
