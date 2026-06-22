@@ -53,6 +53,10 @@ describe('VaultSettings Constants Synchronization', () => {
     it('should have correct "gradientEnabled" value (snake_case)', () => {
       expect(VaultSettingsKeyEnum.gradientEnabled).toBe('gradient_enabled')
     })
+
+    it('should have correct "ownerSyncAutostart" value (snake_case)', () => {
+      expect(VaultSettingsKeyEnum.ownerSyncAutostart).toBe('owner_sync_autostart')
+    })
   })
 
   describe('All values use snake_case', () => {
