@@ -26,7 +26,8 @@ use tauri::{AppHandle, Manager};
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::{
-    scan_all_crdt_tables_for_owner, scan_single_column_for_owner, LocalColumnChange,
+    paginate_changes, scan_all_crdt_tables_for_owner, scan_single_column_for_owner,
+    LocalColumnChange, PULL_PAGE_BUDGET,
 };
 use crate::critical::CriticalFailureCode;
 use crate::database::core::with_connection;
@@ -134,15 +135,24 @@ pub(super) fn handle_owner_pull(after_timestamp: Option<&str>, db: &DbConnection
     });
 
     match scan_result {
-        Ok(changes) => match serde_json::to_value(&changes) {
-            Ok(json) => Response::SyncChanges { changes: json },
-            Err(e) => {
-                eprintln!("[OwnerSync] SyncPull: failed to serialize changes: {e}");
-                Response::Error {
-                    message: format!("Failed to serialize changes: {e}"),
+        Ok(changes) => {
+            // Paginate at whole-HLC-group boundaries so a transaction larger
+            // than the legacy 10 MB wire cap (e.g. a password attachment blob)
+            // still traverses the wire, one page per cycle.
+            let (page, has_more) = paginate_changes(changes, PULL_PAGE_BUDGET);
+            match serde_json::to_value(&page) {
+                Ok(json) => Response::SyncChanges {
+                    changes: json,
+                    has_more,
+                },
+                Err(e) => {
+                    eprintln!("[OwnerSync] SyncPull: failed to serialize changes: {e}");
+                    Response::Error {
+                        message: format!("Failed to serialize changes: {e}"),
+                    }
                 }
             }
-        },
+        }
         Err(e) => {
             eprintln!("[OwnerSync] SyncPull: failed to scan changes: {e}");
             Response::Error {
@@ -245,7 +255,12 @@ fn sync_changes_within_limit(changes: &[LocalColumnChange], max_size: usize) -> 
         };
     }
 
-    Response::SyncChanges { changes: json }
+    // The column-recovery dump is single-shot (full-column, not HLC-paginated),
+    // so it never reports more pages: `has_more` is always false here.
+    Response::SyncChanges {
+        changes: json,
+        has_more: false,
+    }
 }
 
 /// Owner `SyncPush`: apply the incoming changes RAW — no UCAN, no membership,

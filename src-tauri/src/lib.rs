@@ -463,7 +463,6 @@ pub fn run() {
             database::open_encrypted_database,
             database::sql_execute_with_crdt,
             database::sql_execute,
-            database::sql_query_with_crdt,
             database::sql_select_with_crdt,
             database::sql_select,
             database::sql_with_crdt,

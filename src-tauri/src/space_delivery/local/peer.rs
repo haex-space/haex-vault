@@ -276,15 +276,19 @@ impl PeerSession {
         }
     }
 
-    /// Pull CRDT changes from the leader.
+    /// Pull one page of CRDT changes from the leader.
+    ///
+    /// Returns `(changes, has_more)`: `has_more` is `true` when the serve side
+    /// paginated and more pages remain. The caller resumes the next page with
+    /// `after_timestamp` = the MAX HLC of the returned changes.
     pub async fn pull_changes(
         &self,
         space_id: &str,
         after_timestamp: Option<&str>,
-    ) -> Result<serde_json::Value, DeliveryError> {
+    ) -> Result<(serde_json::Value, bool), DeliveryError> {
         let req = Self::sync_pull_request(&self.ucan_token, space_id, after_timestamp);
         match self.request(req).await? {
-            Response::SyncChanges { changes } => Ok(changes),
+            Response::SyncChanges { changes, has_more } => Ok((changes, has_more)),
             Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
             _ => Err(DeliveryError::ProtocolError {
                 reason: "unexpected response to SyncPull".to_string(),
@@ -320,7 +324,9 @@ impl PeerSession {
     ) -> Result<serde_json::Value, DeliveryError> {
         let req = Self::pull_columns_request(&self.ucan_token, space_id, columns, None);
         match self.request(req).await? {
-            Response::SyncChanges { changes } => Ok(changes),
+            // The column-recovery dump is single-shot, so `has_more` is always
+            // false here and is intentionally ignored.
+            Response::SyncChanges { changes, .. } => Ok(changes),
             Response::Error { message } => Err(DeliveryError::ProtocolError { reason: message }),
             _ => Err(DeliveryError::ProtocolError {
                 reason: "unexpected response to SyncPullColumns".to_string(),

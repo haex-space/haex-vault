@@ -128,6 +128,12 @@ pub enum DatabaseError {
 
     #[error("Limit exceeded: {reason}")]
     LimitExceeded { reason: String },
+
+    /// A single CRDT transaction exceeded the maximum serialized size (ADR 0001).
+    /// One `execute_with_crdt` call is exactly one transaction (one HLC), so this
+    /// is enforced as a per-call write-size guard at that chokepoint.
+    #[error("CRDT transaction too large: {bytes} bytes exceeds the {limit} byte limit; use file storage for large payloads")]
+    TransactionTooLarge { bytes: usize, limit: usize },
 }
 
 impl From<rusqlite::Error> for DatabaseError {

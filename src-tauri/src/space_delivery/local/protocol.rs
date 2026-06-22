@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::database::core::MAX_CRDT_TRANSACTION_BYTES;
 use crate::ucan::CapabilityLevel;
 
 /// ALPN protocol identifier for space delivery.
@@ -18,17 +19,37 @@ use crate::ucan::CapabilityLevel;
 /// the binary-compat boundary in bisect to this single commit.
 pub const ALPN: &[u8] = b"haex-delivery/2";
 
-/// Maximum request size (10 MB — CRDT changes can be large)
-const MAX_REQUEST_SIZE: usize = 10 * 1024 * 1024;
+/// Maximum size of a single QUIC wire frame (request or response).
+///
+/// A paginated `SyncPull` page packs whole transaction-HLC groups up to
+/// [`crate::crdt::scanner::PULL_PAGE_BUDGET`] (== [`MAX_CRDT_TRANSACTION_BYTES`],
+/// 100 MB — ADR 0001). The ≥1 rule in `paginate_changes` means a single page can
+/// be a lone at-cap transaction, so the frame must hold ~100 MB of change
+/// payload PLUS the JSON envelope per change (field keys `tableName`/`rowPks`/
+/// `columnName`/`hlcTimestamp`/`value`/`deviceId`, quotes, commas, brackets) and
+/// the `Response::SyncChanges` wrapper.
+///
+/// The dominant payload is a BLOB column, which `convert_value_ref_to_json`
+/// encodes as a base64 String (alphabet `A-Za-z0-9+/=` needs no JSON escaping,
+/// so 1 byte in → 1 byte out). The 100 MB cap is already measured on the
+/// JSON-serialized SQL params at write time (`execute_with_crdt`), which
+/// includes that base64 string — so the wire change for the same transaction is
+/// essentially the same base64 plus the modest per-change envelope. A 2× factor
+/// (200 MB) leaves ample headroom for the envelope and for a page of many small
+/// changes summing near the budget; it does not need to be 3×.
+const WIRE_FRAME_MAX: usize = MAX_CRDT_TRANSACTION_BYTES * 2;
 
-/// Maximum response size (10 MB).
+/// Maximum request size — see [`WIRE_FRAME_MAX`].
+const MAX_REQUEST_SIZE: usize = WIRE_FRAME_MAX;
+
+/// Maximum response size — see [`WIRE_FRAME_MAX`].
 ///
 /// `read_response` rejects any frame larger than this with
 /// `PeerProtocolError::MessageTooLarge`. The owner column-dump path
 /// (`owner_serve::handle_owner_pull_columns`) reads this bound to guard its
 /// single-frame dump and degrade gracefully to a clear `Response::Error`
 /// instead of emitting an oversized frame the wire would reject cryptically.
-pub(crate) const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
+pub(crate) const MAX_RESPONSE_SIZE: usize = WIRE_FRAME_MAX;
 
 // ============================================================================
 // Request types
@@ -405,8 +426,16 @@ pub enum Response {
         /// How many more the leader wants the peer to upload (0 = sufficient)
         needed: u32,
     },
-    /// CRDT sync changes
-    SyncChanges { changes: serde_json::Value },
+    /// CRDT sync changes.
+    ///
+    /// `has_more` is `true` when the serve side paginated at a whole-HLC-group
+    /// boundary and more pages remain. The client resumes the next page with
+    /// `after_timestamp` = the MAX HLC of this page (HLC is unique per source
+    /// transaction, so the strictly-greater scan cursor never skips or dups).
+    SyncChanges {
+        changes: serde_json::Value,
+        has_more: bool,
+    },
     /// Invite claimed successfully — includes MLS welcome and delegated UCAN
     InviteClaimed {
         /// Base64-encoded MLS welcome message

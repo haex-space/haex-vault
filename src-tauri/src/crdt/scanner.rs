@@ -8,7 +8,9 @@ use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::trigger::{
     get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN,
 };
-use crate::database::core::{convert_value_ref_to_json, with_connection};
+use crate::database::core::{
+    convert_value_ref_to_json, with_connection, MAX_CRDT_TRANSACTION_BYTES,
+};
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use rusqlite::Connection;
@@ -472,6 +474,88 @@ pub fn scan_single_column_for_owner(
 // would receive rows from every space the leader was in. It has been
 // removed. Use `scan_space_scoped_tables_for_local_changes` for peer sync.
 
+/// The serve-side per-page byte budget for a paginated `SyncPull`.
+///
+/// One transaction-HLC group is one source transaction, capped at
+/// [`MAX_CRDT_TRANSACTION_BYTES`] (ADR 0001) at `execute_with_crdt`. Setting the
+/// page budget equal to that cap means a single page always has room for the
+/// largest legal transaction (the ≥1 rule in [`paginate_changes`] guarantees
+/// even an at-cap group is emitted), so no transaction can ever be too big to
+/// page out. The wire frame cap (`protocol::WIRE_FRAME_MAX`) is sized above this
+/// to carry such a page plus envelope overhead.
+pub(crate) const PULL_PAGE_BUDGET: usize = MAX_CRDT_TRANSACTION_BYTES;
+
+/// Pack whole transaction-HLC groups into one page until adding the next group
+/// would exceed `page_budget`, returning `(page, has_more)`.
+///
+/// HLC == one source transaction, so all changes sharing an `hlc_timestamp`
+/// belong to one transaction and are never split across a page boundary. Groups
+/// are emitted in ascending HLC order (matching the scanner's global ordering
+/// and `group_by_transaction_hlc`), so the client can resume the next page at
+/// the MAX HLC of the page just received — the cursor stays HLC-only.
+///
+/// Packing rule: maintain a running serialized byte total. A group's size is
+/// `serde_json::to_vec(&group).map(|v| v.len()).unwrap_or(usize::MAX)` (an
+/// unmeasurable group counts as maximal, so it can only ever stand alone). Add
+/// the group iff `running + group_size <= page_budget`; otherwise STOP and defer
+/// this and every later group (`has_more = true`).
+///
+/// **≥1 rule:** if the page is still empty when the first group alone exceeds
+/// the budget, that group is included anyway (and `has_more = true` if later
+/// groups exist) — otherwise an at-or-over-budget transaction could never
+/// traverse the wire. Bounded above by `MAX_CRDT_TRANSACTION_BYTES`.
+///
+/// Pure and deterministic: no I/O.
+pub(crate) fn paginate_changes(
+    changes: Vec<LocalColumnChange>,
+    page_budget: usize,
+) -> (Vec<LocalColumnChange>, bool) {
+    if changes.is_empty() {
+        return (Vec::new(), false);
+    }
+
+    // Group by transaction-HLC in ascending order without splitting a group.
+    // The scanner already returns changes globally HLC-sorted, but callers may
+    // hand us any order, so group via a map and sort the keys — same contract as
+    // `group_by_transaction_hlc` (commands.rs), kept local to avoid a
+    // RemoteColumnChange round-trip.
+    let mut groups: HashMap<String, Vec<LocalColumnChange>> = HashMap::new();
+    for change in changes {
+        groups
+            .entry(change.hlc_timestamp.clone())
+            .or_default()
+            .push(change);
+    }
+    let mut ordered: Vec<(String, Vec<LocalColumnChange>)> = groups.into_iter().collect();
+    ordered.sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.0, &b.0));
+
+    let mut page: Vec<LocalColumnChange> = Vec::new();
+    let mut running: usize = 0;
+    let mut has_more = false;
+
+    for (idx, (_hlc, group)) in ordered.into_iter().enumerate() {
+        let group_size = serde_json::to_vec(&group)
+            .map(|v| v.len())
+            .unwrap_or(usize::MAX);
+        let fits = running.saturating_add(group_size) <= page_budget;
+        // ≥1 rule: the very first group is always taken, even if oversized.
+        if fits || idx == 0 {
+            running = running.saturating_add(group_size);
+            page.extend(group);
+        } else {
+            // This group and every later group are deferred to the next page.
+            has_more = true;
+            break;
+        }
+    }
+
+    (page, has_more)
+}
+
 #[cfg(test)]
 #[path = "scanner_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "scanner_pagination_tests.rs"]
+mod pagination_tests;

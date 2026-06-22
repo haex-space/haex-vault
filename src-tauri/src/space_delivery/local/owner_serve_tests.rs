@@ -149,7 +149,9 @@ fn insert_tag(conn: &Connection, id: &str, label: &str, hlc: &str) {
 
 fn changes_from_response(resp: Response) -> Vec<LocalColumnChange> {
     match resp {
-        Response::SyncChanges { changes } => serde_json::from_value(changes).unwrap(),
+        // `has_more` is asserted separately by the pagination tests; this helper
+        // only extracts the changes.
+        Response::SyncChanges { changes, .. } => serde_json::from_value(changes).unwrap(),
         other => panic!("expected SyncChanges, got {other:?}"),
     }
 }
