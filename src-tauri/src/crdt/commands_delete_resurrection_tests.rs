@@ -154,6 +154,33 @@ fn insert_without_delete_log_entry_is_applied() {
     );
 }
 
+// Behavioural backstop for the per-table shadow-deletes cache: many absent
+// rows on the SAME table in one batch must still each be evaluated against the
+// table's full delete-log (the cache reuses one read for the whole table, so a
+// regression would either over- or under-suppress).
+#[test]
+fn many_absent_rows_same_table_each_check_against_full_delete_log() {
+    let db = setup_db();
+    // Delete-log has two distinct rows of `items`. Incoming batch carries
+    // older inserts for BOTH — both must be suppressed off the same cache.
+    seed_delete_log(&db, "items", r#"{"id":"r1"}"#, HLC_NEW);
+    seed_delete_log(&db, "items", r#"{"id":"r2"}"#, HLC_NEW);
+    apply_remote_changes_to_db(
+        &db,
+        vec![
+            change("items", r#"{"id":"r1"}"#, "name", "ghost1", HLC_OLD),
+            change("items", r#"{"id":"r2"}"#, "name", "ghost2", HLC_OLD),
+        ],
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(
+        !row_exists(&db, "items", "id IN ('r1','r2')"),
+        "both shadowed older inserts must be suppressed"
+    );
+}
+
 #[test]
 fn composite_pk_match_is_order_agnostic() {
     // delete-log stored with keys in one order, incoming change in another →

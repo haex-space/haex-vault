@@ -662,6 +662,19 @@ pub fn apply_remote_changes_to_db(
             // ordering that group_by_transaction_hlc just established.
             let row_changes = group_row_changes_in_hlc_order(changes);
 
+            // Per-table cache of delete-log entries (parsed `row_pks` map + HLC)
+            // for the row-absent insert branch. Computed lazily on first need,
+            // then reused for every subsequent absent row of the same table in
+            // this apply pass — collapses N row-absent inserts against the same
+            // table from N queries+JSON parses to one. The transaction (`tx`)
+            // is the only writer to `haex_deleted_rows` in this pass and we
+            // already abort on any read error here, so the cache is consistent
+            // with what's on disk for the duration of one apply.
+            let mut shadowing_deletes_by_table: HashMap<
+                String,
+                Vec<(serde_json::Map<String, JsonValue>, String)>,
+            > = HashMap::new();
+
             // Apply changes grouped by row
             for ((_table_name, row_pks_str), row_change_list) in row_changes {
                 // Use the first change to get common data
@@ -889,7 +902,16 @@ pub fn apply_remote_changes_to_db(
                         // `haex_deleted_rows` always exists, so a read error here is a real
                         // fault and must not silently fall through to an insert (which would
                         // resurrect a deleted row).
-                        let shadowing_deletes: Vec<(serde_json::Map<String, JsonValue>, String)> = {
+                        //
+                        // Cached per `table_name` for the apply pass — see the
+                        // `shadowing_deletes_by_table` declaration above the row loop.
+                        // `Entry::Vacant` keeps the `?` propagation correct (we can't
+                        // use `or_insert_with` because the loader fails fallibly).
+                        if let std::collections::hash_map::Entry::Vacant(slot) =
+                            shadowing_deletes_by_table.entry(first_change.table_name.clone())
+                        {
+                            let mut entries: Vec<(serde_json::Map<String, JsonValue>, String)> =
+                                Vec::new();
                             let mut stmt = tx
                                 .prepare(&format!(
                                     "SELECT row_pks, haex_hlc FROM \"{}\" WHERE table_name = ?1",
@@ -901,22 +923,23 @@ pub fn apply_remote_changes_to_db(
                                     Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
                                 })
                                 .map_err(DatabaseError::from)?;
-                            let mut out = Vec::new();
                             for r in mapped {
                                 let (pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
                                 if let Ok(map) = serde_json::from_str::<
                                     serde_json::Map<String, JsonValue>,
                                 >(&pks_str)
                                 {
-                                    out.push((map, del_hlc));
+                                    entries.push((map, del_hlc));
                                 }
                             }
-                            out
-                        };
+                            slot.insert(entries);
+                        }
+                        let shadowing_deletes =
+                            &shadowing_deletes_by_table[&first_change.table_name];
                         if insert_suppressed_by_deletes(
                             &row_pks,
                             &max_hlc_for_row,
-                            &shadowing_deletes,
+                            shadowing_deletes,
                         ) {
                             eprintln!(
                                 "[SYNC RUST] Suppressing resurrection insert into '{}' for row {} — shadowed by a newer delete-log entry",
