@@ -14,7 +14,7 @@ use crate::extension::permissions::types::{
     ResourceType, RwAction, WebAction,
 };
 use crate::extension::utils::{
-    resolve_extension_id, PermissionResolvedPayload, EVENT_PERMISSION_RESOLVED,
+    require_main_window, resolve_extension_id, PermissionResolvedPayload, EVENT_PERMISSION_RESOLVED,
 };
 use crate::AppState;
 use std::path::Path;
@@ -195,6 +195,7 @@ pub fn notify_extension_permission_decision(
 /// These permissions are cleared when the application restarts.
 #[tauri::command]
 pub fn grant_session_permission(
+    window: WebviewWindow,
     extension_id: String,
     resource_type: String,
     action: String,
@@ -202,6 +203,10 @@ pub fn grant_session_permission(
     decision: String,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
+    // Owner-only: only the main window (which renders the consent dialog) may
+    // grant permissions. An extension must never grant itself rights.
+    require_main_window(&window)?;
+
     let resource_type_enum = ResourceType::from_str(&resource_type)?;
     let status = PermissionStatus::from_str(&decision)?;
     let action_enum = Action::from_str(&resource_type_enum, &action)?;
@@ -235,6 +240,7 @@ pub fn grant_session_permission(
 /// with "remember" checked.
 #[tauri::command]
 pub async fn resolve_permission_prompt(
+    window: WebviewWindow,
     extension_id: String,
     resource_type: String,
     action: String,
@@ -242,6 +248,10 @@ pub async fn resolve_permission_prompt(
     decision: String,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
+    // Owner-only: only the main window (which renders the consent dialog) may
+    // persist a permission decision. An extension must never grant itself rights.
+    require_main_window(&window)?;
+
     // For "ask" (one-time allow), we don't store anything - just return Ok
     if decision == "ask" {
         return Ok(());

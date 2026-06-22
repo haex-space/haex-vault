@@ -43,6 +43,23 @@ pub struct PermissionPromptPayload {
     pub target: String,
 }
 
+/// Ensures a command is being invoked from the trusted main window.
+///
+/// SECURITY: Owner-only commands (granting/resolving permission prompts,
+/// configuring extension limits, managing session permissions) must never be
+/// reachable from an extension webview. The Tauri capability allowlist
+/// (`permissions/extension-commands.toml`) is the primary gate; this check is
+/// defense-in-depth so an accidental allowlist regression cannot let an
+/// extension call these commands and, e.g., grant itself permissions.
+pub fn require_main_window(window: &WebviewWindow) -> Result<(), ExtensionError> {
+    if window.label() != "main" {
+        return Err(ExtensionError::ValidationError {
+            reason: "This command may only be invoked from the main window".to_string(),
+        });
+    }
+    Ok(())
+}
+
 /// Emits a permission prompt event if the error is PermissionPromptRequired
 pub fn emit_permission_prompt_if_needed(app_handle: &AppHandle, error: &ExtensionError) {
     if let ExtensionError::PermissionPromptRequired {
