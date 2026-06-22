@@ -135,6 +135,48 @@
           @update:model-value="onToggleAutostartAsync"
         />
       </div>
+
+      <USeparator class="my-4" />
+
+      <!-- Owner-Device Sync -->
+      <div class="space-y-3">
+        <h4 class="text-sm font-medium text-highlighted">
+          {{ t('config.ownerSync.heading') }}
+        </h4>
+        <p class="text-sm text-muted">
+          {{ t('config.ownerSync.description') }}
+        </p>
+
+        <div class="flex items-center gap-4">
+          <UiButton
+            :icon="peerStore.ownerSyncRunning ? 'i-lucide-power-off' : 'i-lucide-power'"
+            :color="peerStore.ownerSyncRunning ? 'error' : 'primary'"
+            :loading="isOwnerSyncToggling"
+            :disabled="!peerStore.running"
+            @click="onToggleOwnerSyncAsync"
+          >
+            {{ peerStore.ownerSyncRunning ? t('config.ownerSync.stop') : t('config.ownerSync.start') }}
+          </UiButton>
+          <UiButton
+            icon="i-lucide-refresh-cw"
+            color="neutral"
+            variant="ghost"
+            :disabled="!peerStore.ownerSyncRunning"
+            @click="onForceOwnerSyncAsync"
+          >
+            {{ t('config.ownerSync.syncNow') }}
+          </UiButton>
+          <UCheckbox
+            v-model="ownerSyncAutostart"
+            :label="t('config.ownerSync.autostart')"
+            @update:model-value="onToggleOwnerSyncAutostartAsync"
+          />
+        </div>
+
+        <p class="text-sm" :class="ownerSyncStatusActive ? 'text-success' : 'text-muted'">
+          {{ ownerSyncStatusText }}
+        </p>
+      </div>
     </div>
   </HaexSystemSettingsLayout>
 </template>
@@ -257,8 +299,94 @@ const onToggleEndpointAsync = async () => {
   }
 }
 
+// --- Owner-Device Sync config ---
+const isOwnerSyncToggling = ref(false)
+const ownerSyncAutostart = ref(true) // default-on; overwritten in onMounted
+
+const ownerDeviceCount = computed(
+  () => [...deviceStore.knownDevices.values()].filter((d) => !d.isCurrentDevice).length,
+)
+
+const ownerSyncStatusText = computed(() => {
+  if (!peerStore.ownerSyncRunning) return t('config.ownerSync.statusOff')
+  if (ownerDeviceCount.value === 0) return t('config.ownerSync.statusNoDevices')
+  return t('config.ownerSync.statusOn', { count: ownerDeviceCount.value })
+})
+const ownerSyncStatusActive = computed(
+  () => peerStore.ownerSyncRunning && ownerDeviceCount.value > 0,
+)
+
+const onToggleOwnerSyncAsync = async () => {
+  isOwnerSyncToggling.value = true
+  try {
+    if (peerStore.ownerSyncRunning) {
+      await peerStore.stopOwnerSyncAsync()
+      add({ title: t('config.ownerSync.toast.stopped'), color: 'neutral' })
+    } else {
+      await peerStore.startOwnerSyncAsync()
+      add({ title: t('config.ownerSync.toast.started'), color: 'success' })
+    }
+  } catch (error) {
+    add({
+      title: t('config.saveError'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  } finally {
+    isOwnerSyncToggling.value = false
+  }
+}
+
+const onForceOwnerSyncAsync = async () => {
+  try {
+    await peerStore.forceOwnerSyncAsync()
+    add({ title: t('config.ownerSync.toast.syncing'), color: 'success' })
+  } catch (error) {
+    add({
+      title: t('config.saveError'),
+      description: error instanceof Error ? error.message : String(error),
+      color: 'error',
+    })
+  }
+}
+
+const onToggleOwnerSyncAutostartAsync = async (value: boolean | 'indeterminate') => {
+  if (value === 'indeterminate') return
+  if (!db) return
+  if (!deviceStore.deviceId) return
+
+  try {
+    const existing = await db.query.haexVaultSettings.findFirst({
+      where: and(
+        eq(haexVaultSettings.key, VaultSettingsKeyEnum.ownerSyncAutostart),
+        eq(haexVaultSettings.deviceId, deviceStore.deviceId),
+      ),
+    })
+
+    if (existing) {
+      await db
+        .update(haexVaultSettings)
+        .set({ value: value ? 'true' : 'false' })
+        .where(eq(haexVaultSettings.id, existing.id))
+    } else {
+      await db.insert(haexVaultSettings).values({
+        id: crypto.randomUUID(),
+        key: VaultSettingsKeyEnum.ownerSyncAutostart,
+        deviceId: deviceStore.deviceId,
+        value: value ? 'true' : 'false',
+      })
+    }
+  } catch (error) {
+    console.error('Failed to save owner-sync autostart setting:', error)
+    add({ description: t('config.saveError'), color: 'error' })
+  }
+}
+
 onMounted(async () => {
   await peerStore.refreshStatusAsync()
+  // Populate known devices so the owner-sync status count is accurate even
+  // when Settings → Sync is opened directly (otherwise reads "0 known").
+  deviceStore.loadKnownDevicesAsync().catch(() => { /* best effort */ })
   if (db && deviceStore.deviceId) {
     const row = await db.query.haexVaultSettings.findFirst({
       where: and(
@@ -267,6 +395,14 @@ onMounted(async () => {
       ),
     })
     autostart.value = row?.value !== 'false'
+
+    const ownerRow = await db.query.haexVaultSettings.findFirst({
+      where: and(
+        eq(haexVaultSettings.key, VaultSettingsKeyEnum.ownerSyncAutostart),
+        eq(haexVaultSettings.deviceId, deviceStore.deviceId),
+      ),
+    })
+    ownerSyncAutostart.value = ownerRow?.value !== 'false'
   }
 })
 </script>
@@ -306,6 +442,20 @@ de:
         copied: Endpoint-ID kopiert
         started: P2P-Endpoint gestartet
         stopped: P2P-Endpoint gestoppt
+    ownerSync:
+      heading: Geräte-Sync (eigene Vault)
+      description: Synchronisiert deine eigene Vault direkt zwischen deinen Geräten – ohne Server. Läuft automatisch, sobald das P2P-Netzwerk aktiv ist.
+      start: Start
+      stop: Stop
+      syncNow: Jetzt synchronisieren
+      autostart: Automatisch starten
+      statusOn: 'Aktiv · {count} eigene(s) Gerät(e) bekannt'
+      statusNoDevices: 'Aktiviert · noch keine anderen Geräte'
+      statusOff: Inaktiv
+      toast:
+        started: Geräte-Sync gestartet
+        stopped: Geräte-Sync gestoppt
+        syncing: Synchronisierung ausgelöst
 en:
   config:
     title: Configuration
@@ -340,4 +490,18 @@ en:
         copied: Endpoint ID copied
         started: P2P endpoint started
         stopped: P2P endpoint stopped
+    ownerSync:
+      heading: Device Sync (your vault)
+      description: Syncs your own vault directly between your devices — no server. Runs automatically once the P2P network is active.
+      start: Start
+      stop: Stop
+      syncNow: Sync now
+      autostart: Start automatically
+      statusOn: 'Active · {count} of your device(s) known'
+      statusNoDevices: 'Enabled · no other devices yet'
+      statusOff: Inactive
+      toast:
+        started: Device sync started
+        stopped: Device sync stopped
+        syncing: Sync triggered
 </i18n>
