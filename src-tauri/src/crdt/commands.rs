@@ -432,6 +432,33 @@ fn should_propagate_delete(delete_log_hlc: &str, target_row_hlc: Option<&str>) -
     }
 }
 
+/// True if a delete-log entry at `delete_hlc` shadows an insert at `insert_hlc`
+/// — i.e. the insert is NOT strictly newer, so applying it would resurrect a
+/// deleted row. Sibling of `should_propagate_delete` (delete wins on tie).
+fn delete_shadows_insert(delete_hlc: &str, insert_hlc: &str) -> bool {
+    crate::crdt::hlc::compare_hlc_strings(insert_hlc, delete_hlc) != std::cmp::Ordering::Greater
+}
+
+/// Whether an insert for `insert_pks` at `insert_hlc` must be suppressed because
+/// a delete-log candidate for the SAME row (parsed-map equality — order- and
+/// serializer-agnostic) carries a shadowing HLC.
+///
+/// Match is type-strict (`serde_json::Value` equality): a PK serialized as a
+/// JSON number on one side and a string on the other will NOT match. In
+/// practice the synced, delete-tracked tables use TEXT (UUID) PKs, so this is
+/// safe today; non-text PK types (BLOB, integer) are covered by the canonical
+/// `row_pks` follow-up (open-points F5). A miss here fails toward NOT
+/// suppressing (status-quo resurrection), never toward a wrong suppression.
+fn insert_suppressed_by_deletes(
+    insert_pks: &serde_json::Map<String, JsonValue>,
+    insert_hlc: &str,
+    candidates: &[(serde_json::Map<String, JsonValue>, String)],
+) -> bool {
+    candidates.iter().any(|(del_pks, del_hlc)| {
+        del_pks == insert_pks && delete_shadows_insert(del_hlc, insert_hlc)
+    })
+}
+
 /// Applies pending delete-log entries to their target tables.
 ///
 /// For each row id in `delete_log_ids`, reads `(table_name, row_pks)` from
@@ -634,6 +661,19 @@ pub fn apply_remote_changes_to_db(
             // HLC. Plain HashMap iteration would discard the careful HLC
             // ordering that group_by_transaction_hlc just established.
             let row_changes = group_row_changes_in_hlc_order(changes);
+
+            // Per-table cache of delete-log entries (parsed `row_pks` map + HLC)
+            // for the row-absent insert branch. Computed lazily on first need,
+            // then reused for every subsequent absent row of the same table in
+            // this apply pass — collapses N row-absent inserts against the same
+            // table from N queries+JSON parses to one. The transaction (`tx`)
+            // is the only writer to `haex_deleted_rows` in this pass and we
+            // already abort on any read error here, so the cache is consistent
+            // with what's on disk for the duration of one apply.
+            let mut shadowing_deletes_by_table: HashMap<
+                String,
+                Vec<(serde_json::Map<String, JsonValue>, String)>,
+            > = HashMap::new();
 
             // Apply changes grouped by row
             for ((_table_name, row_pks_str), row_change_list) in row_changes {
@@ -847,6 +887,67 @@ pub fn apply_remote_changes_to_db(
                         tx.execute(&update_sql, &*params_refs)
                             .map_err(DatabaseError::from)?;
                     } else {
+                        // Delete-resurrection guard: a row absent locally must NOT be
+                        // (re)inserted if a delete-log entry for it carries an HLC
+                        // newer-or-equal to this insert. propagate_deleted_rows_to_target_tables
+                        // only revisits deletes arriving in the current batch, so a delete
+                        // stored in a prior batch (or before this row's table existed) would
+                        // otherwise be silently resurrected by a later, older-HLC insert. Match
+                        // on the parsed row_pks map so it is independent of key order /
+                        // serializer differences between the scanner (sorted) and the DELETE
+                        // trigger (PK-definition order).
+                        //
+                        // The read fails hard on error (propagated `?`), matching
+                        // propagate_deleted_rows_to_target_tables: in production
+                        // `haex_deleted_rows` always exists, so a read error here is a real
+                        // fault and must not silently fall through to an insert (which would
+                        // resurrect a deleted row).
+                        //
+                        // Cached per `table_name` for the apply pass — see the
+                        // `shadowing_deletes_by_table` declaration above the row loop.
+                        // `Entry::Vacant` keeps the `?` propagation correct (we can't
+                        // use `or_insert_with` because the loader fails fallibly).
+                        if let std::collections::hash_map::Entry::Vacant(slot) =
+                            shadowing_deletes_by_table.entry(first_change.table_name.clone())
+                        {
+                            let mut entries: Vec<(serde_json::Map<String, JsonValue>, String)> =
+                                Vec::new();
+                            let mut stmt = tx
+                                .prepare(&format!(
+                                    "SELECT row_pks, haex_hlc FROM \"{}\" WHERE table_name = ?1",
+                                    DELETED_ROWS_TABLE
+                                ))
+                                .map_err(DatabaseError::from)?;
+                            let mapped = stmt
+                                .query_map(params![&first_change.table_name], |row| {
+                                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                                })
+                                .map_err(DatabaseError::from)?;
+                            for r in mapped {
+                                let (pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
+                                if let Ok(map) = serde_json::from_str::<
+                                    serde_json::Map<String, JsonValue>,
+                                >(&pks_str)
+                                {
+                                    entries.push((map, del_hlc));
+                                }
+                            }
+                            slot.insert(entries);
+                        }
+                        let shadowing_deletes =
+                            &shadowing_deletes_by_table[&first_change.table_name];
+                        if insert_suppressed_by_deletes(
+                            &row_pks,
+                            &max_hlc_for_row,
+                            shadowing_deletes,
+                        ) {
+                            eprintln!(
+                                "[SYNC RUST] Suppressing resurrection insert into '{}' for row {} — shadowed by a newer delete-log entry",
+                                first_change.table_name, row_pks_str
+                            );
+                            continue;
+                        }
+
                         // Row doesn't exist, insert it with all changed columns + PKs
                         let mut columns = Vec::new();
                         let mut values: Vec<SqlValue> = Vec::new();
@@ -1058,6 +1159,10 @@ pub fn apply_remote_changes_to_db(
 #[cfg(test)]
 #[path = "commands_pending_columns_tests.rs"]
 mod pending_columns_tests;
+
+#[cfg(test)]
+#[path = "commands_delete_resurrection_tests.rs"]
+mod delete_resurrection_tests;
 
 #[cfg(test)]
 mod hlc_grouping_tests {
@@ -1299,6 +1404,13 @@ mod apply_partial_row_tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         conn.execute_batch(&format!(
             "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+             CREATE TABLE {DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );
              CREATE TABLE devices (
                  id TEXT PRIMARY KEY,
                  space_id TEXT NOT NULL,
