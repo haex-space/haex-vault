@@ -163,9 +163,6 @@ export const pullFromBackendAsync = async (
     }
 
     log.info(`========== PULL SUCCESS: ${totalApplied} changes applied across ${pageCount} pages ==========`)
-    // Avoid an unused-var warning while keeping the post-loop serverTimestamp
-    // assignment visible for future debug logs.
-    void serverTimestamp
   } catch (error) {
     // Extract detailed error message for better debugging
     let errorMessage = 'Unknown error'

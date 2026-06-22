@@ -860,7 +860,7 @@ log.info('[START-SYNC] Initializing backends...')
         // 3. Dirty tables are cleared again
         // This ensures no pushes happen during the initialization phase.
 
-        log.info(`========== INITIAL PULL SUCCESS: ${allChanges.length} changes applied ==========`)
+        log.info(`========== INITIAL PULL SUCCESS: ${totalApplied} changes applied ==========`)
       } catch (error) {
         log.error('========== INITIAL PULL FAILED ==========', error)
         syncStates.value[backendId].error = error instanceof Error ? error.message : 'Unknown error'
