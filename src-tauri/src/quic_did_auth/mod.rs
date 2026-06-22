@@ -14,5 +14,8 @@ mod server;
 mod wire;
 
 pub use client::respond_to_challenge;
-pub use server::{challenge_and_verify, ChallengeError, CHALLENGE_TIMEOUT};
-pub use wire::{build_sig_input, Challenge, Response, DOMAIN_TAG, NONCE_LEN, PROTOCOL_VERSION};
+pub use server::challenge_and_verify;
+pub use wire::{
+    build_sig_input, Challenge, ChallengeError, Response, CHALLENGE_TIMEOUT, DOMAIN_TAG, NONCE_LEN,
+    PROTOCOL_VERSION,
+};

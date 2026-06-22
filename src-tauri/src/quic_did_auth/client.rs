@@ -8,12 +8,12 @@
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::{Signer, SigningKey};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::timeout;
 
-use super::server::{ChallengeError, CHALLENGE_TIMEOUT};
 use super::wire::{
-    build_sig_input, Challenge, Response, MAX_MESSAGE_SIZE, NONCE_LEN, PROTOCOL_VERSION,
+    build_sig_input, read_message, write_message, Challenge, ChallengeError, Response,
+    CHALLENGE_TIMEOUT, NONCE_LEN, PROTOCOL_VERSION,
 };
 
 /// Run the client side of the handshake: read the server's Challenge, sign
@@ -59,57 +59,6 @@ where
     };
 
     write_message(send, &response).await
-}
-
-async fn write_message<T, W>(send: &mut W, msg: &T) -> Result<(), ChallengeError>
-where
-    T: serde::Serialize,
-    W: AsyncWrite + Unpin,
-{
-    let json = serde_json::to_vec(msg).map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    if json.len() > MAX_MESSAGE_SIZE {
-        return Err(ChallengeError::WireProtocol(format!(
-            "outgoing message too large: {} bytes (max {})",
-            json.len(),
-            MAX_MESSAGE_SIZE
-        )));
-    }
-    let len_be = (json.len() as u32).to_be_bytes();
-    send.write_all(&len_be)
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    send.write_all(&json)
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    // Flush so a small handshake message (~200 bytes) is actually pushed
-    // through iroh's QUIC send buffer — without this the peer's read_exact
-    // blocks until the connection idles or another byte is written.
-    send.flush()
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    Ok(())
-}
-
-async fn read_message<T, R>(recv: &mut R) -> Result<T, ChallengeError>
-where
-    T: serde::de::DeserializeOwned,
-    R: AsyncRead + Unpin,
-{
-    let mut len_buf = [0u8; 4];
-    recv.read_exact(&mut len_buf)
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    let len = u32::from_be_bytes(len_buf) as usize;
-    if len > MAX_MESSAGE_SIZE {
-        return Err(ChallengeError::WireProtocol(format!(
-            "incoming message too large: {len} bytes (max {MAX_MESSAGE_SIZE})"
-        )));
-    }
-    let mut buf = vec![0u8; len];
-    recv.read_exact(&mut buf)
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    serde_json::from_slice(&buf).map_err(|e| ChallengeError::WireProtocol(e.to_string()))
 }
 
 #[cfg(test)]

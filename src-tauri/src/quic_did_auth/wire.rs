@@ -7,7 +7,11 @@
 //! 2. Client → Server (`Response`): protocol version, client DID, client
 //!    endpoint id, ed25519 signature over `build_sig_input(...)`.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const NONCE_LEN: usize = 32;
@@ -19,6 +23,30 @@ pub const DOMAIN_TAG: &[u8] = b"haex-did-auth/v1";
 /// Cap on serialised handshake messages — handshake JSON is well under 1 KB,
 /// 64 KB leaves slack but caps malicious senders.
 pub const MAX_MESSAGE_SIZE: usize = 64 * 1024;
+
+/// Read/write timeout for the handshake. Matches `quic_retry::READ_TIMEOUT_SECS`
+/// (the existing slow-peer budget for sync requests).
+pub const CHALLENGE_TIMEOUT: Duration = Duration::from_secs(30);
+
+#[derive(Debug, Error)]
+pub enum ChallengeError {
+    #[error("wire protocol error: {0}")]
+    WireProtocol(String),
+    #[error("unsupported protocol version: {0}")]
+    UnsupportedVersion(u32),
+    #[error("client endpoint id mismatch: announced {announced}, actual {actual}")]
+    EndpointIdMismatch { announced: String, actual: String },
+    #[error("malformed DID: {0}")]
+    MalformedDid(String),
+    #[error("malformed base64 in nonce or signature")]
+    MalformedBase64,
+    #[error("nonce length must be {expected} bytes, got {got}")]
+    NonceLength { expected: usize, got: usize },
+    #[error("signature verification failed")]
+    SignatureInvalid,
+    #[error("timeout waiting for client response")]
+    Timeout,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
@@ -66,6 +94,61 @@ pub fn build_sig_input(
     buf.extend_from_slice(&(server_bytes.len() as u32).to_be_bytes());
     buf.extend_from_slice(server_bytes);
     buf
+}
+
+/// Write a length-prefixed JSON message: a big-endian `u32` length followed by
+/// the JSON bytes, then flush. Shared by both handshake sides.
+pub(super) async fn write_message<T, W>(send: &mut W, msg: &T) -> Result<(), ChallengeError>
+where
+    T: serde::Serialize,
+    W: AsyncWrite + Unpin,
+{
+    let json = serde_json::to_vec(msg).map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
+    if json.len() > MAX_MESSAGE_SIZE {
+        return Err(ChallengeError::WireProtocol(format!(
+            "outgoing message too large: {} bytes (max {})",
+            json.len(),
+            MAX_MESSAGE_SIZE
+        )));
+    }
+    let len_be = (json.len() as u32).to_be_bytes();
+    send.write_all(&len_be)
+        .await
+        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
+    send.write_all(&json)
+        .await
+        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
+    // Flush so a small handshake message (~200 bytes) is actually pushed
+    // through iroh's QUIC send buffer — without this the peer's read_exact
+    // blocks until the connection idles or another byte is written.
+    send.flush()
+        .await
+        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
+    Ok(())
+}
+
+/// Read a length-prefixed JSON message written by [`write_message`], rejecting
+/// any frame whose announced length exceeds [`MAX_MESSAGE_SIZE`].
+pub(super) async fn read_message<T, R>(recv: &mut R) -> Result<T, ChallengeError>
+where
+    T: serde::de::DeserializeOwned,
+    R: AsyncRead + Unpin,
+{
+    let mut len_buf = [0u8; 4];
+    recv.read_exact(&mut len_buf)
+        .await
+        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
+    let len = u32::from_be_bytes(len_buf) as usize;
+    if len > MAX_MESSAGE_SIZE {
+        return Err(ChallengeError::WireProtocol(format!(
+            "incoming message too large: {len} bytes (max {MAX_MESSAGE_SIZE})"
+        )));
+    }
+    let mut buf = vec![0u8; len];
+    recv.read_exact(&mut buf)
+        .await
+        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
+    serde_json::from_slice(&buf).map_err(|e| ChallengeError::WireProtocol(e.to_string()))
 }
 
 #[cfg(test)]
@@ -161,5 +244,46 @@ mod tests {
         let json = serde_json::to_vec(&r).unwrap();
         let back: Response = serde_json::from_slice(&json).unwrap();
         assert_eq!(r, back);
+    }
+
+    #[tokio::test]
+    async fn message_write_read_roundtrip() {
+        let (mut w, mut r) = tokio::io::duplex(1024);
+        let original = Challenge {
+            v: PROTOCOL_VERSION,
+            nonce: "AAAA".into(),
+            server_endpoint_id: "srv".into(),
+        };
+        write_message(&mut w, &original).await.unwrap();
+        let back: Challenge = read_message(&mut r).await.unwrap();
+        assert_eq!(original, back);
+    }
+
+    #[tokio::test]
+    async fn write_message_rejects_oversize_payload() {
+        let (mut w, _r) = tokio::io::duplex(1024);
+        // A Response whose signature field alone exceeds MAX_MESSAGE_SIZE — the
+        // size check fires before anything is written, so the small duplex
+        // buffer never deadlocks.
+        let huge = Response {
+            v: PROTOCOL_VERSION,
+            did: "did".into(),
+            client_endpoint_id: "ep".into(),
+            signature: "x".repeat(MAX_MESSAGE_SIZE + 1),
+        };
+        let err = write_message(&mut w, &huge).await.unwrap_err();
+        assert!(matches!(err, ChallengeError::WireProtocol(_)));
+    }
+
+    #[tokio::test]
+    async fn read_message_rejects_oversize_length_prefix() {
+        let (mut w, mut r) = tokio::io::duplex(1024);
+        // Announce a body larger than MAX_MESSAGE_SIZE; read_message must reject
+        // on the length prefix alone, before allocating or reading the body.
+        let bogus_len = (MAX_MESSAGE_SIZE as u32 + 1).to_be_bytes();
+        w.write_all(&bogus_len).await.unwrap();
+        w.flush().await.unwrap();
+        let err = read_message::<Challenge, _>(&mut r).await.unwrap_err();
+        assert!(matches!(err, ChallengeError::WireProtocol(_)));
     }
 }
