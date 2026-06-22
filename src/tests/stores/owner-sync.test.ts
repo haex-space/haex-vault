@@ -1,9 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockResolvedValue(undefined),
-}))
-
 import { invoke } from '@tauri-apps/api/core'
 import {
   startOwnerSyncAsync,
@@ -11,6 +7,10 @@ import {
   forceOwnerSyncAsync,
   ownerSyncAutostartEnabled,
 } from '@/stores/peer-storage/owner-sync'
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue(undefined),
+}))
 
 describe('owner-sync command wrappers', () => {
   beforeEach(() => { vi.mocked(invoke).mockClear() })
