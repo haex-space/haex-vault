@@ -1,6 +1,7 @@
 use crate::database::core::{select_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::database::generated::HaexPrincipalPermissions;
+use crate::extension::core::types::Extension;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
@@ -235,6 +236,33 @@ impl PermissionManager {
         Ok(permissions)
     }
 
+    /// Load the calling extension and its persisted permissions in one go.
+    ///
+    /// Every `check_*_permission` method opens with the same prelude: look up
+    /// the extension by id (rejecting an unknown principal with a validation
+    /// error) and fetch its principal-permission rows. Centralising it here
+    /// keeps that contract in one place and lets each `check_*` method focus
+    /// on its resource-specific matching logic instead of repeating the
+    /// lookup boilerplate.
+    ///
+    /// `extension_manager.get_extension` already returns the extension by
+    /// value, so the per-call-site `.clone()` that used to follow this block
+    /// was redundant and is gone here too.
+    async fn load_extension_and_permissions(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+    ) -> Result<(Extension, Vec<ExtensionPermission>), ExtensionError> {
+        let extension_id = principal.id();
+        let extension = app_state
+            .extension_manager
+            .get_extension(extension_id)
+            .ok_or_else(|| ExtensionError::ValidationError {
+                reason: format!("Extension with ID {extension_id} not found"),
+            })?;
+        let permissions = Self::get_permissions(app_state, principal).await?;
+        Ok((extension, permissions))
+    }
+
     /// Prüft Datenbankberechtigungen
     /// Returns PermissionPromptRequired if status is Ask or no permission exists
     /// Returns PermissionDenied if status is explicitly Denied
@@ -256,17 +284,8 @@ impl PermissionManager {
             }
         };
 
-        // Get the extension
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension with ID {extension_id} not found"),
-            })?
-            .clone();
-
-        // Load permissions
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
 
         // Create checker and validate
         let checker = PermissionChecker::new(extension.clone(), permissions.clone());
@@ -484,15 +503,8 @@ impl PermissionManager {
         let extension_id = principal.id();
 
         // Get extension for name lookup
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
         let file_path_str = file_path.to_string_lossy();
 
         // Find matching permission for this path and action
@@ -644,15 +656,8 @@ impl PermissionManager {
         let extension_id = principal.id();
 
         // Get extension for name lookup
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
 
         // Helper to check if command matches target pattern
         let matches_command = |target: &str| -> bool { target == command || target == "*" };
@@ -830,15 +835,8 @@ impl PermissionManager {
     ) -> Result<(), ExtensionError> {
         let extension_id = principal.id();
 
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
 
         // The matching RwAction variant for this resource, by value (`None` for
         // any other resource/action shape).
@@ -948,15 +946,8 @@ impl PermissionManager {
     ) -> Result<(), ExtensionError> {
         let extension_id = principal.id();
 
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
 
         let action_allows = |perm_action: &Action, required: &SpaceAction| -> bool {
             match perm_action {
@@ -1045,15 +1036,8 @@ impl PermissionManager {
     ) -> Result<PasswordsScope, ExtensionError> {
         let extension_id = principal.id();
 
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
 
         let action_allows = |perm_action: &Action, required: &PasswordsAction| -> bool {
             match perm_action {
@@ -1154,15 +1138,8 @@ impl PermissionManager {
     ) -> Result<(), ExtensionError> {
         let extension_id = principal.id();
 
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
 
         let action_matches = |perm_action: &Action| -> bool {
             matches!(perm_action, Action::Mail(a) if *a == action)
@@ -1299,15 +1276,8 @@ impl PermissionManager {
     ) -> Result<(), ExtensionError> {
         let extension_id = principal.id();
 
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
 
         let action_matches = |perm_action: &Action| -> bool {
             matches!(perm_action, Action::Notifications(a) if *a == action)
@@ -1386,15 +1356,8 @@ impl PermissionManager {
     ) -> Result<(), ExtensionError> {
         let extension_id = principal.id();
 
-        let extension = app_state
-            .extension_manager
-            .get_extension(extension_id)
-            .ok_or_else(|| ExtensionError::ValidationError {
-                reason: format!("Extension not found: {}", extension_id),
-            })?
-            .clone();
-
-        let permissions = Self::get_permissions(app_state, principal).await?;
+        let (extension, permissions) =
+            Self::load_extension_and_permissions(app_state, principal).await?;
 
         // Read und Write sind DISTINCT — exakter Action-Match, keine Hierarchie.
         let matching_status = identities_matching_status(&permissions, action);
@@ -1948,96 +1911,3 @@ pub(crate) fn resolve_identities_decision(
         }
     }
 }
-
-// Convenience-Funktionen für die verschiedenen Subsysteme
-/* impl PermissionManager {
-    // Convenience-Methoden
-    pub async fn can_read_file(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-        file_path: &Path,
-    ) -> Result<(), ExtensionError> {
-        Self::check_filesystem_permission(app_state, extension_id, Action::Read, file_path).await
-    }
-
-    pub async fn can_write_file(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-        file_path: &Path,
-    ) -> Result<(), ExtensionError> {
-        Self::check_filesystem_permission(app_state, extension_id, Action::Write, file_path).await
-    }
-
-    pub async fn can_read_table(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-        table_name: &str,
-    ) -> Result<(), ExtensionError> {
-        Self::check_database_permission(app_state, extension_id, Action::Read, table_name).await
-    }
-
-    pub async fn can_write_table(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-        table_name: &str,
-    ) -> Result<(), ExtensionError> {
-        Self::check_database_permission(app_state, extension_id, Action::Write, table_name).await
-    }
-
-    pub async fn can_http_get(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-        url: &str,
-    ) -> Result<(), ExtensionError> {
-        Self::check_http_permission(app_state, extension_id, "GET", url).await
-    }
-
-    pub async fn can_http_post(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-        url: &str,
-    ) -> Result<(), ExtensionError> {
-        Self::check_http_permission(app_state, extension_id, "POST", url).await
-    }
-
-    pub async fn can_execute_command(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-        command: &str,
-        args: &[String],
-    ) -> Result<(), ExtensionError> {
-        Self::check_shell_permission(app_state, extension_id, command, args).await
-    }
-
-    pub async fn grant_permission(
-        app_state: &State<'_, AppState>,
-        permission_id: &str,
-    ) -> Result<(), ExtensionError> {
-        Self::update_permission_status(app_state, permission_id, PermissionStatus::Granted).await
-    }
-
-    pub async fn deny_permission(
-        app_state: &State<'_, AppState>,
-        permission_id: &str,
-    ) -> Result<(), ExtensionError> {
-        Self::update_permission_status(app_state, permission_id, PermissionStatus::Denied).await
-    }
-
-    pub async fn ask_permission(
-        app_state: &State<'_, AppState>,
-        permission_id: &str,
-    ) -> Result<(), ExtensionError> {
-        Self::update_permission_status(app_state, permission_id, PermissionStatus::Ask).await
-    }
-
-    pub async fn get_ask_permissions(
-        app_state: &State<'_, AppState>,
-        extension_id: &str,
-    ) -> Result<Vec<ExtensionPermission>, ExtensionError> {
-        let all_permissions = Self::get_permissions(app_state, extension_id).await?;
-        Ok(all_permissions
-            .into_iter()
-            .filter(|perm| perm.status == PermissionStatus::Ask)
-            .collect())
-    }
-} */
