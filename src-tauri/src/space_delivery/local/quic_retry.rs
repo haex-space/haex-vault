@@ -279,7 +279,15 @@ pub async fn send_request_with_retry(
 ) -> Result<Response, QuicSendError> {
     retry_transient(
         operation,
-        || send_request_once(endpoint, addr.clone(), our_did, our_signing_key, request_bytes),
+        || {
+            send_request_once(
+                endpoint,
+                addr.clone(),
+                our_did,
+                our_signing_key,
+                request_bytes,
+            )
+        },
         QuicSendError::is_transient,
     )
     .await
