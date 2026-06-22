@@ -142,8 +142,8 @@ importers:
         specifier: ^4.3.1
         version: 4.3.1
       tldts:
-        specifier: ^7.4.2
-        version: 7.4.2
+        specifier: ^7.4.3
+        version: 7.4.3
       vue:
         specifier: ^3.5.38
         version: 3.5.38(typescript@5.9.3)
@@ -7114,11 +7114,11 @@ packages:
     resolution: {integrity: sha512-Bf+ILmBgretUrdJxzXM0SgXLZ3XfiaUuOj/IKQHuTXip+05Xn+uyEYdVg0kYDipTBcLrCVyUzAPz7QmArb0mmw==}
     engines: {node: '>=14.0.0'}
 
-  tldts-core@7.4.2:
-    resolution: {integrity: sha512-nwEyF4vl4RSJjwSjBUmOSxc3BFPoIFdlRthJ6e+5v9P3bHNsoD06UjuqMUspqp7vsEZ1beaHi1km+optiE17yA==}
+  tldts-core@7.4.3:
+    resolution: {integrity: sha512-27ep5H9PzdBrNd5OFM/j3WCU8F3kPwM9D0BOaOf7uYfxMJfyr0K5Tjj69Gri+sZlh2WXd5buIm47NuPF29CDiw==}
 
-  tldts@7.4.2:
-    resolution: {integrity: sha512-kCwffuaH8ntKtygnWe1b4BJKWiCUH30n5KfoTr6IchcXOwR7chAOFJxFrH3vjANafUYrIA4a7SDL+nn7SiR4Sw==}
+  tldts@7.4.3:
+    resolution: {integrity: sha512-A3BDQBeeukYPzB4QdQ1DtdlUmp4x2OCH8n5UVhEWbyANxNep8GavottKzd1xYKFJKjUgMyPT7EzOfnBO55s8Sg==}
     hasBin: true
 
   to-regex-range@5.0.1:
@@ -15203,11 +15203,11 @@ snapshots:
 
   tinyrainbow@3.1.0: {}
 
-  tldts-core@7.4.2: {}
+  tldts-core@7.4.3: {}
 
-  tldts@7.4.2:
+  tldts@7.4.3:
     dependencies:
-      tldts-core: 7.4.2
+      tldts-core: 7.4.3
 
   to-regex-range@5.0.1:
     dependencies:
@@ -15226,7 +15226,7 @@ snapshots:
 
   tough-cookie@6.0.1:
     dependencies:
-      tldts: 7.4.2
+      tldts: 7.4.3
 
   tr46@0.0.3: {}
 
