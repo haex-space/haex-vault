@@ -174,7 +174,6 @@ commands.allow = [
   # SQL helpers
   "sql_execute",
   "sql_execute_with_crdt",
-  "sql_query_with_crdt",
   "sql_select",
   "sql_select_with_crdt",
   "sql_with_crdt",
