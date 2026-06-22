@@ -246,32 +246,40 @@ const copyEndpointId = async () => {
   add({ title: t('config.p2p.toast.copied'), color: 'success' })
 }
 
-const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
-  if (value === 'indeterminate') return
+const persistAutostartAsync = async (
+  key: (typeof VaultSettingsKeyEnum)[keyof typeof VaultSettingsKeyEnum],
+  value: boolean,
+) => {
   if (!db) return
   if (!deviceStore.deviceId) return
 
-  try {
-    const existing = await db.query.haexVaultSettings.findFirst({
-      where: and(
-        eq(haexVaultSettings.key, VaultSettingsKeyEnum.peerStorageAutostart),
-        eq(haexVaultSettings.deviceId, deviceStore.deviceId),
-      ),
-    })
+  const existing = await db.query.haexVaultSettings.findFirst({
+    where: and(
+      eq(haexVaultSettings.key, key),
+      eq(haexVaultSettings.deviceId, deviceStore.deviceId),
+    ),
+  })
 
-    if (existing) {
-      await db
-        .update(haexVaultSettings)
-        .set({ value: value ? 'true' : 'false' })
-        .where(eq(haexVaultSettings.id, existing.id))
-    } else {
-      await db.insert(haexVaultSettings).values({
-        id: crypto.randomUUID(),
-        key: VaultSettingsKeyEnum.peerStorageAutostart,
-        deviceId: deviceStore.deviceId,
-        value: value ? 'true' : 'false',
-      })
-    }
+  if (existing) {
+    await db
+      .update(haexVaultSettings)
+      .set({ value: value ? 'true' : 'false' })
+      .where(eq(haexVaultSettings.id, existing.id))
+  } else {
+    await db.insert(haexVaultSettings).values({
+      id: crypto.randomUUID(),
+      key,
+      deviceId: deviceStore.deviceId,
+      value: value ? 'true' : 'false',
+    })
+  }
+}
+
+const onToggleAutostartAsync = async (value: boolean | 'indeterminate') => {
+  if (value === 'indeterminate') return
+
+  try {
+    await persistAutostartAsync(VaultSettingsKeyEnum.peerStorageAutostart, value)
   } catch (error) {
     console.error('Failed to save autostart setting:', error)
     add({ description: t('config.saveError'), color: 'error' })
@@ -352,30 +360,9 @@ const onForceOwnerSyncAsync = async () => {
 
 const onToggleOwnerSyncAutostartAsync = async (value: boolean | 'indeterminate') => {
   if (value === 'indeterminate') return
-  if (!db) return
-  if (!deviceStore.deviceId) return
 
   try {
-    const existing = await db.query.haexVaultSettings.findFirst({
-      where: and(
-        eq(haexVaultSettings.key, VaultSettingsKeyEnum.ownerSyncAutostart),
-        eq(haexVaultSettings.deviceId, deviceStore.deviceId),
-      ),
-    })
-
-    if (existing) {
-      await db
-        .update(haexVaultSettings)
-        .set({ value: value ? 'true' : 'false' })
-        .where(eq(haexVaultSettings.id, existing.id))
-    } else {
-      await db.insert(haexVaultSettings).values({
-        id: crypto.randomUUID(),
-        key: VaultSettingsKeyEnum.ownerSyncAutostart,
-        deviceId: deviceStore.deviceId,
-        value: value ? 'true' : 'false',
-      })
-    }
+    await persistAutostartAsync(VaultSettingsKeyEnum.ownerSyncAutostart, value)
   } catch (error) {
     console.error('Failed to save owner-sync autostart setting:', error)
     add({ description: t('config.saveError'), color: 'error' })
