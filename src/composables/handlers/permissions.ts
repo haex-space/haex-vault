@@ -8,6 +8,50 @@ import {
 
 const { promptForPermission } = usePermissionPrompt()
 
+type PermissionStatus = 'granted' | 'denied'
+type PermissionCheckResult = { status: PermissionStatus }
+
+// Error code emitted by the Rust backend when a permission is denied (mirrors
+// `ExtensionError::permission_denied` → code 1002). We also accept the message
+// suffix as a belt-and-braces fallback in case the code field is stripped by an
+// older Tauri layer.
+const ERROR_CODE_PERMISSION_DENIED = 1002
+
+/**
+ * Run a backend permission check and uniformly handle:
+ *   - granted: backend returned `Ok(())`
+ *   - prompt-required: backend returned `PermissionPromptRequired` → show the
+ *     consent dialog and resolve to the user's decision
+ *   - denied: backend returned a denied error (code 1002 or matching message)
+ *   - anything else: re-thrown
+ *
+ * Centralising this means the catch logic — including the `code === 1002`
+ * fallback and the "ask → granted/denied" mapping — lives in one place. The
+ * three permission-check handlers below are thin per-resource adapters that
+ * only validate their own params and build the invoke argument shape.
+ */
+async function runPermissionCheck(
+  command: string,
+  args: Record<string, unknown>,
+): Promise<PermissionCheckResult> {
+  try {
+    await invoke<undefined>(command, args)
+    return { status: 'granted' }
+  }
+  catch (error: unknown) {
+    if (isPermissionPromptRequired(error)) {
+      const decision = await promptForPermission(extractPromptData(error)!)
+      return { status: decision === 'granted' ? 'granted' : 'denied' }
+    }
+    const err = error as { code?: number; message?: string }
+    if (err?.code === ERROR_CODE_PERMISSION_DENIED
+      || err?.message?.includes('Permission denied')) {
+      return { status: 'denied' }
+    }
+    throw error
+  }
+}
+
 export async function handlePermissionsMethodAsync(
   request: ExtensionRequest,
   extension: IHaexSpaceExtension,
@@ -44,34 +88,11 @@ async function checkWebPermissionAsync(
     throw new Error('URL is required')
   }
 
-  try {
-    await invoke<undefined>('check_web_permission', {
-      extensionId: extension.id,
-      method,
-      url,
-    })
-
-    return { status: 'granted' }
-  } catch (error: unknown) {
-    // Permission prompt required - show dialog to user
-    if (isPermissionPromptRequired(error)) {
-      const promptData = extractPromptData(error)!
-      const decision = await promptForPermission(promptData)
-
-      if (decision === 'granted') {
-        return { status: 'granted' }
-      }
-      return { status: 'denied' }
-    }
-
-    // Permission denied errors return a specific error code
-    const err = error as { code?: number; message?: string }
-    if (err?.code === 1002 || err?.message?.includes('Permission denied')) {
-      return { status: 'denied' }
-    }
-    // Other errors should be thrown
-    throw error
-  }
+  return runPermissionCheck('check_web_permission', {
+    extensionId: extension.id,
+    method,
+    url,
+  })
 }
 
 async function checkDatabasePermissionAsync(
@@ -85,32 +106,11 @@ async function checkDatabasePermissionAsync(
     throw new Error('Resource and operation are required')
   }
 
-  try {
-    await invoke<undefined>('check_database_permission', {
-      extensionId: extension.id,
-      resource,
-      operation,
-    })
-
-    return { status: 'granted' }
-  } catch (error: unknown) {
-    // Permission prompt required - show dialog to user
-    if (isPermissionPromptRequired(error)) {
-      const promptData = extractPromptData(error)!
-      const decision = await promptForPermission(promptData)
-
-      if (decision === 'granted') {
-        return { status: 'granted' }
-      }
-      return { status: 'denied' }
-    }
-
-    const err = error as { code?: number; message?: string }
-    if (err?.code === 1002 || err?.message?.includes('Permission denied')) {
-      return { status: 'denied' }
-    }
-    throw error
-  }
+  return runPermissionCheck('check_database_permission', {
+    extensionId: extension.id,
+    resource,
+    operation,
+  })
 }
 
 async function checkFilesystemPermissionAsync(
@@ -124,30 +124,9 @@ async function checkFilesystemPermissionAsync(
     throw new Error('Path and operation are required')
   }
 
-  try {
-    await invoke<undefined>('check_filesystem_permission', {
-      extensionId: extension.id,
-      path,
-      operation,
-    })
-
-    return { status: 'granted' }
-  } catch (error: unknown) {
-    // Permission prompt required - show dialog to user
-    if (isPermissionPromptRequired(error)) {
-      const promptData = extractPromptData(error)!
-      const decision = await promptForPermission(promptData)
-
-      if (decision === 'granted') {
-        return { status: 'granted' }
-      }
-      return { status: 'denied' }
-    }
-
-    const err = error as { code?: number; message?: string }
-    if (err?.code === 1002 || err?.message?.includes('Permission denied')) {
-      return { status: 'denied' }
-    }
-    throw error
-  }
+  return runPermissionCheck('check_filesystem_permission', {
+    extensionId: extension.id,
+    path,
+    operation,
+  })
 }
