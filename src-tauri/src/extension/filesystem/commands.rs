@@ -14,7 +14,7 @@ use crate::extension::error::ExtensionError;
 use crate::extension::limits::types::LimitError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Action, FsAction, Principal};
-use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
+use crate::extension::utils::{prompt_on_err, resolve_extension_id};
 use crate::filesystem::{DirEntry, FileStat};
 use crate::AppState;
 use std::path::Path;
@@ -69,10 +69,7 @@ pub async fn extension_filesystem_read_file(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
     crate::filesystem::filesystem_read_file(state, path, app_handle)
@@ -107,10 +104,7 @@ pub async fn extension_filesystem_read_dir(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command (no pagination for extensions)
     crate::filesystem::filesystem_read_dir(state, path, None, None, app_handle)
@@ -146,10 +140,7 @@ pub async fn extension_filesystem_exists(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
     crate::filesystem::filesystem_exists(state, path)
@@ -184,10 +175,7 @@ pub async fn extension_filesystem_stat(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
     crate::filesystem::filesystem_stat(state, path)
@@ -227,10 +215,7 @@ pub async fn extension_filesystem_write_file(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
     crate::filesystem::filesystem_write_file(state, path, data)
@@ -265,10 +250,7 @@ pub async fn extension_filesystem_mkdir(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
     crate::filesystem::filesystem_mkdir(state, path)
@@ -304,10 +286,7 @@ pub async fn extension_filesystem_remove(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
     crate::filesystem::filesystem_remove(state, path, recursive)
@@ -343,10 +322,7 @@ pub async fn extension_filesystem_rename(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Check fs permission for destination path (write - we're creating here)
     let permission_result = PermissionManager::check_filesystem_permission(
@@ -357,10 +333,7 @@ pub async fn extension_filesystem_rename(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
     crate::filesystem::filesystem_rename(state, from, to)
@@ -396,10 +369,7 @@ pub async fn extension_filesystem_copy(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Check fs permission for destination path (write)
     let permission_result = PermissionManager::check_filesystem_permission(
@@ -410,10 +380,7 @@ pub async fn extension_filesystem_copy(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
     crate::filesystem::filesystem_copy(state, from, to)
@@ -559,10 +526,7 @@ pub async fn extension_filesystem_watch(
     )
     .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Start watching the directory (no-op on Android)
     state

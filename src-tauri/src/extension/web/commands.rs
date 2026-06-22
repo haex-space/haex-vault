@@ -9,7 +9,7 @@
 
 use crate::database::core::with_connection;
 use crate::extension::error::ExtensionError;
-use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
+use crate::extension::utils::{prompt_on_err, resolve_extension_id};
 use crate::extension::web::helpers::fetch_web_request;
 use crate::extension::web::types::{WebFetchRequest, WebFetchResponse};
 use crate::AppState;
@@ -72,10 +72,7 @@ pub async fn extension_web_open(
         )
         .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     // Open URL in default browser using tauri-plugin-opener
     tauri_plugin_opener::open_url(&url, None::<&str>).map_err(|e| ExtensionError::WebError {
@@ -118,10 +115,7 @@ pub async fn extension_web_fetch(
         )
         .await;
 
-    if let Err(ref e) = permission_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    permission_result?;
+    prompt_on_err(&app_handle, permission_result)?;
 
     let request = WebFetchRequest {
         url,
