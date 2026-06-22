@@ -266,7 +266,9 @@ pub async fn send_request_once(
 /// Execute a QUIC request/response cycle with up to [`MAX_ATTEMPTS`] attempts,
 /// retrying on transient failures (see [`QuicSendError::is_transient`]).
 ///
-/// `operation` is used for diagnostic logging only.
+/// `operation` is used for diagnostic logging only. Thin wrapper around
+/// [`retry_transient`] — the retry policy, backoff schedule, and log format
+/// live there so there is exactly one place to change them.
 pub async fn send_request_with_retry(
     operation: &str,
     endpoint: &Endpoint,
@@ -275,39 +277,12 @@ pub async fn send_request_with_retry(
     our_signing_key: &ed25519_dalek::SigningKey,
     request_bytes: &[u8],
 ) -> Result<Response, QuicSendError> {
-    let mut last_error: Option<QuicSendError> = None;
-    for attempt in 1..=MAX_ATTEMPTS {
-        match send_request_once(
-            endpoint,
-            addr.clone(),
-            our_did,
-            our_signing_key,
-            request_bytes,
-        )
-        .await
-        {
-            Ok(response) => {
-                if attempt > 1 {
-                    eprintln!("[{operation}] succeeded on attempt {attempt}/{MAX_ATTEMPTS}");
-                }
-                return Ok(response);
-            }
-            Err(e) if !e.is_transient() => return Err(e),
-            Err(e) => {
-                if attempt < MAX_ATTEMPTS {
-                    let delay_ms = RETRY_DELAYS_MS[(attempt - 1) as usize];
-                    eprintln!(
-                        "[{operation}] transient error on attempt \
-                         {attempt}/{MAX_ATTEMPTS}: {e}. \
-                         Retrying in {delay_ms}ms…"
-                    );
-                    tokio::time::sleep(Duration::from_millis(delay_ms)).await;
-                }
-                last_error = Some(e);
-            }
-        }
-    }
-    Err(last_error.expect("loop runs at least once"))
+    retry_transient(
+        operation,
+        || send_request_once(endpoint, addr.clone(), our_did, our_signing_key, request_bytes),
+        QuicSendError::is_transient,
+    )
+    .await
 }
 
 /// Client side of the server-initiated `quic_did_auth` handshake.
