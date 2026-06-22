@@ -31,7 +31,8 @@ fn setup_db() -> DbConnection {
          CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
              table_name TEXT NOT NULL,
              column_name TEXT NOT NULL,
-             PRIMARY KEY(table_name, column_name)
+             row_pks TEXT NOT NULL,
+             PRIMARY KEY(table_name, column_name, row_pks)
          );
          CREATE TABLE devices (
              id TEXT PRIMARY KEY,
@@ -117,6 +118,21 @@ fn pending_count(db: &DbConnection, table: &str, column: &str) -> i64 {
         |r| r.get(0),
     )
     .unwrap()
+}
+
+fn pending_row_pks(db: &DbConnection, table: &str, column: &str) -> Vec<String> {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT row_pks FROM {TABLE_CRDT_PENDING_COLUMNS} \
+             WHERE table_name = ? AND column_name = ? ORDER BY row_pks"
+        ))
+        .unwrap();
+    stmt.query_map(params![table, column], |r| r.get::<_, String>(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect()
 }
 
 fn devices_row_count(db: &DbConnection) -> i64 {
@@ -361,23 +377,59 @@ fn existing_column_newer_hlc_applies_equal_or_older_does_not() {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Pending tracking is idempotent — skipping the same column twice leaves
-//    exactly one pending row.
+// 5. Pending tracking is row-aware: the same (column,row) twice is idempotent,
+//    but distinct rows of one column are each tracked.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn skipping_same_column_twice_is_idempotent() {
+fn skipping_same_row_column_twice_is_idempotent_but_distinct_rows_each_track() {
     let db = setup_db();
-
-    let first = vec![change(r#"{"id":"a"}"#, "bio", "v1", HLC_OLD)];
-    apply_remote_changes_to_db(&db, first, None, None).unwrap();
-
-    let second = vec![change(r#"{"id":"b"}"#, "bio", "v2", HLC_NEW)];
-    apply_remote_changes_to_db(&db, second, None, None).unwrap();
-
+    // Same (column,row) twice → one marker (INSERT OR IGNORE on the triple PK).
+    apply_remote_changes_to_db(
+        &db,
+        vec![change(r#"{"id":"a"}"#, "bio", "v1", HLC_OLD)],
+        None,
+        None,
+    )
+    .unwrap();
+    apply_remote_changes_to_db(
+        &db,
+        vec![change(r#"{"id":"a"}"#, "bio", "v2", HLC_NEW)],
+        None,
+        None,
+    )
+    .unwrap();
     assert_eq!(
-        pending_count(&db, "devices", "bio"),
-        1,
-        "INSERT OR IGNORE on the composite PK must leave exactly one pending row"
+        pending_row_pks(&db, "devices", "bio"),
+        vec![r#"{"id":"a"}"#.to_string()]
+    );
+    // A different row of the same column → a SECOND marker (row-aware).
+    apply_remote_changes_to_db(
+        &db,
+        vec![change(r#"{"id":"b"}"#, "bio", "v3", HLC_NEW)],
+        None,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        pending_row_pks(&db, "devices", "bio"),
+        vec![r#"{"id":"a"}"#.to_string(), r#"{"id":"b"}"#.to_string()],
+        "distinct rows of one column are tracked separately now"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 6. Skip records the owed row's PKs in the marker (row-aware contract).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn skip_records_owed_row_pks() {
+    let db = setup_db();
+    let changes = vec![change(r#"{"id":"dev-1"}"#, "bio", "v1", HLC_MID)];
+    apply_remote_changes_to_db(&db, changes, None, None).unwrap();
+    assert_eq!(
+        pending_row_pks(&db, "devices", "bio"),
+        vec![r#"{"id":"dev-1"}"#.to_string()],
+        "skip must record the owed row's PKs in the marker"
     );
 }

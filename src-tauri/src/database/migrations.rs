@@ -726,14 +726,27 @@ pub struct PendingColumn {
     pub column_name: String,
 }
 
-/// Reads all pending columns from a bare connection.
+/// Row-aware view of a pending marker: the column owed for one specific row.
+/// Rust-internal (the P2P recovery path); the TS/HTTP path uses the
+/// column-granular `PendingColumn`.
+#[derive(Debug, Clone)]
+pub struct PendingColumnRow {
+    pub table_name: String,
+    pub column_name: String,
+    pub row_pks: String,
+}
+
+/// Reads the distinct pending (table, column) pairs from a bare connection.
 ///
-/// Free helper so non-Tauri call sites (the owner-sync request handler and the
-/// sync-loop recovery step) can operate on a `&Connection` directly.
+/// The marker table is now row-granular, but this TS/HTTP-facing helper
+/// collapses the rows to one entry per (table, column) so the HTTP recovery
+/// loop still iterates each column once. Free helper so non-Tauri call sites
+/// (the owner-sync request handler and the sync-loop recovery step) can operate
+/// on a `&Connection` directly.
 pub fn get_pending_columns_inner(conn: &Connection) -> Result<Vec<PendingColumn>, DatabaseError> {
     let mut stmt = conn
         .prepare(&format!(
-            "SELECT table_name, column_name FROM {}",
+            "SELECT DISTINCT table_name, column_name FROM {}",
             TABLE_CRDT_PENDING_COLUMNS
         ))
         .map_err(DatabaseError::from)?;
@@ -752,10 +765,37 @@ pub fn get_pending_columns_inner(conn: &Connection) -> Result<Vec<PendingColumn>
     Ok(columns)
 }
 
-/// Deletes a specific pending column from a bare connection.
+/// Row-aware read for the P2P recovery path: one entry per owed
+/// (table, column, row_pks).
+pub fn get_pending_column_rows_inner(
+    conn: &Connection,
+) -> Result<Vec<PendingColumnRow>, DatabaseError> {
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT table_name, column_name, row_pks FROM {}",
+            TABLE_CRDT_PENDING_COLUMNS
+        ))
+        .map_err(DatabaseError::from)?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(PendingColumnRow {
+                table_name: row.get(0)?,
+                column_name: row.get(1)?,
+                row_pks: row.get(2)?,
+            })
+        })
+        .map_err(DatabaseError::from)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(DatabaseError::from)?;
+    Ok(rows)
+}
+
+/// Deletes EVERY owed row of a pending column from a bare connection.
 ///
-/// Free helper for non-Tauri call sites. Clearing a non-existent pair is a
-/// no-op `Ok` (DELETE affecting zero rows is not an error).
+/// The clear-all-for-column variant used by the authoritative HTTP recovery
+/// path: once the HTTP dump has served a whole column, every row owed for it is
+/// cleared. Free helper for non-Tauri call sites. Clearing a non-existent
+/// column is a no-op `Ok` (DELETE affecting zero rows is not an error).
 pub fn clear_pending_column_inner(
     conn: &Connection,
     table_name: &str,
@@ -767,6 +807,26 @@ pub fn clear_pending_column_inner(
             TABLE_CRDT_PENDING_COLUMNS
         ),
         params![table_name, column_name],
+    )
+    .map_err(DatabaseError::from)?;
+
+    Ok(())
+}
+
+/// Clears ONE owed row of a pending column (P2P recovery clears only rows the
+/// dump actually served). Clearing a non-existent triple is a no-op `Ok`.
+pub fn clear_pending_column_row_inner(
+    conn: &Connection,
+    table_name: &str,
+    column_name: &str,
+    row_pks: &str,
+) -> Result<(), DatabaseError> {
+    conn.execute(
+        &format!(
+            "DELETE FROM {} WHERE table_name = ? AND column_name = ? AND row_pks = ?",
+            TABLE_CRDT_PENDING_COLUMNS
+        ),
+        params![table_name, column_name, row_pks],
     )
     .map_err(DatabaseError::from)?;
 

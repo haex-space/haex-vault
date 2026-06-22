@@ -118,21 +118,32 @@ fn pending_columns_conn() -> Connection {
         "CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
             table_name TEXT NOT NULL,
             column_name TEXT NOT NULL,
-            PRIMARY KEY(table_name, column_name)
+            row_pks TEXT NOT NULL,
+            PRIMARY KEY(table_name, column_name, row_pks)
         );"
     ))
     .expect("create pending-columns table");
     conn
 }
 
-fn insert_pending(conn: &Connection, table_name: &str, column_name: &str) {
+fn insert_pending(conn: &Connection, table_name: &str, column_name: &str, row_pks: &str) {
     conn.execute(
         &format!(
-            "INSERT INTO {TABLE_CRDT_PENDING_COLUMNS} (table_name, column_name) VALUES (?, ?)"
+            "INSERT INTO {TABLE_CRDT_PENDING_COLUMNS} (table_name, column_name, row_pks) VALUES (?, ?, ?)"
         ),
-        rusqlite::params![table_name, column_name],
+        rusqlite::params![table_name, column_name, row_pks],
     )
     .expect("insert pending column");
+}
+
+fn insert_pending_row(conn: &Connection, t: &str, c: &str, pks: &str) {
+    conn.execute(
+        &format!(
+            "INSERT INTO {TABLE_CRDT_PENDING_COLUMNS} (table_name, column_name, row_pks) VALUES (?, ?, ?)"
+        ),
+        rusqlite::params![t, c, pks],
+    )
+    .unwrap();
 }
 
 #[test]
@@ -144,17 +155,17 @@ fn pending_columns_count_is_zero_on_empty() {
 #[test]
 fn pending_columns_count_matches_inserted_rows() {
     let conn = pending_columns_conn();
-    insert_pending(&conn, "haex_files", "thumbnail");
-    insert_pending(&conn, "haex_files", "duration");
-    insert_pending(&conn, "haex_notes", "color");
+    insert_pending(&conn, "haex_files", "thumbnail", r#"{"id":"r1"}"#);
+    insert_pending(&conn, "haex_files", "duration", r#"{"id":"r1"}"#);
+    insert_pending(&conn, "haex_notes", "color", r#"{"id":"r1"}"#);
     assert_eq!(super::pending_columns_count(&conn).unwrap(), 3);
 }
 
 #[test]
 fn get_pending_columns_inner_returns_inserted_pairs() {
     let conn = pending_columns_conn();
-    insert_pending(&conn, "haex_files", "thumbnail");
-    insert_pending(&conn, "haex_notes", "color");
+    insert_pending(&conn, "haex_files", "thumbnail", r#"{"id":"r1"}"#);
+    insert_pending(&conn, "haex_notes", "color", r#"{"id":"r1"}"#);
 
     let mut pairs: Vec<(String, String)> = super::get_pending_columns_inner(&conn)
         .unwrap()
@@ -181,9 +192,9 @@ fn get_pending_columns_inner_is_empty_on_empty_table() {
 #[test]
 fn clear_pending_column_inner_deletes_only_matching_row() {
     let conn = pending_columns_conn();
-    insert_pending(&conn, "haex_files", "thumbnail");
-    insert_pending(&conn, "haex_files", "duration");
-    insert_pending(&conn, "haex_notes", "color");
+    insert_pending(&conn, "haex_files", "thumbnail", r#"{"id":"r1"}"#);
+    insert_pending(&conn, "haex_files", "duration", r#"{"id":"r1"}"#);
+    insert_pending(&conn, "haex_notes", "color", r#"{"id":"r1"}"#);
 
     super::clear_pending_column_inner(&conn, "haex_files", "thumbnail").unwrap();
 
@@ -206,11 +217,143 @@ fn clear_pending_column_inner_deletes_only_matching_row() {
 #[test]
 fn clear_pending_column_inner_nonexistent_pair_is_noop_ok() {
     let conn = pending_columns_conn();
-    insert_pending(&conn, "haex_files", "thumbnail");
+    insert_pending(&conn, "haex_files", "thumbnail", r#"{"id":"r1"}"#);
 
     // Clearing a pair that does not exist must succeed and leave the row intact.
     super::clear_pending_column_inner(&conn, "haex_files", "does_not_exist").unwrap();
     super::clear_pending_column_inner(&conn, "no_such_table", "thumbnail").unwrap();
 
     assert_eq!(super::pending_columns_count(&conn).unwrap(), 1);
+}
+
+#[test]
+fn get_pending_columns_inner_returns_distinct_columns() {
+    let conn = pending_columns_conn();
+    insert_pending_row(&conn, "devices", "bio", r#"{"id":"r1"}"#);
+    insert_pending_row(&conn, "devices", "bio", r#"{"id":"r2"}"#); // same column, 2 rows
+    let cols = super::get_pending_columns_inner(&conn).unwrap();
+    assert_eq!(cols.len(), 1, "TS-facing list dedups to one (table,column)");
+    assert_eq!(
+        (cols[0].table_name.as_str(), cols[0].column_name.as_str()),
+        ("devices", "bio")
+    );
+}
+
+#[test]
+fn get_pending_column_rows_inner_returns_each_owed_row() {
+    let conn = pending_columns_conn();
+    insert_pending_row(&conn, "devices", "bio", r#"{"id":"r1"}"#);
+    insert_pending_row(&conn, "devices", "bio", r#"{"id":"r2"}"#);
+    let rows = super::get_pending_column_rows_inner(&conn).unwrap();
+    assert_eq!(rows.len(), 2);
+}
+
+#[test]
+fn clear_pending_column_row_inner_clears_only_that_row() {
+    let conn = pending_columns_conn();
+    insert_pending_row(&conn, "devices", "bio", r#"{"id":"r1"}"#);
+    insert_pending_row(&conn, "devices", "bio", r#"{"id":"r2"}"#);
+    super::clear_pending_column_row_inner(&conn, "devices", "bio", r#"{"id":"r1"}"#).unwrap();
+    let rows = super::get_pending_column_rows_inner(&conn).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].row_pks, r#"{"id":"r2"}"#);
+}
+
+#[test]
+fn clear_pending_column_inner_clears_all_rows_of_column() {
+    // HTTP authoritative path: clear-all-for-column wipes every owed row.
+    let conn = pending_columns_conn();
+    insert_pending_row(&conn, "devices", "bio", r#"{"id":"r1"}"#);
+    insert_pending_row(&conn, "devices", "bio", r#"{"id":"r2"}"#);
+    super::clear_pending_column_inner(&conn, "devices", "bio").unwrap();
+    assert!(super::get_pending_column_rows_inner(&conn)
+        .unwrap()
+        .is_empty());
+}
+
+// Composite-PK rows: row_pks is a multi-key JSON string. The row-aware read +
+// clear must treat the full string as the row identity (locks in correct
+// handling for the many haex_* tables with composite PKs).
+#[test]
+fn row_aware_helpers_handle_composite_row_pks() {
+    let conn = pending_columns_conn();
+    let composite = r#"{"a":"1","b":"2"}"#;
+    insert_pending_row(&conn, "links", "label", composite);
+    insert_pending_row(&conn, "links", "label", r#"{"a":"1","b":"3"}"#);
+    let rows = super::get_pending_column_rows_inner(&conn).unwrap();
+    assert_eq!(
+        rows.len(),
+        2,
+        "two distinct composite rows tracked separately"
+    );
+    super::clear_pending_column_row_inner(&conn, "links", "label", composite).unwrap();
+    let rows = super::get_pending_column_rows_inner(&conn).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].row_pks, r#"{"a":"1","b":"3"}"#,
+        "only the exact composite row cleared"
+    );
+}
+
+#[test]
+fn pending_columns_migration_0003_widens_pk_to_row_aware() {
+    // The shipped 0003 migration must produce a (table_name, column_name,
+    // row_pks) PK: the same (table,column) for two different rows must coexist.
+    let mig_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("database/migrations");
+    let sql_path = std::fs::read_dir(&mig_dir)
+        .unwrap()
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("0003_") && n.ends_with(".sql"))
+        })
+        .expect("0003 migration must exist");
+    let sql = std::fs::read_to_string(&sql_path).unwrap();
+
+    let conn = Connection::open_in_memory().unwrap();
+    // Old (pre-0003) table shape so the migration's DROP has a target.
+    conn.execute_batch(
+        "CREATE TABLE haex_crdt_pending_columns_no_sync (
+             table_name TEXT NOT NULL,
+             column_name TEXT NOT NULL,
+             PRIMARY KEY(table_name, column_name)
+         );",
+    )
+    .unwrap();
+    // Apply the shipped migration (runner splits on the breakpoint marker).
+    // Faithful to the production runner: it splits on the same breakpoint marker
+    // and additionally pipes each statement through CrdtTransformer, which is a
+    // no-op for `_no_sync` tables (this marker table is one), so the SQL executed
+    // here is byte-identical to what the runner applies.
+    for stmt in sql.split("--> statement-breakpoint") {
+        let stmt = stmt.trim();
+        if !stmt.is_empty() {
+            conn.execute_batch(stmt).unwrap();
+        }
+    }
+
+    // Two rows differing ONLY by row_pks must both insert (new PK admits them).
+    conn.execute(
+        "INSERT INTO haex_crdt_pending_columns_no_sync (table_name, column_name, row_pks)
+         VALUES ('devices','bio','{\"id\":\"r1\"}')",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO haex_crdt_pending_columns_no_sync (table_name, column_name, row_pks)
+         VALUES ('devices','bio','{\"id\":\"r2\"}')",
+        [],
+    )
+    .unwrap();
+    // Exact triple-duplicate must violate the new PK.
+    let dup = conn.execute(
+        "INSERT INTO haex_crdt_pending_columns_no_sync (table_name, column_name, row_pks)
+         VALUES ('devices','bio','{\"id\":\"r1\"}')",
+        [],
+    );
+    assert!(
+        dup.is_err(),
+        "exact (table,column,row_pks) duplicate must be rejected"
+    );
 }

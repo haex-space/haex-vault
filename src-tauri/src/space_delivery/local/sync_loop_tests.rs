@@ -65,9 +65,7 @@ fn cursor_handles_single_failing_message_in_batch() {
 // or QUIC session. They run against an in-memory DbConnection, mirroring
 // the scanner unit tests.
 // =====================================================================
-use super::{
-    collect_push_changes, columns_present_in_changes, recoverable_pending_columns, SyncMode,
-};
+use super::{collect_push_changes, recoverable_pending_columns, rows_present_in_changes, SyncMode};
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
 use crate::table_names::TABLE_CRDT_PENDING_COLUMNS;
@@ -222,36 +220,38 @@ fn pending_filter_conn() -> Connection {
         "CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
             table_name TEXT NOT NULL,
             column_name TEXT NOT NULL,
-            PRIMARY KEY(table_name, column_name)
+            row_pks TEXT NOT NULL,
+            PRIMARY KEY(table_name, column_name, row_pks)
         );"
     ))
     .expect("create pending-columns table");
     conn
 }
 
-fn insert_pending(conn: &Connection, table_name: &str, column_name: &str) {
+fn insert_pending(conn: &Connection, table_name: &str, column_name: &str, row_pks: &str) {
     conn.execute(
         &format!(
-            "INSERT INTO {TABLE_CRDT_PENDING_COLUMNS} (table_name, column_name) VALUES (?, ?)"
+            "INSERT INTO {TABLE_CRDT_PENDING_COLUMNS} (table_name, column_name, row_pks) \
+             VALUES (?, ?, ?)"
         ),
-        rusqlite::params![table_name, column_name],
+        rusqlite::params![table_name, column_name, row_pks],
     )
     .expect("insert pending column");
 }
 
-/// Pending `(notes, title)` where `notes` HAS `title` → recoverable.
+/// Pending `(notes, title, r1)` where `notes` HAS `title` → recoverable.
 #[test]
 fn recoverable_returns_pending_column_that_exists_locally() {
     let conn = pending_filter_conn();
     conn.execute_batch("CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT);")
         .unwrap();
-    insert_pending(&conn, "notes", "title");
+    insert_pending(&conn, "notes", "title", r#"{"id":"r1"}"#);
 
     let recoverable = recoverable_pending_columns(&conn).unwrap();
-    assert_eq!(
-        recoverable,
-        vec![("notes".to_string(), "title".to_string())],
-    );
+    assert_eq!(recoverable.len(), 1);
+    assert_eq!(recoverable[0].table_name, "notes");
+    assert_eq!(recoverable[0].column_name, "title");
+    assert_eq!(recoverable[0].row_pks, r#"{"id":"r1"}"#);
 }
 
 /// Pending `(notes, bio)` where `notes` LACKS `bio` (migration not applied yet)
@@ -263,7 +263,7 @@ fn recoverable_filters_pending_column_not_yet_migrated() {
     // `notes` exists but has no `bio` column yet.
     conn.execute_batch("CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT);")
         .unwrap();
-    insert_pending(&conn, "notes", "bio");
+    insert_pending(&conn, "notes", "bio", r#"{"id":"r1"}"#);
 
     let recoverable = recoverable_pending_columns(&conn).unwrap();
     assert!(
@@ -277,7 +277,7 @@ fn recoverable_filters_pending_column_not_yet_migrated() {
 #[test]
 fn recoverable_filters_pending_column_on_missing_table() {
     let conn = pending_filter_conn();
-    insert_pending(&conn, "ghost_table", "x");
+    insert_pending(&conn, "ghost_table", "x", r#"{"id":"r1"}"#);
 
     let recoverable = recoverable_pending_columns(&conn).unwrap();
     assert!(
@@ -294,10 +294,10 @@ fn recoverable_returns_empty_when_no_pending() {
     assert!(recoverable.is_empty());
 }
 
-fn change(table: &str, column: &str) -> LocalColumnChange {
+fn change(table: &str, column: &str, row_pks: &str) -> LocalColumnChange {
     LocalColumnChange {
         table_name: table.to_string(),
-        row_pks: "{\"id\":\"r1\"}".to_string(),
+        row_pks: row_pks.to_string(),
         column_name: column.to_string(),
         hlc_timestamp: "1000000000000000000/aabbccdd".to_string(),
         value: serde_json::Value::String("v".to_string()),
@@ -305,28 +305,92 @@ fn change(table: &str, column: &str) -> LocalColumnChange {
     }
 }
 
-/// The clear-set is exactly the `(table, column)` pairs the dump carried a value
-/// for — this is the guard that stops an empty/absent column from being cleared
-/// (which would be silent data loss under owner-device version skew).
+/// The clear-set is exactly the `(table, column, row_pks)` triples the dump
+/// carried a value for — this is the guard that stops an empty/absent
+/// row from being cleared (which would be silent data loss under
+/// owner-device row-incompleteness / version skew).
 #[test]
-fn columns_present_in_changes_collects_only_returned_pairs() {
+fn rows_present_in_changes_keys_on_table_column_rowpks() {
     let changes = vec![
-        change("notes", "title"),
-        change("notes", "title"), // duplicate row → still one pair
-        change("tags", "label"),
+        change("devices", "bio", r#"{"id":"r1"}"#),
+        change("devices", "bio", r#"{"id":"r1"}"#), // exact duplicate → one triple
+        change("notes", "body", r#"{"id":"r9"}"#),
     ];
-    let present = columns_present_in_changes(&changes);
+    let present = rows_present_in_changes(&changes);
     assert_eq!(present.len(), 2);
-    assert!(present.contains(&("notes".to_string(), "title".to_string())));
-    assert!(present.contains(&("tags".to_string(), "label".to_string())));
-    // A requested-but-absent column is NOT in the set → recovery must leave it
-    // pending rather than clear it.
-    assert!(!present.contains(&("notes".to_string(), "bio".to_string())));
+    assert!(present.contains(&(
+        "devices".to_string(),
+        "bio".to_string(),
+        r#"{"id":"r1"}"#.to_string()
+    )));
+    assert!(present.contains(&(
+        "notes".to_string(),
+        "body".to_string(),
+        r#"{"id":"r9"}"#.to_string()
+    )));
+    // A different row of the SAME column is NOT in the set → recovery must
+    // leave that row pending rather than clear it.
+    assert!(!present.contains(&(
+        "devices".to_string(),
+        "bio".to_string(),
+        r#"{"id":"r2"}"#.to_string()
+    )));
 }
 
 /// An empty dump yields an empty clear-set → nothing is cleared.
 #[test]
-fn columns_present_in_changes_empty_dump_clears_nothing() {
-    let present = columns_present_in_changes(&[]);
+fn rows_present_in_changes_empty_dump_clears_nothing() {
+    let present = rows_present_in_changes(&[]);
     assert!(present.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Row-aware recovery: a partial dump from a NON-authoritative peer must NOT
+// clear markers for rows it did not serve (silent-data-loss regression).
+// ---------------------------------------------------------------------------
+#[test]
+fn partial_dump_keeps_unserved_rows_pending() {
+    use crate::database::migrations::PendingColumnRow;
+
+    // Two rows of devices.bio are owed (skipped pre-migration).
+    let owed = vec![
+        PendingColumnRow {
+            table_name: "devices".to_string(),
+            column_name: "bio".to_string(),
+            row_pks: r#"{"id":"r1"}"#.to_string(),
+        },
+        PendingColumnRow {
+            table_name: "devices".to_string(),
+            column_name: "bio".to_string(),
+            row_pks: r#"{"id":"r2"}"#.to_string(),
+        },
+    ];
+
+    // The peer we reached is row-incomplete: it served only r1's bio.
+    let present: std::collections::HashSet<(String, String, String)> = [(
+        "devices".to_string(),
+        "bio".to_string(),
+        r#"{"id":"r1"}"#.to_string(),
+    )]
+    .into_iter()
+    .collect();
+
+    let to_clear = super::pending_rows_to_clear(&owed, &present);
+
+    // r1 is recovered and clearable; r2 stays pending (its value still lives
+    // only behind this device's pull cursor on some other peer — clearing it
+    // here would lose it forever).
+    assert_eq!(to_clear.len(), 1, "only the served row may be cleared");
+    assert_eq!(to_clear[0].row_pks, r#"{"id":"r1"}"#);
+}
+
+#[test]
+fn pending_rows_to_clear_empty_present_clears_nothing() {
+    use crate::database::migrations::PendingColumnRow;
+    let owed = vec![PendingColumnRow {
+        table_name: "t".to_string(),
+        column_name: "c".to_string(),
+        row_pks: r#"{"id":"r"}"#.to_string(),
+    }];
+    assert!(super::pending_rows_to_clear(&owed, &Default::default()).is_empty());
 }
