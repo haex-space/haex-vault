@@ -385,20 +385,32 @@ async fn run_sync_loop(
                     // Try to reconnect — in space mode this pulls the current
                     // UCAN from the DB so a token renewed during the outage
                     // takes effect here; in owner mode reconnect re-runs only
-                    // the DID-auth handshake (no UCAN).
-                    match connect_for_mode(
-                        &mode,
-                        &iroh_endpoint,
-                        &leader_endpoint_id,
-                        leader_relay_url.as_deref(),
-                        &space_id,
-                        &our_did,
-                        &our_signing_key,
-                        &our_endpoint_id,
-                        &db,
+                    // the DID-auth handshake (no UCAN). Bounded by the same
+                    // 10s timeout as the initial connect so a hung handshake
+                    // can't wedge the loop and the next iteration still
+                    // observes the stop signal.
+                    let reconnect_result = match tokio::time::timeout(
+                        Duration::from_secs(10),
+                        connect_for_mode(
+                            &mode,
+                            &iroh_endpoint,
+                            &leader_endpoint_id,
+                            leader_relay_url.as_deref(),
+                            &space_id,
+                            &our_did,
+                            &our_signing_key,
+                            &our_endpoint_id,
+                            &db,
+                        ),
                     )
                     .await
                     {
+                        Ok(result) => result,
+                        Err(_) => Err(DeliveryError::ConnectionFailed {
+                            reason: "reconnect timed out after 10s".to_string(),
+                        }),
+                    };
+                    match reconnect_result {
                         Ok(new_session) => {
                             log_sync(
                                 &app_handle,

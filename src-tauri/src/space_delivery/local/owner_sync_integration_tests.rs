@@ -401,10 +401,17 @@ async fn owner_device_pulls_full_vault_over_real_quic() {
     .await
     .expect("B → A connect_owner");
 
-    let (changes_json, _has_more) = session
+    let (changes_json, has_more) = session
         .pull_changes(&vault_space_id, None)
         .await
         .expect("B pull_changes");
+    // This fixture's full vault fits in one page; assert that explicitly so
+    // any later fixture growth past the page budget makes this test fail
+    // loudly instead of silently testing only the first page.
+    assert!(
+        !has_more,
+        "expected single-page pull; streaming-apply tests live in dedicated coverage"
+    );
 
     // Apply on B via the REAL apply path (HlcService built directly — no
     // AppHandle), mirroring sync_loop's pull-apply.

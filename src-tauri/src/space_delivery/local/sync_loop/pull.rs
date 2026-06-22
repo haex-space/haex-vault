@@ -224,7 +224,7 @@ pub(super) async fn run_pull_phase(
             let hlc_service = state.lock_or_fail(
                 &state.hlc,
                 crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-                "space_delivery::local::sync_loop::run_sync_cycle::apply_remote",
+                "space_delivery::local::sync_loop::run_pull_phase::apply_remote",
                 serde_json::json!({}),
             )?;
 
