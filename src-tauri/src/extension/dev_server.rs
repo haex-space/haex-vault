@@ -388,11 +388,15 @@ pub fn remove_dev_extension(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
+    use crate::extension::core::types::ExtensionSource;
     use crate::extension::database::executor::SqlExecutor;
     use crate::extension::permissions::manager::PermissionManager;
     use crate::table_names::TABLE_EXTENSIONS;
 
-    // Find extension by public_key and name
+    // Find extension by public_key and name. The in-memory manager is the
+    // source of truth for the `source` field — if the extension is not
+    // registered there, fail closed: an unknown extension is not a dev
+    // extension and must not be removed via this dev-only path.
     let extension = state
         .extension_manager
         .get_extension_by_public_key_and_name(&public_key, &name)?
@@ -400,6 +404,15 @@ pub fn remove_dev_extension(
             public_key: public_key.clone(),
             name: name.clone(),
         })?;
+
+    // Reject production extensions. They must be removed via the production
+    // path (`remove_extension`). Without this guard, a caller could delete
+    // any installed extension by passing its public_key + name.
+    if !matches!(extension.source, ExtensionSource::Development { .. }) {
+        return Err(ExtensionError::ValidationError {
+            reason: "remove_dev_extension may only be called on development extensions".into(),
+        });
+    }
 
     let extension_id = extension.id.clone();
 
