@@ -1,5 +1,6 @@
 use crate::database::core::select_with_crdt;
 use crate::extension::error::ExtensionError;
+use crate::extension::permissions::manager::check::deny_first_precedence;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{
     Action, ExtensionPermission, PermissionConstraints, PermissionStatus, Principal, ResourceType,
@@ -83,34 +84,21 @@ impl PermissionManager {
                 reason: "URL does not contain a valid host".to_string(),
             })?;
 
-        // Find matching permission for this URL
-        let matching_permission = permissions.iter().find(|perm| {
-            let url_matches = if perm.target == "*" {
-                true
-            } else if perm.target.contains("://") {
-                Self::matches_url_pattern(&perm.target, url)
-            } else {
-                perm.target == domain || domain.ends_with(&format!(".{}", perm.target))
-            };
-            url_matches
-        });
-
-        match matching_permission {
-            Some(perm) => match perm.status {
-                PermissionStatus::Granted => Ok(()),
-                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
-                    extension_id,
-                    "web request",
-                    url,
-                )),
-                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
-                    extension_id,
-                    &extension.manifest.name,
-                    "web",
-                    "request",
-                    url,
-                )),
-            },
+        // Find matching permission status for this URL (deny-first precedence).
+        match web_matching_status(&permissions, url, domain) {
+            Some(PermissionStatus::Granted) => Ok(()),
+            Some(PermissionStatus::Denied) => Err(ExtensionError::permission_denied(
+                extension_id,
+                "web request",
+                url,
+            )),
+            Some(PermissionStatus::Ask) => Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "web",
+                "request",
+                url,
+            )),
             // No matching permission in database - check session permissions
             None => {
                 if app_state.session_permissions.is_granted(
@@ -145,4 +133,38 @@ impl PermissionManager {
             }
         }
     }
+}
+
+/// Resolves the matching web permission status for `(url, domain)` with
+/// **deny-first precedence**. Returns `None` when no web row matches.
+///
+/// Pure helper (no `State<AppState>`) so the security-critical URL/domain
+/// matching and deny-wins precedence are unit-testable, mirroring
+/// `database_matching_status` and `filesystem_matching_status`.
+///
+/// The matching predicate is byte-identical to the pre-refactor
+/// `iter().find()` body: `*` is a universal wildcard, targets containing
+/// `://` are URL patterns, and bare targets match by domain (exact or
+/// suffix-`.target`).
+pub(crate) fn web_matching_status(
+    permissions: &[ExtensionPermission],
+    url: &str,
+    domain: &str,
+) -> Option<PermissionStatus> {
+    deny_first_precedence(
+        permissions
+            .iter()
+            .filter(|perm| {
+                perm.resource_type == ResourceType::Web && {
+                    if perm.target == "*" {
+                        true
+                    } else if perm.target.contains("://") {
+                        PermissionManager::matches_url_pattern(&perm.target, url)
+                    } else {
+                        perm.target == domain || domain.ends_with(&format!(".{}", perm.target))
+                    }
+                }
+            })
+            .map(|perm| perm.status),
+    )
 }

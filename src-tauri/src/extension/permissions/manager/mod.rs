@@ -20,3 +20,5 @@ pub(crate) use check::identities::{
 pub(crate) use check::passwords::{
     parse_passwords_default_marker, resolve_passwords_tags_scope, PasswordsGrantRow,
 };
+#[cfg(test)]
+pub(crate) use check::web::web_matching_status;

@@ -11,11 +11,11 @@ use crate::extension::permissions::manager::{
     database_matching_status, filesystem_matching_has_constraint_violation,
     filesystem_matching_status, format_filesystem_denied_target, identities_matching_status,
     parse_passwords_default_marker, resolve_identities_decision, resolve_passwords_tags_scope,
-    IdentitiesDecision, PasswordsGrantRow,
+    web_matching_status, IdentitiesDecision, PasswordsGrantRow,
 };
 use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction, PasswordsScope,
-    PermissionConstraints, PermissionStatus, ResourceType,
+    PermissionConstraints, PermissionStatus, ResourceType, WebAction,
 };
 use serde_json::json;
 use std::path::PathBuf;
@@ -507,4 +507,65 @@ fn denied_target_string_appends_constraint_violation_suffix() {
 fn denied_target_string_omits_suffix_when_no_constraint_violation() {
     let target = format_filesystem_denied_target("/tmp/file.txt", false);
     assert_eq!(target, "filesystem path '/tmp/file.txt'");
+}
+
+// ---------------------------------------------------------------------------
+// web_matching_status — deny-first precedence for web permissions.
+//
+// A `Denied` row for the same URL/domain MUST override a `Granted` row
+// regardless of insertion order — otherwise the first-match behaviour of the
+// previous `iter().find()` implementation would let a broad `*` grant shadow
+// a more specific deny.
+// ---------------------------------------------------------------------------
+
+fn web_permission(
+    target: &str,
+    action: WebAction,
+    status: PermissionStatus,
+) -> ExtensionPermission {
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: "test-ext-precedence-web".to_string(),
+        resource_type: ResourceType::Web,
+        action: Action::Web(action),
+        target: target.to_string(),
+        constraints: None,
+        status,
+        raw_constraints: None,
+    }
+}
+
+#[test]
+fn deny_wins_web_granted_first() {
+    // SECURITY: a Denied row for a specific URL MUST win even when a broad `*`
+    // Granted row is inserted first.
+    let permissions = vec![
+        web_permission("*", WebAction::Get, PermissionStatus::Granted),
+        web_permission(
+            "https://evil.example.com",
+            WebAction::Get,
+            PermissionStatus::Denied,
+        ),
+    ];
+
+    let resolved =
+        web_matching_status(&permissions, "https://evil.example.com", "evil.example.com");
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn deny_wins_web_denied_first() {
+    // Symmetric to the above: Denied-first order still yields Denied.
+    let permissions = vec![
+        web_permission(
+            "https://evil.example.com",
+            WebAction::Get,
+            PermissionStatus::Denied,
+        ),
+        web_permission("*", WebAction::Get, PermissionStatus::Granted),
+    ];
+
+    let resolved =
+        web_matching_status(&permissions, "https://evil.example.com", "evil.example.com");
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
 }

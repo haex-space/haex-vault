@@ -8,7 +8,7 @@ mod rw_resource;
 mod shell;
 mod spaces;
 mod sync_servers;
-mod web;
+pub(super) mod web;
 
 use crate::extension::permissions::types::PermissionStatus;
 
