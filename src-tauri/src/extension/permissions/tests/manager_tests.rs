@@ -8,13 +8,14 @@ use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::manager::{
-    database_matching_status, filesystem_matching_status, identities_matching_status,
+    database_matching_status, filesystem_matching_has_constraint_violation,
+    filesystem_matching_status, format_filesystem_denied_target, identities_matching_status,
     parse_passwords_default_marker, resolve_identities_decision, resolve_passwords_tags_scope,
     IdentitiesDecision, PasswordsGrantRow,
 };
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, IdentityAction, PasswordsScope,
-    PermissionStatus, ResourceType,
+    Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction, PasswordsScope,
+    PermissionConstraints, PermissionStatus, ResourceType,
 };
 use serde_json::json;
 use std::path::PathBuf;
@@ -421,4 +422,89 @@ fn deny_wins_fs_denied_first() {
         std::path::Path::new("/tmp/x"),
     );
     assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+// ---------------------------------------------------------------------------
+// Constraint-violation diagnostic suffix.
+//
+// Pre-refactor, `check_filesystem_permission` differentiated explicit-deny
+// rows from constraint-violating rows in the error message via a trailing
+// "(constraint violation)" discriminator. The deny-first refactor accidentally
+// dropped that discriminator. These tests lock in:
+//   - `filesystem_matching_has_constraint_violation` flags constraint-violating
+//     rows within the matching set, and
+//   - `format_filesystem_denied_target` appends the suffix iff that flag is set.
+// ---------------------------------------------------------------------------
+
+fn fs_permission_with_extension_constraint(
+    target: &str,
+    action: FsAction,
+    status: PermissionStatus,
+    allowed_extensions: Vec<&str>,
+) -> ExtensionPermission {
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: "test-ext-precedence-fs".to_string(),
+        resource_type: ResourceType::Fs,
+        action: Action::Filesystem(action),
+        target: target.to_string(),
+        constraints: Some(PermissionConstraints::Filesystem(FsConstraints {
+            allowed_extensions: Some(allowed_extensions.into_iter().map(String::from).collect()),
+            ..Default::default()
+        })),
+        status,
+        raw_constraints: None,
+    }
+}
+
+#[test]
+fn constraint_violation_flagged_for_denied_path() {
+    // Row matches by path + action but its extension allow-list excludes the
+    // file's extension → constraint-violating row in the matching set.
+    let permissions = vec![fs_permission_with_extension_constraint(
+        "/tmp/*",
+        FsAction::Read,
+        PermissionStatus::Granted,
+        vec![".md"],
+    )];
+    assert!(filesystem_matching_has_constraint_violation(
+        &permissions,
+        "/tmp/file.txt",
+        &Action::Filesystem(FsAction::Read),
+        std::path::Path::new("/tmp/file.txt"),
+    ));
+}
+
+#[test]
+fn constraint_violation_not_flagged_for_plain_denied_row() {
+    // A Denied row with no constraints must NOT be flagged as a
+    // constraint violation — the suffix is reserved for the (allow-list)
+    // failure case.
+    let permissions = vec![fs_permission(
+        "/tmp/x",
+        FsAction::Read,
+        PermissionStatus::Denied,
+    )];
+    assert!(!filesystem_matching_has_constraint_violation(
+        &permissions,
+        "/tmp/x",
+        &Action::Filesystem(FsAction::Read),
+        std::path::Path::new("/tmp/x"),
+    ));
+}
+
+#[test]
+fn denied_target_string_appends_constraint_violation_suffix() {
+    // Byte-identical wording match to pre-refactor diagnostics.
+    let target = format_filesystem_denied_target("/tmp/file.txt", true);
+    assert_eq!(
+        target,
+        "filesystem path '/tmp/file.txt' (constraint violation)"
+    );
+}
+
+#[test]
+fn denied_target_string_omits_suffix_when_no_constraint_violation() {
+    let target = format_filesystem_denied_target("/tmp/file.txt", false);
+    assert_eq!(target, "filesystem path '/tmp/file.txt'");
 }

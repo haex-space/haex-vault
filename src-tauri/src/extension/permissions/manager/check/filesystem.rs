@@ -37,11 +37,22 @@ impl PermissionManager {
 
         match resolved {
             Some(PermissionStatus::Granted) => Ok(()),
-            Some(PermissionStatus::Denied) => Err(ExtensionError::permission_denied(
-                extension_id,
-                &action.as_str(),
-                &format!("filesystem path '{}'", file_path_str),
-            )),
+            Some(PermissionStatus::Denied) => {
+                // Preserve the pre-refactor "(constraint violation)"
+                // diagnostic discriminator when the deny was triggered by a
+                // constraint-violating row rather than an explicit Denied row.
+                let has_constraint_violation = filesystem_matching_has_constraint_violation(
+                    &permissions,
+                    &file_path_str,
+                    &action,
+                    file_path,
+                );
+                Err(ExtensionError::permission_denied(
+                    extension_id,
+                    &action.as_str(),
+                    &format_filesystem_denied_target(&file_path_str, has_constraint_violation),
+                ))
+            }
             Some(PermissionStatus::Ask) => Err(ExtensionError::permission_prompt_required(
                 extension_id,
                 &extension.manifest.name,
@@ -68,7 +79,7 @@ impl PermissionManager {
                     return Err(ExtensionError::permission_denied(
                         extension_id,
                         &action.as_str(),
-                        &format!("filesystem path '{}'", file_path_str),
+                        &format_filesystem_denied_target(&file_path_str, false),
                     ));
                 }
 
@@ -153,36 +164,76 @@ pub(crate) fn filesystem_matching_status(
     action: &Action,
     file_path: &Path,
 ) -> Option<PermissionStatus> {
-    let passes_constraints = |perm: &ExtensionPermission| -> bool {
-        if let Some(PermissionConstraints::Filesystem(constraints)) = &perm.constraints {
-            if let Some(allowed_ext) = &constraints.allowed_extensions {
-                if let Some(ext) = file_path.extension() {
-                    let ext_str = format!(".{}", ext.to_string_lossy());
-                    if !allowed_ext.contains(&ext_str) {
-                        return false;
-                    }
-                } else {
-                    return false;
-                }
-            }
-        }
-        true
-    };
-
     deny_first_precedence(
-        permissions
-            .iter()
-            .filter(|perm| {
-                perm.resource_type == ResourceType::Fs
-                    && perm.action == *action
-                    && PermissionManager::matches_path_pattern(&perm.target, file_path_str)
-            })
-            .map(|perm| {
-                if passes_constraints(perm) {
-                    perm.status
-                } else {
-                    PermissionStatus::Denied
-                }
-            }),
+        matching_filesystem_rows(permissions, file_path_str, action).map(|perm| {
+            if fs_constraints_pass(perm, file_path) {
+                perm.status
+            } else {
+                PermissionStatus::Denied
+            }
+        }),
     )
+}
+
+/// Returns `true` iff ANY row in the FS matching set fails its constraints
+/// (e.g. extension allowlist). Callers combine this with the resolved status
+/// from [`filesystem_matching_status`] to decide whether a denial diagnostic
+/// should be tagged with the pre-refactor `(constraint violation)` suffix.
+pub(crate) fn filesystem_matching_has_constraint_violation(
+    permissions: &[ExtensionPermission],
+    file_path_str: &str,
+    action: &Action,
+    file_path: &Path,
+) -> bool {
+    matching_filesystem_rows(permissions, file_path_str, action)
+        .any(|perm| !fs_constraints_pass(perm, file_path))
+}
+
+/// Formats the `target` field of a filesystem `permission_denied` error,
+/// preserving the pre-refactor diagnostic discriminator
+/// `" (constraint violation)"` when the denial was caused by a constraint-
+/// violating row rather than an explicit `Denied` permission.
+pub(crate) fn format_filesystem_denied_target(
+    file_path_str: &str,
+    has_constraint_violation: bool,
+) -> String {
+    if has_constraint_violation {
+        format!("filesystem path '{}' (constraint violation)", file_path_str)
+    } else {
+        format!("filesystem path '{}'", file_path_str)
+    }
+}
+
+/// Iterator over FS permission rows whose `(resource_type, action, target)`
+/// triple matches the given `(file_path_str, action)`. Constraint evaluation
+/// is intentionally NOT included here — callers (status resolver, constraint
+/// flag) consume the same matching set with different downstream rules.
+fn matching_filesystem_rows<'a>(
+    permissions: &'a [ExtensionPermission],
+    file_path_str: &'a str,
+    action: &'a Action,
+) -> impl Iterator<Item = &'a ExtensionPermission> {
+    permissions.iter().filter(move |perm| {
+        perm.resource_type == ResourceType::Fs
+            && perm.action == *action
+            && PermissionManager::matches_path_pattern(&perm.target, file_path_str)
+    })
+}
+
+/// `true` iff `perm`'s filesystem constraints (currently: the optional
+/// extension allowlist) are satisfied by `file_path`.
+fn fs_constraints_pass(perm: &ExtensionPermission, file_path: &Path) -> bool {
+    let Some(PermissionConstraints::Filesystem(constraints)) = &perm.constraints else {
+        return true;
+    };
+    let Some(allowed_ext) = &constraints.allowed_extensions else {
+        return true;
+    };
+    match file_path.extension() {
+        Some(ext) => {
+            let ext_str = format!(".{}", ext.to_string_lossy());
+            allowed_ext.contains(&ext_str)
+        }
+        None => false,
+    }
 }
