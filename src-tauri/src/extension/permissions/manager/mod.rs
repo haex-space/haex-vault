@@ -8,6 +8,8 @@ pub struct PermissionManager;
 #[cfg(test)]
 pub(crate) use check::database::database_matching_status;
 #[cfg(test)]
+pub(crate) use check::filesystem::filesystem_matching_status;
+#[cfg(test)]
 pub(crate) use check::identities::{
     identities_matching_status, resolve_identities_decision, IdentitiesDecision,
 };

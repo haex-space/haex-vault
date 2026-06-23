@@ -1,6 +1,7 @@
 use crate::extension::error::ExtensionError;
 #[cfg(desktop)]
 use crate::extension::permissions::checker::PermissionChecker;
+use crate::extension::permissions::manager::check::deny_first_precedence;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{
     Action, ExtensionPermission, PermissionConstraints, PermissionStatus, Principal, ResourceType,
@@ -26,55 +27,28 @@ impl PermissionManager {
             Self::load_extension_and_permissions(app_state, principal).await?;
         let file_path_str = file_path.to_string_lossy();
 
-        // Find matching permission for this path and action
-        let matching_permission = permissions.iter().find(|perm| {
-            perm.resource_type == ResourceType::Fs
-                && perm.action == action
-                && Self::matches_path_pattern(&perm.target, &file_path_str)
-        });
+        // Resolve matching permissions deny-first, so an explicit `Denied` row
+        // can never be hidden behind a `Granted` row regardless of insertion
+        // order. Constraint-violating rows (e.g. file-extension allowlist) are
+        // treated as `Denied` within the matching set, preserving the
+        // pre-refactor "constraint failure = deny" semantics. See
+        // `deny_first_precedence` for the precedence rules.
+        let resolved = filesystem_matching_status(&permissions, &file_path_str, &action, file_path);
 
-        // Check constraints if we have a matching permission
-        let passes_constraints = |perm: &ExtensionPermission| -> bool {
-            if let Some(PermissionConstraints::Filesystem(constraints)) = &perm.constraints {
-                if let Some(allowed_ext) = &constraints.allowed_extensions {
-                    if let Some(ext) = file_path.extension() {
-                        let ext_str = format!(".{}", ext.to_string_lossy());
-                        if !allowed_ext.contains(&ext_str) {
-                            return false;
-                        }
-                    } else {
-                        return false;
-                    }
-                }
-            }
-            true
-        };
-
-        match matching_permission {
-            Some(perm) => {
-                if !passes_constraints(perm) {
-                    return Err(ExtensionError::permission_denied(
-                        extension_id,
-                        &format!("{:?}", action),
-                        &format!("filesystem path '{}' (constraint violation)", file_path_str),
-                    ));
-                }
-                match perm.status {
-                    PermissionStatus::Granted => Ok(()),
-                    PermissionStatus::Denied => Err(ExtensionError::permission_denied(
-                        extension_id,
-                        &action.as_str(),
-                        &format!("filesystem path '{}'", file_path_str),
-                    )),
-                    PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
-                        extension_id,
-                        &extension.manifest.name,
-                        "fs",
-                        &action.as_str(),
-                        &file_path_str,
-                    )),
-                }
-            }
+        match resolved {
+            Some(PermissionStatus::Granted) => Ok(()),
+            Some(PermissionStatus::Denied) => Err(ExtensionError::permission_denied(
+                extension_id,
+                &action.as_str(),
+                &format!("filesystem path '{}'", file_path_str),
+            )),
+            Some(PermissionStatus::Ask) => Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "fs",
+                &action.as_str(),
+                &file_path_str,
+            )),
             // No matching permission in database - check session permissions
             None => {
                 if app_state.session_permissions.is_granted(
@@ -161,4 +135,54 @@ impl PermissionManager {
             session_denied,
         )
     }
+}
+
+/// Resolves the matching filesystem permission status for `(file_path, action)`
+/// with **deny-first precedence**. Returns `None` when no FS row matches.
+///
+/// Constraint-violating rows (e.g. file-extension allowlist) are treated as
+/// `Denied` within the matching set, preserving the pre-refactor semantics
+/// where a single constraint-violating row caused a denial.
+///
+/// Pure helper (no `State<AppState>`) so the security-critical action+target
+/// matching and deny-wins precedence are unit-testable, mirroring
+/// `database_matching_status`.
+pub(crate) fn filesystem_matching_status(
+    permissions: &[ExtensionPermission],
+    file_path_str: &str,
+    action: &Action,
+    file_path: &Path,
+) -> Option<PermissionStatus> {
+    let passes_constraints = |perm: &ExtensionPermission| -> bool {
+        if let Some(PermissionConstraints::Filesystem(constraints)) = &perm.constraints {
+            if let Some(allowed_ext) = &constraints.allowed_extensions {
+                if let Some(ext) = file_path.extension() {
+                    let ext_str = format!(".{}", ext.to_string_lossy());
+                    if !allowed_ext.contains(&ext_str) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+        }
+        true
+    };
+
+    deny_first_precedence(
+        permissions
+            .iter()
+            .filter(|perm| {
+                perm.resource_type == ResourceType::Fs
+                    && perm.action == *action
+                    && PermissionManager::matches_path_pattern(&perm.target, file_path_str)
+            })
+            .map(|perm| {
+                if passes_constraints(perm) {
+                    perm.status
+                } else {
+                    PermissionStatus::Denied
+                }
+            }),
+    )
 }

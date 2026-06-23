@@ -8,13 +8,13 @@ use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::manager::{
-    database_matching_status, identities_matching_status, parse_passwords_default_marker,
-    resolve_identities_decision, resolve_passwords_tags_scope, IdentitiesDecision,
-    PasswordsGrantRow,
+    database_matching_status, filesystem_matching_status, identities_matching_status,
+    parse_passwords_default_marker, resolve_identities_decision, resolve_passwords_tags_scope,
+    IdentitiesDecision, PasswordsGrantRow,
 };
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, IdentityAction, PasswordsScope, PermissionStatus,
-    ResourceType,
+    Action, DbAction, ExtensionPermission, FsAction, IdentityAction, PasswordsScope,
+    PermissionStatus, ResourceType,
 };
 use serde_json::json;
 use std::path::PathBuf;
@@ -363,5 +363,62 @@ fn deny_wins_db_denied_first() {
     let checker = PermissionChecker::new(extension, permissions.clone());
 
     let resolved = database_matching_status(&permissions, "users", DbAction::Read, &checker);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+// ---------------------------------------------------------------------------
+// filesystem_matching_status — deny-first precedence for FS permissions.
+//
+// A `Denied` row for the same (path, action) MUST override a `Granted` row
+// regardless of insertion order — otherwise the first-match behaviour of the
+// previous `iter().find()` implementation would let a broad grant shadow a
+// more specific deny.
+// ---------------------------------------------------------------------------
+
+fn fs_permission(target: &str, action: FsAction, status: PermissionStatus) -> ExtensionPermission {
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: "test-ext-precedence-fs".to_string(),
+        resource_type: ResourceType::Fs,
+        action: Action::Filesystem(action),
+        target: target.to_string(),
+        constraints: None,
+        status,
+        raw_constraints: None,
+    }
+}
+
+#[test]
+fn deny_wins_fs_granted_first() {
+    // SECURITY: a Denied row for the same (path, action) MUST win even when
+    // the Granted row is inserted first.
+    let permissions = vec![
+        fs_permission("/tmp/x", FsAction::Read, PermissionStatus::Granted),
+        fs_permission("/tmp/x", FsAction::Read, PermissionStatus::Denied),
+    ];
+
+    let resolved = filesystem_matching_status(
+        &permissions,
+        "/tmp/x",
+        &Action::Filesystem(FsAction::Read),
+        std::path::Path::new("/tmp/x"),
+    );
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn deny_wins_fs_denied_first() {
+    // Symmetric to the above: Denied-first order still yields Denied.
+    let permissions = vec![
+        fs_permission("/tmp/x", FsAction::Read, PermissionStatus::Denied),
+        fs_permission("/tmp/x", FsAction::Read, PermissionStatus::Granted),
+    ];
+
+    let resolved = filesystem_matching_status(
+        &permissions,
+        "/tmp/x",
+        &Action::Filesystem(FsAction::Read),
+        std::path::Path::new("/tmp/x"),
+    );
     assert_eq!(resolved, Some(PermissionStatus::Denied));
 }

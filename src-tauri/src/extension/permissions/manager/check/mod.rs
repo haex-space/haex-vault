@@ -1,5 +1,5 @@
 pub(super) mod database;
-mod filesystem;
+pub(super) mod filesystem;
 pub(super) mod identities;
 mod mail;
 mod notifications;
