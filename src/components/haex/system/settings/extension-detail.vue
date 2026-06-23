@@ -15,277 +15,44 @@
         {{ t('devExtension') }}
       </UBadge>
     </template>
-      <!-- Extension Info Section -->
-      <HaexSystemSettingsLayoutSection
-        :title="t('info')"
-        default-open
-      >
-        <template #actions>
-          <UiButton
-            v-if="hasUpdate && !extension.devServerUrl"
-            :label="t('update')"
-            icon="i-heroicons-arrow-up-circle"
-            color="warning"
-            :loading="isUpdating"
-            @click="() => void handleUpdateAsync()"
-          />
-          <UiButton
-            :label="t('remove')"
-            icon="i-heroicons-trash"
-            color="error"
-            variant="outline"
-            @click="confirmRemove"
-          />
-          <UiButton
-            :label="t('open')"
-            icon="i-heroicons-play"
-            @click="openExtensionAsync"
-          />
-        </template>
 
-        <div class="space-y-3">
-          <!-- Icon and Info Row -->
-          <div class="flex items-start gap-3">
-            <div
-              class="w-16 h-16 shrink-0 rounded-lg bg-elevated flex items-center justify-center overflow-hidden"
-            >
-              <HaexIcon
-                :name="extension.iconUrl || 'i-heroicons-puzzle-piece'"
-                class="w-full h-full object-contain"
-              />
-            </div>
+    <ExtensionInfoSection
+      :extension="extension"
+      :has-update="hasUpdate"
+      :is-updating="isUpdating"
+      :is-checking-update="isCheckingUpdate"
+      :latest-available-version="latestAvailableVersion"
+      @update="() => void handleUpdateAsync()"
+      @remove="confirmRemove"
+      @open="openExtensionAsync"
+    />
 
-            <div class="flex-1 min-w-0 text-sm space-y-1">
-              <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span class="font-medium">{{ t('version') }}:</span>
-                <span>{{ extension.version }}</span>
-                <!-- Loading indicator while checking for updates -->
-                <UIcon
-                  v-if="isCheckingUpdate"
-                  name="i-heroicons-arrow-path"
-                  class="w-4 h-4 animate-spin text-gray-400"
-                />
-                <!-- Latest version badge -->
-                <UBadge
-                  v-if="latestAvailableVersion && !isCheckingUpdate"
-                  :color="hasUpdate ? 'warning' : 'success'"
-                  variant="subtle"
-                  size="md"
-                >
-                  {{ hasUpdate ? t('latestVersion', { version: latestAvailableVersion }) : t('upToDate') }}
-                </UBadge>
-              </div>
-              <div v-if="extension.author">
-                <span class="font-medium">{{ t('author') }}:</span>
-                {{ extension.author }}
-              </div>
-            </div>
-          </div>
+    <ExtensionSettingsSection
+      v-model:selected-display-mode="selectedDisplayMode"
+      :extension="extension"
+      :display-mode-options="displayModeOptions"
+      @update-display-mode="updateDisplayModeAsync"
+    />
 
-          <div
-            v-if="extension.description"
-            class="text-sm text-gray-600 dark:text-gray-300"
-          >
-            {{ extension.description }}
-          </div>
-        </div>
-      </HaexSystemSettingsLayoutSection>
+    <ExtensionPermissionsSection
+      v-model:editable-permissions="editablePermissions"
+      :loading-permissions="loadingPermissions"
+      :saving-permissions="savingPermissions"
+      :has-any-permissions="hasAnyPermissions"
+      :has-permission-changes="hasPermissionChanges"
+      :permission-accordion-items="permissionAccordionItems"
+      @save="() => void savePermissionsAsync(extension.id)"
+    />
 
-      <!-- Settings Section -->
-      <HaexSystemSettingsLayoutSection
-        :title="t('settings')"
-      >
-        <UiListContainer>
-          <UiListItem>
-            <div>
-              <div class="font-medium text-sm">{{ t('displayMode') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('displayModeDescription') }}
-              </div>
-            </div>
-            <template #actions>
-              <USelectMenu
-                v-model="selectedDisplayMode"
-                :items="displayModeOptions"
-                class="w-40"
-                :search-input="false"
-                @update:model-value="updateDisplayModeAsync"
-              />
-            </template>
-          </UiListItem>
+    <!-- Limits Section -->
+    <HaexExtensionLimitsCard :extension-id="extension.id" />
 
-          <UiListItem>
-            <div>
-              <div class="font-medium text-sm">{{ t('singleInstance') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('singleInstanceDescription') }}
-              </div>
-            </div>
-            <template #actions>
-              <span class="text-sm">{{
-                extension.singleInstance ? t('yes') : t('no')
-              }}</span>
-            </template>
-          </UiListItem>
-
-          <UiListItem>
-            <div>
-              <div class="font-medium text-sm">{{ t('id') }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('idDescription') }}
-              </div>
-            </div>
-            <template #actions>
-              <code
-                class="text-xs bg-muted px-2 py-1 rounded break-all max-w-[50%] text-right"
-              >
-                {{ extension.id }}
-              </code>
-            </template>
-          </UiListItem>
-
-          <UiListItem v-if="extension.homepage">
-            <div>
-              <div class="font-medium text-sm">{{ t('homepage') }}</div>
-            </div>
-            <template #actions>
-              <a
-                :href="extension.homepage"
-                target="_blank"
-                class="text-sm text-primary hover:underline truncate max-w-[50%]"
-              >
-                {{ extension.homepage }}
-              </a>
-            </template>
-          </UiListItem>
-        </UiListContainer>
-      </HaexSystemSettingsLayoutSection>
-
-      <!-- Permissions Section -->
-      <HaexSystemSettingsLayoutSection
-        :title="t('permissions')"
-      >
-        <template #actions>
-          <UiButton
-            v-if="hasAnyPermissions"
-            :label="t('savePermissions')"
-            :loading="savingPermissions"
-            :disabled="!hasPermissionChanges"
-            @click="savePermissionsAsync"
-          />
-        </template>
-
-        <div
-          v-if="loadingPermissions"
-          class="flex justify-center py-4"
-        >
-          <UIcon
-            name="i-heroicons-arrow-path"
-            class="w-6 h-6 animate-spin text-primary"
-          />
-        </div>
-
-        <div
-          v-else
-          class="space-y-4"
-        >
-          <UAccordion
-            v-if="hasAnyPermissions"
-            :items="permissionAccordionItems"
-            :ui="{ root: 'flex flex-col gap-2' }"
-          >
-            <template #database>
-              <HaexExtensionPermissionList
-                v-model="editablePermissions.database"
-              />
-            </template>
-            <template #filesystem>
-              <HaexExtensionPermissionList
-                v-model="editablePermissions.filesystem"
-              />
-            </template>
-            <template #http>
-              <HaexExtensionPermissionList v-model="editablePermissions.http" />
-            </template>
-            <template #shell>
-              <HaexExtensionPermissionList
-                v-model="editablePermissions.shell"
-              />
-            </template>
-            <template #syncServers>
-              <HaexExtensionPermissionList
-                v-model="editablePermissions.syncServers"
-              />
-            </template>
-            <template #cloudStorage>
-              <HaexExtensionPermissionList
-                v-model="editablePermissions.cloudStorage"
-              />
-            </template>
-            <template #syncRules>
-              <HaexExtensionPermissionList
-                v-model="editablePermissions.syncRules"
-              />
-            </template>
-          </UAccordion>
-
-          <HaexSystemSettingsLayoutEmpty
-            v-if="!hasAnyPermissions"
-            :message="t('noPermissions')"
-            icon="i-heroicons-shield-check"
-          />
-        </div>
-      </HaexSystemSettingsLayoutSection>
-
-      <!-- Limits Section -->
-      <HaexExtensionLimitsCard :extension-id="extension.id" />
-
-      <!-- Session Permissions Section -->
-      <HaexSystemSettingsLayoutSection
-        v-if="sessionPermissions.length > 0"
-        :title="t('sessionPermissions')"
-        :description="t('sessionPermissionsDescription')"
-      >
-        <UiListContainer>
-          <UiListItem
-            v-for="permission in sessionPermissions"
-            :key="`${permission.resourceType}-${permission.target}`"
-          >
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <UIcon
-                  :name="getPermissionIcon(permission.resourceType)"
-                  class="w-4 h-4"
-                />
-                <span class="font-medium">{{ t(`permissionTypes.${getPermissionTypeKey(permission.resourceType)}`) }}</span>
-                <UBadge
-                  :color="permission.status === 'granted' ? 'success' : 'error'"
-                  variant="subtle"
-                >
-                  {{ permission.status === 'granted' ? t('sessionGranted') : t('sessionDenied') }}
-                </UBadge>
-              </div>
-              <div class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-mono truncate">
-                {{ permission.target }}
-              </div>
-              <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                {{ t('sessionHint') }}
-              </div>
-            </div>
-            <template #actions>
-              <UButton
-                color="error"
-                variant="ghost"
-                :loading="revokingSessionPermission === `${permission.resourceType}-${permission.target}`"
-                @click="revokeSessionPermissionAsync(permission)"
-              >
-                <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
-                {{ t('revoke') }}
-              </UButton>
-            </template>
-          </UiListItem>
-        </UiListContainer>
-      </HaexSystemSettingsLayoutSection>
+    <ExtensionSessionPermissions
+      v-if="sessionPermissions.length > 0"
+      :session-permissions="sessionPermissions"
+      :revoking-key="revokingSessionPermission"
+      @revoke="(p) => void revokeSessionPermissionAsync(extension.id, p)"
+    />
 
     <!-- Remove Confirmation Dialog -->
     <HaexExtensionDialogRemove
@@ -306,23 +73,15 @@
 </template>
 
 <script setup lang="ts">
-import { invoke } from '@tauri-apps/api/core'
 import { useMarketplaces } from '~/composables/useMarketplaces'
-import type { IHaexSpaceExtension } from '~/types/haexspace'
-import type { PermissionEntry } from '~~/src-tauri/bindings/PermissionEntry'
-import type { DisplayMode } from '~~/src-tauri/bindings/DisplayMode'
-import type { ExtensionPermission } from '~~/src-tauri/bindings/ExtensionPermission'
+import { useExtensionDetailState } from '~/composables/useExtensionDetailState'
 import { useExtensionUpdate } from '~/composables/useExtensionUpdate'
-
-interface ExtensionPermissionsEditable {
-  database?: PermissionEntry[] | null
-  filesystem?: PermissionEntry[] | null
-  http?: PermissionEntry[] | null
-  shell?: PermissionEntry[] | null
-  syncServers?: PermissionEntry[] | null
-  cloudStorage?: PermissionEntry[] | null
-  syncRules?: PermissionEntry[] | null
-}
+import type { IHaexSpaceExtension } from '~/types/haexspace'
+import type { DisplayMode } from '~~/src-tauri/bindings/DisplayMode'
+import ExtensionInfoSection from './extension-detail/ExtensionInfoSection.vue'
+import ExtensionSettingsSection from './extension-detail/ExtensionSettingsSection.vue'
+import ExtensionPermissionsSection from './extension-detail/ExtensionPermissionsSection.vue'
+import ExtensionSessionPermissions from './extension-detail/ExtensionSessionPermissions.vue'
 
 const props = defineProps<{
   extension: IHaexSpaceExtension
@@ -447,32 +206,21 @@ const updateDisplayModeAsync = async (
   }
 }
 
-// Permissions
-const loadingPermissions = ref(true)
-const savingPermissions = ref(false)
-const originalPermissions = ref<ExtensionPermissionsEditable>({
-  database: null,
-  filesystem: null,
-  http: null,
-  shell: null,
-  syncServers: null,
-  cloudStorage: null,
-  syncRules: null,
-})
-const editablePermissions = ref<ExtensionPermissionsEditable>({
-  database: null,
-  filesystem: null,
-  http: null,
-  shell: null,
-  syncServers: null,
-  cloudStorage: null,
-  syncRules: null,
-})
-
-// Session permissions (in-memory, not persisted)
-const sessionPermissions = ref<ExtensionPermission[]>([])
-const revokingSessionPermission = ref<string | null>(null)
-
+// Permissions + session permissions state (persistent + in-memory)
+const {
+  loadingPermissions,
+  savingPermissions,
+  editablePermissions,
+  sessionPermissions,
+  revokingSessionPermission,
+  hasAnyPermissions,
+  hasPermissionChanges,
+  permissionAccordionItems,
+  loadPermissionsAsync,
+  savePermissionsAsync,
+  loadSessionPermissionsAsync,
+  revokeSessionPermissionAsync,
+} = useExtensionDetailState()
 
 // Remove dialog
 const removeDialogOpen = ref(false)
@@ -485,211 +233,6 @@ const {
   downloadForUpdateAsync,
   confirmUpdateAsync,
 } = useExtensionUpdate()
-
-const hasAnyPermissions = computed(() => {
-  return (
-    (editablePermissions.value.database?.length ?? 0) > 0 ||
-    (editablePermissions.value.filesystem?.length ?? 0) > 0 ||
-    (editablePermissions.value.http?.length ?? 0) > 0 ||
-    (editablePermissions.value.shell?.length ?? 0) > 0 ||
-    (editablePermissions.value.syncServers?.length ?? 0) > 0 ||
-    (editablePermissions.value.cloudStorage?.length ?? 0) > 0 ||
-    (editablePermissions.value.syncRules?.length ?? 0) > 0
-  )
-})
-
-const hasPermissionChanges = computed(() => {
-  const compareArrays = (a: PermissionEntry[] | null | undefined, b: PermissionEntry[] | null | undefined) => {
-    if (!a && !b) return true
-    if (!a || !b) return false
-    if (a.length !== b.length) return false
-    return a.every((item, index) => {
-      const other = b[index]
-      return item.target === other?.target && item.status === other?.status
-    })
-  }
-
-  return (
-    !compareArrays(editablePermissions.value.database, originalPermissions.value.database) ||
-    !compareArrays(editablePermissions.value.filesystem, originalPermissions.value.filesystem) ||
-    !compareArrays(editablePermissions.value.http, originalPermissions.value.http) ||
-    !compareArrays(editablePermissions.value.shell, originalPermissions.value.shell) ||
-    !compareArrays(editablePermissions.value.syncServers, originalPermissions.value.syncServers) ||
-    !compareArrays(editablePermissions.value.cloudStorage, originalPermissions.value.cloudStorage) ||
-    !compareArrays(editablePermissions.value.syncRules, originalPermissions.value.syncRules)
-  )
-})
-
-const permissionAccordionItems = computed(() => {
-  const items = []
-
-  if ((editablePermissions.value.database?.length ?? 0) > 0) {
-    items.push({
-      label: t('permissionTypes.database'),
-      icon: 'i-heroicons-circle-stack',
-      slot: 'database',
-      defaultOpen: true,
-    })
-  }
-
-  if ((editablePermissions.value.filesystem?.length ?? 0) > 0) {
-    items.push({
-      label: t('permissionTypes.filesystem'),
-      icon: 'i-heroicons-folder',
-      slot: 'filesystem',
-    })
-  }
-
-  if ((editablePermissions.value.http?.length ?? 0) > 0) {
-    items.push({
-      label: t('permissionTypes.http'),
-      icon: 'i-heroicons-globe-alt',
-      slot: 'http',
-    })
-  }
-
-  if ((editablePermissions.value.shell?.length ?? 0) > 0) {
-    items.push({
-      label: t('permissionTypes.shell'),
-      icon: 'i-heroicons-command-line',
-      slot: 'shell',
-    })
-  }
-
-  if ((editablePermissions.value.syncServers?.length ?? 0) > 0) {
-    items.push({
-      label: t('permissionTypes.syncServers'),
-      icon: 'i-heroicons-server',
-      slot: 'syncServers',
-    })
-  }
-
-  if ((editablePermissions.value.cloudStorage?.length ?? 0) > 0) {
-    items.push({
-      label: t('permissionTypes.cloudStorage'),
-      icon: 'i-heroicons-cloud-arrow-up',
-      slot: 'cloudStorage',
-    })
-  }
-
-  if ((editablePermissions.value.syncRules?.length ?? 0) > 0) {
-    items.push({
-      label: t('permissionTypes.syncRules'),
-      icon: 'i-heroicons-arrow-path',
-      slot: 'syncRules',
-    })
-  }
-
-  return items
-})
-
-// Helper functions for session permissions
-const getPermissionIcon = (resourceType: string): string => {
-  const icons: Record<string, string> = {
-    db: 'i-heroicons-circle-stack',
-    fs: 'i-heroicons-folder',
-    web: 'i-heroicons-globe-alt',
-    shell: 'i-heroicons-command-line',
-    syncServers: 'i-heroicons-server',
-    cloudStorage: 'i-heroicons-cloud-arrow-up',
-    syncRules: 'i-heroicons-arrow-path',
-  }
-  return icons[resourceType] || 'i-heroicons-shield-check'
-}
-
-const getPermissionTypeKey = (resourceType: string): string => {
-  const keys: Record<string, string> = {
-    db: 'database',
-    fs: 'filesystem',
-    web: 'http',
-    shell: 'shell',
-    syncServers: 'syncServers',
-    cloudStorage: 'cloudStorage',
-    syncRules: 'syncRules',
-  }
-  return keys[resourceType] || resourceType
-}
-
-const loadSessionPermissionsAsync = async () => {
-  try {
-    sessionPermissions.value = await invoke<ExtensionPermission[]>(
-      'get_extension_session_permissions',
-      { extensionId: props.extension.id },
-    )
-  } catch (error) {
-    console.error('Error loading session permissions:', error)
-    sessionPermissions.value = []
-  }
-}
-
-const revokeSessionPermissionAsync = async (permission: ExtensionPermission) => {
-  const key = `${permission.resourceType}-${permission.target}`
-  revokingSessionPermission.value = key
-  try {
-    await invoke('remove_extension_session_permission', {
-      extensionId: props.extension.id,
-      resourceType: permission.resourceType,
-      target: permission.target,
-    })
-    add({ description: t('sessionPermissionRevoked'), color: 'success' })
-    await loadSessionPermissionsAsync()
-  } catch (error) {
-    console.error('Error revoking session permission:', error)
-    add({ description: t('sessionPermissionRevokeError'), color: 'error' })
-  } finally {
-    revokingSessionPermission.value = null
-  }
-}
-
-const loadPermissionsAsync = async () => {
-  loadingPermissions.value = true
-  try {
-    const permissions = await invoke<ExtensionPermissionsEditable>(
-      'get_extension_permissions',
-      {
-        extensionId: props.extension.id,
-      },
-    )
-    // Store original for comparison
-    originalPermissions.value = JSON.parse(JSON.stringify(permissions))
-    editablePermissions.value = permissions
-  } catch (error) {
-    console.error('Error loading permissions:', error)
-    editablePermissions.value = {
-      database: [],
-      filesystem: [],
-      http: [],
-      shell: [],
-    }
-    originalPermissions.value = {
-      database: [],
-      filesystem: [],
-      http: [],
-      shell: [],
-    }
-    add({ description: t('permissionsLoadError'), color: 'error' })
-  } finally {
-    loadingPermissions.value = false
-  }
-}
-
-const savePermissionsAsync = async () => {
-  savingPermissions.value = true
-  try {
-    await invoke('update_extension_permissions', {
-      extensionId: props.extension.id,
-      permissions: editablePermissions.value,
-    })
-    // Update original after successful save
-    originalPermissions.value = JSON.parse(JSON.stringify(editablePermissions.value))
-    add({ description: t('permissionsSaved'), color: 'success' })
-  } catch (error) {
-    console.error('Error saving permissions:', error)
-    add({ description: t('permissionsSaveError'), color: 'error' })
-  } finally {
-    savingPermissions.value = false
-  }
-}
 
 const confirmRemove = () => {
   removeDialogOpen.value = true
@@ -722,7 +265,11 @@ const handleRemoveAsync = async (deleteMode: 'device' | 'complete') => {
 }
 
 onMounted(async () => {
-  await Promise.all([loadPermissionsAsync(), loadSessionPermissionsAsync(), fetchLatestVersionAsync()])
+  await Promise.all([
+    loadPermissionsAsync(props.extension.id),
+    loadSessionPermissionsAsync(props.extension.id),
+    fetchLatestVersionAsync(),
+  ])
 })
 </script>
 

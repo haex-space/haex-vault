@@ -20,118 +20,20 @@
       </UButton>
     </template>
 
-    <UCard
+    <HaexSystemSettingsSyncBackendsAddBackendCard
       v-if="showAddBackendForm"
-      class="relative"
-    >
-      <!-- Loading Overlay -->
-      <div
-        v-if="isLoading"
-        class="absolute inset-0 z-10 flex items-center justify-center bg-default/80 backdrop-blur-sm rounded-lg"
-      >
-        <div class="flex flex-col items-center gap-3">
-          <div class="loading loading-spinner loading-lg text-primary" />
-          <span class="text-sm text-muted">
-            {{ t('addBackend.connecting') }}
-          </span>
-        </div>
-      </div>
-
-      <template #header>
-        <div class="flex justify-between px-1">
-          <h3 class="text-lg font-semibold">
-            {{ t('addBackend.title') }}
-          </h3>
-
-          <UiButton
-            icon="mdi-close"
-            variant="ghost"
-            color="neutral"
-            :disabled="isLoading"
-            @click="showAddBackendForm = false"
-          />
-        </div>
-      </template>
-
-      <!-- Verification Code Input -->
-      <div
-        v-if="verificationPending"
-        class="space-y-4"
-      >
-        <UAlert
-          color="info"
-          icon="i-lucide-mail"
-          :title="t('verification.title')"
-          :description="t('verification.description')"
-        />
-
-        <div class="flex justify-center">
-          <UPinInput
-            v-model="verificationCodeParts"
-            :length="6"
-            otp
-            type="number"
-            size="xl"
-            :autofocus="true"
-            :ui="{ base: 'w-12 h-12 text-center text-lg' }"
-            @complete="onVerifyCodeAsync"
-          />
-        </div>
-
-        <UButton
-          variant="link"
-          :disabled="isLoading"
-          @click="onResendCodeAsync"
-        >
-          {{ t('verification.resend') }}
-        </UButton>
-      </div>
-
-      <!-- Add Backend Form -->
-      <HaexSyncAddBackend
-        v-else
-        v-model:identity-id="newBackend.identityId"
-        v-model:approved-claims="newBackend.approvedClaims"
-        v-model:origin-url="newBackend.originUrl"
-        :items="serverOptions"
-        @keydown.enter.prevent="onWizardCompleteAsync"
-      />
-
-      <template #footer>
-        <div class="flex justify-between">
-          <UButton
-            color="neutral"
-            variant="outline"
-            :disabled="isLoading"
-            @click="cancelAddBackend"
-          >
-            {{ t('actions.back') }}
-          </UButton>
-
-          <UiButton
-            v-if="verificationPending"
-            icon="mdi-check"
-            :disabled="isLoading || verificationCode.length !== 6"
-            @click="onVerifyCodeAsync"
-          >
-            <span class="hidden @sm:inline">
-              {{ t('verification.verify') }}
-            </span>
-          </UiButton>
-          <UiButton
-            v-else
-            icon="mdi-plus"
-            :disabled="isLoading"
-            data-testid="sync-submit-button"
-            @click="onWizardCompleteAsync"
-          >
-            <span class="hidden @sm:inline">
-              {{ t('actions.add') }}
-            </span>
-          </UiButton>
-        </div>
-      </template>
-    </UCard>
+      :loading="isLoading"
+      :verification-pending="verificationPending"
+      :server-options="serverOptions"
+      v-model:identity-id="newBackend.identityId"
+      v-model:origin-url="newBackend.originUrl"
+      v-model:approved-claims="newBackend.approvedClaims"
+      v-model:verification-code-parts="verificationCodeParts"
+      @submit="onWizardCompleteAsync"
+      @cancel="cancelAddBackend"
+      @verify="onVerifyCodeAsync"
+      @resend="onResendCodeAsync"
+    />
 
     <!-- Sync Backends List -->
     <div>
@@ -139,149 +41,18 @@
         v-if="syncBackends.length"
         class="space-y-3"
       >
-        <HaexSyncBackendItem
+        <HaexSystemSettingsSyncBackendsBackendListItem
           v-for="backend in syncBackends"
           :key="backend.id"
           :backend="backend"
-        >
-          <template #actions>
-            <div class="flex gap-2">
-              <UButton
-                :color="backend.enabled ? 'neutral' : 'primary'"
-                icon="i-lucide-power"
-                :title="
-                  backend.enabled ? t('actions.disable') : t('actions.enable')
-                "
-                @click="toggleBackendAsync(backend.id)"
-              >
-                {{
-                  backend.enabled ? t('actions.disable') : t('actions.enable')
-                }}
-              </UButton>
-              <UButton
-                color="error"
-                variant="ghost"
-                icon="i-lucide-trash-2"
-                :title="t('actions.deleteBackend')"
-                @click="prepareDeleteBackend(backend)"
-              />
-            </div>
-          </template>
-
-          <!-- Server Vaults for this backend -->
-          <template
-            v-if="getGroupedVaults(backend.id)"
-            #default
-          >
-            <!-- Loading state -->
-            <div
-              v-if="getGroupedVaults(backend.id)?.isLoading"
-              class="flex items-center justify-center py-4"
-            >
-              <UIcon
-                name="i-lucide-loader-2"
-                class="w-5 h-5 animate-spin text-primary"
-              />
-            </div>
-
-            <!-- Error state -->
-            <div
-              v-else-if="getGroupedVaults(backend.id)?.error"
-              class="text-center text-error text-sm py-4"
-            >
-              {{ getGroupedVaults(backend.id)?.error }}
-            </div>
-
-            <!-- No vaults -->
-            <div
-              v-else-if="getGroupedVaults(backend.id)?.vaults.length === 0"
-              class="space-y-4"
-            >
-              <p
-                class="text-center text-muted text-sm py-4"
-              >
-                {{ t('vaultOverview.noVaults') }}
-              </p>
-
-              <!-- Re-Upload option when current vault is missing on server -->
-              <div
-                v-if="getGroupedVaults(backend.id)?.currentVaultMissingOnServer"
-                class="space-y-3"
-              >
-                <UAlert
-                  color="warning"
-                  icon="i-lucide-alert-triangle"
-                  :title="t('reUpload.warning.title')"
-                  :description="t('reUpload.warning.description')"
-                />
-                <div class="flex justify-end">
-                  <UButton
-                    color="primary"
-                    icon="i-lucide-upload"
-                    :loading="isReUploading"
-                    :disabled="isReUploading"
-                    @click="prepareReUpload(backend)"
-                  >
-                    {{ t('reUpload.button') }}
-                  </UButton>
-                </div>
-              </div>
-            </div>
-
-            <!-- Vaults list -->
-            <div
-              v-else
-              class="divide-y divide-default"
-            >
-              <div
-                v-for="vault in getGroupedVaults(backend.id)?.vaults"
-                :key="vault.spaceId"
-                class="flex flex-col gap-2 py-5 px-3"
-                :class="
-                  vault.spaceId === currentVaultId
-                    ? 'bg-primary/10  rounded-lg  border border-primary/20'
-                    : ''
-                "
-              >
-                <div
-                  class="flex flex-col @xs:flex-row @xs:items-center @xs:justify-between gap-2"
-                >
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                      <p class="font-medium text-base truncate">
-                        {{
-                          vault.decryptedName ||
-                          t('vaultOverview.encryptedName')
-                        }}
-                      </p>
-                      <UBadge
-                        v-if="vault.spaceId === currentVaultId"
-                        color="primary"
-                        variant="subtle"
-                      >
-                        {{ t('vaultOverview.currentVault') }}
-                      </UBadge>
-                    </div>
-                    <p class="text-sm text-muted mt-1">
-                      {{ t('vaultOverview.createdAt') }}:
-                      {{ formatDate(vault.createdAt) }}
-                    </p>
-                  </div>
-                  <!-- Delete button -->
-                  <div class="@xs:shrink-0 w-full @xs:w-auto">
-                    <UButton
-                      color="error"
-                      variant="ghost"
-                      icon="i-lucide-trash-2"
-                      class="w-full @xs:w-auto justify-center"
-                      @click="prepareDeleteServerVault(backend, vault)"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-        </HaexSyncBackendItem>
+          :grouped-vaults="getGroupedVaults(backend.id)"
+          :current-vault-id="currentVaultId"
+          :is-re-uploading="isReUploading"
+          @toggle="toggleBackendAsync(backend.id)"
+          @delete-backend="prepareDeleteBackend(backend)"
+          @delete-server-vault="(vault) => prepareDeleteServerVault(backend, vault)"
+          @re-upload="prepareReUpload(backend)"
+        />
       </div>
 
       <div
@@ -292,75 +63,27 @@
       </div>
     </div>
 
-    <!-- Delete Remote Vault Confirmation Dialog -->
-    <UiDialogConfirm
-      v-model:open="showDeleteDialog"
-      :title="
-        t(
-          vaultToDeleteSpaceId === currentVaultId
-            ? 'deleteCurrentVaultSync.title'
-            : 'deleteRemoteVault.title',
-        )
-      "
-      :description="
-        t(
-          vaultToDeleteSpaceId === currentVaultId
-            ? 'deleteCurrentVaultSync.description'
-            : 'deleteRemoteVault.description',
-          { vaultName: vaultToDeleteName },
-        )
-      "
-      :confirm-label="t('actions.delete')"
-      @confirm="onConfirmDeleteRemoteVaultAsync"
-    >
-      <template #body>
-        <label
-          class="flex items-start gap-3 cursor-pointer mt-4 p-3 rounded-lg border border-error/30 bg-error/5"
-        >
-          <UCheckbox
-            v-model="deleteAllServerData"
-            color="error"
-          />
-          <div>
-            <p class="text-sm font-medium text-error">
-              {{ t('deleteAllData.label') }}
-            </p>
-            <p class="text-xs text-muted mt-0.5">
-              {{ t('deleteAllData.description') }}
-            </p>
-          </div>
-        </label>
-      </template>
-    </UiDialogConfirm>
-
-    <!-- Delete Backend Confirmation Dialog -->
-    <UiDialogConfirm
-      v-model:open="showDeleteBackendDialog"
-      :title="t('deleteBackend.title')"
-      :description="
-        t('deleteBackend.description', {
-          name: backendToDeleteCompletely?.name,
-        })
-      "
-      :confirm-label="t('actions.delete')"
-      @confirm="onConfirmDeleteBackendAsync"
-    />
-
-    <!-- Re-Upload Confirmation Dialog -->
-    <HaexSyncReUploadDialog
-      v-model:open="showReUploadDialog"
-      :backend="reUploadBackend"
-      :loading="isReUploading"
-      @confirm="onConfirmReUploadAsync"
+    <HaexSystemSettingsSyncBackendsBackendDialogs
+      v-model:show-delete-dialog="showDeleteDialog"
+      v-model:show-delete-backend-dialog="showDeleteBackendDialog"
+      v-model:show-re-upload-dialog="showReUploadDialog"
+      v-model:delete-all-server-data="deleteAllServerData"
+      :vault-to-delete-space-id="vaultToDeleteSpaceId"
+      :vault-to-delete-name="vaultToDeleteName"
+      :current-vault-id="currentVaultId"
+      :backend-to-delete-completely="backendToDeleteCompletely"
+      :re-upload-backend="reUploadBackend"
+      :is-re-uploading="isReUploading"
+      @confirm-delete-vault="onConfirmDeleteRemoteVaultAsync"
+      @confirm-delete-backend="onConfirmDeleteBackendAsync"
+      @confirm-re-upload="onConfirmReUploadAsync"
     />
   </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">
-import { DidAuthAction } from '@haex-space/ucan'
-import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { decryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import type { SelectHaexSyncBackends } from '~/database/schemas'
+import type { ServerVault } from '@/composables/useBackendsActions'
 
 defineEmits<{ back: [] }>()
 
@@ -368,8 +91,6 @@ const { t } = useI18n()
 const { add } = useToast()
 
 const syncBackendsStore = useSyncBackendsStore()
-const syncEngineStore = useSyncEngineStore()
-const syncOrchestratorStore = useSyncOrchestratorStore()
 const vaultStore = useVaultStore()
 
 const { backends: syncBackends } = storeToRefs(syncBackendsStore)
@@ -384,6 +105,17 @@ const {
   resendVerificationAsync,
   completeConnectionAsync,
 } = useCreateSyncConnection()
+
+// Server-vaults loading + async actions
+const {
+  isReUploading,
+  getGroupedVaults,
+  loadAllServerVaultsAsync,
+  toggleBackendAsync,
+  deleteBackendCompletelyAsync,
+  deleteRemoteVaultAsync,
+  reUploadVaultAsync,
+} = useBackendsActions()
 
 // Local state
 const showAddBackendForm = ref(false)
@@ -419,42 +151,7 @@ const backendToDeleteCompletely = ref<SelectHaexSyncBackends | null>(null)
 
 // Re-upload state
 const showReUploadDialog = ref(false)
-const isReUploading = ref(false)
 const reUploadBackend = ref<SelectHaexSyncBackends | null>(null)
-
-// Server vaults management state - grouped by backend
-interface ServerVault {
-  spaceId: string
-  encryptedVaultName: string
-  vaultNameNonce: string
-  vaultNameSalt: string
-  ephemeralPublicKey: string
-  createdAt: string
-  decryptedName?: string
-}
-
-interface GroupedServerVaults {
-  backend: SelectHaexSyncBackends
-  vaults: ServerVault[]
-  isLoading: boolean
-  error: string | null
-  currentVaultMissingOnServer: boolean
-}
-
-const groupedServerVaults = ref<GroupedServerVaults[]>([])
-
-// Helper to get grouped vaults for a specific backend
-const groupedVaultsMap = computed(() => {
-  const map = new Map<string, GroupedServerVaults>()
-  for (const g of groupedServerVaults.value) {
-    map.set(g.backend.id, g)
-  }
-  return map
-})
-
-const getGroupedVaults = (backendId: string) => {
-  return groupedVaultsMap.value.get(backendId)
-}
 
 // Cancel add backend
 const cancelAddBackend = () => {
@@ -571,54 +268,6 @@ const onResendCodeAsync = async () => {
   }
 }
 
-// Toggle backend enabled/disabled
-const toggleBackendAsync = async (backendId: string) => {
-  const backend = syncBackends.value.find((b) => b.id === backendId)
-  if (!backend) return
-
-  try {
-    const newEnabledState = !backend.enabled
-
-    await syncBackendsStore.updateBackendAsync(backendId, {
-      enabled: newEnabledState,
-    })
-
-    // Start/stop sync based on new state
-    if (newEnabledState) {
-      // Initialize token manager for this backend
-      syncEngineStore.initTokenManagerAsync(backendId)
-
-      // Start sync
-      await syncOrchestratorStore.startSyncAsync()
-
-      add({
-        title: t('success.backendEnabled'),
-        description: t('success.syncStarted'),
-        color: 'success',
-      })
-    } else {
-      // Stop sync
-      await syncOrchestratorStore.stopSyncAsync()
-
-      add({
-        title: t('success.backendDisabled'),
-        description: t('success.syncStopped'),
-        color: 'success',
-      })
-    }
-
-    // Refresh server vaults list
-    await loadAllServerVaultsAsync()
-  } catch (error) {
-    console.error('Failed to toggle backend:', error)
-    add({
-      title: t('errors.toggleFailed'),
-      description: error instanceof Error ? error.message : 'Unknown error',
-      color: 'error',
-    })
-  }
-}
-
 // Prepare delete backend
 const prepareDeleteBackend = (backend: SelectHaexSyncBackends) => {
   backendToDeleteCompletely.value = backend
@@ -630,168 +279,11 @@ const onConfirmDeleteBackendAsync = async () => {
   const backend = backendToDeleteCompletely.value
   if (!backend) return
 
-  try {
-    // Stop sync if this backend is active
-    if (backend.enabled) {
-      await syncOrchestratorStore.stopSyncAsync()
-    }
-
-    // Delete all server data for this backend
-    try {
-      {
-        const identityStore = useIdentityStore()
-        const identityResult = await identityStore.getIdentityByIdAsync(backend.identityId)
-
-        if (identityResult?.privateKey) {
-          const identity = { privateKey: identityResult.privateKey, did: identityResult.did }
-          // Delete all spaces where user is admin (server validates role)
-          try {
-            await fetchWithDidAuth(
-              `${backend.homeServerUrl}/spaces/my-admin-spaces`,
-              identity.privateKey,
-              identity.did,
-              'delete-admin-spaces',
-              { method: 'DELETE' },
-            )
-          } catch (e) {
-            console.warn('[SYNC] Could not delete admin spaces:', e)
-          }
-        }
-      }
-
-      await syncEngineStore.deleteAllVaultDataAsync(backend.id)
-    } catch (e) {
-      console.warn(
-        '[SYNC] Could not delete server data (may already be cleaned up):',
-        e,
-      )
-    }
-
-    // Delete backend from local DB
-    await syncBackendsStore.deleteBackendAsync(backend.id)
-
-    add({
-      title: t('success.backendDeleted'),
-      color: 'success',
-    })
-
-    // Reload backends and vaults
-    await syncBackendsStore.loadBackendsAsync()
-    await loadAllServerVaultsAsync()
-
+  const ok = await deleteBackendCompletelyAsync(backend)
+  if (ok) {
     showDeleteBackendDialog.value = false
     backendToDeleteCompletely.value = null
-  } catch (error) {
-    console.error('Failed to delete backend:', error)
-    add({
-      title: t('errors.deleteBackendFailed'),
-      description: error instanceof Error ? error.message : 'Unknown error',
-      color: 'error',
-    })
   }
-}
-
-// Load vaults for a specific backend
-const loadVaultsForBackendAsync = async (
-  backend: SelectHaexSyncBackends,
-): Promise<ServerVault[]> => {
-  try {
-    const identityStore = useIdentityStore()
-    const resolved = await identityStore.getIdentityByIdAsync(backend.identityId)
-    if (!resolved?.privateKey) {
-      throw new Error('Identity not found or incomplete')
-    }
-    const identity = { privateKey: resolved.privateKey, did: resolved.did }
-
-    // Fetch vaults from server using DID-Auth
-    const response = await fetchWithDidAuth(
-      `${backend.homeServerUrl}/sync/vaults`,
-      identity.privateKey,
-      identity.did,
-      DidAuthAction.VaultList,
-    )
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch vaults')
-    }
-
-    const data = await response.json()
-    const vaults: ServerVault[] = data.vaults
-
-    // Decrypt vault names using identity Ed25519 private key (Rust: Ed25519→X25519 + ECDH + AES-GCM)
-    await Promise.all(
-      vaults.map(async (vault) => {
-        try {
-          vault.decryptedName = await decryptVaultNameAsync(
-            vault.encryptedVaultName,
-            vault.vaultNameNonce,
-            vault.vaultNameSalt,
-            vault.ephemeralPublicKey,
-            identity.privateKey,
-          )
-        } catch (e) {
-          console.warn('[SYNC] Failed to decrypt vault name:', e)
-        }
-      }),
-    )
-
-    return vaults
-  } catch (error) {
-    console.error(`Failed to load vaults for backend ${backend.name}:`, error)
-    throw error
-  }
-}
-
-// Auto-load all server vaults grouped by backend
-const loadAllServerVaultsAsync = async () => {
-  if (syncBackends.value.length === 0) {
-    return
-  }
-
-  // Initialize grouped vaults structure, preserving existing data for disabled backends
-  const previousGroups = groupedServerVaults.value
-  groupedServerVaults.value = syncBackends.value.map((backend) => {
-    const existing = previousGroups.find((g) => g.backend.id === backend.id)
-    if (!backend.enabled && existing && !existing.isLoading) {
-      // Keep previously loaded vaults for disabled backends
-      return { ...existing, backend }
-    }
-    return {
-      backend,
-      vaults: [],
-      isLoading: backend.enabled,
-      error: null,
-      currentVaultMissingOnServer: false,
-    }
-  })
-
-  // Load vaults for each enabled backend in parallel
-  await Promise.allSettled(
-    groupedServerVaults.value.map(async (group) => {
-      if (!group.backend.enabled) {
-        return
-      }
-
-      try {
-        const vaults = await loadVaultsForBackendAsync(group.backend)
-
-        // Keep all vaults including the currently opened one
-        group.vaults = vaults
-        group.isLoading = false
-
-        // Check if this backend is configured for current vault but vault is not on server
-        if (group.backend.spaceId === currentVaultId.value) {
-          const vaultFoundOnServer = vaults.some(
-            (v) => v.spaceId === currentVaultId.value,
-          )
-          group.currentVaultMissingOnServer = !vaultFoundOnServer
-        }
-      } catch (error) {
-        group.error = error instanceof Error ? error.message : 'Unknown error'
-        group.isLoading = false
-      }
-    }),
-  )
 }
 
 // Prepare delete server vault
@@ -801,7 +293,8 @@ const prepareDeleteServerVault = (
 ) => {
   backendToDelete.value = backend
   vaultToDeleteSpaceId.value = vault.spaceId
-  vaultToDeleteName.value = vault.decryptedName || t('vaultOverview.encryptedName')
+  vaultToDeleteName.value =
+    vault.decryptedName || t('vaultOverview.encryptedName')
   deleteAllServerData.value = false
   showDeleteDialog.value = true
 }
@@ -812,52 +305,19 @@ const onConfirmDeleteRemoteVaultAsync = async () => {
   const spaceId = vaultToDeleteSpaceId.value
   if (!backend || !spaceId) return
 
-  try {
-    const isCurrentVault = spaceId === currentVaultId.value
-
-    // Step 1: Delete data from server FIRST (while backend store is still available)
-    if (deleteAllServerData.value) {
-      await syncEngineStore.deleteAllVaultDataAsync(backend.id)
-    } else {
-      await syncEngineStore.deleteRemoteVaultAsync(backend.id, spaceId)
-    }
-
-    // Step 2: Stop sync if deleting the currently synced vault
-    if (isCurrentVault) {
-      await syncOrchestratorStore.stopSyncAsync()
-    }
-
-    add({
-      title: t('success.remoteVaultDeleted'),
-      description: t('success.remoteVaultDeletedDescription'),
-      color: 'success',
-    })
-
-    // Reload backends to update the list
-    await syncBackendsStore.loadBackendsAsync()
-
-    // Refresh all server vaults
-    await loadAllServerVaultsAsync()
-
+  const ok = await deleteRemoteVaultAsync({
+    backend,
+    spaceId,
+    deleteAll: deleteAllServerData.value,
+  })
+  if (ok) {
     // Close dialog and reset state
     showDeleteDialog.value = false
     backendToDelete.value = null
     vaultToDeleteSpaceId.value = null
     vaultToDeleteName.value = null
     deleteAllServerData.value = false
-  } catch (error) {
-    console.error('Failed to delete remote vault:', error)
-    add({
-      title: t('errors.deleteRemoteVaultFailed'),
-      description: error instanceof Error ? error.message : 'Unknown error',
-      color: 'error',
-    })
   }
-}
-
-// Format date helper
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString()
 }
 
 // Prepare re-upload for a specific backend
@@ -869,55 +329,12 @@ const prepareReUpload = (backend: SelectHaexSyncBackends) => {
 // Confirm re-upload
 const onConfirmReUploadAsync = async () => {
   const backend = reUploadBackend.value
-  if (!backend || !currentVaultId.value) return
+  if (!backend) return
 
-  isReUploading.value = true
-
-  try {
-    // Get vault key from local DB
-    const vaultKey = await syncEngineStore.getSyncKeyFromDbAsync(backend.id)
-    if (!vaultKey) {
-      throw new Error('Vault key not found locally')
-    }
-
-    // Get current vault info
-    const { currentVault, currentVaultPassword } = storeToRefs(vaultStore)
-    if (!currentVault.value || !currentVaultPassword.value) {
-      throw new Error('Vault not opened or password not available')
-    }
-
-    // Re-upload vault key to server
-    await syncEngineStore.reUploadVaultKeyAsync(
-      backend.id,
-      currentVaultId.value,
-      vaultKey,
-      currentVault.value.name,
-      currentVaultPassword.value,
-    )
-
-    // Push all local data to server
-    await syncOrchestratorStore.pushAllDataToBackendAsync(backend.id)
-
-    add({
-      title: t('reUpload.success.title'),
-      description: t('reUpload.success.description'),
-      color: 'success',
-    })
-
-    // Refresh server vaults
-    await loadAllServerVaultsAsync()
-
+  const ok = await reUploadVaultAsync(backend)
+  if (ok) {
     showReUploadDialog.value = false
     reUploadBackend.value = null
-  } catch (error) {
-    console.error('Re-upload failed:', error)
-    add({
-      title: t('reUpload.error.title'),
-      description: error instanceof Error ? error.message : 'Unknown error',
-      color: 'error',
-    })
-  } finally {
-    isReUploading.value = false
   }
 }
 
