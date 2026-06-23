@@ -1,258 +1,123 @@
 <template>
-  <HaexSystemSettingsLayout
-    :title="t('title')"
-    :description="t('description')"
-  >
-    <template #actions>
-      <UButton
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-import"
-        @click="showImportDialog = true"
-      >
-        <span class="hidden @sm:inline">{{ t('actions.import') }}</span>
-      </UButton>
-      <UButton
-        color="primary"
-        icon="i-lucide-plus"
-        data-tour="settings-identities-create"
-        @click="showCreateDialog = true"
-      >
-        <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
-      </UButton>
-    </template>
+  <IdentitiesListView
+    :identities="identities"
+    :is-loading="isLoading"
+    :expanded-identity="expandedIdentity"
+    :claims-for="claimsFor"
+    :is-deletable="isDeletable"
+    @import-click="showImportDialog = true"
+    @create-click="showCreateDialog = true"
+    @toggle="onToggleIdentity"
+    @share-qr="onShareQr"
+    @copy-did="copyText"
+    @export="onExport"
+    @edit="openEditDialog"
+    @delete="prepareDelete"
+    @add-claim="openAddClaim"
+    @copy-claim="copyText"
+    @edit-claim="openEditClaim"
+    @delete-claim="onDeleteClaim"
+  />
 
-    <!-- Loading -->
-    <div
-      v-if="isLoading"
-      class="flex items-center justify-center py-8"
-    >
-      <UIcon
-        name="i-lucide-loader-2"
-        class="w-5 h-5 animate-spin text-primary"
-      />
-    </div>
+  <IdentityCreateDialog
+    v-model:open="showCreateDialog"
+    :submitting="isCreating"
+    :vault-password-available="!!currentVaultPassword"
+    @submit="onCreateAsync"
+  />
 
-    <!-- Identities list -->
-    <div
-      v-else-if="identities.length"
-      class="space-y-3"
-    >
-      <IdentityListItem
-        v-for="identity in identities"
-        :key="identity.id"
-        :identity="identity"
-        :expanded="expandedIdentity === identity.id"
-        :claims="identityStore.getClaimsForIdentity(identity.id).value"
-        :deletable="isDeletable(identity)"
-        @toggle="(open) => onToggleIdentity(identity.id, open)"
-        @share-qr="onShareQr(identity)"
-        @copy-did="copyText(identity.did)"
-        @export="onExport(identity)"
-        @edit="openEditDialog(identity)"
-        @delete="prepareDelete(identity)"
-        @add-claim="openAddClaim(identity.id)"
-        @copy-claim="copyText"
-        @edit-claim="openEditClaim(identity.id, $event)"
-        @delete-claim="(claimId) => onDeleteClaim(claimId, identity.id)"
-      />
-    </div>
+  <IdentityImportDialog
+    v-model:open="showImportDialog"
+    v-model:parsed="importParsed"
+    v-model:json="importJson"
+    :submitting="isImporting"
+    @parse="onParseImport"
+    @select-file="onSelectImportFileAsync"
+    @submit="onImportAsync"
+  />
 
-    <!-- Empty state -->
-    <HaexSystemSettingsLayoutEmpty
-      v-else
-      :message="t('list.empty')"
-      icon="i-lucide-fingerprint"
-    />
+  <IdentityExportDialog
+    v-model:open="showExportDialog"
+    :target="exportTarget"
+    :claims="exportClaims"
+    :submitting="isExporting"
+    @submit="onExportSubmit"
+  />
 
-    <IdentityCreateDialog
-      v-model:open="showCreateDialog"
-      :submitting="isCreating"
-      :vault-password-available="!!currentVaultPassword"
-      @submit="onCreateAsync"
-    />
+  <UiDialogConfirm
+    v-model:open="showPrivateKeyConfirm"
+    :title="t('export.confirmPrivateKey.title')"
+    :description="t('export.confirmPrivateKey.description')"
+    @confirm="onConfirmExportWithPrivateKeyAsync"
+  />
 
-    <IdentityImportDialog
-      v-model:open="showImportDialog"
-      v-model:parsed="importParsed"
-      v-model:json="importJson"
-      :submitting="isImporting"
-      @parse="onParseImport"
-      @select-file="onSelectImportFileAsync"
-      @submit="onImportAsync"
-    />
+  <IdentityEditDialog
+    v-model:open="showEditDialog"
+    :target="editTarget"
+    :submitting="isRenaming"
+    @submit="onRenameAsync"
+    @avatar-update="onEditAvatarUpdateAsync"
+  />
 
-    <IdentityExportDialog
-      v-model:open="showExportDialog"
-      :target="exportTarget"
-      :claims="exportClaims"
-      :submitting="isExporting"
-      @submit="onExportSubmit"
-    />
+  <IdentityClaimDialog
+    v-model:open="showClaimDialog"
+    :editing-claim="editingClaim"
+    @submit="onClaimSubmitAsync"
+  />
 
-    <UiDialogConfirm
-      v-model:open="showPrivateKeyConfirm"
-      :title="t('export.confirmPrivateKey.title')"
-      :description="t('export.confirmPrivateKey.description')"
-      @confirm="onConfirmExportWithPrivateKeyAsync"
-    />
+  <IdentityDeleteDialog
+    v-model:open="showDeleteConfirm"
+    v-model:accepted-sync-backend-loss="acceptedSyncBackendLoss"
+    :affected-sync-backends="affectedSyncBackends"
+    :affected-admin-spaces="affectedAdminSpaces"
+    :affected-member-spaces="affectedMemberSpaces"
+    :confirm-label="deleteConfirmLabel"
+    :confirm-disabled="!canConfirmDelete"
+    :title="t('delete.title')"
+    :description="t('delete.description')"
+    :sync-backend-warning-title="t('delete.syncBackendWarningTitle')"
+    :sync-backend-warning-body="
+      t(
+        'delete.syncBackendWarningBody',
+        { count: affectedSyncBackends.length },
+        affectedSyncBackends.length,
+      )
+    "
+    :sync-backend-confirm="t('delete.syncBackendConfirm')"
+    :admin-spaces-warning="
+      t('delete.adminSpacesWarning', { count: affectedAdminSpaces.length })
+    "
+    :member-spaces-info="
+      t('delete.memberSpacesInfo', { count: affectedMemberSpaces.length })
+    "
+    @confirm="onConfirmDeleteAsync"
+  />
 
-    <IdentityEditDialog
-      v-model:open="showEditDialog"
-      :target="editTarget"
-      :submitting="isRenaming"
-      @submit="onRenameAsync"
-      @avatar-update="onEditAvatarUpdateAsync"
-    />
-
-    <IdentityClaimDialog
-      v-model:open="showClaimDialog"
-      :editing-claim="editingClaim"
-      @submit="onClaimSubmitAsync"
-    />
-
-    <UiDialogConfirm
-      v-model:open="showDeleteConfirm"
-      :title="t('delete.title')"
-      :description="t('delete.description')"
-      :confirm-label="deleteConfirmLabel"
-      :confirm-disabled="!canConfirmDelete"
-      confirm-icon="i-lucide-trash-2"
-      @confirm="onConfirmDeleteAsync"
-    >
-      <div
-        v-if="affectedSyncBackends.length > 0"
-        class="mt-4 p-3 rounded-lg border border-error/40 bg-error/10 space-y-2"
-      >
-        <div class="flex items-start gap-2">
-          <UIcon
-            name="i-lucide-triangle-alert"
-            class="w-5 h-5 shrink-0 text-error mt-0.5"
-          />
-          <div class="space-y-1">
-            <p class="text-sm font-semibold text-error">
-              {{ t('delete.syncBackendWarningTitle') }}
-            </p>
-            <p class="text-sm text-error/90">
-              {{
-                t(
-                  'delete.syncBackendWarningBody',
-                  { count: affectedSyncBackends.length },
-                  affectedSyncBackends.length,
-                )
-              }}
-            </p>
-          </div>
-        </div>
-        <ul class="list-disc list-inside text-sm text-error/90 pl-7">
-          <li
-            v-for="backend in affectedSyncBackends"
-            :key="backend.id"
-            class="font-medium"
-          >
-            {{ backend.name }}
-            <span class="font-mono text-xs text-error/70">({{ backend.homeServerUrl }})</span>
-          </li>
-        </ul>
-        <label class="flex items-start gap-2 pl-7 cursor-pointer pt-1">
-          <UCheckbox v-model="acceptedSyncBackendLoss" />
-          <span class="text-sm text-error font-medium">
-            {{ t('delete.syncBackendConfirm') }}
-          </span>
-        </label>
-      </div>
-
-      <div
-        v-if="affectedAdminSpaces.length > 0"
-        class="mt-4 space-y-2"
-      >
-        <p class="text-sm font-medium text-highlighted">
-          {{
-            t('delete.adminSpacesWarning', {
-              count: affectedAdminSpaces.length,
-            })
-          }}
-        </p>
-        <ul class="list-disc list-inside text-sm text-muted">
-          <li
-            v-for="space in affectedAdminSpaces"
-            :key="space.id"
-            class="font-medium"
-          >
-            {{ space.name }}
-          </li>
-        </ul>
-      </div>
-      <div
-        v-if="affectedMemberSpaces.length > 0"
-        class="mt-3 space-y-2"
-      >
-        <p class="text-sm text-muted">
-          {{
-            t('delete.memberSpacesInfo', { count: affectedMemberSpaces.length })
-          }}
-        </p>
-      </div>
-    </UiDialogConfirm>
-
-    <ShareIdentityDialog
-      v-model:open="showShareQrDialog"
-      :pre-selected-identity-id="shareQrIdentityId"
-    />
-  </HaexSystemSettingsLayout>
+  <ShareIdentityDialog
+    v-model:open="showShareQrDialog"
+    :pre-selected-identity-id="shareQrIdentityId"
+  />
 </template>
 
 <script setup lang="ts">
-import type {
-  SelectHaexIdentities,
-  SelectHaexSpaces,
-  SelectHaexSyncBackends,
-} from '~/database/schemas'
+import type { SelectHaexIdentities } from '~/database/schemas'
+import IdentitiesListView from './identities/IdentitiesListView.vue'
+import IdentityDeleteDialog from './identities/IdentityDeleteDialog.vue'
 import ShareIdentityDialog from './contacts/ShareIdentityDialog.vue'
-import IdentityListItem, {
-  type ListItemClaim,
-} from './identities/IdentityListItem.vue'
-import IdentityCreateDialog, {
-  type CreateSubmitPayload,
-} from './identities/IdentityCreateDialog.vue'
-import IdentityEditDialog, {
-  type EditSubmitPayload,
-  type AvatarUpdatePayload,
-} from './identities/IdentityEditDialog.vue'
-import IdentityImportDialog, {
-  type ImportSubmitPayload,
-} from './identities/IdentityImportDialog.vue'
-import IdentityExportDialog, {
-  type ExportSubmitPayload,
-} from './identities/IdentityExportDialog.vue'
-import IdentityClaimDialog, {
-  type ClaimDialogEditTarget,
-  type ClaimSubmitPayload,
-} from './identities/IdentityClaimDialog.vue'
-import { useIdentityCreation } from '@/composables/useIdentityCreation'
-import {
-  useIdentityImport,
-  InvalidImportJsonError,
-  InvalidImportDataError,
-  type ParsedIdentityImport,
-} from '@/composables/useIdentityImport'
-import {
-  useIdentityExport,
-  type ExportClaim,
-} from '@/composables/useIdentityExport'
-import { useUpdateIdentityPassword } from '@/composables/useUpdateIdentityPassword'
-import { useOperationErrorToast } from '@/composables/useOperationErrorToast'
-import { VaultOwnerDeletionError } from '@/stores/identity'
+import IdentityCreateDialog from './identities/IdentityCreateDialog.vue'
+import IdentityEditDialog from './identities/IdentityEditDialog.vue'
+import IdentityImportDialog from './identities/IdentityImportDialog.vue'
+import IdentityExportDialog from './identities/IdentityExportDialog.vue'
+import IdentityClaimDialog from './identities/IdentityClaimDialog.vue'
+import { useIdentitiesActions } from '@/composables/useIdentitiesActions'
 import { SpaceType } from '~/database/constants'
 
 const { t } = useI18n()
-const { add } = useToast()
 
 const identityStore = useIdentityStore()
 const spacesStore = useSpacesStore()
 const { ownIdentities: identities } = storeToRefs(identityStore)
 const { spaces } = storeToRefs(spacesStore)
-const { currentVaultPassword } = storeToRefs(useVaultStore())
 
 const vaultOwnerIdentityId = computed(
   () => spaces.value.find((s) => s.type === SpaceType.VAULT)?.ownerIdentityId ?? null,
@@ -260,444 +125,68 @@ const vaultOwnerIdentityId = computed(
 const isDeletable = (identity: SelectHaexIdentities) =>
   identity.id !== vaultOwnerIdentityId.value
 
-const { createIdentityAsync: runCreateIdentityAsync } = useIdentityCreation()
-const { parseImport, importAsync } = useIdentityImport()
-const { exportToFileAsync } = useIdentityExport()
-const { updatePasswordAsync } = useUpdateIdentityPassword()
-const { showOperationError } = useOperationErrorToast()
+const claimsFor = (identityId: string) =>
+  identityStore.getClaimsForIdentity(identityId).value
 
-// =========================================================================
-// Loading & dialog visibility
-// =========================================================================
+const {
+  // Loading
+  isLoading,
+  isCreating,
+  isRenaming,
+  isImporting,
+  isExporting,
+  // Dialog visibility
+  showCreateDialog,
+  showEditDialog,
+  showDeleteConfirm,
+  showImportDialog,
+  showExportDialog,
+  showShareQrDialog,
+  showPrivateKeyConfirm,
+  showClaimDialog,
+  // Per-dialog target state
+  shareQrIdentityId,
+  editTarget,
+  affectedAdminSpaces,
+  affectedMemberSpaces,
+  affectedSyncBackends,
+  acceptedSyncBackendLoss,
+  importJson,
+  importParsed,
+  exportTarget,
+  exportClaims,
+  editingClaim,
+  expandedIdentity,
+  // Computed
+  canConfirmDelete,
+  deleteConfirmLabel,
+  // Vault password (for CreateDialog prop)
+  currentVaultPassword,
+  // Lifecycle
+  loadIdentitiesAndSpacesAsync,
+  // Handlers
+  onToggleIdentity,
+  copyText,
+  onCreateAsync,
+  onSelectImportFileAsync,
+  onParseImport,
+  onImportAsync,
+  onShareQr,
+  onExport,
+  onExportSubmit,
+  onConfirmExportWithPrivateKeyAsync,
+  openEditDialog,
+  onEditAvatarUpdateAsync,
+  onRenameAsync,
+  prepareDelete,
+  onConfirmDeleteAsync,
+  openAddClaim,
+  openEditClaim,
+  onClaimSubmitAsync,
+  onDeleteClaim,
+} = useIdentitiesActions()
 
-const isLoading = ref(false)
-const isCreating = ref(false)
-const isRenaming = ref(false)
-const isImporting = ref(false)
-const isExporting = ref(false)
-
-const showCreateDialog = ref(false)
-const showEditDialog = ref(false)
-const showDeleteConfirm = ref(false)
-const showImportDialog = ref(false)
-const showExportDialog = ref(false)
-const showShareQrDialog = ref(false)
-const showPrivateKeyConfirm = ref(false)
-const showClaimDialog = ref(false)
-
-// =========================================================================
-// Per-dialog target state
-// =========================================================================
-
-const shareQrIdentityId = ref('')
-
-const editTarget = ref<SelectHaexIdentities | null>(null)
-
-const deleteTarget = ref<SelectHaexIdentities | null>(null)
-const affectedAdminSpaces = ref<SelectHaexSpaces[]>([])
-const affectedMemberSpaces = ref<SelectHaexSpaces[]>([])
-const affectedSyncBackends = ref<SelectHaexSyncBackends[]>([])
-const acceptedSyncBackendLoss = ref(false)
-const deleteCountdown = ref(0)
-const DELETE_COUNTDOWN_SECONDS = 10
-let deleteCountdownTimer: ReturnType<typeof setInterval> | null = null
-
-const stopDeleteCountdown = () => {
-  if (deleteCountdownTimer) {
-    clearInterval(deleteCountdownTimer)
-    deleteCountdownTimer = null
-  }
-}
-
-watch(showDeleteConfirm, (open) => {
-  stopDeleteCountdown()
-  if (!open) {
-    deleteCountdown.value = 0
-    return
-  }
-  deleteCountdown.value = DELETE_COUNTDOWN_SECONDS
-  deleteCountdownTimer = setInterval(() => {
-    deleteCountdown.value--
-    if (deleteCountdown.value <= 0) stopDeleteCountdown()
-  }, 1000)
-})
-
-onBeforeUnmount(stopDeleteCountdown)
-
-// Import
-const importJson = ref('')
-const importParsed = ref<ParsedIdentityImport | null>(null)
-
-// Export
-const exportTarget = ref<SelectHaexIdentities | null>(null)
-const exportClaims = ref<ExportClaim[]>([])
-/** Retained across the private-key confirm round-trip. */
-const pendingExportOptions = ref<ExportSubmitPayload | null>(null)
-
-// Claim dialog
-const editingClaim = ref<ClaimDialogEditTarget | null>(null)
-const claimTargetIdentityId = ref<string | null>(null)
-
-// List item expansion
-const expandedIdentity = ref<string | null>(null)
-
-// =========================================================================
-// Lifecycle
-// =========================================================================
-
-onMounted(async () => {
-  isLoading.value = true
-  try {
-    // Spaces must be hydrated too: `isDeletable` derives the vault-owner
-    // identity from `spaces`. Without this, the owner row briefly appears
-    // deletable until the spaces store finishes loading elsewhere.
-    await Promise.all([
-      identityStore.loadIdentitiesAsync(),
-      spacesStore.loadSpacesFromDbAsync(),
-    ])
-  } finally {
-    isLoading.value = false
-  }
-})
-
-// =========================================================================
-// List item
-// =========================================================================
-
-const onToggleIdentity = async (identityId: string, open: boolean) => {
-  if (!open) {
-    expandedIdentity.value = null
-    return
-  }
-  expandedIdentity.value = identityId
-  await identityStore.loadClaimsAsync(identityId)
-}
-
-const copyText = async (value: string) => {
-  try {
-    await navigator.clipboard.writeText(value)
-    add({ title: t('success.copied'), color: 'success' })
-  } catch {
-    add({ title: t('errors.copyFailed'), color: 'error' })
-  }
-}
-
-// =========================================================================
-// Create
-// =========================================================================
-
-const onCreateAsync = async (payload: CreateSubmitPayload) => {
-  isCreating.value = true
-  try {
-    const effectivePassword = payload.useVaultPassword
-      ? (currentVaultPassword.value ?? '')
-      : payload.identityPassword
-
-    await runCreateIdentityAsync({
-      label: payload.label,
-      avatar: payload.avatar,
-      avatarOptions: payload.avatarOptions,
-      password: effectivePassword,
-      claims: [
-        { type: 'email', value: payload.claims.email },
-        { type: 'name', value: payload.claims.name },
-        { type: 'phone', value: payload.claims.phone },
-        { type: 'address', value: payload.claims.address },
-      ],
-    })
-
-    add({ title: t('success.created'), color: 'success' })
-    showCreateDialog.value = false
-  } catch (error) {
-    console.error('Failed to create identity:', error)
-    showOperationError(error, 'errors.createFailed')
-  } finally {
-    isCreating.value = false
-  }
-}
-
-// =========================================================================
-// Import
-// =========================================================================
-
-const onSelectImportFileAsync = async () => {
-  try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const { readFile } = await import('@tauri-apps/plugin-fs')
-
-    const filePath = await open({
-      title: t('import.title'),
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-      multiple: false,
-    })
-    if (!filePath) return
-
-    const data = await readFile(filePath as string)
-    importJson.value = new TextDecoder().decode(data)
-  } catch (error) {
-    console.error('Failed to read file:', error)
-    showOperationError(error, 'errors.importFailed')
-  }
-}
-
-const onParseImport = (rawJson: string) => {
-  try {
-    importParsed.value = parseImport(rawJson)
-  } catch (error) {
-    if (error instanceof InvalidImportJsonError) {
-      add({ title: t('errors.invalidJson'), color: 'error' })
-      return
-    }
-    if (error instanceof InvalidImportDataError) {
-      add({ title: t('errors.invalidIdentityData'), color: 'error' })
-      return
-    }
-    showOperationError(error, 'errors.importFailed')
-  }
-}
-
-const onImportAsync = async (payload: ImportSubmitPayload) => {
-  isImporting.value = true
-  try {
-    const result = await importAsync(payload.parsed, {
-      selectedClaimIndices: payload.selectedClaimIndices,
-      includeAvatar: payload.includeAvatar,
-    })
-
-    add({
-      title: t(
-        result.kind === 'identity' ? 'success.imported' : 'success.importedAsContact',
-      ),
-      color: 'success',
-    })
-    showImportDialog.value = false
-  } catch (error) {
-    console.error('Failed to import:', error)
-    showOperationError(error, 'errors.importFailed')
-  } finally {
-    isImporting.value = false
-  }
-}
-
-// =========================================================================
-// Export
-// =========================================================================
-
-const onShareQr = (identity: SelectHaexIdentities) => {
-  shareQrIdentityId.value = identity.id
-  showShareQrDialog.value = true
-}
-
-const onExport = async (identity: SelectHaexIdentities) => {
-  exportTarget.value = identity
-  const claims = await identityStore.getClaimsAsync(identity.id)
-  exportClaims.value = claims.map((c) => ({
-    id: c.id,
-    type: c.type,
-    value: c.value,
-  }))
-  showExportDialog.value = true
-}
-
-const onExportSubmit = async (payload: ExportSubmitPayload) => {
-  if (!exportTarget.value) return
-
-  // Intercept private-key exports for an extra confirmation step.
-  if (payload.includePrivateKey) {
-    pendingExportOptions.value = payload
-    showPrivateKeyConfirm.value = true
-    return
-  }
-
-  await runExportAsync(payload)
-}
-
-const onConfirmExportWithPrivateKeyAsync = async () => {
-  showPrivateKeyConfirm.value = false
-  if (!pendingExportOptions.value) return
-  const options = pendingExportOptions.value
-  pendingExportOptions.value = null
-  await runExportAsync(options)
-}
-
-const runExportAsync = async (options: ExportSubmitPayload) => {
-  if (!exportTarget.value) return
-
-  isExporting.value = true
-  try {
-    const outcome = await exportToFileAsync(
-      exportTarget.value,
-      exportClaims.value,
-      {
-        selectedClaimIds: options.selectedClaimIds,
-        includeAvatar: options.includeAvatar,
-        includePrivateKey: options.includePrivateKey,
-      },
-      t('export.title'),
-    )
-    if (outcome.saved) {
-      add({ title: t('success.exported'), color: 'success' })
-      showExportDialog.value = false
-    }
-  } catch (error) {
-    console.error('Failed to export identity:', error)
-    showOperationError(error, 'errors.exportFailed')
-  } finally {
-    isExporting.value = false
-  }
-}
-
-// =========================================================================
-// Edit (rename + password + avatar)
-// =========================================================================
-
-const openEditDialog = (identity: SelectHaexIdentities) => {
-  editTarget.value = identity
-  showEditDialog.value = true
-}
-
-const onEditAvatarUpdateAsync = async (payload: AvatarUpdatePayload) => {
-  if (!editTarget.value) return
-
-  const optionsJson =
-    payload.options !== undefined
-      ? payload.options
-        ? JSON.stringify(payload.options)
-        : null
-      : undefined
-
-  await identityStore.updateAvatarAsync(
-    editTarget.value.id,
-    payload.avatar,
-    optionsJson,
-  )
-
-  // Refresh local snapshot so the dialog immediately shows the new avatar.
-  editTarget.value = {
-    ...editTarget.value,
-    avatar: payload.avatar,
-    avatarOptions: optionsJson ?? editTarget.value.avatarOptions,
-  }
-}
-
-const onRenameAsync = async (payload: EditSubmitPayload) => {
-  if (!editTarget.value) return
-
-  isRenaming.value = true
-  try {
-    await identityStore.updateNameAsync(editTarget.value.id, payload.name)
-
-    if (payload.newPassword) {
-      const ok = await updatePasswordAsync(
-        editTarget.value.id,
-        payload.newPassword,
-      )
-      if (!ok) {
-        add({ title: t('errors.passwordUpdateFailed'), color: 'error' })
-        return
-      }
-    }
-
-    add({ title: t('success.saved'), color: 'success' })
-    showEditDialog.value = false
-  } catch (error) {
-    console.error('Failed to edit identity:', error)
-    showOperationError(error, 'errors.editFailed')
-  } finally {
-    isRenaming.value = false
-  }
-}
-
-// =========================================================================
-// Delete
-// =========================================================================
-
-const prepareDelete = async (identity: SelectHaexIdentities) => {
-  deleteTarget.value = identity
-  const affected = await identityStore.getAffectedSpacesAsync(identity.id)
-  affectedAdminSpaces.value = affected.adminSpaces
-  affectedMemberSpaces.value = affected.memberSpaces
-  affectedSyncBackends.value = affected.syncBackends
-  acceptedSyncBackendLoss.value = false
-  showDeleteConfirm.value = true
-}
-
-const canConfirmDelete = computed(
-  () =>
-    deleteCountdown.value === 0
-    && (affectedSyncBackends.value.length === 0 || acceptedSyncBackendLoss.value),
-)
-
-const deleteConfirmLabel = computed(() => {
-  const base = t('delete.confirmLabel')
-  return deleteCountdown.value > 0 ? `${base} (${deleteCountdown.value}s)` : base
-})
-
-const onConfirmDeleteAsync = async () => {
-  if (!deleteTarget.value) return
-  try {
-    await identityStore.deleteIdentityAsync(deleteTarget.value.id)
-    add({ title: t('success.deleted'), color: 'success' })
-    showDeleteConfirm.value = false
-    deleteTarget.value = null
-  } catch (error) {
-    console.error('Failed to delete identity:', error)
-    if (error instanceof VaultOwnerDeletionError) {
-      add({ title: t('errors.vaultOwnerDelete'), color: 'error' })
-      return
-    }
-    showOperationError(error, 'errors.deleteFailed')
-  }
-}
-
-// =========================================================================
-// Claims
-// =========================================================================
-
-const openAddClaim = (identityId: string) => {
-  claimTargetIdentityId.value = identityId
-  editingClaim.value = null
-  showClaimDialog.value = true
-}
-
-const openEditClaim = (identityId: string, claim: ListItemClaim) => {
-  claimTargetIdentityId.value = identityId
-  editingClaim.value = { id: claim.id, type: claim.type, value: claim.value }
-  showClaimDialog.value = true
-}
-
-const onClaimSubmitAsync = async (payload: ClaimSubmitPayload) => {
-  try {
-    if (payload.mode === 'edit') {
-      await identityStore.updateClaimAsync(payload.claimId, payload.value)
-      add({ title: t('claims.updated'), color: 'success' })
-    } else {
-      if (!claimTargetIdentityId.value) return
-      await identityStore.addClaimAsync(
-        claimTargetIdentityId.value,
-        payload.type,
-        payload.value,
-      )
-      add({ title: t('claims.added'), color: 'success' })
-    }
-    showClaimDialog.value = false
-  } catch (error) {
-    console.error('Failed to save claim:', error)
-    showOperationError(error, 'claims.saveFailed')
-  }
-}
-
-const onDeleteClaim = async (claimId: string, identityId: string) => {
-  try {
-    await identityStore.deleteClaimAsync(claimId)
-    add({ title: t('claims.deleted'), color: 'success' })
-  } catch (error) {
-    console.error('Failed to delete claim:', error)
-    add({ title: t('claims.deleteFailed'), color: 'error' })
-  }
-  // Consumed for future use; keep identityId in the signature for clarity.
-  void identityId
-}
+onMounted(loadIdentitiesAndSpacesAsync)
 </script>
 
 <i18n lang="yaml">
