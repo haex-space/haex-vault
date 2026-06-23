@@ -3,6 +3,8 @@
     <!-- Header: Breadcrumbs + Actions -->
     <template #header>
       <FilesHeader
+        v-model:search-query="browser.searchQuery.value"
+        v-model:view-mode="browser.viewMode.value"
         :browser="browser"
         :peer-store="peerStore"
         :ping="ping"

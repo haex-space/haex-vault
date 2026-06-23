@@ -3,7 +3,7 @@
     <!-- Search + View toggle -->
     <div class="flex items-center gap-2">
       <UiInput
-        v-model="browser.searchQuery.value"
+        v-model="searchQuery"
         :placeholder="t('search')"
         class="flex-1"
         leading-icon="i-lucide-search"
@@ -16,16 +16,16 @@
         <UiButton
           variant="ghost"
           icon="i-lucide-list"
-          :color="browser.viewMode.value === 'list' ? 'primary' : 'neutral'"
+          :color="viewMode === 'list' ? 'primary' : 'neutral'"
           :title="t('viewList')"
-          @click="browser.viewMode.value = 'list'"
+          @click="viewMode = 'list'"
         />
         <UiButton
           variant="ghost"
           icon="i-lucide-layout-grid"
-          :color="browser.viewMode.value === 'grid' ? 'primary' : 'neutral'"
+          :color="viewMode === 'grid' ? 'primary' : 'neutral'"
           :title="t('viewGrid')"
-          @click="browser.viewMode.value = 'grid'"
+          @click="viewMode = 'grid'"
         />
       </div>
     </div>
@@ -213,6 +213,11 @@ const emit = defineEmits<{
   uploadFiles: []
   openP2pSettings: []
 }>()
+
+// Two-way bindings for parent-owned ref state — avoids `vue/no-mutating-props`
+// while keeping the parent's `useFileBrowser` refs as the source of truth.
+const searchQuery = defineModel<string>('searchQuery', { required: true })
+const viewMode = defineModel<'list' | 'grid'>('viewMode', { required: true })
 
 const { t } = useI18n()
 
