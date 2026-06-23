@@ -5,7 +5,6 @@ mod multi_stream;
 mod pipe_reader;
 mod remote;
 mod state;
-mod streaming;
 mod streaming_const;
 mod unit_access;
 mod unit_share;
