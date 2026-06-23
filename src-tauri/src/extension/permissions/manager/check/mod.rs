@@ -4,7 +4,7 @@ pub(super) mod identities;
 mod mail;
 mod notifications;
 pub(super) mod passwords;
-mod rw_resource;
+pub(super) mod rw_resource;
 pub(super) mod shell;
 pub(super) mod spaces;
 mod sync_servers;

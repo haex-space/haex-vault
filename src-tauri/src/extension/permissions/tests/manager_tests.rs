@@ -11,14 +11,14 @@ use crate::extension::permissions::manager::{
     database_matching_status, filesystem_matching_has_constraint_violation,
     filesystem_matching_status, format_filesystem_denied_target, format_shell_denied_target,
     identities_matching_status, parse_passwords_default_marker, resolve_identities_decision,
-    resolve_passwords_tags_scope, shell_matching_has_constraint_violation, shell_matching_status,
-    spaces_matching_status, spaces_session_status, web_matching_status, IdentitiesDecision,
-    PasswordsGrantRow,
+    resolve_passwords_tags_scope, rw_resource_matching_status, rw_resource_session_status,
+    shell_matching_has_constraint_violation, shell_matching_status, spaces_matching_status,
+    spaces_session_status, web_matching_status, IdentitiesDecision, PasswordsGrantRow,
 };
 use crate::extension::permissions::session::SessionPermissionStore;
 use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction, PasswordsScope,
-    PermissionConstraints, PermissionStatus, ResourceType, ShellAction, ShellConstraints,
+    PermissionConstraints, PermissionStatus, ResourceType, RwAction, ShellAction, ShellConstraints,
     SpaceAction, WebAction,
 };
 use serde_json::json;
@@ -789,5 +789,110 @@ fn session_rw_grant_covers_read_request() {
     });
 
     let resolved = spaces_session_status(&session, extension_id, SpaceAction::Read);
+    assert_eq!(resolved, Some(PermissionStatus::Granted));
+}
+
+// ---------------------------------------------------------------------------
+// rw_resource (SyncServers / CloudStorage / SyncRules) deny-first precedence
+// and session RW⇒R escalation
+//
+// `rw_resource.rs` is the shared helper for the three action-level Read/
+// ReadWrite resources. Deny-first precedence and the session-level RW⇒R
+// escalation apply uniformly across all three — covered here by exercising
+// the helper directly with one row of each resource type.
+// ---------------------------------------------------------------------------
+
+fn rw_resource_permission(
+    resource_type: ResourceType,
+    action: RwAction,
+    status: PermissionStatus,
+) -> ExtensionPermission {
+    let perm_action = match resource_type {
+        ResourceType::SyncServers => Action::SyncServers(action),
+        ResourceType::CloudStorage => Action::CloudStorage(action),
+        ResourceType::SyncRules => Action::SyncRules(action),
+        other => panic!("rw_resource_permission only handles RW resources, got {other:?}"),
+    };
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: "test-ext-precedence-rw".to_string(),
+        resource_type,
+        action: perm_action,
+        target: "*".to_string(),
+        constraints: None,
+        status,
+        raw_constraints: None,
+    }
+}
+
+#[test]
+fn deny_wins_rw_resource_granted_first() {
+    // SECURITY: a Denied row for the Read action MUST win even when a broad
+    // ReadWrite Granted row is inserted first. Exercises SyncServers, which
+    // shares the helper with CloudStorage and SyncRules.
+    let permissions = vec![
+        rw_resource_permission(
+            ResourceType::SyncServers,
+            RwAction::ReadWrite,
+            PermissionStatus::Granted,
+        ),
+        rw_resource_permission(
+            ResourceType::SyncServers,
+            RwAction::Read,
+            PermissionStatus::Denied,
+        ),
+    ];
+
+    let resolved =
+        rw_resource_matching_status(&permissions, ResourceType::SyncServers, RwAction::Read);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn deny_wins_rw_resource_denied_first() {
+    // Symmetric: Denied-first order still yields Denied.
+    let permissions = vec![
+        rw_resource_permission(
+            ResourceType::CloudStorage,
+            RwAction::Read,
+            PermissionStatus::Denied,
+        ),
+        rw_resource_permission(
+            ResourceType::CloudStorage,
+            RwAction::ReadWrite,
+            PermissionStatus::Granted,
+        ),
+    ];
+
+    let resolved =
+        rw_resource_matching_status(&permissions, ResourceType::CloudStorage, RwAction::Read);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn session_rw_covers_read_for_cloud_storage() {
+    // A session ReadWrite grant must satisfy a Read request — matches the
+    // DB-side `action_allows` semantics (writer trivially reads). Verifies
+    // the RW⇒R escalation works for CloudStorage independently of the
+    // SyncServers / SyncRules variants.
+    let session = SessionPermissionStore::new();
+    let extension_id = "test-ext-precedence-rw-cloud";
+    session.set_permission(ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: extension_id.to_string(),
+        resource_type: ResourceType::CloudStorage,
+        action: Action::CloudStorage(RwAction::ReadWrite),
+        target: "*".to_string(),
+        constraints: None,
+        status: PermissionStatus::Granted,
+        raw_constraints: None,
+    });
+
+    let resolved = rw_resource_session_status(
+        &session,
+        extension_id,
+        ResourceType::CloudStorage,
+        RwAction::Read,
+    );
     assert_eq!(resolved, Some(PermissionStatus::Granted));
 }
