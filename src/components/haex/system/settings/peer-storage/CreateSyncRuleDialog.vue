@@ -6,217 +6,64 @@
   >
     <template #body>
       <UStepper
-        v-model="step"
+        v-model="wizard.step.value"
         :items="stepperItems"
         orientation="horizontal"
         class="mb-6"
       >
         <!-- Step 1: Source -->
         <template #source>
-          <div class="space-y-4 pt-4">
-            <USelectMenu
-              v-model="sourceType"
-              :items="sourceProviderTypes"
-              value-key="value"
-              :label="t('source.type')"
-              class="w-full"
-            />
-
-            <!-- Local folder picker -->
-            <div v-if="sourceType === 'local'" class="space-y-2">
-              <UButton
-                icon="i-lucide-folder"
-                color="neutral"
-                variant="outline"
-                block
-                @click="selectSourceFolderAsync"
-              >
-                {{ sourcePath || t('source.selectFolder') }}
-              </UButton>
-            </div>
-
-            <!-- Peer: space + device + share pickers -->
-            <div v-if="sourceType === 'peer'" class="space-y-3">
-              <UiSelectMenu
-                v-model="sourceSpaceId"
-                :items="spaceOptions"
-                :label="t('source.space')"
-                value-key="value"
-              />
-              <UiSelectMenu
-                v-if="sourceSpaceId"
-                v-model="sourceDeviceEndpointId"
-                :items="deviceOptionsForSpace(sourceSpaceId)"
-                :label="t('source.device')"
-                value-key="value"
-              />
-              <UiSelectMenu
-                v-if="sourceDeviceEndpointId"
-                v-model="sourceShareId"
-                :items="shareOptionsForDevice(sourceDeviceEndpointId)"
-                :label="t('source.share')"
-                value-key="value"
-              />
-              <UiInput
-                v-if="sourceShareId"
-                v-model="sourceSubfolder"
-                :label="t('source.subfolder')"
-                :placeholder="t('source.subfolderPlaceholder')"
-              />
-            </div>
-
-            <!-- Cloud: backend + bucket + prefix -->
-            <div v-if="sourceType === 'cloud'" class="space-y-3">
-              <UiSelectMenu
-                v-model="sourceBackendId"
-                :items="backendOptions"
-                :label="t('source.backend')"
-                value-key="value"
-              />
-              <UiInput
-                v-model="sourceBucket"
-                :label="t('source.bucket')"
-                :placeholder="defaultBucketFor(sourceBackendId) || 'my-bucket'"
-                :description="t('source.bucketDescription')"
-              />
-              <UiInput
-                v-model="sourcePrefix"
-                :label="t('source.prefix')"
-                placeholder="photos/"
-              />
-            </div>
-          </div>
+          <HaexSystemSettingsPeerStorageCreateSyncRuleDialogStepSource
+            v-model:type="wizard.source.type.value"
+            v-model:path="wizard.source.path.value"
+            v-model:space-id="wizard.source.spaceId.value"
+            v-model:device-endpoint-id="wizard.source.deviceEndpointId.value"
+            v-model:share-id="wizard.source.shareId.value"
+            v-model:subfolder="wizard.source.subfolder.value"
+            v-model:backend-id="wizard.source.backendId.value"
+            v-model:bucket="wizard.source.bucket.value"
+            v-model:prefix="wizard.source.prefix.value"
+            :provider-types="sourceProviderTypes"
+            :space-options="spaceOptions"
+            :backend-options="backendOptions"
+            :device-options-for-space="deviceOptionsForSpace"
+            :share-options-for-device="shareOptionsForDevice"
+            :default-bucket-for="defaultBucketFor"
+            @select-folder="selectSourceFolderAsync"
+          />
         </template>
 
         <!-- Step 2: Target -->
         <template #target>
-          <div class="space-y-4 pt-4">
-            <USelectMenu
-              v-model="targetType"
-              :items="targetProviderTypes"
-              value-key="value"
-              :label="t('target.type')"
-              class="w-full"
-            />
-
-            <!-- Local folder picker -->
-            <div v-if="targetType === 'local'" class="space-y-2">
-              <UButton
-                icon="i-lucide-folder"
-                color="neutral"
-                variant="outline"
-                block
-                @click="selectTargetFolderAsync"
-              >
-                {{ targetPath || t('target.selectFolder') }}
-              </UButton>
-            </div>
-
-            <!-- Peer: space + device + folder -->
-            <div v-if="targetType === 'peer'" class="space-y-3">
-              <UiSelectMenu
-                v-model="targetSpaceId"
-                :items="spaceOptions"
-                :label="t('target.space')"
-                value-key="value"
-              />
-              <UiSelectMenu
-                v-if="targetSpaceId"
-                v-model="targetDeviceEndpointId"
-                :items="deviceOptionsForSpace(targetSpaceId)"
-                :label="t('target.device')"
-                value-key="value"
-              />
-              <template v-if="targetDeviceEndpointId">
-                <!-- Toggle: existing folder vs new folder -->
-                <div class="flex items-center gap-2">
-                  <label class="text-sm font-medium flex-1">{{ t('target.folder') }}</label>
-                  <UButton
-                    size="xs"
-                    variant="link"
-                    :icon="targetCreateNewFolder ? 'i-lucide-list' : 'i-lucide-folder-plus'"
-                    @click="targetCreateNewFolder = !targetCreateNewFolder; targetShareId = ''; targetNewFolderName = ''"
-                  >
-                    {{ targetCreateNewFolder ? t('target.chooseExisting') : t('target.createNew') }}
-                  </UButton>
-                </div>
-                <!-- Existing folder -->
-                <UiSelectMenu
-                  v-if="!targetCreateNewFolder"
-                  v-model="targetShareId"
-                  :items="shareOptionsForDevice(targetDeviceEndpointId)"
-                  value-key="value"
-                />
-                <!-- New folder name -->
-                <UiInput
-                  v-else
-                  v-model="targetNewFolderName"
-                  :placeholder="t('target.newFolderPlaceholder')"
-                />
-              </template>
-              <UiInput
-                v-if="targetShareId || targetNewFolderName"
-                v-model="targetSubfolder"
-                :label="t('target.subfolder')"
-                :placeholder="t('target.subfolderPlaceholder')"
-              />
-            </div>
-
-            <!-- Cloud: backend + bucket + prefix -->
-            <div v-if="targetType === 'cloud'" class="space-y-3">
-              <UiSelectMenu
-                v-model="targetBackendId"
-                :items="backendOptions"
-                :label="t('target.backend')"
-                value-key="value"
-              />
-              <UiInput
-                v-model="targetBucket"
-                :label="t('target.bucket')"
-                :placeholder="defaultBucketFor(targetBackendId) || 'my-bucket'"
-                :description="t('target.bucketDescription')"
-              />
-              <UiInput
-                v-model="targetPrefix"
-                :label="t('target.prefix')"
-                placeholder="backup/"
-              />
-            </div>
-          </div>
+          <HaexSystemSettingsPeerStorageCreateSyncRuleDialogStepTarget
+            v-model:type="wizard.target.type.value"
+            v-model:path="wizard.target.path.value"
+            v-model:space-id="wizard.target.spaceId.value"
+            v-model:device-endpoint-id="wizard.target.deviceEndpointId.value"
+            v-model:share-id="wizard.target.shareId.value"
+            v-model:create-new-folder="wizard.target.createNewFolder.value"
+            v-model:new-folder-name="wizard.target.newFolderName.value"
+            v-model:subfolder="wizard.target.subfolder.value"
+            v-model:backend-id="wizard.target.backendId.value"
+            v-model:bucket="wizard.target.bucket.value"
+            v-model:prefix="wizard.target.prefix.value"
+            :provider-types="targetProviderTypes"
+            :space-options="spaceOptions"
+            :backend-options="backendOptions"
+            :device-options-for-space="deviceOptionsForSpace"
+            :share-options-for-device="shareOptionsForDevice"
+            :default-bucket-for="defaultBucketFor"
+            @select-folder="selectTargetFolderAsync"
+          />
         </template>
 
         <!-- Step 3: Settings -->
         <template #settings>
-          <div class="space-y-4 pt-4">
-            <!-- Direction -->
-            <div>
-              <label class="text-sm font-medium">{{ t('settings.direction') }}</label>
-              <div class="flex gap-2 mt-1">
-                <UiButton
-                  :variant="direction === 'one_way' ? 'solid' : 'outline'"
-                  icon="i-lucide-arrow-right"
-                  @click="direction = 'one_way'"
-                >
-                  {{ t('settings.oneWay') }}
-                </UiButton>
-                <UiButton
-                  :variant="direction === 'two_way' ? 'solid' : 'outline'"
-                  icon="i-lucide-arrow-left-right"
-                  @click="direction = 'two_way'"
-                >
-                  {{ t('settings.twoWay') }}
-                </UiButton>
-              </div>
-            </div>
-
-            <!-- Delete mode -->
-            <UiSelectMenu
-              v-model="deleteMode"
-              :items="deleteModeOptions"
-              :label="t('settings.deleteMode')"
-              value-key="value"
-            />
-          </div>
+          <HaexSystemSettingsPeerStorageCreateSyncRuleDialogStepSettings
+            v-model:direction="wizard.settings.direction.value"
+            v-model:delete-mode="wizard.settings.deleteMode.value"
+            :delete-mode-options="deleteModeOptions"
+          />
         </template>
       </UStepper>
     </template>
@@ -229,7 +76,7 @@
             variant="outline"
             @click="onBack"
           >
-            {{ step > 0 ? t('actions.back') : t('actions.cancel') }}
+            {{ wizard.step.value > 0 ? t('actions.back') : t('actions.cancel') }}
           </UiButton>
           <template v-if="isEditMode && editRule">
             <UiButton
@@ -248,10 +95,10 @@
         </div>
 
         <UiButton
-          v-if="step < 2"
+          v-if="wizard.step.value < 2"
           icon="i-lucide-arrow-right"
-          :disabled="!canProceed"
-          @click="step++"
+          :disabled="!wizard.canProceed.value"
+          @click="wizard.step.value++"
         >
           {{ t('actions.next') }}
         </UiButton>
@@ -260,7 +107,7 @@
           icon="i-lucide-check"
           color="primary"
           :loading="isCreating"
-          :disabled="!canCreate"
+          :disabled="!wizard.canCreate.value"
           @click="onSaveAsync"
         >
           {{ isEditMode ? t('actions.save') : t('actions.create') }}
@@ -276,8 +123,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { SelectHaexSyncRules } from '~/database/schemas'
 import { getUcanForSpaceAsync } from '~/utils/auth/ucanStore'
 import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
-
-type ProviderType = 'local' | 'peer' | 'cloud'
+import { useCreateSyncRuleWizard, type ProviderType } from '~/composables/peerStorage/useCreateSyncRuleWizard'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -321,8 +167,7 @@ const loadStorageBackendsAsync = async () => {
   }
 }
 
-// UStepper uses 0-based index
-const step = ref(0)
+const wizard = useCreateSyncRuleWizard()
 const isCreating = ref(false)
 
 // -- Stepper items --
@@ -358,35 +203,6 @@ const targetProviderTypes = computed(() => [
   { value: 'cloud' as ProviderType, label: t('provider.cloud'), icon: 'i-lucide-cloud' },
 ])
 
-// -- Source state --
-const sourceType = ref<ProviderType>('local')
-const sourcePath = ref('')
-const sourceSpaceId = ref('')
-const sourceDeviceEndpointId = ref('')
-const sourceShareId = ref('')
-const sourceSubfolder = ref('')
-const sourceBackendId = ref('')
-const sourceBucket = ref('')
-const sourcePrefix = ref('')
-
-// -- Target state --
-const targetType = ref<ProviderType>('local')
-const targetPath = ref('')
-const targetSpaceId = ref('')
-const targetDeviceEndpointId = ref('')
-const targetShareId = ref('')
-const targetCreateNewFolder = ref(false)
-const targetNewFolderName = ref('')
-const targetSubfolder = ref('')
-const targetBackendId = ref('')
-const targetBucket = ref('')
-const targetPrefix = ref('')
-
-// -- Settings state --
-const direction = ref<'one_way' | 'two_way'>('one_way')
-const intervalSeconds = ref(300)
-const deleteMode = ref('trash')
-
 // -- Options --
 const deleteModeOptions = computed(() => [
   { label: t('deleteModes.trash'), value: 'trash' },
@@ -419,100 +235,67 @@ const shareOptionsForDevice = (endpointId: string) =>
     .filter(s => s.endpointId === endpointId)
     .map(s => ({ label: s.name, value: s.id }))
 
-// -- Validation --
-const isSourceValid = computed(() => {
-  switch (sourceType.value) {
-    case 'local': return !!sourcePath.value
-    case 'peer': return !!sourceShareId.value
-    case 'cloud': return !!sourceBackendId.value
-    default: return false
-  }
-})
-
-const isTargetValid = computed(() => {
-  switch (targetType.value) {
-    case 'local': return !!targetPath.value
-    case 'peer': return targetCreateNewFolder.value
-      ? !!targetNewFolderName.value.trim()
-      : !!targetShareId.value
-    case 'cloud': return !!targetBackendId.value
-    default: return false
-  }
-})
-
-const canProceed = computed(() => {
-  if (step.value === 0) return isSourceValid.value
-  if (step.value === 1) return isTargetValid.value
-  return true
-})
-
-const canCreate = computed(() =>
-  isSourceValid.value && isTargetValid.value,
-)
-
-
-
 // -- Folder selection --
 const selectSourceFolderAsync = async () => {
   const path = await invoke<string | null>('filesystem_select_folder', {})
-  if (path) sourcePath.value = path
+  if (path) wizard.source.path.value = path
 }
 
 const selectTargetFolderAsync = async () => {
   const path = await invoke<string | null>('filesystem_select_folder', {})
-  if (path) targetPath.value = path
+  if (path) wizard.target.path.value = path
 }
 
 // -- Build config objects --
 const buildSourceConfig = () => {
-  switch (sourceType.value) {
-    case 'local': return { path: sourcePath.value }
+  switch (wizard.source.type.value) {
+    case 'local': return { path: wizard.source.path.value }
     case 'peer': {
-      const spaceId = sourceSpaceId.value
+      const spaceId = wizard.source.spaceId.value
       const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
       if (!ucanToken) throw new Error('No valid UCAN token for this space')
-      const basePath = sourceShareId.value
-      const sub = sourceSubfolder.value.trim().replace(/^\/+|\/+$/g, '')
+      const basePath = wizard.source.shareId.value
+      const sub = wizard.source.subfolder.value.trim().replace(/^\/+|\/+$/g, '')
       const path = sub ? `${basePath}/${sub}` : basePath
       return {
-        endpointId: sourceDeviceEndpointId.value,
+        endpointId: wizard.source.deviceEndpointId.value,
         path,
         spaceId,
         ucanToken,
       }
     }
     case 'cloud': return {
-      backendId: sourceBackendId.value,
+      backendId: wizard.source.backendId.value,
       // Only send an override when the user actually changed it
-      bucket: sourceBucket.value.trim() || undefined,
-      prefix: sourcePrefix.value,
+      bucket: wizard.source.bucket.value.trim() || undefined,
+      prefix: wizard.source.prefix.value,
     }
   }
 }
 
 const buildTargetConfig = () => {
-  switch (targetType.value) {
-    case 'local': return { path: targetPath.value }
+  switch (wizard.target.type.value) {
+    case 'local': return { path: wizard.target.path.value }
     case 'peer': {
-      const spaceId = targetSpaceId.value
+      const spaceId = wizard.target.spaceId.value
       const ucanToken = spaceId ? getUcanForSpaceAsync(spaceId) : null
       if (!ucanToken) throw new Error('No valid UCAN token for this space')
-      const basePath = targetCreateNewFolder.value
-        ? targetNewFolderName.value.trim()
-        : targetShareId.value
-      const sub = targetSubfolder.value.trim().replace(/^\/+|\/+$/g, '')
+      const basePath = wizard.target.createNewFolder.value
+        ? wizard.target.newFolderName.value.trim()
+        : wizard.target.shareId.value
+      const sub = wizard.target.subfolder.value.trim().replace(/^\/+|\/+$/g, '')
       const path = sub ? `${basePath}/${sub}` : basePath
       return {
-        endpointId: targetDeviceEndpointId.value,
+        endpointId: wizard.target.deviceEndpointId.value,
         path,
         spaceId,
         ucanToken,
       }
     }
     case 'cloud': return {
-      backendId: targetBackendId.value,
-      bucket: targetBucket.value.trim() || undefined,
-      prefix: targetPrefix.value,
+      backendId: wizard.target.backendId.value,
+      bucket: wizard.target.bucket.value.trim() || undefined,
+      prefix: wizard.target.prefix.value,
     }
   }
 }
@@ -530,15 +313,15 @@ const resolveCurrentDeviceId = (): string => {
 
 // -- Determine spaceId for the rule --
 const resolveSpaceId = (): string => {
-  if (sourceType.value === 'peer' && sourceSpaceId.value) return sourceSpaceId.value
-  if (targetType.value === 'peer' && targetSpaceId.value) return targetSpaceId.value
+  if (wizard.source.type.value === 'peer' && wizard.source.spaceId.value) return wizard.source.spaceId.value
+  if (wizard.target.type.value === 'peer' && wizard.target.spaceId.value) return wizard.target.spaceId.value
   return spacesStore.visibleSpaces[0]?.id ?? ''
 }
 
 // -- Navigation --
 const onBack = () => {
-  if (step.value > 0) {
-    step.value--
+  if (wizard.step.value > 0) {
+    wizard.step.value--
   } else {
     open.value = false
   }
@@ -571,19 +354,19 @@ const onDeleteRuleAsync = async () => {
 
 // -- Save rule (create or update) --
 const onSaveAsync = async () => {
-  if (!canCreate.value) return
+  if (!wizard.canCreate.value) return
   isCreating.value = true
 
   try {
     if (isEditMode.value && props.editRule) {
       await fileSyncStore.updateRuleAsync(props.editRule.id, {
-        sourceType: sourceType.value,
+        sourceType: wizard.source.type.value,
         sourceConfig: buildSourceConfig(),
-        targetType: targetType.value,
+        targetType: wizard.target.type.value,
         targetConfig: buildTargetConfig(),
-        direction: direction.value,
-        syncIntervalSeconds: intervalSeconds.value,
-        deleteMode: deleteMode.value,
+        direction: wizard.settings.direction.value,
+        syncIntervalSeconds: wizard.settings.intervalSeconds.value,
+        deleteMode: wizard.settings.deleteMode.value,
       })
       addToast({ title: t('success.updated'), color: 'success' })
       emit('updated')
@@ -596,13 +379,13 @@ const onSaveAsync = async () => {
         id: crypto.randomUUID(),
         spaceId,
         deviceId,
-        sourceType: sourceType.value,
+        sourceType: wizard.source.type.value,
         sourceConfig: buildSourceConfig(),
-        targetType: targetType.value,
+        targetType: wizard.target.type.value,
         targetConfig: buildTargetConfig(),
-        direction: direction.value,
-        syncIntervalSeconds: intervalSeconds.value,
-        deleteMode: deleteMode.value,
+        direction: wizard.settings.direction.value,
+        syncIntervalSeconds: wizard.settings.intervalSeconds.value,
+        deleteMode: wizard.settings.deleteMode.value,
         enabled: true,
       })
       addToast({ title: t('success.created'), color: 'success' })
@@ -621,89 +404,61 @@ const onSaveAsync = async () => {
   }
 }
 
-// -- Reset on open --
-const resetForm = () => {
-  step.value = 0
-  sourceType.value = 'local'
-  sourcePath.value = ''
-  sourceSpaceId.value = ''
-  sourceDeviceEndpointId.value = ''
-  sourceShareId.value = ''
-  sourceSubfolder.value = ''
-  sourceBackendId.value = ''
-  sourceBucket.value = ''
-  sourcePrefix.value = ''
-  targetType.value = 'local'
-  targetPath.value = ''
-  targetSpaceId.value = ''
-  targetDeviceEndpointId.value = ''
-  targetShareId.value = ''
-  targetCreateNewFolder.value = false
-  targetNewFolderName.value = ''
-  targetSubfolder.value = ''
-  targetBackendId.value = ''
-  targetBucket.value = ''
-  targetPrefix.value = ''
-  direction.value = 'one_way'
-  intervalSeconds.value = 300
-  deleteMode.value = 'trash'
-}
-
 const populateFromRule = (rule: SelectHaexSyncRules) => {
   const srcCfg = rule.sourceConfig as Record<string, unknown>
   const tgtCfg = rule.targetConfig as Record<string, unknown>
 
-  sourceType.value = rule.sourceType as ProviderType
-  targetType.value = rule.targetType as ProviderType
-  direction.value = rule.direction as 'one_way' | 'two_way'
-  intervalSeconds.value = rule.syncIntervalSeconds
-  deleteMode.value = rule.deleteMode
+  wizard.source.type.value = rule.sourceType as ProviderType
+  wizard.target.type.value = rule.targetType as ProviderType
+  wizard.settings.direction.value = rule.direction as 'one_way' | 'two_way'
+  wizard.settings.intervalSeconds.value = rule.syncIntervalSeconds
+  wizard.settings.deleteMode.value = rule.deleteMode
 
   // Source
   if (rule.sourceType === 'local') {
-    sourcePath.value = (srcCfg?.path as string) || ''
+    wizard.source.path.value = (srcCfg?.path as string) || ''
   } else if (rule.sourceType === 'peer') {
-    sourceSpaceId.value = (srcCfg?.spaceId as string) || ''
-    sourceDeviceEndpointId.value = (srcCfg?.endpointId as string) || ''
-    sourceShareId.value = (srcCfg?.path as string) || ''
+    wizard.source.spaceId.value = (srcCfg?.spaceId as string) || ''
+    wizard.source.deviceEndpointId.value = (srcCfg?.endpointId as string) || ''
+    wizard.source.shareId.value = (srcCfg?.path as string) || ''
   } else if (rule.sourceType === 'cloud') {
-    sourceBackendId.value = (srcCfg?.backendId as string) || ''
-    sourceBucket.value = (srcCfg?.bucket as string) || ''
-    sourcePrefix.value = (srcCfg?.prefix as string) || ''
+    wizard.source.backendId.value = (srcCfg?.backendId as string) || ''
+    wizard.source.bucket.value = (srcCfg?.bucket as string) || ''
+    wizard.source.prefix.value = (srcCfg?.prefix as string) || ''
   }
 
   // Target
   if (rule.targetType === 'local') {
-    targetPath.value = (tgtCfg?.path as string) || ''
+    wizard.target.path.value = (tgtCfg?.path as string) || ''
   } else if (rule.targetType === 'peer') {
-    targetSpaceId.value = (tgtCfg?.spaceId as string) || ''
-    targetDeviceEndpointId.value = (tgtCfg?.endpointId as string) || ''
-    targetShareId.value = (tgtCfg?.path as string) || ''
+    wizard.target.spaceId.value = (tgtCfg?.spaceId as string) || ''
+    wizard.target.deviceEndpointId.value = (tgtCfg?.endpointId as string) || ''
+    wizard.target.shareId.value = (tgtCfg?.path as string) || ''
   } else if (rule.targetType === 'cloud') {
-    targetBackendId.value = (tgtCfg?.backendId as string) || ''
-    targetBucket.value = (tgtCfg?.bucket as string) || ''
-    targetPrefix.value = (tgtCfg?.prefix as string) || ''
+    wizard.target.backendId.value = (tgtCfg?.backendId as string) || ''
+    wizard.target.bucket.value = (tgtCfg?.bucket as string) || ''
+    wizard.target.prefix.value = (tgtCfg?.prefix as string) || ''
   }
 }
 
 watch(open, async (isOpen) => {
   if (isOpen) {
-    resetForm()
+    wizard.reset()
     await peerStorageStore.loadSharesAsync()
     await peerStorageStore.loadSpaceDevicesAsync()
     await loadStorageBackendsAsync()
     if (props.editRule) {
       populateFromRule(props.editRule)
     } else if (props.prefill) {
-      sourceType.value = props.prefill.sourceType
+      wizard.source.type.value = props.prefill.sourceType
       if (props.prefill.sourceType === 'local' && props.prefill.localPath) {
-        sourcePath.value = props.prefill.localPath
+        wizard.source.path.value = props.prefill.localPath
       } else {
-        sourceSpaceId.value = props.prefill.spaceId
-        sourceDeviceEndpointId.value = props.prefill.endpointId
-        sourceShareId.value = props.prefill.shareName
+        wizard.source.spaceId.value = props.prefill.spaceId
+        wizard.source.deviceEndpointId.value = props.prefill.endpointId
+        wizard.source.shareId.value = props.prefill.shareName
       }
-      step.value = 1 // Jump to target step
+      wizard.step.value = 1 // Jump to target step
     }
   }
 })
