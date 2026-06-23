@@ -2,213 +2,52 @@
   <div class="space-y-6">
     <!-- Stepper -->
     <UStepper
-      v-model="currentStepIndex"
+      v-model="wizard.currentStepIndex.value"
       :items="steps"
       :linear="false"
     >
       <template #loginEmail>
-        <div class="space-y-4">
-          <HaexSyncRecoveryLogin @otp-requested="onOtpRequested" />
-        </div>
+        <HaexSyncConnectWizardStepLoginEmail @otp-requested="onOtpRequested" />
       </template>
 
       <template #loginOtp>
-        <div class="space-y-4">
-          <HaexSyncRecoveryLoginOtp
-            :origin-url="otpServerUrl"
-            :email="otpEmail"
-            @recovered="onRecoveryComplete"
-            @change-email="currentStepIndex = 0"
-          />
-        </div>
+        <HaexSyncConnectWizardStepLoginOtp
+          :origin-url="wizard.otpServerUrl.value"
+          :email="wizard.otpEmail.value"
+          @recovered="onRecoveryComplete"
+          @change-email="wizard.currentStepIndex.value = 0"
+        />
       </template>
 
       <template #didPassword>
-        <div class="space-y-4">
-          <p class="text-sm text-muted">
-            {{ t('steps.didPassword.description') }}
-          </p>
-
-          <UiInputPassword
-            v-model="didPassword"
-            :label="t('steps.didPassword.label')"
-            leading-icon="i-lucide-fingerprint"
-            class="w-full"
-          />
-
-          <p
-            v-if="didPasswordError"
-            class="text-sm text-error"
-          >
-            {{ didPasswordError }}
-          </p>
-        </div>
+        <HaexSyncConnectWizardStepDidPassword
+          v-model:password="wizard.didPassword.value"
+          :error="wizard.didPasswordError.value"
+        />
       </template>
 
       <template #selectVault>
-        <div class="space-y-4">
-          <p class="text-sm text-muted">
-            {{ t('steps.selectVault.description') }}
-          </p>
-
-          <!-- Loading state -->
-          <div
-            v-if="isLoadingVaults"
-            class="flex items-center justify-center p-8"
-          >
-            <span class="loading loading-spinner loading-lg" />
-          </div>
-
-          <!-- Vault list -->
-          <div
-            v-else
-            class="space-y-2 px-1"
-          >
-            <div
-              v-for="vault in availableVaults"
-              :key="vault.spaceId"
-              class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
-              :class="{
-                'ring-2 ring-primary':
-                  selectedVaultId === vault.spaceId && !isCreatingNewVault,
-                'ring-2 ring-error':
-                  step3Error && !selectedVaultId && !isCreatingNewVault,
-              }"
-              @click="selectVault(vault.spaceId)"
-            >
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="font-medium">
-                    {{
-                      decryptedVaultNames[vault.spaceId] ||
-                      t('steps.selectVault.encryptedVault')
-                    }}
-                  </p>
-                  <p class="text-sm text-muted">
-                    {{ t('steps.selectVault.createdAt') }}:
-                    {{ formatDate(vault.createdAt) }}
-                  </p>
-                </div>
-                <div
-                  v-if="
-                    selectedVaultId === vault.spaceId && !isCreatingNewVault
-                  "
-                >
-                  <span
-                    v-if="isCheckingVaultPassword"
-                    class="loading loading-spinner loading-sm"
-                  />
-                  <i
-                    v-else-if="vaultPasswordVerified"
-                    class="i-lucide-check-circle text-2xl text-primary"
-                  />
-                  <i
-                    v-else-if="needsVaultPassword"
-                    class="i-lucide-lock text-2xl text-warning"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- Create new vault option -->
-            <div
-              class="card bg-elevated rounded-lg p-4 cursor-pointer hover:bg-muted transition-colors"
-              :class="{
-                'ring-2 ring-primary': isCreatingNewVault,
-              }"
-              @click="selectNewVault()"
-            >
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="font-medium">
-                    {{ t('steps.selectVault.createNew') }}
-                  </p>
-                  <p class="text-sm text-muted">
-                    {{ t('steps.selectVault.createNewDescription') }}
-                  </p>
-                </div>
-                <div
-                  v-if="isCreatingNewVault"
-                  class="text-primary"
-                >
-                  <i class="i-lucide-check-circle text-2xl" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Error message -->
-            <p
-              v-if="step3Error"
-              class="text-sm text-error mt-2"
-            >
-              {{ step3Error }}
-            </p>
-          </div>
-
-          <!-- Local vault name (always shown when vault selected) -->
-          <div
-            v-if="selectedVaultId || isCreatingNewVault"
-            class="space-y-4 pt-2"
-          >
-            <UiInput
-              v-model="localVaultName"
-              v-model:errors="step3Errors.vaultName"
-              :label="t('steps.selectVault.vaultName')"
-              :description="t('steps.selectVault.vaultNameDescription')"
-              :schema="wizardSchema.vaultName"
-              :check="check"
-              class="w-full"
-              @blur="checkVaultNameExistsAsync"
-            />
-            <p
-              v-if="vaultNameExists"
-              class="text-sm text-error -mt-3"
-            >
-              {{ t('steps.selectVault.vaultNameExists') }}
-            </p>
-
-            <!-- Vault password: shown for new vaults or when DID password didn't match -->
-            <template v-if="needsVaultPassword || isCreatingNewVault">
-              <UiInputPassword
-                v-model="vaultPassword"
-                v-model:errors="step3Errors.password"
-                :label="t('steps.selectVault.vaultPassword')"
-                :description="
-                  isCreatingNewVault
-                    ? t('steps.selectVault.vaultPasswordDescriptionNew')
-                    : t('steps.selectVault.vaultPasswordDescription')
-                "
-                :schema="wizardSchema.vaultPassword"
-                :check="check"
-                leading-icon="i-lucide-lock"
-                class="w-full"
-              />
-
-              <!-- Password confirmation for new vault -->
-              <UiInputPassword
-                v-if="isCreatingNewVault"
-                v-model="vaultPasswordConfirm"
-                v-model:errors="step3Errors.passwordConfirm"
-                :label="t('steps.selectVault.confirmPassword')"
-                :description="t('steps.selectVault.confirmPasswordDescription')"
-                :schema="wizardSchema.vaultPassword"
-                :check="check"
-                leading-icon="i-lucide-lock"
-                class="w-full"
-              />
-              <p
-                v-if="
-                  isCreatingNewVault &&
-                  vaultPasswordConfirm &&
-                  vaultPassword !== vaultPasswordConfirm
-                "
-                class="text-sm text-error -mt-3"
-              >
-                {{ t('steps.selectVault.passwordMismatch') }}
-              </p>
-            </template>
-          </div>
-        </div>
+        <HaexSyncConnectWizardStepSelectVault
+          v-model:local-vault-name="wizard.localVaultName.value"
+          v-model:vault-password="wizard.vaultPassword.value"
+          v-model:vault-password-confirm="wizard.vaultPasswordConfirm.value"
+          :available-vaults="wizard.availableVaults.value"
+          :selected-vault-id="wizard.selectedVaultId.value"
+          :is-loading-vaults="wizard.isLoadingVaults.value"
+          :step3-error="wizard.step3Error.value"
+          :is-creating-new-vault="wizard.isCreatingNewVault.value"
+          :decrypted-vault-names="wizard.decryptedVaultNames.value"
+          :needs-vault-password="wizard.needsVaultPassword.value"
+          :is-checking-vault-password="wizard.isCheckingVaultPassword.value"
+          :vault-password-verified="wizard.vaultPasswordVerified.value"
+          :vault-name-exists="wizard.vaultNameExists.value"
+          :step3-errors="wizard.step3Errors"
+          :check="wizard.check.value"
+          :wizard-schema="wizardSchema"
+          @select-vault="selectVault"
+          @select-new-vault="selectNewVault"
+          @check-vault-name="checkVaultNameExistsAsync"
+        />
       </template>
     </UStepper>
 
@@ -222,19 +61,19 @@
         {{ t('actions.cancel') }}
       </UButton>
       <UButton
-        v-if="currentStepIndex > 0"
+        v-if="wizard.currentStepIndex.value > 0"
         color="neutral"
         variant="outline"
-        @click="previousStep"
+        @click="wizard.previousStep"
       >
         {{ t('actions.back') }}
       </UButton>
       <div class="flex-1" />
       <UButton
-        v-if="currentStepIndex < 3"
+        v-if="wizard.currentStepIndex.value < 3"
         color="primary"
-        :disabled="!canProceed"
-        :loading="isLoading"
+        :disabled="!wizard.canProceed.value"
+        :loading="wizard.isLoading.value"
         @click="nextStep"
       >
         {{ t('actions.next') }}
@@ -242,11 +81,11 @@
       <UButton
         v-else
         color="primary"
-        :disabled="!canComplete || isCheckingVaultPassword"
-        :loading="isLoading || isCheckingVaultPassword"
+        :disabled="!wizard.canComplete.value || wizard.isCheckingVaultPassword.value"
+        :loading="wizard.isLoading.value || wizard.isCheckingVaultPassword.value"
         @click="completeSetupAsync"
       >
-        {{ vaultPasswordVerified ? t('actions.open') : t('actions.complete') }}
+        {{ wizard.vaultPasswordVerified.value ? t('actions.open') : t('actions.complete') }}
       </UButton>
     </div>
   </div>
@@ -271,15 +110,6 @@ const { decryptAndVerifyAsync } = useIdentityRecovery()
 // Create validation schema with i18n
 const wizardSchema = computed(() => createConnectWizardSchema(t))
 
-interface VaultInfo {
-  spaceId: string
-  encryptedVaultName: string
-  vaultNameNonce: string
-  vaultNameSalt: string
-  ephemeralPublicKey: string
-  createdAt: string
-}
-
 defineProps<{
   showCancel?: boolean
 }>()
@@ -303,12 +133,7 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-// Stepper state
-const currentStepIndex = ref(0)
-
-// OTP step data (passed from email step)
-const otpServerUrl = ref('')
-const otpEmail = ref('')
+const wizard = useConnectWizard()
 
 // Keyboard shortcuts with VueUse
 const keys = useMagicKeys()
@@ -341,77 +166,7 @@ const steps = computed(
     ] satisfies StepperItem[],
 )
 
-const isLoading = ref(false)
-const check = ref(false)
-
 const { currentVaultPassword } = storeToRefs(useVaultStore())
-
-// Step 1: Identity Auth (via Recovery)
-const credentials = ref({
-  originUrl: 'https://sync.haex.space',
-  identityId: '',
-})
-// Recovery mode: stores encrypted private key data from OTP verification
-const recoveredKeyData = ref<RecoveryKeyData | null>(null)
-
-// Step 2: DID Password (decrypt identity private key)
-const didPassword = ref('')
-const didPasswordError = ref('')
-const decryptedPrivateKey = ref<string | null>(null)
-
-// Step 3: Select Vault + optional vault password
-const availableVaults = ref<VaultInfo[]>([])
-const selectedVaultId = ref<string | null>(null)
-const isLoadingVaults = ref(false)
-const step3Error = ref('')
-const isCreatingNewVault = ref(false)
-const decryptedVaultNames = ref<Record<string, string>>({})
-const needsVaultPassword = ref(false)
-const isCheckingVaultPassword = ref(false)
-const vaultPasswordVerified = ref(false)
-const localVaultName = ref('')
-const vaultNameExists = ref(false)
-const vaultPassword = ref('')
-const vaultPasswordConfirm = ref('')
-const step3Errors = reactive({
-  vaultName: [] as string[],
-  password: [] as string[],
-  passwordConfirm: [] as string[],
-})
-
-// Computed for step validation
-const canProceed = computed(() => {
-  if (currentStepIndex.value === 2) {
-    return didPassword.value.length > 0
-  }
-  return false
-})
-
-const canComplete = computed(() => {
-  // Must have a vault selected or creating new
-  if (!selectedVaultId.value && !isCreatingNewVault.value) return false
-  // Must have a local vault name
-  if (!localVaultName.value || vaultNameExists.value) return false
-  if (step3Errors.vaultName.length > 0) return false
-
-  // For new vault: need password + confirmation
-  if (isCreatingNewVault.value) {
-    return (
-      vaultPassword.value !== '' &&
-      vaultPasswordConfirm.value !== '' &&
-      vaultPassword.value === vaultPasswordConfirm.value &&
-      step3Errors.password.length === 0
-    )
-  }
-
-  // For existing vault with separate password: need password
-  if (needsVaultPassword.value) {
-    return vaultPassword.value !== '' && step3Errors.password.length === 0
-  }
-
-  // For existing vault: DID password must be verified
-  return vaultPasswordVerified.value
-})
 
 // Keyboard shortcuts handlers
 whenever(escape, () => {
@@ -419,12 +174,12 @@ whenever(escape, () => {
 })
 
 whenever(enter, () => {
-  if (currentStepIndex.value < 3 && canProceed.value && !isLoading.value) {
+  if (wizard.currentStepIndex.value < 3 && wizard.canProceed.value && !wizard.isLoading.value) {
     nextStep()
   } else if (
-    currentStepIndex.value === 3 &&
-    canComplete.value &&
-    !isLoading.value
+    wizard.currentStepIndex.value === 3 &&
+    wizard.canComplete.value &&
+    !wizard.isLoading.value
   ) {
     completeSetupAsync()
   }
@@ -432,63 +187,59 @@ whenever(enter, () => {
 
 // Methods
 const onOtpRequested = (data: { originUrl: string; email: string }) => {
-  otpServerUrl.value = data.originUrl
-  otpEmail.value = data.email
-  currentStepIndex.value = 1
+  wizard.otpServerUrl.value = data.originUrl
+  wizard.otpEmail.value = data.email
+  wizard.currentStepIndex.value = 1
 }
 
 const nextStep = async () => {
   // Step 2: DID password → decrypt private key, load & decrypt vault names
-  if (currentStepIndex.value === 2) {
-    if (!recoveredKeyData.value) return
-    isLoading.value = true
-    didPasswordError.value = ''
+  if (wizard.currentStepIndex.value === 2) {
+    if (!wizard.recoveredKeyData.value) return
+    wizard.isLoading.value = true
+    wizard.didPasswordError.value = ''
 
     try {
       const valid = await decryptAndVerifyAsync(
-        recoveredKeyData.value,
-        didPassword.value,
+        wizard.recoveredKeyData.value,
+        wizard.didPassword.value,
       )
       if (!valid) {
-        didPasswordError.value = t('errors.wrongDidPassword')
+        wizard.didPasswordError.value = t('errors.wrongDidPassword')
         return
       }
 
       // Decrypt private key and store for vault name decryption
-      decryptedPrivateKey.value = await decryptPrivateKeyAsync(
-        recoveredKeyData.value.encryptedPrivateKey,
-        recoveredKeyData.value.privateKeyNonce,
-        recoveredKeyData.value.privateKeySalt,
-        didPassword.value,
+      wizard.decryptedPrivateKey.value = await decryptPrivateKeyAsync(
+        wizard.recoveredKeyData.value.encryptedPrivateKey,
+        wizard.recoveredKeyData.value.privateKeyNonce,
+        wizard.recoveredKeyData.value.privateKeySalt,
+        wizard.didPassword.value,
       )
 
       // Load vaults and decrypt names
       await loadVaultsAsync()
-      await decryptVaultNamesAsync(decryptedPrivateKey.value)
+      await decryptVaultNamesAsync(wizard.decryptedPrivateKey.value)
 
-      currentStepIndex.value++
+      wizard.currentStepIndex.value++
     } catch {
-      didPasswordError.value = t('errors.wrongDidPassword')
+      wizard.didPasswordError.value = t('errors.wrongDidPassword')
     } finally {
-      isLoading.value = false
+      wizard.isLoading.value = false
     }
   }
 }
 
-const previousStep = () => {
-  currentStepIndex.value--
-}
-
 const loadVaultsAsync = async () => {
-  if (!decryptedPrivateKey.value || !recoveredKeyData.value) return
+  if (!wizard.decryptedPrivateKey.value || !wizard.recoveredKeyData.value) return
 
-  isLoadingVaults.value = true
+  wizard.isLoadingVaults.value = true
 
   try {
     const response = await fetchWithDidAuth(
-      `${credentials.value.originUrl}/sync/vaults`,
-      decryptedPrivateKey.value,
-      recoveredKeyData.value.did,
+      `${wizard.credentials.value.originUrl}/sync/vaults`,
+      wizard.decryptedPrivateKey.value,
+      wizard.recoveredKeyData.value.did,
       DidAuthAction.VaultList,
     )
 
@@ -497,7 +248,7 @@ const loadVaultsAsync = async () => {
     }
 
     const data = await response.json()
-    availableVaults.value = data.vaults
+    wizard.availableVaults.value = data.vaults
   } catch (error) {
     console.error('Failed to load vaults:', error)
     add({
@@ -506,13 +257,13 @@ const loadVaultsAsync = async () => {
       color: 'error',
     })
   } finally {
-    isLoadingVaults.value = false
+    wizard.isLoadingVaults.value = false
   }
 }
 
 const decryptVaultNamesAsync = async (privateKeyBase64: string) => {
   const names: Record<string, string> = {}
-  for (const vault of availableVaults.value) {
+  for (const vault of wizard.availableVaults.value) {
     try {
       names[vault.spaceId] = await decryptVaultNameAsync(
         vault.encryptedVaultName,
@@ -525,69 +276,69 @@ const decryptVaultNamesAsync = async (privateKeyBase64: string) => {
       // Decryption failed — keep showing fallback
     }
   }
-  decryptedVaultNames.value = names
+  wizard.decryptedVaultNames.value = names
 }
 
 const checkVaultNameExistsAsync = async () => {
-  if (!localVaultName.value) {
-    vaultNameExists.value = false
+  if (!wizard.localVaultName.value) {
+    wizard.vaultNameExists.value = false
     return
   }
 
   try {
     const vaultStore = useVaultStore()
-    const exists = await vaultStore.vaultExistsAsync(localVaultName.value)
-    vaultNameExists.value = exists
+    const exists = await vaultStore.vaultExistsAsync(wizard.localVaultName.value)
+    wizard.vaultNameExists.value = exists
   } catch (error) {
     console.error('Failed to check vault name:', error)
-    vaultNameExists.value = false
+    wizard.vaultNameExists.value = false
   }
 }
 
 const completeSetupAsync = async () => {
-  check.value = true
+  wizard.check.value = true
   await nextTick()
 
-  if (!canComplete.value) return
-  if (!isCreatingNewVault.value && !selectedVaultId.value) return
+  if (!wizard.canComplete.value) return
+  if (!wizard.isCreatingNewVault.value && !wizard.selectedVaultId.value) return
 
   // Determine effective vault password
-  const effectivePassword = needsVaultPassword.value || isCreatingNewVault.value
-    ? vaultPassword.value
-    : didPassword.value
+  const effectivePassword = wizard.needsVaultPassword.value || wizard.isCreatingNewVault.value
+    ? wizard.vaultPassword.value
+    : wizard.didPassword.value
 
   const backendId = crypto.randomUUID()
 
-  if (isCreatingNewVault.value) {
+  if (wizard.isCreatingNewVault.value) {
     emit('complete', {
       backendId,
       spaceId: '', // Server generates via /partitions/create
-      vaultName: localVaultName.value,
-      localVaultName: localVaultName.value,
-      originUrl: credentials.value.originUrl,
-      identityId: credentials.value.identityId,
-      identityPublicKey: recoveredKeyData.value!.publicKey,
-      identityPrivateKey: decryptedPrivateKey.value!,
-      identityDid: recoveredKeyData.value!.did,
+      vaultName: wizard.localVaultName.value,
+      localVaultName: wizard.localVaultName.value,
+      originUrl: wizard.credentials.value.originUrl,
+      identityId: wizard.credentials.value.identityId,
+      identityPublicKey: wizard.recoveredKeyData.value!.publicKey,
+      identityPrivateKey: wizard.decryptedPrivateKey.value!,
+      identityDid: wizard.recoveredKeyData.value!.did,
       vaultPassword: effectivePassword,
       isNewVault: true,
     })
   } else {
-    const selectedVault = availableVaults.value.find(
-      (v) => v.spaceId === selectedVaultId.value,
+    const selectedVault = wizard.availableVaults.value.find(
+      (v) => v.spaceId === wizard.selectedVaultId.value,
     )
     if (!selectedVault) return
 
     emit('complete', {
       backendId,
       spaceId: selectedVault.spaceId,
-      vaultName: localVaultName.value,
-      localVaultName: localVaultName.value,
-      originUrl: credentials.value.originUrl,
-      identityId: credentials.value.identityId,
-      identityPublicKey: recoveredKeyData.value!.publicKey,
-      identityPrivateKey: decryptedPrivateKey.value!,
-      identityDid: recoveredKeyData.value!.did,
+      vaultName: wizard.localVaultName.value,
+      localVaultName: wizard.localVaultName.value,
+      originUrl: wizard.credentials.value.originUrl,
+      identityId: wizard.credentials.value.identityId,
+      identityPublicKey: wizard.recoveredKeyData.value!.publicKey,
+      identityPrivateKey: wizard.decryptedPrivateKey.value!,
+      identityDid: wizard.recoveredKeyData.value!.did,
       vaultPassword: effectivePassword,
       isNewVault: false,
     })
@@ -595,15 +346,15 @@ const completeSetupAsync = async () => {
 }
 
 const selectVault = async (spaceId: string) => {
-  selectedVaultId.value = spaceId
-  isCreatingNewVault.value = false
-  needsVaultPassword.value = false
-  vaultPasswordVerified.value = false
-  vaultPassword.value = ''
-  step3Error.value = ''
+  wizard.selectedVaultId.value = spaceId
+  wizard.isCreatingNewVault.value = false
+  wizard.needsVaultPassword.value = false
+  wizard.vaultPasswordVerified.value = false
+  wizard.vaultPassword.value = ''
+  wizard.step3Error.value = ''
 
   // Auto-fill local vault name with decrypted name
-  localVaultName.value = decryptedVaultNames.value[spaceId] || 'HaexVault'
+  wizard.localVaultName.value = wizard.decryptedVaultNames.value[spaceId] || 'HaexVault'
   checkVaultNameExistsAsync()
 
   // Try DID password as vault password in background
@@ -611,15 +362,15 @@ const selectVault = async (spaceId: string) => {
 }
 
 const tryDIDPasswordAsVaultPasswordAsync = async (spaceId: string) => {
-  if (!decryptedPrivateKey.value || !recoveredKeyData.value) return
+  if (!wizard.decryptedPrivateKey.value || !wizard.recoveredKeyData.value) return
 
-  isCheckingVaultPassword.value = true
+  wizard.isCheckingVaultPassword.value = true
 
   try {
     const response = await fetchWithDidAuth(
-      `${credentials.value.originUrl}/sync/vault-key/${spaceId}`,
-      decryptedPrivateKey.value,
-      recoveredKeyData.value.did,
+      `${wizard.credentials.value.originUrl}/sync/vault-key/${spaceId}`,
+      wizard.decryptedPrivateKey.value,
+      wizard.recoveredKeyData.value.did,
       DidAuthAction.VaultKeyGet,
     )
 
@@ -632,29 +383,29 @@ const tryDIDPasswordAsVaultPasswordAsync = async (spaceId: string) => {
       data.vaultKey.encryptedVaultKey,
       data.vaultKey.vaultKeySalt,
       data.vaultKey.vaultKeyNonce,
-      didPassword.value,
+      wizard.didPassword.value,
     )
 
     // Success — DID password works as vault password
-    vaultPasswordVerified.value = true
+    wizard.vaultPasswordVerified.value = true
   } catch (error) {
     // OperationError = wrong password → show vault password field
     if (error instanceof Error && error.name === 'OperationError') {
-      needsVaultPassword.value = true
+      wizard.needsVaultPassword.value = true
     }
   } finally {
-    isCheckingVaultPassword.value = false
+    wizard.isCheckingVaultPassword.value = false
   }
 }
 
 const selectNewVault = () => {
-  isCreatingNewVault.value = true
-  selectedVaultId.value = null
-  needsVaultPassword.value = false
-  vaultPassword.value = ''
-  vaultPasswordConfirm.value = ''
-  step3Error.value = ''
-  localVaultName.value = 'HaexVault'
+  wizard.isCreatingNewVault.value = true
+  wizard.selectedVaultId.value = null
+  wizard.needsVaultPassword.value = false
+  wizard.vaultPassword.value = ''
+  wizard.vaultPasswordConfirm.value = ''
+  wizard.step3Error.value = ''
+  wizard.localVaultName.value = 'HaexVault'
   checkVaultNameExistsAsync()
 }
 
@@ -673,23 +424,23 @@ const onRecoveryComplete = async (data: {
   }
   identity: { publicKey: string; did: string; tier: string }
 }) => {
-  isLoading.value = true
+  wizard.isLoading.value = true
 
   try {
-    credentials.value.originUrl = data.originUrl
+    wizard.credentials.value.originUrl = data.originUrl
     // Look up identity UUID by publicKey (server response only has publicKey)
     const identityStore = useIdentityStore()
     const resolvedIdentity = await identityStore.getIdentityByPublicKeyAsync(data.identity.publicKey)
-    credentials.value.identityId = resolvedIdentity?.id ?? ''
-    recoveredKeyData.value = data.recoveryKeyData
+    wizard.credentials.value.identityId = resolvedIdentity?.id ?? ''
+    wizard.recoveredKeyData.value = data.recoveryKeyData
 
     // Pre-fill DID password with current vault password if available
     if (currentVaultPassword.value) {
-      didPassword.value = currentVaultPassword.value
+      wizard.didPassword.value = currentVaultPassword.value
     }
 
     // Move to DID password step
-    currentStepIndex.value = 2
+    wizard.currentStepIndex.value = 2
   } catch (error) {
     console.error('Recovery login failed:', error)
     add({
@@ -698,42 +449,17 @@ const onRecoveryComplete = async (data: {
       color: 'error',
     })
   } finally {
-    isLoading.value = false
+    wizard.isLoading.value = false
   }
 }
 
 const clearForm = async () => {
-  currentStepIndex.value = 0
-  otpServerUrl.value = ''
-  otpEmail.value = ''
-  credentials.value = {
-    originUrl: 'https://sync.haex.space',
-    identityId: '',
-  }
-  availableVaults.value = []
-  selectedVaultId.value = null
-  isCreatingNewVault.value = false
-  decryptedVaultNames.value = {}
-  recoveredKeyData.value = null
-  didPassword.value = ''
-  didPasswordError.value = ''
-  decryptedPrivateKey.value = null
-  needsVaultPassword.value = false
-  isCheckingVaultPassword.value = false
-  vaultPasswordVerified.value = false
-  localVaultName.value = ''
-  vaultPassword.value = ''
-  vaultPasswordConfirm.value = ''
-  vaultNameExists.value = false
-}
-
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString()
+  wizard.reset()
 }
 
 defineExpose({
   clearForm,
-  currentStepIndex,
+  currentStepIndex: wizard.currentStepIndex,
 })
 </script>
 
