@@ -1,200 +1,122 @@
-import { defineAsyncComponent, type Component } from 'vue'
-import { getFullscreenDimensions } from '~/utils/viewport'
-import { isDesktop } from '~/utils/platform'
+import type { Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getFullscreenDimensions } from '~/utils/viewport'
+import { isDesktop } from '~/utils/platform'
 import { EXTENSION_AUTO_START_REQUEST, EXTENSION_WINDOW_CLOSED } from '~/constants/events'
-import { createLogger } from '~/stores/logging'
-import windowManagerDe from './windowManager.de.json'
-import windowManagerEn from './windowManager.en.json'
+import type { Logger } from '~/stores/logging'
+import type { IWindow, IWindowTab } from './state'
+import { getSystemWindow } from './state'
 
-const log = createLogger('WINDOW_MGR')
-
-const SYSTEM_WINDOW_I18N_KEY_PREFIX = 'systemWindows'
-
-export interface IWindowTab {
-  id: string
-  type: 'system' | 'extension'
-  sourceId: string // extensionId or systemWindowId (depends on type)
-  title: string
-  icon?: string | null
-  params?: Record<string, unknown>
-  // Native webview window flag (separate OS window vs iframe)
-  isNativeWebview?: boolean
-}
-
-export interface IWindow {
-  id: string
-  workspaceId: string // Window belongs to a specific workspace
-  // Tab management
-  tabs: IWindowTab[]
-  activeTabId: string
-  // Legacy fields (derived from active tab for backward compat)
-  type: 'system' | 'extension'
-  sourceId: string // extensionId or systemWindowId (depends on type)
-  title: string
-  icon?: string | null
-  x: number
-  y: number
-  width: number
-  height: number
-  isMinimized: boolean
-  zIndex: number
-  // Animation source position (icon position)
-  sourceX?: number
-  sourceY?: number
-  sourceWidth?: number
-  sourceHeight?: number
-  // Animation state
-  isOpening?: boolean
-  isClosing?: boolean
-  // Native webview window flag (separate OS window vs iframe)
-  isNativeWebview?: boolean
-  // Optional parameters passed when opening the window
-  params?: Record<string, unknown>
-}
-
-export interface SystemWindowDefinition {
-  id: string
-  name: string
-  icon: string
-  component: Component
-  defaultWidth: number
-  defaultHeight: number
-  resizable?: boolean
-  singleton?: boolean // Nur eine Instanz erlaubt?
-}
-
-export const useWindowManagerStore = defineStore('windowManager', () => {
-  const { $i18n } = useNuxtApp()
-
-  // Register system window translations
-  $i18n.mergeLocaleMessage('de', { [SYSTEM_WINDOW_I18N_KEY_PREFIX]: windowManagerDe })
-  $i18n.mergeLocaleMessage('en', { [SYSTEM_WINDOW_I18N_KEY_PREFIX]: windowManagerEn })
-
-  const windows = ref<IWindow[]>([])
-  const activeWindowId = ref<string | null>(null)
-  const nextZIndex = ref(100)
-
-  // Window Overview State
-  const showWindowOverview = ref(false)
-
-  // Computed: Count of all open windows (including minimized)
-  const openWindowsCount = computed(() => windows.value.length)
-
-  // Window Dragging State (for drag & drop to workspaces)
-  const draggingWindowId = ref<string | null>(null)
-
-  // Launcher button position (fallback for animations when no source position is available)
-  const launcherButtonPosition = ref<{
+export interface LifecycleDeps {
+  log: Logger
+  windows: Ref<IWindow[]>
+  activeWindowId: Ref<string | null>
+  nextZIndex: Ref<number>
+  windowAnimationDuration: Ref<number>
+  launcherButtonPosition: Ref<{
     x: number
     y: number
     width: number
     height: number
-  } | null>(null)
+  } | null>
+  currentWorkspaceWindows: Ref<IWindow[]>
+  findSingletonTab: (
+    type: 'system' | 'extension',
+    sourceId: string,
+  ) => { window: IWindow; tab: IWindowTab } | null
+  activateSingletonTab: (
+    win: IWindow,
+    tab: IWindowTab,
+    params?: Record<string, unknown>,
+  ) => string
+}
 
-  const setLauncherButtonPosition = (position: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }) => {
-    launcherButtonPosition.value = position
-  }
+export interface LifecycleActions {
+  openWindowAsync: (args: {
+    height?: number
+    icon?: string | null
+    minimized?: boolean
+    params?: Record<string, unknown>
+    sourceId: string
+    sourcePosition?: { x: number; y: number; width: number; height: number }
+    title?: string
+    type: 'system' | 'extension'
+    width?: number
+    workspaceId?: string
+  }) => Promise<string | undefined>
+  closeWindow: (windowId: string) => Promise<void>
+  minimizeWindow: (windowId: string) => void
+  restoreWindow: (windowId: string) => void
+  activateWindow: (windowId: string) => void
+  updateWindowPosition: (windowId: string, x: number, y: number) => void
+  updateWindowSize: (windowId: string, width: number, height: number) => void
+  isWindowActive: (windowId: string) => boolean
+  closeWindowsByExtensionIdAsync: (extensionId: string) => Promise<void>
+  closeAllExtensionWindowsAsync: () => Promise<void>
+  closeAllWindowsAsync: () => Promise<void>
+  setupDesktopEventListenersAsync: () => Promise<void>
+}
 
-  // System Windows Registry
-  const systemWindows: Record<string, SystemWindowDefinition> = {
-    settings: {
-      id: 'settings',
-      name: 'Settings',
-      icon: 'i-mdi-cog',
-      component: defineAsyncComponent(
-        () => import('@/components/haex/system/settings/index.vue'),
-      ),
-      defaultWidth: 800,
-      defaultHeight: 600,
-      resizable: true,
-      singleton: true,
-    },
-    files: {
-      id: 'files',
-      name: 'Files',
-      icon: 'i-mdi-folder',
-      component: defineAsyncComponent(
-        () => import('@/components/haex/system/files/index.vue'),
-      ),
-      defaultWidth: 800,
-      defaultHeight: 600,
-      resizable: true,
-      singleton: false,
-    },
-    marketplace: {
-      id: 'marketplace',
-      name: 'Marketplace',
-      icon: 'i-mdi-store',
-      component: defineAsyncComponent(
-        () => import('@/components/haex/system/marketplace.vue'),
-      ),
-      defaultWidth: 1000,
-      defaultHeight: 700,
-      resizable: true,
-      singleton: false,
-    },
-    passwords: {
-      id: 'passwords',
-      name: 'Passwords',
-      icon: 'i-mdi-key-variant',
-      component: defineAsyncComponent(
-        () => import('@/components/haex/system/passwords/index.vue'),
-      ),
-      defaultWidth: 1000,
-      defaultHeight: 700,
-      resizable: true,
-      singleton: true,
-    },
-  }
+export function createLifecycleActions(deps: LifecycleDeps): LifecycleActions {
+  const {
+    log,
+    windows,
+    activeWindowId,
+    nextZIndex,
+    windowAnimationDuration,
+    launcherButtonPosition,
+    currentWorkspaceWindows,
+    findSingletonTab,
+    activateSingletonTab,
+  } = deps
 
-  const getSystemWindow = (id: string): SystemWindowDefinition | undefined => {
-    return systemWindows[id]
-  }
-
-  const getAllSystemWindows = (): SystemWindowDefinition[] => {
-    return Object.values(systemWindows)
-  }
-
-  /** Returns the localized name for a system window, falling back to the English name */
-  const getLocalizedSystemWindowName = (id: string): string => {
-    const key = `${SYSTEM_WINDOW_I18N_KEY_PREFIX}.${id}`
-    const translated = $i18n.t(key)
-    // If translation key not found, i18n returns the key itself — fall back to English name
-    if (translated === key) {
-      return systemWindows[id]?.name ?? id
+  const activateWindow = (windowId: string) => {
+    const window = windows.value.find((w) => w.id === windowId)
+    if (window) {
+      window.zIndex = nextZIndex.value++
+      window.isMinimized = false
+      activeWindowId.value = windowId
     }
-    return translated
   }
 
-  // Window animation settings
-  const windowAnimationDuration = ref(300) // in milliseconds (matches CSS transition duration)
+  const minimizeWindow = (windowId: string) => {
+    const window = windows.value.find((w) => w.id === windowId)
+    if (window) {
+      window.isMinimized = true
+    }
+  }
 
-  // Get windows for current workspace only
-  const currentWorkspaceWindows = computed(() => {
-    if (!useWorkspaceStore().currentWorkspace) return []
-    return windows.value.filter(
-      (w) => w.workspaceId === useWorkspaceStore().currentWorkspace?.id,
-    )
-  })
+  const restoreWindow = (windowId: string) => {
+    const window = windows.value.find((w) => w.id === windowId)
+    if (window) {
+      window.isMinimized = false
+      activateWindow(windowId)
+    }
+  }
 
-  const windowsByWorkspaceId = (workspaceId: string) =>
-    computed(() =>
-      windows.value.filter((window) => window.workspaceId === workspaceId),
-    )
+  const updateWindowPosition = (windowId: string, x: number, y: number) => {
+    const window = windows.value.find((w) => w.id === windowId)
+    if (window) {
+      window.x = x
+      window.y = y
+    }
+  }
 
-  const moveWindowsToWorkspace = (
-    fromWorkspaceId: string,
-    toWorkspaceId: string,
+  const updateWindowSize = (
+    windowId: string,
+    width: number,
+    height: number,
   ) => {
-    const windowsFrom = windowsByWorkspaceId(fromWorkspaceId)
-    windowsFrom.value.forEach((window) => (window.workspaceId = toWorkspaceId))
+    const window = windows.value.find((w) => w.id === windowId)
+    if (window) {
+      window.width = width
+      window.height = height
+    }
+  }
+
+  const isWindowActive = (windowId: string) => {
+    return activeWindowId.value === windowId
   }
 
   const openWindowAsync = async ({
@@ -531,62 +453,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     }, windowAnimationDuration.value)
   }
 
-  const minimizeWindow = (windowId: string) => {
-    const window = windows.value.find((w) => w.id === windowId)
-    if (window) {
-      window.isMinimized = true
-    }
-  }
-
-  const restoreWindow = (windowId: string) => {
-    const window = windows.value.find((w) => w.id === windowId)
-    if (window) {
-      window.isMinimized = false
-      activateWindow(windowId)
-    }
-  }
-
-  const activateWindow = (windowId: string) => {
-    const window = windows.value.find((w) => w.id === windowId)
-    if (window) {
-      window.zIndex = nextZIndex.value++
-      window.isMinimized = false
-      activeWindowId.value = windowId
-    }
-  }
-
-  const updateWindowPosition = (windowId: string, x: number, y: number) => {
-    const window = windows.value.find((w) => w.id === windowId)
-    if (window) {
-      window.x = x
-      window.y = y
-    }
-  }
-
-  const updateWindowSize = (
-    windowId: string,
-    width: number,
-    height: number,
-  ) => {
-    const window = windows.value.find((w) => w.id === windowId)
-    if (window) {
-      window.width = width
-      window.height = height
-    }
-  }
-
-  const isWindowActive = (windowId: string) => {
-    return activeWindowId.value === windowId
-  }
-
-  const getVisibleWindows = computed(() => {
-    return currentWorkspaceWindows.value.filter((w) => !w.isMinimized)
-  })
-
-  const getMinimizedWindows = computed(() => {
-    return currentWorkspaceWindows.value.filter((w) => w.isMinimized)
-  })
-
   /**
    * Closes all windows for a specific extension (both native and iframe-based)
    * Called before uninstalling an extension
@@ -731,179 +597,18 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     log.info('Desktop event listeners setup complete')
   }
 
-  // Setup listeners on store creation (only on desktop)
-  if (isDesktop()) {
-    setupDesktopEventListenersAsync()
-  }
-
-  // =========================================================================
-  // Tab Management
-  // =========================================================================
-
-  /** Check if a source allows multiple instances. */
-  const isSourceSingleton = (type: 'system' | 'extension', sourceId: string): boolean => {
-    if (type === 'system') {
-      return getSystemWindow(sourceId)?.singleton === true
-    }
-    const extensionsStore = useExtensionsStore()
-    const ext = extensionsStore.availableExtensions.find(e => e.id === sourceId)
-    return ext?.singleInstance === true
-  }
-
-  /** Find an existing open tab for a singleton source across all windows. */
-  const findSingletonTab = (
-    type: 'system' | 'extension',
-    sourceId: string,
-  ): { window: IWindow; tab: IWindowTab } | null => {
-    for (const win of windows.value) {
-      if (win.isClosing || !win.workspaceId) continue
-      const tab = win.tabs.find(t => t.type === type && t.sourceId === sourceId)
-      if (tab) return { window: win, tab }
-    }
-    return null
-  }
-
-  /** Switch to a singleton tab, activate its window, and optionally switch workspace. */
-  const activateSingletonTab = (
-    win: IWindow,
-    tab: IWindowTab,
-    params?: Record<string, unknown>,
-  ): string => {
-    win.activeTabId = tab.id
-    syncWindowFromActiveTab(win)
-    if (params) {
-      tab.params = { ...tab.params, ...params }
-    }
-    const workspaceStore = useWorkspaceStore()
-    if (win.workspaceId !== workspaceStore.currentWorkspace?.id) {
-      workspaceStore.slideToWorkspace(win.workspaceId)
-    }
-    activateWindow(win.id)
-    return win.id
-  }
-
-  /** Add a new tab to an existing window. Returns the tab ID or null. */
-  const addTab = (windowId: string, tab: Omit<IWindowTab, 'id'>): string | null => {
-    const win = windows.value.find(w => w.id === windowId)
-    if (!win) return null
-
-    // Singleton check: focus existing tab across all windows instead of creating a duplicate
-    if (isSourceSingleton(tab.type, tab.sourceId)) {
-      const found = findSingletonTab(tab.type, tab.sourceId)
-      if (found) {
-        activateSingletonTab(found.window, found.tab)
-        return found.tab.id
-      }
-    }
-
-    const tabId = crypto.randomUUID()
-    win.tabs.push({ id: tabId, ...tab })
-    win.activeTabId = tabId
-    syncWindowFromActiveTab(win)
-    return tabId
-  }
-
-  /** Add a new tab that duplicates the active tab's source (for the "+" button). */
-  const addNewTabFromActive = (windowId: string): string | null => {
-    const win = windows.value.find(w => w.id === windowId)
-    if (!win) return null
-    const activeTab = win.tabs.find(t => t.id === win.activeTabId)
-    if (!activeTab) return null
-    if (isSourceSingleton(activeTab.type, activeTab.sourceId)) return null
-
-    return addTab(windowId, {
-      type: activeTab.type,
-      sourceId: activeTab.sourceId,
-      title: activeTab.title,
-      icon: activeTab.icon,
-    })
-  }
-
-  /** Check if the "+" button should be shown (active source is not singleton). */
-  const canAddTab = (windowId: string): boolean => {
-    const win = windows.value.find(w => w.id === windowId)
-    if (!win) return false
-    const activeTab = win.tabs.find(t => t.id === win.activeTabId)
-    if (!activeTab) return false
-    return !isSourceSingleton(activeTab.type, activeTab.sourceId)
-  }
-
-  /** Switch to a specific tab. */
-  const switchTab = (windowId: string, tabId: string) => {
-    const win = windows.value.find(w => w.id === windowId)
-    if (!win) return
-    if (!win.tabs.some(t => t.id === tabId)) return
-    win.activeTabId = tabId
-    syncWindowFromActiveTab(win)
-  }
-
-  /** Close a tab. Last tab closes the window. */
-  const closeTab = (windowId: string, tabId: string) => {
-    const win = windows.value.find(w => w.id === windowId)
-    if (!win) return
-
-    if (win.tabs.length <= 1) {
-      closeWindow(windowId)
-      return
-    }
-
-    const tabIndex = win.tabs.findIndex(t => t.id === tabId)
-    if (tabIndex === -1) return
-    win.tabs.splice(tabIndex, 1)
-    useNavigationStore().clearTabStacks(tabId)
-
-    if (win.activeTabId === tabId) {
-      const newIndex = Math.min(tabIndex, win.tabs.length - 1)
-      win.activeTabId = win.tabs[newIndex]!.id
-      syncWindowFromActiveTab(win)
-    }
-  }
-
-  /** Sync the window's legacy fields from the active tab. */
-  const syncWindowFromActiveTab = (win: IWindow) => {
-    const tab = win.tabs.find(t => t.id === win.activeTabId)
-    if (!tab) return
-    win.type = tab.type
-    win.sourceId = tab.sourceId
-    win.title = tab.title
-    win.icon = tab.icon
-    win.params = tab.params
-    win.isNativeWebview = tab.isNativeWebview
-  }
-
   return {
-    activateWindow,
-    activeWindowId,
-    closeAllExtensionWindowsAsync,
-    closeAllWindowsAsync,
-    closeWindow,
-    closeWindowsByExtensionIdAsync,
-    currentWorkspaceWindows,
-    draggingWindowId,
-    getAllSystemWindows,
-    getLocalizedSystemWindowName,
-    getMinimizedWindows,
-    getSystemWindow,
-    getVisibleWindows,
-    isWindowActive,
-    launcherButtonPosition,
-    minimizeWindow,
-    moveWindowsToWorkspace,
     openWindowAsync,
-    openWindowsCount,
+    closeWindow,
+    minimizeWindow,
     restoreWindow,
-    setLauncherButtonPosition,
-    showWindowOverview,
+    activateWindow,
     updateWindowPosition,
     updateWindowSize,
-    windowAnimationDuration,
-    windows,
-    windowsByWorkspaceId,
-    // Tab management
-    addTab,
-    addNewTabFromActive,
-    canAddTab,
-    switchTab,
-    closeTab,
+    isWindowActive,
+    closeWindowsByExtensionIdAsync,
+    closeAllExtensionWindowsAsync,
+    closeAllWindowsAsync,
+    setupDesktopEventListenersAsync,
   }
-})
+}
