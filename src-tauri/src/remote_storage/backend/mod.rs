@@ -1,4 +1,4 @@
-// src-tauri/src/storage/backend.rs
+// src-tauri/src/remote_storage/backend/mod.rs
 //!
 //! Storage Backend Trait and S3 Implementation
 //!
