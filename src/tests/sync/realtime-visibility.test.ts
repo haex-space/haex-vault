@@ -16,7 +16,7 @@ import {
 } from '@/stores/sync/orchestrator/realtime'
 
 // Mock the pull module to avoid deep dependency chain
-vi.mock('@/stores/sync/orchestrator/pull', () => ({
+vi.mock('@/stores/sync/orchestrator/pull/cursor', () => ({
   pullFromBackendAsync: vi.fn().mockResolvedValue(undefined),
 }))
 
