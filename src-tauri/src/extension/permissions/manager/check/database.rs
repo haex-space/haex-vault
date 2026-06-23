@@ -47,7 +47,7 @@ impl PermissionManager {
         // Resolve matching permissions deny-first, so an explicit `Denied` row
         // can never be hidden behind a `Granted` row regardless of insertion
         // order. See `deny_first_precedence` for the precedence rules.
-        let resolved = database_matching_status(&checker, &permissions, table_name, db_action);
+        let resolved = database_matching_status(&permissions, table_name, db_action, &checker);
 
         match resolved {
             Some(PermissionStatus::Granted) => Ok(()),
@@ -106,10 +106,10 @@ impl PermissionManager {
 /// matching and deny-wins precedence are unit-testable, mirroring
 /// `identities_matching_status`.
 pub(crate) fn database_matching_status(
-    checker: &PermissionChecker,
     permissions: &[ExtensionPermission],
     table_name: &str,
     db_action: DbAction,
+    checker: &PermissionChecker,
 ) -> Option<PermissionStatus> {
     deny_first_precedence(
         permissions

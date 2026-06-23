@@ -348,7 +348,7 @@ fn deny_wins_db_granted_first() {
     ];
     let checker = PermissionChecker::new(extension, permissions.clone());
 
-    let resolved = database_matching_status(&checker, &permissions, "users", DbAction::Read);
+    let resolved = database_matching_status(&permissions, "users", DbAction::Read, &checker);
     assert_eq!(resolved, Some(PermissionStatus::Denied));
 }
 
@@ -362,6 +362,6 @@ fn deny_wins_db_denied_first() {
     ];
     let checker = PermissionChecker::new(extension, permissions.clone());
 
-    let resolved = database_matching_status(&checker, &permissions, "users", DbAction::Read);
+    let resolved = database_matching_status(&permissions, "users", DbAction::Read, &checker);
     assert_eq!(resolved, Some(PermissionStatus::Denied));
 }
