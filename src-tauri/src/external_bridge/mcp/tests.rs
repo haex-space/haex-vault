@@ -19,7 +19,7 @@ fn test_jsonrpc_request_roundtrip() {
 fn test_jsonrpc_response_roundtrip() {
     let resp = JsonRpcResponse {
         jsonrpc: "2.0".to_string(),
-        id: json!(1),
+        id: Some(json!(1)),
         result: Some(json!({"ok": true})),
         error: None,
     };
@@ -27,9 +27,31 @@ fn test_jsonrpc_response_roundtrip() {
     // `error` is None and should be omitted on the wire
     assert!(!serialized.contains("\"error\""));
     let deserialized: JsonRpcResponse = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(deserialized.id, json!(1));
+    assert_eq!(deserialized.id, Some(json!(1)));
     assert_eq!(deserialized.result, Some(json!({"ok": true})));
     assert!(deserialized.error.is_none());
+}
+
+#[test]
+fn test_jsonrpc_response_null_id_for_parse_error() {
+    // Per JSON-RPC 2.0: when the original request id cannot be recovered
+    // (parse error / invalid-request), the response MUST send `"id": null`.
+    let resp = JsonRpcResponse {
+        jsonrpc: "2.0".to_string(),
+        id: None,
+        result: None,
+        error: Some(JsonRpcError {
+            code: -32700,
+            message: "Parse error".to_string(),
+            data: None,
+        }),
+    };
+    let serialized = serde_json::to_string(&resp).unwrap();
+    // `id` must be present in JSON as `null`, not omitted.
+    assert!(
+        serialized.contains("\"id\":null"),
+        "id must serialize as null when None, got: {serialized}"
+    );
 }
 
 #[test]

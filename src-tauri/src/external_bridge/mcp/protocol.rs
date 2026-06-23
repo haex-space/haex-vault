@@ -25,10 +25,14 @@ pub struct JsonRpcRequest {
 ///
 /// Exactly one of `result` or `error` must be present on the wire;
 /// the types here don't enforce that — callers do.
+///
+/// `id` is `Option<Value>` (not `Value`) because the spec requires `id: null`
+/// for parse errors / invalid-request responses where the original id could
+/// not be recovered — and notifications carry no id at all.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcResponse {
     pub jsonrpc: String,
-    pub id: Value,
+    pub id: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
