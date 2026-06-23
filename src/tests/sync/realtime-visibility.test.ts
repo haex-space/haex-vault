@@ -16,7 +16,7 @@ import {
 } from '@/stores/sync/orchestrator/realtime'
 
 // Mock the pull module to avoid deep dependency chain
-vi.mock('@/stores/sync/orchestrator/pull', () => ({
+vi.mock('@/stores/sync/orchestrator/pull/cursor', () => ({
   pullFromBackendAsync: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -277,7 +277,7 @@ describe('Visibility-based Reconnection', () => {
 
     it('prevents concurrent reconnection attempts', async () => {
       // Mock pullFromBackendAsync to block so we can test concurrency
-      const { pullFromBackendAsync } = await import('@/stores/sync/orchestrator/pull')
+      const { pullFromBackendAsync } = await import('@/stores/sync/orchestrator/pull/cursor')
       let resolvePull: () => void
       const pullPromise = new Promise<void>((resolve) => {
         resolvePull = resolve
