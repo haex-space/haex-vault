@@ -26,16 +26,31 @@ fn test_reject_attach_database() {
     }
 }
 
+// These statements (ATTACH/DETACH/PRAGMA/VACUUM/REINDEX/ANALYZE/CREATE TRIGGER/
+// DROP TRIGGER/CREATE VIEW) are all valid SQL — `parse_sql_statements` is a
+// pure parser and will happily accept most of them. Actual rejection lives at
+// the statement-type-validation layer (executor), not here. The assertions
+// below therefore pin *parser* behaviour: whatever it returns, it must never
+// allow stacked statements — that is the only smuggling regression a
+// parser-level test can catch.
+fn assert_no_stacked_statements(sql: &str) {
+    match parse_sql_statements(sql) {
+        Ok(stmts) => assert!(
+            stmts.len() <= 1,
+            "Dangerous SQL `{sql}` smuggled multiple statements past the parser ({} stmts)",
+            stmts.len()
+        ),
+        Err(_) => { /* parse error is also safe — nothing executes */ }
+    }
+}
+
 #[test]
 fn test_reject_detach_database() {
-    let sql = "DETACH DATABASE main";
-    let result = parse_sql_statements(sql);
-    println!("DETACH parse result: {:?}", result.is_ok());
+    assert_no_stacked_statements("DETACH DATABASE main");
 }
 
 #[test]
 fn test_reject_pragma_statements() {
-    // PRAGMA can be used to modify database settings or leak information
     let pragmas = [
         "PRAGMA foreign_keys = OFF",
         "PRAGMA journal_mode = DELETE",
@@ -45,38 +60,28 @@ fn test_reject_pragma_statements() {
         "PRAGMA read_uncommitted = 1",
         "PRAGMA writable_schema = ON",
     ];
-
     for sql in pragmas {
-        let result = parse_sql_statements(sql);
-        println!("PRAGMA '{}' parse result: {:?}", sql, result.is_ok());
-        // All PRAGMA statements should be rejected by statement type validation
+        assert_no_stacked_statements(sql);
     }
 }
 
 #[test]
 fn test_reject_vacuum() {
-    let sql = "VACUUM";
-    let _ = parse_sql_statements(sql);
-    // Should be blocked by statement type validation
+    assert_no_stacked_statements("VACUUM");
 }
 
 #[test]
 fn test_reject_reindex() {
-    let sql = "REINDEX";
-    let _ = parse_sql_statements(sql);
-    // Should be blocked by statement type validation
+    assert_no_stacked_statements("REINDEX");
 }
 
 #[test]
 fn test_reject_analyze() {
-    let sql = "ANALYZE";
-    let _ = parse_sql_statements(sql);
-    // Should be blocked by statement type validation
+    assert_no_stacked_statements("ANALYZE");
 }
 
 #[test]
 fn test_reject_create_trigger() {
-    // CREATE TRIGGER could be used to execute code on data changes
     let sql = r#"
         CREATE TRIGGER evil_trigger
         AFTER INSERT ON testpublickey__testextension__users
@@ -84,23 +89,15 @@ fn test_reject_create_trigger() {
             INSERT INTO haex_extensions VALUES ('malicious');
         END
     "#;
-
-    let result = parse_sql_statements(sql);
-    // Should be blocked - extensions cannot create triggers
-    println!("CREATE TRIGGER parse result: {:?}", result.is_ok());
+    assert_no_stacked_statements(sql);
 }
 
 #[test]
 fn test_reject_drop_trigger() {
-    let sql = "DROP TRIGGER IF EXISTS crdt_insert_trigger";
-    let _ = parse_sql_statements(sql);
-    // Should be blocked - extensions cannot modify triggers
+    assert_no_stacked_statements("DROP TRIGGER IF EXISTS crdt_insert_trigger");
 }
 
 #[test]
 fn test_reject_create_view() {
-    let sql = "CREATE VIEW evil_view AS SELECT * FROM haex_extensions";
-    let result = parse_sql_statements(sql);
-    println!("CREATE VIEW parse result: {:?}", result.is_ok());
-    // Views that access system tables must be blocked
+    assert_no_stacked_statements("CREATE VIEW evil_view AS SELECT * FROM haex_extensions");
 }

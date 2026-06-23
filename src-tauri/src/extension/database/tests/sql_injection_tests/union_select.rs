@@ -66,6 +66,9 @@ fn test_cte_injection() {
     "#;
 
     let result = parse_sql_statements(sql);
-    println!("CTE injection parse result: {:?}", result.is_ok());
-    // CTE accessing system tables must be blocked
+    // CTE is valid SQL — defence is the system-table check in the
+    // permission layer (see siblings above). Pin both: parses cleanly,
+    // and `haex_extensions` is recognised as a system table.
+    assert!(result.is_ok(), "CTE should parse as valid SQL");
+    assert!(is_system_table("haex_extensions"));
 }

@@ -6,6 +6,21 @@ use std::sync::Arc;
 
 use super::super::server::ExternalBridge;
 
+/// Deterministic barrier: poll the bridge's `extension_ready_signals` map
+/// until the waiter task has registered an entry for `extension_id`, then
+/// return. Replaces fixed `sleep(Nms)` calls so signal-before-wait races
+/// can't make these tests flaky.
+async fn await_waiter_registered(bridge: &Arc<ExternalBridge>, extension_id: &str) {
+    let signals = bridge.get_extension_ready_signals();
+    for _ in 0..2000 {
+        if signals.read().await.contains_key(extension_id) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    }
+    panic!("waiter for {extension_id} never registered (2s budget)");
+}
+
 #[tokio::test]
 async fn test_extension_ready_signal_no_waiter() {
     let bridge = ExternalBridge::new();
@@ -27,8 +42,8 @@ async fn test_extension_ready_wait_with_immediate_signal() {
     let wait_handle =
         tokio::spawn(async move { bridge_clone.wait_for_extension_ready(&ext_id, 5000).await });
 
-    // Give the wait task time to set up
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    // Wait until the wait-task has actually registered as a waiter — no fixed sleep.
+    await_waiter_registered(&bridge, extension_id).await;
 
     // Signal that the extension is ready
     bridge.signal_extension_ready(extension_id).await;
@@ -66,8 +81,7 @@ async fn test_extension_ready_signal_cleans_up() {
     let wait_handle =
         tokio::spawn(async move { bridge_clone.wait_for_extension_ready(&ext_id, 5000).await });
 
-    // Give the wait task time to set up
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    await_waiter_registered(&bridge, extension_id).await;
 
     // Signal ready
     bridge.signal_extension_ready(extension_id).await;
@@ -99,8 +113,8 @@ async fn test_multiple_extensions_ready_independently() {
 
     let wait2 = tokio::spawn(async move { bridge2.wait_for_extension_ready("ext-2", 5000).await });
 
-    // Give wait tasks time to set up
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    await_waiter_registered(&bridge, "ext-1").await;
+    await_waiter_registered(&bridge, "ext-2").await;
 
     // Signal only ext-1
     bridge.signal_extension_ready("ext-1").await;
@@ -135,8 +149,7 @@ async fn test_extension_ready_signal_immediate_after_wait_setup() {
     let wait_handle =
         tokio::spawn(async move { bridge_clone.wait_for_extension_ready(&ext_id, 5000).await });
 
-    // Give the wait task time to set up (minimal delay)
-    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    await_waiter_registered(&bridge, extension_id).await;
 
     // Immediately signal ready - simulates what happens when
     // extension_database_register_migrations finds no pending migrations
@@ -164,7 +177,7 @@ async fn test_extension_ready_signal_idempotent() {
     let wait_handle =
         tokio::spawn(async move { bridge_clone.wait_for_extension_ready(&ext_id, 5000).await });
 
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    await_waiter_registered(&bridge, extension_id).await;
 
     // Signal ready multiple times (should not panic or cause issues)
     bridge.signal_extension_ready(extension_id).await;

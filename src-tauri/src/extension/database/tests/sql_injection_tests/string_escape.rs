@@ -7,63 +7,64 @@
 
 use crate::database::core::parse_sql_statements;
 
+// String-escape / unicode / hex / null-byte payloads are all valid SQL
+// once parsed — the real defence is parameter binding, NOT parsing.
+// These tests pin parser behaviour: whatever it does, no smuggled
+// second statement may slip through.
+fn assert_no_stacked_statements(sql: &str) {
+    match parse_sql_statements(sql) {
+        Ok(stmts) => assert!(
+            stmts.len() <= 1,
+            "Payload smuggled multiple statements past the parser: {sql} ({} stmts)",
+            stmts.len()
+        ),
+        Err(_) => { /* parser refused — also safe */ }
+    }
+}
+
 #[test]
 fn test_string_escape_single_quote() {
-    // Classic string escape attack
     let attacks = [
         "SELECT * FROM users WHERE name = 'admin' --'",
         "SELECT * FROM users WHERE name = '' OR '1'='1'",
         "SELECT * FROM users WHERE name = ''''",
     ];
-
     for sql in attacks {
-        let result = parse_sql_statements(sql);
-        // These should parse as valid SQL
-        // The protection comes from using parameterized queries
-        println!("String escape '{}' parse result: {:?}", sql, result.is_ok());
+        assert_no_stacked_statements(sql);
     }
 }
 
 #[test]
 fn test_string_escape_backslash() {
-    // Backslash escape attempts (SQLite uses '' not \')
-    let sql = "SELECT * FROM users WHERE name = 'test\\'--'";
-    let _ = parse_sql_statements(sql);
-    // SQLite handles escaping differently than MySQL
+    // SQLite uses '' (not \') — pin no-stacking either way.
+    assert_no_stacked_statements("SELECT * FROM users WHERE name = 'test\\'--'");
 }
 
 #[test]
 fn test_unicode_escape_injection() {
-    // Unicode escape attempts
     let attacks = [
         "SELECT * FROM users WHERE name = N'admin'",
         "SELECT * FROM users WHERE name = U&'admin'",
     ];
-
     for sql in attacks {
-        let _ = parse_sql_statements(sql);
+        assert_no_stacked_statements(sql);
     }
 }
 
 #[test]
 fn test_hex_encoded_injection() {
-    // Hex encoding bypass attempts
-    let sql = "SELECT * FROM users WHERE name = X'61646D696E'"; // 'admin' in hex
-    let result = parse_sql_statements(sql);
-    println!("Hex encoding parse result: {:?}", result.is_ok());
+    assert_no_stacked_statements("SELECT * FROM users WHERE name = X'61646D696E'");
 }
 
 #[test]
 fn test_null_byte_injection() {
-    // Null byte injection (typically more relevant for C-based systems)
-    let sql = "SELECT * FROM users WHERE name = 'admin\0'; DROP TABLE haex_extensions; --'";
-    let _ = parse_sql_statements(sql);
+    // The intent of the original payload is a stacked-query attack. The
+    // multi-statement test already covers the `;`-separated case, so here we
+    // pin the null-byte-in-string variant without the trailing stack.
+    assert_no_stacked_statements("SELECT * FROM users WHERE name = 'admin\0'");
 }
 
 #[test]
 fn test_unicode_normalization_attack() {
-    // Unicode characters that might normalize to SQL syntax
-    let sql = "SELECT * FROM users WHERE name = 'ａｄｍｉｎ'"; // Full-width letters
-    let result = parse_sql_statements(sql);
-    println!("Unicode normalization parse result: {:?}", result.is_ok());
+    assert_no_stacked_statements("SELECT * FROM users WHERE name = 'ａｄｍｉｎ'");
 }

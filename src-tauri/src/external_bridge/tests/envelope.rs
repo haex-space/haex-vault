@@ -125,5 +125,13 @@ fn test_protocol_message_response_no_extension_fields_needed() {
     let json = serde_json::to_string(&msg).unwrap();
 
     assert!(json.contains("\"type\":\"response\""));
-    // Extension fields should be null/absent
+    // Extension fields should be absent (serde `skip_serializing_if = "Option::is_none"`).
+    assert!(
+        !json.contains("extension_public_key"),
+        "extension_public_key must be omitted from response envelope, got: {json}"
+    );
+    assert!(
+        !json.contains("extension_name"),
+        "extension_name must be omitted from response envelope, got: {json}"
+    );
 }

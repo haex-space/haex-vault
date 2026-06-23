@@ -76,9 +76,11 @@ async fn foreign_peer_gets_zero_vault_rows_over_real_quic() {
         Ok((changes_json, _has_more)) => {
             // Defense-in-depth: even if a future change made the fall-through
             // return an (empty) SyncChanges, assert there are zero password
-            // rows in whatever was sent.
-            let locals: Vec<LocalColumnChange> =
-                serde_json::from_value(changes_json).unwrap_or_default();
+            // rows in whatever was sent. A deserialize failure on a *security*
+            // assertion must surface — otherwise an unexpected payload shape
+            // would silently mask a leak.
+            let locals: Vec<LocalColumnChange> = serde_json::from_value(changes_json)
+                .expect("foreign peer payload must be parseable LocalColumnChange list (security assertion)");
             let password_rows = locals
                 .iter()
                 .filter(|c| c.table_name == "haex_passwords")
@@ -174,9 +176,11 @@ async fn foreign_peer_sync_pull_columns_is_not_served_full_vault() {
         Ok(changes_json) => {
             // Defense-in-depth: even if a future change made the fall-through
             // return an (empty) SyncChanges, assert there are zero password
-            // rows in whatever was sent.
-            let locals: Vec<LocalColumnChange> =
-                serde_json::from_value(changes_json).unwrap_or_default();
+            // rows in whatever was sent. A deserialize failure on a *security*
+            // assertion must surface — otherwise an unexpected payload shape
+            // would silently mask a leak.
+            let locals: Vec<LocalColumnChange> = serde_json::from_value(changes_json)
+                .expect("foreign peer payload must be parseable LocalColumnChange list (security assertion)");
             let password_rows = locals
                 .iter()
                 .filter(|c| c.table_name == "haex_passwords")

@@ -17,17 +17,18 @@ fn test_comment_injection_single_line() {
     ];
 
     for sql in attacks {
-        let result = parse_sql_statements(sql);
-        // Should parse (comments are valid SQL)
-        // But the DROP part should either be commented out or fail to execute
-        if let Ok(stmts) = result {
-            // If it parses as single statement, DROP is commented out (safe)
-            // If multiple statements, we catch it elsewhere
-            println!(
-                "Comment injection '{}' parsed as {} statements",
-                sql,
+        // Two safe outcomes:
+        //   - Parser errors (rejects the injection)
+        //   - Parser succeeds with EXACTLY 1 statement (DROP stays inside the comment)
+        // Anything else (>=2 statements) would be a smuggling regression.
+        match parse_sql_statements(sql) {
+            Ok(stmts) => assert_eq!(
+                stmts.len(),
+                1,
+                "Comment-smuggling payload smuggled a second statement past the parser: {sql} (got {} stmts)",
                 stmts.len()
-            );
+            ),
+            Err(_) => { /* parser rejected the injection — also safe */ }
         }
     }
 }

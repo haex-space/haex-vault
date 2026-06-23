@@ -35,12 +35,16 @@ fn test_reject_stacked_queries() {
         "SELECT * FROM users WHERE id=1; SELECT * FROM sqlite_master WHERE type='table'",
     );
 
-    // Even if it parses, it should return multiple statements
-    if let Ok(statements) = result {
-        assert!(
+    // Either the parser errors, or it must return >1 statement so the
+    // single-statement guard above it can reject. Silent single-statement
+    // parsing would be a smuggling regression.
+    match result {
+        Ok(statements) => assert!(
             statements.len() > 1,
-            "Parser should identify multiple statements"
-        );
+            "Parser should identify multiple statements, got {}",
+            statements.len()
+        ),
+        Err(_) => { /* parser refused — also safe */ }
     }
 }
 

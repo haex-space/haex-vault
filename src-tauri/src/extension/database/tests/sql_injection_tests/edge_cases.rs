@@ -15,12 +15,18 @@ fn test_time_based_injection() {
     ];
 
     for sql in attacks {
-        let result = parse_sql_statements(sql);
-        println!(
-            "Time-based injection '{}' parse result: {:?}",
-            sql.chars().take(50).collect::<String>(),
-            result.is_ok()
-        );
+        // Time-based payloads ARE valid SELECTs at the parser level — defence is
+        // statement-type validation + parameterized queries. Here we only pin
+        // that the parser never lets a single payload split into multiple
+        // statements.
+        match parse_sql_statements(sql) {
+            Ok(stmts) => assert!(
+                stmts.len() <= 1,
+                "Time-based payload smuggled >1 statement: {sql} ({} stmts)",
+                stmts.len()
+            ),
+            Err(_) => { /* parser rejection is also safe */ }
+        }
     }
 }
 

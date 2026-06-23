@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use ed25519_dalek::SigningKey;
 
-use crate::peer_storage::endpoint::PeerEndpoint;
+use crate::peer_storage::endpoint::{OwnIdentity, PeerEndpoint};
 
 use super::helpers::*;
 
@@ -81,8 +81,20 @@ async fn connection_closes_when_peer_owner_did_disagrees_with_handshake() {
         )
         .await;
 
+    // Build the client's identity ourselves so we keep a handle on the
+    // signing key — we'll use it below to mint a *valid* UCAN. With a
+    // valid UCAN, any rejection can only come from the
+    // peer_owner_did / handshake cross-check (the thing this test
+    // actually exercises), not from cheap "token is garbage" failure.
+    let client_seed: [u8; 32] = rand::random();
+    let client_signing_key = SigningKey::from_bytes(&client_seed);
+    let client_did = did_from_signing_key(&client_signing_key);
+    let valid_ucan = read_ucan(&client_signing_key, &space_id, &client_did);
     let mut client = PeerEndpoint::new_ephemeral();
-    let _client_did = client.set_random_test_identity();
+    client.set_own_identity(OwnIdentity {
+        did: client_did,
+        signing_key: client_signing_key,
+    });
     client.start_for_test().await.expect("client bind");
     let client_id = client.endpoint_id();
 
@@ -114,11 +126,11 @@ async fn connection_closes_when_peer_owner_did_disagrees_with_handshake() {
 
     let path = "/media/file.txt".to_string();
     let result = client
-        .remote_list(server_id, None, &path, "any-token")
+        .remote_list(server_id, None, &path, &valid_ucan)
         .await;
     assert!(
         result.is_err(),
-        "request must fail when DB owner_did disagrees with handshake, got: {result:?}"
+        "request must fail when DB owner_did disagrees with handshake (UCAN is valid, so any rejection IS the cross-check), got: {result:?}"
     );
 }
 

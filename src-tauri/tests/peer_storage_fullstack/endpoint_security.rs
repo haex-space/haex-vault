@@ -196,13 +196,16 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
     .unwrap();
     assert_eq!(data, b"public");
 
-    // Cannot access internal — by share name
+    // Cannot access internal — by share name.
+    // Use a UCAN for "space-public" (the peer's REAL granted space) so the
+    // rejection here is unambiguously the share->space cross-isolation check,
+    // not a "UCAN is for an unknown space" failure.
     let resp = send_request(
         &ep,
         addr.clone(),
         &Request::List {
             path: "/InternalOps".to_string(),
-            ucan_token: test_ucan_token("space-1"),
+            ucan_token: test_ucan_token("space-public"),
         },
     )
     .await
@@ -219,7 +222,7 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
         addr.clone(),
         &Request::List {
             path: "/priv".to_string(),
-            ucan_token: test_ucan_token("space-1"),
+            ucan_token: test_ucan_token("space-public"),
         },
     )
     .await

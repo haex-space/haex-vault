@@ -28,8 +28,10 @@ async fn malformed_json_request_does_not_crash_server() {
     send.write_all(&[0xDE, 0xAD, 0xBE, 0xEF]).await.unwrap();
     send.finish().unwrap();
 
-    // Server should not crash — connection just closes or returns error
-    let _result = _recv.read_to_end(1024 * 1024).await;
+    // Server should not crash — connection just closes or returns error.
+    // Bound the read so a misbehaving stream can't hang the test forever.
+    let _result =
+        tokio::time::timeout(Duration::from_secs(2), _recv.read_to_end(1024 * 1024)).await;
 
     // Verify server is still alive by making a valid request
     let valid_resp = send_request(
@@ -73,7 +75,8 @@ async fn oversized_length_prefix_is_rejected() {
     send.write_all(b"{}").await.unwrap();
     send.finish().unwrap();
 
-    let _result = _recv.read_to_end(1024 * 1024).await;
+    let _result =
+        tokio::time::timeout(Duration::from_secs(2), _recv.read_to_end(1024 * 1024)).await;
 
     // Server still alive
     let valid = send_request(
