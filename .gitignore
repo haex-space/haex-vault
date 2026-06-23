@@ -40,3 +40,6 @@ test-results/
 docs/plans/*
 docs/play-store/
 .worktrees
+
+# graphify cache / output
+graphify-out/

@@ -308,5 +308,5 @@ pub async fn authorize_request(
 }
 
 #[cfg(test)]
-#[path = "auth_gate_tests.rs"]
+#[path = "auth_gate_tests/mod.rs"]
 mod tests;
