@@ -50,7 +50,6 @@ impl PermissionManager {
                 ];
 
                 // 3. Führe mit dem typsicheren Executor aus
-                // HINWEIS: Du musst eine `execute_internal_typed` Funktion erstellen!
                 SqlExecutor::execute_internal_typed(&tx, &hlc_service, &sql, params)?;
             }
 
