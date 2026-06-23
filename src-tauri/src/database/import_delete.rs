@@ -4,9 +4,22 @@ use super::*;
 use crate::database::error::DatabaseError;
 use std::fs;
 use std::path::Path;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 #[cfg(not(target_os = "android"))]
 use trash;
+
+/// Notify the frontend that the on-disk vault inventory changed (a vault was
+/// imported, deleted, or moved to trash). Front-end stores listen for this and
+/// re-run `list_vaults` to pick up the new state.
+///
+/// Best-effort: emission failures are logged but never block the mutating
+/// command — the worst case is a stale UI that refreshes on the next manual
+/// action or remount.
+fn emit_vault_list_changed(app_handle: &AppHandle) {
+    if let Err(e) = app_handle.emit("vault-list-changed", ()) {
+        eprintln!("Failed to emit vault-list-changed: {e}");
+    }
+}
 
 /// Imports a vault database file from an external location into the vaults directory.
 /// Returns the new path of the imported vault.
@@ -73,6 +86,8 @@ pub fn import_vault(
         vault_name, target_path
     );
 
+    emit_vault_list_changed(&app_handle);
+
     Ok(target_path)
 }
 
@@ -138,6 +153,8 @@ fn import_vault_from_content_uri(
         resolved_name, target_path
     );
 
+    emit_vault_list_changed(app_handle);
+
     Ok(target_path)
 }
 
@@ -176,6 +193,8 @@ pub fn move_vault_to_trash(
             // Also try to move auxiliary files to trash (ignore errors as they might not exist)
             let _ = trash::delete(&vault_shm_path);
             let _ = trash::delete(&vault_wal_path);
+
+            emit_vault_list_changed(&app_handle);
 
             Ok(format!("Vault '{vault_name}' successfully moved to trash"))
         } else {
@@ -218,6 +237,8 @@ pub fn delete_vault(app_handle: AppHandle, vault_name: String) -> Result<String,
         path: vault_path.clone(),
         reason: format!("Failed to delete vault: {e}"),
     })?;
+
+    emit_vault_list_changed(&app_handle);
 
     Ok(format!("Vault '{vault_name}' successfully deleted"))
 }
