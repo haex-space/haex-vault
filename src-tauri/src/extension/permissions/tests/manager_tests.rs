@@ -687,3 +687,35 @@ fn shell_denied_target_string_omits_suffix_when_no_constraint_violation() {
     let target = format_shell_denied_target("git", &["push".to_string()], false);
     assert_eq!(target, "shell command 'git' with args [\"push\"]");
 }
+
+/// Deliberate hardening over pre-refactor `iter().find()` first-match behavior:
+/// a constraint-violating specific row resolves to `Denied` and deny-first
+/// precedence makes that terminal, even when a sibling wildcard would otherwise
+/// grant. Mirrors Task 3's filesystem precedent. See PR #525 follow-ups.
+#[test]
+fn constraint_violation_on_specific_row_poisons_wildcard_grant() {
+    // Wildcard-first ordering: pre-refactor `iter().find()` would have returned
+    // the `*` row's Granted; post-refactor scans the full matching set and the
+    // `git` row's `forbidden_args` violation flips the resolution to Denied.
+    let wildcard_first = vec![
+        shell_permission("*", PermissionStatus::Granted),
+        shell_permission_with_forbidden_args("git", PermissionStatus::Granted, vec!["push"]),
+    ];
+    assert_eq!(
+        shell_matching_status(&wildcard_first, "git", &["push".to_string()]),
+        Some(PermissionStatus::Denied),
+        "wildcard-first ordering must still deny when a specific row's constraints fail",
+    );
+
+    // Specific-first ordering: symmetric — same Denied outcome regardless of
+    // insertion order, locking in the deny-first invariant.
+    let specific_first = vec![
+        shell_permission_with_forbidden_args("git", PermissionStatus::Granted, vec!["push"]),
+        shell_permission("*", PermissionStatus::Granted),
+    ];
+    assert_eq!(
+        shell_matching_status(&specific_first, "git", &["push".to_string()]),
+        Some(PermissionStatus::Denied),
+        "specific-first ordering must deny on constraint violation",
+    );
+}
