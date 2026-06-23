@@ -30,132 +30,42 @@
 
     <div class="flex flex-col h-full">
       <!-- Search and Filters -->
-      <div
-        class="flex flex-col @lg:flex-row items-stretch @lg:items-center gap-4 p-6 border-b border-gray-200 dark:border-gray-800"
-      >
-        <UInput
-          v-model="searchQuery"
-          :placeholder="t('search.placeholder')"
-          icon="i-heroicons-magnifying-glass"
-          class="flex-1"
-        />
-        <USelectMenu
-          v-model="selectedCategory"
-          :items="categoryItems"
-          :placeholder="t('filter.category')"
-          value-key="id"
-          class="w-full @lg:w-48"
-        >
-          <template #leading>
-            <UIcon name="i-heroicons-tag" />
-          </template>
-        </USelectMenu>
-      </div>
-
-      <!-- Source errors: shown when one or more marketplaces fail to load -->
-      <div
-        v-if="Object.keys(marketplace.sourceErrors.value).length"
-        class="px-6 py-2 flex flex-wrap gap-2"
-      >
-        <UBadge
-          v-for="(entry, id) in marketplace.sourceErrors.value"
-          :key="id"
-          color="warning"
-          variant="soft"
-          class="text-xs"
-        >
-          {{ entry.name }}: {{ entry.message }}
-        </UBadge>
-      </div>
-
-      <!-- Loading State -->
-      <div
-        v-if="isInitialLoading || marketplace.isLoading.value"
-        class="flex-1 flex flex-col items-center justify-center gap-3"
-      >
-        <UIcon
-          name="i-heroicons-arrow-path"
-          class="w-8 h-8 animate-spin text-gray-400"
-        />
-        <p class="text-sm text-gray-500">{{ t('loading') }}</p>
-      </div>
-
-      <!-- Extensions Grid -->
-      <div
-        v-else-if="extensionViewModels.length"
-        class="flex-1 overflow-auto p-6"
-      >
-        <div class="grid grid-cols-1 @xl:grid-cols-2 gap-6">
-          <HaexExtensionMarketplaceCard
-            v-for="ext in extensionViewModels"
-            :key="ext.id"
-            :extension="ext"
-            @install="onInstallFromMarketplace(ext)"
-            @update="onUpdateExtension(ext)"
-            @details="onShowExtensionDetails(ext)"
-            @remove="onRemoveExtension(ext)"
-          />
-        </div>
-
-        <!-- Pagination -->
-        <div
-          v-if="marketplace.extensionsTotal.value > 20"
-          class="flex justify-center mt-6"
-        >
-          <UPagination
-            v-model="currentPage"
-            :total="marketplace.extensionsTotal.value"
-            :items-per-page="20"
-          />
-        </div>
-      </div>
-
-      <!-- Empty State -->
-      <div
-        v-else
-        class="flex flex-col items-center justify-center flex-1 text-center p-6"
-      >
-        <UIcon
-          name="i-heroicons-puzzle-piece"
-          class="w-16 h-16 text-gray-400 mb-4"
-        />
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-          {{ t('empty.title') }}
-        </h3>
-        <p class="text-gray-500 dark:text-gray-400 mt-2">
-          {{ t('empty.description') }}
-        </p>
-      </div>
-
-      <HaexExtensionDialogReinstall
-        v-model:open="openOverwriteDialog"
-        v-model:preview="installPreview"
-        :mode="reinstallMode"
-        :icon-url="currentMarketplaceExtension?.iconUrl"
-        @confirm="confirmReinstallAsync"
+      <HaexSystemMarketplaceFilter
+        v-model:search-query="searchQuery"
+        v-model:selected-category="selectedCategory"
+        :category-items="categoryItems"
       />
 
-      <HaexExtensionDialogInstall
-        v-model:open="showConfirmation"
-        :preview="installPreview"
-        :available-versions="currentMarketplaceExtension?.versions"
-        :installed-version="currentMarketplaceExtension?.installedVersion"
-        :icon-url="currentMarketplaceExtension?.iconUrl"
-        @confirm="confirmInstallAsync"
-      />
-
-      <HaexExtensionDialogRemove
-        v-model:open="showRemoveDialog"
-        :extension="extensionToBeRemoved"
-        @confirm="removeExtensionAsync"
-      />
-
-      <HaexExtensionDialogDetails
-        v-model:open="showDetailsDialog"
-        :extension="selectedExtensionForDetails"
+      <!-- Loading + Grid + Pagination + Empty + Source errors -->
+      <HaexSystemMarketplaceGrid
+        v-model:current-page="currentPage"
+        :extensions="extensionViewModels"
+        :extensions-total="marketplace.extensionsTotal.value"
+        :is-loading="isInitialLoading || marketplace.isLoading.value"
+        :source-errors="marketplace.sourceErrors.value"
         @install="onInstallFromMarketplace"
         @update="onUpdateExtension"
+        @details="onShowExtensionDetails"
         @remove="onRemoveExtension"
+      />
+
+      <!-- Install / Reinstall / Remove / Details dialogs -->
+      <HaexSystemMarketplaceDialogs
+        v-model:open-overwrite-dialog="openOverwriteDialog"
+        v-model:show-confirmation="showConfirmation"
+        v-model:show-remove-dialog="showRemoveDialog"
+        v-model:show-details-dialog="showDetailsDialog"
+        :install-preview="installPreview"
+        :reinstall-mode="reinstallMode"
+        :current-marketplace-extension="currentMarketplaceExtension"
+        :extension-to-be-removed="extensionToBeRemoved"
+        :selected-extension-for-details="selectedExtensionForDetails"
+        @confirm-reinstall="confirmReinstallAsync"
+        @confirm-install="confirmInstallAsync"
+        @confirm-remove="removeExtensionAsync"
+        @details-install="onInstallFromMarketplace"
+        @details-update="onUpdateExtension"
+        @details-remove="onRemoveExtension"
       />
     </div>
   </HaexSystem>
@@ -167,12 +77,11 @@ import type {
   IHaexSpaceExtensionManifest,
   MarketplaceExtensionViewModel,
 } from '~/types/haexspace'
-import type { AggregatedExtension } from '@/composables/useMarketplaces'
-import { useMarketplaces } from '@/composables/useMarketplaces'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import type { ExtensionPreview } from '~~/src-tauri/bindings/ExtensionPreview'
 import { isDesktop } from '~/utils/platform'
+import { useMarketplaceCatalog } from '@/composables/useMarketplaceCatalog'
 
 const props = defineProps<{
   isDragging?: boolean
@@ -209,78 +118,18 @@ const installPreview = computed(() => {
   return preview.value
 })
 
-const marketplace = useMarketplaces()
-
-// State
-const searchQuery = ref('')
-const selectedCategory = ref<string | null>(null)
-const currentPage = ref(1)
-const isInitialLoading = ref(true)
-
-// Debounced search
-const debouncedSearch = refDebounced(searchQuery, 300)
-
-// Category items for select menu
-const categoryItems = computed(() => {
-  const allCategory = { id: null, label: t('category.all') }
-  const apiCategories = marketplace.categories.value.map((cat) => ({
-    id: cat.slug,
-    label: cat.name,
-  }))
-  return [allCategory, ...apiCategories]
-})
-
-// Transform API extensions to view models with installation status
-const extensionViewModels = computed((): MarketplaceExtensionViewModel[] => {
-  return (marketplace.extensions.value as AggregatedExtension[]).map((ext) => {
-    const installedExt = extensionStore.availableExtensions.find(
-      (installed) => installed.name === ext.name,
-    )
-    return {
-      ...ext,
-      isInstalled: !!installedExt,
-      installedVersion: installedExt?.version,
-      latestVersion: ext.versions?.[0]?.version,
-      sourceMarketplaceId: ext.sourceMarketplaceId,
-      sourceMarketplaceName: ext.sourceMarketplaceName,
-    }
-  })
-})
-
-// Load extensions from API
-const loadExtensionsAsync = async () => {
-  try {
-    await marketplace.fetchExtensions({
-      page: currentPage.value,
-      limit: 20,
-      category: selectedCategory.value || undefined,
-      search: debouncedSearch.value || undefined,
-      sort: 'downloads',
-    })
-  } catch (error) {
-    console.error('Failed to load marketplace extensions:', error)
-    add({ color: 'error', description: t('error.loadExtensions') })
-  }
-}
-
-// Load categories from API
-const loadCategoriesAsync = async () => {
-  try {
-    await marketplace.fetchCategories()
-  } catch (error) {
-    console.error('Failed to load categories:', error)
-  }
-}
-
-// Watch for filter changes
-watch([debouncedSearch, selectedCategory, currentPage], () => {
-  loadExtensionsAsync()
-})
-
-// Reset page when filters change
-watch([debouncedSearch, selectedCategory], () => {
-  currentPage.value = 1
-})
+// Catalog facade (marketplace SDK + filter state + view models + load logic)
+const {
+  marketplace,
+  searchQuery,
+  selectedCategory,
+  currentPage,
+  isInitialLoading,
+  categoryItems,
+  extensionViewModels,
+  loadExtensionsAsync,
+  loadCategoriesAsync,
+} = useMarketplaceCatalog()
 
 // Current extension being installed from marketplace
 const currentMarketplaceExtension = ref<MarketplaceExtensionViewModel | null>(
