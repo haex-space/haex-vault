@@ -158,11 +158,34 @@ impl From<crate::database::generated::HaexPrincipalPermissions> for ExtensionPer
             .and_then(|s| Action::from_str(&resource_type, s).ok())
             .unwrap_or(Action::Database(DbAction::Read));
 
-        let status =
+        let mut status =
             PermissionStatus::from_str(db_perm.status.as_str()).unwrap_or(PermissionStatus::Denied);
 
-        let (constraints, raw_constraints) =
-            split_constraints(resource_type, db_perm.constraints.as_deref());
+        // Fail closed: a row whose `constraints` column is malformed JSON used
+        // to silently become `(None, None)` — i.e. "no constraints" — which
+        // *grants* anything the row's (resource_type, target, action) matches.
+        // The row was MEANT to restrict access, so the security-correct response
+        // is to force the row to `Denied`. Deny-first precedence then makes
+        // sure this row participates in matching and denies the request rather
+        // than disappearing.
+        let (constraints, raw_constraints) = match split_constraints(
+            resource_type,
+            db_perm.constraints.as_deref(),
+        ) {
+            Ok(pair) => pair,
+            Err(err) => {
+                eprintln!(
+                    "[permissions] malformed constraints JSON on permission id={} principal_id={} resource_type={} target={:?} — forcing status=Denied (parse error: {})",
+                    db_perm.id,
+                    db_perm.principal_id,
+                    resource_type.as_str(),
+                    db_perm.target,
+                    err
+                );
+                status = PermissionStatus::Denied;
+                (None, None)
+            }
+        };
 
         Self {
             id: db_perm.id,

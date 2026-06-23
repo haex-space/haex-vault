@@ -333,22 +333,23 @@ pub async fn load_dev_extension(
         Ok::<String, DatabaseError>(actual_id)
     })?;
 
-    // 5.5. Register permissions from manifest (if any)
-    // This ensures dev extensions have their permissions available in the UI
-    // Use the same conversion as production extensions (to_editable_permissions)
+    // 5.5. Register permissions from manifest
+    // This ensures dev extensions have their permissions available in the UI.
+    // Use the same conversion as production extensions (to_editable_permissions).
+    //
+    // Always call replace_permissions unconditionally: on reload, the new
+    // manifest may have removed permissions, and stale rows from a previous
+    // load must be cleared even when the new permission set is empty.
+    // replace_permissions atomically deletes existing rows and inserts the
+    // new set in a single transaction.
     let editable_permissions = manifest.to_editable_permissions();
     let internal_permissions = editable_permissions.to_internal_permissions(&extension_id);
-    if !internal_permissions.is_empty() {
-        // Delete any existing permissions first (in case of reload)
-        PermissionManager::delete_permissions(&state, &extension_id).await?;
-
-        eprintln!(
-            "[DEV] Registering {} permissions from manifest for extension {}",
-            internal_permissions.len(),
-            extension_id
-        );
-        PermissionManager::save_permissions(&state, &internal_permissions).await?;
-    }
+    eprintln!(
+        "[DEV] Registering {} permissions from manifest for extension {}",
+        internal_permissions.len(),
+        extension_id
+    );
+    PermissionManager::replace_permissions(&state, &extension_id, &internal_permissions).await?;
 
     // 6. Remove from in-memory manager if already exists (to allow reload)
     let _ = state
@@ -387,11 +388,15 @@ pub fn remove_dev_extension(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
+    use crate::extension::core::types::ExtensionSource;
     use crate::extension::database::executor::SqlExecutor;
     use crate::extension::permissions::manager::PermissionManager;
     use crate::table_names::TABLE_EXTENSIONS;
 
-    // Find extension by public_key and name
+    // Find extension by public_key and name. The in-memory manager is the
+    // source of truth for the `source` field — if the extension is not
+    // registered there, fail closed: an unknown extension is not a dev
+    // extension and must not be removed via this dev-only path.
     let extension = state
         .extension_manager
         .get_extension_by_public_key_and_name(&public_key, &name)?
@@ -399,6 +404,15 @@ pub fn remove_dev_extension(
             public_key: public_key.clone(),
             name: name.clone(),
         })?;
+
+    // Reject production extensions. They must be removed via the production
+    // path (`remove_extension`). Without this guard, a caller could delete
+    // any installed extension by passing its public_key + name.
+    if !matches!(extension.source, ExtensionSource::Development { .. }) {
+        return Err(ExtensionError::ValidationError {
+            reason: "remove_dev_extension may only be called on development extensions".into(),
+        });
+    }
 
     let extension_id = extension.id.clone();
 

@@ -96,20 +96,23 @@ impl PermissionManager {
                 }
             }
 
-            // Check path wildcard if present
-            if pattern.contains("/*") {
-                // Any path is allowed
+            // Path matching — wildcard or exact, mirroring the full-URL branch below.
+            let pattern_path_start = domain_pattern_end;
+            if pattern_path_start >= pattern.len() {
+                // No path component in pattern → any path allowed
                 return true;
             }
+            let pattern_path = &pattern[pattern_path_start..];
 
-            // Check exact path if no wildcard
-            let pattern_path_start = domain_pattern_end;
-            if pattern_path_start < pattern.len() {
-                let pattern_path = &pattern[pattern_path_start..];
-                return url_parsed.path() == pattern_path;
+            if let Some(wildcard_pos) = pattern_path.find("/*") {
+                let path_prefix = &pattern_path[..wildcard_pos + 1]; // include trailing /
+                let url_path = url_parsed.path();
+                let normalized_url_path = Self::normalize_url_path(url_path);
+                return normalized_url_path.starts_with(path_prefix)
+                    || normalized_url_path == path_prefix[..path_prefix.len() - 1];
             }
 
-            return true;
+            return url_parsed.path() == pattern_path;
         }
 
         // No subdomain wildcard - parse as full URL

@@ -54,7 +54,8 @@ fn action_from_str_resolves_identity_write() {
 #[test]
 fn split_constraints_passwords_keeps_default_marker_raw() {
     // passwords + `{"default":true}` text -> (typed None, raw Some marker).
-    let (typed, raw) = split_constraints(ResourceType::Passwords, Some(r#"{"default":true}"#));
+    let (typed, raw) = split_constraints(ResourceType::Passwords, Some(r#"{"default":true}"#))
+        .expect("passwords + default marker parses");
     assert!(typed.is_none(), "passwords must not parse into typed enum");
     assert_eq!(raw, Some(json!({ "default": true })));
 }
@@ -62,7 +63,7 @@ fn split_constraints_passwords_keeps_default_marker_raw() {
 #[test]
 fn split_constraints_passwords_null_yields_none() {
     // passwords + null/absent text -> (None, None).
-    let (typed, raw) = split_constraints(ResourceType::Passwords, None);
+    let (typed, raw) = split_constraints(ResourceType::Passwords, None).expect("None input is Ok");
     assert!(typed.is_none());
     assert!(raw.is_none());
 }
@@ -77,7 +78,8 @@ fn split_constraints_non_passwords_parses_typed() {
     let (typed, raw) = split_constraints(
         ResourceType::Db,
         Some(r#"{"where_clause":"id > 0","limit":10}"#),
-    );
+    )
+    .expect("db constraints parse");
     assert!(raw.is_none(), "non-passwords rows never carry raw");
     match typed {
         Some(PermissionConstraints::Database(db)) => {
@@ -92,7 +94,8 @@ fn split_constraints_non_passwords_parses_typed() {
 fn split_constraints_value_passwords_keeps_default_marker_raw() {
     // Manifest path: input is already a Value. passwords -> raw clone, typed None.
     let (typed, raw) =
-        split_constraints_value(ResourceType::Passwords, Some(&json!({ "default": true })));
+        split_constraints_value(ResourceType::Passwords, Some(&json!({ "default": true })))
+            .expect("passwords path is Ok");
     assert!(typed.is_none());
     assert_eq!(raw, Some(json!({ "default": true })));
 }
@@ -100,7 +103,8 @@ fn split_constraints_value_passwords_keeps_default_marker_raw() {
 #[test]
 fn split_constraints_value_non_passwords_parses_typed() {
     let value = json!({ "where_clause": "id > 0", "limit": 10 });
-    let (typed, raw) = split_constraints_value(ResourceType::Db, Some(&value));
+    let (typed, raw) =
+        split_constraints_value(ResourceType::Db, Some(&value)).expect("db value parses");
     assert!(raw.is_none());
     assert!(matches!(typed, Some(PermissionConstraints::Database(_))));
 }
@@ -110,7 +114,8 @@ fn split_then_combine_roundtrip_passwords() {
     // Round-trip: split the DB text, then re-combine on the write side yields the
     // same DB constraints text for a passwords row.
     let text = r#"{"default":true}"#;
-    let (typed, raw) = split_constraints(ResourceType::Passwords, Some(text));
+    let (typed, raw) =
+        split_constraints(ResourceType::Passwords, Some(text)).expect("passwords parses");
     let combined = combine_constraints(typed.as_ref(), raw.as_ref()).expect("combined text");
     // Compare structurally — key order in the re-serialized JSON is irrelevant.
     let before: serde_json::Value = serde_json::from_str(text).unwrap();
@@ -123,11 +128,60 @@ fn split_then_combine_roundtrip_non_passwords() {
     // Same round-trip for a non-passwords (db) row. Db-shaped JSON round-trips
     // losslessly through the untagged enum (see note above).
     let text = r#"{"where_clause":"id > 0","limit":10}"#;
-    let (typed, raw) = split_constraints(ResourceType::Db, Some(text));
+    let (typed, raw) = split_constraints(ResourceType::Db, Some(text)).expect("db text parses");
     let combined = combine_constraints(typed.as_ref(), raw.as_ref()).expect("combined text");
     let before: serde_json::Value = serde_json::from_str(text).unwrap();
     let after: serde_json::Value = serde_json::from_str(&combined).unwrap();
     assert_eq!(before, after);
+}
+
+#[test]
+fn split_constraints_value_returns_err_on_malformed_json() {
+    // Fail-closed: a non-passwords constraint Value whose shape doesn't match
+    // any `PermissionConstraints` variant must NOT collapse to `(None, None)` —
+    // callers would mistake that for "no constraints" and grant the request.
+    //
+    // Note: `PermissionConstraints` is `#[serde(untagged)]` with all-optional
+    // field structs, so a typed-but-empty `{}` actually parses cleanly as
+    // `DbConstraints::default()`. The bug we're guarding against is malformed
+    // JSON values that the typed enum genuinely *cannot* accept (e.g. a number
+    // where an object is required — `DbConstraints` is a struct, not a scalar).
+    let bad: serde_json::Value = serde_json::from_str("42").unwrap();
+    let result = split_constraints_value(ResourceType::Db, Some(&bad));
+    assert!(
+        result.is_err(),
+        "malformed db constraints must NOT parse to (None, None)"
+    );
+}
+
+#[test]
+fn split_constraints_returns_err_on_malformed_json() {
+    let result = split_constraints(ResourceType::Db, Some("{not json"));
+    assert!(result.is_err());
+}
+
+#[test]
+fn split_constraints_value_passwords_still_passes_raw_through() {
+    // Passwords path keeps free-form JSON raw; even shapes that wouldn't fit the
+    // typed enum must round-trip as raw.
+    let raw: serde_json::Value = serde_json::from_str(r#"{"any": "shape"}"#).unwrap();
+    let (typed, raw_out) =
+        split_constraints_value(ResourceType::Passwords, Some(&raw)).expect("passwords is Ok");
+    assert!(typed.is_none());
+    assert!(raw_out.is_some());
+}
+
+#[test]
+fn split_constraints_none_is_ok_with_both_none() {
+    // No constraints column on the row is legitimate (most rows) and MUST NOT
+    // be treated as a parse failure.
+    let (typed, raw) = split_constraints(ResourceType::Db, None).expect("None is Ok");
+    assert!(typed.is_none());
+    assert!(raw.is_none());
+
+    let (typed, raw) = split_constraints_value(ResourceType::Db, None).expect("None is Ok");
+    assert!(typed.is_none());
+    assert!(raw.is_none());
 }
 
 #[test]

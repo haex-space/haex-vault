@@ -75,15 +75,28 @@ pub struct ShellConstraints {
 /// parses into the typed enum (`constraints = Some`, `raw_constraints = None`).
 ///
 /// Used by the manifest path, whose input is already a `serde_json::Value`.
+///
+/// **Fails closed:** a malformed constraints `Value` for a non-`Passwords`
+/// resource returns `Err` rather than collapsing to `(None, None)`. The previous
+/// `.ok()`-shaped silent fallback let a row that *had* constraints (and was
+/// therefore meant to restrict permissions) be treated as "no constraints" —
+/// i.e. fail-open. Callers must translate the `Err` into a deny decision (e.g.
+/// `From<HaexPrincipalPermissions> for ExtensionPermission` forces
+/// `PermissionStatus::Denied`).
 pub(crate) fn split_constraints_value(
     resource_type: ResourceType,
     value: Option<&serde_json::Value>,
-) -> (Option<PermissionConstraints>, Option<serde_json::Value>) {
+) -> Result<(Option<PermissionConstraints>, Option<serde_json::Value>), serde_json::Error> {
     if resource_type == ResourceType::Passwords {
-        (None, value.cloned())
+        Ok((None, value.cloned()))
     } else {
-        let typed = value.and_then(|v| serde_json::from_value(v.clone()).ok());
-        (typed, None)
+        match value {
+            None => Ok((None, None)),
+            Some(v) => {
+                let typed: PermissionConstraints = serde_json::from_value(v.clone())?;
+                Ok((Some(typed), None))
+            }
+        }
     }
 }
 
@@ -94,16 +107,27 @@ pub(crate) fn split_constraints_value(
 /// input is the raw DB text (the READ/DB-text direction): for `passwords` the
 /// text is parsed into a free-form `Value` and kept raw; every other resource
 /// type parses the text into the typed enum.
+///
+/// **Fails closed** the same way as [`split_constraints_value`]: malformed JSON
+/// (or a typed parse failure) on a non-`Passwords` row returns `Err` instead of
+/// silently dropping the constraints. The `Passwords` raw-pass-through path
+/// also surfaces JSON-syntax errors. `None` input is always `Ok((None, None))`
+/// — a missing constraints column is legitimate.
 pub(crate) fn split_constraints(
     resource_type: ResourceType,
     raw_text: Option<&str>,
-) -> (Option<PermissionConstraints>, Option<serde_json::Value>) {
-    if resource_type == ResourceType::Passwords {
-        let raw = raw_text.and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
-        (None, raw)
-    } else {
-        let typed = raw_text.and_then(|s| serde_json::from_str(s).ok());
-        (typed, None)
+) -> Result<(Option<PermissionConstraints>, Option<serde_json::Value>), serde_json::Error> {
+    match raw_text {
+        None => Ok((None, None)),
+        Some(s) => {
+            if resource_type == ResourceType::Passwords {
+                let raw: serde_json::Value = serde_json::from_str(s)?;
+                Ok((None, Some(raw)))
+            } else {
+                let typed: PermissionConstraints = serde_json::from_str(s)?;
+                Ok((Some(typed), None))
+            }
+        }
     }
 }
 

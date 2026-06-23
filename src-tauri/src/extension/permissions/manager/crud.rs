@@ -176,6 +176,57 @@ impl PermissionManager {
         SqlExecutor::execute_internal_typed(tx, hlc_service, &sql, params![extension_id])?;
         Ok(())
     }
+
+    /// Atomically replace all permissions for an extension within a single transaction.
+    ///
+    /// Deletes the extension's existing permissions and inserts the new set in
+    /// ONE database transaction. If any insert fails the transaction is dropped
+    /// without commit, so the original rows survive — callers cannot end up
+    /// with an extension that has zero permissions after a partial save.
+    ///
+    /// Replaces the previous pattern `delete_permissions(..).await; save_permissions(..).await`,
+    /// which used two independent transactions and could leave permissions in
+    /// an empty state if the second call failed.
+    pub async fn replace_permissions(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        permissions: &[ExtensionPermission],
+    ) -> Result<(), ExtensionError> {
+        with_connection(&app_state.db, |conn| {
+            let tx = conn.transaction().map_err(DatabaseError::from)?;
+
+            let hlc_service = app_state
+                .hlc
+                .lock()
+                .map_err(|_| DatabaseError::MutexPoisoned {
+                    reason: "Failed to lock HLC service".to_string(),
+                })?;
+
+            Self::delete_permissions_in_transaction(&tx, &hlc_service, extension_id)?;
+
+            let sql = format!(
+                "INSERT INTO {TABLE_PRINCIPAL_PERMISSIONS} (id, principal_id, resource_type, action, target, constraints, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            );
+
+            for perm in permissions {
+                let db_perm: HaexPrincipalPermissions = perm.into();
+                let params = params![
+                    db_perm.id,
+                    db_perm.principal_id,
+                    db_perm.resource_type,
+                    db_perm.action,
+                    db_perm.target,
+                    db_perm.constraints,
+                    db_perm.status,
+                ];
+                SqlExecutor::execute_internal_typed(&tx, &hlc_service, &sql, params)?;
+            }
+
+            tx.commit().map_err(DatabaseError::from)?;
+            Ok(())
+        })
+        .map_err(ExtensionError::from)
+    }
     /// Lädt alle Permissions einer Extension
     /// Uses select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
     pub async fn get_permissions(
@@ -202,7 +253,7 @@ impl PermissionManager {
                     .unwrap_or(Action::Database(
                         crate::extension::permissions::types::DbAction::Read,
                     ));
-                let status = row[6]
+                let mut status = row[6]
                     .as_str()
                     .and_then(|s| PermissionStatus::from_str(s).ok())
                     .unwrap_or(PermissionStatus::Denied);
@@ -211,15 +262,39 @@ impl PermissionManager {
                 // resource types parse into the typed enum. The invariant lives
                 // in `split_constraints` (single source of truth) — this is the
                 // live `check_passwords_permission` read path.
+                //
+                // Fail closed: malformed JSON in the `constraints` column used
+                // to be silently dropped to `(None, None)`, which downstream
+                // matchers treat as "no constraints" and therefore *grant*
+                // whatever the row's (resource_type, target, action) covers.
+                // Force the row to `Denied` so deny-first precedence makes the
+                // request fail rather than fail-open.
+                let id_for_log = row[0].as_str().unwrap_or_default().to_string();
+                let principal_id_for_log = row[1].as_str().unwrap_or_default().to_string();
+                let target_for_log = row[4].as_str().unwrap_or_default().to_string();
                 let (constraints, raw_constraints) =
-                    split_constraints(resource_type, row[5].as_str());
+                    match split_constraints(resource_type, row[5].as_str()) {
+                        Ok(pair) => pair,
+                        Err(err) => {
+                            eprintln!(
+                                "[permissions] malformed constraints JSON on permission id={} principal_id={} resource_type={} target={:?} — forcing status=Denied (parse error: {})",
+                                id_for_log,
+                                principal_id_for_log,
+                                resource_type.as_str(),
+                                target_for_log,
+                                err
+                            );
+                            status = PermissionStatus::Denied;
+                            (None, None)
+                        }
+                    };
 
                 ExtensionPermission {
-                    id: row[0].as_str().unwrap_or_default().to_string(),
-                    principal_id: row[1].as_str().unwrap_or_default().to_string(),
+                    id: id_for_log,
+                    principal_id: principal_id_for_log,
                     resource_type,
                     action,
-                    target: row[4].as_str().unwrap_or_default().to_string(),
+                    target: target_for_log,
                     constraints,
                     status,
                     raw_constraints,

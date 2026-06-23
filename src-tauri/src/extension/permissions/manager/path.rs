@@ -62,12 +62,19 @@ impl PermissionManager {
         // Extension wildcard: *.ext
         if pattern.starts_with("*.") {
             let suffix = &pattern[1..]; // includes the dot
-                                        // For extension wildcards, the normalized path must end with the suffix
-                                        // AND must not have originally contained traversal sequences (even if normalized away)
-                                        // This prevents attacks where "../../../etc/secret.txt" normalizes to "/etc/secret.txt"
-            let original_had_traversal = decoded_path.contains("..")
-                || decoded_path.contains("./")
-                || decoded_path.contains(".\\");
+
+            // For extension wildcards, the normalized path must end with the
+            // suffix AND must not have originally contained traversal sequences
+            // (even if normalization removed them). This prevents attacks where
+            // "../../../etc/secret.txt" normalizes to "/etc/secret.txt".
+            //
+            // Component-aware detection: only flag actual `..` or `.` path
+            // segments, not substrings inside legitimate filenames like
+            // `report..txt`. Both `/` and `\` are treated as separators so
+            // Windows-style traversal (`..\`) is still caught.
+            let original_had_traversal = decoded_path
+                .split(|c| c == '/' || c == '\\')
+                .any(|seg| seg == ".." || seg == ".");
             return normalized_path.ends_with(suffix)
                 && !Self::has_traversal(&normalized_path)
                 && !original_had_traversal;

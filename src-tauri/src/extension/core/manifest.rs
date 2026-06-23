@@ -355,8 +355,29 @@ impl ExtensionPermissions {
         // represent. The passwords-vs-other invariant lives in
         // `permissions::types::split_constraints_value` (single source of truth)
         // so a construction site can't silently get it wrong.
-        let (constraints, raw_constraints) =
-            split_constraints_value(resource_type, p.constraints.as_ref());
+        //
+        // Fail closed: a malformed `constraints` value in the manifest used to
+        // silently degrade to `(None, None)` ("no constraints" = grants
+        // anything within the target). Force the row to `Denied` instead so
+        // deny-first precedence makes the request fail rather than fail-open.
+        let mut requested_status = p.status.clone().unwrap_or(PermissionStatus::Ask);
+        let (constraints, raw_constraints) = match split_constraints_value(
+            resource_type,
+            p.constraints.as_ref(),
+        ) {
+            Ok(pair) => pair,
+            Err(err) => {
+                eprintln!(
+                        "[permissions] malformed constraints JSON in manifest entry for extension_id={} resource_type={} target={} — forcing status=Denied (parse error: {})",
+                        extension_id,
+                        resource_type.as_str(),
+                        p.target,
+                        err
+                    );
+                requested_status = PermissionStatus::Denied;
+                (None, None)
+            }
+        };
 
         action.map(|act| ExtensionPermission {
             id: uuid::Uuid::new_v4().to_string(),
@@ -365,7 +386,7 @@ impl ExtensionPermissions {
             action: act,
             target: p.target.clone(),
             constraints,
-            status: p.status.clone().unwrap_or(PermissionStatus::Ask),
+            status: requested_status,
             raw_constraints,
         })
     }

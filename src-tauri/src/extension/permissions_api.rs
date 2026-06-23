@@ -130,12 +130,10 @@ pub async fn update_extension_permissions(
     permissions: EditablePermissions,
     state: State<'_, AppState>,
 ) -> Result<(), ExtensionError> {
-    // Delete old permissions
-    PermissionManager::delete_permissions(&state, &extension_id).await?;
-
-    // Convert to internal format and save
+    // Atomically replace permissions in a single transaction so a partial-save
+    // failure cannot leave the extension with zero permissions.
     let internal_permissions = permissions.to_internal_permissions(&extension_id);
-    PermissionManager::save_permissions(&state, &internal_permissions).await?;
+    PermissionManager::replace_permissions(&state, &extension_id, &internal_permissions).await?;
 
     Ok(())
 }

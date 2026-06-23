@@ -407,3 +407,25 @@ fn test_url_path_encoded_traversal() {
         "https://example.com/api/%2e%2e/admin"
     ));
 }
+
+#[test]
+fn subdomain_wildcard_with_path_does_not_match_other_paths() {
+    // Pattern allows ANY path under api.example.com — but only under /api
+    assert!(!PermissionManager::matches_url_pattern(
+        "https://*.example.com/api/*",
+        "https://foo.example.com/admin/secret",
+    ));
+    assert!(PermissionManager::matches_url_pattern(
+        "https://*.example.com/api/*",
+        "https://foo.example.com/api/v1/users",
+    ));
+}
+
+#[test]
+fn subdomain_wildcard_no_path_still_matches_any() {
+    // Pattern with /* (no specific prefix) keeps the existing behavior
+    assert!(PermissionManager::matches_url_pattern(
+        "https://*.example.com/*",
+        "https://foo.example.com/anything",
+    ));
+}

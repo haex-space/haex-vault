@@ -426,3 +426,34 @@ fn attack_session_denial_overrides_wildcard_grant() {
     let checker = PermissionChecker::new(make_extension(), perms);
     assert!(!checker.can_read_path_silently(Path::new("/any/path.txt"), false, true));
 }
+
+// ---------------------------------------------------------------------------
+// Deny-first precedence (set resolution, not first-match)
+// ---------------------------------------------------------------------------
+//
+// A `Denied` row for the same (path, action) MUST override a `Granted` row
+// regardless of insertion order — otherwise the previous `iter().find()`
+// first-match logic would let a broad grant shadow a more specific deny.
+
+#[test]
+fn deny_wins_silent_read_granted_first() {
+    // SECURITY: a Denied row for the same (path, action) MUST win even when
+    // the Granted row is inserted first.
+    let perms = vec![
+        fs_perm(FsAction::Read, "/data/x", PermissionStatus::Granted),
+        fs_perm(FsAction::Read, "/data/x", PermissionStatus::Denied),
+    ];
+    let checker = PermissionChecker::new(make_extension(), perms);
+    assert!(!checker.can_read_path_silently(Path::new("/data/x"), false, false));
+}
+
+#[test]
+fn deny_wins_silent_read_denied_first() {
+    // Symmetric: Denied-first order still yields silent-read disallowed.
+    let perms = vec![
+        fs_perm(FsAction::Read, "/data/x", PermissionStatus::Denied),
+        fs_perm(FsAction::Read, "/data/x", PermissionStatus::Granted),
+    ];
+    let checker = PermissionChecker::new(make_extension(), perms);
+    assert!(!checker.can_read_path_silently(Path::new("/data/x"), false, false));
+}
