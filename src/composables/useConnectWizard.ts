@@ -119,6 +119,8 @@ export function useConnectWizard() {
     }
     availableVaults.value = []
     selectedVaultId.value = null
+    isLoadingVaults.value = false
+    step3Error.value = ''
     isCreatingNewVault.value = false
     decryptedVaultNames.value = {}
     recoveredKeyData.value = null
@@ -132,6 +134,11 @@ export function useConnectWizard() {
     vaultPassword.value = ''
     vaultPasswordConfirm.value = ''
     vaultNameExists.value = false
+    step3Errors.vaultName = []
+    step3Errors.password = []
+    step3Errors.passwordConfirm = []
+    isLoading.value = false
+    check.value = false
   }
 
   return {

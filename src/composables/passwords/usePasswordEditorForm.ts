@@ -48,7 +48,9 @@ export const usePasswordEditorForm = () => {
       'SHA1') as OtpAlgorithm,
     tagNames: selectedItemTags.value.map((t) => t.name),
     keyValues: [] as EditableKeyValue[],
-    autofillAliases: (selectedItem.value?.autofillAliases ?? {}) as Record<string, string[]>,
+    autofillAliases: JSON.parse(
+      JSON.stringify(selectedItem.value?.autofillAliases ?? {}),
+    ) as Record<string, string[]>,
   })
 
   // Snapshot of the pristine form for cancel-from-edit on existing items.

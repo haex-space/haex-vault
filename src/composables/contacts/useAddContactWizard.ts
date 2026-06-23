@@ -252,7 +252,7 @@ export function useAddContactWizard(options: UseAddContactWizardOptions) {
         .map(c => ({ type: c.type, value: c.value }))
 
       const endpointValue = scannedContact.value.endpointId
-      if (endpointValue && !selectedClaims.some(c => c.value === endpointValue)) {
+      if (endpointValue && !selectedClaims.some(c => c.type === 'endpointId' && c.value === endpointValue)) {
         selectedClaims.push({ type: 'endpointId', value: endpointValue })
       }
 

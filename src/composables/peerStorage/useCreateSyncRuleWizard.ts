@@ -78,7 +78,10 @@ export const useCreateSyncRuleWizard = () => {
   const isSourceValid: ComputedRef<boolean> = computed(() => {
     switch (source.type.value) {
       case 'local': return !!source.path.value
-      case 'peer': return !!source.shareId.value
+      case 'peer':
+        return !!source.spaceId.value
+          && !!source.deviceEndpointId.value
+          && !!source.shareId.value
       case 'cloud': return !!source.backendId.value
       default: return false
     }
@@ -87,9 +90,13 @@ export const useCreateSyncRuleWizard = () => {
   const isTargetValid: ComputedRef<boolean> = computed(() => {
     switch (target.type.value) {
       case 'local': return !!target.path.value
-      case 'peer': return target.createNewFolder.value
-        ? !!target.newFolderName.value.trim()
-        : !!target.shareId.value
+      case 'peer': {
+        const hasPeerBase = !!target.spaceId.value && !!target.deviceEndpointId.value
+        const hasFolder = target.createNewFolder.value
+          ? !!target.newFolderName.value.trim()
+          : !!target.shareId.value
+        return hasPeerBase && hasFolder
+      }
       case 'cloud': return !!target.backendId.value
       default: return false
     }

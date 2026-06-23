@@ -85,14 +85,18 @@ export function useMarketplaceCatalog() {
     }
   }
 
-  // Watch for filter changes
-  watch([debouncedSearch, selectedCategory, currentPage], () => {
+  // Reset page on filter changes; if already on page 1, load immediately.
+  watch([debouncedSearch, selectedCategory], () => {
+    if (currentPage.value !== 1) {
+      currentPage.value = 1
+      return
+    }
     loadExtensionsAsync()
   })
 
-  // Reset page when filters change
-  watch([debouncedSearch, selectedCategory], () => {
-    currentPage.value = 1
+  // Page navigation always triggers a load.
+  watch(currentPage, () => {
+    loadExtensionsAsync()
   })
 
   return {

@@ -404,9 +404,20 @@ const onSaveAsync = async () => {
   }
 }
 
+const normalizeConfig = (cfg: unknown): Record<string, unknown> => {
+  if (typeof cfg === 'string') {
+    try {
+      return JSON.parse(cfg) as Record<string, unknown>
+    } catch {
+      return {}
+    }
+  }
+  return cfg && typeof cfg === 'object' ? (cfg as Record<string, unknown>) : {}
+}
+
 const populateFromRule = (rule: SelectHaexSyncRules) => {
-  const srcCfg = rule.sourceConfig as Record<string, unknown>
-  const tgtCfg = rule.targetConfig as Record<string, unknown>
+  const srcCfg = normalizeConfig(rule.sourceConfig)
+  const tgtCfg = normalizeConfig(rule.targetConfig)
 
   wizard.source.type.value = rule.sourceType as ProviderType
   wizard.target.type.value = rule.targetType as ProviderType

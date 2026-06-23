@@ -144,10 +144,7 @@ const onBack = async () => {
   if (wizard.addMode.value === 'file' && wizard.importParsed.value) {
     wizard.importParsed.value = null
   } else if (wizard.addMode.value === 'scan' && wizard.scanStep.value === 'review') {
-    wizard.scanStep.value = 'scan'
-    wizard.scannedContact.value = null
-    wizard.scanExistingContact.value = null
-    wizard.scanError.value = ''
+    wizard.resetScanState()
     await nextTick()
     scanRef.value?.startQrScanner()
   } else {
