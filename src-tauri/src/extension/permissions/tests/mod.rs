@@ -12,6 +12,8 @@ mod path_traversal_tests;
 #[cfg(test)]
 mod permission_enforcement_tests;
 #[cfg(test)]
+mod precedence_tests;
+#[cfg(test)]
 mod principal;
 #[cfg(test)]
 mod session_tests;
