@@ -27,7 +27,7 @@ import type { schema } from '~/database'
 import { createLogger } from '@/stores/logging'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
-import type { SpaceWithType } from './index'
+import type { SpaceWithType } from './types'
 
 type DB = SqliteRemoteDatabase<typeof schema>
 const log = createLogger('SPACES:MLS-RECONCILE')

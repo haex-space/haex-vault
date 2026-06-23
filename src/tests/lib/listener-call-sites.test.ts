@@ -7,7 +7,11 @@ import { resolve } from 'node:path'
 // before checking so doc references to `listen()` don't trip the guard.
 const FIXED_SITES = [
   'src/stores/sync/syncEvents.ts',
-  'src/composables/handlers/useCoreExternalRequestHandlers.ts',
+  'src/composables/handlers/useCoreExternalRequestHandlers/index.ts',
+  'src/composables/handlers/useCoreExternalRequestHandlers/passwords.ts',
+  'src/composables/handlers/useCoreExternalRequestHandlers/passkeys.ts',
+  'src/composables/handlers/useCoreExternalRequestHandlers/shared.ts',
+  'src/composables/handlers/useCoreExternalRequestHandlers/types.ts',
   'src/composables/useExternalAuth.ts',
   'src/stores/file-sync.ts',
   'src/stores/peer-storage/index.ts',

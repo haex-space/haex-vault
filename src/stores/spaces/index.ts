@@ -1,22 +1,28 @@
-import type { DecryptedSpace } from '@haex-space/vault-sdk'
+import { eq } from 'drizzle-orm'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
-import { eq, inArray } from 'drizzle-orm'
-import { invoke } from '@tauri-apps/api/core'
-import { haexSpaces, haexSpaceMembers } from '~/database/schemas'
+import { haexSpaces } from '~/database/schemas'
 import type { SelectHaexSpaces } from '~/database/schemas'
-import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
 import { createLogger } from '@/stores/logging'
 import { NoCurrentIdentityError } from '@/composables/useCurrentIdentity'
 import { requireDb } from '~/stores/vault'
 import { SpaceType, SpaceStatus } from '~/database/constants'
-import type {
-  SpaceType as SpaceTypeValue,
-  SpaceStatus as SpaceStatusValue,
-} from '~/database/constants'
 import spacesDe from './spaces.de.json'
 import spacesEn from './spaces.en.json'
-
-// Module imports
+import type { ResolvedIdentity, SpaceWithType } from './types'
+export type { ResolvedIdentity, SpaceWithType } from './types'
+import { rowToSpace } from './types'
+import {
+  loadMemberSpaceIds,
+  loadSpacesFromDb,
+  persistSpace,
+  removeSpaceFromDb,
+} from './persistence'
+import {
+  startLocalSpaceLeaders,
+  startLocalSpacePeerSync,
+  startPeerSyncForLocalSpace,
+} from './peerSync'
+import { ensureDefaultSpace, ensureVaultSpace } from './bootstrap'
 import {
   addMemberToSpace,
   addSelfAsSpaceMember,
@@ -56,21 +62,6 @@ import {
   removeIdentityFromSpace,
 } from './crud'
 
-/** Extended space type including the DB type field (vault/online/local) */
-export interface SpaceWithType extends DecryptedSpace {
-  type: SpaceTypeValue
-  status: SpaceStatusValue
-  ownerIdentityId: string
-}
-
-export interface ResolvedIdentity {
-  id: string
-  publicKey: string
-  privateKey: string
-  did: string
-  name: string
-}
-
 const log = createLogger('SPACES')
 
 export const useSpacesStore = defineStore('spacesStore', () => {
@@ -94,16 +85,6 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   // membership claim on them.
   const memberSpaceIds = ref<Set<string>>(new Set())
   const db = computed(() => currentVault.value?.drizzle)
-  const rowToSpace = (row: SelectHaexSpaces): SpaceWithType => ({
-    id: row.id,
-    name: row.name,
-    type: (row.type as SpaceTypeValue) ?? SpaceType.ONLINE,
-    status: (row.status as SpaceStatusValue) ?? SpaceStatus.ACTIVE,
-    ownerIdentityId: row.ownerIdentityId,
-    originUrl: row.originUrl ?? '',
-    createdAt: row.createdAt ?? '',
-    capabilities: [],
-  })
   const visibleSpaces = computed(() => {
     const identityStore = useIdentityStore()
     const ownIdentityIds = new Set(identityStore.ownIdentities.map((i) => i.id))
@@ -170,201 +151,37 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   // =========================================================================
-  // Persistence
+  // Persistence (thin wrappers around ./persistence)
   // =========================================================================
-
-  const persistSpaceAsync = async (space: SpaceWithType) => {
-    const d = db.value
-    if (!d) return
-
-    const existing = await d
-      .select()
-      .from(haexSpaces)
-      .where(eq(haexSpaces.id, space.id))
-      .limit(1)
-
-    if (existing.length > 0) {
-      await d
-        .update(haexSpaces)
-        .set({
-          name: space.name,
-          ownerIdentityId: space.ownerIdentityId,
-          originUrl: space.originUrl || null,
-          status: space.status,
-          modifiedAt: new Date().toISOString(),
-        })
-        .where(eq(haexSpaces.id, space.id))
-    } else {
-      await d.insert(haexSpaces).values({
-        id: space.id,
-        type: space.type,
-        name: space.name,
-        ownerIdentityId: space.ownerIdentityId,
-        originUrl: space.originUrl || null,
-        status: space.status,
-      })
-    }
-
-    await loadSpacesFromDbAsync()
-  }
-
-  const removeSpaceFromDbAsync = async (spaceId: string) => {
-    const d = db.value
-    if (d) {
-      await d.delete(haexSpaces).where(eq(haexSpaces.id, spaceId))
-    }
-    spaces.value = spaces.value.filter((s) => s.id !== spaceId)
-  }
 
   const loadMemberSpaceIdsAsync = async () => {
-    const d = db.value
-    if (!d) {
-      memberSpaceIds.value = new Set()
-      return
-    }
     const identityStore = useIdentityStore()
     const ownIds = identityStore.ownIdentities.map((i) => i.id)
-    if (ownIds.length === 0) {
-      memberSpaceIds.value = new Set()
-      return
-    }
-    const rows = await d
-      .select({ spaceId: haexSpaceMembers.spaceId })
-      .from(haexSpaceMembers)
-      .where(inArray(haexSpaceMembers.identityId, ownIds))
-      .all()
-    memberSpaceIds.value = new Set(rows.map((r) => r.spaceId))
+    await loadMemberSpaceIds(db.value, ownIds, memberSpaceIds)
   }
 
-  const loadSpacesFromDbAsync = async () => {
-    const d = db.value
-    if (!d) return
+  const loadSpacesFromDbAsync = async () =>
+    loadSpacesFromDb(db.value, spaces, loadMemberSpaceIdsAsync)
 
-    spaces.value = await d.select().from(haexSpaces)
-    await loadMemberSpaceIdsAsync()
+  const persistSpaceAsync = async (space: SpaceWithType) =>
+    persistSpace(db.value, space, loadSpacesFromDbAsync)
 
-    return spaces.value
-  }
+  const removeSpaceFromDbAsync = async (spaceId: string) =>
+    removeSpaceFromDb(db.value, spaces, spaceId)
 
   // =========================================================================
-  // Startup
+  // Startup (thin wrappers around ./peerSync + ./bootstrap)
   // =========================================================================
 
-  const startLocalSpaceLeadersAsync = async () => {
-    for (const space of spaces.value) {
-      if (
-        space.type === SpaceType.LOCAL &&
-        space.status === SpaceStatus.ACTIVE
-      ) {
-        try {
-          await invoke('local_delivery_start', {
-            spaceId: space.id,
-          })
-          log.info(
-            `Started leader mode for local space ${space.id}`,
-          )
-        } catch {
-          // Already running — ignore
-        }
-      }
-    }
-  }
+  const startLocalSpaceLeadersAsync = () =>
+    startLocalSpaceLeaders(spaces.value)
 
-  /**
-   * Start a peer sync loop for a single local space after running leader
-   * election. If a `hintLeaderEndpointId` is provided and election does not
-   * find a leader, falls back to the hint — useful right after an invite
-   * Accept, where we know which endpoint served the ClaimInvite but election
-   * may not yet have the fresh space devices registered.
-   */
-  const startPeerSyncForLocalSpaceAsync = async (
-    spaceId: string,
-    identityDid: string,
-    hintLeaderEndpointId?: string,
-    hintLeaderRelayUrl?: string | null,
-  ): Promise<void> => {
-    let leaderEndpointId: string | undefined
-    let leaderRelayUrl: string | null | undefined
-    try {
-      const election = await invoke<ElectionResultInfo>(
-        'local_delivery_elect',
-        { spaceId },
-      )
-      if (election.role === 'leader') {
-        log.debug(`Space ${spaceId}: self is leader, no peer sync needed`)
-        return
-      }
-      if (election.role === 'peer' && election.leaderEndpointId) {
-        leaderEndpointId = election.leaderEndpointId
-        leaderRelayUrl = election.leaderRelayUrl
-      } else {
-        log.debug(`Space ${spaceId}: no leader found via election (role=${election.role})`)
-      }
-    } catch (error) {
-      log.warn(`Election for space ${spaceId} failed: ${error}`)
-    }
+  const startPeerSyncForLocalSpaceAsync = startPeerSyncForLocalSpace
 
-    if (!leaderEndpointId && hintLeaderEndpointId) {
-      leaderEndpointId = hintLeaderEndpointId
-      leaderRelayUrl = hintLeaderRelayUrl ?? null
-      log.info(`Space ${spaceId}: using hint endpoint as leader (${hintLeaderEndpointId.slice(0, 16)})`)
-    }
-
-    if (!leaderEndpointId) return
-
-    // UCAN is resolved inside Rust from haex_ucan_tokens at connect/reconnect
-    // time — no token to pass from the frontend.
-    try {
-      await invoke('local_delivery_connect', {
-        spaceId,
-        leaderEndpointId,
-        leaderRelayUrl: leaderRelayUrl ?? null,
-        identityDid,
-      })
-      log.info(`Started peer sync for space ${spaceId} → leader ${leaderEndpointId.slice(0, 16)}`)
-    } catch (error) {
-      // Already connected, or temporarily unreachable — non-fatal.
-      log.debug(`Peer sync connect for ${spaceId}: ${error}`)
-    }
-  }
-
-  /**
-   * For every joined local space, run leader election and — if another
-   * device is the elected leader — start a peer sync loop against them.
-   *
-   * Without this, an invitee-side vault accepts the MLS welcome but never
-   * pulls CRDT history (peer_shares, other members, space_devices), so the
-   * space appears mostly empty after joining.
-   *
-   * Idempotent: `local_delivery_connect` errors if a loop is already
-   * running for the space — we swallow that case.
-   */
   const startLocalSpacePeerSyncAsync = async () => {
     const identityStore = useIdentityStore()
     const myIdentity = identityStore.ownIdentities[0]
-    if (!myIdentity) {
-      log.warn('Peer sync skipped: no own identity')
-      return
-    }
-
-    for (const space of spaces.value) {
-      // ACTIVE spaces sync normally. LEAVING spaces also need peer-sync
-      // running so their pending delete-log entries can be pushed to the
-      // leader the next time it is reachable; without this the offline-leave
-      // resilience would never have a transport to flush over.
-      const wantsPeerSync =
-        space.type === SpaceType.LOCAL &&
-        (space.status === SpaceStatus.ACTIVE
-          || space.status === SpaceStatus.LEAVING)
-      if (!wantsPeerSync) continue
-
-      await startPeerSyncForLocalSpaceAsync(
-        space.id,
-        myIdentity.did,
-      ).catch((error) => {
-        log.warn(`Peer sync for space ${space.id} failed: ${error}`)
-      })
-    }
+    await startLocalSpacePeerSync(spaces.value, myIdentity?.did)
   }
 
   const retryPendingWelcomesAsync = async () => {
@@ -376,68 +193,24 @@ export const useSpacesStore = defineStore('spacesStore', () => {
   }
 
   const ensureVaultSpaceAsync = async (vaultId: string, vaultName: string) => {
-    const d = db.value
-    if (!d) {
-      log.error('ensureVaultSpaceAsync: no DB available')
-      return
-    }
-
-    const existing = await d
-      .select()
-      .from(haexSpaces)
-      .where(eq(haexSpaces.id, vaultId))
-      .limit(1)
-    if (existing.length > 0) {
-      log.info(`Vault space ${vaultId} already exists`)
-      return
-    }
-
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
     const ownerIdentity = identityStore.ownIdentities[0]
-    if (!ownerIdentity) {
-      throw new Error('Cannot create vault space without an identity')
-    }
-
-    await d.insert(haexSpaces).values({
-      id: vaultId,
-      type: SpaceType.VAULT,
-      name: vaultName,
-      ownerIdentityId: ownerIdentity.id,
-      originUrl: '',
-    })
-    log.info(`Created vault space "${vaultName}" (${vaultId})`)
+    return ensureVaultSpace(db.value, vaultId, vaultName, ownerIdentity?.id)
   }
 
   const ensureDefaultSpaceAsync = async () => {
-    const d = db.value
-    if (!d) return
-
-    const localSpaces = await d
-      .select()
-      .from(haexSpaces)
-      .where(eq(haexSpaces.type, SpaceType.LOCAL))
-      .limit(1)
-
-    if (localSpaces.length > 0) {
-      if (!spaces.value.find((s) => s.id === localSpaces[0]!.id)) {
-        await loadSpacesFromDbAsync()
-      }
-      return
-    }
-
-    const name = $i18n.t('spaces.defaultSpaceName')
     const identityStore = useIdentityStore()
     await identityStore.loadIdentitiesAsync()
-    const vaultOwnerId = spaces.value.find(
-      (s) => s.type === SpaceType.VAULT,
-    )?.ownerIdentityId
-    const defaultOwnerId = vaultOwnerId || identityStore.ownIdentities[0]?.id
-    if (!defaultOwnerId) {
-      throw new Error('No identity available for default space')
-    }
-    await createLocalSpaceAsync(name, defaultOwnerId)
-    log.info(`Default space "${name}" created`)
+    const name = $i18n.t('spaces.defaultSpaceName')
+    return ensureDefaultSpace(
+      db.value,
+      spaces.value,
+      name,
+      identityStore.ownIdentities[0]?.id,
+      loadSpacesFromDbAsync,
+      createLocalSpaceAsync,
+    )
   }
 
   // =========================================================================

@@ -12,7 +12,7 @@ import { throwIfNotOk } from '@/utils/fetch'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 import { addSelfAsSpaceMember } from './members'
-import type { SpaceWithType, ResolvedIdentity } from './index'
+import type { SpaceWithType, ResolvedIdentity } from './types'
 
 type DB = SqliteRemoteDatabase<typeof schema>
 
