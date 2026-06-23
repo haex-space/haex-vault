@@ -1,4 +1,4 @@
-mod database;
+pub(super) mod database;
 mod filesystem;
 pub(super) mod identities;
 mod mail;

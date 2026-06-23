@@ -1,7 +1,10 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
+use crate::extension::permissions::manager::check::deny_first_precedence;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::{Action, PermissionStatus, Principal, ResourceType};
+use crate::extension::permissions::types::{
+    Action, DbAction, ExtensionPermission, PermissionStatus, Principal, ResourceType,
+};
 use crate::AppState;
 use tauri::State;
 
@@ -41,29 +44,25 @@ impl PermissionManager {
             return Ok(());
         }
 
-        // Find matching permission for this table and action
-        let matching_permission = permissions.iter().find(|perm| {
-            perm.resource_type == ResourceType::Db
-                && checker.matches_table_pattern(&perm.target, table_name)
-                && checker.action_allows_db_action(&perm.action, db_action)
-        });
+        // Resolve matching permissions deny-first, so an explicit `Denied` row
+        // can never be hidden behind a `Granted` row regardless of insertion
+        // order. See `deny_first_precedence` for the precedence rules.
+        let resolved = database_matching_status(&checker, &permissions, table_name, db_action);
 
-        match matching_permission {
-            Some(perm) => match perm.status {
-                PermissionStatus::Granted => Ok(()),
-                PermissionStatus::Denied => Err(ExtensionError::permission_denied(
-                    extension_id,
-                    db_action.as_str(),
-                    &format!("database table '{table_name}'"),
-                )),
-                PermissionStatus::Ask => Err(ExtensionError::permission_prompt_required(
-                    extension_id,
-                    &extension.manifest.name,
-                    "db",
-                    db_action.as_str(),
-                    table_name,
-                )),
-            },
+        match resolved {
+            Some(PermissionStatus::Granted) => Ok(()),
+            Some(PermissionStatus::Denied) => Err(ExtensionError::permission_denied(
+                extension_id,
+                db_action.as_str(),
+                &format!("database table '{table_name}'"),
+            )),
+            Some(PermissionStatus::Ask) => Err(ExtensionError::permission_prompt_required(
+                extension_id,
+                &extension.manifest.name,
+                "db",
+                db_action.as_str(),
+                table_name,
+            )),
             // No matching permission in database - check session permissions
             None => {
                 if app_state.session_permissions.is_granted(
@@ -98,4 +97,28 @@ impl PermissionManager {
             }
         }
     }
+}
+
+/// Resolves the matching DB permission status for `(table_name, db_action)` with
+/// **deny-first precedence**. Returns `None` when no DB row matches.
+///
+/// Pure helper (no `State<AppState>`) so the security-critical action+target
+/// matching and deny-wins precedence are unit-testable, mirroring
+/// `identities_matching_status`.
+pub(crate) fn database_matching_status(
+    checker: &PermissionChecker,
+    permissions: &[ExtensionPermission],
+    table_name: &str,
+    db_action: DbAction,
+) -> Option<PermissionStatus> {
+    deny_first_precedence(
+        permissions
+            .iter()
+            .filter(|perm| {
+                perm.resource_type == ResourceType::Db
+                    && checker.matches_table_pattern(&perm.target, table_name)
+                    && checker.action_allows_db_action(&perm.action, db_action)
+            })
+            .map(|perm| perm.status),
+    )
 }

@@ -3,15 +3,21 @@
 //! Unit tests for pure helpers in `permissions::manager` — specifically the
 //! security-critical passwords default-label resolver.
 
+use crate::extension::core::manifest::{DisplayMode, ExtensionManifest, ExtensionPermissions};
+use crate::extension::core::types::{Extension, ExtensionSource};
 use crate::extension::error::ExtensionError;
+use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::manager::{
-    identities_matching_status, parse_passwords_default_marker, resolve_identities_decision,
-    resolve_passwords_tags_scope, IdentitiesDecision, PasswordsGrantRow,
+    database_matching_status, identities_matching_status, parse_passwords_default_marker,
+    resolve_identities_decision, resolve_passwords_tags_scope, IdentitiesDecision,
+    PasswordsGrantRow,
 };
 use crate::extension::permissions::types::{
-    Action, ExtensionPermission, IdentityAction, PasswordsScope, PermissionStatus, ResourceType,
+    Action, DbAction, ExtensionPermission, IdentityAction, PasswordsScope, PermissionStatus,
+    ResourceType,
 };
 use serde_json::json;
+use std::path::PathBuf;
 
 fn row(target: &str, is_default: bool) -> PasswordsGrantRow {
     PasswordsGrantRow {
@@ -266,4 +272,96 @@ fn identities_session_deny_denies_when_no_db_permission() {
         resolve_identities_decision(None, false, true),
         IdentitiesDecision::Deny
     );
+}
+
+// ---------------------------------------------------------------------------
+// database_matching_status — deny-first precedence for DB permissions.
+//
+// A `Denied` row for the same (table, action) MUST override a `Granted` row
+// regardless of insertion order — otherwise the first-match behaviour of the
+// previous `iter().find()` implementation would let a broad grant shadow a
+// more specific deny.
+// ---------------------------------------------------------------------------
+
+fn test_extension_for_db() -> Extension {
+    Extension {
+        id: "test-ext-precedence-db".to_string(),
+        manifest: ExtensionManifest {
+            name: "test-ext-precedence-db".to_string(),
+            version: "0.1.0".to_string(),
+            author: None,
+            entry: Some("index.html".to_string()),
+            icon: None,
+            public_key: "test_pk".to_string(),
+            signature: "test_sig".to_string(),
+            permissions: ExtensionPermissions {
+                database: None,
+                filesystem: None,
+                http: None,
+                shell: None,
+                sync_servers: None,
+                cloud_storage: None,
+                sync_rules: None,
+                spaces: None,
+                identities: None,
+                passwords: None,
+                mail: None,
+                notifications: None,
+            },
+            homepage: None,
+            description: None,
+            single_instance: None,
+            display_mode: Some(DisplayMode::Iframe),
+            migrations_dir: None,
+            i18n: None,
+        },
+        source: ExtensionSource::Production {
+            path: PathBuf::from("/tmp/test-ext-precedence-db"),
+            version: "0.1.0".to_string(),
+        },
+        enabled: true,
+        last_accessed: std::time::SystemTime::now(),
+    }
+}
+
+fn db_permission(target: &str, action: DbAction, status: PermissionStatus) -> ExtensionPermission {
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: "test-ext-precedence-db".to_string(),
+        resource_type: ResourceType::Db,
+        action: Action::Database(action),
+        target: target.to_string(),
+        constraints: None,
+        status,
+        raw_constraints: None,
+    }
+}
+
+#[test]
+fn deny_wins_db_granted_first() {
+    // SECURITY: a Denied row for the same (table, action) MUST win even when
+    // the Granted row is inserted first.
+    let extension = test_extension_for_db();
+    let permissions = vec![
+        db_permission("users", DbAction::Read, PermissionStatus::Granted),
+        db_permission("users", DbAction::Read, PermissionStatus::Denied),
+    ];
+    let checker = PermissionChecker::new(extension, permissions.clone());
+
+    let resolved = database_matching_status(&checker, &permissions, "users", DbAction::Read);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn deny_wins_db_denied_first() {
+    // Symmetric to the above: Denied-first order still yields Denied.
+    let extension = test_extension_for_db();
+    let permissions = vec![
+        db_permission("users", DbAction::Read, PermissionStatus::Denied),
+        db_permission("users", DbAction::Read, PermissionStatus::Granted),
+    ];
+    let checker = PermissionChecker::new(extension, permissions.clone());
+
+    let resolved = database_matching_status(&checker, &permissions, "users", DbAction::Read);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
 }
