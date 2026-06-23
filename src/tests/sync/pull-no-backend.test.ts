@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 import { invoke } from '@tauri-apps/api/core'
-import { pullFromBackendAsync } from '@/stores/sync/orchestrator/pull'
+import { pullFromBackendAsync } from '@/stores/sync/orchestrator/pull/cursor'
 import type { BackendSyncState } from '@/stores/sync/orchestrator/types'
 
 // Mock the only side-effecting boundary the early-guard path could touch.

@@ -277,7 +277,7 @@ describe('Visibility-based Reconnection', () => {
 
     it('prevents concurrent reconnection attempts', async () => {
       // Mock pullFromBackendAsync to block so we can test concurrency
-      const { pullFromBackendAsync } = await import('@/stores/sync/orchestrator/pull')
+      const { pullFromBackendAsync } = await import('@/stores/sync/orchestrator/pull/cursor')
       let resolvePull: () => void
       const pullPromise = new Promise<void>((resolve) => {
         resolvePull = resolve

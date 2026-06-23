@@ -6,7 +6,7 @@
 
 import type { Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { streamPullAndApplyAsync } from './pull'
+import { streamPullAndApplyAsync } from './pull/page'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 
 export interface InitialSyncDeps {

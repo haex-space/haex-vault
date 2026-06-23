@@ -10,7 +10,7 @@ import { RustEventGroup, RUST_EVENTS, type LocalSyncCompletedEvent } from '@/lib
 import type { PeerConnectedEvent } from '@bindings/PeerConnectedEvent'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pushToBackendAsync, pushAllDataToBackendAsync } from './push'
-import { pullFromBackendAsync } from './pull'
+import { pullFromBackendAsync } from './pull/cursor'
 import {
   subscribeToBackendAsync,
   unsubscribeFromBackendAsync,
