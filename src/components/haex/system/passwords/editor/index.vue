@@ -3,92 +3,21 @@
     class="h-full flex flex-col overflow-hidden"
     @submit.prevent="onSave"
   >
-    <div
-      class="flex-none flex items-center gap-2 px-3 py-2 bg-elevated/50 backdrop-blur-md border-b border-default"
-    >
-      <UiButton
-        :tooltip="t('back')"
-        icon="i-lucide-arrow-left"
-        color="neutral"
-        variant="ghost"
-        type="button"
-        class="shrink-0"
-        @click="onBack"
-      />
-
-      <div class="flex items-center gap-2 min-w-0 flex-1">
-        <div
-          v-if="!isCreating"
-          class="shrink-0 size-8 rounded-md flex items-center justify-center bg-elevated overflow-hidden"
-          :style="iconBackgroundStyle"
-        >
-          <UIcon
-            v-if="iconDescriptor.kind === 'iconify'"
-            :name="iconDescriptor.name"
-            class="size-5"
-            :class="form.color ? '' : 'text-primary'"
-          />
-          <img
-            v-else-if="binaryIconSrc"
-            :src="binaryIconSrc"
-            :alt="form.title || 'icon'"
-            class="size-6 object-contain"
-          >
-          <UIcon
-            v-else
-            name="i-lucide-key"
-            class="size-5 text-muted"
-          />
-        </div>
-        <h2 class="font-semibold truncate">
-          {{
-            isCreating
-              ? t('titleCreate')
-              : form.title || t('untitled')
-          }}
-        </h2>
-      </div>
-
-      <div class="flex items-center gap-1 shrink-0">
-        <template v-if="isEditing">
-          <UiButton
-            :label="t('save')"
-            icon="i-lucide-save"
-            color="primary"
-            type="submit"
-            :loading="saving"
-          />
-        </template>
-        <template v-else>
-          <UiButton
-            v-if="isCurrentItemInTrash"
-            :tooltip="t('restore')"
-            icon="i-lucide-undo-2"
-            color="neutral"
-            variant="ghost"
-            type="button"
-            @click="onRestore"
-          />
-          <UiButton
-            v-if="!isCurrentItemInTrash"
-            :tooltip="t('edit')"
-            icon="i-lucide-pencil"
-            color="neutral"
-            variant="ghost"
-            type="button"
-            @click="startEdit"
-          />
-          <UiButton
-            :tooltip="isCurrentItemInTrash ? t('deletePermanently') : t('delete')"
-            :icon="isCurrentItemInTrash ? 'i-lucide-trash-2' : 'i-lucide-trash'"
-            color="error"
-            variant="ghost"
-            type="button"
-            @click="showDeleteDialog = true"
-          />
-        </template>
-      </div>
-    </div>
+    <HaexSystemPasswordsEditorHeader
+      :title="form.title"
+      :color="form.color"
+      :is-creating="isCreating"
+      :is-editing="isEditing"
+      :is-current-item-in-trash="isCurrentItemInTrash"
+      :saving="saving"
+      :icon-descriptor="iconDescriptor"
+      :binary-icon-src="binaryIconSrc"
+      :icon-background-style="iconBackgroundStyle"
+      @back="onBack"
+      @restore="onRestore"
+      @start-edit="startEdit"
+      @request-delete="showDeleteDialog = true"
+    />
 
     <UTabs
       v-model="activeTab"
@@ -101,431 +30,47 @@
     >
       <!-- Details -->
       <template #details>
-        <div class="p-4 space-y-4 max-w-2xl mx-auto">
-          <div
-            v-if="isExpired && (isEditing || form.expiresAt)"
-            class="flex items-center gap-2 px-3 py-2 bg-warning/10 border border-warning/30 rounded-md text-sm"
-          >
-            <UIcon
-              name="i-lucide-alert-triangle"
-              class="size-4 text-warning shrink-0"
-            />
-            <span>{{ t('expired') }}</span>
-          </div>
-
-          <div v-if="isEditing || form.title">
-            <UiInput
-              v-model="form.title"
-              v-model:errors="errors.title"
-              :label="t('fields.title')"
-              :placeholder="t('fields.titlePlaceholder')"
-              :read-only="!isEditing"
-              :required="isEditing"
-              :with-copy-button="!isEditing"
-            />
-          </div>
-
-          <div v-if="isEditing || form.username">
-            <UiInput
-              v-model="form.username"
-              :label="t('fields.username')"
-              leading-icon="i-lucide-user"
-              :read-only="!isEditing"
-              with-copy-button
-            />
-          </div>
-
-          <div v-if="isEditing || form.password">
-            <div class="flex items-start gap-2">
-              <UiInputPassword
-                v-model="form.password"
-                :label="t('fields.password')"
-                :read-only="!isEditing"
-                with-copy-button
-                class="flex-1"
-              />
-              <UiButton
-                v-if="isEditing"
-                :tooltip="t('fields.generate')"
-                icon="i-lucide-wand-sparkles"
-                color="neutral"
-                variant="outline"
-                type="button"
-                class="shrink-0"
-                @click="generatorOpen = true"
-              />
-            </div>
-          </div>
-
-          <div v-if="isEditing || form.url">
-            <UiInput
-              v-model="form.url"
-              :label="t('fields.url')"
-              leading-icon="i-lucide-globe"
-              placeholder="https://…"
-              :read-only="!isEditing"
-              with-copy-button
-            />
-          </div>
-
-          <div v-if="isEditing || form.tagNames.length">
-            <HaexSystemPasswordsEditorTagPicker
-              v-if="isEditing"
-              v-model="form.tagNames"
-              :label="t('fields.tags')"
-            />
-            <div v-else>
-              <p class="text-xs font-medium text-muted mb-1">
-                {{ t('fields.tags') }}
-              </p>
-              <div class="flex flex-wrap gap-1">
-                <UBadge
-                  v-for="name in form.tagNames"
-                  :key="name"
-                  :label="name"
-                  color="neutral"
-                  variant="soft"
-                />
-              </div>
-            </div>
-            <p
-              v-if="errors.tags.length"
-              class="mt-1 text-xs text-error"
-            >
-              {{ errors.tags[0] }}
-            </p>
-          </div>
-
-          <div v-if="isEditing || form.note">
-            <UiTextarea
-              v-model="form.note"
-              :label="t('fields.note')"
-              :rows="3"
-              :read-only="!isEditing"
-            />
-          </div>
-
-          <div v-if="isEditing || form.expiresAt">
-            <UiInput
-              v-model="form.expiresAt"
-              :label="t('fields.expiresAt')"
-              type="date"
-              leading-icon="i-lucide-calendar"
-              :read-only="!isEditing"
-            />
-          </div>
-
-          <div
-            v-if="isEditing"
-            class="flex items-end gap-3"
-          >
-            <div class="flex-1 min-w-0">
-              <label class="text-xs font-medium text-highlighted mb-1 block">
-                {{ t('fields.icon') }}
-              </label>
-              <HaexSystemPasswordsEditorIconPicker
-                v-model="form.icon"
-                :color="form.color || undefined"
-              />
-            </div>
-            <div class="flex flex-col gap-1">
-              <label class="text-xs font-medium text-highlighted">
-                {{ t('fields.color') }}
-              </label>
-              <input
-                v-model="form.color"
-                type="color"
-                class="size-10 rounded-md border border-default cursor-pointer p-0 bg-transparent"
-              >
-            </div>
-          </div>
-
-          <!-- OTP -->
-          <div
-            v-if="isEditing || otpCode"
-            class="border border-default rounded-md p-3 space-y-3"
-          >
-            <div class="flex items-center gap-2">
-              <UIcon
-                name="i-lucide-shield-check"
-                class="size-4 text-primary"
-              />
-              <p class="text-sm font-medium">
-                {{ t('fields.otp') }}
-              </p>
-            </div>
-
-            <template v-if="isEditing">
-              <UiInput
-                v-model="form.otpSecret"
-                :label="t('fields.otpSecret')"
-                placeholder="JBSWY3DPEHPK3PXP"
-              />
-              <div class="grid grid-cols-3 gap-2">
-                <UiInput
-                  v-model.number="form.otpDigits"
-                  :label="t('fields.otpDigits')"
-                  type="number"
-                  min="6"
-                  max="10"
-                />
-                <UiInput
-                  v-model.number="form.otpPeriod"
-                  :label="t('fields.otpPeriod')"
-                  type="number"
-                  min="10"
-                  max="120"
-                />
-                <USelect
-                  v-model="form.otpAlgorithm"
-                  :items="otpAlgorithms"
-                  size="md"
-                />
-              </div>
-            </template>
-
-            <div
-              v-else
-              class="flex items-center gap-3 px-3 py-2 rounded-md bg-elevated/30"
-            >
-              <span
-                class="flex-1 font-mono text-xl tracking-[0.3em] select-all"
-              >{{ otpFormatted }}</span>
-              <div class="relative size-8 shrink-0">
-                <svg
-                  viewBox="0 0 36 36"
-                  class="size-8 -rotate-90"
-                >
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="15.5"
-                    fill="none"
-                    stroke-width="2.5"
-                    class="stroke-default"
-                  />
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="15.5"
-                    fill="none"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    :stroke-dasharray="otpDashArray"
-                    class="stroke-primary transition-[stroke-dasharray] duration-1000 ease-linear"
-                  />
-                </svg>
-                <span
-                  class="absolute inset-0 flex items-center justify-center text-[10px] tabular-nums"
-                >{{ otpRemaining }}</span>
-              </div>
-              <UiButton
-                :tooltip="copiedOtp ? t('copied') : t('copy')"
-                :icon="copiedOtp ? 'i-lucide-check' : 'i-lucide-copy'"
-                :color="copiedOtp ? 'success' : 'neutral'"
-                variant="ghost"
-                type="button"
-                class="shrink-0"
-                @click="() => copyOtp(otpCode ?? '')"
-              />
-            </div>
-          </div>
-        </div>
+        <HaexSystemPasswordsEditorDetails
+          :form="form"
+          :errors="errors"
+          :is-editing="isEditing"
+          :is-expired="isExpired"
+          :otp-code="otpCode"
+          :otp-formatted="otpFormatted"
+          :otp-remaining="otpRemaining"
+          :otp-dash-array="otpDashArray"
+          :copied-otp="copiedOtp"
+          :copy-otp="copyOtp"
+          :otp-algorithms="otpAlgorithms"
+          @open-generator="generatorOpen = true"
+        />
       </template>
 
       <!-- Extra -->
       <template #extra>
-        <div class="p-4 space-y-4">
-          <!-- Card: Custom fields -->
-          <div class="border border-default rounded-lg overflow-hidden">
-            <div class="px-4 py-3 border-b border-default bg-elevated/30">
-              <div class="flex items-center gap-2">
-                <UIcon
-                  name="i-lucide-sliders-horizontal"
-                  class="size-4 text-primary"
-                />
-                <p class="text-sm font-medium">
-                  {{ t('extra.customFields') }}
-                </p>
-              </div>
-              <p class="text-xs text-muted mt-0.5">
-                {{ t('extra.description') }}
-              </p>
-            </div>
-            <div class="p-4">
-              <!-- Master-detail: key list left, value textarea right -->
-              <div
-                v-if="visibleKeyValues.length > 0"
-                class="flex flex-col @2xl:flex-row gap-4"
-              >
-                <!-- Key list -->
-                <div class="flex-1 flex flex-col gap-3">
-                  <div class="border border-default rounded-lg divide-y divide-default">
-                    <div
-                      v-for="(kv, index) in visibleKeyValues"
-                      :key="kv.id"
-                      :class="[
-                        'flex items-center gap-1 px-2 transition-colors cursor-pointer',
-                        currentSelectedKv === kv ? 'bg-elevated' : 'hover:bg-elevated/50',
-                        index === 0 ? 'rounded-t-lg' : '',
-                        index === visibleKeyValues.length - 1 ? 'rounded-b-lg' : '',
-                      ]"
-                      @click="currentSelectedKv = kv"
-                    >
-                      <UInput
-                        :ref="(el) => { if (index === visibleKeyValues.length - 1) lastKvKeyInputEl = el as { $el?: HTMLElement } }"
-                        v-model="kv.key"
-                        :readonly="!isEditing"
-                        :placeholder="t('extra.keyPlaceholder')"
-                        variant="none"
-                        class="flex-1 text-sm"
-                        @click.stop="currentSelectedKv = kv"
-                      >
-                        <template #trailing>
-                          <UiButton
-                            :icon="kvCopiedItem === kv ? 'i-lucide-check' : 'i-lucide-copy'"
-                            :color="kvCopiedItem === kv ? 'success' : 'neutral'"
-                            variant="ghost"
-                            type="button"
-                            @click.stop="copyKvValue(kv)"
-                          />
-                          <UiButton
-                            v-if="isEditing"
-                            icon="i-lucide-trash-2"
-                            color="error"
-                            variant="ghost"
-                            type="button"
-                            @click.stop="removeKeyValue(index)"
-                          />
-                        </template>
-                      </UInput>
-                    </div>
-                  </div>
-
-                  <UiButton
-                    v-if="isEditing"
-                    :label="t('extra.add')"
-                    icon="i-lucide-plus"
-                    color="neutral"
-                    variant="outline"
-                    type="button"
-                    @click="addKeyValue"
-                  />
-                </div>
-
-                <!-- Value textarea -->
-                <div class="flex-1 @2xl:min-w-52">
-                  <UiTextarea
-                    v-model="currentKvValue"
-                    :read-only="!isEditing || !currentSelectedKv"
-                    :placeholder="t('extra.valuePlaceholder')"
-                    :with-copy-button="!!currentSelectedKv"
-                    :rows="8"
-                  />
-                </div>
-              </div>
-
-              <!-- Empty state -->
-              <div
-                v-else
-                class="flex flex-col items-center justify-center gap-3 py-6 text-muted"
-              >
-                <UIcon
-                  name="i-lucide-list-plus"
-                  class="size-8 opacity-40"
-                />
-                <p class="text-sm">
-                  {{ t('extra.empty') }}
-                </p>
-                <UiButton
-                  v-if="isEditing"
-                  :label="t('extra.add')"
-                  icon="i-lucide-plus"
-                  color="neutral"
-                  variant="outline"
-                  type="button"
-                  @click="addKeyValue"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Card: Attachments -->
-          <div class="border border-default rounded-lg overflow-hidden">
-            <div class="px-4 py-3 border-b border-default bg-elevated/30">
-              <div class="flex items-center gap-2">
-                <UIcon
-                  name="i-lucide-paperclip"
-                  class="size-4 text-primary"
-                />
-                <p class="text-sm font-medium">
-                  {{ t('attachments.title') }}
-                </p>
-              </div>
-              <p class="text-xs text-muted mt-0.5">
-                {{ t('attachments.description') }}
-              </p>
-            </div>
-            <div class="p-4">
-              <HaexSystemPasswordsEditorAttachments
-                v-model="attachments"
-                v-model:attachments-to-add="attachmentsToAdd"
-                v-model:attachments-to-delete="attachmentsToDelete"
-                :read-only="!isEditing"
-              />
-            </div>
-          </div>
-
-          <!-- Card: Passkeys -->
-          <div class="border border-default rounded-lg overflow-hidden">
-            <div class="px-4 py-3 border-b border-default bg-elevated/30">
-              <div class="flex items-center gap-2">
-                <UIcon
-                  name="i-lucide-key-round"
-                  class="size-4 text-primary"
-                />
-                <p class="text-sm font-medium">
-                  {{ t('passkeys.title') }}
-                </p>
-              </div>
-              <p class="text-xs text-muted mt-0.5">
-                {{ t('passkeys.description') }}
-              </p>
-            </div>
-            <div class="p-4">
-              <HaexSystemPasswordsEditorPasskeys
-                ref="passkeysRef"
-                :item-id="selectedItem?.id"
-                :read-only="!isEditing"
-              />
-            </div>
-          </div>
-
-          <!-- Card: Autofill aliases -->
-          <div class="border border-default rounded-lg overflow-hidden">
-            <div class="px-4 py-3 border-b border-default bg-elevated/30">
-              <div class="flex items-center gap-2">
-                <UIcon
-                  name="i-lucide-globe"
-                  class="size-4 text-primary"
-                />
-                <p class="text-sm font-medium">
-                  {{ t('autofill.title') }}
-                </p>
-              </div>
-              <p class="text-xs text-muted mt-0.5">
-                {{ t('autofill.description') }}
-              </p>
-            </div>
-            <div class="p-4">
-              <HaexSystemPasswordsEditorAutofillAliases
-                v-model="form.autofillAliases"
-                :key-values="form.keyValues"
-                :read-only="!isEditing"
-              />
-            </div>
-          </div>
-        </div>
+        <HaexSystemPasswordsEditorExtra
+          ref="extraRef"
+          :visible-key-values="visibleKeyValues"
+          :current-selected-kv="currentSelectedKv"
+          :current-kv-value="currentKvValue"
+          :kv-copied-item="kvCopiedItem"
+          :attachments="attachments"
+          :attachments-to-add="attachmentsToAdd"
+          :attachments-to-delete="attachmentsToDelete"
+          :item-id="selectedItem?.id"
+          :autofill-aliases="form.autofillAliases"
+          :key-values="form.keyValues"
+          :is-editing="isEditing"
+          @select-kv="(kv) => (currentSelectedKv = kv)"
+          @copy-kv="copyKvValue"
+          @remove-kv="removeKeyValue"
+          @add-kv="(focusEl) => addKeyValue(focusEl)"
+          @update:current-kv-value="(v) => (currentKvValue = v)"
+          @update:attachments="(v) => (attachments = v)"
+          @update:attachments-to-add="(v) => (attachmentsToAdd = v)"
+          @update:attachments-to-delete="(v) => (attachmentsToDelete = v)"
+          @update:autofill-aliases="(v) => (form.autofillAliases = v)"
+        />
       </template>
 
       <!-- History -->
@@ -557,8 +102,6 @@
 </template>
 
 <script setup lang="ts">
-import * as OTPAuth from 'otpauth'
-import { useClipboard } from '@vueuse/core'
 import { eq } from 'drizzle-orm'
 import {
   haexPasswordsItemDetails,
@@ -572,9 +115,10 @@ import {
   createSnapshotAsync,
   loadCurrentAttachmentsAsSnapshotRefs,
 } from '~/utils/passwords/snapshots'
-import type { AttachmentWithSize } from '~/types/passwords/attachment'
-
-type EditableKeyValue = { id: string; key: string; value: string }
+import {
+  usePasswordEditorForm,
+  otpAlgorithms,
+} from '~/composables/passwords/usePasswordEditorForm'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -583,42 +127,38 @@ const passwordsStore = usePasswordsStore()
 const tagsStore = usePasswordsTagsStore()
 const groupsStore = usePasswordsGroupsStore()
 const nav = usePasswordsNavigation()
-const { selectedItem, selectedItemTags, isEditing } =
-  storeToRefs(passwordsStore)
 
 const { getIconDescriptor } = useIconComponents()
 const iconCacheStore = usePasswordsIconCacheStore()
 
-const isCreating = computed(() => !selectedItem.value)
-const otpAlgorithms = ['SHA1', 'SHA256', 'SHA512']
-
-const form = reactive({
-  title: selectedItem.value?.title ?? '',
-  username: selectedItem.value?.username ?? '',
-  password: selectedItem.value?.password ?? '',
-  url: selectedItem.value?.url ?? '',
-  note: selectedItem.value?.note ?? '',
-  icon: selectedItem.value?.icon ?? '',
-  color: selectedItem.value?.color ?? '',
-  expiresAt: selectedItem.value?.expiresAt?.slice(0, 10) ?? '',
-  otpSecret: selectedItem.value?.otpSecret ?? '',
-  otpDigits: selectedItem.value?.otpDigits ?? 6,
-  otpPeriod: selectedItem.value?.otpPeriod ?? 30,
-  otpAlgorithm: (selectedItem.value?.otpAlgorithm ??
-    'SHA1') as (typeof otpAlgorithms)[number],
-  tagNames: selectedItemTags.value.map((t) => t.name),
-  keyValues: [] as EditableKeyValue[],
-  autofillAliases: (selectedItem.value?.autofillAliases ?? {}) as Record<string, string[]>,
-})
-
-// Snapshot of the pristine form for cancel-from-edit on existing items.
-// Reactive so isDirty recomputes when snapshot changes (save, load, revert).
-const formSnapshot = reactive(JSON.parse(JSON.stringify(form)) as typeof form)
-
-const errors = reactive({
-  title: [] as string[],
-  tags: [] as string[],
-})
+const {
+  selectedItem,
+  isEditing,
+  isCreating,
+  form,
+  formSnapshot,
+  errors,
+  attachments,
+  attachmentsSnapshot,
+  attachmentsToAdd,
+  attachmentsToDelete,
+  isDirty,
+  currentSelectedKv,
+  visibleKeyValues,
+  currentKvValue,
+  kvCopiedItem,
+  copyKvValue,
+  addKeyValue,
+  removeKeyValue,
+  isExpired,
+  otpCode,
+  otpFormatted,
+  otpRemaining,
+  otpDashArray,
+  copiedOtp,
+  copyOtp,
+  revertForm,
+} = usePasswordEditorForm()
 
 const saving = ref(false)
 const activeTab = ref('details')
@@ -634,21 +174,7 @@ const isCurrentItemInTrash = computed(() => {
 })
 const generatorOpen = ref(false)
 
-const attachments = ref<AttachmentWithSize[]>([])
-const attachmentsSnapshot = ref<AttachmentWithSize[]>([])
-const attachmentsToAdd = ref<AttachmentWithSize[]>([])
-const attachmentsToDelete = ref<AttachmentWithSize[]>([])
-
-const passkeysRef = ref<{ persistDeletionsAsync: () => Promise<void> } | null>(null)
-
-const isDirty = computed(
-  () =>
-    JSON.stringify(form) !== JSON.stringify(formSnapshot) ||
-    JSON.stringify(attachments.value.map(({ id, fileName }) => ({ id, fileName }))) !==
-      JSON.stringify(attachmentsSnapshot.value.map(({ id, fileName }) => ({ id, fileName }))) ||
-    attachmentsToAdd.value.length > 0 ||
-    attachmentsToDelete.value.length > 0,
-)
+const extraRef = ref<{ passkeysRef: { persistDeletionsAsync: () => Promise<void> } | null } | null>(null)
 
 // ESC acts like the back button — triggers discard guard when dirty.
 // Skip when a child modal is open; those handle ESC themselves.
@@ -677,33 +203,6 @@ const tabItems = computed(() => [
   { label: t('tabs.history'), value: 'history', slot: 'history' as const },
 ])
 
-const visibleKeyValues = computed(() =>
-  isEditing.value
-    ? form.keyValues
-    : form.keyValues.filter((kv) => kv.key.trim() || kv.value.trim()),
-)
-
-// Master-detail state for key-value extra tab
-const currentSelectedKv = ref<EditableKeyValue | null>(null)
-const lastKvKeyInputEl = ref<{ $el?: HTMLElement } | null>(null)
-
-const currentKvValue = computed({
-  get: () => currentSelectedKv.value?.value ?? '',
-  set(newValue: string) {
-    if (currentSelectedKv.value) currentSelectedKv.value.value = newValue
-  },
-})
-
-const { copy: copyKv } = useClipboard({ copiedDuring: 2000 })
-const kvCopiedItem = ref<EditableKeyValue | null>(null)
-
-const copyKvValue = async (kv: EditableKeyValue) => {
-  if (!kv.value) return
-  await copyKv(kv.value)
-  kvCopiedItem.value = kv
-  setTimeout(() => { kvCopiedItem.value = null }, 2000)
-}
-
 const iconDescriptor = computed(() => getIconDescriptor(form.icon || null))
 
 const binaryIconSrc = computed(() => {
@@ -719,69 +218,6 @@ const binaryIconSrc = computed(() => {
 const iconBackgroundStyle = computed(() =>
   form.color ? { backgroundColor: form.color } : undefined,
 )
-
-const isExpired = computed(() => {
-  if (!form.expiresAt) return false
-  const ts = Date.parse(form.expiresAt)
-  if (Number.isNaN(ts)) return false
-  return ts < Date.now()
-})
-
-// OTP ticker — one shared clock.
-const nowMs = ref(Date.now())
-let otpTicker: ReturnType<typeof setInterval> | null = null
-onMounted(() => {
-  otpTicker = setInterval(() => {
-    nowMs.value = Date.now()
-  }, 1000)
-})
-onBeforeUnmount(() => {
-  if (otpTicker) clearInterval(otpTicker)
-})
-
-const totp = computed(() => {
-  const secret = form.otpSecret.trim()
-  if (!secret) return null
-  try {
-    return new OTPAuth.TOTP({
-      algorithm: form.otpAlgorithm,
-      digits: form.otpDigits || 6,
-      period: form.otpPeriod || 30,
-      secret: OTPAuth.Secret.fromBase32(secret),
-    })
-  } catch (error) {
-    console.error('[OTP] Invalid secret', error)
-    return null
-  }
-})
-
-const otpCode = computed(() => {
-  if (!totp.value) return null
-  void nowMs.value
-  return totp.value.generate()
-})
-
-const otpFormatted = computed(() => {
-  if (!otpCode.value) return ''
-  const mid = Math.floor(otpCode.value.length / 2)
-  return `${otpCode.value.slice(0, mid)} ${otpCode.value.slice(mid)}`
-})
-
-const otpRemaining = computed(() => {
-  const secs = Math.floor(nowMs.value / 1000)
-  return (form.otpPeriod || 30) - (secs % (form.otpPeriod || 30))
-})
-
-const OTP_CIRCUMFERENCE = 2 * Math.PI * 15.5
-const otpDashArray = computed(() => {
-  const progress = otpRemaining.value / (form.otpPeriod || 30)
-  return `${progress * OTP_CIRCUMFERENCE} ${OTP_CIRCUMFERENCE}`
-})
-
-const { copy: copyToClipboard, copied: copiedOtp } = useClipboard({
-  copiedDuring: 1500,
-})
-const copyOtp = (value: string) => copyToClipboard(value)
 
 const loadKeyValuesAsync = async () => {
   if (!selectedItem.value?.id) return
@@ -829,36 +265,6 @@ onMounted(async () => {
 
 const startEdit = () => {
   nav.startEdit()
-}
-
-let _kvAdding = false
-const addKeyValue = async () => {
-  if (_kvAdding) return
-  _kvAdding = true
-  const newKv = { id: crypto.randomUUID(), key: '', value: '' }
-  form.keyValues.push(newKv)
-  currentSelectedKv.value = newKv
-  await nextTick()
-  lastKvKeyInputEl.value?.$el?.querySelector('input')?.focus()
-  _kvAdding = false
-}
-
-const removeKeyValue = (index: number) => {
-  const removed = form.keyValues[index]
-  form.keyValues.splice(index, 1)
-  if (currentSelectedKv.value?.id === removed?.id) {
-    currentSelectedKv.value = form.keyValues[0] ?? null
-  }
-}
-
-const revertForm = () => {
-  Object.assign(form, JSON.parse(JSON.stringify(formSnapshot)))
-  attachments.value = JSON.parse(JSON.stringify(attachmentsSnapshot.value))
-  attachmentsToAdd.value = []
-  attachmentsToDelete.value = []
-  errors.title = []
-  errors.tags = []
-  currentSelectedKv.value = form.keyValues[0] ?? null
 }
 
 const onBack = () => {
@@ -1025,7 +431,7 @@ const onSave = async () => {
     attachmentsToAdd.value = []
     attachmentsToDelete.value = []
     await loadAttachmentsAsync()
-    await passkeysRef.value?.persistDeletionsAsync()
+    await extraRef.value?.passkeysRef?.persistDeletionsAsync()
 
     // Snapshot captures the state just written — builds history timeline.
     const attachmentRefs = await loadCurrentAttachmentsAsSnapshotRefs(itemId)
@@ -1200,18 +606,3 @@ en:
     deleteError: Deletion failed
     restoreError: Restore failed
 </i18n>
-
-<style scoped>
-/* Strip browser chrome so the color input renders as a flat swatch. */
-input[type='color']::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-input[type='color']::-webkit-color-swatch {
-  border: none;
-  border-radius: 5px;
-}
-input[type='color']::-moz-color-swatch {
-  border: none;
-  border-radius: 5px;
-}
-</style>
