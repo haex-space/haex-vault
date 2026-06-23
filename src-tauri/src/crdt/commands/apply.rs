@@ -1,3 +1,4 @@
+use super::helpers::{build_pk_where_clause, json_values_to_sql_params};
 use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
@@ -6,172 +7,16 @@ use crate::crdt::trigger::{
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_CRDT_PENDING_COLUMNS};
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS};
 use crate::AppState;
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
-use ts_rs::TS;
 use uuid::Uuid;
-
-/// Converts a vector of JSON values to SQL values for use in queries.
-/// This ensures consistent handling of null values (JsonValue::Null -> SqlValue::Null)
-/// instead of incorrectly converting them to the string "null".
-fn json_values_to_sql_params(values: &[JsonValue]) -> Result<Vec<SqlValue>, DatabaseError> {
-    values
-        .iter()
-        .map(|v| ValueConverter::json_to_rusqlite_value(v))
-        .collect()
-}
-
-/// Builds a WHERE clause for primary key columns, properly handling NULL values.
-///
-/// In SQL, `column = NULL` is always FALSE because NULL != NULL.
-/// For NULL PK values, we must use `column IS NULL` instead.
-///
-/// Returns a tuple of:
-/// - The WHERE clause string (e.g., `"id" = ? AND "group_id" IS NULL`)
-/// - A Vec of JsonValues containing only the non-NULL values for parameterized queries
-fn build_pk_where_clause(
-    pk_columns: &[&ColumnInfo],
-    row_pks: &serde_json::Map<String, JsonValue>,
-) -> (String, Vec<JsonValue>) {
-    let mut where_parts: Vec<String> = Vec::new();
-    let mut params: Vec<JsonValue> = Vec::new();
-
-    for col in pk_columns {
-        match row_pks.get(&col.name) {
-            Some(JsonValue::Null) | None => {
-                // NULL value - use IS NULL (no parameter needed)
-                where_parts.push(format!("\"{}\" IS NULL", col.name));
-            }
-            Some(v) => {
-                // Non-NULL value - use = ? with parameter
-                where_parts.push(format!("\"{}\" = ?", col.name));
-                params.push(v.clone());
-            }
-        }
-    }
-
-    (where_parts.join(" AND "), params)
-}
-
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase")]
-pub struct DirtyTable {
-    pub table_name: String,
-    pub last_modified: String,
-}
-
-/// Gets table schema information (columns and their properties)
-#[tauri::command]
-pub fn get_table_schema(
-    table_name: String,
-    state: State<'_, AppState>,
-) -> Result<Vec<ColumnInfo>, DatabaseError> {
-    with_connection(&state.db, |conn| {
-        Ok(get_table_schema_internal(conn, &table_name).map_err(DatabaseError::from)?)
-    })
-}
-
-/// Gets all dirty tables that need to be synced
-#[tauri::command]
-pub fn get_dirty_tables(state: State<'_, AppState>) -> Result<Vec<DirtyTable>, DatabaseError> {
-    with_connection(&state.db, |conn| {
-        let mut stmt = conn
-            .prepare(&format!("SELECT table_name, last_modified FROM {TABLE_CRDT_DIRTY_TABLES} ORDER BY last_modified ASC"))
-            .map_err(DatabaseError::from)?;
-
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(DirtyTable {
-                    table_name: row.get(0)?,
-                    last_modified: row.get(1)?,
-                })
-            })
-            .map_err(DatabaseError::from)?;
-
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(DatabaseError::from)
-    })
-}
-
-/// Inner logic for clearing a dirty table, callable from Rust without Tauri state.
-pub fn clear_dirty_table_inner(
-    db: &crate::database::DbConnection,
-    table_name: &str,
-    before_timestamp: Option<&str>,
-) -> Result<(), DatabaseError> {
-    with_connection(db, |conn| {
-        match before_timestamp {
-            Some(ts) => {
-                conn.execute(
-                    &format!(
-                        "DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1 AND last_modified <= ?2"
-                    ),
-                    [table_name, ts],
-                )
-                .map_err(DatabaseError::from)?;
-            }
-            None => {
-                conn.execute(
-                    &format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES} WHERE table_name = ?1"),
-                    [table_name],
-                )
-                .map_err(DatabaseError::from)?;
-            }
-        }
-
-        Ok(())
-    })
-}
-
-/// Clears a specific table from the dirty tables tracker.
-/// If before_timestamp is provided, only clears entries with last_modified <= that timestamp.
-/// This prevents clearing entries that were added AFTER the sync scan started.
-#[tauri::command]
-pub fn clear_dirty_table(
-    table_name: String,
-    before_timestamp: Option<String>,
-    state: State<'_, AppState>,
-) -> Result<(), DatabaseError> {
-    clear_dirty_table_inner(&state.db, &table_name, before_timestamp.as_deref())
-}
-
-/// Clears all dirty tables
-#[tauri::command]
-pub fn clear_all_dirty_tables(state: State<'_, AppState>) -> Result<(), DatabaseError> {
-    with_connection(&state.db, |conn| {
-        conn.execute(&format!("DELETE FROM {TABLE_CRDT_DIRTY_TABLES}"), [])
-            .map_err(DatabaseError::from)?;
-
-        Ok(())
-    })
-}
-
-/// Gets all CRDT-enabled tables (tables with a `haex_hlc` column).
-#[tauri::command]
-pub fn get_all_crdt_tables(state: State<'_, AppState>) -> Result<Vec<String>, DatabaseError> {
-    use crate::database::init::discover_crdt_tables;
-
-    with_connection(&state.db, |conn| discover_crdt_tables(conn))
-}
-
-/// Ensures all CRDT tables have proper triggers set up.
-/// This should be called after applying synced extension migrations to make sure
-/// newly created extension tables have their dirty-table triggers.
-/// Returns the number of tables that had triggers created.
-#[tauri::command]
-pub fn ensure_extension_triggers(state: State<'_, AppState>) -> Result<usize, DatabaseError> {
-    use crate::database::init::ensure_triggers_for_all_tables;
-
-    with_connection(&state.db, |conn| ensure_triggers_for_all_tables(conn))
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1157,11 +1002,11 @@ pub fn apply_remote_changes_to_db(
 }
 
 #[cfg(test)]
-#[path = "commands_pending_columns_tests.rs"]
+#[path = "../commands_pending_columns_tests.rs"]
 mod pending_columns_tests;
 
 #[cfg(test)]
-#[path = "commands_delete_resurrection_tests.rs"]
+#[path = "../commands_delete_resurrection_tests.rs"]
 mod delete_resurrection_tests;
 
 #[cfg(test)]
