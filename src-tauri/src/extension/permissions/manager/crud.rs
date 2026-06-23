@@ -202,7 +202,7 @@ impl PermissionManager {
                     .unwrap_or(Action::Database(
                         crate::extension::permissions::types::DbAction::Read,
                     ));
-                let status = row[6]
+                let mut status = row[6]
                     .as_str()
                     .and_then(|s| PermissionStatus::from_str(s).ok())
                     .unwrap_or(PermissionStatus::Denied);
@@ -211,15 +211,39 @@ impl PermissionManager {
                 // resource types parse into the typed enum. The invariant lives
                 // in `split_constraints` (single source of truth) — this is the
                 // live `check_passwords_permission` read path.
+                //
+                // Fail closed: malformed JSON in the `constraints` column used
+                // to be silently dropped to `(None, None)`, which downstream
+                // matchers treat as "no constraints" and therefore *grant*
+                // whatever the row's (resource_type, target, action) covers.
+                // Force the row to `Denied` so deny-first precedence makes the
+                // request fail rather than fail-open.
+                let id_for_log = row[0].as_str().unwrap_or_default().to_string();
+                let principal_id_for_log = row[1].as_str().unwrap_or_default().to_string();
+                let target_for_log = row[4].as_str().unwrap_or_default().to_string();
                 let (constraints, raw_constraints) =
-                    split_constraints(resource_type, row[5].as_str());
+                    match split_constraints(resource_type, row[5].as_str()) {
+                        Ok(pair) => pair,
+                        Err(err) => {
+                            eprintln!(
+                                "[permissions] malformed constraints JSON on permission id={} principal_id={} resource_type={} target={:?} — forcing status=Denied (parse error: {})",
+                                id_for_log,
+                                principal_id_for_log,
+                                resource_type.as_str(),
+                                target_for_log,
+                                err
+                            );
+                            status = PermissionStatus::Denied;
+                            (None, None)
+                        }
+                    };
 
                 ExtensionPermission {
-                    id: row[0].as_str().unwrap_or_default().to_string(),
-                    principal_id: row[1].as_str().unwrap_or_default().to_string(),
+                    id: id_for_log,
+                    principal_id: principal_id_for_log,
                     resource_type,
                     action,
-                    target: row[4].as_str().unwrap_or_default().to_string(),
+                    target: target_for_log,
                     constraints,
                     status,
                     raw_constraints,
