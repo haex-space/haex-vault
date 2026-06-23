@@ -47,6 +47,14 @@ fn granted_wins_over_ask() {
 }
 
 #[test]
+fn denied_wins_over_ask() {
+    assert_eq!(
+        deny_first_precedence([PermissionStatus::Ask, PermissionStatus::Denied]),
+        Some(PermissionStatus::Denied)
+    );
+}
+
+#[test]
 fn ask_only_returns_ask() {
     assert_eq!(
         deny_first_precedence([PermissionStatus::Ask, PermissionStatus::Ask]),
