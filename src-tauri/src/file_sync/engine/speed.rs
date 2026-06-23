@@ -58,6 +58,10 @@ impl SpeedTracker {
             .back()
             .expect("invariant: samples.len() >= 2 checked above")
             .0;
+        // Decay to 0 once samples fall outside the 5s window (pruning only happens in add()).
+        if newest.elapsed() > Duration::from_secs(5) {
+            return 0;
+        }
         let elapsed = newest.duration_since(oldest).as_secs_f64();
         let total: u64 = self.samples.iter().map(|(_, b)| b).sum();
         if elapsed < 0.05 {
