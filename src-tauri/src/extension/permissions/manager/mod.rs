@@ -1,0 +1,15 @@
+mod check;
+mod crud;
+mod path;
+mod url;
+
+pub struct PermissionManager;
+
+#[cfg(test)]
+pub(crate) use check::identities::{
+    identities_matching_status, resolve_identities_decision, IdentitiesDecision,
+};
+#[cfg(test)]
+pub(crate) use check::passwords::{
+    parse_passwords_default_marker, resolve_passwords_tags_scope, PasswordsGrantRow,
+};
