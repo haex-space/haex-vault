@@ -176,6 +176,57 @@ impl PermissionManager {
         SqlExecutor::execute_internal_typed(tx, hlc_service, &sql, params![extension_id])?;
         Ok(())
     }
+
+    /// Atomically replace all permissions for an extension within a single transaction.
+    ///
+    /// Deletes the extension's existing permissions and inserts the new set in
+    /// ONE database transaction. If any insert fails the transaction is dropped
+    /// without commit, so the original rows survive — callers cannot end up
+    /// with an extension that has zero permissions after a partial save.
+    ///
+    /// Replaces the previous pattern `delete_permissions(..).await; save_permissions(..).await`,
+    /// which used two independent transactions and could leave permissions in
+    /// an empty state if the second call failed.
+    pub async fn replace_permissions(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        permissions: &[ExtensionPermission],
+    ) -> Result<(), ExtensionError> {
+        with_connection(&app_state.db, |conn| {
+            let tx = conn.transaction().map_err(DatabaseError::from)?;
+
+            let hlc_service = app_state
+                .hlc
+                .lock()
+                .map_err(|_| DatabaseError::MutexPoisoned {
+                    reason: "Failed to lock HLC service".to_string(),
+                })?;
+
+            Self::delete_permissions_in_transaction(&tx, &hlc_service, extension_id)?;
+
+            let sql = format!(
+                "INSERT INTO {TABLE_PRINCIPAL_PERMISSIONS} (id, principal_id, resource_type, action, target, constraints, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            );
+
+            for perm in permissions {
+                let db_perm: HaexPrincipalPermissions = perm.into();
+                let params = params![
+                    db_perm.id,
+                    db_perm.principal_id,
+                    db_perm.resource_type,
+                    db_perm.action,
+                    db_perm.target,
+                    db_perm.constraints,
+                    db_perm.status,
+                ];
+                SqlExecutor::execute_internal_typed(&tx, &hlc_service, &sql, params)?;
+            }
+
+            tx.commit().map_err(DatabaseError::from)?;
+            Ok(())
+        })
+        .map_err(ExtensionError::from)
+    }
     /// Lädt alle Permissions einer Extension
     /// Uses select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
     pub async fn get_permissions(
