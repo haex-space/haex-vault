@@ -19,7 +19,7 @@ use tauri::State;
 pub fn get_pending_columns_inner(conn: &Connection) -> Result<Vec<PendingColumn>, DatabaseError> {
     let mut stmt = conn
         .prepare(&format!(
-            "SELECT DISTINCT table_name, column_name FROM {}",
+            "SELECT DISTINCT table_name, column_name FROM {} ORDER BY table_name, column_name",
             TABLE_CRDT_PENDING_COLUMNS
         ))
         .map_err(DatabaseError::from)?;
@@ -45,7 +45,7 @@ pub fn get_pending_column_rows_inner(
 ) -> Result<Vec<PendingColumnRow>, DatabaseError> {
     let mut stmt = conn
         .prepare(&format!(
-            "SELECT table_name, column_name, row_pks FROM {}",
+            "SELECT table_name, column_name, row_pks FROM {} ORDER BY table_name, column_name, row_pks",
             TABLE_CRDT_PENDING_COLUMNS
         ))
         .map_err(DatabaseError::from)?;
