@@ -352,6 +352,16 @@ const { t } = useI18n()
 const toast = useToast()
 
 /**
+ * Normalized full peer path for a file row. Falls back to `currentPath/name`
+ * when `file.path` is absent and collapses consecutive slashes.
+ */
+const getFullPath = (file: { name: string; path?: string }): string =>
+  (file.path || `${props.browser.currentPath.value}/${file.name}`).replace(
+    /\/+/g,
+    '/',
+  )
+
+/**
  * Get transfer progress (0..1) for a file's row.
  *
  * Two sources, in priority order:
@@ -372,10 +382,7 @@ const getFileTransferProgress = (file: { name: string; path?: string; isDir?: bo
     if (s3Progress !== undefined) return s3Progress
   }
 
-  const fullPath = (
-    file.path || `${props.browser.currentPath.value}/${file.name}`
-  ).replace(/\/+/g, '/')
-  return props.peerStore.getTransferProgress(fullPath)
+  return props.peerStore.getTransferProgress(getFullPath(file))
 }
 
 /**
@@ -385,10 +392,7 @@ const getFileTransferProgress = (file: { name: string; path?: string; isDir?: bo
 const getFileTransferPaused = (file: { name: string; path?: string }) => {
   const peer = props.browser.selectedPeer.value
   if (!peer || peer.s3BackendId || peer.localPath) return false
-  const fullPath = (
-    file.path || `${props.browser.currentPath.value}/${file.name}`
-  ).replace(/\/+/g, '/')
-  return props.peerStore.getTransferPaused(fullPath)
+  return props.peerStore.getTransferPaused(getFullPath(file))
 }
 
 /**
