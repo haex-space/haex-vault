@@ -351,11 +351,13 @@ mod fail_closed_tests {
         let fn_start = production
             .find(fn_marker)
             .expect("check_client_blocked must exist in auth.rs");
-        // Scan forward to the next top-level `fn ` (anchored at column 0)
-        // so the assertion only covers this function's body.
+        // Scan forward to the next top-level fn (anchored at column 0).
+        // Functions in this module are declared `pub(super) async fn`, so
+        // anchor the next boundary on that prefix to keep the assertion
+        // scoped to this function's body.
         let body_end = production[fn_start..]
-            .find("\nasync fn ")
-            .or_else(|| production[fn_start..].find("\nfn "))
+            .find("\npub(super) async fn ")
+            .or_else(|| production[fn_start..].find("\npub(super) fn "))
             .map(|off| fn_start + off)
             .unwrap_or(production.len());
         let body = &production[fn_start..body_end];

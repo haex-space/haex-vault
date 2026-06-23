@@ -350,11 +350,15 @@ impl ExternalBridge {
                     eprintln!("[ExternalBridge] Server task ended with error: {}", e);
                 }
                 Err(_) => {
-                    eprintln!("[ExternalBridge] Server task did not exit within 2s; aborting");
+                    eprintln!("[ExternalBridge] Server task did not exit within 2s; detaching");
                     // The handle was moved into the timeout future and is
-                    // unreachable on the timeout branch — that's fine, the
-                    // task will be cancelled when its JoinHandle is dropped
-                    // here.
+                    // unreachable on the timeout branch, so it is dropped
+                    // here. Dropping a Tokio JoinHandle *detaches* the task
+                    // (it keeps running) rather than cancelling it — but in
+                    // practice the shutdown signal sent above breaks the
+                    // accept-loop's `select!`, so reaching this branch is
+                    // already an anomaly; we accept a brief detach over
+                    // restructuring to thread an AbortHandle through.
                 }
             }
         }
@@ -435,15 +439,16 @@ impl ExternalBridge {
 }
 
 #[cfg(test)]
-mod fail_closed_tests {
-    //! Regression guard: check_client_blocked must fail closed.
+mod lifecycle_tests {
+    //! Regression guard: ExternalBridge::stop must reliably release the
+    //! listener port before returning.
     //!
-    //! A behavioural test requires a Tauri AppHandle + a DbConnection set
-    //! up to return an error — substantial fixture work for a one-line
-    //! polarity bug. A source-level guard catches accidental reintroduction
-    //! of the fail-open path (`Err(_) => false`) reliably.
+    //! A behavioural test requires standing up a real WebSocket server +
+    //! racing a fast `stop` → `start` cycle to reproduce the port-busy
+    //! window. A source-level guard catches accidental removal of the
+    //! `server_task` handle / timeout-bound await much more cheaply.
 
-    /// stop() must await the spawned accept-loop task (or abort it on
+    /// stop() must await the spawned accept-loop task (bounded by a
     /// timeout) before returning, otherwise the listener port can still
     /// be busy when start() is called immediately afterwards.
     #[test]
