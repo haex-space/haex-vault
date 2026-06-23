@@ -9,13 +9,15 @@ use crate::extension::error::ExtensionError;
 use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::manager::{
     database_matching_status, filesystem_matching_has_constraint_violation,
-    filesystem_matching_status, format_filesystem_denied_target, identities_matching_status,
-    parse_passwords_default_marker, resolve_identities_decision, resolve_passwords_tags_scope,
+    filesystem_matching_status, format_filesystem_denied_target, format_shell_denied_target,
+    identities_matching_status, parse_passwords_default_marker, resolve_identities_decision,
+    resolve_passwords_tags_scope, shell_matching_has_constraint_violation, shell_matching_status,
     web_matching_status, IdentitiesDecision, PasswordsGrantRow,
 };
 use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction, PasswordsScope,
-    PermissionConstraints, PermissionStatus, ResourceType, WebAction,
+    PermissionConstraints, PermissionStatus, ResourceType, ShellAction, ShellConstraints,
+    WebAction,
 };
 use serde_json::json;
 use std::path::PathBuf;
@@ -568,4 +570,120 @@ fn deny_wins_web_denied_first() {
     let resolved =
         web_matching_status(&permissions, "https://evil.example.com", "evil.example.com");
     assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+// ---------------------------------------------------------------------------
+// shell_matching_status — deny-first precedence for shell permissions.
+//
+// A `Denied` row for the same command MUST override a `Granted` row regardless
+// of insertion order — otherwise the first-match behaviour of the previous
+// `iter().find()` implementation would let a broad `*` grant shadow a more
+// specific deny.
+//
+// Constraint-violating rows (e.g. forbidden_args/allowed_subcommands rejected)
+// preserve the pre-refactor semantics: they resolve to `Denied` within the
+// matching set (NOT silently excluded), so the diagnostic
+// `(constraint violation)` discriminator is reachable.
+// ---------------------------------------------------------------------------
+
+fn shell_permission(target: &str, status: PermissionStatus) -> ExtensionPermission {
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: "test-ext-precedence-shell".to_string(),
+        resource_type: ResourceType::Shell,
+        action: Action::Shell(ShellAction::Execute),
+        target: target.to_string(),
+        constraints: None,
+        status,
+        raw_constraints: None,
+    }
+}
+
+fn shell_permission_with_forbidden_args(
+    target: &str,
+    status: PermissionStatus,
+    forbidden_args: Vec<&str>,
+) -> ExtensionPermission {
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: "test-ext-precedence-shell".to_string(),
+        resource_type: ResourceType::Shell,
+        action: Action::Shell(ShellAction::Execute),
+        target: target.to_string(),
+        constraints: Some(PermissionConstraints::Shell(ShellConstraints {
+            forbidden_args: Some(forbidden_args.into_iter().map(String::from).collect()),
+            ..Default::default()
+        })),
+        status,
+        raw_constraints: None,
+    }
+}
+
+#[test]
+fn deny_wins_shell_granted_first() {
+    // SECURITY: a Denied row for a specific shell command MUST win even when a
+    // broad `*` Granted row is inserted first.
+    let permissions = vec![
+        shell_permission("*", PermissionStatus::Granted),
+        shell_permission("git", PermissionStatus::Denied),
+    ];
+
+    let resolved = shell_matching_status(&permissions, "git", &["push".to_string()]);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn deny_wins_shell_denied_first() {
+    // Symmetric to the above: Denied-first order still yields Denied.
+    let permissions = vec![
+        shell_permission("git", PermissionStatus::Denied),
+        shell_permission("*", PermissionStatus::Granted),
+    ];
+
+    let resolved = shell_matching_status(&permissions, "git", &["push".to_string()]);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn constraint_violation_flagged_for_denied_shell_command() {
+    // Row matches by command but its `forbidden_args` includes one of the args
+    // → constraint-violating row in the matching set.
+    let permissions = vec![shell_permission_with_forbidden_args(
+        "git",
+        PermissionStatus::Granted,
+        vec!["--force"],
+    )];
+    assert!(shell_matching_has_constraint_violation(
+        &permissions,
+        "git",
+        &["push".to_string(), "--force".to_string()],
+    ));
+}
+
+#[test]
+fn constraint_violation_not_flagged_for_plain_denied_shell_row() {
+    // A Denied row with no constraints must NOT be flagged as a constraint
+    // violation — the suffix is reserved for the typed-constraint failure case.
+    let permissions = vec![shell_permission("git", PermissionStatus::Denied)];
+    assert!(!shell_matching_has_constraint_violation(
+        &permissions,
+        "git",
+        &["push".to_string()],
+    ));
+}
+
+#[test]
+fn shell_denied_target_string_appends_constraint_violation_suffix() {
+    // Byte-identical wording match to pre-refactor diagnostics.
+    let target = format_shell_denied_target("git", &["push".to_string()], true);
+    assert_eq!(
+        target,
+        "shell command 'git' with args [\"push\"] (constraint violation)"
+    );
+}
+
+#[test]
+fn shell_denied_target_string_omits_suffix_when_no_constraint_violation() {
+    let target = format_shell_denied_target("git", &["push".to_string()], false);
+    assert_eq!(target, "shell command 'git' with args [\"push\"]");
 }
