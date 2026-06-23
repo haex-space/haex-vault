@@ -5,6 +5,12 @@ mod url;
 
 pub struct PermissionManager;
 
+// Re-export the deny-first resolver for sibling extension modules
+// (e.g. `extension::sync_tables`) that need to resolve a set of matching
+// permission statuses without reaching through the `pub(super)` `check`
+// module boundary.
+pub(crate) use check::deny_first_precedence;
+
 #[cfg(test)]
 pub(crate) use check::database::database_matching_status;
 #[cfg(test)]

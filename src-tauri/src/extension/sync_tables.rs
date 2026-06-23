@@ -4,8 +4,8 @@ use crate::{
     extension::{
         error::ExtensionError,
         permissions::{
-            manager::PermissionManager,
-            types::{Principal, ResourceType},
+            manager::{deny_first_precedence, PermissionManager},
+            types::{ExtensionPermission, PermissionStatus, Principal, ResourceType},
         },
     },
     AppState,
@@ -13,6 +13,61 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::{AppHandle, State};
+
+/// Returns the permission row's `status` if it matches the given `table_name`
+/// at the `Db` resource-type level, `None` otherwise.
+///
+/// Match rules on `perm.target`:
+/// - `"*"` matches any table name
+/// - a target ending in `*` matches by prefix (e.g. `haex_*` matches `haex_logs`)
+/// - otherwise an exact match on `table_name`
+///
+/// Status is NOT consulted here — this helper only answers "does this row
+/// talk about this table?". Use [`table_resolution`] to resolve a set of
+/// matching rows into an effective decision with deny-first precedence.
+pub(crate) fn permission_allows_table(
+    perm: &ExtensionPermission,
+    table_name: &str,
+) -> Option<PermissionStatus> {
+    if perm.resource_type != ResourceType::Db {
+        return None;
+    }
+    let target = &perm.target;
+    let matches = if target == "*" {
+        true
+    } else if let Some(prefix) = target.strip_suffix('*') {
+        table_name.starts_with(prefix)
+    } else {
+        target == table_name
+    };
+    if matches {
+        Some(perm.status)
+    } else {
+        None
+    }
+}
+
+/// Resolve a `(permissions, table_name)` pair into an effective
+/// [`PermissionStatus`] using deny-first precedence:
+///
+/// - `Some(Denied)` if ANY matching row is `Denied`
+/// - else `Some(Granted)` if ANY is `Granted`
+/// - else `Some(Ask)` if ANY is `Ask`
+/// - else `None` (no matching row)
+///
+/// The filter at the call-site treats a table as allowed iff this returns
+/// `Some(Granted)` — so a single explicit `Denied` row beats any number of
+/// `Granted` (incl. broad prefix or `*`) matches.
+pub(crate) fn table_resolution(
+    permissions: &[ExtensionPermission],
+    table_name: &str,
+) -> Option<PermissionStatus> {
+    deny_first_precedence(
+        permissions
+            .iter()
+            .filter_map(|perm| permission_allows_table(perm, table_name)),
+    )
+}
 
 /// Event for sync tables updated - sent to extensions after CRDT pull
 /// Matches HAEXTENSION_EVENTS.SYNC_TABLES_UPDATED in vault-sdk
@@ -91,24 +146,11 @@ pub async fn extension_filter_sync_tables(
                     return true;
                 }
 
-                // Check if extension has explicit DB permission for this table
-                permissions.iter().any(|perm| {
-                    if perm.resource_type != ResourceType::Db {
-                        return false;
-                    }
-
-                    let target = &perm.target;
-                    if target == "*" {
-                        return true;
-                    }
-
-                    if target.ends_with('*') {
-                        let prefix = &target[..target.len() - 1];
-                        return table_name.starts_with(prefix);
-                    }
-
-                    target == *table_name
-                })
+                // Check if extension has an effective DB grant for this table.
+                // Uses deny-first precedence so an explicit Denied row beats
+                // any number of broader Granted matches (e.g. `haex_*` grant
+                // does NOT override a specific `haex_logs` deny).
+                table_resolution(&permissions, table_name) == Some(PermissionStatus::Granted)
             })
             .cloned()
             .collect();

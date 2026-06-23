@@ -17,3 +17,5 @@ mod permission_conversion_tests;
 mod request_types_tests;
 #[cfg(test)]
 mod security_tests;
+#[cfg(test)]
+mod sync_tables_tests;
