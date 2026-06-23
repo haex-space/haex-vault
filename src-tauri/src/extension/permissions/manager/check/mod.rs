@@ -6,7 +6,7 @@ mod notifications;
 pub(super) mod passwords;
 mod rw_resource;
 pub(super) mod shell;
-mod spaces;
+pub(super) mod spaces;
 mod sync_servers;
 pub(super) mod web;
 

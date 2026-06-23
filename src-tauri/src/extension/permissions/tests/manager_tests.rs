@@ -12,12 +12,14 @@ use crate::extension::permissions::manager::{
     filesystem_matching_status, format_filesystem_denied_target, format_shell_denied_target,
     identities_matching_status, parse_passwords_default_marker, resolve_identities_decision,
     resolve_passwords_tags_scope, shell_matching_has_constraint_violation, shell_matching_status,
-    web_matching_status, IdentitiesDecision, PasswordsGrantRow,
+    spaces_matching_status, spaces_session_status, web_matching_status, IdentitiesDecision,
+    PasswordsGrantRow,
 };
+use crate::extension::permissions::session::SessionPermissionStore;
 use crate::extension::permissions::types::{
     Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction, PasswordsScope,
     PermissionConstraints, PermissionStatus, ResourceType, ShellAction, ShellConstraints,
-    WebAction,
+    SpaceAction, WebAction,
 };
 use serde_json::json;
 use std::path::PathBuf;
@@ -718,4 +720,74 @@ fn constraint_violation_on_specific_row_poisons_wildcard_grant() {
         Some(PermissionStatus::Denied),
         "specific-first ordering must deny on constraint violation",
     );
+}
+
+// ---------------------------------------------------------------------------
+// Spaces precedence + RW->R session-permission escalation
+//
+// Mirrors the shell/web/db deny-first regression tests AND covers the
+// pre-refactor session-fallback semantics: a session `ReadWrite` grant must
+// also satisfy a later `Read` check (since a writer trivially reads),
+// matching the DB-side `action_allows` predicate. Implemented at the
+// call-site (not in `SessionPermissionStore`), so the generic
+// "exact match" session contract still holds for other resources.
+// ---------------------------------------------------------------------------
+
+fn spaces_permission(action: SpaceAction, status: PermissionStatus) -> ExtensionPermission {
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: "test-ext-precedence-spaces".to_string(),
+        resource_type: ResourceType::Spaces,
+        action: Action::Spaces(action),
+        target: "*".to_string(),
+        constraints: None,
+        status,
+        raw_constraints: None,
+    }
+}
+
+#[test]
+fn deny_wins_spaces_granted_first() {
+    // SECURITY: a Denied row for the Read action MUST win even when a broad
+    // ReadWrite Granted row is inserted first.
+    let permissions = vec![
+        spaces_permission(SpaceAction::ReadWrite, PermissionStatus::Granted),
+        spaces_permission(SpaceAction::Read, PermissionStatus::Denied),
+    ];
+
+    let resolved = spaces_matching_status(&permissions, SpaceAction::Read);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn deny_wins_spaces_denied_first() {
+    // Symmetric: Denied-first order still yields Denied.
+    let permissions = vec![
+        spaces_permission(SpaceAction::Read, PermissionStatus::Denied),
+        spaces_permission(SpaceAction::ReadWrite, PermissionStatus::Granted),
+    ];
+
+    let resolved = spaces_matching_status(&permissions, SpaceAction::Read);
+    assert_eq!(resolved, Some(PermissionStatus::Denied));
+}
+
+#[test]
+fn session_rw_grant_covers_read_request() {
+    // A session ReadWrite grant must satisfy a Read request — matches the
+    // DB-side `action_allows` semantics (writer trivially reads).
+    let session = SessionPermissionStore::new();
+    let extension_id = "test-ext-precedence-spaces";
+    session.set_permission(ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: extension_id.to_string(),
+        resource_type: ResourceType::Spaces,
+        action: Action::Spaces(SpaceAction::ReadWrite),
+        target: "*".to_string(),
+        constraints: None,
+        status: PermissionStatus::Granted,
+        raw_constraints: None,
+    });
+
+    let resolved = spaces_session_status(&session, extension_id, SpaceAction::Read);
+    assert_eq!(resolved, Some(PermissionStatus::Granted));
 }

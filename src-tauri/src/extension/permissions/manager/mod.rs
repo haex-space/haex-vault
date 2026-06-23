@@ -25,4 +25,6 @@ pub(crate) use check::shell::{
     format_shell_denied_target, shell_matching_has_constraint_violation, shell_matching_status,
 };
 #[cfg(test)]
+pub(crate) use check::spaces::{spaces_matching_status, spaces_session_status};
+#[cfg(test)]
 pub(crate) use check::web::web_matching_status;
