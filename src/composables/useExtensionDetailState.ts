@@ -150,18 +150,8 @@ export const useExtensionDetailState = () => {
       editablePermissions.value = permissions
     } catch (error) {
       console.error('Error loading permissions:', error)
-      editablePermissions.value = {
-        database: [],
-        filesystem: [],
-        http: [],
-        shell: [],
-      }
-      originalPermissions.value = {
-        database: [],
-        filesystem: [],
-        http: [],
-        shell: [],
-      }
+      editablePermissions.value = emptyPermissions()
+      originalPermissions.value = emptyPermissions()
       add({ description: t('permissionsLoadError'), color: 'error' })
     } finally {
       loadingPermissions.value = false

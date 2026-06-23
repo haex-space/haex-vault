@@ -273,6 +273,11 @@ export const useSpacesActions = () => {
       if (localLink) {
         const identity = await ensureCurrentIdentityAsync()
 
+        if (!localLink.spaceEndpoints?.length) {
+          add({ title: t('errors.invalidInviteLink'), color: 'error' })
+          return
+        }
+
         let lastError: Error | null = null
         for (const endpointId of localLink.spaceEndpoints) {
           try {

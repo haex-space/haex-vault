@@ -218,6 +218,7 @@ export const useBackendsActions = () => {
           if (identityResult?.privateKey) {
             const identity = { privateKey: identityResult.privateKey, did: identityResult.did }
             // Delete all spaces where user is admin (server validates role)
+            // TODO: add `DeleteAdminSpaces = "delete-admin-spaces"` to DidAuthAction in @haex-space/ucan
             try {
               await fetchWithDidAuth(
                 `${backend.homeServerUrl}/spaces/my-admin-spaces`,

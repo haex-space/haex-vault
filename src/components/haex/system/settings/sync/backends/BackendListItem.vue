@@ -157,9 +157,9 @@ defineEmits<{
   reUpload: []
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString()
+  return new Date(dateStr).toLocaleDateString(locale.value)
 }
 </script>
