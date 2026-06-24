@@ -101,8 +101,18 @@ pub async fn owner_sync_start(
     // 6. Start a loop per not-yet-running peer (idempotent skip).
     let mut loops = state.owner_sync_loops.lock().await;
     let running: std::collections::HashSet<String> = loops.keys().cloned().collect();
+    eprintln!(
+        "[OWNER_SYNC_DIAG] start_discovery vault_space_id={vault_space_id} \
+         own_endpoint={our_endpoint_id} owner_did={owner_did} \
+         discovered_peers={peers:?} already_running={:?}",
+        running.iter().collect::<Vec<_>>(),
+    );
     let to_start = peers_to_start(&peers, &running);
 
+    eprintln!(
+        "[OWNER_SYNC_DIAG] starting_loops own_endpoint={our_endpoint_id} \
+         to_start={to_start:?}",
+    );
     for peer_endpoint in to_start {
         let handle = match super::super::sync_loop::start_peer_sync_loop(
             DbConnection(state.db.0.clone()),
