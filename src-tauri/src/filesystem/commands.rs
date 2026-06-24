@@ -123,6 +123,39 @@ pub struct DirEntry {
 }
 
 // ============================================================================
+// E2E test escape hatch
+// ============================================================================
+//
+// WebDriver / Playwright cannot drive the OS-native folder/file picker that
+// `filesystem_select_folder` / `_file` open — the dialog is rendered by the
+// host OS, not the WebView. To keep e2e tests on the real reactive UI path
+// (without the SQL/Tauri-command arrange shortcuts that bypass state stores
+// and have caused test flakes), the test harness writes the path it wants
+// returned into a sentinel file before clicking the "Browse" button. The
+// commands below read that file at dialog-open time instead of opening a
+// dialog.
+//
+// File location defaults to /tmp/haex-e2e-pick-{folder,file}.txt; override
+// with HAEX_E2E_PICK_FOLDER_FILE / HAEX_E2E_PICK_FILE_FILE at vault spawn.
+//
+// Compiled out of release builds entirely via #[cfg(debug_assertions)] —
+// production binaries never bypass the dialog.
+
+/// Resolve the sentinel-file path for an e2e picker override, returning
+/// `Some(path)` only if the file exists right now (so a leftover env var
+/// from a prior session doesn't accidentally suppress real dialogs).
+#[cfg(debug_assertions)]
+fn e2e_pick_override_path(env_var: &str, default_suffix: &str) -> Option<String> {
+    let path = std::env::var(env_var)
+        .unwrap_or_else(|_| format!("/tmp/haex-e2e-pick-{}.txt", default_suffix));
+    if std::path::Path::new(&path).exists() {
+        Some(path)
+    } else {
+        None
+    }
+}
+
+// ============================================================================
 // Commands
 // ============================================================================
 
@@ -468,6 +501,20 @@ pub async fn filesystem_select_folder(
     #[allow(unused_variables)] default_path: Option<String>,
     #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<Option<String>, FsError> {
+    // E2E test escape hatch — see top-of-file comment on e2e_pick_override_path.
+    #[cfg(debug_assertions)]
+    if let Some(path) = e2e_pick_override_path("HAEX_E2E_PICK_FOLDER_FILE", "folder") {
+        let trimmed = std::fs::read_to_string(&path)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        return Ok(if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        });
+    }
+
     #[cfg(not(target_os = "android"))]
     {
         use tauri_plugin_dialog::DialogExt;
@@ -528,6 +575,26 @@ pub async fn filesystem_select_file(
     #[allow(unused_variables)] multiple: Option<bool>,
     #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<Option<Vec<String>>, FsError> {
+    // E2E test escape hatch — see top-of-file comment on e2e_pick_override_path.
+    // File contains one path per line (multi-select). Honors the `multiple`
+    // flag so debug behavior matches the production single-pick path.
+    #[cfg(debug_assertions)]
+    if let Some(path) = e2e_pick_override_path("HAEX_E2E_PICK_FILE_FILE", "file") {
+        let mut paths: Vec<String> = std::fs::read_to_string(&path)
+            .ok()
+            .map(|s| {
+                s.lines()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !multiple.unwrap_or(false) && paths.len() > 1 {
+            paths.truncate(1);
+        }
+        return Ok(if paths.is_empty() { None } else { Some(paths) });
+    }
+
     #[cfg(not(target_os = "android"))]
     {
         use tauri_plugin_dialog::DialogExt;
