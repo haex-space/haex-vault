@@ -276,6 +276,12 @@ commands.allow = [
   "peer_storage_transfer_pause",
   "peer_storage_transfer_resume",
 
+  # Owner-vault sync (PR #511 — serverless cross-device sync of the owner's own vault).
+  # Owner-only operations; do NOT add to allow-extension-commands.
+  "owner_sync_start",
+  "owner_sync_stop",
+  "owner_sync_force",
+
   # Remote storage (host-level)
   "remote_storage_list_backends",
   "remote_storage_add_backend",
