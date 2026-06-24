@@ -576,10 +576,11 @@ pub async fn filesystem_select_file(
     #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<Option<Vec<String>>, FsError> {
     // E2E test escape hatch — see top-of-file comment on e2e_pick_override_path.
-    // File contains one path per line (multi-select).
+    // File contains one path per line (multi-select). Honors the `multiple`
+    // flag so debug behavior matches the production single-pick path.
     #[cfg(debug_assertions)]
     if let Some(path) = e2e_pick_override_path("HAEX_E2E_PICK_FILE_FILE", "file") {
-        let paths: Vec<String> = std::fs::read_to_string(&path)
+        let mut paths: Vec<String> = std::fs::read_to_string(&path)
             .ok()
             .map(|s| {
                 s.lines()
@@ -588,6 +589,9 @@ pub async fn filesystem_select_file(
                     .collect()
             })
             .unwrap_or_default();
+        if !multiple.unwrap_or(false) && paths.len() > 1 {
+            paths.truncate(1);
+        }
         return Ok(if paths.is_empty() { None } else { Some(paths) });
     }
 
