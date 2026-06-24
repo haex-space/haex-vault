@@ -131,6 +131,7 @@ pub(super) async fn run_push_phase(
     can_push_user_content: bool,
     our_identity_id: Option<&str>,
     our_endpoint_id: &str,
+    leader_endpoint_id: &str,
     last_push_hlc: &mut Option<String>,
 ) -> Result<(), DeliveryError> {
     // Read-only members must not include haex_peer_shares in the push batch.
@@ -152,6 +153,19 @@ pub(super) async fn run_push_phase(
     .map_err(|e| DeliveryError::Database {
         reason: format!("Failed to scan CRDT tables: {}", e),
     })?;
+
+    // [OWNER_SYNC_DIAG] Per-cycle push-phase summary, owner-vault only. Logs
+    // the scan result *before* the empty-changes early return so the e2e trace
+    // distinguishes "loop ticked but scanner found nothing" from "loop never
+    // ticked". Phase-2 — to be removed in Phase 5.
+    if matches!(mode, SyncMode::OwnerVault { .. }) {
+        eprintln!(
+            "[OWNER_SYNC_DIAG] push_phase space_id={space_id} peer={leader_endpoint_id} \
+             scanned_rows={rows} cursor={cursor:?}",
+            rows = all_changes.len(),
+            cursor = last_push_hlc.as_deref(),
+        );
+    }
 
     if all_changes.is_empty() {
         return Ok(());
@@ -204,7 +218,27 @@ pub(super) async fn run_push_phase(
                     reason: format!("Failed to serialize chunk {}: {}", idx, e),
                 })?;
 
-            session.push_changes(space_id, chunk_json).await?;
+            // [OWNER_SYNC_DIAG] Per-chunk push trace, owner-vault only.
+            // Phase-2 — to be removed in Phase 5.
+            let owner_diag = matches!(mode, SyncMode::OwnerVault { .. });
+            if owner_diag {
+                eprintln!(
+                    "[OWNER_SYNC_DIAG] push_attempt mode=OwnerVault space_id={space_id} \
+                     peer={leader_endpoint_id} chunk_idx={idx} rows_outgoing={rows}",
+                    rows = chunk.len(),
+                );
+            }
+
+            let push_result = session.push_changes(space_id, chunk_json).await;
+            if owner_diag {
+                let accepted = push_result.is_ok();
+                let rejected_reason = push_result.as_ref().err();
+                eprintln!(
+                    "[OWNER_SYNC_DIAG] push_result peer={leader_endpoint_id} chunk_idx={idx} \
+                     accepted={accepted} rejected_reason={rejected_reason:?}",
+                );
+            }
+            push_result?;
 
             // Checkpoint after each successful chunk so a later failure does
             // not re-push completed groups. The scanner will pick up whatever

@@ -8,7 +8,7 @@ use tauri::{Emitter, Manager};
 
 use super::super::error::DeliveryError;
 use super::super::peer::PeerSession;
-use super::log_sync;
+use super::{log_sync, SyncMode};
 use crate::crdt::commands::{
     apply_remote_changes_to_db, group_by_transaction_hlc, RemoteColumnChange,
 };
@@ -128,7 +128,9 @@ where
 pub(super) async fn run_pull_phase(
     db: &DbConnection,
     session: &PeerSession,
+    mode: &SyncMode,
     space_id: &str,
+    leader_endpoint_id: &str,
     app_handle: &tauri::AppHandle,
     last_pull_timestamp: &mut Option<String>,
 ) -> Result<(), DeliveryError> {
@@ -147,6 +149,17 @@ pub(super) async fn run_pull_phase(
             .await?;
 
         let page_count = page_json.as_array().map(|a| a.len()).unwrap_or(0);
+
+        // [OWNER_SYNC_DIAG] Per-page pull receipt, owner-vault only. Phase-2
+        // trace — discriminates "leader returned 0 changes" from "pull never
+        // happened". To be removed in Phase 5.
+        if matches!(mode, SyncMode::OwnerVault { .. }) {
+            eprintln!(
+                "[OWNER_SYNC_DIAG] pull_result peer={leader_endpoint_id} space_id={space_id} \
+                 rows_received={page_count} has_more={has_more} after={after:?}",
+                after = page_after.as_deref(),
+            );
+        }
         // Per-page pull summary so the e2e harness can tell "leader returned 0
         // changes" (membership/scope problem) apart from "pull never happened"
         // (loop never started / connect failed), and observe pagination.
