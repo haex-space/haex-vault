@@ -23,12 +23,24 @@ pub(super) async fn run_sync_cycle(
     can_push_user_content: bool,
     our_identity_id: Option<&str>,
     our_endpoint_id: &str,
+    leader_endpoint_id: &str,
     app_handle: &tauri::AppHandle,
     last_push_hlc: &mut Option<String>,
     last_pull_timestamp: &mut Option<String>,
     last_mls_message_id: &mut Option<i64>,
     key_packages_refilled: &mut bool,
 ) -> Result<(), DeliveryError> {
+    // [OWNER_SYNC_DIAG] Per-cycle tick marker, owner-vault only. Phase-2 trace
+    // for the haex-e2e-tests PR #57 CI run — confirms B's loop actually ticks
+    // against A. To be removed in Phase 5.
+    if matches!(mode, SyncMode::OwnerVault { .. }) {
+        eprintln!(
+            "[OWNER_SYNC_DIAG] cycle_start space_id={space_id} our_endpoint_id={our_endpoint_id} \
+             peer={leader_endpoint_id} last_push_hlc={last_push_hlc:?} \
+             last_pull_timestamp={last_pull_timestamp:?}",
+        );
+    }
+
     // 1. PUSH (best-effort) — never blocks the pull below.
     if let Err(e) = push::run_push_phase(
         db,
@@ -40,6 +52,7 @@ pub(super) async fn run_sync_cycle(
         can_push_user_content,
         our_identity_id,
         our_endpoint_id,
+        leader_endpoint_id,
         last_push_hlc,
     )
     .await
@@ -48,7 +61,16 @@ pub(super) async fn run_sync_cycle(
     }
 
     // 2. PULL: paginated by transaction-HLC group.
-    pull::run_pull_phase(db, session, space_id, app_handle, last_pull_timestamp).await?;
+    pull::run_pull_phase(
+        db,
+        session,
+        mode,
+        space_id,
+        leader_endpoint_id,
+        app_handle,
+        last_pull_timestamp,
+    )
+    .await?;
 
     // 2b. OWNER-VAULT pending-column recovery (best-effort, owner mode only).
     if let SyncMode::OwnerVault { .. } = mode {

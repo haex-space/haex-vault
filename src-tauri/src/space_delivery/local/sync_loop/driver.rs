@@ -305,6 +305,7 @@ async fn run_sync_loop(
             can_push_user_content,
             our_identity_id.as_deref(),
             &our_endpoint_id,
+            &leader_endpoint_id,
             &app_handle,
             &mut last_push_hlc,
             &mut last_pull_timestamp,
