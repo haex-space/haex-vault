@@ -131,6 +131,94 @@ pub(super) fn seed_vault_db(
     DbConnection(Arc::new(Mutex::new(Some(conn))))
 }
 
+/// Same shape as [`seed_vault_db`] EXCEPT this DB only contains its own
+/// `haex_devices` row — the peer device row is intentionally omitted.
+///
+/// This reproduces the post-DB-copy onboarding state observed by the e2e
+/// diagnostic in haex-e2e-tests PR #57: after Device B is provisioned by
+/// copying A's vault DB, A's local DB has been frozen since the copy and
+/// therefore still contains ONLY its own `haex_devices` row — B's row never
+/// appears in A's DB unless something propagates it back. Any "B can be
+/// discovered by A" assertion against this fixture targets exactly that
+/// propagation step.
+///
+/// Identical to `seed_vault_db` for `haex_identities`, `haex_spaces`, the
+/// CRDT bookkeeping, and `haex_passwords` — the only divergence is the
+/// single-row `haex_devices` seed.
+pub(super) fn seed_vault_db_asymmetric(
+    owner: &Identity,
+    own_endpoint_id: &str,
+    vault_space_id: &str,
+) -> DbConnection {
+    let (conn, _hlc) = super::super::test_support::init_logs_db_inner();
+
+    conn.execute_batch(
+        "CREATE TABLE haex_identities (
+            id TEXT PRIMARY KEY,
+            did TEXT NOT NULL,
+            private_key TEXT
+         );
+         CREATE TABLE haex_spaces (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            owner_identity_id TEXT
+         );
+         CREATE TABLE haex_devices (
+            endpoint_id TEXT PRIMARY KEY,
+            owner_did TEXT NOT NULL
+         );
+         CREATE TABLE haex_passwords (
+            id TEXT PRIMARY KEY,
+            secret TEXT
+         );
+         CREATE TABLE haex_deleted_rows (
+            id TEXT PRIMARY KEY,
+            table_name TEXT NOT NULL,
+            row_pks TEXT NOT NULL,
+            haex_hlc TEXT,
+            haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+         );",
+    )
+    .unwrap();
+
+    // Make haex_passwords AND haex_devices CRDT tables — haex_devices in
+    // particular is the table whose rows we want to observe propagating, so
+    // it must carry `haex_hlc` / `haex_column_hlcs` for the scanner.
+    {
+        let tx = conn.unchecked_transaction().unwrap();
+        ensure_crdt_columns(&tx, "haex_passwords").unwrap();
+        ensure_crdt_columns(&tx, "haex_devices").unwrap();
+        tx.commit().unwrap();
+    }
+
+    let identity_id = format!("identity-{}", rand::random::<u64>());
+    conn.execute(
+        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, NULL)",
+        rusqlite::params![identity_id, owner.did],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO haex_spaces (id, type, owner_identity_id) VALUES (?1, 'vault', ?2)",
+        rusqlite::params![vault_space_id, identity_id],
+    )
+    .unwrap();
+    // Asymmetric seed: ONLY this DB's own device row, with CRDT bookkeeping so
+    // the scanner can pick it up if it ever gets authored on this side.
+    conn.execute(
+        "INSERT INTO haex_devices (endpoint_id, owner_did, haex_hlc, haex_column_hlcs)
+             VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![
+            own_endpoint_id,
+            owner.did,
+            "1000000000000000000/aabbccdd0000",
+            "{\"owner_did\":\"1000000000000000000/aabbccdd0000\"}",
+        ],
+    )
+    .unwrap();
+
+    DbConnection(Arc::new(Mutex::new(Some(conn))))
+}
+
 /// Insert a CRDT-tracked `haex_passwords` row, writing `haex_hlc` /
 /// `haex_column_hlcs` directly (the columns the scanner reads) at a fixed HLC
 /// so the row is deterministically scannable.
@@ -166,6 +254,22 @@ pub(super) fn has_password(db: &DbConnection, row_id: &str, secret: &str) -> boo
     )
     .unwrap()
         > 0
+}
+
+/// Read every `endpoint_id` currently present in `haex_devices`, sorted.
+///
+/// Used by device-propagation tests to assert which peer rows are visible
+/// post-sync.
+pub(super) fn list_device_endpoint_ids(db: &DbConnection) -> Vec<String> {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT endpoint_id FROM haex_devices ORDER BY endpoint_id")
+        .unwrap();
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .unwrap();
+    rows.collect::<Result<Vec<_>, _>>().unwrap()
 }
 
 /// Build a local-only iroh endpoint (RelayMode::Disabled, `haex-delivery/2`

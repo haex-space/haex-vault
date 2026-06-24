@@ -33,6 +33,7 @@
 
 #![cfg(test)]
 
+mod device_discovery_after_copy;
 mod foreign_peer;
 mod helpers;
 mod pull;
