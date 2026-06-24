@@ -468,6 +468,18 @@ pub async fn filesystem_select_folder(
     #[allow(unused_variables)] default_path: Option<String>,
     #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<Option<String>, FsError> {
+    // E2E test escape hatch. WebDriver / Playwright cannot drive the OS-native
+    // folder picker, so the e2e harness sets HAEX_E2E_PICK_FOLDER to the path
+    // the user "would have picked". Debug builds only — the env check is
+    // compiled out of release builds entirely, so production never bypasses
+    // the dialog.
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(path) = std::env::var("HAEX_E2E_PICK_FOLDER") {
+            return Ok(if path.is_empty() { None } else { Some(path) });
+        }
+    }
+
     #[cfg(not(target_os = "android"))]
     {
         use tauri_plugin_dialog::DialogExt;
@@ -528,6 +540,20 @@ pub async fn filesystem_select_file(
     #[allow(unused_variables)] multiple: Option<bool>,
     #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<Option<Vec<String>>, FsError> {
+    // E2E test escape hatch. See filesystem_select_folder for the rationale.
+    // HAEX_E2E_PICK_FILE may be a single path or several comma-separated paths
+    // (multi-select). Debug-build only.
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(value) = std::env::var("HAEX_E2E_PICK_FILE") {
+            if value.is_empty() {
+                return Ok(None);
+            }
+            let paths: Vec<String> = value.split(',').map(|s| s.trim().to_string()).collect();
+            return Ok(Some(paths));
+        }
+    }
+
     #[cfg(not(target_os = "android"))]
     {
         use tauri_plugin_dialog::DialogExt;
