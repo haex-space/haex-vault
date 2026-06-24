@@ -120,9 +120,36 @@
               variant="ghost"
               icon="i-lucide-plus"
               :title="t('actions.addShare')"
+              :data-testid="`space-add-share-trigger-${space.id}`"
               :data-tour="props.showTourAnchors ? 'space-add-share' : undefined"
               @click.stop
             />
+            <template #add-share-folder="{ item }">
+              <span
+                class="flex items-center gap-1.5"
+                :data-testid="`space-add-share-folder-${space.id}`"
+              >
+                <UIcon
+                  v-if="item.icon"
+                  :name="item.icon"
+                  class="w-4 h-4"
+                />
+                <span>{{ item.label }}</span>
+              </span>
+            </template>
+            <template #add-share-file="{ item }">
+              <span
+                class="flex items-center gap-1.5"
+                :data-testid="`space-add-share-file-${space.id}`"
+              >
+                <UIcon
+                  v-if="item.icon"
+                  :name="item.icon"
+                  class="w-4 h-4"
+                />
+                <span>{{ item.label }}</span>
+              </span>
+            </template>
           </UDropdownMenu>
           <UiButton
             v-if="isAdmin || canInvite"
@@ -399,11 +426,13 @@ const addShareMenuItems = computed(() => [
   [{
     label: t('actions.addFolder'),
     icon: 'i-lucide-folder-plus',
+    slot: 'add-share-folder' as const,
     onSelect: () => emit('add-share', { space: props.space, type: 'folder' }),
   },
   {
     label: t('actions.addFile'),
     icon: 'i-lucide-file-plus',
+    slot: 'add-share-file' as const,
     onSelect: () => emit('add-share', { space: props.space, type: 'file' }),
   }],
 ])
