@@ -12,6 +12,9 @@ import {
   toS3Prefix,
 } from '~/composables/fileBrowserHelpers'
 import { readableFileSize } from '~/utils/helper'
+import { createLogger } from '~/stores/logging'
+
+const log = createLogger('FILES')
 
 export function useFileBrowser(tabId: string) {
   const peerStore = usePeerStorageStore()
@@ -360,6 +363,12 @@ export function useFileBrowser(tabId: string) {
       }
     } catch (error) {
       if (generation !== loadGeneration) return
+      log.error('loadFiles failed', {
+        peer: selectedPeer.value?.name,
+        path: currentPath.value,
+        spaceId: currentSpaceId.value,
+        error,
+      })
       loadError.value = error instanceof Error ? error.message : String(error)
       files.value = []
     } finally {

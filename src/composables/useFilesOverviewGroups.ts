@@ -1,6 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { RemotePeer } from '~/composables/fileBrowserHelpers'
 import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
+import { createLogger } from '~/stores/logging'
+
+const log = createLogger('FILES')
 
 export type GroupBy = 'space' | 'contact'
 
@@ -247,11 +250,20 @@ export function useFilesOverviewGroups() {
       storageBackends.value = await invoke<StorageBackendInfo[]>(
         'remote_storage_list_backends',
       )
-    } catch {
+    } catch (error) {
       // Non-fatal: the file browser must still render the other sections even
       // if S3 listing fails (e.g. database error). The settings page is the
       // canonical place to diagnose backend configuration issues.
+      log.error('remote_storage_list_backends failed', error)
       storageBackends.value = []
+    }
+  }
+
+  const loadContactClaimsSafeAsync = async () => {
+    try {
+      await loadContactClaimsAsync()
+    } catch (error) {
+      log.error('loadContactClaims failed', error)
     }
   }
 
@@ -561,7 +573,7 @@ export function useFilesOverviewGroups() {
   const hasAnyEntries = computed(() => overviewGroups.value.length > 0)
 
   const loadAsync = async (): Promise<void> => {
-    await Promise.all([loadStorageBackendsAsync(), loadContactClaimsAsync()])
+    await Promise.all([loadStorageBackendsAsync(), loadContactClaimsSafeAsync()])
   }
 
   return {

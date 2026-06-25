@@ -41,3 +41,14 @@ watch(
   },
 )
 </script>
+
+<i18n lang="yaml">
+de:
+  rename: Umbenennen
+  renameTitle: Datei umbenennen
+  renamePlaceholder: Neuer Name
+en:
+  rename: Rename
+  renameTitle: Rename file
+  renamePlaceholder: New name
+</i18n>

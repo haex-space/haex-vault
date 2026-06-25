@@ -559,3 +559,48 @@ const buildContextMenuItems = (file: RenameTarget) => {
   return groups
 }
 </script>
+
+<i18n lang="yaml">
+de:
+  emptyFolder: Ordner ist leer
+  noResults: Keine Treffer
+  searching: Verzeichnisse werden durchsucht…
+  retry: Erneut versuchen
+  download: Herunterladen
+  downloadFailed: Download fehlgeschlagen
+  moreFiles: weitere Dateien werden geladen…
+  selectAll: Alle auswählen
+  copy: Kopieren
+  cut: Ausschneiden
+  delete: Löschen
+  deleteFailed: Löschen fehlgeschlagen
+  openFailed: Öffnen fehlgeschlagen
+  play: Abspielen
+  rename: Umbenennen
+  cancelTransfer: Übertragung abbrechen
+  cancelTransferFailed: Übertragung konnte nicht abgebrochen werden
+  pauseTransfer: Übertragung pausieren
+  pauseTransferFailed: Übertragung konnte nicht pausiert werden
+  resumeTransfer: Übertragung fortsetzen
+en:
+  emptyFolder: Folder is empty
+  noResults: No matches
+  searching: Searching directories…
+  retry: Retry
+  download: Download
+  downloadFailed: Download failed
+  moreFiles: more files loading…
+  selectAll: Select all
+  copy: Copy
+  cut: Cut
+  delete: Delete
+  deleteFailed: Delete failed
+  openFailed: Open failed
+  play: Play
+  rename: Rename
+  cancelTransfer: Cancel transfer
+  cancelTransferFailed: Could not cancel transfer
+  pauseTransfer: Pause transfer
+  pauseTransferFailed: Could not pause transfer
+  resumeTransfer: Resume transfer
+</i18n>
