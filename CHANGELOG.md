@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.1](https://github.com/haex-space/haex-vault/compare/v2.11.0...v2.11.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* **acl:** re-emit owner-sync ACL fix for release-please ([#546](https://github.com/haex-space/haex-vault/issues/546)) ([5de8e1a](https://github.com/haex-space/haex-vault/commit/5de8e1a511a4de583691aee902db04efd913923d))
+
 ## [2.11.0](https://github.com/haex-space/haex-vault/compare/v2.10.0...v2.11.0) (2026-06-25)
 
 
