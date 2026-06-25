@@ -11,3 +11,6 @@
 //! "mail", ...), or grants `*` for full access.
 
 pub mod commands;
+
+#[cfg(test)]
+mod tests;

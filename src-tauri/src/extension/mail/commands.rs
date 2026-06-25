@@ -9,7 +9,7 @@ use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::MailAction;
+use crate::extension::permissions::types::{MailAction, Principal};
 use crate::extension::utils::{emit_permission_prompt_if_needed, resolve_extension_id};
 use crate::mail::error::MailError;
 use crate::mail::types::{
@@ -42,9 +42,13 @@ async fn check_fetch_permission(
     extension_id: &str,
     host: &str,
 ) -> Result<(), ExtensionError> {
-    let result =
-        PermissionManager::check_mail_permission(state, extension_id, MailAction::Fetch, host)
-            .await;
+    let result = PermissionManager::check_mail_permission(
+        state,
+        &Principal::Extension(extension_id.to_string()),
+        MailAction::Fetch,
+        host,
+    )
+    .await;
     if let Err(ref e) = result {
         emit_permission_prompt_if_needed(app_handle, e);
     }
@@ -58,8 +62,13 @@ async fn check_send_permission(
     extension_id: &str,
     host: &str,
 ) -> Result<(), ExtensionError> {
-    let result =
-        PermissionManager::check_mail_permission(state, extension_id, MailAction::Send, host).await;
+    let result = PermissionManager::check_mail_permission(
+        state,
+        &Principal::Extension(extension_id.to_string()),
+        MailAction::Send,
+        host,
+    )
+    .await;
     if let Err(ref e) = result {
         emit_permission_prompt_if_needed(app_handle, e);
     }

@@ -23,269 +23,40 @@
         :key="workspace.id"
         class="w-full h-full"
       >
-        <UContextMenu :items="getWorkspaceContextMenuItems(workspace.id)">
-          <HaexDesktopWorkspaceDropZone
-            :workspace-id="workspace.id"
-            :background-style="getWorkspaceBackgroundStyle(workspace)"
-            @desktop-click="handleDesktopClick"
-            @area-select-start="handleAreaSelectStart"
-            @drag-over="handleDragOver"
-            @drop="handleDrop($event, workspace.id)"
-          >
-            <!-- Drop Target Zone (visible during drag) -->
-            <div
-              v-if="dropTargetZone"
-              class="absolute border-2 border-blue-500 bg-blue-500/10 rounded-lg pointer-events-none z-10 transition-all duration-75"
-              :style="{
-                left: `${dropTargetZone.x}px`,
-                top: `${dropTargetZone.y}px`,
-                width: `${dropTargetZone.width}px`,
-                height: `${dropTargetZone.height}px`,
-              }"
-            />
-
-            <!-- Snap Dropzones (only visible when window drag near edge) -->
-
-            <div
-              class="absolute left-0 top-0 bottom-0 border-blue-500 pointer-events-none backdrop-blur-sm z-50 transition-all duration-500 ease-in-out"
-              :class="
-                showLeftSnapZone ? 'w-1/2 bg-blue-500/20 border-2' : 'w-0'
-              "
-            />
-
-            <div
-              class="absolute right-0 top-0 bottom-0 border-blue-500 pointer-events-none backdrop-blur-sm z-50 transition-all duration-500 ease-in-out"
-              :class="
-                showRightSnapZone ? 'w-1/2 bg-blue-500/20 border-2' : 'w-0'
-              "
-            />
-
-            <!-- Area Selection Box -->
-            <div
-              v-if="isAreaSelecting"
-              class="absolute bg-blue-500/20 border-2 border-blue-500 pointer-events-none z-30"
-              :style="selectionBoxStyle"
-            />
-
-            <!-- Icons for this workspace -->
-            <HaexDesktopIcon
-              v-for="item in getWorkspaceIcons(workspace.id)"
-              :id="item.id"
-              :key="item.id"
-              :item-type="item.itemType"
-              :reference-id="item.referenceId"
-              :initial-x="item.positionX"
-              :initial-y="item.positionY"
-              :label="item.label"
-              :icon="item.icon"
-              class="no-swipe"
-              @position-changed="handlePositionChanged"
-              @drag-start="handleDragStart"
-              @dragging="handleDragging"
-              @drag-end="handleDragEnd"
-              @request-uninstall="handleRequestUninstall"
-            />
-
-            <!-- Windows for this workspace - single instance, CSS-transformed in overview -->
-            <HaexWindow
-              v-for="window in getWorkspaceWindows(workspace.id)"
-              v-show="windowManager.showWindowOverview || !window.isMinimized"
-              :id="window.id"
-              :key="window.id"
-              v-model:x="window.x"
-              v-model:y="window.y"
-              v-model:width="window.width"
-              v-model:height="window.height"
-              :title="window.title"
-              :icon="window.icon"
-              :is-active="windowManager.isWindowActive(window.id)"
-              :source-x="window.sourceX"
-              :source-y="window.sourceY"
-              :source-width="window.sourceWidth"
-              :source-height="window.sourceHeight"
-              :is-opening="window.isOpening"
-              :is-closing="window.isClosing"
-              :warning-level="
-                window.type === 'extension' &&
-                availableExtensions.find(
-                  (ext) => ext.id === window.sourceId,
-                )?.devServerUrl
-                  ? 'warning'
-                  : undefined
-              "
-              class="no-swipe"
-              :class="{
-                'transition-opacity duration-300': !window.isNativeWebview,
-                'opacity-0 pointer-events-none': windowManager.showWindowOverview && !window.isNativeWebview,
-                'invisible': windowManager.showWindowOverview && window.isNativeWebview,
-              }"
-              @close="windowManager.closeWindow(window.id)"
-              @minimize="windowManager.minimizeWindow(window.id)"
-              @activate="windowManager.activateWindow(window.id)"
-              @position-changed="
-                (x, y) => windowManager.updateWindowPosition(window.id, x, y)
-              "
-              @size-changed="
-                (width, height) =>
-                  windowManager.updateWindowSize(window.id, width, height)
-              "
-              @drag-start="handleWindowDragStart(window.id)"
-              @drag-end="handleWindowDragEnd"
-            >
-              <!-- Render each tab's content (v-show keeps state alive across tab switches) -->
-              <template
-                v-for="tab in window.tabs"
-                :key="tab.id"
-              >
-                <!-- System Window Tab -->
-                <component
-                  :is="getSystemWindowComponent(tab.sourceId)"
-                  v-if="tab.type === 'system'"
-                  v-show="tab.id === window.activeTabId"
-                  :tab-id="tab.id"
-                  :is-dragging="windowManager.draggingWindowId === window.id"
-                  :window-params="tab.params"
-                  :category="tab.params?.category"
-                />
-
-                <!-- Native WebView Tab -->
-                <div
-                  v-else-if="tab.isNativeWebview"
-                  v-show="tab.id === window.activeTabId"
-                  class="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900"
-                >
-                  <HaexIcon
-                    :name="tab.icon || 'i-lucide-app-window'"
-                    class="size-20"
-                  />
-                </div>
-
-                <!-- Extension iFrame Tab -->
-                <HaexDesktopExtensionFrame
-                  v-else
-                  v-show="tab.id === window.activeTabId"
-                  :extension-id="tab.sourceId"
-                  :window-id="`${window.id}-${tab.id}`"
-                />
-              </template>
-            </HaexWindow>
-          </HaexDesktopWorkspaceDropZone>
-        </UContextMenu>
+        <HaexDesktopWorkspaceSlide
+          :workspace="workspace"
+          :workspace-windows="getWorkspaceWindows(workspace.id)"
+          :is-area-selecting="isAreaSelecting"
+          :selection-box-style="selectionBoxStyle"
+          :show-left-snap-zone="showLeftSnapZone"
+          :show-right-snap-zone="showRightSnapZone"
+          :drop-target-zone="dropTargetZone"
+          @desktop-click="handleDesktopClick"
+          @area-select-start="handleAreaSelectStart"
+          @drag-over="handleDragOver"
+          @drop="handleDrop"
+          @position-changed="handlePositionChanged"
+          @icon-drag-start="handleDragStart"
+          @icon-dragging="handleDragging"
+          @icon-drag-end="handleDragEnd"
+          @request-uninstall="handleRequestUninstall"
+          @window-drag-start="handleWindowDragStart"
+          @window-drag-end="handleWindowDragEnd"
+        />
       </SwiperSlide>
     </Swiper>
 
     <!-- Window Overview: Carousel -->
-    <Transition name="fade">
-      <div
-        v-if="windowManager.showWindowOverview"
-        class="absolute inset-0 z-9997 flex flex-col"
-        :style="{ paddingLeft: isOverviewMode && !isSmallScreen ? '400px' : '0' }"
-      >
-        <!-- Backdrop to close overview on click -->
-        <div
-          class="absolute inset-0 -z-10 bg-black/30 backdrop-blur-sm transition-all duration-300"
-          @click="windowManager.showWindowOverview = false"
-        />
-
-        <!-- Window Overview Grid -->
-        <div class="flex-1 flex items-start justify-center px-4 py-16 overflow-auto">
-          <div
-            v-if="currentWorkspaceWindows.length > 0"
-            class="flex flex-row flex-wrap gap-6 justify-center items-center content-center"
-          >
-            <div
-              v-for="window in currentWorkspaceWindows"
-              :key="window.id"
-              class="relative group cursor-pointer"
-              @click="handleOverviewWindowClick(window.id)"
-              @mousedown="handleOverviewMouseDown($event, window.id)"
-            >
-              <!-- Window Preview Card -->
-              <div
-                class="relative bg-gray-800/80 rounded-xl overflow-hidden border-2 border-gray-600 group-hover:border-primary-500 transition-all shadow-2xl flex flex-col items-center justify-center gap-3 p-4"
-                :class="{
-                  'opacity-50': windowManager.draggingWindowId === window.id,
-                }"
-                :style="getCarouselWindowStyle(window)"
-              >
-                <!-- Window Icon -->
-                <HaexIcon
-                  :name="window.icon || 'i-lucide-app-window'"
-                  class="size-12 text-gray-300"
-                />
-
-                <!-- Window Title -->
-                <span class="font-medium text-sm text-gray-200 truncate max-w-full text-center">{{ window.type === 'system' ? windowManager.getLocalizedSystemWindowName(window.sourceId) : window.title }}</span>
-
-                <!-- Badges (top right corner) -->
-                <div class="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                  <!-- Native WebView Badge -->
-                  <UBadge
-                    v-if="window.isNativeWebview"
-                    color="neutral"
-                  >
-                    Separates Fenster
-                  </UBadge>
-
-                  <!-- Minimized Badge -->
-                  <UBadge
-                    v-if="window.isMinimized"
-                    color="info"
-                  >
-                    Minimiert
-                  </UBadge>
-                </div>
-
-                <!-- Hover Overlay -->
-                <div class="absolute inset-0 bg-primary-500/0 group-hover:bg-primary-500/10 transition-colors" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Empty State -->
-          <div
-            v-else
-            class="flex flex-col items-center justify-center text-white/70"
-          >
-            <UIcon
-              name="i-heroicons-window"
-              class="size-16 mb-4"
-            />
-            <p class="text-lg font-medium">Keine Fenster geöffnet</p>
-            <p class="text-sm opacity-70">
-              Öffne eine Erweiterung, um sie hier zu sehen
-            </p>
-          </div>
-        </div>
-
-        <!-- Drag ghost (follows mouse while dragging) -->
-        <div
-          v-if="windowManager.draggingWindowId && draggedWindowInfo"
-          class="fixed z-10000 pointer-events-none"
-          :style="{
-            left: `${dragGhostPosition.x}px`,
-            top: `${dragGhostPosition.y}px`,
-            transform: 'translate(-50%, -50%)',
-          }"
-        >
-          <div class="bg-elevated/90 backdrop-blur-sm rounded-lg shadow-2xl border border-primary-500 px-4 py-3 flex items-center gap-3">
-            <UIcon
-              v-if="draggedWindowInfo.icon"
-              :name="draggedWindowInfo.icon"
-              class="size-6 shrink-0"
-            />
-            <span class="font-medium text-sm">{{ draggedWindowInfo.title }}</span>
-          </div>
-        </div>
-      </div>
-    </Transition>
+    <HaexDesktopOverviewCarousel
+      :current-workspace-windows="currentWorkspaceWindows"
+      :dragged-window-info="draggedWindowInfo"
+      :drag-ghost-position="dragGhostPosition"
+      @window-click="handleOverviewWindowClick"
+      @window-mousedown="handleOverviewMouseDown"
+    />
 
     <!-- Extension Remove Dialog -->
-    <HaexExtensionDialogRemove
-      v-model:open="showRemoveDialog"
-      :extension="extensionToRemove"
-      @confirm="handleRemoveExtension"
-    />
+    <HaexDesktopExtensionUninstallHost ref="uninstallHostRef" />
   </div>
 </template>
 
@@ -294,7 +65,6 @@ import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Navigation } from 'swiper/modules'
 import { invoke } from '@tauri-apps/api/core'
 import type { Swiper as SwiperType } from 'swiper'
-import type { IHaexSpaceExtension } from '~/types/haexspace'
 import 'swiper/css'
 import 'swiper/css/navigation'
 
@@ -302,17 +72,13 @@ const SwiperNavigation = Navigation
 
 const route = useRoute()
 const desktopStore = useDesktopStore()
-const extensionsStore = useExtensionsStore()
 const windowManager = useWindowManagerStore()
 const workspaceStore = useWorkspaceStore()
 const vaultSettingsStore = useVaultSettingsStore()
-const uiStore = useUiStore()
 
 // Check if this is a remote sync vault (initial connection)
 const isRemoteSyncVault = computed(() => route.query.remoteSync === 'true')
 const { desktopItems } = storeToRefs(desktopStore)
-const { availableExtensions } = storeToRefs(extensionsStore)
-const { isSmallScreen } = storeToRefs(uiStore)
 const {
   currentWorkspace,
   currentWorkspaceIndex,
@@ -321,35 +87,14 @@ const {
   allowSwipe,
   isOverviewMode,
 } = storeToRefs(workspaceStore)
-const { getWorkspaceBackgroundStyle, getWorkspaceContextMenuItems } =
-  workspaceStore
 
 const desktopEl = useTemplateRef('desktopEl')
 
-// Extension uninstall dialog state
-const showRemoveDialog = ref(false)
-const extensionToRemove = ref<IHaexSpaceExtension | undefined>(undefined)
+// Extension uninstall dialog state (delegated to child)
+const uninstallHostRef = useTemplateRef<{ requestUninstall: (id: string) => void }>('uninstallHostRef')
 
 const handleRequestUninstall = (extensionId: string) => {
-  const extension = extensionsStore.availableExtensions.find(
-    (ext) => ext.id === extensionId,
-  )
-
-  if (extension) {
-    extensionToRemove.value = extension
-    showRemoveDialog.value = true
-  }
-}
-
-const handleRemoveExtension = async (deleteMode: 'device' | 'complete') => {
-  if (!extensionToRemove.value) return
-
-  try {
-    // Uninstall extension (handles dev/regular, removes desktop items, reloads list)
-    await extensionsStore.uninstallExtensionAsync(extensionToRemove.value.id, deleteMode)
-  } catch (error) {
-    console.error('Failed to remove extension:', error)
-  }
+  uninstallHostRef.value?.requestUninstall(extensionId)
 }
 
 // Track desktop viewport size reactively
@@ -437,11 +182,6 @@ const showRightSnapZone = computed(() => {
   return mouseX.value >= viewportWidth - snapEdgeThreshold
 })
 
-// Get icons for a specific workspace (uses cached computed from store)
-const getWorkspaceIcons = (workspaceId: string) => {
-  return desktopStore.getWorkspaceIcons(workspaceId)
-}
-
 // Get windows for a specific workspace (including minimized for teleport)
 // Native webviews are included only during overview mode
 const getWorkspaceWindows = (workspaceId: string) => {
@@ -460,12 +200,6 @@ const currentWorkspaceWindows = computed(() => {
     (w) => w.workspaceId === currentWorkspace.value?.id || w.isNativeWebview,
   )
 })
-
-// Get Vue Component for system window
-const getSystemWindowComponent = (sourceId: string) => {
-  const systemWindow = windowManager.getSystemWindow(sourceId)
-  return systemWindow?.component
-}
 
 const handlePositionChanged = async (id: string, x: number, y: number) => {
   try {
@@ -810,18 +544,6 @@ const handleOverviewWindowClick = (windowId: string) => {
   }
 
   windowManager.showWindowOverview = false
-}
-
-// Calculate window preview size for carousel
-const getCarouselWindowStyle = (_window: (typeof windowManager.windows)[0]) => {
-  // Fixed card sizes for consistent appearance
-  const width = isSmallScreen.value ? 200 : 240
-  const height = isSmallScreen.value ? 160 : 180
-
-  return {
-    width: `${width}px`,
-    height: `${height}px`,
-  }
 }
 
 // Watch for workspace changes to reload desktop items

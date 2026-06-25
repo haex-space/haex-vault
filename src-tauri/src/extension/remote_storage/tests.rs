@@ -5,7 +5,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::extension::permissions::types::{FileSyncAction, FileSyncTarget};
+    use crate::extension::permissions::types::RwAction;
     use crate::remote_storage::types::{
         AddStorageBackendRequest, S3Config, S3PublicConfig, StorageBackendInfo,
         StorageDeleteRequest, StorageDownloadRequest, StorageListRequest, StorageObjectInfo,
@@ -284,59 +284,16 @@ mod tests {
     }
 
     // ============================================================================
-    // FileSyncTarget Tests
+    // RwAction Tests (cloudStorage permission action)
     // ============================================================================
 
     #[test]
-    fn test_filesync_target_variants() {
-        assert_eq!(FileSyncTarget::All.as_str(), "*");
-        assert_eq!(FileSyncTarget::Spaces.as_str(), "spaces");
-        assert_eq!(FileSyncTarget::Backends.as_str(), "backends");
-        assert_eq!(FileSyncTarget::Rules.as_str(), "rules");
-    }
+    fn test_rw_action_read_permissions() {
+        assert!(RwAction::Read.allows_read());
+        assert!(!RwAction::Read.allows_write());
 
-    #[test]
-    fn test_filesync_target_from_str() {
-        assert_eq!(FileSyncTarget::from_str("*"), Some(FileSyncTarget::All));
-        assert_eq!(
-            FileSyncTarget::from_str("spaces"),
-            Some(FileSyncTarget::Spaces)
-        );
-        assert_eq!(
-            FileSyncTarget::from_str("backends"),
-            Some(FileSyncTarget::Backends)
-        );
-        assert_eq!(
-            FileSyncTarget::from_str("rules"),
-            Some(FileSyncTarget::Rules)
-        );
-        assert_eq!(FileSyncTarget::from_str("invalid"), None);
-    }
-
-    #[test]
-    fn test_filesync_target_matches() {
-        // All (*) matches everything
-        assert!(FileSyncTarget::All.matches(FileSyncTarget::Spaces));
-        assert!(FileSyncTarget::All.matches(FileSyncTarget::Backends));
-        assert!(FileSyncTarget::All.matches(FileSyncTarget::Rules));
-
-        // Specific targets only match themselves
-        assert!(FileSyncTarget::Backends.matches(FileSyncTarget::Backends));
-        assert!(!FileSyncTarget::Backends.matches(FileSyncTarget::Spaces));
-        assert!(!FileSyncTarget::Spaces.matches(FileSyncTarget::Rules));
-    }
-
-    // ============================================================================
-    // FileSyncAction Tests
-    // ============================================================================
-
-    #[test]
-    fn test_filesync_action_read_permissions() {
-        assert!(FileSyncAction::Read.allows_read());
-        assert!(!FileSyncAction::Read.allows_write());
-
-        assert!(FileSyncAction::ReadWrite.allows_read());
-        assert!(FileSyncAction::ReadWrite.allows_write());
+        assert!(RwAction::ReadWrite.allows_read());
+        assert!(RwAction::ReadWrite.allows_write());
     }
 
     // ============================================================================

@@ -162,8 +162,8 @@ use serde::{Deserialize, Serialize};
     { name: tablesNames.haex.vault_settings.name, table: schema.haexVaultSettings },
     { name: tablesNames.haex.extensions.name, table: schema.haexExtensions },
     {
-      name: tablesNames.haex.extension_permissions.name,
-      table: schema.haexExtensionPermissions,
+      name: tablesNames.haex.principal_permissions.name,
+      table: schema.haexPrincipalPermissions,
     },
     { name: tablesNames.haex.crdt.configs.name, table: schema.haexCrdtConfigs },
     {
@@ -229,6 +229,10 @@ use serde::{Deserialize, Serialize};
     {
       name: tablesNames.haex.passwords_passkeys.name,
       table: schema.haexPasswordsPasskeys,
+    },
+    {
+      name: tablesNames.haex.principals.name,
+      table: schema.haexPrincipals,
     },
   ]
 

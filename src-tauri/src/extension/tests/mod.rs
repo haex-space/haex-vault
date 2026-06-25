@@ -12,6 +12,10 @@
 #[cfg(test)]
 mod command_validation_tests;
 #[cfg(test)]
+mod permission_conversion_tests;
+#[cfg(test)]
 mod request_types_tests;
 #[cfg(test)]
 mod security_tests;
+#[cfg(test)]
+mod sync_tables_tests;

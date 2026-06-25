@@ -22,14 +22,13 @@ pub const CORE_EXTENSION_ID: &str = "__core__";
 pub const CORE_EXTENSION_NAME: &str = "core";
 
 use crate::database::core::{execute_with_crdt, select_with_crdt};
-use crate::event_names::EVENT_CRDT_DIRTY_TABLES_CHANGED;
 use crate::AppState;
 use authorization::{
     parse_authorized_client, parse_blocked_client, SQL_DELETE_BLOCKED_CLIENT, SQL_DELETE_CLIENT,
     SQL_GET_ALL_BLOCKED_CLIENTS, SQL_GET_ALL_CLIENTS, SQL_INSERT_BLOCKED_CLIENT, SQL_INSERT_CLIENT,
 };
 use serde_json::Value as JsonValue;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 /// Start the external bridge server on a specific port
 #[tauri::command]
@@ -161,7 +160,7 @@ pub fn external_bridge_revoke_client(
         .map_err(|e| e.to_string())?;
 
     // Emit event to notify frontend
-    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    crate::crdt::notify_dirty_tables_changed(&app_handle);
 
     Ok(())
 }
@@ -265,7 +264,7 @@ pub async fn external_bridge_client_allow(
         }
 
         // Emit event to notify frontend
-        let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+        crate::crdt::notify_dirty_tables_changed(&app_handle);
     } else {
         // Store session-based authorization (for "allow once")
         // This persists for the lifetime of the haex-vault session
@@ -321,7 +320,7 @@ pub async fn external_bridge_client_block(
         }
 
         // Emit event to notify frontend
-        let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+        crate::crdt::notify_dirty_tables_changed(&app_handle);
     }
     // Without `remember`, we only reject this specific request. A session-wide
     // block would silently swallow every subsequent reconnect — bad UX when
@@ -374,7 +373,7 @@ pub fn external_bridge_unblock_client(
     .map_err(|e| e.to_string())?;
 
     // Emit event to notify frontend
-    let _ = app_handle.emit_to("main", EVENT_CRDT_DIRTY_TABLES_CHANGED, ());
+    crate::crdt::notify_dirty_tables_changed(&app_handle);
 
     Ok(())
 }

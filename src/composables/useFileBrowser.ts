@@ -141,6 +141,7 @@ export function useFileBrowser(tabId: string) {
   const {
     getS3TransferProgress,
     cancelFileTransferAsync,
+    togglePauseFileTransferAsync,
     startS3ChunkedDownload,
     startS3ChunkedUpload,
   } = useS3Transfers({ selectedPeer, currentPath, resolveFilePath })
@@ -528,6 +529,7 @@ export function useFileBrowser(tabId: string) {
     downloadSelectedAsync,
     getS3TransferProgress,
     cancelFileTransferAsync,
+    togglePauseFileTransferAsync,
     deleteFile,
     deleteSelectedAsync,
     canDeleteFile,

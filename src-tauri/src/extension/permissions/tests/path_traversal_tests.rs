@@ -432,3 +432,50 @@ fn test_unicode_lookalike_characters() {
     // This passes because ．． is not ".." - it's unicode fullwidth dots
     // The path is literally /home/user/．．/etc/passwd which is a valid subdirectory name
 }
+
+// ============================================================================
+// Component-Aware Traversal Detection
+// ============================================================================
+
+/// A leaf filename that contains ".." inside the segment (e.g. `report..txt`)
+/// is benign — the segment is "report..txt", not "..", so traversal detection
+/// must not flag it. Regression test for substring-based detection in the
+/// extension-wildcard branch where `original_had_traversal` was gated on
+/// `decoded_path.contains("..")`.
+#[test]
+fn filename_with_double_dot_is_not_traversal() {
+    // Directory wildcard branch — leaf segment "report..txt" must match.
+    assert!(PermissionManager::matches_path_pattern(
+        "/home/user/docs/*",
+        "/home/user/docs/report..txt",
+    ));
+
+    // Extension wildcard branch — same leaf must match `*.txt`. This is the
+    // branch where substring-based traversal detection used to false-positive.
+    assert!(PermissionManager::matches_path_pattern(
+        "*.txt",
+        "/home/user/docs/report..txt",
+    ));
+
+    // Combined prefix+suffix wildcard.
+    assert!(PermissionManager::matches_path_pattern(
+        "/home/user/*.txt",
+        "/home/user/docs/report..txt",
+    ));
+}
+
+/// A real `..` path component must still be blocked even after the substring
+/// check is replaced with component-aware detection.
+#[test]
+fn real_traversal_still_blocked() {
+    assert!(!PermissionManager::matches_path_pattern(
+        "/home/user/docs/*",
+        "/home/user/docs/../etc/passwd",
+    ));
+
+    // Extension wildcard with a real `..` segment must still be rejected.
+    assert!(!PermissionManager::matches_path_pattern(
+        "*.txt",
+        "/home/user/docs/../etc/passwd.txt",
+    ));
+}

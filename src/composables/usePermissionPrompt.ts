@@ -5,7 +5,7 @@ import { createOnceListener } from '@/lib/once-listener'
 export interface PermissionPromptData {
   extensionId: string
   extensionName: string
-  resourceType: 'db' | 'web' | 'fs' | 'shell' | 'filesync' | 'spaces' | 'passwords'
+  resourceType: 'db' | 'web' | 'fs' | 'shell' | 'syncServers' | 'cloudStorage' | 'syncRules' | 'spaces' | 'passwords'
   action: string
   target: string
 }

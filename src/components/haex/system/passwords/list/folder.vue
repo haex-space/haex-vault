@@ -119,40 +119,30 @@ const folderIconName = computed(
   () => props.group.icon || 'i-lucide-folder',
 )
 
-const iconBackgroundStyle = computed(() =>
-  props.group.color ? { backgroundColor: props.group.color } : undefined,
-)
+const { backgroundStyle: iconBackgroundStyle, glyphStyle: iconGlyphStyle }
+  = usePasswordsGroupStyles(() => props.group)
 
-const iconGlyphStyle = computed(() => {
-  if (!props.group.color) return { color: 'rgb(var(--ui-primary))' }
-  const hex = props.group.color.replace('#', '')
-  if (hex.length !== 6) return undefined
-  const r = parseInt(hex.slice(0, 2), 16)
-  const g = parseInt(hex.slice(2, 4), 16)
-  const b = parseInt(hex.slice(4, 6), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return { color: luminance > 0.6 ? '#111827' : '#ffffff' }
-})
+const {
+  rowRef,
+  isSelectionMode,
+  isMultiSelected,
+  isCut,
+  shouldSuppressClick,
+  isDragging,
+  isDropTarget,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDropAsync,
+} = usePasswordsGroupRow(() => props.group)
 
 const selection = usePasswordsSelectionStore()
-const { isSelectionMode } = storeToRefs(selection)
-
-const isMultiSelected = computed(() => selection.isSelected(props.group.id))
-const isCut = computed(() => selection.isCut(props.group.id))
 
 const orderedIds = inject<Ref<string[]>>(
   'passwordsList:orderedIds',
   ref<string[]>([]),
 )
-
-const rowRef = useTemplateRef<HTMLElement>('rowRef')
-const { shouldSuppressClick } = useLongPressSelection(rowRef, () => {
-  if (!isSelectionMode.value) {
-    selection.enterSelectionWith(props.group.id)
-  } else {
-    selection.toggle(props.group.id)
-  }
-})
 
 const onRowClick = (event: MouseEvent) => {
   if (shouldSuppressClick()) return
@@ -227,52 +217,6 @@ const menuItems = computed<ContextMenuItem[][]>(() => {
   ]
 })
 
-const isDragging = ref(false)
-const isDropTarget = ref(false)
-
-const onDragStart = (event: DragEvent) => {
-  if (!event.dataTransfer) return
-  event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData('application/x-haex-group', props.group.id)
-  isDragging.value = true
-}
-
-const onDragEnd = () => {
-  isDragging.value = false
-}
-
-const onDragOver = (event: DragEvent) => {
-  if (!event.dataTransfer) return
-  const types = event.dataTransfer.types
-  if (
-    !types.includes('application/x-haex-item') &&
-    !types.includes('application/x-haex-group')
-  )
-    return
-  event.dataTransfer.dropEffect = 'move'
-  isDropTarget.value = true
-}
-
-const onDragLeave = () => {
-  isDropTarget.value = false
-}
-
-const onDropAsync = async (event: DragEvent) => {
-  isDropTarget.value = false
-  if (!event.dataTransfer) return
-
-  const itemId = event.dataTransfer.getData('application/x-haex-item')
-  if (itemId) {
-    await groupsStore.setItemGroupAsync(itemId, props.group.id)
-    return
-  }
-
-  const draggedGroupId = event.dataTransfer.getData('application/x-haex-group')
-  if (!draggedGroupId || draggedGroupId === props.group.id) return
-  if (groupsStore.descendantIdSet(draggedGroupId).has(props.group.id)) return
-
-  await groupsStore.moveGroupAsync(draggedGroupId, props.group.id)
-}
 </script>
 
 <i18n lang="yaml">

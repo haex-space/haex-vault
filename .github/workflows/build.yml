@@ -202,7 +202,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # When invoked as a reusable workflow from release-please.yml,
           # inputs.ref points at the release tag we want to build. For
@@ -253,7 +253,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
 
@@ -296,7 +296,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout E2E tests
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: haex-space/haex-e2e-tests
           ref: ${{ needs.check-skip.outputs.e2e_tests_ref }}
@@ -411,7 +411,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
 
@@ -584,7 +584,7 @@ jobs:
           df -h
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
 
@@ -749,63 +749,93 @@ jobs:
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
 
-      # Upload signed release APK for E2E tests
+      # Prepare APK for E2E tests. On dependabot-triggered runs GitHub withholds
+      # repository secrets, so ANDROID_KEYSTORE is empty and tauri emits an
+      # unsigned APK that the emulator refuses to install
+      # (INSTALL_FAILED_INVALID_APK: Failed to extract native libraries).
+      # We detect signature state with apksigner and, if needed, debug-sign so
+      # E2E can install the APK. Production builds (push to develop/main,
+      # human-triggered PRs) keep the original production-signed APK.
       - name: Find and upload Android APK for E2E tests
         run: |
+          set -euo pipefail
           echo "Looking for release APK files for E2E tests..."
 
-          # Find signed release APK (universal preferred)
+          # Prefer the canonical universal-release path, fall back to any
+          # release APK including *-unsigned.apk (dependabot case).
           APK_PATH=""
-          if [ -f "src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk" ]; then
-            APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk"
-          else
-            # Find any release APK as fallback (prefer signed over unsigned)
+          for candidate in \
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk; do
+            if [ -f "$candidate" ]; then APK_PATH="$candidate"; break; fi
+          done
+          if [ -z "$APK_PATH" ]; then
             APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" -not -name "*unsigned*" -type f 2>/dev/null | head -1)
-            if [ -z "$APK_PATH" ]; then
-              APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" -type f 2>/dev/null | head -1)
-            fi
+          fi
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH=$(find src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" -type f 2>/dev/null | head -1)
           fi
 
-          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
-            # Check if APK is unsigned (no keystore was configured)
-            if [[ "$APK_PATH" == *"unsigned"* ]]; then
-              echo "APK is unsigned, signing with debug key for E2E tests..."
-              # Generate a temporary debug keystore
-              keytool -genkey -v \
-                -keystore /tmp/debug.keystore \
-                -storepass android \
-                -alias androiddebugkey \
-                -keypass android \
-                -keyalg RSA -keysize 2048 -validity 10000 \
-                -dname "CN=Android Debug,O=Android,C=US" \
-                -noprompt
-
-              SIGNED_APK="${APK_PATH/unsigned/debug-signed}"
-              cp "$APK_PATH" "$SIGNED_APK"
-
-              # Sign with debug key
-              jarsigner -verbose \
-                -sigalg SHA256withRSA -digestalg SHA-256 \
-                -keystore /tmp/debug.keystore \
-                -storepass android -keypass android \
-                "$SIGNED_APK" androiddebugkey
-
-              # Zipalign (find build-tools path dynamically)
-              ALIGNED_APK="/tmp/app-e2e.apk"
-              ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | head -1)
-              "$ZIPALIGN" -v 4 "$SIGNED_APK" "$ALIGNED_APK"
-              APK_PATH="$ALIGNED_APK"
-              echo "Debug-signed APK ready: $APK_PATH"
-            fi
-
-            echo "Using APK for E2E: $APK_PATH"
-            mkdir -p e2e-apk
-            cp "$APK_PATH" e2e-apk/
-            echo "APK_FOUND=true" >> $GITHUB_ENV
-          else
+          if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
             echo "WARNING: No release APK found for E2E tests"
-            echo "APK_FOUND=false" >> $GITHUB_ENV
+            echo "APK_FOUND=false" >> "$GITHUB_ENV"
+            exit 0
           fi
+          echo "Candidate APK: $APK_PATH"
+
+          # Locate latest build-tools (apksigner, zipalign).
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f 2>/dev/null | sort -V | tail -1)
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign -type f 2>/dev/null | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ] || [ -z "$ZIPALIGN" ]; then
+            echo "ERROR: apksigner ($APKSIGNER) or zipalign ($ZIPALIGN) not found in $ANDROID_HOME/build-tools"
+            exit 1
+          fi
+
+          # If apksigner verifies the APK, ship it as-is (production signing
+          # was applied). Otherwise debug-sign so E2E can install it.
+          if "$APKSIGNER" verify "$APK_PATH" >/dev/null 2>&1; then
+            echo "APK is properly signed (production keystore was configured)."
+            FINAL_APK="$APK_PATH"
+          else
+            echo "APK is unsigned (dependabot PR or no keystore configured) - debug-signing for E2E..."
+
+            # Fresh debug keystore valid for the duration of this job.
+            keytool -genkey -v \
+              -keystore /tmp/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -noprompt
+
+            # zipalign BEFORE apksigner (page-aligned uncompressed native libs
+            # are what Android 11+ needs to install without
+            # INSTALL_FAILED_INVALID_APK).
+            ALIGNED_APK="/tmp/app-aligned.apk"
+            "$ZIPALIGN" -p -f -v 4 "$APK_PATH" "$ALIGNED_APK"
+
+            # Sign with v1+v2+v3 schemes; v1-only (jarsigner) is rejected on
+            # modern Android.
+            FINAL_APK="/tmp/app-e2e.apk"
+            "$APKSIGNER" sign \
+              --ks /tmp/debug.keystore \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              --out "$FINAL_APK" \
+              "$ALIGNED_APK"
+
+            "$APKSIGNER" verify --verbose "$FINAL_APK"
+            echo "Debug-signed APK ready: $FINAL_APK"
+          fi
+
+          mkdir -p e2e-apk
+          cp "$FINAL_APK" e2e-apk/app-e2e.apk
+          echo "Using APK for E2E: e2e-apk/app-e2e.apk"
+          echo "APK_FOUND=true" >> "$GITHUB_ENV"
 
       - name: Upload Android APK for E2E tests
         if: env.APK_FOUND == 'true'

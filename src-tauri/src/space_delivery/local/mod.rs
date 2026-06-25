@@ -2,12 +2,14 @@ pub mod auth_gate;
 pub mod buffer;
 pub mod commands;
 pub mod discovery;
+pub mod dos_defence;
 pub mod election;
 pub mod error;
 pub mod inbound_sync;
 pub mod invite_tokens;
 pub mod leader;
 pub mod multi_leader;
+pub mod owner_serve;
 pub mod peer;
 pub mod protocol;
 pub mod push_cursor;
@@ -19,6 +21,8 @@ pub mod ucan;
 
 #[cfg(test)]
 mod inbound_sync_tests;
+#[cfg(test)]
+mod owner_sync_integration_tests;
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]

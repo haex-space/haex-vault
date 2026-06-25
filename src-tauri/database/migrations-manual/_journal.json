@@ -1,0 +1,12 @@
+{
+  "version": "1",
+  "entries": [
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1781600000000,
+      "tag": "manual_0001_space_replication_triggers",
+      "breakpoints": true
+    }
+  ]
+}

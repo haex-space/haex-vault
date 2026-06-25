@@ -120,15 +120,6 @@ impl PermissionChecker {
 
         let file_path_str = file_path.to_string_lossy();
 
-        let matching = self.permissions.iter().find(|perm| {
-            perm.resource_type == ResourceType::Fs
-                && matches_fs_action_for_read(&perm.action)
-                && super::manager::PermissionManager::matches_path_pattern(
-                    &perm.target,
-                    &file_path_str,
-                )
-        });
-
         let passes_constraints = |perm: &ExtensionPermission| -> bool {
             let Some(PermissionConstraints::Filesystem(constraints)) = &perm.constraints else {
                 return true;
@@ -145,13 +136,36 @@ impl PermissionChecker {
             }
         };
 
-        match matching {
-            Some(perm) if !passes_constraints(perm) => false,
-            Some(perm) => match perm.status {
-                PermissionStatus::Granted => true,
-                PermissionStatus::Denied => false,
-                PermissionStatus::Ask => session_granted,
-            },
+        // Resolve matching FS-read permissions with **deny-first precedence**
+        // so an explicit `Denied` row can never be hidden behind a `Granted`
+        // row regardless of insertion order. Constraint-violating rows are
+        // treated as `Denied` within the matching set, preserving the
+        // pre-refactor "constraint failure = deny" semantics. See
+        // `super::manager::check::deny_first_precedence` for the rules.
+        let resolved = super::manager::check::deny_first_precedence(
+            self.permissions
+                .iter()
+                .filter(|perm| {
+                    perm.resource_type == ResourceType::Fs
+                        && matches_fs_action_for_read(&perm.action)
+                        && super::manager::PermissionManager::matches_path_pattern(
+                            &perm.target,
+                            &file_path_str,
+                        )
+                })
+                .map(|perm| {
+                    if passes_constraints(perm) {
+                        perm.status
+                    } else {
+                        PermissionStatus::Denied
+                    }
+                }),
+        );
+
+        match resolved {
+            Some(PermissionStatus::Granted) => true,
+            Some(PermissionStatus::Denied) => false,
+            Some(PermissionStatus::Ask) => session_granted,
             None => session_granted,
         }
     }

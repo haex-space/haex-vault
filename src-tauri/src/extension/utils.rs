@@ -43,6 +43,23 @@ pub struct PermissionPromptPayload {
     pub target: String,
 }
 
+/// Ensures a command is being invoked from the trusted main window.
+///
+/// SECURITY: Owner-only commands (granting/resolving permission prompts,
+/// configuring extension limits, managing session permissions) must never be
+/// reachable from an extension webview. The Tauri capability allowlist
+/// (`permissions/extension-commands.toml`) is the primary gate; this check is
+/// defense-in-depth so an accidental allowlist regression cannot let an
+/// extension call these commands and, e.g., grant itself permissions.
+pub fn require_main_window(window: &WebviewWindow) -> Result<(), ExtensionError> {
+    if window.label() != "main" {
+        return Err(ExtensionError::ValidationError {
+            reason: "This command may only be invoked from the main window".to_string(),
+        });
+    }
+    Ok(())
+}
+
 /// Emits a permission prompt event if the error is PermissionPromptRequired
 pub fn emit_permission_prompt_if_needed(app_handle: &AppHandle, error: &ExtensionError) {
     if let ExtensionError::PermissionPromptRequired {
@@ -65,6 +82,28 @@ pub fn emit_permission_prompt_if_needed(app_handle: &AppHandle, error: &Extensio
         // permission-prompt requests.
         let _ = app_handle.emit_to("main", EVENT_PERMISSION_PROMPT_REQUIRED, &payload);
     }
+}
+
+/// Propagates the result of an extension permission check, first emitting a
+/// permission-prompt event when the error warrants one.
+///
+/// Every extension command repeats the same `check → emit-if-prompt →
+/// propagate` triad after calling a `PermissionManager::check_*` function.
+/// Routing the result through this helper keeps that behaviour in one place,
+/// so the prompt emit can never be accidentally omitted:
+///
+/// ```ignore
+/// let permission_result = PermissionManager::check_filesystem_permission(..).await;
+/// prompt_on_err(&app_handle, permission_result)?;
+/// ```
+pub fn prompt_on_err<T>(
+    app_handle: &AppHandle,
+    result: Result<T, ExtensionError>,
+) -> Result<T, ExtensionError> {
+    if let Err(ref e) = result {
+        emit_permission_prompt_if_needed(app_handle, e);
+    }
+    result
 }
 
 // ============================================================================

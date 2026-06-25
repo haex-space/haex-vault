@@ -15,9 +15,13 @@ export async function handleLoggingMethodAsync(
 
   switch (method) {
     case 'extension_logging_write': {
+      // Identity is resolved server-side from publicKey/name (iframe) or the
+      // window (WebView) — see extension_logging_write in Rust. We no longer
+      // pass a raw extensionId, which could be spoofed.
       await invoke('extension_logging_write', {
         level: params.level as string,
-        extensionId: extension.id,
+        publicKey: extension.publicKey,
+        name: extension.name,
         message: params.message as string,
         metadata: params.metadata ?? null,
         deviceId: deviceStore.deviceId ?? 'unknown',
@@ -27,7 +31,8 @@ export async function handleLoggingMethodAsync(
 
     case 'extension_logging_read': {
       return await invoke('extension_logging_read', {
-        extensionId: extension.id,
+        publicKey: extension.publicKey,
+        name: extension.name,
         query: {
           level: (params.level as string) ?? null,
           limit: (params.limit as number) ?? null,

@@ -38,7 +38,9 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
                 filesystem: None,
                 http: None,
                 shell: None,
-                filesync: None,
+                sync_servers: None,
+                cloud_storage: None,
+                sync_rules: None,
                 spaces: None,
                 identities: None,
                 passwords: None,
@@ -103,12 +105,14 @@ mod manifest_tests {
                     constraints: None,
                     status: None,
                 }]),
-                filesync: Some(vec![PermissionEntry {
+                sync_servers: None,
+                cloud_storage: Some(vec![PermissionEntry {
                     target: "*".to_string(),
                     operation: Some("read_write".to_string()),
                     constraints: None,
                     status: None,
                 }]),
+                sync_rules: None,
                 spaces: None,
                 identities: None,
                 passwords: None,
@@ -144,7 +148,9 @@ mod manifest_tests {
                 filesystem: None,
                 http: None,
                 shell: None,
-                filesync: None,
+                sync_servers: None,
+                cloud_storage: None,
+                sync_rules: None,
                 spaces: None,
                 identities: None,
                 passwords: None,
@@ -330,14 +336,14 @@ mod permission_types_tests {
         let fs_type = ResourceType::Fs;
         let web_type = ResourceType::Web;
         let shell_type = ResourceType::Shell;
-        let filesync_type = ResourceType::Filesync;
+        let cloud_storage_type = ResourceType::CloudStorage;
 
         // Verify they're different
         assert!(!matches!(db_type, ResourceType::Fs));
         assert!(!matches!(fs_type, ResourceType::Web));
         assert!(matches!(web_type, ResourceType::Web));
         assert!(matches!(shell_type, ResourceType::Shell));
-        assert!(matches!(filesync_type, ResourceType::Filesync));
+        assert!(matches!(cloud_storage_type, ResourceType::CloudStorage));
     }
 
     #[test]
@@ -365,16 +371,17 @@ mod permission_types_tests {
     fn test_extension_permission_creation() {
         let permission = ExtensionPermission {
             id: "perm_123".to_string(),
-            extension_id: "ext_456".to_string(),
+            principal_id: "ext_456".to_string(),
             resource_type: ResourceType::Db,
             action: Action::Database(DbAction::Read),
             target: "other__ext__*".to_string(),
             constraints: None,
             status: PermissionStatus::Granted,
+            raw_constraints: None,
         };
 
         assert_eq!(permission.id, "perm_123");
-        assert_eq!(permission.extension_id, "ext_456");
+        assert_eq!(permission.principal_id, "ext_456");
         assert!(matches!(permission.resource_type, ResourceType::Db));
         assert!(matches!(permission.status, PermissionStatus::Granted));
     }

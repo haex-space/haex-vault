@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX `haex_space_devices_space_endpoint_unique` ON `haex_space_devices` (`space_id`,`endpoint_id`);

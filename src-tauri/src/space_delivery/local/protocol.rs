@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::database::core::MAX_CRDT_TRANSACTION_BYTES;
 use crate::ucan::CapabilityLevel;
 
 /// ALPN protocol identifier for space delivery.
@@ -18,11 +19,37 @@ use crate::ucan::CapabilityLevel;
 /// the binary-compat boundary in bisect to this single commit.
 pub const ALPN: &[u8] = b"haex-delivery/2";
 
-/// Maximum request size (10 MB — CRDT changes can be large)
-const MAX_REQUEST_SIZE: usize = 10 * 1024 * 1024;
+/// Maximum size of a single QUIC wire frame (request or response).
+///
+/// A paginated `SyncPull` page packs whole transaction-HLC groups up to
+/// [`crate::crdt::scanner::PULL_PAGE_BUDGET`] (== [`MAX_CRDT_TRANSACTION_BYTES`],
+/// 100 MB — ADR 0001). The ≥1 rule in `paginate_changes` means a single page can
+/// be a lone at-cap transaction, so the frame must hold ~100 MB of change
+/// payload PLUS the JSON envelope per change (field keys `tableName`/`rowPks`/
+/// `columnName`/`hlcTimestamp`/`value`/`deviceId`, quotes, commas, brackets) and
+/// the `Response::SyncChanges` wrapper.
+///
+/// The dominant payload is a BLOB column, which `convert_value_ref_to_json`
+/// encodes as a base64 String (alphabet `A-Za-z0-9+/=` needs no JSON escaping,
+/// so 1 byte in → 1 byte out). The 100 MB cap is already measured on the
+/// JSON-serialized SQL params at write time (`execute_with_crdt`), which
+/// includes that base64 string — so the wire change for the same transaction is
+/// essentially the same base64 plus the modest per-change envelope. A 2× factor
+/// (200 MB) leaves ample headroom for the envelope and for a page of many small
+/// changes summing near the budget; it does not need to be 3×.
+const WIRE_FRAME_MAX: usize = MAX_CRDT_TRANSACTION_BYTES * 2;
 
-/// Maximum response size (10 MB)
-const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
+/// Maximum request size — see [`WIRE_FRAME_MAX`].
+const MAX_REQUEST_SIZE: usize = WIRE_FRAME_MAX;
+
+/// Maximum response size — see [`WIRE_FRAME_MAX`].
+///
+/// `read_response` rejects any frame larger than this with
+/// `PeerProtocolError::MessageTooLarge`. The owner column-dump path
+/// (`owner_serve::handle_owner_pull_columns`) reads this bound to guard its
+/// single-frame dump and degrade gracefully to a clear `Response::Error`
+/// instead of emitting an oversized frame the wire would reject cryptically.
+pub(crate) const MAX_RESPONSE_SIZE: usize = WIRE_FRAME_MAX;
 
 // ============================================================================
 // Request types
@@ -117,6 +144,19 @@ pub enum Request {
         /// UCAN token — deprecated wire field (see `RequestRejoin::ucan_token`).
         #[serde(default)]
         ucan_token: Option<String>,
+    },
+    /// Owner-mesh ONLY: recover values for columns this device skipped during a
+    /// schema-skew apply (haex_crdt_pending_columns). The serving owner returns
+    /// ALL rows' values+HLC for each (table_name, column_name), unscoped by space.
+    /// MUST route through the same owner gate as SyncPull (full-vault exposure);
+    /// a foreign peer that reaches the space path gets no handler. Serving +
+    /// recovery logic land in later tasks.
+    SyncPullColumns {
+        space_id: String,               // = vault_space_id; the owner gate matches this
+        columns: Vec<(String, String)>, // (table_name, column_name) pairs
+        after_row_pks: Option<String>,  // pagination cursor; None = from start
+        #[serde(default)]
+        ucan_token: Option<String>, // owner sessions send None (wire-shape parity)
     },
 
     // -- Identity --
@@ -218,6 +258,7 @@ impl Request {
             | Request::SubmitExternalCommit { space_id, .. }
             | Request::SyncPush { space_id, .. }
             | Request::SyncPull { space_id, .. }
+            | Request::SyncPullColumns { space_id, .. }
             | Request::ClaimInvite { space_id, .. }
             | Request::PushInvite { space_id, .. } => space_id,
         }
@@ -301,6 +342,7 @@ impl Request {
             | Request::MlsSendWelcome { .. }
             | Request::MlsAckCommit { .. }
             | Request::SyncPull { .. }
+            | Request::SyncPullColumns { .. }
             | Request::SyncPush { .. }
             | Request::RequestRejoin { .. }
             | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
@@ -340,6 +382,7 @@ impl Request {
             Request::SubmitExternalCommit { .. } => "SubmitExternalCommit",
             Request::SyncPush { .. } => "SyncPush",
             Request::SyncPull { .. } => "SyncPull",
+            Request::SyncPullColumns { .. } => "SyncPullColumns",
             Request::Announce { .. } => "Announce",
             Request::ClaimInvite { .. } => "ClaimInvite",
             Request::PushInvite { .. } => "PushInvite",
@@ -383,8 +426,16 @@ pub enum Response {
         /// How many more the leader wants the peer to upload (0 = sufficient)
         needed: u32,
     },
-    /// CRDT sync changes
-    SyncChanges { changes: serde_json::Value },
+    /// CRDT sync changes.
+    ///
+    /// `has_more` is `true` when the serve side paginated at a whole-HLC-group
+    /// boundary and more pages remain. The client resumes the next page with
+    /// `after_timestamp` = the MAX HLC of this page (HLC is unique per source
+    /// transaction, so the strictly-greater scan cursor never skips or dups).
+    SyncChanges {
+        changes: serde_json::Value,
+        has_more: bool,
+    },
     /// Invite claimed successfully — includes MLS welcome and delegated UCAN
     InviteClaimed {
         /// Base64-encoded MLS welcome message

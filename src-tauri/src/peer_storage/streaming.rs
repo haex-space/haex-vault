@@ -86,6 +86,20 @@ pub struct RecvStats {
     pub bytes: u64,
 }
 
+/// Control knobs for [`pipe_recv_to_writer_verified`]: per-chunk progress plus
+/// cancel/pause. Mirrors [`RecvOptions`] but `on_chunk` reports a per-chunk
+/// *delta* rather than a cumulative count — the verified pipe only ever sees
+/// one range of a (possibly multi-stream) file, so the caller owns the running
+/// total and maps the delta onto whatever progress surface it reports to.
+#[derive(Default)]
+pub struct VerifiedRecvControls {
+    /// Invoked once per verified-and-written chunk with that chunk's byte
+    /// count. `FnMut` so the caller can accumulate into a captured total.
+    pub on_chunk: Option<Box<dyn FnMut(u64) + Send>>,
+    pub cancel_token: Option<CancellationToken>,
+    pub pause_flag: Option<Arc<AtomicBool>>,
+}
+
 /// Options for the disk → network direction. Same shape as [`RecvOptions`]
 /// minus the receive-only fields (no pause for uploads — the API surface
 /// keeps mirroring the read path but pause is not wired through yet).
@@ -308,9 +322,8 @@ where
 ///
 /// `completed` is an `Arc<tokio::sync::Mutex<Vec<bool>>>` rather than a
 /// `&mut [bool]` so that concurrent multi-stream workers share one canonical
-/// bitmap. Each worker locks briefly to flip its bit and to take a snapshot
-/// for the sidecar write — the I/O happens with the lock released, so
-/// contention stays negligible.
+/// bitmap. Each worker holds the lock to flip its bit *and* write the sidecar,
+/// serialising the saves so a stale snapshot can't overwrite a fuller one.
 pub struct ChunkVerifier<'a> {
     /// Manifest BLAKE3 hashes for the chunks in this receive range
     /// (lowercase hex, in order).
@@ -321,8 +334,8 @@ pub struct ChunkVerifier<'a> {
     /// Index of the first chunk in this range, into the full-file bitmap.
     pub start_chunk_index: usize,
     /// Shared full-file completion bitmap. Multiple workers may point at the
-    /// same `Arc`; the verifier locks only to flip its bit + snapshot for
-    /// the sidecar save, so concurrent updates from sibling workers cannot
+    /// same `Arc`; the verifier holds the lock to flip its bit and persist the
+    /// sidecar together, so concurrent updates from sibling workers cannot
     /// overwrite each other.
     pub completed: Arc<tokio::sync::Mutex<Vec<bool>>>,
 }
@@ -353,6 +366,7 @@ pub async fn pipe_recv_to_writer_verified<R, W>(
     expected_size: u64,
     verifier: ChunkVerifier<'_>,
     sidecar_target: Option<(&Path, &str)>,
+    mut controls: VerifiedRecvControls,
 ) -> Result<u64, PeerStorageError>
 where
     R: AsyncRead + Unpin,
@@ -405,6 +419,30 @@ where
                 ),
             });
         }
+        // Honour cancel/pause at chunk boundaries (1 MiB granularity, same as
+        // the unverified pipe). Cancellation aborts with
+        // `PeerStorageError::Cancelled`, which the multi-stream retry pool
+        // treats as non-retryable so the whole download unwinds promptly.
+        if controls
+            .cancel_token
+            .as_ref()
+            .is_some_and(|t| t.is_cancelled())
+        {
+            return Err(PeerStorageError::Cancelled);
+        }
+        if let Some(flag) = controls.pause_flag.as_ref() {
+            while flag.load(Ordering::Relaxed) {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                if controls
+                    .cancel_token
+                    .as_ref()
+                    .is_some_and(|t| t.is_cancelled())
+                {
+                    return Err(PeerStorageError::Cancelled);
+                }
+            }
+        }
+
         let remaining_in_file = expected_size - bytes_received;
         let this_chunk_size = remaining_in_file.min(chunk_size) as usize;
 
@@ -449,25 +487,35 @@ where
             .await
             .map_err(PeerStorageError::Io)?;
 
-        // Flip the bit and snapshot the bitmap for sidecar persistence
-        // under the same lock — siblings cannot interleave between the flip
-        // and the snapshot, so the persisted state always reflects every
-        // bit any worker has flipped so far. The JSON write itself runs
-        // after the lock is dropped to keep contention to memcpy + memcmp.
-        let snapshot: Option<Vec<bool>> = {
+        // Flip the bit and persist the sidecar under the *same* lock. The
+        // earlier version dropped the lock after snapshotting and wrote the
+        // JSON outside it — `save()`'s atomic tmp+rename prevents a torn
+        // payload, but "last rename wins", so a worker that snapshotted
+        // earlier could rename its staler bitmap on top of a fuller one a
+        // sibling had just saved (lost update: a `true` bit silently reverting
+        // to `false`). Holding the lock across the write serialises the saves;
+        // because bits only ever flip false→true, the last save in lock order
+        // carries every bit any worker has set. Contention is negligible —
+        // receiving a 1 MiB chunk dwarfs the tiny sidecar write.
+        {
             let mut guard = verifier.completed.lock().await;
             guard[absolute_idx] = true;
-            sidecar.as_ref().map(|_| guard.clone())
-        };
+            if let Some((target, file_hash)) = sidecar.as_ref() {
+                let state = PartialState {
+                    file_hash: file_hash.clone(),
+                    chunk_size: verifier.chunk_size,
+                    completed: guard.clone(),
+                };
+                state.save(target).await.map_err(PeerStorageError::Io)?;
+            }
+        }
 
-        if let (Some((target, file_hash)), Some(completed_snapshot)) = (sidecar.as_ref(), snapshot)
-        {
-            let state = PartialState {
-                file_hash: file_hash.clone(),
-                chunk_size: verifier.chunk_size,
-                completed: completed_snapshot,
-            };
-            state.save(target).await.map_err(PeerStorageError::Io)?;
+        // Report this chunk's bytes now that they're verified, written, and
+        // recorded in the sidecar. The caller accumulates the delta into its
+        // own running total (single-stream: the file; multi-stream: the
+        // shared cross-worker counter).
+        if let Some(cb) = controls.on_chunk.as_mut() {
+            cb(this_chunk_size as u64);
         }
     }
 

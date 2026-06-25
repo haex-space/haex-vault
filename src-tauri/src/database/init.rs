@@ -22,7 +22,11 @@ use rusqlite::{params, Connection};
 const TRIGGER_VERSION: i32 = 5;
 
 /// Scans the database for all sync-relevant tables (those that have a `haex_hlc` column).
-/// Tables ending in `_no_sync` are excluded by the naming convention.
+/// `_no_sync` tables are excluded not by their name but because they are created
+/// without CRDT columns (no `haex_hlc`), so they never match this discovery query.
+/// This invariant is security-load-bearing: the owner full-vault sync path ships
+/// every `haex_hlc` table, so any table that must stay device-local MUST be created
+/// without CRDT columns (the `_no_sync` suffix is only a convention to signal that).
 pub fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseError> {
     let mut stmt = conn.prepare(
         "SELECT m.name as table_name

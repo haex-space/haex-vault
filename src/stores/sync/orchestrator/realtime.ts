@@ -16,7 +16,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useRealtime, type RealtimeEvent } from '@/composables/useRealtime'
 import { useMlsDelivery } from '@/composables/useMlsDelivery'
 import { orchestratorLog as log, type BackendSyncState } from './types'
-import { pullFromBackendAsync } from './pull'
+import { pullFromBackendAsync } from './pull/cursor'
 
 /** Debounce timers per backend */
 const pullDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()

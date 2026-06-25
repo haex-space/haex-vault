@@ -134,6 +134,24 @@ export function useS3Transfers(deps: S3TransferDeps) {
   }
 
   /**
+   * Toggle pause/resume for an in-flight P2P transfer for `file`. No-op for S3
+   * (the chunked S3 download has no pause control) and local shares — only the
+   * iroh streaming path honours the pause flag.
+   */
+  const togglePauseFileTransferAsync = async (file: FileEntry): Promise<void> => {
+    const peer = selectedPeer.value
+    if (!peer || peer.s3BackendId || peer.localPath) return
+    const path = resolveFilePath(file)
+    const transferId = peerStore.getTransferIdForPath(path)
+    if (!transferId) return
+    if (peerStore.getTransferPaused(path)) {
+      await peerStore.resumeTransferAsync(transferId)
+    } else {
+      await peerStore.pauseTransferAsync(transferId)
+    }
+  }
+
+  /**
    * Start (or resume) a chunked download from S3 to `outputPath`. Returns
    * after the Tauri command resolves — progress events fire in the
    * background and the active S3 row's progress bar reflects them.
@@ -196,6 +214,7 @@ export function useS3Transfers(deps: S3TransferDeps) {
   return {
     getS3TransferProgress,
     cancelFileTransferAsync,
+    togglePauseFileTransferAsync,
     startS3ChunkedDownload,
     startS3ChunkedUpload,
   }

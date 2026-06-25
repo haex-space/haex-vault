@@ -8,7 +8,9 @@ use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::trigger::{
     get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN,
 };
-use crate::database::core::{convert_value_ref_to_json, with_connection};
+use crate::database::core::{
+    convert_value_ref_to_json, with_connection, MAX_CRDT_TRANSACTION_BYTES,
+};
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use rusqlite::Connection;
@@ -106,20 +108,6 @@ fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInf
         })
         .collect();
     (pk_columns, data_columns)
-}
-
-/// Test-only helper: unscoped single-table scan. Production code must use
-/// `scan_table_for_local_changes_scoped` (or the space-scoped whitelist
-/// entry point `scan_space_scoped_tables_for_local_changes`) — an unscoped
-/// scan over a table shared by multiple spaces leaks cross-space rows.
-#[cfg(test)]
-pub fn scan_table_for_local_changes(
-    conn: &Connection,
-    table_name: &str,
-    after_hlc: Option<&str>,
-    device_id: &str,
-) -> Result<Vec<LocalColumnChange>, DatabaseError> {
-    scan_table_for_local_changes_scoped(conn, table_name, after_hlc, device_id, None, None)
 }
 
 /// Like `scan_table_for_local_changes` but with two additional predicates:
@@ -358,381 +346,216 @@ pub fn scan_membership_tables_for_local_changes(
     )
 }
 
+/// **OWNER-ONLY, UNSCOPED BY DESIGN.** Scans every table named in
+/// `table_names` for local CRDT changes with **no `space_id` filter**, then
+/// returns the concatenated changes in a single global HLC-ascending order.
+///
+/// This exists solely for serverless P2P sync of the owner's own vault across
+/// the owner's own devices: that path replicates the *full* CRDT table set
+/// (all `haex_*` tables carrying a `haex_hlc` column, including vault-private
+/// and extension tables), not just the space-scoped whitelist.
+///
+/// # Security
+///
+/// Because it applies **no** space filter, its output is the entire vault and
+/// is therefore a cross-space-leak hazard. It MUST only be invoked from the
+/// branch that has already proven, via DID-auth, that the remote peer is the
+/// *same owner* on another of the owner's own devices. The full-vault scope
+/// produced here must never reach a non-owner peer. For peer-to-peer sync of a
+/// *shared space* use [`scan_space_scoped_tables_for_local_changes`] instead —
+/// a previous general unscoped scanner was removed precisely because it leaked
+/// cross-space rows.
+///
+/// The caller supplies the exact `table_names` to scan; this function never
+/// derives the list itself, so scope stays in the caller's hands and the
+/// behaviour is "scan exactly the tables the caller passes" — nothing more.
+///
+/// `origin_node` (when `Some`) restricts the result to rows whose HLC was
+/// originally written by this node — see the doc on
+/// [`scan_table_for_local_changes_scoped`] for the rationale.
+pub(crate) fn scan_all_crdt_tables_for_owner(
+    conn: &Connection,
+    table_names: &[String],
+    after_hlc: Option<&str>,
+    device_id: &str,
+    origin_node: Option<u128>,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    let mut all_changes: Vec<LocalColumnChange> = Vec::new();
+    for table_name in table_names {
+        let changes = scan_table_for_local_changes_scoped(
+            conn,
+            table_name,
+            after_hlc,
+            device_id,
+            None, // NO space filter — owner gets the full vault by design.
+            origin_node,
+        )?;
+        all_changes.extend(changes);
+    }
+
+    // Global sort by transaction-HLC ascending so downstream chunking can
+    // respect HLC-group boundaries without further grouping logic.
+    all_changes
+        .sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp));
+
+    Ok(all_changes)
+}
+
+/// **OWNER-ONLY, UNSCOPED BY DESIGN.** Dumps every row's current value for a
+/// single `(table_name, column_name)` pair, with **no `space_id` filter, no
+/// HLC threshold, and no origin-node filter**. This is the single-column
+/// analogue of [`scan_all_crdt_tables_for_owner`].
+///
+/// It exists solely to RECOVER a column that a device skipped during apply
+/// because it was missing the column locally (schema skew). After a migration
+/// re-adds the column, the recovering device pulls the column's complete state
+/// from another of the owner's own devices over P2P.
+///
+/// Two deliberate `None`s, both required for correct recovery:
+///
+/// * `after_hlc = None` — **FULL DUMP, no HLC threshold.** The recovering
+///   device never held this column, so it has no meaningful cursor; it must
+///   receive every row's current value regardless of how "old" the row's HLC
+///   is. Threading an HLC threshold here would silently drop rows that were
+///   last written before some arbitrary cursor — exactly the values recovery
+///   needs.
+/// * `origin_node_filter = None` — **NO ping-pong/origin filter.** The
+///   recovering device wants the COMPLETE column state across all rows,
+///   including rows authored by other devices — not just rows this serving
+///   device wrote. This is the deliberate opposite of the push path's origin
+///   filtering: there, filtering stops re-pushing peer-authored rows; here,
+///   peer-authored rows are precisely what must be returned.
+///
+/// # Security
+///
+/// Because it applies **no** space filter, its output is the UNSCOPED
+/// full-vault dump for the requested column and is therefore a
+/// cross-space-leak hazard. It MUST only be invoked from a branch that has
+/// already proven, via DID-auth, that the remote peer is the *same owner* on
+/// another of the owner's own devices. The dump produced here must never reach
+/// a non-owner peer. For peer-to-peer sync of a *shared space* use
+/// [`scan_space_scoped_tables_for_local_changes`] instead.
+///
+/// # Caller notes
+///
+/// * `device_id` is stamped onto every returned `LocalColumnChange.device_id`
+///   as the **serving** device — it is NOT the row's author (peer-authored rows
+///   are returned with this serving device's id). Do not read provenance from
+///   it.
+/// * Results are **unordered** (raw scan order); unlike
+///   [`scan_all_crdt_tables_for_owner`] this does not sort by HLC. A consumer
+///   that needs HLC order must sort itself.
+/// * An empty result is **ambiguous**: it means either the column legitimately
+///   has no rows, or the requested `(table, column)` is wrong/excluded. Validate
+///   the pair before treating an empty dump as "recovery complete".
+pub fn scan_single_column_for_owner(
+    conn: &Connection,
+    table_name: &str,
+    column_name: &str,
+    device_id: &str,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    // FULL DUMP (after_hlc = None): recovery has no cursor for a column it
+    // never held. NO space filter (space_id_filter = None): owner gets the
+    // full vault by design. NO origin filter (origin_node_filter = None):
+    // recovery needs the complete column, including rows authored by other
+    // devices.
+    let changes =
+        scan_table_for_local_changes_scoped(conn, table_name, None, device_id, None, None)?;
+
+    Ok(changes
+        .into_iter()
+        .filter(|c| c.column_name == column_name)
+        .collect())
+}
+
 // `scan_all_crdt_tables_for_local_changes` used to scan every CRDT table
 // without a space filter. That function powered the old peer SyncPull and
 // was the root of a cross-space data leak — a peer asking for space X
 // would receive rows from every space the leader was in. It has been
 // removed. Use `scan_space_scoped_tables_for_local_changes` for peer sync.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rusqlite::Connection;
+/// The serve-side per-page byte budget for a paginated `SyncPull`.
+///
+/// One transaction-HLC group is one source transaction, capped at
+/// [`MAX_CRDT_TRANSACTION_BYTES`] (ADR 0001) at `execute_with_crdt`. Setting the
+/// page budget equal to that cap means a single page always has room for the
+/// largest legal transaction (the ≥1 rule in [`paginate_changes`] guarantees
+/// even an at-cap group is emitted), so no transaction can ever be too big to
+/// page out. The wire frame cap (`protocol::WIRE_FRAME_MAX`) is sized above this
+/// to carry such a page plus envelope overhead.
+pub(crate) const PULL_PAGE_BUDGET: usize = MAX_CRDT_TRANSACTION_BYTES;
 
-    /// Helper: create an in-memory DB with a CRDT-enabled table and return the connection.
-    fn setup_test_db() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(
-            "CREATE TABLE test_items (
-                id TEXT PRIMARY KEY,
-                name TEXT,
-                value INTEGER,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
-            );",
-        )
-        .unwrap();
-        conn
+/// Pack whole transaction-HLC groups into one page until adding the next group
+/// would exceed `page_budget`, returning `(page, has_more)`.
+///
+/// HLC == one source transaction, so all changes sharing an `hlc_timestamp`
+/// belong to one transaction and are never split across a page boundary. Groups
+/// are emitted in ascending HLC order (matching the scanner's global ordering
+/// and `group_by_transaction_hlc`), so the client can resume the next page at
+/// the MAX HLC of the page just received — the cursor stays HLC-only.
+///
+/// Packing rule: maintain a running serialized byte total. A group's size is
+/// `serde_json::to_vec(&group).map(|v| v.len()).unwrap_or(usize::MAX)` (an
+/// unmeasurable group counts as maximal, so it can only ever stand alone). Add
+/// the group iff `running + group_size <= page_budget`; otherwise STOP and defer
+/// this and every later group (`has_more = true`).
+///
+/// **≥1 rule:** if the page is still empty when the first group alone exceeds
+/// the budget, that group is included anyway (and `has_more = true` if later
+/// groups exist) — otherwise an at-or-over-budget transaction could never
+/// traverse the wire. Bounded above by `MAX_CRDT_TRANSACTION_BYTES`.
+///
+/// Pure and deterministic: no I/O.
+pub(crate) fn paginate_changes(
+    changes: Vec<LocalColumnChange>,
+    page_budget: usize,
+) -> (Vec<LocalColumnChange>, bool) {
+    if changes.is_empty() {
+        return (Vec::new(), false);
     }
 
-    fn insert_row(conn: &Connection, id: &str, name: &str, value: i64, hlc: &str) {
-        let hlcs = format!("{{\"name\":\"{hlc}\",\"value\":\"{hlc}\"}}");
-        conn.execute(
-            "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![id, name, value, hlc, hlcs],
-        )
-        .unwrap();
+    // Group by transaction-HLC in ascending order without splitting a group.
+    // The scanner already returns changes globally HLC-sorted, but callers may
+    // hand us any order, so group via a map and sort the keys — same contract as
+    // `group_by_transaction_hlc` (commands.rs), kept local to avoid a
+    // RemoteColumnChange round-trip.
+    let mut groups: HashMap<String, Vec<LocalColumnChange>> = HashMap::new();
+    for change in changes {
+        groups
+            .entry(change.hlc_timestamp.clone())
+            .or_default()
+            .push(change);
     }
+    let mut ordered: Vec<(String, Vec<LocalColumnChange>)> = groups.into_iter().collect();
+    ordered.sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.0, &b.0));
 
-    #[test]
-    fn test_scan_empty_table_returns_no_changes() {
-        let conn = setup_test_db();
-        let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
-        assert!(changes.is_empty());
-    }
+    let mut page: Vec<LocalColumnChange> = Vec::new();
+    let mut running: usize = 0;
+    let mut has_more = false;
 
-    #[test]
-    fn test_scan_full_returns_all_columns() {
-        let conn = setup_test_db();
-        insert_row(
-            &conn,
-            "row-1",
-            "hello",
-            42,
-            "2025-01-01T00:00:00.000Z-0001-device1",
-        );
-
-        let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
-
-        // 2 data columns: name, value
-        assert_eq!(changes.len(), 2);
-
-        let names: Vec<&str> = changes.iter().map(|c| c.column_name.as_str()).collect();
-        assert!(names.contains(&"name"));
-        assert!(names.contains(&"value"));
-
-        // Verify PK JSON
-        for change in &changes {
-            assert_eq!(change.table_name, "test_items");
-            assert_eq!(change.device_id, "device-1");
-            let pks: serde_json::Map<String, JsonValue> =
-                serde_json::from_str(&change.row_pks).unwrap();
-            assert_eq!(pks.get("id").unwrap(), "row-1");
+    for (idx, (_hlc, group)) in ordered.into_iter().enumerate() {
+        let group_size = serde_json::to_vec(&group)
+            .map(|v| v.len())
+            .unwrap_or(usize::MAX);
+        let fits = running.saturating_add(group_size) <= page_budget;
+        // ≥1 rule: the very first group is always taken, even if oversized.
+        if fits || idx == 0 {
+            running = running.saturating_add(group_size);
+            page.extend(group);
+        } else {
+            // This group and every later group are deferred to the next page.
+            has_more = true;
+            break;
         }
     }
 
-    #[test]
-    fn test_scan_with_after_hlc_filters_old_rows() {
-        let conn = setup_test_db();
-        insert_row(&conn, "old", "old", 1, "1000000000000000000/aabbccdd");
-        insert_row(&conn, "new", "new", 2, "3000000000000000000/aabbccdd");
-
-        let changes = scan_table_for_local_changes(
-            &conn,
-            "test_items",
-            Some("2000000000000000000/aabbccdd"),
-            "device-1",
-        )
-        .unwrap();
-
-        // Only the "new" row should be present (2 data columns: name, value)
-        assert_eq!(changes.len(), 2);
-        for change in &changes {
-            let pks: serde_json::Map<String, JsonValue> =
-                serde_json::from_str(&change.row_pks).unwrap();
-            assert_eq!(pks.get("id").unwrap(), "new");
-        }
-    }
-
-    #[test]
-    fn test_scan_excludes_metadata_columns() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(
-            "CREATE TABLE with_meta (
-                id TEXT PRIMARY KEY,
-                data TEXT,
-                last_push_hlc_timestamp TEXT,
-                last_pull_server_timestamp TEXT,
-                updated_at TEXT,
-                created_at TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
-            );",
-        )
-        .unwrap();
-
-        conn.execute(
-            "INSERT INTO with_meta (id, data, haex_hlc, haex_column_hlcs)
-             VALUES ('r1', 'test', '2025-01-01T00:00:00.000Z-0001-d1',
-                     '{\"data\":\"2025-01-01T00:00:00.000Z-0001-d1\"}')",
-            [],
-        )
-        .unwrap();
-
-        let changes = scan_table_for_local_changes(&conn, "with_meta", None, "device-1").unwrap();
-
-        let col_names: Vec<&str> = changes.iter().map(|c| c.column_name.as_str()).collect();
-        // Only "data" should remain; all metadata/CRDT columns filtered out
-        assert!(col_names.contains(&"data"));
-        assert!(!col_names.contains(&"last_push_hlc_timestamp"));
-        assert!(!col_names.contains(&"last_pull_server_timestamp"));
-        assert!(!col_names.contains(&"updated_at"));
-        assert!(!col_names.contains(&"created_at"));
-        assert!(!col_names.contains(&"haex_hlc"));
-        assert!(!col_names.contains(&"haex_column_hlcs"));
-    }
-
-    #[test]
-    fn test_scan_uses_row_hlc_as_fallback() {
-        let conn = setup_test_db();
-        // Insert a row where haex_column_hlcs is empty — row-level HLC should be used
-        conn.execute(
-            "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
-             VALUES ('r1', 'test', 10, '2025-01-01T00:00:00.000Z-0001-d1', '{}')",
-            [],
-        )
-        .unwrap();
-
-        let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
-
-        // Both data columns should be emitted using the row-level HLC
-        assert_eq!(changes.len(), 2);
-        for change in &changes {
-            assert_eq!(change.hlc_timestamp, "2025-01-01T00:00:00.000Z-0001-d1");
-        }
-    }
-
-    #[test]
-    fn test_column_level_hlc_filtering() {
-        let conn = setup_test_db();
-        // Insert a row where 'name' has a newer HLC but 'value' has an older one
-        let hlcs =
-            r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
-        conn.execute(
-            "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
-             VALUES ('r1', 'updated', 10, '3000000000000000000/aabbccdd', ?1)",
-            [hlcs],
-        )
-        .unwrap();
-
-        let changes = scan_table_for_local_changes(
-            &conn,
-            "test_items",
-            Some("2000000000000000000/aabbccdd"),
-            "device-1",
-        )
-        .unwrap();
-
-        // Only 'name' should pass the per-column HLC filter
-        assert_eq!(changes.len(), 1);
-        assert_eq!(changes[0].column_name, "name");
-    }
-
-    #[test]
-    fn test_scan_composite_pk() {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(
-            "CREATE TABLE composite_pk (
-                group_id TEXT NOT NULL,
-                item_id TEXT NOT NULL,
-                data TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                PRIMARY KEY (group_id, item_id)
-            );",
-        )
-        .unwrap();
-
-        let hlcs = r#"{"data":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
-        conn.execute(
-            "INSERT INTO composite_pk (group_id, item_id, data, haex_hlc, haex_column_hlcs)
-             VALUES ('g1', 'i1', 'hello', '2025-01-01T00:00:00.000Z-0001-d1', ?1)",
-            [hlcs],
-        )
-        .unwrap();
-
-        let changes =
-            scan_table_for_local_changes(&conn, "composite_pk", None, "device-1").unwrap();
-
-        assert_eq!(changes.len(), 1); // data only
-
-        let pks: serde_json::Map<String, JsonValue> =
-            serde_json::from_str(&changes[0].row_pks).unwrap();
-        assert_eq!(pks.get("group_id").unwrap(), "g1");
-        assert_eq!(pks.get("item_id").unwrap(), "i1");
-    }
-
-    #[test]
-    fn test_scan_null_value() {
-        let conn = setup_test_db();
-        let hlcs = r#"{"name":"2025-01-01T00:00:00.000Z-0001-d1","value":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
-        conn.execute(
-            "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
-             VALUES ('r1', NULL, NULL, '2025-01-01T00:00:00.000Z-0001-d1', ?1)",
-            [hlcs],
-        )
-        .unwrap();
-
-        let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
-
-        // NULL values should still produce changes for both data columns
-        assert_eq!(changes.len(), 2);
-        let name_change = changes.iter().find(|c| c.column_name == "name").unwrap();
-        assert_eq!(name_change.value, JsonValue::Null);
-    }
-
-    #[test]
-    fn test_scan_nonexistent_table_returns_empty() {
-        let conn = Connection::open_in_memory().unwrap();
-        let changes = scan_table_for_local_changes(&conn, "nonexistent", None, "device-1").unwrap();
-        assert!(changes.is_empty());
-    }
-
-    #[test]
-    fn test_is_space_scoped_table_whitelist() {
-        for t in SPACE_SCOPED_CRDT_TABLES {
-            assert!(
-                is_space_scoped_table(t),
-                "whitelist member not recognised: {t}"
-            );
-        }
-        // Private per-vault tables must NOT be space-scoped.
-        assert!(!is_space_scoped_table("haex_identities"));
-        assert!(!is_space_scoped_table("haex_ucan_tokens"));
-        assert!(!is_space_scoped_table("haex_vault_settings"));
-        assert!(!is_space_scoped_table("haex_sync_backends"));
-        // Extension / unknown tables default to private.
-        assert!(!is_space_scoped_table("some_extension_table"));
-    }
-
-    #[test]
-    fn test_membership_system_tables_are_subset_of_space_scoped() {
-        for t in MEMBERSHIP_SYSTEM_TABLES {
-            assert!(
-                is_space_scoped_table(t),
-                "membership-system table not in sync whitelist: {t}"
-            );
-            assert!(
-                is_membership_system_table(t),
-                "membership-system table not recognised by helper: {t}"
-            );
-        }
-        // peer_shares must NOT be in the membership-system set: it is
-        // user-authored content (a device declaring it hosts a folder),
-        // and a read-only member must not be able to push entries here.
-        assert!(!is_membership_system_table("haex_peer_shares"));
-        // Off-whitelist tables are obviously not membership-system either.
-        assert!(!is_membership_system_table("haex_identities"));
-        assert!(!is_membership_system_table("some_extension_table"));
-    }
-
-    /// Creates a CRDT table that carries a `space_id` discriminator, used to
-    /// exercise the scoped-filter path.
-    fn setup_scoped_test_db() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch(
-            "CREATE TABLE scoped_items (
-                id TEXT PRIMARY KEY,
-                space_id TEXT NOT NULL,
-                data TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
-            );",
-        )
-        .unwrap();
-        conn
-    }
-
-    fn insert_scoped_row(conn: &Connection, id: &str, space_id: &str, data: &str, hlc: &str) {
-        let hlcs = format!("{{\"space_id\":\"{hlc}\",\"data\":\"{hlc}\"}}");
-        conn.execute(
-            "INSERT INTO scoped_items (id, space_id, data, haex_hlc, haex_column_hlcs)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![id, space_id, data, hlc, hlcs],
-        )
-        .unwrap();
-    }
-
-    #[test]
-    fn test_scoped_filter_returns_only_matching_space() {
-        let conn = setup_scoped_test_db();
-        insert_scoped_row(
-            &conn,
-            "r1",
-            "space-A",
-            "hello",
-            "2025-01-01T00:00:00.000Z-0001-d1",
-        );
-        insert_scoped_row(
-            &conn,
-            "r2",
-            "space-A",
-            "world",
-            "2025-01-01T00:00:00.000Z-0002-d1",
-        );
-        insert_scoped_row(
-            &conn,
-            "r3",
-            "space-B",
-            "leak",
-            "2025-01-01T00:00:00.000Z-0003-d1",
-        );
-
-        let changes = scan_table_for_local_changes_scoped(
-            &conn,
-            "scoped_items",
-            None,
-            "device-1",
-            Some("space-A"),
-            None,
-        )
-        .unwrap();
-
-        // 2 matching rows × 2 data columns (space_id, data) = 4 changes.
-        assert_eq!(changes.len(), 4);
-
-        // No row from space-B may appear — this is the leak gate.
-        for change in &changes {
-            let pks: serde_json::Map<String, JsonValue> =
-                serde_json::from_str(&change.row_pks).unwrap();
-            let id = pks.get("id").and_then(|v| v.as_str()).unwrap();
-            assert!(
-                id == "r1" || id == "r2",
-                "leaked row from other space: {id}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_scoped_filter_on_table_without_space_id_returns_empty() {
-        // `test_items` (from setup_test_db) has no space_id column. A scoped
-        // filter on such a table must return zero rows rather than the whole
-        // table, otherwise vault-private CRDT tables would leak through any
-        // peer SyncPull that misconfigures its filter.
-        let conn = setup_test_db();
-        insert_row(&conn, "r1", "hello", 42, "2025-01-01T00:00:00.000Z-0001-d1");
-
-        let changes = scan_table_for_local_changes_scoped(
-            &conn,
-            "test_items",
-            None,
-            "device-1",
-            Some("any-space"),
-            None,
-        )
-        .unwrap();
-
-        assert!(changes.is_empty());
-    }
+    (page, has_more)
 }
+
+#[cfg(test)]
+#[path = "scanner_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "scanner_pagination_tests.rs"]
+mod pagination_tests;

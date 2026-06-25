@@ -13,7 +13,7 @@ import type { SpaceType as SpaceTypeValue } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 import { detectCrossServerInvite, setupFederationForSpace } from './federation'
 import { addSelfAsSpaceMember } from './members'
-import type { SpaceWithType, ResolvedIdentity } from './index'
+import type { SpaceWithType, ResolvedIdentity } from './types'
 import { usePeerStorageStore } from '@/stores/peer-storage'
 import { useDeviceStore } from '@/stores/vault/device'
 

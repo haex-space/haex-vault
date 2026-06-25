@@ -61,7 +61,7 @@
 
 <script setup lang="ts">
 import { eq } from 'drizzle-orm'
-import { haexSpaceDevices } from '~/database/schemas'
+import { haexDevices, haexSpaceDevices } from '~/database/schemas'
 type AvatarOptions = Record<string, unknown>
 
 defineEmits<{ back: [] }>()
@@ -70,7 +70,7 @@ const { t } = useI18n()
 const { add } = useToast()
 
 const deviceStore = useDeviceStore()
-const { deviceId, hostname, platform, deviceName } = storeToRefs(deviceStore)
+const { deviceId, deviceRowId, hostname, platform, deviceName } = storeToRefs(deviceStore)
 const { currentVault } = storeToRefs(useVaultStore())
 
 const isSaving = ref(false)
@@ -85,16 +85,24 @@ const onUpdateAvatarOptionsAsync = (options: AvatarOptions | null) => {
 }
 
 const onUpdateAvatarAsync = async (avatar: string | null) => {
-  if (!currentVault.value?.drizzle || !deviceId.value) return
+  if (!currentVault.value?.drizzle || !deviceRowId.value) return
 
   const avatarOptions = pendingOptions.value !== undefined
     ? (pendingOptions.value ? JSON.stringify(pendingOptions.value) : null)
     : undefined
 
+  // haex_devices is the canonical local source of truth for this device's
+  // metadata. Write here first; haex_space_devices then mirrors it so other
+  // space members see the change via CRDT sync.
+  await currentVault.value.drizzle
+    .update(haexDevices)
+    .set({ avatar, ...(avatarOptions !== undefined ? { avatarOptions } : {}) })
+    .where(eq(haexDevices.id, deviceRowId.value))
+
   await currentVault.value.drizzle
     .update(haexSpaceDevices)
     .set({ avatar, ...(avatarOptions !== undefined ? { avatarOptions } : {}) })
-    .where(eq(haexSpaceDevices.endpointId, deviceId.value))
+    .where(eq(haexSpaceDevices.deviceId, deviceRowId.value))
 
   currentDeviceAvatar.value = avatar
   if (pendingOptions.value !== undefined) {
@@ -105,20 +113,22 @@ const onUpdateAvatarAsync = async (avatar: string | null) => {
 
 const onUpdateDeviceNameAsync = async () => {
   const name = deviceName.value?.trim()
-  if (!name || !currentVault.value?.drizzle || !deviceId.value) return
+  if (!name || !currentVault.value?.drizzle || !deviceRowId.value) return
 
   isSaving.value = true
   try {
-    const existing = await currentVault.value.drizzle.query.haexSpaceDevices.findFirst({
-      where: eq(haexSpaceDevices.endpointId, deviceId.value),
-    })
+    // Symmetric with avatar updates: write the canonical haex_devices row
+    // first, then mirror to every haex_space_devices row that references it
+    // so peers see the change via CRDT sync.
+    await currentVault.value.drizzle
+      .update(haexDevices)
+      .set({ name })
+      .where(eq(haexDevices.id, deviceRowId.value))
 
-    if (existing) {
-      await currentVault.value.drizzle
-        .update(haexSpaceDevices)
-        .set({ name })
-        .where(eq(haexSpaceDevices.endpointId, deviceId.value))
-    }
+    await currentVault.value.drizzle
+      .update(haexSpaceDevices)
+      .set({ name })
+      .where(eq(haexSpaceDevices.deviceId, deviceRowId.value))
 
     add({ description: t('deviceName.success'), color: 'success' })
   } catch (error) {
@@ -130,10 +140,15 @@ const onUpdateDeviceNameAsync = async () => {
 }
 
 const loadDeviceNameAsync = async () => {
-  if (!currentVault.value?.drizzle || !deviceId.value) return
+  if (!currentVault.value?.drizzle || !deviceRowId.value) return
 
-  const entry = await currentVault.value.drizzle.query.haexSpaceDevices.findFirst({
-    where: eq(haexSpaceDevices.endpointId, deviceId.value),
+  // Read from haex_devices (canonical local source) instead of
+  // haex_space_devices: the latter only carries avatar/name once the device
+  // has been published into at least one space, which leaves a fresh vault's
+  // settings view showing seed-only fallbacks for the avatar the user just
+  // confirmed in the Welcome dialog.
+  const entry = await currentVault.value.drizzle.query.haexDevices.findFirst({
+    where: eq(haexDevices.id, deviceRowId.value),
   })
 
   deviceName.value = entry?.name ?? ''

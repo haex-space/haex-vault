@@ -82,21 +82,25 @@ commands.allow = [
   "extension_password_update",
   "extension_password_delete",
 
-  # Permissions / session
+  # Permission CHECKS only. An extension may ask whether it HAS a permission.
+  # GRANTING / resolving prompts and session-permission management are OWNER
+  # operations — they live only in the main window's `allow-app-commands`.
+  # SECURITY: `grant_session_permission` / `resolve_permission_prompt` were
+  # previously reachable here, which let a malicious extension grant itself
+  # arbitrary permissions (session + persisted) without user consent. They are
+  # main-window-only now and additionally guarded by `require_main_window`.
   "extension_permissions_check_web",
   "extension_permissions_check_database",
   "extension_permissions_check_filesystem",
-  "resolve_permission_prompt",
-  "grant_session_permission",
-  "get_extension_session_permissions",
-  "remove_extension_session_permission",
 
-  # Logging / limits
+  # Logging. Identity is bound server-side via `resolve_extension_id`, so an
+  # extension can only write/read its OWN logs (the `extensionId` parameter is
+  # gone — it could be spoofed to read or forge another extension's logs).
   "extension_logging_write",
   "extension_logging_read",
-  "get_extension_limits",
-  "update_extension_limits",
-  "reset_extension_limits",
+  # NOTE: get/update/reset_extension_limits are intentionally NOT here.
+  # Sandbox limits are owner-configured (main window) — an extension must not be
+  # able to read or raise its own limits. They remain in `allow-app-commands`.
 
   # Remote storage
   "extension_remote_storage_list_backends",
@@ -174,7 +178,6 @@ commands.allow = [
   # SQL helpers
   "sql_execute",
   "sql_execute_with_crdt",
-  "sql_query_with_crdt",
   "sql_select",
   "sql_select_with_crdt",
   "sql_with_crdt",

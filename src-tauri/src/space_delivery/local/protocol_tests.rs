@@ -68,6 +68,12 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
             after_timestamp: None,
             ucan_token: Some("ucan".into()),
         },
+        Request::SyncPullColumns {
+            space_id: expected.into(),
+            columns: vec![],
+            after_row_pks: None,
+            ucan_token: None,
+        },
         Request::ClaimInvite {
             space_id: expected.into(),
             token: "token".into(),
@@ -94,7 +100,7 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
         },
     ];
 
-    assert_eq!(variants.len(), 15, "test must cover every Request variant");
+    assert_eq!(variants.len(), 16, "test must cover every Request variant");
 
     for req in &variants {
         assert_eq!(
@@ -163,6 +169,12 @@ fn required_capability_matches_documented_mapping() {
             space_id: space.into(),
             after_timestamp: None,
             ucan_token: Some("ucan".into()),
+        },
+        Request::SyncPullColumns {
+            space_id: space.into(),
+            columns: vec![],
+            after_row_pks: None,
+            ucan_token: None,
         },
         Request::SyncPush {
             space_id: space.into(),
@@ -245,7 +257,7 @@ fn required_capability_matches_documented_mapping() {
     // Sanity: total variants covered = total variants in enum.
     assert_eq!(
         read_variants.len() + write_variants.len() + bypass_variants.len(),
-        15,
+        16,
         "test must cover every Request variant",
     );
 }
@@ -341,5 +353,88 @@ fn sync_push_deserializes_with_explicit_null_ucan_token() {
             "explicit null must deserialize to None, got {ucan_token:?}",
         ),
         other => panic!("expected SyncPush, got {other:?}"),
+    }
+}
+
+/// `SyncPullColumns` is the owner-mesh-only pending-column recovery request
+/// (Phase 3). It must carry the same metadata as `SyncPull` so it routes
+/// through the identical owner gate: a `space_id` for the route, a `Read`
+/// capability floor, and a stable PascalCase `op_name`. This test pins that
+/// contract plus the wire shape: a serde round-trip must be lossless, and the
+/// `#[serde(default)]` `ucan_token` must deserialize when omitted (owner
+/// sessions send `None`).
+#[test]
+fn sync_pull_columns_metadata_and_roundtrip() {
+    let space = "space-under-test";
+
+    let req = Request::SyncPullColumns {
+        space_id: space.into(),
+        columns: vec![
+            ("haex_peer_shares".into(), "encrypted_key".into()),
+            ("haex_files".into(), "metadata".into()),
+        ],
+        after_row_pks: Some("cursor-42".into()),
+        ucan_token: None,
+    };
+
+    // Metadata mirrors SyncPull exactly.
+    assert_eq!(req.space_id_of(), space, "space_id_of must return space_id");
+    let sync_pull = Request::SyncPull {
+        space_id: space.into(),
+        after_timestamp: None,
+        ucan_token: None,
+    };
+    assert_eq!(
+        req.required_capability(),
+        sync_pull.required_capability(),
+        "SyncPullColumns must require the same capability as SyncPull",
+    );
+    assert_eq!(
+        req.required_capability(),
+        Some(CapabilityLevel::Read),
+        "SyncPullColumns must floor at Read",
+    );
+    assert_eq!(req.op_name(), "SyncPullColumns");
+
+    // Serde round-trip is lossless.
+    let bytes = serde_json::to_vec(&req).expect("encode SyncPullColumns");
+    let decoded: Request = serde_json::from_slice(&bytes).expect("decode SyncPullColumns");
+    match decoded {
+        Request::SyncPullColumns {
+            ref space_id,
+            ref columns,
+            ref after_row_pks,
+            ref ucan_token,
+        } => {
+            assert_eq!(space_id, space);
+            assert_eq!(
+                columns,
+                &vec![
+                    ("haex_peer_shares".to_string(), "encrypted_key".to_string()),
+                    ("haex_files".to_string(), "metadata".to_string()),
+                ],
+            );
+            assert_eq!(after_row_pks.as_deref(), Some("cursor-42"));
+            assert!(ucan_token.is_none());
+        }
+        other => panic!("round-trip produced wrong variant: {other:?}"),
+    }
+
+    // `ucan_token` is `#[serde(default)]`: a payload omitting it deserializes
+    // to `None` (owner sessions send no token).
+    let payload = serde_json::json!({
+        "op": "SYNC_PULL_COLUMNS",
+        "space_id": "SPACE",
+        "columns": [["haex_files", "metadata"]],
+        "after_row_pks": null,
+    });
+    let req: Request = serde_json::from_value(payload)
+        .expect("SyncPullColumns without ucan_token must deserialize");
+    match req {
+        Request::SyncPullColumns { ucan_token, .. } => assert!(
+            ucan_token.is_none(),
+            "omitted ucan_token must deserialize to None, got {ucan_token:?}",
+        ),
+        other => panic!("expected SyncPullColumns, got {other:?}"),
     }
 }

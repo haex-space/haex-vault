@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 
+import * as schema from '~/database/schemas'
+import { requireDb } from '~/stores/vault'
+
 import type { CriticalNotification } from '~/../src-tauri/bindings/CriticalNotification'
 import type { CriticalFailureCode } from '~/../src-tauri/bindings/CriticalFailureCode'
 import type { Severity } from '~/../src-tauri/bindings/Severity'
@@ -72,7 +75,16 @@ export function useCriticalFailureBanner() {
             action: 'Wenn das Problem bestehen bleibt, starte den Vault neu.',
             actionLabel: 'Verstanden',
           },
+          SingleSourceFlood: {
+            title: 'Ungewöhnlich viele Anfragen von einem Peer',
+            description:
+              'Ein Peer schickt überdurchschnittlich viele Verbindungsanfragen, die abgewiesen werden mussten.',
+            risk: 'Mögliche Fehlkonfiguration des Peers oder bewusster DoS-Versuch. Der Vault arbeitet weiter, schreibt aber nur noch eine Stichprobe der abgewiesenen Anfragen ins Audit-Log.',
+            action: 'Bitte prüfe die Identität des Peers im Audit-Log. Falls der Peer unbekannt ist oder weiter floodet, kannst Du die DID in den Einstellungen blockieren.',
+            actionLabel: 'Verstanden',
+          },
           dismissed: 'Verstanden',
+          blockDidLabel: 'DID blockieren',
           unknownCode: 'Unbekannter Kritischer Fehler',
           countSuffix: '(×{count})',
         },
@@ -124,7 +136,18 @@ export function useCriticalFailureBanner() {
             action: 'If the problem persists, restart the vault.',
             actionLabel: 'Understood',
           },
+          SingleSourceFlood: {
+            title: 'Unusual request volume from one peer',
+            description:
+              'A peer is sending an abnormal number of connection attempts that had to be rejected.',
+            risk:
+              'Possible peer misconfiguration or deliberate DoS attempt. The vault keeps running but only writes a sample of the rejects to the audit log.',
+            action:
+              "Please check the peer's identity in the audit log. If the peer is unknown or keeps flooding, you can block its DID from the settings.",
+            actionLabel: 'Understood',
+          },
           dismissed: 'Understood',
+          blockDidLabel: 'Block DID',
           unknownCode: 'Unknown critical failure',
           countSuffix: '(×{count})',
         },
@@ -156,6 +179,7 @@ export function useCriticalFailureBanner() {
         return 'Critical'
       case 'AuditLogWriteFailed':
       case 'CrdtTransformFailed':
+      case 'SingleSourceFlood':
         return 'Warning'
       default: {
         // Exhaustiveness check: if Rust adds a new CriticalFailureCode
@@ -292,12 +316,54 @@ export function useCriticalFailureBanner() {
     }
   })
 
+  /**
+   * SingleSourceFlood-specific action: block the offending DID by
+   * inserting it into `haex_blocked_dids`, then acknowledge the banner
+   * row. If the params payload has no `did` field (shouldn't happen for
+   * SingleSourceFlood — Rust always populates it), we still ack so the
+   * banner doesn't get stuck.
+   */
+  const blockDidFromCurrent = async () => {
+    const row = current.value
+    if (!row) return
+    acting.value = true
+    try {
+      let did: string | undefined
+      try {
+        const params = JSON.parse(row.params) as { did?: unknown }
+        if (typeof params.did === 'string' && params.did.length > 0) {
+          did = params.did
+        }
+      } catch {
+        // Malformed params — fall through to ack-only.
+      }
+      if (did) {
+        const db = requireDb()
+        await db
+          .insert(schema.haexBlockedDids)
+          .values({
+            id: crypto.randomUUID(),
+            did,
+            label: null,
+          })
+          .onConflictDoNothing()
+      }
+      await invoke<number>('critical_notifications_acknowledge', { id: row.id })
+      await refresh()
+    } catch (err) {
+      console.error('[CriticalBanner] block-did failed:', err)
+    } finally {
+      acting.value = false
+    }
+  }
+
   return {
     current: readonly(current),
     translated: translatedContent,
     acting: readonly(acting),
     acknowledge,
     restartApp,
+    blockDidFromCurrent,
     /** Exposed for tests / explicit pull (e.g. after a known poison trigger). */
     refresh,
     /** Exposed for components that need to format severity differently. */

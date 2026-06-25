@@ -70,12 +70,21 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use tokio::sync::RwLock;
 
 use crate::crdt::hlc::HlcService;
+use crate::critical::sink::CriticalNotificationSink;
+use crate::critical::CriticalFailureCode;
 use crate::database::DbConnection;
 use crate::logging::{log_to_db, log_truncate, LOG_TRUNCATE_DEFAULT};
+use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
+use crate::space_delivery::local::dos_defence::decision::{
+    classify, should_log_this_reject, LoggingMode,
+};
+use crate::space_delivery::local::dos_defence::notifier::SingleSourceNotifier;
+use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::types::ConnectedPeer;
 use crate::ucan::{require_audience, require_capability, require_not_expired, ValidatedUcan};
@@ -89,6 +98,7 @@ use crate::ucan::{require_audience, require_capability, require_not_expired, Val
 /// - `Ok(None)` — request bypasses the gate (see `Request::required_capability`).
 /// - `Err(Response::Error { .. })` — auth failed; the caller should send the
 ///   response back to the peer and return.
+#[allow(clippy::too_many_arguments)]
 pub async fn authorize_request(
     request: &Request,
     verified_did: &str,
@@ -96,6 +106,10 @@ pub async fn authorize_request(
     connected_peers: &RwLock<HashMap<String, ConnectedPeer>>,
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
+    reject_tracker: &RejectRateTracker,
+    dos_config: &DosDefenceConfig,
+    flood_notifier: &SingleSourceNotifier,
+    critical_sink: Option<&CriticalNotificationSink>,
 ) -> Result<Option<ValidatedUcan>, Response> {
     // 1. Bypass — requests that bootstrap the gate's own preconditions.
     let required = match request.required_capability() {
@@ -116,6 +130,53 @@ pub async fn authorize_request(
     // the underlying error via `format!`. Taking `String` lets both cases
     // pass without an extra `.to_string()` on the literal side.
     let gate_reject = |level: &str, log_msg: String, peer_msg: String| -> Response {
+        // Discriminate peer-caused rejects (level="warn") from internal
+        // vault failures (level="error", e.g. stage-6b DB error). DoS
+        // rate-tracking + sampling only applies to peer-caused rejects:
+        // (a) a degraded DB must not raise SingleSourceFlood banners
+        //     against healthy peers, and
+        // (b) sampling must never drop an "error" log — those are
+        //     operator-actionable signals about the vault itself.
+        // See CodeRabbit review on PR #491.
+        let is_peer_caused = level != "error";
+
+        if is_peer_caused {
+            // L4 rate-limiting tap: record the reject keyed by verified
+            // DID (stable across endpoint rotation — see plan D1). At
+            // Sampled intensity we skip most haex_logs writes to avoid
+            // Owner-side write-amplification under a flood.
+            let now = Instant::now();
+            reject_tracker.record(verified_did, now);
+            let count = reject_tracker.count_within_window(verified_did, now);
+            let mode = classify(count, dos_config);
+
+            // On the warn-threshold crossing, raise a single-source-flood
+            // banner exactly once per (leader-session, DID). The
+            // [`SingleSourceNotifier`] dedups in-memory; the sink's
+            // UPSERT dedup is the second line of defence. Sink errors are
+            // best-effort — a missed banner is preferable to crashing
+            // the gate.
+            if matches!(mode, LoggingMode::Warning | LoggingMode::Sampled)
+                && flood_notifier.should_notify(verified_did)
+            {
+                if let Some(sink) = critical_sink {
+                    let _ = sink.emit(
+                        CriticalFailureCode::SingleSourceFlood,
+                        "space_delivery::local::auth_gate::gate_reject",
+                        serde_json::json!({
+                            "did": verified_did,
+                            "endpointId": peer_endpoint_id,
+                            "rateRejectsPerSec": count,
+                        }),
+                    );
+                }
+            }
+
+            if !should_log_this_reject(count, mode) {
+                return Response::Error { message: peer_msg };
+            }
+        }
+
         log_to_db(
             db,
             hlc,
@@ -247,5 +308,5 @@ pub async fn authorize_request(
 }
 
 #[cfg(test)]
-#[path = "auth_gate_tests.rs"]
+#[path = "auth_gate_tests/mod.rs"]
 mod tests;

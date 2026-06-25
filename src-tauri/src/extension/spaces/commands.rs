@@ -13,10 +13,8 @@ use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::SpaceAction;
-use crate::extension::utils::{
-    emit_permission_prompt_if_needed, get_extension_table_prefix, resolve_extension_id,
-};
+use crate::extension::permissions::types::{Principal, SpaceAction};
+use crate::extension::utils::{get_extension_table_prefix, prompt_on_err, resolve_extension_id};
 use crate::AppState;
 
 use serde::{Deserialize, Serialize};
@@ -100,13 +98,13 @@ pub async fn extension_space_assign(
 ) -> Result<u64, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    let perm_result =
-        PermissionManager::check_spaces_permission(&state, &extension_id, SpaceAction::ReadWrite)
-            .await;
-    if let Err(ref e) = perm_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    perm_result?;
+    let perm_result = PermissionManager::check_spaces_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        SpaceAction::ReadWrite,
+    )
+    .await;
+    prompt_on_err(&app_handle, perm_result)?;
 
     let extension = state
         .extension_manager
@@ -198,13 +196,13 @@ pub async fn extension_space_unassign(
 ) -> Result<u64, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    let perm_result =
-        PermissionManager::check_spaces_permission(&state, &extension_id, SpaceAction::ReadWrite)
-            .await;
-    if let Err(ref e) = perm_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    perm_result?;
+    let perm_result = PermissionManager::check_spaces_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        SpaceAction::ReadWrite,
+    )
+    .await;
+    prompt_on_err(&app_handle, perm_result)?;
 
     let extension = state
         .extension_manager
@@ -266,12 +264,13 @@ pub async fn extension_space_get_assignments(
 ) -> Result<Vec<SpaceAssignmentRow>, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    let perm_result =
-        PermissionManager::check_spaces_permission(&state, &extension_id, SpaceAction::Read).await;
-    if let Err(ref e) = perm_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    perm_result?;
+    let perm_result = PermissionManager::check_spaces_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        SpaceAction::Read,
+    )
+    .await;
+    prompt_on_err(&app_handle, perm_result)?;
 
     let extension = state
         .extension_manager
@@ -377,12 +376,13 @@ pub async fn extension_space_list(
 ) -> Result<Vec<DecryptedSpace>, ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
 
-    let perm_result =
-        PermissionManager::check_spaces_permission(&state, &extension_id, SpaceAction::Read).await;
-    if let Err(ref e) = perm_result {
-        emit_permission_prompt_if_needed(&app_handle, e);
-    }
-    perm_result?;
+    let perm_result = PermissionManager::check_spaces_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        SpaceAction::Read,
+    )
+    .await;
+    prompt_on_err(&app_handle, perm_result)?;
 
     let rows = core::select_with_crdt(
         "SELECT s.id, s.name, s.origin_url, s.created_at, \

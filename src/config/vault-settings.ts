@@ -18,6 +18,7 @@ export enum VaultSettingsKeyEnum {
   gradientEnabled = 'gradient_enabled',
   peerStorageAutostart = 'peer_storage_autostart',
   peerStorageRelayUrl = 'peer_storage_relay_url',
+  ownerSyncAutostart = 'owner_sync_autostart',
   logRetentionDays = 'log_retention_days',
   localDeliveryMessageTtlDays = 'local_delivery_message_ttl_days',
   localDeliveryKeyPackageTtlHours = 'local_delivery_key_package_ttl_hours',

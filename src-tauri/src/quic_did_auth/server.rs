@@ -6,43 +6,17 @@
 //! DID — from that point on, that DID is bound to the current QUIC connection
 //! and can be trusted as the peer identity for UCAN audience checks.
 
-use std::time::Duration;
-
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::Signature;
-use thiserror::Error;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::timeout;
 
 use crate::ucan::public_key_from_did;
 
 use super::wire::{
-    build_sig_input, Challenge, Response, MAX_MESSAGE_SIZE, NONCE_LEN, PROTOCOL_VERSION,
+    build_sig_input, read_message, write_message, Challenge, ChallengeError, Response,
+    CHALLENGE_TIMEOUT, NONCE_LEN, PROTOCOL_VERSION,
 };
-
-/// Read/write timeout for the handshake. Matches `quic_retry::READ_TIMEOUT_SECS`
-/// (the existing slow-peer budget for sync requests).
-pub const CHALLENGE_TIMEOUT: Duration = Duration::from_secs(30);
-
-#[derive(Debug, Error)]
-pub enum ChallengeError {
-    #[error("wire protocol error: {0}")]
-    WireProtocol(String),
-    #[error("unsupported protocol version: {0}")]
-    UnsupportedVersion(u32),
-    #[error("client endpoint id mismatch: announced {announced}, actual {actual}")]
-    EndpointIdMismatch { announced: String, actual: String },
-    #[error("malformed DID: {0}")]
-    MalformedDid(String),
-    #[error("malformed base64 in nonce or signature")]
-    MalformedBase64,
-    #[error("nonce length must be {expected} bytes, got {got}")]
-    NonceLength { expected: usize, got: usize },
-    #[error("signature verification failed")]
-    SignatureInvalid,
-    #[error("timeout waiting for client response")]
-    Timeout,
-}
 
 /// Run the server side of the handshake. Generates a fresh nonce, writes the
 /// Challenge, awaits the Response, and returns the verified DID.
@@ -122,57 +96,6 @@ pub(crate) fn verify_response(
         .map_err(|_| ChallengeError::SignatureInvalid)?;
 
     Ok(response.did.clone())
-}
-
-async fn write_message<T, W>(send: &mut W, msg: &T) -> Result<(), ChallengeError>
-where
-    T: serde::Serialize,
-    W: AsyncWrite + Unpin,
-{
-    let json = serde_json::to_vec(msg).map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    if json.len() > MAX_MESSAGE_SIZE {
-        return Err(ChallengeError::WireProtocol(format!(
-            "outgoing message too large: {} bytes (max {})",
-            json.len(),
-            MAX_MESSAGE_SIZE
-        )));
-    }
-    let len_be = (json.len() as u32).to_be_bytes();
-    send.write_all(&len_be)
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    send.write_all(&json)
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    // Flush so a small handshake message (~200 bytes) is actually pushed
-    // through iroh's QUIC send buffer — without this the peer's read_exact
-    // blocks until the connection idles or another byte is written.
-    send.flush()
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    Ok(())
-}
-
-async fn read_message<T, R>(recv: &mut R) -> Result<T, ChallengeError>
-where
-    T: serde::de::DeserializeOwned,
-    R: AsyncRead + Unpin,
-{
-    let mut len_buf = [0u8; 4];
-    recv.read_exact(&mut len_buf)
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    let len = u32::from_be_bytes(len_buf) as usize;
-    if len > MAX_MESSAGE_SIZE {
-        return Err(ChallengeError::WireProtocol(format!(
-            "incoming message too large: {len} bytes (max {MAX_MESSAGE_SIZE})"
-        )));
-    }
-    let mut buf = vec![0u8; len];
-    recv.read_exact(&mut buf)
-        .await
-        .map_err(|e| ChallengeError::WireProtocol(e.to_string()))?;
-    serde_json::from_slice(&buf).map_err(|e| ChallengeError::WireProtocol(e.to_string()))
 }
 
 #[cfg(test)]
