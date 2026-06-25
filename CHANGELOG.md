@@ -1,5 +1,42 @@
 # Changelog
 
+## [2.11.0](https://github.com/haex-space/haex-vault/compare/v2.10.0...v2.11.0) (2026-06-25)
+
+
+### Features
+
+* **dos-defence:** Phase 1 — Leader L4 rate-limiting + flood notification ([#491](https://github.com/haex-space/haex-vault/issues/491)) ([bf7c0bb](https://github.com/haex-space/haex-vault/commit/bf7c0bb205593eb9ec5f1cc640c4a2a763d0963f))
+* **owner-sync:** add ownerSyncAutostart settings key ([5150cab](https://github.com/haex-space/haex-vault/commit/5150cab8413d5d2f22c226131ed818679a112e31))
+* **owner-sync:** nuxt-free command wrappers + default-on autostart helper ([276f08a](https://github.com/haex-space/haex-vault/commit/276f08a81751931bc593711ca81b6d97eb2a6b96))
+* **owner-sync:** owner-device sync UI in sync settings ([59bbc87](https://github.com/haex-space/haex-vault/commit/59bbc870190b8b40760d1b940c52db1bfcfd544b))
+* **owner-sync:** P2P pending-column recovery (phase 3) ([#490](https://github.com/haex-space/haex-vault/issues/490)) ([057370a](https://github.com/haex-space/haex-vault/commit/057370ada3f6e99fb5476d95543174feae90cf84))
+* **owner-sync:** serverless P2P sync of the owner's own vault across devices (phases 1-2) ([#489](https://github.com/haex-space/haex-vault/issues/489)) ([ec365e8](https://github.com/haex-space/haex-vault/commit/ec365e8f7a6a88d091d4925b61acd706792b71aa))
+* **owner-sync:** wire owner-device sync in UI (phase 6) ([8a80275](https://github.com/haex-space/haex-vault/commit/8a80275439f22c1f03fc026afde74a7d37da856a))
+* **owner-sync:** wire owner-sync into endpoint lifecycle (autostart default-on) ([b498395](https://github.com/haex-space/haex-vault/commit/b4983959a015e75ec4b86e1bcbccd9933bf8112e))
+* **permissions:** unified principal model + scoped passwords/identity capabilities (phases 1-4) ([#487](https://github.com/haex-space/haex-vault/issues/487)) ([963e7a4](https://github.com/haex-space/haex-vault/commit/963e7a46fa54330dd01c571c06f857fd52f14312))
+* **sync:** paginated per-HLC owner+space sync with a 100 MB transaction model ([#495](https://github.com/haex-space/haex-vault/issues/495)) ([87cf01d](https://github.com/haex-space/haex-vault/commit/87cf01d81d330a4fad517f9fb9032a7e235532ff))
+* **sync:** streaming per-HLC server-client pull-and-apply (mirrors P2P [#495](https://github.com/haex-space/haex-vault/issues/495) on HTTP) ([#510](https://github.com/haex-space/haex-vault/issues/510)) ([48454bd](https://github.com/haex-space/haex-vault/commit/48454bd1f4f107bd1e7278f3197af2a9c7acadc0))
+* **welcome:** customizable identity + device avatars ([#488](https://github.com/haex-space/haex-vault/issues/488)) ([0eb4cb6](https://github.com/haex-space/haex-vault/commit/0eb4cb6ae8ebc69e2648625de67ccd4c9a89533e))
+
+
+### Bug Fixes
+
+* **ci:** debug-sign unsigned APK for Android E2E on dependabot PRs ([#517](https://github.com/haex-space/haex-vault/issues/517)) ([97e1dd9](https://github.com/haex-space/haex-vault/commit/97e1dd973258b2155e98bdb6e5e20db869a45965))
+* **crdt:** skip partial-row INSERT instead of wedging sync on NOT NULL ([#486](https://github.com/haex-space/haex-vault/issues/486)) ([0b86d25](https://github.com/haex-space/haex-vault/commit/0b86d25a8aac9b4bf0094ca379f9ad92dadb0a34))
+* **crdt:** suppress delete-resurrection across late table creation / reordered inserts (phase 4) ([#494](https://github.com/haex-space/haex-vault/issues/494)) ([972e66a](https://github.com/haex-space/haex-vault/commit/972e66ac0373380ff9f3d677b489ea8678630696))
+* **extension:** stop extensions self-granting permissions; bind logging identity ([f93a7da](https://github.com/haex-space/haex-vault/commit/f93a7dac734caed1adb6a72897fdbf5a9e783a6e))
+* **extension:** stop extensions self-granting permissions; bind logging identity ([ab97aba](https://github.com/haex-space/haex-vault/commit/ab97abaec747a73f749dd232b52262a31b784a7a))
+* **filesystem:** runtime env-gate e2e picker override (was compiled out of release) ([#540](https://github.com/haex-space/haex-vault/issues/540)) ([0a5f7e5](https://github.com/haex-space/haex-vault/commit/0a5f7e5f831048dacb37a7dda43fa49cd1c5faf5))
+* **owner-sync:** address post-merge review nits ([f7fe951](https://github.com/haex-space/haex-vault/commit/f7fe951cd0562a8cde915ee9efc198aa78de0da2))
+* **owner-sync:** address post-merge review nits ([942f449](https://github.com/haex-space/haex-vault/commit/942f44961263c338a18da55681f4b489cf7cee23))
+* **owner-sync:** honest 3-state status (enabled vs actively syncing) ([a74fcc1](https://github.com/haex-space/haex-vault/commit/a74fcc18d7f6aa9cd63ff52ce862271a49d89dbd))
+* **owner-sync:** populate known devices for status count in sync settings ([84685ee](https://github.com/haex-space/haex-vault/commit/84685eebfc8496ab56dc7b66441124003b27b409))
+* **owner-sync:** row-aware pending-column markers (no partial-recovery loss) ([#492](https://github.com/haex-space/haex-vault/issues/492)) ([2b020bb](https://github.com/haex-space/haex-vault/commit/2b020bb7eaba1f7bb40160252fa3174fd7d1d5e1))
+* **p2p:** restore download progress/cancel/pause and stop temp-file leak ([#485](https://github.com/haex-space/haex-vault/issues/485)) ([dfa23b0](https://github.com/haex-space/haex-vault/commit/dfa23b0699f010886bb0f0e98f069d78ad016144))
+* **p2p:** serialize sidecar saves to stop concurrent-writer lost-update ([#480](https://github.com/haex-space/haex-vault/issues/480)) ([e71788b](https://github.com/haex-space/haex-vault/commit/e71788b433ae7747a34e17e0fa832eae166210bf))
+* **permissions:** address CodeRabbit follow-ups from PR [#525](https://github.com/haex-space/haex-vault/issues/525) ([#529](https://github.com/haex-space/haex-vault/issues/529)) ([2a4ad36](https://github.com/haex-space/haex-vault/commit/2a4ad36778ac3a2be4ef2c43c35fec900925bb6c))
+* **vault:** emit vault-list-changed so the picker re-renders after import/delete ([#531](https://github.com/haex-space/haex-vault/issues/531)) ([857ca61](https://github.com/haex-space/haex-vault/commit/857ca611c9bae6b811c9dd56f2fb18502464e23e))
+
 ## [2.10.0](https://github.com/haex-space/haex-vault/compare/v2.9.1...v2.10.0) (2026-06-18)
 
 
