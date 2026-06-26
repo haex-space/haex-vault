@@ -1,4 +1,4 @@
-use crate::crdt::trigger::{is_safe_identifier, ColumnInfo, DELETED_ROWS_TABLE};
+use crate::crdt::trigger::{get_table_schema, is_safe_identifier, ColumnInfo, DELETED_ROWS_TABLE};
 use crate::database::error::DatabaseError;
 use rusqlite::params;
 use serde_json::Value as JsonValue;
@@ -207,6 +207,35 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
             }
         };
 
+        // Defense-in-depth against malformed delete-log rows: require that
+        // row_pks names *exactly* the target table's PK columns. A composite
+        // key like (a, b) with only `{"a": ...}` would otherwise build a
+        // partial WHERE and over-delete every row matching `a`.
+        let schema = match get_table_schema(tx, &target_table) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Skipping delete-log {} for '{}': failed to load schema: {}",
+                    id, target_table, e
+                );
+                continue;
+            }
+        };
+        let expected_pk_names: HashSet<&str> = schema
+            .iter()
+            .filter(|c| c.is_pk)
+            .map(|c| c.name.as_str())
+            .collect();
+        let provided_pk_names: HashSet<&str> = row_pks.keys().map(|k| k.as_str()).collect();
+        if expected_pk_names.is_empty() || expected_pk_names != provided_pk_names {
+            eprintln!(
+                "[SYNC RUST] Skipping delete-log {} for '{}': row_pks keys {:?} \
+                 do not match table PK columns {:?}",
+                id, target_table, provided_pk_names, expected_pk_names
+            );
+            continue;
+        }
+
         // All-or-nothing safety: if any PK column name fails the safe-
         // identifier check we must skip the entire row. Building a
         // partial WHERE from the remaining columns would match more
@@ -235,9 +264,12 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
             "SELECT haex_hlc FROM \"{}\" WHERE {}",
             target_table, where_clause
         );
-        let target_row_hlc: Option<String> = tx
-            .query_row(&select_hlc_sql, param_refs.as_slice(), |row| row.get(0))
-            .ok();
+        let target_row_hlc: Option<String> =
+            match tx.query_row(&select_hlc_sql, param_refs.as_slice(), |row| row.get(0)) {
+                Ok(hlc) => Some(hlc),
+                Err(rusqlite::Error::QueryReturnedNoRows) => None,
+                Err(e) => return Err(DatabaseError::from(e)),
+            };
         if !should_propagate_delete(&delete_hlc, target_row_hlc.as_deref()) {
             eprintln!(
                 "[SYNC RUST] Skipping delete-log {} for '{}': target row \

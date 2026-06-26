@@ -53,12 +53,16 @@ pub(crate) fn group_row_changes_in_hlc_order(
     entries.sort_by(|a, b| {
         let a_min = crate::crdt::hlc::hlc_min(a.1.iter().map(|c| c.hlc_timestamp.as_str()));
         let b_min = crate::crdt::hlc::hlc_min(b.1.iter().map(|c| c.hlc_timestamp.as_str()));
-        match (a_min, b_min) {
+        let primary = match (a_min, b_min) {
             (Some(am), Some(bm)) => crate::crdt::hlc::compare_hlc_strings(am, bm),
             (Some(_), None) => std::cmp::Ordering::Less,
             (None, Some(_)) => std::cmp::Ordering::Greater,
             (None, None) => std::cmp::Ordering::Equal,
-        }
+        };
+        // Tie-break on the group key so equal-min-HLC rows have a stable
+        // order across runs (HashMap iteration order is otherwise the only
+        // signal left).
+        primary.then_with(|| a.0.cmp(&b.0))
     });
     entries
 }
