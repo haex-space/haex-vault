@@ -51,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SpaceWithType } from '@/stores/spaces'
+import type { SpaceWithType } from '@/stores/spaces/types'
 
 type ServerOption = { label: string; value: string }
 

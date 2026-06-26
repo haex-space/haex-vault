@@ -207,9 +207,19 @@ pub async fn peer_storage_remote_read(
     let registry_modified = expected_modified;
     let android_sub_path = format!("HaexVault/{space_subfolder}");
 
+    // Reaper holds an independent clone of the channel and the transfer_id
+    // so that if the download task itself panics (and therefore drops its
+    // `on_event` without ever sending Error), the JoinError observed here
+    // is surfaced to the frontend as a TransferEvent::Error. Without this,
+    // a panic in the spawned future would close the channel silently and
+    // the frontend transfer store would hang in "in-flight" forever.
+    let on_event_reaper = on_event.clone();
+    let transfer_id_for_reaper = transfer_id.clone();
+    let app_handle_for_reaper = app.clone();
+
     // Spawn the download on a separate task. The IPC handler returns immediately
     // with the target path. Progress/completion/errors are streamed via the Channel.
-    tokio::spawn(async move {
+    let download_handle = tokio::spawn(async move {
         let state = app_handle.state::<AppState>();
 
         // Progress callback with throttling: at most every 100ms to avoid
@@ -292,6 +302,26 @@ pub async fn peer_storage_remote_read(
                 let _ = on_event.send(TransferEvent::Error {
                     error: e.to_string(),
                 });
+            }
+        }
+    });
+
+    // Reaper: await the download handle and surface a JoinError (panic /
+    // runtime cancellation) as a TransferEvent::Error so the frontend sees
+    // the failure instead of an orphaned transfer. Normal completion is a
+    // no-op here because the download task already sent Complete/Error on
+    // `on_event` before returning.
+    tokio::spawn(async move {
+        if let Err(join_err) = download_handle.await {
+            eprintln!("[peer_storage] remote_read download task terminated abnormally: {join_err}");
+            let _ = on_event_reaper.send(TransferEvent::Error {
+                error: format!("download task crashed: {join_err}"),
+            });
+            // Also drop the transfer token registration so a subsequent
+            // request with the same id is not blocked as "already in flight".
+            if let Some(tid) = transfer_id_for_reaper {
+                let state = app_handle_for_reaper.state::<AppState>();
+                state.transfer_tokens.lock().await.remove(&tid);
             }
         }
     });

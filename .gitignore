@@ -39,7 +39,8 @@ test-results/
 .playwright-mcp/
 docs/plans/*
 docs/play-store/
-.worktrees
+.worktrees/*
+!.worktrees/README.md
 
 # graphify cache / output
 graphify-out/

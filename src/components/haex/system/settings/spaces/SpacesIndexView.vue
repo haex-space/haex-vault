@@ -110,7 +110,7 @@ import SpaceCreateDialog, {
   type CreateSpacePayload,
 } from './SpaceCreateDialog.vue'
 import SpaceJoinDialog from './SpaceJoinDialog.vue'
-import type { SpaceWithType } from '@/stores/spaces'
+import type { SpaceWithType } from '@/stores/spaces/types'
 import type { SelectHaexPendingInvites } from '~/database/schemas'
 import type { InvitePolicyValue } from '@/composables/useSpaceInvites'
 
