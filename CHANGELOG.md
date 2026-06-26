@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.11.2](https://github.com/haex-space/haex-vault/compare/v2.11.1...v2.11.2) (2026-06-26)
+
+
+### Bug Fixes
+
+* **files:** propagate contact-claims load failure instead of swallowing it ([b47aafe](https://github.com/haex-space/haex-vault/commit/b47aafe63e4ef08568a22a336a7e0c44b3feded8))
+* **ui:** restore filebrowser + recover lost i18n labels after SFC split ([b58f13b](https://github.com/haex-space/haex-vault/commit/b58f13b76112e56283275f4364520cf36fe6f334))
+* **ui:** restore filebrowser + recover lost i18n labels after SFC split ([66a3f31](https://github.com/haex-space/haex-vault/commit/66a3f31da7ec9c0bb0a6dce98b57c15747e07102))
+
 ## [2.11.1](https://github.com/haex-space/haex-vault/compare/v2.11.0...v2.11.1) (2026-06-25)
 
 
