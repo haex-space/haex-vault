@@ -507,18 +507,48 @@ pub fn apply_remote_changes_to_db(
             // ordering that group_by_transaction_hlc just established.
             let row_changes = group_row_changes_in_hlc_order(changes);
 
-            // Per-table cache of delete-log entries (parsed `row_pks` map + HLC)
-            // for the row-absent insert branch. Computed lazily on first need,
-            // then reused for every subsequent absent row of the same table in
-            // this apply pass — collapses N row-absent inserts against the same
-            // table from N queries+JSON parses to one. The transaction (`tx`)
-            // is the only writer to `haex_deleted_rows` in this pass and we
-            // already abort on any read error here, so the cache is consistent
+            // Pre-loaded delete-log entries (parsed `row_pks` map + HLC) grouped
+            // by target `table_name`, for the row-absent insert branch below.
+            // Previous implementation loaded lazily per-table on first absent
+            // row, which scaled with `|haex_deleted_rows|` re-issued for every
+            // new table touched. Loading once collapses the whole apply pass to
+            // a single sweep. The transaction (`tx`) is the only writer to
+            // `haex_deleted_rows` in this pass, so the snapshot is consistent
             // with what's on disk for the duration of one apply.
-            let mut shadowing_deletes_by_table: HashMap<
+            //
+            // Absent-table = empty slice (matches the lazy-load semantics:
+            // "no entries for that table" yielded `&[]`).
+            let shadowing_deletes_by_table: HashMap<
                 String,
                 Vec<(serde_json::Map<String, JsonValue>, String)>,
-            > = HashMap::new();
+            > = {
+                let mut map: HashMap<String, Vec<(serde_json::Map<String, JsonValue>, String)>> =
+                    HashMap::new();
+                let mut stmt = tx
+                    .prepare(&format!(
+                        "SELECT table_name, row_pks, haex_hlc FROM \"{}\"",
+                        DELETED_ROWS_TABLE
+                    ))
+                    .map_err(DatabaseError::from)?;
+                let mapped = stmt
+                    .query_map([], |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                        ))
+                    })
+                    .map_err(DatabaseError::from)?;
+                for r in mapped {
+                    let (table_name, pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
+                    if let Ok(pks_map) =
+                        serde_json::from_str::<serde_json::Map<String, JsonValue>>(&pks_str)
+                    {
+                        map.entry(table_name).or_default().push((pks_map, del_hlc));
+                    }
+                }
+                map
+            };
 
             // Apply changes grouped by row
             for ((_table_name, row_pks_str), row_change_list) in row_changes {
@@ -742,45 +772,15 @@ pub fn apply_remote_changes_to_db(
                         // serializer differences between the scanner (sorted) and the DELETE
                         // trigger (PK-definition order).
                         //
-                        // The read fails hard on error (propagated `?`), matching
-                        // propagate_deleted_rows_to_target_tables: in production
-                        // `haex_deleted_rows` always exists, so a read error here is a real
-                        // fault and must not silently fall through to an insert (which would
-                        // resurrect a deleted row).
-                        //
-                        // Cached per `table_name` for the apply pass — see the
-                        // `shadowing_deletes_by_table` declaration above the row loop.
-                        // `Entry::Vacant` keeps the `?` propagation correct (we can't
-                        // use `or_insert_with` because the loader fails fallibly).
-                        if let std::collections::hash_map::Entry::Vacant(slot) =
-                            shadowing_deletes_by_table.entry(first_change.table_name.clone())
-                        {
-                            let mut entries: Vec<(serde_json::Map<String, JsonValue>, String)> =
-                                Vec::new();
-                            let mut stmt = tx
-                                .prepare(&format!(
-                                    "SELECT row_pks, haex_hlc FROM \"{}\" WHERE table_name = ?1",
-                                    DELETED_ROWS_TABLE
-                                ))
-                                .map_err(DatabaseError::from)?;
-                            let mapped = stmt
-                                .query_map(params![&first_change.table_name], |row| {
-                                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-                                })
-                                .map_err(DatabaseError::from)?;
-                            for r in mapped {
-                                let (pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
-                                if let Ok(map) = serde_json::from_str::<
-                                    serde_json::Map<String, JsonValue>,
-                                >(&pks_str)
-                                {
-                                    entries.push((map, del_hlc));
-                                }
-                            }
-                            slot.insert(entries);
-                        }
-                        let shadowing_deletes =
-                            &shadowing_deletes_by_table[&first_change.table_name];
+                        // Look up the per-table shadowing-delete entries from the
+                        // apply-pass-wide pre-load above. Absent table = empty
+                        // slice (preserves the lazy-load semantics where a table
+                        // with no matching delete-log entries fell through to a
+                        // plain insert).
+                        let empty: Vec<(serde_json::Map<String, JsonValue>, String)> = Vec::new();
+                        let shadowing_deletes = shadowing_deletes_by_table
+                            .get(&first_change.table_name)
+                            .unwrap_or(&empty);
                         if insert_suppressed_by_deletes(
                             &row_pks,
                             &max_hlc_for_row,

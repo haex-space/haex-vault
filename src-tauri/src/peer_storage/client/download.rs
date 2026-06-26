@@ -632,6 +632,21 @@ pub(crate) async fn read_multipart_to_file(
     let range_progress: Arc<std::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>> =
         Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
 
+    // RAII guard: clear the per-range progress map when the function returns,
+    // regardless of which exit path is taken (Ok, Err, or `?`-borne early
+    // return). This drops the map's entries promptly instead of waiting for
+    // the surrounding `Arc` lifetimes to collapse. Memory-hygiene only — does
+    // not affect semantics of the in-flight downloads.
+    struct RangeProgressClearGuard(
+        Arc<std::sync::Mutex<std::collections::HashMap<(u64, u64), u64>>>,
+    );
+    impl Drop for RangeProgressClearGuard {
+        fn drop(&mut self) {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        }
+    }
+    let _range_progress_clear_guard = RangeProgressClearGuard(range_progress.clone());
+
     let total_size = size;
     let max_retries = streaming::MAX_RANGE_RETRIES;
 
