@@ -92,7 +92,7 @@ import SpacesIndexView, {
 } from './spaces/SpacesIndexView.vue'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { useSpacesActions } from '@/composables/useSpacesActions'
-import type { SpaceWithType } from '@/stores/spaces'
+import type { SpaceWithType } from '@/stores/spaces/types'
 
 const props = defineProps<{
   inviteLink?: string

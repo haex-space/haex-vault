@@ -1,11 +1,11 @@
 import * as OTPAuth from 'otpauth'
 import { useClipboard } from '@vueuse/core'
 import type { AttachmentWithSize } from '~/types/passwords/attachment'
+import type { OtpAlgorithm } from '~/composables/handlers/useCoreExternalRequestHandlers/types'
 
 export type EditableKeyValue = { id: string; key: string; value: string }
 
 export const otpAlgorithms = ['SHA1', 'SHA256', 'SHA512'] as const
-export type OtpAlgorithm = (typeof otpAlgorithms)[number]
 
 export type EditorForm = {
   title: string

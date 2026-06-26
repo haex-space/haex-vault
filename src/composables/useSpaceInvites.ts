@@ -4,7 +4,7 @@ import {
   haexPendingInvites,
   type SelectHaexPendingInvites,
 } from '~/database/schemas'
-import type { SpaceWithType } from '@/stores/spaces'
+import type { SpaceWithType } from '@/stores/spaces/types'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { loadUcansFromDbAsync } from '@/utils/auth/ucanStore'

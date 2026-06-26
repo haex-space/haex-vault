@@ -204,7 +204,7 @@
 <script setup lang="ts">
 import { eq, and } from 'drizzle-orm'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
-import type { SpaceWithType } from '@/stores/spaces'
+import type { SpaceWithType } from '@/stores/spaces/types'
 import type {
   SelectHaexIdentities,
   SelectHaexSpaceDevices,

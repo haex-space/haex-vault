@@ -342,7 +342,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SpaceWithType } from '@/stores/spaces'
+import type { SpaceWithType } from '@/stores/spaces/types'
 import type { SelectHaexPendingInvites } from '~/database/schemas'
 import SpaceOwnerModal from './SpaceOwnerModal.vue'
 

@@ -188,7 +188,7 @@
 
 <script setup lang="ts">
 import { getAvailableContentHeight } from '~/utils/viewport'
-import type { IWindowTab } from '~/stores/desktop/windowManager'
+import type { IWindowTab } from '~/stores/desktop/windowManager/state'
 
 const windowManager = useWindowManagerStore()
 
