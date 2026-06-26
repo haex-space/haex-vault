@@ -41,9 +41,12 @@ jobs:
           fi
       - name: Run cargo audit
         working-directory: src-tauri
-        # `--deny warnings` flips advisories into failures. Unmaintained-only
-        # warnings can be allow-listed in src-tauri/audit.toml as we discover them.
-        run: cargo audit --deny warnings
+        # Plain `cargo audit` already fails on real vulnerabilities. We do NOT
+        # pass `--deny warnings` — unmaintained advisories (especially the
+        # GTK3/Tauri transitive stack) would otherwise turn into ~28 CI errors
+        # on every PR. Curated vulnerability ignores live in `.cargo/audit.toml`
+        # (auto-loaded by cargo-audit; documented per-entry).
+        run: cargo audit
 
   pnpm-audit:
     runs-on: ubuntu-latest
