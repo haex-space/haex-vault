@@ -8,6 +8,9 @@ mod list;
 mod read;
 mod write;
 
+#[cfg(test)]
+mod tests;
+
 #[allow(unused_imports)]
 pub(crate) use download::{download_file_to_path, read_multipart_to_file, run_bounded_retry_pool};
 

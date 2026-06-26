@@ -9,7 +9,6 @@ import { SpaceType, SpaceStatus } from '~/database/constants'
 import spacesDe from './spaces.de.json'
 import spacesEn from './spaces.en.json'
 import type { ResolvedIdentity, SpaceWithType } from './types'
-export type { ResolvedIdentity, SpaceWithType } from './types'
 import { rowToSpace } from './types'
 import {
   loadMemberSpaceIds,

@@ -69,9 +69,13 @@ async fn auto_disable_rule(app: &tauri::AppHandle, rule_id: &str, failures: u32,
     // Unregister from SyncManager so `is_running` reflects reality, and stop
     // any file watchers that were started alongside this rule. Without this,
     // the loop exits but the runtime state stays as a zombie entry.
+    // NB: cannot use `stop().await` here — we are running inside the very
+    // sync-loop task whose JoinHandle `stop` would await, which would
+    // self-deadlock. `deregister` drops the entry (and cancels the token)
+    // without awaiting the handle; the task continues to completion below.
     {
         let mut manager = state.sync_manager.lock().await;
-        manager.stop(rule_id);
+        manager.deregister(rule_id);
     }
     let _ = state.file_watcher.unwatch(rule_id);
     let _ = state.file_watcher.unwatch(&format!("{}_source", rule_id));

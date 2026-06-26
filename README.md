@@ -63,6 +63,44 @@ graph TB
 
 ---
 
+## Development Setup
+
+### Prerequisites
+
+- Node.js (matches `engines` in `package.json`)
+- pnpm (`packageManager` field pins the version — install with `corepack enable`)
+- Rust toolchain (pinned via `rust-toolchain.toml` — installed automatically by `rustup` on first build)
+- For Android builds: Android Studio + NDK; set `ANDROID_HOME` and `NDK_HOME`.
+
+### Desktop
+
+```sh
+pnpm install
+pnpm dev                 # Nuxt dev server (http://localhost:4010)
+pnpm tauri dev           # full Tauri desktop app (depends on dev server)
+```
+
+### Android
+
+```sh
+pnpm android:init        # one-time per checkout: generates Tauri Android project + icons
+pnpm android:dev         # build & launch on connected device / emulator
+```
+
+### Verification
+
+```sh
+pnpm typecheck
+pnpm test
+cd src-tauri && cargo test && cargo clippy -- -D warnings
+```
+
+### Branching
+
+Feature work targets `develop`, never `main`. See `CLAUDE.md` for the full policy.
+
+---
+
 ## What Haex Vault Does
 
 At its core, Haex Vault syncs your encrypted data across devices — without conflicts, without a server requirement, and without anyone being able to read your data.

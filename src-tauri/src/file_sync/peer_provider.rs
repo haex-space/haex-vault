@@ -419,3 +419,7 @@ impl SyncProvider for PeerProvider {
         false
     }
 }
+
+#[cfg(test)]
+#[path = "peer_provider_tests.rs"]
+mod peer_provider_tests;

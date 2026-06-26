@@ -8,8 +8,6 @@ import { useWorkspaceIcons } from './workspaceIcons'
 import type { DesktopItemType, IDesktopItem } from './types'
 import { createLogger } from '@/stores/logging'
 
-export type { DesktopItemType, IDesktopItem } from './types'
-
 const log = createLogger('DESKTOP')
 
 export const useDesktopStore = defineStore('desktopStore', () => {
