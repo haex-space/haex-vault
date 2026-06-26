@@ -109,3 +109,24 @@ const emit = defineEmits<{
   requestDelete: []
 }>()
 </script>
+
+<i18n lang="yaml">
+de:
+  titleCreate: Neuer Eintrag
+  untitled: (ohne Titel)
+  back: Zurück
+  edit: Bearbeiten
+  delete: In Papierkorb
+  deletePermanently: Endgültig löschen
+  restore: Wiederherstellen
+  save: Speichern
+en:
+  titleCreate: New entry
+  untitled: (untitled)
+  back: Back
+  edit: Edit
+  delete: Move to trash
+  deletePermanently: Delete permanently
+  restore: Restore
+  save: Save
+</i18n>

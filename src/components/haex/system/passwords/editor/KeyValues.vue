@@ -137,3 +137,22 @@ const emit = defineEmits<{
 
 const lastKvKeyInputEl = ref<{ $el?: HTMLElement } | null>(null)
 </script>
+
+<i18n lang="yaml">
+de:
+  extra:
+    customFields: Benutzerdefinierte Felder
+    description: Eigene Felder (z.B. Recovery-Code, PIN, Sicherheitsfragen).
+    empty: Noch keine eigenen Felder.
+    add: Feld hinzufügen
+    keyPlaceholder: Schlüssel
+    valuePlaceholder: Wert
+en:
+  extra:
+    customFields: Custom Fields
+    description: Custom fields (e.g. recovery code, PIN, security questions).
+    empty: No custom fields yet.
+    add: Add field
+    keyPlaceholder: Key
+    valuePlaceholder: Value
+</i18n>

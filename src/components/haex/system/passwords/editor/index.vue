@@ -480,57 +480,10 @@ const onSave = async () => {
 
 <i18n lang="yaml">
 de:
-  titleCreate: Neuer Eintrag
-  untitled: (ohne Titel)
-  back: Zurück
-  edit: Bearbeiten
-  delete: In Papierkorb
-  deletePermanently: Endgültig löschen
-  restore: Wiederherstellen
-  save: Speichern
-  copy: Kopieren
-  copied: Kopiert
-  expired: Dieser Eintrag ist abgelaufen.
   tabs:
     details: Details
     extra: Extra
-    attachments: Anhänge
     history: Verlauf
-  fields:
-    title: Titel
-    titlePlaceholder: z.B. GitHub
-    tags: Tags
-    username: Nutzername
-    password: Passwort
-    generate: Generieren
-    url: URL
-    note: Notiz
-    expiresAt: Ablaufdatum
-    icon: Icon
-    color: Farbe
-    otp: Einmalcode (TOTP)
-    otpSecret: Base32 Secret
-    otpDigits: Stellen
-    otpPeriod: Periode (s)
-  extra:
-    customFields: Benutzerdefinierte Felder
-    description: Eigene Felder (z.B. Recovery-Code, PIN, Sicherheitsfragen).
-    empty: Noch keine eigenen Felder.
-    add: Feld hinzufügen
-    remove: Feld entfernen
-    keyPlaceholder: Schlüssel
-    valuePlaceholder: Wert
-  passkeys:
-    title: Passkeys
-    description: Passkeys werden automatisch über die Browser-Erweiterung erstellt.
-  attachments:
-    title: Dateianhänge
-    description: Dateien, Bilder und Dokumente die zu diesem Eintrag gehören.
-  autofill:
-    title: Autofill-Zuordnung
-    description: Konfiguriere alternative Feldnamen für das Browser-Autofill.
-  history:
-    label: Verlauf
   validation:
     titleRequired: Titel ist Pflicht
   toast:
@@ -543,57 +496,10 @@ de:
     deleteError: Löschen fehlgeschlagen
     restoreError: Wiederherstellen fehlgeschlagen
 en:
-  titleCreate: New entry
-  untitled: (untitled)
-  back: Back
-  edit: Edit
-  delete: Move to trash
-  deletePermanently: Delete permanently
-  restore: Restore
-  save: Save
-  copy: Copy
-  copied: Copied
-  expired: This entry has expired.
   tabs:
     details: Details
     extra: Extra
-    attachments: Attachments
     history: History
-  fields:
-    title: Title
-    titlePlaceholder: e.g. GitHub
-    tags: Tags
-    username: Username
-    password: Password
-    generate: Generate
-    url: URL
-    note: Note
-    expiresAt: Expires at
-    icon: Icon
-    color: Color
-    otp: One-time code (TOTP)
-    otpSecret: Base32 secret
-    otpDigits: Digits
-    otpPeriod: Period (s)
-  extra:
-    customFields: Custom Fields
-    description: Custom fields (e.g. recovery code, PIN, security questions).
-    empty: No custom fields yet.
-    add: Add field
-    remove: Remove field
-    keyPlaceholder: Key
-    valuePlaceholder: Value
-  passkeys:
-    title: Passkeys
-    description: Passkeys are created automatically via the browser extension.
-  attachments:
-    title: Attachments
-    description: Files, images and documents associated with this entry.
-  autofill:
-    title: Autofill Mapping
-    description: Configure alternative field names for browser autofill.
-  history:
-    label: History
   validation:
     titleRequired: Title is required
   toast:
