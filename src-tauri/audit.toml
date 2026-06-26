@@ -1,0 +1,4 @@
+# Allow-list of cargo advisories explicitly reviewed and accepted.
+# Each entry MUST cite the GHSA / RUSTSEC ID and the reason.
+[advisories]
+ignore = []

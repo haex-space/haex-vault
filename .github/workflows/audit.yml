@@ -1,0 +1,61 @@
+name: Audit
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    paths:
+      - '**/package.json'
+      - 'pnpm-lock.yaml'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - '.github/workflows/audit.yml'
+  schedule:
+    - cron: '0 4 * * 1'  # Monday 04:00 UTC — weekly heads-up
+  workflow_dispatch:
+
+concurrency:
+  group: audit-${{ github.event_name }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo-audit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-v1
+      - name: Install cargo-audit (if missing)
+        run: |
+          if ! command -v cargo-audit > /dev/null; then
+            cargo install cargo-audit --locked
+          fi
+      - name: Run cargo audit
+        working-directory: src-tauri
+        # `--deny warnings` flips advisories into failures. Unmaintained-only
+        # warnings can be allow-listed in src-tauri/audit.toml as we discover them.
+        run: cargo audit --deny warnings
+
+  pnpm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run pnpm audit (prod deps only)
+        # `--audit-level high` keeps low-severity noise out of the gate.
+        # Dev dependencies have larger surface (build tooling) and are excluded — they
+        # cannot reach end-user runtime. Revisit if a dev-only advisory is published.
+        run: pnpm audit --prod --audit-level high

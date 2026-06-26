@@ -113,6 +113,7 @@
     "singleAttributePerLine": true
   },
   "pnpm": {
+    "_comment": "Rationale for each override is documented in docs/dependency-overrides.md. Do not add new pins here without updating that file.",
     "overrides": {
       "vue-router": "^5.0.6",
       "zod": "^3.25.76",
