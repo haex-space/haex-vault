@@ -97,6 +97,12 @@ pub(crate) async fn read_multipart_to_file(
     // count or chunk_size) is treated exactly like a missing one — we
     // discard it and start fresh so the worker pool never aligns chunks
     // against the wrong manifest.
+    //
+    // Sidecar metadata can survive even when the `.haex-partial` bytes file
+    // is gone or truncated (manual cleanup, half-finished resume, FS crash).
+    // Require the bytes file to exist at the expected `size` before honoring
+    // the sidecar — otherwise workers would seek into a too-short or missing
+    // file, fail with `create(false)` or land bytes at wrong offsets.
     let resume_state: Option<crate::peer_storage::resume::PartialState> = {
         let candidate = crate::peer_storage::resume::PartialState::load_if_matches(
             &output_path,
@@ -104,10 +110,27 @@ pub(crate) async fn read_multipart_to_file(
         )
         .await
         .map_err(PeerStorageError::Io)?;
-        candidate.filter(|s| {
+        let matched = candidate.filter(|s| {
             s.completed.len() == chunks_to_use.chunk_hashes.len()
                 && s.chunk_size == chunks_to_use.chunk_size
-        })
+        });
+        if let Some(state) = matched {
+            let bytes_ok = tokio::fs::metadata(&write_path)
+                .await
+                .map(|m| m.len() == size)
+                .unwrap_or(false);
+            if bytes_ok {
+                Some(state)
+            } else {
+                // Clear the stale sidecar so a fresh download starts from a
+                // clean slate (otherwise the next attempt would also resume
+                // against the same corrupted state).
+                let _ = crate::peer_storage::resume::PartialState::clear(&output_path).await;
+                None
+            }
+        } else {
+            None
+        }
     };
 
     // Pre-allocation: on a fresh download we create+truncate the partial
@@ -128,8 +151,15 @@ pub(crate) async fn read_multipart_to_file(
         file.flush().await.map_err(PeerStorageError::Io)?;
     }
 
-    // Initial range pool: on fresh download we split `size` into N equal
-    // ranges; on resume we feed the pool the sidecar's `missing_ranges()`
+    // Initial range pool: on fresh download we split the manifest's chunks
+    // across workers so every range starts on a chunk boundary
+    // (`download_range_attempt` rejects misaligned starts). A naive
+    // `size / n` split could land a worker mid-chunk whenever
+    // `ceil(size / n) % chunk_size != 0` — e.g. a 35MB file with 4 workers
+    // and 4MB chunks gives `chunk = 9MB`, so worker 1 would start at
+    // offset 9MB which is not a multiple of 4MB.
+    //
+    // On resume we feed the pool the sidecar's `missing_ranges()`
     // (end-clamped to `size` because the last chunk may overshoot the
     // actual file end). Resume may produce N != concurrency entries —
     // could be fewer if only one gap, more if many — and that's fine: the
@@ -144,14 +174,27 @@ pub(crate) async fn read_multipart_to_file(
             })
             .collect()
     } else {
-        let chunk = size.div_ceil(n as u64);
+        let chunk_size = chunks_to_use.chunk_size as u64;
+        let total_chunks = chunks_to_use.chunk_hashes.len();
+        if chunk_size == 0 || total_chunks == 0 {
+            return Err(PeerStorageError::ProtocolError {
+                reason: "manifest must contain at least one non-zero-sized chunk".to_string(),
+            });
+        }
+        let chunks_per_worker = total_chunks.div_ceil(n);
         (0..n)
             .filter_map(|i| {
-                let start = (i as u64) * chunk;
-                if start >= size {
+                let start_chunk = i * chunks_per_worker;
+                if start_chunk >= total_chunks {
                     return None;
                 }
-                let end = (start + chunk).min(size);
+                let end_chunk = ((i + 1) * chunks_per_worker).min(total_chunks);
+                let start = (start_chunk as u64) * chunk_size;
+                let end = if end_chunk == total_chunks {
+                    size
+                } else {
+                    (end_chunk as u64) * chunk_size
+                };
                 Some((start, end, 0))
             })
             .collect()
@@ -513,11 +556,19 @@ async fn download_range_attempt(
         )
         .await;
 
-        let _ = tokio::io::AsyncWriteExt::flush(&mut writer).await;
+        // Tokio's BufWriter does NOT flush buffered bytes on drop (no async
+        // Drop), so an unflushed buffer would silently lose the tail of the
+        // last chunk. Capture and propagate any flush failure: a primary
+        // recv error still wins (it caused the truncated buffer), but an
+        // otherwise-successful recv must not be reported as Ok if flushing
+        // failed.
+        let flush_result = tokio::io::AsyncWriteExt::flush(&mut writer).await;
         drop(writer);
 
-        match recv_result {
-            Ok(received) => {
+        match (recv_result, flush_result) {
+            (Err(e), _) => Err(e),
+            (Ok(_), Err(e)) => Err(PeerStorageError::Io(e)),
+            (Ok(received), Ok(())) => {
                 if received != part_size {
                     return Err(PeerStorageError::ConnectionFailed {
                         reason: format!(
@@ -527,7 +578,6 @@ async fn download_range_attempt(
                 }
                 Ok(())
             }
-            Err(e) => Err(e),
         }
     }
 }

@@ -45,6 +45,29 @@ pub(super) async fn download_single_stream_with_resume(
     .await
     .map_err(PeerStorageError::Io)?;
 
+    // Sidecar metadata can survive even when the `.haex-partial` bytes file
+    // is gone or truncated. The resume loop below opens that file with
+    // `create(false)` and seeks to per-range offsets — both fail on a missing
+    // or short file. Validate length matches the expected total before
+    // honoring the sidecar; otherwise clear the stale state and fall back to
+    // the fresh-download path.
+    let existing = match existing {
+        Some(state) => {
+            let partial_path = crate::peer_storage::resume::PartialState::partial_path(output_path);
+            let bytes_ok = tokio::fs::metadata(&partial_path)
+                .await
+                .map(|m| m.len() == file_size)
+                .unwrap_or(false);
+            if bytes_ok {
+                Some(state)
+            } else {
+                let _ = crate::peer_storage::resume::PartialState::clear(output_path).await;
+                None
+            }
+        }
+        None => None,
+    };
+
     // No surviving partial → delegate to Task 7's fresh-download path verbatim.
     // Likewise if every chunk in the sidecar is already done (which shouldn't
     // happen in normal flow but is cheap to guard) or if no chunk is done yet —
@@ -255,14 +278,22 @@ pub(super) async fn download_single_stream_with_resume(
         .await;
 
         // Flush whatever made it through so a follow-up resume can re-use
-        // the bytes from this attempt; primary error wins over flush error.
-        let _ = tokio::io::AsyncWriteExt::flush(&mut writer).await;
+        // the bytes from this attempt. Tokio's BufWriter does NOT flush on
+        // drop (no async Drop), so an unflushed buffer would silently lose
+        // the tail of the last chunk. Primary recv error still wins (it
+        // caused the truncated buffer), but an otherwise-successful recv
+        // must not be reported as Ok if flushing failed.
+        let flush_result = tokio::io::AsyncWriteExt::flush(&mut writer).await;
         drop(writer);
 
         // Propagate the failure up so the caller can react. The partial
         // bytes + sidecar are left on disk by design — that's the entire
         // point of the resume contract.
-        let received = result?;
+        let received = match (result, flush_result) {
+            (Err(e), _) => return Err(e),
+            (Ok(_), Err(e)) => return Err(PeerStorageError::Io(e)),
+            (Ok(r), Ok(())) => r,
+        };
         if received != range_len {
             return Err(PeerStorageError::ConnectionFailed {
                 reason: format!(
