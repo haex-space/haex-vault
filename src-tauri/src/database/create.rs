@@ -237,7 +237,7 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
     // same Arc into the new vault. `peer_storage` is process-scoped (the
     // device's QUIC identity), so it stays up.
     tauri::async_runtime::block_on(async {
-        state.sync_manager.lock().await.stop_all();
+        state.sync_manager.lock().await.stop_all().await;
         for (_, handle) in state.local_sync_loops.lock().await.drain() {
             handle.stop();
         }

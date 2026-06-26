@@ -725,7 +725,17 @@ pub(crate) async fn read_multipart_to_file(
         })
     });
 
-    let first_err = run_bounded_retry_pool(pending, n, max_retries, fetcher, Some(on_retry)).await;
+    // Forward the caller's cancel token so the worker loop's pre-pop check
+    // can short-circuit the cancel-race described in the function docs.
+    let first_err = run_bounded_retry_pool(
+        pending,
+        n,
+        max_retries,
+        fetcher,
+        Some(on_retry),
+        cancel_token.clone(),
+    )
+    .await;
 
     if let Some(err) = first_err {
         // Leave partial bytes + sidecar on disk so the next download attempt
@@ -795,14 +805,27 @@ pub(crate) async fn run_bounded_retry_pool(
                 + Sync,
         >,
     >,
+    cancel_token: Option<tokio_util::sync::CancellationToken>,
 ) -> Option<PeerStorageError> {
     let mut workers = Vec::with_capacity(concurrency);
     for _ in 0..concurrency {
         let pending = pending.clone();
         let fetcher = fetcher.clone();
         let on_retry = on_retry.clone();
+        let cancel_token = cancel_token.clone();
         workers.push(tokio::spawn(async move {
             loop {
+                // Check for cancellation BEFORE popping the next range.
+                // The fetcher itself also checks the token, but the cancel-race
+                // is between two workers: worker A pops, queue empties, worker
+                // B sees None and breaks; A's fetcher then errors and pushes a
+                // retry; A exits, the retry is orphaned. Checking here ensures
+                // a cancelled token short-circuits the loop even when the
+                // fetcher resolved Ok or hasn't been called yet.
+                if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                    return Err(PeerStorageError::Cancelled);
+                }
+
                 let next = pending.lock().await.pop();
                 let Some((start, end, attempt)) = next else {
                     break;
