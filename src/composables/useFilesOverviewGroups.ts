@@ -259,14 +259,6 @@ export function useFilesOverviewGroups() {
     }
   }
 
-  const loadContactClaimsSafeAsync = async () => {
-    try {
-      await loadContactClaimsAsync()
-    } catch (error) {
-      log.error('loadContactClaims failed', error)
-    }
-  }
-
   const s3PeerForBackend = (backend: StorageBackendInfo): RemotePeer => ({
     endpointId: `s3:${backend.id}`,
     name: backend.name,
@@ -573,7 +565,7 @@ export function useFilesOverviewGroups() {
   const hasAnyEntries = computed(() => overviewGroups.value.length > 0)
 
   const loadAsync = async (): Promise<void> => {
-    await Promise.all([loadStorageBackendsAsync(), loadContactClaimsSafeAsync()])
+    await Promise.all([loadStorageBackendsAsync(), loadContactClaimsAsync()])
   }
 
   return {
