@@ -46,7 +46,10 @@ export function useWorkspaceIcons(deps: WorkspaceIconsDeps) {
           const systemWindow = windowManagerStore
             .getAllSystemWindows()
             .find((win) => win.id === item.referenceId)
-          label = systemWindow?.name || 'Unknown'
+          label =
+            windowManagerStore.getLocalizedSystemWindowName(item.referenceId) ||
+            systemWindow?.name ||
+            'Unknown'
           icon = systemWindow?.icon || ''
         } else if (item.itemType === 'extension') {
           const extension = extensionsStore.availableExtensions.find(

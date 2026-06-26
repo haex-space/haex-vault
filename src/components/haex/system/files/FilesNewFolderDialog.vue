@@ -40,3 +40,14 @@ watch(
   },
 )
 </script>
+
+<i18n lang="yaml">
+de:
+  newFolder: Neuer Ordner
+  create: Erstellen
+  folderNamePlaceholder: Ordnername
+en:
+  newFolder: New folder
+  create: Create
+  folderNamePlaceholder: Folder name
+</i18n>

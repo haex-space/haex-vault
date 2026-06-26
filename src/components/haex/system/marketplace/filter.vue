@@ -51,3 +51,16 @@ const categoryModel = computed({
   set: (value: string | null) => emit('update:selectedCategory', value),
 })
 </script>
+
+<i18n lang="yaml">
+de:
+  search:
+    placeholder: Erweiterungen durchsuchen…
+  filter:
+    category: Kategorie
+en:
+  search:
+    placeholder: Search extensions…
+  filter:
+    category: Category
+</i18n>

@@ -210,3 +210,24 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 </script>
+
+<i18n lang="yaml">
+de:
+  noResults: Keine Treffer
+  searching: Verzeichnisse werden durchsucht…
+  noStorage: Keine Speicherquellen verfügbar
+  noStorageHint: Teile Ordner in den P2P-Einstellungen oder verbinde dich mit anderen Geräten.
+  groupBy:
+    label: Gruppierung
+    space: Nach Space
+    contact: Nach Kontakt
+en:
+  noResults: No matches
+  searching: Searching directories…
+  noStorage: No storage sources available
+  noStorageHint: Share folders in P2P settings or connect with other devices.
+  groupBy:
+    label: Group by
+    space: By space
+    contact: By contact
+</i18n>

@@ -28,7 +28,7 @@ export function useDesktopCrud(deps: CrudDeps) {
     const db = requireDb()
 
     if (!currentWorkspace.value) {
-      log.error('No workspace active - cannot load desktop items')
+      log.debug('No workspace active yet - skipping desktop item load')
       return
     }
 

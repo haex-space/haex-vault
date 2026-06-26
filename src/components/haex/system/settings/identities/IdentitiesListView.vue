@@ -101,3 +101,22 @@ const emit = defineEmits<{
 // Silence unused-props warning (props are accessed via template).
 void props
 </script>
+
+<i18n lang="yaml">
+de:
+  title: Identitäten
+  description: Verwalte deine kryptographischen Identitäten (did:key)
+  list:
+    empty: Keine Identitäten vorhanden
+  actions:
+    import: Importieren
+    create: Erstellen
+en:
+  title: Identities
+  description: Manage your cryptographic identities (did:key)
+  list:
+    empty: No identities yet
+  actions:
+    import: Import
+    create: Create
+</i18n>

@@ -228,3 +228,44 @@ const formatBytesPerSec = (bps: number): string => {
   return `${(bps / 1024 / 1024 / 1024).toFixed(2)} GB/s`
 }
 </script>
+
+<i18n lang="yaml">
+de:
+  title: Dateien
+  search: Suchen…
+  viewList: Listenansicht
+  viewGrid: Kachelansicht
+  startEndpoint: Endpoint starten
+  stopEndpoint: Endpoint stoppen
+  toggleEndpoint: Endpoint umschalten
+  downloadThroughputTooltip: Aktuelle Download-Geschwindigkeit
+  newFolder: Neuer Ordner
+  openCreateFolderDialog: Neuen Ordner erstellen
+  uploadFiles: Dateien hochladen
+  p2pSettings: P2P-Einstellungen
+  selected: ausgewählt
+  copy: Kopieren
+  cut: Ausschneiden
+  paste: Einfügen
+  delete: Löschen
+  download: Herunterladen
+en:
+  title: Files
+  search: Search…
+  viewList: List view
+  viewGrid: Grid view
+  startEndpoint: Start endpoint
+  stopEndpoint: Stop endpoint
+  toggleEndpoint: Toggle endpoint
+  downloadThroughputTooltip: Current download speed
+  newFolder: New folder
+  openCreateFolderDialog: Create new folder
+  uploadFiles: Upload files
+  p2pSettings: P2P Settings
+  selected: selected
+  copy: Copy
+  cut: Cut
+  paste: Paste
+  delete: Delete
+  download: Download
+</i18n>

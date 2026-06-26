@@ -30,6 +30,13 @@ export const registerStoreReloadCallbacks = (): void => {
   registerStoreForTables(
     ['haex_desktop_items'],
     async () => {
+      const workspaceStore = useWorkspaceStore()
+      if (!workspaceStore.currentWorkspace) {
+        // Workspaces haven't loaded yet — the desktop store will refresh
+        // itself once they do. Reloading desktop items now would early-return
+        // and pollute logs during initial CRDT sync.
+        return
+      }
       const desktopStore = useDesktopStore()
       await desktopStore.loadDesktopItemsAsync()
     },
