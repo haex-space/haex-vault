@@ -148,6 +148,28 @@ async fn create_directory_rejects_path_traversal_before_network_io() {
 }
 
 #[tokio::test]
+async fn read_file_to_path_rejects_path_traversal_before_network_io() {
+    // `PeerProvider` advertises `supports_streaming() == true`, so the
+    // streaming download path runs through `read_file_to_path` instead of the
+    // bulk `read_file`. Pin traversal-guard ordering here too so the streaming
+    // entrypoint can't silently regress past the path-validation step.
+    let provider = make_provider("/remote/base");
+    let err = provider
+        .read_file_to_path(
+            "../escape",
+            std::path::Path::new("/tmp/does-not-matter"),
+            None,
+            Arc::new(|_, _| {}),
+        )
+        .await
+        .expect_err("traversal path must be rejected");
+    assert!(
+        matches!(err, SyncProviderError::PathTraversal { .. }),
+        "expected PathTraversal, got {err:?}",
+    );
+}
+
+#[tokio::test]
 async fn write_file_from_path_rejects_path_traversal_before_filesystem_io() {
     // `write_file_from_path` would `tokio::fs::metadata(source_path)` after
     // path validation — but validation comes first, so we never touch the

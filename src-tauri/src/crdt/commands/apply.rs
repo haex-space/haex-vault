@@ -530,20 +530,26 @@ pub fn apply_remote_changes_to_db(
                         DELETED_ROWS_TABLE
                     ))
                     .map_err(DatabaseError::from)?;
+                // `haex_hlc` is added to `haex_deleted_rows` via a nullable
+                // ALTER (see `ensure_crdt_columns`), so a legacy or directly-
+                // inserted row could leave it NULL. Read it as `Option<String>`
+                // and skip NULL entries — a single bad row must not abort the
+                // entire apply pass (would wedge the pull cursor permanently).
                 let mapped = stmt
                     .query_map([], |row| {
                         Ok((
                             row.get::<_, String>(0)?,
                             row.get::<_, String>(1)?,
-                            row.get::<_, String>(2)?,
+                            row.get::<_, Option<String>>(2)?,
                         ))
                     })
                     .map_err(DatabaseError::from)?;
                 for r in mapped {
                     let (table_name, pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
-                    if let Ok(pks_map) =
-                        serde_json::from_str::<serde_json::Map<String, JsonValue>>(&pks_str)
-                    {
+                    if let (Some(del_hlc), Ok(pks_map)) = (
+                        del_hlc,
+                        serde_json::from_str::<serde_json::Map<String, JsonValue>>(&pks_str),
+                    ) {
                         map.entry(table_name).or_default().push((pks_map, del_hlc));
                     }
                 }
