@@ -269,3 +269,46 @@ input[type='color']::-moz-color-swatch {
   border-radius: 5px;
 }
 </style>
+
+<i18n lang="yaml">
+de:
+  copy: Kopieren
+  copied: Kopiert
+  expired: Dieser Eintrag ist abgelaufen.
+  fields:
+    title: Titel
+    titlePlaceholder: z.B. GitHub
+    tags: Tags
+    username: Nutzername
+    password: Passwort
+    generate: Generieren
+    url: URL
+    note: Notiz
+    expiresAt: Ablaufdatum
+    icon: Icon
+    color: Farbe
+    otp: Einmalcode (TOTP)
+    otpSecret: Base32 Secret
+    otpDigits: Stellen
+    otpPeriod: Periode (s)
+en:
+  copy: Copy
+  copied: Copied
+  expired: This entry has expired.
+  fields:
+    title: Title
+    titlePlaceholder: e.g. GitHub
+    tags: Tags
+    username: Username
+    password: Password
+    generate: Generate
+    url: URL
+    note: Note
+    expiresAt: Expires at
+    icon: Icon
+    color: Color
+    otp: One-time code (TOTP)
+    otpSecret: Base32 secret
+    otpDigits: Digits
+    otpPeriod: Period (s)
+</i18n>
