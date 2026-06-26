@@ -150,3 +150,16 @@ onBeforeUnmount(() => {
   if (isPreviewMaximized.value) void setPreviewMaximized(false)
 })
 </script>
+
+<i18n lang="yaml">
+de:
+  maximizePreview: Maximieren
+  restorePreview: Verkleinern
+  mediaPlaybackFailed: Wiedergabe fehlgeschlagen
+  mediaCodecMissing: 'Dieses Format kann nicht abgespielt werden – möglicherweise fehlen Codecs (z. B. H.264/AAC). Unter Linux: „gstreamer1.0-libav" und „gstreamer1.0-plugins-bad" installieren.'
+en:
+  maximizePreview: Maximize
+  restorePreview: Restore
+  mediaPlaybackFailed: Playback failed
+  mediaCodecMissing: 'This format can''t be played – codecs may be missing (e.g. H.264/AAC). On Linux, install "gstreamer1.0-libav" and "gstreamer1.0-plugins-bad".'
+</i18n>

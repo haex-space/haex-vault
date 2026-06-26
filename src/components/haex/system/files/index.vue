@@ -83,6 +83,15 @@ import { SettingsCategory } from '~/config/settingsCategories'
 import type { RemotePeer } from '~/composables/fileBrowserHelpers'
 import { usePeerPing } from '~/composables/usePeerPing'
 import { useFilesOverviewGroups } from '~/composables/useFilesOverviewGroups'
+import { createLogger } from '~/stores/logging'
+import FilesHeader from './FilesHeader.vue'
+import FilesPeerView from './FilesPeerView.vue'
+import FilesOverview from './FilesOverview.vue'
+import FilesNewFolderDialog from './FilesNewFolderDialog.vue'
+import FilesRenameDialog from './FilesRenameDialog.vue'
+import FilesPreviewModal from './FilesPreviewModal.vue'
+
+const log = createLogger('FILES')
 
 const props = defineProps<{
   tabId: string
@@ -270,22 +279,38 @@ watch(
 )
 
 onMounted(async () => {
-  // Load identities first so `spacesStore.visibleSpaces` can resolve owner
-  // and membership filters against the user's own identities — without it,
-  // the membership cross-check inside the spaces store would run against an
-  // empty ownIdentities set and hide every legitimate space until the next
-  // reload.
-  const identityStore = useIdentityStore()
-  const spacesStore = useSpacesStore()
-  await identityStore.loadIdentitiesAsync()
-  await Promise.all([
-    peerStore.refreshStatusAsync(),
-    peerStore.loadSharesAsync(),
-    peerStore.loadSpaceDevicesAsync(),
-    spacesStore.loadSpacesFromDbAsync(),
-    loadOverviewAsync(),
-  ])
-  await applyDeepLink(props.windowParams)
+  try {
+    // Load identities first so `spacesStore.visibleSpaces` can resolve owner
+    // and membership filters against the user's own identities — without it,
+    // the membership cross-check inside the spaces store would run against an
+    // empty ownIdentities set and hide every legitimate space until the next
+    // reload.
+    const identityStore = useIdentityStore()
+    const spacesStore = useSpacesStore()
+    await identityStore.loadIdentitiesAsync()
+    const results = await Promise.allSettled([
+      peerStore.refreshStatusAsync(),
+      peerStore.loadSharesAsync(),
+      peerStore.loadSpaceDevicesAsync(),
+      spacesStore.loadSpacesFromDbAsync(),
+      loadOverviewAsync(),
+    ])
+    const labels = [
+      'refreshStatus',
+      'loadShares',
+      'loadSpaceDevices',
+      'loadSpacesFromDb',
+      'loadOverview',
+    ]
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        log.error(`onMounted: ${labels[i]} failed`, r.reason)
+      }
+    })
+    await applyDeepLink(props.windowParams)
+  } catch (error) {
+    log.error('FileBrowser mount failed', error)
+  }
 })
 </script>
 

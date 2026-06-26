@@ -163,3 +163,26 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 </script>
+
+<i18n lang="yaml">
+de:
+  title: Spaces
+  description: Verwalte deine Spaces und Einladungen
+  policy:
+    label: Einladungsrichtlinie
+  actions:
+    join: Beitreten
+    create: Erstellen
+  list:
+    empty: Keine Spaces vorhanden
+en:
+  title: Spaces
+  description: Manage your spaces and invitations
+  policy:
+    label: Invite policy
+  actions:
+    join: Join
+    create: Create
+  list:
+    empty: No spaces yet
+</i18n>
