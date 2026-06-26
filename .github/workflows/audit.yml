@@ -30,9 +30,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # `@master` (without channel override) honours `rust-toolchain.toml`,
-      # keeping this job pinned to the same Rust as the rest of CI/dev.
-      - uses: dtolnay/rust-toolchain@master
+      # `@stable` matches every other Rust job in this repo (build.yml).
+      # `rust-toolchain.toml` is honoured at the first cargo invocation:
+      # rustup switches to the pinned channel on demand, so the action
+      # preloading stable does not actually drift CI from local dev.
+      - uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo-audit
         uses: actions/cache@v4
         with:
