@@ -46,6 +46,16 @@ Most of the floors listed here were added in commit `7c81cc2d` ("fix: patch crit
 - **Why**: CVE patch floor (`7c81cc2d`, 2026-04-12). happy-dom is a Vitest peer; older versions had prototype-pollution / sandbox-escape issues. The floor matches what the current Vitest line uses.
 - **Lift when**: Vitest's bundled happy-dom version exceeds 20.8.9 across all install paths — verify with `pnpm why happy-dom`.
 
+### `h3: >=1.15.6`
+
+- **Why**: CVE patch floor (GHSA-22cc-p3c6-wpvm, SSE-injection via unsanitized newlines). Transitive via `@nuxt/fonts`; older h3 lines are flagged high by `pnpm audit --prod`. Added 2026-06-26 alongside the audit CI gate (`b2c7b31c` follow-up).
+- **Lift when**: `@nuxt/fonts` (or any other consumer) ships with `h3 >= 1.15.6` as its direct dependency floor — verify with `pnpm why h3`.
+
+### `@xmldom/xmldom: >=0.8.13`
+
+- **Why**: CVE patch floor (GHSA-wh4c-j3r5-mjhp / GHSA-2v35-w6hq-6mfw / GHSA-f6ww-3ggp-fr8h / GHSA-x6wf-f3px-wcqx — multiple XML-injection and uncontrolled-recursion advisories). Transitive via `kdbxweb`, which still declares `^0.7.4` in its `dependencies`. We deliberately resolve outside that range; the only kdbxweb call-site is `src/components/haex/system/passwords/import/keepass.vue` (KeePass `.kdbx` import). Smoke-test that import path before lifting this comment. Added 2026-06-26 alongside the audit CI gate.
+- **Lift when**: `kdbxweb` ships an update that pins `@xmldom/xmldom >= 0.8.13` directly — verify with `pnpm why @xmldom/xmldom`.
+
 ## When adding a new override
 
 1. Add the pin in `package.json` `pnpm.overrides`.
