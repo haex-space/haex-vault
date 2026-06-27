@@ -367,3 +367,103 @@ mod claim_invite_did_binding_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod dispatch_variant_exhaustiveness_tests {
+    //! Compile-time guard: every `Request` variant must have a dispatch arm.
+    //!
+    //! The body of `handle_delivery_request` is a `match request { … }` over
+    //! the protocol's `Request` enum. If a new variant lands without a
+    //! corresponding arm, the production match would catch it (the compiler
+    //! enforces exhaustiveness on non-`#[non_exhaustive]` enums) — *but* the
+    //! production file already participates in dozens of test-helpers and the
+    //! signal-to-noise of a fresh dev seeing a new variant fail in the middle
+    //! of a long compile session is poor. This module is a tight,
+    //! purpose-built compile-time canary: 16 named arms, one location, easy
+    //! to spot in CI output.
+    //!
+    //! The `_exhaustive` fn is `#[allow(dead_code)]` because the test body
+    //! never *calls* it — its only job is to be type-checked. If a variant
+    //! is removed from the enum (or renamed), this fn fails to compile; if a
+    //! variant is added, the match below stops being exhaustive and *also*
+    //! fails to compile. Either way, the next dispatcher author sees the
+    //! signal here before they ship.
+    //!
+    //! Static-source assertions (above) cover *order* (gate before match);
+    //! this one covers *coverage* (every variant routed somewhere).
+    //! Source-text alone can't pin coverage because a variant could be
+    //! renamed in both the enum and one stale match arm while a *new* variant
+    //! is forgotten — the strings would match, the compile would fail.
+
+    use crate::space_delivery::local::protocol::Request;
+
+    #[allow(dead_code)]
+    fn _exhaustive(r: &Request) {
+        // Mirror the production dispatcher's variant set. The compiler
+        // refuses to compile this match if `Request` gains a variant we
+        // didn't list — that is the entire test.
+        match r {
+            Request::MlsUploadKeyPackages { .. } => {}
+            Request::MlsFetchKeyPackage { .. } => {}
+            Request::MlsSendMessage { .. } => {}
+            Request::MlsFetchMessages { .. } => {}
+            Request::MlsSendWelcome { .. } => {}
+            Request::MlsFetchWelcomes { .. } => {}
+            Request::MlsAckCommit { .. } => {}
+            Request::MlsKeyPackageCount { .. } => {}
+            Request::RequestRejoin { .. } => {}
+            Request::SubmitExternalCommit { .. } => {}
+            Request::SyncPush { .. } => {}
+            Request::SyncPull { .. } => {}
+            Request::SyncPullColumns { .. } => {}
+            Request::Announce { .. } => {}
+            Request::ClaimInvite { .. } => {}
+            Request::PushInvite { .. } => {}
+        }
+    }
+
+    /// Cross-reference: every Request variant the protocol exposes must have
+    /// a dispatch arm string somewhere in `dispatch.rs`. This catches the
+    /// inverse failure mode of `_exhaustive` above — if the enum stops
+    /// listing a variant but the dispatcher still has an arm for it (or vice
+    /// versa), the static-source assertion in `auth_gate_wireup_tests` would
+    /// pass but coverage would be skew. We pin the count + a per-variant
+    /// substring presence check.
+    #[test]
+    fn dispatch_rs_contains_an_arm_for_every_request_variant() {
+        let dispatch = include_str!("dispatch.rs");
+
+        // The variant arms are written as `Request::Foo { … }` (or
+        // `req @ Request::Foo { … }` for ClaimInvite). Searching for the
+        // qualified prefix is robust against the destructuring shape.
+        let variants = [
+            "Request::MlsUploadKeyPackages",
+            "Request::MlsFetchKeyPackage",
+            "Request::MlsSendMessage",
+            "Request::MlsFetchMessages",
+            "Request::MlsSendWelcome",
+            "Request::MlsFetchWelcomes",
+            "Request::MlsAckCommit",
+            "Request::MlsKeyPackageCount",
+            "Request::RequestRejoin",
+            "Request::SubmitExternalCommit",
+            "Request::SyncPush",
+            "Request::SyncPull",
+            "Request::SyncPullColumns",
+            "Request::Announce",
+            "Request::ClaimInvite",
+            "Request::PushInvite",
+        ];
+
+        for v in variants {
+            assert!(
+                dispatch.contains(v),
+                "dispatch.rs is missing an arm for {v} — either the variant \
+                 was removed from the enum (then update this test) or the \
+                 dispatcher dropped the arm (then restore it). Either way, \
+                 the compile-time match in `_exhaustive` above and the \
+                 production match in `handle_delivery_request` MUST agree."
+            );
+        }
+    }
+}

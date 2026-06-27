@@ -237,7 +237,21 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
     // same Arc into the new vault. `peer_storage` is process-scoped (the
     // device's QUIC identity), so it stays up.
     tauri::async_runtime::block_on(async {
-        state.sync_manager.lock().await.stop_all();
+        // Drain sync-loop handles under the lock, then await outside. A
+        // sync loop that is currently auto-disabling itself re-enters the
+        // same mutex (`SyncManager::deregister`); awaiting its JoinHandle
+        // while still holding `sync_manager.lock()` would deadlock here.
+        let drained = {
+            let mut manager = state.sync_manager.lock().await;
+            manager.take_stop_all()
+        };
+        for (rule_id, handle) in drained {
+            if let Err(join_err) = handle.await {
+                eprintln!(
+                    "[CLOSE_DB] sync-loop task for rule {rule_id} terminated abnormally: {join_err}"
+                );
+            }
+        }
         for (_, handle) in state.local_sync_loops.lock().await.drain() {
             handle.stop();
         }

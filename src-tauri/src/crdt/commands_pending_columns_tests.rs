@@ -14,7 +14,11 @@
 //! for them so recovery applies the recovered value normally (`H > ""`).
 
 use super::*;
+use crate::crdt::trigger::DELETED_ROWS_TABLE;
 use crate::database::DbConnection;
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS};
+use rusqlite::params;
+use serde_json::Value as JsonValue;
 use std::sync::{Arc, Mutex};
 
 /// Minimal apply harness. A target CRDT table (`devices`) with two existing

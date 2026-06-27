@@ -113,6 +113,7 @@
     "singleAttributePerLine": true
   },
   "pnpm": {
+    "_comment": "Rationale for each override is documented in docs/dependency-overrides.md. Do not add new pins here without updating that file.",
     "overrides": {
       "vue-router": "^5.0.6",
       "zod": "^3.25.76",
@@ -121,7 +122,9 @@
       "node-forge": ">=1.4.0",
       "lodash": ">=4.18.0",
       "axios": ">=1.15.0",
-      "happy-dom": ">=20.8.9"
+      "happy-dom": ">=20.8.9",
+      "h3": ">=1.15.6",
+      "@xmldom/xmldom": ">=0.8.13"
     },
     "onlyBuiltDependencies": []
   },

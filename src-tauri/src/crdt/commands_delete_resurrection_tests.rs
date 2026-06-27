@@ -13,7 +13,11 @@
 //! Symmetric with `should_propagate_delete`: the delete wins on an HLC tie.
 
 use super::*;
+use crate::crdt::trigger::DELETED_ROWS_TABLE;
 use crate::database::DbConnection;
+use crate::table_names::TABLE_CRDT_CONFIGS;
+use rusqlite::params;
+use serde_json::Value as JsonValue;
 use std::sync::{Arc, Mutex};
 
 fn setup_db() -> DbConnection {

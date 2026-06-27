@@ -10,7 +10,7 @@ import {
   useSpaceInvites,
   type InvitePolicyValue,
 } from '@/composables/useSpaceInvites'
-import type { SpaceWithType } from '@/stores/spaces'
+import type { SpaceWithType } from '@/stores/spaces/types'
 import type { SelectHaexPendingInvites } from '~/database/schemas'
 import type { CreateSpacePayload } from '@/components/haex/system/settings/spaces/SpaceCreateDialog.vue'
 import type { EditSpacePayload } from '@/components/haex/system/settings/spaces/SpaceEditDialog.vue'

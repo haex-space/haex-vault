@@ -1,0 +1,17 @@
+# Allow-list of cargo advisories explicitly reviewed and accepted.
+# Each entry MUST cite the GHSA / RUSTSEC ID and the reason.
+[advisories]
+ignore = [
+  # iroh 0.98.x pulls hickory-dns 0.26.0-beta.4 transitively via iroh-relay and
+  # hickory-resolver. Both advisories are fixed in hickory >= 0.26.1, but the
+  # iroh stack has not yet released a version pinning the bumped floor.
+  # Lift once an iroh release ships with hickory >= 0.26.1
+  # (verify via `cargo update -p hickory-resolver`).
+  "RUSTSEC-2026-0119", # hickory-proto: O(n^2) name-compression DoS during message encoding
+  "RUSTSEC-2026-0120", # hickory-net: NSEC3 closest-encloser proof validation enters unbounded loop
+
+  # libcrux-chacha20poly1305 0.0.7 is fixed in 0.0.8, but libcrux-aead 0.0.7
+  # still pins 0.0.7 of the chacha crate. Lift when libcrux-aead releases the
+  # bumped point version.
+  "RUSTSEC-2026-0124", # libcrux-chacha20poly1305: potential panic on overlong ciphertext buffer
+]

@@ -26,8 +26,20 @@ use super::types::{DeleteMode, SyncDirection, SyncResult};
 
 /// Manages active sync loops, keyed by rule ID.
 pub struct SyncManager {
-    /// Active sync loops: rule_id -> (cancellation token, trigger sender)
-    active_rules: HashMap<String, (CancellationToken, tokio::sync::mpsc::Sender<()>)>,
+    /// Active sync loops: rule_id -> (cancellation token, trigger sender, join handle)
+    ///
+    /// The `JoinHandle` is retained so `stop`/`stop_all` can await the spawned
+    /// `run_sync_loop` future. If the future panicked, the awaited result is
+    /// surfaced via `log::error!` with the rule id so the failure is no longer
+    /// silent.
+    active_rules: HashMap<
+        String,
+        (
+            CancellationToken,
+            tokio::sync::mpsc::Sender<()>,
+            tokio::task::JoinHandle<()>,
+        ),
+    >,
 }
 
 impl SyncManager {
@@ -41,16 +53,56 @@ impl SyncManager {
         self.active_rules.contains_key(rule_id)
     }
 
-    pub fn stop(&mut self, rule_id: &str) {
-        if let Some((token, _)) = self.active_rules.remove(rule_id) {
+    /// Cancel a rule and take ownership of its JoinHandle so the caller can
+    /// `await` it AFTER releasing the `SyncManager` lock. The split exists
+    /// because `auto_disable_rule` re-enters the same lock via `deregister`
+    /// — awaiting the handle under the lock would self-deadlock if that
+    /// task is currently waiting on the lock.
+    ///
+    /// Caller pattern:
+    ///
+    /// ```ignore
+    /// let handle = {
+    ///     let mut manager = state.sync_manager.lock().await;
+    ///     manager.take_stop(&rule_id)
+    /// };
+    /// if let Some(handle) = handle {
+    ///     await_sync_handle(&rule_id, handle).await;
+    /// }
+    /// ```
+    pub fn take_stop(&mut self, rule_id: &str) -> Option<tokio::task::JoinHandle<()>> {
+        self.active_rules.remove(rule_id).map(|(token, _, handle)| {
             token.cancel();
+            handle
+        })
+    }
+
+    /// Remove a rule's registration without awaiting its JoinHandle. Used by
+    /// in-task exit paths (the sync loop deregistering itself) to avoid the
+    /// self-await deadlock that the awaiting `stop` would produce. The
+    /// cancellation token is still cancelled — callers higher up will then
+    /// observe `is_running == false` and the cancelled token; the spawned
+    /// task is already exiting on its own.
+    pub fn deregister(&mut self, rule_id: &str) {
+        if let Some((token, _, _handle)) = self.active_rules.remove(rule_id) {
+            token.cancel();
+            // _handle dropped → task continues to completion detached. That's
+            // fine because the only caller (`auto_disable_rule`) is itself
+            // running inside that task and is about to return.
         }
     }
 
-    pub fn stop_all(&mut self) {
-        for (_, (token, _)) in self.active_rules.drain() {
-            token.cancel();
-        }
+    /// Cancel all rules and drain their JoinHandles for the caller to await
+    /// AFTER releasing the `SyncManager` lock. Same deadlock-avoidance
+    /// rationale as [`Self::take_stop`].
+    pub fn take_stop_all(&mut self) -> Vec<(String, tokio::task::JoinHandle<()>)> {
+        self.active_rules
+            .drain()
+            .map(|(rule_id, (token, _, handle))| {
+                token.cancel();
+                (rule_id, handle)
+            })
+            .collect()
     }
 
     pub fn register(
@@ -58,8 +110,10 @@ impl SyncManager {
         rule_id: String,
         token: CancellationToken,
         trigger_sender: tokio::sync::mpsc::Sender<()>,
+        handle: tokio::task::JoinHandle<()>,
     ) {
-        self.active_rules.insert(rule_id, (token, trigger_sender));
+        self.active_rules
+            .insert(rule_id, (token, trigger_sender, handle));
     }
 
     pub fn running_rule_ids(&self) -> Vec<String> {
@@ -68,7 +122,7 @@ impl SyncManager {
 
     /// Trigger an immediate sync for a running rule.
     pub async fn trigger(&self, rule_id: &str) {
-        if let Some((_, sender)) = self.active_rules.get(rule_id) {
+        if let Some((_, sender, _)) = self.active_rules.get(rule_id) {
             let _ = sender.send(()).await;
         }
     }
@@ -77,6 +131,17 @@ impl SyncManager {
 impl Default for SyncManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Await a drained sync-loop JoinHandle and surface any abnormal termination.
+/// Centralised so all `take_stop`/`take_stop_all` call sites format their
+/// failure log identically.
+async fn await_sync_handle(rule_id: &str, handle: tokio::task::JoinHandle<()>) {
+    if let Err(join_err) = handle.await {
+        eprintln!(
+            "[FileSync] run_sync_loop task for rule {rule_id} terminated abnormally: {join_err}"
+        );
     }
 }
 
@@ -287,10 +352,16 @@ pub async fn file_sync_start_rule(
     let dir = parse_direction(&direction)?;
     let del = parse_delete_mode(&delete_mode)?;
 
-    // Stop any existing loop for this rule
-    {
+    // Stop any existing loop for this rule. Drain the handle under the lock,
+    // then await it OUTSIDE the lock — `auto_disable_rule` re-enters the
+    // same mutex via `deregister`, so awaiting under the lock would deadlock
+    // if the task is currently waiting to deregister itself.
+    let prev_handle = {
         let mut manager = state.sync_manager.lock().await;
-        manager.stop(&rule_id);
+        manager.take_stop(&rule_id)
+    };
+    if let Some(handle) = prev_handle {
+        await_sync_handle(&rule_id, handle).await;
     }
 
     let source = create_provider(&source_type, &source_config, &state, false)
@@ -304,12 +375,6 @@ pub async fn file_sync_start_rule(
     let (trigger_sender, trigger_receiver) = tokio::sync::mpsc::channel::<()>(16);
     let db = crate::database::DbConnection(state.db.0.clone());
     let rule_id_clone = rule_id.clone();
-
-    // Register before spawning so status queries see it immediately
-    {
-        let mut manager = state.sync_manager.lock().await;
-        manager.register(rule_id.clone(), cancel.clone(), trigger_sender.clone());
-    }
 
     // Start file watcher for local providers — directly triggers sync loop
     if target_type == "local" {
@@ -335,7 +400,11 @@ pub async fn file_sync_start_rule(
     }
 
     let app_clone = app.clone();
-    tauri::async_runtime::spawn(async move {
+    let cancel_for_task = cancel.clone();
+    // Use tokio::spawn so the returned JoinHandle is `tokio::task::JoinHandle`,
+    // matching the type retained by `SyncManager` for await-on-stop. The
+    // futures spawned here are tokio-native (mpsc/select!) so this is safe.
+    let handle = tokio::spawn(async move {
         run_sync_loop(
             source,
             target,
@@ -343,13 +412,20 @@ pub async fn file_sync_start_rule(
             del,
             rule_id_clone,
             Duration::from_secs(interval_seconds),
-            cancel,
+            cancel_for_task,
             trigger_receiver,
             db,
             app_clone,
         )
         .await;
     });
+
+    // Register after spawning so the JoinHandle is captured. Status queries
+    // observe the rule as running once the lock is acquired below.
+    {
+        let mut manager = state.sync_manager.lock().await;
+        manager.register(rule_id.clone(), cancel, trigger_sender.clone(), handle);
+    }
 
     Ok(())
 }
@@ -360,11 +436,17 @@ pub async fn file_sync_stop_rule(
     state: State<'_, AppState>,
     rule_id: String,
 ) -> Result<(), FileSyncCommandError> {
-    let mut manager = state.sync_manager.lock().await;
-    if !manager.is_running(&rule_id) {
-        return Err(FileSyncCommandError::NotRunning(rule_id));
+    // Drain handle under the lock, await outside — see `take_stop` doc.
+    let handle = {
+        let mut manager = state.sync_manager.lock().await;
+        if !manager.is_running(&rule_id) {
+            return Err(FileSyncCommandError::NotRunning(rule_id));
+        }
+        manager.take_stop(&rule_id)
+    };
+    if let Some(handle) = handle {
+        await_sync_handle(&rule_id, handle).await;
     }
-    manager.stop(&rule_id);
 
     // Stop file watchers for this rule
     let _ = state.file_watcher.unwatch(&rule_id);
@@ -427,8 +509,14 @@ pub async fn file_sync_status(
 /// Stop all active sync loops.
 #[tauri::command]
 pub async fn file_sync_stop_all(state: State<'_, AppState>) -> Result<(), FileSyncCommandError> {
-    let mut manager = state.sync_manager.lock().await;
-    manager.stop_all();
+    // Drain all handles under the lock, await outside — see `take_stop` doc.
+    let drained = {
+        let mut manager = state.sync_manager.lock().await;
+        manager.take_stop_all()
+    };
+    for (rule_id, handle) in drained {
+        await_sync_handle(&rule_id, handle).await;
+    }
 
     // Stop all file watchers
     let _ = state.file_watcher.unwatch_all();

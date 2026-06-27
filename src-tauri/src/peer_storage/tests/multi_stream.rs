@@ -65,6 +65,7 @@ async fn multi_stream_retry_pool_retries_only_failed_range() {
         crate::peer_storage::streaming::MAX_RANGE_RETRIES,
         fetcher,
         None,
+        None,
     )
     .await;
 
@@ -152,6 +153,7 @@ async fn multi_stream_retry_pool_exhausts_and_returns_err() {
         4,
         crate::peer_storage::streaming::MAX_RANGE_RETRIES,
         fetcher,
+        None,
         None,
     )
     .await;

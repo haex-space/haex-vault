@@ -12,8 +12,6 @@ import type { IWindow } from './state'
 import { createTabActions } from './tabs'
 import { createLifecycleActions } from './lifecycle'
 
-export type { IWindow, IWindowTab, SystemWindowDefinition } from './state'
-
 const log = createLogger('WINDOW_MGR')
 
 export const useWindowManagerStore = defineStore('windowManager', () => {

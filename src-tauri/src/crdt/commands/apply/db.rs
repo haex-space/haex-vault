@@ -1,9 +1,8 @@
-use super::helpers::{build_pk_where_clause, json_values_to_sql_params};
 use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
-    get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
-    COLUMN_HLCS_COLUMN, DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN,
+    get_table_schema as get_table_schema_internal, is_safe_identifier, COLUMN_HLCS_COLUMN,
+    DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -11,180 +10,16 @@ use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS};
 use crate::AppState;
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
-use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::collections::{HashMap, HashSet};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
-use uuid::Uuid;
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RemoteColumnChange {
-    pub table_name: String,
-    pub row_pks: String, // JSON string
-    pub column_name: String,
-    pub hlc_timestamp: String,
-    pub decrypted_value: JsonValue, // Already decrypted in frontend
-}
-
-/// Creates a conflict entry when a UNIQUE constraint is violated
-/// Stores remote data + both PKs (local and remote differ due to UNIQUE conflict)
-fn create_conflict_entry(
-    tx: &rusqlite::Transaction,
-    table_name: &str,
-    error_msg: &str,
-    remote_row_data: &serde_json::Map<String, JsonValue>,
-    remote_timestamp: &str,
-    schema: &[ColumnInfo],
-) -> Result<(), DatabaseError> {
-    // Extract the conflicting columns from error message
-    // Example: "UNIQUE constraint failed: haex_settings.device_id, haex_settings.key"
-    let conflict_key = if let Some(cols) = error_msg.strip_prefix("UNIQUE constraint failed: ") {
-        cols.to_string()
-    } else {
-        error_msg.to_string()
-    };
-
-    // Serialize remote row data
-    let remote_row_json =
-        serde_json::to_string(remote_row_data).map_err(|e| DatabaseError::SerializationError {
-            reason: format!("Failed to serialize remote row: {}", e),
-        })?;
-
-    // Extract PKs from schema
-    let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
-
-    // Build remote PK JSON
-    let remote_pk: serde_json::Map<String, JsonValue> = pk_columns
-        .iter()
-        .filter_map(|pk_col| {
-            remote_row_data
-                .get(&pk_col.name)
-                .map(|v| (pk_col.name.clone(), v.clone()))
-        })
-        .collect();
-    let remote_pk_json = serde_json::to_string(&remote_pk).unwrap_or_else(|_| "{}".to_string());
-
-    // Find local row PK - we don't know which exact row conflicts, so query with LIMIT 1
-    // The UI will need to properly identify the conflicting row using the conflict_key
-    let pk_select = pk_columns
-        .iter()
-        .map(|col| col.name.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let query_sql = format!("SELECT {} FROM \"{}\" LIMIT 1", pk_select, table_name);
-
-    let local_pk_json = tx
-        .query_row(&query_sql, [], |row| {
-            let mut local_pk = serde_json::Map::new();
-            for (i, pk_col) in pk_columns.iter().enumerate() {
-                if let Ok(val) = row.get::<_, String>(i) {
-                    local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
-                }
-            }
-            Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
-        })
-        .unwrap_or_else(|_| "{}".to_string());
-
-    // Generate conflict ID and timestamp
-    let conflict_id = Uuid::new_v4().to_string();
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let detected_at = format!("{}", timestamp);
-
-    tx.execute(
-        "INSERT INTO haex_crdt_conflicts (
-            id, table_name, conflict_type, local_row_id, remote_row_id,
-            local_row_data, remote_row_data, local_timestamp, remote_timestamp,
-            conflict_key, detected_at, resolved
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-        params![
-            &conflict_id,
-            table_name,
-            "UNIQUE",
-            &local_pk_json,
-            &remote_pk_json,
-            "", // UI fetches full row via local_row_id
-            &remote_row_json,
-            "", // UI fetches local timestamp
-            remote_timestamp,
-            &conflict_key,
-            &detected_at,
-            false,
-        ],
-    )
-    .map_err(DatabaseError::from)?;
-
-    eprintln!(
-        "[SYNC RUST] Created conflict entry {} for table {}",
-        conflict_id, table_name
-    );
-
-    Ok(())
-}
-
-/// Groups a flat list of column changes into transaction-HLC groups and
-/// returns them sorted ascending by HLC. All writes issued inside the same
-/// sender-side transaction share a timestamp, so `hlc_timestamp` is the
-/// semantic grouping key — there is no separate batch id anymore.
-pub(crate) fn group_by_transaction_hlc(
-    changes: Vec<RemoteColumnChange>,
-) -> Vec<(String, Vec<RemoteColumnChange>)> {
-    let mut groups: HashMap<String, Vec<RemoteColumnChange>> = HashMap::new();
-    for change in changes {
-        groups
-            .entry(change.hlc_timestamp.clone())
-            .or_default()
-            .push(change);
-    }
-
-    let mut ordered: Vec<(String, Vec<RemoteColumnChange>)> = groups.into_iter().collect();
-    ordered.sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.0, &b.0));
-    ordered
-}
-
-/// Groups column changes by `(table, row_pks)` and returns rows in ascending
-/// order of their earliest HLC timestamp.
-///
-/// The naive shape — collect changes into a `HashMap<(table, row_pks), …>`
-/// and iterate it — discards the careful HLC ordering established by
-/// `group_by_transaction_hlc`: HashMap iteration is unordered. When a remote
-/// batch contains rows from multiple transactions (e.g. parent inserted at
-/// HLC1, child inserted at HLC2 referencing it), HashMap iteration may apply
-/// the child first. FK constraints are disabled during apply so that is not
-/// itself a hard error, but the apply order then no longer reflects the
-/// causal order the sender intended, and any future logic that observes the
-/// per-row apply sequence will see nondeterministic results.
-///
-/// This helper preserves the per-row grouping but sorts the resulting rows
-/// by `min(hlc_timestamp)` so the iteration order is deterministic and
-/// follows the same causal order as `group_by_transaction_hlc`.
-pub(crate) fn group_row_changes_in_hlc_order(
-    changes: impl IntoIterator<Item = RemoteColumnChange>,
-) -> Vec<((String, String), Vec<RemoteColumnChange>)> {
-    let mut map: HashMap<(String, String), Vec<RemoteColumnChange>> = HashMap::new();
-    for change in changes {
-        map.entry((change.table_name.clone(), change.row_pks.clone()))
-            .or_default()
-            .push(change);
-    }
-    let mut entries: Vec<((String, String), Vec<RemoteColumnChange>)> = map.into_iter().collect();
-    entries.sort_by(|a, b| {
-        let a_min = crate::crdt::hlc::hlc_min(a.1.iter().map(|c| c.hlc_timestamp.as_str()));
-        let b_min = crate::crdt::hlc::hlc_min(b.1.iter().map(|c| c.hlc_timestamp.as_str()));
-        match (a_min, b_min) {
-            (Some(am), Some(bm)) => crate::crdt::hlc::compare_hlc_strings(am, bm),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => std::cmp::Ordering::Equal,
-        }
-    });
-    entries
-}
+use super::super::helpers::{build_pk_where_clause, json_values_to_sql_params};
+use super::delete_propagation::{
+    create_conflict_entry, insert_suppressed_by_deletes, propagate_deleted_rows_to_target_tables,
+};
+use super::grouping::{group_by_transaction_hlc, group_row_changes_in_hlc_order};
+use super::types::RemoteColumnChange;
 
 /// Applies remote changes in a single transaction, with HLC-ordered grouping.
 /// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
@@ -224,200 +59,6 @@ pub fn apply_remote_changes_in_transaction(
 /// received remote timestamp after applying all changes. This ensures future local
 /// operations generate timestamps strictly greater than any received remote timestamp,
 /// preventing incomplete rows on the server during push.
-/// Build a `WHERE …` clause that matches a row by its CRDT primary-key map.
-///
-/// Returns `Some((where_clause, params))` if every PK column name is a safe
-/// identifier; returns `None` if **any** column name fails the safety check.
-/// Skipping individual columns is wrong: with a partial WHERE the resulting
-/// DELETE matches *more* than the intended row (potentially every row if
-/// every column was unsafe). All-or-nothing is the only correct stance.
-pub(crate) fn build_pk_where_from_map(
-    row_pks: &serde_json::Map<String, JsonValue>,
-) -> Option<(String, Vec<JsonValue>)> {
-    if row_pks.is_empty() {
-        return None;
-    }
-    let mut where_parts: Vec<String> = Vec::with_capacity(row_pks.len());
-    let mut values: Vec<JsonValue> = Vec::with_capacity(row_pks.len());
-    for (col_name, value) in row_pks {
-        if !is_safe_identifier(col_name) {
-            return None;
-        }
-        match value {
-            JsonValue::Null => {
-                where_parts.push(format!("\"{}\" IS NULL", col_name));
-            }
-            _ => {
-                where_parts.push(format!("\"{}\" = ?", col_name));
-                values.push(value.clone());
-            }
-        }
-    }
-    Some((where_parts.join(" AND "), values))
-}
-
-/// Decide whether to honour a delete-log entry, given the HLC of the entry
-/// and the HLC of the row currently sitting in the target table (if any).
-///
-/// CRDT semantics: a delete is just another timestamped operation. If the
-/// target row carries a `haex_hlc` strictly newer than the delete-log entry,
-/// the row was inserted/updated *after* the delete and must be kept (a
-/// "resurrection"). Without this check, propagation unconditionally drops
-/// the row, breaking last-write-wins for the insert-after-delete case.
-fn should_propagate_delete(delete_log_hlc: &str, target_row_hlc: Option<&str>) -> bool {
-    match target_row_hlc {
-        // Row doesn't exist locally → nothing to delete, but reporting
-        // "should propagate" is harmless and keeps logging consistent.
-        None => true,
-        Some(target) => {
-            // Honour the delete unless the target row is strictly newer.
-            crate::crdt::hlc::compare_hlc_strings(target, delete_log_hlc)
-                != std::cmp::Ordering::Greater
-        }
-    }
-}
-
-/// True if a delete-log entry at `delete_hlc` shadows an insert at `insert_hlc`
-/// — i.e. the insert is NOT strictly newer, so applying it would resurrect a
-/// deleted row. Sibling of `should_propagate_delete` (delete wins on tie).
-fn delete_shadows_insert(delete_hlc: &str, insert_hlc: &str) -> bool {
-    crate::crdt::hlc::compare_hlc_strings(insert_hlc, delete_hlc) != std::cmp::Ordering::Greater
-}
-
-/// Whether an insert for `insert_pks` at `insert_hlc` must be suppressed because
-/// a delete-log candidate for the SAME row (parsed-map equality — order- and
-/// serializer-agnostic) carries a shadowing HLC.
-///
-/// Match is type-strict (`serde_json::Value` equality): a PK serialized as a
-/// JSON number on one side and a string on the other will NOT match. In
-/// practice the synced, delete-tracked tables use TEXT (UUID) PKs, so this is
-/// safe today; non-text PK types (BLOB, integer) are covered by the canonical
-/// `row_pks` follow-up (open-points F5). A miss here fails toward NOT
-/// suppressing (status-quo resurrection), never toward a wrong suppression.
-fn insert_suppressed_by_deletes(
-    insert_pks: &serde_json::Map<String, JsonValue>,
-    insert_hlc: &str,
-    candidates: &[(serde_json::Map<String, JsonValue>, String)],
-) -> bool {
-    candidates.iter().any(|(del_pks, del_hlc)| {
-        del_pks == insert_pks && delete_shadows_insert(del_hlc, insert_hlc)
-    })
-}
-
-/// Applies pending delete-log entries to their target tables.
-///
-/// For each row id in `delete_log_ids`, reads `(table_name, row_pks)` from
-/// `haex_deleted_rows` and issues a `DELETE` on the target table. Assumes the
-/// caller has already disabled CRDT triggers (`triggers_enabled = 0`), so the
-/// DELETE does not re-append to the delete-log.
-fn propagate_deleted_rows_to_target_tables(
-    tx: &rusqlite::Transaction,
-    delete_log_ids: &HashSet<String>,
-) -> Result<(), DatabaseError> {
-    for id in delete_log_ids {
-        let result = tx.query_row(
-            &format!(
-                "SELECT table_name, row_pks, haex_hlc FROM \"{}\" WHERE id = ?1",
-                DELETED_ROWS_TABLE
-            ),
-            params![id],
-            |row| {
-                let table_name: String = row.get(0)?;
-                let row_pks: String = row.get(1)?;
-                let delete_hlc: String = row.get(2)?;
-                Ok((table_name, row_pks, delete_hlc))
-            },
-        );
-
-        let (target_table, row_pks_json, delete_hlc) = match result {
-            Ok(r) => r,
-            Err(rusqlite::Error::QueryReturnedNoRows) => continue,
-            Err(e) => return Err(DatabaseError::from(e)),
-        };
-
-        if !is_safe_identifier(&target_table) {
-            eprintln!(
-                "[SYNC RUST] Skipping propagation for unsafe target table: {}",
-                target_table
-            );
-            continue;
-        }
-
-        let row_pks: serde_json::Map<String, JsonValue> = match serde_json::from_str(&row_pks_json)
-        {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!(
-                    "[SYNC RUST] Invalid row_pks JSON for delete-log {}: {}",
-                    id, e
-                );
-                continue;
-            }
-        };
-
-        // All-or-nothing safety: if any PK column name fails the safe-
-        // identifier check we must skip the entire row. Building a
-        // partial WHERE from the remaining columns would match more
-        // rows than intended (potentially every row in the table).
-        let (where_clause, values) = match build_pk_where_from_map(&row_pks) {
-            Some(parts) => parts,
-            None => {
-                eprintln!(
-                    "[SYNC RUST] Skipping delete-log {} for '{}': row_pks contains \
-                     unsafe or empty PK columns — refusing to issue a partial WHERE",
-                    id, target_table
-                );
-                continue;
-            }
-        };
-        let sql_params = json_values_to_sql_params(&values)?;
-        let param_refs: Vec<&dyn rusqlite::ToSql> = sql_params
-            .iter()
-            .map(|v| v as &dyn rusqlite::ToSql)
-            .collect();
-
-        // Resurrection check: if the target row was inserted/updated after
-        // this delete-log entry, the row's haex_hlc is strictly newer and
-        // we must NOT propagate the delete.
-        let select_hlc_sql = format!(
-            "SELECT haex_hlc FROM \"{}\" WHERE {}",
-            target_table, where_clause
-        );
-        let target_row_hlc: Option<String> = tx
-            .query_row(&select_hlc_sql, param_refs.as_slice(), |row| row.get(0))
-            .ok();
-        if !should_propagate_delete(&delete_hlc, target_row_hlc.as_deref()) {
-            eprintln!(
-                "[SYNC RUST] Skipping delete-log {} for '{}': target row \
-                 has newer haex_hlc ({:?} > {}) — resurrected",
-                id, target_table, target_row_hlc, delete_hlc
-            );
-            continue;
-        }
-
-        let delete_sql = format!("DELETE FROM \"{}\" WHERE {}", target_table, where_clause);
-
-        match tx.execute(&delete_sql, param_refs.as_slice()) {
-            Ok(n) => {
-                if n > 0 {
-                    eprintln!(
-                        "[SYNC RUST] Delete-log propagation: removed {} row(s) from '{}'",
-                        n, target_table
-                    );
-                }
-            }
-            Err(e) => {
-                eprintln!(
-                    "[SYNC RUST] Delete-log propagation failed for '{}': {}",
-                    target_table, e
-                );
-                // Fall through — do not abort the whole sync on a single failure
-            }
-        }
-    }
-    Ok(())
-}
-
 pub fn apply_remote_changes_to_db(
     db: &crate::database::DbConnection,
     changes: Vec<RemoteColumnChange>,
@@ -507,18 +148,54 @@ pub fn apply_remote_changes_to_db(
             // ordering that group_by_transaction_hlc just established.
             let row_changes = group_row_changes_in_hlc_order(changes);
 
-            // Per-table cache of delete-log entries (parsed `row_pks` map + HLC)
-            // for the row-absent insert branch. Computed lazily on first need,
-            // then reused for every subsequent absent row of the same table in
-            // this apply pass — collapses N row-absent inserts against the same
-            // table from N queries+JSON parses to one. The transaction (`tx`)
-            // is the only writer to `haex_deleted_rows` in this pass and we
-            // already abort on any read error here, so the cache is consistent
+            // Pre-loaded delete-log entries (parsed `row_pks` map + HLC) grouped
+            // by target `table_name`, for the row-absent insert branch below.
+            // Previous implementation loaded lazily per-table on first absent
+            // row, which scaled with `|haex_deleted_rows|` re-issued for every
+            // new table touched. Loading once collapses the whole apply pass to
+            // a single sweep. The transaction (`tx`) is the only writer to
+            // `haex_deleted_rows` in this pass, so the snapshot is consistent
             // with what's on disk for the duration of one apply.
-            let mut shadowing_deletes_by_table: HashMap<
+            //
+            // Absent-table = empty slice (matches the lazy-load semantics:
+            // "no entries for that table" yielded `&[]`).
+            let shadowing_deletes_by_table: HashMap<
                 String,
                 Vec<(serde_json::Map<String, JsonValue>, String)>,
-            > = HashMap::new();
+            > = {
+                let mut map: HashMap<String, Vec<(serde_json::Map<String, JsonValue>, String)>> =
+                    HashMap::new();
+                let mut stmt = tx
+                    .prepare(&format!(
+                        "SELECT table_name, row_pks, haex_hlc FROM \"{}\"",
+                        DELETED_ROWS_TABLE
+                    ))
+                    .map_err(DatabaseError::from)?;
+                // `haex_hlc` is added to `haex_deleted_rows` via a nullable
+                // ALTER (see `ensure_crdt_columns`), so a legacy or directly-
+                // inserted row could leave it NULL. Read it as `Option<String>`
+                // and skip NULL entries — a single bad row must not abort the
+                // entire apply pass (would wedge the pull cursor permanently).
+                let mapped = stmt
+                    .query_map([], |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, Option<String>>(2)?,
+                        ))
+                    })
+                    .map_err(DatabaseError::from)?;
+                for r in mapped {
+                    let (table_name, pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
+                    if let (Some(del_hlc), Ok(pks_map)) = (
+                        del_hlc,
+                        serde_json::from_str::<serde_json::Map<String, JsonValue>>(&pks_str),
+                    ) {
+                        map.entry(table_name).or_default().push((pks_map, del_hlc));
+                    }
+                }
+                map
+            };
 
             // Apply changes grouped by row
             for ((_table_name, row_pks_str), row_change_list) in row_changes {
@@ -742,45 +419,15 @@ pub fn apply_remote_changes_to_db(
                         // serializer differences between the scanner (sorted) and the DELETE
                         // trigger (PK-definition order).
                         //
-                        // The read fails hard on error (propagated `?`), matching
-                        // propagate_deleted_rows_to_target_tables: in production
-                        // `haex_deleted_rows` always exists, so a read error here is a real
-                        // fault and must not silently fall through to an insert (which would
-                        // resurrect a deleted row).
-                        //
-                        // Cached per `table_name` for the apply pass — see the
-                        // `shadowing_deletes_by_table` declaration above the row loop.
-                        // `Entry::Vacant` keeps the `?` propagation correct (we can't
-                        // use `or_insert_with` because the loader fails fallibly).
-                        if let std::collections::hash_map::Entry::Vacant(slot) =
-                            shadowing_deletes_by_table.entry(first_change.table_name.clone())
-                        {
-                            let mut entries: Vec<(serde_json::Map<String, JsonValue>, String)> =
-                                Vec::new();
-                            let mut stmt = tx
-                                .prepare(&format!(
-                                    "SELECT row_pks, haex_hlc FROM \"{}\" WHERE table_name = ?1",
-                                    DELETED_ROWS_TABLE
-                                ))
-                                .map_err(DatabaseError::from)?;
-                            let mapped = stmt
-                                .query_map(params![&first_change.table_name], |row| {
-                                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-                                })
-                                .map_err(DatabaseError::from)?;
-                            for r in mapped {
-                                let (pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
-                                if let Ok(map) = serde_json::from_str::<
-                                    serde_json::Map<String, JsonValue>,
-                                >(&pks_str)
-                                {
-                                    entries.push((map, del_hlc));
-                                }
-                            }
-                            slot.insert(entries);
-                        }
-                        let shadowing_deletes =
-                            &shadowing_deletes_by_table[&first_change.table_name];
+                        // Look up the per-table shadowing-delete entries from the
+                        // apply-pass-wide pre-load above. Absent table = empty
+                        // slice (preserves the lazy-load semantics where a table
+                        // with no matching delete-log entries fell through to a
+                        // plain insert).
+                        let empty: Vec<(serde_json::Map<String, JsonValue>, String)> = Vec::new();
+                        let shadowing_deletes = shadowing_deletes_by_table
+                            .get(&first_change.table_name)
+                            .unwrap_or(&empty);
                         if insert_suppressed_by_deletes(
                             &row_pks,
                             &max_hlc_for_row,
@@ -1002,242 +649,7 @@ pub fn apply_remote_changes_to_db(
 }
 
 #[cfg(test)]
-#[path = "../commands_pending_columns_tests.rs"]
-mod pending_columns_tests;
-
-#[cfg(test)]
-#[path = "../commands_delete_resurrection_tests.rs"]
-mod delete_resurrection_tests;
-
-#[cfg(test)]
-mod hlc_grouping_tests {
-    use super::*;
-
-    fn change(table: &str, pk: &str, col: &str, hlc: &str) -> RemoteColumnChange {
-        RemoteColumnChange {
-            table_name: table.to_string(),
-            row_pks: pk.to_string(),
-            column_name: col.to_string(),
-            hlc_timestamp: hlc.to_string(),
-            decrypted_value: JsonValue::Null,
-        }
-    }
-
-    // HLC strings sort lexicographically when same length; use fixed-width
-    // numeric prefixes so the relative order is unambiguous.
-    const HLC1: &str = "1/abcdef";
-    const HLC2: &str = "2/abcdef";
-    const HLC3: &str = "3/abcdef";
-    const HLC4: &str = "4/abcdef";
-
-    #[test]
-    fn helper_emits_rows_in_ascending_min_hlc_order() {
-        // Construct three rows whose earliest HLCs are HLC1, HLC2, HLC3 —
-        // but feed them in reverse order so HashMap insertion order is
-        // visibly wrong. The helper must still produce HLC1 → HLC2 → HLC3.
-        let changes = vec![
-            change("t", r#"{"id":"c"}"#, "col", HLC3),
-            change("t", r#"{"id":"b"}"#, "col", HLC2),
-            change("t", r#"{"id":"a"}"#, "col", HLC1),
-        ];
-
-        let ordered = group_row_changes_in_hlc_order(changes);
-
-        let keys: Vec<&str> = ordered.iter().map(|(k, _)| k.1.as_str()).collect();
-        assert_eq!(
-            keys,
-            vec![r#"{"id":"a"}"#, r#"{"id":"b"}"#, r#"{"id":"c"}"#],
-            "rows must be ordered by ascending min(hlc), regardless of input order"
-        );
-    }
-
-    #[test]
-    fn helper_uses_min_hlc_per_row_for_ordering() {
-        // Row A has changes at HLC1 + HLC4; Row B has a single change at
-        // HLC2. min(A) = HLC1 < min(B) = HLC2, so A must come before B
-        // even though A also contains the latest timestamp in the batch.
-        let changes = vec![
-            change("t", r#"{"id":"a"}"#, "col1", HLC4),
-            change("t", r#"{"id":"b"}"#, "col", HLC2),
-            change("t", r#"{"id":"a"}"#, "col2", HLC1),
-        ];
-
-        let ordered = group_row_changes_in_hlc_order(changes);
-
-        assert_eq!(ordered.len(), 2, "rows must be grouped per (table, pk)");
-        assert_eq!(
-            ordered[0].0 .1, r#"{"id":"a"}"#,
-            "row A (min HLC = HLC1) must come before row B (min HLC = HLC2)"
-        );
-        assert_eq!(ordered[0].1.len(), 2, "row A must keep both of its changes");
-        assert_eq!(ordered[1].0 .1, r#"{"id":"b"}"#);
-    }
-
-    // ------------------------------------------------------------------
-    // should_propagate_delete: insert-after-delete resurrection check
-    // ------------------------------------------------------------------
-
-    // ------------------------------------------------------------------
-    // build_pk_where_from_map: all-or-nothing safety
-    // ------------------------------------------------------------------
-
-    fn pk_map(pairs: &[(&str, JsonValue)]) -> serde_json::Map<String, JsonValue> {
-        pairs
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.clone()))
-            .collect()
-    }
-
-    #[test]
-    fn pk_where_returns_none_for_empty_map() {
-        let empty = serde_json::Map::<String, JsonValue>::new();
-        assert!(build_pk_where_from_map(&empty).is_none());
-    }
-
-    #[test]
-    fn pk_where_handles_safe_identifiers_with_values() {
-        let map = pk_map(&[
-            ("id", JsonValue::String("x".into())),
-            ("group_id", JsonValue::String("g".into())),
-        ]);
-        let (clause, values) = build_pk_where_from_map(&map).expect("safe");
-        assert!(clause.contains("\"id\" = ?"));
-        assert!(clause.contains("\"group_id\" = ?"));
-        assert!(clause.contains(" AND "));
-        assert_eq!(values.len(), 2);
-    }
-
-    #[test]
-    fn pk_where_uses_is_null_for_null_values() {
-        let map = pk_map(&[
-            ("id", JsonValue::String("x".into())),
-            ("optional", JsonValue::Null),
-        ]);
-        let (clause, values) = build_pk_where_from_map(&map).expect("safe");
-        assert!(clause.contains("\"optional\" IS NULL"));
-        // NULL columns do not contribute to the bound parameter list.
-        assert_eq!(values.len(), 1);
-    }
-
-    #[test]
-    fn pk_where_returns_none_when_any_column_is_unsafe() {
-        // Bug-fix probe: previously the loop did `continue` on the unsafe
-        // column, building a WHERE from the *remaining* columns. The
-        // resulting DELETE would match every row that shares those
-        // remaining values — potentially every row when every column is
-        // unsafe. All-or-nothing is the only safe stance.
-        let map = pk_map(&[
-            ("id", JsonValue::String("x".into())),
-            ("evil; DROP TABLE", JsonValue::String("y".into())),
-        ]);
-        assert!(
-            build_pk_where_from_map(&map).is_none(),
-            "row with any unsafe PK column must produce no WHERE clause — \
-             building a partial clause from the other columns would match \
-             more rows than intended"
-        );
-    }
-
-    #[test]
-    fn pk_where_returns_none_when_only_unsafe_columns() {
-        let map = pk_map(&[("evil; --", JsonValue::String("y".into()))]);
-        assert!(build_pk_where_from_map(&map).is_none());
-    }
-
-    // ------------------------------------------------------------------
-    // should_propagate_delete (existing tests)
-    // ------------------------------------------------------------------
-
-    #[test]
-    fn delete_propagates_when_target_does_not_exist_locally() {
-        assert!(should_propagate_delete("5/abcdef", None));
-    }
-
-    #[test]
-    fn delete_propagates_when_target_row_is_older() {
-        // Target row was last modified at HLC 3; delete-log claims HLC 5.
-        // The delete is newer → propagate.
-        assert!(should_propagate_delete("5/abcdef", Some("3/abcdef")));
-    }
-
-    #[test]
-    fn delete_propagates_when_target_row_has_equal_hlc() {
-        // Equal timestamps: tie-break by node id (built into the
-        // comparator). We treat equal-or-older target rows as "delete
-        // wins" to keep idempotent re-application stable.
-        assert!(should_propagate_delete("5/abcdef", Some("5/abcdef")));
-    }
-
-    #[test]
-    fn delete_skipped_when_target_row_is_strictly_newer() {
-        // This is the bug fix: an insert/update at HLC 10 must survive a
-        // delete-log entry at HLC 5. Without this, the row inserted
-        // after the delete would be wiped on the next apply.
-        assert!(!should_propagate_delete("5/abcdef", Some("10/abcdef")));
-    }
-
-    #[test]
-    fn delete_skipped_when_target_row_is_far_newer() {
-        // Sanity: large HLC gap, same node.
-        assert!(!should_propagate_delete("100/abcdef", Some("1000/abcdef")));
-    }
-
-    // ------------------------------------------------------------------
-
-    #[test]
-    fn helper_is_deterministic_across_input_orderings() {
-        // A direct probe for the bug: build a batch large enough that a
-        // plain HashMap iteration order is nearly guaranteed to differ
-        // between insertion orderings. The helper must always produce
-        // the same sequence regardless of how changes are reshuffled.
-        let baseline_changes: Vec<RemoteColumnChange> = (0..16)
-            .map(|i| {
-                let hlc = format!("{}/abcdef", i);
-                change("t", &format!(r#"{{"id":"r{}"}}"#, i), "c", &hlc)
-            })
-            .collect();
-
-        let baseline = group_row_changes_in_hlc_order(baseline_changes);
-        let baseline_keys: Vec<String> = baseline.iter().map(|(k, _)| k.1.clone()).collect();
-
-        // Reverse input order and re-run.
-        let reversed: Vec<RemoteColumnChange> = (0..16)
-            .rev()
-            .map(|i| {
-                let hlc = format!("{}/abcdef", i);
-                change("t", &format!(r#"{{"id":"r{}"}}"#, i), "c", &hlc)
-            })
-            .collect();
-        let reversed_out = group_row_changes_in_hlc_order(reversed);
-        let reversed_keys: Vec<String> = reversed_out.iter().map(|(k, _)| k.1.clone()).collect();
-
-        assert_eq!(
-            baseline_keys, reversed_keys,
-            "iteration order must be deterministic and HLC-driven, not \
-             dependent on the order changes were collected from the batch"
-        );
-
-        // Sanity: the row order matches ascending HLC numeric order.
-        // (Cannot use lexicographic compare on the row keys themselves
-        // because "r10" < "r2" lexically while HLC says otherwise.)
-        let baseline_min_hlcs: Vec<&str> = baseline
-            .iter()
-            .map(|(_, list)| {
-                crate::crdt::hlc::hlc_min(list.iter().map(|c| c.hlc_timestamp.as_str())).unwrap()
-            })
-            .collect();
-        for window in baseline_min_hlcs.windows(2) {
-            assert!(
-                crate::crdt::hlc::compare_hlc_strings(window[0], window[1])
-                    != std::cmp::Ordering::Greater,
-                "consecutive rows must be in non-decreasing HLC order"
-            );
-        }
-    }
-}
-
-#[cfg(test)]
-mod apply_partial_row_tests {
+mod tests {
     use super::*;
     use crate::database::DbConnection;
     use std::sync::{Arc, Mutex};

@@ -133,3 +133,26 @@ const passkeysRef = ref<{ persistDeletionsAsync: () => Promise<void> } | null>(n
 
 defineExpose({ passkeysRef })
 </script>
+
+<i18n lang="yaml">
+de:
+  passkeys:
+    title: Passkeys
+    description: Passkeys werden automatisch über die Browser-Erweiterung erstellt.
+  attachments:
+    title: Dateianhänge
+    description: Dateien, Bilder und Dokumente die zu diesem Eintrag gehören.
+  autofill:
+    title: Autofill-Zuordnung
+    description: Konfiguriere alternative Feldnamen für das Browser-Autofill.
+en:
+  passkeys:
+    title: Passkeys
+    description: Passkeys are created automatically via the browser extension.
+  attachments:
+    title: Attachments
+    description: Files, images and documents associated with this entry.
+  autofill:
+    title: Autofill Mapping
+    description: Configure alternative field names for browser autofill.
+</i18n>
