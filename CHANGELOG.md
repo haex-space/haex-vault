@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.11.3](https://github.com/haex-space/haex-vault/compare/v2.11.2...v2.11.3) (2026-06-27)
+
+
+### Bug Fixes
+
+* address CodeRabbit review on PR [#554](https://github.com/haex-space/haex-vault/issues/554) ([ba46fe2](https://github.com/haex-space/haex-vault/commit/ba46fe2020618fb673d4cccb2ff17c251285f514))
+* address pre-existing bugs surfaced by PR [#555](https://github.com/haex-space/haex-vault/issues/555) review ([7cccfd4](https://github.com/haex-space/haex-vault/commit/7cccfd4ffd40ecb8fed014c5f7e8328ae6790a60))
+* **crdt:** harden delete propagation and apply ordering ([836c11a](https://github.com/haex-space/haex-vault/commit/836c11afe9292eba72a727be14ed272f8be663ea))
+* **filesystem:** close correctness gaps in copy, picker, exists/stat, remove ([a997a2b](https://github.com/haex-space/haex-vault/commit/a997a2b089bd4c10d069289195c7f6b7b42cf7c7))
+* **passwords:** recover lost i18n labels after editor SFC split ([3f4ffc0](https://github.com/haex-space/haex-vault/commit/3f4ffc01f357fee6b55799bc7522e784a6739e51))
+* **passwords:** recover lost i18n labels after editor SFC split ([d0e23fb](https://github.com/haex-space/haex-vault/commit/d0e23fb24f41be366c6a192a57895238916bd5fe))
+* **peer_storage:** harden download resume, chunk alignment, and buffer flush ([fe4f8ad](https://github.com/haex-space/haex-vault/commit/fe4f8ad65a2d204a3103f47b8146023c3d1913f0))
+* **stores:** dedupe type re-exports to silence typecheck warnings ([a0d718b](https://github.com/haex-space/haex-vault/commit/a0d718b1c6b57cc884518b6409dac127ed583829))
+* surface errors from fire-and-forget tokio spawns ([96228f4](https://github.com/haex-space/haex-vault/commit/96228f4fb953fd3ed734dd81de1d68f685475614))
+
+
+### Performance Improvements
+
+* clear range_progress + pre-load delete-log scan ([c94aaa3](https://github.com/haex-space/haex-vault/commit/c94aaa3ca7a2223dab2e5a979b03eb70ebb27810))
+
 ## [2.11.2](https://github.com/haex-space/haex-vault/compare/v2.11.1...v2.11.2) (2026-06-26)
 
 
