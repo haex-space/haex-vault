@@ -43,6 +43,16 @@ pub async fn peer_storage_start(
     // Load shares and allowed peers from DB before starting
     reload_state_from_db(&state, &*endpoint).await?;
 
+    // Phase 2 DoS-defence: snapshot `dosDefence.*` settings now, before the
+    // accept loop spawns. The Default config (Phase 2 defaults) is already
+    // installed by `PeerState::default`, so a load failure or empty rowset
+    // falls back to those values without breaking start. Hot-reload on a
+    // later settings edit is deferred — call `peer_storage_start` again to
+    // pick up new values (matches L4's "snapshot at leader start" stance).
+    let dos_config =
+        crate::space_delivery::local::dos_defence::config::DosDefenceConfig::load(&state.db);
+    endpoint.set_dos_config(dos_config).await;
+
     let node_id = endpoint.start(relay_url).await?;
 
     // Register the unified multi-space handler so this device can accept
