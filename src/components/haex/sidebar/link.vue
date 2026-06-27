@@ -6,9 +6,9 @@
     }"
     @click="triggerNavigate"
   >
-    <UiTooltip
-      :tooltip="tooltip ?? name"
-      direction="right-start"
+    <UTooltip
+      :text="tooltip ?? name"
+      :content="{ side: 'right', align: 'start' }"
     >
       <NuxtLinkLocale
         ref="linkRef"
@@ -26,7 +26,7 @@
           size="1.5em"
         />
       </NuxtLinkLocale>
-    </UiTooltip>
+    </UTooltip>
   </li>
 </template>
 
