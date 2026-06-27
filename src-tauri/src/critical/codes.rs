@@ -52,6 +52,15 @@ pub enum CriticalFailureCode {
     /// (buggy client) or actively probing. Warning severity. See
     /// `docs/plans/2026-06-13-leader-reject-rate-limit.md`.
     SingleSourceFlood,
+    /// L1 distinct-source counter crossed `dosDefence.ddos.distinctSourcesThreshold`
+    /// while the global accept rate stayed above
+    /// `dosDefence.l1.globalRatePerSec` — a multi-source flood. The Leader
+    /// auto-escalated to contacts-only acceptance until the operator
+    /// dismisses or `dosDefence.ddos.autoExpirySecs` elapses. Warning
+    /// severity — no data corruption, but the user needs visibility because
+    /// non-contact reconnect attempts will silently fail while the
+    /// escalation holds.
+    FloodDdos,
 }
 
 /// Severity is a property of the code (see Q2 in the plan), so the
@@ -79,9 +88,10 @@ impl CriticalFailureCode {
             Self::HlcMutexPoisoned | Self::DbMutexPoisoned | Self::DbSchemaDrift => {
                 Severity::Critical
             }
-            Self::AuditLogWriteFailed | Self::CrdtTransformFailed | Self::SingleSourceFlood => {
-                Severity::Warning
-            }
+            Self::AuditLogWriteFailed
+            | Self::CrdtTransformFailed
+            | Self::SingleSourceFlood
+            | Self::FloodDdos => Severity::Warning,
         }
     }
 
@@ -97,6 +107,7 @@ impl CriticalFailureCode {
             Self::AuditLogWriteFailed => "AuditLogWriteFailed",
             Self::CrdtTransformFailed => "CrdtTransformFailed",
             Self::SingleSourceFlood => "SingleSourceFlood",
+            Self::FloodDdos => "FloodDdos",
         }
     }
 }

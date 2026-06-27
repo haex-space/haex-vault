@@ -55,6 +55,30 @@ pub async fn peer_storage_start(
         crate::space_delivery::local::dos_defence::config::DosDefenceConfig::load(&state.db);
     endpoint.set_dos_config(dos_config).await;
 
+    // Phase 3: install the FloodMode runtime so the accept loop performs
+    // contacts-only escalation during DDoS episodes and emits one-shot
+    // `FloodDdos` critical notifications. Falls back to Phase 2 semantics
+    // if the critical-sink slot is empty (e.g. vault closed mid-start).
+    let sink_clone = state
+        .critical_sink
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone();
+    if let Some(sink) = sink_clone {
+        let runtime_db = crate::database::DbConnection(state.db.0.clone());
+        let runtime = std::sync::Arc::new(
+            crate::space_delivery::local::dos_defence::state::DosDefenceRuntime::load(
+                runtime_db, sink,
+            ),
+        );
+        endpoint.set_dos_runtime(runtime).await;
+    } else {
+        eprintln!(
+            "[DosDefence Phase 3] critical_sink unavailable at peer_storage_start; \
+             running with Phase 2 semantics until next start"
+        );
+    }
+
     let node_id = endpoint.start(relay_url).await?;
 
     // Register the unified multi-space handler so this device can accept
@@ -171,6 +195,21 @@ pub async fn peer_storage_diagnose_connection(
 
     let endpoint = state.peer_storage.read().await;
     Ok(endpoint.diagnose_connection(remote_id))
+}
+
+/// Force the DDoS contacts-only escalation back to Quiet — the user
+/// acknowledges the banner before the `dosDefence.ddos.autoExpirySecs`
+/// deadline. No-op if no flood-mode runtime is installed or the current
+/// state is already Quiet.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn dos_defence_end_escalation(
+    state: State<'_, AppState>,
+) -> Result<(), PeerStorageError> {
+    let endpoint = state.peer_storage.read().await;
+    if let Some(runtime) = endpoint.dos_runtime().await {
+        runtime.end_escalation();
+    }
+    Ok(())
 }
 
 // ============================================================================

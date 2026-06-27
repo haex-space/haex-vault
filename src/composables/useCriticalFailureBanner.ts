@@ -83,6 +83,14 @@ export function useCriticalFailureBanner() {
             action: 'Bitte prüfe die Identität des Peers im Audit-Log. Falls der Peer unbekannt ist oder weiter floodet, kannst Du die DID in den Einstellungen blockieren.',
             actionLabel: 'Verstanden',
           },
+          FloodDdos: {
+            title: 'Mehrere Quellen fluten gleichzeitig',
+            description:
+              'Eingehende Verbindungen von zahlreichen unterschiedlichen Quellen überschreiten die globale Rate. Der Vault akzeptiert vorübergehend nur noch Verbindungen von Kontakten.',
+            risk: 'Unbekannte Peers können bis zum Ablauf der automatischen Eskalation keine Verbindung aufbauen. Bestehende, authentifizierte Verbindungen bleiben unberührt.',
+            action: 'Du kannst die Eskalation jederzeit vorzeitig beenden, sobald sich die Lage beruhigt hat.',
+            actionLabel: 'Eskalation früher beenden',
+          },
           dismissed: 'Verstanden',
           blockDidLabel: 'DID blockieren',
           unknownCode: 'Unbekannter Kritischer Fehler',
@@ -146,6 +154,16 @@ export function useCriticalFailureBanner() {
               "Please check the peer's identity in the audit log. If the peer is unknown or keeps flooding, you can block its DID from the settings.",
             actionLabel: 'Understood',
           },
+          FloodDdos: {
+            title: 'Multiple sources are flooding simultaneously',
+            description:
+              'Incoming connections from many distinct sources exceeded the global rate. The vault temporarily accepts connections from contacts only.',
+            risk:
+              'Unknown peers cannot connect until the auto-expiry elapses. Existing, authenticated connections are unaffected.',
+            action:
+              'You can end the escalation early once the situation has calmed down.',
+            actionLabel: 'End escalation early',
+          },
           dismissed: 'Understood',
           blockDidLabel: 'Block DID',
           unknownCode: 'Unknown critical failure',
@@ -180,6 +198,7 @@ export function useCriticalFailureBanner() {
       case 'AuditLogWriteFailed':
       case 'CrdtTransformFailed':
       case 'SingleSourceFlood':
+      case 'FloodDdos':
         return 'Warning'
       default: {
         // Exhaustiveness check: if Rust adds a new CriticalFailureCode
@@ -357,6 +376,27 @@ export function useCriticalFailureBanner() {
     }
   }
 
+  /**
+   * FloodDdos-specific action: ask the backend to flip the FloodMode runtime
+   * back to Quiet immediately (instead of waiting for `autoExpirySecs`), then
+   * acknowledge the banner row. The command is a no-op when no runtime is
+   * installed; the ack still hides the banner.
+   */
+  const endDdosEscalationFromCurrent = async () => {
+    const row = current.value
+    if (!row) return
+    acting.value = true
+    try {
+      await invoke('dos_defence_end_escalation')
+      await invoke<number>('critical_notifications_acknowledge', { id: row.id })
+      await refresh()
+    } catch (err) {
+      console.error('[CriticalBanner] end-ddos-escalation failed:', err)
+    } finally {
+      acting.value = false
+    }
+  }
+
   return {
     current: readonly(current),
     translated: translatedContent,
@@ -364,6 +404,7 @@ export function useCriticalFailureBanner() {
     acknowledge,
     restartApp,
     blockDidFromCurrent,
+    endDdosEscalationFromCurrent,
     /** Exposed for tests / explicit pull (e.g. after a known poison trigger). */
     refresh,
     /** Exposed for components that need to format severity differently. */

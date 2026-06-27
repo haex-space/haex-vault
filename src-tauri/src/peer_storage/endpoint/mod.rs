@@ -157,6 +157,13 @@ pub struct PeerState {
     /// post-auth DIDs; merging them would require key namespacing and an
     /// `Arc<RwLock<_>>` cross-module access path.
     pub accept_tracker: Arc<RejectRateTracker>,
+    /// Phase 3 runtime: FloodMode state machine + contacts resolver +
+    /// DDoS-episode notifier. `None` until the vault-open path wires it via
+    /// `PeerEndpoint::set_dos_runtime`; while `None`, accept_loop behaves
+    /// exactly as before (Phase 2 semantics only — no DDoS-mode check, no
+    /// auto-escalation).
+    pub dos_runtime:
+        Option<Arc<crate::space_delivery::local::dos_defence::state::DosDefenceRuntime>>,
 }
 
 impl Default for PeerState {
@@ -171,6 +178,7 @@ impl Default for PeerState {
             connection_watchers: HashMap::new(),
             dos_config: Arc::new(DosDefenceConfig::defaults()),
             accept_tracker: Arc::new(RejectRateTracker::new(ACCEPT_TRACKER_WINDOW)),
+            dos_runtime: None,
         }
     }
 }
