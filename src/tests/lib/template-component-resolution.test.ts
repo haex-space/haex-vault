@@ -63,18 +63,25 @@ function walkVueFiles(dir: string, out: string[]): void {
   }
 }
 
-function extractBlock(src: string, tag: 'template' | 'script'): string {
-  // Find FIRST opening tag of this kind. For <script>, also accept attrs
-  // (lang, setup, generic, …). Matches up to the matching closing tag.
-  const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')
-  const m = src.match(re)
+function extractTemplateBlock(src: string): string {
+  const m = src.match(/<template\b[^>]*>([\s\S]*?)<\/template>/i)
+  return m ? m[1]! : ''
+}
+
+function extractSetupScript(src: string): string {
+  // Only `<script setup>` imports/declarations reach templates directly.
+  // Classic `<script>` (Options API) registers components via the
+  // `components: { … }` option, which this guard does not parse. Filtering to
+  // setup-only avoids false negatives where a classic-script `import` would
+  // be misread as a template-local.
+  const m = src.match(/<script\b[^>]*\bsetup\b[^>]*>([\s\S]*?)<\/script>/i)
   return m ? m[1]! : ''
 }
 
 function extractScriptLocals(scriptSrc: string): Set<string> {
   // Strip comments first so commented-out code doesn't pollute the locals set.
-  const stripped = scriptSrc
-    .replace(/\/\*[\s\S]*?\*\//g, '')
+  // Block comments loop until stable to defang nested/overlapping forms.
+  const stripped = stripUntilStable(scriptSrc, /\/\*[\s\S]*?\*\//g)
     .replace(/\/\/.*$/gm, '')
 
   const locals = new Set<string>()
@@ -105,10 +112,22 @@ function extractScriptLocals(scriptSrc: string): Set<string> {
   return locals
 }
 
+function stripUntilStable(input: string, pattern: RegExp): string {
+  // A single-pass `.replace()` of nested/overlapping comment markers can leave
+  // behind a fresh opening (e.g. `<!-<!--x-->-->` → `<!--->`). Loop until the
+  // text stops changing so no comment-shaped residue survives.
+  let out = input
+  for (;;) {
+    const next = out.replace(pattern, '')
+    if (next === out) return out
+    out = next
+  }
+}
+
 function extractPascalTags(templateSrc: string): Set<string> {
-  // Drop HTML comments and Vue-style attribute strings that contain `<` so
-  // they can't trigger false matches.
-  const stripped = templateSrc.replace(/<!--[\s\S]*?-->/g, '')
+  // Drop HTML comments (until stable — see stripUntilStable) so commented-out
+  // tags can't trigger false matches.
+  const stripped = stripUntilStable(templateSrc, /<!--[\s\S]*?-->/g)
   const tags = new Set<string>()
   for (const m of stripped.matchAll(/<([A-Z][A-Za-z0-9]*)(?=[\s/>])/g)) {
     tags.add(m[1]!)
@@ -125,14 +144,14 @@ describe('Vue template component references resolve via auto-import or script-se
 
   for (const file of files) {
     const src = readFileSync(file, 'utf8')
-    const templateSrc = extractBlock(src, 'template')
+    const templateSrc = extractTemplateBlock(src)
     if (!templateSrc) continue
 
     const tags = extractPascalTags(templateSrc)
     if (tags.size === 0) continue
 
-    const scriptSrc = extractBlock(src, 'script')
-    const scriptLocals = scriptSrc ? extractScriptLocals(scriptSrc) : new Set<string>()
+    const setupSrc = extractSetupScript(src)
+    const scriptLocals = setupSrc ? extractScriptLocals(setupSrc) : new Set<string>()
 
     for (const tag of tags) {
       if (BUILTINS.has(tag)) continue
