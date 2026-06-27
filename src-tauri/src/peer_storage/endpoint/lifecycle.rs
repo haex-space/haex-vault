@@ -461,38 +461,49 @@ async fn handle_connection(
     // server writes, which avoids a both-sides-blocked-on-read deadlock that
     // would otherwise occur if both endpoints tried to read first.
     //
-    // L3 wraps the full handshake in a configurable timeout so a peer that
-    // opens the stream and then stalls cannot hold the connection (and the
-    // server-side task) forever. The inner `read_message` already has a
-    // `CHALLENGE_TIMEOUT` for the response read; this outer timeout also
-    // covers the initial Challenge write and any buffer flushes.
-    let verified_did = match conn.open_bi().await {
-        Ok((mut send, mut recv)) => {
-            let auth_future = crate::quic_did_auth::challenge_and_verify(
-                &mut send,
-                &mut recv,
-                &own_endpoint_id,
-                &remote_str,
-            );
-            match tokio::time::timeout(dos_config.l3_handshake_timeout, auth_future).await {
-                Ok(Ok(did)) => did,
-                Ok(Err(e)) => {
-                    eprintln!("[PeerStorage] DID-auth failed for {remote}: {e}");
-                    conn.close(2u32.into(), b"did-auth failed");
-                    return;
-                }
-                Err(_) => {
-                    eprintln!(
-                        "[DosDefence L3] handshake timeout for {remote} after {:?}",
-                        dos_config.l3_handshake_timeout
-                    );
-                    conn.close(7u32.into(), b"handshake timeout");
-                    return;
-                }
-            }
-        }
-        Err(e) => {
+    // L3 wraps the whole sequence (open_bi + challenge_and_verify) in one
+    // configurable timeout. `open_bi` itself can block on per-connection
+    // stream-credit flow control before the handshake even starts, so a
+    // peer that withholds credit would otherwise pin this task outside
+    // the handshake timeout window. The inner `read_message` still has
+    // its own `CHALLENGE_TIMEOUT`; the outer timeout bounds the total.
+    enum HandshakeErr {
+        OpenStream(String),
+        Auth(String),
+    }
+    let auth_result = tokio::time::timeout(dos_config.l3_handshake_timeout, async {
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| HandshakeErr::OpenStream(e.to_string()))?;
+        crate::quic_did_auth::challenge_and_verify(
+            &mut send,
+            &mut recv,
+            &own_endpoint_id,
+            &remote_str,
+        )
+        .await
+        .map_err(|e| HandshakeErr::Auth(e.to_string()))
+    })
+    .await;
+
+    let verified_did = match auth_result {
+        Ok(Ok(did)) => did,
+        Ok(Err(HandshakeErr::OpenStream(e))) => {
             eprintln!("[PeerStorage] Failed to open auth stream to {remote}: {e}");
+            return;
+        }
+        Ok(Err(HandshakeErr::Auth(e))) => {
+            eprintln!("[PeerStorage] DID-auth failed for {remote}: {e}");
+            conn.close(2u32.into(), b"did-auth failed");
+            return;
+        }
+        Err(_) => {
+            eprintln!(
+                "[DosDefence L3] handshake timeout for {remote} after {:?}",
+                dos_config.l3_handshake_timeout
+            );
+            conn.close(7u32.into(), b"handshake timeout");
             return;
         }
     };
@@ -639,34 +650,41 @@ async fn pre_auth_accept_check(state: &Arc<RwLock<PeerState>>, source_key: &str)
 }
 
 /// Pure decision step factored out for tests — does not depend on tokio
-/// runtime or the live `PeerState`.
+/// runtime or the live `PeerState`. Delegates the check-and-record to
+/// `RejectRateTracker::try_record_l1_accept` so the count/limit/record
+/// sequence happens inside one mutex critical section — without that,
+/// concurrent accept tasks could each observe counts under the cap and
+/// then each record, producing bursts beyond the configured rate.
 fn accept_decision(
     cfg: &DosDefenceConfig,
     tracker: &RejectRateTracker,
     source_key: &str,
     now: Instant,
 ) -> bool {
-    let global = tracker.count_within_window(ACCEPT_TRACKER_GLOBAL_KEY, now);
-    let per_source = tracker.count_within_window(source_key, now);
-
-    if global >= cfg.l1_global_rate_per_sec as usize {
-        eprintln!(
-            "[DosDefence L1] global rate {global} >= {} — silent-drop {source_key}",
-            cfg.l1_global_rate_per_sec
-        );
-        return false;
+    use crate::space_delivery::local::dos_defence::tracker::L1AcceptOutcome;
+    match tracker.try_record_l1_accept(
+        ACCEPT_TRACKER_GLOBAL_KEY,
+        cfg.l1_global_rate_per_sec as usize,
+        source_key,
+        cfg.l1_per_source_rate_per_sec as usize,
+        now,
+    ) {
+        L1AcceptOutcome::Accepted => true,
+        L1AcceptOutcome::RejectedGlobal(count) => {
+            eprintln!(
+                "[DosDefence L1] global rate {count} >= {} — silent-drop {source_key}",
+                cfg.l1_global_rate_per_sec
+            );
+            false
+        }
+        L1AcceptOutcome::RejectedPerSource(count) => {
+            eprintln!(
+                "[DosDefence L1] per-source rate {count} >= {} — silent-drop {source_key}",
+                cfg.l1_per_source_rate_per_sec
+            );
+            false
+        }
     }
-    if per_source >= cfg.l1_per_source_rate_per_sec as usize {
-        eprintln!(
-            "[DosDefence L1] per-source rate {per_source} >= {} — silent-drop {source_key}",
-            cfg.l1_per_source_rate_per_sec
-        );
-        return false;
-    }
-
-    tracker.record(ACCEPT_TRACKER_GLOBAL_KEY, now);
-    tracker.record(source_key, now);
-    true
 }
 
 /// RAII guard that decrements an in-flight stream counter on drop. Used by

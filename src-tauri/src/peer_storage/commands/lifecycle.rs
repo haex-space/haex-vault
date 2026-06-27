@@ -47,8 +47,10 @@ pub async fn peer_storage_start(
     // accept loop spawns. The Default config (Phase 2 defaults) is already
     // installed by `PeerState::default`, so a load failure or empty rowset
     // falls back to those values without breaking start. Hot-reload on a
-    // later settings edit is deferred — call `peer_storage_start` again to
-    // pick up new values (matches L4's "snapshot at leader start" stance).
+    // later settings edit is deferred — stop the endpoint and start it
+    // again to pick up new values (calling `peer_storage_start` while it is
+    // already running returns `EndpointAlreadyRunning`). Matches L4's
+    // "snapshot at leader start" stance.
     let dos_config =
         crate::space_delivery::local::dos_defence::config::DosDefenceConfig::load(&state.db);
     endpoint.set_dos_config(dos_config).await;
