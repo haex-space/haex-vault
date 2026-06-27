@@ -143,7 +143,7 @@ pub async fn extension_filesystem_exists(
     prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
-    crate::filesystem::filesystem_exists(state, path)
+    crate::filesystem::filesystem_exists(state, path, app_handle)
         .await
         .map_err(|e| ExtensionError::FilesystemError {
             reason: e.to_string(),
@@ -178,7 +178,7 @@ pub async fn extension_filesystem_stat(
     prompt_on_err(&app_handle, permission_result)?;
 
     // Delegate to internal filesystem command
-    crate::filesystem::filesystem_stat(state, path)
+    crate::filesystem::filesystem_stat(state, path, app_handle)
         .await
         .map_err(|e| ExtensionError::FilesystemError {
             reason: e.to_string(),

@@ -225,8 +225,38 @@ fn read_dir_android(
 
 /// Check if a path exists
 #[tauri::command]
-pub async fn filesystem_exists(_state: State<'_, AppState>, path: String) -> Result<bool, FsError> {
+pub async fn filesystem_exists(
+    _state: State<'_, AppState>,
+    path: String,
+    #[allow(unused_variables)] app_handle: tauri::AppHandle,
+) -> Result<bool, FsError> {
+    // Android: JSON Content URIs from the folder/file picker aren't valid
+    // filesystem paths — resolve them via android_fs instead of Path::new.
+    #[cfg(target_os = "android")]
+    if path.starts_with('{') {
+        let handle = app_handle.clone();
+        return tokio::task::spawn_blocking(move || exists_android(&handle, &path))
+            .await
+            .unwrap_or_else(|e| {
+                Err(FsError::IoError {
+                    reason: e.to_string(),
+                })
+            });
+    }
+
     Ok(Path::new(&path).exists())
+}
+
+#[cfg(target_os = "android")]
+fn exists_android(app_handle: &tauri::AppHandle, path_json: &str) -> Result<bool, FsError> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let api = app_handle.android_fs();
+    let uri = match tauri_plugin_android_fs::FileUri::from_json_str(path_json) {
+        Ok(u) => u,
+        Err(_) => return Ok(false),
+    };
+    Ok(api.get_type(&uri).is_ok())
 }
 
 /// Get file/directory metadata
@@ -234,7 +264,22 @@ pub async fn filesystem_exists(_state: State<'_, AppState>, path: String) -> Res
 pub async fn filesystem_stat(
     _state: State<'_, AppState>,
     path: String,
+    #[allow(unused_variables)] app_handle: tauri::AppHandle,
 ) -> Result<FileStat, FsError> {
+    // Android: JSON Content URIs from the folder/file picker aren't valid
+    // filesystem paths — resolve them via android_fs instead of Path::new.
+    #[cfg(target_os = "android")]
+    if path.starts_with('{') {
+        let handle = app_handle.clone();
+        return tokio::task::spawn_blocking(move || stat_android(&handle, &path))
+            .await
+            .unwrap_or_else(|e| {
+                Err(FsError::IoError {
+                    reason: e.to_string(),
+                })
+            });
+    }
+
     let path_ref = Path::new(&path);
 
     if !path_ref.exists() {
@@ -265,6 +310,40 @@ pub async fn filesystem_stat(
         modified,
         created,
         readonly: metadata.permissions().readonly(),
+    })
+}
+
+#[cfg(target_os = "android")]
+fn stat_android(app_handle: &tauri::AppHandle, path_json: &str) -> Result<FileStat, FsError> {
+    use tauri_plugin_android_fs::AndroidFsExt;
+
+    let api = app_handle.android_fs();
+    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json).map_err(|e| {
+        FsError::IoError {
+            reason: format!("Invalid Content URI: {:?}", e),
+        }
+    })?;
+
+    let entry = api.get_info(&uri).map_err(|e| FsError::IoError {
+        reason: format!("Failed to stat Android URI: {:?}", e),
+    })?;
+
+    let is_dir = entry.is_dir();
+    let modified = entry
+        .last_modified()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_millis() as u64);
+    let size = entry.file_len().unwrap_or(0);
+
+    Ok(FileStat {
+        size,
+        is_file: !is_dir,
+        is_directory: is_dir,
+        is_symlink: false,
+        modified,
+        created: None,
+        readonly: false,
     })
 }
 

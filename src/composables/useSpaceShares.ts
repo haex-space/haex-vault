@@ -69,7 +69,8 @@ export function useSpaceShares() {
     const selected =
       type === 'folder'
         ? await invoke<string | null>('filesystem_select_folder', {})
-        : await invoke<string | null>('filesystem_select_file', {})
+        : (await invoke<string[] | null>('filesystem_select_file', {}))?.[0] ??
+          null
     if (!selected) return
 
     const name =

@@ -61,7 +61,11 @@ pub async fn filesystem_remove(
     }
 
     if path_ref.is_dir() {
-        if recursive.unwrap_or(false) {
+        // Default to recursive removal: every UI caller (useFileMutations,
+        // useFileClipboard) invokes this without `recursive`, expecting a
+        // non-empty folder delete to succeed. Strict callers opt back in by
+        // passing `recursive: false` explicitly.
+        if recursive.unwrap_or(true) {
             fs::remove_dir_all(path_ref).map_err(|e| FsError::IoError {
                 reason: format!("Failed to remove directory '{}': {}", path, e),
             })?;
