@@ -12,11 +12,26 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 use iroh::{Endpoint, EndpointId, RelayUrl, SecretKey};
 
 use ed25519_dalek::SigningKey;
+
+use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
+use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
+
+/// Sliding-window length used by the Phase 2 pre-auth accept tracker. The
+/// configured rates are expressed per-second (`l1_global_rate_per_sec`,
+/// `l1_per_source_rate_per_sec`), so a one-second window lets us read those
+/// values directly as integer thresholds.
+const ACCEPT_TRACKER_WINDOW: Duration = Duration::from_secs(1);
+
+/// Synthetic key used for the global accept-rate bucket. The tracker is
+/// keyed by `String`; production keys are remote endpoint ids, which are
+/// always URL-safe base32 — no real endpoint id can collide with this.
+pub(crate) const ACCEPT_TRACKER_GLOBAL_KEY: &str = "__global__";
 
 pub(super) const DEFAULT_RELAY_URL: &str = "https://relay.sync.haex.space";
 
@@ -126,6 +141,22 @@ pub struct PeerState {
     /// diagnostic once the LAST one is torn down, so a transient connection
     /// dropping never flips a still-live peer offline in the UI.
     pub connection_watchers: HashMap<EndpointId, u32>,
+    /// DoS-defence config for the pre-auth layers (L1 accept-rate, L2
+    /// per-connection stream cap, L3 handshake timeout). Defaults to
+    /// `DosDefenceConfig::defaults()` and is replaced via
+    /// `PeerEndpoint::set_dos_config` once the vault is open and the
+    /// `haex_vault_settings` rows can be read. Wrapping in `Arc` keeps the
+    /// accept loop's hot path cheap — one pointer clone per accepted
+    /// connection, no struct copy.
+    pub dos_config: Arc<DosDefenceConfig>,
+    /// Sliding-window accept-rate tracker for Phase 2 L1 enforcement. Keys:
+    /// per-source remote endpoint id strings + the `ACCEPT_TRACKER_GLOBAL_KEY`
+    /// bucket. Separate from the L4 `LeaderState::reject_tracker` because:
+    /// (a) endpoint lifetime ≠ leader lifetime — peer_storage starts before
+    /// any leader exists; (b) L1 keys are pre-auth source ids, L4 keys are
+    /// post-auth DIDs; merging them would require key namespacing and an
+    /// `Arc<RwLock<_>>` cross-module access path.
+    pub accept_tracker: Arc<RejectRateTracker>,
 }
 
 impl Default for PeerState {
@@ -138,6 +169,8 @@ impl Default for PeerState {
             endpoint_dids: HashMap::new(),
             peer_owner_dids: HashMap::new(),
             connection_watchers: HashMap::new(),
+            dos_config: Arc::new(DosDefenceConfig::defaults()),
+            accept_tracker: Arc::new(RejectRateTracker::new(ACCEPT_TRACKER_WINDOW)),
         }
     }
 }

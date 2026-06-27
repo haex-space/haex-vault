@@ -1,6 +1,7 @@
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::tracker::RejectRateTracker;
+use super::tracker::{L1AcceptOutcome, RejectRateTracker};
 
 #[test]
 fn records_single_reject_and_reports_count_within_window() {
@@ -103,6 +104,128 @@ fn evicts_keys_with_empty_buckets_to_prevent_unbounded_growth() {
         0,
         "empty bucket must be evicted from the map"
     );
+}
+
+// =============================================================================
+// try_record_l1_accept — atomic check-and-record
+// =============================================================================
+
+#[test]
+fn l1_accept_records_both_buckets_when_under_limits() {
+    let tr = RejectRateTracker::new(Duration::from_secs(1));
+    let now = Instant::now();
+    assert_eq!(
+        tr.try_record_l1_accept("global", 10, "src-A", 5, now),
+        L1AcceptOutcome::Accepted
+    );
+    assert_eq!(tr.count_within_window("global", now), 1);
+    assert_eq!(tr.count_within_window("src-A", now), 1);
+}
+
+#[test]
+fn l1_accept_rejects_global_first_and_records_nothing() {
+    let tr = RejectRateTracker::new(Duration::from_secs(1));
+    let now = Instant::now();
+    // Pre-fill the global bucket to its cap.
+    for _ in 0..5 {
+        tr.record("global", now);
+    }
+    assert_eq!(
+        tr.try_record_l1_accept("global", 5, "src-A", 5, now),
+        L1AcceptOutcome::RejectedGlobal(5)
+    );
+    // Neither bucket should have been bumped by the rejected accept.
+    assert_eq!(tr.count_within_window("global", now), 5);
+    assert_eq!(tr.count_within_window("src-A", now), 0);
+}
+
+#[test]
+fn l1_accept_rejects_per_source_when_global_under_cap() {
+    let tr = RejectRateTracker::new(Duration::from_secs(1));
+    let now = Instant::now();
+    // Global is empty, but src-A is already at its cap.
+    for _ in 0..3 {
+        tr.record("src-A", now);
+    }
+    assert_eq!(
+        tr.try_record_l1_accept("global", 10, "src-A", 3, now),
+        L1AcceptOutcome::RejectedPerSource(3)
+    );
+    assert_eq!(tr.count_within_window("global", now), 0);
+    assert_eq!(tr.count_within_window("src-A", now), 3);
+}
+
+#[test]
+fn l1_accept_under_concurrency_never_exceeds_global_cap() {
+    // The core race CodeRabbit flagged: N threads each see counts below
+    // the cap and each record, producing bursts beyond the limit. The
+    // atomic check-and-record must let at most `cap` accepts through
+    // even under heavy parallel contention.
+    const THREADS: usize = 32;
+    const GLOBAL_CAP: usize = 10;
+
+    let tr = Arc::new(RejectRateTracker::new(Duration::from_secs(1)));
+    let now = Instant::now();
+
+    let handles: Vec<_> = (0..THREADS)
+        .map(|i| {
+            let tr = tr.clone();
+            // Distinct source keys so the per-source cap can't be the
+            // gating factor — we're isolating the global-cap race.
+            let source = format!("src-{i}");
+            std::thread::spawn(move || {
+                tr.try_record_l1_accept("global", GLOBAL_CAP, &source, 100, now)
+            })
+        })
+        .collect();
+
+    let outcomes: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+    let accepted = outcomes
+        .iter()
+        .filter(|o| matches!(o, L1AcceptOutcome::Accepted))
+        .count();
+
+    assert_eq!(
+        accepted, GLOBAL_CAP,
+        "exactly {GLOBAL_CAP} threads must be accepted; got {accepted}"
+    );
+    assert_eq!(
+        tr.count_within_window("global", now),
+        GLOBAL_CAP,
+        "global bucket count must equal cap; the missing slots indicate \
+         a check-without-record race"
+    );
+}
+
+#[test]
+fn l1_accept_under_concurrency_never_exceeds_per_source_cap() {
+    // Same race, scoped to a single per-source bucket.
+    const THREADS: usize = 32;
+    const SOURCE_CAP: usize = 4;
+
+    let tr = Arc::new(RejectRateTracker::new(Duration::from_secs(1)));
+    let now = Instant::now();
+
+    let handles: Vec<_> = (0..THREADS)
+        .map(|_| {
+            let tr = tr.clone();
+            std::thread::spawn(move || {
+                tr.try_record_l1_accept("global", 10_000, "src-A", SOURCE_CAP, now)
+            })
+        })
+        .collect();
+
+    let outcomes: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+    let accepted = outcomes
+        .iter()
+        .filter(|o| matches!(o, L1AcceptOutcome::Accepted))
+        .count();
+
+    assert_eq!(
+        accepted, SOURCE_CAP,
+        "exactly {SOURCE_CAP} threads must be accepted; got {accepted}"
+    );
+    assert_eq!(tr.count_within_window("src-A", now), SOURCE_CAP);
 }
 
 #[test]
