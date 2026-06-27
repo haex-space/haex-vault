@@ -104,7 +104,13 @@ pub fn evaluate(
         }
     }
 
-    let over_global = obs.global_count > thresholds.global_rate_per_sec;
+    // `>=` rather than `>`: `RejectRateTracker::try_record_l1_accept` caps
+    // the global bucket exactly AT `global_rate_per_sec` (it rejects when
+    // `count >= limit`), so under sustained pressure the observation
+    // saturates at the threshold value and never exceeds it. A strict `>`
+    // would mean the DDoS branch never fires during a real flood. See
+    // CodeRabbit review on PR #562.
+    let over_global = obs.global_count >= thresholds.global_rate_per_sec;
     let over_distinct = obs.distinct_sources >= thresholds.distinct_sources_threshold;
 
     if over_global && over_distinct {

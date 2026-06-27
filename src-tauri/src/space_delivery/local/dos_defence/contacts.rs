@@ -24,14 +24,24 @@ use crate::database::core::select_with_crdt;
 use crate::database::DbConnection;
 
 /// Cached classification per DID for the lifetime of a Leader session.
+/// Only `Contact` results are persisted — see [`ContactResolver`] doc.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContactClassification {
     Contact,
-    NonContact,
 }
 
 #[derive(Default)]
 pub struct ContactResolver {
+    /// Positive cache only: maps DID → `Contact` once the DB confirmed it.
+    ///
+    /// Caching `NonContact` indefinitely would let a transient DB error
+    /// poison the cache for the whole leader session (a real contact stays
+    /// silent-dropped until restart), and a deliberate attacker spamming
+    /// random DIDs could pin negative entries forever and grow this map
+    /// unbounded. The pickup brief calls for a CRDT-write-hook cache
+    /// invalidation that is NOT wired in this PR — until that lands, the
+    /// safer behaviour is to re-query on every miss. See CodeRabbit review
+    /// on PR #562.
     cache: Mutex<HashMap<String, ContactClassification>>,
 }
 
@@ -42,24 +52,25 @@ impl ContactResolver {
 
     /// Returns whether `did` is a contact, consulting the in-memory cache
     /// first and falling back to a DB lookup. A DB error is treated as a
-    /// `NonContact` answer — under uncertainty the escalation prefers
-    /// dropping connections to letting unknown peers through. Callers that
-    /// need a strict-fail-open policy should bypass this resolver
-    /// entirely (e.g. when `EscalationPolicy::Off`).
+    /// `NonContact` answer (the call returns `false`) — under uncertainty
+    /// the escalation prefers dropping connections to letting unknown peers
+    /// through. The error is NOT cached so a transient failure does not
+    /// poison this DID's classification for the rest of the session.
     pub fn is_contact(&self, db: &DbConnection, did: &str) -> bool {
-        if let Some(cached) = self.cached(did) {
-            return cached == ContactClassification::Contact;
+        if self.cached_positive(did) {
+            return true;
         }
-        let classification = match lookup_db(db, did) {
-            Ok(true) => ContactClassification::Contact,
-            Ok(false) => ContactClassification::NonContact,
+        match lookup_db(db, did) {
+            Ok(true) => {
+                self.remember_contact(did);
+                true
+            }
+            Ok(false) => false,
             Err(e) => {
                 eprintln!("[DosDefence contacts] DB lookup failed for {did}: {e}");
-                ContactClassification::NonContact
+                false
             }
-        };
-        self.remember(did, classification);
-        classification == ContactClassification::Contact
+        }
     }
 
     /// Invalidate the entire cache. Called from the CRDT-write hook for
@@ -79,21 +90,36 @@ impl ContactResolver {
         }
     }
 
-    fn cached(&self, did: &str) -> Option<ContactClassification> {
-        self.cache.lock().ok().and_then(|c| c.get(did).copied())
+    fn cached_positive(&self, did: &str) -> bool {
+        self.cache
+            .lock()
+            .ok()
+            .and_then(|c| c.get(did).copied())
+            .is_some()
     }
 
-    fn remember(&self, did: &str, classification: ContactClassification) {
+    fn remember_contact(&self, did: &str) {
         if let Ok(mut cache) = self.cache.lock() {
-            cache.insert(did.to_string(), classification);
+            cache.insert(did.to_string(), ContactClassification::Contact);
         }
     }
 }
 
 /// Pure DB lookup, factored out so tests can drive it directly without the
-/// cache layer. Returns `true` iff `haex_identities` has a row for `did`,
-/// **or** `did` appears as a `haex_space_members` row via a joined
-/// `haex_identities` row.
+/// cache layer. Returns `true` iff **either**:
+///
+/// 1. `haex_identities` has a row for `did` (the unified identities table
+///    holds explicit contacts via `source = 'contact'`, but here we accept
+///    any non-null row — own DIDs included — because an attacker
+///    impersonating our own DID is also non-random and would not benefit
+///    from being silent-dropped at L1), **OR**
+/// 2. `did` shares an active space with **one of our own identities** —
+///    i.e. there exists a `haex_space_members` row for `did` AND a
+///    `haex_space_members` row for some local identity with the SAME
+///    `space_id`. A stricter check than "any membership row mentioning the
+///    DID" — otherwise a stale or imported membership row pointing at a
+///    space we are not in could falsely classify a peer as a contact. See
+///    CodeRabbit review on PR #562.
 ///
 /// "Active space" is implicit: we treat any membership row as active. A
 /// fully orthogonal "is space deleted" filter would require coordination
@@ -105,9 +131,14 @@ fn lookup_db(db: &DbConnection, did: &str) -> Result<bool, String> {
     let sql = "SELECT EXISTS (\
             SELECT 1 FROM haex_identities WHERE did = ?1 LIMIT 1\
         ) OR EXISTS (\
-            SELECT 1 FROM haex_space_members sm \
-            JOIN haex_identities i ON i.id = sm.identity_id \
-            WHERE i.did = ?1 LIMIT 1\
+            SELECT 1 \
+            FROM haex_space_members sm_remote \
+            JOIN haex_identities i_remote ON i_remote.id = sm_remote.identity_id \
+            JOIN haex_space_members sm_own ON sm_own.space_id = sm_remote.space_id \
+            JOIN haex_identities i_own ON i_own.id = sm_own.identity_id \
+            WHERE i_remote.did = ?1 \
+              AND i_own.private_key IS NOT NULL \
+            LIMIT 1\
         )"
     .to_string();
     let rows = select_with_crdt(sql, vec![JsonValue::String(did.to_string())], db)

@@ -73,6 +73,11 @@ pub async fn peer_storage_start(
         );
         endpoint.set_dos_runtime(runtime).await;
     } else {
+        // Clear any runtime left over from a previous vault session — if
+        // we keep it installed without a sink, transitions will fire DB
+        // writes against a possibly-closed DB while the banner stays
+        // silent. Better to drop straight back to Phase 2 semantics.
+        endpoint.clear_dos_runtime().await;
         eprintln!(
             "[DosDefence Phase 3] critical_sink unavailable at peer_storage_start; \
              running with Phase 2 semantics until next start"

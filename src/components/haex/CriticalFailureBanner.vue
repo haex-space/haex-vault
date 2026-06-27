@@ -19,6 +19,7 @@ const {
   translated,
   current,
   acting,
+  pendingAction,
   acknowledge,
   restartApp,
   blockDidFromCurrent,
@@ -91,7 +92,7 @@ const alertIcon = computed(() =>
           <template #actions>
             <UButton
               v-if="isCritical"
-              :loading="acting"
+              :loading="pendingAction === 'restart'"
               :disabled="acting"
               color="error"
               variant="solid"
@@ -102,7 +103,7 @@ const alertIcon = computed(() =>
             </UButton>
             <UButton
               v-if="isSingleSourceFlood"
-              :loading="acting"
+              :loading="pendingAction === 'blockDid'"
               :disabled="acting"
               color="error"
               variant="solid"
@@ -113,7 +114,7 @@ const alertIcon = computed(() =>
             </UButton>
             <UButton
               v-if="isFloodDdos"
-              :loading="acting"
+              :loading="pendingAction === 'endDdos'"
               :disabled="acting"
               color="warning"
               variant="solid"
@@ -123,7 +124,7 @@ const alertIcon = computed(() =>
               {{ translated.actionLabel }}
             </UButton>
             <UButton
-              :loading="acting && !isCritical && !isSingleSourceFlood && !isFloodDdos"
+              :loading="pendingAction === 'acknowledge'"
               :disabled="acting"
               :color="isCritical ? 'neutral' : 'warning'"
               variant="soft"

@@ -175,8 +175,17 @@ export function useCriticalFailureBanner() {
 
   /** Newest unacknowledged row, or `null` when nothing to show. */
   const current = ref<CriticalNotification | null>(null)
-  /** True while the user's restart / acknowledge action is in flight. */
-  const acting = ref(false)
+  /**
+   * Which action is currently in flight, or `null` when idle. The banner
+   * binds each button's `loading` to `pendingAction === '<that-action>'`
+   * so only the clicked button shows a spinner, while all four are
+   * disabled (via `acting`) to prevent double-clicks. CodeRabbit review
+   * on PR #562 flagged the previous shared-flag behaviour.
+   */
+  type BannerAction = 'acknowledge' | 'restart' | 'blockDid' | 'endDdos'
+  const pendingAction = ref<BannerAction | null>(null)
+  /** Truthy while ANY action is in flight — used for `disabled` bindings. */
+  const acting = computed(() => pendingAction.value !== null)
   let pollHandle: ReturnType<typeof setInterval> | null = null
 
   /**
@@ -271,12 +280,12 @@ export function useCriticalFailureBanner() {
   const acknowledge = async () => {
     const row = current.value
     if (!row) return
-    acting.value = true
+    pendingAction.value = 'acknowledge'
     try {
       await invoke<number>('critical_notifications_acknowledge', { id: row.id })
       await refresh()
     } finally {
-      acting.value = false
+      pendingAction.value = null
     }
   }
 
@@ -297,7 +306,7 @@ export function useCriticalFailureBanner() {
     // restart the app for no reason.
     const row = current.value
     if (!row) return
-    acting.value = true
+    pendingAction.value = 'restart'
     try {
       await invoke<number>('critical_notifications_acknowledge', { id: row.id })
       await invoke('critical_app_restart')
@@ -308,7 +317,7 @@ export function useCriticalFailureBanner() {
       // banner hides immediately rather than re-arming for another
       // restart click during the next 5s poll window.
       current.value = null
-      acting.value = false
+      pendingAction.value = null
     }
   }
 
@@ -345,7 +354,7 @@ export function useCriticalFailureBanner() {
   const blockDidFromCurrent = async () => {
     const row = current.value
     if (!row) return
-    acting.value = true
+    pendingAction.value = 'blockDid'
     try {
       let did: string | undefined
       try {
@@ -372,7 +381,7 @@ export function useCriticalFailureBanner() {
     } catch (err) {
       console.error('[CriticalBanner] block-did failed:', err)
     } finally {
-      acting.value = false
+      pendingAction.value = null
     }
   }
 
@@ -385,7 +394,7 @@ export function useCriticalFailureBanner() {
   const endDdosEscalationFromCurrent = async () => {
     const row = current.value
     if (!row) return
-    acting.value = true
+    pendingAction.value = 'endDdos'
     try {
       await invoke('dos_defence_end_escalation')
       await invoke<number>('critical_notifications_acknowledge', { id: row.id })
@@ -393,14 +402,15 @@ export function useCriticalFailureBanner() {
     } catch (err) {
       console.error('[CriticalBanner] end-ddos-escalation failed:', err)
     } finally {
-      acting.value = false
+      pendingAction.value = null
     }
   }
 
   return {
     current: readonly(current),
     translated: translatedContent,
-    acting: readonly(acting),
+    acting,
+    pendingAction: readonly(pendingAction),
     acknowledge,
     restartApp,
     blockDidFromCurrent,

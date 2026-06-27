@@ -84,6 +84,14 @@ impl DosDefenceRuntime {
     /// Re-evaluate against fresh tracker observations and apply any
     /// transition (persistence + one-shot notification). Idempotent: returns
     /// the new state for diagnostics.
+    ///
+    /// **Atomicity:** the `current` mutex is held across the whole
+    /// snapshot → transition → store sequence so a concurrent
+    /// `end_escalation` cannot interleave a `Quiet` write that this method
+    /// then overwrites with a stale `Ddos` snapshot. The DB writes happen
+    /// AFTER the lock is dropped — SQLite serialises its own writers, and
+    /// holding the state lock across a SQL call would block every accept
+    /// task during DDoS persistence.
     pub fn evaluate_and_persist(
         &self,
         tracker: &RejectRateTracker,
@@ -102,13 +110,16 @@ impl DosDefenceRuntime {
             )),
         };
 
-        let prev = self.snapshot();
-        let transition = evaluate(&prev, obs, thresholds, now);
-        let next = apply(prev.clone(), &transition);
-
-        if let Ok(mut current) = self.current.lock() {
+        let (transition, next) = {
+            let mut current = match self.current.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let transition = evaluate(&current, obs, thresholds, now);
+            let next = apply(current.clone(), &transition);
             *current = next.clone();
-        }
+            (transition, next)
+        };
 
         match &transition {
             super::flood_mode::FloodTransition::NoChange => {}
@@ -136,9 +147,14 @@ impl DosDefenceRuntime {
     }
 
     /// Force the FloodMode back to Quiet — invoked by the "Eskalation früher
-    /// beenden" UI action.
+    /// beenden" UI action. Same lock-ordering as `evaluate_and_persist` so
+    /// the two cannot race.
     pub fn end_escalation(&self) {
-        if let Ok(mut current) = self.current.lock() {
+        {
+            let mut current = match self.current.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
             *current = FloodMode::Quiet;
         }
         if let Ok(mut flag) = self.ddos_notified.lock() {
@@ -161,15 +177,26 @@ impl DosDefenceRuntime {
         );
         let value = JsonValue::Object(params.into_iter().collect());
 
-        if let Ok(mut flag) = self.ddos_notified.lock() {
-            if !*flag {
-                *flag = true;
-                if let Err(e) =
-                    self.sink
-                        .emit(CriticalFailureCode::FloodDdos, FLOOD_DDOS_LOCATION, value)
-                {
-                    eprintln!("[DosDefence Phase 3] sink.emit FLOOD_DDOS failed: {e}");
+        // Set the one-shot flag ONLY after a successful emit — otherwise a
+        // sink failure (e.g. critical-sink mutex contention during the
+        // burst) would consume the one-shot slot without surfacing the
+        // banner, and subsequent ticks would never retry. See CodeRabbit
+        // review on PR #562.
+        let already_notified = self.ddos_notified.lock().map(|g| *g).unwrap_or(false);
+        if already_notified {
+            return;
+        }
+        match self
+            .sink
+            .emit(CriticalFailureCode::FloodDdos, FLOOD_DDOS_LOCATION, value)
+        {
+            Ok(()) => {
+                if let Ok(mut flag) = self.ddos_notified.lock() {
+                    *flag = true;
                 }
+            }
+            Err(e) => {
+                eprintln!("[DosDefence Phase 3] sink.emit FLOOD_DDOS failed: {e}");
             }
         }
     }
@@ -201,14 +228,22 @@ fn load_state(db: &DbConnection) -> Result<FloodMode, String> {
             Some(exp_dt) => {
                 let now_dt = OffsetDateTime::now_utc();
                 let delta_secs = (exp_dt - now_dt).whole_seconds();
-                let expires_at = if delta_secs <= 0 {
-                    Instant::now()
+                if delta_secs <= 0 {
+                    // Persisted DDoS deadline is already in the past — the
+                    // process restarted after the auto-expiry should have
+                    // fired. Restoring `Ddos { expires_at = now }` would
+                    // make the very next `evaluate` emit `Expired` and
+                    // briefly silent-drop non-contacts during that tick.
+                    // Skip straight to Quiet and let the persistence layer
+                    // catch up on the first transition. See CodeRabbit
+                    // review on PR #562.
+                    FloodMode::Quiet
                 } else {
-                    Instant::now() + std::time::Duration::from_secs(delta_secs as u64)
-                };
-                FloodMode::Ddos {
-                    source_count: 0,
-                    expires_at,
+                    FloodMode::Ddos {
+                        source_count: 0,
+                        expires_at: Instant::now()
+                            + std::time::Duration::from_secs(delta_secs as u64),
+                    }
                 }
             }
             None => FloodMode::Quiet,

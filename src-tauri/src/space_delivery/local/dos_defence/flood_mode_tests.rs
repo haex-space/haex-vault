@@ -40,6 +40,28 @@ fn quiet_stays_quiet_if_only_distinct_exceeded() {
 }
 
 #[test]
+fn quiet_transitions_to_ddos_at_exact_threshold_boundary() {
+    // The L1 accept tracker caps the global bucket exactly AT
+    // `global_rate_per_sec` (try_record_l1_accept rejects further accepts
+    // when count >= limit), so under sustained pressure the observation
+    // saturates at the threshold value. The Ddos branch must therefore
+    // fire on equality, not just strict-greater-than. Regression guard
+    // for PR #562 CodeRabbit finding.
+    let now = Instant::now();
+    let cfg = thresholds();
+    let t = evaluate(
+        &FloodMode::Quiet,
+        obs(cfg.global_rate_per_sec, cfg.distinct_sources_threshold),
+        cfg,
+        now,
+    );
+    assert!(
+        matches!(t, FloodTransition::EnteredDdos { .. }),
+        "Ddos must fire when both counts are exactly at threshold, got {t:?}"
+    );
+}
+
+#[test]
 fn quiet_transitions_to_ddos_when_both_thresholds_crossed() {
     let now = Instant::now();
     let cfg = thresholds();
