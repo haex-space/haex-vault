@@ -171,10 +171,18 @@ pub fn scan_table_for_local_changes_scoped(
     let mut params: Vec<String> = Vec::new();
 
     if let Some(hlc) = after_hlc {
+        // Admit rows whose row-level HLC is absent (NULL) or empty in addition
+        // to those strictly newer than the cursor. A corrupt/legacy row can
+        // carry `haex_hlc = ''` while still holding a valid per-column HLC in
+        // `haex_column_hlcs`; a bare `"haex_hlc" > ?` prefilter drops it before
+        // the per-column fallback below can emit that valid change, so the row
+        // could only ever converge on a full scan. The per-column loop re-checks
+        // each HLC against `after_hlc`, so widening here cannot leak stale
+        // columns — rows with no usable HLC are still skipped.
         where_clauses.push(format!(
-            "\"{}\" > ?{}",
-            HLC_TIMESTAMP_COLUMN,
-            where_clauses.len() + 1
+            "(\"{col}\" > ?{n} OR \"{col}\" IS NULL OR \"{col}\" = '')",
+            col = HLC_TIMESTAMP_COLUMN,
+            n = where_clauses.len() + 1
         ));
         params.push(hlc.to_string());
     }
