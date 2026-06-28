@@ -83,6 +83,14 @@ export function useCriticalFailureBanner() {
             action: 'Bitte prüfe die Identität des Peers im Audit-Log. Falls der Peer unbekannt ist oder weiter floodet, kannst Du die DID in den Einstellungen blockieren.',
             actionLabel: 'Verstanden',
           },
+          FloodDdos: {
+            title: 'Mehrere Quellen fluten gleichzeitig',
+            description:
+              'Eingehende Verbindungen von zahlreichen unterschiedlichen Quellen überschreiten die globale Rate. Der Vault akzeptiert vorübergehend nur noch Verbindungen von Kontakten.',
+            risk: 'Unbekannte Peers können bis zum Ablauf der automatischen Eskalation keine Verbindung aufbauen. Bestehende, authentifizierte Verbindungen bleiben unberührt.',
+            action: 'Du kannst die Eskalation jederzeit vorzeitig beenden, sobald sich die Lage beruhigt hat.',
+            actionLabel: 'Eskalation früher beenden',
+          },
           dismissed: 'Verstanden',
           blockDidLabel: 'DID blockieren',
           unknownCode: 'Unbekannter Kritischer Fehler',
@@ -146,6 +154,16 @@ export function useCriticalFailureBanner() {
               "Please check the peer's identity in the audit log. If the peer is unknown or keeps flooding, you can block its DID from the settings.",
             actionLabel: 'Understood',
           },
+          FloodDdos: {
+            title: 'Multiple sources are flooding simultaneously',
+            description:
+              'Incoming connections from many distinct sources exceeded the global rate. The vault temporarily accepts connections from contacts only.',
+            risk:
+              'Unknown peers cannot connect until the auto-expiry elapses. Existing, authenticated connections are unaffected.',
+            action:
+              'You can end the escalation early once the situation has calmed down.',
+            actionLabel: 'End escalation early',
+          },
           dismissed: 'Understood',
           blockDidLabel: 'Block DID',
           unknownCode: 'Unknown critical failure',
@@ -157,8 +175,17 @@ export function useCriticalFailureBanner() {
 
   /** Newest unacknowledged row, or `null` when nothing to show. */
   const current = ref<CriticalNotification | null>(null)
-  /** True while the user's restart / acknowledge action is in flight. */
-  const acting = ref(false)
+  /**
+   * Which action is currently in flight, or `null` when idle. The banner
+   * binds each button's `loading` to `pendingAction === '<that-action>'`
+   * so only the clicked button shows a spinner, while all four are
+   * disabled (via `acting`) to prevent double-clicks. CodeRabbit review
+   * on PR #562 flagged the previous shared-flag behaviour.
+   */
+  type BannerAction = 'acknowledge' | 'restart' | 'blockDid' | 'endDdos'
+  const pendingAction = ref<BannerAction | null>(null)
+  /** Truthy while ANY action is in flight — used for `disabled` bindings. */
+  const acting = computed(() => pendingAction.value !== null)
   let pollHandle: ReturnType<typeof setInterval> | null = null
 
   /**
@@ -180,6 +207,7 @@ export function useCriticalFailureBanner() {
       case 'AuditLogWriteFailed':
       case 'CrdtTransformFailed':
       case 'SingleSourceFlood':
+      case 'FloodDdos':
         return 'Warning'
       default: {
         // Exhaustiveness check: if Rust adds a new CriticalFailureCode
@@ -252,12 +280,12 @@ export function useCriticalFailureBanner() {
   const acknowledge = async () => {
     const row = current.value
     if (!row) return
-    acting.value = true
+    pendingAction.value = 'acknowledge'
     try {
       await invoke<number>('critical_notifications_acknowledge', { id: row.id })
       await refresh()
     } finally {
-      acting.value = false
+      pendingAction.value = null
     }
   }
 
@@ -278,7 +306,7 @@ export function useCriticalFailureBanner() {
     // restart the app for no reason.
     const row = current.value
     if (!row) return
-    acting.value = true
+    pendingAction.value = 'restart'
     try {
       await invoke<number>('critical_notifications_acknowledge', { id: row.id })
       await invoke('critical_app_restart')
@@ -289,7 +317,7 @@ export function useCriticalFailureBanner() {
       // banner hides immediately rather than re-arming for another
       // restart click during the next 5s poll window.
       current.value = null
-      acting.value = false
+      pendingAction.value = null
     }
   }
 
@@ -326,7 +354,7 @@ export function useCriticalFailureBanner() {
   const blockDidFromCurrent = async () => {
     const row = current.value
     if (!row) return
-    acting.value = true
+    pendingAction.value = 'blockDid'
     try {
       let did: string | undefined
       try {
@@ -353,17 +381,40 @@ export function useCriticalFailureBanner() {
     } catch (err) {
       console.error('[CriticalBanner] block-did failed:', err)
     } finally {
-      acting.value = false
+      pendingAction.value = null
+    }
+  }
+
+  /**
+   * FloodDdos-specific action: ask the backend to flip the FloodMode runtime
+   * back to Quiet immediately (instead of waiting for `autoExpirySecs`), then
+   * acknowledge the banner row. The command is a no-op when no runtime is
+   * installed; the ack still hides the banner.
+   */
+  const endDdosEscalationFromCurrent = async () => {
+    const row = current.value
+    if (!row) return
+    pendingAction.value = 'endDdos'
+    try {
+      await invoke('dos_defence_end_escalation')
+      await invoke<number>('critical_notifications_acknowledge', { id: row.id })
+      await refresh()
+    } catch (err) {
+      console.error('[CriticalBanner] end-ddos-escalation failed:', err)
+    } finally {
+      pendingAction.value = null
     }
   }
 
   return {
     current: readonly(current),
     translated: translatedContent,
-    acting: readonly(acting),
+    acting,
+    pendingAction: readonly(pendingAction),
     acknowledge,
     restartApp,
     blockDidFromCurrent,
+    endDdosEscalationFromCurrent,
     /** Exposed for tests / explicit pull (e.g. after a known poison trigger). */
     refresh,
     /** Exposed for components that need to format severity differently. */

@@ -18,7 +18,9 @@ use crate::peer_storage::endpoint::{
 };
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::ALPN;
-use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
+use crate::space_delivery::local::dos_defence::config::{DosDefenceConfig, EscalationPolicy};
+use crate::space_delivery::local::dos_defence::flood_mode::{FloodMode, FloodThresholds};
+use crate::space_delivery::local::dos_defence::state::DosDefenceRuntime;
 use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
 
 #[cfg(test)]
@@ -642,11 +644,77 @@ async fn handle_connection(
 /// (`ACCEPT_TRACKER_WINDOW`), so the configured per-second rates map
 /// directly to integer counts.
 async fn pre_auth_accept_check(state: &Arc<RwLock<PeerState>>, source_key: &str) -> bool {
-    let (cfg, tracker) = {
+    let (cfg, tracker, dos_runtime, owner_did) = {
         let s = state.read().await;
-        (s.dos_config.clone(), s.accept_tracker.clone())
+        let owner = s.peer_owner_dids.get(source_key).cloned();
+        (
+            s.dos_config.clone(),
+            s.accept_tracker.clone(),
+            s.dos_runtime.clone(),
+            owner,
+        )
     };
+
+    // Phase 3 Ddos-Mode silent-drop: enforced BEFORE the atomic L1 record
+    // step so drops are not counted into the per-source bucket (would
+    // otherwise let an attacker rate-limit a contact by pushing the contact
+    // bucket past the cap with their own drops). Skipped when no runtime is
+    // wired or when the escalation policy is `Off`.
+    if let Some(runtime) = dos_runtime.as_ref() {
+        let now = Instant::now();
+        // Re-evaluate FloodMode BEFORE the silent-drop branch so a
+        // sustained DDoS still ticks the state machine forward to
+        // `Expired` and the persisted row is updated — otherwise a flood
+        // of non-contact drops would short-circuit the loop and the
+        // contacts-only escalation could never auto-recover. See
+        // CodeRabbit review on PR #562.
+        let thresholds = thresholds_from_cfg(&cfg);
+        let mode =
+            runtime.evaluate_and_persist(&tracker, thresholds, now, ACCEPT_TRACKER_GLOBAL_KEY);
+
+        let policy_active = matches!(cfg.ddos_escalation_policy, EscalationPolicy::ContactsOnly);
+        if policy_active && matches!(mode, FloodMode::Ddos { .. }) {
+            // We need a DID to consult the contact resolver. `peer_owner_dids`
+            // is loaded from `haex_devices` so any endpoint_id with a synced
+            // owner row is resolvable. Unknown endpoint_id pre-auth = silent
+            // drop, because a fresh attacker connection has no DB entry.
+            let allow = match owner_did.as_deref() {
+                None => false,
+                Some(did) => {
+                    // ContactResolver opens its own SELECT — fine to call
+                    // outside the (already released) PeerState read guard.
+                    let db = runtime.db();
+                    runtime.contacts().is_contact(&db, did)
+                }
+            };
+            if !allow {
+                // Truncate owner_did in the log line: the raw DID is PII
+                // and shouldn't end up in stderr for every dropped accept
+                // (potentially many per second during a real DDoS).
+                let owner_short = owner_did
+                    .as_deref()
+                    .map(|d| crate::logging::log_truncate(d, crate::logging::LOG_TRUNCATE_DEFAULT))
+                    .unwrap_or_else(|| "<unknown>".to_string());
+                eprintln!(
+                    "[DosDefence Ddos] non-contact source {source_key} silent-dropped \
+                     (owner_did={owner_short})"
+                );
+                // Counter-policy: we do NOT call try_record_l1_accept so the
+                // drop does not pollute the per-source bucket.
+                return false;
+            }
+        }
+    }
+
     accept_decision(&cfg, &tracker, source_key, Instant::now())
+}
+
+fn thresholds_from_cfg(cfg: &DosDefenceConfig) -> FloodThresholds {
+    FloodThresholds {
+        global_rate_per_sec: cfg.l1_global_rate_per_sec as usize,
+        distinct_sources_threshold: cfg.ddos_distinct_sources_threshold as usize,
+        auto_expiry: cfg.ddos_auto_expiry,
+    }
 }
 
 /// Pure decision step factored out for tests — does not depend on tokio
@@ -708,6 +776,30 @@ impl PeerEndpoint {
     /// runs on `DosDefenceConfig::defaults()`.
     pub async fn set_dos_config(&self, cfg: DosDefenceConfig) {
         self.state.write().await.dos_config = Arc::new(cfg);
+    }
+
+    /// Install the Phase 3 runtime (FloodMode statemachine + contacts
+    /// resolver + DDoS-episode notifier). Until this is called, the accept
+    /// loop runs Phase 2 semantics only.
+    ///
+    /// Call once from the vault-open path, after `set_dos_config` so the
+    /// runtime sees the configured thresholds on its first observation.
+    pub async fn set_dos_runtime(&self, runtime: Arc<DosDefenceRuntime>) {
+        self.state.write().await.dos_runtime = Some(runtime);
+    }
+
+    /// Detach the Phase 3 runtime so subsequent accept-loop iterations
+    /// fall back to Phase 2 semantics. Used by the `peer_storage_start`
+    /// vault-closed fallback to avoid keeping a stale runtime pointing at
+    /// a DB whose `critical_sink` is no longer available.
+    pub async fn clear_dos_runtime(&self) {
+        self.state.write().await.dos_runtime = None;
+    }
+
+    /// Borrow the installed Phase 3 runtime, if any. Used by the
+    /// `end_dos_escalation` Tauri command and by tests.
+    pub async fn dos_runtime(&self) -> Option<Arc<DosDefenceRuntime>> {
+        self.state.read().await.dos_runtime.clone()
     }
 }
 

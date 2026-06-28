@@ -15,13 +15,22 @@
  * page; gating per-route would risk hiding the banner during exactly
  * the navigation that exposes the user to data risk.
  */
-const { translated, current, acting, acknowledge, restartApp, blockDidFromCurrent } =
-  useCriticalFailureBanner()
+const {
+  translated,
+  current,
+  acting,
+  pendingAction,
+  acknowledge,
+  restartApp,
+  blockDidFromCurrent,
+  endDdosEscalationFromCurrent,
+} = useCriticalFailureBanner()
 
 const isCritical = computed(() => translated.value?.severity === 'Critical')
 const isSingleSourceFlood = computed(
   () => current.value?.code === 'SingleSourceFlood',
 )
+const isFloodDdos = computed(() => current.value?.code === 'FloodDdos')
 
 // UAlert color mapping. We keep this here (not in the composable) so a
 // designer tweaking the visual hierarchy doesn't have to touch backend-
@@ -83,7 +92,7 @@ const alertIcon = computed(() =>
           <template #actions>
             <UButton
               v-if="isCritical"
-              :loading="acting"
+              :loading="pendingAction === 'restart'"
               :disabled="acting"
               color="error"
               variant="solid"
@@ -94,7 +103,7 @@ const alertIcon = computed(() =>
             </UButton>
             <UButton
               v-if="isSingleSourceFlood"
-              :loading="acting"
+              :loading="pendingAction === 'blockDid'"
               :disabled="acting"
               color="error"
               variant="solid"
@@ -104,14 +113,29 @@ const alertIcon = computed(() =>
               {{ $t('criticalFailures.blockDidLabel') }}
             </UButton>
             <UButton
-              :loading="acting && !isCritical && !isSingleSourceFlood"
+              v-if="isFloodDdos"
+              :loading="pendingAction === 'endDdos'"
+              :disabled="acting"
+              color="warning"
+              variant="solid"
+              size="sm"
+              @click="endDdosEscalationFromCurrent"
+            >
+              {{ translated.actionLabel }}
+            </UButton>
+            <UButton
+              :loading="pendingAction === 'acknowledge'"
               :disabled="acting"
               :color="isCritical ? 'neutral' : 'warning'"
               variant="soft"
               size="sm"
               @click="acknowledge"
             >
-              {{ isCritical ? $t('criticalFailures.dismissed') : translated.actionLabel }}
+              {{
+                isCritical || isFloodDdos
+                  ? $t('criticalFailures.dismissed')
+                  : translated.actionLabel
+              }}
             </UButton>
           </template>
         </UAlert>
