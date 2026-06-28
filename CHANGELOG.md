@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.12.0](https://github.com/haex-space/haex-vault/compare/v2.11.3...v2.12.0) (2026-06-28)
+
+
+### Features
+
+* **dos-defence:** enforce Phase 2 pre-auth connection limits (L1/L2/L3) ([1bcd461](https://github.com/haex-space/haex-vault/commit/1bcd461221875f3810b465d5de324f16c12f8551))
+* **dos-defence:** enforce Phase 2 pre-auth connection limits (L1/L2/L3) ([bf166a2](https://github.com/haex-space/haex-vault/commit/bf166a296ca00936f078651cab27fbb10f70c0a4))
+* **dos-defence:** Phase 3 — DDoS-mode + contacts-only escalation ([b2b0868](https://github.com/haex-space/haex-vault/commit/b2b0868441c7de3ed9c73f37237751ba3eef808e))
+* **dos-defence:** Phase 3 — DDoS-mode + contacts-only escalation ([578aa63](https://github.com/haex-space/haex-vault/commit/578aa635b7c2850a88098ac367e49a8afcd86694))
+
+
+### Bug Fixes
+
+* **dos-defence:** address CodeRabbit findings on phase 2 ([8d1984f](https://github.com/haex-space/haex-vault/commit/8d1984f5eed3120f7852ecfc224b10dfe0d5b8fd))
+* **dos-defence:** address CodeRabbit findings on phase 3 ([b2e0a3f](https://github.com/haex-space/haex-vault/commit/b2e0a3f352278df613ba6ec8aa4120c2180986b3))
+* **dos-defence:** defer Phase 3 runtime auto-install (e2e regression) ([56bd72a](https://github.com/haex-space/haex-vault/commit/56bd72af72e8bc23aeaaaa1e25a9357ae78a13c6))
+* **passwords:** use auto-imported names for ImportWizardShell + UTooltip ([#561](https://github.com/haex-space/haex-vault/issues/561)) ([29453a4](https://github.com/haex-space/haex-vault/commit/29453a4b7cf225c8e4ea7b7d1dbcda63050fc623))
+
 ## [2.11.3](https://github.com/haex-space/haex-vault/compare/v2.11.2...v2.11.3) (2026-06-27)
 
 
