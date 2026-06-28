@@ -55,34 +55,19 @@ pub async fn peer_storage_start(
         crate::space_delivery::local::dos_defence::config::DosDefenceConfig::load(&state.db);
     endpoint.set_dos_config(dos_config).await;
 
-    // Phase 3: install the FloodMode runtime so the accept loop performs
-    // contacts-only escalation during DDoS episodes and emits one-shot
-    // `FloodDdos` critical notifications. Falls back to Phase 2 semantics
-    // if the critical-sink slot is empty (e.g. vault closed mid-start).
-    let sink_clone = state
-        .critical_sink
-        .lock()
-        .unwrap_or_else(|p| p.into_inner())
-        .clone();
-    if let Some(sink) = sink_clone {
-        let runtime_db = crate::database::DbConnection(state.db.0.clone());
-        let runtime = std::sync::Arc::new(
-            crate::space_delivery::local::dos_defence::state::DosDefenceRuntime::load(
-                runtime_db, sink,
-            ),
-        );
-        endpoint.set_dos_runtime(runtime).await;
-    } else {
-        // Clear any runtime left over from a previous vault session — if
-        // we keep it installed without a sink, transitions will fire DB
-        // writes against a possibly-closed DB while the banner stays
-        // silent. Better to drop straight back to Phase 2 semantics.
-        endpoint.clear_dos_runtime().await;
-        eprintln!(
-            "[DosDefence Phase 3] critical_sink unavailable at peer_storage_start; \
-             running with Phase 2 semantics until next start"
-        );
-    }
+    // Phase 3 runtime auto-install is intentionally NOT wired here yet —
+    // the e2e workflows shard regressed on PR #562's first wiring attempt
+    // (`owner-sync-vault-copy.spec.ts:98`, `owner-sync-delete-convergence
+    // .spec.ts:59`) and the regression is reproducible across re-runs but
+    // does not surface in the cargo lib tests. Ship the Phase 3 code,
+    // migration, state machine, contacts resolver, `FloodDdos` notification
+    // code, and Tauri command, but leave `dos_runtime = None` so the
+    // accept loop falls back to Phase 2 semantics by default. A follow-up
+    // PR will diagnose the e2e regression (likely a sync DB-lock contention
+    // during `DosDefenceRuntime::load`) and re-enable the auto-install.
+    // The runtime can still be installed manually via
+    // `PeerEndpoint::set_dos_runtime` for testing / production rollout.
+    endpoint.clear_dos_runtime().await;
 
     let node_id = endpoint.start(relay_url).await?;
 
