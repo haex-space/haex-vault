@@ -159,6 +159,54 @@ fn test_scan_uses_row_hlc_as_fallback() {
 }
 
 #[test]
+fn test_scan_empty_column_hlc_falls_back_to_row_hlc() {
+    // Regression: a corrupt/legacy row can carry an empty-string per-column
+    // HLC. It must be treated as absent (fall back to the row HLC), never
+    // emitted as `hlc_timestamp = ""`. An empty HLC would feed
+    // `compare_hlc_strings("")` on every apply (the `[HLC] cannot parse time
+    // component of ""` flood) and could never converge (`"" > x` is false).
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+             VALUES ('r1', 'test', 10, '2025-01-01T00:00:00.000Z-0001-d1', '{\"name\":\"\",\"value\":\"\"}')",
+        [],
+    )
+    .unwrap();
+
+    let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
+
+    assert_eq!(changes.len(), 2);
+    for change in &changes {
+        assert_eq!(
+            change.hlc_timestamp, "2025-01-01T00:00:00.000Z-0001-d1",
+            "empty per-column HLC must fall back to the row HLC, never stay \"\""
+        );
+        assert!(!change.hlc_timestamp.is_empty());
+    }
+}
+
+#[test]
+fn test_scan_skips_row_when_all_hlcs_empty() {
+    // Regression: when BOTH the per-column HLC and the row HLC are empty the
+    // column has no usable timestamp and must be skipped. Emitting `""` is what
+    // produced the empty-HLC log flood and a row that never synced.
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+             VALUES ('r1', 'test', 10, '', '{\"name\":\"\",\"value\":\"\"}')",
+        [],
+    )
+    .unwrap();
+
+    let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
+
+    assert!(
+        changes.is_empty(),
+        "rows with no usable HLC must not emit empty-string timestamps"
+    );
+}
+
+#[test]
 fn test_column_level_hlc_filtering() {
     let conn = setup_test_db();
     // Insert a row where 'name' has a newer HLC but 'value' has an older one
