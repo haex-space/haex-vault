@@ -1,5 +1,5 @@
 <template>
-  <ImportWizardShell
+  <HaexSystemPasswordsImportWizardShell
     v-model:open="open"
     :title="t('title')"
     :description="t('selectFile')"

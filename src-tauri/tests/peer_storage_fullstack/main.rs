@@ -14,6 +14,7 @@
 
 mod common;
 mod concurrent;
+mod dos_defence;
 mod edge_cases;
 mod endpoint_security;
 mod list;

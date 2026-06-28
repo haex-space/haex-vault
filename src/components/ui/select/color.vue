@@ -19,7 +19,7 @@
       type="color"
     >
 
-    <UiTooltip :tooltip="t('reset')">
+    <UTooltip :text="t('reset')">
       <UiButton
         color="error"
         :class="{ 'btn-disabled': readOnly }"
@@ -27,7 +27,7 @@
         :disabled="readOnly"
         @click="model = ''"
       />
-    </UiTooltip>
+    </UTooltip>
   </div>
 </template>
 

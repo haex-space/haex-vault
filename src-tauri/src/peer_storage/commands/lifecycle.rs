@@ -43,6 +43,32 @@ pub async fn peer_storage_start(
     // Load shares and allowed peers from DB before starting
     reload_state_from_db(&state, &*endpoint).await?;
 
+    // Phase 2 DoS-defence: snapshot `dosDefence.*` settings now, before the
+    // accept loop spawns. The Default config (Phase 2 defaults) is already
+    // installed by `PeerState::default`, so a load failure or empty rowset
+    // falls back to those values without breaking start. Hot-reload on a
+    // later settings edit is deferred — stop the endpoint and start it
+    // again to pick up new values (calling `peer_storage_start` while it is
+    // already running returns `EndpointAlreadyRunning`). Matches L4's
+    // "snapshot at leader start" stance.
+    let dos_config =
+        crate::space_delivery::local::dos_defence::config::DosDefenceConfig::load(&state.db);
+    endpoint.set_dos_config(dos_config).await;
+
+    // Phase 3 runtime auto-install is intentionally NOT wired here yet —
+    // the e2e workflows shard regressed on PR #562's first wiring attempt
+    // (`owner-sync-vault-copy.spec.ts:98`, `owner-sync-delete-convergence
+    // .spec.ts:59`) and the regression is reproducible across re-runs but
+    // does not surface in the cargo lib tests. Ship the Phase 3 code,
+    // migration, state machine, contacts resolver, `FloodDdos` notification
+    // code, and Tauri command, but leave `dos_runtime = None` so the
+    // accept loop falls back to Phase 2 semantics by default. A follow-up
+    // PR will diagnose the e2e regression (likely a sync DB-lock contention
+    // during `DosDefenceRuntime::load`) and re-enable the auto-install.
+    // The runtime can still be installed manually via
+    // `PeerEndpoint::set_dos_runtime` for testing / production rollout.
+    endpoint.clear_dos_runtime().await;
+
     let node_id = endpoint.start(relay_url).await?;
 
     // Register the unified multi-space handler so this device can accept
@@ -159,6 +185,21 @@ pub async fn peer_storage_diagnose_connection(
 
     let endpoint = state.peer_storage.read().await;
     Ok(endpoint.diagnose_connection(remote_id))
+}
+
+/// Force the DDoS contacts-only escalation back to Quiet — the user
+/// acknowledges the banner before the `dosDefence.ddos.autoExpirySecs`
+/// deadline. No-op if no flood-mode runtime is installed or the current
+/// state is already Quiet.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn dos_defence_end_escalation(
+    state: State<'_, AppState>,
+) -> Result<(), PeerStorageError> {
+    let endpoint = state.peer_storage.read().await;
+    if let Some(runtime) = endpoint.dos_runtime().await {
+        runtime.end_escalation();
+    }
+    Ok(())
 }
 
 // ============================================================================

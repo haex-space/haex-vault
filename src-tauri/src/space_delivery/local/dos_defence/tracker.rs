@@ -25,6 +25,15 @@ pub struct RejectRateTracker {
     buckets: Mutex<HashMap<String, VecDeque<Instant>>>,
 }
 
+/// Outcome of `try_record_l1_accept`. The `usize` is the count observed
+/// in the rejecting bucket at decision time — useful for logging.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum L1AcceptOutcome {
+    Accepted,
+    RejectedGlobal(usize),
+    RejectedPerSource(usize),
+}
+
 impl RejectRateTracker {
     pub fn new(window: Duration) -> Self {
         Self {
@@ -62,6 +71,56 @@ impl RejectRateTracker {
         entries.len()
     }
 
+    /// Atomic check-and-record for the L1 accept-rate decision. Reads
+    /// both buckets, checks both limits, and records the accept event in
+    /// both buckets — all inside a single mutex acquisition. Without this
+    /// atomicity, two concurrent accept tasks can each observe counts
+    /// below the cap and then each record, producing bursts beyond
+    /// `*_limit`. See PR #560 review for the race scenario.
+    ///
+    /// Returns:
+    /// - `L1AcceptOutcome::Accepted` — both buckets were under their cap;
+    ///   both have had `when` recorded.
+    /// - `L1AcceptOutcome::RejectedGlobal(count)` — global bucket already
+    ///   at or above `global_limit`; nothing was recorded.
+    /// - `L1AcceptOutcome::RejectedPerSource(count)` — global was under
+    ///   cap but the per-source bucket is at or above `source_limit`;
+    ///   nothing was recorded.
+    pub fn try_record_l1_accept(
+        &self,
+        global_key: &str,
+        global_limit: usize,
+        source_key: &str,
+        source_limit: usize,
+        when: Instant,
+    ) -> L1AcceptOutcome {
+        let cutoff = when.checked_sub(self.window);
+        let mut buckets = self
+            .buckets
+            .lock()
+            .expect("RejectRateTracker mutex poisoned");
+
+        let global_count = prune_and_count(&mut buckets, global_key, cutoff);
+        if global_count >= global_limit {
+            return L1AcceptOutcome::RejectedGlobal(global_count);
+        }
+
+        let source_count = prune_and_count(&mut buckets, source_key, cutoff);
+        if source_count >= source_limit {
+            return L1AcceptOutcome::RejectedPerSource(source_count);
+        }
+
+        buckets
+            .entry(global_key.to_string())
+            .or_default()
+            .push_back(when);
+        buckets
+            .entry(source_key.to_string())
+            .or_default()
+            .push_back(when);
+        L1AcceptOutcome::Accepted
+    }
+
     pub fn distinct_keys_count(&self, now: Instant) -> usize {
         let cutoff = now.checked_sub(self.window);
         let mut buckets = self
@@ -91,4 +150,23 @@ fn prune_expired(entries: &mut VecDeque<Instant>, cutoff: Option<Instant>) {
     while entries.front().is_some_and(|t| *t < cutoff) {
         entries.pop_front();
     }
+}
+
+/// Prune expired entries from one bucket and return the remaining count.
+/// Removes the bucket entirely if pruning leaves it empty — matches
+/// `count_within_window`'s unbounded-growth guard.
+fn prune_and_count(
+    buckets: &mut HashMap<String, VecDeque<Instant>>,
+    key: &str,
+    cutoff: Option<Instant>,
+) -> usize {
+    let Some(entries) = buckets.get_mut(key) else {
+        return 0;
+    };
+    prune_expired(entries, cutoff);
+    let count = entries.len();
+    if count == 0 {
+        buckets.remove(key);
+    }
+    count
 }

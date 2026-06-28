@@ -1,6 +1,8 @@
 //! Endpoint lifecycle — start/stop, accept loop, and per-connection auth handshake.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tokio::sync::RwLock;
 
 use iroh::{
@@ -11,9 +13,15 @@ use iroh::{
 use tauri::Emitter;
 
 use crate::peer_storage::endpoint::diagnostics::spawn_connection_watcher;
-use crate::peer_storage::endpoint::{OwnIdentity, PeerEndpoint, PeerState, DEFAULT_RELAY_URL};
+use crate::peer_storage::endpoint::{
+    OwnIdentity, PeerEndpoint, PeerState, ACCEPT_TRACKER_GLOBAL_KEY, DEFAULT_RELAY_URL,
+};
 use crate::peer_storage::error::PeerStorageError;
 use crate::peer_storage::protocol::ALPN;
+use crate::space_delivery::local::dos_defence::config::{DosDefenceConfig, EscalationPolicy};
+use crate::space_delivery::local::dos_defence::flood_mode::{FloodMode, FloodThresholds};
+use crate::space_delivery::local::dos_defence::state::DosDefenceRuntime;
+use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
 
 #[cfg(test)]
 use ed25519_dalek::SigningKey;
@@ -338,6 +346,19 @@ async fn accept_loop(
                     let alpn_bytes: &[u8] = &alpn;
                     let remote = conn.remote_id();
 
+                    // -- L1 Pre-Auth Rate-Limit --
+                    //
+                    // Drop connections that arrive faster than the configured
+                    // per-source or global accept rate. Silent-drop (no log
+                    // row, no notification) — the L4 layer owns user-visible
+                    // single-source detection once a peer has authenticated;
+                    // L1 just keeps server state bounded against pre-auth
+                    // floods. See docs/plans/2026-06-13-leader-reject-rate-limit.md §L1.
+                    if !pre_auth_accept_check(&state, &remote.to_string()).await {
+                        conn.close(8u32.into(), b"rate limited");
+                        return;
+                    }
+
                     if alpn_bytes == ALPN {
                         // --- Peer storage protocol ---
                         let remote_str = remote.to_string();
@@ -429,30 +450,62 @@ async fn handle_connection(
         return;
     };
 
+    // Snapshot the DoS-defence config once per connection. Holding an
+    // `Arc<DosDefenceConfig>` avoids re-acquiring the state lock on every
+    // stream accept (L2 cap check) and gives a stable timeout value for the
+    // life of this session (L3). A config change via `set_dos_config` only
+    // applies to *new* connections — matches the "no hot-reload" stance from
+    // Phase 1.
+    let dos_config = state.read().await.dos_config.clone();
+
     // The server initiates the auth stream so it can write the Challenge
     // first — `open_bi` materialises the stream on the wire as soon as the
     // server writes, which avoids a both-sides-blocked-on-read deadlock that
     // would otherwise occur if both endpoints tried to read first.
-    let verified_did = match conn.open_bi().await {
-        Ok((mut send, mut recv)) => {
-            match crate::quic_did_auth::challenge_and_verify(
-                &mut send,
-                &mut recv,
-                &own_endpoint_id,
-                &remote_str,
-            )
+    //
+    // L3 wraps the whole sequence (open_bi + challenge_and_verify) in one
+    // configurable timeout. `open_bi` itself can block on per-connection
+    // stream-credit flow control before the handshake even starts, so a
+    // peer that withholds credit would otherwise pin this task outside
+    // the handshake timeout window. The inner `read_message` still has
+    // its own `CHALLENGE_TIMEOUT`; the outer timeout bounds the total.
+    enum HandshakeErr {
+        OpenStream(String),
+        Auth(String),
+    }
+    let auth_result = tokio::time::timeout(dos_config.l3_handshake_timeout, async {
+        let (mut send, mut recv) = conn
+            .open_bi()
             .await
-            {
-                Ok(did) => did,
-                Err(e) => {
-                    eprintln!("[PeerStorage] DID-auth failed for {remote}: {e}");
-                    conn.close(2u32.into(), b"did-auth failed");
-                    return;
-                }
-            }
-        }
-        Err(e) => {
+            .map_err(|e| HandshakeErr::OpenStream(e.to_string()))?;
+        crate::quic_did_auth::challenge_and_verify(
+            &mut send,
+            &mut recv,
+            &own_endpoint_id,
+            &remote_str,
+        )
+        .await
+        .map_err(|e| HandshakeErr::Auth(e.to_string()))
+    })
+    .await;
+
+    let verified_did = match auth_result {
+        Ok(Ok(did)) => did,
+        Ok(Err(HandshakeErr::OpenStream(e))) => {
             eprintln!("[PeerStorage] Failed to open auth stream to {remote}: {e}");
+            return;
+        }
+        Ok(Err(HandshakeErr::Auth(e))) => {
+            eprintln!("[PeerStorage] DID-auth failed for {remote}: {e}");
+            conn.close(2u32.into(), b"did-auth failed");
+            return;
+        }
+        Err(_) => {
+            eprintln!(
+                "[DosDefence L3] handshake timeout for {remote} after {:?}",
+                dos_config.l3_handshake_timeout
+            );
+            conn.close(7u32.into(), b"handshake timeout");
             return;
         }
     };
@@ -508,10 +561,27 @@ async fn handle_connection(
         .insert(remote_str.clone(), verified_did.clone());
 
     // -- Phase 2: normal request loop --
+    //
+    // L2 stream-cap: the spec calls for at most `l2_max_streams_per_conn`
+    // concurrent in-flight stream tasks per connection. A misbehaving peer
+    // that keeps opening bi-streams faster than handlers can drain them is
+    // pinning server tasks; over the cap we close the whole connection
+    // (rather than reject individual streams) — easier for the client to
+    // detect and matches the "drop on overuse" pattern at L1.
+    let in_flight_streams = Arc::new(AtomicUsize::new(0));
+    let max_streams = dos_config.l2_max_streams_per_conn.max(1) as usize;
 
     loop {
         match conn.accept_bi().await {
             Ok((send, mut recv)) => {
+                if in_flight_streams.load(Ordering::Acquire) >= max_streams {
+                    eprintln!(
+                        "[DosDefence L2] {remote}: in-flight streams >= {max_streams}, closing connection"
+                    );
+                    conn.close(9u32.into(), b"stream cap exceeded");
+                    break;
+                }
+
                 // Re-check access on every request — if peer was removed, close immediately
                 let allowed_spaces = {
                     let s = state.read().await;
@@ -524,9 +594,13 @@ async fn handle_connection(
                     break;
                 };
 
+                in_flight_streams.fetch_add(1, Ordering::AcqRel);
+                let guard = StreamCounterGuard(in_flight_streams.clone());
+
                 let state = state.clone();
                 let verified_did = verified_did.clone();
                 tokio::spawn(async move {
+                    let _guard = guard; // decrements on drop, including panic
                     if let Err(e) = crate::peer_storage::handlers::handle_stream(
                         send,
                         &mut recv,
@@ -551,4 +625,298 @@ async fn handle_connection(
     // is gone the (endpoint_id -> DID) binding from this handshake no longer
     // applies. A future reconnect repeats the handshake.
     state.write().await.endpoint_dids.remove(&remote_str);
+}
+
+// ============================================================================
+// DoS-defence Phase 2 helpers
+// ============================================================================
+
+/// L1 pre-auth rate-limit check. Returns `true` if the connection should be
+/// accepted, `false` if it should be silent-dropped. On `true`, the call
+/// has already recorded the accept event against both buckets.
+///
+/// Reads `dos_config` + `accept_tracker` from `PeerState` once, releases the
+/// read lock before doing any counter work — the tracker's internal mutex
+/// is short-held and we don't want to block other accept-loop iterations on
+/// it.
+///
+/// Buckets are evaluated against a one-second sliding window
+/// (`ACCEPT_TRACKER_WINDOW`), so the configured per-second rates map
+/// directly to integer counts.
+async fn pre_auth_accept_check(state: &Arc<RwLock<PeerState>>, source_key: &str) -> bool {
+    let (cfg, tracker, dos_runtime, owner_did) = {
+        let s = state.read().await;
+        let owner = s.peer_owner_dids.get(source_key).cloned();
+        (
+            s.dos_config.clone(),
+            s.accept_tracker.clone(),
+            s.dos_runtime.clone(),
+            owner,
+        )
+    };
+
+    // Phase 3 Ddos-Mode silent-drop: enforced BEFORE the atomic L1 record
+    // step so drops are not counted into the per-source bucket (would
+    // otherwise let an attacker rate-limit a contact by pushing the contact
+    // bucket past the cap with their own drops). Skipped when no runtime is
+    // wired or when the escalation policy is `Off`.
+    if let Some(runtime) = dos_runtime.as_ref() {
+        let now = Instant::now();
+        // Re-evaluate FloodMode BEFORE the silent-drop branch so a
+        // sustained DDoS still ticks the state machine forward to
+        // `Expired` and the persisted row is updated — otherwise a flood
+        // of non-contact drops would short-circuit the loop and the
+        // contacts-only escalation could never auto-recover. See
+        // CodeRabbit review on PR #562.
+        let thresholds = thresholds_from_cfg(&cfg);
+        let mode =
+            runtime.evaluate_and_persist(&tracker, thresholds, now, ACCEPT_TRACKER_GLOBAL_KEY);
+
+        let policy_active = matches!(cfg.ddos_escalation_policy, EscalationPolicy::ContactsOnly);
+        if policy_active && matches!(mode, FloodMode::Ddos { .. }) {
+            // We need a DID to consult the contact resolver. `peer_owner_dids`
+            // is loaded from `haex_devices` so any endpoint_id with a synced
+            // owner row is resolvable. Unknown endpoint_id pre-auth = silent
+            // drop, because a fresh attacker connection has no DB entry.
+            let allow = match owner_did.as_deref() {
+                None => false,
+                Some(did) => {
+                    // ContactResolver opens its own SELECT — fine to call
+                    // outside the (already released) PeerState read guard.
+                    let db = runtime.db();
+                    runtime.contacts().is_contact(&db, did)
+                }
+            };
+            if !allow {
+                // Truncate owner_did in the log line: the raw DID is PII
+                // and shouldn't end up in stderr for every dropped accept
+                // (potentially many per second during a real DDoS).
+                let owner_short = owner_did
+                    .as_deref()
+                    .map(|d| crate::logging::log_truncate(d, crate::logging::LOG_TRUNCATE_DEFAULT))
+                    .unwrap_or_else(|| "<unknown>".to_string());
+                eprintln!(
+                    "[DosDefence Ddos] non-contact source {source_key} silent-dropped \
+                     (owner_did={owner_short})"
+                );
+                // Counter-policy: we do NOT call try_record_l1_accept so the
+                // drop does not pollute the per-source bucket.
+                return false;
+            }
+        }
+    }
+
+    accept_decision(&cfg, &tracker, source_key, Instant::now())
+}
+
+fn thresholds_from_cfg(cfg: &DosDefenceConfig) -> FloodThresholds {
+    FloodThresholds {
+        global_rate_per_sec: cfg.l1_global_rate_per_sec as usize,
+        distinct_sources_threshold: cfg.ddos_distinct_sources_threshold as usize,
+        auto_expiry: cfg.ddos_auto_expiry,
+    }
+}
+
+/// Pure decision step factored out for tests — does not depend on tokio
+/// runtime or the live `PeerState`. Delegates the check-and-record to
+/// `RejectRateTracker::try_record_l1_accept` so the count/limit/record
+/// sequence happens inside one mutex critical section — without that,
+/// concurrent accept tasks could each observe counts under the cap and
+/// then each record, producing bursts beyond the configured rate.
+fn accept_decision(
+    cfg: &DosDefenceConfig,
+    tracker: &RejectRateTracker,
+    source_key: &str,
+    now: Instant,
+) -> bool {
+    use crate::space_delivery::local::dos_defence::tracker::L1AcceptOutcome;
+    match tracker.try_record_l1_accept(
+        ACCEPT_TRACKER_GLOBAL_KEY,
+        cfg.l1_global_rate_per_sec as usize,
+        source_key,
+        cfg.l1_per_source_rate_per_sec as usize,
+        now,
+    ) {
+        L1AcceptOutcome::Accepted => true,
+        L1AcceptOutcome::RejectedGlobal(count) => {
+            eprintln!(
+                "[DosDefence L1] global rate {count} >= {} — silent-drop {source_key}",
+                cfg.l1_global_rate_per_sec
+            );
+            false
+        }
+        L1AcceptOutcome::RejectedPerSource(count) => {
+            eprintln!(
+                "[DosDefence L1] per-source rate {count} >= {} — silent-drop {source_key}",
+                cfg.l1_per_source_rate_per_sec
+            );
+            false
+        }
+    }
+}
+
+/// RAII guard that decrements an in-flight stream counter on drop. Used by
+/// the L2 stream cap so a panicking handler still releases its slot.
+struct StreamCounterGuard(Arc<AtomicUsize>);
+
+impl Drop for StreamCounterGuard {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+impl PeerEndpoint {
+    /// Replace the DoS-defence config used by the accept loop and handshake
+    /// path for *subsequent* accepted connections. Active connections keep
+    /// the `Arc<DosDefenceConfig>` snapshot they captured at handshake time
+    /// — there is no hot-reload.
+    ///
+    /// Call once after `start` from the vault-open path, with the config
+    /// loaded from `haex_vault_settings`. Without this call peer_storage
+    /// runs on `DosDefenceConfig::defaults()`.
+    pub async fn set_dos_config(&self, cfg: DosDefenceConfig) {
+        self.state.write().await.dos_config = Arc::new(cfg);
+    }
+
+    /// Install the Phase 3 runtime (FloodMode statemachine + contacts
+    /// resolver + DDoS-episode notifier). Until this is called, the accept
+    /// loop runs Phase 2 semantics only.
+    ///
+    /// Call once from the vault-open path, after `set_dos_config` so the
+    /// runtime sees the configured thresholds on its first observation.
+    pub async fn set_dos_runtime(&self, runtime: Arc<DosDefenceRuntime>) {
+        self.state.write().await.dos_runtime = Some(runtime);
+    }
+
+    /// Detach the Phase 3 runtime so subsequent accept-loop iterations
+    /// fall back to Phase 2 semantics. Used by the `peer_storage_start`
+    /// vault-closed fallback to avoid keeping a stale runtime pointing at
+    /// a DB whose `critical_sink` is no longer available.
+    pub async fn clear_dos_runtime(&self) {
+        self.state.write().await.dos_runtime = None;
+    }
+
+    /// Borrow the installed Phase 3 runtime, if any. Used by the
+    /// `end_dos_escalation` Tauri command and by tests.
+    pub async fn dos_runtime(&self) -> Option<Arc<DosDefenceRuntime>> {
+        self.state.read().await.dos_runtime.clone()
+    }
+}
+
+// ============================================================================
+// Phase 2 unit tests
+// ============================================================================
+
+#[cfg(test)]
+mod phase2_tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn small_cfg() -> DosDefenceConfig {
+        DosDefenceConfig {
+            l1_global_rate_per_sec: 3,
+            l1_per_source_rate_per_sec: 2,
+            ..DosDefenceConfig::defaults()
+        }
+    }
+
+    fn tracker() -> RejectRateTracker {
+        RejectRateTracker::new(Duration::from_secs(1))
+    }
+
+    // L1 — single source within both limits is accepted and recorded.
+    #[test]
+    fn l1_accepts_under_limit() {
+        let cfg = small_cfg();
+        let tr = tracker();
+        let now = Instant::now();
+
+        assert!(accept_decision(&cfg, &tr, "src-A", now));
+        assert!(accept_decision(&cfg, &tr, "src-A", now));
+
+        // 2 from src-A → per-source bucket at 2, global at 2
+        assert_eq!(tr.count_within_window("src-A", now), 2);
+        assert_eq!(tr.count_within_window(ACCEPT_TRACKER_GLOBAL_KEY, now), 2);
+    }
+
+    // L1 — third accept from the same source hits the per-source cap (=2)
+    // and the decision flips to drop. The drop must NOT record.
+    #[test]
+    fn l1_drops_when_per_source_exceeded() {
+        let cfg = small_cfg();
+        let tr = tracker();
+        let now = Instant::now();
+
+        assert!(accept_decision(&cfg, &tr, "src-A", now));
+        assert!(accept_decision(&cfg, &tr, "src-A", now));
+        assert!(!accept_decision(&cfg, &tr, "src-A", now));
+
+        // Dropped accept did not bump the counter past the limit.
+        assert_eq!(tr.count_within_window("src-A", now), 2);
+    }
+
+    // L1 — global cap dominates across distinct sources. With 3/sec global,
+    // three accepts from three distinct sources must succeed; a fourth from
+    // any source is dropped even though each per-source bucket is well
+    // under its 2/sec limit.
+    #[test]
+    fn l1_drops_when_global_exceeded_across_sources() {
+        let cfg = small_cfg();
+        let tr = tracker();
+        let now = Instant::now();
+
+        assert!(accept_decision(&cfg, &tr, "src-A", now));
+        assert!(accept_decision(&cfg, &tr, "src-B", now));
+        assert!(accept_decision(&cfg, &tr, "src-C", now));
+        assert!(!accept_decision(&cfg, &tr, "src-D", now));
+        assert_eq!(tr.count_within_window(ACCEPT_TRACKER_GLOBAL_KEY, now), 3);
+    }
+
+    // L1 — events older than the 1-sec window prune out, freeing up
+    // capacity for a fresh accept from the same source.
+    #[test]
+    fn l1_window_pruning_restores_capacity() {
+        let cfg = small_cfg();
+        let tr = tracker();
+        let t0 = Instant::now();
+
+        assert!(accept_decision(&cfg, &tr, "src-A", t0));
+        assert!(accept_decision(&cfg, &tr, "src-A", t0));
+        // At t0 we're at the cap.
+        assert!(!accept_decision(&cfg, &tr, "src-A", t0));
+
+        // Two seconds later both old hits are outside the window.
+        let t1 = t0 + Duration::from_secs(2);
+        assert!(accept_decision(&cfg, &tr, "src-A", t1));
+    }
+
+    // L2 — RAII guard decrements the counter on drop even when the spawned
+    // task panicked (the body of the spawn task simulates a panic-unwind by
+    // dropping the guard via `drop()` while still inside an error path).
+    #[test]
+    fn l2_guard_releases_slot_on_drop() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        counter.fetch_add(1, Ordering::AcqRel);
+        {
+            let _guard = StreamCounterGuard(counter.clone());
+            assert_eq!(counter.load(Ordering::Acquire), 1);
+        }
+        assert_eq!(counter.load(Ordering::Acquire), 0);
+    }
+
+    // L2 — guard decrements even if the holding scope unwinds (panic-safe).
+    #[test]
+    fn l2_guard_releases_slot_on_panic() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        counter.fetch_add(1, Ordering::AcqRel);
+        let counter_for_thread = counter.clone();
+
+        let result = std::panic::catch_unwind(move || {
+            let _guard = StreamCounterGuard(counter_for_thread);
+            panic!("simulated handler panic");
+        });
+
+        assert!(result.is_err());
+        assert_eq!(counter.load(Ordering::Acquire), 0);
+    }
 }

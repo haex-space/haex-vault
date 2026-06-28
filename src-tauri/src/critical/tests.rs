@@ -60,6 +60,7 @@ fn severity_warning_for_observability_codes() {
         CriticalFailureCode::SingleSourceFlood.severity(),
         Severity::Warning
     );
+    assert_eq!(CriticalFailureCode::FloodDdos.severity(), Severity::Warning);
 }
 
 #[test]
@@ -86,6 +87,7 @@ fn code_as_str_matches_variant_name() {
         CriticalFailureCode::SingleSourceFlood.as_str(),
         "SingleSourceFlood"
     );
+    assert_eq!(CriticalFailureCode::FloodDdos.as_str(), "FloodDdos");
 }
 
 // =========================================================================

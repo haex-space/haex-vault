@@ -452,6 +452,16 @@
       }
     },
 
+    "dos_defence_state_no_sync": {
+      "name": "haex_dos_defence_state_no_sync",
+      "columns": {
+        "id": "id",
+        "floodMode": "flood_mode",
+        "floodModeSource": "flood_mode_source",
+        "ddosExpiresAt": "ddos_expires_at",
+        "updatedAt": "updated_at"
+      }
+    },
     "devices": {
       "name": "haex_devices",
       "columns": {

@@ -11,7 +11,25 @@ use ed25519_dalek::SigningKey;
 use haex_vault_lib::peer_storage::endpoint::{OwnIdentity, PeerEndpoint};
 use haex_vault_lib::peer_storage::protocol::{self, Request, Response, ALPN};
 use haex_vault_lib::quic_did_auth;
+use haex_vault_lib::space_delivery::local::dos_defence::config::DosDefenceConfig;
 use iroh::Endpoint;
+
+/// Phase 2 DoS-defence caps would otherwise trip these tests in
+/// unrelated ways — L1 per-source cap (10 conn/sec) flags any rapid
+/// reconnect loop, L2 stream cap (8 in-flight) flags concurrent test
+/// fixtures, etc. Layer enforcement has its own unit tests in
+/// `peer_storage::endpoint::lifecycle::phase2_tests` and dedicated
+/// fullstack tests in `dos_defence.rs`. Everywhere else we loosen the
+/// caps so the test is exercising the thing it claims to.
+pub(super) fn loose_dos_config() -> DosDefenceConfig {
+    DosDefenceConfig {
+        l1_global_rate_per_sec: u32::MAX,
+        l1_per_source_rate_per_sec: u32::MAX,
+        l2_max_streams_per_conn: u32::MAX,
+        l3_handshake_timeout: Duration::from_secs(60),
+        ..DosDefenceConfig::defaults()
+    }
+}
 
 pub(super) const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
 
@@ -62,6 +80,7 @@ pub(super) async fn install_test_identities(
         c.set_own_identity(client_identity.clone());
     }
     server.start(None).await.unwrap();
+    server.set_dos_config(loose_dos_config()).await;
     for c in clients.iter_mut() {
         c.start(None).await.unwrap();
     }
@@ -82,6 +101,7 @@ pub(super) async fn install_test_identities_full(
         c.set_own_identity(client_identity.clone());
     }
     server.start(None).await.unwrap();
+    server.set_dos_config(loose_dos_config()).await;
     for c in clients.iter_mut() {
         c.start(None).await.unwrap();
     }
