@@ -23,6 +23,7 @@ import {
 import { requireDb } from '~/stores/vault'
 import { parseCSV } from '~/utils/csv'
 import { parseOtpData } from '~/utils/passwords/otp'
+import { DEFAULT_AUTOFILL_ALIASES } from '~/utils/passwords/autofillAliases'
 
 const open = defineModel<boolean>('open', { default: false })
 const { t } = useI18n()
@@ -154,6 +155,7 @@ async function importJsonAsync(jsonText: string, setProgress: (pct: number) => v
         otpDigits: otp?.digits ?? null,
         otpPeriod: otp?.period ?? null,
         otpAlgorithm: otp?.algorithm ?? null,
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
@@ -167,6 +169,7 @@ async function importJsonAsync(jsonText: string, setProgress: (pct: number) => v
         url: null,
         note: item.notes ?? null,
         icon: 'file-text',
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
@@ -182,6 +185,7 @@ async function importJsonAsync(jsonText: string, setProgress: (pct: number) => v
         url: null,
         note: item.notes ?? null,
         icon: 'credit-card',
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
@@ -208,6 +212,7 @@ async function importJsonAsync(jsonText: string, setProgress: (pct: number) => v
         url: null,
         note: item.notes ?? null,
         icon: 'user',
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
@@ -298,6 +303,7 @@ async function importCsvAsync(csvText: string, setProgress: (pct: number) => voi
         otpDigits: otp?.digits ?? null,
         otpPeriod: otp?.period ?? null,
         otpAlgorithm: otp?.algorithm ?? null,
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
@@ -311,6 +317,7 @@ async function importCsvAsync(csvText: string, setProgress: (pct: number) => voi
         url: null,
         note: row.notes ?? null,
         icon: 'file-text',
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
@@ -326,6 +333,7 @@ async function importCsvAsync(csvText: string, setProgress: (pct: number) => voi
         url: null,
         note: row.notes ?? null,
         icon: 'credit-card',
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
@@ -341,6 +349,7 @@ async function importCsvAsync(csvText: string, setProgress: (pct: number) => voi
         url: null,
         note: row.notes ?? null,
         icon: 'user',
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })

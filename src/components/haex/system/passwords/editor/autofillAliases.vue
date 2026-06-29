@@ -70,6 +70,8 @@
 </template>
 
 <script setup lang="ts">
+import { DEFAULT_AUTOFILL_ALIASES } from '~/utils/passwords/autofillAliases'
+
 type EditableKeyValue = { id: string; key: string; value: string }
 
 const props = defineProps<{
@@ -80,12 +82,6 @@ const props = defineProps<{
 const aliases = defineModel<Record<string, string[]>>({ default: () => ({}) })
 
 const { t } = useI18n()
-
-const DEFAULT_ALIASES: Record<string, string[]> = {
-  username: ['email', 'login', 'user', 'e-mail', 'mail'],
-  password: ['pass', 'pwd', 'secret'],
-  otpSecret: ['otp', 'totp', '2fa', 'code', 'token'],
-}
 
 const standardFields = computed(() => [
   { key: 'username', label: t('fields.username'), icon: 'i-lucide-user', isCustom: false },
@@ -114,7 +110,7 @@ watch(
     let changed = false
     for (const field of fields) {
       if (!field.isCustom && !current[field.key]) {
-        const defaults = DEFAULT_ALIASES[field.key]
+        const defaults = DEFAULT_AUTOFILL_ALIASES[field.key]
         if (defaults?.length) {
           current[field.key] = [...defaults]
           changed = true
