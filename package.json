@@ -39,7 +39,7 @@
     "@haex-space/vault-sdk": "^3.3.0",
     "@nuxt/eslint": "1.16.0",
     "@nuxt/fonts": "0.14.0",
-    "@nuxt/icon": "2.2.3",
+    "@nuxt/icon": "2.2.4",
     "@nuxt/ui": "4.9.0",
     "@nuxtjs/i18n": "10.4.0",
     "@pinia/nuxt": "^0.11.3",
