@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.12.1](https://github.com/haex-space/haex-vault/compare/v2.12.0...v2.12.1) (2026-06-29)
+
+
+### Bug Fixes
+
+* **passwords:** seed autofill alias defaults on import + add Save to discard dialog ([6b71516](https://github.com/haex-space/haex-vault/commit/6b71516beb187944d80397cfd95986dd803a2322))
+* **passwords:** seed autofill defaults on import + Save action in discard dialog ([c0583c0](https://github.com/haex-space/haex-vault/commit/c0583c03370fb4b9c6d5225c546b2ddeea25d157))
+* **sync:** admit empty/NULL row-HLC rows in incremental scans ([0c0e6f8](https://github.com/haex-space/haex-vault/commit/0c0e6f870eb81b6b5f4cd19ada3c716b496386ec))
+* **sync:** stop sync-log feedback loop and empty-HLC log flood ([a1ede9a](https://github.com/haex-space/haex-vault/commit/a1ede9a2fae8d46bfe3c10fd9ef28a57af265e96))
+* **sync:** stop sync-log feedback loop and empty-HLC log flood ([8b5664d](https://github.com/haex-space/haex-vault/commit/8b5664dbec8a66e24d039bc5318ad6e875f0b35d))
+
 ## [2.12.0](https://github.com/haex-space/haex-vault/compare/v2.11.3...v2.12.0) (2026-06-28)
 
 
