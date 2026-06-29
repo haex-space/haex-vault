@@ -36,7 +36,7 @@ jobs:
       # preloading stable does not actually drift CI from local dev.
       - uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo-audit
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cargo-audit
           key: cargo-audit-${{ runner.os }}-v1
