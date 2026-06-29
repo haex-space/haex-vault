@@ -69,11 +69,11 @@ futures-util = { version = "0.3", default-features = false, features = [
   "std",
 ] }
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 hkdf = "0.12"
 rand = "0.10"
 # FileSync dependencies
-chacha20poly1305 = "0.10"
+chacha20poly1305 = "0.11"
 async-trait = "0.1"
 # S3 backend - using native-tls (works on Android without cmake/aws-lc-rs issues)
 rust-s3 = { version = "0.37", default-features = false, features = [

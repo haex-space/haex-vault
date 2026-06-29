@@ -328,29 +328,29 @@ impl Default for HlcService {
 /// 16-byte node ids, so `"01"` and `"1"` are the *same* node — a string
 /// comparison gets that wrong).
 ///
-/// **Parse failures are logged (once per call site, via `eprintln`) and
-/// fall back to `(0, 0)`**. Silent fallback used to make a malformed HLC
-/// compare as "ancient" — fine for sort stability, dangerous when the
-/// malformed value is on the local side of a `is_newer` check and the
-/// remote happens to be near zero. Surfacing the failure makes the
-/// presence of a malformed HLC visible in the logs.
+/// **Parse failures fall back to `(0, 0)`** so a malformed or empty HLC
+/// compares as "ancient" (oldest) — the safe default for last-write-wins.
+///
+/// This is a pure comparator invoked from hot `sort_by`/`max_by`/`min_by`
+/// paths, so it intentionally does **NOT** log. An earlier version
+/// `eprintln!`-ed on every parse failure, which produced one log line *per
+/// comparison* and flooded the logs whenever a single corrupt row (empty
+/// `haex_hlc`) was present. Malformed/empty HLCs are now detected and kept off
+/// the wire at the ingestion boundary instead — see
+/// `crate::crdt::scanner::scan_table_for_local_changes_scoped`.
 pub fn compare_hlc_strings(a: &str, b: &str) -> std::cmp::Ordering {
     fn parse(s: &str) -> (u64, u128) {
         let (time_str, node_str) = match s.split_once('/') {
             Some((t, n)) => (t, n),
             None => (s, ""),
         };
-        let time = time_str.parse::<u64>().unwrap_or_else(|_| {
-            eprintln!("[HLC] compare_hlc_strings: cannot parse time component of {s:?}");
-            0
-        });
+        // Silent fallback to 0 on any parse failure (including empty strings);
+        // see the function doc for why this comparator must not log.
+        let time = time_str.parse::<u64>().unwrap_or(0);
         let node = if node_str.is_empty() {
             0
         } else {
-            parse_hlc_node_hex(node_str).unwrap_or_else(|| {
-                eprintln!("[HLC] compare_hlc_strings: cannot parse node id of {s:?}");
-                0
-            })
+            parse_hlc_node_hex(node_str).unwrap_or(0)
         };
         (time, node)
     }
@@ -713,8 +713,8 @@ mod tests {
     #[test]
     fn compare_malformed_time_falls_back_to_zero() {
         // Non-numeric time component falls back to 0, so the well-formed
-        // side wins by being greater. (Plus an eprintln we cannot easily
-        // assert on, but it makes the failure visible to operators.)
+        // side wins by being greater. The comparator is silent by design
+        // (no logging) — see its doc comment.
         let malformed = "not-a-number/abc";
         let valid = "5/abc";
         assert_eq!(

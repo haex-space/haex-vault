@@ -171,10 +171,18 @@ pub fn scan_table_for_local_changes_scoped(
     let mut params: Vec<String> = Vec::new();
 
     if let Some(hlc) = after_hlc {
+        // Admit rows whose row-level HLC is absent (NULL) or empty in addition
+        // to those strictly newer than the cursor. A corrupt/legacy row can
+        // carry `haex_hlc = ''` while still holding a valid per-column HLC in
+        // `haex_column_hlcs`; a bare `"haex_hlc" > ?` prefilter drops it before
+        // the per-column fallback below can emit that valid change, so the row
+        // could only ever converge on a full scan. The per-column loop re-checks
+        // each HLC against `after_hlc`, so widening here cannot leak stale
+        // columns — rows with no usable HLC are still skipped.
         where_clauses.push(format!(
-            "\"{}\" > ?{}",
-            HLC_TIMESTAMP_COLUMN,
-            where_clauses.len() + 1
+            "(\"{col}\" > ?{n} OR \"{col}\" IS NULL OR \"{col}\" = '')",
+            col = HLC_TIMESTAMP_COLUMN,
+            n = where_clauses.len() + 1
         ));
         params.push(hlc.to_string());
     }
@@ -231,20 +239,33 @@ pub fn scan_table_for_local_changes_scoped(
             .collect();
         let pk_json = serde_json::to_string(&pk_map).unwrap_or_else(|_| "{}".to_string());
 
-        // Row-level HLC as fallback
+        // Row-level HLC as fallback. An empty string is treated as "absent":
+        // a corrupt/legacy row can carry `haex_hlc = ''` (e.g. inserted before
+        // the HLC trigger existed, or by an older build), and an empty HLC must
+        // never be propagated as if it were a real timestamp.
         let row_hlc = match row_map.get(HLC_TIMESTAMP_COLUMN) {
-            Some(JsonValue::String(s)) => Some(s.as_str()),
+            Some(JsonValue::String(s)) if !s.is_empty() => Some(s.as_str()),
             _ => None,
         };
 
         // For each data column, emit a change if its HLC > after_hlc
         for col in &data_columns {
-            let col_hlc = column_hlcs.get(&col.name).map(|s| s.as_str());
-            let hlc_to_use = col_hlc.or(row_hlc);
+            // Treat an empty per-column HLC as absent so it falls back to the
+            // row HLC; if both are empty/missing the column has no usable
+            // timestamp and is skipped. This stops empty-string HLCs (`""`)
+            // from ever being emitted as `hlc_timestamp`. Downstream, every
+            // apply ran `compare_hlc_strings("")` per such column — the source
+            // of the `[HLC] cannot parse time component of ""` log flood — and
+            // the row could never converge (`"" > anything` is always false),
+            // so it was re-scanned and re-sent on every full pull forever.
+            let col_hlc = column_hlcs
+                .get(&col.name)
+                .map(|s| s.as_str())
+                .filter(|s| !s.is_empty());
 
-            let hlc_to_use = match hlc_to_use {
+            let hlc_to_use = match col_hlc.or(row_hlc) {
                 Some(h) => h,
-                None => continue, // no HLC at all — skip
+                None => continue, // no usable HLC — skip
             };
 
             // Check if this column's HLC is newer than after_hlc

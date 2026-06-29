@@ -91,7 +91,9 @@
 
     <HaexSystemPasswordsDialogDiscardChanges
       v-model:open="showDiscardDialog"
+      :saving="saving"
       @confirm="onDiscardConfirmed"
+      @save="onDiscardSave"
     />
 
     <HaexSystemPasswordsDrawerGenerator
@@ -324,8 +326,8 @@ const onRestore = async () => {
   }
 }
 
-const onSave = async () => {
-  if (saving.value) return
+const onSave = async (): Promise<boolean> => {
+  if (saving.value) return false
 
   errors.title = []
   errors.tags = []
@@ -333,7 +335,7 @@ const onSave = async () => {
   if (!form.title.trim()) {
     errors.title = [t('validation.titleRequired')]
     activeTab.value = 'details'
-    return
+    return false
   }
 
   saving.value = true
@@ -464,6 +466,7 @@ const onSave = async () => {
       title: isCreating.value ? t('toast.created') : t('toast.updated'),
       color: 'success',
     })
+    return true
   } catch (error) {
     console.error('[Editor] Save failed:', error)
     toast.add({
@@ -472,9 +475,17 @@ const onSave = async () => {
       color: 'error',
       icon: 'i-lucide-alert-triangle',
     })
+    return false
   } finally {
     saving.value = false
   }
+}
+
+const onDiscardSave = async () => {
+  const ok = await onSave()
+  if (!ok) return
+  showDiscardDialog.value = false
+  nav.goBack()
 }
 </script>
 

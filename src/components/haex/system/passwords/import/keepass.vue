@@ -38,6 +38,7 @@ import { requireDb } from '~/stores/vault'
 import { addBinaryAsync } from '~/utils/passwords/binaries'
 import { parseOtpUri, type ParsedOtp } from '~/utils/passwords/otp'
 import type { SnapshotData } from '~/utils/passwords/snapshots'
+import { DEFAULT_AUTOFILL_ALIASES } from '~/utils/passwords/autofillAliases'
 import { TRASH_GROUP_ID } from '~/stores/passwords/groups'
 
 // Plug in hash-wasm Argon2 for KeePass 4 databases.
@@ -364,6 +365,7 @@ async function importKdbxAsync(
       otpDigits: otp?.digits ?? null,
       otpPeriod: otp?.period ?? null,
       otpAlgorithm: otp?.algorithm ?? null,
+      autofillAliases: DEFAULT_AUTOFILL_ALIASES,
       expiresAt,
       createdAt,
       updatedAt,
