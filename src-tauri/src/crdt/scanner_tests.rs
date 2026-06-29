@@ -159,6 +159,87 @@ fn test_scan_uses_row_hlc_as_fallback() {
 }
 
 #[test]
+fn test_scan_empty_column_hlc_falls_back_to_row_hlc() {
+    // Regression: a corrupt/legacy row can carry an empty-string per-column
+    // HLC. It must be treated as absent (fall back to the row HLC), never
+    // emitted as `hlc_timestamp = ""`. An empty HLC would feed
+    // `compare_hlc_strings("")` on every apply (the `[HLC] cannot parse time
+    // component of ""` flood) and could never converge (`"" > x` is false).
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+             VALUES ('r1', 'test', 10, '2025-01-01T00:00:00.000Z-0001-d1', '{\"name\":\"\",\"value\":\"\"}')",
+        [],
+    )
+    .unwrap();
+
+    let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
+
+    assert_eq!(changes.len(), 2);
+    for change in &changes {
+        assert_eq!(
+            change.hlc_timestamp, "2025-01-01T00:00:00.000Z-0001-d1",
+            "empty per-column HLC must fall back to the row HLC, never stay \"\""
+        );
+        assert!(!change.hlc_timestamp.is_empty());
+    }
+}
+
+#[test]
+fn test_scan_skips_row_when_all_hlcs_empty() {
+    // Regression: when BOTH the per-column HLC and the row HLC are empty the
+    // column has no usable timestamp and must be skipped. Emitting `""` is what
+    // produced the empty-HLC log flood and a row that never synced.
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+             VALUES ('r1', 'test', 10, '', '{\"name\":\"\",\"value\":\"\"}')",
+        [],
+    )
+    .unwrap();
+
+    let changes = scan_table_for_local_changes(&conn, "test_items", None, "device-1").unwrap();
+
+    assert!(
+        changes.is_empty(),
+        "rows with no usable HLC must not emit empty-string timestamps"
+    );
+}
+
+#[test]
+fn test_incremental_scan_admits_empty_row_hlc_with_valid_column_hlc() {
+    // Regression: an incremental scan must not drop a corrupt/legacy row whose
+    // row-level HLC is empty (`haex_hlc = ''`) but which still carries a valid,
+    // newer per-column HLC. The SQL prefilter (`"haex_hlc" > after_hlc`) would
+    // otherwise reject such a row before the per-column fallback could emit the
+    // valid change, so the column would only ever converge on a full scan.
+    let conn = setup_test_db();
+    // Empty row HLC, but `name` has a per-column HLC newer than the cursor while
+    // `value` stays at the old one.
+    let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
+    conn.execute(
+        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+             VALUES ('r1', 'updated', 10, '', ?1)",
+        [hlcs],
+    )
+    .unwrap();
+
+    let changes = scan_table_for_local_changes(
+        &conn,
+        "test_items",
+        Some("2000000000000000000/aabbccdd"),
+        "device-1",
+    )
+    .unwrap();
+
+    // Only `name` passes the per-column threshold, and it is emitted despite the
+    // empty row HLC.
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].column_name, "name");
+    assert_eq!(changes[0].hlc_timestamp, "3000000000000000000/aabbccdd");
+}
+
+#[test]
 fn test_column_level_hlc_filtering() {
     let conn = setup_test_db();
     // Insert a row where 'name' has a newer HLC but 'value' has an older one

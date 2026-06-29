@@ -16,7 +16,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tauri::Manager;
 use tokio::sync::{watch, Notify};
 
 mod cycle;
@@ -49,14 +48,27 @@ pub enum SyncMode {
     OwnerVault { tables: Vec<String> },
 }
 
-/// Sync-loop DB logging helper — writes to `haex_logs` so the e2e harness
-/// can extract the trace via `sql_select_with_crdt`. The Tauri stderr is
-/// muted in the Docker test rig (tauri-driver child process redirects to
-/// `/dev/null`), so eprintln-only logs are invisible to CI.
-pub(super) fn log_sync(app_handle: &tauri::AppHandle, level: &str, message: &str) {
+/// Sync-loop logging helper — **stderr only**.
+///
+/// This deliberately does NOT persist to `haex_logs`. `haex_logs` is itself a
+/// CRDT-synced table (it carries `haex_hlc`, so `discover_crdt_tables` ships it
+/// in owner-vault sync). Writing the sync loop's own per-cycle telemetry there
+/// created a self-feeding loop: every "pulled N changes" line became a new
+/// `haex_logs` row → marked dirty → pushed to the owner's other devices → they
+/// logged "pulled 1 change" → pushed back → ∞. With 3+ devices the pulled
+/// batches grew without bound (a field report showed `count` climbing into the
+/// thousands).
+///
+/// The console interceptor already strips `[SYNC]`-prefixed messages to break
+/// this exact loop on the JS side (see [`crate::logging`]); this Rust-side
+/// helper used to bypass that guard by inserting directly. Keeping sync chatter
+/// on stderr only honours the same rule. No in-repo consumer reads these rows.
+///
+/// `_app_handle` is retained so call sites stay uniform with the rest of the
+/// sync loop (which threads the handle everywhere) and so a future structured
+/// (non-synced) sink can be wired in without touching every call site.
+pub(super) fn log_sync(_app_handle: &tauri::AppHandle, level: &str, message: &str) {
     eprintln!("[SyncLoop] [{level}] {message}");
-    let state: tauri::State<'_, crate::AppState> = app_handle.state();
-    let _ = crate::logging::insert_log(&state, level, "SyncLoop", None, message, None, "rust");
 }
 
 /// Default poll interval between sync cycles.
