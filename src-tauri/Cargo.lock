@@ -800,6 +800,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f8d983286843e49675a4b7a2d174efe136dc93a18d69130dd18198a6c167601"
 dependencies = [
  "cfg-if",
+ "cipher 0.5.1",
  "cpufeatures 0.3.0",
  "rand_core 0.10.0",
 ]
@@ -813,8 +814,20 @@ dependencies = [
  "aead 0.5.2",
  "chacha20 0.9.1",
  "cipher 0.4.4",
- "poly1305",
+ "poly1305 0.8.0",
  "zeroize",
+]
+
+[[package]]
+name = "chacha20poly1305"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b89e1c441e926b9c82a8d023f6e1b7ae0adcfaa7d621814e4d60789bac751cb"
+dependencies = [
+ "aead 0.6.1",
+ "chacha20 0.10.0",
+ "cipher 0.5.1",
+ "poly1305 0.9.0",
 ]
 
 [[package]]
@@ -2677,7 +2690,7 @@ dependencies = [
  "base64 0.22.1",
  "blake3",
  "bs58",
- "chacha20poly1305",
+ "chacha20poly1305 0.11.0",
  "ed25519-dalek 2.2.0",
  "fs2",
  "fs_extra",
@@ -3067,7 +3080,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14b28be6cba9081c7feda2651d51c2a900029798e78b4c1e093e792f4571a870"
 dependencies = [
  "aes-gcm 0.10.3",
- "chacha20poly1305",
+ "chacha20poly1305 0.10.1",
  "hkdf",
  "hpke-rs-crypto",
  "k256",
@@ -5308,7 +5321,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fafcc8a3552b10fbb3ab757cccaf1a34081e826ca819f49aa7e6645b1d95c00f"
 dependencies = [
  "aes-gcm 0.10.3",
- "chacha20poly1305",
+ "chacha20poly1305 0.10.1",
  "ed25519-dalek 2.2.0",
  "hkdf",
  "hmac 0.12.1",
@@ -5883,6 +5896,16 @@ dependencies = [
  "cpufeatures 0.2.17",
  "opaque-debug",
  "universal-hash 0.5.1",
+]
+
+[[package]]
+name = "poly1305"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a00baa632505d05512f48a963e16051c54fda9a95cc9acea1a4e3c90991c4a2e"
+dependencies = [
+ "cpufeatures 0.3.0",
+ "universal-hash 0.6.1",
 ]
 
 [[package]]
