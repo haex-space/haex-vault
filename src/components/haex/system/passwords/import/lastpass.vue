@@ -23,6 +23,7 @@ import {
 import { requireDb } from '~/stores/vault'
 import { parseCSV } from '~/utils/csv'
 import { parseOtpData } from '~/utils/passwords/otp'
+import { DEFAULT_AUTOFILL_ALIASES } from '~/utils/passwords/autofillAliases'
 
 const open = defineModel<boolean>('open', { default: false })
 const { t } = useI18n()
@@ -123,6 +124,7 @@ async function doImport(file: File, setProgress: (pct: number) => void): Promise
         url: null,
         note: row.extra ?? null,
         icon: 'file-text',
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
@@ -142,6 +144,7 @@ async function doImport(file: File, setProgress: (pct: number) => void): Promise
         otpDigits: otp?.digits ?? null,
         otpPeriod: otp?.period ?? null,
         otpAlgorithm: otp?.algorithm ?? null,
+        autofillAliases: DEFAULT_AUTOFILL_ALIASES,
         createdAt: now,
         updatedAt: now,
       })
