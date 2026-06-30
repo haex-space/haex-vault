@@ -28,51 +28,69 @@ const subscriptions: Map<string, TableSubscription> = new Map()
 // This is populated by registerStoreForTables()
 const tableToReloadFn: Map<string, () => Promise<void>> = new Map()
 
-const listener = createOnceListener(() =>
-  listen<{ tables: string[] }>(SYNC_TABLES_INTERNAL_EVENT, async (event) => {
-    const { tables } = event.payload
+// Coalescing window: a burst of sync:tables-updated events (e.g. one per
+// peer-push during P2P sync) folds into a single flush. Without this, every
+// event blocks the renderer through the sequential await-chain of reload
+// functions and the UI freezes during sync activity.
+const COALESCE_WINDOW_MS = 100
 
-    log.debug('========== RECEIVED sync:tables-updated ==========')
-    log.debug('Tables:', tables)
-    log.debug('Registered tables:', Array.from(tableToReloadFn.keys()))
+let pendingTables: Set<string> | null = null
+let flushTimer: ReturnType<typeof setTimeout> | null = null
 
-    // Track which reload functions we've already called to avoid duplicates
-    const calledFns = new Set<() => Promise<void>>()
+const flushPendingAsync = async (): Promise<void> => {
+  if (!pendingTables) return
+  const tables = Array.from(pendingTables)
+  pendingTables = null
+  flushTimer = null
 
-    // First, call the central reloader for each affected table
-    for (const table of tables) {
-      const reloadFn = tableToReloadFn.get(table)
-      if (reloadFn && !calledFns.has(reloadFn)) {
-        try {
-          await reloadFn()
-          calledFns.add(reloadFn)
-        } catch (error) {
-          log.error(`Error reloading store for table ${table}:`, error)
-        }
+  log.debug('========== FLUSH sync:tables-updated ==========')
+  log.debug('Tables (coalesced):', tables)
+  log.debug('Registered tables:', Array.from(tableToReloadFn.keys()))
+
+  const calledFns = new Set<() => Promise<void>>()
+  for (const table of tables) {
+    const reloadFn = tableToReloadFn.get(table)
+    if (reloadFn && !calledFns.has(reloadFn)) {
+      calledFns.add(reloadFn)
+      try {
+        await reloadFn()
+      } catch (error) {
+        log.error(`Error reloading store for table ${table}:`, error)
       }
     }
+  }
 
-    // Then notify custom subscriptions (for stores that need special handling)
-    for (const [id, subscription] of subscriptions) {
-      try {
-        // Check if this subscription is interested in any of the updated tables
-        const isInterested =
-          subscription.tables === '*' ||
-          subscription.tables.some((t) => tables.includes(t))
+  for (const [id, subscription] of subscriptions) {
+    try {
+      const isInterested =
+        subscription.tables === '*' ||
+        subscription.tables.some((t) => tables.includes(t))
 
-        if (isInterested) {
-          // Pass only the tables this subscription cares about
-          const relevantTables =
-            subscription.tables === '*'
-              ? tables
-              : tables.filter((t) => subscription.tables.includes(t))
+      if (isInterested) {
+        const relevantTables =
+          subscription.tables === '*'
+            ? tables
+            : tables.filter((t) => subscription.tables.includes(t))
 
-          log.debug(`Notifying subscription '${id}' for tables:`, relevantTables)
-          await subscription.callback(relevantTables)
-        }
-      } catch (error) {
-        log.error(`Error in subscription '${id}':`, error)
+        log.debug(`Notifying subscription '${id}' for tables:`, relevantTables)
+        await subscription.callback(relevantTables)
       }
+    } catch (error) {
+      log.error(`Error in subscription '${id}':`, error)
+    }
+  }
+}
+
+const listener = createOnceListener(() =>
+  listen<{ tables: string[] }>(SYNC_TABLES_INTERNAL_EVENT, (event) => {
+    const { tables } = event.payload
+    if (!pendingTables) pendingTables = new Set()
+    for (const table of tables) pendingTables.add(table)
+
+    if (flushTimer === null) {
+      flushTimer = setTimeout(() => {
+        void flushPendingAsync()
+      }, COALESCE_WINDOW_MS)
     }
   }),
 )
@@ -107,6 +125,11 @@ export const initSyncEventsAsync = async (): Promise<void> => {
  */
 export const stopSyncEvents = (): void => {
   listener.dispose()
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  pendingTables = null
   subscriptions.clear()
   tableToReloadFn.clear()
   log.info('Stopped')
