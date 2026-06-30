@@ -546,21 +546,19 @@ pub(crate) async fn handle_delivery_request(
                                 *acc.entry(c.table_name.as_str()).or_insert(0) += 1;
                                 acc
                             });
-                    crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
-                        "info",
-                        "SyncPull",
-                        &format!(
-                            "served: space={} audience={} count={} has_more={} after={:?} tables={:?}",
-                            &space_id[..8.min(space_id.len())],
-                            &validated.audience[..24.min(validated.audience.len())],
-                            page.len(),
-                            has_more,
-                            after_timestamp.as_deref(),
-                            by_table,
-                        ),
-                        None,
+                    // Per-cycle telemetry — stderr-only to avoid the same
+                    // haex_logs feedback loop fixed for log_sync in 8b5664db.
+                    // Every served SyncPull would otherwise write one new
+                    // haex_logs row, which the next cycle pushes back through
+                    // CRDT sync — growing the batch monotonically across cycles.
+                    eprintln!(
+                        "[SyncPull] served: space={} audience={} count={} has_more={} after={:?} tables={:?}",
+                        &space_id[..8.min(space_id.len())],
+                        &validated.audience[..24.min(validated.audience.len())],
+                        page.len(),
+                        has_more,
+                        after_timestamp.as_deref(),
+                        by_table,
                     );
                     match serde_json::to_value(&page) {
                         Ok(json) => Response::SyncChanges {
