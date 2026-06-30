@@ -56,6 +56,10 @@ export const registerStoreReloadCallbacks = (): void => {
       const peerStore = usePeerStorageStore()
       await peerStore.loadSpaceDevicesAsync()
       await peerStore.loadSharesAsync()
+      // Owner-Sync status text reads deviceStore.knownDevices to count the
+      // owner's other devices; refresh it whenever space-devices change.
+      const deviceStore = useDeviceStore()
+      await deviceStore.loadKnownDevicesAsync()
       // Reload Rust-side allowed_peers: the daemon keeps its own in-memory
       // access control list and won't pick up new haex_space_devices rows
       // from CRDT until explicitly told to reload.
@@ -95,6 +99,20 @@ export const registerStoreReloadCallbacks = (): void => {
       // space must rekey MLS for any disappeared member (forward
       // secrecy). Non-leaders skip internally.
       await spacesStore.reconcileMlsForLocalSpacesAsync()
+    },
+  )
+  registerStoreForTables(
+    ['haex_passwords_item_details', 'haex_passwords_item_tags', 'haex_passwords_tags'],
+    async () => {
+      const passwordsStore = usePasswordsStore()
+      await passwordsStore.loadItemsAsync()
+    },
+  )
+  registerStoreForTables(
+    ['haex_passwords_groups', 'haex_passwords_group_items'],
+    async () => {
+      const groupsStore = usePasswordsGroupsStore()
+      await groupsStore.loadGroupsAsync()
     },
   )
 }
