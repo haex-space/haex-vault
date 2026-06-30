@@ -24,6 +24,7 @@ import {
   initSyncEventsAsync,
   registerStoreForTables,
   stopSyncEvents,
+  subscribeToSyncUpdates,
 } from '@/stores/sync/syncEvents'
 
 const flushPendingTimers = async (windowMs: number) => {
@@ -121,5 +122,77 @@ describe('syncEvents — dispatch coalescing', () => {
     void capturedListener!({ payload: { tables: ['haex_space_devices'] } })
     await flushPendingTimers(150)
     expect(reloadFn).toHaveBeenCalledTimes(2)
+  })
+
+  it('serializes flushes: a new event during an in-flight reload defers, not races', async () => {
+    const release: { fn: (() => void) | null } = { fn: null }
+    let inFlight = 0
+    let maxInFlight = 0
+    const slowReload = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          inFlight += 1
+          if (inFlight > maxInFlight) maxInFlight = inFlight
+          release.fn = () => {
+            inFlight -= 1
+            resolve()
+          }
+        }),
+    )
+    registerStoreForTables(['haex_space_devices'], slowReload)
+
+    await initSyncEventsAsync()
+
+    void capturedListener!({ payload: { tables: ['haex_space_devices'] } })
+    // Wait for the first flush to start awaiting reloadFn.
+    await flushPendingTimers(150)
+    expect(slowReload).toHaveBeenCalledTimes(1)
+
+    // Fire a second burst while the first flush is still awaiting.
+    void capturedListener!({ payload: { tables: ['haex_space_devices'] } })
+    void capturedListener!({ payload: { tables: ['haex_space_devices'] } })
+    await flushPendingTimers(150)
+
+    // The second flush MUST NOT have started while the first is in flight.
+    expect(slowReload).toHaveBeenCalledTimes(1)
+    expect(maxInFlight).toBe(1)
+
+    // Release the first flush; the deferred batch should then run exactly once.
+    release.fn?.()
+    await flushPendingTimers(150)
+    expect(slowReload).toHaveBeenCalledTimes(2)
+    expect(maxInFlight).toBe(1)
+  })
+
+  it('does not notify subscriptions registered after a stop/restart from a pre-stop flush', async () => {
+    const release: { fn: (() => void) | null } = { fn: null }
+    const slowReload = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release.fn = resolve
+        }),
+    )
+    registerStoreForTables(['haex_space_devices'], slowReload)
+
+    await initSyncEventsAsync()
+
+    void capturedListener!({ payload: { tables: ['haex_space_devices'] } })
+    await flushPendingTimers(150)
+    // The pre-stop flush is now suspended on slowReload.
+
+    // Stop and restart — register a fresh subscription that the stale flush
+    // must not see.
+    stopSyncEvents()
+
+    await initSyncEventsAsync()
+    const newSubscription = vi.fn()
+    subscribeToSyncUpdates('post-stop', '*', newSubscription)
+
+    // Release the suspended pre-stop flush. Its post-await loop would, without
+    // the generation token, iterate over the post-restart subscriptions map.
+    release.fn?.()
+    await flushPendingTimers(150)
+
+    expect(newSubscription).not.toHaveBeenCalled()
   })
 })
