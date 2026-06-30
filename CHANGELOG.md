@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.12.2](https://github.com/haex-space/haex-vault/compare/v2.12.1...v2.12.2) (2026-06-30)
+
+
+### Bug Fixes
+
+* **sync:** reload deviceStore + passwordsStore on CRDT events ([834173f](https://github.com/haex-space/haex-vault/commit/834173f092e1d8f26ca4ef53843e9f493dc58c79))
+* **sync:** reload deviceStore + passwordsStore on CRDT events ([9efceff](https://github.com/haex-space/haex-vault/commit/9efceffde066c2870e0b3555255d0ca620baf535))
+
 ## [2.12.1](https://github.com/haex-space/haex-vault/compare/v2.12.0...v2.12.1) (2026-06-29)
 
 
