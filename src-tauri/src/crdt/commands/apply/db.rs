@@ -71,6 +71,28 @@ pub fn apply_remote_changes_to_db(
         changes.len(),
         backend_info.map(|(id, _)| id).unwrap_or("local-delivery"),
     );
+    {
+        let mut by_table: std::collections::BTreeMap<&str, Vec<&str>> =
+            std::collections::BTreeMap::new();
+        for c in &changes {
+            by_table
+                .entry(c.table_name.as_str())
+                .or_default()
+                .push(c.column_name.as_str());
+        }
+        for (table, cols) in &by_table {
+            eprintln!(
+                "[SYNC RUST] DEBUG-7loop table={} cols={:?} hlcs={:?}",
+                table,
+                cols,
+                changes
+                    .iter()
+                    .filter(|c| c.table_name == *table)
+                    .map(|c| c.hlc_timestamp.as_str())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
 
     // Group changes by transaction-HLC and apply groups in ascending HLC order
     // so cross-table transactions (e.g. parent + child insert) land together.
