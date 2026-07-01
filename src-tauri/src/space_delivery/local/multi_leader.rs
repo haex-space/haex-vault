@@ -360,17 +360,34 @@ fn is_owner_vault_route(db: &DbConnection, verified_did: &str, target_space_id: 
         )?)
     });
 
-    match resolved {
+    let decision = match &resolved {
         Ok(Some((owner_did, vault_space_id))) => crate::owner_sync::scope::owner_route_decision(
             verified_did,
             target_space_id,
-            &owner_did,
-            &vault_space_id,
+            owner_did,
+            vault_space_id,
         ),
         // No vault owner/space configured, or a resolution error: not an
         // owner-vault route. Fall through to the existing space path.
         _ => false,
+    };
+    if !decision {
+        let (owner_did_log, vault_space_log) = match &resolved {
+            Ok(Some((owner_did, vault_space_id))) => (owner_did.as_str(), vault_space_id.as_str()),
+            Ok(None) => ("<no-vault-row>", "<no-vault-row>"),
+            Err(_) => ("<resolve-error>", "<resolve-error>"),
+        };
+        eprintln!(
+            "[DEBUG-route] is_owner_vault_route=false verified_did={} target_space_id={} vault_owner_did={} vault_space_id={} did_match={} space_match={}",
+            verified_did,
+            target_space_id,
+            owner_did_log,
+            vault_space_log,
+            verified_did == owner_did_log,
+            target_space_id == vault_space_log,
+        );
     }
+    decision
 }
 
 /// Handle a single bidirectional QUIC stream: read request, route, respond.
