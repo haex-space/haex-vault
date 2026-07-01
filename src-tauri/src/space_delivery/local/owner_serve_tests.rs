@@ -16,7 +16,8 @@ use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 
 use super::{
-    handle_owner_pull_columns, owner_request_action, sync_changes_within_limit, OwnerRequestAction,
+    affected_tables_from_changes, handle_owner_pull_columns, owner_request_action,
+    sync_changes_within_limit, OwnerRequestAction,
 };
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
@@ -338,4 +339,62 @@ fn sync_changes_within_limit_empty_is_sync_changes() {
         changes.is_empty(),
         "empty dump must be SyncChanges, not Error"
     );
+}
+
+// ---- affected_tables_from_changes ----------------------------------------
+//
+// Locks down the derivation feeding `local-sync-completed` after an owner-push
+// applies. If this set drifts (missing tables, extra tables, wrong dedup) the
+// receiving device's frontend stores would silently stop reloading on sync —
+// the exact reactivity regression this helper was extracted to prevent.
+
+fn make_change(table: &str, id: &str, col: &str, hlc: &str) -> LocalColumnChange {
+    LocalColumnChange {
+        table_name: table.to_string(),
+        row_pks: format!("{{\"id\":\"{id}\"}}"),
+        column_name: col.to_string(),
+        hlc_timestamp: hlc.to_string(),
+        value: serde_json::json!("v"),
+        device_id: "peer".to_string(),
+    }
+}
+
+#[test]
+fn affected_tables_dedups_and_sorts() {
+    let changes = vec![
+        make_change("haex_passwords", "p1", "title", "1/aa"),
+        make_change("haex_vault_settings", "s1", "value", "2/aa"),
+        make_change("haex_passwords", "p2", "title", "3/aa"),
+        make_change("haex_vault_settings", "s2", "value", "4/aa"),
+    ];
+    let tables = affected_tables_from_changes(&changes);
+    assert_eq!(
+        tables,
+        vec![
+            "haex_passwords".to_string(),
+            "haex_vault_settings".to_string(),
+        ],
+        "distinct table names, sorted"
+    );
+}
+
+#[test]
+fn affected_tables_empty_input_yields_empty() {
+    assert!(affected_tables_from_changes(&[]).is_empty());
+}
+
+#[test]
+fn affected_tables_captures_settings_when_only_setting_changed() {
+    // The exact scenario the reactivity bug reproduced from: a language switch
+    // on device A pushes a single haex_vault_settings row to device B; the
+    // frontend on B must see `haex_vault_settings` in the emitted payload to
+    // trigger `vaultSettingsStore.syncLocaleAsync`.
+    let changes = vec![make_change(
+        "haex_vault_settings",
+        "locale",
+        "value",
+        "1/aa",
+    )];
+    let tables = affected_tables_from_changes(&changes);
+    assert_eq!(tables, vec!["haex_vault_settings".to_string()]);
 }
