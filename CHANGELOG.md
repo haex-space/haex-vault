@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.12.3](https://github.com/haex-space/haex-vault/compare/v2.12.2...v2.12.3) (2026-07-01)
+
+
+### Bug Fixes
+
+* **sync:** coalesce sync:tables-updated bursts to unblock the renderer ([b5f9e2d](https://github.com/haex-space/haex-vault/commit/b5f9e2d60bf099d5ca6cda9ff166bea4ff6d3a7a))
+* **sync:** coalesce sync:tables-updated bursts to unblock the renderer ([0c3e1b7](https://github.com/haex-space/haex-vault/commit/0c3e1b79982b0aa722848c126db075840f273931))
+* **sync:** drop SyncPull-served haex_logs telemetry to stderr ([ff29fe8](https://github.com/haex-space/haex-vault/commit/ff29fe8fd428ce52711f99dbc939d1a9d973ca36))
+* **sync:** serialize flushes and fence stale flushes across stop/restart ([b7f3146](https://github.com/haex-space/haex-vault/commit/b7f31465c9317a61e5e7f3c948a544b299f8b7d2))
+
 ## [2.12.2](https://github.com/haex-space/haex-vault/compare/v2.12.1...v2.12.2) (2026-06-30)
 
 
