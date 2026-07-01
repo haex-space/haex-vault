@@ -2682,7 +2682,7 @@ dependencies = [
 
 [[package]]
 name = "haex-vault"
-version = "2.12.2"
+version = "2.12.3"
 dependencies = [
  "aes-gcm 0.11.0",
  "async-imap",
