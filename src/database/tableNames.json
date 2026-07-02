@@ -758,6 +758,12 @@
           "columnName": "column_name",
           "rowPks": "row_pks"
         }
+      },
+      "pending_tables": {
+        "name": "haex_crdt_pending_tables_no_sync",
+        "columns": {
+          "tableName": "table_name"
+        }
       }
     },
     "deleted_rows": {
