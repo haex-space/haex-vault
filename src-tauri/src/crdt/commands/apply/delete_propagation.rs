@@ -47,27 +47,77 @@ pub(super) fn create_conflict_entry(
         .collect();
     let remote_pk_json = serde_json::to_string(&remote_pk).unwrap_or_else(|_| "{}".to_string());
 
-    // Find local row PK - we don't know which exact row conflicts, so query with LIMIT 1
-    // The UI will need to properly identify the conflicting row using the conflict_key
+    // Find local row PK by querying on the conflicting columns parsed from the error message.
+    // conflict_key has the shape "<table>.<col>[, <table>.<col>]*" — strip table prefix from each part.
+    let schema_col_names: std::collections::HashSet<&str> =
+        schema.iter().map(|c| c.name.as_str()).collect();
+    let conflict_cols: Vec<String> = conflict_key
+        .split(", ")
+        .filter_map(|part| {
+            let col = part.rsplit('.').next().unwrap_or("").trim();
+            if is_safe_identifier(col) && schema_col_names.contains(col) {
+                Some(col.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let pk_select = pk_columns
         .iter()
-        .map(|col| col.name.as_str())
+        .map(|col| format!("\"{}\"", col.name))
         .collect::<Vec<_>>()
         .join(", ");
 
-    let query_sql = format!("SELECT {} FROM \"{}\" LIMIT 1", pk_select, table_name);
+    // Build a targeted WHERE clause when we have valid conflict columns AND the remote
+    // row carries values for all of them; otherwise fall back to "{}".
+    let conflict_values: Option<Vec<JsonValue>> = if conflict_cols.is_empty() {
+        None
+    } else {
+        let vals: Vec<JsonValue> = conflict_cols
+            .iter()
+            .filter_map(|c| remote_row_data.get(c).cloned())
+            .collect();
+        if vals.len() == conflict_cols.len() {
+            Some(vals)
+        } else {
+            None
+        }
+    };
 
-    let local_pk_json = tx
-        .query_row(&query_sql, [], |row| {
-            let mut local_pk = serde_json::Map::new();
-            for (i, pk_col) in pk_columns.iter().enumerate() {
-                if let Ok(val) = row.get::<_, String>(i) {
-                    local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
+    let local_pk_json = match conflict_values {
+        None => "{}".to_string(),
+        Some(values) => {
+            let where_clause = conflict_cols
+                .iter()
+                .enumerate()
+                .map(|(i, c)| format!("\"{}\" = ?{}", c, i + 1))
+                .collect::<Vec<_>>()
+                .join(" AND ");
+            let query_sql = format!(
+                "SELECT {} FROM \"{}\" WHERE {} LIMIT 1",
+                pk_select, table_name, where_clause
+            );
+            let sql_params = match json_values_to_sql_params(&values) {
+                Ok(p) => p,
+                Err(_) => return Ok(()),
+            };
+            let param_refs: Vec<&dyn rusqlite::ToSql> = sql_params
+                .iter()
+                .map(|v| v as &dyn rusqlite::ToSql)
+                .collect();
+            tx.query_row(&query_sql, param_refs.as_slice(), |row| {
+                let mut local_pk = serde_json::Map::new();
+                for (i, pk_col) in pk_columns.iter().enumerate() {
+                    if let Ok(val) = row.get::<_, String>(i) {
+                        local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
+                    }
                 }
-            }
-            Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
-        })
-        .unwrap_or_else(|_| "{}".to_string());
+                Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
+            })
+            .unwrap_or_else(|_| "{}".to_string())
+        }
+    };
 
     // Generate conflict ID and timestamp
     let conflict_id = Uuid::new_v4().to_string();
@@ -303,8 +353,169 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
 }
 
 #[cfg(test)]
+#[cfg_attr(test, allow(clippy::unwrap_used))]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
+
+    /// Build a minimal in-memory DB with:
+    ///  - `t`: table with UUID pk `id` and UNIQUE(device_id, key)
+    ///  - `haex_crdt_conflicts`: minimal schema for the INSERT inside create_conflict_entry
+    fn setup_conflict_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE t (
+                id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                key TEXT NOT NULL,
+                UNIQUE(device_id, key)
+             );
+             CREATE TABLE haex_crdt_conflicts (
+                id TEXT PRIMARY KEY,
+                table_name TEXT NOT NULL,
+                conflict_type TEXT NOT NULL,
+                local_row_id TEXT,
+                remote_row_id TEXT,
+                local_row_data TEXT,
+                remote_row_data TEXT,
+                local_timestamp TEXT,
+                remote_timestamp TEXT,
+                conflict_key TEXT,
+                detected_at TEXT,
+                resolved INTEGER
+             );",
+        )
+        .unwrap();
+        conn
+    }
+
+    fn schema_for_t() -> Vec<ColumnInfo> {
+        vec![
+            ColumnInfo {
+                name: "id".to_string(),
+                is_pk: true,
+            },
+            ColumnInfo {
+                name: "device_id".to_string(),
+                is_pk: false,
+            },
+            ColumnInfo {
+                name: "key".to_string(),
+                is_pk: false,
+            },
+        ]
+    }
+
+    #[test]
+    fn conflict_entry_records_the_conflicting_row() {
+        let conn = setup_conflict_db();
+        // Insert a local row with a known id
+        conn.execute(
+            "INSERT INTO t (id, device_id, key) VALUES ('local-id-1', 'dev-abc', 'mykey')",
+            [],
+        )
+        .unwrap();
+
+        let mut remote_row: serde_json::Map<String, JsonValue> = serde_json::Map::new();
+        remote_row.insert(
+            "id".to_string(),
+            JsonValue::String("remote-id-999".to_string()),
+        );
+        remote_row.insert(
+            "device_id".to_string(),
+            JsonValue::String("dev-abc".to_string()),
+        );
+        remote_row.insert("key".to_string(), JsonValue::String("mykey".to_string()));
+
+        let tx = conn.unchecked_transaction().unwrap();
+        create_conflict_entry(
+            &tx,
+            "t",
+            "UNIQUE constraint failed: t.device_id, t.key",
+            &remote_row,
+            "1/abc",
+            &schema_for_t(),
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        let local_row_id: String = conn
+            .query_row(
+                "SELECT local_row_id FROM haex_crdt_conflicts LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&local_row_id).unwrap();
+        assert_eq!(
+            parsed["id"],
+            JsonValue::String("local-id-1".to_string()),
+            "local_row_id should contain the LOCAL row's id, got: {local_row_id}"
+        );
+    }
+
+    #[test]
+    fn conflict_entry_falls_back_on_unparseable_key() {
+        let conn = setup_conflict_db();
+        let remote_row: serde_json::Map<String, JsonValue> = serde_json::Map::new();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        let result = create_conflict_entry(
+            &tx,
+            "t",
+            "some other error without the UNIQUE prefix",
+            &remote_row,
+            "1/abc",
+            &schema_for_t(),
+        );
+        tx.commit().unwrap();
+        assert!(result.is_ok());
+
+        let local_row_id: String = conn
+            .query_row(
+                "SELECT local_row_id FROM haex_crdt_conflicts LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(local_row_id, "{}", "should fall back to empty map");
+    }
+
+    #[test]
+    fn conflict_entry_falls_back_when_remote_lacks_conflict_values() {
+        let conn = setup_conflict_db();
+        // Remote row data does NOT contain device_id / key
+        let mut remote_row: serde_json::Map<String, JsonValue> = serde_json::Map::new();
+        remote_row.insert(
+            "id".to_string(),
+            JsonValue::String("remote-only-id".to_string()),
+        );
+
+        let tx = conn.unchecked_transaction().unwrap();
+        let result = create_conflict_entry(
+            &tx,
+            "t",
+            "UNIQUE constraint failed: t.device_id, t.key",
+            &remote_row,
+            "1/abc",
+            &schema_for_t(),
+        );
+        tx.commit().unwrap();
+        assert!(result.is_ok());
+
+        let local_row_id: String = conn
+            .query_row(
+                "SELECT local_row_id FROM haex_crdt_conflicts LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            local_row_id, "{}",
+            "should fall back to empty map when remote values missing"
+        );
+    }
 
     #[test]
     fn delete_propagates_when_target_does_not_exist_locally() {
