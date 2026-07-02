@@ -25,8 +25,8 @@ pub(super) fn compute_diagnostics(conn: &iroh::endpoint::Connection) -> Connecti
         };
     }
 
-    let info = conn.to_info();
-    let (path_type, remote_addr, rtt_ms) = match info.selected_path() {
+    let paths = conn.paths();
+    let (path_type, remote_addr, rtt_ms) = match paths.iter().find(|p| p.is_selected()) {
         Some(path) => {
             let path_type = if path.is_relay() {
                 PathType::Relay
@@ -35,7 +35,7 @@ pub(super) fn compute_diagnostics(conn: &iroh::endpoint::Connection) -> Connecti
             } else {
                 PathType::Unknown
             };
-            let rtt_ms = path.rtt().map(|d| d.as_secs_f64() * 1000.0);
+            let rtt_ms = Some(path.rtt().as_secs_f64() * 1000.0);
             let remote_addr = Some(format!("{:?}", path.remote_addr()));
             (path_type, remote_addr, rtt_ms)
         }
