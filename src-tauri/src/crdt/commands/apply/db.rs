@@ -6,7 +6,9 @@ use crate::crdt::trigger::{
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS};
+use crate::table_names::{
+    TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS, TABLE_CRDT_PENDING_TABLES,
+};
 use crate::AppState;
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
@@ -212,6 +214,18 @@ pub fn apply_remote_changes_to_db(
                     "[SYNC RUST] Skipping table '{}' - table does not exist (extension not installed?)",
                     first_change.table_name
                 );
+                    // Record the skipped table so the server-path cursor can be
+                    // reset after the extension is installed (plan 010).
+                    // P2P self-heals via per-session re-pull from 0; this marker
+                    // exists only for the persisted server cursor (see plan 010).
+                    tx.execute(
+                        &format!(
+                            "INSERT OR IGNORE INTO {} (table_name) VALUES (?)",
+                            TABLE_CRDT_PENDING_TABLES
+                        ),
+                        params![&first_change.table_name],
+                    )
+                    .map_err(DatabaseError::from)?;
                     continue;
                 }
 
@@ -236,6 +250,18 @@ pub fn apply_remote_changes_to_db(
                                 "[SYNC RUST] Failed to upgrade '{}': {} - skipping this table",
                                 first_change.table_name, e
                             );
+                            // Record the skipped table so the server-path cursor can be
+                            // reset after the CRDT-column upgrade succeeds (plan 010).
+                            // P2P self-heals via per-session re-pull from 0; this marker
+                            // exists only for the persisted server cursor (see plan 010).
+                            tx.execute(
+                                &format!(
+                                    "INSERT OR IGNORE INTO {} (table_name) VALUES (?)",
+                                    TABLE_CRDT_PENDING_TABLES
+                                ),
+                                params![&first_change.table_name],
+                            )
+                            .map_err(DatabaseError::from)?;
                             continue;
                         }
                     }
@@ -683,8 +709,12 @@ pub fn apply_remote_changes_to_db(
 }
 
 #[cfg(test)]
+#[cfg_attr(test, allow(clippy::unwrap_used))]
 mod tests {
     use super::*;
+    use crate::database::migrations::{
+        clear_pending_table_inner, get_recoverable_pending_tables_inner,
+    };
     use crate::database::DbConnection;
     use std::sync::{Arc, Mutex};
 
@@ -706,6 +736,24 @@ mod tests {
                  id TEXT PRIMARY KEY,
                  space_id TEXT NOT NULL,
                  avatar TEXT,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );"
+        ))
+        .unwrap();
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    // Extended harness that also creates the pending tables marker table.
+    fn setup_db_with_pending_tables() -> DbConnection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+             CREATE TABLE {TABLE_CRDT_PENDING_TABLES} (table_name TEXT PRIMARY KEY NOT NULL);
+             CREATE TABLE {DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
                  haex_hlc TEXT,
                  haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
              );"
@@ -787,6 +835,91 @@ mod tests {
             row_count(&db, "id = 'bad'"),
             0,
             "partial row must be skipped"
+        );
+    }
+
+    // A change for a table that does not exist locally inserts a marker into
+    // haex_crdt_pending_tables_no_sync, and the apply still returns Ok (the
+    // sync cursor must advance past this batch).
+    #[test]
+    fn missing_table_inserts_pending_marker_and_returns_ok() {
+        let db = setup_db_with_pending_tables();
+        let changes = vec![RemoteColumnChange {
+            table_name: "haex_ext_not_installed".to_string(),
+            row_pks: r#"{"id":"row-1"}"#.to_string(),
+            column_name: "value".to_string(),
+            hlc_timestamp: "1/aabbcc".to_string(),
+            decrypted_value: JsonValue::String("data".to_string()),
+        }];
+
+        let result = apply_remote_changes_to_db(&db, changes, None, None);
+        assert!(
+            result.is_ok(),
+            "apply must return Ok even when a table is missing: {result:?}"
+        );
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        let count: i64 = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM {} WHERE table_name = 'haex_ext_not_installed'",
+                    TABLE_CRDT_PENDING_TABLES
+                ),
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            count, 1,
+            "pending-table marker must be inserted for the skipped table"
+        );
+    }
+
+    // get_recoverable_pending_tables_inner returns a marker only once the table
+    // exists locally; clear_pending_table_inner removes it.
+    #[test]
+    fn recoverable_pending_tables_filtered_by_existence_and_clearable() {
+        let db = setup_db_with_pending_tables();
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+
+        // Seed a marker for a table that does NOT yet exist.
+        conn.execute(
+            &format!(
+                "INSERT INTO {} (table_name) VALUES ('haex_not_yet')",
+                TABLE_CRDT_PENDING_TABLES
+            ),
+            [],
+        )
+        .unwrap();
+
+        // Not recoverable yet — the table doesn't exist.
+        let before = get_recoverable_pending_tables_inner(conn).unwrap();
+        assert!(
+            before.is_empty(),
+            "marker for non-existent table must not be recoverable: {before:?}"
+        );
+
+        // Create the table locally (simulates extension install).
+        conn.execute_batch("CREATE TABLE haex_not_yet (id TEXT PRIMARY KEY)")
+            .unwrap();
+
+        let after = get_recoverable_pending_tables_inner(conn).unwrap();
+        assert_eq!(
+            after,
+            vec!["haex_not_yet".to_string()],
+            "marker must be returned once the table exists locally"
+        );
+
+        // Clear the marker.
+        clear_pending_table_inner(conn, "haex_not_yet").unwrap();
+
+        let cleared = get_recoverable_pending_tables_inner(conn).unwrap();
+        assert!(
+            cleared.is_empty(),
+            "marker must be gone after clear: {cleared:?}"
         );
     }
 
