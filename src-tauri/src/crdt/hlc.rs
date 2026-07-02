@@ -259,26 +259,17 @@ impl HlcService {
     /// timestamps are strictly greater than any received remote timestamp.
     /// Without this, locally created rows can get HLC timestamps that are
     /// filtered out during push (causing incomplete rows on the server).
-    pub fn advance_past_remote(&self, hlc_string: &str) {
+    /// The caller decides whether a failure is retryable.
+    pub fn advance_past_remote(&self, hlc_string: &str) -> Result<(), HlcError> {
         if hlc_string.is_empty() {
-            return;
+            return Ok(());
         }
-        match Timestamp::from_str(hlc_string) {
-            Ok(remote_ts) => {
-                if let Err(e) = self.update_with_timestamp(&remote_ts) {
-                    eprintln!(
-                        "[HLC] Warning: Failed to advance clock past remote timestamp: {:?}",
-                        e
-                    );
-                }
-            }
-            Err(e) => {
-                eprintln!(
-                    "[HLC] Warning: Failed to parse remote HLC timestamp '{}': {:?}",
-                    hlc_string, e
-                );
-            }
-        }
+        let remote_ts = Timestamp::from_str(hlc_string).map_err(|e| {
+            HlcError::Parse(format!(
+                "Failed to parse remote HLC timestamp '{hlc_string}': {e:?}"
+            ))
+        })?;
+        self.update_with_timestamp(&remote_ts)
     }
 
     /// Lädt den letzten persistierten Zeitstempel aus der Datenbank.
@@ -733,5 +724,43 @@ mod tests {
             compare_hlc_strings(malformed, valid),
             std::cmp::Ordering::Less
         );
+    }
+
+    // ----------------------------------------------------------------
+    // advance_past_remote: error propagation
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn advance_past_remote_rejects_malformed_string() {
+        let svc = HlcService::new_for_testing("test-device-1");
+        let result = svc.advance_past_remote("not-a-timestamp");
+        assert!(
+            matches!(result, Err(HlcError::Parse(_))),
+            "Expected Err(HlcError::Parse), got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn advance_past_remote_errors_when_uninitialized() {
+        // HlcService::new() leaves the inner HLC as None (uninitialized).
+        let svc = HlcService::new();
+        // Generate a valid HLC string from a separate initialized service.
+        let initialized = HlcService::new_for_testing("test-device-2");
+        let ts_str = initialized.new_timestamp().unwrap().to_string();
+
+        let result = svc.advance_past_remote(&ts_str);
+        assert!(
+            matches!(result, Err(HlcError::NotInitialized)),
+            "Expected Err(HlcError::NotInitialized), got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn advance_past_remote_ok_on_empty_string() {
+        let svc = HlcService::new_for_testing("test-device-3");
+        let result = svc.advance_past_remote("");
+        assert!(result.is_ok(), "Expected Ok(()), got: {:?}", result);
     }
 }

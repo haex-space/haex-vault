@@ -1,4 +1,4 @@
-use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcService};
+use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcError, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, is_safe_identifier, COLUMN_HLCS_COLUMN,
@@ -6,7 +6,9 @@ use crate::crdt::trigger::{
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS};
+use crate::table_names::{
+    TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS, TABLE_CRDT_PENDING_TABLES,
+};
 use crate::AppState;
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
@@ -212,6 +214,18 @@ pub fn apply_remote_changes_to_db(
                     "[SYNC RUST] Skipping table '{}' - table does not exist (extension not installed?)",
                     first_change.table_name
                 );
+                    // Record the skipped table so the server-path cursor can be
+                    // reset after the extension is installed (plan 010).
+                    // P2P self-heals via per-session re-pull from 0; this marker
+                    // exists only for the persisted server cursor (see plan 010).
+                    tx.execute(
+                        &format!(
+                            "INSERT OR IGNORE INTO {} (table_name) VALUES (?)",
+                            TABLE_CRDT_PENDING_TABLES
+                        ),
+                        params![&first_change.table_name],
+                    )
+                    .map_err(DatabaseError::from)?;
                     continue;
                 }
 
@@ -236,6 +250,18 @@ pub fn apply_remote_changes_to_db(
                                 "[SYNC RUST] Failed to upgrade '{}': {} - skipping this table",
                                 first_change.table_name, e
                             );
+                            // Record the skipped table so the server-path cursor can be
+                            // reset after the CRDT-column upgrade succeeds (plan 010).
+                            // P2P self-heals via per-session re-pull from 0; this marker
+                            // exists only for the persisted server cursor (see plan 010).
+                            tx.execute(
+                                &format!(
+                                    "INSERT OR IGNORE INTO {} (table_name) VALUES (?)",
+                                    TABLE_CRDT_PENDING_TABLES
+                                ),
+                                params![&first_change.table_name],
+                            )
+                            .map_err(DatabaseError::from)?;
                             continue;
                         }
                     }
@@ -257,11 +283,11 @@ pub fn apply_remote_changes_to_db(
 
                 // Check if row exists and get current HLCs
                 let check_sql = format!(
-                    "SELECT haex_column_hlcs FROM \"{}\" WHERE {}",
+                    "SELECT haex_column_hlcs, haex_hlc FROM \"{}\" WHERE {}",
                     first_change.table_name, pk_where_clause
                 );
 
-                let current_hlcs: Option<String> = {
+                let current_hlcs: Option<(String, String)> = {
                     let mut stmt = tx.prepare(&check_sql).map_err(DatabaseError::from)?;
                     let params = json_values_to_sql_params(&pk_values_for_query)?;
                     let params_refs: Vec<&dyn rusqlite::ToSql> =
@@ -271,8 +297,12 @@ pub fn apply_remote_changes_to_db(
                     // error (locking, schema mismatch, etc.) must surface so the
                     // caller does not silently treat a transient failure as
                     // "no existing row" and overwrite live state.
-                    match stmt.query_row(&*params_refs, |row| row.get(0)) {
-                        Ok(hlcs) => Some(hlcs),
+                    match stmt.query_row(&*params_refs, |row| {
+                        let column_hlcs: String = row.get(0)?;
+                        let row_hlc: Option<String> = row.get(1)?;
+                        Ok((column_hlcs, row_hlc.unwrap_or_default()))
+                    }) {
+                        Ok(pair) => Some(pair),
                         Err(rusqlite::Error::QueryReturnedNoRows) => None,
                         Err(e) => return Err(DatabaseError::from(e)),
                     }
@@ -282,12 +312,14 @@ pub fn apply_remote_changes_to_db(
                 let row_exists = current_hlcs.is_some();
 
                 // Parse current HLCs
-                let mut column_hlcs: serde_json::Map<String, JsonValue> =
-                    if let Some(hlcs_str) = current_hlcs {
-                        serde_json::from_str(&hlcs_str).unwrap_or_default()
-                    } else {
-                        serde_json::Map::new()
-                    };
+                let (current_row_hlc, mut column_hlcs): (
+                    String,
+                    serde_json::Map<String, JsonValue>,
+                ) = if let Some((hlcs_str, row_hlc)) = current_hlcs {
+                    (row_hlc, serde_json::from_str(&hlcs_str).unwrap_or_default())
+                } else {
+                    (String::new(), serde_json::Map::new())
+                };
 
                 // Build a set of existing column names for quick lookup
                 let existing_columns: std::collections::HashSet<&str> =
@@ -371,6 +403,14 @@ pub fn apply_remote_changes_to_db(
                     })?;
 
                     if row_exists {
+                        // Never regress the row-level haex_hlc: an incoming batch can legally be
+                        // older than the row's current HLC (column-level CRDT). The row HLC feeds
+                        // the delete-resurrection comparison, so regressing it would let an older
+                        // remote delete win against a newer local write.
+                        if hlc_is_newer(&current_row_hlc, &max_hlc_for_row) {
+                            max_hlc_for_row = current_row_hlc.clone();
+                        }
+
                         // Row exists, update it with all changed columns
                         let set_clauses: Vec<String> = columns_to_update
                             .iter()
@@ -641,7 +681,27 @@ pub fn apply_remote_changes_to_db(
                     max.unwrap_or_default().to_string()
                 }
             };
-            hlc.advance_past_remote(&max_hlc_str);
+            // Runs after tx.commit() by design: a crash between commit and advance is
+            // healed by the idempotent re-apply of the same batch on the next cycle.
+            if let Err(e) = hlc.advance_past_remote(&max_hlc_str) {
+                match e {
+                    // A malformed max-HLC cannot be fixed by retrying the same batch —
+                    // log loudly and continue so the sync loop does not wedge.
+                    HlcError::Parse(_) => {
+                        eprintln!(
+                            "[SYNC RUST] CRITICAL: HLC advance skipped (unparseable max HLC): {e:?}"
+                        );
+                    }
+                    // NotInitialized / MutexPoisoned / other service-state errors:
+                    // fail the apply so the pull cursor does not advance and the batch
+                    // (idempotent) is retried after restart.
+                    other => {
+                        return Err(DatabaseError::DatabaseError {
+                            reason: format!("HLC advance failed after apply: {other:?}"),
+                        });
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -649,8 +709,12 @@ pub fn apply_remote_changes_to_db(
 }
 
 #[cfg(test)]
+#[cfg_attr(test, allow(clippy::unwrap_used))]
 mod tests {
     use super::*;
+    use crate::database::migrations::{
+        clear_pending_table_inner, get_recoverable_pending_tables_inner,
+    };
     use crate::database::DbConnection;
     use std::sync::{Arc, Mutex};
 
@@ -672,6 +736,24 @@ mod tests {
                  id TEXT PRIMARY KEY,
                  space_id TEXT NOT NULL,
                  avatar TEXT,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );"
+        ))
+        .unwrap();
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    // Extended harness that also creates the pending tables marker table.
+    fn setup_db_with_pending_tables() -> DbConnection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+             CREATE TABLE {TABLE_CRDT_PENDING_TABLES} (table_name TEXT PRIMARY KEY NOT NULL);
+             CREATE TABLE {DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
                  haex_hlc TEXT,
                  haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
              );"
@@ -753,6 +835,144 @@ mod tests {
             row_count(&db, "id = 'bad'"),
             0,
             "partial row must be skipped"
+        );
+    }
+
+    // A change for a table that does not exist locally inserts a marker into
+    // haex_crdt_pending_tables_no_sync, and the apply still returns Ok (the
+    // sync cursor must advance past this batch).
+    #[test]
+    fn missing_table_inserts_pending_marker_and_returns_ok() {
+        let db = setup_db_with_pending_tables();
+        let changes = vec![RemoteColumnChange {
+            table_name: "haex_ext_not_installed".to_string(),
+            row_pks: r#"{"id":"row-1"}"#.to_string(),
+            column_name: "value".to_string(),
+            hlc_timestamp: "1/aabbcc".to_string(),
+            decrypted_value: JsonValue::String("data".to_string()),
+        }];
+
+        let result = apply_remote_changes_to_db(&db, changes, None, None);
+        assert!(
+            result.is_ok(),
+            "apply must return Ok even when a table is missing: {result:?}"
+        );
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        let count: i64 = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM {} WHERE table_name = 'haex_ext_not_installed'",
+                    TABLE_CRDT_PENDING_TABLES
+                ),
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            count, 1,
+            "pending-table marker must be inserted for the skipped table"
+        );
+    }
+
+    // get_recoverable_pending_tables_inner returns a marker only once the table
+    // exists locally; clear_pending_table_inner removes it.
+    #[test]
+    fn recoverable_pending_tables_filtered_by_existence_and_clearable() {
+        let db = setup_db_with_pending_tables();
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+
+        // Seed a marker for a table that does NOT yet exist.
+        conn.execute(
+            &format!(
+                "INSERT INTO {} (table_name) VALUES ('haex_not_yet')",
+                TABLE_CRDT_PENDING_TABLES
+            ),
+            [],
+        )
+        .unwrap();
+
+        // Not recoverable yet — the table doesn't exist.
+        let before = get_recoverable_pending_tables_inner(conn).unwrap();
+        assert!(
+            before.is_empty(),
+            "marker for non-existent table must not be recoverable: {before:?}"
+        );
+
+        // Create the table locally (simulates extension install).
+        conn.execute_batch("CREATE TABLE haex_not_yet (id TEXT PRIMARY KEY)")
+            .unwrap();
+
+        let after = get_recoverable_pending_tables_inner(conn).unwrap();
+        assert_eq!(
+            after,
+            vec!["haex_not_yet".to_string()],
+            "marker must be returned once the table exists locally"
+        );
+
+        // Clear the marker.
+        clear_pending_table_inner(conn, "haex_not_yet").unwrap();
+
+        let cleared = get_recoverable_pending_tables_inner(conn).unwrap();
+        assert!(
+            cleared.is_empty(),
+            "marker must be gone after clear: {cleared:?}"
+        );
+    }
+
+    // Regression: applying an older remote change to column B must not regress
+    // the row's haex_hlc below the current value (set by a newer local change
+    // to column A). A regressed haex_hlc would let an older remote delete win
+    // against the newer local write (delete_propagation.rs resurrection check).
+    #[test]
+    fn row_hlc_never_regresses_when_applying_older_changes() {
+        let db = setup_db();
+
+        // Seed an existing row: column A written at T=10, column B written at T=3,
+        // so the row's haex_hlc is T=10.
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO devices (id, space_id, avatar, haex_hlc, haex_column_hlcs) \
+                 VALUES ('dev-1', 's1', 'old.png', '10/aaa', '{\"space_id\":\"10/aaa\",\"avatar\":\"3/aaa\"}')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // Apply a remote change to column B (avatar) with HLC T=5 — newer than
+        // the column B's current HLC (T=3) so it applies, but older than the
+        // row's current haex_hlc (T=10).
+        let changes = vec![change(r#"{"id":"dev-1"}"#, "avatar", "new.png", "5/aaa")];
+        let result = apply_remote_changes_to_db(&db, changes, None, None);
+        assert!(result.is_ok(), "apply must succeed: {result:?}");
+
+        // Column B must carry the new value and its column HLC must be T=5.
+        let (avatar_val, col_hlcs_str, row_hlc): (String, String, String) = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row(
+                "SELECT avatar, haex_column_hlcs, haex_hlc FROM devices WHERE id = 'dev-1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!(avatar_val, "new.png", "column B value must be updated");
+        let col_hlcs: serde_json::Map<String, JsonValue> =
+            serde_json::from_str(&col_hlcs_str).unwrap();
+        assert_eq!(
+            col_hlcs.get("avatar").and_then(|v| v.as_str()),
+            Some("5/aaa"),
+            "column B HLC must be T=5"
+        );
+        assert_eq!(
+            row_hlc, "10/aaa",
+            "row haex_hlc must not regress below T=10 after applying an older T=5 change"
         );
     }
 }

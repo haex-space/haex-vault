@@ -479,6 +479,8 @@ pub fn run() {
             database::migrations::get_all_core_migrations,
             database::migrations::get_pending_columns,
             database::migrations::clear_pending_column,
+            database::migrations::get_recoverable_pending_tables,
+            database::migrations::clear_pending_table,
             logging::commands::log_write_system,
             logging::commands::log_read,
             logging::commands::log_count,

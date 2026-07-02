@@ -16,6 +16,29 @@ import { streamPullAndApplyAsync } from './page'
 import { applyRemoteChangesInTransactionAsync, verifyPulledChangesAsync } from './apply'
 
 /**
+ * Resolves the initial cursor for a pull cycle, applying the pending-tables
+ * recovery logic.
+ *
+ * If any recoverable pending tables exist (tables that were skipped during a
+ * prior apply because the extension was not yet installed, but are now present
+ * locally), the cursor is reset to null so a full re-pull covers the gap.
+ * Otherwise the persisted cursor is returned unchanged.
+ *
+ * @param persistedCursor - The last known server timestamp from the backend record.
+ * @param recoverablePendingTables - Table names returned by get_recoverable_pending_tables.
+ * @returns The cursor to use and the list of tables that triggered the reset.
+ */
+export function resolveInitialCursor(
+  persistedCursor: string | null,
+  recoverablePendingTables: string[],
+): { cursor: string | null; recoveredTables: string[] } {
+  if (recoverablePendingTables.length > 0) {
+    return { cursor: null, recoveredTables: recoverablePendingTables }
+  }
+  return { cursor: persistedCursor, recoveredTables: [] }
+}
+
+/**
  * Pulls changes from a specific backend using column-level HLC comparison.
  *
  * Streams pages from the server and applies each one immediately, splitting
@@ -69,10 +92,23 @@ export const pullFromBackendAsync = async (
     }
 
     const lastPullServerTimestamp = backend.lastPullServerTimestamp
+
+    // Check for tables that were skipped in a prior apply because the extension
+    // was not yet installed but are now present locally. If any are found,
+    // reset the cursor to null so a full re-pull covers the gap.
+    const recoverableTables = await invoke<string[]>('get_recoverable_pending_tables')
+    const { cursor: initialCursor, recoveredTables } = resolveInitialCursor(
+      lastPullServerTimestamp || null,
+      recoverableTables,
+    )
+    if (recoveredTables.length > 0) {
+      log.debug(`Pending-tables recovery: resetting cursor to null for tables: ${recoveredTables.join(', ')}`)
+    }
+
     log.debug('Pull config:', {
       backendId,
       spaceId: backend.spaceId,
-      lastPullServerTimestamp: lastPullServerTimestamp || '(none - full sync)',
+      lastPullServerTimestamp: initialCursor || '(none - full sync)',
     })
 
     const federation = backend.type === 'relay' && backend.homeServerDid && backend.originServerDid
@@ -82,7 +118,7 @@ export const pullFromBackendAsync = async (
     const streamResult = await streamPullAndApplyAsync({
       homeServerUrl: backend.homeServerUrl,
       spaceId: backend.spaceId,
-      initialCursor: lastPullServerTimestamp || null,
+      initialCursor,
       encryptionKey,
       backendId,
       backendIdentityId: backend.identityId,
@@ -100,6 +136,15 @@ export const pullFromBackendAsync = async (
     })
 
     const { totalApplied, pageCount, tablesAffected } = streamResult
+
+    // Pull succeeded — clear pending-table markers for tables that triggered a
+    // cursor reset. Do this before the early-return so a zero-changes re-pull
+    // (table existed but had no new data) still clears the marker.
+    for (const tableName of recoveredTables) {
+      await invoke('clear_pending_table', { tableName })
+      log.debug(`Cleared pending-table marker: ${tableName}`)
+    }
+
     if (totalApplied === 0) {
       log.info('PULL COMPLETE: No new changes from server')
       return

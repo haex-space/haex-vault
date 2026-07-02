@@ -21,7 +21,7 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
 use crate::crdt::hlc::HlcService;
@@ -314,7 +314,42 @@ fn handle_owner_push(
         };
     }
 
+    // Notify the receiving device's own frontend so UI stores (vault settings,
+    // passwords, spaces, etc.) reload without waiting for a manual vault reopen.
+    // Mirrors the space-scoped SyncPush emit in
+    // `leader::dispatch::handle_delivery_request`. Without this, an owner-vault
+    // change pushed FROM another device is applied to the DB here but the Pinia
+    // stores never learn about it — the fix for the "language switch invisible
+    // until vault reopen" reactivity bug.
+    let affected_tables = affected_tables_from_changes(&local_changes);
+    if !affected_tables.is_empty() {
+        let _ = app_handle.emit_to(
+            "main",
+            "local-sync-completed",
+            serde_json::json!({
+                // Owner-sync is vault-scoped; no space_id is meaningful here.
+                // The frontend listener dispatches purely on `tables`.
+                "spaceId": "",
+                "tables": affected_tables,
+            }),
+        );
+    }
+
     Response::Ok
+}
+
+/// Collect the distinct table names touched by an owner-push change set. Pure
+/// so the emitted `local-sync-completed` payload shape stays under unit-test
+/// control (breaking the derivation would silently break UI reactivity, since
+/// the frontend dispatches store reloads purely on this table list).
+pub(super) fn affected_tables_from_changes(changes: &[LocalColumnChange]) -> Vec<String> {
+    let mut set: HashSet<&str> = HashSet::new();
+    for c in changes {
+        set.insert(c.table_name.as_str());
+    }
+    let mut out: Vec<String> = set.into_iter().map(String::from).collect();
+    out.sort();
+    out
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ use iroh::{
     endpoint::{QuicTransportConfig, VarInt},
     Endpoint, EndpointId, RelayMode, RelayUrl,
 };
+use iroh_mdns_address_lookup::MdnsAddressLookup;
 
 use tauri::Emitter;
 
@@ -91,9 +92,7 @@ impl PeerEndpoint {
                 crate::space_delivery::local::protocol::ALPN.to_vec(),
             ])
             .relay_mode(relay_mode)
-            .address_lookup(
-                iroh::address_lookup::MdnsAddressLookup::builder().service_name("haex-peer"),
-            )
+            .address_lookup(MdnsAddressLookup::builder().service_name("haex-peer"))
             .transport_config(transport_config)
             .bind();
         let endpoint = tokio::time::timeout(std::time::Duration::from_secs(15), bind_future)

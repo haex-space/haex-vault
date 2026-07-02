@@ -14,4 +14,14 @@ ignore = [
   # still pins 0.0.7 of the chacha crate. Lift when libcrux-aead releases the
   # bumped point version.
   "RUSTSEC-2026-0124", # libcrux-chacha20poly1305: potential panic on overlong ciphertext buffer
+
+  # quick-xml 0.38.4 is pulled transitively by rust-s3 (^0.38), aws-creds (^0.38)
+  # and plist (0.39 in 1.9.0, still <0.41). Both advisories are DoS-only and fixed
+  # in quick-xml >=0.41.0. We do not feed attacker-controlled XML into these
+  # paths (rust-s3/aws-creds only parse S3 responses from our trusted sync
+  # backends; plist only reads our own bundle metadata). Lift once rust-s3 and
+  # plist ship releases pinning quick-xml >=0.41
+  # (verify via `cargo tree -i quick-xml`).
+  "RUSTSEC-2026-0194", # quick-xml: unbounded namespace-declaration allocation in NsReader (DoS)
+  "RUSTSEC-2026-0195", # quick-xml: quadratic runtime on duplicate attribute names in start tags (DoS)
 ]

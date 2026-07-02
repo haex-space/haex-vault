@@ -11,10 +11,12 @@ mod tests;
 mod apply;
 mod load;
 mod pending_columns;
+mod pending_tables;
 mod query;
 
 pub use apply::*;
 pub use pending_columns::*;
+pub use pending_tables::*;
 pub use query::*;
 
 /// Drizzle migration journal entry
