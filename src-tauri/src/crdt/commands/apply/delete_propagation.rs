@@ -87,36 +87,37 @@ pub(super) fn create_conflict_entry(
 
     let local_pk_json = match conflict_values {
         None => "{}".to_string(),
-        Some(values) => {
-            let where_clause = conflict_cols
-                .iter()
-                .enumerate()
-                .map(|(i, c)| format!("\"{}\" = ?{}", c, i + 1))
-                .collect::<Vec<_>>()
-                .join(" AND ");
-            let query_sql = format!(
-                "SELECT {} FROM \"{}\" WHERE {} LIMIT 1",
-                pk_select, table_name, where_clause
-            );
-            let sql_params = match json_values_to_sql_params(&values) {
-                Ok(p) => p,
-                Err(_) => return Ok(()),
-            };
-            let param_refs: Vec<&dyn rusqlite::ToSql> = sql_params
-                .iter()
-                .map(|v| v as &dyn rusqlite::ToSql)
-                .collect();
-            tx.query_row(&query_sql, param_refs.as_slice(), |row| {
-                let mut local_pk = serde_json::Map::new();
-                for (i, pk_col) in pk_columns.iter().enumerate() {
-                    if let Ok(val) = row.get::<_, String>(i) {
-                        local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
+        Some(values) => match json_values_to_sql_params(&values) {
+            // Conversion failure degrades to the fallback — the conflict
+            // entry must still be recorded below.
+            Err(_) => "{}".to_string(),
+            Ok(sql_params) => {
+                let where_clause = conflict_cols
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| format!("\"{}\" = ?{}", c, i + 1))
+                    .collect::<Vec<_>>()
+                    .join(" AND ");
+                let query_sql = format!(
+                    "SELECT {} FROM \"{}\" WHERE {} LIMIT 1",
+                    pk_select, table_name, where_clause
+                );
+                let param_refs: Vec<&dyn rusqlite::ToSql> = sql_params
+                    .iter()
+                    .map(|v| v as &dyn rusqlite::ToSql)
+                    .collect();
+                tx.query_row(&query_sql, param_refs.as_slice(), |row| {
+                    let mut local_pk = serde_json::Map::new();
+                    for (i, pk_col) in pk_columns.iter().enumerate() {
+                        if let Ok(val) = row.get::<_, String>(i) {
+                            local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
+                        }
                     }
-                }
-                Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
-            })
-            .unwrap_or_else(|_| "{}".to_string())
-        }
+                    Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
+                })
+                .unwrap_or_else(|_| "{}".to_string())
+            }
+        },
     };
 
     // Generate conflict ID and timestamp
