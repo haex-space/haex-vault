@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.12.4](https://github.com/haex-space/haex-vault/compare/v2.12.3...v2.12.4) (2026-07-02)
+
+
+### Bug Fixes
+
+* **crdt:** degrade to empty local_row_id when param conversion fails ([1a4c07e](https://github.com/haex-space/haex-vault/commit/1a4c07e6f1623bce0444d6f5d565e7b4c97daecb))
+* **crdt:** never regress row haex_hlc when applying older remote changes ([5f3581f](https://github.com/haex-space/haex-vault/commit/5f3581f1cb85ab7c542c54fc2b34a8d1c2aeb569))
+* **crdt:** never regress row haex_hlc when applying older remote changes ([5f3581f](https://github.com/haex-space/haex-vault/commit/5f3581f1cb85ab7c542c54fc2b34a8d1c2aeb569))
+* **crdt:** never regress row haex_hlc when applying older remote changes ([9a6f96c](https://github.com/haex-space/haex-vault/commit/9a6f96c5238adc429b8720d15913ae08edb29b79))
+* **crdt:** propagate advance_past_remote failures to the apply caller ([14826b4](https://github.com/haex-space/haex-vault/commit/14826b44b23522ba695bd5aab43170caa4b5c200))
+* **crdt:** propagate advance_past_remote failures to the apply caller ([14826b4](https://github.com/haex-space/haex-vault/commit/14826b44b23522ba695bd5aab43170caa4b5c200))
+* **crdt:** propagate advance_past_remote failures to the apply caller ([ecf1944](https://github.com/haex-space/haex-vault/commit/ecf1944992c939e209770ecd4e55dd71a58fb44f))
+* **crdt:** record the actual conflicting row in UNIQUE conflict entries ([acc94f7](https://github.com/haex-space/haex-vault/commit/acc94f7b35bf66686c3fc133ebb9ccf2a9c889e1))
+* **crdt:** record the actual conflicting row in UNIQUE conflict entries ([998a8fa](https://github.com/haex-space/haex-vault/commit/998a8fad28d0b509b263baef995a6339442a646a))
+* **owner-sync:** emit local-sync-completed after handle_owner_push ([7a851fc](https://github.com/haex-space/haex-vault/commit/7a851fc14323e21d5a1004d54377641604f12358))
+* **owner-sync:** emit local-sync-completed after handle_owner_push ([9831d37](https://github.com/haex-space/haex-vault/commit/9831d37baa458d2e37f96516a6f1a4f82733d596))
+* **sync:** recover tables skipped during apply via pending-tables marker and cursor reset ([2b5de31](https://github.com/haex-space/haex-vault/commit/2b5de317becab6bcebbb98ba6454e28373cbe07f))
+* **sync:** recover tables skipped during apply via pending-tables marker and cursor reset ([fc8618f](https://github.com/haex-space/haex-vault/commit/fc8618f9ada1539347071b5bcc2ee4e9f3e0a0bd))
+
 ## [2.12.3](https://github.com/haex-space/haex-vault/compare/v2.12.2...v2.12.3) (2026-07-01)
 
 
