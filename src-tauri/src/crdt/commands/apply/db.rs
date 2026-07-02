@@ -1,4 +1,4 @@
-use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcService};
+use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcError, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, is_safe_identifier, COLUMN_HLCS_COLUMN,
@@ -655,7 +655,27 @@ pub fn apply_remote_changes_to_db(
                     max.unwrap_or_default().to_string()
                 }
             };
-            hlc.advance_past_remote(&max_hlc_str);
+            // Runs after tx.commit() by design: a crash between commit and advance is
+            // healed by the idempotent re-apply of the same batch on the next cycle.
+            if let Err(e) = hlc.advance_past_remote(&max_hlc_str) {
+                match e {
+                    // A malformed max-HLC cannot be fixed by retrying the same batch —
+                    // log loudly and continue so the sync loop does not wedge.
+                    HlcError::Parse(_) => {
+                        eprintln!(
+                            "[SYNC RUST] CRITICAL: HLC advance skipped (unparseable max HLC): {e:?}"
+                        );
+                    }
+                    // NotInitialized / MutexPoisoned / other service-state errors:
+                    // fail the apply so the pull cursor does not advance and the batch
+                    // (idempotent) is retried after restart.
+                    other => {
+                        return Err(DatabaseError::DatabaseError {
+                            reason: format!("HLC advance failed after apply: {other:?}"),
+                        });
+                    }
+                }
+            }
         }
 
         Ok(())
