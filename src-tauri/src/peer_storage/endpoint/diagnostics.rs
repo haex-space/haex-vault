@@ -25,8 +25,8 @@ pub(super) fn compute_diagnostics(conn: &iroh::endpoint::Connection) -> Connecti
         };
     }
 
-    let info = conn.to_info();
-    let (path_type, remote_addr, rtt_ms) = match info.selected_path() {
+    let paths = conn.paths();
+    let (path_type, remote_addr, rtt_ms) = match paths.iter().find(|p| p.is_selected()) {
         Some(path) => {
             let path_type = if path.is_relay() {
                 PathType::Relay
@@ -35,7 +35,7 @@ pub(super) fn compute_diagnostics(conn: &iroh::endpoint::Connection) -> Connecti
             } else {
                 PathType::Unknown
             };
-            let rtt_ms = path.rtt().map(|d| d.as_secs_f64() * 1000.0);
+            let rtt_ms = Some(path.rtt().as_secs_f64() * 1000.0);
             let remote_addr = Some(format!("{:?}", path.remote_addr()));
             (path_type, remote_addr, rtt_ms)
         }
@@ -49,12 +49,12 @@ pub(super) fn compute_diagnostics(conn: &iroh::endpoint::Connection) -> Connecti
     }
 }
 
-/// Spawn a task that watches `conn.paths()` and emits a Tauri
-/// `peer-storage:connection-changed` event each time iroh switches the selected
-/// network path (direct↔relay) or the connection is dropped. The task
-/// self-terminates when the watcher returns `Disconnected` — i.e., when the
-/// underlying iroh `Watchable` is dropped (connection torn down end to end), so
-/// there is no explicit lifecycle to manage from the caller side.
+/// Spawn a task that subscribes to `conn.path_events()` and emits a Tauri
+/// `peer-storage:connection-changed` event each time iroh opens/closes a
+/// network path or switches the selected one (direct↔relay). The task
+/// self-terminates when the event stream ends — i.e., when the connection
+/// is torn down end to end — so there is no explicit lifecycle to manage
+/// from the caller side.
 ///
 /// A peer can have more than one connection alive at once (inbound + outbound,
 /// or a stale connection lingering across a reconnect), each with its own
@@ -72,8 +72,11 @@ pub(super) fn spawn_connection_watcher(
 ) {
     let node_id_str = remote_id.to_string();
     tokio::spawn(async move {
-        use iroh::Watcher;
-        let mut watcher = conn.paths();
+        use futures_util::StreamExt;
+        // Subscribe BEFORE the initial snapshot emit: iroh guarantees any
+        // path change between the snapshot read and the first poll is
+        // still delivered on the stream, so no transition can be missed.
+        let mut events = conn.path_events();
 
         // Register this connection before emitting anything, so a concurrent
         // disconnect of a sibling connection can see we're still here.
@@ -87,11 +90,8 @@ pub(super) fn spawn_connection_watcher(
         // path switch.
         emit_connection_changed(&state, &node_id_str, &conn).await;
 
-        loop {
-            match watcher.updated().await {
-                Ok(_paths) => emit_connection_changed(&state, &node_id_str, &conn).await,
-                Err(_disconnected) => break,
-            }
+        while let Some(_event) = events.next().await {
+            emit_connection_changed(&state, &node_id_str, &conn).await;
         }
 
         // This connection is gone. Deregister and only signal `Closed` once
