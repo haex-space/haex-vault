@@ -257,11 +257,11 @@ pub fn apply_remote_changes_to_db(
 
                 // Check if row exists and get current HLCs
                 let check_sql = format!(
-                    "SELECT haex_column_hlcs FROM \"{}\" WHERE {}",
+                    "SELECT haex_column_hlcs, haex_hlc FROM \"{}\" WHERE {}",
                     first_change.table_name, pk_where_clause
                 );
 
-                let current_hlcs: Option<String> = {
+                let current_hlcs: Option<(String, String)> = {
                     let mut stmt = tx.prepare(&check_sql).map_err(DatabaseError::from)?;
                     let params = json_values_to_sql_params(&pk_values_for_query)?;
                     let params_refs: Vec<&dyn rusqlite::ToSql> =
@@ -271,8 +271,12 @@ pub fn apply_remote_changes_to_db(
                     // error (locking, schema mismatch, etc.) must surface so the
                     // caller does not silently treat a transient failure as
                     // "no existing row" and overwrite live state.
-                    match stmt.query_row(&*params_refs, |row| row.get(0)) {
-                        Ok(hlcs) => Some(hlcs),
+                    match stmt.query_row(&*params_refs, |row| {
+                        let column_hlcs: String = row.get(0)?;
+                        let row_hlc: Option<String> = row.get(1)?;
+                        Ok((column_hlcs, row_hlc.unwrap_or_default()))
+                    }) {
+                        Ok(pair) => Some(pair),
                         Err(rusqlite::Error::QueryReturnedNoRows) => None,
                         Err(e) => return Err(DatabaseError::from(e)),
                     }
@@ -282,12 +286,14 @@ pub fn apply_remote_changes_to_db(
                 let row_exists = current_hlcs.is_some();
 
                 // Parse current HLCs
-                let mut column_hlcs: serde_json::Map<String, JsonValue> =
-                    if let Some(hlcs_str) = current_hlcs {
-                        serde_json::from_str(&hlcs_str).unwrap_or_default()
-                    } else {
-                        serde_json::Map::new()
-                    };
+                let (current_row_hlc, mut column_hlcs): (
+                    String,
+                    serde_json::Map<String, JsonValue>,
+                ) = if let Some((hlcs_str, row_hlc)) = current_hlcs {
+                    (row_hlc, serde_json::from_str(&hlcs_str).unwrap_or_default())
+                } else {
+                    (String::new(), serde_json::Map::new())
+                };
 
                 // Build a set of existing column names for quick lookup
                 let existing_columns: std::collections::HashSet<&str> =
@@ -371,6 +377,14 @@ pub fn apply_remote_changes_to_db(
                     })?;
 
                     if row_exists {
+                        // Never regress the row-level haex_hlc: an incoming batch can legally be
+                        // older than the row's current HLC (column-level CRDT). The row HLC feeds
+                        // the delete-resurrection comparison, so regressing it would let an older
+                        // remote delete win against a newer local write.
+                        if hlc_is_newer(&current_row_hlc, &max_hlc_for_row) {
+                            max_hlc_for_row = current_row_hlc.clone();
+                        }
+
                         // Row exists, update it with all changed columns
                         let set_clauses: Vec<String> = columns_to_update
                             .iter()
@@ -753,6 +767,59 @@ mod tests {
             row_count(&db, "id = 'bad'"),
             0,
             "partial row must be skipped"
+        );
+    }
+
+    // Regression: applying an older remote change to column B must not regress
+    // the row's haex_hlc below the current value (set by a newer local change
+    // to column A). A regressed haex_hlc would let an older remote delete win
+    // against the newer local write (delete_propagation.rs resurrection check).
+    #[test]
+    fn row_hlc_never_regresses_when_applying_older_changes() {
+        let db = setup_db();
+
+        // Seed an existing row: column A written at T=10, column B written at T=3,
+        // so the row's haex_hlc is T=10.
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO devices (id, space_id, avatar, haex_hlc, haex_column_hlcs) \
+                 VALUES ('dev-1', 's1', 'old.png', '10/aaa', '{\"space_id\":\"10/aaa\",\"avatar\":\"3/aaa\"}')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // Apply a remote change to column B (avatar) with HLC T=5 — newer than
+        // the column B's current HLC (T=3) so it applies, but older than the
+        // row's current haex_hlc (T=10).
+        let changes = vec![change(r#"{"id":"dev-1"}"#, "avatar", "new.png", "5/aaa")];
+        let result = apply_remote_changes_to_db(&db, changes, None, None);
+        assert!(result.is_ok(), "apply must succeed: {result:?}");
+
+        // Column B must carry the new value and its column HLC must be T=5.
+        let (avatar_val, col_hlcs_str, row_hlc): (String, String, String) = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row(
+                "SELECT avatar, haex_column_hlcs, haex_hlc FROM devices WHERE id = 'dev-1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!(avatar_val, "new.png", "column B value must be updated");
+        let col_hlcs: serde_json::Map<String, JsonValue> =
+            serde_json::from_str(&col_hlcs_str).unwrap();
+        assert_eq!(
+            col_hlcs.get("avatar").and_then(|v| v.as_str()),
+            Some("5/aaa"),
+            "column B HLC must be T=5"
+        );
+        assert_eq!(
+            row_hlc, "10/aaa",
+            "row haex_hlc must not regress below T=10 after applying an older T=5 change"
         );
     }
 }
