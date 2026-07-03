@@ -108,3 +108,16 @@ const pageModel = computed({
   set: (value: number) => emit('update:currentPage', value),
 })
 </script>
+
+<i18n lang="yaml">
+de:
+  loading: Erweiterungen werden geladen...
+  empty:
+    title: Keine Erweiterungen gefunden
+    description: Versuche einen anderen Suchbegriff oder eine andere Kategorie
+en:
+  loading: Loading extensions...
+  empty:
+    title: No extensions found
+    description: Try a different search term or category
+</i18n>
