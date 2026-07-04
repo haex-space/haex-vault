@@ -150,6 +150,21 @@
                 <span>{{ item.label }}</span>
               </span>
             </template>
+            <template #add-share-storage="{ item }">
+              <span
+                class="flex items-center gap-1.5"
+                :class="{ 'opacity-50': item.disabled }"
+                :title="item.disabled ? t('actions.shareStorageDisabledTooltip') : undefined"
+                :data-testid="`space-share-storage-${space.id}`"
+              >
+                <UIcon
+                  v-if="item.icon"
+                  :name="item.icon"
+                  class="w-4 h-4"
+                />
+                <span>{{ item.label }}</span>
+              </span>
+            </template>
           </UDropdownMenu>
           <UiButton
             v-if="isAdmin || canInvite"
@@ -342,8 +357,11 @@
 </template>
 
 <script setup lang="ts">
+import { eq } from 'drizzle-orm'
 import type { SpaceWithType } from '@/stores/spaces/types'
 import type { SelectHaexPendingInvites } from '~/database/schemas'
+import { haexS3Backends } from '~/database/schemas'
+import { requireDb } from '~/stores/vault'
 import SpaceOwnerModal from './SpaceOwnerModal.vue'
 
 const props = withDefaults(defineProps<{
@@ -361,6 +379,7 @@ const emit = defineEmits<{
   select: [space: SpaceWithType]
   edit: [space: SpaceWithType]
   'add-share': [payload: { space: SpaceWithType, type: 'folder' | 'file' }]
+  'share-storage-clicked': [space: SpaceWithType]
   'invite-contact': [space: SpaceWithType]
   'invite-link': [space: SpaceWithType]
   delete: [space: SpaceWithType]
@@ -422,6 +441,30 @@ const canWrite = computed(() =>
   || capabilities.value.includes('space/write'),
 )
 
+// Count of owner-side S3 backends. Drives the disabled state of the "Share
+// S3 Bucket" menu entry: only users who have configured a cloud storage in
+// Settings → Cloud Storage can share one into a Space (design doc §7.1).
+// A cheap SELECT keeps the composable out of stores; the count is only
+// re-read when the parent list re-renders this row, which is fine — a first
+// share still guards the user against clicking through with zero backends.
+const ownedS3BackendCount = ref(0)
+
+const loadOwnedS3BackendCountAsync = async () => {
+  try {
+    const db = requireDb()
+    const rows = await db
+      .select({ id: haexS3Backends.id })
+      .from(haexS3Backends)
+      .where(eq(haexS3Backends.originType, 'owned'))
+    ownedS3BackendCount.value = rows.length
+  } catch {
+    // No DB / vault not open yet — keep count at 0, item stays disabled.
+    ownedS3BackendCount.value = 0
+  }
+}
+
+const canShareStorage = computed(() => ownedS3BackendCount.value > 0)
+
 const addShareMenuItems = computed(() => [
   [{
     label: t('actions.addFolder'),
@@ -434,6 +477,16 @@ const addShareMenuItems = computed(() => [
     icon: 'i-lucide-file-plus',
     slot: 'add-share-file' as const,
     onSelect: () => emit('add-share', { space: props.space, type: 'file' }),
+  },
+  {
+    label: t('actions.shareStorage'),
+    icon: 'i-lucide-cloud',
+    slot: 'add-share-storage' as const,
+    disabled: !canShareStorage.value,
+    onSelect: () => {
+      if (!canShareStorage.value) return
+      emit('share-storage-clicked', props.space)
+    },
   }],
 ])
 
@@ -470,6 +523,10 @@ onMounted(async () => {
     // Pending invite: ensure contacts are loaded so resolvedInviterLabel can
     // prefer the local contact name over the untrusted remote label.
     await identityStore.loadIdentitiesAsync()
+  } else {
+    // Active space: check whether the user has any owned S3 backend so the
+    // "Share S3 Bucket" menu entry can render in the correct enabled state.
+    await loadOwnedS3BackendCountAsync()
   }
 })
 
@@ -548,6 +605,8 @@ de:
     addShare: Datei oder Ordner hinzufügen
     addFolder: Ordner hinzufügen
     addFile: Datei hinzufügen
+    shareStorage: S3-Bucket teilen
+    shareStorageDisabledTooltip: Konfiguriere zuerst einen Cloud Storage in Einstellungen → Cloud Storage
   invite:
     from: Von
     contact: Kontakt einladen
@@ -579,6 +638,8 @@ en:
     addShare: Add file or folder
     addFolder: Add folder
     addFile: Add file
+    shareStorage: Share S3 bucket
+    shareStorageDisabledTooltip: Configure a Cloud Storage first in Settings → Cloud Storage
   invite:
     from: From
     contact: Invite contact

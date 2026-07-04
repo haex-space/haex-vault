@@ -41,6 +41,7 @@
         @decline-invite="onDeclineInviteAsync"
         @edit-space="openEditDialog"
         @add-share="onAddShareAsync"
+        @share-storage-clicked="onShareStorageClicked"
         @invite-contact="openInviteDialog($event, 'contact')"
         @invite-link="openInviteDialog($event, 'link')"
         @delete-space="prepareDeleteSpace"
@@ -109,6 +110,14 @@ const selectedSpaceId = computed(
 
 const openSpaceDetail = (space: SpaceWithType) => {
   navigateTo('detail', { spaceId: space.id })
+}
+
+// Placeholder for the share-storage drawer. Task H2 will replace this with
+// the actual drawer wiring (open ShareStorageDrawer, pass space, etc.).
+// Kept as a no-op here so H1 lands independently: the menu entry is wired
+// end-to-end and the disabled state is verifiable, but no UI opens yet.
+const onShareStorageClicked = (_space: SpaceWithType) => {
+  // TODO(H2): open ShareStorageDrawer for _space
 }
 
 const spacesStore = useSpacesStore()
