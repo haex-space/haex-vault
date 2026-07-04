@@ -80,6 +80,13 @@
         :description="t('leave.description')"
         @confirm="onConfirmLeaveAsync"
       />
+
+      <ShareStorageDrawer
+        v-if="shareStorageSpace"
+        v-model:open="showShareStorageDrawer"
+        :space-id="shareStorageSpace.id"
+        :space-name="shareStorageSpace.name"
+      />
     </div>
   </Transition>
 </template>
@@ -88,6 +95,7 @@
 import SpaceDetail from './spaces/SpaceDetail.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import SpaceEditDialog from './spaces/SpaceEditDialog.vue'
+import ShareStorageDrawer from './spaces/share-storage-drawer/index.vue'
 import SpacesIndexView, {
   type SpaceListEntry,
 } from './spaces/SpacesIndexView.vue'
@@ -112,12 +120,16 @@ const openSpaceDetail = (space: SpaceWithType) => {
   navigateTo('detail', { spaceId: space.id })
 }
 
-// Placeholder for the share-storage drawer. Task H2 will replace this with
-// the actual drawer wiring (open ShareStorageDrawer, pass space, etc.).
-// Kept as a no-op here so H1 lands independently: the menu entry is wired
-// end-to-end and the disabled state is verifiable, but no UI opens yet.
-const onShareStorageClicked = (_space: SpaceWithType) => {
-  // TODO(H2): open ShareStorageDrawer for _space
+// Share-storage drawer state. Opened by the "+" menu entry on active space
+// rows (see SpaceListItem's `share-storage-clicked` emit). We keep the target
+// space around so both `spaceId` and `spaceName` can be forwarded to the drawer
+// (the drawer surfaces `spaceName` in the orthogonality warning).
+const shareStorageSpace = ref<SpaceWithType | null>(null)
+const showShareStorageDrawer = ref(false)
+
+const onShareStorageClicked = (space: SpaceWithType) => {
+  shareStorageSpace.value = space
+  showShareStorageDrawer.value = true
 }
 
 const spacesStore = useSpacesStore()
