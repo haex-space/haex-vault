@@ -31,6 +31,7 @@ use crate::remote_storage::iam_adapter::{
 };
 use crate::remote_storage::iam_admin_creds::{self, IamAdminCred};
 use crate::remote_storage::iam_policy::{build_object_policy, build_policy};
+use crate::remote_storage::provider::ProviderKind;
 use crate::table_names::{
     COL_S3_BACKENDS_CONFIG, COL_S3_BACKENDS_ID, COL_S3_BACKENDS_NAME, COL_S3_BACKENDS_TYPE,
     COL_SPACES_ID, COL_SPACES_NAME, TABLE_S3_BACKENDS, TABLE_SHARED_SPACE_SYNC, TABLE_SPACES,
@@ -49,8 +50,9 @@ use crate::AppState;
 pub struct IamAdminCredHint {
     pub access_key_id: String,
     pub secret_access_key: String,
-    /// `"aws"` or `"wasabi"`. Anything else is rejected upfront.
-    pub provider_type: String,
+    /// Provider identity. Unknown wire values fail at serde deserialisation
+    /// and surface to the frontend as an argument error.
+    pub provider_type: ProviderKind,
 }
 
 /// Arguments to `share_storage_backend`.
@@ -143,13 +145,11 @@ impl IamAdapterFactory for DefaultIamAdapterFactory {
 }
 
 fn provider_flavor_from(cred: &IamAdminCred) -> Result<ProviderFlavor, StorageError> {
-    match cred.provider_type.as_str() {
-        "aws" => Ok(ProviderFlavor::Aws),
-        "wasabi" => Ok(ProviderFlavor::Wasabi),
-        other => Err(StorageError::UnsupportedProvider {
-            provider_type: other.to_string(),
-        }),
-    }
+    cred.provider_type
+        .to_flavor()
+        .map_err(|e| StorageError::UnsupportedProvider {
+            provider_type: format!("{}: {e}", cred.provider_type.to_slug()),
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -436,14 +436,13 @@ fn obtain_iam_admin_cred(
     if let Some(hint) = args.iam_admin_cred_hint.as_ref() {
         // Validate the provider before we accept the hint — surfaces the
         // bad-input error before we perform an on-disk write we'd then
-        // need to roll back.
-        match hint.provider_type.as_str() {
-            "aws" | "wasabi" => {}
-            other => {
-                return Err(StorageError::UnsupportedProvider {
-                    provider_type: other.to_string(),
-                });
-            }
+        // need to roll back. `ProviderKind` is already a closed enum
+        // (unknown wire values fail at serde), so the only remaining
+        // reject case is a variant we accept but can't drive yet (MinIO).
+        if let Err(e) = hint.provider_type.to_flavor() {
+            return Err(StorageError::UnsupportedProvider {
+                provider_type: format!("{}: {e}", hint.provider_type.to_slug()),
+            });
         }
 
         // iam_admin_creds::{store,delete_by_storage} require a
@@ -459,7 +458,7 @@ fn obtain_iam_admin_cred(
         let cred = IamAdminCred {
             access_key_id: hint.access_key_id.clone(),
             secret_access_key: hint.secret_access_key.clone(),
-            provider_type: hint.provider_type.clone(),
+            provider_type: hint.provider_type,
         };
         // Wipe any previous entry so retries after a bad cred don't leak
         // stale (accessKeyId → provider_type) pairings.

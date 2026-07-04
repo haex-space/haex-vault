@@ -11,7 +11,7 @@
 //! - `haex_passwords_item_details.username = <access_key_id>`
 //! - `haex_passwords_item_details.password = <secret_access_key>`
 //! - `haex_passwords_item_key_values` row with `key = "provider_type"`,
-//!   `value ∈ {"aws","wasabi","minio"}`
+//!   `value` = the [`ProviderKind`] slug (lowercase variant name)
 //!
 //! All reads/writes go through the CRDT helpers so the entries sync to the
 //! owner's other devices the same way manual password entries do.
@@ -24,13 +24,15 @@ use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
 use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
+use crate::remote_storage::provider::ProviderKind;
 use serde_json::Value as JsonValue;
 use std::sync::MutexGuard;
 
 /// Materialised IAM-admin credential as stored/loaded from the vault.
 ///
 /// Custom `Debug` impl redacts both key fields to prevent accidental leaks
-/// via `tracing::debug!`, `dbg!`, or panic messages.
+/// via `tracing::debug!`, `dbg!`, or panic messages. The `provider_type`
+/// field is not a secret and remains visible in Debug output.
 #[derive(Clone, PartialEq, Eq)]
 pub struct IamAdminCred {
     /// The IAM access-key id.
@@ -38,9 +40,9 @@ pub struct IamAdminCred {
     /// The IAM secret-access-key. Handle with care — do not log or expose
     /// through public commands.
     pub secret_access_key: String,
-    /// Provider tag stored in the key-values junction. Expected values:
-    /// `"aws" | "wasabi" | "minio"`.
-    pub provider_type: String,
+    /// Provider tag stored in the key-values junction. The single source of
+    /// truth for the accepted provider set — see [`ProviderKind`].
+    pub provider_type: ProviderKind,
 }
 
 impl std::fmt::Debug for IamAdminCred {
@@ -101,7 +103,16 @@ pub fn load(db: &DbConnection, storage_id: &str) -> Result<Option<IamAdminCred>,
 
     let access_key_id = get_string(row, 1);
     let secret_access_key = get_string(row, 2);
-    let provider_type = get_string(row, 3);
+    let provider_slug = get_string(row, 3);
+
+    // Unknown provider slugs — data corruption, future removed variants —
+    // are treated as broken entry so callers get the same "cred not found"
+    // signal as an INNER-JOIN miss (see `load` doc-comment). A downstream
+    // signing failure with a mystery provider tag would be much harder to
+    // diagnose.
+    let Some(provider_type) = ProviderKind::from_slug(&provider_slug) else {
+        return Ok(None);
+    };
 
     Ok(Some(IamAdminCred {
         access_key_id,
@@ -163,7 +174,7 @@ pub fn store(
                 JsonValue::String(kv_id.clone()),
                 JsonValue::String(item_id.clone()),
                 JsonValue::String(PROVIDER_TYPE_KEY.to_string()),
-                JsonValue::String(cred.provider_type.clone()),
+                JsonValue::String(cred.provider_type.to_slug().to_string()),
             ],
         )?;
 

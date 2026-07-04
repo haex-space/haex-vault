@@ -13,6 +13,7 @@ pub mod iam_adapter;
 pub mod iam_admin_creds;
 pub mod iam_policy;
 pub mod progress;
+pub mod provider;
 pub mod queries;
 pub mod share_access_flags;
 pub mod share_command;
@@ -25,3 +26,4 @@ pub use iam_adapter::{
     AwsCompatIamAdapter, IamAdapter, IamAdapterError, ProviderFlavor, ScopedCred,
 };
 pub use iam_policy::{build_object_policy, build_policy, IamPolicy};
+pub use provider::{ProviderError, ProviderKind};

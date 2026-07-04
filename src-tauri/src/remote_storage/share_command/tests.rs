@@ -25,6 +25,7 @@ use crate::database::DbConnection;
 use crate::remote_storage::error::StorageError;
 use crate::remote_storage::iam_adapter::{IamAdapter, IamAdapterError, ProviderFlavor, ScopedCred};
 use crate::remote_storage::iam_policy::IamPolicy;
+use crate::remote_storage::provider::ProviderKind;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 
 // ---------------------------------------------------------------------------
@@ -271,7 +272,7 @@ fn make_hint() -> IamAdminCredHint {
     IamAdminCredHint {
         access_key_id: rand_string("AKIA"),
         secret_access_key: rand_string("secret"),
-        provider_type: "aws".to_string(),
+        provider_type: ProviderKind::Aws,
     }
 }
 
@@ -633,30 +634,56 @@ async fn storage_not_found_when_id_unknown() {
 }
 
 #[tokio::test]
-async fn unsupported_provider_rejected_in_hint() {
+async fn minio_provider_rejected_in_hint() {
+    // `ProviderKind` accepts MinIO but the adapter conversion refuses it.
+    // Rejection must happen BEFORE any IAM call or on-disk cred write.
     let (db, hlc, storage_id, space_id) = setup_share_db();
     let adapter = Arc::new(MockIamAdapter::new(
         Ok(true),
         Err(IamAdapterError::NotFound),
     ));
-    let factory = MockIamAdapterFactory { adapter };
+    let factory = MockIamAdapterFactory {
+        adapter: adapter.clone(),
+    };
 
-    let bad_hint = IamAdminCredHint {
+    let minio_hint = IamAdminCredHint {
         access_key_id: rand_string("AKIA"),
         secret_access_key: rand_string("secret"),
-        provider_type: "gcs".to_string(),
+        provider_type: ProviderKind::Minio,
     };
-    let args = args_with_hint(&storage_id, &space_id, bad_hint, 0b0001);
+    let args = args_with_hint(&storage_id, &space_id, minio_hint, 0b0001);
 
     let err = share_storage_backend_core(&db, &hlc, args, &factory)
         .await
-        .expect_err("unknown provider must be rejected");
+        .expect_err("MinIO must be rejected upfront");
     match err {
         StorageError::UnsupportedProvider { provider_type } => {
-            assert_eq!(provider_type, "gcs");
+            assert!(
+                provider_type.contains("minio"),
+                "message should mention minio, got {provider_type}"
+            );
         }
         other => panic!("expected UnsupportedProvider, got {other:?}"),
     }
+    // No IAM calls, no probe — early bail before we spend on the provider.
+    assert!(adapter.create_calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn unknown_provider_string_fails_at_serde_boundary() {
+    // Deserialising the args from the Tauri frontend rejects any value not
+    // in the closed `ProviderKind` set. This is the compile-time-flavored
+    // guarantee replacing the old runtime pairwise validators.
+    let raw = serde_json::json!({
+        "accessKeyId": "AKIA",
+        "secretAccessKey": "secret",
+        "providerType": "gcs",
+    });
+    let res: Result<IamAdminCredHint, _> = serde_json::from_value(raw);
+    assert!(
+        res.is_err(),
+        "unknown providerType must fail deserialisation"
+    );
 }
 
 // ---------------------------------------------------------------------------

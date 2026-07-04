@@ -27,6 +27,7 @@ use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
+use crate::remote_storage::provider::ProviderKind;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 
 /// Build an in-memory DB seeded with just what the IAM-admin cred store
@@ -112,7 +113,7 @@ fn rand_cred() -> IamAdminCred {
     IamAdminCred {
         access_key_id: rand_string("AKIA"),
         secret_access_key: rand_string("secret"),
-        provider_type: "aws".to_string(),
+        provider_type: ProviderKind::Aws,
     }
 }
 
