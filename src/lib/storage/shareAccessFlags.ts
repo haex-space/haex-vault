@@ -1,5 +1,5 @@
 // Mirrors src-tauri/src/remote_storage/share_access_flags/mod.rs.
-// Bit layout for haex_storage_backends.share_access_flags — keep in sync
+// Bit layout for haex_s3_backends.share_access_flags — keep in sync
 // with the Rust module.
 
 export const ShareAccessFlags = {

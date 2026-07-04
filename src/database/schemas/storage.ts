@@ -9,7 +9,7 @@ import {
 import tableNames from '@/database/tableNames.json'
 
 /**
- * Storage Backends (WITH CRDT - synced between devices)
+ * S3 Backends (WITH CRDT - synced between devices)
  * Central registry for S3-compatible storage backends.
  * Multiple extensions can share the same backend without the user
  * having to configure it multiple times.
@@ -20,30 +20,29 @@ import tableNames from '@/database/tableNames.json'
  * Note: CRDT columns and UNIQUE index WHERE conditions are added automatically
  * by the Rust CrdtTransformer.
  *
- * Supported types: 's3' (later: 'webdav', etc.)
- * Config structure depends on type - validated at runtime.
+ * Config structure:
+ *   { endpoint?, bucket, region, accessKeyId, secretAccessKey, pathStyle? }
  */
-export const haexStorageBackends = sqliteTable(
-  tableNames.haex.storage_backends.name,
+export const haexS3Backends = sqliteTable(
+  tableNames.haex.s3_backends.name,
   {
-    id: text(tableNames.haex.storage_backends.columns.id)
+    id: text(tableNames.haex.s3_backends.columns.id)
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    type: text(tableNames.haex.storage_backends.columns.type).notNull(), // 's3', später 'webdav', etc.
-    name: text(tableNames.haex.storage_backends.columns.name).notNull(),
-    // Config as JSON - structure depends on type, validated at runtime
-    // S3: { endpoint?, bucket, region, accessKeyId, secretAccessKey, pathStyle? }
-    // WebDAV (future): { url, username, password }
-    config: text(tableNames.haex.storage_backends.columns.config, { mode: 'json' })
+    type: text(tableNames.haex.s3_backends.columns.type).notNull(),
+    name: text(tableNames.haex.s3_backends.columns.name).notNull(),
+    // Config as JSON - S3-specific shape, validated at runtime
+    // { endpoint?, bucket, region, accessKeyId, secretAccessKey, pathStyle? }
+    config: text(tableNames.haex.s3_backends.columns.config, { mode: 'json' })
       .notNull()
       .$type<Record<string, unknown>>(),
-    enabled: integer(tableNames.haex.storage_backends.columns.enabled, {
+    enabled: integer(tableNames.haex.s3_backends.columns.enabled, {
       mode: 'boolean',
     })
       .default(true)
       .notNull(),
-    parentBackendId: text(tableNames.haex.storage_backends.columns.parentBackendId).references(
-      (): AnySQLiteColumn => haexStorageBackends.id,
+    parentBackendId: text(tableNames.haex.s3_backends.columns.parentBackendId).references(
+      (): AnySQLiteColumn => haexS3Backends.id,
       { onDelete: 'cascade' },
     ),
     // originType distinguishes the row's provenance:
@@ -51,21 +50,21 @@ export const haexStorageBackends = sqliteTable(
     //   'shared_from_space' — this row was created because another Space participant shared their
     //                         backend with us; parentBackendId references the owner-side row and
     //                         sharePrefix/shareAccessFlags describe the granted scope.
-    originType: text(tableNames.haex.storage_backends.columns.originType)
+    originType: text(tableNames.haex.s3_backends.columns.originType)
       .$type<'owned' | 'shared_from_space'>()
       .notNull()
       .default('owned'),
-    sharePrefix: text(tableNames.haex.storage_backends.columns.sharePrefix),
+    sharePrefix: text(tableNames.haex.s3_backends.columns.sharePrefix),
     // shareAccessFlags bitmap:  bit0=list  bit1=get  bit2=put  bit3=delete
     // NULL only valid when originType='owned'.
-    shareAccessFlags: integer(tableNames.haex.storage_backends.columns.shareAccessFlags),
-    createdAt: text(tableNames.haex.storage_backends.columns.createdAt).default(
+    shareAccessFlags: integer(tableNames.haex.s3_backends.columns.shareAccessFlags),
+    createdAt: text(tableNames.haex.s3_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
   },
   (table) => [
-    uniqueIndex('haex_storage_backends_name_unique').on(table.name),
+    uniqueIndex('haex_s3_backends_name_unique').on(table.name),
   ],
 )
-export type InsertHaexStorageBackends = typeof haexStorageBackends.$inferInsert
-export type SelectHaexStorageBackends = typeof haexStorageBackends.$inferSelect
+export type InsertHaexS3Backends = typeof haexS3Backends.$inferInsert
+export type SelectHaexS3Backends = typeof haexS3Backends.$inferSelect

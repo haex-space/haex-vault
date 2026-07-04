@@ -1,7 +1,7 @@
 //! Access-flag bitmap constants for shareable storage backends.
 //!
 //! Mirrors `src/lib/storage/shareAccessFlags.ts` on the frontend so both
-//! sides agree on the bit layout stored in `haex_storage_backends.share_access_flags`.
+//! sides agree on the bit layout stored in `haex_s3_backends.share_access_flags`.
 //!
 //! Bit layout:
 //! - bit 0: LIST

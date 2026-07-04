@@ -307,7 +307,7 @@ fn build_update_query(
     let mut param_index = 2;
 
     if let Some(ref name) = request.name {
-        set_clauses.push(format!("{} = ?{}", COL_STORAGE_BACKENDS_NAME, param_index));
+        set_clauses.push(format!("{} = ?{}", COL_S3_BACKENDS_NAME, param_index));
         params.push(JsonValue::String(name.clone()));
         param_index += 1;
     }
@@ -318,10 +318,7 @@ fn build_update_query(
             serde_json::to_string(config).map_err(|e| StorageError::InvalidConfig {
                 reason: format!("Failed to serialize config: {}", e),
             })?;
-        set_clauses.push(format!(
-            "{} = ?{}",
-            COL_STORAGE_BACKENDS_CONFIG, param_index
-        ));
+        set_clauses.push(format!("{} = ?{}", COL_S3_BACKENDS_CONFIG, param_index));
         params.push(JsonValue::String(config_json));
     }
 
@@ -334,15 +331,15 @@ fn build_update_query(
     let query = format!(
         "UPDATE {} SET {} WHERE {} = ?1 \
          RETURNING {}, {}, {}, {}, {}, {}",
-        TABLE_STORAGE_BACKENDS,
+        TABLE_S3_BACKENDS,
         set_clauses.join(", "),
-        COL_STORAGE_BACKENDS_ID,
-        COL_STORAGE_BACKENDS_ID,
-        COL_STORAGE_BACKENDS_TYPE,
-        COL_STORAGE_BACKENDS_NAME,
-        COL_STORAGE_BACKENDS_ENABLED,
-        COL_STORAGE_BACKENDS_CREATED_AT,
-        COL_STORAGE_BACKENDS_CONFIG
+        COL_S3_BACKENDS_ID,
+        COL_S3_BACKENDS_ID,
+        COL_S3_BACKENDS_TYPE,
+        COL_S3_BACKENDS_NAME,
+        COL_S3_BACKENDS_ENABLED,
+        COL_S3_BACKENDS_CREATED_AT,
+        COL_S3_BACKENDS_CONFIG
     );
 
     Ok((query, params))

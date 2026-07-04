@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b51c820c-8142-4ea9-a4f7-c9ad41ee3fee",
+  "id": "ac72f2b9-63a1-4e43-aaab-8a6c78f5a3c0",
   "prevId": "185c5a2c-577f-4931-9b36-5d3197c7e995",
   "tables": {
     "haex_desktop_items_no_sync": {
@@ -4825,8 +4825,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "haex_storage_backends": {
-      "name": "haex_storage_backends",
+    "haex_s3_backends": {
+      "name": "haex_s3_backends",
       "columns": {
         "id": {
           "name": "id",
@@ -4903,8 +4903,8 @@
         }
       },
       "indexes": {
-        "haex_storage_backends_name_unique": {
-          "name": "haex_storage_backends_name_unique",
+        "haex_s3_backends_name_unique": {
+          "name": "haex_s3_backends_name_unique",
           "columns": [
             "name"
           ],
@@ -4912,10 +4912,10 @@
         }
       },
       "foreignKeys": {
-        "haex_storage_backends_parent_backend_id_haex_storage_backends_id_fk": {
-          "name": "haex_storage_backends_parent_backend_id_haex_storage_backends_id_fk",
-          "tableFrom": "haex_storage_backends",
-          "tableTo": "haex_storage_backends",
+        "haex_s3_backends_parent_backend_id_haex_s3_backends_id_fk": {
+          "name": "haex_s3_backends_parent_backend_id_haex_s3_backends_id_fk",
+          "tableFrom": "haex_s3_backends",
+          "tableTo": "haex_s3_backends",
           "columnsFrom": [
             "parent_backend_id"
           ],
@@ -4935,7 +4935,9 @@
   "enums": {},
   "_meta": {
     "schemas": {},
-    "tables": {},
+    "tables": {
+      "\"haex_storage_backends\"": "\"haex_s3_backends\""
+    },
     "columns": {}
   },
   "internal": {

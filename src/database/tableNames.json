@@ -164,8 +164,8 @@
         "updatedAt": "updated_at"
       }
     },
-    "storage_backends": {
-      "name": "haex_storage_backends",
+    "s3_backends": {
+      "name": "haex_s3_backends",
       "columns": {
         "id": "id",
         "type": "type",
