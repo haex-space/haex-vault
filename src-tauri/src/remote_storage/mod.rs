@@ -15,6 +15,7 @@ pub mod iam_policy;
 pub mod progress;
 pub mod queries;
 pub mod share_access_flags;
+pub mod share_command;
 pub mod streaming;
 pub mod types;
 
