@@ -226,7 +226,7 @@
       />
     </div>
 
-    <!-- Delete Confirmation Dialog -->
+    <!-- Delete Confirmation Dialog (no active shares) -->
     <UiDialogConfirm
       v-model:open="showDeleteDialog"
       :title="t('deleteBackend.title')"
@@ -234,11 +234,71 @@
       :confirm-label="t('actions.delete')"
       @confirm="onConfirmDeleteAsync"
     />
+
+    <!--
+      L0 — Cascade-delete confirmation. Shown when the owner is about to
+      delete an owned backend that still has active share rows. All accesses
+      are revoked one-by-one before the parent row is removed. Body slot
+      lists the affected spaces + shows live progress; a revoke failure
+      aborts before the parent delete so partial state stays retry-safe.
+    -->
+    <UiDialogConfirm
+      v-model:open="showCascadeDeleteDialog"
+      :title="t('cascadeDeleteBackend.title')"
+      :confirm-label="t('actions.delete')"
+      :confirm-disabled="isCascadeDeleting"
+      @confirm="onConfirmCascadeDeleteAsync"
+    >
+      <template #body>
+        <div class="space-y-3">
+          <p class="text-sm">
+            {{ t('cascadeDeleteBackend.body', {
+              name: backendToDelete?.name,
+              count: activeShares.length,
+            }) }}
+          </p>
+          <div>
+            <p class="text-xs font-semibold text-muted uppercase tracking-wide mb-1">
+              {{ t('cascadeDeleteBackend.affectedSpaces') }}
+            </p>
+            <ul class="text-sm space-y-1">
+              <li
+                v-for="share in activeShares"
+                :key="share.id"
+                class="flex items-center gap-2"
+              >
+                <UIcon
+                  name="i-lucide-users"
+                  class="w-3.5 h-3.5 shrink-0 text-primary"
+                />
+                <span class="truncate">{{ share.spaceName }}</span>
+              </li>
+            </ul>
+          </div>
+          <p class="text-xs text-muted">
+            {{ t('cascadeDeleteBackend.irreversible') }}
+          </p>
+          <div
+            v-if="isCascadeDeleting"
+            class="flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2"
+          >
+            <UIcon
+              name="i-lucide-loader-2"
+              class="w-4 h-4 animate-spin text-primary"
+            />
+            <span class="text-xs">
+              {{ cascadeProgressLabel }}
+            </span>
+          </div>
+        </div>
+      </template>
+    </UiDialogConfirm>
   </HaexSystemSettingsLayout>
 </template>
 
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
+import { and, eq } from 'drizzle-orm'
 import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 import type { AddStorageBackendRequest } from '~/../src-tauri/bindings/AddStorageBackendRequest'
 import type { UpdateStorageBackendRequest } from '~/../src-tauri/bindings/UpdateStorageBackendRequest'
@@ -246,11 +306,20 @@ import {
   SHARE_ACCESS_READ_ONLY,
   SHARE_ACCESS_READ_WRITE,
 } from '~/lib/storage/shareAccessFlags'
+import {
+  haexS3Backends,
+  haexSharedSpaceSync,
+  haexSpaces,
+} from '~/database/schemas'
 import StorageActiveSharesSection from './storage/StorageActiveSharesSection.vue'
 
 const { t } = useI18n()
 const { add } = useToast()
+const { getDb } = useVaultDb()
+const { revokeBackend } = useStorageSharing()
 const fileSyncStore = useFileSyncStore()
+
+const HAEX_S3_BACKENDS_TABLE = 'haex_s3_backends'
 
 const DEFAULT_S3_REGION = 'auto'
 
@@ -295,7 +364,27 @@ const editingBackendId = ref<string | null>(null)
 const isLoading = ref(false)
 const testingBackendId = ref<string | null>(null)
 const showDeleteDialog = ref(false)
+const showCascadeDeleteDialog = ref(false)
 const backendToDelete = ref<StorageBackendInfo | null>(null)
+
+interface ActiveShareEntry {
+  id: string
+  spaceId: string
+  spaceName: string
+}
+const activeShares = ref<ActiveShareEntry[]>([])
+const isCascadeDeleting = ref(false)
+const cascadeProgress = ref<{ current: number; total: number; spaceName: string } | null>(null)
+
+const cascadeProgressLabel = computed(() => {
+  const p = cascadeProgress.value
+  if (!p) return t('cascadeDeleteBackend.progress.starting')
+  return t('cascadeDeleteBackend.progress.revoking', {
+    current: p.current,
+    total: p.total,
+    name: p.spaceName,
+  })
+})
 
 const formData = reactive({
   name: '',
@@ -588,16 +677,91 @@ const onTestBackendAsync = async (backendId: string) => {
   }
 }
 
-const prepareDeleteBackend = (backend: StorageBackendInfo) => {
+/**
+ * L0 — Look up owner-side share derivations for a parent backend. Mirrors
+ * K1's query pattern: rows in `haex_s3_backends` with
+ * `origin_type='shared_from_space'` and `parent_backend_id=parentId`, joined
+ * to the space they landed in via `haex_shared_space_sync` (rowPks[0] holds
+ * the shared row's id).
+ */
+const loadActiveSharesAsync = async (
+  parentId: string,
+): Promise<ActiveShareEntry[]> => {
+  const db = getDb()
+  if (!db) return []
+
+  const rows = await db
+    .select()
+    .from(haexS3Backends)
+    .where(
+      and(
+        eq(haexS3Backends.parentBackendId, parentId),
+        eq(haexS3Backends.originType, 'shared_from_space'),
+      ),
+    )
+
+  if (rows.length === 0) return []
+
+  const assignments = await db
+    .select()
+    .from(haexSharedSpaceSync)
+    .where(eq(haexSharedSpaceSync.tableName, HAEX_S3_BACKENDS_TABLE))
+
+  const spaceByBackend = new Map<string, string>()
+  for (const a of assignments) {
+    const pks = Array.isArray(a.rowPks) ? a.rowPks : []
+    const first = pks[0]
+    if (typeof first === 'string') spaceByBackend.set(first, a.spaceId)
+  }
+
+  const spaceIds = new Set(spaceByBackend.values())
+  const spaceNameById = new Map<string, string>()
+  if (spaceIds.size > 0) {
+    const spaces = await db.select().from(haexSpaces)
+    for (const s of spaces) {
+      if (spaceIds.has(s.id)) spaceNameById.set(s.id, s.name)
+    }
+  }
+
+  return rows.flatMap((r): ActiveShareEntry[] => {
+    const spaceId = spaceByBackend.get(r.id)
+    if (!spaceId) return []
+    return [{
+      id: r.id,
+      spaceId,
+      spaceName: spaceNameById.get(spaceId) ?? t('cascadeDeleteBackend.unknownSpace'),
+    }]
+  })
+}
+
+const prepareDeleteBackend = async (backend: StorageBackendInfo) => {
   backendToDelete.value = backend
-  showDeleteDialog.value = true
+
+  // Look up active shares first. Any non-empty result routes through the
+  // cascade-warning dialog; empty routes through the existing simple confirm.
+  try {
+    activeShares.value = await loadActiveSharesAsync(backend.id)
+  } catch (error) {
+    console.error('Failed to look up active shares:', error)
+    activeShares.value = []
+  }
+
+  if (activeShares.value.length > 0) {
+    showCascadeDeleteDialog.value = true
+  } else {
+    showDeleteDialog.value = true
+  }
+}
+
+const deleteParentBackendAsync = async (backendId: string): Promise<void> => {
+  await invoke('remote_storage_remove_backend', { backendId })
 }
 
 const onConfirmDeleteAsync = async () => {
   if (!backendToDelete.value) return
 
   try {
-    await invoke('remote_storage_remove_backend', { backendId: backendToDelete.value.id })
+    await deleteParentBackendAsync(backendToDelete.value.id)
 
     add({
       title: t('success.backendDeleted'),
@@ -615,6 +779,74 @@ const onConfirmDeleteAsync = async () => {
   } finally {
     showDeleteDialog.value = false
     backendToDelete.value = null
+  }
+}
+
+/**
+ * L0 — Cascade path. Revoke every share sequentially, then delete the
+ * parent. A revoke failure aborts BEFORE the parent delete so the row +
+ * remaining shares stay retry-safe (already-revoked shares are permanently
+ * gone, which matches revoke_storage_share's own idempotency contract).
+ */
+const onConfirmCascadeDeleteAsync = async () => {
+  if (!backendToDelete.value) return
+  if (isCascadeDeleting.value) return
+
+  const parentId = backendToDelete.value.id
+  const shares = [...activeShares.value]
+
+  isCascadeDeleting.value = true
+  cascadeProgress.value = null
+
+  try {
+    for (let i = 0; i < shares.length; i++) {
+      const share = shares[i]!
+      cascadeProgress.value = {
+        current: i + 1,
+        total: shares.length,
+        spaceName: share.spaceName,
+      }
+      try {
+        await revokeBackend(share.id)
+      } catch (error) {
+        console.error('Failed to revoke share during cascade delete:', error)
+        add({
+          title: t('errors.cascadeRevokeFailed', { name: share.spaceName }),
+          description: getErrorMessage(error),
+          color: 'error',
+        })
+        // Abort before parent delete — leaves the (now shorter) share set
+        // + parent intact so the user can retry.
+        await loadBackendsAsync()
+        return
+      }
+    }
+
+    // All shares revoked — now delete the parent row.
+    try {
+      await deleteParentBackendAsync(parentId)
+    } catch (error) {
+      console.error('Failed to delete storage backend after cascade revoke:', error)
+      add({
+        title: t('errors.cascadeDeleteAfterRevokeFailed'),
+        description: getErrorMessage(error),
+        color: 'error',
+      })
+      await loadBackendsAsync()
+      return
+    }
+
+    add({
+      title: t('success.cascadeDeleted', { count: shares.length }),
+      color: 'success',
+    })
+    await loadBackendsAsync()
+  } finally {
+    isCascadeDeleting.value = false
+    cascadeProgress.value = null
+    showCascadeDeleteDialog.value = false
+    backendToDelete.value = null
+    activeShares.value = []
   }
 }
 </script>
@@ -675,10 +907,20 @@ de:
   deleteBackend:
     title: Cloud Storage Backend löschen
     description: Möchtest du das Backend "{name}" wirklich löschen? Erweiterungen können dann nicht mehr auf dieses Backend zugreifen.
+  cascadeDeleteBackend:
+    title: Cloud-Speicher löschen?
+    body: "Der Bucket \"{name}\" wird aktuell in {count} Space(s) geteilt. Beim Löschen werden alle Zugänge widerrufen und die Freigaben aus den Spaces entfernt."
+    affectedSpaces: "Betroffene Spaces:"
+    irreversible: Diese Aktion kann nicht rückgängig gemacht werden.
+    unknownSpace: Unbekannter Space
+    progress:
+      starting: Freigaben werden vorbereitet …
+      revoking: "Widerrufe Zugriff für Space {name} ({current}/{total}) …"
   success:
     backendAdded: Storage Backend hinzugefügt
     backendUpdated: Storage Backend aktualisiert
     backendDeleted: Storage Backend gelöscht
+    cascadeDeleted: "Backend gelöscht — {count} Freigabe(n) widerrufen"
     connectionOk: Verbindung erfolgreich
     rulesRestarted: "{count} Sync-Regel(n) mit neuer Konfiguration neu gestartet"
   errors:
@@ -687,6 +929,8 @@ de:
     updateFailed: Backend konnte nicht aktualisiert werden
     deleteFailed: Backend konnte nicht gelöscht werden
     testFailed: Verbindungstest fehlgeschlagen
+    cascadeRevokeFailed: "Zugriff für Space \"{name}\" konnte nicht widerrufen werden — Löschen abgebrochen"
+    cascadeDeleteAfterRevokeFailed: "Freigaben wurden widerrufen, aber das Backend konnte nicht gelöscht werden — bitte erneut versuchen"
 en:
   title: Cloud Storage
   description: Manage S3-compatible storage backends for extensions
@@ -742,10 +986,20 @@ en:
   deleteBackend:
     title: Delete Storage Backend
     description: Do you really want to delete the backend "{name}"? Extensions will no longer be able to access this backend.
+  cascadeDeleteBackend:
+    title: Delete cloud storage?
+    body: "The bucket \"{name}\" is currently shared in {count} space(s). Deleting it will revoke all accesses and remove the shares from those spaces."
+    affectedSpaces: "Affected spaces:"
+    irreversible: This action cannot be undone.
+    unknownSpace: Unknown space
+    progress:
+      starting: Preparing shares …
+      revoking: "Revoking access for space {name} ({current}/{total}) …"
   success:
     backendAdded: Storage backend added
     backendUpdated: Storage backend updated
     backendDeleted: Storage backend deleted
+    cascadeDeleted: "Backend deleted — revoked {count} share(s)"
     connectionOk: Connection successful
     rulesRestarted: "Restarted {count} sync rule(s) with new configuration"
   errors:
@@ -754,4 +1008,6 @@ en:
     updateFailed: Failed to update backend
     deleteFailed: Failed to delete backend
     testFailed: Connection test failed
+    cascadeRevokeFailed: "Failed to revoke access for space \"{name}\" — delete aborted"
+    cascadeDeleteAfterRevokeFailed: "Shares were revoked but the backend could not be deleted — please try again"
 </i18n>
