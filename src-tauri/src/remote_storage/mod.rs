@@ -11,6 +11,7 @@ pub mod commands;
 pub mod error;
 pub mod progress;
 pub mod queries;
+pub mod share_access_flags;
 pub mod streaming;
 pub mod types;
 
