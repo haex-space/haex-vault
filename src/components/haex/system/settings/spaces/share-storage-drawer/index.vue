@@ -14,6 +14,7 @@
         <TabScope
           v-show="activeTab === 'scope'"
           v-model:selected-backend-id="selectedBackendId"
+          v-model:selected-prefix="selectedPrefix"
           :backends="backends"
           :loading="isLoadingBackends"
         />
@@ -156,6 +157,10 @@ const tabItems = computed(() => [
 const backends = ref<SelectHaexS3Backends[]>([])
 const isLoadingBackends = ref(false)
 const selectedBackendId = ref<string | null>(null)
+// undefined = whole bucket (Rust `Option<String>::None`).
+// non-undefined string (may be empty until the user picks a folder) = prefix
+// scope; the share button is disabled while it's still empty.
+const selectedPrefix = ref<string | undefined>(undefined)
 
 const loadBackendsAsync = async () => {
   isLoadingBackends.value = true
@@ -213,12 +218,17 @@ const canConfirm = computed(
   () =>
     selectedBackendId.value !== null
     && accessFlags.value !== 0
+    // In prefix mode the user must actually pick a folder before we let
+    // them submit — an empty prefix would either widen the share to the
+    // whole bucket accidentally or fail server-side.
+    && selectedPrefix.value !== ''
     && !isSubmitting.value,
 )
 
 const resetState = () => {
   activeTab.value = 'scope'
   selectedBackendId.value = null
+  selectedPrefix.value = undefined
   accessFlags.value = SHARE_ACCESS_READ_ONLY
   showIamCredModal.value = false
   iamForm.accessKeyId = ''
@@ -243,6 +253,10 @@ const runShareAsync = async (hint?: IamAdminCredHint) => {
     await shareBackend({
       storageId: selectedBackendId.value,
       spaceId: props.spaceId,
+      // Only forward a prefix if the user actually picked a folder. Empty
+      // string means "user opened the folder mode but hasn't chosen yet" —
+      // canConfirm blocks the button in that state, but we still guard here.
+      prefix: selectedPrefix.value ? selectedPrefix.value : undefined,
       accessFlags: accessFlags.value,
       iamAdminCredHint: hint,
     })
