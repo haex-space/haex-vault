@@ -9,6 +9,7 @@
 pub mod backend;
 pub mod commands;
 pub mod error;
+pub mod iam_adapter;
 pub mod iam_admin_creds;
 pub mod iam_policy;
 pub mod progress;
@@ -19,4 +20,7 @@ pub mod types;
 
 pub use commands::*;
 pub use error::StorageError;
+pub use iam_adapter::{
+    AwsCompatIamAdapter, IamAdapter, IamAdapterError, ProviderFlavor, ScopedCred,
+};
 pub use iam_policy::{build_object_policy, build_policy, IamPolicy};
