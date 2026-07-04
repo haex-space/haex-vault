@@ -100,6 +100,17 @@
         </UFormField>
       </form>
 
+      <!--
+        K1 — Owner-side "Active Shares" section, only for edits of an
+        owned backend. The child component hides itself when there are no
+        derived shares, so it stays invisible for freshly-added rows.
+      -->
+      <StorageActiveSharesSection
+        v-if="isEditMode && editingBackendId"
+        :parent-backend-id="editingBackendId"
+        class="mt-4"
+      />
+
       <template #footer>
         <div class="flex justify-between">
           <UiButton
@@ -235,6 +246,7 @@ import {
   SHARE_ACCESS_READ_ONLY,
   SHARE_ACCESS_READ_WRITE,
 } from '~/lib/storage/shareAccessFlags'
+import StorageActiveSharesSection from './storage/StorageActiveSharesSection.vue'
 
 const { t } = useI18n()
 const { add } = useToast()
