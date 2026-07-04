@@ -172,6 +172,10 @@
         "name": "name",
         "config": "config",
         "enabled": "enabled",
+        "parentBackendId": "parent_backend_id",
+        "originType": "origin_type",
+        "sharePrefix": "share_prefix",
+        "shareAccessFlags": "share_access_flags",
         "createdAt": "created_at"
       }
     },

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  type AnySQLiteColumn,
   integer,
   sqliteTable,
   text,
@@ -41,6 +42,20 @@ export const haexStorageBackends = sqliteTable(
     })
       .default(true)
       .notNull(),
+    parentBackendId: text(tableNames.haex.storage_backends.columns.parentBackendId).references(
+      (): AnySQLiteColumn => haexStorageBackends.id,
+      { onDelete: 'cascade' },
+    ),
+    // originType distinguishes the row's provenance:
+    //   'owned'             — this device owns the backend (original row, parentBackendId IS NULL)
+    //   'shared_from_space' — this row was created because another Space participant shared their
+    //                         backend with us; parentBackendId references the owner-side row and
+    //                         sharePrefix/shareAccessFlags describe the granted scope.
+    originType: text(tableNames.haex.storage_backends.columns.originType)
+      .notNull()
+      .default('owned'),
+    sharePrefix: text(tableNames.haex.storage_backends.columns.sharePrefix),
+    shareAccessFlags: integer(tableNames.haex.storage_backends.columns.shareAccessFlags),
     createdAt: text(tableNames.haex.storage_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),

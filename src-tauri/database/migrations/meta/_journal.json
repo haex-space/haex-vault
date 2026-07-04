@@ -43,6 +43,13 @@
       "when": 1782947000000,
       "tag": "0005_pending_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1783175102392,
+      "tag": "0006_thick_sway",
+      "breakpoints": true
     }
   ]
 }
