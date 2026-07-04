@@ -65,6 +65,11 @@ pub struct StringLike {
 /// If `prefix` is present, the ListBucket statement carries an `s3:prefix`
 /// Condition so the member cannot enumerate the bucket root.
 pub fn build_policy(bucket: &str, prefix: Option<&str>, flags: i64) -> IamPolicy {
+    debug_assert!(
+        prefix.is_none_or(|p| !p.ends_with('/')),
+        "prefix must not end with '/' — caller should trim before passing",
+    );
+
     let mut statements = Vec::new();
 
     let object_actions = collect_object_actions(flags);
@@ -101,6 +106,11 @@ pub fn build_policy(bucket: &str, prefix: Option<&str>, flags: i64) -> IamPolicy
 /// The member already knows the full object key from the share config, so
 /// enumeration is neither useful nor granted.
 pub fn build_object_policy(bucket: &str, object_key: &str, flags: i64) -> IamPolicy {
+    debug_assert!(
+        !object_key.starts_with('/'),
+        "object_key must not start with '/' — pass the raw S3 key",
+    );
+
     let object_actions = collect_object_actions(flags);
     let mut statements = Vec::new();
     if !object_actions.is_empty() {

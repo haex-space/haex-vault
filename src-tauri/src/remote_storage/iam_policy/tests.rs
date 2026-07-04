@@ -102,3 +102,19 @@ fn list_only_flag_generates_only_listbucket_statement() {
         .iter()
         .any(|a| a == "s3:ListBucket"));
 }
+
+// flags=0 is a legal input; result is a policy with an empty Statement list.
+// AWS PutUserPolicy will reject it — enforcement lives at the D2 adapter
+// boundary. These regression tests pin the current behaviour so a well-meant
+// refactor cannot silently emit synthetic empty statements or panic.
+#[test]
+fn build_policy_with_zero_flags_produces_empty_statement_list() {
+    let policy = build_policy("mybucket", None, 0);
+    assert!(policy.statement.is_empty());
+}
+
+#[test]
+fn build_object_policy_with_zero_flags_produces_empty_statement_list() {
+    let policy = build_object_policy("mybucket", "media/track.mp3", 0);
+    assert!(policy.statement.is_empty());
+}
