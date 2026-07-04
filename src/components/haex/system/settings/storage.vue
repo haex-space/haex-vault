@@ -143,6 +143,21 @@
               >
                 {{ backend.enabled ? t('backends.enabled') : t('backends.disabled') }}
               </UBadge>
+              <UBadge
+                v-if="isSharedBackend(backend)"
+                color="info"
+                variant="subtle"
+                icon="i-lucide-share-2"
+              >
+                {{ t('backends.sharedFrom', { space: backend.spaceName ?? t('backends.unknownSpace') }) }}
+              </UBadge>
+              <UBadge
+                v-if="isSharedBackend(backend)"
+                :color="accessLevelBadgeColor(backend.shareAccessFlags)"
+                variant="subtle"
+              >
+                {{ accessLevelBadgeLabel(backend.shareAccessFlags) }}
+              </UBadge>
             </div>
             <div class="text-sm text-muted mt-1 space-y-0.5">
               <p v-if="backend.config?.endpoint">
@@ -170,13 +185,20 @@
             >
               {{ t('actions.test') }}
             </UiButton>
+            <!--
+              Edit + delete are hidden on shared entries — the credentials
+              belong to the owner's device, and a member "removing" the row
+              would just resurface on the next sync. Design doc §7.3.
+            -->
             <UiButton
+              v-if="!isSharedBackend(backend)"
               color="neutral"
               variant="ghost"
               icon="i-lucide-pencil"
               @click="openEditForm(backend)"
             />
             <UiButton
+              v-if="!isSharedBackend(backend)"
               color="error"
               variant="ghost"
               icon="i-lucide-trash-2"
@@ -209,6 +231,10 @@ import { invoke } from '@tauri-apps/api/core'
 import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendInfo'
 import type { AddStorageBackendRequest } from '~/../src-tauri/bindings/AddStorageBackendRequest'
 import type { UpdateStorageBackendRequest } from '~/../src-tauri/bindings/UpdateStorageBackendRequest'
+import {
+  SHARE_ACCESS_READ_ONLY,
+  SHARE_ACCESS_READ_WRITE,
+} from '~/lib/storage/shareAccessFlags'
 
 const { t } = useI18n()
 const { add } = useToast()
@@ -268,6 +294,33 @@ const formData = reactive({
   secretAccessKey: '',
   pathStyle: false,
 })
+
+/**
+ * True when a backend row was replicated to us as a space member (owner's
+ * device wrote it, we received it via the CRDT sync of
+ * `haex_shared_space_sync`). Rows written before the origin_type migration
+ * report `null` — treat those as `owned` to match the pre-existing UX.
+ */
+const isSharedBackend = (backend: StorageBackendInfo): boolean =>
+  backend.originType === 'shared_from_space'
+
+type AccessLevelBadgeColor = 'success' | 'warning' | 'neutral'
+
+const accessLevelBadgeColor = (
+  flags: number | null | undefined,
+): AccessLevelBadgeColor => {
+  if (flags == null) return 'neutral'
+  if (flags === SHARE_ACCESS_READ_ONLY) return 'success'
+  if (flags === SHARE_ACCESS_READ_WRITE) return 'warning'
+  return 'neutral'
+}
+
+const accessLevelBadgeLabel = (flags: number | null | undefined): string => {
+  if (flags == null) return t('backends.accessLevel.custom')
+  if (flags === SHARE_ACCESS_READ_ONLY) return t('backends.accessLevel.readOnly')
+  if (flags === SHARE_ACCESS_READ_WRITE) return t('backends.accessLevel.readWrite')
+  return t('backends.accessLevel.custom')
+}
 
 const onRegionCreate = (value: string) => {
   const trimmed = value.trim()
@@ -569,6 +622,12 @@ de:
     noBackendsHint: Füge ein S3-kompatibles Backend hinzu, um Dateien zu speichern
     enabled: Aktiviert
     disabled: Deaktiviert
+    sharedFrom: "aus {space}"
+    unknownSpace: Space
+    accessLevel:
+      readOnly: nur lesen
+      readWrite: lesen + schreiben
+      custom: benutzerdefiniert
   form:
     connecting: Verbindung wird getestet...
     name:
@@ -630,6 +689,12 @@ en:
     noBackendsHint: Add an S3-compatible backend to store files
     enabled: Enabled
     disabled: Disabled
+    sharedFrom: "shared from {space}"
+    unknownSpace: Space
+    accessLevel:
+      readOnly: read-only
+      readWrite: read + write
+      custom: custom
   form:
     connecting: Testing connection...
     name:
