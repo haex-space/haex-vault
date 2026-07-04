@@ -9,6 +9,7 @@
 pub mod backend;
 pub mod commands;
 pub mod error;
+pub mod iam_admin_creds;
 pub mod progress;
 pub mod queries;
 pub mod share_access_flags;
