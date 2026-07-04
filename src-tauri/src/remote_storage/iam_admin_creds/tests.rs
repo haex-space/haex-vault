@@ -198,6 +198,65 @@ fn delete_by_storage_removes_item_and_key_values() {
     );
 }
 
+/// Regression test for the atomicity fix: if the second INSERT
+/// (key-values row) fails after the first one succeeds, the whole
+/// [`store`] call must roll back — no orphaned `item_details` row
+/// should remain.
+///
+/// We force the failure by pre-inserting a `haex_passwords_item_key_values`
+/// row that owns the fresh UUID we're about to try (impossible in
+/// practice — UUID collision — but the FK path is a cleaner way to break
+/// the second INSERT than reflection). Instead we swap approach: seed a
+/// duplicate title in the details table via a unique-index side-channel.
+/// Simpler and more direct: drop the FK'd child table so the second INSERT
+/// fails with `no such table`, then read the details table and assert no
+/// row was left behind.
+#[test]
+fn store_rolls_back_first_insert_when_second_fails() {
+    let (db, hlc_service) = setup_creds_db();
+
+    // Break the second INSERT by dropping the child table. The first INSERT
+    // (item_details) still succeeds; the second (item_key_values) then
+    // fails on "no such table". `store` must roll back so no orphan row
+    // remains in item_details.
+    {
+        let guard_arc = db.0.lock().unwrap();
+        let conn = guard_arc.as_ref().expect("db connection");
+        conn.execute_batch("DROP TABLE haex_passwords_item_key_values;")
+            .expect("drop kv table for atomicity test");
+    }
+
+    let storage_id = rand_string("storage");
+    let cred = rand_cred();
+
+    let hlc = Mutex::new(hlc_service.clone());
+    let result = {
+        let guard = hlc.lock().unwrap();
+        store(&db, &guard, &storage_id, &cred)
+    };
+    assert!(
+        result.is_err(),
+        "store must fail once the second INSERT can't find its table"
+    );
+
+    // Now assert atomicity: no orphan row in item_details for this title.
+    let title = cred_title_for(&storage_id);
+    let guard_arc = db.0.lock().unwrap();
+    let conn = guard_arc.as_ref().expect("db connection");
+    let orphan_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM haex_passwords_item_details WHERE title = ?1",
+            [&title],
+            |row| row.get(0),
+        )
+        .expect("count orphan details rows");
+    assert_eq!(
+        orphan_count, 0,
+        "store must roll back the first INSERT when the second one fails; \
+         an orphan item_details row leaks a partial credential",
+    );
+}
+
 #[test]
 fn load_after_delete_of_unrelated_storage_still_finds_the_other() {
     // Locks in that delete_by_storage's WHERE title = ?1 predicate only

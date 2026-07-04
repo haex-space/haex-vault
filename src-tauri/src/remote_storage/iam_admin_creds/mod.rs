@@ -19,10 +19,11 @@
 //! See the design doc `docs/plans/2026-07-04-s3-bucket-sharing-via-spaces-design.md`
 //! §3 (Data-Model — "IAM-Admin-Cred im Passwort-Manager").
 
-use crate::database::core::{execute_with_crdt, select_with_crdt};
+use crate::database::core::{select_with_crdt, with_connection};
 use crate::database::error::DatabaseError;
 use crate::database::row::get_string;
 use crate::database::DbConnection;
+use crate::extension::database::executor::SqlExecutor;
 use serde_json::Value as JsonValue;
 use std::sync::MutexGuard;
 
@@ -114,12 +115,11 @@ pub fn load(db: &DbConnection, storage_id: &str) -> Result<Option<IamAdminCred>,
 /// Assumes no prior entry exists for this storage id. Callers that need
 /// upsert semantics should invoke [`delete_by_storage`] first.
 ///
-/// **Atomicity caveat:** the two INSERTs (`item_details` + `item_key_values`)
-/// are NOT wrapped in a single SQLite transaction. If the second INSERT
-/// fails, the item row is orphaned. [`load`] now uses INNER JOIN, so an
-/// orphaned entry is transparent to callers (returns `Ok(None)`), but
-/// [`delete_by_storage`] should be invoked before retry to clean up.
-/// Follow-up TODO before Phase E wiring: wrap in `execute_with_crdt` tx.
+/// **Atomicity:** both INSERTs (`item_details` + `item_key_values`) run inside
+/// a single SQLite transaction. If the second INSERT fails, the first is
+/// rolled back, so no orphan `item_details` row is left behind. Both writes
+/// share one HLC timestamp via the transaction-scoped `current_hlc()` UDF,
+/// mirroring `execute_with_crdt`'s single-statement invariant.
 pub fn store(
     db: &DbConnection,
     hlc: &MutexGuard<crate::crdt::hlc::HlcService>,
@@ -128,44 +128,48 @@ pub fn store(
 ) -> Result<(), DatabaseError> {
     let title = cred_title_for(storage_id);
     let item_id = uuid::Uuid::new_v4().to_string();
+    let kv_id = uuid::Uuid::new_v4().to_string();
 
     // Insert the details row. Only the columns we actually populate are
     // named — everything else in the schema is either nullable or defaults.
     let insert_details = "INSERT INTO haex_passwords_item_details \
                           (id, title, username, password) \
-                          VALUES (?1, ?2, ?3, ?4)"
-        .to_string();
-    execute_with_crdt(
-        insert_details,
-        vec![
-            JsonValue::String(item_id.clone()),
-            JsonValue::String(title),
-            JsonValue::String(cred.access_key_id.clone()),
-            JsonValue::String(cred.secret_access_key.clone()),
-        ],
-        db,
-        hlc,
-    )?;
-
+                          VALUES (?1, ?2, ?3, ?4)";
     // Insert the provider_type key-value row linked via FK.
-    let kv_id = uuid::Uuid::new_v4().to_string();
     let insert_kv = "INSERT INTO haex_passwords_item_key_values \
                      (id, item_id, key, value) \
-                     VALUES (?1, ?2, ?3, ?4)"
-        .to_string();
-    execute_with_crdt(
-        insert_kv,
-        vec![
-            JsonValue::String(kv_id),
-            JsonValue::String(item_id),
-            JsonValue::String(PROVIDER_TYPE_KEY.to_string()),
-            JsonValue::String(cred.provider_type.clone()),
-        ],
-        db,
-        hlc,
-    )?;
+                     VALUES (?1, ?2, ?3, ?4)";
 
-    Ok(())
+    with_connection(db, |conn| {
+        let tx = conn.transaction().map_err(DatabaseError::from)?;
+
+        SqlExecutor::execute_internal(
+            &tx,
+            hlc,
+            insert_details,
+            &[
+                JsonValue::String(item_id.clone()),
+                JsonValue::String(title.clone()),
+                JsonValue::String(cred.access_key_id.clone()),
+                JsonValue::String(cred.secret_access_key.clone()),
+            ],
+        )?;
+
+        SqlExecutor::execute_internal(
+            &tx,
+            hlc,
+            insert_kv,
+            &[
+                JsonValue::String(kv_id.clone()),
+                JsonValue::String(item_id.clone()),
+                JsonValue::String(PROVIDER_TYPE_KEY.to_string()),
+                JsonValue::String(cred.provider_type.clone()),
+            ],
+        )?;
+
+        tx.commit().map_err(DatabaseError::from)?;
+        Ok(())
+    })
 }
 
 /// Remove the IAM-admin credential for `storage_id`, including its
@@ -177,8 +181,9 @@ pub fn store(
 /// tombstones. We therefore issue the key-values DELETE first, then the
 /// details DELETE.
 ///
-/// **Atomicity caveat:** same as [`store`] — the two DELETEs are not in a
-/// transaction. Follow-up TODO before Phase E wiring.
+/// **Atomicity:** both DELETEs run inside a single SQLite transaction. If the
+/// second DELETE fails, the first is rolled back so we do not leave the
+/// key-values orphaned (which would then fail on FK re-insert during retry).
 pub fn delete_by_storage(
     db: &DbConnection,
     hlc: &MutexGuard<crate::crdt::hlc::HlcService>,
@@ -190,14 +195,19 @@ pub fn delete_by_storage(
                       WHERE item_id IN ( \
                           SELECT id FROM haex_passwords_item_details \
                           WHERE title = ?1 \
-                      )"
-    .to_string();
-    execute_with_crdt(delete_kvs, vec![JsonValue::String(title.clone())], db, hlc)?;
+                      )";
+    let delete_item = "DELETE FROM haex_passwords_item_details WHERE title = ?1";
 
-    let delete_item = "DELETE FROM haex_passwords_item_details WHERE title = ?1".to_string();
-    execute_with_crdt(delete_item, vec![JsonValue::String(title)], db, hlc)?;
+    with_connection(db, |conn| {
+        let tx = conn.transaction().map_err(DatabaseError::from)?;
 
-    Ok(())
+        SqlExecutor::execute_internal(&tx, hlc, delete_kvs, &[JsonValue::String(title.clone())])?;
+
+        SqlExecutor::execute_internal(&tx, hlc, delete_item, &[JsonValue::String(title.clone())])?;
+
+        tx.commit().map_err(DatabaseError::from)?;
+        Ok(())
+    })
 }
 
 #[cfg(test)]
