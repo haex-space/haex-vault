@@ -491,10 +491,10 @@ const addShareMenuItems = computed(() => [
 ])
 
 const permissionLabel = computed(() => {
-  if (capabilities.value.includes('space/admin')) return 'Admin'
-  if (capabilities.value.includes('space/invite')) return 'Invite'
-  if (capabilities.value.includes('space/write')) return 'Write'
-  return 'Read'
+  if (capabilities.value.includes('space/admin')) return t('permission.admin')
+  if (capabilities.value.includes('space/invite')) return t('permission.invite')
+  if (capabilities.value.includes('space/write')) return t('permission.write')
+  return t('permission.read')
 })
 
 const permissionBadgeColor = computed(() => {
@@ -611,6 +611,11 @@ de:
     from: Von
     contact: Kontakt einladen
     link: Einladungslink erstellen
+  permission:
+    admin: Admin
+    invite: Einladen
+    write: Schreiben
+    read: Lesen
   detail:
     title: Einladungsdetails
     space: Space
@@ -644,6 +649,11 @@ en:
     from: From
     contact: Invite contact
     link: Create invite link
+  permission:
+    admin: Admin
+    invite: Invite
+    write: Write
+    read: Read
   detail:
     title: Invitation details
     space: Space
