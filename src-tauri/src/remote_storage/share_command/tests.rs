@@ -433,6 +433,10 @@ async fn iam_admin_cred_missing_when_no_hint_and_no_prior_cred() {
 async fn iam_admin_cred_missing_cleared_by_hint() {
     // First call with hint → stores cred + succeeds. Second call without hint
     // → loads the stored cred instead of returning IamAdminCredMissing.
+    //
+    // Run 2 uses a DIFFERENT `access_flags` so the idempotency short-circuit
+    // (which returns the run-1 row unchanged) does NOT fire — we specifically
+    // want to exercise the fresh-provision path with only a stored cred.
     let (db, hlc, storage_id, space_id) = setup_share_db();
 
     // Run 1: with hint. Fresh adapter, script probe=Ok(true), create=Ok(cred).
@@ -445,7 +449,8 @@ async fn iam_admin_cred_missing_cleared_by_hint() {
         .expect("first share should succeed via hint");
     assert_eq!(out_1.iam_user_name, scoped_1.iam_user_name);
 
-    // Run 2: without hint. Must reuse the stored cred (no IamAdminCredMissing).
+    // Run 2: without hint, different flags so dedupe skips. Must reuse the
+    // stored cred (no IamAdminCredMissing).
     let scoped_2 = make_scoped_cred();
     let adapter_2 = Arc::new(MockIamAdapter::new(Ok(true), Ok(scoped_2.clone())));
     let factory_2 = MockIamAdapterFactory { adapter: adapter_2 };
@@ -454,7 +459,7 @@ async fn iam_admin_cred_missing_cleared_by_hint() {
         space_id,
         prefix: None,
         object_key: None,
-        access_flags: 0b0001,
+        access_flags: 0b0011,
         iam_admin_cred_hint: None,
     };
     let out_2 = share_storage_backend_core(&db, &hlc, args_2, &factory_2)
@@ -521,19 +526,42 @@ async fn create_scoped_user_failure_writes_no_db_rows() {
 async fn db_failure_after_iam_success_calls_delete_scoped_user() {
     // Force the DB insert to fail after the adapter has already provisioned
     // the scoped user. The share command should then call delete_scoped_user
-    // to roll the provider-side change back.
+    // to roll the provider-side change back, AND the just-inserted
+    // s3_backends row must be deleted so we don't leak an orphan.
     let (db, hlc, storage_id, space_id) = setup_share_db();
 
     // We need a failure AFTER the adapter's create_scoped_user has run — so
     // dropping haex_s3_backends is wrong (that table is READ during
-    // load_owner_backend, before the adapter). Drop haex_shared_space_sync
-    // instead: the s3_backends INSERT succeeds, but the mapping-row INSERT
-    // fails, driving the rollback branch.
+    // load_owner_backend, before the adapter). Rebuild
+    // haex_shared_space_sync with a NOT NULL column the code never fills,
+    // so the s3_backends INSERT succeeds but the mapping INSERT fails on
+    // the constraint. Keeping the table around means `find_existing_share`
+    // can still run its SELECT and correctly report "no prior share".
     {
         let guard = db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
-        conn.execute_batch("DROP TABLE haex_shared_space_sync;")
-            .expect("drop mapping table for rollback test");
+        conn.execute_batch(
+            "DROP TABLE haex_shared_space_sync;
+             CREATE TABLE haex_shared_space_sync (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 space_id TEXT NOT NULL,
+                 extension_public_key TEXT,
+                 extension_name TEXT,
+                 group_id TEXT,
+                 type TEXT,
+                 label TEXT,
+                 must_be_present TEXT NOT NULL,
+                 created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+             );",
+        )
+        .expect("rebuild mapping table with breaking NOT NULL column");
+        let tx = conn
+            .unchecked_transaction()
+            .expect("begin crdt-cols tx for rebuilt mapping table");
+        ensure_crdt_columns(&tx, "haex_shared_space_sync").expect("ensure crdt cols");
+        tx.commit().expect("commit crdt-cols tx");
     }
 
     let scoped = make_scoped_cred();
@@ -561,6 +589,91 @@ async fn db_failure_after_iam_success_calls_delete_scoped_user() {
     );
     assert_eq!(deletes[0].1, scoped.access_key_id);
     assert!(deletes[0].0.starts_with("haex-share-"));
+
+    // Orphan invariant: the s3_backends row for this parent must have been
+    // cleaned up when the mapping insert failed. Only the seeded owner row
+    // remains — no `shared_from_space` child.
+    let orphan_count: i64 = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM haex_s3_backends \
+             WHERE parent_backend_id = ?1",
+            [&storage_id],
+            |row| row.get(0),
+        )
+        .expect("count orphan child rows")
+    };
+    assert_eq!(
+        orphan_count, 0,
+        "mapping-insert failure must delete the just-inserted s3_backends \
+         row; leaving an orphan share row is not acceptable"
+    );
+}
+
+#[tokio::test]
+async fn share_returns_existing_when_called_twice_with_same_args() {
+    // Idempotency guard: a double-click on Share must not create a second
+    // IAM user or a second DB row. The second call should short-circuit
+    // to the row created by the first, with `create_calls == 1` on the
+    // adapter.
+    let (db, hlc, storage_id, space_id) = setup_share_db();
+
+    // Adapter script for run 1: probe ok + create ok. Run 2 will short-
+    // circuit before touching the adapter, so the create-slot never runs.
+    let scoped = make_scoped_cred();
+    let adapter = Arc::new(MockIamAdapter::new(Ok(true), Ok(scoped.clone())));
+    let factory = MockIamAdapterFactory {
+        adapter: adapter.clone(),
+    };
+
+    let args_1 = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
+    let out_1 = share_storage_backend_core(&db, &hlc, args_1, &factory)
+        .await
+        .expect("first share should succeed");
+
+    // Second call: identical scope, no hint (dedupe runs before the cred
+    // load, so IamAdminCredMissing must not fire even without a hint).
+    let args_2 = ShareStorageBackendArgs {
+        storage_id: storage_id.clone(),
+        space_id: space_id.clone(),
+        prefix: None,
+        object_key: None,
+        access_flags: 0b0011,
+        iam_admin_cred_hint: None,
+    };
+    let out_2 = share_storage_backend_core(&db, &hlc, args_2, &factory)
+        .await
+        .expect("second share should short-circuit to the existing row");
+
+    // Same DB row surfaced twice — id and IAM user name must be identical.
+    assert_eq!(out_1.id, out_2.id, "dedupe must return the same row id");
+    assert_eq!(out_1.iam_user_name, out_2.iam_user_name);
+    assert_eq!(out_1.iam_user_name, scoped.iam_user_name);
+
+    // Adapter received exactly one create call across both invocations.
+    let creates = adapter.create_calls.lock().unwrap();
+    assert_eq!(
+        creates.len(),
+        1,
+        "dedupe must not double-provision IAM (real AWS $)"
+    );
+
+    // DB has exactly one `shared_from_space` row for this parent.
+    let child_count: i64 = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM haex_s3_backends \
+             WHERE parent_backend_id = ?1 \
+               AND origin_type = 'shared_from_space' \
+               AND share_access_flags = 3",
+            [&storage_id],
+            |row| row.get(0),
+        )
+        .expect("count child rows")
+    };
+    assert_eq!(child_count, 1, "dedupe must not insert a second child row");
 }
 
 // ---------------------------------------------------------------------------

@@ -261,6 +261,88 @@ fn load_space_name(db: &crate::database::DbConnection, space_id: &str) -> String
     }
 }
 
+/// GET-or-create dedupe: look up any existing shared-backend row for this
+/// (parent_backend_id, space_id, share_prefix, share_access_flags) tuple.
+///
+/// Prevents double-provisioning when the user double-clicks Share — a real
+/// AWS IAM user costs money and a duplicate row also duplicates the shared
+/// space mapping. Match keys mirror the INSERT in `persist_shared_backend`:
+/// `parent_backend_id` + `origin_type='shared_from_space'` + `share_prefix`
+/// (NULL-safe via `IS NOT DISTINCT FROM`, emulated with the standard
+/// `IFNULL` trick because SQLite lacks the operator) + `share_access_flags`
+/// + `space_id` (via the mapping-row join on the JSON array's first entry).
+///
+/// Returns `Ok(None)` if no matching row exists — the fresh-provision path
+/// then runs.
+fn find_existing_share(
+    db: &crate::database::DbConnection,
+    parent_backend_id: &str,
+    space_id: &str,
+    share_prefix: Option<&str>,
+    share_access_flags: i64,
+) -> Result<Option<SharedStorageBackend>, StorageError> {
+    // `row_pks` is stored as a JSON array with the shared-backend id at
+    // index 0 (see `persist_shared_backend`). SQLite's `json_extract`
+    // returns TEXT, which matches `haex_s3_backends.id` directly.
+    let sql = format!(
+        "SELECT b.id, b.type, b.name, b.config \
+         FROM {TABLE_S3_BACKENDS} b \
+         INNER JOIN {TABLE_SHARED_SPACE_SYNC} m \
+           ON m.table_name = ?1 \
+          AND m.space_id = ?2 \
+          AND json_extract(m.row_pks, '$[0]') = b.id \
+         WHERE b.parent_backend_id = ?3 \
+           AND b.origin_type = 'shared_from_space' \
+           AND b.share_access_flags = ?4 \
+           AND IFNULL(b.share_prefix, '') = IFNULL(?5, '')"
+    );
+    let prefix_param = share_prefix
+        .map(|p| serde_json::Value::String(p.to_string()))
+        .unwrap_or(serde_json::Value::Null);
+
+    let rows = select_with_crdt(
+        sql,
+        vec![
+            serde_json::Value::String(TABLE_S3_BACKENDS.to_string()),
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(parent_backend_id.to_string()),
+            serde_json::Value::Number(serde_json::Number::from(share_access_flags)),
+            prefix_param,
+        ],
+        db,
+    )
+    .map_err(|e| StorageError::DatabaseError {
+        reason: format!("find_existing_share: {e}"),
+    })?;
+
+    let Some(row) = rows.first() else {
+        return Ok(None);
+    };
+
+    let id = get_string(row, 0);
+    let r#type = get_string(row, 1);
+    let name = get_string(row, 2);
+    let config_str = get_string(row, 3);
+
+    // Recover `iam_user_name` from the config JSON — the same field the
+    // fresh-provision path writes on first success.
+    let iam_user_name = serde_json::from_str::<serde_json::Value>(&config_str)
+        .ok()
+        .and_then(|v| {
+            v.get("iamUserName")
+                .and_then(|s| s.as_str())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_default();
+
+    Ok(Some(SharedStorageBackend {
+        id,
+        r#type,
+        name,
+        iam_user_name,
+    }))
+}
+
 // ---------------------------------------------------------------------------
 // Tauri command entry point
 // ---------------------------------------------------------------------------
@@ -304,6 +386,19 @@ pub(crate) async fn share_storage_backend_core(
             reason: "owner backend config missing 'bucket' field".to_string(),
         })?
         .to_string();
+
+    // Idempotency: if a shared-backend row + mapping already exist for this
+    // (parent, space, prefix, flags) tuple, return it unchanged. Guards
+    // against double-clicks provisioning a second IAM user (real AWS $).
+    if let Some(existing) = find_existing_share(
+        db,
+        &args.storage_id,
+        &args.space_id,
+        validated.prefix.as_deref(),
+        validated.access_flags,
+    )? {
+        return Ok(existing);
+    }
 
     // Load or store-then-load the IAM-admin cred.
     let cred = obtain_iam_admin_cred(db, hlc_service, &args)?;
@@ -502,11 +597,20 @@ struct PersistArgs<'a> {
 /// Insert the new `haex_s3_backends` row and the corresponding
 /// `haex_shared_space_sync` mapping row. Both writes go through
 /// `execute_with_crdt` — they land in separate SQLite transactions per
-/// [`crate::database::core::execute_with_crdt`]'s per-call invariant, but
-/// each one is CRDT-tracked and the child mapping row has no meaning without
-/// the parent, so a partial-success (row inserted, mapping missing) merely
-/// creates an unlinked "shared backend not attached to any space" — the
-/// frontend can then delete it via the standard remove flow.
+/// [`crate::database::core::execute_with_crdt`]'s per-call invariant.
+///
+/// # No-orphan invariant
+///
+/// If the s3_backends INSERT succeeds but the mapping INSERT then fails,
+/// the freshly-inserted s3_backends row is best-effort deleted before the
+/// error propagates. This keeps the DB free of "shared backend not attached
+/// to any space" ghost rows, which would surface in the frontend list view
+/// with no way to detach them.
+///
+/// If the cleanup DELETE itself fails (unlikely — same connection, same
+/// transaction-context), a `tracing::error!` is emitted so an operator can
+/// find the stale row, and the original mapping-insert error is still
+/// returned unchanged.
 fn persist_shared_backend(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
@@ -562,7 +666,7 @@ fn persist_shared_backend(
           group_id, type, label) \
          VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, ?5, ?6)"
     );
-    execute_with_crdt(
+    if let Err(map_err) = execute_with_crdt(
         insert_mapping,
         vec![
             serde_json::Value::String(mapping_id),
@@ -574,10 +678,30 @@ fn persist_shared_backend(
         ],
         db,
         &hlc_guard,
-    )
-    .map_err(|e| StorageError::DatabaseError {
-        reason: format!("insert haex_shared_space_sync: {e}"),
-    })?;
+    ) {
+        // Orphan cleanup: the s3_backends row is already committed to its
+        // own tx, so a naive DELETE via execute_with_crdt is our only
+        // option. Log & swallow a failed cleanup so the caller's
+        // best-effort IAM rollback still fires downstream.
+        let delete_orphan = format!("DELETE FROM {TABLE_S3_BACKENDS} WHERE id = ?1");
+        if let Err(cleanup_err) = execute_with_crdt(
+            delete_orphan,
+            vec![serde_json::Value::String(args.new_row_id.to_string())],
+            db,
+            &hlc_guard,
+        ) {
+            tracing::error!(
+                storage_id = %args.new_row_id,
+                mapping_error = %map_err,
+                cleanup_error = %cleanup_err,
+                "failed to clean up orphan s3_backends row after mapping-insert \
+                 failure; DB now has an orphan share row"
+            );
+        }
+        return Err(StorageError::DatabaseError {
+            reason: format!("insert haex_shared_space_sync: {map_err}"),
+        });
+    }
 
     Ok(())
 }
