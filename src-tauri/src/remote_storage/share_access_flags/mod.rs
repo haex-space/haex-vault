@@ -17,6 +17,8 @@ pub const DELETE: i64 = 1 << 3;
 pub const READ_ONLY: i64 = LIST | GET;
 pub const READ_WRITE: i64 = LIST | GET | PUT | DELETE;
 
+/// Returns true iff every bit in `flag` is set in `mask`.
+/// Note: `has_flag(_, 0)` is always true.
 #[inline]
 pub fn has_flag(mask: i64, flag: i64) -> bool {
     (mask & flag) == flag
