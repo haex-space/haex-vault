@@ -10,6 +10,7 @@ pub mod backend;
 pub mod commands;
 pub mod error;
 pub mod iam_admin_creds;
+pub mod iam_policy;
 pub mod progress;
 pub mod queries;
 pub mod share_access_flags;
@@ -18,3 +19,4 @@ pub mod types;
 
 pub use commands::*;
 pub use error::StorageError;
+pub use iam_policy::{build_object_policy, build_policy, IamPolicy};
