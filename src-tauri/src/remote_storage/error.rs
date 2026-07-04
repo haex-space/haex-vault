@@ -81,6 +81,20 @@ pub enum StorageError {
     /// follow-up scope-kind column task.
     #[error("Object-scope share is not yet supported")]
     ObjectScopeNotYetSupported,
+
+    // --- revoke_storage_share variants --------------------------------------
+    /// The row referenced by `sharedBackendId` exists but is not a
+    /// `origin_type = 'shared_from_space'` row. Callers should not attempt to
+    /// revoke an owned backend — those must be removed through the normal
+    /// storage-backend delete path.
+    #[error("Backend row is not a shared-from-space row (origin_type = {origin_type})")]
+    NotAShareRow { origin_type: String },
+
+    /// The shared row exists but its `parent_backend_id` does not resolve to
+    /// a row in `haex_s3_backends`. Indicates data corruption or a race with
+    /// a concurrent owner-side delete.
+    #[error("Parent backend not found: {parent_backend_id}")]
+    ParentBackendMissing { parent_backend_id: String },
 }
 
 impl From<rusqlite::Error> for StorageError {
