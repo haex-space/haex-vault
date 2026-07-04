@@ -25,6 +25,13 @@ const IAM_REGION_AWS_WASABI: &str = "us-east-1";
 const AWS_IAM_ENDPOINT: &str = "https://iam.amazonaws.com";
 const WASABI_IAM_ENDPOINT: &str = "https://iam.wasabisys.com";
 
+/// Fixed name of the inline policy the adapter attaches to every scoped
+/// user. Kept internal to the adapter (not caller-configurable) so that
+/// `create_scoped_user` and `delete_scoped_user` stay symmetric — a
+/// mismatched name here would leave an orphan policy on the user, which
+/// then blocks `DeleteUser` at revoke time.
+pub(crate) const HAEX_SHARE_POLICY_NAME: &str = "haex-share-policy";
+
 /// Which vendor-specific IAM endpoint / region convention to use.
 ///
 /// AWS and Wasabi both speak the classic XML Query API and share the
@@ -195,13 +202,30 @@ impl AwsCompatIamAdapter {
 
     /// Dispatch a signed request and map non-2xx into the right error
     /// variant using the `<Code>` element in the XML error envelope.
+    ///
+    /// Also scans 2xx bodies for an embedded `<ErrorResponse>` / `<Error>`
+    /// envelope: Wasabi and some reverse-proxied IAM gateways occasionally
+    /// return `200 OK` with an error payload. Real AWS/Wasabi success
+    /// responses never contain those elements at any depth, so their mere
+    /// presence is a strong signal that the call actually failed.
     async fn call(&self, params: &[(&str, &str)]) -> Result<String, IamAdapterError> {
         let (status, body) = self.signed_post(params).await?;
         if status.is_success() {
+            if body_contains_error_envelope(&body) {
+                return Err(classify_error(&body, status));
+            }
             return Ok(body);
         }
         Err(classify_error(&body, status))
     }
+}
+
+/// Returns true if a response body carries an IAM error envelope. Success
+/// responses (`<CreateUserResponse>`, `<PutUserPolicyResponse>`, …) never
+/// contain these tags, so their presence unambiguously signals failure —
+/// even when the HTTP status is 2xx (Wasabi + some reverse proxies).
+pub(crate) fn body_contains_error_envelope(body: &str) -> bool {
+    body.contains("<ErrorResponse") || body.contains("<Error>")
 }
 
 fn host_of(endpoint: &'static str) -> &'static str {
@@ -278,15 +302,74 @@ pub(crate) fn classify_error(body: &str, status: reqwest::StatusCode) -> IamAdap
     IamAdapterError::Network(format!("http {status}: {body}"))
 }
 
+/// Pure step-builder for `try_cleanup_user`. Returns the ordered list of
+/// IAM Action forms needed to fully revoke a scoped user. When
+/// `access_key_id` is `None` the `DeleteAccessKey` step is omitted — that
+/// matches the rollback scenario where `CreateAccessKey` never succeeded.
+///
+/// Extracted from the async method so tests can pin the step count without
+/// standing up a mock HTTP endpoint.
+pub(crate) fn cleanup_user_steps<'a>(
+    user_name: &'a str,
+    access_key_id: Option<&'a str>,
+) -> Vec<Vec<(&'a str, &'a str)>> {
+    let mut steps: Vec<Vec<(&'a str, &'a str)>> = Vec::with_capacity(3);
+    if let Some(key_id) = access_key_id {
+        steps.push(vec![
+            ("Action", "DeleteAccessKey"),
+            ("UserName", user_name),
+            ("AccessKeyId", key_id),
+            ("Version", IAM_API_VERSION),
+        ]);
+    }
+    steps.push(vec![
+        ("Action", "DeleteUserPolicy"),
+        ("UserName", user_name),
+        ("PolicyName", HAEX_SHARE_POLICY_NAME),
+        ("Version", IAM_API_VERSION),
+    ]);
+    steps.push(vec![
+        ("Action", "DeleteUser"),
+        ("UserName", user_name),
+        ("Version", IAM_API_VERSION),
+    ]);
+    steps
+}
+
+impl AwsCompatIamAdapter {
+    /// Internal cleanup helper used by both the public `delete_scoped_user`
+    /// and the rollback path in `create_scoped_user`. Skips
+    /// `DeleteAccessKey` when the caller has no access-key id (which happens
+    /// during rollback if `CreateAccessKey` never succeeded). Idempotent —
+    /// `NoSuchEntity` on any step is swallowed.
+    async fn try_cleanup_user(
+        &self,
+        user_name: &str,
+        access_key_id: Option<&str>,
+    ) -> Result<(), IamAdapterError> {
+        for step in cleanup_user_steps(user_name, access_key_id) {
+            // Re-borrow the owned step into the shape `call` expects.
+            let params: Vec<(&str, &str)> = step.iter().map(|(k, v)| (*k, *v)).collect();
+            match self.call(&params).await {
+                Ok(_) => {}
+                Err(IamAdapterError::NotFound) => {}
+                Err(other) => return Err(other),
+            }
+        }
+        Ok(())
+    }
+}
+
 #[async_trait::async_trait]
 impl IamAdapter for AwsCompatIamAdapter {
     async fn create_scoped_user(
         &self,
         user_name: &str,
-        policy_name: &str,
         policy: &IamPolicy,
     ) -> Result<ScopedCred, IamAdapterError> {
-        // 1. CreateUser
+        // 1. CreateUser — the "commit point" for cleanup: after this
+        //    succeeds any further error must trigger rollback so we don't
+        //    orphan an IAM user in the customer's AWS account.
         self.call(&[
             ("Action", "CreateUser"),
             ("UserName", user_name),
@@ -294,43 +377,93 @@ impl IamAdapter for AwsCompatIamAdapter {
         ])
         .await?;
 
-        // 2. PutUserPolicy — serialise the policy JSON via serde.
-        let policy_doc = json_to_string(policy)
-            .map_err(|e| IamAdapterError::Other(format!("policy serialize: {e}")))?;
-        self.call(&[
-            ("Action", "PutUserPolicy"),
-            ("UserName", user_name),
-            ("PolicyName", policy_name),
-            ("PolicyDocument", &policy_doc),
-            ("Version", IAM_API_VERSION),
-        ])
-        .await?;
+        // Steps 2 + 3. On ANY failure past this point we must roll back the
+        // CreateUser above, otherwise we orphan the user in the customer's
+        // AWS account. Written imperatively so the tracked `created_key_id`
+        // stays a plain `Option` — nesting this in an `async` block plus a
+        // `Cell` breaks the `Send` requirement on the async-trait future.
+        let mut created_key_id: Option<String> = None;
+        let inner: Result<ScopedCred, IamAdapterError> = 'inner: {
+            // 2. PutUserPolicy — serialise the policy JSON via serde.
+            let policy_doc = match json_to_string(policy) {
+                Ok(s) => s,
+                Err(e) => {
+                    break 'inner Err(IamAdapterError::Other(format!("policy serialize: {e}")))
+                }
+            };
+            if let Err(e) = self
+                .call(&[
+                    ("Action", "PutUserPolicy"),
+                    ("UserName", user_name),
+                    ("PolicyName", HAEX_SHARE_POLICY_NAME),
+                    ("PolicyDocument", &policy_doc),
+                    ("Version", IAM_API_VERSION),
+                ])
+                .await
+            {
+                break 'inner Err(e);
+            }
 
-        // 3. CreateAccessKey — parse the returned XML for the id + secret.
-        let body = self
-            .call(&[
-                ("Action", "CreateAccessKey"),
-                ("UserName", user_name),
-                ("Version", IAM_API_VERSION),
-            ])
-            .await?;
+            // 3. CreateAccessKey — parse the returned XML for the id + secret.
+            let body = match self
+                .call(&[
+                    ("Action", "CreateAccessKey"),
+                    ("UserName", user_name),
+                    ("Version", IAM_API_VERSION),
+                ])
+                .await
+            {
+                Ok(b) => b,
+                Err(e) => break 'inner Err(e),
+            };
 
-        let access_key_id = extract_xml_tag(&body, "AccessKeyId")
-            .ok_or_else(|| {
-                IamAdapterError::Other("CreateAccessKey: missing AccessKeyId".to_string())
-            })?
-            .to_string();
-        let secret_access_key = extract_xml_tag(&body, "SecretAccessKey")
-            .ok_or_else(|| {
-                IamAdapterError::Other("CreateAccessKey: missing SecretAccessKey".to_string())
-            })?
-            .to_string();
+            let access_key_id = match extract_xml_tag(&body, "AccessKeyId") {
+                Some(s) => s.to_string(),
+                None => {
+                    break 'inner Err(IamAdapterError::Other(
+                        "CreateAccessKey: missing AccessKeyId".to_string(),
+                    ))
+                }
+            };
+            // Track it before the SecretAccessKey extraction so that if the
+            // response is malformed we still know a key exists in AWS and
+            // can revoke it during rollback.
+            created_key_id = Some(access_key_id.clone());
+            let secret_access_key = match extract_xml_tag(&body, "SecretAccessKey") {
+                Some(s) => s.to_string(),
+                None => {
+                    break 'inner Err(IamAdapterError::Other(
+                        "CreateAccessKey: missing SecretAccessKey".to_string(),
+                    ))
+                }
+            };
 
-        Ok(ScopedCred {
-            access_key_id,
-            secret_access_key,
-            iam_user_name: user_name.to_string(),
-        })
+            Ok(ScopedCred {
+                access_key_id,
+                secret_access_key,
+                iam_user_name: user_name.to_string(),
+            })
+        };
+
+        match inner {
+            Ok(cred) => Ok(cred),
+            Err(err) => {
+                // Best-effort rollback. Surface the ORIGINAL error to the
+                // caller regardless of rollback outcome — losing the primary
+                // failure reason to a secondary cleanup error would obscure
+                // the real bug.
+                let key_id = created_key_id.as_deref();
+                if let Err(cleanup_err) = self.try_cleanup_user(user_name, key_id).await {
+                    tracing::warn!(
+                        user_name = %user_name,
+                        primary_error = %err,
+                        cleanup_error = %cleanup_err,
+                        "create_scoped_user rollback failed; IAM user may be orphaned"
+                    );
+                }
+                Err(err)
+            }
+        }
     }
 
     async fn delete_scoped_user(
@@ -338,36 +471,7 @@ impl IamAdapter for AwsCompatIamAdapter {
         user_name: &str,
         access_key_id: &str,
     ) -> Result<(), IamAdapterError> {
-        // Idempotent cleanup — NotFound on any of the three steps is
-        // treated as "already gone" and swallowed.
-        let steps: &[&[(&str, &str)]] = &[
-            &[
-                ("Action", "DeleteAccessKey"),
-                ("UserName", user_name),
-                ("AccessKeyId", access_key_id),
-                ("Version", IAM_API_VERSION),
-            ],
-            &[
-                ("Action", "DeleteUserPolicy"),
-                ("UserName", user_name),
-                ("PolicyName", "haex-share-policy"),
-                ("Version", IAM_API_VERSION),
-            ],
-            &[
-                ("Action", "DeleteUser"),
-                ("UserName", user_name),
-                ("Version", IAM_API_VERSION),
-            ],
-        ];
-
-        for params in steps {
-            match self.call(params).await {
-                Ok(_) => {}
-                Err(IamAdapterError::NotFound) => {}
-                Err(other) => return Err(other),
-            }
-        }
-        Ok(())
+        self.try_cleanup_user(user_name, Some(access_key_id)).await
     }
 
     async fn probe_iam_capability(&self) -> Result<bool, IamAdapterError> {

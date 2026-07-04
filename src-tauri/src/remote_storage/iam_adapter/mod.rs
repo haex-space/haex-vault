@@ -50,7 +50,7 @@ impl std::fmt::Debug for ScopedCred {
 /// Errors surfaced by the IAM adapter. The variant carries just enough
 /// context for the caller to distinguish "cred not found" (idempotent path)
 /// from "we don't have permission" from generic transport failure.
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Clone)]
 pub enum IamAdapterError {
     /// Network transport or provider-side 5xx / unexpected shape.
     #[error("network or provider error: {0}")]
@@ -79,12 +79,17 @@ pub enum IamAdapterError {
 pub trait IamAdapter: Send + Sync {
     /// Create a scoped IAM user + inline policy + access-key, in that order.
     ///
-    /// Not idempotent — call with a fresh unique `user_name` each time
-    /// (partial-failure is a bug the caller must observe).
+    /// The adapter owns the inline policy name (see
+    /// `aws_compat::HAEX_SHARE_POLICY_NAME`) so that create/delete stay
+    /// symmetric — callers cannot desync the two paths by passing different
+    /// values.
+    ///
+    /// On partial failure after `CreateUser` succeeded, the adapter makes a
+    /// best-effort attempt to delete the orphaned user + policy + any
+    /// access-key that was created before returning the original error.
     async fn create_scoped_user(
         &self,
         user_name: &str,
-        policy_name: &str,
         policy: &IamPolicy,
     ) -> Result<ScopedCred, IamAdapterError>;
 

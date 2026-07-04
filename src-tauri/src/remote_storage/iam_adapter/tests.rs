@@ -6,7 +6,10 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
-use super::aws_compat::{classify_error, extract_xml_tag, AwsCompatIamAdapter, ProviderFlavor};
+use super::aws_compat::{
+    body_contains_error_envelope, classify_error, cleanup_user_steps, extract_xml_tag,
+    AwsCompatIamAdapter, ProviderFlavor, HAEX_SHARE_POLICY_NAME,
+};
 use super::{IamAdapter, IamAdapterError, ScopedCred};
 
 fn rand_key() -> String {
@@ -156,4 +159,134 @@ fn scoped_cred_debug_impl_redacts_secret() {
 fn adapter_is_dyn_compatible() {
     let adapter = AwsCompatIamAdapter::new(&rand_key(), &rand_key(), ProviderFlavor::Aws).unwrap();
     let _boxed: Box<dyn IamAdapter> = Box::new(adapter);
+}
+
+// -- Fix 1: HAEX_SHARE_POLICY_NAME is a stable, non-caller-configurable
+// constant. Pinning the value is a regression fence — if create/delete ever
+// desynchronise on this literal we leak orphan policies that block
+// DeleteUser.
+
+#[test]
+fn haex_share_policy_name_is_stable() {
+    assert_eq!(
+        HAEX_SHARE_POLICY_NAME, "haex-share-policy",
+        "the inline policy name must stay stable — create and delete both \
+         hardcode this constant and any change desyncs the two paths"
+    );
+}
+
+// -- Fix 2: body_contains_error_envelope discriminates success from a
+// 2xx-wrapped error payload (Wasabi + reverse-proxy pathology).
+
+#[test]
+fn body_contains_error_envelope_detects_wrapped_error() {
+    let payload = "<ErrorResponse><Error><Code>AccessDenied</Code>\
+                   <Message>nope</Message></Error></ErrorResponse>";
+    assert!(body_contains_error_envelope(payload));
+}
+
+#[test]
+fn body_contains_error_envelope_ignores_success_responses() {
+    // A minimal but realistic IAM success envelope.
+    let create_user_ok = "<CreateUserResponse>\
+                            <CreateUserResult>\
+                              <User>\
+                                <UserName>haex-share-xyz</UserName>\
+                              </User>\
+                            </CreateUserResult>\
+                          </CreateUserResponse>";
+    assert!(!body_contains_error_envelope(create_user_ok));
+
+    // Also empty body and put-user-policy-ok shape.
+    assert!(!body_contains_error_envelope(""));
+    assert!(!body_contains_error_envelope(
+        "<PutUserPolicyResponse><ResponseMetadata><RequestId>abc</RequestId>\
+         </ResponseMetadata></PutUserPolicyResponse>"
+    ));
+}
+
+#[test]
+fn two_hundred_with_embedded_error_maps_via_classify_error() {
+    // End-to-end verification of the Fix-3 path: a 200 status carrying an
+    // <ErrorResponse> body must classify as the corresponding error rather
+    // than being handed back to the caller as Ok(body).
+    let body = "<ErrorResponse><Error><Code>AccessDenied</Code>\
+                <Message>reverse proxy stripped the status code</Message>\
+                </Error></ErrorResponse>";
+    assert!(body_contains_error_envelope(body));
+    match classify_error(body, reqwest::StatusCode::OK) {
+        IamAdapterError::AccessDenied(code) => assert_eq!(code, "AccessDenied"),
+        other => panic!("expected AccessDenied on 200-with-error, got {other:?}"),
+    }
+}
+
+// -- Fix 2 (rollback): IamAdapterError must be Clone so the rollback path
+// can log the cleanup failure and still surface the primary error. (The
+// production impl does not clone; this pins the derive so we don't remove
+// it in a future refactor.)
+
+// -- Fix 2 (rollback step count): cleanup_user_steps omits DeleteAccessKey
+// when the caller has no access-key id (the rollback path when
+// CreateAccessKey never succeeded). Also verifies delete order stays
+// DeleteAccessKey → DeleteUserPolicy → DeleteUser, which is IAM's required
+// dependency order.
+
+#[test]
+fn cleanup_user_steps_full_path_has_three_steps() {
+    let steps = cleanup_user_steps("haex-share-abc", Some("AKIA123"));
+    assert_eq!(steps.len(), 3, "full delete must run 3 IAM actions");
+    let actions: Vec<&str> = steps
+        .iter()
+        .filter_map(|s| s.iter().find(|(k, _)| *k == "Action").map(|(_, v)| *v))
+        .collect();
+    assert_eq!(
+        actions,
+        vec!["DeleteAccessKey", "DeleteUserPolicy", "DeleteUser"],
+        "IAM requires this dependency order"
+    );
+}
+
+#[test]
+fn cleanup_user_steps_rollback_path_skips_delete_access_key() {
+    let steps = cleanup_user_steps("haex-share-abc", None);
+    assert_eq!(
+        steps.len(),
+        2,
+        "rollback before CreateAccessKey succeeded must not attempt \
+         DeleteAccessKey — there is no key id yet"
+    );
+    let actions: Vec<&str> = steps
+        .iter()
+        .filter_map(|s| s.iter().find(|(k, _)| *k == "Action").map(|(_, v)| *v))
+        .collect();
+    assert_eq!(actions, vec!["DeleteUserPolicy", "DeleteUser"]);
+}
+
+#[test]
+fn cleanup_user_steps_uses_hardcoded_policy_name() {
+    // Guards create/delete symmetry: the delete step must reference the
+    // same policy name the adapter attached during create.
+    let steps = cleanup_user_steps("haex-share-abc", Some("AKIA123"));
+    let policy_step = steps
+        .iter()
+        .find(|s| s.iter().any(|(_, v)| *v == "DeleteUserPolicy"))
+        .expect("invariant: DeleteUserPolicy step must exist");
+    let policy_name = policy_step
+        .iter()
+        .find(|(k, _)| *k == "PolicyName")
+        .map(|(_, v)| *v)
+        .expect("invariant: DeleteUserPolicy must carry PolicyName");
+    assert_eq!(policy_name, HAEX_SHARE_POLICY_NAME);
+}
+
+#[test]
+fn iam_adapter_error_is_clone() {
+    let err = IamAdapterError::AccessDenied("test".to_string());
+    let cloned = err.clone();
+    match (err, cloned) {
+        (IamAdapterError::AccessDenied(a), IamAdapterError::AccessDenied(b)) => {
+            assert_eq!(a, b);
+        }
+        _ => panic!("clone changed variant"),
+    }
 }
