@@ -52,9 +52,12 @@ export const haexStorageBackends = sqliteTable(
     //                         backend with us; parentBackendId references the owner-side row and
     //                         sharePrefix/shareAccessFlags describe the granted scope.
     originType: text(tableNames.haex.storage_backends.columns.originType)
+      .$type<'owned' | 'shared_from_space'>()
       .notNull()
       .default('owned'),
     sharePrefix: text(tableNames.haex.storage_backends.columns.sharePrefix),
+    // shareAccessFlags bitmap:  bit0=list  bit1=get  bit2=put  bit3=delete
+    // NULL only valid when originType='owned'.
     shareAccessFlags: integer(tableNames.haex.storage_backends.columns.shareAccessFlags),
     createdAt: text(tableNames.haex.storage_backends.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
