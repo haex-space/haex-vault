@@ -402,5 +402,3 @@ en:
   fileDisabledTooltip: Sharing single files is not supported in this version
   arnPreviewLabel: ARN preview
 </i18n>
-</content>
-</invoke>
