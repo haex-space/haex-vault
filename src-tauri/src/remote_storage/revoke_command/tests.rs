@@ -585,17 +585,17 @@ async fn iam_other_error_prevents_db_deletion() {
     .expect_err("IAM Network error must propagate");
 
     match err {
-        StorageError::IamProvisioningFailed { reason } => {
+        StorageError::IamOperationFailed { operation, reason } => {
+            assert_eq!(
+                operation, "delete_scoped_user",
+                "operation must identify the revoke's IAM step"
+            );
             assert!(
                 reason.contains("transient boom"),
                 "reason must carry cause, got {reason}"
             );
-            assert!(
-                reason.contains("revoke"),
-                "reason should be tagged as revoke path, got {reason}"
-            );
         }
-        other => panic!("expected IamProvisioningFailed, got {other:?}"),
+        other => panic!("expected IamOperationFailed, got {other:?}"),
     }
 
     // DB rows must still be present — safety property.
@@ -685,6 +685,23 @@ fn parent_backend_missing_serializes_with_camel_case_tag() {
     let json = serde_json::to_value(&err).expect("serialize");
     assert_eq!(json["type"], "ParentBackendMissing");
     assert_eq!(json["details"]["parent_backend_id"], "parent-xyz");
+}
+
+#[test]
+fn iam_operation_failed_serializes_with_operation_and_reason() {
+    // Pin the new variant's shape: `{"type":"IamOperationFailed","details":{"operation":"...","reason":"..."}}`.
+    // Frontend pattern-matches on `type` and reads both fields, so a rename
+    // would silently break UI. Belt-and-braces alongside the runtime asserts
+    // in create_scoped_user_failure_writes_no_db_rows /
+    // iam_other_error_prevents_db_deletion.
+    let err = StorageError::IamOperationFailed {
+        operation: "delete_scoped_user".to_string(),
+        reason: "http 500".to_string(),
+    };
+    let json = serde_json::to_value(&err).expect("serialize");
+    assert_eq!(json["type"], "IamOperationFailed");
+    assert_eq!(json["details"]["operation"], "delete_scoped_user");
+    assert_eq!(json["details"]["reason"], "http 500");
 }
 
 // ---------------------------------------------------------------------------

@@ -72,8 +72,13 @@ pub enum StorageError {
     /// error, unexpected XML, or provider-side 5xx. The scoped user may or
     /// may not exist on the provider; the adapter is responsible for its own
     /// best-effort rollback before returning.
-    #[error("IAM provisioning failed: {reason}")]
-    IamProvisioningFailed { reason: String },
+    ///
+    /// `operation` identifies the specific IAM operation that failed (e.g.
+    /// `"create_scoped_user"`, `"delete_scoped_user"`, `"probe_iam_capability"`),
+    /// so operators can distinguish share- from revoke- from probe-path failures
+    /// without parsing the free-form `reason` string.
+    #[error("IAM operation {operation} failed: {reason}")]
+    IamOperationFailed { operation: String, reason: String },
 
     /// Object-scoped shares (a single S3 key) are not yet wired end-to-end.
     /// v1 supports whole-bucket and prefix-scoped shares only; see

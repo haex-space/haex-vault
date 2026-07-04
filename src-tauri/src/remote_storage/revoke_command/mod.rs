@@ -315,8 +315,9 @@ pub(crate) async fn revoke_storage_share_core(
     let adapter: Arc<dyn IamAdapter> =
         factory
             .build(&cred, flavor)
-            .map_err(|e| StorageError::IamProvisioningFailed {
-                reason: format!("adapter construction failed: {e}"),
+            .map_err(|e| StorageError::IamOperationFailed {
+                operation: "build_adapter".to_string(),
+                reason: e.to_string(),
             })?;
 
     // 5. Provider-side delete. `NotFound` is idempotent — the user may
@@ -336,8 +337,9 @@ pub(crate) async fn revoke_storage_share_core(
             );
         }
         Err(e) => {
-            return Err(StorageError::IamProvisioningFailed {
-                reason: format!("revoke: delete_scoped_user failed: {e}"),
+            return Err(StorageError::IamOperationFailed {
+                operation: "delete_scoped_user".to_string(),
+                reason: e.to_string(),
             });
         }
     }

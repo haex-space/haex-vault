@@ -502,10 +502,14 @@ async fn create_scoped_user_failure_writes_no_db_rows() {
         .await
         .expect_err("must propagate adapter failure");
     match err {
-        StorageError::IamProvisioningFailed { reason } => {
+        StorageError::IamOperationFailed { operation, reason } => {
+            assert_eq!(
+                operation, "create_scoped_user",
+                "operation must identify the failing IAM step"
+            );
             assert!(reason.contains("boom"), "reason must carry the cause");
         }
-        other => panic!("expected IamProvisioningFailed, got {other:?}"),
+        other => panic!("expected IamOperationFailed, got {other:?}"),
     }
 
     // No new backend row should exist (only the seeded one).

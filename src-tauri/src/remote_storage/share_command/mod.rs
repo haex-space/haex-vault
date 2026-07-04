@@ -404,12 +404,12 @@ pub(crate) async fn share_storage_backend_core(
     let cred = obtain_iam_admin_cred(db, hlc_service, &args)?;
 
     let flavor = provider_flavor_from(&cred)?;
-    let adapter =
-        factory
-            .build(&cred, flavor)
-            .map_err(|e| StorageError::IamProvisioningFailed {
-                reason: format!("adapter construction failed: {e}"),
-            })?;
+    let adapter = factory
+        .build(&cred, flavor)
+        .map_err(|e| StorageError::IamOperationFailed {
+            operation: "build_adapter".to_string(),
+            reason: e.to_string(),
+        })?;
 
     // Probe: bail before we start creating IAM users if the cred lacks perms.
     match adapter.probe_iam_capability().await {
@@ -418,8 +418,9 @@ pub(crate) async fn share_storage_backend_core(
             return Err(StorageError::IamAdminInsufficient);
         }
         Err(e) => {
-            return Err(StorageError::IamProvisioningFailed {
-                reason: format!("probe_iam_capability failed: {e}"),
+            return Err(StorageError::IamOperationFailed {
+                operation: "probe_iam_capability".to_string(),
+                reason: e.to_string(),
             });
         }
     }
@@ -439,8 +440,9 @@ pub(crate) async fn share_storage_backend_core(
     let scoped_cred = adapter
         .create_scoped_user(&user_name, &policy)
         .await
-        .map_err(|e| StorageError::IamProvisioningFailed {
-            reason: format!("create_scoped_user failed: {e}"),
+        .map_err(|e| StorageError::IamOperationFailed {
+            operation: "create_scoped_user".to_string(),
+            reason: e.to_string(),
         })?;
 
     // Compose the new backend row.
