@@ -27,7 +27,10 @@ use serde_json::Value as JsonValue;
 use std::sync::MutexGuard;
 
 /// Materialised IAM-admin credential as stored/loaded from the vault.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Custom `Debug` impl redacts both key fields to prevent accidental leaks
+/// via `tracing::debug!`, `dbg!`, or panic messages.
+#[derive(Clone, PartialEq, Eq)]
 pub struct IamAdminCred {
     /// The IAM access-key id.
     pub access_key_id: String,
@@ -39,10 +42,24 @@ pub struct IamAdminCred {
     pub provider_type: String,
 }
 
+impl std::fmt::Debug for IamAdminCred {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IamAdminCred")
+            .field("access_key_id", &"<redacted>")
+            .field("secret_access_key", &"<redacted>")
+            .field("provider_type", &self.provider_type)
+            .finish()
+    }
+}
+
 /// Password-manager title used to identify an IAM-admin cred entry.
 /// Deterministic on `storage_id` so we can look up + delete without needing
 /// to remember the row `id` separately.
-#[inline]
+///
+/// The `"iam-admin:"` prefix is reserved by the vault; user-created password
+/// entries that collide would be misread by [`load`]. Enforced by convention;
+/// consider filtering the prefix from password-manager UI list views if this
+/// becomes user-visible.
 pub fn cred_title_for(storage_id: &str) -> String {
     format!("iam-admin:{}", storage_id)
 }
@@ -57,11 +74,13 @@ pub fn load(db: &DbConnection, storage_id: &str) -> Result<Option<IamAdminCred>,
 
     // Pull the item's id + username (access_key_id) + password (secret) plus
     // the provider_type from the key-values junction in one round-trip.
-    // LEFT JOIN so a missing key-values row still surfaces the item (we
-    // decide separately below whether that's a broken entry to skip).
+    // INNER JOIN so an item without its provider_type key-value row is
+    // treated as a broken entry (yields `Ok(None)`). A silent
+    // `provider_type = ""` fallback would surface downstream as an opaque
+    // IAM signing failure — much harder to diagnose than "cred not found".
     let sql = "SELECT d.id, d.username, d.password, kv.value \
                FROM haex_passwords_item_details d \
-               LEFT JOIN haex_passwords_item_key_values kv \
+               INNER JOIN haex_passwords_item_key_values kv \
                  ON kv.item_id = d.id AND kv.key = ?2 \
                WHERE d.title = ?1"
         .to_string();
@@ -94,6 +113,13 @@ pub fn load(db: &DbConnection, storage_id: &str) -> Result<Option<IamAdminCred>,
 ///
 /// Assumes no prior entry exists for this storage id. Callers that need
 /// upsert semantics should invoke [`delete_by_storage`] first.
+///
+/// **Atomicity caveat:** the two INSERTs (`item_details` + `item_key_values`)
+/// are NOT wrapped in a single SQLite transaction. If the second INSERT
+/// fails, the item row is orphaned. [`load`] now uses INNER JOIN, so an
+/// orphaned entry is transparent to callers (returns `Ok(None)`), but
+/// [`delete_by_storage`] should be invoked before retry to clean up.
+/// Follow-up TODO before Phase E wiring: wrap in `execute_with_crdt` tx.
 pub fn store(
     db: &DbConnection,
     hlc: &MutexGuard<crate::crdt::hlc::HlcService>,
@@ -145,10 +171,14 @@ pub fn store(
 /// Remove the IAM-admin credential for `storage_id`, including its
 /// key-values rows.
 ///
-/// The schema declares `ON DELETE CASCADE` on the key-values FK, but the
-/// CRDT delete-log layer needs both parents and children explicitly deleted
-/// so remote devices actually replay both tombstones. We therefore issue
-/// the key-values DELETE first, then the details DELETE.
+/// The production schema (`haex_passwords_item_key_values.item_id`) declares
+/// `ON DELETE CASCADE`, but the CRDT delete-log layer needs both parent and
+/// child rows explicitly deleted so remote devices actually replay both
+/// tombstones. We therefore issue the key-values DELETE first, then the
+/// details DELETE.
+///
+/// **Atomicity caveat:** same as [`store`] — the two DELETEs are not in a
+/// transaction. Follow-up TODO before Phase E wiring.
 pub fn delete_by_storage(
     db: &DbConnection,
     hlc: &MutexGuard<crate::crdt::hlc::HlcService>,
