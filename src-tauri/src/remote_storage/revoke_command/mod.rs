@@ -141,13 +141,17 @@ fn load_shared_row(
 /// We don't need any of its columns for the IAM revoke (the admin cred carries
 /// its own `provider_type`), but the check catches data-corruption/race cases
 /// before we go touch the provider.
+///
+/// This is a pure existence check — we do NOT filter on `origin_type = 'owned'`.
+/// Origin correctness of the parent row is trusted to be enforced elsewhere
+/// (share_command's `load_owner_backend` and the shape of the `parent_backend_id`
+/// FK). Filtering on origin here would surface a misleading `ParentBackendMissing`
+/// error when the row IS present but corrupted, obscuring the actual data issue.
 fn assert_parent_exists(
     db: &crate::database::DbConnection,
     parent_backend_id: &str,
 ) -> Result<(), StorageError> {
-    let sql = format!(
-        "SELECT 1 FROM {TABLE_S3_BACKENDS} WHERE {COL_S3_BACKENDS_ID} = ?1 AND origin_type = 'owned'"
-    );
+    let sql = format!("SELECT 1 FROM {TABLE_S3_BACKENDS} WHERE {COL_S3_BACKENDS_ID} = ?1");
     let rows = select_with_crdt(
         sql,
         vec![serde_json::Value::String(parent_backend_id.to_string())],

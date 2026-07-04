@@ -688,6 +688,102 @@ fn parent_backend_missing_serializes_with_camel_case_tag() {
 }
 
 // ---------------------------------------------------------------------------
+// assert_parent_exists: existence-only check (I2)
+// ---------------------------------------------------------------------------
+//
+// After the I2 fix, the parent-existence guard no longer filters on
+// `origin_type = 'owned'`. Two properties matter:
+//   (a) revoke succeeds when the parent exists, regardless of its origin_type
+//   (b) revoke returns ParentBackendMissing when the parent row is truly gone
+
+#[tokio::test]
+async fn parent_with_non_owned_origin_still_permits_revoke() {
+    // Simulate a corrupted parent (origin_type flipped away from 'owned' —
+    // e.g. because a prior migration/repair changed it). The existence-only
+    // check must let the revoke proceed rather than raise a misleading
+    // ParentBackendMissing.
+    let (db, hlc, parent_id) = setup_revoke_db();
+    let seeded = seed_share(&db, &hlc, &parent_id, false);
+
+    // Corrupt the parent's origin_type.
+    {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute(
+            "UPDATE haex_s3_backends SET origin_type = 'unknown' WHERE id = ?1",
+            [&parent_id],
+        )
+        .expect("flip parent origin_type");
+    }
+
+    let adapter = Arc::new(MockIamAdapter::new(Ok(())));
+    let factory = MockIamAdapterFactory {
+        adapter: adapter.clone(),
+    };
+
+    revoke_storage_share_core(
+        &db,
+        &hlc,
+        RevokeStorageShareArgs {
+            shared_backend_id: seeded.shared_id.clone(),
+        },
+        &factory,
+    )
+    .await
+    .expect("revoke must proceed when parent row exists, regardless of origin_type");
+
+    // Shared row and mapping should be gone; IAM adapter was called exactly once.
+    assert!(!shared_backend_exists(&db, &seeded.shared_id));
+    assert!(!mapping_exists_for_shared(&db, &seeded.shared_id));
+    assert_eq!(adapter.delete_calls.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn parent_absent_still_returns_parent_backend_missing() {
+    // Regression guard: dropping the origin_type filter must NOT weaken the
+    // existence check. If the parent row is truly absent, the flow still has
+    // to bail with ParentBackendMissing before touching IAM.
+    let (db, hlc, parent_id) = setup_revoke_db();
+    let seeded = seed_share(&db, &hlc, &parent_id, false);
+
+    // Delete the parent row directly (bypass CRDT path — we want the row
+    // gone from the base table for the existence-check target).
+    {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute("DELETE FROM haex_s3_backends WHERE id = ?1", [&parent_id])
+            .expect("drop parent row");
+    }
+
+    let adapter = Arc::new(MockIamAdapter::new(Ok(())));
+    let factory = MockIamAdapterFactory {
+        adapter: adapter.clone(),
+    };
+
+    let err = revoke_storage_share_core(
+        &db,
+        &hlc,
+        RevokeStorageShareArgs {
+            shared_backend_id: seeded.shared_id.clone(),
+        },
+        &factory,
+    )
+    .await
+    .expect_err("must halt when parent row is gone");
+
+    match err {
+        StorageError::ParentBackendMissing { parent_backend_id } => {
+            assert_eq!(parent_backend_id, parent_id);
+        }
+        other => panic!("expected ParentBackendMissing, got {other:?}"),
+    }
+    assert!(
+        adapter.delete_calls.lock().unwrap().is_empty(),
+        "IAM must not be touched when parent existence check fails"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // I1a acceptance test: enforced ON DELETE CASCADE on parent_backend_id
 // ---------------------------------------------------------------------------
 //
