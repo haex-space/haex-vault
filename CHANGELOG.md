@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.12.5](https://github.com/haex-space/haex-vault/compare/v2.12.4...v2.12.5) (2026-07-04)
+
+
+### Bug Fixes
+
+* **marketplace:** restore i18n block in extracted grid child ([78e2050](https://github.com/haex-space/haex-vault/commit/78e2050d6913935948e802408d090d7b9b7c0a30))
+* **marketplace:** restore i18n block in extracted grid child ([8d500f1](https://github.com/haex-space/haex-vault/commit/8d500f16bacf8981eaca7c8ba0a5e15387395bbe))
+
 ## [2.12.4](https://github.com/haex-space/haex-vault/compare/v2.12.3...v2.12.4) (2026-07-02)
 
 
