@@ -41,6 +41,7 @@
         @decline-invite="onDeclineInviteAsync"
         @edit-space="openEditDialog"
         @add-share="onAddShareAsync"
+        @share-storage-clicked="onShareStorageClicked"
         @invite-contact="openInviteDialog($event, 'contact')"
         @invite-link="openInviteDialog($event, 'link')"
         @delete-space="prepareDeleteSpace"
@@ -79,6 +80,13 @@
         :description="t('leave.description')"
         @confirm="onConfirmLeaveAsync"
       />
+
+      <ShareStorageDrawer
+        v-if="shareStorageSpace"
+        v-model:open="showShareStorageDrawer"
+        :space-id="shareStorageSpace.id"
+        :space-name="shareStorageSpace.name"
+      />
     </div>
   </Transition>
 </template>
@@ -87,6 +95,7 @@
 import SpaceDetail from './spaces/SpaceDetail.vue'
 import SpaceInviteDialog from './spaces/SpaceInviteDialog.vue'
 import SpaceEditDialog from './spaces/SpaceEditDialog.vue'
+import ShareStorageDrawer from './spaces/share-storage-drawer/index.vue'
 import SpacesIndexView, {
   type SpaceListEntry,
 } from './spaces/SpacesIndexView.vue'
@@ -109,6 +118,18 @@ const selectedSpaceId = computed(
 
 const openSpaceDetail = (space: SpaceWithType) => {
   navigateTo('detail', { spaceId: space.id })
+}
+
+// Share-storage drawer state. Opened by the "+" menu entry on active space
+// rows (see SpaceListItem's `share-storage-clicked` emit). We keep the target
+// space around so both `spaceId` and `spaceName` can be forwarded to the drawer
+// (the drawer surfaces `spaceName` in the orthogonality warning).
+const shareStorageSpace = ref<SpaceWithType | null>(null)
+const showShareStorageDrawer = ref(false)
+
+const onShareStorageClicked = (space: SpaceWithType) => {
+  shareStorageSpace.value = space
+  showShareStorageDrawer.value = true
 }
 
 const spacesStore = useSpacesStore()

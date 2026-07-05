@@ -24,6 +24,29 @@ pub struct StorageBackendInfo {
     /// Public config (without secrets like access keys)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<S3PublicConfig>,
+    /// Row provenance: `"owned"` for locally-created backends, `"shared_from_space"`
+    /// for entries that were replicated to this device as a member of a space.
+    /// `None` on rows written before the origin_type migration (treat as `"owned"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin_type: Option<String>,
+    /// LIST | GET | PUT | DELETE bitmap. Only meaningful for `shared_from_space`
+    /// rows — captures the access level the owner granted us.
+    ///
+    /// `#[ts(type = "number")]` overrides the default `bigint` ts-rs emits for
+    /// `i64` — the flags only occupy 4 low bits, and the frontend helpers in
+    /// `src/lib/storage/shareAccessFlags.ts` operate on plain numbers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub share_access_flags: Option<i64>,
+    /// Space id from `haex_shared_space_sync` — only populated for
+    /// `shared_from_space` rows. Members render this in the list to answer
+    /// "which space did this show up from?".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub space_id: Option<String>,
+    /// Human-readable space name (joined from `haex_spaces.name`) so the
+    /// frontend doesn't need a second lookup to build the "aus <space>" chip.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub space_name: Option<String>,
 }
 
 /// S3 config without secrets (for display purposes)

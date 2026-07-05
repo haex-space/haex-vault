@@ -77,6 +77,9 @@
         :capabilities="capabilities"
       />
 
+      <!-- Shared cloud storages (S3-backed) -->
+      <SpaceSharedCloudStorages :space-id="spaceId" />
+
       <!-- Extension-linked items -->
       <SpaceLinkedItems
         v-if="groups.length"
@@ -309,6 +312,7 @@ import { OutboxStatus } from '~/database/constants'
 import type { SpaceMemberWithIdentity } from '@/stores/spaces/members'
 import SpaceLinkedItems from './SpaceLinkedItems.vue'
 import SpaceShares from './SpaceShares.vue'
+import SpaceSharedCloudStorages from './SpaceSharedCloudStorages.vue'
 import InviteStatusBadge from './InviteStatusBadge.vue'
 
 const props = defineProps<{

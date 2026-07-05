@@ -43,6 +43,36 @@ pub async fn remote_storage_list_backends(
             let config_str = get_string(row, 5);
             let public_config = parse_public_config(&config_str);
 
+            // Columns 6..9 come from the LEFT JOIN in SQL_LIST_BACKENDS.
+            // For an owned backend without a share mapping, the joined
+            // columns are SQL NULL → we surface them as `None` so the
+            // frontend can treat the row as "owned" without ambiguity.
+            let origin_type = {
+                let s = get_string(row, 6);
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            };
+            let share_access_flags = row.get(7).and_then(|v| v.as_i64());
+            let space_id = {
+                let s = get_string(row, 8);
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            };
+            let space_name = {
+                let s = get_string(row, 9);
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            };
+
             StorageBackendInfo {
                 id: get_string(row, 0),
                 r#type: get_string(row, 1),
@@ -50,6 +80,10 @@ pub async fn remote_storage_list_backends(
                 enabled: get_bool(row, 3),
                 created_at: get_string(row, 4),
                 config: public_config,
+                origin_type,
+                share_access_flags,
+                space_id,
+                space_name,
             }
         })
         .collect();
@@ -161,6 +195,12 @@ pub async fn remote_storage_add_backend(
         enabled: get_bool(row, 3),
         created_at: get_string(row, 4),
         config: public_config,
+        // Newly-added backends are owned by definition; the shared-from-space
+        // path goes through `share_command::persist_shared_backend`, not here.
+        origin_type: Some("owned".to_string()),
+        share_access_flags: None,
+        space_id: None,
+        space_name: None,
     })
 }
 
@@ -292,6 +332,15 @@ pub async fn remote_storage_update_backend(
         enabled: get_bool(row, 3),
         created_at: get_string(row, 4),
         config: public_config,
+        // Update only lands on owned rows — shared rows are edited via the
+        // owner's device. The share-provenance fields aren't in the RETURNING
+        // clause, so we don't re-derive them here. Frontend reloads the list
+        // after a save; the LEFT-JOIN in SQL_LIST_BACKENDS will supply the
+        // correct value on the next fetch.
+        origin_type: Some("owned".to_string()),
+        share_access_flags: None,
+        space_id: None,
+        space_name: None,
     })
 }
 
@@ -307,7 +356,7 @@ fn build_update_query(
     let mut param_index = 2;
 
     if let Some(ref name) = request.name {
-        set_clauses.push(format!("{} = ?{}", COL_STORAGE_BACKENDS_NAME, param_index));
+        set_clauses.push(format!("{} = ?{}", COL_S3_BACKENDS_NAME, param_index));
         params.push(JsonValue::String(name.clone()));
         param_index += 1;
     }
@@ -318,10 +367,7 @@ fn build_update_query(
             serde_json::to_string(config).map_err(|e| StorageError::InvalidConfig {
                 reason: format!("Failed to serialize config: {}", e),
             })?;
-        set_clauses.push(format!(
-            "{} = ?{}",
-            COL_STORAGE_BACKENDS_CONFIG, param_index
-        ));
+        set_clauses.push(format!("{} = ?{}", COL_S3_BACKENDS_CONFIG, param_index));
         params.push(JsonValue::String(config_json));
     }
 
@@ -334,15 +380,15 @@ fn build_update_query(
     let query = format!(
         "UPDATE {} SET {} WHERE {} = ?1 \
          RETURNING {}, {}, {}, {}, {}, {}",
-        TABLE_STORAGE_BACKENDS,
+        TABLE_S3_BACKENDS,
         set_clauses.join(", "),
-        COL_STORAGE_BACKENDS_ID,
-        COL_STORAGE_BACKENDS_ID,
-        COL_STORAGE_BACKENDS_TYPE,
-        COL_STORAGE_BACKENDS_NAME,
-        COL_STORAGE_BACKENDS_ENABLED,
-        COL_STORAGE_BACKENDS_CREATED_AT,
-        COL_STORAGE_BACKENDS_CONFIG
+        COL_S3_BACKENDS_ID,
+        COL_S3_BACKENDS_ID,
+        COL_S3_BACKENDS_TYPE,
+        COL_S3_BACKENDS_NAME,
+        COL_S3_BACKENDS_ENABLED,
+        COL_S3_BACKENDS_CREATED_AT,
+        COL_S3_BACKENDS_CONFIG
     );
 
     Ok((query, params))

@@ -164,14 +164,18 @@
         "updatedAt": "updated_at"
       }
     },
-    "storage_backends": {
-      "name": "haex_storage_backends",
+    "s3_backends": {
+      "name": "haex_s3_backends",
       "columns": {
         "id": "id",
         "type": "type",
         "name": "name",
         "config": "config",
         "enabled": "enabled",
+        "parentBackendId": "parent_backend_id",
+        "originType": "origin_type",
+        "sharePrefix": "share_prefix",
+        "shareAccessFlags": "share_access_flags",
         "createdAt": "created_at"
       }
     },

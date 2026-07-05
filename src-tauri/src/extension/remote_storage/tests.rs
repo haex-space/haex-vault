@@ -31,6 +31,10 @@ mod tests {
                 bucket: "my-bucket".to_string(),
                 path_style: None,
             }),
+            origin_type: Some("owned".to_string()),
+            share_access_flags: None,
+            space_id: None,
+            space_name: None,
         };
 
         let json = serde_json::to_string(&info).unwrap();
@@ -50,6 +54,10 @@ mod tests {
             enabled: false,
             created_at: "2024-01-01T00:00:00Z".to_string(),
             config: None,
+            origin_type: None,
+            share_access_flags: None,
+            space_id: None,
+            space_name: None,
         };
 
         let json = serde_json::to_string(&info).unwrap();
