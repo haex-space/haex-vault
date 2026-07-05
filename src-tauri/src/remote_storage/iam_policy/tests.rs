@@ -103,6 +103,40 @@ fn list_only_flag_generates_only_listbucket_statement() {
         .any(|a| a == "s3:ListBucket"));
 }
 
+// Release builds compile debug_assert! out, so the functions normalize
+// malformed input themselves instead of relying on callers to trim.
+#[test]
+fn build_policy_trims_trailing_slashes_from_prefix() {
+    let policy = build_policy("mybucket", Some("media/photos/"), READ_ONLY);
+    let json = serde_json::to_value(&policy).unwrap();
+    let object_stmt = &json["Statement"][0];
+    assert_eq!(
+        object_stmt["Resource"], "arn:aws:s3:::mybucket/media/photos/*",
+        "trailing slash must not produce a double-slash ARN"
+    );
+}
+
+#[test]
+fn build_policy_treats_all_slash_prefix_as_whole_bucket() {
+    let policy = build_policy("mybucket", Some("/"), READ_ONLY);
+    let json = serde_json::to_value(&policy).unwrap();
+    let object_stmt = &json["Statement"][0];
+    assert_eq!(object_stmt["Resource"], "arn:aws:s3:::mybucket/*");
+    // ListBucket statement must carry no prefix condition.
+    let list_stmt = &json["Statement"][1];
+    assert!(list_stmt["Condition"].is_null());
+}
+
+#[test]
+fn build_object_policy_strips_leading_slash_from_object_key() {
+    let policy = build_object_policy("mybucket", "/media/track.mp3", GET);
+    let json = serde_json::to_value(&policy).unwrap();
+    assert_eq!(
+        json["Statement"][0]["Resource"],
+        "arn:aws:s3:::mybucket/media/track.mp3"
+    );
+}
+
 // flags=0 is a legal input; result is a policy with an empty Statement list.
 // AWS PutUserPolicy will reject it — enforcement lives at the D2 adapter
 // boundary. These regression tests pin the current behaviour so a well-meant

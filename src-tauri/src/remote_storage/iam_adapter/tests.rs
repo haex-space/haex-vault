@@ -7,8 +7,8 @@
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
 use super::aws_compat::{
-    body_contains_error_envelope, classify_error, cleanup_user_steps, extract_xml_tag,
-    AwsCompatIamAdapter, ProviderFlavor, HAEX_SHARE_POLICY_NAME,
+    body_contains_error_envelope, classify_error, cleanup_user_steps, extract_all_xml_tags,
+    extract_xml_tag, AwsCompatIamAdapter, ProviderFlavor, HAEX_SHARE_POLICY_NAME,
 };
 use super::{IamAdapter, IamAdapterError, ScopedCred};
 
@@ -72,6 +72,31 @@ fn extract_xml_tag_pulls_access_key_from_create_access_key_response() {
     assert_eq!(extract_xml_tag(xml, "SecretAccessKey"), Some("abc/def+123"));
     assert_eq!(extract_xml_tag(xml, "UserName"), Some("haex-share-abcd"));
     assert_eq!(extract_xml_tag(xml, "MissingTag"), None);
+}
+
+#[test]
+fn extract_all_xml_tags_collects_every_access_key_from_list_response() {
+    // ListAccessKeysResponse with two key entries — the rollback path uses
+    // this to discover keys whose CreateAccessKey response was unparseable.
+    let xml = "<ListAccessKeysResponse>\
+                 <ListAccessKeysResult>\
+                   <AccessKeyMetadata>\
+                     <member>\
+                       <AccessKeyId>AKIAFIRST</AccessKeyId>\
+                       <Status>Active</Status>\
+                     </member>\
+                     <member>\
+                       <AccessKeyId>AKIASECOND</AccessKeyId>\
+                       <Status>Inactive</Status>\
+                     </member>\
+                   </AccessKeyMetadata>\
+                 </ListAccessKeysResult>\
+               </ListAccessKeysResponse>";
+    assert_eq!(
+        extract_all_xml_tags(xml, "AccessKeyId"),
+        vec!["AKIAFIRST", "AKIASECOND"]
+    );
+    assert!(extract_all_xml_tags(xml, "MissingTag").is_empty());
 }
 
 #[test]

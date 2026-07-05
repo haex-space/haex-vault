@@ -144,7 +144,9 @@ impl IamAdapterFactory for DefaultIamAdapterFactory {
     }
 }
 
-fn provider_flavor_from(cred: &IamAdminCred) -> Result<ProviderFlavor, StorageError> {
+/// Map a loaded admin cred to the adapter's provider flavor. Shared with
+/// `revoke_command` — both flows reject unsupported providers identically.
+pub(crate) fn provider_flavor_from(cred: &IamAdminCred) -> Result<ProviderFlavor, StorageError> {
     cred.provider_type
         .to_flavor()
         .map_err(|e| StorageError::UnsupportedProvider {
@@ -194,6 +196,19 @@ fn validate_args(args: &ShareStorageBackendArgs) -> Result<ValidatedArgs, Storag
         .as_ref()
         .map(|p| p.trim_end_matches('/').to_string())
         .filter(|p| !p.is_empty());
+
+    // `*` and `?` are IAM wildcards in both the Resource ARN and the
+    // `s3:prefix` StringLike condition. A folder literally named `logs*`
+    // (legal as an S3 key) would silently broaden the policy beyond the
+    // chosen scope, so reject rather than escape (IAM has no escaping).
+    if let Some(p) = prefix.as_deref() {
+        if p.contains('*') || p.contains('?') {
+            return Err(StorageError::InvalidArgs {
+                reason: "prefix must not contain the IAM wildcard characters '*' or '?'"
+                    .to_string(),
+            });
+        }
+    }
 
     Ok(ValidatedArgs {
         prefix,
@@ -377,6 +392,16 @@ pub(crate) async fn share_storage_backend_core(
     args: ShareStorageBackendArgs,
     factory: &dyn IamAdapterFactory,
 ) -> Result<SharedStorageBackend, StorageError> {
+    // Serialise the whole share flow: the `find_existing_share` dedupe
+    // check below only guards sequential repeats — two concurrent invokes
+    // could both miss the row and double-provision a real IAM user (real
+    // AWS $, plus a duplicate share row). Shares are a rare interactive
+    // action, so one process-wide lock is proportionate; a per-storage-id
+    // lock or DB unique constraint would be overkill (the share identity
+    // spans two tables, so SQLite can't express it as one constraint).
+    static SHARE_FLOW_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _flow_guard = SHARE_FLOW_LOCK.lock().await;
+
     let validated = validate_args(&args)?;
 
     let owner = load_owner_backend(db, &args.storage_id)?;

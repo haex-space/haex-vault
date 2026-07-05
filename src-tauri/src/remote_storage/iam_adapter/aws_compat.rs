@@ -100,7 +100,11 @@ impl AwsCompatIamAdapter {
             }
         };
 
+        // Bound every IAM call: a stalled connection to the provider's IAM
+        // endpoint would otherwise hang the share/revoke command forever.
         let client = Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| IamAdapterError::Network(format!("reqwest client build failed: {e}")))?;
 
@@ -267,6 +271,23 @@ fn percent_encode(input: &str) -> String {
     out
 }
 
+/// Companion to [`extract_xml_tag`] that collects EVERY occurrence of
+/// `<tag>...</tag>`. Used by the rollback path to enumerate a user's access
+/// keys from a `ListAccessKeys` response, where the tag legitimately repeats.
+pub(crate) fn extract_all_xml_tags<'a>(xml: &'a str, tag: &str) -> Vec<&'a str> {
+    let open = format!("<{tag}>");
+    let close = format!("</{tag}>");
+    let mut out = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find(&open) {
+        rest = &rest[start + open.len()..];
+        let Some(end) = rest.find(&close) else { break };
+        out.push(&rest[..end]);
+        rest = &rest[end + close.len()..];
+    }
+    out
+}
+
 /// Very small XML scanner that extracts the text content of the first
 /// occurrence of `<tag>...</tag>`. Used to pull `<AccessKeyId>` and
 /// `<SecretAccessKey>` from `CreateAccessKey` responses and the `<Code>`
@@ -347,6 +368,29 @@ impl AwsCompatIamAdapter {
         user_name: &str,
         access_key_id: Option<&str>,
     ) -> Result<(), IamAdapterError> {
+        // `None` covers two rollback shapes: CreateAccessKey never ran, OR
+        // it succeeded but returned a body we couldn't parse an id out of.
+        // In the latter case a live key exists that we don't know — discover
+        // it via ListAccessKeys, otherwise the DeleteUser step below fails
+        // (AWS refuses to delete users with keys) and the credential is
+        // orphaned with no record of how to revoke it.
+        if access_key_id.is_none() {
+            for key_id in self.list_access_key_ids(user_name).await? {
+                match self
+                    .call(&[
+                        ("Action", "DeleteAccessKey"),
+                        ("UserName", user_name),
+                        ("AccessKeyId", &key_id),
+                        ("Version", IAM_API_VERSION),
+                    ])
+                    .await
+                {
+                    Ok(_) | Err(IamAdapterError::NotFound) => {}
+                    Err(other) => return Err(other),
+                }
+            }
+        }
+
         for step in cleanup_user_steps(user_name, access_key_id) {
             // Re-borrow the owned step into the shape `call` expects.
             let params: Vec<(&str, &str)> = step.iter().map(|(k, v)| (*k, *v)).collect();
@@ -357,6 +401,26 @@ impl AwsCompatIamAdapter {
             }
         }
         Ok(())
+    }
+
+    /// All access-key ids currently attached to `user_name`. A missing user
+    /// yields an empty list — that matches the idempotent cleanup contract.
+    async fn list_access_key_ids(&self, user_name: &str) -> Result<Vec<String>, IamAdapterError> {
+        match self
+            .call(&[
+                ("Action", "ListAccessKeys"),
+                ("UserName", user_name),
+                ("Version", IAM_API_VERSION),
+            ])
+            .await
+        {
+            Ok(body) => Ok(extract_all_xml_tags(&body, "AccessKeyId")
+                .into_iter()
+                .map(str::to_string)
+                .collect()),
+            Err(IamAdapterError::NotFound) => Ok(Vec::new()),
+            Err(other) => Err(other),
+        }
     }
 }
 

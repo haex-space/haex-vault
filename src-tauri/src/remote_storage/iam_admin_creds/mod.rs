@@ -111,6 +111,11 @@ pub fn load(db: &DbConnection, storage_id: &str) -> Result<Option<IamAdminCred>,
     // signing failure with a mystery provider tag would be much harder to
     // diagnose.
     let Some(provider_type) = ProviderKind::from_slug(&provider_slug) else {
+        tracing::warn!(
+            storage_id = %storage_id,
+            provider_slug = %provider_slug,
+            "iam-admin cred has unknown provider_type; treating as missing"
+        );
         return Ok(None);
     };
 

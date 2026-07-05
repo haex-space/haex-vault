@@ -347,6 +347,11 @@ watch(
   selectedBackendId,
   () => {
     currentPrefix.value = ''
+    // The chosen share scope belongs to whichever backend it was picked
+    // under — a backend switch invalidates it entirely, not just the tree
+    // browsing position. Without this reset the share could be submitted
+    // with backend B but a prefix from backend A's bucket.
+    selectedPrefix.value = undefined
     void loadTreeAsync()
   },
   { immediate: true },

@@ -57,7 +57,8 @@ pub struct StringLike {
 /// Build a bucket-or-prefix scoped IAM policy.
 ///
 /// - `bucket`: bucket name (no `arn:` prefix)
-/// - `prefix`: optional key-prefix (e.g. `"media/photos"`) — no trailing slash
+/// - `prefix`: optional key-prefix (e.g. `"media/photos"`) — trailing slashes
+///   are trimmed here; an all-slash prefix counts as whole-bucket
 /// - `flags`: bitmap from `share_access_flags` (LIST/GET/PUT/DELETE)
 ///
 /// Emits at most two statements: object-actions on `arn:aws:s3:::<bucket>/...`
@@ -65,10 +66,15 @@ pub struct StringLike {
 /// If `prefix` is present, the ListBucket statement carries an `s3:prefix`
 /// Condition so the member cannot enumerate the bucket root.
 pub fn build_policy(bucket: &str, prefix: Option<&str>, flags: i64) -> IamPolicy {
-    debug_assert!(
-        prefix.is_none_or(|p| !p.ends_with('/')),
-        "prefix must not end with '/' — caller should trim before passing",
-    );
+    // Normalize defensively rather than debug_assert: `debug_assertions`
+    // are compiled out of release builds (Tauri bundles), and an untrimmed
+    // trailing slash would silently emit a malformed resource ARN
+    // (`bucket/media//*`) — exactly the scoping mistake the module-level
+    // security note warns about. An all-slash prefix degrades to None
+    // (whole bucket) instead of an empty-string condition.
+    let prefix = prefix
+        .map(|p| p.trim_end_matches('/'))
+        .filter(|p| !p.is_empty());
 
     let mut statements = Vec::new();
 
@@ -106,10 +112,10 @@ pub fn build_policy(bucket: &str, prefix: Option<&str>, flags: i64) -> IamPolicy
 /// The member already knows the full object key from the share config, so
 /// enumeration is neither useful nor granted.
 pub fn build_object_policy(bucket: &str, object_key: &str, flags: i64) -> IamPolicy {
-    debug_assert!(
-        !object_key.starts_with('/'),
-        "object_key must not start with '/' — pass the raw S3 key",
-    );
+    // Same release-safe normalization as `build_policy`: a leading slash
+    // would produce `bucket//key` in the ARN, which never matches the real
+    // object.
+    let object_key = object_key.trim_start_matches('/');
 
     let object_actions = collect_object_actions(flags);
     let mut statements = Vec::new();

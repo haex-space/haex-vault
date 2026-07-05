@@ -15,7 +15,7 @@
 //! 1. Load the shared row + verify `origin_type = 'shared_from_space'`.
 //! 2. Extract `iamUserName` + `accessKeyId` from the row's config JSON.
 //! 3. Load the parent backend row (data-integrity check).
-//! 4. Load the [`IamAdminCred`] for the parent id.
+//! 4. Load the [`crate::remote_storage::iam_admin_creds::IamAdminCred`] for the parent id.
 //! 5. Delete the scoped IAM user at the provider (idempotent: `NotFound` ok).
 //! 6. Delete the mapping row, then the s3_backends row.
 //!
@@ -33,9 +33,11 @@ use crate::critical::CriticalFailureCode;
 use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::database::row::get_string;
 use crate::remote_storage::error::StorageError;
-use crate::remote_storage::iam_adapter::{IamAdapter, IamAdapterError, ProviderFlavor};
-use crate::remote_storage::iam_admin_creds::{self, IamAdminCred};
-use crate::remote_storage::share_command::{DefaultIamAdapterFactory, IamAdapterFactory};
+use crate::remote_storage::iam_adapter::{IamAdapter, IamAdapterError};
+use crate::remote_storage::iam_admin_creds;
+use crate::remote_storage::share_command::{
+    provider_flavor_from, DefaultIamAdapterFactory, IamAdapterFactory,
+};
 use crate::table_names::{
     COL_S3_BACKENDS_CONFIG, COL_S3_BACKENDS_ID, TABLE_S3_BACKENDS, TABLE_SHARED_SPACE_SYNC,
 };
@@ -167,14 +169,6 @@ fn assert_parent_exists(
         });
     }
     Ok(())
-}
-
-fn provider_flavor_from(cred: &IamAdminCred) -> Result<ProviderFlavor, StorageError> {
-    cred.provider_type
-        .to_flavor()
-        .map_err(|e| StorageError::UnsupportedProvider {
-            provider_type: format!("{}: {e}", cred.provider_type.to_slug()),
-        })
 }
 
 /// Hard-delete both the mapping row and the s3_backends row. Mapping first —

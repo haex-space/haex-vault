@@ -303,8 +303,8 @@ import type { StorageBackendInfo } from '~/../src-tauri/bindings/StorageBackendI
 import type { AddStorageBackendRequest } from '~/../src-tauri/bindings/AddStorageBackendRequest'
 import type { UpdateStorageBackendRequest } from '~/../src-tauri/bindings/UpdateStorageBackendRequest'
 import {
-  SHARE_ACCESS_READ_ONLY,
-  SHARE_ACCESS_READ_WRITE,
+  accessLevelBadgeColor,
+  accessLevelKind,
 } from '~/lib/storage/shareAccessFlags'
 import {
   haexS3Backends,
@@ -405,23 +405,8 @@ const formData = reactive({
 const isSharedBackend = (backend: StorageBackendInfo): boolean =>
   backend.originType === 'shared_from_space'
 
-type AccessLevelBadgeColor = 'success' | 'warning' | 'neutral'
-
-const accessLevelBadgeColor = (
-  flags: number | null | undefined,
-): AccessLevelBadgeColor => {
-  if (flags == null) return 'neutral'
-  if (flags === SHARE_ACCESS_READ_ONLY) return 'success'
-  if (flags === SHARE_ACCESS_READ_WRITE) return 'warning'
-  return 'neutral'
-}
-
-const accessLevelBadgeLabel = (flags: number | null | undefined): string => {
-  if (flags == null) return t('backends.accessLevel.custom')
-  if (flags === SHARE_ACCESS_READ_ONLY) return t('backends.accessLevel.readOnly')
-  if (flags === SHARE_ACCESS_READ_WRITE) return t('backends.accessLevel.readWrite')
-  return t('backends.accessLevel.custom')
-}
+const accessLevelBadgeLabel = (flags: number | null | undefined): string =>
+  t(`backends.accessLevel.${accessLevelKind(flags)}`)
 
 const onRegionCreate = (value: string) => {
   const trimmed = value.trim()
@@ -742,8 +727,18 @@ const prepareDeleteBackend = async (backend: StorageBackendInfo) => {
   try {
     activeShares.value = await loadActiveSharesAsync(backend.id)
   } catch (error) {
+    // Abort instead of falling back to the simple confirm: deleting the
+    // parent while shares exist cascades the DB rows away but leaves the
+    // scoped IAM users live at the provider with no record to revoke them.
     console.error('Failed to look up active shares:', error)
+    add({
+      title: t('errors.shareLookupFailed'),
+      description: getErrorMessage(error),
+      color: 'error',
+    })
+    backendToDelete.value = null
     activeShares.value = []
+    return
   }
 
   if (activeShares.value.length > 0) {
@@ -931,6 +926,7 @@ de:
     testFailed: Verbindungstest fehlgeschlagen
     cascadeRevokeFailed: "Zugriff für Space \"{name}\" konnte nicht widerrufen werden — Löschen abgebrochen"
     cascadeDeleteAfterRevokeFailed: "Freigaben wurden widerrufen, aber das Backend konnte nicht gelöscht werden — bitte erneut versuchen"
+    shareLookupFailed: "Aktive Freigaben konnten nicht ermittelt werden — Löschen abgebrochen"
 en:
   title: Cloud Storage
   description: Manage S3-compatible storage backends for extensions
@@ -1010,4 +1006,5 @@ en:
     testFailed: Connection test failed
     cascadeRevokeFailed: "Failed to revoke access for space \"{name}\" — delete aborted"
     cascadeDeleteAfterRevokeFailed: "Shares were revoked but the backend could not be deleted — please try again"
+    shareLookupFailed: "Could not determine active shares — delete aborted"
 </i18n>

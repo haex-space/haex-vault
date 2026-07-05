@@ -92,8 +92,8 @@ import {
   type SelectHaexS3Backends,
 } from '~/database/schemas'
 import {
-  SHARE_ACCESS_READ_ONLY,
-  SHARE_ACCESS_READ_WRITE,
+  accessLevelBadgeColor,
+  accessLevelKind,
 } from '@/lib/storage/shareAccessFlags'
 import SpaceItemDeleteButton from './SpaceItemDeleteButton.vue'
 
@@ -177,27 +177,8 @@ const formatBucketPath = (entry: SelectHaexS3Backends): string => {
   return `${bucket}${joined}`
 }
 
-// Access-level chip helpers — mirror `storage.vue` (I1). Kept local so
-// the section can render without pulling in the wider storage settings.
-type AccessLevelBadgeColor = 'success' | 'warning' | 'neutral'
-
-const accessLevelBadgeColor = (
-  flags: number | null | undefined,
-): AccessLevelBadgeColor => {
-  if (flags == null) return 'neutral'
-  if (flags === SHARE_ACCESS_READ_ONLY) return 'success'
-  if (flags === SHARE_ACCESS_READ_WRITE) return 'warning'
-  return 'neutral'
-}
-
-const accessLevelBadgeLabel = (
-  flags: number | null | undefined,
-): string => {
-  if (flags == null) return t('accessLevel.custom')
-  if (flags === SHARE_ACCESS_READ_ONLY) return t('accessLevel.readOnly')
-  if (flags === SHARE_ACCESS_READ_WRITE) return t('accessLevel.readWrite')
-  return t('accessLevel.custom')
-}
+const accessLevelBadgeLabel = (flags: number | null | undefined): string =>
+  t(`accessLevel.${accessLevelKind(flags)}`)
 
 onMounted(loadAsync)
 

@@ -704,6 +704,33 @@ async fn access_flags_zero_is_invalid() {
 }
 
 #[tokio::test]
+async fn prefix_with_iam_wildcard_characters_is_invalid() {
+    // `*` / `?` are IAM wildcards in Resource ARNs and StringLike conditions;
+    // a folder literally named `logs*` must not silently widen the policy.
+    for bad_prefix in ["logs*", "foo?bar", "media/*"] {
+        let (db, hlc, storage_id, space_id) = setup_share_db();
+        let adapter = Arc::new(MockIamAdapter::new(
+            Ok(true),
+            Err(IamAdapterError::NotFound),
+        ));
+        let factory = MockIamAdapterFactory {
+            adapter: adapter.clone(),
+        };
+        let mut args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
+        args.prefix = Some(bad_prefix.to_string());
+
+        let err = share_storage_backend_core(&db, &hlc, args, &factory)
+            .await
+            .expect_err("wildcard prefix must be rejected");
+        assert!(
+            matches!(err, StorageError::InvalidArgs { .. }),
+            "prefix {bad_prefix:?} must yield InvalidArgs, got {err:?}"
+        );
+        assert!(adapter.create_calls.lock().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
 async fn object_key_present_returns_object_scope_not_yet_supported() {
     let (db, hlc, storage_id, space_id) = setup_share_db();
     let adapter = Arc::new(MockIamAdapter::new(
