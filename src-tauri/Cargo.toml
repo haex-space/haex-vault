@@ -139,6 +139,18 @@ lettre = { version = "0.11", default-features = false, features = [
 ] }
 mail-parser = "0.11"
 
+# SigV4 request signer for IAM API calls (S3-bucket-sharing feature).
+# We use aws-sigv4 (not the full aws-sdk-iam) to keep the dep tree lean and
+# — importantly — free of `aws-lc-rs`, which requires cmake and breaks
+# Android builds. sign-http-only feature keeps transitive smithy deps to a
+# minimum; requests go through the existing `reqwest` client.
+aws-sigv4 = { version = "1", default-features = false, features = ["sign-http", "http1"] }
+# Peer deps of aws-sigv4 — `Credentials::new` produces an `Identity` (via
+# `From<Credentials> for Identity`) which `SigningParams::builder` requires.
+# Kept explicit so builds don't rely on transitive resolution.
+aws-credential-types = "1"
+aws-smithy-runtime-api = "1"
+
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]

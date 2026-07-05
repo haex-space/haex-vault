@@ -12,4 +12,30 @@ type: string, name: string, enabled: boolean, createdAt: string,
 /**
  * Public config (without secrets like access keys)
  */
-config: S3PublicConfig | null, };
+config: S3PublicConfig | null, 
+/**
+ * Row provenance: `"owned"` for locally-created backends, `"shared_from_space"`
+ * for entries that were replicated to this device as a member of a space.
+ * `None` on rows written before the origin_type migration (treat as `"owned"`).
+ */
+originType: string | null, 
+/**
+ * LIST | GET | PUT | DELETE bitmap. Only meaningful for `shared_from_space`
+ * rows — captures the access level the owner granted us.
+ *
+ * `#[ts(type = "number")]` overrides the default `bigint` ts-rs emits for
+ * `i64` — the flags only occupy 4 low bits, and the frontend helpers in
+ * `src/lib/storage/shareAccessFlags.ts` operate on plain numbers.
+ */
+shareAccessFlags: number | null, 
+/**
+ * Space id from `haex_shared_space_sync` — only populated for
+ * `shared_from_space` rows. Members render this in the list to answer
+ * "which space did this show up from?".
+ */
+spaceId: string | null, 
+/**
+ * Human-readable space name (joined from `haex_spaces.name`) so the
+ * frontend doesn't need a second lookup to build the "aus <space>" chip.
+ */
+spaceName: string | null, };

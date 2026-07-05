@@ -71,6 +71,7 @@
         "
         @edit="emit('edit-space', $event)"
         @add-share="emit('add-share', $event)"
+        @share-storage-clicked="emit('share-storage-clicked', $event)"
         @invite-contact="emit('invite-contact', $event)"
         @invite-link="emit('invite-link', $event)"
         @delete="emit('delete-space', $event)"
@@ -155,6 +156,7 @@ const emit = defineEmits<{
   'decline-invite': [invite: SelectHaexPendingInvites | undefined]
   'edit-space': [space: SpaceWithType]
   'add-share': [payload: { space: SpaceWithType, type: 'folder' | 'file' }]
+  'share-storage-clicked': [space: SpaceWithType]
   'invite-contact': [space: SpaceWithType]
   'invite-link': [space: SpaceWithType]
   'delete-space': [space: SpaceWithType]

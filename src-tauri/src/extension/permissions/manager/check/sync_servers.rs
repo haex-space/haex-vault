@@ -25,7 +25,7 @@ impl PermissionManager {
         .await
     }
 
-    /// Prüft Cloud-Storage-Berechtigungen (`haex_storage_backends`, S3/WebDAV).
+    /// Prüft Cloud-Storage-Berechtigungen (`haex_s3_backends`, S3).
     ///
     /// Action-level wie `check_spaces_permission`; `target` ist immer "*".
     /// Read = lesen/auflisten, ReadWrite = zusätzlich anlegen/ändern/löschen.
