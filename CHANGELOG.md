@@ -1,5 +1,44 @@
 # Changelog
 
+## [2.13.0](https://github.com/haex-space/haex-vault/compare/v2.12.5...v2.13.0) (2026-07-05)
+
+
+### Features
+
+* **spaces:** add "Share S3 Bucket" entry to space + menu ([694f4bf](https://github.com/haex-space/haex-vault/commit/694f4bf01c77898c89a1f186f5edc456ef7acd80))
+* **spaces:** bucket tree browser in share drawer scope tab ([07bacc1](https://github.com/haex-space/haex-vault/commit/07bacc113cff8d0bf7d275f3bec69617068f7932))
+* **spaces:** generic delete-handler registry for space items ([790d816](https://github.com/haex-space/haex-vault/commit/790d816bae4d5101e3ce3690f6ff9da82b09dce3))
+* **spaces:** geteilte cloud-speicher section in space overview ([b264b09](https://github.com/haex-space/haex-vault/commit/b264b09be376076549d28af38113da62512d2989))
+* **spaces:** reusable delete-button + confirmation for space-overview items ([a2677ca](https://github.com/haex-space/haex-vault/commit/a2677ca9fdafb15859dc803f48f7398cf080354b))
+* **spaces:** share-storage drawer skeleton with permissions tab ([ecc5109](https://github.com/haex-space/haex-vault/commit/ecc5109295a67943181a2224922921dc72165d3a))
+* **storage:** active shares section in cloud-storage detail ([2bee0cd](https://github.com/haex-space/haex-vault/commit/2bee0cd6ceee3120949041ae0ff16923428090ef))
+* **storage:** add access-flags bitmap constants ([ff3ebc6](https://github.com/haex-space/haex-vault/commit/ff3ebc6ce576dccf456fe484c6e0ec8efaa11b8c))
+* **storage:** add aws-sigv4 dependency for IAM signing ([edd15ff](https://github.com/haex-space/haex-vault/commit/edd15ff1206c50fb59ee0ee95495868ff5c7f1a2))
+* **storage:** add sharing columns to storage_backends schema ([05622fc](https://github.com/haex-space/haex-vault/commit/05622fc0ef46cfb7fbc5a04e3f791b5e6ae63723))
+* **storage:** enforced CASCADE fk on haex_s3_backends.parent_backend_id (manual_0002) ([cca2e3f](https://github.com/haex-space/haex-vault/commit/cca2e3fc7a59eb356048da94115e355f56350774))
+* **storage:** frontend composable + types for storage sharing ([f47fbe8](https://github.com/haex-space/haex-vault/commit/f47fbe8d4a67fd5777222ff26615aaf9521d8125))
+* **storage:** IAM adapter trait + AWS/Wasabi impl via aws-sigv4 ([5196089](https://github.com/haex-space/haex-vault/commit/5196089c3812a0acd6cd564a36097513cf5ae4df))
+* **storage:** IAM policy generator with prefix and object scoping ([f3af35f](https://github.com/haex-space/haex-vault/commit/f3af35f1cb1ec657109cdbc7fdf6b7d83e13cab2))
+* **storage:** iam-admin cred store/load via password manager ([f92c8bf](https://github.com/haex-space/haex-vault/commit/f92c8bfef90ecdd11d749df40fbcc4215d7c1b31))
+* **storage:** narrow originType union + document shareAccessFlags bitmap ([0fbcc59](https://github.com/haex-space/haex-vault/commit/0fbcc59258dd3f11057fc4e0839b47f2f665afc4))
+* **storage:** revoke_storage_share Tauri command ([97c3e97](https://github.com/haex-space/haex-vault/commit/97c3e97fa50bbd455e426a317713c0b34094b7b2))
+* **storage:** S3 bucket sharing ([f4d9129](https://github.com/haex-space/haex-vault/commit/f4d9129aa660647e19e3532feb9d16129c547124))
+* **storage:** share S3 buckets via spaces ([2da4ed2](https://github.com/haex-space/haex-vault/commit/2da4ed2cafc38dcd2f04b7eb8e12b6603bd5b732))
+* **storage:** share_storage_backend Tauri command ([cf814be](https://github.com/haex-space/haex-vault/commit/cf814be61f7d076de1e042ca3e3fb736542f7f0c))
+* **storage:** show shared-from-space chip on member's cloud-storage list ([4b74546](https://github.com/haex-space/haex-vault/commit/4b745460603ea1b13f81da719ab379dd9365ca67))
+* **storage:** warn + cascade-revoke on owned-backend delete when shares exist ([fd65a72](https://github.com/haex-space/haex-vault/commit/fd65a72e6884e65599a1ad6f322418511a01ef19))
+
+
+### Bug Fixes
+
+* **share-storage:** remove stray closing tags from tab-scope template ([4f8bf37](https://github.com/haex-space/haex-vault/commit/4f8bf3743ab52694880759f44c4d427ce687677f))
+* **storage:** address code-review findings on S3 bucket sharing ([ff56162](https://github.com/haex-space/haex-vault/commit/ff56162620520ef03806e093c2d7e0d5f24321fb))
+* **storage:** drop origin_type filter from assert_parent_exists ([9019534](https://github.com/haex-space/haex-vault/commit/90195347519fcc8810c240220b27b958360e3b7a))
+* **storage:** E1 review — dedupe existing shares + delete orphans on mapping fail ([563784b](https://github.com/haex-space/haex-vault/commit/563784bf75666bf7408451a5ff09668dbbb44bf9))
+* **storage:** iam-admin cred load rejects orphaned entries + redact Debug ([05f67af](https://github.com/haex-space/haex-vault/commit/05f67af8b9b77a86a38d37633bada4666cc47b13))
+* **storage:** review fixes for IAM adapter ([033e2f4](https://github.com/haex-space/haex-vault/commit/033e2f4a2a3d142942853c8cf19f8d4543b06375))
+* **storage:** wrap iam_admin_creds store/delete in transactions ([bc8fb85](https://github.com/haex-space/haex-vault/commit/bc8fb85f4378bc578e57e220c40a96938c087c80))
+
 ## [2.12.5](https://github.com/haex-space/haex-vault/compare/v2.12.4...v2.12.5) (2026-07-04)
 
 
