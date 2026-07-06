@@ -12,14 +12,14 @@
             :color="mode === 'add' ? 'primary' : 'neutral'"
             :variant="mode === 'add' ? 'solid' : 'outline'"
             icon="i-lucide-plus"
-            @click="mode = 'add'"
+            @click="() => { mode = 'add' }"
           />
           <UiButton
             :label="t('modeRemove')"
             :color="mode === 'remove' ? 'primary' : 'neutral'"
             :variant="mode === 'remove' ? 'solid' : 'outline'"
             icon="i-lucide-minus"
-            @click="mode = 'remove'"
+            @click="() => { mode = 'remove' }"
           />
         </div>
 
