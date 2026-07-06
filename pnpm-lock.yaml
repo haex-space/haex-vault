@@ -55,7 +55,7 @@ importers:
         version: 2.3.1(magicast@0.5.3)(vite@7.3.5(@types/node@26.0.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(vue@3.5.39(typescript@6.0.3))
       '@nuxt/ui':
         specifier: 4.9.0
-        version: 4.9.0(7ce5a20991a4040ee8325609f359fd2a)
+        version: 4.9.0(1665cc15397106ebabed452c50f21949)
       '@nuxtjs/i18n':
         specifier: 10.4.0
         version: 10.4.0(@vue/compiler-dom@3.5.39)(db0@0.3.4(@libsql/client@0.17.4)(better-sqlite3@12.5.0)(drizzle-orm@0.45.2(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)))(eslint@10.6.0(jiti@2.7.0))(ioredis@5.11.1)(magicast@0.5.3)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.39(typescript@6.0.3)))(rollup@4.62.0)(typescript@6.0.3)(vite@7.3.5(@types/node@26.0.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(vue@3.5.39(typescript@6.0.3))
@@ -144,8 +144,8 @@ importers:
         specifier: ^12.2.0
         version: 12.2.0
       tailwindcss:
-        specifier: ^4.3.1
-        version: 4.3.1
+        specifier: ^4.3.2
+        version: 4.3.2
       tldts:
         specifier: ^7.4.6
         version: 7.4.6
@@ -170,7 +170,7 @@ importers:
         version: 2.2.496
       '@iconify/tailwind4':
         specifier: ^1.2.3
-        version: 1.2.3(tailwindcss@4.3.1)
+        version: 1.2.3(tailwindcss@4.3.2)
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4
@@ -8175,12 +8175,12 @@ snapshots:
       '@iconify/types': 2.0.0
       pathe: 2.0.3
 
-  '@iconify/tailwind4@1.2.3(tailwindcss@4.3.1)':
+  '@iconify/tailwind4@1.2.3(tailwindcss@4.3.2)':
     dependencies:
       '@iconify/tools': 5.0.5
       '@iconify/types': 2.0.0
       '@iconify/utils': 3.1.0
-      tailwindcss: 4.3.1
+      tailwindcss: 4.3.2
 
   '@iconify/tools@5.0.5':
     dependencies:
@@ -9053,7 +9053,7 @@ snapshots:
       rc9: 3.0.1
       std-env: 4.1.0
 
-  '@nuxt/ui@4.9.0(7ce5a20991a4040ee8325609f359fd2a)':
+  '@nuxt/ui@4.9.0(1665cc15397106ebabed452c50f21949)':
     dependencies:
       '@floating-ui/dom': 1.7.6
       '@iconify/vue': 5.0.1(vue@3.5.39(typescript@6.0.3))
@@ -9109,8 +9109,8 @@ snapshots:
       reka-ui: 2.9.10(vue@3.5.39(typescript@6.0.3))
       scule: 1.3.0
       tailwind-merge: 3.6.0
-      tailwind-variants: 3.2.2(tailwind-merge@3.6.0)(tailwindcss@4.3.1)
-      tailwindcss: 4.3.1
+      tailwind-variants: 3.2.2(tailwind-merge@3.6.0)(tailwindcss@4.3.2)
+      tailwindcss: 4.3.2
       tinyglobby: 0.2.17
       typescript: 6.0.3
       ufo: 1.6.4
@@ -14177,9 +14177,9 @@ snapshots:
 
   tailwind-merge@3.6.0: {}
 
-  tailwind-variants@3.2.2(tailwind-merge@3.6.0)(tailwindcss@4.3.1):
+  tailwind-variants@3.2.2(tailwind-merge@3.6.0)(tailwindcss@4.3.2):
     dependencies:
-      tailwindcss: 4.3.1
+      tailwindcss: 4.3.2
     optionalDependencies:
       tailwind-merge: 3.6.0
 
