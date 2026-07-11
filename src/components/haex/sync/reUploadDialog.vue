@@ -20,7 +20,7 @@
           color="neutral"
           variant="outline"
           :disabled="loading"
-          @click="open = false"
+          @click="() => { open = false }"
         >
           {{ t('cancel') }}
         </UiButton>

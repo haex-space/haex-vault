@@ -15,7 +15,7 @@
           icon="i-lucide-x"
           color="neutral"
           variant="ghost"
-          @click="open = false"
+          @click="() => { open = false }"
         />
         <DrawerTitle class="font-semibold text-lg">
           {{ t('launcher.title') }}
