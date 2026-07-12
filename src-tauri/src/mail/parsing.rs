@@ -83,6 +83,7 @@ pub fn parse_message(rfc822: &[u8], fetch: &Fetch) -> Result<Message, MailError>
         in_reply_to,
         references,
         size: fetch.size,
+        has_attachments: !attachments.is_empty(),
     };
 
     Ok(Message {

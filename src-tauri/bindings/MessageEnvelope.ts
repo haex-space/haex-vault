@@ -14,4 +14,9 @@ flags: Array<string>,
 /**
  * Server-side internal date as Unix timestamp (seconds).
  */
-internalDate: bigint | null, subject: string | null, from: Array<Address>, to: Array<Address>, cc: Array<Address>, messageId: string | null, inReplyTo: string | null, references: Array<string>, size: number | null, };
+internalDate: bigint | null, subject: string | null, from: Array<Address>, to: Array<Address>, cc: Array<Address>, messageId: string | null, inReplyTo: string | null, references: Array<string>, size: number | null, 
+/**
+ * Whether the message has any non-primary-body MIME part (regular
+ * attachment or inline cid part), derived from BODYSTRUCTURE.
+ */
+hasAttachments: boolean, };
