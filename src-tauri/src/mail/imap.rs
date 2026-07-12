@@ -593,6 +593,7 @@ mod tests {
     use super::*;
     use imap_proto::types::{
         BodyContentCommon, BodyContentSinglePart, ContentDisposition, ContentEncoding, ContentType,
+        Envelope,
     };
 
     fn text_part(subtype: &str, disposition: Option<&str>) -> BodyStructure<'static> {
@@ -641,6 +642,43 @@ mod tests {
                 transfer_encoding: ContentEncoding::Base64,
                 octets: 0,
             },
+            extension: None,
+        }
+    }
+
+    fn embedded_message_part() -> BodyStructure<'static> {
+        BodyStructure::Message {
+            common: BodyContentCommon {
+                ty: ContentType {
+                    ty: "message".into(),
+                    subtype: "rfc822".into(),
+                    params: None,
+                },
+                disposition: None,
+                language: None,
+                location: None,
+            },
+            other: BodyContentSinglePart {
+                id: None,
+                md5: None,
+                description: None,
+                transfer_encoding: ContentEncoding::SevenBit,
+                octets: 0,
+            },
+            envelope: Envelope {
+                date: None,
+                subject: None,
+                from: None,
+                sender: None,
+                reply_to: None,
+                to: None,
+                cc: None,
+                bcc: None,
+                in_reply_to: None,
+                message_id: None,
+            },
+            body: Box::new(text_part("plain", None)),
+            lines: 0,
             extension: None,
         }
     }
@@ -700,6 +738,16 @@ mod tests {
                 "related",
                 vec![text_part("html", None), basic_part("image", "png")],
             )],
+        );
+        assert!(has_non_body_part(&bs));
+    }
+
+    #[test]
+    fn embedded_message_counts_as_attachment() {
+        // A forwarded email (message/rfc822 part) is never the primary body.
+        let bs = multipart(
+            "mixed",
+            vec![text_part("plain", None), embedded_message_part()],
         );
         assert!(has_non_body_part(&bs));
     }
