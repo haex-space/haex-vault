@@ -109,6 +109,15 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Ignore RustCrypto bumps that need a coordinated ecosystem migration
+    ignore:
+      # sha2 0.11 moves to the digest 0.11 trait family, but hkdf/hmac in the
+      # tree still require digest 0.10 — bumping sha2 alone fails to compile
+      # (src-tauri/src/crypto/mod.rs: Hkdf<Sha256> no longer resolves). Hold
+      # until the whole RustCrypto stack (hkdf, hmac, pbkdf2, ...) can move to
+      # digest 0.11 together.
+      - dependency-name: "sha2"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
