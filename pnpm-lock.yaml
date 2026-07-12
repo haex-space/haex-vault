@@ -187,8 +187,8 @@ importers:
         specifier: ^0.17.4
         version: 0.17.4
       '@oxc-minify/binding-linux-x64-gnu':
-        specifier: ^0.138.0
-        version: 0.138.0
+        specifier: ^0.139.0
+        version: 0.139.0
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -1623,8 +1623,8 @@ packages:
     cpu: [x64]
     os: [linux]
 
-  '@oxc-minify/binding-linux-x64-gnu@0.138.0':
-    resolution: {integrity: sha512-PB4wXHCwQ8pr8pXvF8WS8RxefLKmtdRYyNd+Y/823FbewndKXW98XdzOL00gkl2uCF/7JCKWhBsGc+O9q6KEvA==}
+  '@oxc-minify/binding-linux-x64-gnu@0.139.0':
+    resolution: {integrity: sha512-tIuF2sFUUQWTS0UIcSHXhYHGNb8Jug2T77wAX/Tf7C5hdEoUwUAy61H1U1wYtKkn/9nEEVzrsxPVRaJ3CSHGWA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
@@ -9756,7 +9756,7 @@ snapshots:
   '@oxc-minify/binding-linux-x64-gnu@0.133.0':
     optional: true
 
-  '@oxc-minify/binding-linux-x64-gnu@0.138.0': {}
+  '@oxc-minify/binding-linux-x64-gnu@0.139.0': {}
 
   '@oxc-minify/binding-linux-x64-musl@0.133.0':
     optional: true
