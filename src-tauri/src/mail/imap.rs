@@ -243,6 +243,48 @@ async fn fetch_message_inner(
     Ok(parsed)
 }
 
+/// Fetch the raw bytes of a single attachment by `part_index`. Re-fetches
+/// the full message (BODY.PEEK[], like `fetch_message`) and returns the
+/// bytes of the addressed MIME part — used for opening/downloading and for
+/// re-attaching when forwarding.
+pub async fn fetch_attachment(
+    config: &ImapConfig,
+    mailbox: &str,
+    uid: u32,
+    part_index: u32,
+) -> Result<Vec<u8>, MailError> {
+    let mut session = login(config).await?;
+    let result = fetch_attachment_inner(&mut session, mailbox, uid, part_index).await;
+    logout(session).await;
+    result
+}
+
+async fn fetch_attachment_inner(
+    session: &mut ImapSession,
+    mailbox: &str,
+    uid: u32,
+    part_index: u32,
+) -> Result<Vec<u8>, MailError> {
+    session.select(mailbox).await.map_err(imap_err)?;
+
+    let stream = session
+        .uid_fetch(uid.to_string(), "(UID BODY.PEEK[])")
+        .await
+        .map_err(imap_err)?;
+
+    let fetches: Vec<Fetch> = stream.try_collect().await.map_err(imap_err)?;
+
+    let fetch = fetches.first().ok_or_else(|| MailError::Imap {
+        reason: format!("no message with UID {} in mailbox '{}'", uid, mailbox),
+    })?;
+
+    let body = fetch.body().ok_or_else(|| MailError::Imap {
+        reason: "FETCH returned no BODY data".to_string(),
+    })?;
+
+    parsing::extract_attachment(body, part_index)
+}
+
 /// Set or unset flags on a UID set. `add=true` for STORE +FLAGS,
 /// `add=false` for STORE -FLAGS. Use `flags=["\\Seen"]` to mark read.
 pub async fn set_flags(

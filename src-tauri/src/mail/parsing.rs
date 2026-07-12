@@ -93,6 +93,27 @@ pub fn parse_message(rfc822: &[u8], fetch: &Fetch) -> Result<Message, MailError>
     })
 }
 
+/// Extract the raw bytes of a single attachment, addressed by its
+/// zero-based `part_index` in the same order `parse_message` enumerates
+/// them. Returns `MessageParse` if the index is out of range so callers
+/// can surface a clear error rather than a silent empty body.
+pub fn extract_attachment(rfc822: &[u8], part_index: u32) -> Result<Vec<u8>, MailError> {
+    let parsed = MessageParser::default()
+        .parse(rfc822)
+        .ok_or_else(|| MailError::MessageParse {
+            reason: "mail-parser returned None".to_string(),
+        })?;
+
+    for (idx, part) in parsed.attachments().enumerate() {
+        if idx as u32 == part_index {
+            return Ok(part.contents().to_vec());
+        }
+    }
+    Err(MailError::MessageParse {
+        reason: format!("no attachment with part_index {part_index}"),
+    })
+}
+
 /// Read the supplementary `BODY.PEEK[HEADER.FIELDS (REFERENCES ...)]`
 /// section of a FETCH response and split the References header.
 ///

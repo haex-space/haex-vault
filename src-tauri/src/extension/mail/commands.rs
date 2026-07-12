@@ -142,6 +142,34 @@ pub async fn extension_mail_fetch_message(
         .map_err(map_mail_error)
 }
 
+/// Fetch a single attachment's bytes by `part_index`, returned as a
+/// standard-alphabet base64 string. The base64 form is convenient for the
+/// caller: it drops straight into `OutgoingAttachment.data` when forwarding,
+/// and decodes to bytes for viewing/downloading.
+#[tauri::command]
+pub async fn extension_mail_fetch_attachment(
+    app_handle: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    imap: ImapConfig,
+    mailbox: String,
+    uid: u32,
+    part_index: u32,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<String, ExtensionError> {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine as _;
+
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+    check_fetch_permission(&app_handle, &state, &extension_id, &imap.host).await?;
+
+    let bytes = crate::mail::imap::fetch_attachment(&imap, &mailbox, uid, part_index)
+        .await
+        .map_err(map_mail_error)?;
+    Ok(STANDARD.encode(&bytes))
+}
+
 #[tauri::command]
 pub async fn extension_mail_set_flags(
     app_handle: AppHandle,
