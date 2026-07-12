@@ -89,7 +89,7 @@
     "@oxc-minify/binding-linux-x64-gnu": "^0.139.0",
     "@playwright/test": "^1.61.1",
     "@tauri-apps/cli": "^2.11.4",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.1.1",
     "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "6.0.7",
     "@vitest/ui": "^4.1.10",
