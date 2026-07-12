@@ -74,7 +74,7 @@
 
     <template #footer>
       <div class="flex justify-end gap-2 w-full">
-        <UiButton variant="ghost" :label="t('cancel')" @click="open = false" />
+        <UiButton variant="ghost" :label="t('cancel')" @click="() => { open = false }" />
         <UiButton
           color="primary"
           :label="isEdit ? t('save') : t('create')"

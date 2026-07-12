@@ -29,7 +29,7 @@
             icon="i-lucide-plus"
             color="neutral"
             variant="outline"
-            @click="showAddDialog = true"
+            @click="() => { showAddDialog = true }"
           />
         </div>
         <template #description>
@@ -58,7 +58,7 @@
           <UiButton
             color="neutral"
             variant="outline"
-            @click="showAddDialog = false"
+            @click="() => { showAddDialog = false }"
           >
             {{ t('add.cancel') }}
           </UiButton>

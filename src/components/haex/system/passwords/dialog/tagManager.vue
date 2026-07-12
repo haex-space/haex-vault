@@ -50,7 +50,7 @@
           :label="t('close')"
           color="primary"
           type="button"
-          @click="open = false"
+          @click="() => { open = false }"
         />
       </div>
     </template>
@@ -74,7 +74,7 @@
           :label="t('deleteDialog.cancel')"
           color="neutral"
           variant="outline"
-          @click="showDeleteDialog = false"
+          @click="() => { showDeleteDialog = false }"
         />
         <UiButton
           icon="i-lucide-trash-2"

@@ -91,28 +91,28 @@
               :color="config.uppercase ? 'primary' : 'neutral'"
               :variant="config.uppercase ? 'solid' : 'outline'"
               type="button"
-              @click="config.uppercase = !config.uppercase"
+              @click="() => { config.uppercase = !config.uppercase }"
             />
             <UiButton
               :label="'a-z'"
               :color="config.lowercase ? 'primary' : 'neutral'"
               :variant="config.lowercase ? 'solid' : 'outline'"
               type="button"
-              @click="config.lowercase = !config.lowercase"
+              @click="() => { config.lowercase = !config.lowercase }"
             />
             <UiButton
               :label="'0-9'"
               :color="config.numbers ? 'primary' : 'neutral'"
               :variant="config.numbers ? 'solid' : 'outline'"
               type="button"
-              @click="config.numbers = !config.numbers"
+              @click="() => { config.numbers = !config.numbers }"
             />
             <UiButton
               :label="'!@#'"
               :color="config.symbols ? 'primary' : 'neutral'"
               :variant="config.symbols ? 'solid' : 'outline'"
               type="button"
-              @click="config.symbols = !config.symbols"
+              @click="() => { config.symbols = !config.symbols }"
             />
           </div>
         </div>
@@ -214,7 +214,7 @@
           color="neutral"
           variant="ghost"
           type="button"
-          @click="open = false"
+          @click="() => { open = false }"
         />
         <UiButton
           :label="t('use')"

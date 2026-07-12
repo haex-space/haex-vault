@@ -8,7 +8,7 @@
         color="neutral"
         variant="outline"
         icon="i-lucide-share-2"
-        @click="showShareDialog = true"
+        @click="() => { showShareDialog = true }"
       >
         <span class="hidden @sm:inline">{{ t('actions.share') }}</span>
       </UButton>
@@ -16,7 +16,7 @@
         color="primary"
         icon="i-lucide-plus"
         data-testid="contacts-add-trigger"
-        @click="showAddDialog = true"
+        @click="() => { showAddDialog = true }"
       >
         <span class="hidden @sm:inline">{{ t('actions.add') }}</span>
       </UButton>

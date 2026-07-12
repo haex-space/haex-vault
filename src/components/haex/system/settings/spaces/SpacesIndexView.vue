@@ -18,7 +18,7 @@
         color="neutral"
         variant="outline"
         icon="i-lucide-log-in"
-        @click="showJoinDialog = true"
+        @click="() => { showJoinDialog = true }"
       >
         <span class="hidden @sm:inline">{{ t('actions.join') }}</span>
       </UButton>
@@ -27,7 +27,7 @@
         icon="i-lucide-plus"
         data-testid="spaces-create-trigger"
         data-tour="settings-spaces-create"
-        @click="showCreateDialog = true"
+        @click="() => { showCreateDialog = true }"
       >
         <span class="hidden @sm:inline">{{ t('actions.create') }}</span>
       </UButton>
@@ -57,18 +57,8 @@
         :invite="entry.kind === 'pending' ? entry.invite : undefined"
         :show-tour-anchors="entry.kind === 'active' && entry.space.id === firstActiveSpaceId"
         @select="emit('select-space', $event)"
-        @accept="
-          emit(
-            'accept-invite',
-            entry.kind === 'pending' ? entry.invite : undefined,
-          )
-        "
-        @decline="
-          emit(
-            'decline-invite',
-            entry.kind === 'pending' ? entry.invite : undefined,
-          )
-        "
+        @accept="emit('accept-invite', inviteOf(entry))"
+        @decline="emit('decline-invite', inviteOf(entry))"
         @edit="emit('edit-space', $event)"
         @add-share="emit('add-share', $event)"
         @share-storage-clicked="emit('share-storage-clicked', $event)"
@@ -162,6 +152,9 @@ const emit = defineEmits<{
   'delete-space': [space: SpaceWithType]
   'leave-space': [space: SpaceWithType]
 }>()
+
+const inviteOf = (entry: SpaceListEntry) =>
+  entry.kind === 'pending' ? entry.invite : undefined
 
 const { t } = useI18n()
 </script>

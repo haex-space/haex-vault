@@ -254,7 +254,7 @@
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-x"
-                @click="showInviteDetail = false"
+                @click="() => { showInviteDetail = false }"
               />
             </div>
           </template>

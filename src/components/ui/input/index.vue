@@ -45,7 +45,7 @@
           icon="i-lucide-x"
           variant="link"
           size="sm"
-          @click="value = ''"
+          @click="() => { value = '' }"
         />
 
         <UiButton

@@ -106,7 +106,7 @@
     "typescript": "^6.0.3",
     "unplugin-auto-import": "^21.0.0",
     "vitest": "^4.1.9",
-    "vue-tsc": "3.3.5",
+    "vue-tsc": "3.3.6",
     "zod": "^3.25.76"
   },
   "prettier": {

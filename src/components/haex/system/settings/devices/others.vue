@@ -79,7 +79,7 @@
               icon="i-lucide-x"
               variant="ghost"
               color="neutral"
-              @click="editingDeviceId = null"
+              @click="() => { editingDeviceId = null }"
             />
           </div>
           <div
@@ -96,7 +96,7 @@
               icon="i-lucide-trash-2"
               variant="ghost"
               color="error"
-              @click="deviceToRemove = item.device"
+              @click="() => { deviceToRemove = item.device }"
             />
           </div>
         </div>
