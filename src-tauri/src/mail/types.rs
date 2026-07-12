@@ -143,6 +143,9 @@ pub struct MessageEnvelope {
     pub references: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<u32>,
+    /// Whether the message has any non-primary-body MIME part (regular
+    /// attachment or inline cid part), derived from BODYSTRUCTURE.
+    pub has_attachments: bool,
 }
 
 /// Full message: envelope + parsed body parts + attachment metadata.
