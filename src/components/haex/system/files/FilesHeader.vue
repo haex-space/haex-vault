@@ -18,14 +18,14 @@
           icon="i-lucide-list"
           :color="viewMode === 'list' ? 'primary' : 'neutral'"
           :title="t('viewList')"
-          @click="viewMode = 'list'"
+          @click="() => { viewMode = 'list' }"
         />
         <UiButton
           variant="ghost"
           icon="i-lucide-layout-grid"
           :color="viewMode === 'grid' ? 'primary' : 'neutral'"
           :title="t('viewGrid')"
-          @click="viewMode = 'grid'"
+          @click="() => { viewMode = 'grid' }"
         />
       </div>
     </div>

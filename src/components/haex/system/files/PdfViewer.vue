@@ -11,7 +11,7 @@
         color="neutral"
         class="text-white"
         :disabled="scale <= 0.5"
-        @click="scale = Math.max(0.5, scale - 0.25)"
+        @click="() => { scale = Math.max(0.5, scale - 0.25) }"
       />
       <span class="text-white text-sm min-w-12 text-center">{{ Math.round(scale * 100) }}%</span>
       <UButton
@@ -20,7 +20,7 @@
         color="neutral"
         class="text-white"
         :disabled="scale >= 3"
-        @click="scale = Math.min(3, scale + 0.25)"
+        @click="() => { scale = Math.min(3, scale + 0.25) }"
       />
       <span class="text-white/60 text-sm">{{ currentPage }} / {{ totalPages }}</span>
     </div>

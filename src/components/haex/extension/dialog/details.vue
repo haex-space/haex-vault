@@ -97,7 +97,7 @@
             icon="i-heroicons-x-mark"
             color="neutral"
             variant="ghost"
-            @click="open = false"
+            @click="() => { open = false }"
           />
         </div>
       </div>

@@ -10,7 +10,7 @@
 use async_imap::types::Fetch;
 use async_imap::Session;
 use futures_util::TryStreamExt;
-use imap_proto::types::Address as ImapAddress;
+use imap_proto::types::{Address as ImapAddress, BodyStructure};
 use tokio::net::TcpStream;
 use tokio_native_tls::TlsStream;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
@@ -186,9 +186,10 @@ async fn fetch_envelopes_inner(
     }
 
     // RFC822.SIZE + INTERNALDATE + FLAGS + ENVELOPE for the summary;
-    // BODY.PEEK[HEADER.FIELDS (...)] for threading headers without
-    // marking the message \Seen.
-    let query = "(UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE \
+    // BODYSTRUCTURE (structure only, no part data) to derive
+    // `has_attachments` cheaply for the list view; BODY.PEEK[HEADER.FIELDS
+    // (...)] for threading headers without marking the message \Seen.
+    let query = "(UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE \
                  BODY.PEEK[HEADER.FIELDS (MESSAGE-ID IN-REPLY-TO REFERENCES)])";
 
     let stream = session.uid_fetch(&uid_set, query).await.map_err(imap_err)?;
@@ -241,6 +242,48 @@ async fn fetch_message_inner(
 
     let parsed = parsing::parse_message(body, fetch)?;
     Ok(parsed)
+}
+
+/// Fetch the raw bytes of a single attachment by `part_index`. Re-fetches
+/// the full message (BODY.PEEK[], like `fetch_message`) and returns the
+/// bytes of the addressed MIME part — used for opening/downloading and for
+/// re-attaching when forwarding.
+pub async fn fetch_attachment(
+    config: &ImapConfig,
+    mailbox: &str,
+    uid: u32,
+    part_index: u32,
+) -> Result<Vec<u8>, MailError> {
+    let mut session = login(config).await?;
+    let result = fetch_attachment_inner(&mut session, mailbox, uid, part_index).await;
+    logout(session).await;
+    result
+}
+
+async fn fetch_attachment_inner(
+    session: &mut ImapSession,
+    mailbox: &str,
+    uid: u32,
+    part_index: u32,
+) -> Result<Vec<u8>, MailError> {
+    session.select(mailbox).await.map_err(imap_err)?;
+
+    let stream = session
+        .uid_fetch(uid.to_string(), "(UID BODY.PEEK[])")
+        .await
+        .map_err(imap_err)?;
+
+    let fetches: Vec<Fetch> = stream.try_collect().await.map_err(imap_err)?;
+
+    let fetch = fetches.first().ok_or_else(|| MailError::Imap {
+        reason: format!("no message with UID {} in mailbox '{}'", uid, mailbox),
+    })?;
+
+    let body = fetch.body().ok_or_else(|| MailError::Imap {
+        reason: "FETCH returned no BODY data".to_string(),
+    })?;
+
+    parsing::extract_attachment(body, part_index)
 }
 
 /// Set or unset flags on a UID set. `add=true` for STORE +FLAGS,
@@ -481,6 +524,8 @@ fn envelope_from_fetch(f: &Fetch) -> MessageEnvelope {
     // References header is in the supplementary BODY.PEEK[HEADER.FIELDS ...].
     let references = parsing::extract_references_header(f);
 
+    let has_attachments = f.bodystructure().map(has_non_body_part).unwrap_or(false);
+
     MessageEnvelope {
         uid,
         flags,
@@ -493,6 +538,29 @@ fn envelope_from_fetch(f: &Fetch) -> MessageEnvelope {
         in_reply_to,
         references,
         size,
+        has_attachments,
+    }
+}
+
+/// Whether a BODYSTRUCTURE contains any part beyond a plain single
+/// text body or a text/plain+text/html alternative pair — i.e. a
+/// regular attachment or an inline (cid-referenced) part. Mirrors what
+/// `parsing::parse_message`'s mail-parser-based `.attachments()` counts
+/// for a fully fetched message, so the list-view flag and the opened
+/// message's attachment list agree.
+fn has_non_body_part(bs: &BodyStructure<'_>) -> bool {
+    match bs {
+        // A basic (non-text, non-message) part is never the message's
+        // primary body — always attachment/inline content.
+        BodyStructure::Basic { .. } => true,
+        // An embedded RFC822 message (forwarded mail) is likewise never
+        // the primary body.
+        BodyStructure::Message { .. } => true,
+        BodyStructure::Text { common, .. } => common
+            .disposition
+            .as_ref()
+            .is_some_and(|d| d.ty.eq_ignore_ascii_case("attachment")),
+        BodyStructure::Multipart { bodies, .. } => bodies.iter().any(has_non_body_part),
     }
 }
 
@@ -518,4 +586,169 @@ fn addr_from_imap(a: &ImapAddress) -> Address {
         format!("{mailbox}@{host}")
     };
     Address { name, email }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use imap_proto::types::{
+        BodyContentCommon, BodyContentSinglePart, ContentDisposition, ContentEncoding, ContentType,
+        Envelope,
+    };
+
+    fn text_part(subtype: &str, disposition: Option<&str>) -> BodyStructure<'static> {
+        BodyStructure::Text {
+            common: BodyContentCommon {
+                ty: ContentType {
+                    ty: "text".into(),
+                    subtype: subtype.to_string().into(),
+                    params: None,
+                },
+                disposition: disposition.map(|d| ContentDisposition {
+                    ty: d.to_string().into(),
+                    params: None,
+                }),
+                language: None,
+                location: None,
+            },
+            other: BodyContentSinglePart {
+                id: None,
+                md5: None,
+                description: None,
+                transfer_encoding: ContentEncoding::SevenBit,
+                octets: 0,
+            },
+            lines: 0,
+            extension: None,
+        }
+    }
+
+    fn basic_part(ty: &str, subtype: &str) -> BodyStructure<'static> {
+        BodyStructure::Basic {
+            common: BodyContentCommon {
+                ty: ContentType {
+                    ty: ty.to_string().into(),
+                    subtype: subtype.to_string().into(),
+                    params: None,
+                },
+                disposition: None,
+                language: None,
+                location: None,
+            },
+            other: BodyContentSinglePart {
+                id: None,
+                md5: None,
+                description: None,
+                transfer_encoding: ContentEncoding::Base64,
+                octets: 0,
+            },
+            extension: None,
+        }
+    }
+
+    fn embedded_message_part() -> BodyStructure<'static> {
+        BodyStructure::Message {
+            common: BodyContentCommon {
+                ty: ContentType {
+                    ty: "message".into(),
+                    subtype: "rfc822".into(),
+                    params: None,
+                },
+                disposition: None,
+                language: None,
+                location: None,
+            },
+            other: BodyContentSinglePart {
+                id: None,
+                md5: None,
+                description: None,
+                transfer_encoding: ContentEncoding::SevenBit,
+                octets: 0,
+            },
+            envelope: Envelope {
+                date: None,
+                subject: None,
+                from: None,
+                sender: None,
+                reply_to: None,
+                to: None,
+                cc: None,
+                bcc: None,
+                in_reply_to: None,
+                message_id: None,
+            },
+            body: Box::new(text_part("plain", None)),
+            lines: 0,
+            extension: None,
+        }
+    }
+
+    fn multipart(subtype: &str, bodies: Vec<BodyStructure<'static>>) -> BodyStructure<'static> {
+        BodyStructure::Multipart {
+            common: BodyContentCommon {
+                ty: ContentType {
+                    ty: "multipart".into(),
+                    subtype: subtype.to_string().into(),
+                    params: None,
+                },
+                disposition: None,
+                language: None,
+                location: None,
+            },
+            bodies,
+            extension: None,
+        }
+    }
+
+    #[test]
+    fn single_text_part_has_no_attachments() {
+        assert!(!has_non_body_part(&text_part("plain", None)));
+    }
+
+    #[test]
+    fn text_plus_html_alternative_has_no_attachments() {
+        let bs = multipart(
+            "alternative",
+            vec![text_part("plain", None), text_part("html", None)],
+        );
+        assert!(!has_non_body_part(&bs));
+    }
+
+    #[test]
+    fn mixed_with_file_part_has_attachments() {
+        let bs = multipart(
+            "mixed",
+            vec![text_part("plain", None), basic_part("application", "pdf")],
+        );
+        assert!(has_non_body_part(&bs));
+    }
+
+    #[test]
+    fn text_part_with_attachment_disposition_counts() {
+        // Some servers report an attached .txt file as a Text bodystructure
+        // node rather than Basic — disposition is the authoritative signal.
+        assert!(has_non_body_part(&text_part("plain", Some("attachment"))));
+    }
+
+    #[test]
+    fn nested_multipart_related_with_inline_image_has_attachments() {
+        let bs = multipart(
+            "mixed",
+            vec![multipart(
+                "related",
+                vec![text_part("html", None), basic_part("image", "png")],
+            )],
+        );
+        assert!(has_non_body_part(&bs));
+    }
+
+    #[test]
+    fn embedded_message_counts_as_attachment() {
+        // A forwarded email (message/rfc822 part) is never the primary body.
+        let bs = multipart(
+            "mixed",
+            vec![text_part("plain", None), embedded_message_part()],
+        );
+        assert!(has_non_body_part(&bs));
+    }
 }

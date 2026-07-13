@@ -518,6 +518,7 @@ pub fn run() {
             extension::mail::commands::extension_mail_list_mailboxes,
             extension::mail::commands::extension_mail_fetch_envelopes,
             extension::mail::commands::extension_mail_fetch_message,
+            extension::mail::commands::extension_mail_fetch_attachment,
             extension::mail::commands::extension_mail_set_flags,
             extension::mail::commands::extension_mail_move_messages,
             extension::mail::commands::extension_mail_append_message,
