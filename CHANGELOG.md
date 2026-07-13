@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.14.0](https://github.com/haex-space/haex-vault/compare/v2.13.0...v2.14.0) (2026-07-13)
+
+
+### Features
+
+* **mail:** add hasAttachments to MessageEnvelope ([#639](https://github.com/haex-space/haex-vault/issues/639)) ([cc9df81](https://github.com/haex-space/haex-vault/commit/cc9df811150d591711f45019b0143f26243cf9dc))
+* **mail:** fetch attachment bytes by part index ([#636](https://github.com/haex-space/haex-vault/issues/636)) ([a92dcff](https://github.com/haex-space/haex-vault/commit/a92dcff2857faa8212d0826f300c2d14573b07c3))
+
+
+### Bug Fixes
+
+* bundle md-editor-v3 optional deps locally instead of CDN ([d6660ca](https://github.com/haex-space/haex-vault/commit/d6660cafe9f0bd148136cbce6e702d5f0340036e))
+* bundle md-editor-v3 optional deps locally instead of CDN ([357909c](https://github.com/haex-space/haex-vault/commit/357909c8d8f2768e81d3777e4464151588a061ba))
+* **deps:** update crossbeam-epoch to 0.9.20 (RUSTSEC-2026-0204) ([5d40e5d](https://github.com/haex-space/haex-vault/commit/5d40e5dbcd99afd846a8d446a72ef2867b482709))
+* **vue:** wrap non-void event handler expressions in arrow functions ([1cd8ca6](https://github.com/haex-space/haex-vault/commit/1cd8ca6461bf63c34e86220e9fead52dca44d68b))
+* **vue:** wrap non-void event handler expressions in arrow functions ([153ac65](https://github.com/haex-space/haex-vault/commit/153ac65138607d3c638c2ccf9e71045cc988731e))
+
 ## [2.13.0](https://github.com/haex-space/haex-vault/compare/v2.12.5...v2.13.0) (2026-07-05)
 
 
