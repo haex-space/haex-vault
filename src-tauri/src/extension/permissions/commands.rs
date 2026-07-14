@@ -209,7 +209,14 @@ pub fn grant_session_permission(
 
     let resource_type_enum = ResourceType::from_str(&resource_type)?;
     let status = PermissionStatus::from_str(&decision)?;
-    let action_enum = Action::from_str(&resource_type_enum, &action)?;
+    let action_enum = match resource_type_enum {
+        // Web permissions are domain-scoped and method-agnostic (see
+        // check_web_permission); the prompt's action string ("request") is not
+        // a WebAction, so every web grant maps to WebAction::All — matching
+        // both the check's lookup key and resolve_permission_prompt's action.
+        ResourceType::Web => Action::Web(WebAction::All),
+        _ => Action::from_str(&resource_type_enum, &action)?,
+    };
 
     let permission = ExtensionPermission {
         id: format!("session-{}", uuid::Uuid::new_v4()),
