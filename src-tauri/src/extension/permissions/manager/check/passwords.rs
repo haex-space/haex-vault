@@ -1,5 +1,6 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
+use crate::extension::permissions::session::SessionPermissionStore;
 use crate::extension::permissions::types::{
     Action, ExtensionPermission, PasswordsAction, PasswordsScope, PermissionStatus, Principal,
     ResourceType,
@@ -7,6 +8,27 @@ use crate::extension::permissions::types::{
 use crate::AppState;
 use serde_json::Value as JsonValue;
 use tauri::State;
+
+/// `true` iff `perm_action` (carried by a passwords permission row) grants
+/// `required`. A `ReadWrite` permission implicitly covers a `Read` request.
+/// Shared between the DB-row and session-row matching paths.
+fn action_allows(perm_action: &Action, required: &PasswordsAction) -> bool {
+    match perm_action {
+        Action::Passwords(passwords_action) => match (passwords_action, required) {
+            (a, b) if a == b => true,
+            (PasswordsAction::ReadWrite, PasswordsAction::Read) => true,
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+fn passwords_action_str(action: &PasswordsAction) -> &'static str {
+    match action {
+        PasswordsAction::Read => "read",
+        PasswordsAction::ReadWrite => "readWrite",
+    }
+}
 
 impl PermissionManager {
     /// Prüft Passwörter-Berechtigungen und liefert den erlaubten Tag-Scope zurück.
@@ -19,7 +41,10 @@ impl PermissionManager {
     /// Es zählen nur `Granted`-Permissions. Ist keine passende `Granted`
     /// vorhanden, wird abhängig vom Zustand bestehender Einträge entweder
     /// `Denied` oder `PromptRequired` zurückgegeben — analog zu den anderen
-    /// `check_*_permission`-Funktionen.
+    /// `check_*_permission`-Funktionen. Fehlt eine DB-Permission komplett (oder
+    /// sind alle vorhandenen DB-Rows nur `Ask`), wird zusätzlich der
+    /// Session-Store befragt (siehe `passwords_session_scope`), analog zu
+    /// `web`/`rw_resource`/`spaces`.
     pub async fn check_passwords_permission(
         app_state: &State<'_, AppState>,
         principal: &Principal,
@@ -30,17 +55,6 @@ impl PermissionManager {
         let (extension, permissions) =
             Self::load_extension_and_permissions(app_state, principal).await?;
 
-        let action_allows = |perm_action: &Action, required: &PasswordsAction| -> bool {
-            match perm_action {
-                Action::Passwords(passwords_action) => match (passwords_action, required) {
-                    (a, b) if a == b => true,
-                    (PasswordsAction::ReadWrite, PasswordsAction::Read) => true,
-                    _ => false,
-                },
-                _ => false,
-            }
-        };
-
         let matching: Vec<&ExtensionPermission> = permissions
             .iter()
             .filter(|p| {
@@ -48,12 +62,14 @@ impl PermissionManager {
             })
             .collect();
 
-        let action_str = match action {
-            PasswordsAction::Read => "read",
-            PasswordsAction::ReadWrite => "readWrite",
-        };
+        let action_str = passwords_action_str(&action);
 
         if matching.is_empty() {
+            if let Some(result) =
+                passwords_session_scope(&app_state.session_permissions, extension_id, action)
+            {
+                return result;
+            }
             return Err(ExtensionError::permission_prompt_required(
                 extension_id,
                 &extension.manifest.name,
@@ -81,13 +97,29 @@ impl PermissionManager {
             .collect();
 
         if granted.is_empty() {
-            // Alle matchings sind Ask → Prompt.
+            // Alle matchings sind Ask → erst Session-Store befragen, dann ggf.
+            // Prompt mit den tatsächlich vom Manifest deklarierten Tags (statt
+            // eines pauschalen "*"), damit der Nutzer sieht, wonach die
+            // Erweiterung wirklich fragt.
+            if let Some(result) =
+                passwords_session_scope(&app_state.session_permissions, extension_id, action)
+            {
+                return result;
+            }
+
+            let ask_targets: Vec<String> = matching.iter().map(|p| p.target.clone()).collect();
+            let ask_target = if ask_targets.iter().any(|t| t == "*") {
+                "*".to_string()
+            } else {
+                ask_targets.join(",")
+            };
+
             return Err(ExtensionError::permission_prompt_required(
                 extension_id,
                 &extension.manifest.name,
                 "passwords",
                 action_str,
-                "*",
+                &ask_target,
             ));
         }
 
@@ -202,4 +234,127 @@ pub(crate) fn resolve_passwords_tags_scope(
             ),
         }),
     }
+}
+
+/// Resolves the passwords permission status from the **session** store,
+/// mirroring the DB-row resolution above (wildcard shortcut, tag-scope +
+/// default-label rules via [`resolve_passwords_tags_scope`]).
+///
+/// Returns:
+/// - `None` — no session entry at all (or all session rows are `Ask`, which
+///   session grants never actually are, but is handled defensively the same
+///   way) → caller falls through to `PermissionPromptRequired`.
+/// - `Some(Err(permission_denied))` — an explicit session deny blocks access.
+/// - `Some(Ok(scope))` — a usable session grant (wildcard or tag-scope).
+pub(crate) fn passwords_session_scope(
+    session: &SessionPermissionStore,
+    extension_id: &str,
+    action: PasswordsAction,
+) -> Option<Result<PasswordsScope, ExtensionError>> {
+    let session_permissions = session.get_permissions_for_extension(extension_id);
+
+    let matching: Vec<&ExtensionPermission> = session_permissions
+        .iter()
+        .filter(|p| p.resource_type == ResourceType::Passwords && action_allows(&p.action, &action))
+        .collect();
+
+    if matching.is_empty() {
+        return None;
+    }
+
+    if matching
+        .iter()
+        .any(|p| matches!(p.status, PermissionStatus::Denied))
+    {
+        return Some(Err(ExtensionError::permission_denied(
+            extension_id,
+            passwords_action_str(&action),
+            "passwords:*",
+        )));
+    }
+
+    let granted: Vec<&&ExtensionPermission> = matching
+        .iter()
+        .filter(|p| matches!(p.status, PermissionStatus::Granted))
+        .collect();
+
+    if granted.is_empty() {
+        return None;
+    }
+
+    if granted.iter().any(|p| p.target == "*") {
+        return Some(Ok(PasswordsScope::All));
+    }
+
+    let rows: Vec<PasswordsGrantRow> = granted
+        .iter()
+        .map(|p| PasswordsGrantRow {
+            target: p.target.clone(),
+            is_default: parse_passwords_default_marker(p.raw_constraints.as_ref()),
+        })
+        .collect();
+
+    let write_granted = matches!(action, PasswordsAction::ReadWrite);
+    Some(resolve_passwords_tags_scope(rows, write_granted, extension_id))
+}
+
+/// Cleans and validates a user-submitted passwords tag grant (from the
+/// permission-prompt dialog) before it's persisted, shared by the DB
+/// (`resolve_permission_prompt`) and session (`grant_session_permission`)
+/// write paths.
+///
+/// - Trims, drops empty entries, and dedupes `tags` (order-preserving).
+/// - `"*"` anywhere in the input collapses the whole grant to the wildcard
+///   (`vec!["*"]`) — mirrors the DB/session read-side wildcard shortcut.
+/// - Enforces the same "exactly one default label" invariant as
+///   [`resolve_passwords_tags_scope`] up front, at the point of writing a
+///   grant, rather than only discovering an invalid state later when a
+///   `check_passwords_permission` call trips [`ExtensionError::SecurityViolation`].
+///
+/// Returns `(effective_tags, is_wildcard)`.
+pub(crate) fn normalize_passwords_grant_tags(
+    tags: &[String],
+    default_tag: Option<&str>,
+    action: PasswordsAction,
+    status: PermissionStatus,
+    extension_id: &str,
+) -> Result<(Vec<String>, bool), ExtensionError> {
+    let mut seen = std::collections::HashSet::new();
+    let cleaned: Vec<String> = tags
+        .iter()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .filter(|t| seen.insert(t.clone()))
+        .collect();
+
+    let is_wildcard = cleaned.iter().any(|t| t == "*");
+    let effective = if is_wildcard {
+        vec!["*".to_string()]
+    } else {
+        cleaned
+    };
+
+    if effective.is_empty() {
+        return Err(ExtensionError::ValidationError {
+            reason: "At least one tag (or '*' for all tags) is required".to_string(),
+        });
+    }
+
+    if status == PermissionStatus::Granted
+        && !is_wildcard
+        && effective.len() > 1
+        && matches!(action, PasswordsAction::ReadWrite)
+    {
+        let has_valid_default = default_tag.is_some_and(|d| effective.iter().any(|t| t == d));
+        if !has_valid_default {
+            return Err(ExtensionError::ValidationError {
+                reason: format!(
+                    "extension '{extension_id}': defaultTag must be set to one of the granted \
+                     tags ({effective:?}) when granting write access to multiple tags"
+                ),
+            });
+        }
+    }
+
+    Ok((effective, is_wildcard))
 }

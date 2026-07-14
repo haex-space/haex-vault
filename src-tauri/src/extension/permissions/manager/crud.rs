@@ -6,7 +6,8 @@ use crate::extension::core::types::Extension;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    split_constraints, Action, ExtensionPermission, PermissionStatus, Principal, ResourceType,
+    split_constraints, Action, ExtensionPermission, PasswordsAction, PermissionStatus, Principal,
+    ResourceType,
 };
 use crate::table_names::TABLE_PRINCIPAL_PERMISSIONS;
 use crate::AppState;
@@ -60,7 +61,6 @@ impl PermissionManager {
     }
 
     /// Aktualisiert eine Permission
-    #[allow(dead_code)]
     pub async fn update_permission(
         app_state: &State<'_, AppState>,
         permission: &ExtensionPermission,
@@ -330,5 +330,126 @@ impl PermissionManager {
             })?;
         let permissions = Self::get_permissions(app_state, principal).await?;
         Ok((extension, permissions))
+    }
+
+    /// Persists a passwords tag grant/deny decision from the permission-prompt
+    /// dialog to the database, covering possibly multiple tags plus the
+    /// "exactly one default label" invariant enforced up front by
+    /// [`normalize_passwords_grant_tags`].
+    ///
+    /// `previously_offered_tags` are the tags the user was originally shown
+    /// for THIS prompt (parsed from the pending `Ask` rows the check
+    /// surfaced). Any of them excluded from `tags` is explicitly denied —
+    /// this only ever touches tags that were part of this prompt's offer,
+    /// never an unrelated historical grant. Skipped when the new grant is
+    /// the wildcard (`"*"`): widening to full access must never leave a
+    /// narrower tag explicitly denied, which would otherwise win via
+    /// deny-first precedence.
+    pub async fn save_passwords_grant(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        action: PasswordsAction,
+        tags: &[String],
+        default_tag: Option<&str>,
+        status: PermissionStatus,
+        previously_offered_tags: &[String],
+    ) -> Result<(), ExtensionError> {
+        use crate::extension::permissions::manager::check::passwords::normalize_passwords_grant_tags;
+
+        let (effective_tags, is_wildcard) = normalize_passwords_grant_tags(
+            tags,
+            default_tag,
+            action.clone(),
+            status,
+            extension_id,
+        )?;
+
+        let existing =
+            Self::get_permissions(app_state, &Principal::Extension(extension_id.to_string()))
+                .await?;
+
+        for tag in &effective_tags {
+            let raw_constraints = if !is_wildcard && default_tag == Some(tag.as_str()) {
+                Some(serde_json::json!({ "default": true }))
+            } else {
+                None
+            };
+            Self::upsert_passwords_tag_row(
+                app_state,
+                &existing,
+                extension_id,
+                &action,
+                tag,
+                status,
+                raw_constraints,
+            )
+            .await?;
+        }
+
+        if !is_wildcard {
+            for tag in previously_offered_tags {
+                if tag == "*" || effective_tags.iter().any(|t| t == tag) {
+                    continue;
+                }
+                Self::upsert_passwords_tag_row(
+                    app_state,
+                    &existing,
+                    extension_id,
+                    &action,
+                    tag,
+                    PermissionStatus::Denied,
+                    None,
+                )
+                .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Creates or updates a single passwords permission row for `tag`, used by
+    /// [`save_passwords_grant`] for both the granted/denied tags and the
+    /// revoked (deselected) tags.
+    async fn upsert_passwords_tag_row(
+        app_state: &State<'_, AppState>,
+        existing: &[ExtensionPermission],
+        extension_id: &str,
+        action: &PasswordsAction,
+        tag: &str,
+        status: PermissionStatus,
+        raw_constraints: Option<serde_json::Value>,
+    ) -> Result<(), ExtensionError> {
+        let existing_row = existing
+            .iter()
+            .find(|p| p.resource_type == ResourceType::Passwords && p.target == tag);
+
+        match existing_row {
+            Some(row) => {
+                let updated = ExtensionPermission {
+                    id: row.id.clone(),
+                    principal_id: extension_id.to_string(),
+                    resource_type: ResourceType::Passwords,
+                    action: Action::Passwords(action.clone()),
+                    target: tag.to_string(),
+                    constraints: None,
+                    status,
+                    raw_constraints,
+                };
+                Self::update_permission(app_state, &updated).await
+            }
+            None => {
+                let new_permission = ExtensionPermission {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    principal_id: extension_id.to_string(),
+                    resource_type: ResourceType::Passwords,
+                    action: Action::Passwords(action.clone()),
+                    target: tag.to_string(),
+                    constraints: None,
+                    status,
+                    raw_constraints,
+                };
+                Self::save_permissions(app_state, &[new_permission]).await
+            }
+        }
     }
 }
