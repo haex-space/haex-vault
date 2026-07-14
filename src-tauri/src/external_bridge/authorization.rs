@@ -138,6 +138,34 @@ lazy_static::lazy_static! {
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
     );
 
+    // Upsert support for re-grants: a client that re-authorizes (e.g. after a
+    // manifest change) already has a (client_id, extension_id) row — a plain
+    // INSERT would violate the unique index, so the grant path looks the row
+    // up and UPDATEs it instead.
+    pub static ref SQL_GET_CLIENT_EXTENSION_ROW_ID: String = format!(
+        "SELECT {COL_EXTERNAL_AUTHORIZED_CLIENTS_ID} FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} \
+         WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1 \
+         AND {COL_EXTERNAL_AUTHORIZED_CLIENTS_EXTENSION_ID} = ?2 LIMIT 1"
+    );
+
+    pub static ref SQL_UPDATE_CLIENT_GRANT: String = format!(
+        "UPDATE {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} \
+         SET {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME} = ?2, \
+             {COL_EXTERNAL_AUTHORIZED_CLIENTS_PUBLIC_KEY} = ?3 \
+         WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_ID} = ?1"
+    );
+
+    // Keeps the stored manifest identical across ALL of a client's rows
+    // (`get_stored_requested_permissions` reads an arbitrary one) — rows
+    // granted for other extensions in an earlier session would otherwise
+    // retain an outdated declaration and flap between authorized and
+    // re-authorization-required depending on which row the lookup hits.
+    pub static ref SQL_UPDATE_CLIENT_REQUESTED_PERMISSIONS: String = format!(
+        "UPDATE {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} \
+         SET {COL_EXTERNAL_AUTHORIZED_CLIENTS_REQUESTED_PERMISSIONS} = ?1 \
+         WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?2"
+    );
+
     pub static ref SQL_UPDATE_LAST_SEEN: String = format!(
         "UPDATE {TABLE_EXTERNAL_AUTHORIZED_CLIENTS}
          SET {COL_EXTERNAL_AUTHORIZED_CLIENTS_LAST_SEEN} = datetime('now')

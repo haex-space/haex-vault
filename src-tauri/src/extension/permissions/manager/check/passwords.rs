@@ -27,8 +27,20 @@ impl PermissionManager {
     ) -> Result<PasswordsScope, ExtensionError> {
         let extension_id = principal.id();
 
-        let (display_name, permissions) =
+        let (display_name, mut permissions) =
             Self::load_principal_display_name_and_permissions(app_state, principal).await?;
+
+        // Session grants ("allow once" — from the authorization dialog or a
+        // runtime prompt answered without "remember") live only in the
+        // in-memory store. Merge them so they run through the same
+        // matching/deny-first/scope logic as persisted rows — without this
+        // they are stored but never honored, and the request fails right
+        // after the user approved it.
+        permissions.extend(
+            app_state
+                .session_permissions
+                .get_permissions_for_extension(extension_id),
+        );
 
         let action_allows = |perm_action: &Action, required: &PasswordsAction| -> bool {
             match perm_action {

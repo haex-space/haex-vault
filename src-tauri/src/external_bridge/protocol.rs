@@ -109,11 +109,39 @@ pub fn canonical_requested_permissions(
         permissions: &'a Option<ClientPermissions>,
         requested_extensions: &'a [RequestedExtension],
     }
-    serde_json::to_string(&CanonicalManifest {
+    let mut value = match serde_json::to_value(CanonicalManifest {
         permissions,
         requested_extensions,
-    })
-    .unwrap_or_default()
+    }) {
+        Ok(value) => value,
+        Err(_) => return String::new(),
+    };
+    sort_arrays_recursively(&mut value);
+    value.to_string()
+}
+
+/// Sorts every JSON array in `value` (recursively, children first) by the
+/// elements' serialized form. A client that emits its declaration arrays
+/// (`requested_extensions`, per-extension `actions`, core permission entries)
+/// in a different order across sessions still produces the same canonical
+/// string — array order carries no meaning in the declaration, and an
+/// order-only difference must not force re-authorization. Object key order is
+/// already deterministic (struct field order via serde).
+fn sort_arrays_recursively(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Array(items) => {
+            for item in items.iter_mut() {
+                sort_arrays_recursively(item);
+            }
+            items.sort_by_cached_key(|item| item.to_string());
+        }
+        serde_json::Value::Object(map) => {
+            for (_, item) in map.iter_mut() {
+                sort_arrays_recursively(item);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Handshake response from server
@@ -220,6 +248,27 @@ mod declaration_tests {
     fn canonical_manifest_is_stable_for_identical_input() {
         let a = canonical_requested_permissions(&None, &[requested_extension(vec!["getItems"])]);
         let b = canonical_requested_permissions(&None, &[requested_extension(vec!["getItems"])]);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn canonical_manifest_is_invariant_to_array_order() {
+        let other = RequestedExtension {
+            name: "haex-pass".to_string(),
+            extension_public_key: "pk2".to_string(),
+            actions: vec!["a".to_string(), "b".to_string()],
+        };
+        let a = canonical_requested_permissions(
+            &None,
+            &[
+                requested_extension(vec!["getItems", "createItem"]),
+                other.clone(),
+            ],
+        );
+        let b = canonical_requested_permissions(
+            &None,
+            &[other, requested_extension(vec!["createItem", "getItems"])],
+        );
         assert_eq!(a, b);
     }
 }

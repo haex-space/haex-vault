@@ -51,34 +51,42 @@ impl PermissionManager {
                 &exact_target,
             )),
             None => {
-                if app_state.session_permissions.is_granted(
-                    client_id,
-                    &Action::ExtensionApi(ExtensionApiAction::Call),
-                    ResourceType::ExtensionApi,
-                    &exact_target,
-                ) {
-                    return Ok(());
-                }
-                if app_state.session_permissions.is_denied(
-                    client_id,
-                    &Action::ExtensionApi(ExtensionApiAction::Call),
-                    ResourceType::ExtensionApi,
-                    &exact_target,
-                ) {
-                    return Err(ExtensionError::permission_denied(
+                // Session ("allow once") grants are stored under the exact
+                // target when they come from a runtime prompt, but the
+                // authorization-dialog path stores the client's declared
+                // targets — which may be the extension wildcard (`…::*`,
+                // declared `actions: ["*"]`). Resolve exact + both wildcard
+                // targets with the same deny-first precedence as the
+                // persisted rows above.
+                let action = Action::ExtensionApi(ExtensionApiAction::Call);
+                let session_resolved = deny_first_precedence(
+                    [exact_target.as_str(), wildcard_target.as_str(), "*"]
+                        .into_iter()
+                        .filter_map(|target| {
+                            app_state.session_permissions.get_permission(
+                                client_id,
+                                &action,
+                                ResourceType::ExtensionApi,
+                                target,
+                            )
+                        }),
+                );
+
+                match session_resolved {
+                    Some(PermissionStatus::Granted) => Ok(()),
+                    Some(PermissionStatus::Denied) => Err(ExtensionError::permission_denied(
                         client_id,
                         "call",
                         &exact_target,
-                    ));
+                    )),
+                    _ => Err(ExtensionError::permission_prompt_required(
+                        client_id,
+                        &display_name,
+                        "extensionApi",
+                        "call",
+                        &exact_target,
+                    )),
                 }
-
-                Err(ExtensionError::permission_prompt_required(
-                    client_id,
-                    &display_name,
-                    "extensionApi",
-                    "call",
-                    &exact_target,
-                ))
             }
         }
     }

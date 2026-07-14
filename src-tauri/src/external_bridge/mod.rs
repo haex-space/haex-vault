@@ -30,7 +30,9 @@ use crate::table_names::TABLE_EXTENSIONS;
 use crate::AppState;
 use authorization::{
     parse_authorized_client, parse_blocked_client, SQL_DELETE_BLOCKED_CLIENT, SQL_DELETE_CLIENT,
-    SQL_GET_ALL_BLOCKED_CLIENTS, SQL_GET_ALL_CLIENTS, SQL_INSERT_BLOCKED_CLIENT, SQL_INSERT_CLIENT,
+    SQL_GET_ALL_BLOCKED_CLIENTS, SQL_GET_ALL_CLIENTS, SQL_GET_CLIENT_EXTENSION_ROW_ID,
+    SQL_INSERT_BLOCKED_CLIENT, SQL_INSERT_CLIENT, SQL_UPDATE_CLIENT_GRANT,
+    SQL_UPDATE_CLIENT_REQUESTED_PERMISSIONS,
 };
 use protocol::canonical_requested_permissions;
 use serde_json::Value as JsonValue;
@@ -346,29 +348,71 @@ pub async fn external_bridge_client_allow(
     }
 
     if remember {
-        // Insert into database via CRDT for permanent authorization
+        // Upsert into database via CRDT for permanent authorization. A
+        // re-grant (e.g. after a manifest change forced re-authorization)
+        // already has a (client_id, extension_id) row — a plain INSERT would
+        // violate the unique index and fail the whole grant.
+        let existing_row_id = select_with_crdt(
+            SQL_GET_CLIENT_EXTENSION_ROW_ID.to_string(),
+            vec![
+                JsonValue::String(client_id.clone()),
+                JsonValue::String(extension_id.clone()),
+            ],
+            &state.db,
+        )
+        .map_err(|e| e.to_string())?
+        .first()
+        .and_then(|row| row.first())
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
         {
             let hlc_guard = state
                 .hlc
                 .lock()
                 .map_err(|e| format!("Failed to lock HLC: {}", e))?;
 
-            let row_id = uuid::Uuid::new_v4().to_string();
-            let params = vec![
-                JsonValue::String(row_id),
-                JsonValue::String(client_id.clone()),
-                JsonValue::String(client_name),
-                JsonValue::String(public_key),
-                JsonValue::String(extension_id.clone()),
-                JsonValue::String(canonical.clone()),
-            ];
-
-            execute_with_crdt(SQL_INSERT_CLIENT.to_string(), params, &state.db, &hlc_guard)
+            if let Some(row_id) = existing_row_id {
+                let params = vec![
+                    JsonValue::String(row_id),
+                    JsonValue::String(client_name),
+                    JsonValue::String(public_key),
+                ];
+                execute_with_crdt(
+                    SQL_UPDATE_CLIENT_GRANT.to_string(),
+                    params,
+                    &state.db,
+                    &hlc_guard,
+                )
                 .map_err(|e| e.to_string())?;
-        }
+            } else {
+                let row_id = uuid::Uuid::new_v4().to_string();
+                let params = vec![
+                    JsonValue::String(row_id),
+                    JsonValue::String(client_id.clone()),
+                    JsonValue::String(client_name),
+                    JsonValue::String(public_key),
+                    JsonValue::String(extension_id.clone()),
+                    JsonValue::String(canonical.clone()),
+                ];
+                execute_with_crdt(SQL_INSERT_CLIENT.to_string(), params, &state.db, &hlc_guard)
+                    .map_err(|e| e.to_string())?;
+            }
 
-        // Emit event to notify frontend
-        crate::crdt::notify_dirty_tables_changed(&app_handle);
+            // Align the stored manifest on ALL of this client's rows with the
+            // declaration the user just approved (see
+            // SQL_UPDATE_CLIENT_REQUESTED_PERMISSIONS for why).
+            execute_with_crdt(
+                SQL_UPDATE_CLIENT_REQUESTED_PERMISSIONS.to_string(),
+                vec![
+                    JsonValue::String(canonical.clone()),
+                    JsonValue::String(client_id.clone()),
+                ],
+                &state.db,
+                &hlc_guard,
+            )
+            .map_err(|e| e.to_string())?;
+        }
 
         if !internal_permissions.is_empty() || is_core || cleared_extension_prefix.is_some() {
             let principal = Principal::ExternalClient(client_id.clone());
@@ -403,6 +447,11 @@ pub async fn external_bridge_client_allow(
                 .await
                 .map_err(|e| e.to_string())?;
         }
+
+        // Notify the frontend only after ALL database mutations (client row +
+        // permission rows) are complete, so a UI reload triggered by the event
+        // can never observe a half-applied grant.
+        crate::crdt::notify_dirty_tables_changed(&app_handle);
     } else {
         // Store session-based authorization (for "allow once")
         // This persists for the lifetime of the haex-vault session
@@ -468,15 +517,17 @@ pub async fn external_bridge_client_block(
             .map_err(|e| e.to_string())?;
         }
 
-        // Emit event to notify frontend
-        crate::crdt::notify_dirty_tables_changed(&app_handle);
-
         // A permanent block means zero residual access — drop any permission
         // rows the client may already hold (e.g. from a prior authorization
         // now being blocked instead of merely revoked).
         PermissionManager::delete_permissions(&state, &client_id)
             .await
             .map_err(|e| e.to_string())?;
+
+        // Notify the frontend only after both the blocked-client row and the
+        // permission-row cleanup are committed, so a UI reload triggered by
+        // the event can never observe a half-applied block.
+        crate::crdt::notify_dirty_tables_changed(&app_handle);
     }
     // Without `remember`, we only reject this specific request. A session-wide
     // block would silently swallow every subsequent reconnect — bad UX when

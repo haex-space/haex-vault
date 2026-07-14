@@ -65,8 +65,21 @@ const getOrCreateTagIdAsync = async (db: Db, name: string): Promise<string> => {
   if (existing) return existing.id
 
   const id = crypto.randomUUID()
-  await db.insert(haexPasswordsTags).values({ id, name })
-  return id
+  try {
+    await db.insert(haexPasswordsTags).values({ id, name })
+    return id
+  } catch (error) {
+    // Concurrent create-item requests can race on the same new tag; the
+    // loser's INSERT hits the unique name constraint — re-query and use the
+    // winner's row instead of failing the whole request.
+    const [created] = await db
+      .select({ id: haexPasswordsTags.id })
+      .from(haexPasswordsTags)
+      .where(eq(haexPasswordsTags.name, name))
+      .limit(1)
+    if (created) return created.id
+    throw error
+  }
 }
 
 /** Assigns the scope's default tag to a newly created item (tag-scoped grants only). */

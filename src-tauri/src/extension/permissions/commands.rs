@@ -152,13 +152,20 @@ pub async fn notify_extension_permission_decision(
     }
 
     // Wake any external-bridge waiter blocked on this exact (principal,
-    // resource_type, action) key — grant OR deny, so a denial resolves the
-    // blocked request immediately instead of idling until its timeout. No-op
-    // if nothing is waiting (the common case: native/iframe extension calls
-    // never register a waiter, only the external bridge does).
+    // resource_type, action, target) key — grant OR deny, so a denial
+    // resolves the blocked request immediately instead of idling until its
+    // timeout. `target` is the original prompt target (see doc above), so it
+    // matches the key the bridge registered from the PermissionPromptRequired
+    // error. No-op if nothing is waiting (the common case: native/iframe
+    // extension calls never register a waiter, only the external bridge does).
     state
         .permission_prompt_waiters
-        .wake(&(extension_id.clone(), resource_type.clone(), action.clone()))
+        .wake(&(
+            extension_id.clone(),
+            resource_type.clone(),
+            action.clone(),
+            target.clone(),
+        ))
         .await;
 
     let payload = PermissionResolvedPayload {
@@ -392,7 +399,17 @@ pub async fn resolve_permission_prompt(
             };
             Action::Notifications(notifications_action)
         }
-        ResourceType::ExtensionApi => Action::ExtensionApi(ExtensionApiAction::Call),
+        ResourceType::ExtensionApi => {
+            let extension_api_action = match action.to_lowercase().as_str() {
+                "call" => ExtensionApiAction::Call,
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!("Invalid extensionApi action: {action} (expected 'call')"),
+                    })
+                }
+            };
+            Action::ExtensionApi(extension_api_action)
+        }
     };
 
     // Check if permission already exists.

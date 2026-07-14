@@ -42,14 +42,27 @@ fn map_core_action_to_passwords_action(action: &str) -> Option<PasswordsAction> 
     }
 }
 
-/// Extracts the `action` string carried by a `PermissionPromptRequired`
-/// error — this is the exact string the frontend will round-trip back
-/// through `notify_extension_permission_decision`, so the waiter key here
-/// must match it precisely.
-fn prompt_err_action_str(err: &ExtensionError) -> &str {
+/// Builds the waiter key from a `PermissionPromptRequired` error. These are
+/// the exact strings the frontend round-trips back through
+/// `notify_extension_permission_decision` (including the ORIGINAL prompt
+/// target), so the waiter key here must match them precisely.
+fn prompt_err_key(
+    err: &ExtensionError,
+) -> Option<crate::extension::permissions::waiters::PromptKey> {
     match err {
-        ExtensionError::PermissionPromptRequired { action, .. } => action,
-        _ => "",
+        ExtensionError::PermissionPromptRequired {
+            extension_id,
+            resource_type,
+            action,
+            target,
+            ..
+        } => Some((
+            extension_id.clone(),
+            resource_type.clone(),
+            action.clone(),
+            target.clone(),
+        )),
+        _ => None,
     }
 }
 
@@ -61,17 +74,12 @@ fn prompt_err_action_str(err: &ExtensionError) -> &str {
 /// `true` return here only means "a decision was made", not "it was granted".
 async fn wait_for_permission_decision(
     app_handle: &AppHandle,
-    principal_id: &str,
-    resource_type: &str,
-    action: &str,
     prompt_error: &ExtensionError,
 ) -> bool {
+    let Some(key) = prompt_err_key(prompt_error) else {
+        return false;
+    };
     let state = app_handle.state::<AppState>();
-    let key = (
-        principal_id.to_string(),
-        resource_type.to_string(),
-        action.to_string(),
-    );
     let rx = state.permission_prompt_waiters.register(key).await;
 
     emit_permission_prompt_if_needed(app_handle, prompt_error);
@@ -246,14 +254,7 @@ pub(super) async fn process_request(
         .await;
 
         if let Err(err @ ExtensionError::PermissionPromptRequired { .. }) = &result {
-            let woken = wait_for_permission_decision(
-                app_handle,
-                client_id,
-                "passwords",
-                prompt_err_action_str(err),
-                err,
-            )
-            .await;
+            let woken = wait_for_permission_decision(app_handle, err).await;
             result = if woken {
                 PermissionManager::check_passwords_permission(
                     &app_handle.state::<AppState>(),
@@ -293,14 +294,7 @@ pub(super) async fn process_request(
         .await;
 
         if let Err(err @ ExtensionError::PermissionPromptRequired { .. }) = &result {
-            let woken = wait_for_permission_decision(
-                app_handle,
-                client_id,
-                "extensionApi",
-                prompt_err_action_str(err),
-                err,
-            )
-            .await;
+            let woken = wait_for_permission_decision(app_handle, err).await;
             result = if woken {
                 PermissionManager::check_extension_api_permission(
                     &app_handle.state::<AppState>(),

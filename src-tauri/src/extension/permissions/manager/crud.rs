@@ -338,9 +338,9 @@ impl PermissionManager {
     /// `Principal::ExternalClient` — external bridge clients have no
     /// `Extension`/manifest, so there is no `extension.manifest.name` to read.
     /// Their display name instead comes from
-    /// `haex_external_authorized_clients_no_sync.client_name` (falls back to
-    /// the raw client_id if no authorized-client row exists yet, e.g. before
-    /// the first "remember" grant).
+    /// `haex_external_authorized_clients_no_sync.client_name`, falling back to
+    /// the in-memory session authorization ("allow once" clients have no DB
+    /// row) and finally to the raw client_id.
     pub(super) async fn load_principal_display_name_and_permissions(
         app_state: &State<'_, AppState>,
         principal: &Principal,
@@ -352,8 +352,20 @@ impl PermissionManager {
                 Ok((extension.manifest.name.clone(), permissions))
             }
             Principal::ExternalClient(client_id) => {
-                let display_name = Self::lookup_client_display_name(app_state, client_id)
-                    .unwrap_or_else(|| client_id.clone());
+                let display_name = match Self::lookup_client_display_name(app_state, client_id) {
+                    Some(name) => name,
+                    None => {
+                        // "Allow once" clients have no authorized-client row —
+                        // fall back to the session authorization's name before
+                        // resorting to the raw client id.
+                        let bridge = app_state.external_bridge.lock().await;
+                        bridge
+                            .get_session_authorization(client_id)
+                            .await
+                            .map(|sa| sa.client_name)
+                            .unwrap_or_else(|| client_id.clone())
+                    }
+                };
                 let permissions = Self::get_permissions(app_state, principal).await?;
                 Ok((display_name, permissions))
             }
