@@ -14,6 +14,7 @@ use crate::table_names::{
     COL_EXTERNAL_AUTHORIZED_CLIENTS_ID,
     COL_EXTERNAL_AUTHORIZED_CLIENTS_LAST_SEEN,
     COL_EXTERNAL_AUTHORIZED_CLIENTS_PUBLIC_KEY,
+    COL_EXTERNAL_AUTHORIZED_CLIENTS_REQUESTED_PERMISSIONS,
     // Blocked clients table and columns
     COL_EXTERNAL_BLOCKED_CLIENTS_BLOCKED_AT,
     COL_EXTERNAL_BLOCKED_CLIENTS_CLIENT_ID,
@@ -47,6 +48,10 @@ pub struct AuthorizedClient {
     pub authorized_at: Option<String>,
     /// Last time the client connected (ISO 8601)
     pub last_seen: Option<String>,
+    /// Canonical JSON of the client's declared manifest at authorization time
+    /// (`ClientInfo.permissions` + `requestedExtensions[].actions`). Compared
+    /// against the live handshake declaration to detect manifest changes.
+    pub requested_permissions: String,
 }
 
 /// A blocked client stored in the database
@@ -81,6 +86,10 @@ pub struct PendingAuthorization {
     /// These should be pre-selected in the authorization dialog (matched by name + extensionPublicKey)
     #[serde(default)]
     pub requested_extensions: Vec<super::protocol::RequestedExtension>,
+    /// Declared core permissions from the handshake (protocol v2+), shown in
+    /// the authorization dialog alongside `requested_extensions`.
+    #[serde(default)]
+    pub permissions: Option<super::protocol::ClientPermissions>,
 }
 
 // ============================================================================
@@ -107,7 +116,7 @@ lazy_static::lazy_static! {
         "SELECT {COL_EXTERNAL_AUTHORIZED_CLIENTS_ID}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID}, \
          {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_PUBLIC_KEY}, \
          {COL_EXTERNAL_AUTHORIZED_CLIENTS_EXTENSION_ID}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_AUTHORIZED_AT}, \
-         {COL_EXTERNAL_AUTHORIZED_CLIENTS_LAST_SEEN}
+         {COL_EXTERNAL_AUTHORIZED_CLIENTS_LAST_SEEN}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_REQUESTED_PERMISSIONS}
          FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS}
          WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1"
     );
@@ -116,7 +125,7 @@ lazy_static::lazy_static! {
         "SELECT {COL_EXTERNAL_AUTHORIZED_CLIENTS_ID}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID}, \
          {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_PUBLIC_KEY}, \
          {COL_EXTERNAL_AUTHORIZED_CLIENTS_EXTENSION_ID}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_AUTHORIZED_AT}, \
-         {COL_EXTERNAL_AUTHORIZED_CLIENTS_LAST_SEEN}
+         {COL_EXTERNAL_AUTHORIZED_CLIENTS_LAST_SEEN}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_REQUESTED_PERMISSIONS}
          FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS}
          ORDER BY {COL_EXTERNAL_AUTHORIZED_CLIENTS_AUTHORIZED_AT} DESC"
     );
@@ -125,8 +134,8 @@ lazy_static::lazy_static! {
         "INSERT INTO {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} \
          ({COL_EXTERNAL_AUTHORIZED_CLIENTS_ID}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID}, \
           {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_PUBLIC_KEY}, \
-          {COL_EXTERNAL_AUTHORIZED_CLIENTS_EXTENSION_ID})
-         VALUES (?1, ?2, ?3, ?4, ?5)"
+          {COL_EXTERNAL_AUTHORIZED_CLIENTS_EXTENSION_ID}, {COL_EXTERNAL_AUTHORIZED_CLIENTS_REQUESTED_PERMISSIONS})
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
     );
 
     pub static ref SQL_UPDATE_LAST_SEEN: String = format!(
@@ -202,7 +211,7 @@ lazy_static::lazy_static! {
 
 /// Helper to parse authorized client from query result row
 pub fn parse_authorized_client(row: &[serde_json::Value]) -> Option<AuthorizedClient> {
-    if row.len() < 7 {
+    if row.len() < 8 {
         return None;
     }
 
@@ -214,6 +223,7 @@ pub fn parse_authorized_client(row: &[serde_json::Value]) -> Option<AuthorizedCl
         extension_id: row[4].as_str()?.to_string(),
         authorized_at: row[5].as_str().map(|s| s.to_string()),
         last_seen: row[6].as_str().map(|s| s.to_string()),
+        requested_permissions: row[7].as_str().unwrap_or_default().to_string(),
     })
 }
 

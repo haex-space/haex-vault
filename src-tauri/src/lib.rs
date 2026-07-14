@@ -134,6 +134,9 @@ pub struct AppState {
     pub file_watcher: extension::filesystem::watcher::FileWatcherManager,
     /// Session-based permission store (in-memory, cleared on restart)
     pub session_permissions: extension::permissions::session::SessionPermissionStore,
+    /// Server-side waiters blocking a pending external-bridge request until
+    /// its permission prompt resolves (see `extension::permissions::waiters`).
+    pub permission_prompt_waiters: extension::permissions::waiters::PermissionPromptWaiters,
     /// In-memory registry of shown extension notifications (deep-link routing).
     pub notifications: extension::notifications::NotificationRegistry,
     /// Extension resource limits service (database, filesystem, web)
@@ -347,6 +350,8 @@ pub fn run() {
             external_bridge: tokio::sync::Mutex::new(ExternalBridge::new()),
             file_watcher: extension::filesystem::watcher::FileWatcherManager::new(),
             session_permissions: extension::permissions::session::SessionPermissionStore::new(),
+            permission_prompt_waiters:
+                extension::permissions::waiters::PermissionPromptWaiters::new(),
             notifications: extension::notifications::NotificationRegistry::new(),
             limits: extension::limits::LimitsService::new(),
             peer_storage: Arc::new(tokio::sync::RwLock::new(

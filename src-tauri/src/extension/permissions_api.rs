@@ -57,6 +57,10 @@ pub(crate) fn convert_to_editable_permissions(
             ResourceType::Passwords => passwords.push(entry),
             ResourceType::Mail => mail.push(entry),
             ResourceType::Notifications => notifications.push(entry),
+            // `ExtensionApi` rows (external bridge clients calling other
+            // extensions) have no slot in this installed-extension editable
+            // model — the bridge client settings UI reads them separately.
+            ResourceType::ExtensionApi => {}
         }
     }
 

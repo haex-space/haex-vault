@@ -331,4 +331,56 @@ impl PermissionManager {
         let permissions = Self::get_permissions(app_state, principal).await?;
         Ok((extension, permissions))
     }
+
+    /// Load a principal's display name and persisted permission rows in one go.
+    ///
+    /// Generalizes `load_extension_and_permissions` to also cover
+    /// `Principal::ExternalClient` — external bridge clients have no
+    /// `Extension`/manifest, so there is no `extension.manifest.name` to read.
+    /// Their display name instead comes from
+    /// `haex_external_authorized_clients_no_sync.client_name` (falls back to
+    /// the raw client_id if no authorized-client row exists yet, e.g. before
+    /// the first "remember" grant).
+    pub(super) async fn load_principal_display_name_and_permissions(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+    ) -> Result<(String, Vec<ExtensionPermission>), ExtensionError> {
+        match principal {
+            Principal::Extension(_) => {
+                let (extension, permissions) =
+                    Self::load_extension_and_permissions(app_state, principal).await?;
+                Ok((extension.manifest.name.clone(), permissions))
+            }
+            Principal::ExternalClient(client_id) => {
+                let display_name = Self::lookup_client_display_name(app_state, client_id)
+                    .unwrap_or_else(|| client_id.clone());
+                let permissions = Self::get_permissions(app_state, principal).await?;
+                Ok((display_name, permissions))
+            }
+        }
+    }
+
+    /// Best-effort lookup of an external client's human-readable name.
+    /// `None` (not an error) when the client has no authorized-client row —
+    /// callers fall back to the raw client_id.
+    fn lookup_client_display_name(
+        app_state: &State<'_, AppState>,
+        client_id: &str,
+    ) -> Option<String> {
+        use crate::table_names::{
+            COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID, COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME,
+            TABLE_EXTERNAL_AUTHORIZED_CLIENTS,
+        };
+        let sql = format!(
+            "SELECT {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME} FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} \
+             WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1 LIMIT 1"
+        );
+        let rows = select_with_crdt(
+            sql,
+            vec![JsonValue::String(client_id.to_string())],
+            &app_state.db,
+        )
+        .ok()?;
+        rows.first()?.first()?.as_str().map(|s| s.to_string())
+    }
 }

@@ -1,6 +1,10 @@
 //! Request dispatcher — validates target, looks up the extension, and
 //! routes the decrypted payload to the right window via Tauri events.
 
+use crate::extension::error::ExtensionError;
+use crate::extension::permissions::manager::PermissionManager;
+use crate::extension::permissions::types::{PasswordsAction, Principal};
+use crate::extension::utils::emit_permission_prompt_if_needed;
 use crate::AppState;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,6 +17,114 @@ use super::auth::{
     ensure_extension_loaded, get_extension_id_by_public_key_and_name,
 };
 use super::{ResponseSender, SessionAuthorization, DEFAULT_REQUEST_TIMEOUT_SECS};
+
+/// How long the bridge waits for a permission-prompt decision before giving
+/// up and reporting `PERMISSION_PROMPT_TIMEOUT` to the client. Matches the
+/// frontend dialog's own patience — a user who wanted to decide would have
+/// done so well before this.
+const PERMISSION_PROMPT_TIMEOUT_SECS: u64 = 120;
+
+/// Core (haex-vault built-in) actions mapped to the `PasswordsAction` they
+/// require. Kept in sync with `CORE_METHODS` in
+/// `useCoreExternalRequestHandlers/types.ts`. Unknown actions return `None`
+/// and are rejected fail-closed by the caller — never prompted, since an
+/// undeclared/unknown method has no legitimate reason to reach the vault.
+fn map_core_action_to_passwords_action(action: &str) -> Option<PasswordsAction> {
+    match action {
+        "get-items"
+        | "get-totp"
+        | "get-password-config"
+        | "get-password-presets"
+        | "passkey-get"
+        | "passkey-list" => Some(PasswordsAction::Read),
+        "create-item" | "update-item" | "passkey-create" => Some(PasswordsAction::ReadWrite),
+        _ => None,
+    }
+}
+
+/// Extracts the `action` string carried by a `PermissionPromptRequired`
+/// error — this is the exact string the frontend will round-trip back
+/// through `notify_extension_permission_decision`, so the waiter key here
+/// must match it precisely.
+fn prompt_err_action_str(err: &ExtensionError) -> &str {
+    match err {
+        ExtensionError::PermissionPromptRequired { action, .. } => action,
+        _ => "",
+    }
+}
+
+/// Waits for a `PermissionPromptRequired` error to resolve: registers a
+/// server-side waiter BEFORE emitting the prompt event (so the decision can
+/// never race ahead of the registration), waits up to
+/// `PERMISSION_PROMPT_TIMEOUT_SECS`, and returns whether a decision arrived.
+/// The caller is responsible for the authoritative re-check afterwards — a
+/// `true` return here only means "a decision was made", not "it was granted".
+async fn wait_for_permission_decision(
+    app_handle: &AppHandle,
+    principal_id: &str,
+    resource_type: &str,
+    action: &str,
+    prompt_error: &ExtensionError,
+) -> bool {
+    let state = app_handle.state::<AppState>();
+    let key = (
+        principal_id.to_string(),
+        resource_type.to_string(),
+        action.to_string(),
+    );
+    let rx = state.permission_prompt_waiters.register(key).await;
+
+    emit_permission_prompt_if_needed(app_handle, prompt_error);
+
+    matches!(
+        tokio::time::timeout(Duration::from_secs(PERMISSION_PROMPT_TIMEOUT_SECS), rx).await,
+        Ok(Ok(()))
+    )
+}
+
+#[cfg(test)]
+mod core_action_mapping_tests {
+    use super::*;
+
+    #[test]
+    fn read_only_core_methods_map_to_read() {
+        for action in [
+            "get-items",
+            "get-totp",
+            "get-password-config",
+            "get-password-presets",
+            "passkey-get",
+            "passkey-list",
+        ] {
+            assert_eq!(
+                map_core_action_to_passwords_action(action),
+                Some(PasswordsAction::Read),
+                "{action} should map to Read"
+            );
+        }
+    }
+
+    #[test]
+    fn write_core_methods_map_to_read_write() {
+        for action in ["create-item", "update-item", "passkey-create"] {
+            assert_eq!(
+                map_core_action_to_passwords_action(action),
+                Some(PasswordsAction::ReadWrite),
+                "{action} should map to ReadWrite"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_action_fails_closed() {
+        assert_eq!(
+            map_core_action_to_passwords_action("delete-everything"),
+            None
+        );
+        assert_eq!(map_core_action_to_passwords_action(""), None);
+        assert_eq!(map_core_action_to_passwords_action("get-items "), None);
+    }
+}
 
 /// Process a decrypted request and route it to the appropriate extension
 ///
@@ -107,6 +219,117 @@ pub(super) async fn process_request(
         });
     }
 
+    // Fine-grained permission gate — the connection-level authorization check
+    // above only establishes that this client may talk to this extension (or
+    // core) AT ALL. This gate enforces the actual declared-action scope,
+    // exactly like the extension permission system. Runs BEFORE
+    // ensure_extension_loaded/event-dispatch so the 30s response timeout only
+    // starts once permission is actually granted.
+    let principal = Principal::ExternalClient(client_id.to_string());
+    let mut core_passwords_scope = None;
+    if is_core {
+        let Some(passwords_action) = map_core_action_to_passwords_action(action) else {
+            // Unknown core action: fail closed, never prompt.
+            return serde_json::json!({
+                "requestId": request_id,
+                "success": false,
+                "errorCode": "PERMISSION_DENIED",
+                "error": format!("Unknown core action: {action}")
+            });
+        };
+
+        let mut result = PermissionManager::check_passwords_permission(
+            &app_handle.state::<AppState>(),
+            &principal,
+            passwords_action.clone(),
+        )
+        .await;
+
+        if let Err(err @ ExtensionError::PermissionPromptRequired { .. }) = &result {
+            let woken = wait_for_permission_decision(
+                app_handle,
+                client_id,
+                "passwords",
+                prompt_err_action_str(err),
+                err,
+            )
+            .await;
+            result = if woken {
+                PermissionManager::check_passwords_permission(
+                    &app_handle.state::<AppState>(),
+                    &principal,
+                    passwords_action,
+                )
+                .await
+            } else {
+                return serde_json::json!({
+                    "requestId": request_id,
+                    "success": false,
+                    "errorCode": "PERMISSION_PROMPT_TIMEOUT",
+                    "error": "Permission prompt timed out"
+                });
+            };
+        }
+
+        match result {
+            Ok(scope) => core_passwords_scope = Some(scope),
+            Err(e) => {
+                return serde_json::json!({
+                    "requestId": request_id,
+                    "success": false,
+                    "errorCode": "PERMISSION_DENIED",
+                    "error": e.to_string()
+                });
+            }
+        }
+    } else {
+        let mut result = PermissionManager::check_extension_api_permission(
+            &app_handle.state::<AppState>(),
+            &principal,
+            ext_public_key,
+            ext_name,
+            action,
+        )
+        .await;
+
+        if let Err(err @ ExtensionError::PermissionPromptRequired { .. }) = &result {
+            let woken = wait_for_permission_decision(
+                app_handle,
+                client_id,
+                "extensionApi",
+                prompt_err_action_str(err),
+                err,
+            )
+            .await;
+            result = if woken {
+                PermissionManager::check_extension_api_permission(
+                    &app_handle.state::<AppState>(),
+                    &principal,
+                    ext_public_key,
+                    ext_name,
+                    action,
+                )
+                .await
+            } else {
+                return serde_json::json!({
+                    "requestId": request_id,
+                    "success": false,
+                    "errorCode": "PERMISSION_PROMPT_TIMEOUT",
+                    "error": "Permission prompt timed out"
+                });
+            };
+        }
+
+        if let Err(e) = result {
+            return serde_json::json!({
+                "requestId": request_id,
+                "success": false,
+                "errorCode": "PERMISSION_DENIED",
+                "error": e.to_string()
+            });
+        }
+    }
+
     // Ensure the extension is loaded (auto-start if needed).
     // Core requests are handled by the main window — no extension to load.
     if !is_core {
@@ -132,14 +355,19 @@ pub(super) async fn process_request(
         pending.insert(request_id.clone(), tx);
     }
 
-    // Build the external request payload to send to the extension
+    // Build the external request payload to send to the extension. For core
+    // requests, `scope` carries the resolved passwords tag-scope so the
+    // frontend core handler (`useCoreExternalRequestHandlers/passwords.ts`)
+    // can filter queries to the allowed tags — the Read/Write boundary is
+    // already enforced above, tag-scoping is refinement within that boundary.
     let external_request = serde_json::json!({
         "requestId": request_id,
         "publicKey": client_public_key,
         "action": action,
         "payload": payload,
         "extensionPublicKey": ext_public_key,
-        "extensionName": ext_name
+        "extensionName": ext_name,
+        "scope": core_passwords_scope
     });
 
     // Emit the request to the extension via Tauri event.

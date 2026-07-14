@@ -27,8 +27,8 @@ impl PermissionManager {
     ) -> Result<PasswordsScope, ExtensionError> {
         let extension_id = principal.id();
 
-        let (extension, permissions) =
-            Self::load_extension_and_permissions(app_state, principal).await?;
+        let (display_name, permissions) =
+            Self::load_principal_display_name_and_permissions(app_state, principal).await?;
 
         let action_allows = |perm_action: &Action, required: &PasswordsAction| -> bool {
             match perm_action {
@@ -56,7 +56,7 @@ impl PermissionManager {
         if matching.is_empty() {
             return Err(ExtensionError::permission_prompt_required(
                 extension_id,
-                &extension.manifest.name,
+                &display_name,
                 "passwords",
                 action_str,
                 "*",
@@ -84,7 +84,7 @@ impl PermissionManager {
             // Alle matchings sind Ask → Prompt.
             return Err(ExtensionError::permission_prompt_required(
                 extension_id,
-                &extension.manifest.name,
+                &display_name,
                 "passwords",
                 action_str,
                 "*",
