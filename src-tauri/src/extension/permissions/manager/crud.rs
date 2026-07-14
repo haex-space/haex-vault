@@ -357,13 +357,22 @@ impl PermissionManager {
                     None => {
                         // "Allow once" clients have no authorized-client row —
                         // fall back to the session authorization's name before
-                        // resorting to the raw client id.
-                        let bridge = app_state.external_bridge.lock().await;
-                        bridge
-                            .get_session_authorization(client_id)
-                            .await
-                            .map(|sa| sa.client_name)
-                            .unwrap_or_else(|| client_id.clone())
+                        // resorting to the raw client id. The bridge (and its
+                        // session store) only exists on desktop builds; mobile
+                        // has no external clients, so the raw id suffices.
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        {
+                            let bridge = app_state.external_bridge.lock().await;
+                            bridge
+                                .get_session_authorization(client_id)
+                                .await
+                                .map(|sa| sa.client_name)
+                                .unwrap_or_else(|| client_id.clone())
+                        }
+                        #[cfg(any(target_os = "android", target_os = "ios"))]
+                        {
+                            client_id.clone()
+                        }
                     }
                 };
                 let permissions = Self::get_permissions(app_state, principal).await?;
