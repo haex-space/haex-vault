@@ -210,9 +210,21 @@ const isAllowDisabled = computed(() => {
     if (passwordsTags.value.length === 0) {
       return true
     }
-    return showPasswordsDefaultTag.value && !passwordsDefaultTag.value
+    return (
+      showPasswordsDefaultTag.value
+      && !passwordsTags.value.includes(passwordsDefaultTag.value ?? '')
+    )
   }
   return !editableTarget.value.trim()
+})
+
+// Keep the chosen default tag valid whenever the tag selection changes: if the
+// tag currently marked as default gets deselected, fall back to the lone
+// remaining tag (implicit default) or clear it so Allow stays gated.
+watch(passwordsTags, (tags) => {
+  if (passwordsDefaultTag.value && !tags.includes(passwordsDefaultTag.value)) {
+    passwordsDefaultTag.value = tags.length === 1 ? tags[0] : undefined
+  }
 })
 
 // Reset checkboxes and editable target/tags when dialog opens

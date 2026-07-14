@@ -333,18 +333,21 @@ impl PermissionManager {
     }
 
     /// Persists a passwords tag grant/deny decision from the permission-prompt
-    /// dialog to the database, covering possibly multiple tags plus the
-    /// "exactly one default label" invariant enforced up front by
-    /// [`normalize_passwords_grant_tags`].
+    /// dialog to the database.
     ///
-    /// `previously_offered_tags` are the tags the user was originally shown
-    /// for THIS prompt (parsed from the pending `Ask` rows the check
-    /// surfaced). Any of them excluded from `tags` is explicitly denied —
-    /// this only ever touches tags that were part of this prompt's offer,
-    /// never an unrelated historical grant. Skipped when the new grant is
-    /// the wildcard (`"*"`): widening to full access must never leave a
-    /// narrower tag explicitly denied, which would otherwise win via
-    /// deny-first precedence.
+    /// The model is default-deny: only the tags the user explicitly grants are
+    /// reachable, everything else is implicitly denied. A **grant** therefore
+    /// writes one `Granted` row per selected tag (or a single `"*"` row for
+    /// full access), covering possibly multiple tags plus the "exactly one
+    /// default label" invariant enforced up front by
+    /// [`normalize_passwords_grant_tags`]. Deselected tags are simply *not*
+    /// granted — no explicit `Denied` row is written for them, which would
+    /// otherwise block the still-granted tags via the deny-first check in
+    /// `check_passwords_permission`.
+    ///
+    /// A **deny** rejects the whole request and writes a single `"*"` `Denied`
+    /// row (matching the coarse "one deny blocks all" read-side semantics), so
+    /// the decision is remembered and the user isn't re-prompted.
     pub async fn save_passwords_grant(
         app_state: &State<'_, AppState>,
         extension_id: &str,
@@ -352,21 +355,29 @@ impl PermissionManager {
         tags: &[String],
         default_tag: Option<&str>,
         status: PermissionStatus,
-        previously_offered_tags: &[String],
     ) -> Result<(), ExtensionError> {
         use crate::extension::permissions::manager::check::passwords::normalize_passwords_grant_tags;
-
-        let (effective_tags, is_wildcard) = normalize_passwords_grant_tags(
-            tags,
-            default_tag,
-            action.clone(),
-            status,
-            extension_id,
-        )?;
 
         let existing =
             Self::get_permissions(app_state, &Principal::Extension(extension_id.to_string()))
                 .await?;
+
+        // Deny rejects the whole request → a single wildcard deny row.
+        if status != PermissionStatus::Granted {
+            return Self::upsert_passwords_tag_row(
+                app_state,
+                &existing,
+                extension_id,
+                &action,
+                "*",
+                status,
+                None,
+            )
+            .await;
+        }
+
+        let (effective_tags, is_wildcard) =
+            normalize_passwords_grant_tags(tags, default_tag, action.clone(), status, extension_id)?;
 
         for tag in &effective_tags {
             let raw_constraints = if !is_wildcard && default_tag == Some(tag.as_str()) {
@@ -386,30 +397,17 @@ impl PermissionManager {
             .await?;
         }
 
-        if !is_wildcard {
-            for tag in previously_offered_tags {
-                if tag == "*" || effective_tags.iter().any(|t| t == tag) {
-                    continue;
-                }
-                Self::upsert_passwords_tag_row(
-                    app_state,
-                    &existing,
-                    extension_id,
-                    &action,
-                    tag,
-                    PermissionStatus::Denied,
-                    None,
-                )
-                .await?;
-            }
-        }
-
         Ok(())
     }
 
     /// Creates or updates a single passwords permission row for `tag`, used by
-    /// [`save_passwords_grant`] for both the granted/denied tags and the
-    /// revoked (deselected) tags.
+    /// [`save_passwords_grant`].
+    ///
+    /// The lookup matches on `action` as well as target: `Read` and
+    /// `ReadWrite` are stored as distinct rows for the same tag (a `ReadWrite`
+    /// row only *also* covers `Read` requests), so a decision for one action
+    /// must never overwrite the other action's row — mirroring the Mail
+    /// handling in `resolve_permission_prompt`.
     async fn upsert_passwords_tag_row(
         app_state: &State<'_, AppState>,
         existing: &[ExtensionPermission],
@@ -419,9 +417,11 @@ impl PermissionManager {
         status: PermissionStatus,
         raw_constraints: Option<serde_json::Value>,
     ) -> Result<(), ExtensionError> {
-        let existing_row = existing
-            .iter()
-            .find(|p| p.resource_type == ResourceType::Passwords && p.target == tag);
+        let existing_row = existing.iter().find(|p| {
+            p.resource_type == ResourceType::Passwords
+                && p.target == tag
+                && p.action == Action::Passwords(action.clone())
+        });
 
         match existing_row {
             Some(row) => {

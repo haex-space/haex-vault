@@ -38,23 +38,6 @@ fn parse_rw_action(action: &str) -> RwAction {
     }
 }
 
-/// Parses a passwords prompt `target` string into its tag list. The prompt
-/// target is either the wildcard `"*"` or a comma-joined list of tags (see
-/// `check_passwords_permission`, which builds this from the pending `Ask`
-/// rows' targets so the dialog can show what the extension actually
-/// declared).
-fn parse_prompt_target_tags(target: &str) -> Vec<String> {
-    if target == "*" {
-        vec!["*".to_string()]
-    } else {
-        target
-            .split(',')
-            .map(|t| t.trim().to_string())
-            .filter(|t| !t.is_empty())
-            .collect()
-    }
-}
-
 // =============================================================================
 // Permission Check Commands (unified for WebView and iframe)
 // =============================================================================
@@ -233,15 +216,13 @@ pub fn grant_session_permission(
     // Passwords grants can cover multiple tags plus a default-label choice —
     // handled separately from the generic single-target session grant below.
     if let Action::Passwords(passwords_action) = action_enum {
-        let previously_offered_tags = parse_prompt_target_tags(&target);
-        let requested_tags = tags.unwrap_or_else(|| previously_offered_tags.clone());
+        let requested_tags = tags.unwrap_or_default();
         state.session_permissions.set_passwords_grant(
             &extension_id,
             passwords_action,
             &requested_tags,
             default_tag.as_deref(),
             status,
-            &previously_offered_tags,
         )?;
 
         eprintln!(
@@ -400,8 +381,7 @@ pub async fn resolve_permission_prompt(
             // Passwords grants can cover multiple tags plus a default-label
             // choice — handled entirely separately (below) from the generic
             // single-target upsert, so return here directly.
-            let previously_offered_tags = parse_prompt_target_tags(&target);
-            let requested_tags = tags.unwrap_or_else(|| previously_offered_tags.clone());
+            let requested_tags = tags.unwrap_or_default();
             PermissionManager::save_passwords_grant(
                 &state,
                 &extension_id,
@@ -409,7 +389,6 @@ pub async fn resolve_permission_prompt(
                 &requested_tags,
                 default_tag.as_deref(),
                 status,
-                &previously_offered_tags,
             )
             .await?;
             return Ok(());

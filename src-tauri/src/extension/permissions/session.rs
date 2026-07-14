@@ -129,18 +129,14 @@ impl SessionPermissionStore {
     }
 
     /// Session-only counterpart of `PermissionManager::save_passwords_grant`:
-    /// grants/denies a passwords tag decision for the current session,
-    /// covering possibly multiple tags plus the "exactly one default label"
-    /// invariant. Unlike the DB path there is no existing row to look up —
-    /// `set_permission` simply overwrites whatever was keyed for
-    /// `(extension_id, action, Passwords, tag)`, which also naturally
-    /// implements the "revoke deselected tags" behaviour (an overwrite with
-    /// `status = Denied`).
+    /// grants/denies a passwords tag decision for the current session.
     ///
-    /// `previously_offered_tags` are the tags the user was originally shown
-    /// for THIS prompt; any excluded from `tags` are explicitly denied,
-    /// unless the new grant is the wildcard (`"*"`) — see
-    /// `save_passwords_grant` for why wildcard grants skip revocation.
+    /// Same default-deny model as the DB path: a **grant** writes one
+    /// `Granted` row per selected tag (or a single `"*"` row), covering the
+    /// "exactly one default label" invariant; deselected tags are simply not
+    /// granted (no explicit `Denied` row, which would block the granted ones
+    /// via the deny-first read check). A **deny** rejects the whole request
+    /// with a single `"*"` `Denied` row.
     pub fn set_passwords_grant(
         &self,
         extension_id: &str,
@@ -148,17 +144,26 @@ impl SessionPermissionStore {
         tags: &[String],
         default_tag: Option<&str>,
         status: PermissionStatus,
-        previously_offered_tags: &[String],
     ) -> Result<(), crate::extension::error::ExtensionError> {
         use crate::extension::permissions::manager::normalize_passwords_grant_tags;
 
-        let (effective_tags, is_wildcard) = normalize_passwords_grant_tags(
-            tags,
-            default_tag,
-            action.clone(),
-            status,
-            extension_id,
-        )?;
+        // Deny rejects the whole request → a single wildcard deny row.
+        if status != PermissionStatus::Granted {
+            self.set_permission(ExtensionPermission {
+                id: format!("session-{}", uuid::Uuid::new_v4()),
+                principal_id: extension_id.to_string(),
+                resource_type: ResourceType::Passwords,
+                action: Action::Passwords(action),
+                target: "*".to_string(),
+                constraints: None,
+                status,
+                raw_constraints: None,
+            });
+            return Ok(());
+        }
+
+        let (effective_tags, is_wildcard) =
+            normalize_passwords_grant_tags(tags, default_tag, action.clone(), status, extension_id)?;
 
         for tag in &effective_tags {
             let raw_constraints = if !is_wildcard && default_tag == Some(tag.as_str()) {
@@ -176,24 +181,6 @@ impl SessionPermissionStore {
                 status,
                 raw_constraints,
             });
-        }
-
-        if !is_wildcard {
-            for tag in previously_offered_tags {
-                if tag == "*" || effective_tags.iter().any(|t| t == tag) {
-                    continue;
-                }
-                self.set_permission(ExtensionPermission {
-                    id: format!("session-{}", uuid::Uuid::new_v4()),
-                    principal_id: extension_id.to_string(),
-                    resource_type: ResourceType::Passwords,
-                    action: Action::Passwords(action.clone()),
-                    target: tag.clone(),
-                    constraints: None,
-                    status: PermissionStatus::Denied,
-                    raw_constraints: None,
-                });
-            }
         }
 
         Ok(())

@@ -1132,3 +1132,58 @@ fn passwords_session_scope_read_write_escalation_covers_read() {
         .expect("ReadWrite grant should cover a Read request");
     assert_eq!(resolved, PasswordsScope::All);
 }
+
+// ---------------------------------------------------------------------------
+// set_passwords_grant — persisting a dialog decision must not let a deselected
+// tag block the tags the user actually granted (default-deny model).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn set_passwords_grant_partial_grant_does_not_deny_deselected() {
+    // User was offered "work" + "personal" but granted only "work". "personal"
+    // must simply be out of scope — NOT an explicit deny that would drop
+    // "work" too via the deny-first read check.
+    let session = SessionPermissionStore::new();
+    let extension_id = "ext-partial-grant";
+    session
+        .set_passwords_grant(
+            extension_id,
+            PasswordsAction::ReadWrite,
+            &["work".to_string()],
+            Some("work"),
+            PermissionStatus::Granted,
+        )
+        .expect("partial grant should persist");
+
+    let resolved = passwords_session_scope(&session, extension_id, PasswordsAction::ReadWrite)
+        .expect("session row should resolve")
+        .expect("granted tag must stay usable, not be cancelled by the deselected one");
+    match resolved {
+        PasswordsScope::Tags { tags, default } => {
+            assert_eq!(tags, vec!["work".to_string()]);
+            assert_eq!(default, Some("work".to_string()));
+        }
+        other => panic!("expected Tags scope with only 'work', got {other:?}"),
+    }
+}
+
+#[test]
+fn set_passwords_grant_deny_blocks_all() {
+    // A deny rejects the whole request via a single wildcard deny row.
+    let session = SessionPermissionStore::new();
+    let extension_id = "ext-deny-all";
+    session
+        .set_passwords_grant(
+            extension_id,
+            PasswordsAction::ReadWrite,
+            &["work".to_string()],
+            None,
+            PermissionStatus::Denied,
+        )
+        .expect("deny should persist");
+
+    let resolved = passwords_session_scope(&session, extension_id, PasswordsAction::ReadWrite)
+        .expect("session row should resolve")
+        .unwrap_err();
+    assert!(matches!(resolved, ExtensionError::PermissionDenied { .. }));
+}
