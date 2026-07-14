@@ -219,6 +219,8 @@ pub fn grant_session_permission(
     target: String,
     decision: String,
     state: State<'_, AppState>,
+    tags: Option<Vec<String>>,
+    default_tag: Option<String>,
 ) -> Result<(), ExtensionError> {
     // Owner-only: only the main window (which renders the consent dialog) may
     // grant permissions. An extension must never grant itself rights.
@@ -226,7 +228,34 @@ pub fn grant_session_permission(
 
     let resource_type_enum = ResourceType::from_str(&resource_type)?;
     let status = PermissionStatus::from_str(&decision)?;
-    let action_enum = Action::from_str(&resource_type_enum, &action)?;
+    let action_enum = match resource_type_enum {
+        // Web permissions are domain-scoped and method-agnostic (see
+        // check_web_permission); the prompt's action string ("request") is not
+        // a WebAction, so every web grant maps to WebAction::All — matching
+        // both the check's lookup key and resolve_permission_prompt's action.
+        ResourceType::Web => Action::Web(WebAction::All),
+        _ => Action::from_str(&resource_type_enum, &action)?,
+    };
+
+    // Passwords grants can cover multiple tags plus a default-label choice —
+    // handled separately from the generic single-target session grant below.
+    if let Action::Passwords(passwords_action) = action_enum {
+        let requested_tags = tags.unwrap_or_default();
+        state.session_permissions.set_passwords_grant(
+            &extension_id,
+            passwords_action,
+            &requested_tags,
+            default_tag.as_deref(),
+            status,
+        )?;
+
+        eprintln!(
+            "[SessionPermission] Set passwords permission for extension {}: tags={:?} status={:?}",
+            extension_id, requested_tags, status
+        );
+
+        return Ok(());
+    }
 
     let permission = ExtensionPermission {
         id: format!("session-{}", uuid::Uuid::new_v4()),
@@ -264,6 +293,8 @@ pub async fn resolve_permission_prompt(
     target: String,
     decision: String,
     state: State<'_, AppState>,
+    tags: Option<Vec<String>>,
+    default_tag: Option<String>,
 ) -> Result<(), ExtensionError> {
     // Owner-only: only the main window (which renders the consent dialog) may
     // persist a permission decision. An extension must never grant itself rights.
@@ -372,7 +403,20 @@ pub async fn resolve_permission_prompt(
                     })
                 }
             };
-            Action::Passwords(passwords_action)
+            // Passwords grants can cover multiple tags plus a default-label
+            // choice — handled entirely separately (below) from the generic
+            // single-target upsert, so return here directly.
+            let requested_tags = tags.unwrap_or_default();
+            PermissionManager::save_passwords_grant(
+                &state,
+                &extension_id,
+                passwords_action,
+                &requested_tags,
+                default_tag.as_deref(),
+                status,
+            )
+            .await?;
+            return Ok(());
         }
         ResourceType::Mail => {
             let mail_action = match action.to_lowercase().as_str() {
