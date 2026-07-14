@@ -162,8 +162,13 @@ impl SessionPermissionStore {
             return Ok(());
         }
 
-        let (effective_tags, is_wildcard) =
-            normalize_passwords_grant_tags(tags, default_tag, action.clone(), status, extension_id)?;
+        let (effective_tags, is_wildcard) = normalize_passwords_grant_tags(
+            tags,
+            default_tag,
+            action.clone(),
+            status,
+            extension_id,
+        )?;
 
         for tag in &effective_tags {
             let raw_constraints = if !is_wildcard && default_tag == Some(tag.as_str()) {

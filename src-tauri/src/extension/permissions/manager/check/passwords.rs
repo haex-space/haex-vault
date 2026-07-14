@@ -295,7 +295,11 @@ pub(crate) fn passwords_session_scope(
         .collect();
 
     let write_granted = matches!(action, PasswordsAction::ReadWrite);
-    Some(resolve_passwords_tags_scope(rows, write_granted, extension_id))
+    Some(resolve_passwords_tags_scope(
+        rows,
+        write_granted,
+        extension_id,
+    ))
 }
 
 /// Cleans and validates a user-submitted passwords tag grant (from the

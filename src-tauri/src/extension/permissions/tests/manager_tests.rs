@@ -12,15 +12,15 @@ use crate::extension::permissions::manager::{
     filesystem_matching_status, format_filesystem_denied_target, format_shell_denied_target,
     identities_matching_status, normalize_passwords_grant_tags, parse_passwords_default_marker,
     passwords_session_scope, resolve_identities_decision, resolve_passwords_tags_scope,
-    rw_resource_matching_status, rw_resource_session_status, shell_matching_has_constraint_violation,
-    shell_matching_status, spaces_matching_status, spaces_session_status, web_matching_status,
-    IdentitiesDecision, PasswordsGrantRow,
+    rw_resource_matching_status, rw_resource_session_status,
+    shell_matching_has_constraint_violation, shell_matching_status, spaces_matching_status,
+    spaces_session_status, web_matching_status, IdentitiesDecision, PasswordsGrantRow,
 };
 use crate::extension::permissions::session::SessionPermissionStore;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction, PasswordsAction,
-    PasswordsScope, PermissionConstraints, PermissionStatus, ResourceType, RwAction, ShellAction,
-    ShellConstraints, SpaceAction, WebAction,
+    Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction,
+    PasswordsAction, PasswordsScope, PermissionConstraints, PermissionStatus, ResourceType,
+    RwAction, ShellAction, ShellConstraints, SpaceAction, WebAction,
 };
 use serde_json::json;
 use std::path::PathBuf;
@@ -906,7 +906,12 @@ fn session_rw_covers_read_for_cloud_storage() {
 #[test]
 fn normalize_trims_dedupes_and_drops_empty_tags() {
     let (tags, is_wildcard) = normalize_passwords_grant_tags(
-        &["  work ".to_string(), "".to_string(), "work".to_string(), "personal".to_string()],
+        &[
+            "  work ".to_string(),
+            "".to_string(),
+            "work".to_string(),
+            "personal".to_string(),
+        ],
         None,
         PasswordsAction::Read,
         PermissionStatus::Granted,
