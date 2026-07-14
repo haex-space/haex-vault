@@ -12,6 +12,19 @@ export interface PermissionPromptData {
 
 export type PermissionDecision = 'granted' | 'denied' | 'ask'
 
+/**
+ * User edits made in the permission-prompt dialog before submitting a
+ * decision. `target` is the (possibly rewritten) generic target string used
+ * by every resource type. `tags`/`defaultTag` are passwords-specific: the
+ * final tag selection and, when granting write access to more than one tag,
+ * which one is the default label new entries get created under.
+ */
+export interface PermissionPromptEdit {
+  target: string
+  tags?: string[]
+  defaultTag?: string
+}
+
 // Error code for permission prompt required
 export const ERROR_CODE_PERMISSION_PROMPT_REQUIRED = 1004
 
@@ -204,13 +217,25 @@ export function usePermissionPrompt() {
   /**
    * Save a permission decision (to database or session)
    */
-  async function saveDecision(data: PermissionPromptData, decision: PermissionDecision, remember: boolean) {
+  async function saveDecision(
+    data: PermissionPromptData,
+    decision: PermissionDecision,
+    remember: boolean,
+    edit?: PermissionPromptEdit,
+  ) {
     // For filesystem permissions, grant access to the directory and all its children
     // e.g. /home/user/project → /home/user/project/*
-    let target = data.target
+    let target = edit?.target ?? data.target
     if (data.resourceType === 'fs' && target !== '*' && !target.endsWith('/*')) {
       target = target.endsWith('/') ? `${target}*` : `${target}/*`
     }
+
+    // Passwords grants can cover multiple tags plus a default-label choice;
+    // the backend command only reads these two extra fields for resourceType
+    // 'passwords' and ignores them otherwise.
+    const passwordsExtra = data.resourceType === 'passwords'
+      ? { tags: edit?.tags, defaultTag: edit?.defaultTag }
+      : {}
 
     if (remember) {
       // Save permanently to database
@@ -221,6 +246,7 @@ export function usePermissionPrompt() {
           action: data.action,
           target,
           decision,
+          ...passwordsExtra,
         })
       } catch (error) {
         console.error('Failed to save permission decision:', error)
@@ -234,6 +260,7 @@ export function usePermissionPrompt() {
           action: data.action,
           target,
           decision,
+          ...passwordsExtra,
         })
       } catch (error) {
         console.error('Failed to save session permission:', error)
@@ -269,16 +296,24 @@ export function usePermissionPrompt() {
    * @param decision - The user's decision (granted or denied)
    * @param remember - If true, save to database permanently. If false, only save for this session.
    * @param applyToAll - If true, apply the same decision to all pending prompts in the queue.
+   * @param edit - The user's edits to the prompt's target/tags (falls back to the originally
+   *   requested target if omitted). The extension is always notified using the ORIGINAL target
+   *   so its SDK can match and retry its pending call.
    */
-  async function handleDecision(decision: PermissionDecision, remember: boolean, applyToAll: boolean = false) {
+  async function handleDecision(
+    decision: PermissionDecision,
+    remember: boolean,
+    applyToAll: boolean = false,
+    edit?: PermissionPromptEdit,
+  ) {
     if (!promptData.value) {
       return
     }
 
     const data = promptData.value
 
-    // Save the current decision, then notify the extension so its SDK retries.
-    await saveDecision(data, decision, remember)
+    // Save the (possibly edited) decision, then notify the extension so its SDK retries.
+    await saveDecision(data, decision, remember, edit)
     await notifyExtensionDecision(data, decision)
 
     // Close dialog and resolve promise for current prompt
