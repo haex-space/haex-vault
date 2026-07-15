@@ -1,6 +1,8 @@
 # pnpm overrides — rationale
 
-This file documents why `package.json` `pnpm.overrides` pins the versions it pins. Re-evaluate quarterly: bump the floor when the upstream package owners ship the same fix in a non-major release, or remove the override entirely if it is no longer needed.
+This file documents why the `overrides` in `pnpm-workspace.yaml` pin the versions they pin. Re-evaluate quarterly: bump the floor when the upstream package owners ship the same fix in a non-major release, or remove the override entirely if it is no longer needed.
+
+> **Note**: These pins live in `pnpm-workspace.yaml`, not `package.json`. pnpm 10 no longer reads `overrides` / `onlyBuiltDependencies` from the `pnpm` field in `package.json` (it silently ignores them and warns), so the floors must stay in the workspace file to remain effective on future installs.
 
 Most of the floors listed here were added in commit `7c81cc2d` ("fix: patch critical+high security vulnerabilities", 2026-04-12) and are CVE-driven. The remaining two (`vue-router`, `zod`) are alignment pins so the transitive resolution matches what the direct dependencies use.
 
@@ -73,7 +75,7 @@ Most of the floors listed here were added in commit `7c81cc2d` ("fix: patch crit
 
 ## When adding a new override
 
-1. Add the pin in `package.json` `pnpm.overrides`.
+1. Add the pin under `overrides:` in `pnpm-workspace.yaml`.
 2. Add a `### <package>` section here with the same shape as above. State **why** and **lift when**.
 3. If the pin is CVE-driven, link the GHSA / advisory ID in the "Why" line.
 4. Re-evaluate at every quarterly audit; remove the pin once it's redundant.
