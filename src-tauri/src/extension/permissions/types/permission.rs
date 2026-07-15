@@ -52,6 +52,8 @@ pub enum ResourceType {
     Passwords,
     Mail,
     Notifications,
+    #[serde(rename = "extensionApi")]
+    ExtensionApi,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, TS)]
@@ -78,6 +80,7 @@ impl ResourceType {
             ResourceType::Passwords => "passwords",
             ResourceType::Mail => "mail",
             ResourceType::Notifications => "notifications",
+            ResourceType::ExtensionApi => "extensionApi",
         }
     }
 
@@ -95,6 +98,7 @@ impl ResourceType {
             "passwords" => Ok(ResourceType::Passwords),
             "mail" => Ok(ResourceType::Mail),
             "notifications" => Ok(ResourceType::Notifications),
+            "extensionApi" => Ok(ResourceType::ExtensionApi),
             _ => Err(ExtensionError::ValidationError {
                 reason: format!("Unknown resource type: {s}"),
             }),

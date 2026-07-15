@@ -15,6 +15,33 @@ use crate::external_bridge::authorization::{
     SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION, SQL_IS_CLIENT_KNOWN, SQL_UPDATE_LAST_SEEN,
 };
 use crate::external_bridge::error::BridgeError;
+use crate::table_names::{
+    COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID,
+    COL_EXTERNAL_AUTHORIZED_CLIENTS_REQUESTED_PERMISSIONS, TABLE_EXTERNAL_AUTHORIZED_CLIENTS,
+};
+
+/// Reads the `requested_permissions` manifest stored for this client at grant
+/// time (identical across all of the client's rows — see
+/// `protocol::canonical_requested_permissions`). `None` if the client has no
+/// authorized-client row at all.
+pub(super) async fn get_stored_requested_permissions(
+    app_handle: &AppHandle,
+    client_id: &str,
+) -> Option<String> {
+    let state = app_handle.state::<AppState>();
+    let sql = format!(
+        "SELECT {COL_EXTERNAL_AUTHORIZED_CLIENTS_REQUESTED_PERMISSIONS} \
+         FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} \
+         WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1 LIMIT 1"
+    );
+    let params = vec![JsonValue::String(client_id.to_string())];
+    select_with_crdt(sql, params, &state.db)
+        .ok()?
+        .first()?
+        .first()?
+        .as_str()
+        .map(|s| s.to_string())
+}
 
 /// Check if a client is authorized (via CRDT database query)
 pub(super) async fn check_client_authorized(app_handle: &AppHandle, client_id: &str) -> bool {

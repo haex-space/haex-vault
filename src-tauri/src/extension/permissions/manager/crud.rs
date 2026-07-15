@@ -332,6 +332,79 @@ impl PermissionManager {
         Ok((extension, permissions))
     }
 
+    /// Load a principal's display name and persisted permission rows in one go.
+    ///
+    /// Generalizes `load_extension_and_permissions` to also cover
+    /// `Principal::ExternalClient` — external bridge clients have no
+    /// `Extension`/manifest, so there is no `extension.manifest.name` to read.
+    /// Their display name instead comes from
+    /// `haex_external_authorized_clients_no_sync.client_name`, falling back to
+    /// the in-memory session authorization ("allow once" clients have no DB
+    /// row) and finally to the raw client_id.
+    pub(super) async fn load_principal_display_name_and_permissions(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+    ) -> Result<(String, Vec<ExtensionPermission>), ExtensionError> {
+        match principal {
+            Principal::Extension(_) => {
+                let (extension, permissions) =
+                    Self::load_extension_and_permissions(app_state, principal).await?;
+                Ok((extension.manifest.name.clone(), permissions))
+            }
+            Principal::ExternalClient(client_id) => {
+                let display_name = match Self::lookup_client_display_name(app_state, client_id) {
+                    Some(name) => name,
+                    None => {
+                        // "Allow once" clients have no authorized-client row —
+                        // fall back to the session authorization's name before
+                        // resorting to the raw client id. The bridge (and its
+                        // session store) only exists on desktop builds; mobile
+                        // has no external clients, so the raw id suffices.
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        {
+                            let bridge = app_state.external_bridge.lock().await;
+                            bridge
+                                .get_session_authorization(client_id)
+                                .await
+                                .map(|sa| sa.client_name)
+                                .unwrap_or_else(|| client_id.clone())
+                        }
+                        #[cfg(any(target_os = "android", target_os = "ios"))]
+                        {
+                            client_id.clone()
+                        }
+                    }
+                };
+                let permissions = Self::get_permissions(app_state, principal).await?;
+                Ok((display_name, permissions))
+            }
+        }
+    }
+
+    /// Best-effort lookup of an external client's human-readable name.
+    /// `None` (not an error) when the client has no authorized-client row —
+    /// callers fall back to the raw client_id.
+    fn lookup_client_display_name(
+        app_state: &State<'_, AppState>,
+        client_id: &str,
+    ) -> Option<String> {
+        use crate::table_names::{
+            COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID, COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME,
+            TABLE_EXTERNAL_AUTHORIZED_CLIENTS,
+        };
+        let sql = format!(
+            "SELECT {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME} FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} \
+             WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1 LIMIT 1"
+        );
+        let rows = select_with_crdt(
+            sql,
+            vec![JsonValue::String(client_id.to_string())],
+            &app_state.db,
+        )
+        .ok()?;
+        rows.first()?.first()?.as_str().map(|s| s.to_string())
+    }
+
     /// Persists a passwords tag grant/deny decision from the permission-prompt
     /// dialog to the database.
     ///

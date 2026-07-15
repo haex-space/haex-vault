@@ -68,6 +68,27 @@
           </p>
         </div>
 
+        <!-- Declared permissions (protocol v2 manifest) -->
+        <div
+          v-if="declaredPermissionLines.length > 0"
+          class="p-3 border border-default rounded-lg space-y-1"
+        >
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon
+              name="i-heroicons-shield-check"
+              class="w-5 h-5 text-muted"
+            />
+            <span class="text-sm font-medium">{{ t('declaredPermissions') }}</span>
+          </div>
+          <p
+            v-for="line in declaredPermissionLines"
+            :key="line"
+            class="text-xs font-mono text-muted pl-7"
+          >
+            {{ line }}
+          </p>
+        </div>
+
         <!-- Warning -->
         <UAlert
           color="warning"
@@ -110,10 +131,20 @@
 <script setup lang="ts">
 import type { ExternalAuthDecision } from '@haex-space/vault-sdk'
 
-// Accept both mutable and readonly versions of PendingAuthorization
+// Accept both mutable and readonly versions of PendingAuthorization.
+// `actions`/`permissions` are protocol v2 additions not yet reflected in the
+// published @haex-space/vault-sdk types the composable's `pendingAuth` uses —
+// this loosely-typed local prop shape reads them regardless (the Rust
+// payload always carries them; the SDK type is just narrower).
 interface RequestedExtensionProp {
   name: string
   extensionPublicKey: string
+  actions?: readonly string[] | string[]
+}
+
+interface CorePermissionEntry {
+  target: string
+  operation?: string | null
 }
 
 interface PendingAuthProp {
@@ -123,6 +154,9 @@ interface PendingAuthProp {
   requestedExtensions:
     | readonly RequestedExtensionProp[]
     | RequestedExtensionProp[]
+  permissions?: {
+    core?: Record<string, readonly CorePermissionEntry[] | CorePermissionEntry[] | null>
+  } | null
 }
 
 const { t } = useI18n()
@@ -177,6 +211,33 @@ const extensionOptions = computed(() => {
   return options
 })
 
+// Human-readable summary of the client's declared manifest — core permission
+// categories (with their target/operation) plus each requested extension's
+// declared actions. Purely informational; the actual grant is still built
+// server-side from the same declaration (see external_bridge_client_allow).
+const declaredPermissionLines = computed(() => {
+  const lines: string[] = []
+
+  const core = props.pendingAuth?.permissions?.core
+  if (core) {
+    for (const [category, entries] of Object.entries(core)) {
+      if (!entries) continue
+      for (const entry of entries) {
+        const op = entry.operation ? `:${entry.operation}` : ''
+        lines.push(`${category} → ${entry.target}${op}`)
+      }
+    }
+  }
+
+  for (const req of props.pendingAuth?.requestedExtensions ?? []) {
+    if (req.actions && req.actions.length > 0) {
+      lines.push(`${req.name} → ${req.actions.join(', ')}`)
+    }
+  }
+
+  return lines
+})
+
 // Reset selection when dialog opens and pre-select requested extensions
 watch(open, (isOpen) => {
   if (isOpen) {
@@ -226,6 +287,7 @@ de:
   selectExtensionPlaceholder: Zugriff wählen...
   extensionHint: Der Client erhält Zugriff auf die ausgewählten Bereiche.
   coreOption: HaexVault (Kernfeatures)
+  declaredPermissions: Angeforderte Berechtigungen
   warning:
     title: Sicherheitshinweis
     description: Genehmige nur Verbindungen von Anwendungen, die du selbst gestartet hast.
@@ -240,6 +302,7 @@ en:
   selectExtensionPlaceholder: Choose access...
   extensionHint: The client will have access to the selected areas.
   coreOption: HaexVault (Core features)
+  declaredPermissions: Requested permissions
   warning:
     title: Security Notice
     description: Only approve connections from applications you started yourself.

@@ -52,8 +52,8 @@ impl PermissionManager {
     ) -> Result<PasswordsScope, ExtensionError> {
         let extension_id = principal.id();
 
-        let (extension, permissions) =
-            Self::load_extension_and_permissions(app_state, principal).await?;
+        let (display_name, permissions) =
+            Self::load_principal_display_name_and_permissions(app_state, principal).await?;
 
         let matching: Vec<&ExtensionPermission> = permissions
             .iter()
@@ -72,7 +72,7 @@ impl PermissionManager {
             }
             return Err(ExtensionError::permission_prompt_required(
                 extension_id,
-                &extension.manifest.name,
+                &display_name,
                 "passwords",
                 action_str,
                 "*",
@@ -116,7 +116,7 @@ impl PermissionManager {
 
             return Err(ExtensionError::permission_prompt_required(
                 extension_id,
-                &extension.manifest.name,
+                &display_name,
                 "passwords",
                 action_str,
                 &ask_target,

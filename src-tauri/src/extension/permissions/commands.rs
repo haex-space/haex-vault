@@ -10,8 +10,8 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, PasswordsAction, PermissionStatus, Principal,
-    ResourceType, RwAction, WebAction,
+    Action, DbAction, ExtensionApiAction, ExtensionPermission, FsAction, PasswordsAction,
+    PermissionStatus, Principal, ResourceType, RwAction, WebAction,
 };
 use crate::extension::utils::{
     require_main_window, resolve_extension_id, PermissionResolvedPayload, EVENT_PERMISSION_RESOLVED,
@@ -133,7 +133,7 @@ pub async fn extension_permissions_check_filesystem(
 /// cleanly (on deny). `target` MUST be the original prompt target so it
 /// matches the PermissionPromptRequired error the SDK is waiting on.
 #[tauri::command]
-pub fn notify_extension_permission_decision(
+pub async fn notify_extension_permission_decision(
     app_handle: AppHandle,
     state: State<'_, AppState>,
     extension_id: String,
@@ -150,6 +150,23 @@ pub fn notify_extension_permission_decision(
             reason: format!("Invalid decision: {decision}. Expected 'granted' or 'denied'"),
         });
     }
+
+    // Wake any external-bridge waiter blocked on this exact (principal,
+    // resource_type, action, target) key — grant OR deny, so a denial
+    // resolves the blocked request immediately instead of idling until its
+    // timeout. `target` is the original prompt target (see doc above), so it
+    // matches the key the bridge registered from the PermissionPromptRequired
+    // error. No-op if nothing is waiting (the common case: native/iframe
+    // extension calls never register a waiter, only the external bridge does).
+    state
+        .permission_prompt_waiters
+        .wake(&(
+            extension_id.clone(),
+            resource_type.clone(),
+            action.clone(),
+            target.clone(),
+        ))
+        .await;
 
     let payload = PermissionResolvedPayload {
         extension_id: extension_id.clone(),
@@ -316,6 +333,7 @@ pub async fn resolve_permission_prompt(
         "passwords" => ResourceType::Passwords,
         "mail" => ResourceType::Mail,
         "notifications" => ResourceType::Notifications,
+        "extensionApi" => ResourceType::ExtensionApi,
         _ => {
             return Err(ExtensionError::ValidationError {
                 reason: format!("Invalid resource type: {}", resource_type),
@@ -424,6 +442,17 @@ pub async fn resolve_permission_prompt(
                 }
             };
             Action::Notifications(notifications_action)
+        }
+        ResourceType::ExtensionApi => {
+            let extension_api_action = match action.to_lowercase().as_str() {
+                "call" => ExtensionApiAction::Call,
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!("Invalid extensionApi action: {action} (expected 'call')"),
+                    })
+                }
+            };
+            Action::ExtensionApi(extension_api_action)
         }
     };
 

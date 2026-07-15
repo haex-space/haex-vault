@@ -22,7 +22,11 @@ use super::protocol::ProtocolMessage;
 
 /// Default port for the external bridge WebSocket server
 pub const DEFAULT_BRIDGE_PORT: u16 = 19455;
-const PROTOCOL_VERSION: u32 = 1;
+/// Protocol v2 requires clients to declare their requested permissions
+/// (`ClientInfo.permissions` + `requestedExtensions[].actions`) at handshake
+/// time. v1 clients (and v2 clients that omit the declaration) are rejected —
+/// see `connection::handle_connection`'s handshake arm.
+const PROTOCOL_VERSION: u32 = 2;
 /// Default timeout for extension responses (can be overridden per extension)
 const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 30;
 
@@ -53,6 +57,11 @@ pub struct SessionAuthorization {
     pub public_key: String,
     /// Extension ID this client can access
     pub extension_id: String,
+    /// Canonical JSON of the client's declared manifest at grant time (see
+    /// `protocol::canonical_requested_permissions`), compared against the
+    /// live handshake declaration on reconnect to detect a manifest change.
+    #[serde(default)]
+    pub requested_permissions: String,
 }
 
 /// Session blocked client entry (for "deny once" blocks)
@@ -135,6 +144,7 @@ impl ExternalBridge {
         client_name: &str,
         public_key: &str,
         extension_id: &str,
+        requested_permissions: &str,
     ) {
         let mut authorizations = self.session_authorizations.write().await;
         authorizations.insert(
@@ -144,6 +154,7 @@ impl ExternalBridge {
                 client_name: client_name.to_string(),
                 public_key: public_key.to_string(),
                 extension_id: extension_id.to_string(),
+                requested_permissions: requested_permissions.to_string(),
             },
         );
         println!(
@@ -435,6 +446,14 @@ impl ExternalBridge {
     pub async fn get_pending_authorizations(&self) -> Vec<PendingAuthorization> {
         let pending = self.pending_authorizations.read().await;
         pending.values().cloned().collect()
+    }
+
+    /// Get the pending authorization for one client, if any. Used by
+    /// `external_bridge_client_allow` to read the client's declared manifest
+    /// (permissions + per-extension actions) at grant time.
+    pub async fn get_pending_authorization(&self, client_id: &str) -> Option<PendingAuthorization> {
+        let pending = self.pending_authorizations.read().await;
+        pending.get(client_id).cloned()
     }
 }
 

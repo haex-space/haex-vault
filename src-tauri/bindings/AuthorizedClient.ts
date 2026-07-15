@@ -31,4 +31,10 @@ authorizedAt: string | null,
 /**
  * Last time the client connected (ISO 8601)
  */
-lastSeen: string | null, };
+lastSeen: string | null, 
+/**
+ * Canonical JSON of the client's declared manifest at authorization time
+ * (`ClientInfo.permissions` + `requestedExtensions[].actions`). Compared
+ * against the live handshake declaration to detect manifest changes.
+ */
+requestedPermissions: string, };
