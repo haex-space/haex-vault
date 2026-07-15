@@ -2,6 +2,7 @@
   <UiDrawerModal
     v-model:open="modelOpen"
     :title="t('title')"
+    :dismissible="false"
     :ui="{
       content: 'sm:max-w-md sm:mx-auto',
     }"
