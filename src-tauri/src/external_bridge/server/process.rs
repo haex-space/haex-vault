@@ -210,9 +210,8 @@ pub(super) async fn process_request(
     let session_authorized = {
         let auths = session_authorizations.read().await;
         auths
-            .get(client_id)
-            .map(|sa| sa.extension_id == extension_id)
-            .unwrap_or(false)
+            .values()
+            .any(|sa| sa.client_id == client_id && sa.extension_id == extension_id)
     };
 
     if !db_authorized && !session_authorized {
