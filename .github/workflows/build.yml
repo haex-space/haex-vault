@@ -550,7 +550,13 @@ jobs:
           jq '.app.security.csp["connect-src"] += ["http://sync-kong:8000", "http://sync-server:3002", "http://marketplace:3001", "http://marketplace-kong:8000", "ws://sync-kong:8000", "ws://sync-server:3002", "wss://sync-kong:8000", "wss://sync-server:3002"]' \
             src-tauri/tauri.conf.json > /tmp/tauri-e2e.conf.json && \
             mv /tmp/tauri-e2e.conf.json src-tauri/tauri.conf.json
-          cd src-tauri && cargo build --release
+          # tauri/custom-protocol is what separates a production binary from
+          # a dev one (tauri's build.rs: dev = !custom-protocol). Without it
+          # the binary ignores the embedded frontend and tries to load the
+          # devUrl (http://localhost:31303), which doesn't exist in the e2e
+          # container. `cargo tauri build` enables it implicitly; plain
+          # `cargo build` must pass it explicitly.
+          cd src-tauri && cargo build --release --features tauri/custom-protocol
 
       - name: Upload Linux binary for E2E tests
         if: matrix.platform == 'ubuntu-22.04'
