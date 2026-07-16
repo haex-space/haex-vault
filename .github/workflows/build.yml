@@ -557,7 +557,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: haex-vault-linux-e2e
-          path: src-tauri/target/release/haex-vault
+          # database/ holds the migration resources tauri places next to
+          # the binary — the e2e image needs them or the vault fails to
+          # run migrations on startup. Both paths share target/release as
+          # root, so the artifact contains haex-vault + database/.
+          path: |
+            src-tauri/target/release/haex-vault
+            src-tauri/target/release/database
           retention-days: 1
 
       - name: Upload artifacts (Windows)
