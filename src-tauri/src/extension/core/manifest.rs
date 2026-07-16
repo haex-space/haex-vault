@@ -176,7 +176,18 @@ impl ExtensionManifest {
     /// indem der Standardstatus `Granted` gesetzt wird.
     pub fn to_editable_permissions(&self) -> EditablePermissions {
         let mut editable = self.permissions.clone();
+        editable.set_all_granted();
+        editable
+    }
+}
 
+impl ExtensionPermissions {
+    /// Sets every declared entry's status to `Granted` in place. Used both by
+    /// `ExtensionManifest::to_editable_permissions` (the install-preview UI
+    /// model) and by the external-bridge authorization grant (declared
+    /// core permissions are approved wholesale when the user allows the
+    /// client, mirroring how an extension install grants its whole manifest).
+    pub fn set_all_granted(&mut self) {
         let set_status_for_list = |list: Option<&mut Vec<PermissionEntry>>| {
             if let Some(entries) = list {
                 for entry in entries.iter_mut() {
@@ -185,24 +196,20 @@ impl ExtensionManifest {
             }
         };
 
-        set_status_for_list(editable.database.as_mut());
-        set_status_for_list(editable.filesystem.as_mut());
-        set_status_for_list(editable.http.as_mut());
-        set_status_for_list(editable.shell.as_mut());
-        set_status_for_list(editable.sync_servers.as_mut());
-        set_status_for_list(editable.cloud_storage.as_mut());
-        set_status_for_list(editable.sync_rules.as_mut());
-        set_status_for_list(editable.spaces.as_mut());
-        set_status_for_list(editable.identities.as_mut());
-        set_status_for_list(editable.passwords.as_mut());
-        set_status_for_list(editable.mail.as_mut());
-        set_status_for_list(editable.notifications.as_mut());
-
-        editable
+        set_status_for_list(self.database.as_mut());
+        set_status_for_list(self.filesystem.as_mut());
+        set_status_for_list(self.http.as_mut());
+        set_status_for_list(self.shell.as_mut());
+        set_status_for_list(self.sync_servers.as_mut());
+        set_status_for_list(self.cloud_storage.as_mut());
+        set_status_for_list(self.sync_rules.as_mut());
+        set_status_for_list(self.spaces.as_mut());
+        set_status_for_list(self.identities.as_mut());
+        set_status_for_list(self.passwords.as_mut());
+        set_status_for_list(self.mail.as_mut());
+        set_status_for_list(self.notifications.as_mut());
     }
-}
 
-impl ExtensionPermissions {
     /// Konvertiert das UI-Modell in die flache Liste von internen `ExtensionPermission`-Objekten.
     pub fn to_internal_permissions(&self, extension_id: &str) -> Vec<ExtensionPermission> {
         let mut permissions = Vec::new();
@@ -348,6 +355,10 @@ impl ExtensionPermissions {
             ResourceType::Notifications => NotificationsAction::from_str(operation_str)
                 .ok()
                 .map(Action::Notifications),
+            // `ExtensionPermissions` (the manifest/UI model) has no
+            // `extensionApi` field — those rows are built directly by the
+            // external bridge grant flow, never through this manifest path.
+            ResourceType::ExtensionApi => None,
         };
 
         // Passwords mark their default-label row via a free-form `{"default":true}`

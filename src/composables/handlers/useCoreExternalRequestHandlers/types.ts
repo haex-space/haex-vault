@@ -12,6 +12,17 @@ export const CORE_METHODS = {
   PASSKEY_LIST: 'passkey-list',
 } as const
 
+/**
+ * Mirrors the Rust `PasswordsScope` enum (see
+ * `extension::permissions::types::PasswordsScope`) — the tag scope resolved
+ * by `check_passwords_permission` for this request. The Read/Write boundary
+ * itself is already enforced in Rust before this event is emitted; this is
+ * the tag-level refinement within that boundary.
+ */
+export type PasswordsScope =
+  | { type: 'all' }
+  | { type: 'tags', tags: string[], default: string | null }
+
 export interface ExternalCoreRequest {
   requestId: string
   publicKey: string
@@ -19,6 +30,8 @@ export interface ExternalCoreRequest {
   payload: Record<string, unknown>
   extensionPublicKey: string
   extensionName: string
+  /** Present for every core (passwords) request; absent/undefined is treated as `all`. */
+  scope?: PasswordsScope | null
 }
 
 export interface ExternalCoreResponse {

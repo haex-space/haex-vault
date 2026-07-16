@@ -76,11 +76,11 @@ export const haexPrincipalPermissions = sqliteTable(
     id: text()
       .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
-    principalId: text(tableNames.haex.principal_permissions.columns.principalId)
-      .notNull()
-      .references((): AnySQLiteColumn => haexExtensions.id, {
-        onDelete: 'cascade',
-      }),
+    // No FK to haex_extensions: principals are extensions OR external clients
+    // (see Principal::ExternalClient) and this column holds either id. The FK
+    // was also vestigial for extensions — CRDT soft-deletes never trigger the
+    // CASCADE, cleanup happens explicitly via delete_permissions.
+    principalId: text(tableNames.haex.principal_permissions.columns.principalId).notNull(),
     resourceType: text('resource_type', {
       enum: ['fs', 'web', 'db', 'shell'],
     }),
@@ -264,6 +264,12 @@ export const haexExternalAuthorizedClients = sqliteTable(
       sql`(CURRENT_TIMESTAMP)`,
     ),
     lastSeen: text(tableNames.haex.external_authorized_clients.columns.lastSeen),
+    // Canonical JSON of the client's declared manifest (core + per-extension
+    // actions) at authorization time. Compared against the handshake's live
+    // declaration to detect manifest changes and force re-authorization.
+    requestedPermissions: text(
+      tableNames.haex.external_authorized_clients.columns.requestedPermissions,
+    ).notNull(),
   },
   (table) => [
     uniqueIndex('haex_external_authorized_clients_client_extension_unique')

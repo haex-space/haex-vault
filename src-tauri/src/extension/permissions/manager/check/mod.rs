@@ -1,4 +1,5 @@
 pub(super) mod database;
+pub(super) mod extension_api;
 pub(super) mod filesystem;
 pub(super) mod identities;
 mod mail;

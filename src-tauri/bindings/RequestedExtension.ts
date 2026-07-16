@@ -12,4 +12,11 @@ name: string,
  * Extension's public key (hex string from manifest)
  * Named differently from ClientInfo.public_key to avoid confusion
  */
-extensionPublicKey: string, };
+extensionPublicKey: string, 
+/**
+ * Declared action names the client wants to call on this extension
+ * (e.g. `["getItems", "createItem"]`), or `["*"]` for all actions.
+ * Checked against `ResourceType::ExtensionApi` permission rows with
+ * target `"{extension_public_key}::{name}::{action}"`.
+ */
+actions: Array<string>, };

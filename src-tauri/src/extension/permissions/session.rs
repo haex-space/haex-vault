@@ -128,6 +128,69 @@ impl SessionPermissionStore {
             .unwrap_or_default()
     }
 
+    /// Session-only counterpart of `PermissionManager::save_passwords_grant`:
+    /// grants/denies a passwords tag decision for the current session.
+    ///
+    /// Same default-deny model as the DB path: a **grant** writes one
+    /// `Granted` row per selected tag (or a single `"*"` row), covering the
+    /// "exactly one default label" invariant; deselected tags are simply not
+    /// granted (no explicit `Denied` row, which would block the granted ones
+    /// via the deny-first read check). A **deny** rejects the whole request
+    /// with a single `"*"` `Denied` row.
+    pub fn set_passwords_grant(
+        &self,
+        extension_id: &str,
+        action: super::types::PasswordsAction,
+        tags: &[String],
+        default_tag: Option<&str>,
+        status: PermissionStatus,
+    ) -> Result<(), crate::extension::error::ExtensionError> {
+        use crate::extension::permissions::manager::normalize_passwords_grant_tags;
+
+        // Deny rejects the whole request → a single wildcard deny row.
+        if status != PermissionStatus::Granted {
+            self.set_permission(ExtensionPermission {
+                id: format!("session-{}", uuid::Uuid::new_v4()),
+                principal_id: extension_id.to_string(),
+                resource_type: ResourceType::Passwords,
+                action: Action::Passwords(action),
+                target: "*".to_string(),
+                constraints: None,
+                status,
+                raw_constraints: None,
+            });
+            return Ok(());
+        }
+
+        let (effective_tags, is_wildcard) = normalize_passwords_grant_tags(
+            tags,
+            default_tag,
+            action.clone(),
+            status,
+            extension_id,
+        )?;
+
+        for tag in &effective_tags {
+            let raw_constraints = if !is_wildcard && default_tag == Some(tag.as_str()) {
+                Some(serde_json::json!({ "default": true }))
+            } else {
+                None
+            };
+            self.set_permission(ExtensionPermission {
+                id: format!("session-{}", uuid::Uuid::new_v4()),
+                principal_id: extension_id.to_string(),
+                resource_type: ResourceType::Passwords,
+                action: Action::Passwords(action.clone()),
+                target: tag.clone(),
+                constraints: None,
+                status,
+                raw_constraints,
+            });
+        }
+
+        Ok(())
+    }
+
     /// Remove the session permission(s) for a given resource + target.
     ///
     /// Because the key now also includes `action`, a single resource/target can

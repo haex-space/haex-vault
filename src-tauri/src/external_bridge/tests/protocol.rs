@@ -11,6 +11,7 @@ fn test_client_info_serialization() {
         client_name: "Test Browser Extension".to_string(),
         public_key: "base64-public-key".to_string(),
         requested_extensions: vec![],
+        permissions: None,
     };
 
     let json = serde_json::to_string(&client).unwrap();
@@ -33,6 +34,7 @@ fn test_handshake_request_serialization() {
             client_name: "haex-pass Extension".to_string(),
             public_key: "pk123".to_string(),
             requested_extensions: vec![],
+            permissions: None,
         },
     };
 
@@ -69,6 +71,7 @@ fn test_protocol_message_handshake() {
             client_name: "Test".to_string(),
             public_key: "pk".to_string(),
             requested_extensions: vec![],
+            permissions: None,
         },
     });
 
@@ -139,6 +142,7 @@ fn test_authorized_client_parsing() {
         serde_json::json!("haex-pass"),
         serde_json::json!("2024-01-01T00:00:00Z"),
         serde_json::json!("2024-01-02T00:00:00Z"),
+        serde_json::json!("{\"permissions\":null,\"requestedExtensions\":[]}"),
     ];
 
     let client = parse_authorized_client(&row).unwrap();
@@ -152,6 +156,10 @@ fn test_authorized_client_parsing() {
         Some("2024-01-01T00:00:00Z".to_string())
     );
     assert_eq!(client.last_seen, Some("2024-01-02T00:00:00Z".to_string()));
+    assert_eq!(
+        client.requested_permissions,
+        "{\"permissions\":null,\"requestedExtensions\":[]}"
+    );
 }
 
 #[test]
@@ -164,6 +172,7 @@ fn test_authorized_client_parsing_with_null_optional_fields() {
         serde_json::json!("haex-pass"),
         serde_json::Value::Null,
         serde_json::Value::Null,
+        serde_json::json!("{}"),
     ];
 
     let client = parse_authorized_client(&row).unwrap();
@@ -189,6 +198,7 @@ fn test_pending_authorization_serialization() {
         client_name: "Pending Extension".to_string(),
         public_key: "pending-pk".to_string(),
         requested_extensions: vec![],
+        permissions: None,
     };
 
     let json = serde_json::to_string(&pending).unwrap();
@@ -252,7 +262,9 @@ fn test_handshake_with_requested_extensions() {
                 name: "haex-pass".to_string(),
                 extension_public_key:
                     "b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca".to_string(),
+                actions: vec![],
             }],
+            permissions: None,
         },
     };
 

@@ -10,16 +10,17 @@ use crate::extension::permissions::checker::PermissionChecker;
 use crate::extension::permissions::manager::{
     database_matching_status, filesystem_matching_has_constraint_violation,
     filesystem_matching_status, format_filesystem_denied_target, format_shell_denied_target,
-    identities_matching_status, parse_passwords_default_marker, resolve_identities_decision,
-    resolve_passwords_tags_scope, rw_resource_matching_status, rw_resource_session_status,
+    identities_matching_status, normalize_passwords_grant_tags, parse_passwords_default_marker,
+    passwords_session_scope, resolve_identities_decision, resolve_passwords_tags_scope,
+    rw_resource_matching_status, rw_resource_session_status,
     shell_matching_has_constraint_violation, shell_matching_status, spaces_matching_status,
     spaces_session_status, web_matching_status, IdentitiesDecision, PasswordsGrantRow,
 };
 use crate::extension::permissions::session::SessionPermissionStore;
 use crate::extension::permissions::types::{
-    Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction, PasswordsScope,
-    PermissionConstraints, PermissionStatus, ResourceType, RwAction, ShellAction, ShellConstraints,
-    SpaceAction, WebAction,
+    Action, DbAction, ExtensionPermission, FsAction, FsConstraints, IdentityAction,
+    PasswordsAction, PasswordsScope, PermissionConstraints, PermissionStatus, ResourceType,
+    RwAction, ShellAction, ShellConstraints, SpaceAction, WebAction,
 };
 use serde_json::json;
 use std::path::PathBuf;
@@ -895,4 +896,299 @@ fn session_rw_covers_read_for_cloud_storage() {
         RwAction::Read,
     );
     assert_eq!(resolved, Some(PermissionStatus::Granted));
+}
+
+// ---------------------------------------------------------------------------
+// normalize_passwords_grant_tags — cleans/validates a dialog-submitted tag
+// grant before it's persisted (DB and session paths share this).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn normalize_trims_dedupes_and_drops_empty_tags() {
+    let (tags, is_wildcard) = normalize_passwords_grant_tags(
+        &[
+            "  work ".to_string(),
+            "".to_string(),
+            "work".to_string(),
+            "personal".to_string(),
+        ],
+        None,
+        PasswordsAction::Read,
+        PermissionStatus::Granted,
+        "ext",
+    )
+    .unwrap();
+    assert!(!is_wildcard);
+    assert_eq!(tags, vec!["work".to_string(), "personal".to_string()]);
+}
+
+#[test]
+fn normalize_wildcard_collapses_everything() {
+    let (tags, is_wildcard) = normalize_passwords_grant_tags(
+        &["work".to_string(), "*".to_string()],
+        None,
+        PasswordsAction::ReadWrite,
+        PermissionStatus::Granted,
+        "ext",
+    )
+    .unwrap();
+    assert!(is_wildcard);
+    assert_eq!(tags, vec!["*".to_string()]);
+}
+
+#[test]
+fn normalize_rejects_all_empty_tags() {
+    let err = normalize_passwords_grant_tags(
+        &["  ".to_string()],
+        None,
+        PasswordsAction::Read,
+        PermissionStatus::Granted,
+        "ext",
+    )
+    .unwrap_err();
+    assert!(matches!(err, ExtensionError::ValidationError { .. }));
+}
+
+#[test]
+fn normalize_requires_default_for_multi_tag_write_grant() {
+    let err = normalize_passwords_grant_tags(
+        &["work".to_string(), "personal".to_string()],
+        None,
+        PasswordsAction::ReadWrite,
+        PermissionStatus::Granted,
+        "ext",
+    )
+    .unwrap_err();
+    assert!(matches!(err, ExtensionError::ValidationError { .. }));
+
+    // A defaultTag not among the granted tags is equally invalid.
+    let err = normalize_passwords_grant_tags(
+        &["work".to_string(), "personal".to_string()],
+        Some("other"),
+        PasswordsAction::ReadWrite,
+        PermissionStatus::Granted,
+        "ext",
+    )
+    .unwrap_err();
+    assert!(matches!(err, ExtensionError::ValidationError { .. }));
+
+    // A valid defaultTag among the granted tags succeeds.
+    let (tags, _) = normalize_passwords_grant_tags(
+        &["work".to_string(), "personal".to_string()],
+        Some("personal"),
+        PasswordsAction::ReadWrite,
+        PermissionStatus::Granted,
+        "ext",
+    )
+    .unwrap();
+    assert_eq!(tags, vec!["work".to_string(), "personal".to_string()]);
+}
+
+#[test]
+fn normalize_no_default_required_when_read_only_single_tag_or_denied() {
+    // Read-only multi-tag: no default required.
+    assert!(normalize_passwords_grant_tags(
+        &["work".to_string(), "personal".to_string()],
+        None,
+        PasswordsAction::Read,
+        PermissionStatus::Granted,
+        "ext",
+    )
+    .is_ok());
+
+    // Single tag: implicit default, no marker required.
+    assert!(normalize_passwords_grant_tags(
+        &["work".to_string()],
+        None,
+        PasswordsAction::ReadWrite,
+        PermissionStatus::Granted,
+        "ext",
+    )
+    .is_ok());
+
+    // Denied decision: default-label concerns only apply to grants.
+    assert!(normalize_passwords_grant_tags(
+        &["work".to_string(), "personal".to_string()],
+        None,
+        PasswordsAction::ReadWrite,
+        PermissionStatus::Denied,
+        "ext",
+    )
+    .is_ok());
+}
+
+// ---------------------------------------------------------------------------
+// passwords_session_scope — session-store counterpart of check_passwords_permission
+// ---------------------------------------------------------------------------
+
+fn passwords_session_permission(
+    extension_id: &str,
+    action: PasswordsAction,
+    target: &str,
+    status: PermissionStatus,
+    is_default: bool,
+) -> ExtensionPermission {
+    ExtensionPermission {
+        id: uuid::Uuid::new_v4().to_string(),
+        principal_id: extension_id.to_string(),
+        resource_type: ResourceType::Passwords,
+        action: Action::Passwords(action),
+        target: target.to_string(),
+        constraints: None,
+        status,
+        raw_constraints: if is_default {
+            Some(json!({ "default": true }))
+        } else {
+            None
+        },
+    }
+}
+
+#[test]
+fn passwords_session_scope_none_when_no_session_entry() {
+    let session = SessionPermissionStore::new();
+    let resolved = passwords_session_scope(&session, "ext-none", PasswordsAction::Read);
+    assert!(resolved.is_none());
+}
+
+#[test]
+fn passwords_session_scope_denied_blocks_access() {
+    let session = SessionPermissionStore::new();
+    let extension_id = "ext-session-denied";
+    session.set_permission(passwords_session_permission(
+        extension_id,
+        PasswordsAction::Read,
+        "*",
+        PermissionStatus::Denied,
+        false,
+    ));
+
+    let resolved = passwords_session_scope(&session, extension_id, PasswordsAction::Read)
+        .expect("session row should resolve")
+        .unwrap_err();
+    assert!(matches!(resolved, ExtensionError::PermissionDenied { .. }));
+}
+
+#[test]
+fn passwords_session_scope_wildcard_grants_all() {
+    let session = SessionPermissionStore::new();
+    let extension_id = "ext-session-wildcard";
+    session.set_permission(passwords_session_permission(
+        extension_id,
+        PasswordsAction::Read,
+        "*",
+        PermissionStatus::Granted,
+        false,
+    ));
+
+    let resolved = passwords_session_scope(&session, extension_id, PasswordsAction::Read)
+        .expect("session row should resolve")
+        .expect("wildcard grant should resolve Ok");
+    assert_eq!(resolved, PasswordsScope::All);
+}
+
+#[test]
+fn passwords_session_scope_resolves_multi_tag_default_from_raw_constraints() {
+    let session = SessionPermissionStore::new();
+    let extension_id = "ext-session-multi-tag";
+    session.set_permission(passwords_session_permission(
+        extension_id,
+        PasswordsAction::ReadWrite,
+        "work",
+        PermissionStatus::Granted,
+        false,
+    ));
+    session.set_permission(passwords_session_permission(
+        extension_id,
+        PasswordsAction::ReadWrite,
+        "personal",
+        PermissionStatus::Granted,
+        true,
+    ));
+
+    let resolved = passwords_session_scope(&session, extension_id, PasswordsAction::ReadWrite)
+        .expect("session rows should resolve")
+        .expect("multi-tag grant with a default marker should resolve Ok");
+    match resolved {
+        PasswordsScope::Tags { tags, default } => {
+            assert_eq!(tags.len(), 2);
+            assert_eq!(default, Some("personal".to_string()));
+        }
+        other => panic!("expected Tags scope, got {other:?}"),
+    }
+}
+
+#[test]
+fn passwords_session_scope_read_write_escalation_covers_read() {
+    // A session ReadWrite grant must satisfy a Read request, same as the
+    // DB-side action_allows semantics (writer trivially reads).
+    let session = SessionPermissionStore::new();
+    let extension_id = "ext-session-rw-escalation";
+    session.set_permission(passwords_session_permission(
+        extension_id,
+        PasswordsAction::ReadWrite,
+        "*",
+        PermissionStatus::Granted,
+        false,
+    ));
+
+    let resolved = passwords_session_scope(&session, extension_id, PasswordsAction::Read)
+        .expect("session row should resolve")
+        .expect("ReadWrite grant should cover a Read request");
+    assert_eq!(resolved, PasswordsScope::All);
+}
+
+// ---------------------------------------------------------------------------
+// set_passwords_grant — persisting a dialog decision must not let a deselected
+// tag block the tags the user actually granted (default-deny model).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn set_passwords_grant_partial_grant_does_not_deny_deselected() {
+    // User was offered "work" + "personal" but granted only "work". "personal"
+    // must simply be out of scope — NOT an explicit deny that would drop
+    // "work" too via the deny-first read check.
+    let session = SessionPermissionStore::new();
+    let extension_id = "ext-partial-grant";
+    session
+        .set_passwords_grant(
+            extension_id,
+            PasswordsAction::ReadWrite,
+            &["work".to_string()],
+            Some("work"),
+            PermissionStatus::Granted,
+        )
+        .expect("partial grant should persist");
+
+    let resolved = passwords_session_scope(&session, extension_id, PasswordsAction::ReadWrite)
+        .expect("session row should resolve")
+        .expect("granted tag must stay usable, not be cancelled by the deselected one");
+    match resolved {
+        PasswordsScope::Tags { tags, default } => {
+            assert_eq!(tags, vec!["work".to_string()]);
+            assert_eq!(default, Some("work".to_string()));
+        }
+        other => panic!("expected Tags scope with only 'work', got {other:?}"),
+    }
+}
+
+#[test]
+fn set_passwords_grant_deny_blocks_all() {
+    // A deny rejects the whole request via a single wildcard deny row.
+    let session = SessionPermissionStore::new();
+    let extension_id = "ext-deny-all";
+    session
+        .set_passwords_grant(
+            extension_id,
+            PasswordsAction::ReadWrite,
+            &["work".to_string()],
+            None,
+            PermissionStatus::Denied,
+        )
+        .expect("deny should persist");
+
+    let resolved = passwords_session_scope(&session, extension_id, PasswordsAction::ReadWrite)
+        .expect("session row should resolve")
+        .unwrap_err();
+    assert!(matches!(resolved, ExtensionError::PermissionDenied { .. }));
 }
