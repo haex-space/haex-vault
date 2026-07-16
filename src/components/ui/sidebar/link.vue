@@ -34,18 +34,25 @@ const props = defineProps<ISidebarItem>()
 
 const router = useRouter()
 
+const toName = computed(() => {
+  if (props.to && typeof props.to === 'object') {
+    return 'name' in props.to ? props.to.name : undefined
+  }
+  return props.to
+})
+
 const isActive = computed(() => {
-  if (props.to?.name === 'haexExtension') {
+  if (toName.value === 'haexExtension') {
     return (
       getSingleRouteParam(router.currentRoute.value.params.extensionId) ===
       props.id
     )
   } else {
     return (
-      props.to?.name === router.currentRoute.value.meta.name ||
+      toName.value === router.currentRoute.value.meta.name ||
       router
         .getRoutes()
-        .find((route) => route.meta.name === props.to?.name)
+        .find((route) => route.meta.name === toName.value)
         ?.children.some(
           (route) => route.meta?.name === router.currentRoute.value.meta.name,
         )
