@@ -779,6 +779,9 @@ mod tests {
 
     #[test]
     fn decode_rfc2047_passes_through_plain_ascii() {
-        assert_eq!(decode_rfc2047(b"Plain ASCII subject"), "Plain ASCII subject");
+        assert_eq!(
+            decode_rfc2047(b"Plain ASCII subject"),
+            "Plain ASCII subject"
+        );
     }
 }
