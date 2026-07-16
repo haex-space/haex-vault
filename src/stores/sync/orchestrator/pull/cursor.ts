@@ -145,16 +145,13 @@ export const pullFromBackendAsync = async (
       log.debug(`Cleared pending-table marker: ${tableName}`)
     }
 
-    if (totalApplied === 0) {
-      log.info('PULL COMPLETE: No new changes from server')
-      return
-    }
-
-    log.info(`Streamed ${totalApplied} changes across ${pageCount} pages (tables: ${tablesAffected.size})`)
-
     // Pull any pending columns (older app version skipped columns that now
     // exist after migrations). This runs AFTER the main streaming apply so the
-    // base data is in place; it has its own pagination + apply path.
+    // base data is in place; it has its own pagination + apply path. It must
+    // run even when the main stream had no new changes (totalApplied === 0):
+    // after an app update the base rows are typically already present, so the
+    // only outstanding work is draining the pending-column markers — a
+    // zero-changes early return here would leave those columns unfilled forever.
     const pendingColumnsPulled = await pullPendingColumnsAsync(
       backend.homeServerUrl,
       backend.spaceId,
@@ -165,6 +162,13 @@ export const pullFromBackendAsync = async (
     if (pendingColumnsPulled > 0) {
       log.info(`Pulled ${pendingColumnsPulled} pending column changes`)
     }
+
+    if (totalApplied === 0 && pendingColumnsPulled === 0) {
+      log.info('PULL COMPLETE: No new changes from server')
+      return
+    }
+
+    log.info(`Streamed ${totalApplied} changes across ${pageCount} pages (tables: ${tablesAffected.size})`)
 
     // `lastPullServerTimestamp` was advanced per page inside the loop above; no
     // end-of-cycle update is needed.

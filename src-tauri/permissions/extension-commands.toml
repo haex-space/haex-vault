@@ -69,11 +69,17 @@ commands.allow = [
   "extension_mail_list_mailboxes",
   "extension_mail_fetch_envelopes",
   "extension_mail_fetch_message",
+  "extension_mail_fetch_attachment",
   "extension_mail_set_flags",
   "extension_mail_move_messages",
   "extension_mail_append_message",
   "extension_mail_send_message",
   "extension_mail_build_rfc822",
+
+  # Notifications (OS notifications; scoped to the calling extension by
+  # `resolve_extension_id` + the `notifications` permission).
+  "extension_notifications_show",
+  "extension_notifications_dismiss",
 
   # Passwords vault
   "extension_password_list",
@@ -168,11 +174,13 @@ commands.allow = [
   "clear_all_dirty_tables",
   "clear_dirty_table",
   "clear_pending_column",
+  "clear_pending_table",
   "crdt_cleanup_deleted_rows",
   "crdt_get_stats",
   "get_all_crdt_tables",
   "get_dirty_tables",
   "get_pending_columns",
+  "get_recoverable_pending_tables",
   "get_table_schema",
 
   # SQL helpers
@@ -275,6 +283,7 @@ commands.allow = [
   "peer_storage_transfer_cancel",
   "peer_storage_transfer_pause",
   "peer_storage_transfer_resume",
+  "dos_defence_end_escalation",
 
   # Owner-vault sync (PR #511 — serverless cross-device sync of the owner's own vault).
   # Owner-only operations; do NOT add to allow-extension-commands.
@@ -296,6 +305,8 @@ commands.allow = [
   "remote_storage_upload_from_path",
   "remote_storage_cancel_transfer",
   "remote_storage_delete",
+  "share_storage_backend",
+  "revoke_storage_share",
   "media_server_register",
   "media_server_register_s3_stream",
   "media_server_register_peer_stream",
@@ -395,11 +406,14 @@ commands.allow = [
   "extension_mail_list_mailboxes",
   "extension_mail_fetch_envelopes",
   "extension_mail_fetch_message",
+  "extension_mail_fetch_attachment",
   "extension_mail_set_flags",
   "extension_mail_move_messages",
   "extension_mail_append_message",
   "extension_mail_send_message",
   "extension_mail_build_rfc822",
+  "extension_notifications_show",
+  "extension_notifications_dismiss",
   "extension_password_list",
   "extension_password_read",
   "extension_password_create",
@@ -410,6 +424,7 @@ commands.allow = [
   "extension_permissions_check_filesystem",
   "resolve_permission_prompt",
   "grant_session_permission",
+  "notify_extension_permission_decision",
   "get_extension_session_permissions",
   "remove_extension_session_permission",
   "extension_logging_write",
