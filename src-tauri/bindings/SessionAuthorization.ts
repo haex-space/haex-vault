@@ -19,4 +19,10 @@ publicKey: string,
 /**
  * Extension ID this client can access
  */
-extensionId: string, };
+extensionId: string, 
+/**
+ * Canonical JSON of the client's declared manifest at grant time (see
+ * `protocol::canonical_requested_permissions`), compared against the
+ * live handshake declaration on reconnect to detect a manifest change.
+ */
+requestedPermissions: string, };

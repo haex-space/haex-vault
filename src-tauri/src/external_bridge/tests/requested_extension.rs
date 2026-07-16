@@ -10,6 +10,7 @@ fn test_requested_extension_serialization() {
         name: "haex-pass".to_string(),
         extension_public_key: "b4401f13f65e576b8a30ff9fd83df82a8bb707e1994d40c99996fe88603cefca"
             .to_string(),
+        actions: vec![],
     };
 
     let json = serde_json::to_string(&ext).unwrap();
@@ -31,12 +32,15 @@ fn test_client_info_with_requested_extensions() {
             RequestedExtension {
                 name: "haex-pass".to_string(),
                 extension_public_key: "pk1".to_string(),
+                actions: vec![],
             },
             RequestedExtension {
                 name: "another-extension".to_string(),
                 extension_public_key: "pk2".to_string(),
+                actions: vec![],
             },
         ],
+        permissions: None,
     };
 
     let json = serde_json::to_string(&client).unwrap();
@@ -62,7 +66,9 @@ fn test_pending_authorization_with_requested_extensions() {
         requested_extensions: vec![RequestedExtension {
             name: "haex-pass".to_string(),
             extension_public_key: "b4401f13".to_string(),
+            actions: vec![],
         }],
+        permissions: None,
     };
 
     let json = serde_json::to_string(&pending).unwrap();
@@ -113,11 +119,13 @@ fn test_same_developer_different_extensions() {
     let ext1 = RequestedExtension {
         name: "haex-pass".to_string(),
         extension_public_key: developer_pk.to_string(),
+        actions: vec![],
     };
 
     let ext2 = RequestedExtension {
         name: "haex-notes".to_string(),
         extension_public_key: developer_pk.to_string(),
+        actions: vec![],
     };
 
     // Same developer, different extensions
@@ -137,11 +145,13 @@ fn test_same_extension_name_different_developers() {
     let ext1 = RequestedExtension {
         name: "password-manager".to_string(),
         extension_public_key: "developer1_public_key".to_string(),
+        actions: vec![],
     };
 
     let ext2 = RequestedExtension {
         name: "password-manager".to_string(),
         extension_public_key: "developer2_public_key".to_string(),
+        actions: vec![],
     };
 
     // Same name, different developers
@@ -160,16 +170,20 @@ fn test_client_can_request_multiple_extensions() {
             RequestedExtension {
                 name: "haex-pass".to_string(),
                 extension_public_key: "pk1".to_string(),
+                actions: vec![],
             },
             RequestedExtension {
                 name: "haex-notes".to_string(),
                 extension_public_key: "pk1".to_string(),
+                actions: vec![],
             },
             RequestedExtension {
                 name: "haex-files".to_string(),
                 extension_public_key: "pk2".to_string(),
+                actions: vec![],
             },
         ],
+        permissions: None,
     };
 
     assert_eq!(client.requested_extensions.len(), 3);
@@ -187,6 +201,7 @@ fn test_empty_requested_extensions_array() {
         client_name: "Client".to_string(),
         public_key: "pk".to_string(),
         requested_extensions: vec![],
+        permissions: None,
     };
 
     let json = serde_json::to_string(&client).unwrap();
@@ -206,6 +221,7 @@ fn test_extension_public_key_hex_format() {
     let ext = RequestedExtension {
         name: "haex-pass".to_string(),
         extension_public_key: valid_hex.to_string(),
+        actions: vec![],
     };
 
     let json = serde_json::to_string(&ext).unwrap();

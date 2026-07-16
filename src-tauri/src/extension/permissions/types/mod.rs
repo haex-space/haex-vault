@@ -16,8 +16,9 @@ mod permission;
 mod principal;
 
 pub use actions::{
-    Action, DbAction, FsAction, IdentityAction, MailAction, NotificationsAction, PasswordsAction,
-    PasswordsScope, RwAction, ShellAction, SpaceAction, WebAction,
+    Action, DbAction, ExtensionApiAction, FsAction, IdentityAction, MailAction,
+    NotificationsAction, PasswordsAction, PasswordsScope, RwAction, ShellAction, SpaceAction,
+    WebAction,
 };
 // `DbConstraints`/`FsConstraints`/etc. and `combine_constraints` are reached
 // only from tests via this path; the lib build flags the re-exports as

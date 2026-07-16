@@ -2,6 +2,7 @@
   <UiDrawerModal
     v-model:open="modelOpen"
     :title="t('title')"
+    :dismissible="false"
     :ui="{
       content: 'sm:max-w-md sm:mx-auto',
     }"
@@ -52,14 +53,59 @@
             />
             <span class="font-medium">{{ resourceTypeLabel }}</span>
           </div>
-          <div class="text-sm space-y-1 pl-7">
-            <div class="flex gap-2">
+          <div class="text-sm space-y-2 pl-7">
+            <div class="flex gap-2 items-center">
               <span class="text-muted">{{ t('action') }}:</span>
               <span class="font-mono">{{ promptData.action }}</span>
             </div>
-            <div class="flex gap-2">
+            <!-- Passwords: tag-based scope editor -->
+            <div
+              v-if="promptData.resourceType === 'passwords'"
+              class="flex flex-col gap-2"
+            >
               <span class="text-muted">{{ t('target') }}:</span>
-              <span class="font-mono break-all">{{ promptData.target }}</span>
+              <UCheckbox
+                v-model="passwordsWildcard"
+                :label="t('passwordsAllTags')"
+              />
+              <HaexSystemPasswordsEditorTagPicker
+                v-if="!passwordsWildcard"
+                v-model="passwordsTags"
+              />
+              <div
+                v-if="showPasswordsDefaultTag"
+                class="flex flex-col gap-1"
+              >
+                <span class="text-xs text-muted">{{ t('passwordsDefaultTag') }}</span>
+                <USelectMenu
+                  v-model="passwordsDefaultTag"
+                  :items="passwordsTags"
+                  :placeholder="t('passwordsDefaultTagPlaceholder')"
+                />
+              </div>
+            </div>
+
+            <!-- Every other resource type: plain editable target string -->
+            <div
+              v-else
+              class="flex flex-col gap-1"
+            >
+              <span class="text-muted">{{ t('target') }}:</span>
+              <div class="flex gap-2 items-start">
+                <UInput
+                  v-model="editableTarget"
+                  class="flex-1 font-mono"
+                  size="sm"
+                />
+                <UiButton
+                  v-if="domainOnlyTarget"
+                  :label="t('domainOnly')"
+                  variant="soft"
+                  color="neutral"
+                  size="sm"
+                  @click="applyDomainOnlyTarget"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -103,6 +149,7 @@
             :label="t('allow')"
             color="success"
             class="w-full sm:flex-1"
+            :disabled="isAllowDisabled"
             @click="onAllow"
           />
         </div>
@@ -114,6 +161,7 @@
 <script setup lang="ts">
 import type {
   PermissionPromptData,
+  PermissionPromptEdit,
   PermissionDecision,
 } from '~/composables/usePermissionPrompt'
 
@@ -127,22 +175,92 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  decision: [value: PermissionDecision, remember: boolean, applyToAll: boolean]
+  decision: [value: PermissionDecision, remember: boolean, applyToAll: boolean, edit: PermissionPromptEdit]
 }>()
 
 const rememberDecision = ref(false)
 const applyToAll = ref(false)
+const editableTarget = ref('')
 
-// Reset checkboxes when dialog opens
+// Passwords-specific scope editor state.
+const passwordsWildcard = ref(false)
+const passwordsTags = ref<string[]>([])
+const passwordsDefaultTag = ref<string | undefined>(undefined)
+
+// A passwords prompt target is either the wildcard "*" or a comma-joined
+// list of tags (see the backend's check_passwords_permission, which now
+// surfaces the extension's actually-declared tags instead of a bare "*").
+function parseTagsFromTarget(target: string): string[] {
+  if (target === '*' || !target) {
+    return []
+  }
+  return target.split(',').map((t) => t.trim()).filter(Boolean)
+}
+
+const isPasswordsWriteAction = computed(() => props.promptData?.action === 'readWrite')
+
+const showPasswordsDefaultTag = computed(
+  () => !passwordsWildcard.value && passwordsTags.value.length > 1 && isPasswordsWriteAction.value,
+)
+
+const isAllowDisabled = computed(() => {
+  if (props.promptData?.resourceType === 'passwords') {
+    if (passwordsWildcard.value) {
+      return false
+    }
+    if (passwordsTags.value.length === 0) {
+      return true
+    }
+    return (
+      showPasswordsDefaultTag.value
+      && !passwordsTags.value.includes(passwordsDefaultTag.value ?? '')
+    )
+  }
+  return !editableTarget.value.trim()
+})
+
+// Keep the chosen default tag valid whenever the tag selection changes: if the
+// tag currently marked as default gets deselected, fall back to the lone
+// remaining tag (implicit default) or clear it so Allow stays gated.
+watch(passwordsTags, (tags) => {
+  if (passwordsDefaultTag.value && !tags.includes(passwordsDefaultTag.value)) {
+    passwordsDefaultTag.value = tags.length === 1 ? tags[0] : undefined
+  }
+})
+
+// Reset checkboxes and editable target/tags when dialog opens
 watch(
   () => props.open,
   (isOpen) => {
     if (isOpen) {
       rememberDecision.value = false
       applyToAll.value = false
+      editableTarget.value = props.promptData?.target ?? ''
+
+      const isWildcardTarget = props.promptData?.target === '*'
+      passwordsWildcard.value = isWildcardTarget
+      passwordsTags.value = isWildcardTarget ? [] : parseTagsFromTarget(props.promptData?.target ?? '')
+      passwordsDefaultTag.value = passwordsTags.value.length === 1 ? passwordsTags.value[0] : undefined
     }
   },
 )
+
+// Offers a one-click narrowing of a full URL target down to its bare host,
+// matching the backend's domain-suffix matching (see web_matching_status).
+const domainOnlyTarget = computed(() => {
+  try {
+    const host = new URL(editableTarget.value).hostname
+    return host && host !== editableTarget.value ? host : null
+  } catch {
+    return null
+  }
+})
+
+function applyDomainOnlyTarget() {
+  if (domainOnlyTarget.value) {
+    editableTarget.value = domainOnlyTarget.value
+  }
+}
 
 const modelOpen = computed({
   get: () => props.open,
@@ -169,6 +287,8 @@ const resourceTypeIcon = computed(() => {
       return 'i-heroicons-user-group'
     case 'passwords':
       return 'i-heroicons-key'
+    case 'extensionApi':
+      return 'i-heroicons-puzzle-piece'
     default:
       return 'i-heroicons-question-mark-circle'
   }
@@ -194,21 +314,35 @@ const resourceTypeLabel = computed(() => {
       return t('resourceType.spaces')
     case 'passwords':
       return t('resourceType.passwords')
+    case 'extensionApi':
+      return t('resourceType.extensionApi')
     default:
       return t('resourceType.unknown')
   }
 })
 
+function buildEdit(): PermissionPromptEdit {
+  if (props.promptData?.resourceType === 'passwords') {
+    const tags = passwordsWildcard.value ? ['*'] : passwordsTags.value
+    return {
+      target: tags.join(','),
+      tags,
+      defaultTag: passwordsWildcard.value ? undefined : passwordsDefaultTag.value,
+    }
+  }
+  return { target: editableTarget.value.trim() }
+}
+
 function onAllow() {
-  emit('decision', 'granted', rememberDecision.value, applyToAll.value)
+  emit('decision', 'granted', rememberDecision.value, applyToAll.value, buildEdit())
 }
 
 function onDeny() {
-  emit('decision', 'denied', rememberDecision.value, applyToAll.value)
+  emit('decision', 'denied', rememberDecision.value, applyToAll.value, buildEdit())
 }
 
 function onCancel() {
-  emit('decision', 'denied', false, false)
+  emit('decision', 'denied', false, false, { target: props.promptData?.target ?? '' })
 }
 </script>
 
@@ -219,6 +353,10 @@ de:
   requestsPermission: möchte eine Berechtigung
   action: Aktion
   target: Ziel
+  domainOnly: Nur Domain
+  passwordsAllTags: Zugriff auf alle Tags erlauben
+  passwordsDefaultTag: Standard-Tag für neue Einträge
+  passwordsDefaultTagPlaceholder: Tag auswählen
   resourceType:
     db: Datenbankzugriff
     web: Netzwerkzugriff
@@ -229,6 +367,7 @@ de:
     syncRules: Sync-Regeln
     spaces: Shared Spaces
     passwords: Passwortzugriff
+    extensionApi: Zugriff auf externe Anwendung
     unknown: Unbekannt
   warning:
     title: Vorsicht
@@ -243,6 +382,10 @@ en:
   requestsPermission: is requesting a permission
   action: Action
   target: Target
+  domainOnly: Domain only
+  passwordsAllTags: Allow access to all tags
+  passwordsDefaultTag: Default tag for new entries
+  passwordsDefaultTagPlaceholder: Select a tag
   resourceType:
     db: Database Access
     web: Network Access
@@ -253,6 +396,7 @@ en:
     syncRules: Sync Rules
     spaces: Shared Spaces
     passwords: Password Access
+    extensionApi: External Application Access
     unknown: Unknown
   warning:
     title: Caution

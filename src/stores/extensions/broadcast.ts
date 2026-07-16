@@ -367,6 +367,40 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     log.warn(`No registered iframe for external request: ${extensionName}`)
   }
 
+  /**
+   * Forward a resolved permission decision to the owning extension's iframe(s).
+   * The backend emits `extension:permission-resolved` to "main" for iframe
+   * extensions (they have no native window to target directly). Without this
+   * forward the in-iframe SDK never learns the decision, so its original
+   * request never retries (on grant) — it just hangs until timeout. The
+   * envelope mirrors the SDK's `{ type, data, timestamp }` contract; the SDK
+   * matches `data.{resourceType,action,target}` against its pending request.
+   */
+  const forwardPermissionResolved = (payload: {
+    extensionId: string
+    resourceType: string
+    action: string
+    target: string
+    decision: string
+  }) => {
+    const message = {
+      type: HAEXTENSION_EVENTS.PERMISSION_RESOLVED,
+      data: {
+        resourceType: payload.resourceType,
+        action: payload.action,
+        target: payload.target,
+        decision: payload.decision,
+      },
+      timestamp: Date.now(),
+    }
+
+    for (const entry of iframeRegistry.values()) {
+      if (entry.extension.id !== payload.extensionId) continue
+      if (entry.ready) entry.port.postMessage(message)
+      else entry.buffer.push(message)
+    }
+  }
+
   // ============================================================================
   // Tauri event listeners
   // ============================================================================
@@ -422,6 +456,22 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           { target: 'main' },
         ),
       )
+
+      unlistenFns.push(
+        await listen<{
+          extensionId: string
+          resourceType: string
+          action: string
+          target: string
+          decision: string
+        }>(
+          HAEXTENSION_EVENTS.PERMISSION_RESOLVED,
+          (event) => {
+            forwardPermissionResolved(event.payload)
+          },
+          { target: 'main' },
+        ),
+      )
     }
     catch (error) {
       log.error('Failed to setup event listeners:', error)
@@ -456,6 +506,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     broadcastFileChanged,
     broadcastShellEvent,
     forwardExternalRequest,
+    forwardPermissionResolved,
 
     setupEventListeners,
     cleanup,

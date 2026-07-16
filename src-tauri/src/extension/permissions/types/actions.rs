@@ -369,6 +369,41 @@ impl FromStr for NotificationsAction {
     }
 }
 
+/// Aktion für externe-Client-Zugriffe auf eine Extension über die Bridge.
+///
+/// Single-Variant analog zu `NotificationsAction` — der eigentliche Scope
+/// steckt im `target` (`"{extension_public_key}::{extension_name}::{action}"`,
+/// Wildcard `…::*`), nicht in dieser Aktion selbst. Existiert primär, damit
+/// `Action::ExtensionApi(...)` einen typsicheren Wert braucht.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ExtensionApiAction {
+    Call,
+}
+
+impl ExtensionApiAction {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ExtensionApiAction::Call => "call",
+        }
+    }
+}
+
+impl FromStr for ExtensionApiAction {
+    type Err = ExtensionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "call" => Ok(ExtensionApiAction::Call),
+            _ => Err(ExtensionError::InvalidActionString {
+                input: s.to_string(),
+                resource_type: "extensionApi".to_string(),
+            }),
+        }
+    }
+}
+
 /// Aktionen auf dem Core-Passworttresor.
 ///
 /// Scope wird über `ExtensionPermission.target` als Tag-Filter gesteuert
@@ -413,7 +448,9 @@ impl FromStr for PasswordsAction {
 /// Beschreibt welche Tag-Scopes eine Extension für die angefragte Aktion lesen
 /// bzw. schreiben darf. Wird von den Bridge-Commands verwendet um SQL-Queries
 /// auf die erlaubten Tags zu begrenzen.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[serde(tag = "type", rename_all = "camelCase")]
+#[ts(export)]
 pub enum PasswordsScope {
     /// Wildcard — Extension darf auf Einträge mit beliebigen Tags zugreifen.
     /// Vollzugriff hat kein Default-Label (nichts wird beim Erstellen erzwungen).
@@ -463,6 +500,7 @@ pub enum Action {
     Passwords(PasswordsAction),
     Mail(MailAction),
     Notifications(NotificationsAction),
+    ExtensionApi(ExtensionApiAction),
 }
 
 impl Action {
@@ -516,6 +554,10 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
+            Action::ExtensionApi(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
         }
     }
 
@@ -543,6 +585,9 @@ impl Action {
             ResourceType::Mail => Ok(Action::Mail(MailAction::from_str(s)?)),
             ResourceType::Notifications => {
                 Ok(Action::Notifications(NotificationsAction::from_str(s)?))
+            }
+            ResourceType::ExtensionApi => {
+                Ok(Action::ExtensionApi(ExtensionApiAction::from_str(s)?))
             }
         }
     }
