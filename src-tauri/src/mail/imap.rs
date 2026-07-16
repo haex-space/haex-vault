@@ -11,6 +11,7 @@ use async_imap::types::Fetch;
 use async_imap::Session;
 use futures_util::TryStreamExt;
 use imap_proto::types::{Address as ImapAddress, BodyStructure};
+use mail_parser::{parsers::MessageStream, HeaderValue};
 use tokio::net::TcpStream;
 use tokio_native_tls::TlsStream;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
@@ -441,6 +442,24 @@ fn imap_err(e: async_imap::error::Error) -> MailError {
     }
 }
 
+/// Decode an RFC 2047 encoded-word header value (`=?charset?enc?data?=`).
+///
+/// The IMAP ENVELOPE response returns header fields (subject, address
+/// display-names) verbatim off the wire — the server does not decode
+/// MIME encoded-words, unlike `parsing::parse_message`'s mail-parser-based
+/// full-body parse. Falls back to lossy UTF-8 for plain, unencoded values.
+fn decode_rfc2047(raw: &[u8]) -> String {
+    // `parse_unstructured` only flushes its token buffer on a header-line
+    // terminator — raw ENVELOPE field bytes don't carry one.
+    let mut header = Vec::with_capacity(raw.len() + 1);
+    header.extend_from_slice(raw);
+    header.push(b'\n');
+    match MessageStream::new(&header).parse_unstructured() {
+        HeaderValue::Text(s) => s.into_owned(),
+        _ => String::from_utf8_lossy(raw).into_owned(),
+    }
+}
+
 /// Build a UID-set string for IMAP from a `FetchRange`.
 ///
 /// `FetchRange::Latest` is translated by querying the current EXISTS
@@ -494,7 +513,7 @@ fn envelope_from_fetch(f: &Fetch) -> MessageEnvelope {
     let subject = env
         .as_ref()
         .and_then(|e| e.subject.as_ref())
-        .map(|b| String::from_utf8_lossy(b).into_owned());
+        .map(|b| decode_rfc2047(b));
 
     let from = env
         .as_ref()
@@ -565,10 +584,7 @@ fn has_non_body_part(bs: &BodyStructure<'_>) -> bool {
 }
 
 fn addr_from_imap(a: &ImapAddress) -> Address {
-    let name = a
-        .name
-        .as_ref()
-        .map(|b| String::from_utf8_lossy(b).into_owned());
+    let name = a.name.as_ref().map(|b| decode_rfc2047(b));
     let mailbox = a
         .mailbox
         .as_ref()
@@ -750,5 +766,19 @@ mod tests {
             vec![text_part("plain", None), embedded_message_part()],
         );
         assert!(has_non_body_part(&bs));
+    }
+
+    #[test]
+    fn decode_rfc2047_decodes_base64_encoded_word() {
+        // ENVELOPE subject bytes as returned raw by the IMAP server.
+        assert_eq!(
+            decode_rfc2047(b"=?UTF-8?B?SGVsbG8gV8OWUkxE?="),
+            "Hello WÖRLD",
+        );
+    }
+
+    #[test]
+    fn decode_rfc2047_passes_through_plain_ascii() {
+        assert_eq!(decode_rfc2047(b"Plain ASCII subject"), "Plain ASCII subject");
     }
 }
