@@ -7,5 +7,10 @@
 //! Account credentials are NOT stored here — extensions load them from
 //! the core passwords vault (filtered by tag scope) and pass them in
 //! per call. The wrapper has no notion of "accounts" beyond this.
+//!
+//! `poll` is the one exception: it resolves an extension's own account
+//! credentials internally (see its module doc) to run background
+//! new-mail watches without needing a per-call caller.
 
 pub mod commands;
+pub mod poll;

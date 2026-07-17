@@ -287,6 +287,41 @@ async fn fetch_attachment_inner(
     parsing::extract_attachment(body, part_index)
 }
 
+/// Count messages whose UID is greater than `since_uid` in `mailbox`.
+///
+/// Used by the mail-poll loop to size a "new mail" notification accurately:
+/// UIDNEXT can advance without `since_uid` messages actually landing (the
+/// IMAP spec allows servers to leave gaps in the UID sequence), so diffing
+/// UIDNEXT alone can over-report. `UID SEARCH` returns the UIDs that
+/// actually exist above the baseline.
+pub async fn count_new_uids(
+    config: &ImapConfig,
+    mailbox: &str,
+    since_uid: u32,
+) -> Result<u32, MailError> {
+    let mut session = login(config).await?;
+    let result = count_new_uids_inner(&mut session, mailbox, since_uid).await;
+    logout(session).await;
+    result
+}
+
+async fn count_new_uids_inner(
+    session: &mut ImapSession,
+    mailbox: &str,
+    since_uid: u32,
+) -> Result<u32, MailError> {
+    session.select(mailbox).await.map_err(imap_err)?;
+    // `*` resolves to the highest existing UID, so when `since_uid` is already
+    // the highest UID the range `since_uid+1:*` inverts (e.g. `11:10`) and the
+    // server matches the last message anyway — IMAP ranges are order-independent
+    // (RFC 3501 §9). Prefix with the explicit `UID` search key and filter
+    // client-side so already-seen UIDs never inflate the count.
+    let uid_set = format!("UID {}:*", since_uid.saturating_add(1));
+    let uids = session.uid_search(uid_set).await.map_err(imap_err)?;
+    let new_count = uids.into_iter().filter(|&uid| uid > since_uid).count();
+    Ok(new_count as u32)
+}
+
 /// Set or unset flags on a UID set. `add=true` for STORE +FLAGS,
 /// `add=false` for STORE -FLAGS. Use `flags=["\\Seen"]` to mark read.
 pub async fn set_flags(
