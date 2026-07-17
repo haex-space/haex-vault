@@ -1,5 +1,38 @@
 # Changelog
 
+## [2.15.0](https://github.com/haex-space/haex-vault/compare/v2.14.0...v2.15.0) (2026-07-17)
+
+
+### Features
+
+* **external-bridge:** permission parity for external bridge clients ([#666](https://github.com/haex-space/haex-vault/issues/666)) ([3414d23](https://github.com/haex-space/haex-vault/commit/3414d23100b4091dde55617777b736c3c3d0c47c))
+* **permissions:** editable permission-prompt scope, passwords tag grants ([96b85bb](https://github.com/haex-space/haex-vault/commit/96b85bbdb7a1f4f3cb6562c9a6ef7e1fe3dc7fb0))
+* **permissions:** editable permission-prompt scope, passwords tag grants ([f87a1d3](https://github.com/haex-space/haex-vault/commit/f87a1d384e9ec6eb9e0346a069ff86607a1a446a))
+
+
+### Bug Fixes
+
+* **ci:** build e2e binary with tauri/custom-protocol feature ([83b4a8f](https://github.com/haex-space/haex-vault/commit/83b4a8f45190d8c104cc5792520475731b12e6df))
+* **ci:** don't block on pnpm audit until pnpm 11 migration ([d26b677](https://github.com/haex-space/haex-vault/commit/d26b6775467c5d508811a629a2cbcc6d55652215))
+* **ci:** don't block on pnpm audit until pnpm 11 migration ([aea8c91](https://github.com/haex-space/haex-vault/commit/aea8c91e6aae45d13916078443c3c40d33b56622))
+* **ci:** include database migrations in e2e artifact ([36ea042](https://github.com/haex-space/haex-vault/commit/36ea04255ca4cfa6157a310155a2131f735b4a9b))
+* **ci:** include database migrations in e2e artifact ([3bb8acf](https://github.com/haex-space/haex-vault/commit/3bb8acfe8151dcc715b399c204de00a534d69fcf))
+* **external-bridge:** enforce passwords scope and fix multi-target grant ([6287163](https://github.com/haex-space/haex-vault/commit/6287163b53646fa51835e1e6b7ec7f955afc7df2))
+* **external-bridge:** enforce passwords tag scope for get-totp and passkeys ([fa085af](https://github.com/haex-space/haex-vault/commit/fa085afbc5890c3ce4b5f90f4fb775fd6a2b3d55))
+* **external-bridge:** grant all selected targets in one client_allow call ([ccb9dd1](https://github.com/haex-space/haex-vault/commit/ccb9dd1dd5bafb90867d1e6ad8d00bffa6fc4e69))
+* **mail:** decode RFC 2047 encoded-word subjects and address names from IMAP envelope ([6e0a552](https://github.com/haex-space/haex-vault/commit/6e0a552faf22b6d9360fb02628a032ccf295fb6d))
+* **mail:** decode RFC 2047 encoded-word subjects and address names from IMAP envelope ([604460d](https://github.com/haex-space/haex-vault/commit/604460d182d5bc08e9a03aa59a00a241e8dddcc2))
+* **mail:** run cargo fmt on decode_rfc2047 test ([dadbd1c](https://github.com/haex-space/haex-vault/commit/dadbd1c32e1c2f7971ae9b301ec80b7de0961d63))
+* **marketplace:** refresh catalog after extension update ([68cc453](https://github.com/haex-space/haex-vault/commit/68cc453691a88742b7a7419f475f048221cb7ae6))
+* **marketplace:** refresh catalog after extension update ([300a07e](https://github.com/haex-space/haex-vault/commit/300a07e11a75bafdef0f52f57dbd279d1bfb31eb))
+* **permissions:** deliver resolved web-permission prompts to iframe extensions ([#664](https://github.com/haex-space/haex-vault/issues/664)) ([9933e25](https://github.com/haex-space/haex-vault/commit/9933e252c7c164eaf19a024d96e1e40cd751780c))
+* **permissions:** don't deny deselected passwords tags on partial grant ([a3a76aa](https://github.com/haex-space/haex-vault/commit/a3a76aafe4bf8f3d43cf184c6792872f8a2f34fb))
+* **permissions:** keep permission prompt open on outside click ([22d96bb](https://github.com/haex-space/haex-vault/commit/22d96bbaa31e2c319eac9b9751cbabe07b48a0a7))
+* **permissions:** keep permission prompt open on outside click ([ff51d1a](https://github.com/haex-space/haex-vault/commit/ff51d1ac96839bb481e4e58ecd5b5f19dab8feef))
+* **sync:** close command-allowlist drift and always drain pending columns ([b979a72](https://github.com/haex-space/haex-vault/commit/b979a7248b6bb0a3fe8cfd89da5b6fe6b568d160))
+* **sync:** close command-allowlist drift and always drain pending columns ([02249e0](https://github.com/haex-space/haex-vault/commit/02249e023fc896b19ad3e9d09038aa2b48a188de))
+* **types:** make event handlers return void for vue-tsc 3.3.6 ([#638](https://github.com/haex-space/haex-vault/issues/638)) ([e1bcf7e](https://github.com/haex-space/haex-vault/commit/e1bcf7e6cedced1cd87a0ca6bf118f9b7f7f3582))
+
 ## [2.14.0](https://github.com/haex-space/haex-vault/compare/v2.13.0...v2.14.0) (2026-07-13)
 
 
