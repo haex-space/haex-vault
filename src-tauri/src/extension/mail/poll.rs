@@ -13,17 +13,21 @@
 //! hand it credentials each tick.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use tauri::{AppHandle, Manager};
+use tokio::sync::Mutex as AsyncMutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
 use crate::database::core::select_with_crdt;
 use crate::database::error::DatabaseError;
+use crate::extension::permissions::manager::PermissionManager;
+use crate::extension::permissions::types::{MailAction, Principal};
 use crate::extension::utils::get_extension_table_prefix;
 use crate::mail::types::{ConnectionSecurity, ImapConfig};
 use crate::AppState;
@@ -32,6 +36,11 @@ use crate::AppState;
 /// keeps a "watch" meaningfully live rather than degrading into a no-op.
 const MIN_POLL_INTERVAL_SECS: u64 = 30;
 const MAX_POLL_INTERVAL_SECS: u64 = 3600;
+
+/// Upper bound on a single STATUS round-trip. Without this, a stalled IMAP
+/// server can hold `close_database`'s await-all-handles shutdown open
+/// indefinitely (see `run_poll_loop`).
+const STATUS_CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub const MAIL_NEW_MESSAGES_EVENT: &str = "mail:new-messages";
 
@@ -56,6 +65,13 @@ pub struct MailPollManager {
     /// a watch starts so pre-existing mail is never reported as "new" —
     /// only mail arriving after the watch began triggers an event.
     baselines: HashMap<String, (u32, u32)>,
+    /// Per-key lock serializing the start/stop lifecycle (take-old-handle →
+    /// await → spawn → register) for a single watch. Without it, two
+    /// concurrent `extension_mail_start_watch`/`extension_mail_stop_watch`
+    /// calls for the same key can interleave across that gap: one start can
+    /// overwrite another's handle (orphaning a task), or a stop can return
+    /// successfully before a concurrent start has registered its task.
+    lifecycle_locks: HashMap<String, Arc<AsyncMutex<()>>>,
 }
 
 impl MailPollManager {
@@ -63,7 +79,18 @@ impl MailPollManager {
         Self {
             active: HashMap::new(),
             baselines: HashMap::new(),
+            lifecycle_locks: HashMap::new(),
         }
+    }
+
+    /// Fetch (or create) the lifecycle lock for `key`. Callers must acquire
+    /// this lock BEFORE reading/mutating `active`/`baselines` for the key,
+    /// and hold it for the entire start-or-stop sequence.
+    pub fn lifecycle_lock(&mut self, key: &str) -> Arc<AsyncMutex<()>> {
+        self.lifecycle_locks
+            .entry(key.to_string())
+            .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+            .clone()
     }
 
     pub fn is_running(&self, key: &str) -> bool {
@@ -230,16 +257,49 @@ pub async fn run_poll_loop(
                     }
                 };
 
-                let mailboxes =
-                    match crate::mail::imap::list_mailboxes(&imap_config, None, Some(&mailbox_name), true)
-                        .await
-                    {
-                        Ok(mailboxes) => mailboxes,
-                        Err(e) => {
-                            eprintln!("[mail-poll] IMAP status check failed for {key}: {e}");
-                            continue;
+                // Permission was checked once in `extension_mail_start_watch`,
+                // against the host that was current at start time. Recheck it
+                // every tick against the freshly-resolved host: the account row
+                // can change afterward, and a revoked `Poll` grant must stop the
+                // watch rather than keep sending credentials in the background.
+                if PermissionManager::check_mail_permission(
+                    &state,
+                    &Principal::Extension(extension_id.clone()),
+                    MailAction::Poll,
+                    &imap_config.host,
+                )
+                .await
+                .is_err()
+                {
+                    state.mail_poll_manager.lock().await.deregister(&key);
+                    break;
+                }
+
+                // Race the STATUS round-trip against cancellation and a bounded
+                // timeout — `close_database` awaits this task's handle on vault
+                // lock, so a stalled IMAP server must not hold shutdown open.
+                let status_check = crate::mail::imap::list_mailboxes(
+                    &imap_config,
+                    None,
+                    Some(&mailbox_name),
+                    true,
+                );
+                let mailboxes = tokio::select! {
+                    _ = cancel.cancelled() => break,
+                    result = tokio::time::timeout(STATUS_CHECK_TIMEOUT, status_check) => {
+                        match result {
+                            Ok(Ok(mailboxes)) => mailboxes,
+                            Ok(Err(e)) => {
+                                eprintln!("[mail-poll] IMAP status check failed for {key}: {e}");
+                                continue;
+                            }
+                            Err(_) => {
+                                eprintln!("[mail-poll] IMAP status check timed out for {key}");
+                                continue;
+                            }
                         }
-                    };
+                    }
+                };
 
                 let Some(mailbox) = mailboxes.into_iter().find(|m| m.name == mailbox_name) else {
                     eprintln!("[mail-poll] mailbox {mailbox_name} not found for {key}");
@@ -251,29 +311,62 @@ pub async fn run_poll_loop(
                     continue;
                 };
 
-                let mut manager = state.mail_poll_manager.lock().await;
-                let new_count = match manager.get_baseline(&key) {
+                let baseline = state.mail_poll_manager.lock().await.get_baseline(&key);
+                let new_count = match baseline {
                     None => {
                         // First tick: seed the baseline at the current
                         // high-water mark WITHOUT emitting — otherwise every
                         // pre-existing message would be reported as "new".
-                        manager.set_baseline(&key, uid_validity, uid_next.saturating_sub(1));
+                        state
+                            .mail_poll_manager
+                            .lock()
+                            .await
+                            .set_baseline(&key, uid_validity, uid_next.saturating_sub(1));
                         None
                     }
                     Some((prev_uid_validity, _)) if prev_uid_validity != uid_validity => {
                         // Mailbox was recreated (UIDVALIDITY changed) — old
                         // UIDs are meaningless now. Reseed rather than diff.
-                        manager.set_baseline(&key, uid_validity, uid_next.saturating_sub(1));
+                        state
+                            .mail_poll_manager
+                            .lock()
+                            .await
+                            .set_baseline(&key, uid_validity, uid_next.saturating_sub(1));
                         None
                     }
                     Some((_, prev_last_seen)) if uid_next > prev_last_seen + 1 => {
-                        let count = uid_next - 1 - prev_last_seen;
-                        manager.set_baseline(&key, uid_validity, uid_next.saturating_sub(1));
-                        Some(count)
+                        // UIDNEXT can advance without `prev_last_seen`
+                        // messages actually landing — servers may leave gaps
+                        // in the UID sequence — so diffing UIDNEXT alone can
+                        // over-report `new_count`. Count the UIDs that
+                        // actually exist above the baseline instead.
+                        match crate::mail::imap::count_new_uids(
+                            &imap_config,
+                            &mailbox_name,
+                            prev_last_seen,
+                        )
+                        .await
+                        {
+                            Ok(count) => {
+                                state.mail_poll_manager.lock().await.set_baseline(
+                                    &key,
+                                    uid_validity,
+                                    uid_next.saturating_sub(1),
+                                );
+                                Some(count)
+                            }
+                            Err(e) => {
+                                // Leave the baseline unchanged so the next tick
+                                // retries the count from the same starting point.
+                                eprintln!(
+                                    "[mail-poll] failed to count new UIDs for {key}: {e}"
+                                );
+                                None
+                            }
+                        }
                     }
                     Some(_) => None,
                 };
-                drop(manager);
 
                 if let Some(new_count) = new_count {
                     let payload = MailNewMessagesEvent {

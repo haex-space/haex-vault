@@ -340,6 +340,13 @@ pub async fn extension_mail_start_watch(
 
     let key = mail_poll_key(&extension_id, &account_id, &mailbox_name);
 
+    // Serialize the whole replace lifecycle for this key against concurrent
+    // start/stop calls — otherwise the take_stop -> register gap below lets
+    // two starts orphan each other's task, or a concurrent stop return
+    // successfully before this call has registered its replacement.
+    let lifecycle_lock = state.mail_poll_manager.lock().await.lifecycle_lock(&key);
+    let _lifecycle_guard = lifecycle_lock.lock().await;
+
     // Replace-on-duplicate-start semantics, same as `file_sync_start_rule`:
     // stop any previous watch for this key and await its handle OUTSIDE the
     // manager lock before spawning the new one.
@@ -383,6 +390,10 @@ pub async fn extension_mail_stop_watch(
 ) -> Result<(), ExtensionError> {
     let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
     let key = mail_poll_key(&extension_id, &account_id, &mailbox_name);
+
+    // Same per-key lock as `extension_mail_start_watch` — see its comment.
+    let lifecycle_lock = state.mail_poll_manager.lock().await.lifecycle_lock(&key);
+    let _lifecycle_guard = lifecycle_lock.lock().await;
 
     let handle = {
         let mut manager = state.mail_poll_manager.lock().await;
