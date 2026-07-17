@@ -33,8 +33,14 @@ import type {
 
 type Db = ReturnType<typeof requireDb>
 
-/** `null` means unrestricted (scope is `all`, or missing/undefined). */
-const resolveScopeItemIdsAsync = async (
+/**
+ * Resolve a granted tag scope to the set of item ids it covers.
+ * `null` means unrestricted (scope is `all`, or missing/undefined).
+ *
+ * Shared with the passkey handlers so TOTP/passkey access is confined to
+ * the same tag scope as get-items/update-item.
+ */
+export const resolveScopeItemIdsAsync = async (
   db: Db,
   scope: PasswordsScope | null | undefined,
 ): Promise<Set<string> | null> => {
@@ -211,6 +217,14 @@ export const handleGetTotpAsync = async (
   if (!entryId) return errorResponse(request.requestId, 'Missing required field: entryId')
 
   const db = requireDb()
+
+  // A tag-scoped grant may only read TOTP for entries inside its scope —
+  // otherwise a client could pull secrets for any entry id it guesses/knows.
+  const allowedItemIds = await resolveScopeItemIdsAsync(db, request.scope)
+  if (allowedItemIds && !allowedItemIds.has(entryId)) {
+    return errorResponse(request.requestId, 'Entry is outside the granted tag scope')
+  }
+
   const [entry] = await db
     .select({
       otpSecret: haexPasswordsItemDetails.otpSecret,

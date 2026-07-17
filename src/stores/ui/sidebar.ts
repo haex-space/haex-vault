@@ -1,11 +1,11 @@
-import type { RouteLocationAsRelativeGeneric } from 'vue-router'
+import type { RouteLocationNamedI18n } from 'vue-router'
 
 export interface ISidebarItem {
   name: string
   icon: string
   tooltip?: string
   id: string
-  to?: RouteLocationAsRelativeGeneric
+  to?: RouteLocationNamedI18n
   iconType?: 'icon' | 'svg'
   onSelect?: () => void
 }

@@ -10,6 +10,7 @@ import {
 } from '@haex-space/vault-sdk'
 import { haexPasswordsPasskeys } from '~/database/schemas/passwords'
 import { requireDb } from '~/stores/vault'
+import { resolveScopeItemIdsAsync } from './passwords'
 import { errorResponse } from './shared'
 import type {
   ExternalCoreRequest,
@@ -18,6 +19,15 @@ import type {
   PasskeyGetPayload,
   PasskeyListPayload,
 } from './types'
+
+// A passkey belongs to a tag scope only through its linked password item.
+// `allowedItemIds === null` means the grant is unrestricted; a standalone
+// passkey (`itemId === null`) has no item and is therefore outside every
+// tag scope — only an unrestricted grant may touch it.
+const passkeyInScope = (
+  itemId: string | null,
+  allowedItemIds: Set<string> | null,
+): boolean => allowedItemIds === null || (itemId !== null && allowedItemIds.has(itemId))
 
 // ---------------------------------------------------------------------------
 // WebAuthn helpers (CBOR "none" attestation)
@@ -121,6 +131,14 @@ export const handlePasskeyCreateAsync = async (
 
   const db = requireDb()
 
+  // Tag-scoped grants may only create passkeys inside their scope. A passkey
+  // linked to an out-of-scope item — or a standalone passkey the scope can't
+  // contain — is refused rather than silently created outside the grant.
+  const allowedItemIds = await resolveScopeItemIdsAsync(db, request.scope)
+  if (allowedItemIds && !passkeyInScope(payload.itemId ?? null, allowedItemIds)) {
+    return errorResponse(request.requestId, 'Passkey item is outside the granted tag scope')
+  }
+
   if (payload.excludeCredentials && payload.excludeCredentials.length > 0) {
     for (const excludedId of payload.excludeCredentials) {
       const [existing] = await db
@@ -200,6 +218,11 @@ export const handlePasskeyGetAsync = async (
 
   const db = requireDb()
 
+  // Confine the lookup to the granted tag scope. Out-of-scope passkeys are
+  // treated as non-existent so a scoped client cannot sign with — or even
+  // probe for — credentials outside its scope.
+  const allowedItemIds = await resolveScopeItemIdsAsync(db, request.scope)
+
   let passkey: typeof haexPasswordsPasskeys.$inferSelect | undefined
   if (payload.allowCredentials && payload.allowCredentials.length > 0) {
     for (const allowed of payload.allowCredentials) {
@@ -213,13 +236,13 @@ export const handlePasskeyGetAsync = async (
           ),
         )
         .limit(1)
-      if (found) {
+      if (found && passkeyInScope(found.itemId, allowedItemIds)) {
         passkey = found
         break
       }
     }
   } else {
-    const [found] = await db
+    const candidates = await db
       .select()
       .from(haexPasswordsPasskeys)
       .where(
@@ -228,8 +251,7 @@ export const handlePasskeyGetAsync = async (
           eq(haexPasswordsPasskeys.isDiscoverable, true),
         ),
       )
-      .limit(1)
-    passkey = found
+    passkey = candidates.find((c) => passkeyInScope(c.itemId, allowedItemIds))
   }
 
   if (!passkey) return errorResponse(request.requestId, 'No matching passkey found')
@@ -295,11 +317,15 @@ export const handlePasskeyListAsync = async (
     ? await db.select().from(haexPasswordsPasskeys).where(and(...conditions))
     : await db.select().from(haexPasswordsPasskeys)
 
+  // Only list passkeys inside the granted tag scope.
+  const allowedItemIds = await resolveScopeItemIdsAsync(db, request.scope)
+  const scopedPasskeys = passkeys.filter((p) => passkeyInScope(p.itemId, allowedItemIds))
+
   return {
     requestId: request.requestId,
     success: true,
     data: {
-      passkeys: passkeys.map((p) => ({
+      passkeys: scopedPasskeys.map((p) => ({
         id: p.id,
         credentialId: p.credentialId,
         relyingPartyId: p.relyingPartyId,

@@ -141,7 +141,8 @@ pub async fn external_bridge_revoke_session_authorization(
     let bridge = state.external_bridge.lock().await;
     let session_auths = bridge.get_session_authorizations();
     let mut auths = session_auths.write().await;
-    auths.remove(&client_id);
+    // A client may hold one entry per granted target — drop them all.
+    auths.retain(|_, sa| sa.client_id != client_id);
     println!(
         "[ExternalAuth] Session authorization revoked for client: {}",
         client_id
@@ -277,18 +278,20 @@ pub async fn external_bridge_respond(
 /// If remember is true, the authorization is stored permanently in the database.
 /// If remember is false, the authorization is stored for this session only (cleared when haex-vault restarts).
 ///
-/// The frontend signature is unchanged from before permission-parity: still
-/// one call per selected extension (`external-auth.vue` loops
-/// `extensionIds`). The server reads the rest — the client's declared
-/// manifest — from the pending authorization captured at handshake time, and
-/// builds/persists the actual `ExtensionApi`/`Passwords` permission rows.
+/// The user may approve several targets at once (core + one or more
+/// extensions); `external-auth.vue` sends the whole selection as
+/// `extensionIds`. All targets are granted in THIS single call so the
+/// pending authorization — which holds the client's declared manifest and is
+/// cleared once authorization is granted — stays available while every
+/// target's permission rows are built. Granting one target per call used to
+/// drop the manifest after the first, leaving later targets with empty rows.
 #[tauri::command]
 pub async fn external_bridge_client_allow(
     app_handle: AppHandle,
     client_id: String,
     client_name: String,
     public_key: String,
-    extension_id: String,
+    extension_ids: Vec<String>,
     remember: bool,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
@@ -305,177 +308,184 @@ pub async fn external_bridge_client_allow(
         .unwrap_or(&empty_requested_extensions);
     let canonical = canonical_requested_permissions(&declared_permissions, declared_extensions);
 
-    // Declared permissions scoped to THIS grant call: core permissions for
-    // the CORE_EXTENSION_ID call, or this one extension's declared actions
-    // otherwise. Undeclared resources get no rows at all — they fall
-    // through to a runtime prompt (Entscheidung 2 of the permission-parity
-    // plan), they are never silently granted.
-    let is_core = extension_id == CORE_EXTENSION_ID;
-    let mut internal_permissions: Vec<ExtensionPermission> = Vec::new();
-    let mut cleared_extension_prefix: Option<String> = None;
+    // Grant every selected target while the pending manifest is still present.
+    for extension_id in &extension_ids {
+        // Declared permissions scoped to THIS target: core permissions for
+        // the CORE_EXTENSION_ID target, or this one extension's declared
+        // actions otherwise. Undeclared resources get no rows at all — they
+        // fall through to a runtime prompt (Entscheidung 2 of the
+        // permission-parity plan), they are never silently granted.
+        let is_core = extension_id.as_str() == CORE_EXTENSION_ID;
+        let mut internal_permissions: Vec<ExtensionPermission> = Vec::new();
+        let mut cleared_extension_prefix: Option<String> = None;
 
-    if let Some(pending) = &pending {
-        if is_core {
-            if let Some(client_permissions) = &pending.permissions {
-                let mut core = client_permissions.core.clone();
-                core.set_all_granted();
-                internal_permissions.extend(core.to_internal_permissions(&client_id));
-            }
-        } else if let Some((pk, name)) =
-            get_extension_public_key_and_name(&app_handle, &extension_id).await
-        {
-            let prefix = format!("{pk}::{name}::");
-            if let Some(req_ext) = pending
-                .requested_extensions
-                .iter()
-                .find(|e| e.extension_public_key == pk && e.name == name)
-            {
-                for action in &req_ext.actions {
-                    internal_permissions.push(ExtensionPermission {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        principal_id: client_id.clone(),
-                        resource_type: ResourceType::ExtensionApi,
-                        action: Action::ExtensionApi(ExtensionApiAction::Call),
-                        target: format!("{prefix}{action}"),
-                        constraints: None,
-                        status: PermissionStatus::Granted,
-                        raw_constraints: None,
-                    });
+        if let Some(pending) = &pending {
+            if is_core {
+                if let Some(client_permissions) = &pending.permissions {
+                    let mut core = client_permissions.core.clone();
+                    core.set_all_granted();
+                    internal_permissions.extend(core.to_internal_permissions(&client_id));
                 }
+            } else if let Some((pk, name)) =
+                get_extension_public_key_and_name(&app_handle, extension_id).await
+            {
+                let prefix = format!("{pk}::{name}::");
+                if let Some(req_ext) = pending
+                    .requested_extensions
+                    .iter()
+                    .find(|e| e.extension_public_key == pk && e.name == name)
+                {
+                    for action in &req_ext.actions {
+                        internal_permissions.push(ExtensionPermission {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            principal_id: client_id.clone(),
+                            resource_type: ResourceType::ExtensionApi,
+                            action: Action::ExtensionApi(ExtensionApiAction::Call),
+                            target: format!("{prefix}{action}"),
+                            constraints: None,
+                            status: PermissionStatus::Granted,
+                            raw_constraints: None,
+                        });
+                    }
+                }
+                cleared_extension_prefix = Some(prefix);
             }
-            cleared_extension_prefix = Some(prefix);
         }
-    }
 
-    if remember {
-        // Upsert into database via CRDT for permanent authorization. A
-        // re-grant (e.g. after a manifest change forced re-authorization)
-        // already has a (client_id, extension_id) row — a plain INSERT would
-        // violate the unique index and fail the whole grant.
-        let existing_row_id = select_with_crdt(
-            SQL_GET_CLIENT_EXTENSION_ROW_ID.to_string(),
-            vec![
-                JsonValue::String(client_id.clone()),
-                JsonValue::String(extension_id.clone()),
-            ],
-            &state.db,
-        )
-        .map_err(|e| e.to_string())?
-        .first()
-        .and_then(|row| row.first())
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        if remember {
+            // Upsert into database via CRDT for permanent authorization. A
+            // re-grant (e.g. after a manifest change forced re-authorization)
+            // already has a (client_id, extension_id) row — a plain INSERT
+            // would violate the unique index and fail the whole grant.
+            let existing_row_id = select_with_crdt(
+                SQL_GET_CLIENT_EXTENSION_ROW_ID.to_string(),
+                vec![
+                    JsonValue::String(client_id.clone()),
+                    JsonValue::String(extension_id.clone()),
+                ],
+                &state.db,
+            )
+            .map_err(|e| e.to_string())?
+            .first()
+            .and_then(|row| row.first())
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
-        {
-            let hlc_guard = state
-                .hlc
-                .lock()
-                .map_err(|e| format!("Failed to lock HLC: {}", e))?;
+            {
+                let hlc_guard = state
+                    .hlc
+                    .lock()
+                    .map_err(|e| format!("Failed to lock HLC: {}", e))?;
 
-            if let Some(row_id) = existing_row_id {
-                let params = vec![
-                    JsonValue::String(row_id),
-                    JsonValue::String(client_name),
-                    JsonValue::String(public_key),
-                ];
+                if let Some(row_id) = existing_row_id {
+                    let params = vec![
+                        JsonValue::String(row_id),
+                        JsonValue::String(client_name.clone()),
+                        JsonValue::String(public_key.clone()),
+                    ];
+                    execute_with_crdt(
+                        SQL_UPDATE_CLIENT_GRANT.to_string(),
+                        params,
+                        &state.db,
+                        &hlc_guard,
+                    )
+                    .map_err(|e| e.to_string())?;
+                } else {
+                    let row_id = uuid::Uuid::new_v4().to_string();
+                    let params = vec![
+                        JsonValue::String(row_id),
+                        JsonValue::String(client_id.clone()),
+                        JsonValue::String(client_name.clone()),
+                        JsonValue::String(public_key.clone()),
+                        JsonValue::String(extension_id.clone()),
+                        JsonValue::String(canonical.clone()),
+                    ];
+                    execute_with_crdt(SQL_INSERT_CLIENT.to_string(), params, &state.db, &hlc_guard)
+                        .map_err(|e| e.to_string())?;
+                }
+
+                // Align the stored manifest on ALL of this client's rows with
+                // the declaration the user just approved (see
+                // SQL_UPDATE_CLIENT_REQUESTED_PERMISSIONS for why).
                 execute_with_crdt(
-                    SQL_UPDATE_CLIENT_GRANT.to_string(),
-                    params,
+                    SQL_UPDATE_CLIENT_REQUESTED_PERMISSIONS.to_string(),
+                    vec![
+                        JsonValue::String(canonical.clone()),
+                        JsonValue::String(client_id.clone()),
+                    ],
                     &state.db,
                     &hlc_guard,
                 )
                 .map_err(|e| e.to_string())?;
-            } else {
-                let row_id = uuid::Uuid::new_v4().to_string();
-                let params = vec![
-                    JsonValue::String(row_id),
-                    JsonValue::String(client_id.clone()),
-                    JsonValue::String(client_name),
-                    JsonValue::String(public_key),
-                    JsonValue::String(extension_id.clone()),
-                    JsonValue::String(canonical.clone()),
-                ];
-                execute_with_crdt(SQL_INSERT_CLIENT.to_string(), params, &state.db, &hlc_guard)
-                    .map_err(|e| e.to_string())?;
             }
 
-            // Align the stored manifest on ALL of this client's rows with the
-            // declaration the user just approved (see
-            // SQL_UPDATE_CLIENT_REQUESTED_PERMISSIONS for why).
-            execute_with_crdt(
-                SQL_UPDATE_CLIENT_REQUESTED_PERMISSIONS.to_string(),
-                vec![
-                    JsonValue::String(canonical.clone()),
-                    JsonValue::String(client_id.clone()),
-                ],
-                &state.db,
-                &hlc_guard,
-            )
-            .map_err(|e| e.to_string())?;
-        }
+            if !internal_permissions.is_empty() || is_core || cleared_extension_prefix.is_some() {
+                let principal = Principal::ExternalClient(client_id.clone());
+                let mut existing = PermissionManager::get_permissions(&state, &principal)
+                    .await
+                    .map_err(|e| e.to_string())?;
 
-        if !internal_permissions.is_empty() || is_core || cleared_extension_prefix.is_some() {
-            let principal = Principal::ExternalClient(client_id.clone());
-            let mut existing = PermissionManager::get_permissions(&state, &principal)
-                .await
-                .map_err(|e| e.to_string())?;
+                // Drop this target's own stale rows (core, or this one
+                // extension's ExtensionApi rows) before re-inserting —
+                // otherwise a narrower re-grant (fewer declared actions/tags
+                // than before) would leave the old, broader rows in place
+                // alongside the new ones, and a same-target re-grant would
+                // violate the unique index. Rows for OTHER extensions/core are
+                // untouched.
+                existing.retain(|p| {
+                    if is_core {
+                        // Core grant replaces the client's ENTIRE core
+                        // permission set (whatever the current manifest
+                        // declares) — every non-ExtensionApi row is core-domain
+                        // and superseded. ExtensionApi rows belong to other,
+                        // separately-granted extensions and are untouched.
+                        p.resource_type == ResourceType::ExtensionApi
+                    } else if let Some(prefix) = &cleared_extension_prefix {
+                        !(p.resource_type == ResourceType::ExtensionApi
+                            && p.target.starts_with(prefix.as_str()))
+                    } else {
+                        true
+                    }
+                });
+                existing.extend(internal_permissions);
 
-            // Drop this grant's own stale rows (core, or this one extension's
-            // ExtensionApi rows) before re-inserting — otherwise a narrower
-            // re-grant (fewer declared actions/tags than before) would leave
-            // the old, broader rows in place alongside the new ones, and a
-            // same-target re-grant would violate the unique index. Rows for
-            // OTHER extensions/core are untouched.
-            existing.retain(|p| {
-                if is_core {
-                    // Core grant replaces the client's ENTIRE core permission
-                    // set (whatever the current manifest declares) — every
-                    // non-ExtensionApi row is core-domain and superseded.
-                    // ExtensionApi rows belong to other, separately-granted
-                    // extensions and are untouched.
-                    p.resource_type == ResourceType::ExtensionApi
-                } else if let Some(prefix) = &cleared_extension_prefix {
-                    !(p.resource_type == ResourceType::ExtensionApi
-                        && p.target.starts_with(prefix.as_str()))
-                } else {
-                    true
-                }
-            });
-            existing.extend(internal_permissions);
+                PermissionManager::replace_permissions(&state, &client_id, &existing)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        } else {
+            // Store session-based authorization (for "allow once")
+            // This persists for the lifetime of the haex-vault session
+            let bridge = state.external_bridge.lock().await;
+            bridge
+                .add_session_authorization(
+                    &client_id,
+                    &client_name,
+                    &public_key,
+                    extension_id,
+                    &canonical,
+                )
+                .await;
+            drop(bridge);
 
-            PermissionManager::replace_permissions(&state, &client_id, &existing)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-
-        // Notify the frontend only after ALL database mutations (client row +
-        // permission rows) are complete, so a UI reload triggered by the event
-        // can never observe a half-applied grant.
-        crate::crdt::notify_dirty_tables_changed(&app_handle);
-    } else {
-        // Store session-based authorization (for "allow once")
-        // This persists for the lifetime of the haex-vault session
-        let bridge = state.external_bridge.lock().await;
-        bridge
-            .add_session_authorization(
-                &client_id,
-                &client_name,
-                &public_key,
-                &extension_id,
-                &canonical,
-            )
-            .await;
-        drop(bridge);
-
-        for permission in internal_permissions {
-            state.session_permissions.set_permission(permission);
+            for permission in internal_permissions {
+                state.session_permissions.set_permission(permission);
+            }
         }
     }
 
-    // Notify connected client that authorization was granted
+    // Notify the frontend only after ALL database mutations (client rows +
+    // permission rows) for every target are complete, so a UI reload triggered
+    // by the event can never observe a half-applied grant.
+    if remember {
+        crate::crdt::notify_dirty_tables_changed(&app_handle);
+    }
+
+    // Notify connected client that authorization was granted, and clear the
+    // pending authorization now that every target has been granted.
     let bridge = state.external_bridge.lock().await;
     bridge
-        .notify_authorization_granted(&client_id, &extension_id)
+        .notify_authorization_granted(&client_id, &extension_ids)
         .await
         .map_err(|e| e.to_string())
 }

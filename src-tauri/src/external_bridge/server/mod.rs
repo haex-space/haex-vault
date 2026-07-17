@@ -64,6 +64,13 @@ pub struct SessionAuthorization {
     pub requested_permissions: String,
 }
 
+/// Map key for `session_authorizations`. A client can hold one entry per
+/// granted target, so the key combines both. Client ids are public-key
+/// fingerprints and never contain "::".
+fn session_auth_key(client_id: &str, extension_id: &str) -> String {
+    format!("{client_id}::{extension_id}")
+}
+
 /// Session blocked client entry (for "deny once" blocks)
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
 #[ts(export, rename_all = "camelCase")]
@@ -137,7 +144,11 @@ impl ExternalBridge {
         self.session_authorizations.clone()
     }
 
-    /// Add a session authorization (for "allow once")
+    /// Add a session authorization (for "allow once").
+    ///
+    /// Keyed by `(client_id, extension_id)` so a client that is granted
+    /// several targets at once keeps one entry per target — keying by
+    /// `client_id` alone let each granted target overwrite the previous one.
     pub async fn add_session_authorization(
         &self,
         client_id: &str,
@@ -148,7 +159,7 @@ impl ExternalBridge {
     ) {
         let mut authorizations = self.session_authorizations.write().await;
         authorizations.insert(
-            client_id.to_string(),
+            session_auth_key(client_id, extension_id),
             SessionAuthorization {
                 client_id: client_id.to_string(),
                 client_name: client_name.to_string(),
@@ -163,10 +174,14 @@ impl ExternalBridge {
         );
     }
 
-    /// Check if a client has a session authorization
+    /// Any session authorization for a client (used only for the display name);
+    /// all of a client's entries share the same name.
     pub async fn get_session_authorization(&self, client_id: &str) -> Option<SessionAuthorization> {
         let authorizations = self.session_authorizations.read().await;
-        authorizations.get(client_id).cloned()
+        authorizations
+            .values()
+            .find(|sa| sa.client_id == client_id)
+            .cloned()
     }
 
     /// Get a clone of the session_blocked map for use in connection handlers
@@ -400,15 +415,19 @@ impl ExternalBridge {
         Ok(())
     }
 
-    /// Notify a client that authorization was granted
+    /// Notify a client that authorization was granted for one or more targets
+    /// and clear its pending authorization. Per-request access is enforced
+    /// per-extension against the DB/session stores, so `ConnectedClient
+    /// .extension_id` (a single slot) is informational only and holds the
+    /// first granted target.
     pub async fn notify_authorization_granted(
         &self,
         client_id: &str,
-        extension_id: &str,
+        extension_ids: &[String],
     ) -> Result<(), BridgeError> {
         println!(
-            "[ExternalBridge] notify_authorization_granted called for client_id={}, extension_id={}",
-            client_id, extension_id
+            "[ExternalBridge] notify_authorization_granted called for client_id={}, extension_ids={:?}",
+            client_id, extension_ids
         );
 
         let mut clients = self.clients.write().await;
@@ -419,7 +438,7 @@ impl ExternalBridge {
 
         if let Some(client) = clients.get_mut(client_id) {
             client.authorized = true;
-            client.extension_id = Some(extension_id.to_string());
+            client.extension_id = extension_ids.first().cloned();
 
             let msg = ProtocolMessage::AuthorizationUpdate { authorized: true };
             let json = serde_json::to_string(&msg)?;
