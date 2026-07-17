@@ -19,6 +19,10 @@ use std::time::Duration;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use tauri::{AppHandle, Manager};
+// `emit_to` (used only in the mobile emit branch below) lives on the `Emitter`
+// trait; gate the import so desktop builds don't warn about an unused import.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+use tauri::Emitter;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
