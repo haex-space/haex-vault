@@ -309,6 +309,10 @@ impl FromStr for IdentityAction {
 pub enum MailAction {
     Fetch,
     Send,
+    /// Continuous background watching for new mail (poll-and-push), as
+    /// opposed to `Fetch`'s one-shot "read on demand". Kept separate so
+    /// users can distinguish/revoke the two consent levels independently.
+    Poll,
 }
 
 impl MailAction {
@@ -316,6 +320,7 @@ impl MailAction {
         match self {
             MailAction::Fetch => "fetch",
             MailAction::Send => "send",
+            MailAction::Poll => "poll",
         }
     }
 }
@@ -327,6 +332,7 @@ impl FromStr for MailAction {
         match s.to_lowercase().as_str() {
             "fetch" => Ok(MailAction::Fetch),
             "send" => Ok(MailAction::Send),
+            "poll" => Ok(MailAction::Poll),
             _ => Err(ExtensionError::InvalidActionString {
                 input: s.to_string(),
                 resource_type: "mail".to_string(),

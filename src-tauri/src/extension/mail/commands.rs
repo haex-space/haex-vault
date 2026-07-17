@@ -6,7 +6,9 @@
 //! `crate::mail`.
 
 use tauri::{AppHandle, State, WebviewWindow};
+use tokio_util::sync::CancellationToken;
 
+use super::poll::{mail_poll_key, run_poll_loop};
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{MailAction, Principal};
@@ -290,4 +292,126 @@ pub async fn extension_mail_build_rfc822(
 
     let bytes = crate::mail::smtp::build_message_bytes(&message).map_err(map_mail_error)?;
     Ok(STANDARD.encode(&bytes))
+}
+
+// ---------------------------------------------------------------------------
+// Background new-mail watching (require MailAction::Poll on imap.host)
+// ---------------------------------------------------------------------------
+
+/// Start (or replace) a background poll watch for `account_id`/`mailbox_name`.
+/// Credentials are resolved server-side (see `poll::resolve_account_imap_config`)
+/// purely from `account_id` — the caller never hands in an `ImapConfig`.
+#[tauri::command]
+pub async fn extension_mail_start_watch(
+    app_handle: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    account_id: String,
+    mailbox_name: String,
+    interval_seconds: u64,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<(), ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    let extension = state
+        .extension_manager
+        .get_extension(&extension_id)
+        .ok_or_else(|| ExtensionError::ValidationError {
+            reason: format!("Extension with ID {} not found", extension_id),
+        })?;
+    let extension_public_key = extension.manifest.public_key.clone();
+    let extension_name = extension.manifest.name.clone();
+
+    let imap_config = super::poll::resolve_account_imap_config(
+        &state,
+        &extension_public_key,
+        &extension_name,
+        &account_id,
+    )
+    .await
+    .map_err(|e| ExtensionError::Database { source: e })?
+    .ok_or_else(|| ExtensionError::ValidationError {
+        reason: format!("Account {} not found", account_id),
+    })?;
+
+    check_fetch_permission_for_watch(&app_handle, &state, &extension_id, &imap_config.host)
+        .await?;
+
+    let key = mail_poll_key(&extension_id, &account_id, &mailbox_name);
+
+    // Replace-on-duplicate-start semantics, same as `file_sync_start_rule`:
+    // stop any previous watch for this key and await its handle OUTSIDE the
+    // manager lock before spawning the new one.
+    let old_handle = {
+        let mut manager = state.mail_poll_manager.lock().await;
+        manager.take_stop(&key)
+    };
+    if let Some(handle) = old_handle {
+        let _ = handle.await;
+    }
+
+    let cancel = CancellationToken::new();
+    let handle = tokio::spawn(run_poll_loop(
+        app_handle,
+        extension_id,
+        extension_public_key,
+        extension_name,
+        account_id,
+        mailbox_name,
+        interval_seconds,
+        cancel.clone(),
+    ));
+
+    let mut manager = state.mail_poll_manager.lock().await;
+    manager.register(key, cancel, handle);
+
+    Ok(())
+}
+
+/// Stop a background poll watch. The key is derived from the CALLER's own
+/// resolved `extension_id`, so an extension can only ever stop its own
+/// watches — no separate permission check is needed here.
+#[tauri::command]
+pub async fn extension_mail_stop_watch(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    account_id: String,
+    mailbox_name: String,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<(), ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+    let key = mail_poll_key(&extension_id, &account_id, &mailbox_name);
+
+    let handle = {
+        let mut manager = state.mail_poll_manager.lock().await;
+        manager.take_stop(&key)
+    };
+    if let Some(handle) = handle {
+        let _ = handle.await;
+    }
+
+    Ok(())
+}
+
+/// `MailAction::Poll` counterpart of `check_fetch_permission` — same
+/// prompt-emission behavior, different action.
+async fn check_fetch_permission_for_watch(
+    app_handle: &AppHandle,
+    state: &State<'_, AppState>,
+    extension_id: &str,
+    host: &str,
+) -> Result<(), ExtensionError> {
+    let result = PermissionManager::check_mail_permission(
+        state,
+        &Principal::Extension(extension_id.to_string()),
+        MailAction::Poll,
+        host,
+    )
+    .await;
+    if let Err(ref e) = result {
+        emit_permission_prompt_if_needed(app_handle, e);
+    }
+    result
 }

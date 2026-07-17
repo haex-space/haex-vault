@@ -39,6 +39,7 @@ use crate::{
     crdt::hlc::HlcService,
     database::{connection_context::ConnectionContext, DbConnection},
     extension::core::ExtensionManager,
+    extension::mail::poll::MailPollManager,
     file_sync::commands::SyncManager,
 };
 
@@ -155,6 +156,8 @@ pub struct AppState {
     >,
     /// Active file sync loops (rule_id → cancellation token)
     pub sync_manager: tokio::sync::Mutex<SyncManager>,
+    /// Active background mail-poll watches (extension/account/mailbox → task)
+    pub mail_poll_manager: tokio::sync::Mutex<MailPollManager>,
     /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
     pub auth_token: Arc<Mutex<Option<String>>>,
     /// PTY manager for shell/terminal sessions
@@ -359,6 +362,7 @@ pub fn run() {
             )),
             transfer_tokens: tokio::sync::Mutex::new(HashMap::new()),
             sync_manager: tokio::sync::Mutex::new(SyncManager::new()),
+            mail_poll_manager: tokio::sync::Mutex::new(MailPollManager::new()),
             auth_token: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
@@ -529,6 +533,8 @@ pub fn run() {
             extension::mail::commands::extension_mail_append_message,
             extension::mail::commands::extension_mail_send_message,
             extension::mail::commands::extension_mail_build_rfc822,
+            extension::mail::commands::extension_mail_start_watch,
+            extension::mail::commands::extension_mail_stop_watch,
             extension::notifications::commands::extension_notifications_show,
             extension::notifications::commands::extension_notifications_dismiss,
             extension::permissions::commands::extension_permissions_check_web,

@@ -252,6 +252,17 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
                 );
             }
         }
+        // Same drain-then-await-outside-the-lock pattern as `sync_manager`
+        // above, applied to background mail-poll watches.
+        let drained_mail_polls = {
+            let mut manager = state.mail_poll_manager.lock().await;
+            manager.take_stop_all()
+        };
+        for (key, handle) in drained_mail_polls {
+            if let Err(join_err) = handle.await {
+                eprintln!("[CLOSE_DB] mail-poll task for {key} terminated abnormally: {join_err}");
+            }
+        }
         for (_, handle) in state.local_sync_loops.lock().await.drain() {
             handle.stop();
         }
