@@ -20,7 +20,7 @@
           color="neutral"
           variant="ghost"
           square
-          @click="isOverviewMode = false"
+          @click="() => { isOverviewMode = false }"
         />
       </div>
     </template>

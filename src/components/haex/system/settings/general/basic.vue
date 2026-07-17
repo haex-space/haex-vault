@@ -56,7 +56,7 @@
           </template>
           <template #footer>
             <div class="flex justify-end gap-2 w-full">
-              <UiButton color="neutral" variant="ghost" :label="t('password.modal.cancel')" @click="isPasswordModalOpen = false" />
+              <UiButton color="neutral" variant="ghost" :label="t('password.modal.cancel')" @click="() => { isPasswordModalOpen = false }" />
               <UiButton color="primary" :label="t('password.modal.submit')" :loading="isChangingPassword" @click="onChangePasswordAsync" />
             </div>
           </template>

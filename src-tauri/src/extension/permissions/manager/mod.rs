@@ -11,6 +11,11 @@ pub struct PermissionManager;
 // module boundary.
 pub(crate) use check::deny_first_precedence;
 
+// `session.rs` (a sibling of `manager` under `permissions`) needs this to
+// implement the session-store counterpart of `PermissionManager::save_passwords_grant`
+// with the exact same tag-cleaning / default-label validation.
+pub(crate) use check::passwords::normalize_passwords_grant_tags;
+
 #[cfg(test)]
 pub(crate) use check::database::database_matching_status;
 #[cfg(test)]
@@ -24,7 +29,8 @@ pub(crate) use check::identities::{
 };
 #[cfg(test)]
 pub(crate) use check::passwords::{
-    parse_passwords_default_marker, resolve_passwords_tags_scope, PasswordsGrantRow,
+    parse_passwords_default_marker, passwords_session_scope, resolve_passwords_tags_scope,
+    PasswordsGrantRow,
 };
 #[cfg(test)]
 pub(crate) use check::rw_resource::{rw_resource_matching_status, rw_resource_session_status};

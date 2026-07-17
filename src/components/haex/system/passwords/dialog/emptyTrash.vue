@@ -11,7 +11,7 @@
           :label="t('cancel')"
           color="neutral"
           variant="outline"
-          @click="open = false"
+          @click="() => { open = false }"
         />
         <UiButton
           icon="i-lucide-trash-2"

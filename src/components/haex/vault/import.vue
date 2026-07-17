@@ -58,7 +58,7 @@
               color="neutral"
               variant="ghost"
               icon="mdi:close"
-              @click="selectedPath = null"
+              @click="() => { selectedPath = null }"
             />
           </div>
           <p class="break-all mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded">

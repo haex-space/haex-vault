@@ -63,7 +63,7 @@
               variant="ghost"
               icon="i-lucide-x"
               :disabled="isSubmitting"
-              @click="showIamCredModal = false"
+              @click="() => { showIamCredModal = false }"
             />
           </div>
         </template>
@@ -101,7 +101,7 @@
               color="neutral"
               variant="outline"
               :disabled="isSubmitting"
-              @click="showIamCredModal = false"
+              @click="() => { showIamCredModal = false }"
             >
               {{ t('cancel') }}
             </UButton>

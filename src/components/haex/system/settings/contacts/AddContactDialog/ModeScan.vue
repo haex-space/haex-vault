@@ -46,7 +46,7 @@
           <UiButton
             variant="outline"
             icon="i-lucide-plus"
-            @click="scanShowAddClaimInlineProxy = true"
+            @click="() => { scanShowAddClaimInlineProxy = true }"
           >
             {{ t('claims.add') }}
           </UiButton>
@@ -69,7 +69,7 @@
             variant="ghost"
             color="error"
             icon="i-lucide-x"
-            @click="scannedContact.claims.splice(index, 1)"
+            @click="() => { scannedContact?.claims.splice(index, 1) }"
           />
         </div>
 
@@ -98,7 +98,7 @@
           <UiButton
             variant="ghost"
             icon="i-lucide-x"
-            @click="scanShowAddClaimInlineProxy = false"
+            @click="() => { scanShowAddClaimInlineProxy = false }"
           />
         </div>
 

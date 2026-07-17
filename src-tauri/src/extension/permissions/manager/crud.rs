@@ -6,7 +6,8 @@ use crate::extension::core::types::Extension;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    split_constraints, Action, ExtensionPermission, PermissionStatus, Principal, ResourceType,
+    split_constraints, Action, ExtensionPermission, PasswordsAction, PermissionStatus, Principal,
+    ResourceType,
 };
 use crate::table_names::TABLE_PRINCIPAL_PERMISSIONS;
 use crate::AppState;
@@ -60,7 +61,6 @@ impl PermissionManager {
     }
 
     /// Aktualisiert eine Permission
-    #[allow(dead_code)]
     pub async fn update_permission(
         app_state: &State<'_, AppState>,
         permission: &ExtensionPermission,
@@ -330,5 +330,204 @@ impl PermissionManager {
             })?;
         let permissions = Self::get_permissions(app_state, principal).await?;
         Ok((extension, permissions))
+    }
+
+    /// Load a principal's display name and persisted permission rows in one go.
+    ///
+    /// Generalizes `load_extension_and_permissions` to also cover
+    /// `Principal::ExternalClient` — external bridge clients have no
+    /// `Extension`/manifest, so there is no `extension.manifest.name` to read.
+    /// Their display name instead comes from
+    /// `haex_external_authorized_clients_no_sync.client_name`, falling back to
+    /// the in-memory session authorization ("allow once" clients have no DB
+    /// row) and finally to the raw client_id.
+    pub(super) async fn load_principal_display_name_and_permissions(
+        app_state: &State<'_, AppState>,
+        principal: &Principal,
+    ) -> Result<(String, Vec<ExtensionPermission>), ExtensionError> {
+        match principal {
+            Principal::Extension(_) => {
+                let (extension, permissions) =
+                    Self::load_extension_and_permissions(app_state, principal).await?;
+                Ok((extension.manifest.name.clone(), permissions))
+            }
+            Principal::ExternalClient(client_id) => {
+                let display_name = match Self::lookup_client_display_name(app_state, client_id) {
+                    Some(name) => name,
+                    None => {
+                        // "Allow once" clients have no authorized-client row —
+                        // fall back to the session authorization's name before
+                        // resorting to the raw client id. The bridge (and its
+                        // session store) only exists on desktop builds; mobile
+                        // has no external clients, so the raw id suffices.
+                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                        {
+                            let bridge = app_state.external_bridge.lock().await;
+                            bridge
+                                .get_session_authorization(client_id)
+                                .await
+                                .map(|sa| sa.client_name)
+                                .unwrap_or_else(|| client_id.clone())
+                        }
+                        #[cfg(any(target_os = "android", target_os = "ios"))]
+                        {
+                            client_id.clone()
+                        }
+                    }
+                };
+                let permissions = Self::get_permissions(app_state, principal).await?;
+                Ok((display_name, permissions))
+            }
+        }
+    }
+
+    /// Best-effort lookup of an external client's human-readable name.
+    /// `None` (not an error) when the client has no authorized-client row —
+    /// callers fall back to the raw client_id.
+    fn lookup_client_display_name(
+        app_state: &State<'_, AppState>,
+        client_id: &str,
+    ) -> Option<String> {
+        use crate::table_names::{
+            COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID, COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME,
+            TABLE_EXTERNAL_AUTHORIZED_CLIENTS,
+        };
+        let sql = format!(
+            "SELECT {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_NAME} FROM {TABLE_EXTERNAL_AUTHORIZED_CLIENTS} \
+             WHERE {COL_EXTERNAL_AUTHORIZED_CLIENTS_CLIENT_ID} = ?1 LIMIT 1"
+        );
+        let rows = select_with_crdt(
+            sql,
+            vec![JsonValue::String(client_id.to_string())],
+            &app_state.db,
+        )
+        .ok()?;
+        rows.first()?.first()?.as_str().map(|s| s.to_string())
+    }
+
+    /// Persists a passwords tag grant/deny decision from the permission-prompt
+    /// dialog to the database.
+    ///
+    /// The model is default-deny: only the tags the user explicitly grants are
+    /// reachable, everything else is implicitly denied. A **grant** therefore
+    /// writes one `Granted` row per selected tag (or a single `"*"` row for
+    /// full access), covering possibly multiple tags plus the "exactly one
+    /// default label" invariant enforced up front by
+    /// [`normalize_passwords_grant_tags`]. Deselected tags are simply *not*
+    /// granted — no explicit `Denied` row is written for them, which would
+    /// otherwise block the still-granted tags via the deny-first check in
+    /// `check_passwords_permission`.
+    ///
+    /// A **deny** rejects the whole request and writes a single `"*"` `Denied`
+    /// row (matching the coarse "one deny blocks all" read-side semantics), so
+    /// the decision is remembered and the user isn't re-prompted.
+    pub async fn save_passwords_grant(
+        app_state: &State<'_, AppState>,
+        extension_id: &str,
+        action: PasswordsAction,
+        tags: &[String],
+        default_tag: Option<&str>,
+        status: PermissionStatus,
+    ) -> Result<(), ExtensionError> {
+        use crate::extension::permissions::manager::check::passwords::normalize_passwords_grant_tags;
+
+        let existing =
+            Self::get_permissions(app_state, &Principal::Extension(extension_id.to_string()))
+                .await?;
+
+        // Deny rejects the whole request → a single wildcard deny row.
+        if status != PermissionStatus::Granted {
+            return Self::upsert_passwords_tag_row(
+                app_state,
+                &existing,
+                extension_id,
+                &action,
+                "*",
+                status,
+                None,
+            )
+            .await;
+        }
+
+        let (effective_tags, is_wildcard) = normalize_passwords_grant_tags(
+            tags,
+            default_tag,
+            action.clone(),
+            status,
+            extension_id,
+        )?;
+
+        for tag in &effective_tags {
+            let raw_constraints = if !is_wildcard && default_tag == Some(tag.as_str()) {
+                Some(serde_json::json!({ "default": true }))
+            } else {
+                None
+            };
+            Self::upsert_passwords_tag_row(
+                app_state,
+                &existing,
+                extension_id,
+                &action,
+                tag,
+                status,
+                raw_constraints,
+            )
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Creates or updates a single passwords permission row for `tag`, used by
+    /// [`save_passwords_grant`].
+    ///
+    /// The lookup matches on `action` as well as target: `Read` and
+    /// `ReadWrite` are stored as distinct rows for the same tag (a `ReadWrite`
+    /// row only *also* covers `Read` requests), so a decision for one action
+    /// must never overwrite the other action's row — mirroring the Mail
+    /// handling in `resolve_permission_prompt`.
+    async fn upsert_passwords_tag_row(
+        app_state: &State<'_, AppState>,
+        existing: &[ExtensionPermission],
+        extension_id: &str,
+        action: &PasswordsAction,
+        tag: &str,
+        status: PermissionStatus,
+        raw_constraints: Option<serde_json::Value>,
+    ) -> Result<(), ExtensionError> {
+        let existing_row = existing.iter().find(|p| {
+            p.resource_type == ResourceType::Passwords
+                && p.target == tag
+                && p.action == Action::Passwords(action.clone())
+        });
+
+        match existing_row {
+            Some(row) => {
+                let updated = ExtensionPermission {
+                    id: row.id.clone(),
+                    principal_id: extension_id.to_string(),
+                    resource_type: ResourceType::Passwords,
+                    action: Action::Passwords(action.clone()),
+                    target: tag.to_string(),
+                    constraints: None,
+                    status,
+                    raw_constraints,
+                };
+                Self::update_permission(app_state, &updated).await
+            }
+            None => {
+                let new_permission = ExtensionPermission {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    principal_id: extension_id.to_string(),
+                    resource_type: ResourceType::Passwords,
+                    action: Action::Passwords(action.clone()),
+                    target: tag.to_string(),
+                    constraints: None,
+                    status,
+                    raw_constraints,
+                };
+                Self::save_permissions(app_state, &[new_permission]).await
+            }
+        }
     }
 }

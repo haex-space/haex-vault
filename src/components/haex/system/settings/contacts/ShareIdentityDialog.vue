@@ -80,7 +80,7 @@
           v-else
           icon="i-lucide-arrow-left"
           variant="outline"
-          @click="qrDataUrl = ''"
+          @click="() => { qrDataUrl = '' }"
         >
           {{ t('actions.back') }}
         </UiButton>

@@ -12,7 +12,7 @@
           color="neutral"
           variant="outline"
           :disabled="saving"
-          @click="open = false"
+          @click="() => { open = false }"
         />
         <UiButton
           icon="i-lucide-trash-2"

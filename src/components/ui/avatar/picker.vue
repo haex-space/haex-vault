@@ -67,7 +67,7 @@
           <UiButton
             variant="ghost"
             color="neutral"
-            @click="showCropDialog = false"
+            @click="() => { showCropDialog = false }"
           >
             {{ t('crop.cancel') }}
           </UiButton>

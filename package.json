@@ -41,7 +41,7 @@
     "@nuxt/fonts": "0.14.0",
     "@nuxt/icon": "2.3.1",
     "@nuxt/ui": "4.9.0",
-    "@nuxtjs/i18n": "10.4.0",
+    "@nuxtjs/i18n": "10.4.1",
     "@pinia/nuxt": "^0.11.3",
     "@tailwindcss/vite": "^4.3.2",
     "@tauri-apps/api": "^2.11.1",
@@ -76,7 +76,7 @@
     "swiper": "^14.0.5",
     "tailwindcss": "^4.3.2",
     "tldts": "^7.4.8",
-    "vue": "^3.5.39",
+    "vue": "^3.5.40",
     "vue-advanced-cropper": "^2.8.9"
   },
   "devDependencies": {
@@ -94,7 +94,7 @@
     "@vitejs/plugin-vue": "6.0.7",
     "@vitest/ui": "^4.1.10",
     "@vue-dnd-kit/core": "2.4.6",
-    "@vue/compiler-sfc": "^3.5.39",
+    "@vue/compiler-sfc": "^3.5.40",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.7.0",
     "globals": "^17.7.0",
@@ -106,7 +106,7 @@
     "typescript": "^6.0.3",
     "unplugin-auto-import": "^21.0.0",
     "vitest": "^4.1.10",
-    "vue-tsc": "3.3.5",
+    "vue-tsc": "3.3.7",
     "zod": "^3.25.76"
   },
   "prettier": {
@@ -115,25 +115,6 @@
     "semi": false,
     "singleQuote": true,
     "singleAttributePerLine": true
-  },
-  "pnpm": {
-    "_comment": "Rationale for each override is documented in docs/dependency-overrides.md. Do not add new pins here without updating that file.",
-    "overrides": {
-      "vue-router": "^5.0.6",
-      "zod": "^3.25.76",
-      "defu": ">=6.1.5",
-      "picomatch": ">=4.0.4",
-      "node-forge": ">=1.4.0",
-      "lodash": ">=4.18.0",
-      "axios": ">=1.15.0",
-      "happy-dom": ">=20.8.9",
-      "h3": ">=1.15.6",
-      "@xmldom/xmldom": ">=0.8.13",
-      "esbuild": ">=0.28.1",
-      "js-yaml": "^4.2.0",
-      "undici": "^7.28.0"
-    },
-    "onlyBuiltDependencies": []
   },
   "packageManager": "pnpm@10.15.1+sha512.34e538c329b5553014ca8e8f4535997f96180a1d0f614339357449935350d924e22f8614682191264ec33d1462ac21561aff97f6bb18065351c162c7e8f6de67"
 }

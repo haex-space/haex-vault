@@ -59,7 +59,7 @@
             color="primary"
             class="flex-1"
             type="button"
-            @click="isOpen = false"
+            @click="() => { isOpen = false }"
           />
         </div>
       </div>

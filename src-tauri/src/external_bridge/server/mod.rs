@@ -22,7 +22,11 @@ use super::protocol::ProtocolMessage;
 
 /// Default port for the external bridge WebSocket server
 pub const DEFAULT_BRIDGE_PORT: u16 = 19455;
-const PROTOCOL_VERSION: u32 = 1;
+/// Protocol v2 requires clients to declare their requested permissions
+/// (`ClientInfo.permissions` + `requestedExtensions[].actions`) at handshake
+/// time. v1 clients (and v2 clients that omit the declaration) are rejected —
+/// see `connection::handle_connection`'s handshake arm.
+const PROTOCOL_VERSION: u32 = 2;
 /// Default timeout for extension responses (can be overridden per extension)
 const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 30;
 
@@ -53,6 +57,18 @@ pub struct SessionAuthorization {
     pub public_key: String,
     /// Extension ID this client can access
     pub extension_id: String,
+    /// Canonical JSON of the client's declared manifest at grant time (see
+    /// `protocol::canonical_requested_permissions`), compared against the
+    /// live handshake declaration on reconnect to detect a manifest change.
+    #[serde(default)]
+    pub requested_permissions: String,
+}
+
+/// Map key for `session_authorizations`. A client can hold one entry per
+/// granted target, so the key combines both. Client ids are public-key
+/// fingerprints and never contain "::".
+fn session_auth_key(client_id: &str, extension_id: &str) -> String {
+    format!("{client_id}::{extension_id}")
 }
 
 /// Session blocked client entry (for "deny once" blocks)
@@ -128,22 +144,28 @@ impl ExternalBridge {
         self.session_authorizations.clone()
     }
 
-    /// Add a session authorization (for "allow once")
+    /// Add a session authorization (for "allow once").
+    ///
+    /// Keyed by `(client_id, extension_id)` so a client that is granted
+    /// several targets at once keeps one entry per target — keying by
+    /// `client_id` alone let each granted target overwrite the previous one.
     pub async fn add_session_authorization(
         &self,
         client_id: &str,
         client_name: &str,
         public_key: &str,
         extension_id: &str,
+        requested_permissions: &str,
     ) {
         let mut authorizations = self.session_authorizations.write().await;
         authorizations.insert(
-            client_id.to_string(),
+            session_auth_key(client_id, extension_id),
             SessionAuthorization {
                 client_id: client_id.to_string(),
                 client_name: client_name.to_string(),
                 public_key: public_key.to_string(),
                 extension_id: extension_id.to_string(),
+                requested_permissions: requested_permissions.to_string(),
             },
         );
         println!(
@@ -152,10 +174,14 @@ impl ExternalBridge {
         );
     }
 
-    /// Check if a client has a session authorization
+    /// Any session authorization for a client (used only for the display name);
+    /// all of a client's entries share the same name.
     pub async fn get_session_authorization(&self, client_id: &str) -> Option<SessionAuthorization> {
         let authorizations = self.session_authorizations.read().await;
-        authorizations.get(client_id).cloned()
+        authorizations
+            .values()
+            .find(|sa| sa.client_id == client_id)
+            .cloned()
     }
 
     /// Get a clone of the session_blocked map for use in connection handlers
@@ -389,15 +415,19 @@ impl ExternalBridge {
         Ok(())
     }
 
-    /// Notify a client that authorization was granted
+    /// Notify a client that authorization was granted for one or more targets
+    /// and clear its pending authorization. Per-request access is enforced
+    /// per-extension against the DB/session stores, so `ConnectedClient
+    /// .extension_id` (a single slot) is informational only and holds the
+    /// first granted target.
     pub async fn notify_authorization_granted(
         &self,
         client_id: &str,
-        extension_id: &str,
+        extension_ids: &[String],
     ) -> Result<(), BridgeError> {
         println!(
-            "[ExternalBridge] notify_authorization_granted called for client_id={}, extension_id={}",
-            client_id, extension_id
+            "[ExternalBridge] notify_authorization_granted called for client_id={}, extension_ids={:?}",
+            client_id, extension_ids
         );
 
         let mut clients = self.clients.write().await;
@@ -408,7 +438,7 @@ impl ExternalBridge {
 
         if let Some(client) = clients.get_mut(client_id) {
             client.authorized = true;
-            client.extension_id = Some(extension_id.to_string());
+            client.extension_id = extension_ids.first().cloned();
 
             let msg = ProtocolMessage::AuthorizationUpdate { authorized: true };
             let json = serde_json::to_string(&msg)?;
@@ -435,6 +465,14 @@ impl ExternalBridge {
     pub async fn get_pending_authorizations(&self) -> Vec<PendingAuthorization> {
         let pending = self.pending_authorizations.read().await;
         pending.values().cloned().collect()
+    }
+
+    /// Get the pending authorization for one client, if any. Used by
+    /// `external_bridge_client_allow` to read the client's declared manifest
+    /// (permissions + per-extension actions) at grant time.
+    pub async fn get_pending_authorization(&self, client_id: &str) -> Option<PendingAuthorization> {
+        let pending = self.pending_authorizations.read().await;
+        pending.get(client_id).cloned()
     }
 }
 

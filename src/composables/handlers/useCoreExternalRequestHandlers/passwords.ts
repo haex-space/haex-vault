@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, like, or } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, like, or } from 'drizzle-orm'
 import { TOTP } from 'otpauth'
 import {
   haexPasswordsGeneratorPresets,
@@ -6,6 +6,8 @@ import {
   haexPasswordsItemDetails,
   haexPasswordsItemKeyValues,
   haexPasswordsItemSnapshots,
+  haexPasswordsItemTags,
+  haexPasswordsTags,
 } from '~/database/schemas/passwords'
 import { requireDb } from '~/stores/vault'
 import { usePasswordsStore } from '~/stores/passwords'
@@ -19,8 +21,83 @@ import type {
   GetTotpPayload,
   ItemEntry,
   OtpAlgorithm,
+  PasswordsScope,
   UpdateItemPayload,
 } from './types'
+
+// ---------------------------------------------------------------------------
+// tag-scope helpers — the Read/Write boundary is already enforced in Rust
+// before the core-request event is emitted; this narrows access further to
+// the tags declared in the client's granted scope.
+// ---------------------------------------------------------------------------
+
+type Db = ReturnType<typeof requireDb>
+
+/**
+ * Resolve a granted tag scope to the set of item ids it covers.
+ * `null` means unrestricted (scope is `all`, or missing/undefined).
+ *
+ * Shared with the passkey handlers so TOTP/passkey access is confined to
+ * the same tag scope as get-items/update-item.
+ */
+export const resolveScopeItemIdsAsync = async (
+  db: Db,
+  scope: PasswordsScope | null | undefined,
+): Promise<Set<string> | null> => {
+  if (!scope || scope.type === 'all') return null
+  if (scope.tags.length === 0) return new Set()
+
+  const tagRows = await db
+    .select({ id: haexPasswordsTags.id })
+    .from(haexPasswordsTags)
+    .where(inArray(haexPasswordsTags.name, scope.tags))
+  const tagIds = tagRows.map((t) => t.id)
+  if (tagIds.length === 0) return new Set()
+
+  const itemTagRows = await db
+    .select({ itemId: haexPasswordsItemTags.itemId })
+    .from(haexPasswordsItemTags)
+    .where(inArray(haexPasswordsItemTags.tagId, tagIds))
+
+  return new Set(itemTagRows.map((r) => r.itemId))
+}
+
+const getOrCreateTagIdAsync = async (db: Db, name: string): Promise<string> => {
+  const [existing] = await db
+    .select({ id: haexPasswordsTags.id })
+    .from(haexPasswordsTags)
+    .where(eq(haexPasswordsTags.name, name))
+    .limit(1)
+  if (existing) return existing.id
+
+  const id = crypto.randomUUID()
+  try {
+    await db.insert(haexPasswordsTags).values({ id, name })
+    return id
+  } catch (error) {
+    // Concurrent create-item requests can race on the same new tag; the
+    // loser's INSERT hits the unique name constraint — re-query and use the
+    // winner's row instead of failing the whole request.
+    const [created] = await db
+      .select({ id: haexPasswordsTags.id })
+      .from(haexPasswordsTags)
+      .where(eq(haexPasswordsTags.name, name))
+      .limit(1)
+    if (created) return created.id
+    throw error
+  }
+}
+
+/** Assigns the scope's default tag to a newly created item (tag-scoped grants only). */
+const assignDefaultScopeTagAsync = async (
+  db: Db,
+  itemId: string,
+  scope: PasswordsScope | null | undefined,
+): Promise<void> => {
+  if (!scope || scope.type !== 'tags' || !scope.default) return
+  const tagId = await getOrCreateTagIdAsync(db, scope.default)
+  await db.insert(haexPasswordsItemTags).values({ id: crypto.randomUUID(), itemId, tagId })
+}
 
 // ---------------------------------------------------------------------------
 // get-items
@@ -73,7 +150,7 @@ export const handleGetItemsAsync = async (
   // Keep entries whose URL has the same registrable domain as the target.
   // The substring filter above also hits false positives like
   // `bad-example.de` for `example.de` — this filter discards them.
-  const items = candidates.filter((item) => {
+  const domainMatched = candidates.filter((item) => {
     if (!item.url) return false
     const candidate = describeUrlForMatching(item.url)
     if (!candidate.hostname) return false
@@ -82,6 +159,11 @@ export const handleGetItemsAsync = async (
     }
     return target.hostname === candidate.hostname
   })
+
+  const allowedItemIds = await resolveScopeItemIdsAsync(db, request.scope)
+  const items = allowedItemIds
+    ? domainMatched.filter((item) => allowedItemIds.has(item.id))
+    : domainMatched
 
   const entries: ItemEntry[] = await Promise.all(
     items.map(async (item) => {
@@ -135,6 +217,14 @@ export const handleGetTotpAsync = async (
   if (!entryId) return errorResponse(request.requestId, 'Missing required field: entryId')
 
   const db = requireDb()
+
+  // A tag-scoped grant may only read TOTP for entries inside its scope —
+  // otherwise a client could pull secrets for any entry id it guesses/knows.
+  const allowedItemIds = await resolveScopeItemIdsAsync(db, request.scope)
+  if (allowedItemIds && !allowedItemIds.has(entryId)) {
+    return errorResponse(request.requestId, 'Entry is outside the granted tag scope')
+  }
+
   const [entry] = await db
     .select({
       otpSecret: haexPasswordsItemDetails.otpSecret,
@@ -253,6 +343,10 @@ export const handleCreateItemAsync = async (
     modifiedAt: new Date().toISOString(),
   })
 
+  // Tag-scoped write grants must land the new item inside their scope —
+  // otherwise it would be invisible to this same extension's own get-items.
+  await assignDefaultScopeTagAsync(db, itemId, request.scope)
+
   await usePasswordsStore().loadItemsAsync()
 
   return {
@@ -282,6 +376,11 @@ export const handleUpdateItemAsync = async (
     .limit(1)
 
   if (!existing) return errorResponse(request.requestId, 'Entry not found')
+
+  const allowedItemIds = await resolveScopeItemIdsAsync(db, request.scope)
+  if (allowedItemIds && !allowedItemIds.has(id)) {
+    return errorResponse(request.requestId, 'Entry is outside the granted tag scope')
+  }
 
   const updateFields: Record<string, unknown> = {}
   if (title !== undefined) updateFields.title = title || null

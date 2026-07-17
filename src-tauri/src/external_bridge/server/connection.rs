@@ -10,7 +10,8 @@ use tokio::sync::{mpsc, RwLock};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use super::auth::{
-    check_client_authorized, check_client_blocked, get_client_extension, update_client_last_seen,
+    check_client_authorized, check_client_blocked, get_client_extension,
+    get_stored_requested_permissions, update_client_last_seen,
 };
 use super::process::process_request;
 use super::{
@@ -19,7 +20,10 @@ use super::{
 use crate::external_bridge::authorization::PendingAuthorization;
 use crate::external_bridge::crypto::{create_encrypted_response, ServerKeyPair};
 use crate::external_bridge::error::BridgeError;
-use crate::external_bridge::protocol::{HandshakeResponse, ProtocolMessage};
+use crate::external_bridge::protocol::{
+    canonical_requested_permissions, has_permissions_declaration, HandshakeResponse,
+    ProtocolMessage,
+};
 
 /// Handle a single WebSocket connection
 pub(super) async fn handle_connection(
@@ -98,6 +102,36 @@ pub(super) async fn handle_connection(
                         let cid = handshake.client.client_id.clone();
                         client_id = Some(cid.clone());
 
+                        // Protocol v2 requires a permissions declaration. Reject
+                        // early (same shape as the blocked-client branch below):
+                        // send an Error frame explaining why, then an
+                        // unauthorized/non-pending HandshakeResponse, then close.
+                        if handshake.version < 2 || !has_permissions_declaration(&handshake.client)
+                        {
+                            eprintln!(
+                                "[ExternalBridge] Client {} rejected: protocol v{} or missing permissions declaration",
+                                cid, handshake.version
+                            );
+                            let error_msg = ProtocolMessage::Error {
+                                code: "PERMISSIONS_DECLARATION_REQUIRED".to_string(),
+                                message:
+                                    "Handshake must declare requested permissions (protocol v2+)"
+                                        .to_string(),
+                            };
+                            let json = serde_json::to_string(&error_msg)?;
+                            tx.send(Message::Text(json.into()))?;
+
+                            let response = ProtocolMessage::HandshakeResponse(HandshakeResponse {
+                                version: PROTOCOL_VERSION,
+                                server_public_key: server_public_key_base64.clone(),
+                                authorized: false,
+                                pending_approval: false,
+                            });
+                            let json = serde_json::to_string(&response)?;
+                            tx.send(Message::Text(json.into()))?;
+                            break;
+                        }
+
                         // Check if client is blocked (permanent or session)
                         let is_db_blocked = check_client_blocked(&app_handle, &cid).await;
                         let is_session_blocked = {
@@ -125,17 +159,45 @@ pub(super) async fn handle_connection(
                         // Check if client is already authorized in database
                         let db_authorized = check_client_authorized(&app_handle, &cid).await;
 
-                        // Check if client has session-based authorization (from "allow once")
+                        // Check if client has session-based authorization (from "allow once").
+                        // A client may hold several session entries (one per granted
+                        // target); they share the same manifest, so any one answers
+                        // the manifest-match check below.
                         let session_auth = {
                             let auths = session_authorizations.read().await;
-                            auths.get(&cid).cloned()
+                            auths.values().find(|sa| sa.client_id == cid).cloned()
                         };
 
-                        let is_authorized = db_authorized || session_auth.is_some();
-                        let ext_id = if db_authorized {
-                            get_client_extension(&app_handle, &cid).await
+                        // A stored authorization only counts if the client's live
+                        // declaration still matches what was granted. A changed
+                        // manifest (different declared actions/permissions) must
+                        // force re-authorization rather than silently keep the
+                        // old grant (Entscheidung 3 in the permission-parity plan).
+                        let canonical_manifest = canonical_requested_permissions(
+                            &handshake.client.permissions,
+                            &handshake.client.requested_extensions,
+                        );
+                        let db_manifest_matches = if db_authorized {
+                            get_stored_requested_permissions(&app_handle, &cid)
+                                .await
+                                .as_deref()
+                                == Some(canonical_manifest.as_str())
                         } else {
+                            false
+                        };
+                        let session_manifest_matches = session_auth
+                            .as_ref()
+                            .map(|sa| sa.requested_permissions == canonical_manifest)
+                            .unwrap_or(false);
+
+                        let is_authorized = (db_authorized && db_manifest_matches)
+                            || (session_auth.is_some() && session_manifest_matches);
+                        let ext_id = if db_authorized && db_manifest_matches {
+                            get_client_extension(&app_handle, &cid).await
+                        } else if session_manifest_matches {
                             session_auth.as_ref().map(|sa| sa.extension_id.clone())
+                        } else {
+                            None
                         };
 
                         if is_authorized {
@@ -205,6 +267,7 @@ pub(super) async fn handle_connection(
                                 client_name: handshake.client.client_name.clone(),
                                 public_key: handshake.client.public_key.clone(),
                                 requested_extensions: handshake.client.requested_extensions.clone(),
+                                permissions: handshake.client.permissions.clone(),
                             };
                             let already_pending = pending_guard
                                 .insert(cid.clone(), pending_auth.clone())
@@ -263,7 +326,7 @@ pub(super) async fn handle_connection(
                             } else {
                                 // Fall back to session authorization (allow once)
                                 let session_auth = session_authorizations.read().await;
-                                session_auth.contains_key(cid)
+                                session_auth.values().any(|sa| &sa.client_id == cid)
                             }
                         } else {
                             false

@@ -76,7 +76,7 @@
       </template>
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
-          <UiButton variant="ghost" :label="t('cancel')" @click="confirmDeleteOpen = false" />
+          <UiButton variant="ghost" :label="t('cancel')" @click="() => { confirmDeleteOpen = false }" />
           <UiButton color="error" :label="t('delete.confirm')" @click="onConfirmDeleteAsync" />
         </div>
       </template>

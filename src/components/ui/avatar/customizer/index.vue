@@ -48,7 +48,7 @@
           <UiButton
             variant="ghost"
             color="neutral"
-            @click="open = false"
+            @click="() => { open = false }"
           >
             {{ t('cancel') }}
           </UiButton>

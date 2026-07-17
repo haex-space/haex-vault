@@ -487,8 +487,11 @@ const confirmReinstallAsync = async () => {
       // This preserves the desktop icon reference
       await extensionStore.installFilesAsync(existingExtensionId)
 
-      // Reload extensions list
+      // Reload extensions list (store + marketplace catalog, so installed/latest versions stay in sync)
       await extensionStore.loadExtensionsAsync()
+      if (installSource.value === 'marketplace') {
+        await loadExtensionsAsync()
+      }
 
       // Show success message
       const extName = previewToUse.manifest.name
