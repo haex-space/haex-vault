@@ -19,7 +19,7 @@
         :aria-label="show ? t('hide') : t('show')"
         :aria-pressed="show"
         :icon="show ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-        @click="show = !show"
+        @click="() => { show = !show }"
       />
     </template>
   </UiInput>

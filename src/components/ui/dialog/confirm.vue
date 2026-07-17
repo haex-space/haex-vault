@@ -24,7 +24,7 @@
 
           color="error"
           variant="outline"
-          @click="open = false"
+          @click="() => { open = false }"
         />
         <UiButton
           :icon="confirmIcon"

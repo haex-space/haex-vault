@@ -81,7 +81,7 @@
       color="error"
       variant="ghost"
       type="button"
-      @click="showDeleteConfirm = true"
+      @click="() => { showDeleteConfirm = true }"
     />
   </div>
 
@@ -98,7 +98,7 @@
           color="neutral"
           variant="outline"
           type="button"
-          @click="showDeleteConfirm = false"
+          @click="() => { showDeleteConfirm = false }"
         />
         <UiButton
           icon="i-lucide-trash-2"

@@ -131,7 +131,7 @@
         <UiButton
           color="neutral"
           variant="outline"
-          @click="open = false"
+          @click="() => { open = false }"
         >
           {{ generatedLink ? t('actions.close') : t('actions.cancel') }}
         </UiButton>

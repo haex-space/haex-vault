@@ -42,7 +42,7 @@
           :label="t('cancel')"
           color="neutral"
           variant="outline"
-          @click="open = false"
+          @click="() => { open = false }"
         />
         <UiButton
           :icon="mode === 'add' ? 'i-lucide-tag' : 'i-lucide-circle-x'"

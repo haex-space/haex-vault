@@ -61,7 +61,7 @@
           color="neutral"
           variant="outline"
           block
-          @click="open = false"
+          @click="() => { open = false }"
         >
           {{ t('cancel') }}
         </UiButton>

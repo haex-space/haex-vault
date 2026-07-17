@@ -98,7 +98,7 @@
           v-if="wizard.step.value < 2"
           icon="i-lucide-arrow-right"
           :disabled="!wizard.canProceed.value"
-          @click="wizard.step.value++"
+          @click="() => { wizard.step.value++ }"
         >
           {{ t('actions.next') }}
         </UiButton>

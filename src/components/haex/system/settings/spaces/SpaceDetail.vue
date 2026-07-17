@@ -50,7 +50,7 @@
         color="neutral"
         variant="outline"
         icon="i-lucide-users"
-        @click="showMembersDrawer = true"
+        @click="() => { showMembersDrawer = true }"
       >
         <span class="hidden @sm:inline">{{ t('actions.members') }}</span>
       </UiButton>

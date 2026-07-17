@@ -7,14 +7,14 @@
         <UiButton
           :variant="direction === 'one_way' ? 'solid' : 'outline'"
           icon="i-lucide-arrow-right"
-          @click="direction = 'one_way'"
+          @click="() => { direction = 'one_way' }"
         >
           {{ t('settings.oneWay') }}
         </UiButton>
         <UiButton
           :variant="direction === 'two_way' ? 'solid' : 'outline'"
           icon="i-lucide-arrow-left-right"
-          @click="direction = 'two_way'"
+          @click="() => { direction = 'two_way' }"
         >
           {{ t('settings.twoWay') }}
         </UiButton>

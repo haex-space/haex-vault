@@ -12,7 +12,7 @@
         icon="i-lucide-plus"
         data-testid="sync-add-backend-button"
         data-tour="settings-sync-add-backend"
-        @click="showAddBackendForm = true"
+        @click="() => { showAddBackendForm = true }"
       >
         <span class="hidden @sm:inline">
           {{ t('actions.add') }}

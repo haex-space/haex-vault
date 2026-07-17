@@ -71,7 +71,7 @@
                   color="neutral"
                   variant="link"
                   :aria-label="t('search.clear')"
-                  @click="searchQuery = ''"
+                  @click="() => { searchQuery = '' }"
                 />
               </template>
             </UInput>

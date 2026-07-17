@@ -6,7 +6,7 @@
     icon="i-lucide-trash-2"
     :title="t('actions.delete')"
     :data-testid="`space-item-delete-${itemType}-${itemId}`"
-    @click.stop="showConfirm = true"
+    @click.stop="() => { showConfirm = true }"
   />
 
   <UiDialogConfirm

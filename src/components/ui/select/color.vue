@@ -25,7 +25,7 @@
         :class="{ 'btn-disabled': readOnly }"
         icon="mdi:refresh"
         :disabled="readOnly"
-        @click="model = ''"
+        @click="() => { model = '' }"
       />
     </UTooltip>
   </div>
