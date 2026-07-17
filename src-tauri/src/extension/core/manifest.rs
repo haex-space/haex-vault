@@ -80,7 +80,7 @@ pub struct ExtensionPermissions {
     pub database: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub filesystem: Option<Vec<PermissionEntry>>,
-    #[serde(default)]
+    #[serde(default, alias = "web")]
     pub http: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub shell: Option<Vec<PermissionEntry>>,
