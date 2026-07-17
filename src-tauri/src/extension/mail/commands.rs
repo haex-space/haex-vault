@@ -335,8 +335,7 @@ pub async fn extension_mail_start_watch(
         reason: format!("Account {} not found", account_id),
     })?;
 
-    check_fetch_permission_for_watch(&app_handle, &state, &extension_id, &imap_config.host)
-        .await?;
+    check_fetch_permission_for_watch(&app_handle, &state, &extension_id, &imap_config.host).await?;
 
     let key = mail_poll_key(&extension_id, &account_id, &mailbox_name);
 
