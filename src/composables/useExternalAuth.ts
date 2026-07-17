@@ -197,16 +197,17 @@ export function useExternalAuth() {
       switch (decision) {
         case 'allow':
           if (extensionIds && extensionIds.length > 0) {
-            // Allow access for each selected extension
-            for (const extensionId of extensionIds) {
-              await invoke(TAURI_COMMANDS.externalBridge.clientAllow, {
-                clientId: pendingAuth.value.clientId,
-                clientName: pendingAuth.value.clientName,
-                publicKey: pendingAuth.value.publicKey,
-                extensionId,
-                remember,
-              })
-            }
+            // Grant ALL selected targets in a single backend call. Calling
+            // once per extension used to drop the pending manifest after the
+            // first call (it is cleared once authorization is granted), so
+            // every later extension was granted with an empty manifest.
+            await invoke(TAURI_COMMANDS.externalBridge.clientAllow, {
+              clientId: pendingAuth.value.clientId,
+              clientName: pendingAuth.value.clientName,
+              publicKey: pendingAuth.value.publicKey,
+              extensionIds,
+              remember,
+            })
           } else {
             console.warn('[ExternalAuth] No extensionIds provided for allow decision')
           }

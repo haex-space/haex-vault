@@ -159,10 +159,13 @@ pub(super) async fn handle_connection(
                         // Check if client is already authorized in database
                         let db_authorized = check_client_authorized(&app_handle, &cid).await;
 
-                        // Check if client has session-based authorization (from "allow once")
+                        // Check if client has session-based authorization (from "allow once").
+                        // A client may hold several session entries (one per granted
+                        // target); they share the same manifest, so any one answers
+                        // the manifest-match check below.
                         let session_auth = {
                             let auths = session_authorizations.read().await;
-                            auths.get(&cid).cloned()
+                            auths.values().find(|sa| sa.client_id == cid).cloned()
                         };
 
                         // A stored authorization only counts if the client's live
@@ -323,7 +326,7 @@ pub(super) async fn handle_connection(
                             } else {
                                 // Fall back to session authorization (allow once)
                                 let session_auth = session_authorizations.read().await;
-                                session_auth.contains_key(cid)
+                                session_auth.values().any(|sa| &sa.client_id == cid)
                             }
                         } else {
                             false
