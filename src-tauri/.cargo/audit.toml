@@ -24,4 +24,17 @@ ignore = [
   # (verify via `cargo tree -i quick-xml`).
   "RUSTSEC-2026-0194", # quick-xml: unbounded namespace-declaration allocation in NsReader (DoS)
   "RUSTSEC-2026-0195", # quick-xml: quadratic runtime on duplicate attribute names in start tags (DoS)
+
+  # openmls_rust_crypto 0.5.1 pulls hpke-rs 0.6.1, which pins hpke-rs-libcrux
+  # =0.6.1. That in turn pins libcrux-aead =0.0.7 (-> libcrux-aesgcm 0.0.7) and
+  # libcrux-sha3 =0.0.8 (-> libcrux-secrets 0.0.5 via libcrux-traits). Fixes
+  # for all five ship in hpke-rs 0.7.0 (released 2026-07-15), but
+  # openmls_rust_crypto still requires hpke-rs ^0.6.0 and has not bumped yet.
+  # Lift once openmls_rust_crypto releases a version pinning hpke-rs >=0.7
+  # (verify via `cargo tree -i libcrux-secrets`).
+  "RUSTSEC-2026-0209", # libcrux-aesgcm: AES-GCM did not enforce limits on AAD length
+  "RUSTSEC-2026-0211", # libcrux-aesgcm: non-constant-time auth tag check in AES-GCM decryption
+  "RUSTSEC-2026-0212", # libcrux-secrets: incorrect output of constant-time swap/select on Aarch64
+  "RUSTSEC-2026-0208", # libcrux-sha3: potential panic in AVX2 SHAKE-256
+  "RUSTSEC-2026-0207", # libcrux-sha3: incorrect output of incremental portable SHAKE API on multiple squeeze calls
 ]
