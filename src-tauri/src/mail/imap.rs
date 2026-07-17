@@ -311,9 +311,15 @@ async fn count_new_uids_inner(
     since_uid: u32,
 ) -> Result<u32, MailError> {
     session.select(mailbox).await.map_err(imap_err)?;
-    let uid_set = format!("{}:*", since_uid.saturating_add(1));
+    // `*` resolves to the highest existing UID, so when `since_uid` is already
+    // the highest UID the range `since_uid+1:*` inverts (e.g. `11:10`) and the
+    // server matches the last message anyway — IMAP ranges are order-independent
+    // (RFC 3501 §9). Prefix with the explicit `UID` search key and filter
+    // client-side so already-seen UIDs never inflate the count.
+    let uid_set = format!("UID {}:*", since_uid.saturating_add(1));
     let uids = session.uid_search(uid_set).await.map_err(imap_err)?;
-    Ok(uids.len() as u32)
+    let new_count = uids.into_iter().filter(|&uid| uid > since_uid).count();
+    Ok(new_count as u32)
 }
 
 /// Set or unset flags on a UID set. `add=true` for STORE +FLAGS,

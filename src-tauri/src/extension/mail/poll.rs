@@ -340,14 +340,21 @@ pub async fn run_poll_loop(
                         // in the UID sequence — so diffing UIDNEXT alone can
                         // over-report `new_count`. Count the UIDs that
                         // actually exist above the baseline instead.
-                        match crate::mail::imap::count_new_uids(
+                        // Same cancellation/timeout guard as the STATUS check:
+                        // `count_new_uids` opens a fresh IMAP connection, so a
+                        // stalled server must not hold `close_database` open on
+                        // vault lock.
+                        let count_check = crate::mail::imap::count_new_uids(
                             &imap_config,
                             &mailbox_name,
                             prev_last_seen,
-                        )
-                        .await
-                        {
-                            Ok(count) => {
+                        );
+                        let count = tokio::select! {
+                            _ = cancel.cancelled() => break,
+                            result = tokio::time::timeout(STATUS_CHECK_TIMEOUT, count_check) => result,
+                        };
+                        match count {
+                            Ok(Ok(count)) => {
                                 state.mail_poll_manager.lock().await.set_baseline(
                                     &key,
                                     uid_validity,
@@ -355,11 +362,17 @@ pub async fn run_poll_loop(
                                 );
                                 Some(count)
                             }
-                            Err(e) => {
+                            Ok(Err(e)) => {
                                 // Leave the baseline unchanged so the next tick
                                 // retries the count from the same starting point.
                                 eprintln!(
                                     "[mail-poll] failed to count new UIDs for {key}: {e}"
+                                );
+                                None
+                            }
+                            Err(_) => {
+                                eprintln!(
+                                    "[mail-poll] counting new UIDs timed out for {key}"
                                 );
                                 None
                             }
