@@ -626,6 +626,8 @@ const handleMaximize = () => {
 
 // Window resizing
 const handleResizeStart = (direction: string, e: MouseEvent | TouchEvent) => {
+  if (isMaximized.value) return
+
   isResizing.value = true
   resizeDirection.value = direction
 
