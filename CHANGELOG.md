@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.16.0](https://github.com/haex-space/haex-vault/compare/v2.15.0...v2.16.0) (2026-07-19)
+
+
+### Features
+
+* **mail:** background IMAP poll for new-mail push events ([8cb6f50](https://github.com/haex-space/haex-vault/commit/8cb6f509f14bcd061350e39839519ecd1f122a90))
+* **mail:** background IMAP poll for new-mail push events ([31ac710](https://github.com/haex-space/haex-vault/commit/31ac71054f524cbc28ca1e6e7a42d5f625b78ae4))
+
+
+### Bug Fixes
+
+* **mail:** address poll-watch review findings ([f3fe68a](https://github.com/haex-space/haex-vault/commit/f3fe68a29ffaf2cea72ab352977e9737e4b3c12e))
+* **mail:** bound count_new_uids and filter inverted UID range ([3d7bae1](https://github.com/haex-space/haex-vault/commit/3d7bae11e1a261e1221bb1305925341191185b2f))
+* **mail:** import Emitter for mobile emit_to in poll loop ([d320844](https://github.com/haex-space/haex-vault/commit/d3208446eae58132b0a654fb36d659113882efde))
+* **manifest:** accept web as alias for http permission key ([5a25dac](https://github.com/haex-space/haex-vault/commit/5a25dac77b6a95224697f37388ecd2eb6fe4754e))
+* **manifest:** accept web as alias for http permission key ([0934364](https://github.com/haex-space/haex-vault/commit/09343649d1122409ac0b77b1353b21eecf79a374))
+* **window:** guard resize start against maximized state ([5e7faec](https://github.com/haex-space/haex-vault/commit/5e7faecb8946d6e2ce380b75013ab32bd81945f9))
+* **window:** open all windows maximized by default ([fbcafa0](https://github.com/haex-space/haex-vault/commit/fbcafa08bb389aa8693dc15c9cf1fc99f28aeb94))
+* **window:** open all windows maximized by default ([ae7824b](https://github.com/haex-space/haex-vault/commit/ae7824ba2c126505e30ddcd8379a1577ea0837eb))
+
 ## [2.15.0](https://github.com/haex-space/haex-vault/compare/v2.14.0...v2.15.0) (2026-07-17)
 
 
