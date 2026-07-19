@@ -355,8 +355,8 @@ const viewportSize = inject<{
   height: Ref<number>
 }>('viewportSize')
 
-// Start maximized on small screens (mobile)
-const isMaximized = ref(isSmallScreen.value)
+// All windows start maximized
+const isMaximized = ref(true)
 
 // Store initial position/size for restore
 const preMaximizeState = ref({
@@ -499,6 +499,17 @@ onMounted(() => {
   } else {
     animationPhase.value = 'ready'
   }
+
+  // Apply fullscreen bounds since windows start maximized
+  if (isMaximized.value) {
+    const bounds = getViewportBounds()
+    if (bounds && bounds.width > 0 && bounds.height > 0) {
+      x.value = 0
+      y.value = 0
+      width.value = bounds.width
+      height.value = getAvailableContentHeight()
+    }
+  }
 })
 
 const windowStyle = computed(() => {
@@ -615,6 +626,8 @@ const handleMaximize = () => {
 
 // Window resizing
 const handleResizeStart = (direction: string, e: MouseEvent | TouchEvent) => {
+  if (isMaximized.value) return
+
   isResizing.value = true
   resizeDirection.value = direction
 

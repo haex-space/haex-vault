@@ -75,6 +75,8 @@ commands.allow = [
   "extension_mail_append_message",
   "extension_mail_send_message",
   "extension_mail_build_rfc822",
+  "extension_mail_start_watch",
+  "extension_mail_stop_watch",
 
   # Notifications (OS notifications; scoped to the calling extension by
   # `resolve_extension_id` + the `notifications` permission).
@@ -412,6 +414,8 @@ commands.allow = [
   "extension_mail_append_message",
   "extension_mail_send_message",
   "extension_mail_build_rfc822",
+  "extension_mail_start_watch",
+  "extension_mail_stop_watch",
   "extension_notifications_show",
   "extension_notifications_dismiss",
   "extension_password_list",
