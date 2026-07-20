@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.17.0](https://github.com/haex-space/haex-vault/compare/v2.16.0...v2.17.0) (2026-07-20)
+
+
+### Features
+
+* **bookmarks:** add syncable bookmark collections and bridge handlers ([c5f37cd](https://github.com/haex-space/haex-vault/commit/c5f37cda3f32f4ca0581b4e5fb483cdd6bb893e6))
+* **bookmarks:** syncable bookmark collections, permission, and bridge methods ([b3f1891](https://github.com/haex-space/haex-vault/commit/b3f18910ac79c40317fc350669048a11af355e4d))
+* **permissions:** add bookmarks resource ([3bcfb85](https://github.com/haex-space/haex-vault/commit/3bcfb8580db068a3c0c20ab2288960c1054e4d9f))
+
+
+### Bug Fixes
+
+* **bookmarks:** address code review findings on permission upgrade and query batching ([3942bb4](https://github.com/haex-space/haex-vault/commit/3942bb4ebb5411ed0d503fa22a3c8d66a0f5c318))
+
 ## [2.16.0](https://github.com/haex-space/haex-vault/compare/v2.15.0...v2.16.0) (2026-07-19)
 
 
