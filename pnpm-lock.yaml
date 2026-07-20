@@ -172,14 +172,14 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3
       '@iconify-json/hugeicons':
-        specifier: ^1.2.30
-        version: 1.2.30
+        specifier: ^1.2.31
+        version: 1.2.31
       '@iconify-json/lucide':
-        specifier: ^1.2.116
-        version: 1.2.116
+        specifier: ^1.2.118
+        version: 1.2.118
       '@iconify/json':
-        specifier: ^2.2.498
-        version: 2.2.498
+        specifier: ^2.2.502
+        version: 2.2.502
       '@iconify/tailwind4':
         specifier: ^1.2.3
         version: 1.2.3(tailwindcss@4.3.2)
@@ -955,17 +955,17 @@ packages:
   '@iconify-json/heroicons@1.2.3':
     resolution: {integrity: sha512-n+vmCEgTesRsOpp5AB5ILB6srsgsYK+bieoQBNlafvoEhjVXLq8nIGN4B0v/s4DUfa0dOrjwE/cKJgIKdJXOEg==}
 
-  '@iconify-json/hugeicons@1.2.30':
-    resolution: {integrity: sha512-L38YPId/uZ8xZJL+rdwB5/uI/jpnbzqXetfo1b0wbBi6h2pnyEy6HpQouCJXMBUOkp2iVWu8C1VdFRG+JRFwpg==}
+  '@iconify-json/hugeicons@1.2.31':
+    resolution: {integrity: sha512-0/s8YasmZo+uXLBaih4kH7KS0qRvPXlDA6i/pbwZYJgismbwAQzibq/3FsWKk9vzublaDovM9u0Yhz4VEAGLOw==}
 
-  '@iconify-json/lucide@1.2.116':
-    resolution: {integrity: sha512-mbwPmiUXaZyLMSeQOxiTqz2fmZikD9qiGnMBiev47UUNY9uGCEgMg9iUYwaJzCtJTDtAIyK4vokfIpqsVorgSw==}
+  '@iconify-json/lucide@1.2.118':
+    resolution: {integrity: sha512-JBnK4YOq6K/lA0JP//27QxFxJ4120TjvfXAzGZZIGjCcXcRRRFxl1rcV7+IWdcVCe90KXdqVaAwLaLf6G3HELw==}
 
   '@iconify/collections@1.0.706':
     resolution: {integrity: sha512-S6eOXR2QtzNG9CeTtt/ibkQiBmCwY8489qkHjg52NzYgaVBlUGhlse5FfBck03zhC+/XrtTKfH+pWq1nDaLDnQ==}
 
-  '@iconify/json@2.2.498':
-    resolution: {integrity: sha512-aHeANR4JvpCcGZBOHXwsPDf8C5YtrZjZjb7NwC8kwoVRtA2vyQImp5U3wzqe8HIbKgQgjAtqYEPPVHtqIj62JA==}
+  '@iconify/json@2.2.502':
+    resolution: {integrity: sha512-f5hf1EJOHzW+oyh8JzvJ5G1RzQ8sWyexmzM9/P2IoZTxECbnZEDwYOw/ITkwoA9SPNg2bngimrh/adpy8AaO5A==}
 
   '@iconify/tailwind4@1.2.3':
     resolution: {integrity: sha512-z8SKiMHRASJKF/IY//87MF88lcB7ulxh8vlhQXXLWsBkNtOh6ese9R41MyGpQeqXdRvQVt+/fX2glQtHFjQ+MA==}
@@ -8602,11 +8602,11 @@ snapshots:
     dependencies:
       '@iconify/types': 2.0.0
 
-  '@iconify-json/hugeicons@1.2.30':
+  '@iconify-json/hugeicons@1.2.31':
     dependencies:
       '@iconify/types': 2.0.0
 
-  '@iconify-json/lucide@1.2.116':
+  '@iconify-json/lucide@1.2.118':
     dependencies:
       '@iconify/types': 2.0.0
 
@@ -8614,7 +8614,7 @@ snapshots:
     dependencies:
       '@iconify/types': 2.0.0
 
-  '@iconify/json@2.2.498':
+  '@iconify/json@2.2.502':
     dependencies:
       '@iconify/types': 2.0.0
       pathe: 2.0.3
