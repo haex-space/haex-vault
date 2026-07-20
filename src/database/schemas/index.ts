@@ -1,3 +1,4 @@
+export * from './bookmarks'
 export * from './core'
 export * from './crdt'
 export * from './critical'

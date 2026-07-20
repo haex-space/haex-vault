@@ -1,3 +1,5 @@
+import type { BookmarkNodeInput } from '@/utils/bookmarks/validation'
+
 export const CORE_REQUEST_EVENT = 'haextension:external:core-request'
 
 export const CORE_METHODS = {
@@ -10,6 +12,12 @@ export const CORE_METHODS = {
   PASSKEY_CREATE: 'passkey-create',
   PASSKEY_GET: 'passkey-get',
   PASSKEY_LIST: 'passkey-list',
+  BOOKMARKS_COLLECTIONS_LIST: 'bookmarks-collections-list',
+  BOOKMARKS_COLLECTION_CREATE: 'bookmarks-collection-create',
+  BOOKMARKS_LIST: 'bookmarks-list',
+  BOOKMARKS_UPSERT: 'bookmarks-upsert',
+  BOOKMARKS_DELETE: 'bookmarks-delete',
+  BOOKMARKS_DEVICE_UPSERT: 'bookmarks-device-upsert',
 } as const
 
 /**
@@ -115,4 +123,29 @@ export interface PasskeyListPayload {
   relyingPartyId?: string
   itemId?: string
   discoverableOnly?: boolean
+}
+
+export interface BookmarksCollectionCreatePayload {
+  name?: string
+}
+
+export interface BookmarksListPayload {
+  collectionId?: string
+}
+
+export interface BookmarksUpsertPayload {
+  collectionId?: string
+  nodes?: BookmarkNodeInput[]
+}
+
+export interface BookmarksDeletePayload {
+  collectionId?: string
+  ids?: string[]
+}
+
+export interface BookmarksDeviceUpsertPayload {
+  collectionId?: string
+  replicaId?: string
+  deviceLabel?: string
+  browserFamily?: string
 }
