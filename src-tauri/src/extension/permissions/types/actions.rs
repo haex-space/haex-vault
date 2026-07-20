@@ -504,6 +504,11 @@ pub enum Action {
     Spaces(SpaceAction),
     Identities(IdentityAction),
     Passwords(PasswordsAction),
+    /// Bookmarks-Permission ist nicht Tag-/Sammlungs-granular: `Read`/`ReadWrite`
+    /// gilt für alle Sammlungen (`haex_bookmark_collections`) gleichermaßen —
+    /// wie `SyncServers`/`CloudStorage`/`SyncRules` teilt es sich die generische
+    /// [`RwAction`].
+    Bookmarks(RwAction),
     Mail(MailAction),
     Notifications(NotificationsAction),
     ExtensionApi(ExtensionApiAction),
@@ -552,6 +557,10 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
+            Action::Bookmarks(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
             Action::Mail(action) => serde_json::to_string(action)
                 .unwrap_or_default()
                 .trim_matches('"')
@@ -588,6 +597,7 @@ impl Action {
             ResourceType::Spaces => Ok(Action::Spaces(SpaceAction::from_str(s)?)),
             ResourceType::Identities => Ok(Action::Identities(IdentityAction::from_str(s)?)),
             ResourceType::Passwords => Ok(Action::Passwords(PasswordsAction::from_str(s)?)),
+            ResourceType::Bookmarks => Ok(Action::Bookmarks(RwAction::from_str(s)?)),
             ResourceType::Mail => Ok(Action::Mail(MailAction::from_str(s)?)),
             ResourceType::Notifications => {
                 Ok(Action::Notifications(NotificationsAction::from_str(s)?))

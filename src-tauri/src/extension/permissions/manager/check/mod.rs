@@ -1,3 +1,4 @@
+pub(super) mod bookmarks;
 pub(super) mod database;
 pub(super) mod extension_api;
 pub(super) mod filesystem;

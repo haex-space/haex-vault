@@ -677,6 +677,42 @@
       }
     },
 
+    "bookmark_collections": {
+      "name": "haex_bookmark_collections",
+      "columns": {
+        "id": "id",
+        "name": "name",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at"
+      }
+    },
+    "bookmarks": {
+      "name": "haex_bookmarks",
+      "columns": {
+        "id": "id",
+        "collectionId": "collection_id",
+        "parentId": "parent_id",
+        "rootKind": "root_kind",
+        "kind": "kind",
+        "title": "title",
+        "url": "url",
+        "position": "position",
+        "createdAt": "created_at",
+        "updatedAt": "updated_at"
+      }
+    },
+    "bookmark_devices": {
+      "name": "haex_bookmark_devices",
+      "columns": {
+        "id": "id",
+        "collectionId": "collection_id",
+        "replicaId": "replica_id",
+        "deviceLabel": "device_label",
+        "browserFamily": "browser_family",
+        "lastSeenAt": "last_seen_at"
+      }
+    },
+
     "crdt": {
       "changes": {
         "name": "haex_crdt_changes_no_sync",

@@ -13,6 +13,14 @@ import {
   handlePasskeyGetAsync,
   handlePasskeyListAsync,
 } from './passkeys'
+import {
+  handleBookmarksCollectionCreateAsync,
+  handleBookmarksCollectionsListAsync,
+  handleBookmarksDeleteAsync,
+  handleBookmarksDeviceUpsertAsync,
+  handleBookmarksListAsync,
+  handleBookmarksUpsertAsync,
+} from './bookmarks'
 import { errorResponse, respondAsync, toErrorMessage } from './shared'
 import { CORE_METHODS, CORE_REQUEST_EVENT } from './types'
 import type { ExternalCoreRequest, ExternalCoreResponse } from './types'
@@ -38,6 +46,18 @@ const dispatchAsync = async (request: ExternalCoreRequest): Promise<ExternalCore
         return await handlePasskeyGetAsync(request)
       case CORE_METHODS.PASSKEY_LIST:
         return await handlePasskeyListAsync(request)
+      case CORE_METHODS.BOOKMARKS_COLLECTIONS_LIST:
+        return await handleBookmarksCollectionsListAsync(request)
+      case CORE_METHODS.BOOKMARKS_COLLECTION_CREATE:
+        return await handleBookmarksCollectionCreateAsync(request)
+      case CORE_METHODS.BOOKMARKS_LIST:
+        return await handleBookmarksListAsync(request)
+      case CORE_METHODS.BOOKMARKS_UPSERT:
+        return await handleBookmarksUpsertAsync(request)
+      case CORE_METHODS.BOOKMARKS_DELETE:
+        return await handleBookmarksDeleteAsync(request)
+      case CORE_METHODS.BOOKMARKS_DEVICE_UPSERT:
+        return await handleBookmarksDeviceUpsertAsync(request)
       default:
         return errorResponse(request.requestId, `Unknown core action: ${request.action}`)
     }

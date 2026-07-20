@@ -14,4 +14,4 @@ import type { WebAction } from "./WebAction";
 /**
  * Ein typsicherer Container, der die spezifische Aktion für einen Ressourcentyp enthält.
  */
-export type Action = { "Database": DbAction } | { "Filesystem": FsAction } | { "Web": WebAction } | { "Shell": ShellAction } | { "SyncServers": RwAction } | { "CloudStorage": RwAction } | { "SyncRules": RwAction } | { "Spaces": SpaceAction } | { "Identities": IdentityAction } | { "Passwords": PasswordsAction } | { "Mail": MailAction } | { "Notifications": NotificationsAction } | { "ExtensionApi": ExtensionApiAction };
+export type Action = { "Database": DbAction } | { "Filesystem": FsAction } | { "Web": WebAction } | { "Shell": ShellAction } | { "SyncServers": RwAction } | { "CloudStorage": RwAction } | { "SyncRules": RwAction } | { "Spaces": SpaceAction } | { "Identities": IdentityAction } | { "Passwords": PasswordsAction } | { "Bookmarks": RwAction } | { "Mail": MailAction } | { "Notifications": NotificationsAction } | { "ExtensionApi": ExtensionApiAction };

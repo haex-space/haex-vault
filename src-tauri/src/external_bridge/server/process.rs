@@ -3,10 +3,11 @@
 
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
-use crate::extension::permissions::types::{PasswordsAction, Principal};
+use crate::extension::permissions::types::{PasswordsAction, Principal, RwAction};
 use crate::extension::utils::emit_permission_prompt_if_needed;
 use crate::AppState;
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
@@ -38,6 +39,24 @@ fn map_core_action_to_passwords_action(action: &str) -> Option<PasswordsAction> 
         | "passkey-get"
         | "passkey-list" => Some(PasswordsAction::Read),
         "create-item" | "update-item" | "passkey-create" => Some(PasswordsAction::ReadWrite),
+        _ => None,
+    }
+}
+
+/// Core bookmarks actions mapped to the `RwAction` they require. Kept in sync
+/// with `CORE_METHODS` in `useCoreExternalRequestHandlers/types.ts`. Unknown
+/// actions return `None` and are rejected fail-closed by the caller.
+/// Bookmarks access is authorized via its own `bookmarks` resource — a
+/// bookmarks method is never satisfied by a `passwords` grant (see
+/// `map_core_action_to_passwords_action`, which returns `None` for these
+/// action strings).
+fn map_core_action_to_bookmarks_action(action: &str) -> Option<RwAction> {
+    match action {
+        "bookmarks-collections-list" | "bookmarks-list" => Some(RwAction::Read),
+        "bookmarks-collection-create"
+        | "bookmarks-upsert"
+        | "bookmarks-delete"
+        | "bookmarks-device-upsert" => Some(RwAction::ReadWrite),
         _ => None,
     }
 }
@@ -90,6 +109,63 @@ async fn wait_for_permission_decision(
     )
 }
 
+/// Outcome of [`check_with_prompt_retry`].
+enum PromptRetry<T> {
+    /// A decision arrived in time (or none was needed) — `check` ran to completion.
+    Resolved(Result<T, ExtensionError>),
+    /// No decision arrived before the prompt timeout.
+    TimedOut,
+}
+
+/// Runs `check`; if it reports `PermissionPromptRequired`, waits for the
+/// user's decision and re-runs `check` exactly once more. Shared by every
+/// core/extension permission gate in `process_request` below — they differ
+/// only in which `PermissionManager::check_*` function `check` calls and its
+/// `Ok` payload.
+///
+/// `check` returns a boxed future rather than being an async closure: a
+/// generic `impl AsyncFnMut` here made the futures returned by
+/// `process_request` non-`Send` in a way the compiler couldn't verify,
+/// breaking the unrelated `tokio::spawn` call in `server/mod.rs` that awaits
+/// this function's caller.
+async fn check_with_prompt_retry<'a, T>(
+    app_handle: &AppHandle,
+    mut check: impl FnMut() -> std::pin::Pin<
+        Box<dyn Future<Output = Result<T, ExtensionError>> + Send + 'a>,
+    >,
+) -> PromptRetry<T> {
+    let mut result = check().await;
+    if let Err(err @ ExtensionError::PermissionPromptRequired { .. }) = &result {
+        if !wait_for_permission_decision(app_handle, err).await {
+            return PromptRetry::TimedOut;
+        }
+        result = check().await;
+    }
+    PromptRetry::Resolved(result)
+}
+
+fn timeout_response(request_id: &str) -> serde_json::Value {
+    serde_json::json!({
+        "requestId": request_id,
+        "success": false,
+        "errorCode": "PERMISSION_PROMPT_TIMEOUT",
+        "error": "Permission prompt timed out"
+    })
+}
+
+fn denied_response(
+    request_id: &str,
+    error_code: &str,
+    error: &ExtensionError,
+) -> serde_json::Value {
+    serde_json::json!({
+        "requestId": request_id,
+        "success": false,
+        "errorCode": error_code,
+        "error": error.to_string()
+    })
+}
+
 #[cfg(test)]
 mod core_action_mapping_tests {
     use super::*;
@@ -131,6 +207,79 @@ mod core_action_mapping_tests {
         );
         assert_eq!(map_core_action_to_passwords_action(""), None);
         assert_eq!(map_core_action_to_passwords_action("get-items "), None);
+    }
+
+    #[test]
+    fn read_only_bookmarks_methods_map_to_read() {
+        for action in ["bookmarks-collections-list", "bookmarks-list"] {
+            assert_eq!(
+                map_core_action_to_bookmarks_action(action),
+                Some(RwAction::Read),
+                "{action} should map to Read"
+            );
+        }
+    }
+
+    #[test]
+    fn write_bookmarks_methods_map_to_read_write() {
+        for action in [
+            "bookmarks-collection-create",
+            "bookmarks-upsert",
+            "bookmarks-delete",
+            "bookmarks-device-upsert",
+        ] {
+            assert_eq!(
+                map_core_action_to_bookmarks_action(action),
+                Some(RwAction::ReadWrite),
+                "{action} should map to ReadWrite"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_bookmarks_action_fails_closed() {
+        assert_eq!(
+            map_core_action_to_bookmarks_action("delete-everything"),
+            None
+        );
+        assert_eq!(map_core_action_to_bookmarks_action(""), None);
+    }
+
+    /// A bookmarks core method must never be satisfied by a passwords grant
+    /// (and vice versa) — the two resources are gated independently.
+    #[test]
+    fn bookmarks_methods_are_not_authorized_via_passwords_mapping() {
+        for action in [
+            "bookmarks-collections-list",
+            "bookmarks-collection-create",
+            "bookmarks-list",
+            "bookmarks-upsert",
+            "bookmarks-delete",
+            "bookmarks-device-upsert",
+        ] {
+            assert_eq!(
+                map_core_action_to_passwords_action(action),
+                None,
+                "{action} must not map to a passwords action"
+            );
+        }
+        for action in [
+            "get-items",
+            "get-totp",
+            "create-item",
+            "update-item",
+            "get-password-config",
+            "get-password-presets",
+            "passkey-create",
+            "passkey-get",
+            "passkey-list",
+        ] {
+            assert_eq!(
+                map_core_action_to_bookmarks_action(action),
+                None,
+                "{action} must not map to a bookmarks action"
+            );
+        }
     }
 }
 
@@ -235,7 +384,50 @@ pub(super) async fn process_request(
     let principal = Principal::ExternalClient(client_id.to_string());
     let mut core_passwords_scope = None;
     if is_core {
-        let Some(passwords_action) = map_core_action_to_passwords_action(action) else {
+        if let Some(passwords_action) = map_core_action_to_passwords_action(action) {
+            match check_with_prompt_retry(app_handle, || {
+                let state = app_handle.state::<AppState>();
+                let principal = &principal;
+                let passwords_action = passwords_action.clone();
+                Box::pin(async move {
+                    PermissionManager::check_passwords_permission(
+                        &state,
+                        principal,
+                        passwords_action,
+                    )
+                    .await
+                })
+            })
+            .await
+            {
+                PromptRetry::TimedOut => return timeout_response(&request_id),
+                PromptRetry::Resolved(Ok(scope)) => core_passwords_scope = Some(scope),
+                PromptRetry::Resolved(Err(e)) => {
+                    return denied_response(&request_id, "PERMISSION_DENIED", &e)
+                }
+            }
+        } else if let Some(bookmarks_action) = map_core_action_to_bookmarks_action(action) {
+            match check_with_prompt_retry(app_handle, || {
+                let state = app_handle.state::<AppState>();
+                let principal = &principal;
+                Box::pin(async move {
+                    PermissionManager::check_bookmarks_permission(
+                        &state,
+                        principal,
+                        bookmarks_action,
+                    )
+                    .await
+                })
+            })
+            .await
+            {
+                PromptRetry::TimedOut => return timeout_response(&request_id),
+                PromptRetry::Resolved(Ok(())) => {}
+                PromptRetry::Resolved(Err(e)) => {
+                    return denied_response(&request_id, "BOOKMARKS_SCOPE_DENIED", &e)
+                }
+            }
+        } else {
             // Unknown core action: fail closed, never prompt.
             return serde_json::json!({
                 "requestId": request_id,
@@ -243,83 +435,29 @@ pub(super) async fn process_request(
                 "errorCode": "PERMISSION_DENIED",
                 "error": format!("Unknown core action: {action}")
             });
-        };
-
-        let mut result = PermissionManager::check_passwords_permission(
-            &app_handle.state::<AppState>(),
-            &principal,
-            passwords_action.clone(),
-        )
-        .await;
-
-        if let Err(err @ ExtensionError::PermissionPromptRequired { .. }) = &result {
-            let woken = wait_for_permission_decision(app_handle, err).await;
-            result = if woken {
-                PermissionManager::check_passwords_permission(
-                    &app_handle.state::<AppState>(),
-                    &principal,
-                    passwords_action,
-                )
-                .await
-            } else {
-                return serde_json::json!({
-                    "requestId": request_id,
-                    "success": false,
-                    "errorCode": "PERMISSION_PROMPT_TIMEOUT",
-                    "error": "Permission prompt timed out"
-                });
-            };
-        }
-
-        match result {
-            Ok(scope) => core_passwords_scope = Some(scope),
-            Err(e) => {
-                return serde_json::json!({
-                    "requestId": request_id,
-                    "success": false,
-                    "errorCode": "PERMISSION_DENIED",
-                    "error": e.to_string()
-                });
-            }
         }
     } else {
-        let mut result = PermissionManager::check_extension_api_permission(
-            &app_handle.state::<AppState>(),
-            &principal,
-            ext_public_key,
-            ext_name,
-            action,
-        )
-        .await;
-
-        if let Err(err @ ExtensionError::PermissionPromptRequired { .. }) = &result {
-            let woken = wait_for_permission_decision(app_handle, err).await;
-            result = if woken {
+        match check_with_prompt_retry(app_handle, || {
+            let state = app_handle.state::<AppState>();
+            let principal = &principal;
+            Box::pin(async move {
                 PermissionManager::check_extension_api_permission(
-                    &app_handle.state::<AppState>(),
-                    &principal,
+                    &state,
+                    principal,
                     ext_public_key,
                     ext_name,
                     action,
                 )
                 .await
-            } else {
-                return serde_json::json!({
-                    "requestId": request_id,
-                    "success": false,
-                    "errorCode": "PERMISSION_PROMPT_TIMEOUT",
-                    "error": "Permission prompt timed out"
-                });
-            };
-        }
-
-        if let Err(e) = result {
-            return serde_json::json!({
-                "requestId": request_id,
-                "success": false,
-                "errorCode": "PERMISSION_DENIED",
-                "error": e.to_string()
-            });
+            })
+        })
+        .await
+        {
+            PromptRetry::TimedOut => return timeout_response(&request_id),
+            PromptRetry::Resolved(Ok(())) => {}
+            PromptRetry::Resolved(Err(e)) => {
+                return denied_response(&request_id, "PERMISSION_DENIED", &e)
+            }
         }
     }
 
