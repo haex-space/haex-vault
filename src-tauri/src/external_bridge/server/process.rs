@@ -180,7 +180,10 @@ mod core_action_mapping_tests {
 
     #[test]
     fn unknown_bookmarks_action_fails_closed() {
-        assert_eq!(map_core_action_to_bookmarks_action("delete-everything"), None);
+        assert_eq!(
+            map_core_action_to_bookmarks_action("delete-everything"),
+            None
+        );
         assert_eq!(map_core_action_to_bookmarks_action(""), None);
     }
 

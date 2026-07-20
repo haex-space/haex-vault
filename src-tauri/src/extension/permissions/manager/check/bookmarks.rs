@@ -44,7 +44,9 @@ impl PermissionManager {
 
         let matching: Vec<&ExtensionPermission> = permissions
             .iter()
-            .filter(|p| p.resource_type == ResourceType::Bookmarks && action_allows(&p.action, action))
+            .filter(|p| {
+                p.resource_type == ResourceType::Bookmarks && action_allows(&p.action, action)
+            })
             .collect();
 
         let action_str = bookmarks_action_str(action);
