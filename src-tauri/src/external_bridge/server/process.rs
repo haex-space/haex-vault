@@ -130,7 +130,9 @@ enum PromptRetry<T> {
 /// this function's caller.
 async fn check_with_prompt_retry<'a, T>(
     app_handle: &AppHandle,
-    mut check: impl FnMut() -> std::pin::Pin<Box<dyn Future<Output = Result<T, ExtensionError>> + Send + 'a>>,
+    mut check: impl FnMut() -> std::pin::Pin<
+        Box<dyn Future<Output = Result<T, ExtensionError>> + Send + 'a>,
+    >,
 ) -> PromptRetry<T> {
     let mut result = check().await;
     if let Err(err @ ExtensionError::PermissionPromptRequired { .. }) = &result {
@@ -151,7 +153,11 @@ fn timeout_response(request_id: &str) -> serde_json::Value {
     })
 }
 
-fn denied_response(request_id: &str, error_code: &str, error: &ExtensionError) -> serde_json::Value {
+fn denied_response(
+    request_id: &str,
+    error_code: &str,
+    error: &ExtensionError,
+) -> serde_json::Value {
     serde_json::json!({
         "requestId": request_id,
         "success": false,
