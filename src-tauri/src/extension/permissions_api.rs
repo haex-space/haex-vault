@@ -27,6 +27,7 @@ pub(crate) fn convert_to_editable_permissions(
     let mut spaces = Vec::new();
     let mut identities = Vec::new();
     let mut passwords = Vec::new();
+    let mut bookmarks = Vec::new();
     let mut mail = Vec::new();
     let mut notifications = Vec::new();
 
@@ -55,6 +56,7 @@ pub(crate) fn convert_to_editable_permissions(
             ResourceType::Spaces => spaces.push(entry),
             ResourceType::Identities => identities.push(entry),
             ResourceType::Passwords => passwords.push(entry),
+            ResourceType::Bookmarks => bookmarks.push(entry),
             ResourceType::Mail => mail.push(entry),
             ResourceType::Notifications => notifications.push(entry),
             // `ExtensionApi` rows (external bridge clients calling other
@@ -106,6 +108,11 @@ pub(crate) fn convert_to_editable_permissions(
             None
         } else {
             Some(passwords)
+        },
+        bookmarks: if bookmarks.is_empty() {
+            None
+        } else {
+            Some(bookmarks)
         },
         mail: if mail.is_empty() { None } else { Some(mail) },
         notifications: if notifications.is_empty() {

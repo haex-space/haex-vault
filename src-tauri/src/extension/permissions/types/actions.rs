@@ -449,6 +449,41 @@ impl FromStr for PasswordsAction {
     }
 }
 
+/// Bookmarks-Permission ist nicht Tag-/Sammlungs-granular: `Read`/`ReadWrite`
+/// gilt für alle Sammlungen (`haex_bookmark_collections`) gleichermaßen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum BookmarksAction {
+    Read,
+    ReadWrite,
+}
+
+impl BookmarksAction {
+    pub fn allows_read(&self) -> bool {
+        matches!(self, BookmarksAction::Read | BookmarksAction::ReadWrite)
+    }
+
+    pub fn allows_write(&self) -> bool {
+        matches!(self, BookmarksAction::ReadWrite)
+    }
+}
+
+impl FromStr for BookmarksAction {
+    type Err = ExtensionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "read" => Ok(BookmarksAction::Read),
+            "readwrite" | "read_write" => Ok(BookmarksAction::ReadWrite),
+            _ => Err(ExtensionError::InvalidActionString {
+                input: s.to_string(),
+                resource_type: "bookmarks".to_string(),
+            }),
+        }
+    }
+}
+
 /// Ergebnis einer Passwords-Permission-Prüfung.
 ///
 /// Beschreibt welche Tag-Scopes eine Extension für die angefragte Aktion lesen
@@ -504,6 +539,7 @@ pub enum Action {
     Spaces(SpaceAction),
     Identities(IdentityAction),
     Passwords(PasswordsAction),
+    Bookmarks(BookmarksAction),
     Mail(MailAction),
     Notifications(NotificationsAction),
     ExtensionApi(ExtensionApiAction),
@@ -552,6 +588,10 @@ impl Action {
                 .unwrap_or_default()
                 .trim_matches('"')
                 .to_string(),
+            Action::Bookmarks(action) => serde_json::to_string(action)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string(),
             Action::Mail(action) => serde_json::to_string(action)
                 .unwrap_or_default()
                 .trim_matches('"')
@@ -588,6 +628,7 @@ impl Action {
             ResourceType::Spaces => Ok(Action::Spaces(SpaceAction::from_str(s)?)),
             ResourceType::Identities => Ok(Action::Identities(IdentityAction::from_str(s)?)),
             ResourceType::Passwords => Ok(Action::Passwords(PasswordsAction::from_str(s)?)),
+            ResourceType::Bookmarks => Ok(Action::Bookmarks(BookmarksAction::from_str(s)?)),
             ResourceType::Mail => Ok(Action::Mail(MailAction::from_str(s)?)),
             ResourceType::Notifications => {
                 Ok(Action::Notifications(NotificationsAction::from_str(s)?))

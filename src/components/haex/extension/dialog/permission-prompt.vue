@@ -287,6 +287,8 @@ const resourceTypeIcon = computed(() => {
       return 'i-heroicons-user-group'
     case 'passwords':
       return 'i-heroicons-key'
+    case 'bookmarks':
+      return 'i-heroicons-bookmark'
     case 'extensionApi':
       return 'i-heroicons-puzzle-piece'
     default:
@@ -314,6 +316,8 @@ const resourceTypeLabel = computed(() => {
       return t('resourceType.spaces')
     case 'passwords':
       return t('resourceType.passwords')
+    case 'bookmarks':
+      return t('resourceType.bookmarks')
     case 'extensionApi':
       return t('resourceType.extensionApi')
     default:
@@ -367,6 +371,7 @@ de:
     syncRules: Sync-Regeln
     spaces: Shared Spaces
     passwords: Passwortzugriff
+    bookmarks: Lesezeichenzugriff
     extensionApi: Zugriff auf externe Anwendung
     unknown: Unbekannt
   warning:
@@ -396,6 +401,7 @@ en:
     syncRules: Sync Rules
     spaces: Shared Spaces
     passwords: Password Access
+    bookmarks: Bookmark Access
     extensionApi: External Application Access
     unknown: Unknown
   warning:

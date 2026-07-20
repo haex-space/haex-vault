@@ -311,6 +311,7 @@ fn test_extension_for_db() -> Extension {
                 spaces: None,
                 identities: None,
                 passwords: None,
+                bookmarks: None,
                 mail: None,
                 notifications: None,
             },

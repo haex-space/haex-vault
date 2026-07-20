@@ -1,8 +1,8 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    split_constraints_value, Action, DbAction, ExtensionPermission, FsAction, IdentityAction,
-    MailAction, NotificationsAction, PasswordsAction, PermissionStatus, ResourceType, RwAction,
-    ShellAction, SpaceAction, WebAction,
+    split_constraints_value, Action, BookmarksAction, DbAction, ExtensionPermission, FsAction,
+    IdentityAction, MailAction, NotificationsAction, PasswordsAction, PermissionStatus,
+    ResourceType, RwAction, ShellAction, SpaceAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -96,6 +96,8 @@ pub struct ExtensionPermissions {
     pub identities: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub passwords: Option<Vec<PermissionEntry>>,
+    #[serde(default)]
+    pub bookmarks: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub mail: Option<Vec<PermissionEntry>>,
     #[serde(default)]
@@ -206,6 +208,7 @@ impl ExtensionPermissions {
         set_status_for_list(self.spaces.as_mut());
         set_status_for_list(self.identities.as_mut());
         set_status_for_list(self.passwords.as_mut());
+        set_status_for_list(self.bookmarks.as_mut());
         set_status_for_list(self.mail.as_mut());
         set_status_for_list(self.notifications.as_mut());
     }
@@ -291,6 +294,14 @@ impl ExtensionPermissions {
                 }
             }
         }
+        if let Some(entries) = &self.bookmarks {
+            for p in entries {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Bookmarks, p)
+                {
+                    permissions.push(perm);
+                }
+            }
+        }
         if let Some(entries) = &self.mail {
             for p in entries {
                 if let Some(perm) = Self::create_internal(extension_id, ResourceType::Mail, p) {
@@ -351,6 +362,9 @@ impl ExtensionPermissions {
             ResourceType::Passwords => PasswordsAction::from_str(operation_str)
                 .ok()
                 .map(Action::Passwords),
+            ResourceType::Bookmarks => BookmarksAction::from_str(operation_str)
+                .ok()
+                .map(Action::Bookmarks),
             ResourceType::Mail => MailAction::from_str(operation_str).ok().map(Action::Mail),
             ResourceType::Notifications => NotificationsAction::from_str(operation_str)
                 .ok()

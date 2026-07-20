@@ -331,6 +331,7 @@ pub async fn resolve_permission_prompt(
         "spaces" => ResourceType::Spaces,
         "identities" => ResourceType::Identities,
         "passwords" => ResourceType::Passwords,
+        "bookmarks" => ResourceType::Bookmarks,
         "mail" => ResourceType::Mail,
         "notifications" => ResourceType::Notifications,
         "extensionApi" => ResourceType::ExtensionApi,
@@ -417,6 +418,20 @@ pub async fn resolve_permission_prompt(
             )
             .await?;
             return Ok(());
+        }
+        ResourceType::Bookmarks => {
+            let bookmarks_action = match action.to_lowercase().as_str() {
+                "read" => crate::extension::permissions::types::BookmarksAction::Read,
+                "readwrite" | "read_write" => {
+                    crate::extension::permissions::types::BookmarksAction::ReadWrite
+                }
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!("Invalid bookmarks action: {action}"),
+                    })
+                }
+            };
+            Action::Bookmarks(bookmarks_action)
         }
         ResourceType::Mail => {
             let mail_action = match action.to_lowercase().as_str() {

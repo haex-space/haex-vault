@@ -46,6 +46,7 @@ fn create_test_extension(public_key: &str, name: &str) -> Extension {
                 spaces: None,
                 identities: None,
                 passwords: None,
+                bookmarks: None,
                 mail: None,
                 notifications: None,
             },

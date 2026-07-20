@@ -50,6 +50,7 @@ pub enum ResourceType {
     Spaces,
     Identities,
     Passwords,
+    Bookmarks,
     Mail,
     Notifications,
     #[serde(rename = "extensionApi")]
@@ -78,6 +79,7 @@ impl ResourceType {
             ResourceType::Spaces => "spaces",
             ResourceType::Identities => "identities",
             ResourceType::Passwords => "passwords",
+            ResourceType::Bookmarks => "bookmarks",
             ResourceType::Mail => "mail",
             ResourceType::Notifications => "notifications",
             ResourceType::ExtensionApi => "extensionApi",
@@ -96,6 +98,7 @@ impl ResourceType {
             "spaces" => Ok(ResourceType::Spaces),
             "identities" => Ok(ResourceType::Identities),
             "passwords" => Ok(ResourceType::Passwords),
+            "bookmarks" => Ok(ResourceType::Bookmarks),
             "mail" => Ok(ResourceType::Mail),
             "notifications" => Ok(ResourceType::Notifications),
             "extensionApi" => Ok(ResourceType::ExtensionApi),
