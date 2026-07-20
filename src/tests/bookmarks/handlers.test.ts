@@ -47,8 +47,19 @@ describe('handleBookmarksCollectionsListAsync', () => {
       .mockReturnValueOnce(queryResult([
         { id: COLLECTION_ID, name: 'Privat', createdAt: 't0', updatedAt: 't1' },
       ]))
-      .mockReturnValueOnce(queryResult([{ count: 3 }]))
-      .mockReturnValueOnce(queryResult([{ deviceLabel: 'Firefox' }, { deviceLabel: 'Chrome' }]))
+      .mockReturnValueOnce(
+        queryResult([
+          { collectionId: COLLECTION_ID },
+          { collectionId: COLLECTION_ID },
+          { collectionId: COLLECTION_ID },
+        ]),
+      )
+      .mockReturnValueOnce(
+        queryResult([
+          { collectionId: COLLECTION_ID, deviceLabel: 'Firefox' },
+          { collectionId: COLLECTION_ID, deviceLabel: 'Chrome' },
+        ]),
+      )
 
     const response = await handleBookmarksCollectionsListAsync(makeRequest('bookmarks-collections-list', {}))
 

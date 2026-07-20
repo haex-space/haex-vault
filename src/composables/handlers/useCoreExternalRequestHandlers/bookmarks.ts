@@ -46,28 +46,42 @@ export const handleBookmarksCollectionsListAsync = async (
   const db = requireDb()
 
   const collections = await db.select().from(haexBookmarkCollections)
+  const collectionIds = collections.map((collection) => collection.id)
 
-  const data = await Promise.all(
-    collections.map(async (collection) => {
-      const [countRow] = await db
-        .select({ count: sql<number>`count(*)` })
+  const bookmarkRows = collectionIds.length
+    ? await db
+        .select({ collectionId: haexBookmarks.collectionId })
         .from(haexBookmarks)
-        .where(eq(haexBookmarks.collectionId, collection.id))
+        .where(inArray(haexBookmarks.collectionId, collectionIds))
+    : []
+  const countsByCollection = new Map<string, number>()
+  for (const row of bookmarkRows) {
+    countsByCollection.set(row.collectionId, (countsByCollection.get(row.collectionId) ?? 0) + 1)
+  }
 
-      const deviceRows = await db
-        .select({ deviceLabel: haexBookmarkDevices.deviceLabel })
+  const deviceRows = collectionIds.length
+    ? await db
+        .select({
+          collectionId: haexBookmarkDevices.collectionId,
+          deviceLabel: haexBookmarkDevices.deviceLabel,
+        })
         .from(haexBookmarkDevices)
-        .where(eq(haexBookmarkDevices.collectionId, collection.id))
+        .where(inArray(haexBookmarkDevices.collectionId, collectionIds))
+    : []
+  const deviceLabelsByCollection = new Map<string, string[]>()
+  for (const row of deviceRows) {
+    const labels = deviceLabelsByCollection.get(row.collectionId) ?? []
+    labels.push(row.deviceLabel)
+    deviceLabelsByCollection.set(row.collectionId, labels)
+  }
 
-      return {
-        id: collection.id,
-        name: collection.name,
-        updatedAt: collection.updatedAt,
-        bookmarkCount: Number(countRow?.count ?? 0),
-        deviceLabels: deviceRows.map((row) => row.deviceLabel),
-      }
-    }),
-  )
+  const data = collections.map((collection) => ({
+    id: collection.id,
+    name: collection.name,
+    updatedAt: collection.updatedAt,
+    bookmarkCount: countsByCollection.get(collection.id) ?? 0,
+    deviceLabels: deviceLabelsByCollection.get(collection.id) ?? [],
+  }))
 
   return { requestId: request.requestId, success: true, data: { collections: data } }
 }
@@ -155,13 +169,24 @@ export const handleBookmarksUpsertAsync = async (
     throw error
   }
 
-  for (const node of nodes) {
-    const [existing] = await db
-      .select({ id: haexBookmarks.id })
-      .from(haexBookmarks)
-      .where(eq(haexBookmarks.id, node.id))
-      .limit(1)
+  // A single batched existence lookup replaces one `select` per node — the
+  // driver has no `onConflictDoUpdate`/`batch()` support (see PR description),
+  // so this is the update/insert split with the fewest round-trips available.
+  const existingIds = new Set(
+    (
+      await db
+        .select({ id: haexBookmarks.id })
+        .from(haexBookmarks)
+        .where(
+          inArray(
+            haexBookmarks.id,
+            nodes.map((node) => node.id),
+          ),
+        )
+    ).map((row) => row.id),
+  )
 
+  for (const node of nodes) {
     const values = {
       collectionId: node.collectionId,
       parentId: node.parentId,
@@ -172,7 +197,7 @@ export const handleBookmarksUpsertAsync = async (
       position: node.position,
     }
 
-    if (existing) {
+    if (existingIds.has(node.id)) {
       await db.update(haexBookmarks).set(values).where(eq(haexBookmarks.id, node.id))
     } else {
       await db.insert(haexBookmarks).values({ id: node.id, ...values })

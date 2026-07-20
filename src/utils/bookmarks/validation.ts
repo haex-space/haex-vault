@@ -24,9 +24,7 @@ export class BookmarkValidationError extends Error {}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // U+0000-U+001F except tab/LF/CR, which are normalizable whitespace.
-const FORBIDDEN_CONTROL_CHARS = new RegExp(
-  `[${String.fromCharCode(0)}-${String.fromCharCode(8)}${String.fromCharCode(11)}${String.fromCharCode(12)}${String.fromCharCode(14)}-${String.fromCharCode(31)}]`,
-)
+const FORBIDDEN_CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F]/
 
 function assertUuid(value: string, label: string): void {
   if (!UUID_PATTERN.test(value)) {
