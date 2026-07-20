@@ -43,7 +43,7 @@
     "@nuxt/ui": "4.10.0",
     "@nuxtjs/i18n": "10.4.1",
     "@pinia/nuxt": "^0.11.3",
-    "@tailwindcss/vite": "^4.3.2",
+    "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-deep-link": "~2.4.9",
     "@tauri-apps/plugin-dialog": "^2.7.2",
