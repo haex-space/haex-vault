@@ -331,6 +331,7 @@ pub async fn resolve_permission_prompt(
         "spaces" => ResourceType::Spaces,
         "identities" => ResourceType::Identities,
         "passwords" => ResourceType::Passwords,
+        "bookmarks" => ResourceType::Bookmarks,
         "mail" => ResourceType::Mail,
         "notifications" => ResourceType::Notifications,
         "extensionApi" => ResourceType::ExtensionApi,
@@ -418,6 +419,18 @@ pub async fn resolve_permission_prompt(
             .await?;
             return Ok(());
         }
+        ResourceType::Bookmarks => {
+            let bookmarks_action = match action.to_lowercase().as_str() {
+                "read" => RwAction::Read,
+                "readwrite" | "read_write" => RwAction::ReadWrite,
+                _ => {
+                    return Err(ExtensionError::ValidationError {
+                        reason: format!("Invalid bookmarks action: {action}"),
+                    })
+                }
+            };
+            Action::Bookmarks(bookmarks_action)
+        }
         ResourceType::Mail => {
             let mail_action = match action.to_lowercase().as_str() {
                 "fetch" => crate::extension::permissions::types::MailAction::Fetch,
@@ -476,8 +489,26 @@ pub async fn resolve_permission_prompt(
     });
 
     if let Some(existing) = existing_permission {
-        // Update existing permission
-        PermissionManager::update_permission_status(&state, &existing.id, status).await?;
+        if existing.action == action_enum {
+            // Update existing permission
+            PermissionManager::update_permission_status(&state, &existing.id, status).await?;
+        } else {
+            // The stored action no longer matches what was just requested (e.g. a
+            // `read` grant followed by a `readWrite` request) — persist the new
+            // action too, not just the status, so a later permission check for the
+            // upgraded action succeeds instead of re-prompting forever.
+            let updated_permission = ExtensionPermission {
+                id: existing.id.clone(),
+                principal_id: existing.principal_id.clone(),
+                resource_type: resource_type_enum,
+                action: action_enum,
+                target,
+                constraints: existing.constraints.clone(),
+                status,
+                raw_constraints: existing.raw_constraints.clone(),
+            };
+            PermissionManager::update_permission(&state, &updated_permission).await?;
+        }
     } else {
         // Create new permission
         let new_permission = ExtensionPermission {

@@ -97,6 +97,8 @@ pub struct ExtensionPermissions {
     #[serde(default)]
     pub passwords: Option<Vec<PermissionEntry>>,
     #[serde(default)]
+    pub bookmarks: Option<Vec<PermissionEntry>>,
+    #[serde(default)]
     pub mail: Option<Vec<PermissionEntry>>,
     #[serde(default)]
     pub notifications: Option<Vec<PermissionEntry>>,
@@ -206,6 +208,7 @@ impl ExtensionPermissions {
         set_status_for_list(self.spaces.as_mut());
         set_status_for_list(self.identities.as_mut());
         set_status_for_list(self.passwords.as_mut());
+        set_status_for_list(self.bookmarks.as_mut());
         set_status_for_list(self.mail.as_mut());
         set_status_for_list(self.notifications.as_mut());
     }
@@ -291,6 +294,14 @@ impl ExtensionPermissions {
                 }
             }
         }
+        if let Some(entries) = &self.bookmarks {
+            for p in entries {
+                if let Some(perm) = Self::create_internal(extension_id, ResourceType::Bookmarks, p)
+                {
+                    permissions.push(perm);
+                }
+            }
+        }
         if let Some(entries) = &self.mail {
             for p in entries {
                 if let Some(perm) = Self::create_internal(extension_id, ResourceType::Mail, p) {
@@ -342,6 +353,9 @@ impl ExtensionPermissions {
             ResourceType::SyncRules => RwAction::from_str(operation_str)
                 .ok()
                 .map(Action::SyncRules),
+            ResourceType::Bookmarks => RwAction::from_str(operation_str)
+                .ok()
+                .map(Action::Bookmarks),
             ResourceType::Spaces => SpaceAction::from_str(operation_str)
                 .ok()
                 .map(Action::Spaces),

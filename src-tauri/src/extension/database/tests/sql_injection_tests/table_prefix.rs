@@ -185,6 +185,7 @@ fn test_permission_checker_cross_extension() {
                 spaces: None,
                 identities: None,
                 passwords: None,
+                bookmarks: None,
                 mail: None,
                 notifications: None,
             },

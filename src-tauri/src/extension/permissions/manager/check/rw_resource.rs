@@ -10,8 +10,8 @@ use tauri::State;
 
 impl PermissionManager {
     /// Gemeinsame Logik für die action-level Read/ReadWrite-Ressourcen
-    /// (`SyncServers`, `CloudStorage`, `SyncRules`). `target` ist immer "*";
-    /// es wird kein Sub-Target-Matching mehr durchgeführt.
+    /// (`SyncServers`, `CloudStorage`, `SyncRules`, `Bookmarks`). `target` ist
+    /// immer "*"; es wird kein Sub-Target-Matching mehr durchgeführt.
     pub(super) async fn check_rw_resource_permission(
         app_state: &State<'_, AppState>,
         principal: &Principal,
@@ -117,7 +117,7 @@ pub(crate) fn rw_resource_matching_status(
 /// untouched for other resources.
 ///
 /// The escalation applies independently to `SyncServers`, `CloudStorage`,
-/// and `SyncRules` — each is keyed on its own [`Action`] variant.
+/// `SyncRules`, and `Bookmarks` — each is keyed on its own [`Action`] variant.
 ///
 /// Returns:
 /// - `Some(Granted)` if the session has Granted for `action` (or `ReadWrite`
@@ -152,12 +152,13 @@ pub(crate) fn rw_resource_session_status(
 /// Builds the [`Action`] variant carrying `action` for `resource_type`.
 ///
 /// Panics for non-RW resources — `check_rw_resource_permission` only ever
-/// dispatches `SyncServers`/`CloudStorage`/`SyncRules`.
+/// dispatches `SyncServers`/`CloudStorage`/`SyncRules`/`Bookmarks`.
 fn make_action(resource_type: ResourceType, action: RwAction) -> Action {
     match resource_type {
         ResourceType::SyncServers => Action::SyncServers(action),
         ResourceType::CloudStorage => Action::CloudStorage(action),
         ResourceType::SyncRules => Action::SyncRules(action),
+        ResourceType::Bookmarks => Action::Bookmarks(action),
         _ => unreachable!("rw_resource helpers only handle RW resources"),
     }
 }
@@ -186,6 +187,7 @@ fn perm_rw_action(perm_action: &Action, resource_type: ResourceType) -> Option<R
         (ResourceType::SyncServers, Action::SyncServers(a)) => Some(*a),
         (ResourceType::CloudStorage, Action::CloudStorage(a)) => Some(*a),
         (ResourceType::SyncRules, Action::SyncRules(a)) => Some(*a),
+        (ResourceType::Bookmarks, Action::Bookmarks(a)) => Some(*a),
         _ => None,
     }
 }

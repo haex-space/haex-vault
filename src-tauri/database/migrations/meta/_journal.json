@@ -57,6 +57,13 @@
       "when": 1784031998711,
       "tag": "0007_chemical_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784549042072,
+      "tag": "0008_lame_vulcan",
+      "breakpoints": true
     }
   ]
 }
