@@ -421,10 +421,8 @@ pub async fn resolve_permission_prompt(
         }
         ResourceType::Bookmarks => {
             let bookmarks_action = match action.to_lowercase().as_str() {
-                "read" => crate::extension::permissions::types::BookmarksAction::Read,
-                "readwrite" | "read_write" => {
-                    crate::extension::permissions::types::BookmarksAction::ReadWrite
-                }
+                "read" => RwAction::Read,
+                "readwrite" | "read_write" => RwAction::ReadWrite,
                 _ => {
                     return Err(ExtensionError::ValidationError {
                         reason: format!("Invalid bookmarks action: {action}"),

@@ -1,8 +1,8 @@
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::types::{
-    split_constraints_value, Action, BookmarksAction, DbAction, ExtensionPermission, FsAction,
-    IdentityAction, MailAction, NotificationsAction, PasswordsAction, PermissionStatus,
-    ResourceType, RwAction, ShellAction, SpaceAction, WebAction,
+    split_constraints_value, Action, DbAction, ExtensionPermission, FsAction, IdentityAction,
+    MailAction, NotificationsAction, PasswordsAction, PermissionStatus, ResourceType, RwAction,
+    ShellAction, SpaceAction, WebAction,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -353,6 +353,9 @@ impl ExtensionPermissions {
             ResourceType::SyncRules => RwAction::from_str(operation_str)
                 .ok()
                 .map(Action::SyncRules),
+            ResourceType::Bookmarks => RwAction::from_str(operation_str)
+                .ok()
+                .map(Action::Bookmarks),
             ResourceType::Spaces => SpaceAction::from_str(operation_str)
                 .ok()
                 .map(Action::Spaces),
@@ -362,9 +365,6 @@ impl ExtensionPermissions {
             ResourceType::Passwords => PasswordsAction::from_str(operation_str)
                 .ok()
                 .map(Action::Passwords),
-            ResourceType::Bookmarks => BookmarksAction::from_str(operation_str)
-                .ok()
-                .map(Action::Bookmarks),
             ResourceType::Mail => MailAction::from_str(operation_str).ok().map(Action::Mail),
             ResourceType::Notifications => NotificationsAction::from_str(operation_str)
                 .ok()

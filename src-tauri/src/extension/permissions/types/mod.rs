@@ -16,7 +16,7 @@ mod permission;
 mod principal;
 
 pub use actions::{
-    Action, BookmarksAction, DbAction, ExtensionApiAction, FsAction, IdentityAction, MailAction,
+    Action, DbAction, ExtensionApiAction, FsAction, IdentityAction, MailAction,
     NotificationsAction, PasswordsAction, PasswordsScope, RwAction, ShellAction, SpaceAction,
     WebAction,
 };
