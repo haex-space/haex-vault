@@ -521,6 +521,7 @@ pub fn run() {
             extension::spaces::commands::extension_space_unassign,
             extension::spaces::commands::extension_space_get_assignments,
             extension::spaces::commands::extension_space_list,
+            extension::spaces::commands::extension_space_get_members,
             extension::spaces::commands::set_auth_token,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,

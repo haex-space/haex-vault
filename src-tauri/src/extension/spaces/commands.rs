@@ -6,12 +6,12 @@
 
 use super::queries::{
     SQL_DELETE_SHARED_SPACE_SYNC, SQL_INSERT_SHARED_SPACE_SYNC, SQL_SELECT_OWN_DID_FOR_SPACE,
-    SQL_SHARED_SPACE_SYNC_SELECT_COLS,
+    SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY, SQL_SHARED_SPACE_SYNC_SELECT_COLS,
 };
 use crate::critical::CriticalFailureCode;
 use crate::database::core;
 use crate::database::error::DatabaseError;
-use crate::database::row::get_string;
+use crate::database::row::{get_bool, get_string};
 use crate::extension::error::ExtensionError;
 use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Principal, SpaceAction};
@@ -453,4 +453,55 @@ pub async fn extension_space_list(
         .collect();
 
     Ok(spaces)
+}
+
+/// A member of a shared space.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpaceMemberOut {
+    pub did: String,
+    /// `haex_identities.name`
+    pub label: String,
+    #[serde(rename = "isSelf")]
+    pub is_self: bool,
+}
+
+/// List the members of a shared space with their display name and whether
+/// each member is a local identity (`private_key IS NOT NULL`).
+#[tauri::command]
+pub async fn extension_space_get_members(
+    app_handle: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    space_id: String,
+    public_key: Option<String>,
+    name: Option<String>,
+) -> Result<Vec<SpaceMemberOut>, ExtensionError> {
+    let extension_id = resolve_extension_id(&window, &state, public_key, name)?;
+
+    let perm_result = PermissionManager::check_spaces_permission(
+        &state,
+        &Principal::Extension(extension_id.clone()),
+        SpaceAction::Read,
+    )
+    .await;
+    prompt_on_err(&app_handle, perm_result)?;
+
+    let rows = core::select_with_crdt(
+        SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY.clone(),
+        vec![serde_json::Value::String(space_id)],
+        &state.db,
+    )
+    .map_err(|e| ExtensionError::Database { source: e })?;
+
+    let members: Vec<SpaceMemberOut> = rows
+        .iter()
+        .map(|row| SpaceMemberOut {
+            did: get_string(row, 0),
+            label: get_string(row, 1),
+            is_self: get_bool(row, 2),
+        })
+        .collect();
+
+    Ok(members)
 }

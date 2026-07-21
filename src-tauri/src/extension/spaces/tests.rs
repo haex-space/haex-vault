@@ -21,6 +21,7 @@ mod tests {
     use crate::database::DbConnection;
     use crate::extension::spaces::queries::{
         SQL_INSERT_SHARED_SPACE_SYNC, SQL_SELECT_OWN_DID_FOR_SPACE,
+        SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY,
     };
     use crate::table_names::{
         TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC,
@@ -380,5 +381,71 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert_eq!(get_string(&rows[0], 0), "did:key:own");
+    }
+
+    // =========================================================================
+    // extension_space_get_members: returns members with correct is_self/label.
+    // =========================================================================
+
+    #[test]
+    fn test_extension_space_get_members_returns_members_with_is_self() {
+        let (db, _hlc) = setup_test_db();
+
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO haex_identities (id, did, name, source, private_key) \
+                 VALUES ('id-own', 'did:key:own', 'Me', 'own', 'PRIVKEY')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_identities (id, did, name, source, private_key) \
+                 VALUES ('id-contact', 'did:key:contact', 'Alice', 'contact', NULL)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_space_members (id, space_id, identity_id) \
+                 VALUES ('mem-own', 'sp-1', 'id-own')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_space_members (id, space_id, identity_id) \
+                 VALUES ('mem-contact', 'sp-1', 'id-contact')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let rows = core::select_with_crdt(
+            SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY.clone(),
+            vec![serde_json::Value::String("sp-1".to_string())],
+            &db,
+        )
+        .unwrap();
+
+        assert_eq!(rows.len(), 2);
+
+        let mut by_did: std::collections::HashMap<String, (String, bool)> = rows
+            .iter()
+            .map(|row| {
+                (
+                    get_string(row, 0),
+                    (get_string(row, 1), row[2].as_i64().unwrap_or(0) != 0),
+                )
+            })
+            .collect();
+
+        let (own_label, own_is_self) = by_did.remove("did:key:own").expect("own DID present");
+        assert_eq!(own_label, "Me");
+        assert!(own_is_self, "own identity must have isSelf = true");
+
+        let (contact_label, contact_is_self) =
+            by_did.remove("did:key:contact").expect("contact DID present");
+        assert_eq!(contact_label, "Alice");
+        assert!(!contact_is_self, "contact identity must have isSelf = false");
     }
 }
