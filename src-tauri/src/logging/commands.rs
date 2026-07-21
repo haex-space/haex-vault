@@ -76,11 +76,11 @@ pub fn log_delete(state: State<'_, AppState>, ids: Vec<String>) -> Result<usize,
     };
 
     let mut total_deleted = 0usize;
+    let sql = format!(
+        "DELETE FROM {} WHERE id = ?1",
+        crate::table_names::TABLE_LOGS
+    );
     for id in &ids {
-        let sql = format!(
-            "DELETE FROM {} WHERE id = ?1",
-            crate::table_names::TABLE_LOGS
-        );
         total_deleted += sink
             .execute(&sql, &[JsonValue::String(id.clone())])
             .map_err(|e| DatabaseError::DatabaseError {

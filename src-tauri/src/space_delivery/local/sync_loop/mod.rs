@@ -16,6 +16,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use tauri::Manager;
 use tokio::sync::{watch, Notify};
 
 mod cycle;
@@ -72,8 +73,6 @@ pub enum SyncMode {
 /// The JS console interceptor's `[SYNC]`-prefix strip is now
 /// belt-and-suspenders, not load-bearing.
 pub(super) fn log_sync(app_handle: &tauri::AppHandle, level: &str, message: &str) {
-    use tauri::Manager;
-
     // `log_to_db` also emits an `eprintln!` internally with the same
     // `[source] [level] message` shape, so no explicit stderr line here.
     let sink_snapshot = app_handle.state::<crate::AppState>().log_sink_snapshot();

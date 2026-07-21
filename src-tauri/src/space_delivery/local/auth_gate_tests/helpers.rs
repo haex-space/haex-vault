@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use rusqlite::{Connection, OpenFlags};
 use tokio::sync::RwLock;
 
 use super::super::authorize_request;
@@ -48,8 +49,8 @@ pub(super) async fn authorize_default(
     .await
 }
 
-/// In-memory DB without the membership tables, but with `haex_logs` +
-/// the HLC UDF + CRDT bookkeeping so `log_to_db` works for audit-row
+/// In-memory DB without the membership tables, but with `haex_logs_no_sync`
+/// + the HLC UDF + CRDT bookkeeping so `log_to_db` works for audit-row
 /// assertions. Used by tests that short-circuit before the membership
 /// check (stage 2 no-peer, stage 4 audience, stage 5 capability) and by
 /// the DB-error test that wants `is_active_space_member` to fail on the
@@ -57,7 +58,8 @@ pub(super) async fn authorize_default(
 ///
 /// Delegates the entire setup to `test_support::init_logs_db_inner` —
 /// keeps this fixture byte-identical to `setup_membership_db` on every
-/// shared knob (HLC, CRDT bookkeeping, `ensure_crdt_columns` policy).
+/// shared knob (HLC, CRDT bookkeeping, the no-CRDT-column `_no_sync` log
+/// table).
 pub(super) fn empty_db() -> (DbConnection, Arc<Mutex<HlcService>>, LogSink) {
     let (conn, hlc_service, uri) = init_logs_db_inner_with_uri();
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
@@ -67,7 +69,6 @@ pub(super) fn empty_db() -> (DbConnection, Arc<Mutex<HlcService>>, LogSink) {
     // in a `LogSink`. Writes through the sink hit the same rows the
     // read-back SELECT (`select_audit_logs`) issues via `db`, matching
     // production's "two OS handles, one file" shape.
-    use rusqlite::{Connection, OpenFlags};
     let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
         | OpenFlags::SQLITE_OPEN_CREATE
         | OpenFlags::SQLITE_OPEN_URI;
@@ -96,9 +97,9 @@ pub(super) fn make_peer(
     }
 }
 
-/// Read all `haex_logs` rows via the same `logging::query_logs` the in-app
-/// log viewer uses. Going through the production query (rather than a
-/// bespoke `SELECT level, source, message, metadata FROM haex_logs`)
+/// Read all `haex_logs_no_sync` rows via the same `logging::query_logs` the
+/// in-app log viewer uses. Going through the production query (rather than a
+/// bespoke `SELECT level, source, message, metadata FROM haex_logs_no_sync`)
 /// means any future change to `query_logs` — added column, JSON
 /// normalisation, column-order change — gets exercised by these tests
 /// automatically; a SQL drift between production and tests can no longer
@@ -127,7 +128,7 @@ pub(super) fn select_audit_logs(db: &DbConnection) -> Vec<crate::logging::LogEnt
             offset: None,
         },
     )
-    .expect("query haex_logs")
+    .expect("query haex_logs_no_sync")
 }
 
 /// Assert that the gate wrote exactly one audit row at `expected_level`
@@ -141,7 +142,7 @@ pub(super) fn select_audit_logs(db: &DbConnection) -> Vec<crate::logging::LogEnt
 /// the production tag drifts the test fails for the right reason, never
 /// "I edited only one of the two strings". The `subsystem` check pins the
 /// metadata convention (always set to `"AuthGate"` for any reject row
-/// this module emits) so operators can filter `haex_logs` by subsystem
+/// this module emits) so operators can filter `haex_logs_no_sync` by subsystem
 /// independent of the per-op `source` tag.
 pub(super) fn assert_single_audit_row(
     db: &DbConnection,

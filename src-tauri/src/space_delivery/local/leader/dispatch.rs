@@ -55,10 +55,11 @@ pub(crate) async fn handle_delivery_request(
     // validate + cache the UCAN it just received before subsequent requests
     // on this connection can pass the gate.
     //
-    // Audit logging: the gate writes a `warn` row to `haex_logs` (via
-    // `log_to_db`, CRDT-synced to the owner) from every reject branch with
-    // `source = Request::op_name`, restoring the in-app log visibility the
-    // pre-T6 SyncPush / SyncPull arms used to emit directly.
+    // Audit logging: the gate writes a `warn` row to `haex_logs_no_sync`
+    // (via `log_to_db` → the dedicated `LogSink`, intentionally NOT
+    // CRDT-synced) from every reject branch with `source = Request::op_name`,
+    // restoring the in-app log visibility the pre-T6 SyncPush / SyncPull arms
+    // used to emit directly.
     let gate_ucan = match super::super::auth_gate::authorize_request(
         &request,
         verified_did,

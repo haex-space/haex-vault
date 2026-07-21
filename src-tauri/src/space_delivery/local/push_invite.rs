@@ -149,7 +149,8 @@ pub fn handle_push_invite(
     let hlc_guard = match hlc.lock() {
         Ok(guard) => guard,
         Err(_) => {
-            // Can't use log_to_db (it would also try to lock HLC). Stderr only.
+            // HLC lock poisoned: the CRDT-synced writes below can't proceed.
+            // Stderr only — no DB row for this abort.
             eprintln!("[{LOG_SOURCE}] [error] ABORT: HLC lock poisoned while processing invite for space {space_id} from {inviter_did}");
             return Response::PushInviteAck { accepted: false };
         }
@@ -174,7 +175,7 @@ pub fn handle_push_invite(
     .unwrap_or(0);
 
     if existing_for_token > 0 {
-        // Drop the guard before log_to_db (which acquires the HLC internally).
+        // Release the HLC lock before the early return; nothing below needs it.
         drop(hlc_guard);
         logging::log_to_db(
             log_sink,
@@ -214,8 +215,8 @@ pub fn handle_push_invite(
     let endpoints_json =
         serde_json::to_string(space_endpoints).unwrap_or_else(|_| "[]".to_string());
 
-    // eprintln only — can't log_to_db while holding hlc_guard (would deadlock).
-    // The DB log for this step happens post-drop with the outcome.
+    // eprintln step-trace only; the persisted DB log for this step follows
+    // (with the outcome) after the write completes.
     eprintln!("[{LOG_SOURCE}] [info] Inserting pending invite {invite_id} for space {space_id}");
 
     let insert_result = core::execute_with_crdt(
@@ -256,10 +257,11 @@ pub fn handle_push_invite(
         &hlc_guard,
     );
 
-    // Drop HLC lock before logging to DB (log_to_db locks internally)
+    // Release the HLC lock now — the remaining work only logs (via LogSink)
+    // and returns.
     drop(hlc_guard);
 
-    // Persist the INSERT outcome to haex_logs so production (where stderr is /dev/null)
+    // Persist the INSERT outcome to haex_logs_no_sync so production (where stderr is /dev/null)
     // can tell whether a given invite reached the row-creation stage or not.
     // With `RETURNING id`, `execute_with_crdt` yields one row on a real insert
     // and an empty Vec when `INSERT OR IGNORE` skipped a duplicate id — so
@@ -332,7 +334,7 @@ pub fn handle_push_invite(
 }
 
 /// Short, non-reversible fingerprint of a token for log diagnostics.
-/// Full `token_id` is a bearer credential; persisting it in `haex_logs`
+/// Full `token_id` is a bearer credential; persisting it in `haex_logs_no_sync`
 /// would make those rows as sensitive as the invite itself.
 fn token_fingerprint(token_id: &str) -> String {
     let digest = Sha256::digest(token_id.as_bytes());

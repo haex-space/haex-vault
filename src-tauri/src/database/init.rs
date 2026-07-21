@@ -179,3 +179,7 @@ pub fn ensure_triggers_for_all_tables(conn: &mut Connection) -> Result<usize, Da
 
     Ok(triggers_created)
 }
+
+#[cfg(test)]
+#[path = "init_tests.rs"]
+mod tests;
