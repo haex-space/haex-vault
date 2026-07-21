@@ -486,13 +486,17 @@ fn open_log_sink(
     key: &str,
     state: &State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
-    let sink = crate::logging::LogSink::open(Path::new(vault_path), key)
-        .map_err(|e| DatabaseError::DatabaseError {
+    let sink = crate::logging::LogSink::open(Path::new(vault_path), key).map_err(|e| {
+        DatabaseError::DatabaseError {
             reason: format!("Failed to open log sink: {e}"),
-        })?;
-    let mut sink_guard = state.log_sink.lock().map_err(|e| DatabaseError::LockError {
-        reason: e.to_string(),
+        }
     })?;
+    let mut sink_guard = state
+        .log_sink
+        .lock()
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
     *sink_guard = Some(sink);
     Ok(())
 }

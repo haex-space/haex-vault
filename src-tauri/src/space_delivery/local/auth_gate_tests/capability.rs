@@ -41,8 +41,15 @@ async fn rejects_missing_capability_for_requested_space() {
         ucan_token: Some("irrelevant — gate uses cached UCAN".into()),
     };
 
-    let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, Some(&log_sink)).await;
+    let result = authorize_default(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+        Some(&log_sink),
+    )
+    .await;
 
     match result {
         Err(Response::Error { message }) => {

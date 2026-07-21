@@ -37,8 +37,15 @@ async fn accepts_valid_request_from_active_member() {
         packages: vec![],
     };
 
-    let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, Some(&log_sink)).await;
+    let result = authorize_default(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+        Some(&log_sink),
+    )
+    .await;
 
     match result {
         Ok(Some(validated)) => {

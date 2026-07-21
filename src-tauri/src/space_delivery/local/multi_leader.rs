@@ -135,7 +135,7 @@ impl MultiSpaceLeaderHandler {
                     Ok(did) => did,
                     Err(e) => {
                         crate::logging::log_to_db(
-                self_log_sink,
+                            self_log_sink,
                             "warn",
                             "MultiLeader",
                             &format!("DID-auth failed for {remote_str}: {e}"),
@@ -148,7 +148,7 @@ impl MultiSpaceLeaderHandler {
             }
             Err(e) => {
                 crate::logging::log_to_db(
-                self_log_sink,
+                    self_log_sink,
                     "warn",
                     "MultiLeader",
                     &format!("Failed to open auth stream to {remote_str}: {e}"),
@@ -164,7 +164,7 @@ impl MultiSpaceLeaderHandler {
         // Emitted here (post-open_bi) rather than on accept so the blocking DB
         // write stays off the accept→Challenge critical path (see NOTE above).
         crate::logging::log_to_db(
-                self_log_sink,
+            self_log_sink,
             "info",
             "MultiLeader",
             &format!("Connection accepted from {remote_str}"),
@@ -174,7 +174,7 @@ impl MultiSpaceLeaderHandler {
         let verified_short =
             crate::logging::log_truncate(&verified_did, crate::logging::LOG_TRUNCATE_DEFAULT);
         crate::logging::log_to_db(
-                self_log_sink,
+            self_log_sink,
             "info",
             "MultiLeader",
             &format!("DID-auth ok: {remote_str} -> {verified_short}"),
@@ -255,13 +255,7 @@ impl MultiSpaceLeaderHandler {
                         streams = stream_count,
                         secs = connection_start.elapsed().as_secs()
                     );
-                    crate::logging::log_to_db(
-                self_log_sink,
-                        "info",
-                        "MultiLeader",
-                        &msg,
-                        None,
-                    );
+                    crate::logging::log_to_db(self_log_sink, "info", "MultiLeader", &msg, None);
                     break;
                 }
                 Err(_) => {
@@ -274,13 +268,7 @@ impl MultiSpaceLeaderHandler {
                         idle_heartbeats,
                         MAX_IDLE_HEARTBEATS,
                     );
-                    crate::logging::log_to_db(
-                self_log_sink,
-                        "warn",
-                        "MultiLeader",
-                        &msg,
-                        None,
-                    );
+                    crate::logging::log_to_db(self_log_sink, "warn", "MultiLeader", &msg, None);
 
                     if idle_heartbeats >= MAX_IDLE_HEARTBEATS {
                         // Misbehaving client occupies a tokio task and spams
@@ -290,13 +278,7 @@ impl MultiSpaceLeaderHandler {
                             connection_start.elapsed().as_secs(),
                             idle_heartbeats,
                         );
-                        crate::logging::log_to_db(
-                self_log_sink,
-                            "warn",
-                            "MultiLeader",
-                            &msg,
-                            None,
-                        );
+                        crate::logging::log_to_db(self_log_sink, "warn", "MultiLeader", &msg, None);
                         conn.close(0u32.into(), b"idle timeout");
                         break;
                     }
@@ -412,9 +394,7 @@ async fn handle_stream(
 ) -> Result<(), DeliveryError> {
     // Snapshot the log sink for this stream — see the same pattern in
     // `handle_connection_inner`.
-    let stream_log_sink_snap = app_handle
-        .state::<crate::AppState>()
-        .log_sink_snapshot();
+    let stream_log_sink_snap = app_handle.state::<crate::AppState>().log_sink_snapshot();
     let stream_log_sink = stream_log_sink_snap.as_ref();
 
     let request = protocol::read_request(recv)
@@ -442,7 +422,7 @@ async fn handle_stream(
             inviter_relay_url,
         } => {
             crate::logging::log_to_db(
-            stream_log_sink,
+                stream_log_sink,
                 "info",
                 "MultiLeader",
                 &format!(
@@ -476,7 +456,7 @@ async fn handle_stream(
         // ClaimInvite — look up the leader for the space
         Request::ClaimInvite { ref space_id, .. } => {
             crate::logging::log_to_db(
-            stream_log_sink,
+                stream_log_sink,
                 "info",
                 "MultiLeader",
                 &format!(
@@ -493,7 +473,7 @@ async fn handle_stream(
             match map.get(space_id.as_str()) {
                 Some(leader) => {
                     crate::logging::log_to_db(
-            stream_log_sink,
+                        stream_log_sink,
                         "info",
                         "MultiLeader",
                         &format!(
@@ -506,7 +486,7 @@ async fn handle_stream(
                 }
                 None => {
                     crate::logging::log_to_db(
-            stream_log_sink,
+                        stream_log_sink,
                         "error",
                         "MultiLeader",
                         &format!(

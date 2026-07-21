@@ -88,8 +88,15 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         packages: vec![],
     };
 
-    let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, Some(&log_sink)).await;
+    let result = authorize_default(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+        Some(&log_sink),
+    )
+    .await;
 
     match result {
         Err(Response::Error { message }) => {

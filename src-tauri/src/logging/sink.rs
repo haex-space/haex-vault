@@ -121,19 +121,12 @@ impl LogSink {
     /// Kept `pub(crate)` intentionally: the sink is not meant as a general
     /// SQL escape hatch, only as the logging module's private
     /// second-connection helper.
-    pub(crate) fn execute(
-        &self,
-        sql: &str,
-        params: &[JsonValue],
-    ) -> Result<usize, LogSinkError> {
+    pub(crate) fn execute(&self, sql: &str, params: &[JsonValue]) -> Result<usize, LogSinkError> {
         let conn = self
             .conn
             .lock()
             .map_err(|_| LogSinkError::SinkMutexPoisoned)?;
-        let boxed: Vec<Box<dyn ToSql>> = params
-            .iter()
-            .map(|v| json_to_boxed_tosql(v))
-            .collect();
+        let boxed: Vec<Box<dyn ToSql>> = params.iter().map(|v| json_to_boxed_tosql(v)).collect();
         let refs: Vec<&dyn ToSql> = boxed.iter().map(|b| b.as_ref()).collect();
         Ok(conn.execute(sql, refs.as_slice())?)
     }

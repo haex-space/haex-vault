@@ -76,9 +76,7 @@ pub(super) fn log_sync(app_handle: &tauri::AppHandle, level: &str, message: &str
 
     // `log_to_db` also emits an `eprintln!` internally with the same
     // `[source] [level] message` shape, so no explicit stderr line here.
-    let sink_snapshot = app_handle
-        .state::<crate::AppState>()
-        .log_sink_snapshot();
+    let sink_snapshot = app_handle.state::<crate::AppState>().log_sink_snapshot();
     crate::logging::log_to_db(sink_snapshot.as_ref(), level, "SyncLoop", message, None);
 }
 

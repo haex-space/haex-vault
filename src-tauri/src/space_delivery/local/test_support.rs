@@ -75,8 +75,11 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 /// CRDT-helper columns (e.g. `haex_tombstone`, HLC timestamps) are added
 /// by `core::execute` at write-time, not by the migration, so they don't
 /// appear in any CREATE TABLE in this module.
-pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>, crate::logging::LogSink)
-{
+pub(crate) fn setup_membership_db() -> (
+    DbConnection,
+    Arc<Mutex<HlcService>>,
+    crate::logging::LogSink,
+) {
     let (conn, hlc_service, uri) = init_logs_db_inner_with_uri();
 
     conn.execute_batch(
@@ -109,8 +112,7 @@ pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>, cr
         | OpenFlags::SQLITE_OPEN_URI;
     let sink_conn =
         Connection::open_with_flags(&uri, flags).expect("open second URI conn for LogSink");
-    let log_sink =
-        crate::logging::LogSink::from_connection(Arc::new(Mutex::new(sink_conn)));
+    let log_sink = crate::logging::LogSink::from_connection(Arc::new(Mutex::new(sink_conn)));
 
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
     let hlc = Arc::new(Mutex::new(hlc_service));

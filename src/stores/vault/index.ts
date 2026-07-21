@@ -233,7 +233,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
       // last_seen < cutoff` — for now the simple time-based purge keeps
       // the table tiny.
       //
-      // 30-day default is more generous than haex_logs' 14 because
+      // 30-day default is more generous than haex_logs_no_sync's 14 because
       // the table is tiny and operators benefit from longer forensic
       // visibility ("this code first fired 3 weeks ago, here's the
       // pattern").

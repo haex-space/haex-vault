@@ -244,11 +244,13 @@ pub fn insert_log(
     metadata: Option<serde_json::Value>,
     device_id: &str,
 ) -> Result<(), crate::database::error::DatabaseError> {
-    let sink_guard = state.log_sink.lock().map_err(|e| {
-        crate::database::error::DatabaseError::LockError {
-            reason: e.to_string(),
-        }
-    })?;
+    let sink_guard =
+        state
+            .log_sink
+            .lock()
+            .map_err(|e| crate::database::error::DatabaseError::LockError {
+                reason: e.to_string(),
+            })?;
     let Some(sink) = sink_guard.as_ref() else {
         // No vault mounted — same best-effort semantics as log_to_db.
         eprintln!("[{source}] [{level}] {message}");
@@ -505,11 +507,13 @@ pub fn cleanup_logs(
             Ok((global_cutoff_str, console_cutoff_str, custom_extensions))
         })?;
 
-    let sink_guard = state.log_sink.lock().map_err(|e| {
-        crate::database::error::DatabaseError::LockError {
-            reason: e.to_string(),
-        }
-    })?;
+    let sink_guard =
+        state
+            .log_sink
+            .lock()
+            .map_err(|e| crate::database::error::DatabaseError::LockError {
+                reason: e.to_string(),
+            })?;
     let Some(sink) = sink_guard.as_ref() else {
         // No vault mounted — nothing to clean.
         return Ok(0);

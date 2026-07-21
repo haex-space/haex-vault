@@ -114,7 +114,7 @@ pub(crate) async fn handle_delivery_request(
                 Some(t) => t,
                 None => {
                     crate::logging::log_to_db(
-                state.log_sink.as_ref(),
+                        state.log_sink.as_ref(),
                         "warn",
                         "Announce",
                         &format!(
@@ -133,7 +133,7 @@ pub(crate) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => {
                     crate::logging::log_to_db(
-                state.log_sink.as_ref(),
+                        state.log_sink.as_ref(),
                         "warn",
                         "Announce",
                         &format!(
@@ -158,7 +158,7 @@ pub(crate) async fn handle_delivery_request(
                 &state.db,
             ) {
                 crate::logging::log_to_db(
-                state.log_sink.as_ref(),
+                    state.log_sink.as_ref(),
                     "warn",
                     "Announce",
                     &format!(
@@ -571,7 +571,7 @@ pub(crate) async fn handle_delivery_request(
                 Err(e) => {
                     eprintln!("[SpaceDelivery] SyncPull: failed to scan changes: {e}");
                     crate::logging::log_to_db(
-                state.log_sink.as_ref(),
+                        state.log_sink.as_ref(),
                         "error",
                         "SyncPull",
                         &format!(

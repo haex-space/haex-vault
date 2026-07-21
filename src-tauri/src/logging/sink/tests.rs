@@ -23,7 +23,15 @@ fn in_memory_writes_and_reads_back() {
         .query_row(
             "SELECT id, level, source, message, device_id FROM haex_logs_no_sync",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .expect("row present");
     assert_eq!(id, "log-1");

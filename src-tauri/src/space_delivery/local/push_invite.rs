@@ -47,9 +47,7 @@ pub fn handle_push_invite(
     // Snapshot the log sink once — the fn calls log_to_db in ~13 places
     // and re-locking the sink slot every time would be silly. Held for
     // the whole scope; cheap Arc clone inside LogSink.
-    let log_sink_snap = app_handle
-        .state::<crate::AppState>()
-        .log_sink_snapshot();
+    let log_sink_snap = app_handle.state::<crate::AppState>().log_sink_snapshot();
     let log_sink = log_sink_snap.as_ref();
 
     let token_fp = token_fingerprint(token_id);
@@ -101,7 +99,7 @@ pub fn handle_push_invite(
     for cap in capabilities {
         if !VALID_CAPABILITIES.contains(&cap.as_str()) {
             logging::log_to_db(
-            log_sink,
+                log_sink,
                 "warn",
                 LOG_SOURCE,
                 &format!("REJECTED: unknown capability {cap}"),
@@ -294,7 +292,7 @@ pub fn handle_push_invite(
     }
 
     logging::log_to_db(
-            log_sink,
+        log_sink,
         "info",
         LOG_SOURCE,
         &format!("INSERT OK: pending invite {invite_id} (space={space_id}, token={token_fp})"),
@@ -302,7 +300,7 @@ pub fn handle_push_invite(
     );
 
     logging::log_to_db(
-            log_sink,
+        log_sink,
         "info",
         LOG_SOURCE,
         &format!("Invite processing complete for {invite_id} in space {space_id}"),
