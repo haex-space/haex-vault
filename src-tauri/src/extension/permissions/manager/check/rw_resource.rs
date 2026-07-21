@@ -21,8 +21,8 @@ impl PermissionManager {
     ) -> Result<(), ExtensionError> {
         let extension_id = principal.id();
 
-        let (extension, permissions) =
-            Self::load_extension_and_permissions(app_state, principal).await?;
+        let (display_name, permissions) =
+            Self::load_principal_display_name_and_permissions(app_state, principal).await?;
 
         let action_str = action.as_str();
 
@@ -35,7 +35,7 @@ impl PermissionManager {
             )),
             Some(PermissionStatus::Ask) => Err(ExtensionError::permission_prompt_required(
                 extension_id,
-                &extension.manifest.name,
+                &display_name,
                 resource_label,
                 action_str,
                 "*",
@@ -57,7 +57,7 @@ impl PermissionManager {
                 Some(PermissionStatus::Ask) | None => {
                     Err(ExtensionError::permission_prompt_required(
                         extension_id,
-                        &extension.manifest.name,
+                        &display_name,
                         resource_label,
                         action_str,
                         "*",
