@@ -443,9 +443,13 @@ mod tests {
         assert_eq!(own_label, "Me");
         assert!(own_is_self, "own identity must have isSelf = true");
 
-        let (contact_label, contact_is_self) =
-            by_did.remove("did:key:contact").expect("contact DID present");
+        let (contact_label, contact_is_self) = by_did
+            .remove("did:key:contact")
+            .expect("contact DID present");
         assert_eq!(contact_label, "Alice");
-        assert!(!contact_is_self, "contact identity must have isSelf = false");
+        assert!(
+            !contact_is_self,
+            "contact identity must have isSelf = false"
+        );
     }
 }
