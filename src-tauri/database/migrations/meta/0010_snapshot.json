@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "21bd59d1-3e2f-4ee2-97a2-04d44337cda2",
-  "prevId": "c6570f77-0bee-48e5-a05d-0e76a79f71f9",
+  "id": "b46c7221-5d30-485e-b8ac-54293c3059a5",
+  "prevId": "21bd59d1-3e2f-4ee2-97a2-04d44337cda2",
   "tables": {
     "haex_bookmark_collections": {
       "name": "haex_bookmark_collections",
@@ -4200,6 +4200,13 @@
         },
         "label": {
           "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "authored_by_did": {
+          "name": "authored_by_did",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

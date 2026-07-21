@@ -20,7 +20,7 @@ async fn rejects_request_with_expired_cached_ucan() {
     // DID and the capability is sufficient, so the test isolates the
     // expiry stage — only `require_not_expired` can be the rejecting
     // layer.
-    let (db, hlc) = empty_db();
+    let (db, _hlc, log_sink) = empty_db();
     let expired_ucan = ValidatedUcan {
         issuer: "did:key:zIssuer".to_string(),
         audience: "did:key:zPeer".to_string(),
@@ -39,8 +39,15 @@ async fn rejects_request_with_expired_cached_ucan() {
         packages: vec![],
     };
 
-    let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+    let result = authorize_default(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+        Some(&log_sink),
+    )
+    .await;
 
     match result {
         Err(Response::Error { message }) => assert!(

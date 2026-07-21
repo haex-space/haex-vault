@@ -55,21 +55,22 @@ pub(crate) async fn handle_delivery_request(
     // validate + cache the UCAN it just received before subsequent requests
     // on this connection can pass the gate.
     //
-    // Audit logging: the gate writes a `warn` row to `haex_logs` (via
-    // `log_to_db`, CRDT-synced to the owner) from every reject branch with
-    // `source = Request::op_name`, restoring the in-app log visibility the
-    // pre-T6 SyncPush / SyncPull arms used to emit directly.
+    // Audit logging: the gate writes a `warn` row to `haex_logs_no_sync`
+    // (via `log_to_db` → the dedicated `LogSink`, intentionally NOT
+    // CRDT-synced) from every reject branch with `source = Request::op_name`,
+    // restoring the in-app log visibility the pre-T6 SyncPush / SyncPull arms
+    // used to emit directly.
     let gate_ucan = match super::super::auth_gate::authorize_request(
         &request,
         verified_did,
         peer_endpoint_id,
         &state.connected_peers,
         &state.db,
-        &state.hlc,
         &state.reject_tracker,
         &state.dos_config,
         &state.flood_notifier,
         state.critical_sink.as_ref(),
+        state.log_sink.as_ref(),
     )
     .await
     {
@@ -95,8 +96,7 @@ pub(crate) async fn handle_delivery_request(
             // we must verify the UCAN before trusting `did` and before
             // populating `connected_peers` (which later handlers rely on).
             crate::logging::log_to_db(
-                &state.db,
-                &state.hlc,
+                state.log_sink.as_ref(),
                 "info",
                 "Announce",
                 &format!(
@@ -115,8 +115,7 @@ pub(crate) async fn handle_delivery_request(
                 Some(t) => t,
                 None => {
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                        state.log_sink.as_ref(),
                         "warn",
                         "Announce",
                         &format!(
@@ -135,8 +134,7 @@ pub(crate) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => {
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                        state.log_sink.as_ref(),
                         "warn",
                         "Announce",
                         &format!(
@@ -161,8 +159,7 @@ pub(crate) async fn handle_delivery_request(
                 &state.db,
             ) {
                 crate::logging::log_to_db(
-                    &state.db,
-                    &state.hlc,
+                    state.log_sink.as_ref(),
                     "warn",
                     "Announce",
                     &format!(
@@ -175,8 +172,7 @@ pub(crate) async fn handle_delivery_request(
                 return r;
             }
             crate::logging::log_to_db(
-                &state.db,
-                &state.hlc,
+                state.log_sink.as_ref(),
                 "info",
                 "Announce",
                 &format!(
@@ -576,8 +572,7 @@ pub(crate) async fn handle_delivery_request(
                 Err(e) => {
                     eprintln!("[SpaceDelivery] SyncPull: failed to scan changes: {e}");
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                        state.log_sink.as_ref(),
                         "error",
                         "SyncPull",
                         &format!(
