@@ -73,7 +73,7 @@ pub const DEFAULT_LOG_LEVEL: &str = "warn";
 /// keep one log line on one terminal row. Used by every `log_truncate`
 /// caller in the codebase — DO NOT pass a different `max` to
 /// [`log_truncate`] without updating this constant; the goal is a
-/// uniform shape across `haex_logs`.
+/// uniform shape across `haex_logs_no_sync`.
 pub const LOG_TRUNCATE_DEFAULT: usize = 24;
 
 /// UTF-8-safe truncation for log message interpolation.
@@ -134,7 +134,7 @@ pub fn get_effective_log_level(
 ///
 /// ## Structured metadata
 ///
-/// `metadata` is an optional JSON object that lands in `haex_logs.metadata`.
+/// `metadata` is an optional JSON object that lands in `haex_logs_no_sync.metadata`.
 /// By convention, set `{"subsystem": "AuthGate"}` (or whatever subsystem you
 /// log from) so operators can filter the in-app log viewer by subsystem
 /// independent of the per-op `source` tag. If `metadata.subsystem` is
@@ -147,7 +147,7 @@ pub fn get_effective_log_level(
 /// ## `device_id` is hardcoded to `"rust"`
 ///
 /// Both the `None` (minimal) and `Some` (full) insert paths hardcode the
-/// `haex_logs.device_id` column to the literal string `"rust"`, matching
+/// `haex_logs_no_sync.device_id` column to the literal string `"rust"`, matching
 /// `SQL_INSERT_LOG_MINIMAL`'s pre-existing behaviour. This means **all**
 /// rows written by `log_to_db` collapse to a synthetic `"rust"` device on
 /// CRDT-sync — operators filtering the in-app log viewer by device cannot
@@ -168,7 +168,7 @@ pub fn get_effective_log_level(
 /// marker so the audit-row loss is visible in CI / container logs:
 ///
 /// 1. `hlc.lock()` returning `Err` (HLC mutex poisoned by an earlier panic).
-/// 2. `execute_with_crdt` returning `Err` (e.g. schema drift on `haex_logs`,
+/// 2. `execute_with_crdt` returning `Err` (e.g. schema drift on `haex_logs_no_sync`,
 ///    poisoned DB mutex, transaction failure).
 ///
 /// The function still returns `()` — silent best-effort semantics are

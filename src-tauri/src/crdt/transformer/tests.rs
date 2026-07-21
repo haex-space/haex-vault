@@ -87,6 +87,39 @@ fn test_create_table_no_sync_skipped() {
 }
 
 #[test]
+fn haex_logs_no_sync_is_not_a_crdt_sync_table() {
+    // Regression guard for docs/plans/2026-07-21-haex-logs-no-sync.md.
+    // If this table were CRDT-synced, every log row would be pushed to the
+    // owner's other devices, which would log the receipt and push it back —
+    // the amplification loop that motivated the rename. discover_crdt_tables
+    // selects tables by presence of the `haex_hlc` column, so keeping that
+    // column absent is the load-bearing invariant.
+    let sql = "CREATE TABLE `haex_logs_no_sync` (\
+        `id` text PRIMARY KEY NOT NULL,\
+        `timestamp` text NOT NULL,\
+        `level` text NOT NULL,\
+        `source` text NOT NULL,\
+        `extension_id` text,\
+        `message` text NOT NULL,\
+        `metadata` text,\
+        `device_id` text NOT NULL,\
+        FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade\
+    )";
+    let transformer = CrdtTransformer::new();
+    let result = transformer
+        .transform_ddl_statement(sql)
+        .expect("transform_ddl_statement must not error on well-formed CREATE TABLE");
+    assert!(
+        !result.contains("haex_hlc"),
+        "haex_logs_no_sync must not gain `haex_hlc` — that column is what discover_crdt_tables keys on. Got: {result}"
+    );
+    assert!(
+        !result.contains("haex_column_hlcs"),
+        "haex_logs_no_sync must not gain `haex_column_hlcs`. Got: {result}"
+    );
+}
+
+#[test]
 fn test_insert_into_sync_table_gets_hlc_column() {
     let result = parse_and_transform_execute("INSERT INTO items (id, name) VALUES ('a', 'b')");
     // InsertTransformer adds haex_hlc as a literal column/value

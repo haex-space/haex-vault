@@ -156,7 +156,7 @@ pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
     .expect("create crdt_dirty_tables");
 
     conn.execute_batch(
-        "CREATE TABLE haex_logs (
+        "CREATE TABLE haex_logs_no_sync (
             id TEXT PRIMARY KEY,
             timestamp TEXT NOT NULL,
             level TEXT NOT NULL,
@@ -171,7 +171,8 @@ pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
 
     {
         let tx = conn.unchecked_transaction().expect("begin crdt-columns tx");
-        ensure_crdt_columns(&tx, "haex_logs").expect("ensure crdt columns on haex_logs");
+        ensure_crdt_columns(&tx, "haex_logs_no_sync")
+            .expect("ensure crdt columns on haex_logs_no_sync");
         tx.commit().expect("commit crdt-columns tx");
     }
 
