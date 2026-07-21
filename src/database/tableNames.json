@@ -192,6 +192,7 @@
         "groupId": "group_id",
         "type": "type",
         "label": "label",
+        "authoredByDid": "authored_by_did",
         "createdAt": "created_at"
       }
     },

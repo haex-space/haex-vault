@@ -64,6 +64,13 @@
       "when": 1784549042072,
       "tag": "0008_lame_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784651270458,
+      "tag": "0009_nasty_logan",
+      "breakpoints": true
     }
   ]
 }
