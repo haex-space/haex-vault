@@ -54,6 +54,7 @@ pub async fn local_delivery_start(
             .unwrap_or_else(|p| p.into_inner());
         guard.clone()
     };
+    let log_sink = state.log_sink_snapshot();
 
     let leader_state = Arc::new(LeaderState {
         db: db_conn,
@@ -67,6 +68,7 @@ pub async fn local_delivery_start(
         dos_config: Arc::new(dos_config),
         flood_notifier: Arc::new(flood_notifier),
         critical_sink,
+        log_sink,
     });
 
     let mut leaders = state.leader_state.write().await;

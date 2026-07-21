@@ -75,8 +75,9 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 /// CRDT-helper columns (e.g. `haex_tombstone`, HLC timestamps) are added
 /// by `core::execute` at write-time, not by the migration, so they don't
 /// appear in any CREATE TABLE in this module.
-pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
-    let (conn, hlc_service) = init_logs_db_inner();
+pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>, crate::logging::LogSink)
+{
+    let (conn, hlc_service, uri) = init_logs_db_inner_with_uri();
 
     conn.execute_batch(
         "CREATE TABLE haex_identities (
@@ -99,9 +100,21 @@ pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
     )
     .expect("create membership schema");
 
+    // Second connection to the same shared-cache URI so LogSink writes
+    // land in the same DB as the main test connection — mirrors
+    // `auth_gate_tests::helpers::empty_db`.
+    use rusqlite::{Connection, OpenFlags};
+    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
+        | OpenFlags::SQLITE_OPEN_CREATE
+        | OpenFlags::SQLITE_OPEN_URI;
+    let sink_conn =
+        Connection::open_with_flags(&uri, flags).expect("open second URI conn for LogSink");
+    let log_sink =
+        crate::logging::LogSink::from_connection(Arc::new(Mutex::new(sink_conn)));
+
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
     let hlc = Arc::new(Mutex::new(hlc_service));
-    (db, hlc)
+    (db, hlc, log_sink)
 }
 
 /// Open an in-memory DB seeded with everything `log_to_db` needs and nothing
@@ -138,7 +151,32 @@ pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
 /// `_and_triggers` variant — otherwise the trigger body will fail with
 /// `no such table: haex_deleted_rows`.
 pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
-    let conn = Connection::open_in_memory().expect("in-memory DB");
+    let (conn, hlc, _uri) = init_logs_db_inner_with_uri();
+    (conn, hlc)
+}
+
+/// Variant of [`init_logs_db_inner`] that also returns the shared-cache
+/// in-memory DB URI so callers can open a SECOND connection to the same
+/// underlying DB — needed for tests that install a [`crate::logging::LogSink`]
+/// (its own connection) but want the sink's writes to be visible to the
+/// main [`DbConnection`]'s SELECTs.
+///
+/// Production uses two OS handles against the same file; here two
+/// connections to the same shared-cache URI achieve the equivalent.
+///
+/// The URI includes a fresh Uuid to isolate every fixture invocation from
+/// every other — otherwise concurrent tests in the same process would
+/// collide on the shared cache.
+pub(crate) fn init_logs_db_inner_with_uri() -> (Connection, HlcService, String) {
+    use rusqlite::OpenFlags;
+    let uri = format!(
+        "file:haex-test-{}?mode=memory&cache=shared",
+        uuid::Uuid::new_v4()
+    );
+    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
+        | OpenFlags::SQLITE_OPEN_CREATE
+        | OpenFlags::SQLITE_OPEN_URI;
+    let conn = Connection::open_with_flags(&uri, flags).expect("open in-memory URI DB");
     let hlc_service = HlcService::new_for_testing("test-device");
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc_service.clone(), ctx.clone()).expect("register hlc udf");
@@ -176,7 +214,7 @@ pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
         tx.commit().expect("commit crdt-columns tx");
     }
 
-    (conn, hlc_service)
+    (conn, hlc_service, uri)
 }
 
 /// Insert an identity row keyed by `identity_id` with public DID `did`.

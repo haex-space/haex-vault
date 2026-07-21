@@ -298,6 +298,14 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
         }
     }
 
+    // 1b. Drop the log sink — same rationale as the critical sink.
+    {
+        let mut sink_guard = state.log_sink.lock().unwrap_or_else(|p| p.into_inner());
+        if sink_guard.take().is_some() {
+            println!("[CLOSE_DB] Log sink dropped");
+        }
+    }
+
     // 2. Close the main database connection.
     {
         let mut db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {
@@ -461,6 +469,30 @@ pub(super) fn open_critical_sink(
         .map_err(|e| DatabaseError::LockError {
             reason: e.to_string(),
         })?;
+    *sink_guard = Some(sink);
+    drop(sink_guard);
+
+    open_log_sink(vault_path, key, state)?;
+    Ok(())
+}
+
+/// Open the [`crate::logging::LogSink`] against the just-mounted vault
+/// and install it into `state.log_sink`. Mirrors [`open_critical_sink`]:
+/// second dedicated connection to the same DB file, so the log-write
+/// path survives a blocked / poisoned main mutex. See
+/// `docs/plans/2026-07-21-haex-logs-no-sync.md`.
+fn open_log_sink(
+    vault_path: &str,
+    key: &str,
+    state: &State<'_, AppState>,
+) -> Result<(), DatabaseError> {
+    let sink = crate::logging::LogSink::open(Path::new(vault_path), key)
+        .map_err(|e| DatabaseError::DatabaseError {
+            reason: format!("Failed to open log sink: {e}"),
+        })?;
+    let mut sink_guard = state.log_sink.lock().map_err(|e| DatabaseError::LockError {
+        reason: e.to_string(),
+    })?;
     *sink_guard = Some(sink);
     Ok(())
 }

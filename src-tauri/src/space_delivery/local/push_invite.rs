@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -44,10 +44,17 @@ pub fn handle_push_invite(
     inviter_relay_url: Option<&str>,
     verified_did: &str,
 ) -> Response {
+    // Snapshot the log sink once — the fn calls log_to_db in ~13 places
+    // and re-locking the sink slot every time would be silly. Held for
+    // the whole scope; cheap Arc clone inside LogSink.
+    let log_sink_snap = app_handle
+        .state::<crate::AppState>()
+        .log_sink_snapshot();
+    let log_sink = log_sink_snap.as_ref();
+
     let token_fp = token_fingerprint(token_id);
     logging::log_to_db(
-        db,
-        hlc,
+        log_sink,
         "info",
         LOG_SOURCE,
         &format!(
@@ -63,8 +70,7 @@ pub fn handle_push_invite(
     // forged "you have an invite from Alice" prompt (plan §4.2 scenario 5).
     if inviter_did != verified_did {
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "warn",
             LOG_SOURCE,
             &format!(
@@ -82,8 +88,7 @@ pub fn handle_push_invite(
     // 1. Validate capabilities — reject if empty or containing unknown values
     if capabilities.is_empty() {
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "warn",
             LOG_SOURCE,
             "REJECTED: no capabilities",
@@ -96,8 +101,7 @@ pub fn handle_push_invite(
     for cap in capabilities {
         if !VALID_CAPABILITIES.contains(&cap.as_str()) {
             logging::log_to_db(
-                db,
-                hlc,
+            log_sink,
                 "warn",
                 LOG_SOURCE,
                 &format!("REJECTED: unknown capability {cap}"),
@@ -122,8 +126,7 @@ pub fn handle_push_invite(
 
     if already_active > 0 {
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "info",
             LOG_SOURCE,
             &format!("SKIPPED: space {space_id} already active on this device"),
@@ -135,8 +138,7 @@ pub fn handle_push_invite(
     // 3. Check invite policy
     if !check_invite_policy(db, inviter_did) {
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "warn",
             LOG_SOURCE,
             &format!("REJECTED: invite policy blocked inviter {inviter_did}"),
@@ -177,8 +179,7 @@ pub fn handle_push_invite(
         // Drop the guard before log_to_db (which acquires the HLC internally).
         drop(hlc_guard);
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "info",
             LOG_SOURCE,
             &format!(
@@ -269,7 +270,8 @@ pub fn handle_push_invite(
     let inserted_rows = match &insert_result {
         Ok(rows) => rows,
         Err(e) => {
-            logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
+            logging::log_to_db(
+            log_sink, "error", LOG_SOURCE, &format!(
                 "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_fp}): {e}"
             ), None);
             // Fail fast: don't emit push-invite-received or ACK success when
@@ -284,15 +286,15 @@ pub fn handle_push_invite(
         // are astronomically unlikely, but reporting accepted=true when no
         // row was actually written would surface a phantom invite to the
         // user — so bail out explicitly.
-        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!(
+        logging::log_to_db(
+            log_sink, "warn", LOG_SOURCE, &format!(
             "INSERT IGNORED (duplicate id): pending invite {invite_id} (space={space_id}, token={token_fp})"
         ), None);
         return Response::PushInviteAck { accepted: false };
     }
 
     logging::log_to_db(
-        db,
-        hlc,
+            log_sink,
         "info",
         LOG_SOURCE,
         &format!("INSERT OK: pending invite {invite_id} (space={space_id}, token={token_fp})"),
@@ -300,8 +302,7 @@ pub fn handle_push_invite(
     );
 
     logging::log_to_db(
-        db,
-        hlc,
+            log_sink,
         "info",
         LOG_SOURCE,
         &format!("Invite processing complete for {invite_id} in space {space_id}"),
@@ -314,16 +315,14 @@ pub fn handle_push_invite(
     // so this regression is traceable without shell access.
     match app_handle.emit_to("main", "push-invite-received", ()) {
         Ok(()) => logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "info",
             LOG_SOURCE,
             &format!("Emitted push-invite-received for invite {invite_id} (space={space_id})"),
             None,
         ),
         Err(e) => logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "error",
             LOG_SOURCE,
             &format!("FAILED to emit push-invite-received for invite {invite_id}: {e}"),

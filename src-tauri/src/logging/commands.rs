@@ -65,26 +65,27 @@ pub fn log_delete(state: State<'_, AppState>, ids: Vec<String>) -> Result<usize,
         return Ok(0);
     }
 
-    let hlc = state.lock_or_fail(
-        &state.hlc,
-        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-        "logging::commands::log_delete",
-        serde_json::json!({}),
-    )?;
+    let sink_guard = state
+        .log_sink
+        .lock()
+        .map_err(|e| DatabaseError::LockError {
+            reason: e.to_string(),
+        })?;
+    let Some(sink) = sink_guard.as_ref() else {
+        return Ok(0);
+    };
 
-    let mut total_deleted = 0;
+    let mut total_deleted = 0usize;
     for id in &ids {
         let sql = format!(
             "DELETE FROM {} WHERE id = ?1",
             crate::table_names::TABLE_LOGS
         );
-        crate::database::core::execute_with_crdt(
-            sql,
-            vec![JsonValue::String(id.clone())],
-            &state.db,
-            &hlc,
-        )?;
-        total_deleted += 1;
+        total_deleted += sink
+            .execute(&sql, &[JsonValue::String(id.clone())])
+            .map_err(|e| DatabaseError::DatabaseError {
+                reason: format!("log sink delete failed: {e}"),
+            })?;
     }
     Ok(total_deleted)
 }
@@ -92,41 +93,19 @@ pub fn log_delete(state: State<'_, AppState>, ids: Vec<String>) -> Result<usize,
 /// Delete all log entries.
 #[tauri::command]
 pub fn log_clear_all(state: State<'_, AppState>) -> Result<usize, DatabaseError> {
-    let hlc = state.lock_or_fail(
-        &state.hlc,
-        crate::critical::CriticalFailureCode::HlcMutexPoisoned,
-        "logging::commands::log_clear_all",
-        serde_json::json!({}),
-    )?;
-
-    let ids: Vec<String> = with_connection(&state.db, |conn| {
-        let sql = format!("SELECT id FROM {}", crate::table_names::TABLE_LOGS);
-        let mut stmt = conn.prepare(&sql).map_err(|e| DatabaseError::QueryError {
+    let sink_guard = state
+        .log_sink
+        .lock()
+        .map_err(|e| DatabaseError::LockError {
             reason: e.to_string(),
         })?;
-        let rows = stmt
-            .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|e| DatabaseError::QueryError {
-                reason: e.to_string(),
-            })?;
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| DatabaseError::QueryError {
-                reason: e.to_string(),
-            })
-    })?;
+    let Some(sink) = sink_guard.as_ref() else {
+        return Ok(0);
+    };
 
-    let count = ids.len();
-    for id in ids {
-        let sql = format!(
-            "DELETE FROM {} WHERE id = ?1",
-            crate::table_names::TABLE_LOGS
-        );
-        crate::database::core::execute_with_crdt(
-            sql,
-            vec![JsonValue::String(id)],
-            &state.db,
-            &hlc,
-        )?;
-    }
-    Ok(count)
+    let sql = format!("DELETE FROM {}", crate::table_names::TABLE_LOGS);
+    sink.execute(&sql, &[])
+        .map_err(|e| DatabaseError::DatabaseError {
+            reason: format!("log sink clear_all failed: {e}"),
+        })
 }

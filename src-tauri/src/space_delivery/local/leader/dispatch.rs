@@ -65,11 +65,11 @@ pub(crate) async fn handle_delivery_request(
         peer_endpoint_id,
         &state.connected_peers,
         &state.db,
-        &state.hlc,
         &state.reject_tracker,
         &state.dos_config,
         &state.flood_notifier,
         state.critical_sink.as_ref(),
+        state.log_sink.as_ref(),
     )
     .await
     {
@@ -95,8 +95,7 @@ pub(crate) async fn handle_delivery_request(
             // we must verify the UCAN before trusting `did` and before
             // populating `connected_peers` (which later handlers rely on).
             crate::logging::log_to_db(
-                &state.db,
-                &state.hlc,
+                state.log_sink.as_ref(),
                 "info",
                 "Announce",
                 &format!(
@@ -115,8 +114,7 @@ pub(crate) async fn handle_delivery_request(
                 Some(t) => t,
                 None => {
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                state.log_sink.as_ref(),
                         "warn",
                         "Announce",
                         &format!(
@@ -135,8 +133,7 @@ pub(crate) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => {
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                state.log_sink.as_ref(),
                         "warn",
                         "Announce",
                         &format!(
@@ -161,8 +158,7 @@ pub(crate) async fn handle_delivery_request(
                 &state.db,
             ) {
                 crate::logging::log_to_db(
-                    &state.db,
-                    &state.hlc,
+                state.log_sink.as_ref(),
                     "warn",
                     "Announce",
                     &format!(
@@ -175,8 +171,7 @@ pub(crate) async fn handle_delivery_request(
                 return r;
             }
             crate::logging::log_to_db(
-                &state.db,
-                &state.hlc,
+                state.log_sink.as_ref(),
                 "info",
                 "Announce",
                 &format!(
@@ -576,8 +571,7 @@ pub(crate) async fn handle_delivery_request(
                 Err(e) => {
                     eprintln!("[SpaceDelivery] SyncPull: failed to scan changes: {e}");
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                state.log_sink.as_ref(),
                         "error",
                         "SyncPull",
                         &format!(

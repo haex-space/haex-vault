@@ -63,4 +63,9 @@ pub struct LeaderState {
     /// pre-open). `CriticalNotificationSink` is `Clone`-cheap (internal
     /// `Arc`).
     pub critical_sink: Option<crate::critical::sink::CriticalNotificationSink>,
+    /// Snapshot of the global log sink at leader-start time. Same
+    /// clone-cheap `Arc` pattern as `critical_sink`. `None` if the vault
+    /// was opened without a sink (tests / pre-open) — reject-path log
+    /// writes then fall through to stderr only.
+    pub log_sink: Option<crate::logging::LogSink>,
 }

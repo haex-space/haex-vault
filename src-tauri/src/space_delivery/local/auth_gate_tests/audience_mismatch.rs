@@ -14,7 +14,7 @@ async fn rejects_audience_mismatch() {
     // (e.g. a stolen-and-replayed token). The connection-authenticated DID
     // is `did:key:zPeer`, but the cached UCAN's audience is
     // `did:key:zSomeoneElse` — require_audience must reject.
-    let (db, hlc) = empty_db();
+    let (db, _hlc, log_sink) = empty_db();
     let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
     peers_map.insert(
         "endpoint-id".to_string(),
@@ -32,7 +32,7 @@ async fn rejects_audience_mismatch() {
     };
 
     let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, Some(&log_sink)).await;
 
     match result {
         Err(Response::Error { message }) => assert!(

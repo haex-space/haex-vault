@@ -7,11 +7,12 @@ use tokio::sync::RwLock;
 use super::super::authorize_request;
 use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
+use crate::logging::LogSink;
 use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
 use crate::space_delivery::local::dos_defence::notifier::SingleSourceNotifier;
 use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
 use crate::space_delivery::local::protocol::{Request, Response};
-use crate::space_delivery::local::test_support::init_logs_db_inner;
+use crate::space_delivery::local::test_support::init_logs_db_inner_with_uri;
 use crate::space_delivery::local::types::{ConnectedPeer, PeerClaim};
 use crate::ucan::ValidatedUcan;
 
@@ -27,7 +28,7 @@ pub(super) async fn authorize_default(
     peer_endpoint_id: &str,
     peers: &RwLock<HashMap<String, ConnectedPeer>>,
     db: &DbConnection,
-    hlc: &Arc<Mutex<HlcService>>,
+    log_sink: Option<&LogSink>,
 ) -> Result<Option<ValidatedUcan>, Response> {
     let tracker = RejectRateTracker::new(Duration::from_secs(1));
     let cfg = DosDefenceConfig::defaults();
@@ -38,11 +39,11 @@ pub(super) async fn authorize_default(
         peer_endpoint_id,
         peers,
         db,
-        hlc,
         &tracker,
         &cfg,
         &notifier,
         None,
+        log_sink,
     )
     .await
 }
@@ -57,11 +58,24 @@ pub(super) async fn authorize_default(
 /// Delegates the entire setup to `test_support::init_logs_db_inner` —
 /// keeps this fixture byte-identical to `setup_membership_db` on every
 /// shared knob (HLC, CRDT bookkeeping, `ensure_crdt_columns` policy).
-pub(super) fn empty_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
-    let (conn, hlc_service) = init_logs_db_inner();
+pub(super) fn empty_db() -> (DbConnection, Arc<Mutex<HlcService>>, LogSink) {
+    let (conn, hlc_service, uri) = init_logs_db_inner_with_uri();
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
     let hlc = Arc::new(Mutex::new(hlc_service));
-    (db, hlc)
+
+    // Second connection to the same shared-cache in-memory DB, wrapped
+    // in a `LogSink`. Writes through the sink hit the same rows the
+    // read-back SELECT (`select_audit_logs`) issues via `db`, matching
+    // production's "two OS handles, one file" shape.
+    use rusqlite::{Connection, OpenFlags};
+    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
+        | OpenFlags::SQLITE_OPEN_CREATE
+        | OpenFlags::SQLITE_OPEN_URI;
+    let sink_conn =
+        Connection::open_with_flags(&uri, flags).expect("open second URI conn for LogSink");
+    let sink = LogSink::from_connection(Arc::new(Mutex::new(sink_conn)));
+
+    (db, hlc, sink)
 }
 
 /// Build a `ConnectedPeer` whose cached `validated_ucan` is the one the

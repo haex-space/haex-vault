@@ -8,7 +8,7 @@ use crate::space_delivery::local::types::{ConnectedPeer, PeerClaim};
 
 #[tokio::test]
 async fn rejects_request_without_prior_announce() {
-    let (db, hlc) = empty_db();
+    let (db, _hlc, log_sink) = empty_db();
     let peers: RwLock<HashMap<String, ConnectedPeer>> = RwLock::new(HashMap::new());
 
     let request = Request::MlsUploadKeyPackages {
@@ -17,7 +17,7 @@ async fn rejects_request_without_prior_announce() {
     };
 
     let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, Some(&log_sink)).await;
 
     match result {
         Err(Response::Error { message }) => {
@@ -37,7 +37,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
     // reason `ConnectedPeer::validated_ucan` is `Option<ValidatedUcan>`
     // and the gate's `None` arm exists (see `auth_gate.rs:31-39`).
     // Silently treating `None` as a pass would defeat the entire gate.
-    let (db, hlc) = empty_db();
+    let (db, _hlc, log_sink) = empty_db();
     let peer = ConnectedPeer {
         endpoint_id: "endpoint-id".to_string(),
         did: "did:key:zPeer".to_string(),
@@ -56,7 +56,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
     };
 
     let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, Some(&log_sink)).await;
 
     match result {
         Err(Response::Error { message }) => {

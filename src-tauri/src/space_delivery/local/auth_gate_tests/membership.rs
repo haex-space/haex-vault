@@ -18,7 +18,7 @@ async fn rejects_revoked_member() {
     // which the gate must convert into a peer-facing "not an active
     // member" reject. This is the runtime revocation knob: it lets an
     // admin terminate a member's access without re-issuing keys.
-    let (db, hlc) = setup_membership_db();
+    let (db, _hlc, log_sink) = setup_membership_db();
     // Seed an identity but deliberately NOT a haex_space_members row for
     // this (space, identity) pair — equivalent to a tombstoned membership.
     insert_identity(&db, "id-revoked", "did:key:zRevoked");
@@ -46,7 +46,7 @@ async fn rejects_revoked_member() {
         "endpoint-id",
         &peers,
         &db,
-        &hlc,
+        Some(&log_sink),
     )
     .await;
 
@@ -71,7 +71,7 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
     // the plain "not an active member" reject — so the dispatch site (and
     // any future log triage) can tell a DB outage apart from a revoked
     // member.
-    let (db, hlc) = empty_db(); // no haex_space_members table → SQL error
+    let (db, _hlc, log_sink) = empty_db(); // no haex_space_members table → SQL error
     let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
     peers_map.insert(
         "endpoint-id".to_string(),
@@ -89,7 +89,7 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
     };
 
     let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, Some(&log_sink)).await;
 
     match result {
         Err(Response::Error { message }) => {
