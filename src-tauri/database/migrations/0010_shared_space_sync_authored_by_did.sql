@@ -1,0 +1,1 @@
+ALTER TABLE `haex_shared_space_sync` ADD `authored_by_did` text;

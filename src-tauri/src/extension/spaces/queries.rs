@@ -9,11 +9,13 @@
 //! No local UUIDs here: identity must survive cross-vault CRDT replication.
 
 use crate::table_names::{
-    COL_SHARED_SPACE_SYNC_CREATED_AT, COL_SHARED_SPACE_SYNC_EXTENSION_NAME,
-    COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY, COL_SHARED_SPACE_SYNC_GROUP_ID,
-    COL_SHARED_SPACE_SYNC_ID, COL_SHARED_SPACE_SYNC_LABEL, COL_SHARED_SPACE_SYNC_ROW_PKS,
-    COL_SHARED_SPACE_SYNC_SPACE_ID, COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE,
-    TABLE_SHARED_SPACE_SYNC,
+    COL_IDENTITIES_DID, COL_IDENTITIES_ID, COL_IDENTITIES_NAME, COL_IDENTITIES_PRIVATE_KEY,
+    COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID, COL_SHARED_SPACE_SYNC_CREATED_AT,
+    COL_SHARED_SPACE_SYNC_EXTENSION_NAME, COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
+    COL_SHARED_SPACE_SYNC_GROUP_ID, COL_SHARED_SPACE_SYNC_ID, COL_SHARED_SPACE_SYNC_LABEL,
+    COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_SPACE_ID,
+    COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE, COL_SPACE_MEMBERS_IDENTITY_ID,
+    COL_SPACE_MEMBERS_SPACE_ID, TABLE_IDENTITIES, TABLE_SHARED_SPACE_SYNC, TABLE_SPACE_MEMBERS,
 };
 use lazy_static::lazy_static;
 
@@ -25,7 +27,8 @@ lazy_static! {
                 {COL_SHARED_SPACE_SYNC_ROW_PKS}, {COL_SHARED_SPACE_SYNC_SPACE_ID}, \
                 {COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY}, {COL_SHARED_SPACE_SYNC_EXTENSION_NAME}, \
                 {COL_SHARED_SPACE_SYNC_GROUP_ID}, {COL_SHARED_SPACE_SYNC_TYPE}, \
-                {COL_SHARED_SPACE_SYNC_LABEL}, {COL_SHARED_SPACE_SYNC_CREATED_AT} \
+                {COL_SHARED_SPACE_SYNC_LABEL}, {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID}, \
+                {COL_SHARED_SPACE_SYNC_CREATED_AT} \
          FROM {TABLE_SHARED_SPACE_SYNC}"
     );
 
@@ -33,7 +36,7 @@ lazy_static! {
     /// Params (in order):
     ///   1 id, 2 table_name, 3 row_pks, 4 space_id,
     ///   5 extension_public_key, 6 extension_name,
-    ///   7 group_id, 8 type, 9 label.
+    ///   7 group_id, 8 type, 9 label, 10 authored_by_did.
     ///
     /// Security: columns 5+6 MUST be filled from the authenticated extension
     /// manifest, never from caller-provided strings. See `extension_space_assign`.
@@ -43,8 +46,23 @@ lazy_static! {
           {COL_SHARED_SPACE_SYNC_ROW_PKS}, {COL_SHARED_SPACE_SYNC_SPACE_ID}, \
           {COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY}, {COL_SHARED_SPACE_SYNC_EXTENSION_NAME}, \
           {COL_SHARED_SPACE_SYNC_GROUP_ID}, {COL_SHARED_SPACE_SYNC_TYPE}, \
-          {COL_SHARED_SPACE_SYNC_LABEL}) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+          {COL_SHARED_SPACE_SYNC_LABEL}, {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID}) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+    );
+
+    /// The vault's own identity that is a member of this space (private_key IS NOT NULL).
+    /// One per space (the identity the user joined under) — matches the push signer.
+    pub static ref SQL_SELECT_OWN_DID_FOR_SPACE: String = format!(
+        "SELECT i.{COL_IDENTITIES_DID} FROM {TABLE_SPACE_MEMBERS} m \
+         JOIN {TABLE_IDENTITIES} i ON i.{COL_IDENTITIES_ID} = m.{COL_SPACE_MEMBERS_IDENTITY_ID} \
+         WHERE m.{COL_SPACE_MEMBERS_SPACE_ID} = ?1 AND i.{COL_IDENTITIES_PRIVATE_KEY} IS NOT NULL LIMIT 1"
+    );
+
+    /// Members of a space with their identity's display name and whether it's a local identity.
+    pub static ref SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY: String = format!(
+        "SELECT i.{COL_IDENTITIES_DID}, i.{COL_IDENTITIES_NAME}, (i.{COL_IDENTITIES_PRIVATE_KEY} IS NOT NULL) AS is_self \
+         FROM {TABLE_SPACE_MEMBERS} m JOIN {TABLE_IDENTITIES} i ON i.{COL_IDENTITIES_ID} = m.{COL_SPACE_MEMBERS_IDENTITY_ID} \
+         WHERE m.{COL_SPACE_MEMBERS_SPACE_ID} = ?1"
     );
 
     /// Unassign by (table_name, row_pks, space_id) — matches the uniqueness

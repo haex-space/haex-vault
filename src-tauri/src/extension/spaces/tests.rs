@@ -17,7 +17,12 @@ mod tests {
     };
     use crate::database::connection_context::ConnectionContext;
     use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
+    use crate::database::row::get_string;
     use crate::database::DbConnection;
+    use crate::extension::spaces::queries::{
+        SQL_INSERT_SHARED_SPACE_SYNC, SQL_SELECT_OWN_DID_FOR_SPACE,
+        SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY,
+    };
     use crate::table_names::{
         TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC,
     };
@@ -93,10 +98,27 @@ mod tests {
                 group_id TEXT,
                 type TEXT,
                 label TEXT,
+                authored_by_did TEXT,
                 created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
             )",
             TABLE_SHARED_SPACE_SYNC
         ))
+        .unwrap();
+
+        conn.execute_batch(
+            "CREATE TABLE haex_identities (
+                id TEXT PRIMARY KEY NOT NULL,
+                did TEXT NOT NULL,
+                name TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'contact',
+                private_key TEXT
+            );
+            CREATE TABLE haex_space_members (
+                id TEXT PRIMARY KEY NOT NULL,
+                space_id TEXT NOT NULL,
+                identity_id TEXT NOT NULL
+            )",
+        )
         .unwrap();
 
         {
@@ -287,6 +309,147 @@ mod tests {
         assert_eq!(
             delete_log_count, 1,
             "BEFORE-DELETE trigger must log to haex_deleted_rows"
+        );
+    }
+
+    // =========================================================================
+    // extension_space_assign: stamps authored_by_did with the sharer's own
+    // space-specific DID (resolved via SQL_SELECT_OWN_DID_FOR_SPACE).
+    // =========================================================================
+
+    #[test]
+    fn test_extension_space_assign_stamps_authored_by_did() {
+        let (db, hlc) = setup_test_db();
+        let hlc_mutex = Mutex::new(hlc);
+        let hlc_guard = hlc_mutex.lock().unwrap();
+
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO haex_identities (id, did, name, source, private_key) \
+                 VALUES ('id-own', 'did:key:own', 'Me', 'own', 'PRIVKEY')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_space_members (id, space_id, identity_id) \
+                 VALUES ('mem-1', 'sp-1', 'id-own')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let own_did = core::select_with_crdt(
+            SQL_SELECT_OWN_DID_FOR_SPACE.clone(),
+            vec![serde_json::Value::String("sp-1".to_string())],
+            &db,
+        )
+        .unwrap()
+        .first()
+        .map(|row| get_string(row, 0));
+        assert_eq!(own_did.as_deref(), Some("did:key:own"));
+
+        core::execute_with_crdt(
+            SQL_INSERT_SHARED_SPACE_SYNC.clone(),
+            vec![
+                serde_json::Value::String("assign-authored".to_string()),
+                serde_json::Value::String("ext_test__items".to_string()),
+                serde_json::Value::String("item-authored".to_string()),
+                serde_json::Value::String("sp-1".to_string()),
+                serde_json::Value::String("ext-pubkey".to_string()),
+                serde_json::Value::String("ext-name".to_string()),
+                serde_json::Value::Null,
+                serde_json::Value::Null,
+                serde_json::Value::Null,
+                serde_json::Value::String(own_did.unwrap()),
+            ],
+            &db,
+            &hlc_guard,
+        )
+        .unwrap();
+
+        let rows = core::select_with_crdt(
+            format!(
+                "SELECT authored_by_did FROM {} WHERE id = ?1",
+                TABLE_SHARED_SPACE_SYNC
+            ),
+            vec![serde_json::Value::String("assign-authored".to_string())],
+            &db,
+        )
+        .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(get_string(&rows[0], 0), "did:key:own");
+    }
+
+    // =========================================================================
+    // extension_space_get_members: returns members with correct is_self/label.
+    // =========================================================================
+
+    #[test]
+    fn test_extension_space_get_members_returns_members_with_is_self() {
+        let (db, _hlc) = setup_test_db();
+
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO haex_identities (id, did, name, source, private_key) \
+                 VALUES ('id-own', 'did:key:own', 'Me', 'own', 'PRIVKEY')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_identities (id, did, name, source, private_key) \
+                 VALUES ('id-contact', 'did:key:contact', 'Alice', 'contact', NULL)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_space_members (id, space_id, identity_id) \
+                 VALUES ('mem-own', 'sp-1', 'id-own')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_space_members (id, space_id, identity_id) \
+                 VALUES ('mem-contact', 'sp-1', 'id-contact')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let rows = core::select_with_crdt(
+            SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY.clone(),
+            vec![serde_json::Value::String("sp-1".to_string())],
+            &db,
+        )
+        .unwrap();
+
+        assert_eq!(rows.len(), 2);
+
+        let mut by_did: std::collections::HashMap<String, (String, bool)> = rows
+            .iter()
+            .map(|row| {
+                (
+                    get_string(row, 0),
+                    (get_string(row, 1), row[2].as_i64().unwrap_or(0) != 0),
+                )
+            })
+            .collect();
+
+        let (own_label, own_is_self) = by_did.remove("did:key:own").expect("own DID present");
+        assert_eq!(own_label, "Me");
+        assert!(own_is_self, "own identity must have isSelf = true");
+
+        let (contact_label, contact_is_self) = by_did
+            .remove("did:key:contact")
+            .expect("contact DID present");
+        assert_eq!(contact_label, "Alice");
+        assert!(
+            !contact_is_self,
+            "contact identity must have isSelf = false"
         );
     }
 }
