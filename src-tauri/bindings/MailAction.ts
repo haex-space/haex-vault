@@ -13,4 +13,4 @@
  * DELETE, APPEND) — extra read/write-Trennung lohnt nicht, weil "lesen"
  * bei IMAP bereits den vollen Datenzugriff bedeutet.
  */
-export type MailAction = "fetch" | "send";
+export type MailAction = "fetch" | "send" | "poll";

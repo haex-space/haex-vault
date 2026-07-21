@@ -23,11 +23,10 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 use serde_json::json;
 
 use crate::crdt::hlc::HlcService;
-use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
@@ -36,8 +35,8 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 
 /// In-memory DB with the minimum schemas `is_active_space_member` reads:
 /// `haex_identities` + `haex_space_members`, plus the CRDT bookkeeping
-/// tables the HLC hooks require, plus `haex_logs` so AuthGate audit-row
-/// assertions can read what `log_to_db` writes.
+/// tables the HLC hooks require, plus `haex_logs_no_sync` so AuthGate
+/// audit-row assertions can read what `log_to_db` writes.
 ///
 /// Returns the DB handle alongside the `Arc<Mutex<HlcService>>` that
 /// `auth_gate::authorize_request` and `logging::log_to_db` consume. The
@@ -50,7 +49,7 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 /// The columns below are a deliberate subset of the production Drizzle
 /// schemas (`src/database/schemas/identity.ts` for `haex_identities`,
 /// `src/database/schemas/spaces.ts` for `haex_space_members`,
-/// `src/database/schemas/logs.ts` for `haex_logs`). We mirror every
+/// `src/database/schemas/logs.ts` for `haex_logs_no_sync`). We mirror every
 /// `NOT NULL` column production declares — even the ones our tests
 /// never read — so that `insert_identity` / `insert_member` /
 /// `log_to_db` exercise the same constraints production code does.
@@ -66,17 +65,22 @@ use crate::ucan::{CapabilityLevel, ValidatedUcan};
 /// `authored_by_did`, `joined_at`. No production columns omitted —
 /// the table is small enough that we keep it at full parity.
 ///
-/// The `haex_logs` schema, the two CRDT bookkeeping tables, and the
-/// `ensure_crdt_columns` call all live in [`init_logs_db_inner`] — this
-/// function only adds `haex_identities` and `haex_space_members` on top.
-/// Look at `init_logs_db_inner` for the `haex_logs` column list and the
-/// `_no_sync` table-name convention.
+/// The `haex_logs_no_sync` schema and the two CRDT bookkeeping tables both
+/// live in [`init_logs_db_inner`] — this function only adds `haex_identities`
+/// and `haex_space_members` on top. Look at `init_logs_db_inner` for the
+/// `haex_logs_no_sync` column list and the `_no_sync` table-name convention.
 ///
-/// CRDT-helper columns (e.g. `haex_tombstone`, HLC timestamps) are added
-/// by `core::execute` at write-time, not by the migration, so they don't
-/// appear in any CREATE TABLE in this module.
-pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
-    let (conn, hlc_service) = init_logs_db_inner();
+/// CRDT-helper columns (e.g. `haex_tombstone`, HLC timestamps) never appear
+/// in any CREATE TABLE in this module: the sync tables get them from
+/// `core::execute` at write-time, and `haex_logs_no_sync` deliberately never
+/// gets them — it is local-only and written through the
+/// [`crate::logging::LogSink`] (plain INSERTs), not `execute_with_crdt`.
+pub(crate) fn setup_membership_db() -> (
+    DbConnection,
+    Arc<Mutex<HlcService>>,
+    crate::logging::LogSink,
+) {
+    let (conn, hlc_service, uri) = init_logs_db_inner_with_uri();
 
     conn.execute_batch(
         "CREATE TABLE haex_identities (
@@ -99,46 +103,72 @@ pub(crate) fn setup_membership_db() -> (DbConnection, Arc<Mutex<HlcService>>) {
     )
     .expect("create membership schema");
 
+    // Second connection to the same shared-cache URI so LogSink writes
+    // land in the same DB as the main test connection — mirrors
+    // `auth_gate_tests::helpers::empty_db`.
+    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
+        | OpenFlags::SQLITE_OPEN_CREATE
+        | OpenFlags::SQLITE_OPEN_URI;
+    let sink_conn =
+        Connection::open_with_flags(&uri, flags).expect("open second URI conn for LogSink");
+    let log_sink = crate::logging::LogSink::from_connection(Arc::new(Mutex::new(sink_conn)));
+
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
     let hlc = Arc::new(Mutex::new(hlc_service));
-    (db, hlc)
+    (db, hlc, log_sink)
 }
 
-/// Open an in-memory DB seeded with everything `log_to_db` needs and nothing
-/// else: HLC service + UDF + tx hooks, the two CRDT bookkeeping tables
-/// (`haex_crdt_configs_no_sync`, `haex_crdt_dirty_tables_no_sync`), the
-/// `haex_logs` table mirrored from production, and `ensure_crdt_columns`
-/// run against it so `execute_with_crdt` writes succeed.
+/// Open an in-memory DB seeded with everything the logging fixtures need and
+/// nothing else: HLC service + UDF + tx hooks, the two CRDT bookkeeping tables
+/// (`haex_crdt_configs_no_sync`, `haex_crdt_dirty_tables_no_sync`), and the
+/// `haex_logs_no_sync` table mirrored from production migration 0009.
 ///
 /// Returns the raw `Connection` + `HlcService` so callers can add their
 /// own tables (membership, peers, …) before wrapping in a `DbConnection`.
 /// [`setup_membership_db`] and `auth_gate_tests::empty_db` both build on
 /// this — extracted to keep the two fixtures byte-identical on every
-/// detail that's *not* their per-test schema (was a real source of drift
-/// before the dedup landed: e.g. the missing `ensure_crdt_columns` call
-/// would silently let `log_to_db` write garbage rows).
+/// detail that's *not* their per-test schema.
 ///
-/// ## `haex_logs` schema parity
+/// ## `haex_logs_no_sync` schema parity
 ///
-/// Mirrored from production (`src/database/schemas/logs.ts`):
-/// `id`, `timestamp` (NOT NULL), `level` (NOT NULL), `source` (NOT NULL),
-/// `extension_id` (nullable), `message` (NOT NULL), `metadata` (nullable),
-/// `device_id` (NOT NULL). The `extension_id` FK to `haex_extensions` is
-/// dropped here — we never seed `haex_extensions`, and `log_to_db` always
-/// inserts NULL there.
+/// Mirrored from production (`src/database/schemas/logs.ts` + migration
+/// 0009): `id`, `timestamp` (NOT NULL), `level` (NOT NULL), `source`
+/// (NOT NULL), `extension_id` (nullable), `message` (NOT NULL), `metadata`
+/// (nullable), `device_id` (NOT NULL). The `extension_id` FK to
+/// `haex_extensions` is dropped here — we never seed `haex_extensions`, and
+/// `log_to_db` always inserts NULL there.
 ///
-/// ## Why this is not `ensure_crdt_columns_and_triggers`
-///
-/// `_and_triggers` would also install a BEFORE-DELETE trigger that writes
-/// into `haex_deleted_rows` (not seeded in this fixture) and calls the
-/// `current_hlc()` / `uuid_v4()` UDFs. Today's tests INSERT into
-/// `haex_logs` but never DELETE, so the missing trigger is harmless. If
-/// you extend the suite to cover delete paths, seed `haex_deleted_rows`
-/// plus the required UDFs first, then switch this call to the
-/// `_and_triggers` variant — otherwise the trigger body will fail with
-/// `no such table: haex_deleted_rows`.
+/// The table is created **without** CRDT columns (`haex_hlc`,
+/// `haex_tombstone`, …), exactly like production: it is `_no_sync`, and log
+/// writes go through the [`crate::logging::LogSink`] (plain INSERTs), not
+/// `execute_with_crdt`. Adding CRDT columns here would diverge from
+/// production and re-arm the very sync path the `_no_sync` rename removed.
 pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
-    let conn = Connection::open_in_memory().expect("in-memory DB");
+    let (conn, hlc, _uri) = init_logs_db_inner_with_uri();
+    (conn, hlc)
+}
+
+/// Variant of [`init_logs_db_inner`] that also returns the shared-cache
+/// in-memory DB URI so callers can open a SECOND connection to the same
+/// underlying DB — needed for tests that install a [`crate::logging::LogSink`]
+/// (its own connection) but want the sink's writes to be visible to the
+/// main [`DbConnection`]'s SELECTs.
+///
+/// Production uses two OS handles against the same file; here two
+/// connections to the same shared-cache URI achieve the equivalent.
+///
+/// The URI includes a fresh Uuid to isolate every fixture invocation from
+/// every other — otherwise concurrent tests in the same process would
+/// collide on the shared cache.
+pub(crate) fn init_logs_db_inner_with_uri() -> (Connection, HlcService, String) {
+    let uri = format!(
+        "file:haex-test-{}?mode=memory&cache=shared",
+        uuid::Uuid::new_v4()
+    );
+    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
+        | OpenFlags::SQLITE_OPEN_CREATE
+        | OpenFlags::SQLITE_OPEN_URI;
+    let conn = Connection::open_with_flags(&uri, flags).expect("open in-memory URI DB");
     let hlc_service = HlcService::new_for_testing("test-device");
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc_service.clone(), ctx.clone()).expect("register hlc udf");
@@ -156,7 +186,7 @@ pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
     .expect("create crdt_dirty_tables");
 
     conn.execute_batch(
-        "CREATE TABLE haex_logs (
+        "CREATE TABLE haex_logs_no_sync (
             id TEXT PRIMARY KEY,
             timestamp TEXT NOT NULL,
             level TEXT NOT NULL,
@@ -169,13 +199,7 @@ pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
     )
     .expect("create logs schema");
 
-    {
-        let tx = conn.unchecked_transaction().expect("begin crdt-columns tx");
-        ensure_crdt_columns(&tx, "haex_logs").expect("ensure crdt columns on haex_logs");
-        tx.commit().expect("commit crdt-columns tx");
-    }
-
-    (conn, hlc_service)
+    (conn, hlc_service, uri)
 }
 
 /// Insert an identity row keyed by `identity_id` with public DID `did`.

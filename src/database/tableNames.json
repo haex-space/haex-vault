@@ -484,7 +484,7 @@
     },
 
     "logs": {
-      "name": "haex_logs",
+      "name": "haex_logs_no_sync",
       "columns": {
         "id": "id",
         "timestamp": "timestamp",

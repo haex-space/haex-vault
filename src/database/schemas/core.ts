@@ -106,7 +106,15 @@ export type SelectHaexPrincipalPermissions =
   typeof haexPrincipalPermissions.$inferSelect
 
 // ---------------------------------------------------------------------------
-// Logs — structured logging for system processes and extensions
+// Logs — structured logging for system processes and extensions.
+//
+// NOT CRDT-synced — `_no_sync` suffix marks the table as local-only.
+// Written by `crate::logging::LogSink` on the Rust side via a SEPARATE
+// SQLite connection so that a poisoned/contended main DB mutex still lets
+// the sink record what happened. Mirrors `haexCriticalNotificationsNoSync`.
+// Trade-off: logs no longer replicate to the owner's other devices / sync
+// server. Accepted so per-device diagnostic logs survive the freeze the
+// prior CRDT-synced setup helped mask (see 2026-07-21 memory).
 // ---------------------------------------------------------------------------
 
 export const haexLogs = sqliteTable(
