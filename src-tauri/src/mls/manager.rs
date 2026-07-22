@@ -111,6 +111,7 @@ impl MlsManager {
         space_id: &str,
         key_package_bytes: &[u8],
         expected_did: &str,
+        pop: &[u8],
     ) -> Result<MlsCommitBundle, String> {
         let signer = self.get_signer()?;
         let group_id = GroupId::from_slice(space_id.as_bytes());
@@ -129,7 +130,7 @@ impl MlsManager {
         // Reject any package whose credential does not match the invitee we intended
         // to add — otherwise an attacker who possesses ANY valid KeyPackage could be
         // added under someone else's name. (Proof-of-possession of the identity key
-        // is enforced separately; see mls/pop.rs.)
+        // is enforced separately right below.)
         let cred_bytes = key_package.leaf_node().credential().serialized_content();
         if cred_bytes != expected_did.as_bytes() {
             return Err(format!(
@@ -137,6 +138,24 @@ impl MlsManager {
                 String::from_utf8_lossy(cred_bytes)
             ));
         }
+
+        // Proof-of-possession: the credential check above only matches a
+        // self-asserted string. Verify the MLS signature key was attested by
+        // the identity key `expected_did` resolves to — otherwise an attacker
+        // holding their own identity key could still mint a KeyPackage naming
+        // someone else's DID and pass the check above.
+        let identity_pub = crate::ucan::public_key_from_did(expected_did)
+            .map_err(|e| format!("Cannot resolve identity key from DID {expected_did}: {e}"))?;
+        let pop_sig = ed25519_dalek::Signature::try_from(pop)
+            .map_err(|e| format!("Malformed proof-of-possession signature: {e}"))?;
+        let mls_sig_pub: &[u8; 32] = key_package
+            .leaf_node()
+            .signature_key()
+            .as_slice()
+            .try_into()
+            .map_err(|_| "MLS signature key is not 32 bytes".to_string())?;
+        crate::mls::pop::verify_pop(&identity_pub, mls_sig_pub, expected_did, &pop_sig)
+            .map_err(|e| format!("Invalid proof-of-possession: {e}"))?;
 
         // Check for duplicate signature key in existing group members.
         // This can happen on re-invite after partial success or retry scenarios.
@@ -355,9 +374,20 @@ impl MlsManager {
         })
     }
 
-    pub fn generate_key_packages(&self, count: u32) -> Result<Vec<Vec<u8>>, String> {
+    /// Generate `count` fresh KeyPackages, each paired with a proof-of-possession
+    /// binding its MLS signature key to `identity_signing_key`. The identity key
+    /// lives in `haex_identities`, outside the MLS provider's own storage, so the
+    /// caller resolves and passes it in rather than this module reaching across
+    /// into an unrelated table.
+    pub fn generate_key_packages(
+        &self,
+        count: u32,
+        identity_signing_key: &ed25519_dalek::SigningKey,
+    ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, String> {
         let signer = self.get_signer()?;
         let credential_with_key = self.get_credential_with_key(&signer);
+        let own_did = String::from_utf8_lossy(credential_with_key.credential.serialized_content())
+            .into_owned();
 
         let mut packages = Vec::with_capacity(count as usize);
         for _ in 0..count {
@@ -370,13 +400,31 @@ impl MlsManager {
                 )
                 .map_err(|e| format!("Failed to build key package: {e}"))?;
 
+            let mls_sig_pub: &[u8; 32] = bundle
+                .key_package()
+                .leaf_node()
+                .signature_key()
+                .as_slice()
+                .try_into()
+                .map_err(|_| "MLS signature key is not 32 bytes".to_string())?;
+            let pop = crate::mls::pop::sign_pop(identity_signing_key, mls_sig_pub, &own_did);
+
             let bytes = bundle
                 .key_package()
                 .tls_serialize_detached()
                 .map_err(|e| format!("Failed to serialize key package: {e}"))?;
-            packages.push(bytes);
+            packages.push((bytes, pop.to_bytes().to_vec()));
         }
         Ok(packages)
+    }
+
+    /// The DID this manager's MLS identity is bound to (set by `init_identity`).
+    pub fn get_own_did(&self) -> Result<String, String> {
+        self.provider
+            .storage()
+            .load_own_did()
+            .map_err(|e| format!("Failed to read own DID: {e}"))?
+            .ok_or_else(|| "No identity found. Call mls_init_identity first.".to_string())
     }
 
     /// Check if this device has an MLS group for the given space.

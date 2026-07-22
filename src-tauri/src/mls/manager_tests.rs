@@ -37,6 +37,22 @@ fn fresh_mls_conn() -> Arc<Mutex<Option<Connection>>> {
     Arc::new(Mutex::new(Some(conn)))
 }
 
+/// A real (identity DID, signing key) pair. PoP verification decodes the
+/// credential DID via `did:key`, so test DIDs must be genuine — an arbitrary
+/// placeholder string like `did:key:zALICE` no longer round-trips.
+struct TestIdentity {
+    did: String,
+    signing_key: ed25519_dalek::SigningKey,
+}
+
+impl TestIdentity {
+    fn new() -> Self {
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&rand::random());
+        let did = crate::ucan::did_key_from_public_key(&signing_key.verifying_key());
+        Self { did, signing_key }
+    }
+}
+
 struct TestMls {
     alice: MlsManager,
     space_id: String,
@@ -44,21 +60,34 @@ struct TestMls {
 
 impl TestMls {
     fn new() -> Self {
+        let alice_identity = TestIdentity::new();
         let alice = MlsManager::new(fresh_mls_conn());
         alice
-            .init_identity("did:key:zALICE")
+            .init_identity(&alice_identity.did)
             .expect("init_identity");
         let space_id = "space-test-1".to_string();
         alice.create_group(&space_id).expect("create_group");
         Self { alice, space_id }
     }
 
-    /// Build a KeyPackage carrying `did` as its credential, using a fresh in-memory
-    /// MLS provider so we can pretend to be a *different* identity from the group owner.
-    fn build_key_package(&self, did: &str) -> Vec<u8> {
+    /// Build a KeyPackage + PoP carrying `identity.did` as its credential and
+    /// signed by `identity.signing_key`, using a fresh in-memory MLS provider
+    /// so we can pretend to be a different identity from the group owner.
+    fn build_key_package(&self, identity: &TestIdentity) -> (Vec<u8>, Vec<u8>) {
+        self.build_key_package_with_pop_signer(&identity.did, &identity.signing_key)
+    }
+
+    /// Build a KeyPackage whose credential DID is `credential_did` but whose
+    /// PoP is produced by `pop_signer` — pass a key other than the one
+    /// `credential_did` resolves to in order to simulate a forged PoP.
+    fn build_key_package_with_pop_signer(
+        &self,
+        credential_did: &str,
+        pop_signer: &ed25519_dalek::SigningKey,
+    ) -> (Vec<u8>, Vec<u8>) {
         let bob = MlsManager::new(fresh_mls_conn());
-        bob.init_identity(did).expect("init_identity");
-        bob.generate_key_packages(1)
+        bob.init_identity(credential_did).expect("init_identity");
+        bob.generate_key_packages(1, pop_signer)
             .expect("generate_key_packages")
             .pop()
             .expect("at least one key package")
@@ -68,10 +97,12 @@ impl TestMls {
 #[test]
 fn add_member_rejects_credential_did_mismatch() {
     let h = TestMls::new();
-    let evil_kp = h.build_key_package("did:key:zEVIL");
+    let evil = TestIdentity::new();
+    let good = TestIdentity::new();
+    let (evil_kp, evil_pop) = h.build_key_package(&evil);
     let err = h
         .alice
-        .add_member(&h.space_id, &evil_kp, "did:key:zGOOD")
+        .add_member(&h.space_id, &evil_kp, &good.did, &evil_pop)
         .expect_err("add_member must reject a KeyPackage whose credential DID does not match");
     assert!(
         format!("{err}").contains("credential DID mismatch"),
@@ -82,8 +113,29 @@ fn add_member_rejects_credential_did_mismatch() {
 #[test]
 fn add_member_accepts_matching_credential() {
     let h = TestMls::new();
-    let good_kp = h.build_key_package("did:key:zGOOD");
+    let good = TestIdentity::new();
+    let (good_kp, good_pop) = h.build_key_package(&good);
     h.alice
-        .add_member(&h.space_id, &good_kp, "did:key:zGOOD")
-        .expect("add_member must accept a KeyPackage whose credential DID matches");
+        .add_member(&h.space_id, &good_kp, &good.did, &good_pop)
+        .expect(
+            "add_member must accept a KeyPackage whose credential DID matches and PoP verifies",
+        );
+}
+
+#[test]
+fn add_member_rejects_invalid_pop() {
+    let h = TestMls::new();
+    let good = TestIdentity::new();
+    let attacker = TestIdentity::new();
+    let (kp, forged_pop) = h.build_key_package_with_pop_signer(&good.did, &attacker.signing_key);
+    let err = h
+        .alice
+        .add_member(&h.space_id, &kp, &good.did, &forged_pop)
+        .expect_err(
+            "add_member must reject a PoP signed by a different identity than the credential DID resolves to",
+        );
+    assert!(
+        format!("{err}").contains("proof-of-possession"),
+        "expected proof-of-possession error, got: {err}"
+    );
 }
