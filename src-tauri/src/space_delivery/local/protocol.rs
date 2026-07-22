@@ -66,6 +66,8 @@ pub enum Request {
         space_id: String,
         /// Base64-encoded key packages
         packages: Vec<String>,
+        /// Base64-encoded proofs-of-possession, one per `packages` entry (same order)
+        pops: Vec<String>,
     },
     /// Fetch a key package for a target DID
     MlsFetchKeyPackage {
@@ -201,6 +203,8 @@ pub enum Request {
         endpoint_id: String,
         /// Base64-encoded MLS KeyPackages
         key_packages: Vec<String>,
+        /// Base64-encoded proofs-of-possession, one per `key_packages` entry (same order)
+        pops: Vec<String>,
         /// Optional label to share with the leader
         label: Option<String>,
         /// SPKI Base64 public key for haex_space_members (derived from DID on sender side)
@@ -406,6 +410,8 @@ pub enum Response {
     KeyPackage {
         /// Base64-encoded
         package: String,
+        /// Base64-encoded proof-of-possession for `package`
+        pop: String,
     },
     /// List of MLS messages
     Messages { messages: Vec<MlsMessageEntry> },

@@ -86,6 +86,7 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
     let request = Request::MlsUploadKeyPackages {
         space_id: "SPACE".into(),
         packages: vec![],
+        pops: vec![],
     };
 
     let result = authorize_default(

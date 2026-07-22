@@ -1,6 +1,7 @@
 pub mod blocking;
 pub mod commands;
 pub mod manager;
+pub mod pop;
 pub mod provider;
 mod queries;
 pub mod storage;

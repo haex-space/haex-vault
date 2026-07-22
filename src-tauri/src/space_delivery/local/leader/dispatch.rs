@@ -231,11 +231,15 @@ pub(crate) async fn handle_delivery_request(
         }
 
         // -- MLS Key Packages --
-        Request::MlsUploadKeyPackages { space_id, packages } => {
+        Request::MlsUploadKeyPackages {
+            space_id,
+            packages,
+            pops,
+        } => {
             let did = verified_did.to_string();
-            for pkg_b64 in &packages {
-                if let Ok(blob) = base64_decode(pkg_b64) {
-                    let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
+            for (pkg_b64, pop_b64) in packages.iter().zip(pops.iter()) {
+                if let (Ok(blob), Ok(pop_blob)) = (base64_decode(pkg_b64), base64_decode(pop_b64)) {
+                    let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob, &pop_blob);
                 }
             }
             // Trim excess packages — keep only the target amount, discard oldest
@@ -248,8 +252,9 @@ pub(crate) async fn handle_delivery_request(
             space_id,
             target_did,
         } => match buffer::consume_key_package(&state.db, &space_id, &target_did) {
-            Ok(Some(blob)) => Response::KeyPackage {
+            Ok(Some((blob, pop))) => Response::KeyPackage {
                 package: base64_encode(&blob),
+                pop: base64_encode(&pop),
             },
             Ok(None) => Response::Error {
                 message: format!("No key package for {target_did}"),

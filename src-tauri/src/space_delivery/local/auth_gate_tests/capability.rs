@@ -147,6 +147,7 @@ async fn accepts_read_member_mls_upload_key_packages_at_gate_level() {
     let request = Request::MlsUploadKeyPackages {
         space_id: "SPACE".into(),
         packages: vec![],
+        pops: vec![],
     };
 
     let result = authorize_default(

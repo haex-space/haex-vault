@@ -78,6 +78,13 @@
       "when": 1784670072154,
       "tag": "0010_shared_space_sync_authored_by_did",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784726446828,
+      "tag": "0011_needy_chronomancer",
+      "breakpoints": true
     }
   ]
 }

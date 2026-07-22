@@ -8,7 +8,7 @@ use crate::database::core::{execute_with_crdt, select_with_crdt};
 use crate::mls::manager::MlsManager;
 use crate::mls::types::{
     MlsCommitBundle, MlsEpochKey, MlsExternalCommitResult, MlsGroupInfo, MlsIdentityInfo,
-    MlsProcessedMessage,
+    MlsKeyPackageWithPop, MlsProcessedMessage,
 };
 use crate::AppState;
 
@@ -57,8 +57,12 @@ pub fn mls_add_member(
     state: State<'_, AppState>,
     space_id: String,
     key_package: Vec<u8>,
+    expected_did: String,
+    pop: Vec<u8>,
 ) -> Result<MlsCommitBundle, String> {
-    with_mls_manager(&state, |mgr| mgr.add_member(&space_id, &key_package))
+    with_mls_manager(&state, |mgr| {
+        mgr.add_member(&space_id, &key_package, &expected_did, &pop)
+    })
 }
 
 #[tauri::command]
@@ -112,8 +116,21 @@ pub fn mls_process_message(
 pub fn mls_get_key_packages(
     state: State<'_, AppState>,
     count: u32,
-) -> Result<Vec<Vec<u8>>, String> {
-    with_mls_manager(&state, |mgr| mgr.generate_key_packages(count))
+) -> Result<Vec<MlsKeyPackageWithPop>, String> {
+    let own_did = with_mls_manager(&state, |mgr| mgr.get_own_did())?;
+    let identity = crate::space_delivery::local::quic_retry::load_signing_identity_for_did(
+        &state.db, &own_did,
+    )
+    .map_err(|e| format!("Failed to load identity for proof-of-possession: {e}"))?;
+    with_mls_manager(&state, |mgr| {
+        mgr.generate_key_packages(count, &identity.signing_key)
+    })
+    .map(|pairs| {
+        pairs
+            .into_iter()
+            .map(|(key_package, pop)| MlsKeyPackageWithPop { key_package, pop })
+            .collect()
+    })
 }
 
 #[tauri::command]

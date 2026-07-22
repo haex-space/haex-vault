@@ -116,37 +116,41 @@ pub fn fetch_messages(
     Ok(result)
 }
 
-/// Store a key package for a target DID. Returns the generated UUID.
+/// Store a key package + its proof-of-possession for a target DID. Returns
+/// the generated UUID.
 pub fn store_key_package(
     db: &DbConnection,
     space_id: &str,
     target_did: &str,
     package_blob: &[u8],
+    pop_blob: &[u8],
 ) -> Result<String, DeliveryError> {
     let id = Uuid::new_v4().to_string();
     let blob_b64 = base64::engine::general_purpose::STANDARD.encode(package_blob);
+    let pop_b64 = base64::engine::general_purpose::STANDARD.encode(pop_blob);
     core::execute(
-        "INSERT INTO haex_local_delivery_key_packages_no_sync (id, space_id, target_did, package_blob) VALUES (?1, ?2, ?3, ?4)".to_string(),
+        "INSERT INTO haex_local_delivery_key_packages_no_sync (id, space_id, target_did, package_blob, pop_blob) VALUES (?1, ?2, ?3, ?4, ?5)".to_string(),
         vec![
             serde_json::Value::String(id.clone()),
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::String(target_did.to_string()),
             serde_json::Value::String(blob_b64),
+            serde_json::Value::String(pop_b64),
         ],
         db,
     ).map_err(map_db)?;
     Ok(id)
 }
 
-/// Fetch and consume (delete) one key package for a target DID.
+/// Fetch and consume (delete) one key package + its PoP for a target DID.
 /// Single-use per MLS spec: SELECT one, then DELETE it.
 pub fn consume_key_package(
     db: &DbConnection,
     space_id: &str,
     target_did: &str,
-) -> Result<Option<Vec<u8>>, DeliveryError> {
+) -> Result<Option<(Vec<u8>, Vec<u8>)>, DeliveryError> {
     let rows = core::select(
-        "SELECT id, package_blob FROM haex_local_delivery_key_packages_no_sync \
+        "SELECT id, package_blob, pop_blob FROM haex_local_delivery_key_packages_no_sync \
          WHERE space_id = ?1 AND target_did = ?2 \
          ORDER BY created_at ASC LIMIT 1"
             .to_string(),
@@ -170,6 +174,10 @@ pub fn consume_key_package(
     let blob = base64::engine::general_purpose::STANDARD
         .decode(blob_b64)
         .unwrap_or_default();
+    let pop_b64 = row.get(2).and_then(|v| v.as_str()).unwrap_or_default();
+    let pop = base64::engine::general_purpose::STANDARD
+        .decode(pop_b64)
+        .unwrap_or_default();
 
     // Delete after consuming
     core::execute(
@@ -179,7 +187,7 @@ pub fn consume_key_package(
     )
     .map_err(map_db)?;
 
-    Ok(Some(blob))
+    Ok(Some((blob, pop)))
 }
 
 /// Count available (unconsumed) key packages for a target DID.

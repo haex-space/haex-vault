@@ -67,6 +67,7 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             space_id TEXT NOT NULL,
             target_did TEXT NOT NULL,
             package_blob TEXT NOT NULL,
+            pop_blob TEXT NOT NULL,
             created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
             FOREIGN KEY (space_id) REFERENCES haex_spaces(id)
         );
@@ -171,7 +172,14 @@ mod buffer_tests {
 
         // Store 3 key packages
         for _ in 0..3 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"fake-kp").unwrap();
+            buffer::store_key_package(
+                &db,
+                "test-space-1",
+                "did:key:alice",
+                b"fake-kp",
+                b"fake-pop",
+            )
+            .unwrap();
         }
 
         let count =
@@ -185,10 +193,18 @@ mod buffer_tests {
         let db = DbConnection(conn);
 
         for _ in 0..5 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp-alice").unwrap();
+            buffer::store_key_package(
+                &db,
+                "test-space-1",
+                "did:key:alice",
+                b"kp-alice",
+                b"fake-pop",
+            )
+            .unwrap();
         }
         for _ in 0..2 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:bob", b"kp-bob").unwrap();
+            buffer::store_key_package(&db, "test-space-1", "did:key:bob", b"kp-bob", b"fake-pop")
+                .unwrap();
         }
 
         assert_eq!(
@@ -207,10 +223,12 @@ mod buffer_tests {
         let db = DbConnection(conn);
 
         for _ in 0..4 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp").unwrap();
+            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp", b"fake-pop")
+                .unwrap();
         }
         for _ in 0..7 {
-            buffer::store_key_package(&db, "test-space-2", "did:key:alice", b"kp").unwrap();
+            buffer::store_key_package(&db, "test-space-2", "did:key:alice", b"kp", b"fake-pop")
+                .unwrap();
         }
 
         assert_eq!(
@@ -230,7 +248,8 @@ mod buffer_tests {
 
         // Store 15 key packages
         for _ in 0..15 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp").unwrap();
+            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp", b"fake-pop")
+                .unwrap();
         }
 
         assert_eq!(
@@ -253,7 +272,8 @@ mod buffer_tests {
         let db = DbConnection(conn);
 
         for _ in 0..5 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp").unwrap();
+            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp", b"fake-pop")
+                .unwrap();
         }
 
         // Trim to 10 — should be a no-op since we only have 5
@@ -271,10 +291,12 @@ mod buffer_tests {
         let db = DbConnection(conn);
 
         for _ in 0..12 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp").unwrap();
+            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp", b"fake-pop")
+                .unwrap();
         }
         for _ in 0..8 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:bob", b"kp").unwrap();
+            buffer::store_key_package(&db, "test-space-1", "did:key:bob", b"kp", b"fake-pop")
+                .unwrap();
         }
 
         buffer::trim_key_packages(&db, "test-space-1", "did:key:alice", 5).unwrap();
@@ -296,7 +318,14 @@ mod buffer_tests {
         let db = DbConnection(conn);
 
         for _ in 0..3 {
-            buffer::store_key_package(&db, "test-space-1", "did:key:alice", b"kp-data").unwrap();
+            buffer::store_key_package(
+                &db,
+                "test-space-1",
+                "did:key:alice",
+                b"kp-data",
+                b"fake-pop",
+            )
+            .unwrap();
         }
 
         let consumed = buffer::consume_key_package(&db, "test-space-1", "did:key:alice").unwrap();
@@ -410,19 +439,36 @@ mod buffer_message_cursor_tests {
 mod mls_manager_tests {
     use super::*;
     use haex_vault_lib::mls::manager::MlsManager;
+    use haex_vault_lib::ucan::did_key_from_public_key;
+
+    /// A real (identity DID, signing key) pair. PoP verification decodes the
+    /// credential DID via `did:key`, so test DIDs must be genuine — an
+    /// arbitrary placeholder string like `did:key:admin` no longer round-trips.
+    struct TestIdentity {
+        did: String,
+        signing_key: ed25519_dalek::SigningKey,
+    }
+
+    impl TestIdentity {
+        fn new() -> Self {
+            let signing_key = ed25519_dalek::SigningKey::from_bytes(&rand::random());
+            let did = did_key_from_public_key(&signing_key.verifying_key());
+            Self { did, signing_key }
+        }
+    }
 
     /// Create an MlsManager with a fresh in-memory DB and initialized identity.
-    fn setup_mls(did: &str) -> MlsManager {
+    fn setup_mls(identity: &TestIdentity) -> MlsManager {
         let conn = setup_test_db();
         let manager = MlsManager::new(conn);
         manager.init_tables().unwrap();
-        manager.init_identity(did).unwrap();
+        manager.init_identity(&identity.did).unwrap();
         manager
     }
 
     #[test]
     fn get_group_info_returns_serialized_bytes() {
-        let admin = setup_mls("did:key:admin");
+        let admin = setup_mls(&TestIdentity::new());
         admin.create_group("space-abc").unwrap();
 
         let group_info = admin.get_group_info("space-abc").unwrap();
@@ -433,7 +479,7 @@ mod mls_manager_tests {
 
     #[test]
     fn get_group_info_fails_for_nonexistent_group() {
-        let manager = setup_mls("did:key:test");
+        let manager = setup_mls(&TestIdentity::new());
         let result = manager.get_group_info("nonexistent-space");
         assert!(result.is_err());
     }
@@ -441,13 +487,23 @@ mod mls_manager_tests {
     #[test]
     fn external_commit_rejoin_roundtrip() {
         // Setup: admin creates group and adds a member
-        let admin = setup_mls("did:key:admin");
+        let admin = setup_mls(&TestIdentity::new());
         admin.create_group("space-rejoin").unwrap();
 
-        let member = setup_mls("did:key:member");
-        let member_kps = member.generate_key_packages(1).unwrap();
+        let member_identity = TestIdentity::new();
+        let member = setup_mls(&member_identity);
+        let member_kps = member
+            .generate_key_packages(1, &member_identity.signing_key)
+            .unwrap();
 
-        let bundle = admin.add_member("space-rejoin", &member_kps[0]).unwrap();
+        let bundle = admin
+            .add_member(
+                "space-rejoin",
+                &member_kps[0].0,
+                &member_identity.did,
+                &member_kps[0].1,
+            )
+            .unwrap();
 
         // Member processes the welcome to join the group
         member
@@ -460,9 +516,19 @@ mod mls_manager_tests {
 
         // Simulate: member goes offline, admin does some operations that advance the epoch
         // For simplicity, we create a second member to advance the epoch
-        let member2 = setup_mls("did:key:member2");
-        let member2_kps = member2.generate_key_packages(1).unwrap();
-        let bundle2 = admin.add_member("space-rejoin", &member2_kps[0]).unwrap();
+        let member2_identity = TestIdentity::new();
+        let member2 = setup_mls(&member2_identity);
+        let member2_kps = member2
+            .generate_key_packages(1, &member2_identity.signing_key)
+            .unwrap();
+        let bundle2 = admin
+            .add_member(
+                "space-rejoin",
+                &member2_kps[0].0,
+                &member2_identity.did,
+                &member2_kps[0].1,
+            )
+            .unwrap();
         member2
             .process_welcome("space-rejoin", bundle2.welcome.as_ref().unwrap())
             .unwrap();
@@ -500,12 +566,12 @@ mod mls_manager_tests {
 
     #[test]
     fn external_commit_fails_with_wrong_space_id() {
-        let admin = setup_mls("did:key:admin");
+        let admin = setup_mls(&TestIdentity::new());
         admin.create_group("space-a").unwrap();
 
         let group_info = admin.get_group_info("space-a").unwrap();
 
-        let member = setup_mls("did:key:member");
+        let member = setup_mls(&TestIdentity::new());
         // Try to join with wrong space ID — should detect group ID mismatch
         let result = member.join_by_external_commit("wrong-space-id", &group_info);
         assert!(result.is_err());
@@ -514,19 +580,23 @@ mod mls_manager_tests {
 
     #[test]
     fn external_commit_fails_with_invalid_group_info() {
-        let member = setup_mls("did:key:member");
+        let member = setup_mls(&TestIdentity::new());
         let result = member.join_by_external_commit("space-x", b"invalid-garbage");
         assert!(result.is_err());
     }
 
     #[test]
     fn generate_key_packages_returns_requested_count() {
-        let manager = setup_mls("did:key:test");
-        let packages = manager.generate_key_packages(10).unwrap();
+        let identity = TestIdentity::new();
+        let manager = setup_mls(&identity);
+        let packages = manager
+            .generate_key_packages(10, &identity.signing_key)
+            .unwrap();
         assert_eq!(packages.len(), 10);
         // Each package should be non-trivial
-        for pkg in &packages {
-            assert!(pkg.len() > 50);
+        for (kp, pop) in &packages {
+            assert!(kp.len() > 50);
+            assert_eq!(pop.len(), 64);
         }
     }
 
@@ -536,14 +606,19 @@ mod mls_manager_tests {
     /// rely on `add_member`'s duplicate-leaf handling to reconcile state.
     #[test]
     fn welcome_can_be_regenerated_after_kp_consumed() {
-        let admin = setup_mls("did:key:admin");
+        let admin = setup_mls(&TestIdentity::new());
         admin.create_group("space-retry").unwrap();
 
-        let member = setup_mls("did:key:member");
-        let kps = member.generate_key_packages(2).unwrap();
+        let member_identity = TestIdentity::new();
+        let member = setup_mls(&member_identity);
+        let kps = member
+            .generate_key_packages(2, &member_identity.signing_key)
+            .unwrap();
 
         // First attempt: admin adds member with KP_1, sends welcome.
-        let bundle1 = admin.add_member("space-retry", &kps[0]).unwrap();
+        let bundle1 = admin
+            .add_member("space-retry", &kps[0].0, &member_identity.did, &kps[0].1)
+            .unwrap();
         let welcome1 = bundle1.welcome.unwrap();
 
         // Member processes the first welcome — succeeds, but consumes KP_1
@@ -554,7 +629,9 @@ mod mls_manager_tests {
         // (network glitch, whatever) and the leader regenerates with KP_2.
         // add_member must handle the duplicate signature key by removing
         // the existing leaf before re-adding.
-        let bundle2 = admin.add_member("space-retry", &kps[1]).unwrap();
+        let bundle2 = admin
+            .add_member("space-retry", &kps[1].0, &member_identity.did, &kps[1].1)
+            .unwrap();
         let welcome2 = bundle2.welcome.unwrap();
 
         // The fresh welcome must reference KP_2 (still present in member's

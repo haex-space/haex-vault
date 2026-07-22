@@ -29,8 +29,13 @@ pub async fn add_member(
     conn: Arc<Mutex<Option<Connection>>>,
     space_id: String,
     key_package: Vec<u8>,
+    expected_did: String,
+    pop: Vec<u8>,
 ) -> Result<MlsCommitBundle, String> {
-    run_blocking(conn, move |mgr| mgr.add_member(&space_id, &key_package)).await
+    run_blocking(conn, move |mgr| {
+        mgr.add_member(&space_id, &key_package, &expected_did, &pop)
+    })
+    .await
 }
 
 pub async fn get_group_info(
@@ -62,8 +67,12 @@ pub async fn join_by_external_commit(
 pub async fn generate_key_packages(
     conn: Arc<Mutex<Option<Connection>>>,
     count: u32,
-) -> Result<Vec<Vec<u8>>, String> {
-    run_blocking(conn, move |mgr| mgr.generate_key_packages(count)).await
+    identity_signing_key: ed25519_dalek::SigningKey,
+) -> Result<Vec<(Vec<u8>, Vec<u8>)>, String> {
+    run_blocking(conn, move |mgr| {
+        mgr.generate_key_packages(count, &identity_signing_key)
+    })
+    .await
 }
 
 pub async fn process_welcome(

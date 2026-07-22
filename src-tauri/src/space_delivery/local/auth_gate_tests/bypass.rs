@@ -21,6 +21,7 @@ async fn bypasses_claim_invite_cleanly() {
         token: "invite-token".into(),
         endpoint_id: "endpoint-id".into(),
         key_packages: vec![],
+        pops: vec![],
         label: None,
         public_key: None,
     };
