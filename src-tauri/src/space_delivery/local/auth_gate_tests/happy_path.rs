@@ -35,6 +35,7 @@ async fn accepts_valid_request_from_active_member() {
     let request = Request::MlsUploadKeyPackages {
         space_id: "SPACE".into(),
         packages: vec![],
+        pops: vec![],
     };
 
     let result = authorize_default(

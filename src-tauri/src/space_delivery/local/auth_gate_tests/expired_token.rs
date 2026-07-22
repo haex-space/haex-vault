@@ -37,6 +37,7 @@ async fn rejects_request_with_expired_cached_ucan() {
     let request = Request::MlsUploadKeyPackages {
         space_id: "SPACE".into(),
         packages: vec![],
+        pops: vec![],
     };
 
     let result = authorize_default(

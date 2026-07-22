@@ -20,6 +20,7 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
         Request::MlsUploadKeyPackages {
             space_id: expected.into(),
             packages: vec![],
+            pops: vec![],
         },
         Request::MlsFetchKeyPackage {
             space_id: expected.into(),
@@ -79,6 +80,7 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
             token: "token".into(),
             endpoint_id: "endpoint-1".into(),
             key_packages: vec![],
+            pops: vec![],
             label: None,
             public_key: None,
         },
@@ -150,6 +152,7 @@ fn required_capability_matches_documented_mapping() {
         Request::MlsUploadKeyPackages {
             space_id: space.into(),
             packages: vec![],
+            pops: vec![],
         },
         Request::MlsSendMessage {
             space_id: space.into(),
@@ -226,6 +229,7 @@ fn required_capability_matches_documented_mapping() {
             token: "token".into(),
             endpoint_id: "endpoint-1".into(),
             key_packages: vec![],
+            pops: vec![],
             label: None,
             public_key: None,
         },

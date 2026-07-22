@@ -32,12 +32,13 @@ pub async fn handle_claim_invite(
     request: Request,
     verified_did: &str,
 ) -> Response {
-    let (space_id, token, endpoint_id, key_packages, label, public_key) = match request {
+    let (space_id, token, endpoint_id, key_packages, pops, label, public_key) = match request {
         Request::ClaimInvite {
             space_id,
             token,
             endpoint_id,
             key_packages,
+            pops,
             label,
             public_key,
         } => (
@@ -45,6 +46,7 @@ pub async fn handle_claim_invite(
             token,
             endpoint_id,
             key_packages,
+            pops,
             label,
             public_key,
         ),
@@ -151,15 +153,16 @@ pub async fn handle_claim_invite(
     //    KP whose hash the invitee no longer has in their MLS storage — the
     //    same `NoMatchingKeyPackage` failure mode but at first-attempt time.
     let _ = buffer::clear_key_packages_for_did(&state.db, &space_id, &did);
-    for pkg_b64 in &key_packages {
-        if let Ok(blob) = base64_decode(pkg_b64) {
-            let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
+    for (pkg_b64, pop_b64) in key_packages.iter().zip(pops.iter()) {
+        if let (Ok(blob), Ok(pop_blob)) = (base64_decode(pkg_b64), base64_decode(pop_b64)) {
+            let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob, &pop_blob);
         }
     }
 
     // 5. Consume one key package for MLS add_member
-    let key_package_blob = match buffer::consume_key_package(&state.db, &space_id, &did) {
-        Ok(Some(blob)) => blob,
+    let (key_package_blob, pop_blob) = match buffer::consume_key_package(&state.db, &space_id, &did)
+    {
+        Ok(Some(pair)) => pair,
         Ok(None) => {
             return Response::Error {
                 message: "No key package available after upload".to_string(),
@@ -184,6 +187,7 @@ pub async fn handle_claim_invite(
         space_id.clone(),
         key_package_blob,
         did.clone(),
+        pop_blob,
     )
     .await
     {

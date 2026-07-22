@@ -14,6 +14,7 @@ async fn rejects_request_without_prior_announce() {
     let request = Request::MlsUploadKeyPackages {
         space_id: "SPACE".into(),
         packages: vec![],
+        pops: vec![],
     };
 
     let result = authorize_default(
@@ -60,6 +61,7 @@ async fn rejects_request_when_peer_announced_without_ucan() {
     let request = Request::MlsUploadKeyPackages {
         space_id: "SPACE".into(),
         packages: vec![],
+        pops: vec![],
     };
 
     let result = authorize_default(

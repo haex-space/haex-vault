@@ -47,15 +47,17 @@ export function useDeviceEnrollment() {
       if (existing.length > 0) continue
 
       // Generate a KeyPackage and write pending enrollment
-      const packages: number[][] = await invoke('mls_get_key_packages', { count: 1 })
+      const packages: { keyPackage: number[]; pop: number[] }[] = await invoke('mls_get_key_packages', { count: 1 })
       if (packages.length === 0) continue
 
-      const keyPackageB64 = toBase64(new Uint8Array(packages[0]!))
+      const keyPackageB64 = toBase64(new Uint8Array(packages[0]!.keyPackage))
+      const popB64 = toBase64(new Uint8Array(packages[0]!.pop))
 
       await db.insert(haexDeviceMlsEnrollments).values({
         spaceId: space.id,
         deviceId,
         keyPackage: keyPackageB64,
+        pop: popB64,
         status: 'pending',
       })
 
@@ -86,10 +88,12 @@ export function useDeviceEnrollment() {
       try {
         // Add the device to the MLS group
         const keyPackage = fromBase64(enrollment.keyPackage)
+        const pop = fromBase64(enrollment.pop)
         const bundle = await invoke<{ commit: number[]; welcome: number[] | null; groupInfo: number[] }>('mls_add_member', {
           spaceId: enrollment.spaceId,
           keyPackage: Array.from(keyPackage),
           expectedDid: enrollment.deviceId,
+          pop: Array.from(pop),
         })
 
         if (!bundle.welcome) {
