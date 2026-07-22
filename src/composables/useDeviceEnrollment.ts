@@ -89,6 +89,7 @@ export function useDeviceEnrollment() {
         const bundle = await invoke<{ commit: number[]; welcome: number[] | null; groupInfo: number[] }>('mls_add_member', {
           spaceId: enrollment.spaceId,
           keyPackage: Array.from(keyPackage),
+          expectedDid: enrollment.deviceId,
         })
 
         if (!bundle.welcome) {

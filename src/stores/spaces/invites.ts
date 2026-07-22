@@ -243,6 +243,7 @@ export async function finalizeInvite(
   const bundle = await invoke<{ commit: number[]; welcome: number[] | null; groupInfo: number[] }>('mls_add_member', {
     spaceId,
     keyPackage: Array.from(keyPackage),
+    expectedDid: inviteeDid,
   })
 
   // 4. Send commit to all group members
