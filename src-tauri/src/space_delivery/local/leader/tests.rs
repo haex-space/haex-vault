@@ -369,6 +369,72 @@ mod claim_invite_did_binding_tests {
 }
 
 #[cfg(test)]
+mod claim_invite_credential_binding_tests {
+    //! W0 Part A regression guard: the ClaimInvite path must feed the
+    //! connection-verified DID into `MlsManager::add_member` as the
+    //! `expected_did` the KeyPackage credential is checked against.
+    //!
+    //! `add_member` rejects a KeyPackage whose BasicCredential DID ≠
+    //! `expected_did` — the rejection itself is proven behaviourally by
+    //! `mls::manager::tests::add_member_rejects_credential_did_mismatch`.
+    //! That defence only protects the claim path if the leader passes the
+    //! *cryptographically verified* DID (not a payload-supplied or otherwise
+    //! attacker-influenced value) as `expected_did`. Were the wiring wrong, a
+    //! peer could claim with a KeyPackage naming any DID and the credential
+    //! check would rubber-stamp it.
+    //!
+    //! Source-text assertion, matching the precedent set by
+    //! `claim_invite_did_binding_tests` above: `handle_claim_invite` needs a
+    //! full `LeaderState` (iroh endpoint, MLS provider, HLC, tokio, SQLite +
+    //! triggers) to run, so the end-to-end rejection is covered in
+    //! `haex-e2e-tests`; here we pin the wiring that connects the credential
+    //! check to the connection-bound identity.
+
+    use super::production_source;
+
+    /// The `did` bound inside `handle_claim_invite` must derive from the
+    /// connection-verified DID, and that same `did` must be the `expected_did`
+    /// argument passed to `mls::blocking::add_member`.
+    #[test]
+    fn claim_invite_passes_verified_did_as_add_member_expected_did() {
+        let source = production_source();
+        let production = source.as_str();
+
+        let fn_start = production
+            .find("pub async fn handle_claim_invite(")
+            .expect("handle_claim_invite must exist");
+        let body = &production[fn_start..];
+
+        // The claimant DID used downstream is the connection-bound one.
+        assert!(
+            body.contains("let did: String = verified_did.to_string();"),
+            "handle_claim_invite must bind the claimant `did` from \
+             `verified_did` (the quic_did_auth connection identity), not from \
+             the request payload. See W0 plan §Part A."
+        );
+
+        // That verified DID must be the value add_member checks the KeyPackage
+        // credential against. Scan only the add_member(...) call expression so
+        // unrelated `did.clone()` uses elsewhere in the fn can't mask a
+        // regression here.
+        let add_member_pos = body
+            .find("blocking::add_member(")
+            .expect("handle_claim_invite must call mls::blocking::add_member");
+        let after = &body[add_member_pos..];
+        let call_end = after.find(".await").unwrap_or(after.len().min(400));
+        let call = &after[..call_end];
+        assert!(
+            call.contains("did.clone()"),
+            "the add_member(...) call in handle_claim_invite must pass the \
+             connection-verified `did` as its `expected_did` argument, so the \
+             KeyPackage credential is checked against the cryptographically \
+             bound identity. Without this, W0 Part A's credential-DID check is \
+             fed an unverified value on the claim path. Found call:\n{call}"
+        );
+    }
+}
+
+#[cfg(test)]
 mod dispatch_variant_exhaustiveness_tests {
     //! Compile-time guard: every `Request` variant must have a dispatch arm.
     //!
