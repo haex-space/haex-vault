@@ -57,8 +57,11 @@ pub fn mls_add_member(
     state: State<'_, AppState>,
     space_id: String,
     key_package: Vec<u8>,
+    expected_did: String,
 ) -> Result<MlsCommitBundle, String> {
-    with_mls_manager(&state, |mgr| mgr.add_member(&space_id, &key_package))
+    with_mls_manager(&state, |mgr| {
+        mgr.add_member(&space_id, &key_package, &expected_did)
+    })
 }
 
 #[tauri::command]

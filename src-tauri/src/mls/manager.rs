@@ -110,6 +110,7 @@ impl MlsManager {
         &self,
         space_id: &str,
         key_package_bytes: &[u8],
+        expected_did: &str,
     ) -> Result<MlsCommitBundle, String> {
         let signer = self.get_signer()?;
         let group_id = GroupId::from_slice(space_id.as_bytes());
@@ -123,6 +124,19 @@ impl MlsManager {
         let key_package = key_package_in
             .validate(self.provider.crypto(), ProtocolVersion::Mls10)
             .map_err(|e| format!("Invalid key package: {e}"))?;
+
+        // The KeyPackage carries a self-asserted DID string as its BasicCredential.
+        // Reject any package whose credential does not match the invitee we intended
+        // to add — otherwise an attacker who possesses ANY valid KeyPackage could be
+        // added under someone else's name. (Proof-of-possession of the identity key
+        // is enforced separately; see mls/pop.rs.)
+        let cred_bytes = key_package.leaf_node().credential().serialized_content();
+        if cred_bytes != expected_did.as_bytes() {
+            return Err(format!(
+                "credential DID mismatch: expected {expected_did}, got {}",
+                String::from_utf8_lossy(cred_bytes)
+            ));
+        }
 
         // Check for duplicate signature key in existing group members.
         // This can happen on re-invite after partial success or retry scenarios.
@@ -528,3 +542,7 @@ impl MlsManager {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "manager_tests.rs"]
+mod tests;

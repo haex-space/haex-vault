@@ -29,8 +29,12 @@ pub async fn add_member(
     conn: Arc<Mutex<Option<Connection>>>,
     space_id: String,
     key_package: Vec<u8>,
+    expected_did: String,
 ) -> Result<MlsCommitBundle, String> {
-    run_blocking(conn, move |mgr| mgr.add_member(&space_id, &key_package)).await
+    run_blocking(conn, move |mgr| {
+        mgr.add_member(&space_id, &key_package, &expected_did)
+    })
+    .await
 }
 
 pub async fn get_group_info(

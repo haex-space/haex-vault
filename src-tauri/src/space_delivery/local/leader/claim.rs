@@ -183,6 +183,7 @@ pub async fn handle_claim_invite(
         state.db.0.clone(),
         space_id.clone(),
         key_package_blob,
+        did.clone(),
     )
     .await
     {
