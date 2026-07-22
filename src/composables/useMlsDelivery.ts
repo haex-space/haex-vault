@@ -52,13 +52,18 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
   /**
    * Upload KeyPackages so other members can add us to MLS groups.
    * Generates packages via Rust and uploads to server.
+   *
+   * NOTE: the server (separate repo) must persist `pops` alongside
+   * `keyPackages` and return the matching PoP from `fetchKeyPackageAsync`
+   * below — see mls/pop.rs for what the signature attests.
    */
   async function uploadKeyPackagesAsync(count: number = 10): Promise<void> {
-    const packages: number[][] = await invoke('mls_get_key_packages', { count })
+    const packages: { keyPackage: number[]; pop: number[] }[] = await invoke('mls_get_key_packages', { count })
     const ucan = requireUcan(spaceId)
 
     const body = JSON.stringify({
-      keyPackages: packages.map((p) => toBase64(new Uint8Array(p))),
+      keyPackages: packages.map((p) => toBase64(new Uint8Array(p.keyPackage))),
+      pops: packages.map((p) => toBase64(new Uint8Array(p.pop))),
     })
 
     const response = await fetchWithUcanAuth(
@@ -81,7 +86,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
    * Fetch one unconsumed KeyPackage for a specific DID.
    * Used when finalizing an invite (adding member to MLS group).
    */
-  async function fetchKeyPackageAsync(targetDid: string): Promise<{ keyPackage: Uint8Array; includeHistory: boolean }> {
+  async function fetchKeyPackageAsync(targetDid: string): Promise<{ keyPackage: Uint8Array; pop: Uint8Array; includeHistory: boolean }> {
     const ucan = requireUcan(spaceId)
 
     const response = await fetchWithUcanAuth(
@@ -95,6 +100,7 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
     const data = await response.json()
     return {
       keyPackage: fromBase64(data.keyPackage),
+      pop: fromBase64(data.pop),
       includeHistory: data.includeHistory ?? false,
     }
   }
@@ -230,10 +236,11 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
    * Uses DID-Auth because the invitee doesn't have a UCAN yet.
    */
   async function acceptInviteAsync(inviteId: string, keyPackageCount: number = 10): Promise<void> {
-    const packages: number[][] = await invoke('mls_get_key_packages', { count: keyPackageCount })
+    const packages: { keyPackage: number[]; pop: number[] }[] = await invoke('mls_get_key_packages', { count: keyPackageCount })
 
     const body = JSON.stringify({
-      keyPackages: packages.map((p) => toBase64(new Uint8Array(p))),
+      keyPackages: packages.map((p) => toBase64(new Uint8Array(p.keyPackage))),
+      pops: packages.map((p) => toBase64(new Uint8Array(p.pop))),
     })
 
     const response = await fetchWithDidAuth(
