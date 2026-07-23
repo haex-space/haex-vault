@@ -8,7 +8,7 @@ import type { ColumnChange } from '../../tableScanner'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log } from '../types'
-import { applyPageAsync, verifyPulledChangesAsync } from './apply'
+import { applyPageAsync, verifyPulledChangesAsync, logRejectedChanges } from './apply'
 
 /**
  * Fetches ONE page of changes from the server. Stable pagination uses a
@@ -121,6 +121,17 @@ export interface StreamPullResult {
 export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<StreamPullResult> => {
   const { homeServerUrl, spaceId, initialCursor, encryptionKey, backendId, backendIdentityId, federation, onPageCommitted } = opts
 
+  // Resolve the current backend identity DID up front — this is the
+  // `expected_audience` for every UCAN in this pull. Batching amortises
+  // the identity-store lookup across all pages.
+  let currentIdentityDid = ''
+  if (backendIdentityId) {
+    const identityStore = useIdentityStore()
+    const id = await identityStore.getIdentityByIdAsync(backendIdentityId)
+    if (id?.did) currentIdentityDid = id.did
+  }
+  if (!currentIdentityDid) throw new Error('No identity configured for this backend')
+
   let cursor: string | null = initialCursor
   let cursorTableName: string | null = null
   let cursorRowPks: string | null = null
@@ -171,15 +182,22 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
       break
     }
 
-    // Verify signatures+UCAN on this page. A bad change aborts the whole
-    // stream — the outer caller leaves the cursor wherever the last successful
-    // page committed it (or unchanged for the initial-pull path).
-    await verifyPulledChangesAsync(page.changes, spaceId)
+    // Verify signatures+UCAN on this page. Row-scoped: a poisoned row is
+    // dropped from `verified` and logged in `rejected`; the rest of the
+    // page still applies and the cursor still advances. Task 6 will
+    // surface `rejected` counts to the user via a toast.
+    const { verified, rejected } = await verifyPulledChangesAsync(
+      page.changes,
+      spaceId,
+      currentIdentityDid,
+      'write',
+    )
+    logRejectedChanges(rejected, { spaceId, backendId })
 
-    for (const c of page.changes) tablesAffected.add(c.tableName)
+    for (const c of verified) tablesAffected.add(c.tableName)
 
     const result = await applyPageAsync({
-      page: page.changes,
+      page: verified,
       otherHoldBack,
       hasMore,
       encryptionKey,
@@ -189,7 +207,7 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
     otherHoldBack = result.holdBack
     if (hlcIsNewer(result.pageMaxHlc, maxHlc)) maxHlc = result.pageMaxHlc
 
-    totalApplied += page.changes.length
+    totalApplied += verified.length
 
     if (onPageCommitted) await onPageCommitted(page.serverTimestamp)
 
