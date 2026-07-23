@@ -35,6 +35,13 @@ const BASE64URL: base64::engine::GeneralPurpose = base64::engine::GeneralPurpose
 /// Ed25519 multicodec prefix used in did:key
 const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
 
+/// DoS mitigation upper bound on a `did:key:z…` string length before we
+/// let `bs58::decode` allocate. A real Ed25519 did:key is ~56 chars; 128 is
+/// a generous safety margin. Mirrors the guard in
+/// [`crate::ucan::space_id::MAX_SPACE_ID_LEN_BYTES`] — both are network-input
+/// facing (via `parse_ucan` on the peek path in `peer_storage`).
+const MAX_DID_KEY_LEN_BYTES: usize = 128;
+
 // ---------------------------------------------------------------------------
 // Capability levels
 // ---------------------------------------------------------------------------
@@ -566,6 +573,13 @@ pub fn did_key_from_public_key(verifying_key: &VerifyingKey) -> String {
 ///
 /// Format: `did:key:z` + base58btc( 0xed01 + 32-byte-pubkey )
 pub fn public_key_from_did(did: &str) -> Result<VerifyingKey, UcanVerifyError> {
+    if did.len() > MAX_DID_KEY_LEN_BYTES {
+        return Err(UcanVerifyError::MalformedToken(format!(
+            "did:key too long: {} bytes (max {MAX_DID_KEY_LEN_BYTES})",
+            did.len()
+        )));
+    }
+
     let multibase_key = did
         .strip_prefix("did:key:")
         .ok_or_else(|| UcanVerifyError::MalformedToken("DID must start with did:key:".into()))?;

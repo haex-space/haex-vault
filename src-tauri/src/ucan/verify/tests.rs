@@ -193,6 +193,16 @@ fn did_roundtrip() {
     assert_eq!(recovered.as_bytes(), key.verifying_key().as_bytes());
 }
 
+#[test]
+fn public_key_from_did_rejects_oversized_input() {
+    let oversized = format!("did:key:z{}", "1".repeat(200));
+    let result = public_key_from_did(&oversized);
+    assert!(
+        matches!(&result, Err(UcanVerifyError::MalformedToken(msg)) if msg.contains("too long")),
+        "expected MalformedToken with 'too long', got {result:?}"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // CapabilityLevel ordering + lattice
 // ---------------------------------------------------------------------------
