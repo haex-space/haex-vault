@@ -3,7 +3,7 @@
 //! truth with the TS implementation (`src/utils/auth/spaceId.ts`). If a vector
 //! disagrees, the *implementation* is wrong, not the fixture.
 
-use super::{derive_space_id, verify_space_id_binding, NONCE_LEN};
+use super::{derive_space_id, verify_space_id_binding, VerifyError, NONCE_LEN};
 use serde_json::Value;
 
 const FIXTURE_JSON: &str = include_str!("../../../tests/fixtures/space_id_vectors.json");
@@ -46,7 +46,7 @@ fn matches_fixture_vectors() {
             "space_id mismatch for vector {name}: Rust impl diverges from TS fixture",
         );
         assert!(
-            verify_space_id_binding(&derived, root_did),
+            verify_space_id_binding(&derived, root_did).is_ok(),
             "self-verification failed for vector {name}",
         );
     }
@@ -56,14 +56,19 @@ fn matches_fixture_vectors() {
 fn verifies_matching_root() {
     let nonce: [u8; NONCE_LEN] = rand::random();
     let space_id = derive_space_id(ROOT_DID_A, &nonce);
-    assert!(verify_space_id_binding(&space_id, ROOT_DID_A));
+    assert!(verify_space_id_binding(&space_id, ROOT_DID_A).is_ok());
 }
 
 #[test]
 fn rejects_unrelated_root() {
     let nonce: [u8; NONCE_LEN] = rand::random();
     let space_id = derive_space_id(ROOT_DID_A, &nonce);
-    assert!(!verify_space_id_binding(&space_id, ROOT_DID_B));
+    assert_eq!(
+        verify_space_id_binding(&space_id, ROOT_DID_B),
+        Err(VerifyError::Mismatch {
+            root_did: ROOT_DID_B.to_string(),
+        }),
+    );
 }
 
 #[test]
@@ -77,21 +82,49 @@ fn rejects_tampered_hash_byte() {
     let last = bytes.len() - 1;
     bytes[last] ^= 0x01;
     let tampered = bs58::encode(bytes).into_string();
-    assert!(!verify_space_id_binding(&tampered, ROOT_DID_A));
+    assert!(matches!(
+        verify_space_id_binding(&tampered, ROOT_DID_A),
+        Err(VerifyError::Mismatch { .. }),
+    ));
 }
 
 #[test]
 fn rejects_malformed_input() {
     // Empty string.
-    assert!(!verify_space_id_binding("", ROOT_DID_A));
+    assert!(matches!(
+        verify_space_id_binding("", ROOT_DID_A),
+        Err(VerifyError::Malformed(_)),
+    ));
     // Non-base58 character (`0` is not in the Bitcoin alphabet).
-    assert!(!verify_space_id_binding("0000invalid0000", ROOT_DID_A));
+    assert!(matches!(
+        verify_space_id_binding("0000invalid0000", ROOT_DID_A),
+        Err(VerifyError::Malformed(_)),
+    ));
     // Valid base58 but wrong length (all-`1` decodes to zero bytes).
-    assert!(!verify_space_id_binding("11", ROOT_DID_A));
+    assert!(matches!(
+        verify_space_id_binding("11", ROOT_DID_A),
+        Err(VerifyError::Malformed(_)),
+    ));
     // Base58 of a 31-byte all-zero buffer — decodes but SPACE_ID_BYTES_LEN mismatch.
     let short = bs58::encode(vec![0u8; super::SPACE_ID_BYTES_LEN - 1]).into_string();
-    assert!(!verify_space_id_binding(&short, ROOT_DID_A));
+    assert!(matches!(
+        verify_space_id_binding(&short, ROOT_DID_A),
+        Err(VerifyError::Malformed(_)),
+    ));
     // Base58 of a 33-byte buffer — decodes but too long.
     let long = bs58::encode(vec![0u8; super::SPACE_ID_BYTES_LEN + 1]).into_string();
-    assert!(!verify_space_id_binding(&long, ROOT_DID_A));
+    assert!(matches!(
+        verify_space_id_binding(&long, ROOT_DID_A),
+        Err(VerifyError::Malformed(_)),
+    ));
+}
+
+#[test]
+fn rejects_oversized_input() {
+    // Guard against unbounded input triggering large bs58::decode allocations.
+    let too_long = "1".repeat(super::MAX_SPACE_ID_LEN_CHARS + 1);
+    assert!(matches!(
+        verify_space_id_binding(&too_long, ROOT_DID_A),
+        Err(VerifyError::Malformed(_)),
+    ));
 }

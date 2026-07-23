@@ -9,6 +9,7 @@ pub mod space_id;
 mod verify;
 
 pub use create::{create_delegated_ucan, signing_key_from_pkcs8_base64, UcanCreateError};
+pub use space_id::VerifyError as SpaceIdVerifyError;
 pub use verify::{
     did_key_from_public_key, public_key_from_did, require_audience, require_capability,
     require_not_expired, validate_token, CapabilityLevel, UcanVerifyError, ValidatedUcan,

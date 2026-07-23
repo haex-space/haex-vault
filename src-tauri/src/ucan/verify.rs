@@ -41,6 +41,29 @@ impl CapabilityLevel {
             _ => None,
         }
     }
+
+    /// Strict-subset lattice for capability attenuation:
+    /// `Admin > Invite > Write > Read`.
+    ///
+    /// Returns `true` iff `self` grants at least what `requested` needs — i.e.
+    /// a parent token holding `self` may delegate a child token requesting
+    /// `requested`. Used by the chain walker to enforce that a child's
+    /// capability is ≤ its parent's along a `prf` UCAN chain.
+    ///
+    /// The match is written out explicitly (rather than delegating to `Ord`)
+    /// so that adding an orthogonal capability later — one that must only
+    /// allow itself — forces this arm to be updated by hand rather than being
+    /// silently ordered by discriminant.
+    pub fn allows(&self, requested: &CapabilityLevel) -> bool {
+        use CapabilityLevel::*;
+        match (self, requested) {
+            (Admin, Admin | Invite | Write | Read) => true,
+            (Invite, Invite | Write | Read) => true,
+            (Write, Write | Read) => true,
+            (Read, Read) => true,
+            _ => false,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -449,6 +472,90 @@ mod tests {
         assert!(CapabilityLevel::Admin > CapabilityLevel::Invite);
         assert!(CapabilityLevel::Invite > CapabilityLevel::Write);
         assert!(CapabilityLevel::Write > CapabilityLevel::Read);
+    }
+
+    // ------------------------------------------------------------------
+    // CapabilityLevel::allows — lattice attenuation for prf chain walker
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn allows_admin_allows_admin() {
+        assert!(CapabilityLevel::Admin.allows(&CapabilityLevel::Admin));
+    }
+
+    #[test]
+    fn allows_admin_allows_invite() {
+        assert!(CapabilityLevel::Admin.allows(&CapabilityLevel::Invite));
+    }
+
+    #[test]
+    fn allows_admin_allows_write() {
+        assert!(CapabilityLevel::Admin.allows(&CapabilityLevel::Write));
+    }
+
+    #[test]
+    fn allows_admin_allows_read() {
+        assert!(CapabilityLevel::Admin.allows(&CapabilityLevel::Read));
+    }
+
+    #[test]
+    fn allows_invite_allows_invite() {
+        assert!(CapabilityLevel::Invite.allows(&CapabilityLevel::Invite));
+    }
+
+    #[test]
+    fn allows_invite_allows_write() {
+        assert!(CapabilityLevel::Invite.allows(&CapabilityLevel::Write));
+    }
+
+    #[test]
+    fn allows_invite_allows_read() {
+        assert!(CapabilityLevel::Invite.allows(&CapabilityLevel::Read));
+    }
+
+    #[test]
+    fn allows_invite_does_not_allow_admin() {
+        assert!(!CapabilityLevel::Invite.allows(&CapabilityLevel::Admin));
+    }
+
+    #[test]
+    fn allows_write_allows_write() {
+        assert!(CapabilityLevel::Write.allows(&CapabilityLevel::Write));
+    }
+
+    #[test]
+    fn allows_write_allows_read() {
+        assert!(CapabilityLevel::Write.allows(&CapabilityLevel::Read));
+    }
+
+    #[test]
+    fn allows_write_does_not_allow_invite() {
+        assert!(!CapabilityLevel::Write.allows(&CapabilityLevel::Invite));
+    }
+
+    #[test]
+    fn allows_write_does_not_allow_admin() {
+        assert!(!CapabilityLevel::Write.allows(&CapabilityLevel::Admin));
+    }
+
+    #[test]
+    fn allows_read_allows_read() {
+        assert!(CapabilityLevel::Read.allows(&CapabilityLevel::Read));
+    }
+
+    #[test]
+    fn allows_read_does_not_allow_write() {
+        assert!(!CapabilityLevel::Read.allows(&CapabilityLevel::Write));
+    }
+
+    #[test]
+    fn allows_read_does_not_allow_invite() {
+        assert!(!CapabilityLevel::Read.allows(&CapabilityLevel::Invite));
+    }
+
+    #[test]
+    fn allows_read_does_not_allow_admin() {
+        assert!(!CapabilityLevel::Read.allows(&CapabilityLevel::Admin));
     }
 
     // ------------------------------------------------------------------
