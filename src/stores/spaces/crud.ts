@@ -116,7 +116,7 @@ export async function createOnlineSpace(
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
   listSpaces: () => Promise<void>,
 ): Promise<{ id: string }> {
-  const spaceId = crypto.randomUUID()
+  const spaceId = await deriveSpaceIdAsync(identity.did)
 
   const body = JSON.stringify({ id: spaceId, name: spaceName, label: selfLabel })
   const response = await fetchWithDidAuth(
@@ -142,6 +142,9 @@ export async function createOnlineSpace(
   await invoke('mls_export_epoch_key', { spaceId })
 
   const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, spaceId)
+  if (!(await verifySpaceIdBindingAsync(spaceId, identity.did))) {
+    throw new Error(`space_id binding invariant violated (space=${spaceId})`)
+  }
   if (db) await persistUcanAsync(db, spaceId, rootUcan)
 
   const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
