@@ -5,6 +5,7 @@
 //! 2. `require_capability` — source of truth: capability matches the operation
 
 mod create;
+pub mod space_id;
 mod verify;
 
 pub use create::{create_delegated_ucan, signing_key_from_pkcs8_base64, UcanCreateError};
