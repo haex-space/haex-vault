@@ -221,6 +221,10 @@ function decodePayload(token: EncodedUcan): DecodedPayload {
 const IAT_ALL = 1_700_000_000 // 2023-11-14T22:13:20Z
 const FAR_FUTURE_EXP = 4_000_000_000 // 2096; well past any realistic test run
 const PAST_EXP = 1_600_000_000 // 2020; always in the past at test time
+// Used ONLY by the Expired* vectors so their tokens satisfy the UCAN
+// spec-standard invariant iat <= exp (Task 3's walker may enforce it and
+// would otherwise trip a different error branch than the Expired one).
+const PAST_IAT = 1_500_000_000 // 2017-07-14; strictly older than PAST_EXP
 
 // Space-id nonces (16 bytes each). primary_space is used by most vectors;
 // other_space is used only by the wrong_space_in_delegate vector.
@@ -807,7 +811,7 @@ function vExpiredLeaf(): Vector {
     spaceId: primarySpaceId,
     cap: 'space/write',
     exp: PAST_EXP,
-    iat: IAT_ALL,
+    iat: PAST_IAT, // iat < exp so this trips the Expired branch, not iat>exp sanity
     nnc: ucanNnc('expired_leaf.leaf'),
     prf: [rootToken],
   }
@@ -832,7 +836,7 @@ function vExpiredRoot(): Vector {
     spaceId: primarySpaceId,
     cap: 'space/admin',
     exp: PAST_EXP,
-    iat: IAT_ALL,
+    iat: PAST_IAT, // iat < exp so this trips the Expired branch, not iat>exp sanity
     nnc: ucanNnc('expired_root.root'),
     prf: [],
   }
@@ -932,6 +936,46 @@ function fail(msg: string): never {
 function selfVerify(vectors: Vector[]): void {
   for (const v of vectors) {
     const decoded = v.chain.map((n) => decodePayload(n.signed_token))
+
+    // Cross-check outer JSON fields against the decoded token payload for
+    // every node in every vector (both ok=true and ok=false). The Rust
+    // verifier may consume EITHER the outer JSON shape OR the decoded
+    // signed_token payload; both surfaces must agree byte-for-byte, or a
+    // copy-paste refactor of one side would silently drift from the other.
+    for (let i = 0; i < v.chain.length; i++) {
+      const outer = v.chain[i]!
+      const p = decoded[i]!
+      if (outer.iss !== p.iss) {
+        fail(`${v.name}: chain[${i}] outer.iss ${outer.iss} != decoded.iss ${p.iss}`)
+      }
+      if (outer.aud !== p.aud) {
+        fail(`${v.name}: chain[${i}] outer.aud ${outer.aud} != decoded.aud ${p.aud}`)
+      }
+      if (outer.exp !== p.exp) {
+        fail(`${v.name}: chain[${i}] outer.exp ${outer.exp} != decoded.exp ${p.exp}`)
+      }
+      const resourceKey = spaceResource(outer.space_id)
+      const capKeys = Object.keys(p.cap)
+      if (capKeys.length !== 1 || capKeys[0] !== resourceKey) {
+        fail(
+          `${v.name}: chain[${i}] decoded.cap keys ${JSON.stringify(capKeys)} do not match [${resourceKey}] derived from outer.space_id`,
+        )
+      }
+      const decodedCap = p.cap[resourceKey]
+      if (outer.cap !== decodedCap) {
+        fail(`${v.name}: chain[${i}] outer.cap ${outer.cap} != decoded.cap[${resourceKey}] ${decodedCap}`)
+      }
+      if (outer.proofs.length !== p.prf.length) {
+        fail(
+          `${v.name}: chain[${i}] outer.proofs.length ${outer.proofs.length} != decoded.prf.length ${p.prf.length}`,
+        )
+      }
+      for (let j = 0; j < outer.proofs.length; j++) {
+        if (outer.proofs[j] !== p.prf[j]) {
+          fail(`${v.name}: chain[${i}] outer.proofs[${j}] != decoded.prf[${j}]`)
+        }
+      }
+    }
 
     // Signature-of-issuer check (for tampered vectors, this should fail
     // on the tampered node; we verify per-node below).
