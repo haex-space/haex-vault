@@ -41,20 +41,28 @@ Drei Schichten:
 
 ## 1. Motivation
 
-Heute vertraut das Shared-Space-Modell dem **Leader** implizit: er attestiert die
-Autorschaft von Zeilen (`authored_by_did`), er setzt die materialisierte Capability
-durch, und er serviert allen Membern den Content im **Klartext**. In einem P2P-Space
-ist der Leader aber selbst ein Teilnehmer. Damit kann ein böswilliger Leader Einträge
-**fälschen** (im Namen anderer) und den Content **mitlesen**.
+Es gibt heute **zwei** Sync-Transporte mit **ungleichem** Sicherheits-Reifegrad (§3/§3a),
+und keiner erreicht das Schutzziel vollständig:
+
+- Der **P2P-Pfad (Rust)** vertraut dem **Leader** implizit: er attestiert die Autorschaft
+  von Zeilen (`authored_by_did`), setzt die materialisierte Capability durch und serviert
+  allen Membern den Content im **Klartext**. In einem P2P-Space ist der Leader aber selbst
+  ein Teilnehmer — ein böswilliger Leader kann Einträge **fälschen** (im Namen anderer) und
+  den Content **mitlesen**.
+- Der **server-vermittelte Pfad (TS)** ist bereits weiter — per-Spalte-Signaturen,
+  Epoch-Key-Verschlüsselung, UCAN-Check beim Apply — aber **nicht leader-unabhängig**: die
+  Autorisierung liest materialisierten DB-Zustand und winkt via Admin-Fallback jede
+  self-issued Row durch, und die Signaturen sind nicht space-gebunden (§3a).
+
+Diese ADR beschreibt daher nicht einen Neubau, sondern ein **einheitliches Zielmodell für
+beide Pfade**: jeder Eintrag kryptografisch dem echten Autor zurechenbar, Autorisierung
+leader-unabhängig gegen eine self-certifying Space-Root verifiziert, und Content
+vertraulich.
 
 Zusätzlich war das Share-Register als generischer Mechanismus gedacht, um **beliebige
-Erweiterungs-Tabellen-Rows** (z.B. einen Kalendertermin) in einen Space zu teilen —
-dieser Mechanismus ist **nicht implementiert**.
-
-Ziel: ein Modell, in dem **jeder Eintrag vom echten Autor kryptografisch verifizierbar**
-ist, **Autorisierung leader-unabhängig** geprüft wird, **beliebige Erweiterungs-Daten**
-(Multi-Space) geteilt werden können, und der **Content vertraulich** (nur für
-Space-Member lesbar) ist.
+Erweiterungs-Tabellen-Rows** (z.B. einen Kalendertermin, Multi-Space) in einen Space zu
+teilen — dieser Mechanismus ist **nicht implementiert**. Das Zielmodell schließt ihn mit
+ein, damit Chat, Kalender & Co. überhaupt syncen können.
 
 ---
 
