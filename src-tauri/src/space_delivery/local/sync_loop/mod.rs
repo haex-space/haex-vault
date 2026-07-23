@@ -16,6 +16,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use tauri::Manager;
 use tokio::sync::{watch, Notify};
 
 mod cycle;
@@ -48,27 +49,34 @@ pub enum SyncMode {
     OwnerVault { tables: Vec<String> },
 }
 
-/// Sync-loop logging helper — **stderr only**.
+/// Sync-loop logging helper — persists to `haex_logs_no_sync` via
+/// [`crate::logging::LogSink`], plus stderr for dev / container-log
+/// diagnostics.
 ///
-/// This deliberately does NOT persist to `haex_logs`. `haex_logs` is itself a
-/// CRDT-synced table (it carries `haex_hlc`, so `discover_crdt_tables` ships it
-/// in owner-vault sync). Writing the sync loop's own per-cycle telemetry there
-/// created a self-feeding loop: every "pulled N changes" line became a new
-/// `haex_logs` row → marked dirty → pushed to the owner's other devices → they
-/// logged "pulled 1 change" → pushed back → ∞. With 3+ devices the pulled
-/// batches grew without bound (a field report showed `count` climbing into the
-/// thousands).
+/// ## Historical rationale, retained as a safety-in-depth note
 ///
-/// The console interceptor already strips `[SYNC]`-prefixed messages to break
-/// this exact loop on the JS side (see [`crate::logging`]); this Rust-side
-/// helper used to bypass that guard by inserting directly. Keeping sync chatter
-/// on stderr only honours the same rule. No in-repo consumer reads these rows.
+/// Before 2026-07-21 this helper was stderr-only because `haex_logs` was
+/// itself CRDT-synced: every "pulled N changes" line became a synced row →
+/// marked dirty → pushed to the owner's other devices → they logged
+/// "pulled 1 change" → pushed back → ∞. A field report showed the count
+/// climbing into the thousands with 3+ devices, and stderr in production
+/// went to `/dev/null` so the client-side loop was completely blind.
 ///
-/// `_app_handle` is retained so call sites stay uniform with the rest of the
-/// sync loop (which threads the handle everywhere) and so a future structured
-/// (non-synced) sink can be wired in without touching every call site.
-pub(super) fn log_sync(_app_handle: &tauri::AppHandle, level: &str, message: &str) {
-    eprintln!("[SyncLoop] [{level}] {message}");
+/// The rename to `haex_logs_no_sync` + dedicated [`LogSink`] connection
+/// (`docs/plans/2026-07-21-haex-logs-no-sync.md`) removed both drivers of
+/// that loop: `discover_crdt_tables` no longer picks up the log table, and
+/// writes bypass `execute_with_crdt` entirely. Persisting sync-loop rows
+/// here is now safe *and* diagnostically valuable — the next 2nd-device
+/// freeze repro can be inspected from the persistent log viewer instead
+/// of hoping stderr survived.
+///
+/// The JS console interceptor's `[SYNC]`-prefix strip is now
+/// belt-and-suspenders, not load-bearing.
+pub(super) fn log_sync(app_handle: &tauri::AppHandle, level: &str, message: &str) {
+    // `log_to_db` also emits an `eprintln!` internally with the same
+    // `[source] [level] message` shape, so no explicit stderr line here.
+    let sink_snapshot = app_handle.state::<crate::AppState>().log_sink_snapshot();
+    crate::logging::log_to_db(sink_snapshot.as_ref(), level, "SyncLoop", message, None);
 }
 
 /// Default poll interval between sync cycles.

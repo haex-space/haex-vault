@@ -111,6 +111,13 @@ pub struct AppState {
     /// no vault is currently open — `AppState::lock_or_fail` then degrades
     /// gracefully (stderr only, no banner row).
     pub critical_sink: Mutex<Option<critical::CriticalNotificationSink>>,
+    /// Persistent log store — writes to `haex_logs_no_sync` via a
+    /// dedicated SQLite connection so a blocked / poisoned main DB mutex
+    /// still lets logging record what happened. See `crate::logging::sink`
+    /// and `docs/plans/2026-07-21-haex-logs-no-sync.md`. Same vault-open /
+    /// vault-close lifecycle as `critical_sink`; `None` before a vault is
+    /// mounted, at which point log writes fall back to stderr only.
+    pub log_sink: Mutex<Option<logging::LogSink>>,
     /// Exclusive advisory lock on the currently-open vault's DB file.
     /// Populated by `open_encrypted_database` / `create_encrypted_database`
     /// and cleared by `close_database`. Prevents the same vault from being
@@ -242,6 +249,20 @@ impl AppState {
             }
         }
     }
+
+    /// Cheap `Arc`-cloned snapshot of the log sink, or `None` if no
+    /// vault is currently mounted. Callers should cache this once at
+    /// the top of their scope and pass a reference down instead of
+    /// re-locking the sink slot per log call. Matches the
+    /// `critical_sink` snapshot pattern in `lock_or_fail`.
+    ///
+    /// Uses `unwrap_or_else(into_inner)` for the same reason as
+    /// `lock_or_fail`: this is the last defensive layer — a poisoned
+    /// slot mutex must not silently silence every subsequent log.
+    pub fn log_sink_snapshot(&self) -> Option<logging::LogSink> {
+        let guard = self.log_sink.lock().unwrap_or_else(|p| p.into_inner());
+        guard.clone()
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -337,6 +358,7 @@ pub fn run() {
             db: DbConnection(Arc::new(Mutex::new(None))),
             hlc: Mutex::new(HlcService::new()),
             critical_sink: Mutex::new(None),
+            log_sink: Mutex::new(None),
             vault_lock: Mutex::new(None),
             connection_context: Mutex::new(ConnectionContext::new()),
             extension_manager: ExtensionManager::new(),
@@ -521,6 +543,7 @@ pub fn run() {
             extension::spaces::commands::extension_space_unassign,
             extension::spaces::commands::extension_space_get_assignments,
             extension::spaces::commands::extension_space_list,
+            extension::spaces::commands::extension_space_get_members,
             extension::spaces::commands::set_auth_token,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,

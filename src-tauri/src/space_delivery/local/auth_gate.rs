@@ -69,12 +69,10 @@
 //! the AuthGate consolidation briefly lost that visibility, restored here.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use tokio::sync::RwLock;
 
-use crate::crdt::hlc::HlcService;
 use crate::critical::sink::CriticalNotificationSink;
 use crate::critical::CriticalFailureCode;
 use crate::database::DbConnection;
@@ -105,11 +103,11 @@ pub async fn authorize_request(
     peer_endpoint_id: &str,
     connected_peers: &RwLock<HashMap<String, ConnectedPeer>>,
     db: &DbConnection,
-    hlc: &Arc<Mutex<HlcService>>,
     reject_tracker: &RejectRateTracker,
     dos_config: &DosDefenceConfig,
     flood_notifier: &SingleSourceNotifier,
     critical_sink: Option<&CriticalNotificationSink>,
+    log_sink: Option<&crate::logging::LogSink>,
 ) -> Result<Option<ValidatedUcan>, Response> {
     // 1. Bypass — requests that bootstrap the gate's own preconditions.
     let required = match request.required_capability() {
@@ -178,8 +176,7 @@ pub async fn authorize_request(
         }
 
         log_to_db(
-            db,
-            hlc,
+            log_sink,
             level,
             op,
             &log_msg,

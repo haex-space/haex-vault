@@ -184,15 +184,31 @@ pub(super) async fn refill_key_packages_if_needed(
 
     eprintln!("[SyncLoop] KeyPackage refill: {available} on leader, {needed} more requested");
 
-    let packages = crate::mls::blocking::generate_key_packages(db.0.clone(), needed)
-        .await
+    let own_did = crate::mls::manager::MlsManager::new(db.0.clone())
+        .get_own_did()
         .map_err(|e| DeliveryError::ProtocolError {
-            reason: format!("Failed to generate key packages: {e}"),
+            reason: format!("Failed to load own DID for key package refill: {e}"),
+        })?;
+    let identity =
+        super::super::quic_retry::load_signing_identity_for_did(db, &own_did).map_err(|e| {
+            DeliveryError::ProtocolError {
+                reason: format!("Failed to load identity for proof-of-possession: {e}"),
+            }
         })?;
 
-    let packages_b64: Vec<String> = packages.iter().map(|p| BASE64.encode(p)).collect();
+    let packages =
+        crate::mls::blocking::generate_key_packages(db.0.clone(), needed, identity.signing_key)
+            .await
+            .map_err(|e| DeliveryError::ProtocolError {
+                reason: format!("Failed to generate key packages: {e}"),
+            })?;
 
-    session.upload_key_packages(space_id, packages_b64).await?;
+    let packages_b64: Vec<String> = packages.iter().map(|(kp, _)| BASE64.encode(kp)).collect();
+    let pops_b64: Vec<String> = packages.iter().map(|(_, pop)| BASE64.encode(pop)).collect();
+
+    session
+        .upload_key_packages(space_id, packages_b64, pops_b64)
+        .await?;
 
     eprintln!("[SyncLoop] Uploaded {needed} key packages for space {space_id}");
 

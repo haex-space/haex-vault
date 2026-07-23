@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -44,10 +44,15 @@ pub fn handle_push_invite(
     inviter_relay_url: Option<&str>,
     verified_did: &str,
 ) -> Response {
+    // Snapshot the log sink once — the fn calls log_to_db in ~13 places
+    // and re-locking the sink slot every time would be silly. Held for
+    // the whole scope; cheap Arc clone inside LogSink.
+    let log_sink_snap = app_handle.state::<crate::AppState>().log_sink_snapshot();
+    let log_sink = log_sink_snap.as_ref();
+
     let token_fp = token_fingerprint(token_id);
     logging::log_to_db(
-        db,
-        hlc,
+        log_sink,
         "info",
         LOG_SOURCE,
         &format!(
@@ -63,8 +68,7 @@ pub fn handle_push_invite(
     // forged "you have an invite from Alice" prompt (plan §4.2 scenario 5).
     if inviter_did != verified_did {
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "warn",
             LOG_SOURCE,
             &format!(
@@ -82,8 +86,7 @@ pub fn handle_push_invite(
     // 1. Validate capabilities — reject if empty or containing unknown values
     if capabilities.is_empty() {
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "warn",
             LOG_SOURCE,
             "REJECTED: no capabilities",
@@ -96,8 +99,7 @@ pub fn handle_push_invite(
     for cap in capabilities {
         if !VALID_CAPABILITIES.contains(&cap.as_str()) {
             logging::log_to_db(
-                db,
-                hlc,
+                log_sink,
                 "warn",
                 LOG_SOURCE,
                 &format!("REJECTED: unknown capability {cap}"),
@@ -122,8 +124,7 @@ pub fn handle_push_invite(
 
     if already_active > 0 {
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "info",
             LOG_SOURCE,
             &format!("SKIPPED: space {space_id} already active on this device"),
@@ -135,8 +136,7 @@ pub fn handle_push_invite(
     // 3. Check invite policy
     if !check_invite_policy(db, inviter_did) {
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "warn",
             LOG_SOURCE,
             &format!("REJECTED: invite policy blocked inviter {inviter_did}"),
@@ -149,7 +149,8 @@ pub fn handle_push_invite(
     let hlc_guard = match hlc.lock() {
         Ok(guard) => guard,
         Err(_) => {
-            // Can't use log_to_db (it would also try to lock HLC). Stderr only.
+            // HLC lock poisoned: the CRDT-synced writes below can't proceed.
+            // Stderr only — no DB row for this abort.
             eprintln!("[{LOG_SOURCE}] [error] ABORT: HLC lock poisoned while processing invite for space {space_id} from {inviter_did}");
             return Response::PushInviteAck { accepted: false };
         }
@@ -174,11 +175,10 @@ pub fn handle_push_invite(
     .unwrap_or(0);
 
     if existing_for_token > 0 {
-        // Drop the guard before log_to_db (which acquires the HLC internally).
+        // Release the HLC lock before the early return; nothing below needs it.
         drop(hlc_guard);
         logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "info",
             LOG_SOURCE,
             &format!(
@@ -215,8 +215,8 @@ pub fn handle_push_invite(
     let endpoints_json =
         serde_json::to_string(space_endpoints).unwrap_or_else(|_| "[]".to_string());
 
-    // eprintln only — can't log_to_db while holding hlc_guard (would deadlock).
-    // The DB log for this step happens post-drop with the outcome.
+    // eprintln step-trace only; the persisted DB log for this step follows
+    // (with the outcome) after the write completes.
     eprintln!("[{LOG_SOURCE}] [info] Inserting pending invite {invite_id} for space {space_id}");
 
     let insert_result = core::execute_with_crdt(
@@ -257,10 +257,11 @@ pub fn handle_push_invite(
         &hlc_guard,
     );
 
-    // Drop HLC lock before logging to DB (log_to_db locks internally)
+    // Release the HLC lock now — the remaining work only logs (via LogSink)
+    // and returns.
     drop(hlc_guard);
 
-    // Persist the INSERT outcome to haex_logs so production (where stderr is /dev/null)
+    // Persist the INSERT outcome to haex_logs_no_sync so production (where stderr is /dev/null)
     // can tell whether a given invite reached the row-creation stage or not.
     // With `RETURNING id`, `execute_with_crdt` yields one row on a real insert
     // and an empty Vec when `INSERT OR IGNORE` skipped a duplicate id — so
@@ -269,7 +270,8 @@ pub fn handle_push_invite(
     let inserted_rows = match &insert_result {
         Ok(rows) => rows,
         Err(e) => {
-            logging::log_to_db(db, hlc, "error", LOG_SOURCE, &format!(
+            logging::log_to_db(
+            log_sink, "error", LOG_SOURCE, &format!(
                 "INSERT FAILED: pending invite {invite_id} (space={space_id}, token={token_fp}): {e}"
             ), None);
             // Fail fast: don't emit push-invite-received or ACK success when
@@ -284,15 +286,15 @@ pub fn handle_push_invite(
         // are astronomically unlikely, but reporting accepted=true when no
         // row was actually written would surface a phantom invite to the
         // user — so bail out explicitly.
-        logging::log_to_db(db, hlc, "warn", LOG_SOURCE, &format!(
+        logging::log_to_db(
+            log_sink, "warn", LOG_SOURCE, &format!(
             "INSERT IGNORED (duplicate id): pending invite {invite_id} (space={space_id}, token={token_fp})"
         ), None);
         return Response::PushInviteAck { accepted: false };
     }
 
     logging::log_to_db(
-        db,
-        hlc,
+        log_sink,
         "info",
         LOG_SOURCE,
         &format!("INSERT OK: pending invite {invite_id} (space={space_id}, token={token_fp})"),
@@ -300,8 +302,7 @@ pub fn handle_push_invite(
     );
 
     logging::log_to_db(
-        db,
-        hlc,
+        log_sink,
         "info",
         LOG_SOURCE,
         &format!("Invite processing complete for {invite_id} in space {space_id}"),
@@ -314,16 +315,14 @@ pub fn handle_push_invite(
     // so this regression is traceable without shell access.
     match app_handle.emit_to("main", "push-invite-received", ()) {
         Ok(()) => logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "info",
             LOG_SOURCE,
             &format!("Emitted push-invite-received for invite {invite_id} (space={space_id})"),
             None,
         ),
         Err(e) => logging::log_to_db(
-            db,
-            hlc,
+            log_sink,
             "error",
             LOG_SOURCE,
             &format!("FAILED to emit push-invite-received for invite {invite_id}: {e}"),
@@ -335,7 +334,7 @@ pub fn handle_push_invite(
 }
 
 /// Short, non-reversible fingerprint of a token for log diagnostics.
-/// Full `token_id` is a bearer credential; persisting it in `haex_logs`
+/// Full `token_id` is a bearer credential; persisting it in `haex_logs_no_sync`
 /// would make those rows as sensitive as the invite itself.
 fn token_fingerprint(token_id: &str) -> String {
     let digest = Sha256::digest(token_id.as_bytes());

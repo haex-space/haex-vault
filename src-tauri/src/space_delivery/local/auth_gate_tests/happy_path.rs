@@ -17,7 +17,7 @@ async fn accepts_valid_request_from_active_member() {
     // haex_space_members for the target space. The gate returns
     // `Ok(Some(validated))` so the dispatch site can use the UCAN for
     // origin attribution (`authored_by_did`).
-    let (db, hlc) = setup_membership_db();
+    let (db, _hlc, log_sink) = setup_membership_db();
     insert_identity(&db, "id-peer", "did:key:zPeer");
     insert_member(&db, "mem-peer", "SPACE", "id-peer", "write");
 
@@ -35,10 +35,18 @@ async fn accepts_valid_request_from_active_member() {
     let request = Request::MlsUploadKeyPackages {
         space_id: "SPACE".into(),
         packages: vec![],
+        pops: vec![],
     };
 
-    let result =
-        authorize_default(&request, "did:key:zPeer", "endpoint-id", &peers, &db, &hlc).await;
+    let result = authorize_default(
+        &request,
+        "did:key:zPeer",
+        "endpoint-id",
+        &peers,
+        &db,
+        Some(&log_sink),
+    )
+    .await;
 
     match result {
         Ok(Some(validated)) => {

@@ -192,6 +192,7 @@
         "groupId": "group_id",
         "type": "type",
         "label": "label",
+        "authoredByDid": "authored_by_did",
         "createdAt": "created_at"
       }
     },
@@ -382,6 +383,7 @@
         "spaceId": "space_id",
         "deviceId": "device_id",
         "keyPackage": "key_package",
+        "pop": "pop",
         "welcome": "welcome",
         "status": "status",
         "authoredByDid": "authored_by_did"
@@ -431,6 +433,7 @@
         "spaceId": "space_id",
         "targetDid": "target_did",
         "packageBlob": "package_blob",
+        "popBlob": "pop_blob",
         "createdAt": "created_at"
       }
     },
@@ -484,7 +487,7 @@
     },
 
     "logs": {
-      "name": "haex_logs",
+      "name": "haex_logs_no_sync",
       "columns": {
         "id": "id",
         "timestamp": "timestamp",

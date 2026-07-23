@@ -13,7 +13,7 @@ import tableNames from '@/database/tableNames.json'
  *
  * The Vue banner queries `acknowledged = 0` and shows the newest unacked
  * row. Acknowledged rows stay in the table as a forensic trail until the
- * configured retention cleanup removes them (analogous to haex_logs).
+ * configured retention cleanup removes them (analogous to haex_logs_no_sync).
  *
  * See docs/plans/2026-06-13-critical-failure-pattern.md for the full
  * design and the three open-questions decisions (Q1: acknowledged rows

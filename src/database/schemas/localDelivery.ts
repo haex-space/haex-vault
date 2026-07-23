@@ -37,6 +37,7 @@ export const haexLocalDeliveryKeyPackages = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     targetDid: text(tableNames.haex.local_delivery_key_packages.columns.targetDid).notNull(),
     packageBlob: blob(tableNames.haex.local_delivery_key_packages.columns.packageBlob, { mode: 'buffer' }).notNull(),
+    popBlob: blob(tableNames.haex.local_delivery_key_packages.columns.popBlob, { mode: 'buffer' }).notNull(),
     createdAt: text(tableNames.haex.local_delivery_key_packages.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [

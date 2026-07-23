@@ -55,21 +55,22 @@ pub(crate) async fn handle_delivery_request(
     // validate + cache the UCAN it just received before subsequent requests
     // on this connection can pass the gate.
     //
-    // Audit logging: the gate writes a `warn` row to `haex_logs` (via
-    // `log_to_db`, CRDT-synced to the owner) from every reject branch with
-    // `source = Request::op_name`, restoring the in-app log visibility the
-    // pre-T6 SyncPush / SyncPull arms used to emit directly.
+    // Audit logging: the gate writes a `warn` row to `haex_logs_no_sync`
+    // (via `log_to_db` → the dedicated `LogSink`, intentionally NOT
+    // CRDT-synced) from every reject branch with `source = Request::op_name`,
+    // restoring the in-app log visibility the pre-T6 SyncPush / SyncPull arms
+    // used to emit directly.
     let gate_ucan = match super::super::auth_gate::authorize_request(
         &request,
         verified_did,
         peer_endpoint_id,
         &state.connected_peers,
         &state.db,
-        &state.hlc,
         &state.reject_tracker,
         &state.dos_config,
         &state.flood_notifier,
         state.critical_sink.as_ref(),
+        state.log_sink.as_ref(),
     )
     .await
     {
@@ -95,8 +96,7 @@ pub(crate) async fn handle_delivery_request(
             // we must verify the UCAN before trusting `did` and before
             // populating `connected_peers` (which later handlers rely on).
             crate::logging::log_to_db(
-                &state.db,
-                &state.hlc,
+                state.log_sink.as_ref(),
                 "info",
                 "Announce",
                 &format!(
@@ -115,8 +115,7 @@ pub(crate) async fn handle_delivery_request(
                 Some(t) => t,
                 None => {
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                        state.log_sink.as_ref(),
                         "warn",
                         "Announce",
                         &format!(
@@ -135,8 +134,7 @@ pub(crate) async fn handle_delivery_request(
                 Ok(v) => v,
                 Err(r) => {
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                        state.log_sink.as_ref(),
                         "warn",
                         "Announce",
                         &format!(
@@ -161,8 +159,7 @@ pub(crate) async fn handle_delivery_request(
                 &state.db,
             ) {
                 crate::logging::log_to_db(
-                    &state.db,
-                    &state.hlc,
+                    state.log_sink.as_ref(),
                     "warn",
                     "Announce",
                     &format!(
@@ -175,8 +172,7 @@ pub(crate) async fn handle_delivery_request(
                 return r;
             }
             crate::logging::log_to_db(
-                &state.db,
-                &state.hlc,
+                state.log_sink.as_ref(),
                 "info",
                 "Announce",
                 &format!(
@@ -235,11 +231,15 @@ pub(crate) async fn handle_delivery_request(
         }
 
         // -- MLS Key Packages --
-        Request::MlsUploadKeyPackages { space_id, packages } => {
+        Request::MlsUploadKeyPackages {
+            space_id,
+            packages,
+            pops,
+        } => {
             let did = verified_did.to_string();
-            for pkg_b64 in &packages {
-                if let Ok(blob) = base64_decode(pkg_b64) {
-                    let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob);
+            for (pkg_b64, pop_b64) in packages.iter().zip(pops.iter()) {
+                if let (Ok(blob), Ok(pop_blob)) = (base64_decode(pkg_b64), base64_decode(pop_b64)) {
+                    let _ = buffer::store_key_package(&state.db, &space_id, &did, &blob, &pop_blob);
                 }
             }
             // Trim excess packages — keep only the target amount, discard oldest
@@ -252,8 +252,9 @@ pub(crate) async fn handle_delivery_request(
             space_id,
             target_did,
         } => match buffer::consume_key_package(&state.db, &space_id, &target_did) {
-            Ok(Some(blob)) => Response::KeyPackage {
+            Ok(Some((blob, pop))) => Response::KeyPackage {
                 package: base64_encode(&blob),
+                pop: base64_encode(&pop),
             },
             Ok(None) => Response::Error {
                 message: format!("No key package for {target_did}"),
@@ -576,8 +577,7 @@ pub(crate) async fn handle_delivery_request(
                 Err(e) => {
                     eprintln!("[SpaceDelivery] SyncPull: failed to scan changes: {e}");
                     crate::logging::log_to_db(
-                        &state.db,
-                        &state.hlc,
+                        state.log_sink.as_ref(),
                         "error",
                         "SyncPull",
                         &format!(

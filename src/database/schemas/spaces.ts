@@ -176,6 +176,7 @@ export const haexSharedSpaceSync = sqliteTable(
     groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
     type: text(tableNames.haex.shared_space_sync.columns.type),
     label: text(tableNames.haex.shared_space_sync.columns.label),
+    authoredByDid: text(tableNames.haex.shared_space_sync.columns.authoredByDid),
     createdAt: text(tableNames.haex.shared_space_sync.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -243,6 +244,7 @@ export const haexDeviceMlsEnrollments = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     deviceId: text(tableNames.haex.device_mls_enrollments.columns.deviceId).notNull(),
     keyPackage: text(tableNames.haex.device_mls_enrollments.columns.keyPackage).notNull(), // Base64
+    pop: text(tableNames.haex.device_mls_enrollments.columns.pop).notNull(), // Base64 proof-of-possession for keyPackage
     welcome: text(tableNames.haex.device_mls_enrollments.columns.welcome), // Base64, set by enrolling device
     status: text(tableNames.haex.device_mls_enrollments.columns.status).notNull().default('pending'), // 'pending' | 'enrolled'
     authoredByDid: text(tableNames.haex.device_mls_enrollments.columns.authoredByDid),

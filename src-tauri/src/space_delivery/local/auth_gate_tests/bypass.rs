@@ -13,7 +13,7 @@ async fn bypasses_claim_invite_cleanly() {
     // membership lookups can authorise them). `Request::required_capability`
     // returns `None`, so authorize_request must short-circuit with
     // `Ok(None)` — even with an empty connected_peers map and an empty DB.
-    let (db, hlc) = empty_db();
+    let (db, _hlc, log_sink) = empty_db();
     let peers: RwLock<HashMap<String, ConnectedPeer>> = RwLock::new(HashMap::new());
 
     let request = Request::ClaimInvite {
@@ -21,6 +21,7 @@ async fn bypasses_claim_invite_cleanly() {
         token: "invite-token".into(),
         endpoint_id: "endpoint-id".into(),
         key_packages: vec![],
+        pops: vec![],
         label: None,
         public_key: None,
     };
@@ -31,7 +32,7 @@ async fn bypasses_claim_invite_cleanly() {
         "endpoint-id",
         &peers,
         &db,
-        &hlc,
+        Some(&log_sink),
     )
     .await;
 

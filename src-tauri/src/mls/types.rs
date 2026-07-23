@@ -9,6 +9,16 @@ pub struct MlsIdentityInfo {
     pub credential: Vec<u8>,
 }
 
+/// A freshly-generated KeyPackage paired with its proof-of-possession —
+/// see `mls::pop` for what the signature attests.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct MlsKeyPackageWithPop {
+    pub key_package: Vec<u8>,
+    pub pop: Vec<u8>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]

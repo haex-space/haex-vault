@@ -322,14 +322,38 @@ pub async fn local_delivery_claim_invite(
     let configured_relay = endpoint.configured_relay_url().cloned();
     drop(endpoint);
 
-    // 2. Generate MLS KeyPackages
-    let key_packages_raw = crate::mls::blocking::generate_key_packages(state.db.0.clone(), 10)
-        .await
-        .map_err(|e| {
-            log("error", &format!("MLS KeyPackage generation failed: {e}"));
-            format!("Failed to generate key packages: {e}")
-        })?;
-    let key_packages_b64: Vec<String> = key_packages_raw.iter().map(|p| BASE64.encode(p)).collect();
+    // 2. Load the claimant's signing key. Needed both for the PoP attached to
+    //    each freshly-generated KeyPackage below and for the server-initiated
+    //    quic_did_auth handshake — ClaimInvite is the first time this DID ever
+    //    connects to the leader, so the handshake is what cryptographically
+    //    binds the claim to this DID (plan §4.2 scenarios 1+2).
+    let db_for_identity = DbConnection(state.db.0.clone());
+    let our_identity =
+        super::super::quic_retry::load_signing_identity_for_did(&db_for_identity, &identity_did)
+            .map_err(|e| {
+                log("error", &format!("identity load failed: {e}"));
+                e.to_string()
+            })?;
+
+    // 3. Generate MLS KeyPackages
+    let key_packages_raw = crate::mls::blocking::generate_key_packages(
+        state.db.0.clone(),
+        10,
+        our_identity.signing_key.clone(),
+    )
+    .await
+    .map_err(|e| {
+        log("error", &format!("MLS KeyPackage generation failed: {e}"));
+        format!("Failed to generate key packages: {e}")
+    })?;
+    let key_packages_b64: Vec<String> = key_packages_raw
+        .iter()
+        .map(|(kp, _)| BASE64.encode(kp))
+        .collect();
+    let pops_b64: Vec<String> = key_packages_raw
+        .iter()
+        .map(|(_, pop)| BASE64.encode(pop))
+        .collect();
     log(
         "info",
         &format!("Generated {} MLS KeyPackages", key_packages_b64.len()),
@@ -364,24 +388,12 @@ pub async fn local_delivery_claim_invite(
         token: token_id.clone(),
         endpoint_id: our_endpoint_id,
         key_packages: key_packages_b64,
+        pops: pops_b64,
         label,
         public_key: identity_public_key,
     };
     let bytes = super::super::protocol::encode(&req)
         .map_err(|e| format!("Failed to encode request: {e}"))?;
-
-    // Load the claimant's signing key for the server-initiated quic_did_auth
-    // handshake. ClaimInvite is the first time this DID ever connects to the
-    // leader, so the handshake is what cryptographically binds the claim to
-    // this DID — without it the leader cannot tell us apart from any other
-    // peer who happens to know the token (plan §4.2 scenarios 1+2).
-    let db_for_identity = DbConnection(state.db.0.clone());
-    let our_identity =
-        super::super::quic_retry::load_signing_identity_for_did(&db_for_identity, &identity_did)
-            .map_err(|e| {
-                log("error", &format!("identity load failed: {e}"));
-                e.to_string()
-            })?;
 
     // QUIC connect + send + read with automatic retry on transient failures.
     let response = super::super::quic_retry::send_request_with_retry(

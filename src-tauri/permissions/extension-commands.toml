@@ -126,6 +126,7 @@ commands.allow = [
   "extension_space_unassign",
   "extension_space_get_assignments",
   "extension_space_list",
+  "extension_space_get_members",
   "set_auth_token",
 
   # Shell / PTY
@@ -449,6 +450,7 @@ commands.allow = [
   "extension_space_unassign",
   "extension_space_get_assignments",
   "extension_space_list",
+  "extension_space_get_members",
   "set_auth_token",
   "extension_shell_create",
   "extension_shell_write",

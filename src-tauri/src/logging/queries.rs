@@ -51,15 +51,6 @@ lazy_static! {
 
     // Log inserts
 
-    /// Minimal insert used by `log_to_db` — no extension_id, no metadata,
-    /// device_id literal `'rust'`.
-    pub static ref SQL_INSERT_LOG_MINIMAL: String = format!(
-        "INSERT INTO {TABLE_LOGS} \
-         ({COL_LOGS_ID}, {COL_LOGS_TIMESTAMP}, {COL_LOGS_LEVEL}, {COL_LOGS_SOURCE}, \
-          {COL_LOGS_EXTENSION_ID}, {COL_LOGS_MESSAGE}, {COL_LOGS_METADATA}, {COL_LOGS_DEVICE_ID}) \
-         VALUES (?1, ?2, ?3, ?4, NULL, ?5, NULL, 'rust')"
-    );
-
     /// Full insert with all optional fields bound as parameters.
     pub static ref SQL_INSERT_LOG_FULL: String = format!(
         "INSERT INTO {TABLE_LOGS} \
@@ -68,7 +59,7 @@ lazy_static! {
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
     );
 
-    // Log cleanup (CRDT tombstones via execute_with_crdt)
+    // Log cleanup — plain retention deletes executed via the LogSink connection
 
     pub static ref SQL_DELETE_CONSOLE_LOGS_BEFORE: String = format!(
         "DELETE FROM {TABLE_LOGS} \

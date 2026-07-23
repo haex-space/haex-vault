@@ -380,10 +380,12 @@ impl PeerSession {
         &self,
         space_id: &str,
         packages: Vec<String>,
+        pops: Vec<String>,
     ) -> Result<(), DeliveryError> {
         let req = Request::MlsUploadKeyPackages {
             space_id: space_id.to_string(),
             packages,
+            pops,
         };
         match self.request(req).await? {
             Response::Ok => Ok(()),

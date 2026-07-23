@@ -134,11 +134,16 @@ export async function claimInviteToken(
   const relayServerUrl = detectCrossServerInvite(originUrl, userServerUrl)
 
   // Generate MLS KeyPackages
-  const packages: number[][] = await invoke('mls_get_key_packages', { count: 10 })
-  const keyPackagesBase64 = packages.map((p: number[]) => btoa(String.fromCharCode(...new Uint8Array(p))))
+  const packages: { keyPackage: number[]; pop: number[] }[] = await invoke('mls_get_key_packages', { count: 10 })
+  const keyPackagesBase64 = packages.map((p) => btoa(String.fromCharCode(...new Uint8Array(p.keyPackage))))
+  const popsBase64 = packages.map((p) => btoa(String.fromCharCode(...new Uint8Array(p.pop))))
 
+  // NOTE: the server (separate repo) must also be updated to persist `pops`
+  // alongside `keyPackages` and to return the matching PoP from its
+  // KeyPackage-fetch endpoint — see finalizeInvite below.
   const claimBody = JSON.stringify({
     keyPackages: keyPackagesBase64,
+    pops: popsBase64,
     label: identity.name,
   })
   const response = await fetchWithDidAuth(
@@ -234,15 +239,17 @@ export async function finalizeInvite(
     }
   }
 
-  // 2. Fetch invitee's KeyPackage from server
+  // 2. Fetch invitee's KeyPackage + PoP from server
   const { useMlsDelivery } = await import('@/composables/useMlsDelivery')
   const delivery = useMlsDelivery(originUrl, spaceId, { privateKey: identity.privateKey, did: identity.did })
-  const { keyPackage } = await delivery.fetchKeyPackageAsync(inviteeDid)
+  const { keyPackage, pop } = await delivery.fetchKeyPackageAsync(inviteeDid)
 
   // 3. Add member to MLS group → produces commit + welcome
   const bundle = await invoke<{ commit: number[]; welcome: number[] | null; groupInfo: number[] }>('mls_add_member', {
     spaceId,
     keyPackage: Array.from(keyPackage),
+    expectedDid: inviteeDid,
+    pop: Array.from(pop),
   })
 
   // 4. Send commit to all group members
