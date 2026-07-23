@@ -130,7 +130,17 @@ pub(crate) async fn handle_delivery_request(
                     };
                 }
             };
-            let validated = match require_valid_ucan(ucan_token_str, "Announce") {
+            // Announce is the sole non-cached UCAN validation path; the gate
+            // reads the cached UCAN populated below. Announce's required
+            // capability is `Read` (space device row is space-scoped sync
+            // state — see `Request::required_capability` doc).
+            let validated = match require_valid_ucan(
+                ucan_token_str,
+                &space_id,
+                &did,
+                CapabilityLevel::Read,
+                "Announce",
+            ) {
                 Ok(v) => v,
                 Err(r) => {
                     crate::logging::log_to_db(

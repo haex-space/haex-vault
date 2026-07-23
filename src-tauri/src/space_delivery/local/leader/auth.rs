@@ -6,11 +6,35 @@ use crate::ucan::{
     require_audience, require_capability, validate_token, CapabilityLevel, ValidatedUcan,
 };
 
+/// TODO(phase2-task4): replace the hardcoded `5` with a runtime config
+/// lookup from `haex_vault_settings` (max_ucan_chain_depth). Every direct
+/// caller of `validate_token` in this crate uses the same literal for now.
+const DEFAULT_MAX_UCAN_CHAIN_DEPTH: usize = 5;
+
 /// Validate a UCAN token carried in a space-delivery request and return a
-/// structured Error response on any failure. This is the first gate for
-/// sync-level operations — signature, expiry, structure all checked here.
-pub(super) fn require_valid_ucan(ucan_token: &str, op: &str) -> Result<ValidatedUcan, Response> {
-    validate_token(ucan_token).map_err(|e| {
+/// structured Error response on any failure. Runs the full Phase-2 pipeline:
+/// signature, expiry, audience, capability floor, `prf` chain walk to a
+/// self-signed root, and self-certifying `space_id` binding.
+///
+/// Used by the `Announce` bypass — the only request variant that reaches the
+/// leader without a cached `ValidatedUcan`. Every subsequent request on the
+/// same connection is authorised via the `auth_gate`, which reads the cached
+/// UCAN populated here.
+pub(super) fn require_valid_ucan(
+    ucan_token: &str,
+    space_id: &str,
+    expected_audience: &str,
+    capability_needed: CapabilityLevel,
+    op: &str,
+) -> Result<ValidatedUcan, Response> {
+    validate_token(
+        ucan_token,
+        space_id,
+        expected_audience,
+        capability_needed,
+        DEFAULT_MAX_UCAN_CHAIN_DEPTH,
+    )
+    .map_err(|e| {
         eprintln!("[SpaceDelivery] {op}: UCAN validation failed: {e}");
         Response::Error {
             message: format!("UCAN validation failed: {e}"),

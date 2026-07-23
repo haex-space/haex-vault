@@ -67,7 +67,7 @@ async fn remote_stat_returns_file_size() {
 async fn connection_closes_when_peer_owner_did_disagrees_with_handshake() {
     let tmp = tempfile::tempdir().unwrap();
     std::fs::write(tmp.path().join("file.txt"), b"x").unwrap();
-    let space_id = "test-space".to_string();
+    let (ucan_signer, space_id) = mint_test_root_and_space();
 
     let mut server = PeerEndpoint::new_ephemeral();
     server.set_random_test_identity();
@@ -89,7 +89,10 @@ async fn connection_closes_when_peer_owner_did_disagrees_with_handshake() {
     let client_seed: [u8; 32] = rand::random();
     let client_signing_key = SigningKey::from_bytes(&client_seed);
     let client_did = did_from_signing_key(&client_signing_key);
-    let valid_ucan = read_ucan(&client_signing_key, &space_id, &client_did);
+    // UCAN must be issued by the Space-Root that `space_id` binds to —
+    // otherwise `verify_space_id_binding` would reject before the
+    // handshake / owner-DID cross-check this test actually exercises.
+    let valid_ucan = read_ucan(&ucan_signer, &space_id, &client_did);
     let mut client = PeerEndpoint::new_ephemeral();
     client.set_own_identity(OwnIdentity {
         did: client_did,

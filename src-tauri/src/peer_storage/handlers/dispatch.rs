@@ -31,11 +31,21 @@ pub(in crate::peer_storage) async fn handle_stream(
                 reason: e.to_string(),
             })?;
 
-    // ── Layer 1 (first line of defense): validate UCAN signature + expiry ──
-    let validated_ucan = match crate::ucan::validate_token(request.ucan_token()) {
+    // TODO(phase2-task4): replace with DB config lookup
+    // (haex_vault_settings.max_ucan_chain_depth).
+    const DEFAULT_MAX_UCAN_CHAIN_DEPTH: usize = 5;
+
+    // ── Layer 1 (peek): parse UCAN structure + verify signature + expiry.
+    // The target `space_id` is only known after path routing below, so we
+    // parse cheaply here to inspect the leaf's capability map and defer the
+    // full chain-walk pipeline (`validate_token`) until we know which space
+    // to bind against. `parse_ucan` verifies signature and expiry — the
+    // capability + chain checks then happen inside `validate_token`. ──
+    let ucan_token_str = request.ucan_token();
+    let parsed_ucan = match crate::ucan::parse_ucan(ucan_token_str) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("[PeerStorage] UCAN validation failed: {e}");
+            eprintln!("[PeerStorage] UCAN parse failed: {e}");
             let resp = Response::Error {
                 message: format!("UCAN validation failed: {e}"),
             };
@@ -50,21 +60,16 @@ pub(in crate::peer_storage) async fn handle_stream(
     // key — Layer 1 (signature) and the capability/space gates below would
     // both pass. The verified DID was bound to the connection during the
     // quic_did_auth handshake in handle_connection. ──
-    if let Err(e) = crate::ucan::require_audience(&validated_ucan, verified_remote_did) {
-        // `log_truncate` truncates by chars (UTF-8 boundaries), not bytes —
-        // a token whose `aud` claim contains non-ASCII text cannot crash
-        // the log path with a "byte index not on a char boundary" panic.
-        let aud_short = crate::logging::log_truncate(
-            &validated_ucan.audience,
-            crate::logging::LOG_TRUNCATE_DEFAULT,
-        );
+    if parsed_ucan.aud != verified_remote_did {
+        let aud_short =
+            crate::logging::log_truncate(&parsed_ucan.aud, crate::logging::LOG_TRUNCATE_DEFAULT);
         let verified_short =
             crate::logging::log_truncate(verified_remote_did, crate::logging::LOG_TRUNCATE_DEFAULT);
         eprintln!(
-            "[PeerStorage] UCAN audience != verified peer DID: aud={aud_short} verified={verified_short} err={e}"
+            "[PeerStorage] UCAN audience != verified peer DID: aud={aud_short} verified={verified_short}"
         );
         let resp = Response::Error {
-            message: format!("Access denied: UCAN audience does not match verified peer DID: {e}"),
+            message: "Access denied: UCAN audience does not match verified peer DID".to_string(),
         };
         send_response_and_finish(&mut send, &resp).await.ok();
         return Ok(());
@@ -82,7 +87,7 @@ pub(in crate::peer_storage) async fn handle_stream(
     //   allowed = {A, B} and a UCAN for {A} from leaking share names in
     //   B via the root listing — handle_list would otherwise return
     //   everything in allowed_spaces.
-    let effective_spaces: HashSet<String> = validated_ucan
+    let effective_spaces: HashSet<String> = parsed_ucan
         .capabilities
         .keys()
         .filter(|space_id| allowed_spaces.contains(*space_id))
@@ -100,7 +105,13 @@ pub(in crate::peer_storage) async fn handle_stream(
     }
     let allowed_spaces = &effective_spaces;
 
-    // ── Layer 2 (source of truth): check capability matches operation ──
+    // ── Layer 2 (source of truth): resolve target space from path + run
+    // the full Phase-2 pipeline (audience + capability + prf-chain walk +
+    // self-certifying `space_id` binding) via `validate_token`. Requests
+    // whose path does not land inside any effective share fall through
+    // without a chain check — the handler below will short-circuit them
+    // (e.g. `handle_list("/")` enumerates only share roots the peer is
+    // already authorised for). ──
     let target_space_id = {
         let s = state.read().await;
         let path = match &request {
@@ -122,8 +133,14 @@ pub(in crate::peer_storage) async fn handle_stream(
             crate::ucan::CapabilityLevel::Read
         };
 
-        if let Err(e) = crate::ucan::require_capability(&validated_ucan, space_id, required) {
-            eprintln!("[PeerStorage] UCAN capability check failed: {e}");
+        if let Err(e) = crate::ucan::validate_token(
+            ucan_token_str,
+            space_id,
+            verified_remote_did,
+            required,
+            DEFAULT_MAX_UCAN_CHAIN_DEPTH,
+        ) {
+            eprintln!("[PeerStorage] UCAN full-validation failed: {e}");
             let resp = Response::Error {
                 message: format!("Access denied: {e}"),
             };

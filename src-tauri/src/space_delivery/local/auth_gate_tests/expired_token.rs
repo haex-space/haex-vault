@@ -26,6 +26,7 @@ async fn rejects_request_with_expired_cached_ucan() {
         audience: "did:key:zPeer".to_string(),
         capabilities: HashMap::from([("SPACE".to_string(), CapabilityLevel::Write)]),
         expires_at: 0,
+        root_did: "did:key:zRoot".to_string(),
     };
     let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();
     peers_map.insert(

@@ -595,26 +595,87 @@ function vTamperedLeafSignature(): Vector {
 }
 
 function vTamperedMiddleSignature(): Vector {
-  // Build a valid three-hop chain, flip a byte in the middle node's sig.
-  const base = vThreeHopValid()
-  const midIdx = 1
-  const tampered = flipSignatureByte(base.chain[midIdx]!.signed_token, 5)
-  const chain = base.chain.map((n, i) => {
-    if (i === midIdx) return { ...n, signed_token: tampered.token }
-    // Leaf's `proofs` array still points at the ORIGINAL middle token,
-    // because leaf.prf is baked into its signed payload. The Rust
-    // verifier reads chain[i].signed_token; the leaf's own prf field
-    // (embedded in its payload) contains the original middle. That's OK —
-    // for a signature-tamper test, the walker never gets past the middle.
-    return n
-  })
+  // Build a valid three-hop chain but rebuild the leaf so its `prf` embeds
+  // the tampered middle. The Rust verifier walks by parsing `leaf.prf[0]`
+  // (the middle token EMBEDDED in the leaf's signed payload) — the outer
+  // `chain[1].signed_token` is a display / debugging artefact, not the
+  // input the walker consumes. Embedding the tampered middle in the leaf's
+  // prf ensures the walker sees the bad signature and rejects.
+  const root: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.root!.did,
+    spaceId: primarySpaceId,
+    cap: 'space/admin',
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('tampered_mid.root'),
+    prf: [],
+  }
+  const rootToken = makeToken(root)
+  const mid: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.admin1!.did,
+    spaceId: primarySpaceId,
+    cap: 'space/admin',
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('tampered_mid.mid'),
+    prf: [rootToken],
+  }
+  const midToken = makeToken(mid)
+  const tampered = flipSignatureByte(midToken, 5)
+  // The leaf's `prf` claim carries the TAMPERED middle. Once the leaf is
+  // signed, that tampering is baked into the leaf's payload — the walker
+  // reads it back verbatim when parsing `leaf.prf[0]`.
+  const leaf: TokenSpec = {
+    key: KEYS.admin1!,
+    audience: KEYS.member!.did,
+    spaceId: primarySpaceId,
+    cap: 'space/write',
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('tampered_mid.leaf'),
+    prf: [tampered.token],
+  }
+  const leafToken = makeToken(leaf)
+  // Mirror encodeChain's shape but stamp the tampered token into the middle
+  // node so the visible fixture aligns with what the leaf embeds.
+  const chain: VectorChainNode[] = [
+    {
+      iss: root.key.did,
+      aud: root.audience,
+      cap: root.cap,
+      space_id: root.spaceId,
+      exp: root.exp,
+      proofs: [],
+      signed_token: rootToken,
+    },
+    {
+      iss: mid.key.did,
+      aud: mid.audience,
+      cap: mid.cap,
+      space_id: mid.spaceId,
+      exp: mid.exp,
+      proofs: [rootToken],
+      signed_token: tampered.token,
+    },
+    {
+      iss: leaf.key.did,
+      aud: leaf.audience,
+      cap: leaf.cap,
+      space_id: leaf.spaceId,
+      exp: leaf.exp,
+      proofs: [tampered.token],
+      signed_token: leafToken,
+    },
+  ]
   return {
     name: 'tampered_middle_signature',
-    space_id: base.space_id,
-    nonce_hex: base.nonce_hex,
-    root_did: base.root_did,
-    expected_audience: base.expected_audience,
-    capability_needed: base.capability_needed,
+    space_id: primarySpaceId,
+    nonce_hex: NONCE_HEX.primary_space!,
+    root_did: KEYS.root!.did,
+    expected_audience: KEYS.member!.did,
+    capability_needed: 'space/write',
     chain,
     expected: { ok: false, error: 'Signature', tampered_signature_byte_offset: tampered.offset },
   }
