@@ -30,7 +30,7 @@ pub const SPACE_ID_BYTES_LEN: usize = NONCE_LEN + HASH_LEN;
 /// DoS mitigation: `bs58::decode` allocates a `Vec` whose size grows with
 /// input length, so unbounded input from a network-facing caller (Tauri
 /// commands, UCAN chain walkers) could be used to force large allocations.
-pub const MAX_SPACE_ID_LEN_CHARS: usize = 128;
+pub const MAX_SPACE_ID_LEN_BYTES: usize = 128;
 
 /// Distinct failure modes returned by [`verify_space_id_binding`].
 ///
@@ -89,11 +89,11 @@ pub fn verify_space_id_binding(space_id: &str, root_did: &str) -> Result<(), Ver
     // Unbounded input from a network-facing caller could force large
     // allocations; the well-formed encoding is ~44 chars, so 128 is a
     // generous margin that still fits any legitimate space_id.
-    if space_id.len() > MAX_SPACE_ID_LEN_CHARS {
+    if space_id.len() > MAX_SPACE_ID_LEN_BYTES {
         return Err(VerifyError::Malformed(format!(
             "space_id too long: {} chars (max {})",
             space_id.len(),
-            MAX_SPACE_ID_LEN_CHARS
+            MAX_SPACE_ID_LEN_BYTES
         )));
     }
 

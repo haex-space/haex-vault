@@ -122,7 +122,7 @@ fn rejects_malformed_input() {
 #[test]
 fn rejects_oversized_input() {
     // Guard against unbounded input triggering large bs58::decode allocations.
-    let too_long = "1".repeat(super::MAX_SPACE_ID_LEN_CHARS + 1);
+    let too_long = "1".repeat(super::MAX_SPACE_ID_LEN_BYTES + 1);
     assert!(matches!(
         verify_space_id_binding(&too_long, ROOT_DID_A),
         Err(VerifyError::Malformed(_)),
