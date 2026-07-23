@@ -2,19 +2,25 @@
 //! Announce bypass.
 
 use super::super::protocol::Response;
+use crate::database::core::with_connection;
+use crate::database::DbConnection;
 use crate::ucan::{
-    require_audience, require_capability, validate_token, CapabilityLevel, ValidatedUcan,
+    read_max_ucan_chain_depth, require_audience, require_capability, validate_token,
+    CapabilityLevel, ValidatedUcan, MAX_UCAN_CHAIN_DEPTH_DEFAULT,
 };
-
-/// TODO(phase2-task4): replace the hardcoded `5` with a runtime config
-/// lookup from `haex_vault_settings` (max_ucan_chain_depth). Every direct
-/// caller of `validate_token` in this crate uses the same literal for now.
-const DEFAULT_MAX_UCAN_CHAIN_DEPTH: usize = 5;
 
 /// Validate a UCAN token carried in a space-delivery request and return a
 /// structured Error response on any failure. Runs the full Phase-2 pipeline:
 /// signature, expiry, audience, capability floor, `prf` chain walk to a
 /// self-signed root, and self-certifying `space_id` binding.
+///
+/// The chain-walk depth cap is read *just-in-time* from
+/// `haex_vault_settings` via [`read_max_ucan_chain_depth`] on every
+/// Announce. Choice (a) from the task brief: the caller
+/// (`handle_delivery_request`) already has `&state.db`, and Announce runs
+/// exactly once per connection — the DB read is not on any hot path so
+/// caching it would be pure overhead here. `peer_storage::handle_stream`
+/// takes the opposite trade (cached atomic) because it runs per-request.
 ///
 /// Used by the `Announce` bypass — the only request variant that reaches the
 /// leader without a cached `ValidatedUcan`. Every subsequent request on the
@@ -26,13 +32,17 @@ pub(super) fn require_valid_ucan(
     expected_audience: &str,
     capability_needed: CapabilityLevel,
     op: &str,
+    db: &DbConnection,
 ) -> Result<ValidatedUcan, Response> {
+    let max_chain_depth = with_connection(db, |conn| Ok(read_max_ucan_chain_depth(conn)))
+        .unwrap_or(MAX_UCAN_CHAIN_DEPTH_DEFAULT) as usize;
+
     validate_token(
         ucan_token,
         space_id,
         expected_audience,
         capability_needed,
-        DEFAULT_MAX_UCAN_CHAIN_DEPTH,
+        max_chain_depth,
     )
     .map_err(|e| {
         eprintln!("[SpaceDelivery] {op}: UCAN validation failed: {e}");

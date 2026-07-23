@@ -31,9 +31,21 @@ pub(in crate::peer_storage) async fn handle_stream(
                 reason: e.to_string(),
             })?;
 
-    // TODO(phase2-task4): replace with DB config lookup
-    // (haex_vault_settings.max_ucan_chain_depth).
-    const DEFAULT_MAX_UCAN_CHAIN_DEPTH: usize = 5;
+    // Read the chain-depth cap once per stream from the cached snapshot
+    // (`PeerState::max_ucan_chain_depth`, populated at vault-open by
+    // `peer_storage_start`). The read is an atomic load — cheaper than
+    // grabbing `state.db.0.lock()` on the hot per-request path, and safe
+    // against CRDT-injection because the cache is device-local and only
+    // written by the owner's own vault-open code. Callers (`parse_ucan` +
+    // `validate_token`) still fail *closed* if the value is somehow zero:
+    // `validate_token` treats depth=0 as "no proofs allowed" and returns
+    // `ChainTooDeep` for any non-root token, so an accidental default of
+    // 0 rejects instead of admitting.
+    let max_ucan_chain_depth = {
+        let s = state.read().await;
+        s.max_ucan_chain_depth
+            .load(std::sync::atomic::Ordering::Relaxed)
+    };
 
     // ── Layer 1 (peek): parse UCAN structure + verify signature + expiry.
     // The target `space_id` is only known after path routing below, so we
@@ -138,7 +150,7 @@ pub(in crate::peer_storage) async fn handle_stream(
             space_id,
             verified_remote_did,
             required,
-            DEFAULT_MAX_UCAN_CHAIN_DEPTH,
+            max_ucan_chain_depth,
         ) {
             eprintln!("[PeerStorage] UCAN full-validation failed: {e}");
             let resp = Response::Error {

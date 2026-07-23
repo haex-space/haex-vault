@@ -140,6 +140,7 @@ pub(crate) async fn handle_delivery_request(
                 &did,
                 CapabilityLevel::Read,
                 "Announce",
+                &state.db,
             ) {
                 Ok(v) => v,
                 Err(r) => {

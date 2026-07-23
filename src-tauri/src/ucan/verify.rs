@@ -48,7 +48,18 @@ const MAX_DID_KEY_LEN_BYTES: usize = 128;
 
 /// Capability levels in ascending order of privilege.
 /// Matches the hierarchy in @haex-space/ucan: read < write < invite < admin.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+///
+/// `serde` derives use `snake_case` variant names so the TS side of the
+/// `verify_ucan_chain_batch` IPC command can pass plain lowercase strings
+/// (`"read"`, `"write"`, `"invite"`, `"admin"`) that mirror the JS-side
+/// `CapabilityLevel` type. The underlying `space/*` capability strings
+/// (`"space/read"`, …) parsed by [`Self::from_capability_string`] belong
+/// to the UCAN payload wire format and are intentionally kept distinct
+/// from the IPC vocabulary.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
 pub enum CapabilityLevel {
     Read = 1,
     Write = 2,

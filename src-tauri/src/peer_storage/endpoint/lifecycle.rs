@@ -777,6 +777,22 @@ impl PeerEndpoint {
         self.state.write().await.dos_config = Arc::new(cfg);
     }
 
+    /// Snapshot the configured `max_ucan_chain_depth` into the shared cache
+    /// read by `handlers::dispatch::handle_stream`. Called from the
+    /// vault-open path with the value returned by
+    /// [`crate::ucan::read_max_ucan_chain_depth`] — i.e. already
+    /// range-validated and defaulted. `store` uses `Relaxed`: the read
+    /// side is an atomic load per request, ordering across other threads
+    /// is not required, and the value is functionally read-only for the
+    /// duration of the endpoint session.
+    pub async fn set_max_ucan_chain_depth(&self, depth: u32) {
+        self.state
+            .write()
+            .await
+            .max_ucan_chain_depth
+            .store(depth as usize, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Install the Phase 3 runtime (FloodMode statemachine + contacts
     /// resolver + DDoS-episode notifier). Until this is called, the accept
     /// loop runs Phase 2 semantics only.

@@ -7,10 +7,17 @@
 //! 2. [`validate_token`] — full pipeline: parse + audience + capability +
 //!    prf-chain walk to a self-signed root + self-certifying `space_id` binding.
 
+pub mod commands;
+pub mod config;
 mod create;
 pub mod space_id;
 pub mod verify;
 
+pub use commands::{verify_ucan_chain_batch, VerifyChainRequest, VerifyChainResult, VerifyOutcome};
+pub use config::{
+    read_max_ucan_chain_depth, MAX_UCAN_CHAIN_DEPTH_DEFAULT, MAX_UCAN_CHAIN_DEPTH_KEY,
+    MAX_UCAN_CHAIN_DEPTH_MAX, MAX_UCAN_CHAIN_DEPTH_MIN,
+};
 pub use create::{create_delegated_ucan, signing_key_from_pkcs8_base64, UcanCreateError};
 pub use space_id::VerifyError as SpaceIdVerifyError;
 pub use verify::{
