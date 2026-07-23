@@ -8,6 +8,7 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { createRootUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { deriveSpaceIdAsync, verifySpaceIdBindingAsync } from '@/utils/auth/spaceId'
 import { throwIfNotOk } from '@/utils/fetch'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
@@ -45,7 +46,12 @@ export async function createLocalSpace(
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
   spaceId?: string,
 ): Promise<{ id: string }> {
-  const id = spaceId || crypto.randomUUID()
+  const identityStore = useIdentityStore()
+  await identityStore.loadIdentitiesAsync()
+  const identity = identityStore.ownIdentities.find(i => i.id === ownerIdentityId)
+  if (!identity) throw new Error('Selected owner identity not available')
+
+  const id = spaceId ?? await deriveSpaceIdAsync(identity.did)
 
   const space: SpaceWithType = {
     id,
@@ -57,11 +63,6 @@ export async function createLocalSpace(
     createdAt: new Date().toISOString(),
     capabilities: [],
   }
-
-  const identityStore = useIdentityStore()
-  await identityStore.loadIdentitiesAsync()
-  const identity = identityStore.ownIdentities.find(i => i.id === ownerIdentityId)
-  if (!identity) throw new Error('Selected owner identity not available')
 
   // Persist the space before MLS stores its FK-backed epoch sync key.
   await db.insert(haexSpaces).values({
@@ -79,6 +80,9 @@ export async function createLocalSpace(
   // Create admin UCAN (must exist before UI renders SpaceListItem)
   if (identity.privateKey) {
     const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, id)
+    if (!(await verifySpaceIdBindingAsync(id, identity.did))) {
+      throw new Error(`space_id binding invariant violated (space=${id})`)
+    }
     await persistUcanAsync(db, id, rootUcan)
   }
 
