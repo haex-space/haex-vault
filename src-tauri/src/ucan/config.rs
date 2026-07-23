@@ -61,7 +61,8 @@ pub const MAX_UCAN_CHAIN_DEPTH_KEY: &str = "max_ucan_chain_depth";
 pub fn read_max_ucan_chain_depth(conn: &Connection) -> u32 {
     conn.query_row(
         "SELECT value FROM haex_vault_settings \
-         WHERE key = ?1 AND device_id IS NULL LIMIT 1",
+         WHERE key = ?1 AND device_id IS NULL \
+         ORDER BY id LIMIT 1",
         [MAX_UCAN_CHAIN_DEPTH_KEY],
         |row| row.get::<_, Option<String>>(0),
     )
