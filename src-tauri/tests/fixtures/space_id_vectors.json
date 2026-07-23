@@ -1,0 +1,33 @@
+{
+  "domain_tag": "haex/space-id/v1",
+  "vectors": [
+    {
+      "name": "did_key_zero_nonce",
+      "root_did": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+      "nonce_hex": "00000000000000000000000000000000",
+      "expected_hash_hex": "b41187a737130cac58f6f845d3522854",
+      "expected_space_id": "1111111111111111PEfdtxz2RacnkxRS2VG9nB"
+    },
+    {
+      "name": "did_key_random_nonce",
+      "root_did": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+      "nonce_hex": "0123456789abcdef0123456789abcdef",
+      "expected_hash_hex": "13c4c20696ffdca8a6d6991b2d5947d0",
+      "expected_space_id": "5SbtwbUjjoALCAfF6gPAnKz36WkxZvjwe4fPx1Y4wcb"
+    },
+    {
+      "name": "different_did_same_nonce_yields_different_hash",
+      "root_did": "did:key:z6MkuFCe3s5eAo3iiVjxkr4Y17H2Uu55T8yg9zC6cnyfyGkK",
+      "nonce_hex": "0123456789abcdef0123456789abcdef",
+      "expected_hash_hex": "7679f4c053a4d8a08bc874312a5b7bae",
+      "expected_space_id": "5SbtwbUjjoALCAfF6gPAnYAzRV4u1qNT7X2fU3ZH72V"
+    },
+    {
+      "name": "same_did_different_nonce_yields_different_hash",
+      "root_did": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+      "nonce_hex": "ffffffffffffffffffffffffffffffff",
+      "expected_hash_hex": "dfe7ee841f00957f66cc329e4e4f37d4",
+      "expected_space_id": "JEKNVnkbo3jma5nREBBJCDjZPc6wVso646DaTAcQYZgP"
+    }
+  ]
+}

@@ -213,14 +213,14 @@ Infrastruktur existiert (Ausstellung mit `prf`, Root-`space/admin`-UCAN). Fehlt:
 Verifikation zur Laufzeit, verankert in der Space-Root.** Drei Bausteine:
 
 1. **Space-Identität self-certifying machen (Phase 0, siehe §6.1):**
-   `space_id = base58(hash(domain_tag ‖ len‖root_did ‖ len‖nonce))`, mit derselben
-   domain-separierten, längen-präfixierten Rahmung wie in §4b (kein bloßes `||`, sonst
-   ist die Zerlegung mehrdeutig). Der Hash ist einwegig — **die `nonce` reist mit** (als
-   Fact/Claim im Root-UCAN bzw. in den Space-Metadaten), sonst kann ein Verifier die
-   Bindung nicht nachrechnen. Verifikation: `root_did` aus der Root-UCAN-Issuer-DID +
-   mitgelieferte `nonce` einsetzen, `space_id` **neu berechnen und vergleichen**. Match →
-   die Wurzel gehört zu genau dieser id; Root-UCAN sonst ungültig. Preimage-Resistenz ist
-   irrelevant, weil dem Verifier beide Bestandteile vorliegen.
+   `space_id = base58btc(nonce ‖ sha256_trunc16(domain_tag ‖ nonce ‖ root_did))` — die
+   16-Byte-Nonce ist **Präfix** der id (self-contained; kein separater Nonce-Transport
+   nötig, kein `nonce`-Fact im Root-UCAN). Verifikation: Nonce aus der id splitten,
+   `root_did` aus der Root-UCAN-Issuer-DID, Hash neu berechnen und mit dem Hash-Teil der
+   id vergleichen. Match → die Wurzel gehört zu genau dieser id; Root-UCAN sonst ungültig.
+   Verify-Signatur ist damit `(space_id, root_did) → bool` — keine Seitenkanal-Daten
+   nötig. `len‖`-Prefixes sind bei fixed-16-Byte-Nonce + trailing DID **nicht**
+   erforderlich (SHA-256-Padding kodiert die Input-Länge intern → Preimage unambiguous).
 2. **`prf`-Kette bei der Verifikation laufen:** Member-Token ← Admin-Delegation ←
    Root-`space/admin`; jede Signatur + Capability-Attenuierung geprüft, Wurzel == gebundene
    Space-Root. Ersetzt das Vertrauen in die `capability`-DB-Spalte. **Gilt für _jeden_
@@ -318,11 +318,15 @@ Defense-in-Depth: signierte Einträge (unfälschbar "wer teilt") + leader-seitig
 
 ### §6.1 space_id-Bindung — GELÖST
 Fehlt heute (Zufalls-UUID). Fix: self-certifying
-`space_id = base58(hash(domain_tag ‖ len‖root_did ‖ len‖nonce))` bei Erstellung
-(`createLocalSpace`/`createOnlineSpace`). Die `nonce` wird **mitgeführt** (Root-UCAN-Fact
-/ Space-Metadaten), damit der Verifier `space_id` aus `root_did` + `nonce` **neu berechnen
-und vergleichen** kann (Hash ist einwegig — ohne mitgeführte `nonce` nicht verifizierbar).
-Verifier prüft so die id↔root-DID-Bindung. Keine Migration (keine Prod-Nutzer).
+`space_id = base58btc(nonce ‖ sha256_trunc16(domain_tag ‖ nonce ‖ root_did))` bei
+Erstellung (`createLocalSpace`/`createOnlineSpace`). Die 16-Byte-Nonce ist **Präfix**
+der id (self-contained: kein separater Nonce-Transport nötig, kein UCAN-Fact). Domain-Tag
+ist ein fester 16-Byte-String `"haex/space-id/v1"` gegen Cross-Protocol-Reuse; Hash
+wird auf 16 Byte gekürzt (128-Bit Second-Preimage-Sicherheit). Encoding: base58btc
+(Bitcoin-Alphabet, ~44 Zeichen). Verifier splittet die Nonce aus der id, rechnet den
+Hash neu und vergleicht — Verify-Signatur ist `(space_id, root_did) → bool`. Keine
+`len‖`-Prefixes nötig (fixed-16-Byte-Nonce + trailing DID + SHA-256-internes Padding
+= unambiguous). Keine Migration (keine Prod-Nutzer).
 
 ### §6.2 Kanonisierung — GELÖST
 Siehe 4b (Domain-Tag + gespeicherte value_bytes).
@@ -351,9 +355,9 @@ Reihenfolge so, dass Sicherheits-Invarianten nie regredieren (Signatur vor gener
 Sync, damit Extension-Daten nie ungeschützt fließen).
 
 - **Phase 0 — Self-certifying space_id.**
-  `space_id = base58(hash(domain_tag ‖ len‖root_did ‖ len‖nonce))`, `nonce` reist mit,
-  Verifier rechnet nach und prüft Bindung. *Fundament für Option 2; ohne dies kein
-  vertrauenswürdiger Anker.*
+  `space_id = base58btc(nonce ‖ sha256_trunc16(domain_tag ‖ nonce ‖ root_did))`;
+  16-Byte-Nonce als Präfix in der id (self-contained). Verifier rechnet nach und prüft
+  Bindung. *Fundament für Option 2; ohne dies kein vertrauenswürdiger Anker.*
 - **Phase 1 — Per-(Spalte, space_id) Autor-Signatur (4b)** auf allen space-scoped Tabellen
   (die 5 Infra-Tabellen + Share-Register zuerst): `haex_column_sigs`, Signieren in
   `execute_with_crdt`, Verifizieren im Apply, `authored_by_did` löschen + Stubs nach Rust.
