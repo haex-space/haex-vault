@@ -53,6 +53,12 @@ export async function createLocalSpace(
 
   const id = spaceId ?? await deriveSpaceIdAsync(identity.did)
 
+  // Invariant: derived space_id must verify against its minting DID.
+  // See ADR 0002 (self-certifying space_id). Contract-guard — never expected to fire.
+  if (!(await verifySpaceIdBindingAsync(id, identity.did))) {
+    throw new Error(`space_id binding invariant violated (space=${id})`)
+  }
+
   const space: SpaceWithType = {
     id,
     name: spaceName,
@@ -80,9 +86,6 @@ export async function createLocalSpace(
   // Create admin UCAN (must exist before UI renders SpaceListItem)
   if (identity.privateKey) {
     const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, id)
-    if (!(await verifySpaceIdBindingAsync(id, identity.did))) {
-      throw new Error(`space_id binding invariant violated (space=${id})`)
-    }
     await persistUcanAsync(db, id, rootUcan)
   }
 
@@ -118,6 +121,12 @@ export async function createOnlineSpace(
 ): Promise<{ id: string }> {
   const spaceId = await deriveSpaceIdAsync(identity.did)
 
+  // Invariant: derived space_id must verify against its minting DID.
+  // See ADR 0002 (self-certifying space_id). Contract-guard — never expected to fire.
+  if (!(await verifySpaceIdBindingAsync(spaceId, identity.did))) {
+    throw new Error(`space_id binding invariant violated (space=${spaceId})`)
+  }
+
   const body = JSON.stringify({ id: spaceId, name: spaceName, label: selfLabel })
   const response = await fetchWithDidAuth(
     `${originUrl}/spaces`,
@@ -142,9 +151,6 @@ export async function createOnlineSpace(
   await invoke('mls_export_epoch_key', { spaceId })
 
   const rootUcan = await createRootUcanAsync(identity.did, identity.privateKey, spaceId)
-  if (!(await verifySpaceIdBindingAsync(spaceId, identity.did))) {
-    throw new Error(`space_id binding invariant violated (space=${spaceId})`)
-  }
   if (db) await persistUcanAsync(db, spaceId, rootUcan)
 
   const { useMlsDelivery } = await import('@/composables/useMlsDelivery')

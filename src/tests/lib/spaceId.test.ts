@@ -61,16 +61,3 @@ describe('spaceId primitive', () => {
     expect(await verifySpaceIdBindingAsync(id2, rootDid)).toBe(true)
   })
 })
-
-describe('spaceId integration', () => {
-  it('createRootUcanAsync stores the derived space_id in its capability', async () => {
-    // The test asserts the property that a derive/verify roundtrip against
-    // a real DID string holds — i.e. the id created for a root UCAN mints
-    // is verifiable by anyone holding only (space_id, root_did). The DB/
-    // Tauri layer is intentionally untouched: the trust root of the chain
-    // is the preimage, not the row on disk.
-    const rootDid = 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK'
-    const spaceId = await deriveSpaceIdAsync(rootDid)
-    expect(await verifySpaceIdBindingAsync(spaceId, rootDid)).toBe(true)
-  })
-})
