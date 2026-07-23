@@ -52,9 +52,8 @@ pub fn verify_space_id_binding(space_id: &str, root_did: &str) -> bool {
         Ok(b) if b.len() == SPACE_ID_BYTES_LEN => b,
         _ => return false,
     };
-    let mut nonce = [0u8; NONCE_LEN];
-    nonce.copy_from_slice(&bytes[..NONCE_LEN]);
-    let expected = compute_hash_part(&nonce, root_did);
+    let nonce: &[u8; NONCE_LEN] = bytes[..NONCE_LEN].try_into().expect("length checked above");
+    let expected = compute_hash_part(nonce, root_did);
     let claimed = &bytes[NONCE_LEN..];
     let mut diff: u8 = 0;
     for i in 0..HASH_LEN {

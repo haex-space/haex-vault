@@ -13,10 +13,7 @@ const ROOT_DID_B: &str = "did:key:z6MkuFCe3s5eAo3iiVjxkr4Y17H2Uu55T8yg9zC6cnyfyG
 
 fn parse_nonce(hex_str: &str) -> [u8; NONCE_LEN] {
     let bytes = hex::decode(hex_str).expect("fixture nonce_hex is valid hex");
-    assert_eq!(bytes.len(), NONCE_LEN, "fixture nonce must be 16 bytes");
-    let mut out = [0u8; NONCE_LEN];
-    out.copy_from_slice(&bytes);
-    out
+    bytes.try_into().expect("fixture nonce must be 16 bytes")
 }
 
 #[test]
