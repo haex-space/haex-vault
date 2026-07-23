@@ -60,6 +60,41 @@ interface VerifyChainResult {
 }
 
 /**
+ * Runtime validator for `VerifyChainResult`. The `invoke<T>` return type is
+ * a bare cast — if Rust returns a malformed shape (IPC drop, refactor drift)
+ * we want a clear early error, not a cryptic TypeError deep in the consumer.
+ * Hand-rolled to avoid pulling in a runtime-validation dep for one shape.
+ */
+const isVerifyChainResult = (v: unknown): v is VerifyChainResult => {
+  if (!v || typeof v !== 'object') return false
+  const r = v as {
+    rowId?: unknown
+    outcome?: { kind?: unknown; rootDid?: unknown; reason?: unknown }
+  }
+  if (typeof r.rowId !== 'string') return false
+  if (!r.outcome || typeof r.outcome !== 'object') return false
+  if (r.outcome.kind === 'ok') return typeof r.outcome.rootDid === 'string'
+  if (r.outcome.kind === 'rejected') return typeof r.outcome.reason === 'string'
+  return false
+}
+
+/**
+ * Ordinal rank for a stored capability string, used to pick the strongest
+ * cached UCAN when a signer has multiple tokens for the same space. The
+ * column stores full `space/*` names; unknown values rank 0 so future
+ * capabilities do not silently outrank current ones.
+ */
+const capabilityRank = (cap: string): number => {
+  switch (cap) {
+    case 'space/read': return 1
+    case 'space/write': return 2
+    case 'space/invite': return 3
+    case 'space/admin': return 4
+    default: return 0
+  }
+}
+
+/**
  * Composite correlation key for a `ColumnChange`. Rust echoes this back
  * via `rowId` on each `VerifyChainResult` so we can pair outcomes with
  * their input changes without maintaining an index map.
@@ -163,9 +198,17 @@ export const verifyPulledChangesAsync = async (
           ),
         )
       // Multiple cached UCANs for a signer is legal (e.g. one per capability
-      // level). We hand the first to Rust; if it rejects, the row is dropped.
-      // A future extension could send all candidates and take the first ok.
-      token = rows[0]?.token ?? null
+      // level). Pick the highest-capability token so a write-scoped change
+      // isn't rejected because a read-only token happened to be picked first
+      // (SQLite row order is otherwise arbitrary without an ORDER BY).
+      const best = rows.reduce<{ token: string; capability: string } | null>(
+        (acc, r) =>
+          !acc || capabilityRank(r.capability) > capabilityRank(acc.capability)
+            ? r
+            : acc,
+        null,
+      )
+      token = best?.token ?? null
       tokenBySigner.set(signerDid, token)
     }
     if (!token) {
@@ -192,6 +235,13 @@ export const verifyPulledChangesAsync = async (
   const results = await invoke<VerifyChainResult[]>('verify_ucan_chain_batch', {
     requests,
   })
+
+  // Guard the IPC boundary: bare `invoke<T>()` is a cast, not validation.
+  // A malformed shape here would otherwise blow up further down with a
+  // cryptic TypeError; fail fast with a clear message instead.
+  if (!Array.isArray(results) || !results.every(isVerifyChainResult)) {
+    throw new Error('verify_ucan_chain_batch returned malformed shape')
+  }
 
   const outcomeById = new Map<string, VerifyOutcome>()
   for (const r of results) outcomeById.set(r.rowId, r.outcome)

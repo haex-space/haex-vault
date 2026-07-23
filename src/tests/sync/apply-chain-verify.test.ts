@@ -172,4 +172,90 @@ describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
     expect(result.rejected).toHaveLength(1)
     expect(result.rejected[0]!.reason).toBe('InvalidRecordSignature')
   })
+
+  it('assigns MissingResult when Rust does not echo the rowId back', async () => {
+    const r1 = change('{"id":"r1"}', 'signer1')
+    // Rust returned an empty result array despite a non-empty request.
+    // This models an IPC drop or a Rust-side bug — the row must be
+    // rejected (never verified) with the synthetic MissingResult reason
+    // so the caller can distinguish it from a Rust-side reject.
+    mockInvoke.mockResolvedValue([])
+
+    const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    expect(result.verified).toHaveLength(0)
+    expect(result.rejected).toHaveLength(1)
+    expect(result.rejected[0]!.reason).toBe('MissingResult')
+  })
+
+  it('picks the highest-capability cached UCAN when multiple exist for a signer', async () => {
+    const r1 = change('{"id":"r1"}', 'signer1')
+    // Signer has both a read AND a write token cached. Without an ORDER BY
+    // the picked row would be arbitrary; the fix ranks by capability so a
+    // write-scoped change is served by the write token.
+    mockDbWhere.mockResolvedValue([
+      { token: 'read-token', capability: 'space/read', expiresAt: 9999999999 },
+      { token: 'write-token', capability: 'space/write', expiresAt: 9999999999 },
+    ])
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
+    ])
+
+    await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'verify_ucan_chain_batch',
+      expect.objectContaining({
+        requests: expect.arrayContaining([
+          expect.objectContaining({ token: 'write-token' }),
+        ]),
+      }),
+    )
+  })
+
+  it('picks admin over write/read/invite regardless of row order', async () => {
+    const r1 = change('{"id":"r1"}', 'signer1')
+    // Rows returned in a scrambled order — admin must still win by rank.
+    mockDbWhere.mockResolvedValue([
+      { token: 'read-token', capability: 'space/read', expiresAt: 9999999999 },
+      { token: 'invite-token', capability: 'space/invite', expiresAt: 9999999999 },
+      { token: 'admin-token', capability: 'space/admin', expiresAt: 9999999999 },
+      { token: 'write-token', capability: 'space/write', expiresAt: 9999999999 },
+    ])
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
+    ])
+
+    await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'verify_ucan_chain_batch',
+      expect.objectContaining({
+        requests: expect.arrayContaining([
+          expect.objectContaining({ token: 'admin-token' }),
+        ]),
+      }),
+    )
+  })
+
+  it('throws when Rust returns a malformed VerifyChainResult shape', async () => {
+    const r1 = change('{"id":"r1"}', 'signer1')
+    // outcome=null violates the IPC contract (must be { kind: 'ok' | 'rejected', ... }).
+    // The bare `invoke<T>()` cast wouldn't catch this — the runtime guard must.
+    mockInvoke.mockResolvedValue([{ rowId: rowKey(r1), outcome: null }])
+
+    await expect(
+      verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write'),
+    ).rejects.toThrow(/malformed shape/)
+  })
+
+  it('throws when Rust returns something that is not an array', async () => {
+    const r1 = change('{"id":"r1"}', 'signer1')
+    // Rust bug or IPC corruption — non-array on the wire.
+    mockInvoke.mockResolvedValue({ error: 'oops' } as unknown as never)
+
+    await expect(
+      verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write'),
+    ).rejects.toThrow(/malformed shape/)
+  })
 })
