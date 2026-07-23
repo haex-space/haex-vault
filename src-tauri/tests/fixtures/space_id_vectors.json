@@ -1,0 +1,33 @@
+{
+  "domain_tag": "haex/space-id/v1",
+  "vectors": [
+    {
+      "name": "did_key_zero_nonce",
+      "root_did": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+      "nonce_hex": "00000000000000000000000000000000",
+      "expected_hash_hex": "TODO_HASH_1",
+      "expected_space_id": "TODO_B58_1"
+    },
+    {
+      "name": "did_key_random_nonce",
+      "root_did": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+      "nonce_hex": "0123456789abcdef0123456789abcdef",
+      "expected_hash_hex": "TODO_HASH_2",
+      "expected_space_id": "TODO_B58_2"
+    },
+    {
+      "name": "different_did_same_nonce_yields_different_hash",
+      "root_did": "did:key:z6MkuFCe3s5eAo3iiVjxkr4Y17H2Uu55T8yg9zC6cnyfyGkK",
+      "nonce_hex": "0123456789abcdef0123456789abcdef",
+      "expected_hash_hex": "TODO_HASH_3",
+      "expected_space_id": "TODO_B58_3"
+    },
+    {
+      "name": "same_did_different_nonce_yields_different_hash",
+      "root_did": "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
+      "nonce_hex": "ffffffffffffffffffffffffffffffff",
+      "expected_hash_hex": "TODO_HASH_4",
+      "expected_space_id": "TODO_B58_4"
+    }
+  ]
+}
