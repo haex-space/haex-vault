@@ -4,12 +4,6 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { decryptCrdtData, verifyRecordSignatureAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
-import {
-  validateUcan,
-  spaceResource,
-  createWebCryptoVerifier,
-  type Capability,
-} from '@haex-space/ucan'
 import { eq, and } from 'drizzle-orm'
 import type { ColumnChange } from '../../tableScanner'
 import { hlcIsNewer } from '@/utils/hlc'
@@ -19,64 +13,148 @@ import { haexUcanTokens } from '~/database/schemas'
 import { requireDb } from '~/stores/vault'
 
 /**
- * Error raised when verification of a pulled change-batch fails.
- *
- * The batch is rejected as a whole on first invalid change — we don't trust
- * any change from a batch where a compromised or misconfigured server has
- * tampered with, forged, or skipped signatures for any entry.
+ * Capability levels understood by the Rust chain-walker
+ * (`src-tauri/src/ucan/verify.rs::CapabilityLevel`, `#[serde(rename_all = "snake_case")]`).
  */
-export class BatchVerificationError extends Error {
-  readonly reason: 'unsigned' | 'invalid-signature' | 'unauthorized'
-  readonly offendingChange: { tableName: string; columnName: string; rowPks: string }
+export type CapabilityLevel = 'read' | 'write' | 'invite' | 'admin'
 
-  constructor(
-    reason: 'unsigned' | 'invalid-signature' | 'unauthorized',
-    offendingChange: ColumnChange,
-    detail: string,
-  ) {
-    super(`Batch rejected (${reason}): ${detail}`)
-    this.name = 'BatchVerificationError'
-    this.reason = reason
-    this.offendingChange = {
-      tableName: offendingChange.tableName,
-      columnName: offendingChange.columnName,
-      rowPks: offendingChange.rowPks,
-    }
+/**
+ * A pulled change that failed verification. `reason` is a stable variant
+ * name — either a `UcanVerifyError` variant surfaced by the Rust chain
+ * walker (`Signature`, `Expired`, `WrongSpace`, `ChainTooDeep`,
+ * `ChainBroken`, `CapabilityEscalation`, `RootNotSelfSigned`,
+ * `RootBindingMismatch`, `RootBindingMalformed`, `MalformedToken`,
+ * `AudienceMismatch`, `EmptyExpectedAudience`, `MissingCapability`,
+ * `InsufficientCapability`, `UnknownCapability`) or one of the synthetic
+ * reasons this TS layer contributes (`Unsigned`, `InvalidRecordSignature`,
+ * `MissingLocalUcan`, `MissingResult`).
+ */
+export interface RejectedChange {
+  rowId: string        // synthetic composite: `${tableName}|${rowPks}|${columnName}|${hlcTimestamp}`
+  tableName: string
+  columnName: string
+  rowPks: string
+  reason: string
+}
+
+// IPC contract — keep in sync with `src-tauri/src/ucan/commands.rs`.
+// Rust structs use `#[serde(rename_all = "camelCase")]`, so field names
+// are camelCase on the wire despite being snake_case in Rust source.
+interface VerifyChainRequest {
+  token: string
+  expectedSpaceId: string
+  expectedAudience: string
+  capabilityNeeded: CapabilityLevel
+  rowId: string
+  tableName: string
+}
+
+type VerifyOutcome =
+  | { kind: 'ok'; rootDid: string }
+  | { kind: 'rejected'; reason: string }
+
+interface VerifyChainResult {
+  rowId: string
+  tableName: string
+  outcome: VerifyOutcome
+}
+
+/**
+ * Runtime validator for `VerifyChainResult`. The `invoke<T>` return type is
+ * a bare cast — if Rust returns a malformed shape (IPC drop, refactor drift)
+ * we want a clear early error, not a cryptic TypeError deep in the consumer.
+ * Hand-rolled to avoid pulling in a runtime-validation dep for one shape.
+ */
+const isVerifyChainResult = (v: unknown): v is VerifyChainResult => {
+  if (!v || typeof v !== 'object') return false
+  const r = v as {
+    rowId?: unknown
+    outcome?: { kind?: unknown; rootDid?: unknown; reason?: unknown }
+  }
+  if (typeof r.rowId !== 'string') return false
+  if (!r.outcome || typeof r.outcome !== 'object') return false
+  if (r.outcome.kind === 'ok') return typeof r.outcome.rootDid === 'string'
+  if (r.outcome.kind === 'rejected') return typeof r.outcome.reason === 'string'
+  return false
+}
+
+/**
+ * Ordinal rank for a stored capability string, used to pick the strongest
+ * cached UCAN when a signer has multiple tokens for the same space. The
+ * column stores full `space/*` names; unknown values rank 0 so future
+ * capabilities do not silently outrank current ones.
+ */
+const capabilityRank = (cap: string): number => {
+  switch (cap) {
+    case 'space/read': return 1
+    case 'space/write': return 2
+    case 'space/invite': return 3
+    case 'space/admin': return 4
+    default: return 0
   }
 }
 
 /**
- * Verifies signatures and UCAN authorization on pulled changes before applying them.
+ * Composite correlation key for a `ColumnChange`. Rust echoes this back
+ * via `rowId` on each `VerifyChainResult` so we can pair outcomes with
+ * their input changes without maintaining an index map.
+ */
+const rowKey = (c: ColumnChange): string =>
+  `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`
+
+const rejectedFrom = (c: ColumnChange, reason: string): RejectedChange => ({
+  rowId: rowKey(c),
+  tableName: c.tableName,
+  columnName: c.columnName,
+  rowPks: c.rowPks,
+  reason,
+})
+
+/**
+ * Verifies signatures + UCAN chains on pulled changes.
  *
- * Two-layer verification:
- *   1. Cryptographic: every change has an Ed25519 signature and `signedBy`, and the signature verifies
- *   2. Authorization (shared spaces only): signer holds a valid `space/write` UCAN or is the root admin
+ * Row-scoped, not batch-scoped: a single poisoned row no longer aborts
+ * the whole page. Each change is sorted into `verified` (safe to apply)
+ * or `rejected` (dropped with a stable reason). Callers apply only
+ * `verified`; the log is written per page via `logRejectedChanges` and
+ * the aggregated toast fires once at the end of the pull via
+ * `surfaceRejectedBatch`.
  *
- * Fails the entire batch on first invalid change — throws `BatchVerificationError`.
- * All data must be signed; there is no pass-through for unsigned records.
+ * Layers:
+ *   0. Layer-0 gate: `signature` and `signedBy` must be present. Missing
+ *      either → reject with `Unsigned`.
+ *   1. Layer-1 (record signature): the Ed25519 signature over
+ *      `(tableName, rowPks, columnName, encryptedValue, hlcTimestamp)`
+ *      must verify against `signedBy`. Broken → reject with
+ *      `InvalidRecordSignature`.
+ *   2. Layer-2 (UCAN chain, shared spaces only): for each surviving
+ *      change, look up any locally-cached UCAN in `haex_ucan_tokens`
+ *      addressed to the signer for this space, then hand the batch to
+ *      Rust's `verify_ucan_chain_batch`. Rust is the single source of
+ *      chain-walking truth — it walks the `prf` chain to a self-signed
+ *      root and verifies the Phase-0 `space_id` binding on that root.
+ *
+ * The old admin fallback (an inline "self-signed root UCAN grants full
+ * authority" TS bypass) has been removed. Even a space owner's root
+ * UCAN must now bind to a self-certifying `space_id` (ADR 0002 §Phase-0)
+ * via the Rust chain walker.
  */
 export const verifyPulledChangesAsync = async (
   changes: ColumnChange[],
-  spaceId?: string,
-): Promise<void> => {
-  if (changes.length === 0) return
+  spaceId: string | undefined,
+  currentIdentityDid: string,
+  capabilityNeeded: CapabilityLevel = 'write',
+): Promise<{ verified: ColumnChange[]; rejected: RejectedChange[] }> => {
+  if (changes.length === 0) return { verified: [], rejected: [] }
 
-  const db = requireDb()
-  const verify = createWebCryptoVerifier()
-
-  // Cache: signedBy public key → { did, authorized } to avoid re-checking per column change
-  const signerCache = new Map<string, { did: string; authorized: boolean }>()
+  const rejected: RejectedChange[] = []
+  const passedLayer1: ColumnChange[] = []
 
   for (const change of changes) {
     if (!change.signature || !change.signedBy) {
-      throw new BatchVerificationError(
-        'unsigned',
-        change,
-        `change ${change.tableName}/${change.columnName} is missing signature or signedBy`,
-      )
+      rejected.push(rejectedFrom(change, 'Unsigned'))
+      continue
     }
-
-    // Layer 1: Cryptographic signature verification
     const isValid = await verifyRecordSignatureAsync(
       {
         tableName: change.tableName,
@@ -88,25 +166,30 @@ export const verifyPulledChangesAsync = async (
       change.signature,
       change.signedBy,
     )
-
     if (!isValid) {
-      throw new BatchVerificationError(
-        'invalid-signature',
-        change,
-        `invalid Ed25519 signature on ${change.tableName}/${change.columnName}`,
-      )
+      rejected.push(rejectedFrom(change, 'InvalidRecordSignature'))
+      continue
     }
+    passedLayer1.push(change)
+  }
 
-    // Layer 2: UCAN authorization check — only for shared spaces
-    if (!spaceId) continue
+  // Non-shared-space pulls (owner-vault sync) stop at layer 1 — no UCAN
+  // chain applies, so anything with a valid record signature is verified.
+  if (!spaceId) return { verified: passedLayer1, rejected }
 
-    let cached = signerCache.get(change.signedBy)
-    if (!cached) {
-      const signerDid = await publicKeyToDidKeyAsync(change.signedBy)
+  // Resolve signer DIDs and cache one UCAN per signer for this space.
+  // A change whose signer has no cached UCAN is rejected outright: we
+  // cannot ask Rust to verify a token we do not possess.
+  const db = requireDb()
+  const tokenBySigner = new Map<string, string | null>()
+  const requests: VerifyChainRequest[] = []
+  const layer1AwaitingRust: ColumnChange[] = []
 
-      // Look up a UCAN where this signer is the audience (was granted access)
-      // and the capability is at least space/write for this space
-      const ucanRows = await db
+  for (const change of passedLayer1) {
+    const signerDid = await publicKeyToDidKeyAsync(change.signedBy!)
+    let token = tokenBySigner.get(signerDid)
+    if (token === undefined) {
+      const rows = await db
         .select()
         .from(haexUcanTokens)
         .where(
@@ -115,52 +198,132 @@ export const verifyPulledChangesAsync = async (
             eq(haexUcanTokens.audienceDid, signerDid),
           ),
         )
-
-      let authorized = false
-      for (const row of ucanRows) {
-        try {
-          const result = await validateUcan(
-            row.token,
-            spaceResource(spaceId),
-            'space/write' as Capability,
-            verify,
-          )
-          if (result.valid) {
-            authorized = true
-            break
-          }
-        } catch {
-          // Token invalid or expired — try next
-        }
-      }
-
-      // Admin fallback: root UCAN where issuer === audience (self-issued by space owner)
-      if (!authorized) {
-        const rootUcans = await db
-          .select()
-          .from(haexUcanTokens)
-          .where(
-            and(
-              eq(haexUcanTokens.spaceId, spaceId),
-              eq(haexUcanTokens.issuerDid, signerDid),
-              eq(haexUcanTokens.audienceDid, signerDid),
-            ),
-          )
-        authorized = rootUcans.length > 0
-      }
-
-      cached = { did: signerDid, authorized }
-      signerCache.set(change.signedBy, cached)
-    }
-
-    if (!cached.authorized) {
-      throw new BatchVerificationError(
-        'unauthorized',
-        change,
-        `signer ${cached.did.slice(0, 24)}... has no valid space/write UCAN for space ${spaceId}`,
+      // Multiple cached UCANs for a signer is legal (e.g. one per capability
+      // level). Pick the highest-capability token so a write-scoped change
+      // isn't rejected because a read-only token happened to be picked first
+      // (SQLite row order is otherwise arbitrary without an ORDER BY).
+      const best = rows.reduce<{ token: string; capability: string } | null>(
+        (acc, r) =>
+          !acc || capabilityRank(r.capability) > capabilityRank(acc.capability)
+            ? r
+            : acc,
+        null,
       )
+      token = best?.token ?? null
+      tokenBySigner.set(signerDid, token)
+    }
+    if (!token) {
+      rejected.push(rejectedFrom(change, 'MissingLocalUcan'))
+      continue
+    }
+    requests.push({
+      token,
+      expectedSpaceId: spaceId,
+      expectedAudience: currentIdentityDid,
+      capabilityNeeded,
+      rowId: rowKey(change),
+      tableName: change.tableName,
+    })
+    layer1AwaitingRust.push(change)
+  }
+
+  if (requests.length === 0) {
+    // Everything either failed layer 1 or had no local UCAN. Rust invoke
+    // would be a no-op.
+    return { verified: [], rejected }
+  }
+
+  const results = await invoke<VerifyChainResult[]>('verify_ucan_chain_batch', {
+    requests,
+  })
+
+  // Guard the IPC boundary: bare `invoke<T>()` is a cast, not validation.
+  // A malformed shape here would otherwise blow up further down with a
+  // cryptic TypeError; fail fast with a clear message instead.
+  if (!Array.isArray(results) || !results.every(isVerifyChainResult)) {
+    throw new Error('verify_ucan_chain_batch returned malformed shape')
+  }
+
+  const outcomeById = new Map<string, VerifyOutcome>()
+  for (const r of results) outcomeById.set(r.rowId, r.outcome)
+
+  const verified: ColumnChange[] = []
+  // Iterate the input-order list so `verified` preserves the arrival
+  // order the applier expects (per-HLC grouping downstream relies on it).
+  for (const change of layer1AwaitingRust) {
+    const outcome = outcomeById.get(rowKey(change))
+    if (!outcome) {
+      rejected.push(rejectedFrom(change, 'MissingResult'))
+      continue
+    }
+    if (outcome.kind === 'ok') {
+      verified.push(change)
+    } else {
+      rejected.push(rejectedFrom(change, outcome.reason))
     }
   }
+
+  return { verified, rejected }
+}
+
+/**
+ * Structured warn log for a `rejected` list from {@link verifyPulledChangesAsync}
+ * (Task 5 contract, unchanged shape).
+ *
+ * Log-only: the user-visible toast is fired separately by the streaming
+ * caller via {@link surfaceRejectedBatch} once per pull batch, so a pull
+ * that spans N pages emits N structured log lines (useful for debugging)
+ * but at most one toast (the aggregate). No-ops on empty input.
+ */
+export const logRejectedChanges = (
+  rejected: RejectedChange[],
+  ctx: { spaceId: string | undefined; backendId: string },
+): void => {
+  if (rejected.length === 0) return
+  log.warn('sync.verification.rows_rejected', {
+    space_id: ctx.spaceId ?? null,
+    backend_id: ctx.backendId,
+    count: rejected.length,
+    rows: rejected.map((r) => ({
+      row_id: r.rowId,
+      table: r.tableName,
+      column: r.columnName,
+      reason: r.reason,
+    })),
+  })
+}
+
+/**
+ * Fires ONE aggregated warning toast for a completed pull batch (Task 6).
+ *
+ * The count is the sum across all pages of the streaming pull, not a single
+ * page — a poisoned pull of 1000 rejects spread over 10 pages surfaces as
+ * one toast with count=1000, never ten stacked toasts. The `{count}`
+ * interpolation carries the volume; the structured log (per page, via
+ * {@link logRejectedChanges}) carries the detail.
+ *
+ * No-op on `count === 0` so callers can unconditionally fire this after a
+ * pull without an outer guard. Empty pulls stay silent.
+ *
+ * i18n keys `sync.verification.rowsRejected{One,Other}` are merged into
+ * the active locale by `useSyncOrchestratorStore` at store init time, so
+ * they are guaranteed to exist by the time a pull runs.
+ */
+export const surfaceRejectedBatch = (
+  _spaceId: string | undefined,
+  count: number,
+): void => {
+  if (count <= 0) return
+  const { add: addToast } = useToast()
+  const { $i18n } = useNuxtApp()
+  const key = count === 1
+    ? 'sync.verification.rowsRejectedOne'
+    : 'sync.verification.rowsRejectedOther'
+  addToast({
+    title: $i18n.t(key, { count }) as string,
+    color: 'warning',
+    icon: 'i-lucide-shield-alert',
+  })
 }
 
 /**

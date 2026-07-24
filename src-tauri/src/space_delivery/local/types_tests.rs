@@ -11,6 +11,7 @@ fn connected_peer_carries_validated_ucan() {
         audience: "did:key:zPeer".into(),
         capabilities,
         expires_at: 9999999999,
+        root_did: "did:key:zRoot".into(),
     };
     let peer = ConnectedPeer {
         endpoint_id: "ep".into(),

@@ -1,5 +1,3 @@
-use ed25519_dalek::SigningKey;
-
 use super::helpers::*;
 
 #[tokio::test]
@@ -16,9 +14,10 @@ async fn pipe_reader_to_send_cancelled_token_aborts_upload() {
     let src_path = src_dir.path().join("cancel_payload.bin");
     tokio::fs::write(&src_path, &payload).await.unwrap();
 
-    let seed: [u8; 32] = rand::random();
-    let write_signer = SigningKey::from_bytes(&seed);
-    let write_token = write_ucan(&write_signer, "test-space", &h.client_did);
+    // Reuse the harness's Space-Root signer + space_id so the write UCAN's
+    // chain walk resolves to a root DID that binds to the same space the
+    // server registered `share_name` under.
+    let write_token = write_ucan(&h.ucan_root_signer, &h.space_id, &h.client_did);
 
     let token = tokio_util::sync::CancellationToken::new();
     token.cancel();

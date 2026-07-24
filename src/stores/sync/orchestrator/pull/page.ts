@@ -8,7 +8,7 @@ import type { ColumnChange } from '../../tableScanner'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log } from '../types'
-import { applyPageAsync, verifyPulledChangesAsync } from './apply'
+import { applyPageAsync, verifyPulledChangesAsync, logRejectedChanges, surfaceRejectedBatch } from './apply'
 
 /**
  * Fetches ONE page of changes from the server. Stable pagination uses a
@@ -121,6 +121,17 @@ export interface StreamPullResult {
 export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<StreamPullResult> => {
   const { homeServerUrl, spaceId, initialCursor, encryptionKey, backendId, backendIdentityId, federation, onPageCommitted } = opts
 
+  // Resolve the current backend identity DID up front — this is the
+  // `expected_audience` for every UCAN in this pull. Batching amortises
+  // the identity-store lookup across all pages.
+  let currentIdentityDid = ''
+  if (backendIdentityId) {
+    const identityStore = useIdentityStore()
+    const id = await identityStore.getIdentityByIdAsync(backendIdentityId)
+    if (id?.did) currentIdentityDid = id.did
+  }
+  if (!currentIdentityDid) throw new Error('No identity configured for this backend')
+
   let cursor: string | null = initialCursor
   let cursorTableName: string | null = null
   let cursorRowPks: string | null = null
@@ -131,8 +142,15 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
   let totalApplied = 0
   let maxHlc = ''
   let lastServerTimestamp: string | null = initialCursor
+  // Accumulator across pages: sum of `rejected.length` from every page. The
+  // toast fires ONCE after the loop with this total, so a pull that spans N
+  // pages emits at most one toast instead of N stacked ones. On early
+  // exit (throw/break) the try/finally below still surfaces whatever was
+  // accumulated so far — the user is not silently kept in the dark.
+  let totalRejected = 0
 
   log.info('Streaming pull-and-apply from server...')
+  try {
   while (hasMore) {
     pageCount++
 
@@ -171,15 +189,24 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
       break
     }
 
-    // Verify signatures+UCAN on this page. A bad change aborts the whole
-    // stream — the outer caller leaves the cursor wherever the last successful
-    // page committed it (or unchanged for the initial-pull path).
-    await verifyPulledChangesAsync(page.changes, spaceId)
+    // Verify signatures+UCAN on this page. Row-scoped: a poisoned row is
+    // dropped from `verified` and logged in `rejected`; the rest of the
+    // page still applies and the cursor still advances. Log rejections
+    // per page (machine-readable channel, Task 5); the aggregated toast
+    // fires once at the end of the pull via `surfaceRejectedBatch`.
+    const { verified, rejected } = await verifyPulledChangesAsync(
+      page.changes,
+      spaceId,
+      currentIdentityDid,
+      'write',
+    )
+    totalRejected += rejected.length
+    logRejectedChanges(rejected, { spaceId, backendId })
 
-    for (const c of page.changes) tablesAffected.add(c.tableName)
+    for (const c of verified) tablesAffected.add(c.tableName)
 
     const result = await applyPageAsync({
-      page: page.changes,
+      page: verified,
       otherHoldBack,
       hasMore,
       encryptionKey,
@@ -189,7 +216,7 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
     otherHoldBack = result.holdBack
     if (hlcIsNewer(result.pageMaxHlc, maxHlc)) maxHlc = result.pageMaxHlc
 
-    totalApplied += page.changes.length
+    totalApplied += verified.length
 
     if (onPageCommitted) await onPageCommitted(page.serverTimestamp)
 
@@ -197,6 +224,12 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
     cursor = page.serverTimestamp
     cursorTableName = page.lastTableName
     cursorRowPks = page.lastRowPks
+  }
+  } finally {
+    // Surface the aggregate ONCE — normal exit, `break` (stall guard), or a
+    // throw from `applyPageAsync`. `surfaceRejectedBatch` no-ops on 0, so
+    // clean pulls stay silent.
+    surfaceRejectedBatch(spaceId, totalRejected)
   }
 
   return { totalApplied, pageCount, tablesAffected, maxHlc, lastServerTimestamp }

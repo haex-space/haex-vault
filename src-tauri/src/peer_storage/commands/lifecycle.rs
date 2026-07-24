@@ -55,6 +55,20 @@ pub async fn peer_storage_start(
         crate::space_delivery::local::dos_defence::config::DosDefenceConfig::load(&state.db);
     endpoint.set_dos_config(dos_config).await;
 
+    // Snapshot the UCAN chain-walk depth cap from `haex_vault_settings`.
+    // Same snapshot-at-start stance as `set_dos_config`: a config edit
+    // during a live session is picked up on the next endpoint restart.
+    // Read via raw rusqlite through `with_connection` — the depth cap is
+    // security-critical and reads bypass `select_with_crdt` so a
+    // tombstoned/shadow row cannot silently weaken the verifier.
+    let max_ucan_chain_depth = crate::database::core::with_connection(&state.db, |conn| {
+        Ok(crate::ucan::read_max_ucan_chain_depth(conn))
+    })
+    .unwrap_or(crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT);
+    endpoint
+        .set_max_ucan_chain_depth(max_ucan_chain_depth)
+        .await;
+
     // Phase 3 runtime auto-install is intentionally NOT wired here yet —
     // the e2e workflows shard regressed on PR #562's first wiring attempt
     // (`owner-sync-vault-copy.spec.ts:98`, `owner-sync-delete-convergence

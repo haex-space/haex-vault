@@ -262,5 +262,6 @@ pub(crate) fn make_ucan(audience: &str, space_id: &str, level: CapabilityLevel) 
         audience: audience.to_string(),
         capabilities,
         expires_at: u64::MAX,
+        root_did: "did:key:zRoot".to_string(),
     }
 }

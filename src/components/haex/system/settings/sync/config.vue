@@ -97,6 +97,43 @@
     <!-- Divider -->
     <USeparator class="my-6" />
 
+    <!-- Verification Section -->
+    <div class="space-y-4">
+      <h3 class="text-sm font-semibold text-highlighted uppercase tracking-wide">
+        {{ t('config.verification.heading') }}
+      </h3>
+      <p class="text-sm text-muted">
+        {{ t('config.verification.description') }}
+      </p>
+      <label class="block text-sm font-medium mb-2" for="max-ucan-chain-depth">
+        {{ t('config.maxUcanChainDepth.label') }}
+      </label>
+      <div class="flex items-center gap-3">
+        <UInput
+          id="max-ucan-chain-depth"
+          v-model.number="maxUcanChainDepth"
+          type="number"
+          :min="MAX_UCAN_CHAIN_DEPTH_MIN"
+          :max="MAX_UCAN_CHAIN_DEPTH_MAX"
+          :step="1"
+          class="w-24"
+        />
+      </div>
+      <p class="text-xs text-muted mt-2">
+        {{ t('config.maxUcanChainDepth.hint', { min: MAX_UCAN_CHAIN_DEPTH_MIN, max: MAX_UCAN_CHAIN_DEPTH_MAX }) }}
+      </p>
+      <UButton
+        v-if="maxUcanChainDepth !== syncConfig.maxUcanChainDepth"
+        class="mt-2"
+        @click="saveMaxUcanChainDepthAsync"
+      >
+        {{ t('config.save') }}
+      </UButton>
+    </div>
+
+    <!-- Divider -->
+    <USeparator class="my-6" />
+
     <!-- P2P Network Section -->
     <div class="space-y-4">
       <h3 class="text-sm font-semibold text-highlighted uppercase tracking-wide">
@@ -184,6 +221,10 @@
 <script setup lang="ts">
 import { and, eq } from 'drizzle-orm'
 import { haexVaultSettings } from '~/database/schemas'
+import {
+  MAX_UCAN_CHAIN_DEPTH_MAX,
+  MAX_UCAN_CHAIN_DEPTH_MIN,
+} from '~/stores/sync/config'
 
 defineEmits<{ back: [] }>()
 
@@ -201,6 +242,45 @@ const db = requireDb()
 const activeConfigTab = ref('continuous')
 const continuousDebounceSec = ref(syncConfig.value.continuousDebounceMs / 1000)
 const periodicIntervalMin = ref(syncConfig.value.periodicIntervalMs / 60000)
+
+// --- Verification config ---
+const maxUcanChainDepth = ref(syncConfig.value.maxUcanChainDepth)
+
+// Keep the local input in sync when the store loads a persisted value after
+// mount (or when another surface writes a new value into the store).
+watch(
+  () => syncConfig.value.maxUcanChainDepth,
+  (v) => {
+    maxUcanChainDepth.value = v
+  },
+)
+
+const saveMaxUcanChainDepthAsync = async () => {
+  const n = Number(maxUcanChainDepth.value)
+  if (
+    !Number.isInteger(n) ||
+    n < MAX_UCAN_CHAIN_DEPTH_MIN ||
+    n > MAX_UCAN_CHAIN_DEPTH_MAX
+  ) {
+    add({
+      color: 'error',
+      description: t('config.maxUcanChainDepth.rangeError', {
+        min: MAX_UCAN_CHAIN_DEPTH_MIN,
+        max: MAX_UCAN_CHAIN_DEPTH_MAX,
+      }),
+    })
+    // Snap the input back to the last saved value.
+    maxUcanChainDepth.value = syncConfig.value.maxUcanChainDepth
+    return
+  }
+  try {
+    await syncConfigStore.saveConfigAsync({ maxUcanChainDepth: n })
+    add({ color: 'success', description: t('config.saveSuccess') })
+  } catch (error) {
+    console.error('Failed to save max UCAN chain depth setting:', error)
+    add({ color: 'error', description: t('config.saveError') })
+  }
+}
 
 const configTabItems = computed(() => [
   {
@@ -418,6 +498,13 @@ de:
     units:
       seconds: Sekunden
       minutes: Minuten
+    verification:
+      heading: Verifikation
+      description: Kontrolliert, wie beim Sync eingehende UCAN-Delegations-Ketten geprüft werden.
+    maxUcanChainDepth:
+      label: Max UCAN-Delegations-Tiefe
+      hint: 'Wie tief UCAN-Delegations-Ketten beim Sync verifiziert werden. Höher = flexiblere Sub-Delegation; sehr hohe Werte sind DoS-anfälliger. Standard: 5. Bereich: {min}–{max}.'
+      rangeError: 'Wert muss zwischen {min} und {max} liegen.'
     p2p:
       heading: P2P-Netzwerk
       description: Verschlüsselte Peer-to-Peer-Verbindung zu anderen Geräten
@@ -466,6 +553,13 @@ en:
     units:
       seconds: seconds
       minutes: minutes
+    verification:
+      heading: Verification
+      description: Controls how incoming UCAN delegation chains are verified during sync.
+    maxUcanChainDepth:
+      label: Max UCAN Delegation Depth
+      hint: 'How deeply UCAN delegation chains are verified during sync. Higher = more flexible sub-delegation; very high values are more DoS-prone. Default: 5. Range: {min}–{max}.'
+      rangeError: 'Value must be between {min} and {max}.'
     p2p:
       heading: P2P Network
       description: Encrypted peer-to-peer connection to other devices

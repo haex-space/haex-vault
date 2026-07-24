@@ -12,7 +12,9 @@ use haex_vault_lib::peer_storage::endpoint::{OwnIdentity, PeerEndpoint};
 use haex_vault_lib::peer_storage::protocol::{self, Request, Response, ALPN};
 use haex_vault_lib::quic_did_auth;
 use haex_vault_lib::space_delivery::local::dos_defence::config::DosDefenceConfig;
+use haex_vault_lib::ucan::space_id::{derive_space_id, NONCE_LEN};
 use iroh::Endpoint;
+use sha2::{Digest, Sha256};
 
 /// Phase 2 DoS-defence caps would otherwise trip these tests in
 /// unrelated ways — L1 per-source cap (10 conn/sec) flags any rapid
@@ -42,6 +44,47 @@ pub(super) static SHARED_TEST_KEY: LazyLock<SigningKey> = LazyLock::new(|| {
     let seed: [u8; 32] = rand::random();
     SigningKey::from_bytes(&seed)
 });
+
+/// Space-Root key used to anchor every self-certifying `space_id` in this
+/// suite. Independent of `SHARED_TEST_KEY` (the client's identity) so the
+/// two-hop UCAN chain is a real delegation (root -> client) rather than a
+/// self-issued token. Phase 2 `walk_prf_chain` requires the leaf's `iss`
+/// to appear as a self-signed root somewhere up the `prf` chain and the
+/// `space_id` to bind back to that root's DID.
+pub(super) static SHARED_ROOT_KEY: LazyLock<SigningKey> = LazyLock::new(|| {
+    let seed: [u8; 32] = rand::random();
+    SigningKey::from_bytes(&seed)
+});
+
+/// DID of `SHARED_ROOT_KEY`. Every self-certifying `space_id` derived via
+/// [`test_space_id`] embeds `sha256_16(domain || nonce || SHARED_ROOT_DID)`.
+pub(super) static SHARED_ROOT_DID: LazyLock<String> = LazyLock::new(|| {
+    let vk = SHARED_ROOT_KEY.verifying_key();
+    let mut bytes = Vec::with_capacity(34);
+    bytes.extend_from_slice(&ED25519_MULTICODEC);
+    bytes.extend_from_slice(vk.as_bytes());
+    format!("did:key:z{}", bs58::encode(bytes).into_string())
+});
+
+/// Map a stable, human-readable label (e.g. `"space-1"`, `"tier-basic"`)
+/// to a self-certifying `space_id` anchored at `SHARED_ROOT_DID`. Callers
+/// that reference the "same" logical space must use the same label so
+/// `add_share`, `allowed_peers`, and the UCAN's `cap` all agree.
+///
+/// The nonce is derived deterministically from the label via `sha256(label)`
+/// truncated to `NONCE_LEN` so the same label produces the same `space_id`
+/// across every call within the test process.
+///
+/// The nonce is materialised directly from the hash slice via `try_into`
+/// (never a zero-init buffer that's later overwritten) so CodeQL doesn't
+/// flag the local as a hardcoded cryptographic value.
+pub(super) fn test_space_id(label: &str) -> String {
+    let hash = Sha256::digest(label.as_bytes());
+    let nonce: [u8; NONCE_LEN] = hash[..NONCE_LEN]
+        .try_into()
+        .expect("sha256 output is 32 bytes, NONCE_LEN <= 32");
+    derive_space_id(&SHARED_ROOT_DID, &nonce)
+}
 
 /// Build an OwnIdentity backed by `SHARED_TEST_KEY`.
 pub(super) fn test_client_identity() -> OwnIdentity {
@@ -108,16 +151,31 @@ pub(super) async fn install_test_identities_full(
     client_identity
 }
 
-/// Test UCAN token generator — creates a valid signed token for one or more spaces.
-pub(super) fn test_ucan_token(space_id: &str) -> String {
-    test_ucan_token_for(&[space_id])
+/// Test UCAN token generator — creates a valid two-hop chain for a single
+/// space label. See [`test_ucan_token_for`] for the multi-space variant.
+pub(super) fn test_ucan_token(label: &str) -> String {
+    test_ucan_token_for(&[label])
 }
 
-/// Multi-space variant of [`test_ucan_token`]. The peer-storage handler now
-/// gates each request on the intersection of the UCAN's claimed spaces and
-/// the peer's allowed_spaces, so tests that operate on multiple spaces in
-/// a single connection must present a UCAN that covers them all.
-pub(super) fn test_ucan_token_for(space_ids: &[&str]) -> String {
+/// Multi-space variant of [`test_ucan_token`].
+///
+/// Builds the two-hop UCAN chain required by Phase 2 `walk_prf_chain`:
+///
+/// - Root: `iss = aud = SHARED_ROOT_DID`, `cap = space/admin` for each
+///   `test_space_id(label)`, `prf = []` — the self-signed Space-Root the
+///   walker terminates on.
+/// - Leaf: `iss = SHARED_ROOT_DID`, `aud = SHARED_TEST_KEY.did` (the
+///   client), same capabilities, `prf = [root_token]` — the delegated grant
+///   the server actually receives.
+///
+/// Both tokens are signed by `SHARED_ROOT_KEY` and every `space_id` is
+/// derived from `SHARED_ROOT_DID`, so `verify_space_id_binding` accepts the
+/// terminal root.
+///
+/// Callers pass logical labels (e.g. `"space-1"`); [`test_space_id`] maps
+/// them to their self-certifying encodings and the same mapping is used by
+/// [`setup_server_client`] and [`send_read_request_for_space`].
+pub(super) fn test_ucan_token_for(labels: &[&str]) -> String {
     use base64::Engine;
     use ed25519_dalek::Signer;
 
@@ -126,43 +184,59 @@ pub(super) fn test_ucan_token_for(space_ids: &[&str]) -> String {
         base64::engine::general_purpose::NO_PAD,
     );
 
-    let vk = SHARED_TEST_KEY.verifying_key();
-    let multicodec: [u8; 2] = [0xed, 0x01];
-    let mut key_bytes = Vec::with_capacity(34);
-    key_bytes.extend_from_slice(&multicodec);
-    key_bytes.extend_from_slice(vk.as_bytes());
-    let did = format!("did:key:z{}", bs58::encode(&key_bytes).into_string());
+    let root_did: &str = &SHARED_ROOT_DID;
+    let client_did = test_client_identity().did;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
 
-    let cap: serde_json::Map<String, serde_json::Value> = space_ids
+    // `cap` covers every requested label; the same map is reused in the
+    // root grant and the leaf delegation so the leaf never exceeds the
+    // root's rights (a hard requirement of the Phase 2 walker).
+    let cap: serde_json::Map<String, serde_json::Value> = labels
         .iter()
-        .map(|s| {
+        .map(|label| {
             (
-                format!("space:{}", s),
+                format!("space:{}", test_space_id(label)),
                 serde_json::Value::String("space/admin".into()),
             )
         })
         .collect();
+
     let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
-    let payload = serde_json::json!({
+    let h = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
+
+    // Root: self-signed by SHARED_ROOT_KEY, iss == aud == SHARED_ROOT_DID.
+    let root_payload = serde_json::json!({
         "ucv": "1.0",
-        "iss": did,
-        "aud": did,
+        "iss": root_did,
+        "aud": root_did,
         "cap": cap,
         "exp": now + 86400,
         "iat": now,
         "prf": [],
-        "nnc": "test"
+        "nnc": "test-root"
     });
+    let p_root = BASE64URL.encode(serde_json::to_string(&root_payload).unwrap().as_bytes());
+    let sig_root = SHARED_ROOT_KEY.sign(format!("{h}.{p_root}").as_bytes());
+    let root_token = format!("{h}.{p_root}.{}", BASE64URL.encode(sig_root.to_bytes()));
 
-    let h = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
-    let p = BASE64URL.encode(serde_json::to_string(&payload).unwrap().as_bytes());
-    let sig = SHARED_TEST_KEY.sign(format!("{h}.{p}").as_bytes());
-    format!("{h}.{p}.{}", BASE64URL.encode(sig.to_bytes()))
+    // Leaf: signed by SHARED_ROOT_KEY, delegated to the shared client DID.
+    let leaf_payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": root_did,
+        "aud": client_did,
+        "cap": cap,
+        "exp": now + 86400,
+        "iat": now,
+        "prf": [root_token],
+        "nnc": "test-leaf"
+    });
+    let p_leaf = BASE64URL.encode(serde_json::to_string(&leaf_payload).unwrap().as_bytes());
+    let sig_leaf = SHARED_ROOT_KEY.sign(format!("{h}.{p_leaf}").as_bytes());
+    format!("{h}.{p_leaf}.{}", BASE64URL.encode(sig_leaf.to_bytes()))
 }
 
 // =============================================================================
@@ -239,13 +313,15 @@ pub(super) async fn send_read_request(
     send_read_request_for_space(client_ep, server_addr, path, range, "space-1").await
 }
 
-/// Like `send_read_request`, but with a custom space ID for the UCAN token.
+/// Like `send_read_request`, but with an explicit space label for the UCAN
+/// token. `label` is mapped through [`test_space_id`] so it matches what
+/// [`setup_server_client`] registered for the same label.
 pub(super) async fn send_read_request_for_space(
     client_ep: &Endpoint,
     server_addr: iroh::EndpointAddr,
     path: &str,
     range: Option<[u64; 2]>,
-    space_id: &str,
+    label: &str,
 ) -> Result<(Response, Vec<u8>), String> {
     let conn = connect_and_handshake(client_ep, server_addr).await?;
 
@@ -257,7 +333,7 @@ pub(super) async fn send_read_request_for_space(
     let request = Request::Read {
         path: path.to_string(),
         range,
-        ucan_token: test_ucan_token(space_id),
+        ucan_token: test_ucan_token(label),
     };
     let req_bytes = protocol::encode_request(&request).map_err(|e| format!("encode: {e}"))?;
     send.write_all(&req_bytes)
@@ -280,11 +356,17 @@ pub(super) async fn send_read_request_for_space(
 }
 
 /// Set up a server with a temp dir containing test files, allow a client, return everything.
+///
+/// `space_label` is a human-readable label; the server registers the share
+/// under `test_space_id(space_label)` and grants the client access to the
+/// same derived id. Callers pass the identical label to
+/// [`test_ucan_token`] / [`send_read_request_for_space`] so the UCAN's
+/// `cap` claim matches the server's expectation.
 pub(super) async fn setup_server_client(
     files: &[(&str, &[u8])],
     dirs: &[&str],
     share_name: &str,
-    space_id: &str,
+    space_label: &str,
 ) -> (
     PeerEndpoint,
     PeerEndpoint,
@@ -311,19 +393,21 @@ pub(super) async fn setup_server_client(
         std::fs::write(tmp.path().join(path), content).unwrap();
     }
 
+    let space_id = test_space_id(space_label);
+
     server
         .add_share(
             "share-1".to_string(),
             share_name.to_string(),
             tmp.path().to_string_lossy().to_string(),
-            space_id.to_string(),
+            space_id.clone(),
         )
         .await;
 
     // Allow client + matching DID expectation for the Layer 1.5 cross-check.
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
-    spaces.insert(space_id.to_string());
+    spaces.insert(space_id);
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();

@@ -13,7 +13,7 @@ import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../../syncEvents'
 import type { PendingColumn } from '@bindings/PendingColumn'
 import { streamPullAndApplyAsync } from './page'
-import { applyRemoteChangesInTransactionAsync, verifyPulledChangesAsync } from './apply'
+import { applyRemoteChangesInTransactionAsync, verifyPulledChangesAsync, logRejectedChanges, surfaceRejectedBatch } from './apply'
 
 /**
  * Resolves the initial cursor for a pull cycle, applying the pending-tables
@@ -266,6 +266,7 @@ export const pullPendingColumnsAsync = async (
 
   // Step 2: Pull data for each column from server (with pagination)
   let totalPulled = 0
+  let totalRejected = 0
 
   for (const pendingCol of pendingColumns) {
     log.info(`Pulling data for column: ${pendingCol.tableName}.${pendingCol.columnName}`)
@@ -317,14 +318,31 @@ export const pullPendingColumnsAsync = async (
       log.debug(`Fetched ${changes.length} changes for ${pendingCol.tableName}.${pendingCol.columnName} (total: ${allChanges.length}, hasMore: ${hasMore})`)
     }
 
-    // Step 3: Verify signatures + UCAN authorization, then apply.
-    // A BatchVerificationError here aborts pullPendingColumnsAsync before clear_pending_column
-    // runs, so this pending column stays flagged for retry on the next pull.
+    // Step 3: Verify signatures + UCAN chain (row-scoped), then apply
+    // only the verified subset. Rejected rows are logged immediately;
+    // their count is accumulated into `totalRejected` and surfaced ONCE
+    // after the pending-column loop, so a pull that poisons N columns
+    // shows a single aggregated toast rather than N stacked ones
+    // (matches `page.ts`'s try/finally aggregation pattern). It does
+    // NOT abort the pending-column apply — the column is still cleared
+    // afterwards, so we don't re-pull the same poisoned rows on every
+    // cycle. If ALL rows were rejected there is nothing to apply,
+    // which is still success as far as the pending-column tracker is
+    // concerned.
     if (allChanges.length > 0) {
-      await verifyPulledChangesAsync(allChanges, spaceId)
-      log.info(`Applying ${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
-      await applyRemoteChangesInTransactionAsync(allChanges, vaultKey, backendId, spaceId)
-      totalPulled += allChanges.length
+      const { verified, rejected } = await verifyPulledChangesAsync(
+        allChanges,
+        spaceId,
+        identity.did,
+        'write',
+      )
+      logRejectedChanges(rejected, { spaceId, backendId })
+      totalRejected += rejected.length
+      if (verified.length > 0) {
+        log.info(`Applying ${verified.length}/${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
+        await applyRemoteChangesInTransactionAsync(verified, vaultKey, backendId, spaceId)
+        totalPulled += verified.length
+      }
     }
 
     // Step 4: Clear this pending column from tracking table
@@ -336,5 +354,6 @@ export const pullPendingColumnsAsync = async (
   }
 
   log.info(`Finished pulling pending columns. Total changes applied: ${totalPulled}`)
+  surfaceRejectedBatch(spaceId, totalRejected)
   return totalPulled
 }

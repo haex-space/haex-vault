@@ -20,13 +20,13 @@ async fn share_removed_while_client_browsing() {
             "s1".to_string(),
             "Volatile".to_string(),
             tmp.path().to_string_lossy().to_string(),
-            "space-1".to_string(),
+            test_space_id("space-1"),
         )
         .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
-    spaces.insert("space-1".to_string());
+    spaces.insert(test_space_id("space-1"));
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();

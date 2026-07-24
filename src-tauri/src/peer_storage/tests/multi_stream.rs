@@ -212,7 +212,7 @@ async fn multi_stream_chunk_hash_mismatch_exhausts_retries_and_preserves_partial
     tokio::fs::write(&file_path, &ramp).await.unwrap();
 
     let share_name = "media".to_string();
-    let space_id = "test-space".to_string();
+    let (ucan_signer, space_id) = mint_test_root_and_space();
 
     let mut server = PeerEndpoint::new_ephemeral();
     server.set_random_test_identity();
@@ -247,8 +247,6 @@ async fn multi_stream_chunk_hash_mismatch_exhausts_retries_and_preserves_partial
         .await
         .expect("client → server connect");
 
-    let seed: [u8; 32] = rand::random();
-    let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
     let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
     let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
 
@@ -364,7 +362,7 @@ async fn multi_stream_verified_clean_download_clears_sidecar() {
     tokio::fs::write(&file_path, &ramp).await.unwrap();
 
     let share_name = "media".to_string();
-    let space_id = "test-space".to_string();
+    let (ucan_signer, space_id) = mint_test_root_and_space();
 
     let mut server = PeerEndpoint::new_ephemeral();
     server.set_random_test_identity();
@@ -399,8 +397,6 @@ async fn multi_stream_verified_clean_download_clears_sidecar() {
         .await
         .expect("client → server connect");
 
-    let seed: [u8; 32] = rand::random();
-    let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
     let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
     let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
 
@@ -496,7 +492,7 @@ async fn multi_stream_resumes_across_invocations() {
     tokio::fs::write(&file_path, &ramp).await.unwrap();
 
     let share_name = "media".to_string();
-    let space_id = "test-space".to_string();
+    let (ucan_signer, space_id) = mint_test_root_and_space();
 
     let mut server = PeerEndpoint::new_ephemeral();
     server.set_random_test_identity();
@@ -531,8 +527,6 @@ async fn multi_stream_resumes_across_invocations() {
         .await
         .expect("client → server connect");
 
-    let seed: [u8; 32] = rand::random();
-    let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
     let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
     let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
 
@@ -653,7 +647,7 @@ async fn multi_stream_resume_ignores_sidecar_with_drifting_chunk_size() {
     tokio::fs::write(&file_path, &ramp).await.unwrap();
 
     let share_name = "media".to_string();
-    let space_id = "test-space".to_string();
+    let (ucan_signer, space_id) = mint_test_root_and_space();
 
     let mut server = PeerEndpoint::new_ephemeral();
     server.set_random_test_identity();
@@ -688,8 +682,6 @@ async fn multi_stream_resume_ignores_sidecar_with_drifting_chunk_size() {
         .await
         .expect("client → server connect");
 
-    let seed: [u8; 32] = rand::random();
-    let ucan_signer = ed25519_dalek::SigningKey::from_bytes(&seed);
     let ucan = read_ucan(&ucan_signer, &space_id, &client_did);
     let client = std::sync::Arc::new(tokio::sync::RwLock::new(client_inner));
 

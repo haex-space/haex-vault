@@ -11,6 +11,7 @@
 //! plugin via the `AppHandle` stored in `PeerState`.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -21,6 +22,7 @@ use ed25519_dalek::SigningKey;
 
 use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
 use crate::space_delivery::local::dos_defence::tracker::RejectRateTracker;
+use crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT;
 
 /// Sliding-window length used by the Phase 2 pre-auth accept tracker. The
 /// configured rates are expressed per-second (`l1_global_rate_per_sec`,
@@ -164,6 +166,18 @@ pub struct PeerState {
     /// auto-escalation).
     pub dos_runtime:
         Option<Arc<crate::space_delivery::local::dos_defence::state::DosDefenceRuntime>>,
+    /// Cached `max_ucan_chain_depth` for the `validate_token` chain-walker
+    /// in `handlers::dispatch::handle_stream`. Snapshotted once by
+    /// `peer_storage_start` from `haex_vault_settings` (see
+    /// [`crate::ucan::read_max_ucan_chain_depth`]) so per-request
+    /// verification never has to grab the DB mutex on the hot path.
+    ///
+    /// `Arc<AtomicUsize>` mirrors [`Self::dos_config`]'s Arc-wrapped shape:
+    /// the same value is read by every accept-loop task; wrapping in `Arc`
+    /// keeps per-request access to a single pointer load.
+    /// Set via [`PeerEndpoint::set_max_ucan_chain_depth`]; defaults to
+    /// [`crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT`] until set.
+    pub max_ucan_chain_depth: Arc<AtomicUsize>,
 }
 
 impl Default for PeerState {
@@ -179,6 +193,7 @@ impl Default for PeerState {
             dos_config: Arc::new(DosDefenceConfig::defaults()),
             accept_tracker: Arc::new(RejectRateTracker::new(ACCEPT_TRACKER_WINDOW)),
             dos_runtime: None,
+            max_ucan_chain_depth: Arc::new(AtomicUsize::new(MAX_UCAN_CHAIN_DEPTH_DEFAULT as usize)),
         }
     }
 }

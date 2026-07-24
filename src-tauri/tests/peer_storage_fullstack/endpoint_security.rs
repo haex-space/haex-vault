@@ -27,7 +27,7 @@ async fn leaked_endpoint_id_cannot_access_files() {
             "s1".to_string(),
             "Secrets".to_string(),
             tmp.path().to_string_lossy().to_string(),
-            "private-space".to_string(),
+            test_space_id("private-space"),
         )
         .await;
 
@@ -36,7 +36,7 @@ async fn leaked_endpoint_id_cannot_access_files() {
     // is closed at the accept gate before the handshake even starts.
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
-    spaces.insert("private-space".to_string());
+    spaces.insert(test_space_id("private-space"));
     allowed.insert(legitimate.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();
@@ -160,7 +160,7 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
             "pub".to_string(),
             "PublicDocs".to_string(),
             tmp_pub.path().to_string_lossy().to_string(),
-            "space-public".to_string(),
+            test_space_id("space-public"),
         )
         .await;
     server
@@ -168,13 +168,13 @@ async fn space_a_peer_cannot_access_space_b_by_any_means() {
             "priv".to_string(),
             "InternalOps".to_string(),
             tmp_priv.path().to_string_lossy().to_string(),
-            "space-internal".to_string(),
+            test_space_id("space-internal"),
         )
         .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
-    spaces.insert("space-public".to_string());
+    spaces.insert(test_space_id("space-public"));
     allowed.insert(peer.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();
@@ -265,13 +265,13 @@ async fn revoked_peer_stays_blocked_across_multiple_attempts() {
             "s1".to_string(),
             "Data".to_string(),
             tmp.path().to_string_lossy().to_string(),
-            "space-1".to_string(),
+            test_space_id("space-1"),
         )
         .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
-    spaces.insert("space-1".to_string());
+    spaces.insert(test_space_id("space-1"));
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();
@@ -353,7 +353,7 @@ async fn three_peers_three_spaces_complete_isolation() {
             "sa".to_string(),
             "Alice".to_string(),
             ta.path().to_string_lossy().to_string(),
-            "sp-a".to_string(),
+            test_space_id("sp-a"),
         )
         .await;
     server
@@ -361,7 +361,7 @@ async fn three_peers_three_spaces_complete_isolation() {
             "sb".to_string(),
             "Bob".to_string(),
             tb.path().to_string_lossy().to_string(),
-            "sp-b".to_string(),
+            test_space_id("sp-b"),
         )
         .await;
     server
@@ -369,17 +369,17 @@ async fn three_peers_three_spaces_complete_isolation() {
             "sc".to_string(),
             "Charlie".to_string(),
             tc.path().to_string_lossy().to_string(),
-            "sp-c".to_string(),
+            test_space_id("sp-c"),
         )
         .await;
 
     let mut allowed = HashMap::new();
     let mut sa = HashSet::new();
-    sa.insert("sp-a".to_string());
+    sa.insert(test_space_id("sp-a"));
     let mut sb = HashSet::new();
-    sb.insert("sp-b".to_string());
+    sb.insert(test_space_id("sp-b"));
     let mut sc = HashSet::new();
-    sc.insert("sp-c".to_string());
+    sc.insert(test_space_id("sp-c"));
     allowed.insert(pa.endpoint_id().to_string(), sa);
     allowed.insert(pb.endpoint_id().to_string(), sb);
     allowed.insert(pc.endpoint_id().to_string(), sc);
@@ -490,7 +490,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
             "sa".to_string(),
             "Basic".to_string(),
             tmp_a.path().to_string_lossy().to_string(),
-            "tier-basic".to_string(),
+            test_space_id("tier-basic"),
         )
         .await;
     server
@@ -498,7 +498,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
             "sb".to_string(),
             "Premium".to_string(),
             tmp_b.path().to_string_lossy().to_string(),
-            "tier-premium".to_string(),
+            test_space_id("tier-premium"),
         )
         .await;
 
@@ -508,7 +508,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     // Phase 1: Basic only
     let mut allowed = HashMap::new();
     let mut basic_only = HashSet::new();
-    basic_only.insert("tier-basic".to_string());
+    basic_only.insert(test_space_id("tier-basic"));
     allowed.insert(user.endpoint_id().to_string(), basic_only);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();
@@ -533,8 +533,8 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     // Phase 2: Upgrade to basic + premium
     let mut upgraded = HashMap::new();
     let mut both = HashSet::new();
-    both.insert("tier-basic".to_string());
-    both.insert("tier-premium".to_string());
+    both.insert(test_space_id("tier-basic"));
+    both.insert(test_space_id("tier-premium"));
     upgraded.insert(user.endpoint_id().to_string(), both);
     server.set_allowed_peers(upgraded).await;
     sleep(Duration::from_millis(50)).await;
@@ -572,7 +572,7 @@ async fn dynamic_space_grant_upgrade_and_downgrade() {
     // Phase 3: Downgrade back to basic only
     let mut downgraded = HashMap::new();
     let mut basic_only = HashSet::new();
-    basic_only.insert("tier-basic".to_string());
+    basic_only.insert(test_space_id("tier-basic"));
     downgraded.insert(user.endpoint_id().to_string(), basic_only);
     server.set_allowed_peers(downgraded).await;
     sleep(Duration::from_millis(50)).await;
