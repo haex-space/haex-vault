@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.18.0](https://github.com/haex-space/haex-vault/compare/v2.17.0...v2.18.0) (2026-07-24)
+
+
+### Features
+
+* **adr:** ADR 0002 — shared-space authenticity, authorization & confidentiality ([f8e0d3f](https://github.com/haex-space/haex-vault/commit/f8e0d3f190d40643a35795c908020a00b3dfd662))
+* **adr:** ADR 0002 — shared-space authenticity, authorization & confidentiality ([f8e0d3f](https://github.com/haex-space/haex-vault/commit/f8e0d3f190d40643a35795c908020a00b3dfd662))
+* **logs:** write logs via dedicated LogSink connection (no CRDT/HLC) ([cd5c5bd](https://github.com/haex-space/haex-vault/commit/cd5c5bd84612d6ed8c629ca8d6bf492d19b4df9f))
+* **mls:** add proof-of-possession sign/verify for MLS signature key ([7bef0d4](https://github.com/haex-space/haex-vault/commit/7bef0d4604e703efea0a3f6f1fbfc7f70b4ee3cc))
+* **mls:** attach and verify proof-of-possession at KeyPackage generation and add_member ([9facddd](https://github.com/haex-space/haex-vault/commit/9facddde97e9c6b21c79b0f63289e40a547d26e0))
+* **mls:** pass expected DID from both TS mls_add_member call sites ([24b93b2](https://github.com/haex-space/haex-vault/commit/24b93b26f6b8b0de9a8ecb5803c9ec50cb0a0afc))
+* **mls:** thread proof-of-possession through P2P KeyPackage delivery and device enrollment ([9943a9c](https://github.com/haex-space/haex-vault/commit/9943a9c21aff60d54fd44697ea081c77c1616754))
+* **mls:** thread proof-of-possession through server-mediated invite paths ([0243b69](https://github.com/haex-space/haex-vault/commit/0243b69162e03ab9907af4d06e41f93013c82d21))
+* **mls:** verify KeyPackage credential DID at add_member ([0258f24](https://github.com/haex-space/haex-vault/commit/0258f240efd42b0ff0157d756ac763e073f4c0b8))
+* **mls:** W0 part A + PoP helpers — credential DID binding at add_member ([c097dde](https://github.com/haex-space/haex-vault/commit/c097ddebef2475aa9b6081781d13c0ff6dce97f5))
+* **space-id:** add self-certifying space_id primitive (TS) ([beb145f](https://github.com/haex-space/haex-vault/commit/beb145f1da88404615adb8e69ef2d98330cb5a81))
+* **space-id:** add self-certifying space_id verifier (Rust) ([aa26bb4](https://github.com/haex-space/haex-vault/commit/aa26bb439d2e17b66e1a6f7c3cf34dee5d68c334))
+* **space-id:** mint self-certifying space_id in createLocalSpace + sanity check ([fe8e7a8](https://github.com/haex-space/haex-vault/commit/fe8e7a867019a965c1fb58f95bb2d5246792d323))
+* **space-id:** mint self-certifying space_id in createOnlineSpace + sanity check ([d20f9e4](https://github.com/haex-space/haex-vault/commit/d20f9e4495391aac3eb2285e5f17879792a1ecb1))
+* **space-id:** self-certifying space_id (Phase 0 of ADR 0002) ([772262b](https://github.com/haex-space/haex-vault/commit/772262b7154cf8cd738db627319b1236b2152188))
+* **space-id:** self-certifying space_id (Phase 0 of ADR 0002) ([772262b](https://github.com/haex-space/haex-vault/commit/772262b7154cf8cd738db627319b1236b2152188))
+* **spaces:** add authored_by_did column to shared_space_sync ([e9eb13c](https://github.com/haex-space/haex-vault/commit/e9eb13c034bb5039c3f0a32c37816947a70de3ab))
+* **spaces:** add extension_space_get_members command ([785bd7d](https://github.com/haex-space/haex-vault/commit/785bd7d40c96e1a50dd388deae2a0a5a00269daa))
+* **spaces:** shared_space_sync author attribution — Phase A ([29d6d01](https://github.com/haex-space/haex-vault/commit/29d6d01e0d65078b10865703c4b84fceb59116b1))
+* **spaces:** stamp assignments with the sharer's space-specific DID ([64f8c70](https://github.com/haex-space/haex-vault/commit/64f8c70a2d39eaab9195e81dba90eaeb30775529))
+* **sync:** persist sync-loop telemetry to haex_logs_no_sync (now safe) ([ae91210](https://github.com/haex-space/haex-vault/commit/ae912109caee9b1fd38d95c7bde71b0606f416eb))
+
+
+### Bug Fixes
+
+* **logs:** make log table no-sync + dedicated write connection ([f62d158](https://github.com/haex-space/haex-vault/commit/f62d15837c33bb664818b27a28cdca87622770e7))
+* **permissions:** resolve external-client principal for RW-resource checks ([fe4bb1b](https://github.com/haex-space/haex-vault/commit/fe4bb1bf1f35ea79f9956dbc0de718c18202720a))
+* **permissions:** resolve external-client principal for RW-resource checks ([7fb29c7](https://github.com/haex-space/haex-vault/commit/7fb29c743048e38d9e6b8889a8727900ab103956))
+* **space-id:** drop zero-init nonce buffer to satisfy CodeQL ([3aaa54b](https://github.com/haex-space/haex-vault/commit/3aaa54b3316851c3cca7f63e1bd61bc080c38915))
+* **spaces:** allowlist extension_space_get_members + fmt ([a33424d](https://github.com/haex-space/haex-vault/commit/a33424daea270853c26c239ab44db9b898682a52))
+
 ## [2.17.0](https://github.com/haex-space/haex-vault/compare/v2.16.0...v2.17.0) (2026-07-20)
 
 
