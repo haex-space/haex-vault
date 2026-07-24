@@ -366,7 +366,8 @@ Sync, damit Extension-Daten nie ungeschützt fließen).
 - **Phase 2 — UCAN-Delegations-Ketten-Verifikation (4c):** `prf` laufen, Root-Anker — auf
   **beiden** Apply-Pfaden. Für den TS-Pfad (`verifyPulledChangesAsync`, `apply.ts`): volle
   `prf`-Kette statt materialisiertem `haex_ucan_tokens`, und den Admin-Fallback
-  (`issuer == audience`) entfernen (§3a/§4c). ✅ **Delivered PR #717 (2026-07-24).**
+  (`issuer == audience`) entfernen (§3a/§4c). 🚧 **Implementation delivered PR #717
+  (2026-07-24); manuelle 2-Geräte-Sync-Validierung ausstehend.**
   Zusatz: einheitliche Verifier-Implementation in Rust; TS ruft `verify_ucan_chain_batch`
   Tauri-Command. Row-scoped Rejection + aggregierter User-Toast statt Batch-Abbruch.
 - **Phase 3 — Generischer register-getriebener Extension-Sync (4a)** + signierte

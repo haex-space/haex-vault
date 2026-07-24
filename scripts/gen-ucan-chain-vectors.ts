@@ -22,7 +22,7 @@ import {
   verify as nodeVerify,
   type KeyObject,
 } from 'node:crypto'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -112,6 +112,54 @@ function deriveSpaceId(rootDid: string, nonce: Uint8Array): string {
   buf.set(nonce, 0)
   buf.set(hashPart, NONCE_LEN)
   return base58btcEncode(buf)
+}
+
+/**
+ * Cross-check the generator's inlined `deriveSpaceId` against the
+ * Phase-0 fixture (`space_id_vectors.json`), which is the authoritative
+ * guard for the TS (`src/utils/auth/spaceId.ts`) and Rust
+ * (`src-tauri/src/ucan/space_id.rs`) implementations. If any of the three
+ * copies of the algorithm drifts, the fixture generation must fail loudly
+ * — otherwise a wrong `space_id` would silently poison every chain vector
+ * and `ucan_chain_vectors.rs` would still validate internally-consistent
+ * garbage.
+ */
+function assertSpaceIdAgainstFixture(): void {
+  const fixturePath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'src-tauri',
+    'tests',
+    'fixtures',
+    'space_id_vectors.json',
+  )
+  const parsed = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
+    domain_tag: string
+    vectors: Array<{
+      name: string
+      root_did: string
+      nonce_hex: string
+      expected_space_id: string
+    }>
+  }
+  if (parsed.domain_tag !== SPACE_ID_DOMAIN_TAG) {
+    fail(
+      `space_id domain_tag drift: fixture=${parsed.domain_tag} generator=${SPACE_ID_DOMAIN_TAG}`,
+    )
+  }
+  for (const v of parsed.vectors) {
+    const nonce = Buffer.from(v.nonce_hex, 'hex')
+    if (nonce.length !== NONCE_LEN) {
+      fail(`space_id fixture ${v.name}: nonce_hex is not ${NONCE_LEN} bytes`)
+    }
+    const got = deriveSpaceId(v.root_did, new Uint8Array(nonce))
+    if (got !== v.expected_space_id) {
+      fail(
+        `space_id fixture ${v.name} drift: expected=${v.expected_space_id} got=${got}`,
+      )
+    }
+  }
+  console.error(`deriveSpaceId matches ${parsed.vectors.length} fixture vectors.`)
 }
 
 // ---------------------------------------------------------------------------
@@ -1146,6 +1194,11 @@ function selfVerify(vectors: Vector[]): void {
 // ---------------------------------------------------------------------------
 
 function main(): void {
+  // Guard against silent drift in the standalone deriveSpaceId copy.
+  // Without this, a wrong space_id would poison every generated chain vector
+  // and Rust's ucan_chain_vectors.rs would still see internal consistency.
+  assertSpaceIdAgainstFixture()
+
   const vectors: Vector[] = [
     vRootOnlyValid(),
     vTwoHopValid(),
