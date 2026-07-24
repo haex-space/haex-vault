@@ -1,4 +1,5 @@
 pub mod cleanup;
+pub mod column_sig;
 pub mod commands;
 pub mod hlc;
 pub mod insert_transformer;
