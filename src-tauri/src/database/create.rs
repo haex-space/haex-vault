@@ -204,6 +204,7 @@ fn create_encrypted_database_inner(
             vec![],
             &state.db,
             &hlc_service,
+            &state.column_sig_key_cache,
         )?;
     }
     println!("[CREATE_DB] ✅ __core__ extension seeded");

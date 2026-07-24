@@ -153,6 +153,7 @@ pub async fn remote_storage_add_backend(
         ],
         &state.db,
         &hlc_service,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| StorageError::DatabaseError {
         reason: e.to_string(),
@@ -222,6 +223,7 @@ pub async fn remote_storage_remove_backend(
         vec![JsonValue::String(backend_id)],
         &state.db,
         &hlc_service,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| StorageError::DatabaseError {
         reason: e.to_string(),
@@ -309,10 +311,15 @@ pub async fn remote_storage_update_backend(
         serde_json::json!({}),
     )?;
 
-    let rows = core::execute_with_crdt(query, params, &state.db, &hlc_service).map_err(|e| {
-        StorageError::DatabaseError {
-            reason: e.to_string(),
-        }
+    let rows = core::execute_with_crdt(
+        query,
+        params,
+        &state.db,
+        &hlc_service,
+        &state.column_sig_key_cache,
+    )
+    .map_err(|e| StorageError::DatabaseError {
+        reason: e.to_string(),
     })?;
 
     if rows.is_empty() {

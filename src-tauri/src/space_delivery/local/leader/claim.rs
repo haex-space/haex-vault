@@ -306,11 +306,13 @@ pub async fn handle_claim_invite(
             JsonValue::String(did.clone()),
             JsonValue::String(resolved_label),
         ];
+        let app_state = state.app_handle.state::<crate::AppState>();
         if let Err(e) = crate::database::core::execute_with_crdt(
             ensure_identity_sql,
             ensure_identity_params,
             &state.db,
             &hlc_guard,
+            &app_state.column_sig_key_cache,
         ) {
             return Response::Error {
                 message: format!("Failed to persist member identity: {e}"),
@@ -333,6 +335,7 @@ pub async fn handle_claim_invite(
             member_params,
             &state.db,
             &hlc_guard,
+            &app_state.column_sig_key_cache,
         ) {
             return Response::Error {
                 message: format!("Failed to persist space member: {e}"),
@@ -363,8 +366,15 @@ pub async fn handle_claim_invite(
     //     single-use contact invites and (b) double-count for multi-use
     //     conference invites.
     if !is_retry {
-        if let Err(e) =
-            invite_tokens::consume_invite(&state.db, &state.hlc, &state.invite_tokens, &token).await
+        let app_state = state.app_handle.state::<crate::AppState>();
+        if let Err(e) = invite_tokens::consume_invite(
+            &state.db,
+            &state.hlc,
+            &app_state.column_sig_key_cache,
+            &state.invite_tokens,
+            &token,
+        )
+        .await
         {
             // Log but don't fail the response — the claim succeeded, only the
             // usage-count persistence failed. At worst the token is usable once
@@ -469,7 +479,13 @@ fn persist_admin_ucan(
             now_secs + super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
         )),
     ];
-    if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc_guard) {
+    if let Err(e) = crate::database::core::execute_with_crdt(
+        sql,
+        params,
+        &state.db,
+        &hlc_guard,
+        &app_state.column_sig_key_cache,
+    ) {
         eprintln!("[SpaceDelivery] persist_admin_ucan: insert failed: {e}");
     }
 }

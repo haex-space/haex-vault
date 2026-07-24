@@ -75,7 +75,13 @@ pub fn sql_execute_with_crdt(
         "database::sql_execute_with_crdt",
         serde_json::json!({}),
     )?;
-    let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
+    let result = core::execute_with_crdt(
+        sql,
+        params,
+        &state.db,
+        &hlc_service,
+        &state.column_sig_key_cache,
+    )?;
 
     // Emit event to notify frontend that dirty tables may have changed
     crate::crdt::notify_dirty_tables_changed(&app_handle);
@@ -117,7 +123,13 @@ pub fn sql_with_crdt(
                 serde_json::json!({}),
             )?;
 
-            let result = core::execute_with_crdt(sql, params, &state.db, &hlc_service)?;
+            let result = core::execute_with_crdt(
+                sql,
+                params,
+                &state.db,
+                &hlc_service,
+                &state.column_sig_key_cache,
+            )?;
 
             // Emit event to notify frontend that dirty tables may have changed
             crate::crdt::notify_dirty_tables_changed(&app_handle);

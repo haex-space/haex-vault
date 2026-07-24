@@ -11,6 +11,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use uuid::Uuid;
 
+    use crate::crdt::column_sig::key_cache::SpaceKeyCache;
     use crate::crdt::hlc::HlcService;
     use crate::crdt::trigger::{
         ensure_crdt_columns, setup_triggers_for_table, DELETED_ROWS_TABLE, UUID_FUNCTION_NAME,
@@ -162,6 +163,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 
@@ -199,6 +201,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 
@@ -245,6 +248,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 
@@ -268,6 +272,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 
@@ -366,6 +371,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 

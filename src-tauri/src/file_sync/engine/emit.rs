@@ -44,7 +44,13 @@ pub(super) fn update_last_synced_at(app: &tauri::AppHandle, rule_id: &str) {
         JsonValue::String(rule_id.to_string()),
     ];
 
-    if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc) {
+    if let Err(e) = crate::database::core::execute_with_crdt(
+        sql,
+        params,
+        &state.db,
+        &hlc,
+        &state.column_sig_key_cache,
+    ) {
         eprintln!("[FileSyncEngine] Failed to update lastSyncedAt for rule {rule_id}: {e}");
     }
 

@@ -167,6 +167,7 @@ pub fn mls_export_epoch_key(
         ],
         &state.db,
         &hlc,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| format!("Failed to delete old sync key: {e}"))?;
 
@@ -180,6 +181,7 @@ pub fn mls_export_epoch_key(
         ],
         &state.db,
         &hlc,
+        &state.column_sig_key_cache,
     ).map_err(|e| format!("Failed to store sync key: {e}"))?;
 
     Ok(epoch_key)

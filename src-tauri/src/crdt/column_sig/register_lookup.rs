@@ -217,12 +217,23 @@ fn resolve_infra_row(
 }
 
 /// Extension-table path: consult the share register with the I2 filter.
+///
+/// If `haex_shared_space_sync` or `haex_identities` do not exist (test
+/// harnesses that skip the full CRDT-bootstrap, or freshly-created vaults
+/// pre-migration), treat that as "no share entries" and return an empty
+/// list — signing zero spaces is the correct semantic fallback.
 fn resolve_extension_row(
     conn: &Connection,
     table_name: &str,
     canonical_pks: &str,
 ) -> rusqlite::Result<Vec<String>> {
-    let mut stmt = conn.prepare(SQL_SELECT_REGISTER_OWN_SPACES)?;
+    let mut stmt = match conn.prepare(SQL_SELECT_REGISTER_OWN_SPACES) {
+        Ok(s) => s,
+        Err(rusqlite::Error::SqliteFailure(_, Some(msg))) if msg.starts_with("no such table") => {
+            return Ok(Vec::new());
+        }
+        Err(e) => return Err(e),
+    };
     let mut rows = stmt.query((table_name, canonical_pks))?;
     let mut out = Vec::new();
     while let Some(row) = rows.next()? {

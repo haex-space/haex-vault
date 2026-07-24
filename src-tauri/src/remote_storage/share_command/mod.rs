@@ -380,7 +380,14 @@ pub async fn share_storage_backend(
         )?;
         guard.clone()
     };
-    share_storage_backend_core(&state.db, &hlc_snapshot, args, &DefaultIamAdapterFactory).await
+    share_storage_backend_core(
+        &state.db,
+        &hlc_snapshot,
+        &state.column_sig_key_cache,
+        args,
+        &DefaultIamAdapterFactory,
+    )
+    .await
 }
 
 /// Testable core form: takes the raw `db` + `hlc` so unit tests can call it
@@ -389,6 +396,7 @@ pub async fn share_storage_backend(
 pub(crate) async fn share_storage_backend_core(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
+    key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     args: ShareStorageBackendArgs,
     factory: &dyn IamAdapterFactory,
 ) -> Result<SharedStorageBackend, StorageError> {
@@ -507,6 +515,7 @@ pub(crate) async fn share_storage_backend_core(
     let db_result = persist_shared_backend(
         db,
         hlc_service,
+        key_cache,
         PersistArgs {
             new_row_id: &new_row_id,
             row_type: &owner.r#type,
@@ -641,6 +650,7 @@ struct PersistArgs<'a> {
 fn persist_shared_backend(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
+    key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     args: PersistArgs<'_>,
 ) -> Result<(), StorageError> {
     let hlc_local = std::sync::Mutex::new(hlc_service.clone());
@@ -672,6 +682,7 @@ fn persist_shared_backend(
         ],
         db,
         &hlc_guard,
+        key_cache,
     )
     .map_err(|e| StorageError::DatabaseError {
         reason: format!("insert haex_s3_backends: {e}"),
@@ -705,6 +716,7 @@ fn persist_shared_backend(
         ],
         db,
         &hlc_guard,
+        key_cache,
     ) {
         // Orphan cleanup: the s3_backends row is already committed to its
         // own tx, so a naive DELETE via execute_with_crdt is our only
@@ -716,6 +728,7 @@ fn persist_shared_backend(
             vec![serde_json::Value::String(args.new_row_id.to_string())],
             db,
             &hlc_guard,
+            key_cache,
         ) {
             tracing::error!(
                 storage_id = %args.new_row_id,

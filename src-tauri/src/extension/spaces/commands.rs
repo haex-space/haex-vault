@@ -204,6 +204,7 @@ pub async fn extension_space_assign(
             ],
             &state.db,
             &hlc_guard,
+            &state.column_sig_key_cache,
         )
         .map_err(|e| ExtensionError::Database { source: e })?;
         total_inserted += 1;
@@ -271,6 +272,7 @@ pub async fn extension_space_unassign(
             ],
             &state.db,
             &hlc_guard,
+            &state.column_sig_key_cache,
         )
         .map_err(|e| ExtensionError::Database { source: e })?;
         total_deleted += 1;

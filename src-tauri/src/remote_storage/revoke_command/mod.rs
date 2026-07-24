@@ -189,6 +189,7 @@ fn assert_parent_exists(
 fn delete_share_rows(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
+    key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     shared_backend_id: &str,
 ) -> Result<(), StorageError> {
     let hlc_local = std::sync::Mutex::new(hlc_service.clone());
@@ -211,6 +212,7 @@ fn delete_share_rows(
         ],
         db,
         &hlc_guard,
+        key_cache,
     )
     .map_err(|e| StorageError::DatabaseError {
         reason: format!("delete haex_shared_space_sync: {e}"),
@@ -222,6 +224,7 @@ fn delete_share_rows(
         vec![serde_json::Value::String(shared_backend_id.to_string())],
         db,
         &hlc_guard,
+        key_cache,
     ) {
         // Mapping is already gone; the s3_backends row is still present.
         // On the user's next revoke attempt, `load_shared_row` will still
@@ -265,6 +268,7 @@ pub async fn revoke_storage_share(
     revoke_storage_share_core(
         &state.db,
         &hlc_snapshot,
+        &state.column_sig_key_cache,
         RevokeStorageShareArgs { shared_backend_id },
         &DefaultIamAdapterFactory,
     )
@@ -280,6 +284,7 @@ pub async fn revoke_storage_share(
 pub(crate) async fn revoke_storage_share_core(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
+    key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     args: RevokeStorageShareArgs,
     factory: &dyn IamAdapterFactory,
 ) -> Result<(), StorageError> {
@@ -339,7 +344,7 @@ pub(crate) async fn revoke_storage_share_core(
     }
 
     // 6. DB cleanup: mapping first, then s3_backends row.
-    delete_share_rows(db, hlc_service, &args.shared_backend_id)?;
+    delete_share_rows(db, hlc_service, key_cache, &args.shared_backend_id)?;
 
     Ok(())
 }

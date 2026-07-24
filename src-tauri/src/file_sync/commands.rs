@@ -648,6 +648,7 @@ pub async fn file_sync_clear_log(
         vec![JsonValue::String(rule_id)],
         &state.db,
         &hlc,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| FileSyncCommandError::Internal(e.to_string()))?;
     Ok(())

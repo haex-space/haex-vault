@@ -298,7 +298,7 @@ pub(super) fn insert_item_row(
         serialize_aliases(&input.autofill_aliases),
         opt_str_param(&input.expires_at),
     ];
-    execute_with_crdt(sql, params, &state.db, hlc)
+    execute_with_crdt(sql, params, &state.db, hlc, &state.column_sig_key_cache)
         .map_err(|e| ExtensionError::Database { source: e })?;
     Ok(())
 }
@@ -332,7 +332,7 @@ pub(super) fn update_item_row(
         serialize_aliases(&input.autofill_aliases),
         opt_str_param(&input.expires_at),
     ];
-    execute_with_crdt(sql, params, &state.db, hlc)
+    execute_with_crdt(sql, params, &state.db, hlc, &state.column_sig_key_cache)
         .map_err(|e| ExtensionError::Database { source: e })?;
     Ok(())
 }
@@ -356,7 +356,7 @@ pub(super) fn upsert_and_link_tags(
             JsonValue::String(item_id.to_string()),
             JsonValue::String(tag_id),
         ];
-        execute_with_crdt(sql, params, &state.db, hlc)
+        execute_with_crdt(sql, params, &state.db, hlc, &state.column_sig_key_cache)
             .map_err(|e| ExtensionError::Database { source: e })?;
     }
     Ok(())
@@ -376,6 +376,7 @@ pub(super) fn upsert_tag(
         ],
         &state.db,
         hlc,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| ExtensionError::Database { source: e })?;
     let rows = select_with_crdt(
@@ -407,6 +408,7 @@ pub(super) fn delete_item_tag_links(
         vec![JsonValue::String(item_id.to_string())],
         &state.db,
         hlc,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| ExtensionError::Database { source: e })?;
     Ok(())
@@ -432,6 +434,7 @@ pub(super) fn insert_key_values(
             ],
             &state.db,
             hlc,
+            &state.column_sig_key_cache,
         )
         .map_err(|e| ExtensionError::Database { source: e })?;
     }
@@ -448,6 +451,7 @@ pub(super) fn delete_key_values(
         vec![JsonValue::String(item_id.to_string())],
         &state.db,
         hlc,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| ExtensionError::Database { source: e })?;
     Ok(())

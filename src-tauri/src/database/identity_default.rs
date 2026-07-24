@@ -102,6 +102,7 @@ pub(super) fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(),
         ],
         &state.db,
         &hlc_service,
+        &state.column_sig_key_cache,
     )?;
 
     println!(
