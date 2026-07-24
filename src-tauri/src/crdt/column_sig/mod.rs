@@ -1,7 +1,10 @@
+pub mod key_cache;
 pub mod limits;
 pub mod preimage;
 pub mod value_bytes;
 
+#[cfg(test)]
+mod key_cache_tests;
 #[cfg(test)]
 mod limits_tests;
 #[cfg(test)]
