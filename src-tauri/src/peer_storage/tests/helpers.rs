@@ -88,10 +88,13 @@ pub(super) fn write_ucan(root_signer: &SigningKey, space_id: &str, audience: &st
 /// Derive a self-certifying `space_id` for `root_did` with a random 16-byte
 /// nonce. Matches the algorithm implemented in `crate::ucan::space_id` and
 /// used by the Phase-2 chain walker's root-binding check.
+///
+/// The nonce is materialised directly from the RNG (never a zero-init
+/// buffer that's later overwritten) so CodeQL doesn't flag the local as
+/// a hardcoded cryptographic value.
 pub(super) fn derive_test_space_id(root_did: &str) -> String {
     use crate::ucan::space_id::{derive_space_id, NONCE_LEN};
-    let mut nonce = [0u8; NONCE_LEN];
-    rand::fill(&mut nonce);
+    let nonce: [u8; NONCE_LEN] = rand::random();
     derive_space_id(root_did, &nonce)
 }
 
@@ -147,10 +150,7 @@ pub(super) async fn setup_harness() -> Harness {
     let share_name = "media".to_string();
     // UCAN root key + self-certifying space_id must be minted together so the
     // Phase-2 verifier's `verify_space_id_binding` accepts the resolved root.
-    let seed: [u8; 32] = rand::random();
-    let ucan_signer = SigningKey::from_bytes(&seed);
-    let root_did = did_from_signing_key(&ucan_signer);
-    let space_id = derive_test_space_id(&root_did);
+    let (ucan_signer, space_id) = mint_test_root_and_space();
 
     // --- Server side ---
     let mut server = PeerEndpoint::new_ephemeral();
@@ -233,10 +233,7 @@ pub(super) async fn setup_multipart_harness() -> MultipartHarness {
     let share_name = "media".to_string();
     // UCAN root key + self-certifying space_id must be minted together so the
     // Phase-2 verifier's `verify_space_id_binding` accepts the resolved root.
-    let seed: [u8; 32] = rand::random();
-    let ucan_signer = SigningKey::from_bytes(&seed);
-    let root_did = did_from_signing_key(&ucan_signer);
-    let space_id = derive_test_space_id(&root_did);
+    let (ucan_signer, space_id) = mint_test_root_and_space();
 
     let mut server = PeerEndpoint::new_ephemeral();
     server.set_random_test_identity();

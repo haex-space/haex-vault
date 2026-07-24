@@ -266,6 +266,7 @@ export const pullPendingColumnsAsync = async (
 
   // Step 2: Pull data for each column from server (with pagination)
   let totalPulled = 0
+  let totalRejected = 0
 
   for (const pendingCol of pendingColumns) {
     log.info(`Pulling data for column: ${pendingCol.tableName}.${pendingCol.columnName}`)
@@ -318,12 +319,14 @@ export const pullPendingColumnsAsync = async (
     }
 
     // Step 3: Verify signatures + UCAN chain (row-scoped), then apply
-    // only the verified subset. Rejected rows are logged AND surfaced
-    // via a per-call toast; this is a one-shot pull (not a paginated
-    // stream), so per-call and per-batch aggregation are the same. It
-    // does NOT abort the pending-column apply — the column is still
-    // cleared afterwards, so we don't re-pull the same poisoned rows on
-    // every cycle. If ALL rows were rejected there is nothing to apply,
+    // only the verified subset. Rejected rows are logged immediately;
+    // their count is accumulated into `totalRejected` and surfaced ONCE
+    // after the pending-column loop, so a pull that poisons N columns
+    // shows a single aggregated toast rather than N stacked ones
+    // (matches `page.ts`'s try/finally aggregation pattern). It does
+    // NOT abort the pending-column apply — the column is still cleared
+    // afterwards, so we don't re-pull the same poisoned rows on every
+    // cycle. If ALL rows were rejected there is nothing to apply,
     // which is still success as far as the pending-column tracker is
     // concerned.
     if (allChanges.length > 0) {
@@ -334,7 +337,7 @@ export const pullPendingColumnsAsync = async (
         'write',
       )
       logRejectedChanges(rejected, { spaceId, backendId })
-      surfaceRejectedBatch(spaceId, rejected.length)
+      totalRejected += rejected.length
       if (verified.length > 0) {
         log.info(`Applying ${verified.length}/${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
         await applyRemoteChangesInTransactionAsync(verified, vaultKey, backendId, spaceId)
@@ -351,5 +354,6 @@ export const pullPendingColumnsAsync = async (
   }
 
   log.info(`Finished pulling pending columns. Total changes applied: ${totalPulled}`)
+  surfaceRejectedBatch(spaceId, totalRejected)
   return totalPulled
 }

@@ -1,11 +1,17 @@
 //! Vault-global settings for UCAN chain verification.
 //!
-//! `max_ucan_chain_depth` is the maximum number of `prf` edges the chain
-//! walker in [`crate::ucan::verify::validate_token`] will follow before
-//! rejecting a token. Higher values allow richer sub-delegation trees
-//! (sub-admins, chat-owner roles) at negligible cost — verification is
-//! `O(N)` ed25519 signature checks per token. Bounded to protect against
-//! pathological chains that would let a malicious peer waste CPU.
+//! `max_ucan_chain_depth` is the maximum number of **tokens** (chain
+//! nodes — leaf + every ancestor up to and including the self-signed
+//! root) the chain walker in [`crate::ucan::verify::validate_token`]
+//! will visit before rejecting. A limit of `1` accepts only a self-signed
+//! root; a one-edge delegation (root → leaf) needs `2`. Higher values
+//! allow richer sub-delegation trees (sub-admins, chat-owner roles) at
+//! negligible cost — verification is `O(N)` ed25519 signature checks
+//! per token. Bounded to protect against pathological chains that
+//! would let a malicious peer waste CPU. See [`walk_prf_chain`] for
+//! the authoritative counting rule.
+//!
+//! [`walk_prf_chain`]: crate::ucan::verify
 //!
 //! ## Storage & threat model
 //!
@@ -24,9 +30,11 @@ use rusqlite::Connection;
 
 /// Default depth if no row is present or the stored value is invalid.
 ///
-/// Chosen empirically: covers space-root → admin → sub-admin → member →
-/// device-holder chains with room for one intermediate layer, which is
-/// deeper than any current Phase-2 use case actually needs.
+/// Counts **tokens** — five tokens is a five-node chain, i.e. root plus
+/// up to four delegation hops. Chosen empirically: covers
+/// space-root → admin → sub-admin → member → device-holder chains with
+/// room for one intermediate layer, which is deeper than any current
+/// Phase-2 use case actually needs.
 pub const MAX_UCAN_CHAIN_DEPTH_DEFAULT: u32 = 5;
 
 /// Minimum permitted value. Must be `>= 1` — a depth of 0 would admit no

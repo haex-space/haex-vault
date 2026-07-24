@@ -74,10 +74,15 @@ pub(super) static SHARED_ROOT_DID: LazyLock<String> = LazyLock::new(|| {
 /// The nonce is derived deterministically from the label via `sha256(label)`
 /// truncated to `NONCE_LEN` so the same label produces the same `space_id`
 /// across every call within the test process.
+///
+/// The nonce is materialised directly from the hash slice via `try_into`
+/// (never a zero-init buffer that's later overwritten) so CodeQL doesn't
+/// flag the local as a hardcoded cryptographic value.
 pub(super) fn test_space_id(label: &str) -> String {
     let hash = Sha256::digest(label.as_bytes());
-    let mut nonce = [0u8; NONCE_LEN];
-    nonce.copy_from_slice(&hash[..NONCE_LEN]);
+    let nonce: [u8; NONCE_LEN] = hash[..NONCE_LEN]
+        .try_into()
+        .expect("sha256 output is 32 bytes, NONCE_LEN <= 32");
     derive_space_id(&SHARED_ROOT_DID, &nonce)
 }
 
