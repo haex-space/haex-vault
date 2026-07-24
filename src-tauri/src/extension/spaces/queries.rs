@@ -58,6 +58,25 @@ lazy_static! {
          WHERE m.{COL_SPACE_MEMBERS_SPACE_ID} = ?1 AND i.{COL_IDENTITIES_PRIVATE_KEY} IS NOT NULL LIMIT 1"
     );
 
+    /// All (space_id, private_key_b64) pairs where the vault holds the signing
+    /// key. Used by `SpaceKeyCache::populate_all` to warm the per-space signer
+    /// cache at vault open. `private_key` is a Base64-encoded PKCS8 Ed25519 blob
+    /// — decode via `ucan::signing_key_from_pkcs8_base64`.
+    pub static ref SQL_SELECT_ALL_OWN_SPACE_KEYS: String = format!(
+        "SELECT m.{COL_SPACE_MEMBERS_SPACE_ID}, i.{COL_IDENTITIES_PRIVATE_KEY} \
+         FROM {TABLE_SPACE_MEMBERS} m \
+         JOIN {TABLE_IDENTITIES} i ON i.{COL_IDENTITIES_ID} = m.{COL_SPACE_MEMBERS_IDENTITY_ID} \
+         WHERE i.{COL_IDENTITIES_PRIVATE_KEY} IS NOT NULL"
+    );
+
+    /// The vault's own signing key (Base64 PKCS8) for one space. Used by
+    /// `SpaceKeyCache::get_or_reload` on a cache miss (JIT reload).
+    pub static ref SQL_SELECT_OWN_SPACE_KEY: String = format!(
+        "SELECT i.{COL_IDENTITIES_PRIVATE_KEY} FROM {TABLE_SPACE_MEMBERS} m \
+         JOIN {TABLE_IDENTITIES} i ON i.{COL_IDENTITIES_ID} = m.{COL_SPACE_MEMBERS_IDENTITY_ID} \
+         WHERE m.{COL_SPACE_MEMBERS_SPACE_ID} = ?1 AND i.{COL_IDENTITIES_PRIVATE_KEY} IS NOT NULL LIMIT 1"
+    );
+
     /// Members of a space with their identity's display name and whether it's a local identity.
     pub static ref SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY: String = format!(
         "SELECT i.{COL_IDENTITIES_DID}, i.{COL_IDENTITIES_NAME}, (i.{COL_IDENTITIES_PRIVATE_KEY} IS NOT NULL) AS is_self \
