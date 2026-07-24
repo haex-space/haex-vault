@@ -152,7 +152,7 @@ pub fn setup_triggers_for_table(
 
     // Calculate columns to track: all columns EXCEPT:
     // - PKs
-    // - CRDT columns (haex_hlc, haex_column_hlcs)
+    // - CRDT columns (haex_hlc, haex_column_hlcs, haex_column_sigs)
     // - Sync metadata columns (to prevent trigger loops)
     let cols_to_track: Vec<String> = columns
         .iter()
@@ -160,6 +160,7 @@ pub fn setup_triggers_for_table(
             !c.is_pk
                 && c.name != HLC_TIMESTAMP_COLUMN
                 && c.name != COLUMN_HLCS_COLUMN
+                && c.name != COLUMN_SIGS_COLUMN
                 && c.name != LAST_PUSH_HLC_COLUMN
                 && c.name != LAST_PULL_SERVER_TIMESTAMP_COLUMN
                 && c.name != UPDATED_AT_COLUMN
@@ -451,6 +452,7 @@ pub fn ensure_crdt_columns(tx: &Transaction, table_name: &str) -> Result<bool, C
 
     let has_hlc = columns.iter().any(|c| c.name == HLC_TIMESTAMP_COLUMN);
     let has_column_hlcs = columns.iter().any(|c| c.name == COLUMN_HLCS_COLUMN);
+    let has_column_sigs = columns.iter().any(|c| c.name == COLUMN_SIGS_COLUMN);
 
     let mut added_any = false;
 
@@ -478,6 +480,20 @@ pub fn ensure_crdt_columns(tx: &Transaction, table_name: &str) -> Result<bool, C
         println!(
             "[CRDT] Added missing column '{}' to table '{}'",
             COLUMN_HLCS_COLUMN, table_name
+        );
+        added_any = true;
+    }
+
+    if !has_column_sigs {
+        let sql = format!(
+            "ALTER TABLE \"{}\" ADD COLUMN \"{}\" TEXT NOT NULL DEFAULT '{{}}'",
+            table_name, COLUMN_SIGS_COLUMN
+        );
+        tx.execute(&sql, [])
+            .map_err(CrdtSetupError::DatabaseError)?;
+        println!(
+            "[CRDT] Added missing column '{}' to table '{}'",
+            COLUMN_SIGS_COLUMN, table_name
         );
         added_any = true;
     }
@@ -571,6 +587,12 @@ mod tests {
             COLUMN_HLCS_COLUMN,
             column_names
         );
+        assert!(
+            column_names.contains(&COLUMN_SIGS_COLUMN),
+            "Missing {} column. Found: {:?}",
+            COLUMN_SIGS_COLUMN,
+            column_names
+        );
     }
 
     #[test]
@@ -583,9 +605,10 @@ mod tests {
                     id TEXT PRIMARY KEY,
                     name TEXT,
                     {} TEXT,
+                    {} TEXT NOT NULL DEFAULT '{{}}',
                     {} TEXT NOT NULL DEFAULT '{{}}'
                 )",
-                HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN
+                HLC_TIMESTAMP_COLUMN, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN
             ),
             [],
         )
@@ -628,6 +651,7 @@ mod tests {
 
         assert!(column_names.contains(&HLC_TIMESTAMP_COLUMN));
         assert!(column_names.contains(&COLUMN_HLCS_COLUMN));
+        assert!(column_names.contains(&COLUMN_SIGS_COLUMN));
     }
 
     #[test]
