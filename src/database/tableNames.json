@@ -192,7 +192,7 @@
         "groupId": "group_id",
         "type": "type",
         "label": "label",
-        "haexColumnSigs": "haex_column_sigs",
+        "authoredByDid": "authored_by_did",
         "createdAt": "created_at"
       }
     },
@@ -249,7 +249,7 @@
         "avatarOptions": "avatar_options",
         "relayUrl": "relay_url",
         "leaderPriority": "leader_priority",
-        "haexColumnSigs": "haex_column_sigs",
+        "authoredByDid": "authored_by_did",
         "createdAt": "created_at"
       }
     },
@@ -260,7 +260,7 @@
         "spaceId": "space_id",
         "identityId": "identity_id",
         "role": "role",
-        "haexColumnSigs": "haex_column_sigs",
+        "authoredByDid": "authored_by_did",
         "joinedAt": "joined_at"
       }
     },
@@ -273,7 +273,7 @@
         "endpointId": "endpoint_id",
         "name": "name",
         "localPath": "local_path",
-        "haexColumnSigs": "haex_column_sigs",
+        "authoredByDid": "authored_by_did",
         "createdAt": "created_at"
       }
     },
@@ -373,7 +373,7 @@
         "spaceId": "space_id",
         "epoch": "epoch",
         "keyData": "key_data",
-        "haexColumnSigs": "haex_column_sigs"
+        "authoredByDid": "authored_by_did"
       }
     },
     "device_mls_enrollments": {
@@ -386,7 +386,7 @@
         "pop": "pop",
         "welcome": "welcome",
         "status": "status",
-        "haexColumnSigs": "haex_column_sigs"
+        "authoredByDid": "authored_by_did"
       }
     },
     "mls_values_no_sync": {
