@@ -66,6 +66,48 @@ fn test_create_table_adds_crdt_columns() {
 }
 
 #[test]
+fn transform_ddl_injects_haex_column_sigs_on_space_scoped_tables() {
+    // Phase 1 of the shared-space authenticity design: every CRDT-sync
+    // (space-scoped) table must carry a per-column signature map so that
+    // shared-space receivers can verify authorship before applying an
+    // incoming column change. Parallel to `haex_column_hlcs`, but with an
+    // explicit `NOT NULL DEFAULT '{}'` so legacy INSERT statements (and
+    // pre-existing rows after ALTER TABLE) still get a valid empty map.
+    let transformer = CrdtTransformer::new();
+    let out = transformer
+        .transform_ddl_statement("CREATE TABLE foo (id TEXT PRIMARY KEY, val TEXT)")
+        .expect("transform_ddl_statement must not error on well-formed CREATE TABLE");
+
+    assert!(
+        out.contains("haex_column_sigs"),
+        "space-scoped CREATE TABLE must gain `haex_column_sigs`. Got: {out}"
+    );
+    assert!(
+        out.contains("DEFAULT '{}'"),
+        "`haex_column_sigs` must default to an empty JSON object. Got: {out}"
+    );
+    // Sig column must not accidentally displace the HLC columns.
+    assert!(out.contains("haex_hlc"), "Got: {out}");
+    assert!(out.contains("haex_column_hlcs"), "Got: {out}");
+}
+
+#[test]
+fn transform_ddl_skips_haex_column_sigs_for_no_sync_tables() {
+    // `_no_sync` tables are excluded from CRDT sync entirely — no HLC
+    // columns, no sig column. Regression guard mirrored on
+    // `haex_logs_no_sync_is_not_a_crdt_sync_table`.
+    let transformer = CrdtTransformer::new();
+    let out = transformer
+        .transform_ddl_statement("CREATE TABLE my_cache_no_sync (id TEXT PRIMARY KEY, value TEXT)")
+        .expect("transform_ddl_statement must not error on well-formed CREATE TABLE");
+
+    assert!(
+        !out.contains("haex_column_sigs"),
+        "_no_sync tables must not gain `haex_column_sigs`. Got: {out}"
+    );
+}
+
+#[test]
 fn test_create_unique_index_is_not_rewritten_to_partial() {
     let result = parse_and_transform_execute("CREATE UNIQUE INDEX idx_items_name ON items(name)");
     assert!(

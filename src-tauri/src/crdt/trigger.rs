@@ -17,6 +17,14 @@ const DELETE_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_delete";
 
 pub const HLC_TIMESTAMP_COLUMN: &str = "haex_hlc";
 pub const COLUMN_HLCS_COLUMN: &str = "haex_column_hlcs";
+/// Per-column author signatures (JSON `{ column_name -> base64 sig }`).
+///
+/// Parallel to `haex_column_hlcs`: while `haex_column_hlcs` tracks the last
+/// HLC per column for LWW, `haex_column_sigs` tracks the signature over the
+/// authoritative preimage for the last write to that column. Shared-space
+/// receivers verify against this map before applying an incoming column
+/// change (Phase 1 of the shared-space authenticity design).
+pub const COLUMN_SIGS_COLUMN: &str = "haex_column_sigs";
 
 /// Name der Delete-Log-Tabelle (Sync-Tabelle, daher ohne `_no_sync`-Suffix).
 /// Deletes werden hier als Event-Zeilen festgehalten; die Haupttabellen enthalten

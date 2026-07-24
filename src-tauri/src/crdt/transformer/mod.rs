@@ -1,11 +1,12 @@
 // src-tauri/src/crdt/transformer.rs
 
 use crate::crdt::insert_transformer::InsertTransformer;
-use crate::crdt::trigger::{COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN};
+use crate::crdt::trigger::{COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN, HLC_TIMESTAMP_COLUMN};
 use crate::database::error::DatabaseError;
 use sqlparser::ast::{
-    AlterTable, Assignment, AssignmentTarget, ColumnDef, DataType, Expr, Ident, ObjectName,
-    ObjectNamePart, Query, Select, SetExpr, Statement, TableFactor, TableObject, Value,
+    AlterTable, Assignment, AssignmentTarget, ColumnDef, ColumnOption, ColumnOptionDef, DataType,
+    Expr, Ident, ObjectName, ObjectNamePart, Query, Select, SetExpr, Statement, TableFactor,
+    TableObject, Value,
 };
 use std::borrow::Cow;
 use uhlc::Timestamp;
@@ -15,12 +16,14 @@ use uhlc::Timestamp;
 struct CrdtColumns {
     hlc_timestamp: &'static str,
     column_hlcs: &'static str,
+    column_sigs: &'static str,
 }
 
 impl CrdtColumns {
     const DEFAULT: Self = Self {
         hlc_timestamp: HLC_TIMESTAMP_COLUMN,
         column_hlcs: COLUMN_HLCS_COLUMN,
+        column_sigs: COLUMN_SIGS_COLUMN,
     };
 
     /// Erstellt eine HLC-Zuweisung für UPDATE
@@ -37,7 +40,11 @@ impl CrdtColumns {
     /// Überschreibt vorhandene Spalten mit den gleichen Namen, um korrekte Datentypen zu garantieren
     fn add_to_table_definition(&self, columns: &mut Vec<ColumnDef>) {
         // Remove existing CRDT columns if present
-        columns.retain(|c| c.name.value != self.hlc_timestamp && c.name.value != self.column_hlcs);
+        columns.retain(|c| {
+            c.name.value != self.hlc_timestamp
+                && c.name.value != self.column_hlcs
+                && c.name.value != self.column_sigs
+        });
 
         // Add all CRDT columns with correct types
         columns.push(ColumnDef {
@@ -50,6 +57,27 @@ impl CrdtColumns {
             name: Ident::new(self.column_hlcs),
             data_type: DataType::String(None),
             options: vec![],
+        });
+
+        // Per-column author signatures (parallel to column_hlcs). Emitted as
+        // `haex_column_sigs TEXT NOT NULL DEFAULT '{}'` so that pre-existing
+        // rows and inserts that don't yet know about the column still land
+        // with a valid empty map.
+        columns.push(ColumnDef {
+            name: Ident::new(self.column_sigs),
+            data_type: DataType::String(None),
+            options: vec![
+                ColumnOptionDef {
+                    name: None,
+                    option: ColumnOption::NotNull,
+                },
+                ColumnOptionDef {
+                    name: None,
+                    option: ColumnOption::Default(Expr::Value(
+                        Value::SingleQuotedString("{}".to_string()).into(),
+                    )),
+                },
+            ],
         });
     }
 }
