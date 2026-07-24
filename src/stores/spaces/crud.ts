@@ -8,6 +8,7 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { createRootUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { deriveSpaceIdAsync, verifySpaceIdBindingAsync } from '@/utils/auth/spaceId'
 import { throwIfNotOk } from '@/utils/fetch'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
@@ -45,7 +46,18 @@ export async function createLocalSpace(
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
   spaceId?: string,
 ): Promise<{ id: string }> {
-  const id = spaceId || crypto.randomUUID()
+  const identityStore = useIdentityStore()
+  await identityStore.loadIdentitiesAsync()
+  const identity = identityStore.ownIdentities.find(i => i.id === ownerIdentityId)
+  if (!identity) throw new Error('Selected owner identity not available')
+
+  const id = spaceId ?? await deriveSpaceIdAsync(identity.did)
+
+  // Invariant: derived space_id must verify against its minting DID.
+  // See ADR 0002 (self-certifying space_id). Contract-guard — never expected to fire.
+  if (!(await verifySpaceIdBindingAsync(id, identity.did))) {
+    throw new Error(`space_id binding invariant violated (space=${id})`)
+  }
 
   const space: SpaceWithType = {
     id,
@@ -57,11 +69,6 @@ export async function createLocalSpace(
     createdAt: new Date().toISOString(),
     capabilities: [],
   }
-
-  const identityStore = useIdentityStore()
-  await identityStore.loadIdentitiesAsync()
-  const identity = identityStore.ownIdentities.find(i => i.id === ownerIdentityId)
-  if (!identity) throw new Error('Selected owner identity not available')
 
   // Persist the space before MLS stores its FK-backed epoch sync key.
   await db.insert(haexSpaces).values({
@@ -112,7 +119,13 @@ export async function createOnlineSpace(
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
   listSpaces: () => Promise<void>,
 ): Promise<{ id: string }> {
-  const spaceId = crypto.randomUUID()
+  const spaceId = await deriveSpaceIdAsync(identity.did)
+
+  // Invariant: derived space_id must verify against its minting DID.
+  // See ADR 0002 (self-certifying space_id). Contract-guard — never expected to fire.
+  if (!(await verifySpaceIdBindingAsync(spaceId, identity.did))) {
+    throw new Error(`space_id binding invariant violated (space=${spaceId})`)
+  }
 
   const body = JSON.stringify({ id: spaceId, name: spaceName, label: selfLabel })
   const response = await fetchWithDidAuth(
