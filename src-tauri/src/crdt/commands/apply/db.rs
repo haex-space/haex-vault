@@ -1184,11 +1184,36 @@ mod tests {
     /// target row stays untouched and the invalid author DID is NOT stub-
     /// inserted into `haex_identities` (that path only fires for verified
     /// sigs — otherwise a peer could flood the table with attacker DIDs).
+    ///
+    /// The signature is produced by a real key over a *different* value
+    /// than the one claimed in the change, so verification fails on
+    /// `VerifyColumnSigError::InvalidSignature` — not on a malformed-DID
+    /// short-circuit, which would make this test pass for the wrong reason.
     #[test]
     fn apply_rejects_change_with_invalid_signature() {
         let db = setup_db_with_identities();
-        let did = "did:key:zFakeAuthorForBadSigTest";
+
+        let seed: [u8; 32] = rand::random();
+        let signing_key = SigningKey::from_bytes(&seed);
+        let did = did_key_from_public_key(&signing_key.verifying_key());
+        let space_id = "s1"; // seeded on the row in setup
         let hlc = "20/xxx"; // > existing avatar HLC 3/aaa so it would apply if verified
+
+        // Sign a *different* value than the one the change actually carries,
+        // so the recomputed preimage on the verifier side never matches.
+        let signed_value_bytes = value_bytes::to_canonical_bytes(&SqlValue::Text(
+            "value-that-was-not-tampered.png".to_string(),
+        ));
+        let sig = sign_column(
+            &signing_key,
+            space_id.as_bytes(),
+            b"devices",
+            br#"{"id":"dev-1"}"#,
+            b"avatar",
+            hlc.as_bytes(),
+            did.as_bytes(),
+            &signed_value_bytes,
+        );
 
         let change = RemoteColumnChange {
             table_name: "devices".to_string(),
@@ -1197,9 +1222,8 @@ mod tests {
             hlc_timestamp: hlc.to_string(),
             decrypted_value: JsonValue::String("tampered.png".to_string()),
             sig: Some(ColumnSig {
-                author_did: did.to_string(),
-                // 64 bytes of zero — right length, wrong signature.
-                sig: BASE64.encode([0u8; 64]),
+                author_did: did.clone(),
+                sig: BASE64.encode(sig.to_bytes()),
             }),
         };
 
@@ -1226,7 +1250,7 @@ mod tests {
             let conn = guard.as_ref().unwrap();
             conn.query_row(
                 "SELECT COUNT(*) FROM haex_identities WHERE did = ?",
-                [did],
+                [&did],
                 |r| r.get(0),
             )
             .unwrap()
