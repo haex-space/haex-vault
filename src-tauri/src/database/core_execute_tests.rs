@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
 use crate::crdt::hlc::HlcService;
-use crate::crdt::trigger::ensure_crdt_columns;
+use crate::crdt::trigger::{ensure_crdt_columns, setup_triggers_for_table};
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
@@ -61,8 +61,9 @@ fn setup_fixture() -> Fixture {
 
     conn.execute_batch(&format!(
         "CREATE TABLE {} (key TEXT PRIMARY KEY, type TEXT NOT NULL, value TEXT NOT NULL);
-         CREATE TABLE {} (table_name TEXT PRIMARY KEY, last_modified TEXT);",
-        TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES
+         CREATE TABLE {} (table_name TEXT PRIMARY KEY, last_modified TEXT);
+         INSERT INTO {} (key, type, value) VALUES ('triggers_enabled', 'system', '1');",
+        TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_CRDT_CONFIGS
     ))
     .unwrap();
 
@@ -169,6 +170,9 @@ fn setup_fixture() -> Fixture {
         let tx = conn.unchecked_transaction().unwrap();
         ensure_crdt_columns(&tx, "ext_calendar").unwrap();
         ensure_crdt_columns(&tx, "haex_space_devices").unwrap();
+        // The register itself carries CRDT meta so `execute_with_crdt` can
+        // insert into it (F2 target).
+        ensure_crdt_columns(&tx, "haex_shared_space_sync").unwrap();
         tx.commit().unwrap();
     }
 
@@ -278,6 +282,334 @@ fn execute_with_crdt_skips_signing_when_row_has_no_spaces() {
         "unshared row must not accumulate sigs, got: {:?}",
         sigs
     );
+}
+
+// ---------------------------------------------------------------------------
+// F2 — share-insert cross-table signing
+// ---------------------------------------------------------------------------
+
+/// F2 fixtures need a THIRD owned identity/space so a share INSERT can declare
+/// a brand-new (previously-unsigned) space membership. Extends the F1 fixture
+/// in place; the `did_c` return threads the new identity through to callers.
+struct FixtureF2 {
+    db: DbConnection,
+    hlc: HlcService,
+    cache: SpaceKeyCache,
+    did_a: String,
+    did_c: String,
+}
+
+fn setup_fixture_f2() -> FixtureF2 {
+    let f = setup_fixture();
+    let key_c = random_key();
+    let did_c = did_key_from_public_key(&key_c.verifying_key());
+    {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute(
+            "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["id-c", &did_c, pkcs8_b64(&key_c)],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_space_members (id, space_id, identity_id) VALUES (?1, ?2, ?3)",
+            ["mem-c", "space_C", "id-c"],
+        )
+        .unwrap();
+        // Install UPDATE triggers on ext_calendar so that seeding writes
+        // populate `haex_column_hlcs` per-column HLCs — F2 must be able to
+        // read the ORIGINAL column HLC when it retro-signs.
+        let tx = conn.unchecked_transaction().unwrap();
+        setup_triggers_for_table(&tx, "ext_calendar", true).unwrap();
+        tx.commit().unwrap();
+        // The pre-seeded ext_calendar rows came in via raw SQL before the
+        // CRDT columns existed, so their `haex_column_hlcs` blob is NULL.
+        // `json_set(NULL, …)` yields NULL, which would defeat the seed UPDATE
+        // that populates per-column HLCs. Initialise both meta columns to
+        // empty JSON objects so triggers can extend them.
+        conn.execute(
+            "UPDATE ext_calendar SET haex_column_hlcs = '{}', haex_column_sigs = '{}'",
+            [],
+        )
+        .unwrap();
+    }
+    // Refresh the cache to pick up the new identity/space.
+    {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        f.cache.populate_all(conn).expect("repopulate cache");
+    }
+    FixtureF2 {
+        db: f.db,
+        hlc: f.hlc,
+        cache: f.cache,
+        did_a: f.did_a,
+        did_c,
+    }
+}
+
+/// Force per-column HLCs onto `ext_calendar` row `SOLO` via a real
+/// `execute_with_crdt` UPDATE — that path populates `haex_hlc` and
+/// `haex_column_hlcs` the same way as a live vault would. F2 then reads
+/// those HLCs when it retro-signs the row for the new space.
+fn seed_solo_row_hlcs(f: &FixtureF2) {
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    core::execute_with_crdt(
+        "UPDATE ext_calendar SET title = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("solo-warm".to_string()),
+            JsonValue::String("SOLO".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("warm-up UPDATE succeeds");
+}
+
+fn count_rows(db: &DbConnection, sql: &str) -> i64 {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    conn.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap()
+}
+
+#[test]
+fn insert_into_share_register_signs_all_columns_of_referenced_row() {
+    let f = setup_fixture_f2();
+    seed_solo_row_hlcs(&f);
+
+    // Grab the row's per-column HLC for `title` — F2 must reuse it as the
+    // preimage HLC, not the current tx HLC of the share INSERT.
+    let title_hlc: String = {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT json_extract(haex_column_hlcs, '$.title') \
+             FROM ext_calendar WHERE id = 'SOLO'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    assert!(
+        !title_hlc.is_empty(),
+        "seed step must populate haex_column_hlcs.title"
+    );
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync \
+            (id, table_name, row_pks, space_id, authored_by_did) \
+         VALUES (?1, ?2, ?3, ?4, ?5)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-C".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"SOLO"}"#.to_string()),
+            JsonValue::String("space_C".to_string()),
+            JsonValue::String(f.did_c.clone()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("share INSERT succeeds");
+
+    let sigs = read_column_sigs_json(&f.db, "ext_calendar", "SOLO");
+    let title = sigs
+        .get("title")
+        .and_then(|v| v.as_object())
+        .expect("sigs must have a 'title' entry after share-register INSERT");
+    assert!(
+        title.contains_key("space_C"),
+        "expected space_C sig on title, got: {:?}",
+        title.keys().collect::<Vec<_>>()
+    );
+    let space_c = title.get("space_C").and_then(|v| v.as_object()).unwrap();
+    assert_eq!(
+        space_c.get("author_did").and_then(|v| v.as_str()),
+        Some(f.did_c.as_str())
+    );
+    assert!(space_c.get("sig").and_then(|v| v.as_str()).is_some());
+}
+
+#[test]
+fn share_insert_rejects_when_authored_by_did_is_foreign_i2_violation() {
+    let f = setup_fixture_f2();
+    seed_solo_row_hlcs(&f);
+
+    let sigs_before_count = count_rows(
+        &f.db,
+        "SELECT COUNT(*) FROM haex_shared_space_sync WHERE id = 'share-EVIL'",
+    );
+    assert_eq!(sigs_before_count, 0);
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    let foreign_did = "did:key:z6MkFakeForeignAuthorForI2Test".to_string();
+    let result = core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync \
+            (id, table_name, row_pks, space_id, authored_by_did) \
+         VALUES (?1, ?2, ?3, ?4, ?5)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-EVIL".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"SOLO"}"#.to_string()),
+            JsonValue::String("space_C".to_string()),
+            JsonValue::String(foreign_did),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(crate::database::error::DatabaseError::I2ForeignShareInsert { .. })
+        ),
+        "expected I2ForeignShareInsert, got: {:?}",
+        result
+    );
+
+    // Rollback: no register row must have persisted.
+    let after = count_rows(
+        &f.db,
+        "SELECT COUNT(*) FROM haex_shared_space_sync WHERE id = 'share-EVIL'",
+    );
+    assert_eq!(after, 0, "foreign-share INSERT must roll back");
+
+    // No sigs must exist for SOLO under space_C either.
+    let sigs = read_column_sigs_json(&f.db, "ext_calendar", "SOLO");
+    if let Some(t) = sigs.get("title").and_then(|v| v.as_object()) {
+        assert!(
+            !t.contains_key("space_C"),
+            "foreign share must not produce a space_C sig, got: {:?}",
+            t.keys().collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
+fn share_insert_rejects_when_target_table_is_haex_system_i1_violation() {
+    let f = setup_fixture_f2();
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    let result = core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync \
+            (id, table_name, row_pks, space_id, authored_by_did) \
+         VALUES (?1, ?2, ?3, ?4, ?5)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-SYS".to_string()),
+            JsonValue::String("haex_identities".to_string()),
+            JsonValue::String(r#"{"id":"id-a"}"#.to_string()),
+            JsonValue::String("space_C".to_string()),
+            JsonValue::String(f.did_a.clone()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(crate::database::error::DatabaseError::I1RegisterTargetsSystemTable { .. })
+        ),
+        "expected I1RegisterTargetsSystemTable, got: {:?}",
+        result
+    );
+
+    let after = count_rows(
+        &f.db,
+        "SELECT COUNT(*) FROM haex_shared_space_sync WHERE id = 'share-SYS'",
+    );
+    assert_eq!(after, 0, "I1-violating INSERT must roll back");
+}
+
+#[test]
+fn share_insert_reuses_historical_column_hlc_not_tx_hlc() {
+    // The sig preimage binds `hlc = <col>__crdt_ts` — the row's historical
+    // per-column HLC captured when the value was written, not the tx HLC of
+    // the register INSERT. Verifying by construction: build the same preimage
+    // manually with the seeded HLC and check that the persisted sig verifies
+    // against it — a sig built from the wrong HLC would fail Ed25519 verify.
+    use crate::crdt::column_sig::preimage::build_preimage;
+    use ed25519_dalek::{Signature, Verifier};
+
+    let f = setup_fixture_f2();
+    seed_solo_row_hlcs(&f);
+
+    let title_hlc: String = {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT json_extract(haex_column_hlcs, '$.title') \
+             FROM ext_calendar WHERE id = 'SOLO'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync \
+            (id, table_name, row_pks, space_id, authored_by_did) \
+         VALUES (?1, ?2, ?3, ?4, ?5)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-D".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"SOLO"}"#.to_string()),
+            JsonValue::String("space_C".to_string()),
+            JsonValue::String(f.did_c.clone()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("share INSERT succeeds");
+    drop(hlc_guard);
+
+    let sigs = read_column_sigs_json(&f.db, "ext_calendar", "SOLO");
+    let title = sigs.get("title").and_then(|v| v.as_object()).unwrap();
+    let space_c = title.get("space_C").and_then(|v| v.as_object()).unwrap();
+    let sig_b64 = space_c.get("sig").and_then(|v| v.as_str()).unwrap();
+    let sig_bytes = BASE64.decode(sig_b64).unwrap();
+    let sig = Signature::from_slice(&sig_bytes).unwrap();
+
+    // Reconstruct: value = "solo-warm" (from seed_solo_row_hlcs).
+    use crate::crdt::column_sig::value_bytes;
+    use rusqlite::types::Value as SqlValue;
+    let value_bytes = value_bytes::to_canonical_bytes(&SqlValue::Text("solo-warm".to_string()));
+    let preimage = build_preimage(
+        b"space_C",
+        b"ext_calendar",
+        br#"{"id":"SOLO"}"#,
+        b"title",
+        title_hlc.as_bytes(),
+        f.did_c.as_bytes(),
+        &value_bytes,
+    );
+
+    // Grab space_C's public key and verify.
+    let vk = f
+        .cache
+        .get("space_C")
+        .expect("space_C key cached")
+        .verifying_key();
+    vk.verify(&preimage, &sig)
+        .expect("sig must verify against the ORIGINAL per-column HLC preimage");
 }
 
 #[test]

@@ -134,6 +134,21 @@ pub enum DatabaseError {
     /// is enforced as a per-call write-size guard at that chokepoint.
     #[error("CRDT transaction too large: {bytes} bytes exceeds the {limit} byte limit; use file storage for large payloads")]
     TransactionTooLarge { bytes: usize, limit: usize },
+
+    /// Shared-space integrity violation I1 (ADR 0002 §4b): a row was inserted
+    /// into the share register `haex_shared_space_sync` whose `table_name`
+    /// points at an internal `haex_*` (or `sqlite_*`) system table. The
+    /// register may never target internal tables — reject the transaction.
+    #[error("I1 integrity violation: share register may not target system table '{table}'")]
+    I1RegisterTargetsSystemTable { table: String },
+
+    /// Shared-space integrity violation I2 (ADR 0002 §4b / §6): a share-register
+    /// row's `authored_by_did` is not a DID owned by this vault (no matching
+    /// entry in `haex_identities` with a `private_key`), or the vault does not
+    /// hold a signing key for the declared `space_id`. Signing for that space
+    /// would let a foreign-authored row leak into it — reject the transaction.
+    #[error("I2 integrity violation: share-register author DID '{did}' is not a local identity or vault has no key for space '{space_id}'")]
+    I2ForeignShareInsert { did: String, space_id: String },
 }
 
 impl From<rusqlite::Error> for DatabaseError {

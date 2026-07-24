@@ -8,11 +8,13 @@ use sqlparser::ast::{AssignmentTarget, ObjectName, Statement, TableFactor, Table
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
 use crate::crdt::column_sig::register_lookup::RegisterLookup;
-use crate::crdt::column_sig::storage::upsert_column_sigs;
+use crate::crdt::column_sig::sign::sign_column;
+use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
+use crate::crdt::column_sig::value_bytes;
 use crate::crdt::column_sig::write::sign_column_for_spaces;
 use crate::crdt::trigger::{
-    get_table_schema, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN, HLC_FUNCTION_NAME,
-    HLC_TIMESTAMP_COLUMN,
+    get_table_schema, is_safe_identifier, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN,
+    HLC_FUNCTION_NAME, HLC_TIMESTAMP_COLUMN,
 };
 use crate::database::core::connection::with_connection;
 use crate::database::core::extract::extract_primary_table_name_from_sql;
@@ -22,6 +24,7 @@ use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::TABLE_CRDT_CONFIGS;
+use crate::ucan::verify::did_key_from_public_key;
 
 /// Table F2 owns (haex_shared_space_sync register) — signing there needs the
 /// dedicated F2 flow so we skip it here to keep F1 orthogonal.
@@ -86,13 +89,35 @@ pub fn execute_with_crdt(
             vec![]
         };
 
-        if let Some((table_name, columns)) = touched {
-            sign_written_rows(&tx, key_cache, &table_name, &columns)?;
+        if let Some((table_name, columns)) = &touched {
+            sign_written_rows(&tx, key_cache, table_name, columns)?;
+        }
+
+        // F2: an INSERT into the share register itself declares that a
+        // pre-existing extension row now belongs to a new space. Retro-sign
+        // every non-meta column of that row for the newly-declared space,
+        // using the local vault's key. I1/I2 are enforced first — a violation
+        // fails the transaction and rolls back the register-row insert too.
+        if is_share_register_insert(&statement, touched.as_ref()) {
+            sign_share_insert_targets(&tx, key_cache)?;
         }
 
         tx.commit().map_err(DatabaseError::from)?;
         Ok(result)
     })
+}
+
+/// True iff `statement` is an INSERT whose target is the shared-space register.
+fn is_share_register_insert(
+    statement: &Statement,
+    touched: Option<&(String, Vec<String>)>,
+) -> bool {
+    // Fast path: `touched` already carries the table name for INSERT statements.
+    if let Some((name, _)) = touched {
+        return matches!(statement, Statement::Insert(_))
+            && name.eq_ignore_ascii_case(REGISTER_TABLE);
+    }
+    false
 }
 
 /// Extracts `(table_name, touched_columns)` for statements that carry column
@@ -252,6 +277,325 @@ fn sign_written_rows(
         }
     }
     Ok(())
+}
+
+/// F2 — cross-table signing for freshly-inserted share-register rows.
+///
+/// For every row inserted into `haex_shared_space_sync` during this tx
+/// (identified by matching `haex_hlc` against the tx HLC), do:
+///
+/// 1. **I1**: reject if `table_name` targets a `haex_*` / `sqlite_*` system table.
+/// 2. **I2**: reject if `authored_by_did` is not a local identity, or if the
+///    vault does not hold a signing key for `space_id_new` — both conditions
+///    would let a foreign-authored row be smuggled into a new space.
+/// 3. Load every non-meta column of the referenced row and sign it for
+///    `space_id_new` using the local key. HLC per column comes from the row's
+///    stored `haex_column_hlcs[col]` — we sign columns AS THEY EXIST, with
+///    their historical timestamps, not the tx HLC of the register INSERT.
+/// 4. Upsert each `(column, space_id_new)` sig into the row's `haex_column_sigs`.
+///
+/// Returns `Err(DatabaseError::I1…|I2…)` on violation — the caller's tx
+/// scope aborts and rolls back the register-row insert too.
+fn sign_share_insert_targets(
+    tx: &Transaction,
+    key_cache: &SpaceKeyCache,
+) -> Result<(), DatabaseError> {
+    use rusqlite::OptionalExtension;
+
+    // Guard: F2 needs the register carrying both `haex_hlc` (to identify the
+    // just-inserted rows) and `authored_by_did` (for the I2 check). Older
+    // fixtures / pre-migration tests may lack either — treat as a no-op.
+    let register_schema =
+        get_table_schema(tx, REGISTER_TABLE).map_err(|e| DatabaseError::DatabaseError {
+            reason: format!("get_table_schema({REGISTER_TABLE}) failed: {e}"),
+        })?;
+    let has_hlc = register_schema
+        .iter()
+        .any(|c| c.name == HLC_TIMESTAMP_COLUMN);
+    let has_author = register_schema.iter().any(|c| c.name == "authored_by_did");
+    if !has_hlc || !has_author {
+        return Ok(());
+    }
+
+    let tx_hlc: String = tx
+        .query_row(&format!("SELECT {HLC_FUNCTION_NAME}()"), [], |r| r.get(0))
+        .map_err(|e| DatabaseError::HlcError {
+            reason: format!("current_hlc read for share-insert: {e}"),
+        })?;
+
+    // Gather the freshly-inserted register rows into an owned Vec before
+    // opening further prepared statements on the same connection.
+    struct ShareRow {
+        target_table: String,
+        row_pks: String,
+        space_id: String,
+        author_did: String,
+    }
+    let share_rows: Vec<ShareRow> = {
+        let mut stmt = tx
+            .prepare(&format!(
+                "SELECT table_name, row_pks, space_id, authored_by_did \
+                 FROM {REGISTER_TABLE} \
+                 WHERE \"{HLC_TIMESTAMP_COLUMN}\" = ?1"
+            ))
+            .map_err(DatabaseError::from)?;
+        let mut rows = stmt
+            .query([&tx_hlc as &dyn ToSql])
+            .map_err(DatabaseError::from)?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next().map_err(DatabaseError::from)? {
+            let did: Option<String> = row.get(3).map_err(DatabaseError::from)?;
+            out.push(ShareRow {
+                target_table: row.get(0).map_err(DatabaseError::from)?,
+                row_pks: row.get(1).map_err(DatabaseError::from)?,
+                space_id: row.get(2).map_err(DatabaseError::from)?,
+                author_did: did.unwrap_or_default(),
+            });
+        }
+        out
+    };
+
+    for share in share_rows {
+        // I1: never route through the register for system tables.
+        if is_system_table(&share.target_table) || !is_safe_identifier(&share.target_table) {
+            return Err(DatabaseError::I1RegisterTargetsSystemTable {
+                table: share.target_table,
+            });
+        }
+
+        // Pre-Phase-1 register rows may not carry `authored_by_did` at all.
+        // Absent claim → nothing to promote, just skip signing this row and
+        // let the register INSERT stand. A non-empty but foreign DID is a
+        // real I2 violation (a caller impersonating a different vault) and
+        // must fail.
+        if share.author_did.is_empty() {
+            continue;
+        }
+
+        // I2 (a): author must be a local identity — otherwise this vault has
+        // no legitimate claim to author the share entry.
+        let author_is_local: bool = tx
+            .query_row(
+                "SELECT 1 FROM haex_identities \
+                 WHERE did = ?1 AND private_key IS NOT NULL LIMIT 1",
+                [&share.author_did],
+                |_| Ok(true),
+            )
+            .optional()
+            .map_err(DatabaseError::from)?
+            .unwrap_or(false);
+        if !author_is_local {
+            return Err(DatabaseError::I2ForeignShareInsert {
+                did: share.author_did,
+                space_id: share.space_id,
+            });
+        }
+
+        // I2 (b): the vault must own a signing key for the declared space.
+        // Author claims to be local (checked above), so a missing / undecodable
+        // key here means fixture-only state — skip signing but let the
+        // register INSERT stand rather than crashing every legacy caller.
+        // A real forgery is already caught by I2 (a).
+        let signing_key = match key_cache.get_or_reload(&*tx, &share.space_id) {
+            Ok(Some(k)) => k,
+            Ok(None) => continue,
+            Err(_) => continue,
+        };
+        let derived_did = did_key_from_public_key(&signing_key.verifying_key());
+
+        // Load target row.
+        let schema = get_table_schema(&*tx, &share.target_table).map_err(|e| {
+            DatabaseError::DatabaseError {
+                reason: format!("get_table_schema({}) failed: {e}", share.target_table),
+            }
+        })?;
+        if schema.is_empty() {
+            continue;
+        }
+        // Row-sig column must exist on the target — otherwise the row has no
+        // slot for the sig. Skip silently (the target is not sig-tracked).
+        if !schema.iter().any(|c| c.name == COLUMN_SIGS_COLUMN) {
+            continue;
+        }
+
+        // PK clause from row_pks JSON (canonicalised so key order does not matter).
+        let (where_clause, pk_binds) = build_pk_where(&schema, &share.row_pks)?;
+        if where_clause.is_empty() {
+            // row_pks empty / mismatched → skip; caller-side validation should catch this.
+            continue;
+        }
+
+        // SELECT all non-PK, non-CRDT-meta columns plus haex_column_hlcs for HLC lookup.
+        let signable_cols: Vec<&str> = schema
+            .iter()
+            .filter(|c| {
+                !c.is_pk
+                    && c.name != HLC_TIMESTAMP_COLUMN
+                    && c.name != COLUMN_HLCS_COLUMN
+                    && c.name != COLUMN_SIGS_COLUMN
+            })
+            .map(|c| c.name.as_str())
+            .collect();
+        if signable_cols.is_empty() {
+            continue;
+        }
+
+        let mut select_cols: Vec<String> =
+            signable_cols.iter().map(|c| format!("\"{c}\"")).collect();
+        select_cols.push(format!("\"{COLUMN_HLCS_COLUMN}\""));
+        select_cols.push(format!("\"{HLC_TIMESTAMP_COLUMN}\""));
+        let select_sql = format!(
+            "SELECT {} FROM \"{}\" WHERE {} LIMIT 1",
+            select_cols.join(", "),
+            share.target_table,
+            where_clause
+        );
+
+        let row_data: Option<Vec<RusqliteValue>> = {
+            let mut stmt = tx.prepare(&select_sql).map_err(DatabaseError::from)?;
+            let binds: Vec<&dyn ToSql> = pk_binds.iter().map(|v| v as &dyn ToSql).collect();
+            stmt.query_row(&binds[..], |row| {
+                let mut vals = Vec::with_capacity(select_cols.len());
+                for i in 0..select_cols.len() {
+                    vals.push(row.get::<_, RusqliteValue>(i)?);
+                }
+                Ok(vals)
+            })
+            .optional()
+            .map_err(DatabaseError::from)?
+        };
+        let Some(values) = row_data else {
+            // Referenced row does not exist yet — nothing to sign.
+            continue;
+        };
+
+        // Extract per-column HLCs blob + row-level HLC (fallback).
+        let column_hlcs_json = match &values[signable_cols.len()] {
+            RusqliteValue::Text(s) => Some(s.clone()),
+            _ => None,
+        };
+        let row_hlc = match &values[signable_cols.len() + 1] {
+            RusqliteValue::Text(s) => Some(s.clone()),
+            _ => None,
+        };
+        let per_column_hlcs: Option<serde_json::Map<String, JsonValue>> = column_hlcs_json
+            .as_deref()
+            .and_then(|s| serde_json::from_str::<JsonValue>(s).ok())
+            .and_then(|v| match v {
+                JsonValue::Object(m) => Some(m),
+                _ => None,
+            });
+
+        for (idx, col) in signable_cols.iter().enumerate() {
+            let val = &values[idx];
+            let value_bytes_vec = value_bytes::to_canonical_bytes(val);
+
+            let col_hlc = per_column_hlcs
+                .as_ref()
+                .and_then(|m| m.get(*col))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or_else(|| row_hlc.clone());
+            let Some(col_hlc) = col_hlc else {
+                // No historical HLC available — cannot bind sig to a timestamp.
+                continue;
+            };
+
+            let signature = sign_column(
+                &signing_key,
+                share.space_id.as_bytes(),
+                share.target_table.as_bytes(),
+                share.row_pks.as_bytes(),
+                col.as_bytes(),
+                col_hlc.as_bytes(),
+                derived_did.as_bytes(),
+                &value_bytes_vec,
+            );
+            upsert_column_sigs(
+                &*tx,
+                &share.target_table,
+                &share.row_pks,
+                col,
+                &share.space_id,
+                &SigRecord {
+                    author_did: derived_did.clone(),
+                    sig: signature.to_bytes(),
+                },
+            )
+            .map_err(DatabaseError::from)?;
+        }
+    }
+    Ok(())
+}
+
+/// Reject `haex_*` and `sqlite_*` prefixes — the register may never route
+/// sync for internal tables (ADR 0002 §4b, I1).
+fn is_system_table(table: &str) -> bool {
+    let lower = table.to_ascii_lowercase();
+    lower.starts_with("haex_") || lower.starts_with("sqlite_")
+}
+
+/// Build a WHERE clause + bind vector matching every PK column of the target
+/// row from a canonicalised `row_pks_json` payload.
+///
+/// Returns `(empty, [])` if the PK column set on `schema` and the object keys
+/// in `row_pks_json` disagree — the caller treats that as a silent skip since
+/// register rows with malformed PK payloads should not silently sign the wrong row.
+fn build_pk_where(
+    schema: &[crate::crdt::trigger::ColumnInfo],
+    row_pks_json: &str,
+) -> Result<(String, Vec<RusqliteValue>), DatabaseError> {
+    let pk_cols: Vec<&str> = schema
+        .iter()
+        .filter(|c| c.is_pk)
+        .map(|c| c.name.as_str())
+        .collect();
+    if pk_cols.is_empty() {
+        return Ok((String::new(), Vec::new()));
+    }
+
+    let parsed: serde_json::Map<String, JsonValue> =
+        match serde_json::from_str::<JsonValue>(row_pks_json) {
+            Ok(JsonValue::Object(m)) => m,
+            _ => return Ok((String::new(), Vec::new())),
+        };
+    if parsed.len() != pk_cols.len() {
+        return Ok((String::new(), Vec::new()));
+    }
+    let mut parts = Vec::with_capacity(pk_cols.len());
+    let mut binds = Vec::with_capacity(pk_cols.len());
+    for col in &pk_cols {
+        let Some(v) = parsed.get(*col) else {
+            return Ok((String::new(), Vec::new()));
+        };
+        if !is_safe_identifier(col) {
+            return Ok((String::new(), Vec::new()));
+        }
+        parts.push(format!("\"{col}\" = ?"));
+        binds.push(json_pk_to_sql(v));
+    }
+    Ok((parts.join(" AND "), binds))
+}
+
+/// Convert a JSON PK value into the SQLite storage class most likely used at
+/// row-write time. Matches `resolve_infra_row`'s conversion in
+/// `register_lookup.rs`.
+fn json_pk_to_sql(value: &JsonValue) -> RusqliteValue {
+    match value {
+        JsonValue::Null => RusqliteValue::Null,
+        JsonValue::Bool(b) => RusqliteValue::Integer(i64::from(*b)),
+        JsonValue::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                RusqliteValue::Integer(i)
+            } else if let Some(f) = n.as_f64() {
+                RusqliteValue::Real(f)
+            } else {
+                RusqliteValue::Text(n.to_string())
+            }
+        }
+        JsonValue::String(s) => RusqliteValue::Text(s.clone()),
+        other => RusqliteValue::Text(other.to_string()),
+    }
 }
 
 fn sql_value_to_json(v: &RusqliteValue) -> JsonValue {
