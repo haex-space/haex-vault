@@ -208,3 +208,64 @@ fn infra_table_extra_pk_column_returns_error() {
         .expect_err("expected PK mismatch error");
     assert!(matches!(err, rusqlite::Error::InvalidParameterName(_)));
 }
+
+/// F#3 (Runde-4 review): a legacy or malicious register row targeting a
+/// forbidden `haex_*` system table must not cause the extension path to
+/// sign for the target space. Return an empty vec — F2 rejects fresh
+/// INSERTs of this shape with a hard I1 error at write time, so a read
+/// hitting one is legacy garbage the sig layer refuses to trust.
+#[test]
+fn resolve_extension_row_ignores_forbidden_system_table_targets() {
+    let conn = seed();
+    // Plant a register row targeting `haex_identities` — this is exactly
+    // the shape F2 blocks with I1RegisterTargetsSystemTable, but F1's
+    // read path can still be handed such a row from historic writes.
+    conn.execute(
+        "INSERT INTO haex_shared_space_sync \
+         (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
+        [
+            "reg-forbidden",
+            "haex_identities",
+            r#"{"id":"id-own-a"}"#,
+            "space_A",
+            "did:key:zOwnA",
+        ],
+    )
+    .unwrap();
+
+    let lookup = RegisterLookup::new();
+    let spaces = lookup
+        .resolve(&conn, "haex_identities", r#"{"id":"id-own-a"}"#)
+        .expect("resolve");
+    assert!(
+        spaces.is_empty(),
+        "forbidden system-table target must never produce a space, got: {:?}",
+        spaces
+    );
+}
+
+/// F#3 (Runde-4 review): the same rule applies to `_no_sync` cache tables
+/// and other denylist entries — anything the F2 write path refuses must
+/// also be silently ignored on the F1 read path.
+#[test]
+fn resolve_extension_row_ignores_no_sync_suffix_targets() {
+    let conn = seed();
+    conn.execute(
+        "INSERT INTO haex_shared_space_sync \
+         (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
+        [
+            "reg-no-sync",
+            "haex_workspaces_no_sync",
+            r#"{"id":"ws-1"}"#,
+            "space_A",
+            "did:key:zOwnA",
+        ],
+    )
+    .unwrap();
+
+    let lookup = RegisterLookup::new();
+    let spaces = lookup
+        .resolve(&conn, "haex_workspaces_no_sync", r#"{"id":"ws-1"}"#)
+        .expect("resolve");
+    assert!(spaces.is_empty());
+}

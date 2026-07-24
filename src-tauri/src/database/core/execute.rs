@@ -7,7 +7,7 @@ use serde_json::Value as JsonValue;
 use sqlparser::ast::{AssignmentTarget, ObjectName, Statement, TableFactor, TableObject};
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::column_sig::register_lookup::RegisterLookup;
+use crate::crdt::column_sig::register_lookup::{is_register_target_forbidden, RegisterLookup};
 use crate::crdt::column_sig::sign::sign_column;
 use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
 use crate::crdt::column_sig::value_bytes;
@@ -76,6 +76,22 @@ pub fn execute_with_crdt(
     let statement = parse_single_statement(&sql)?;
     let has_returning = statement_has_returning(&statement);
     let touched = extract_touched_for_signing(&statement);
+
+    // F#2 (Runde-4 review, HLC-forgery guard): reject any caller-supplied
+    // write to CRDT meta columns. The transformer would otherwise clobber
+    // `haex_hlc` silently, and — critically — a caller-supplied
+    // `haex_column_hlcs = '{"col":"9999-…"}'` would feed a forged HLC into
+    // the sig-preimage on the next F2 pass, letting an attacker mint a
+    // valid Ed25519 signature over an arbitrary HLC. Hard rejection is the
+    // only safe choice — silent stripping is indistinguishable from success.
+    if let Some(bad) = touched
+        .as_ref()
+        .and_then(|(_, cols)| cols.iter().find(|c| is_crdt_meta_column(c)))
+    {
+        return Err(DatabaseError::CrdtMetaColumnWriteForbidden {
+            column: bad.clone(),
+        });
+    }
 
     with_connection(connection, |conn| {
         let tx = conn.transaction().map_err(DatabaseError::from)?;
@@ -161,6 +177,21 @@ fn object_name_last(obj: &ObjectName) -> Option<String> {
         .last()
         .and_then(|p| p.as_ident())
         .map(|i| i.value.clone())
+}
+
+/// True iff `col` is one of the CRDT meta columns whose value must be produced
+/// by the CRDT layer, not by the caller — see `CrdtMetaColumnWriteForbidden`.
+///
+/// The `__crdt_ts` / `__crdt_source` / `__crdt_ts_source` suffixes are a
+/// defensive belt: no such suffix is currently emitted by the transformer,
+/// but they were part of an earlier design and refusing them costs nothing.
+fn is_crdt_meta_column(col: &str) -> bool {
+    if col == HLC_TIMESTAMP_COLUMN || col == COLUMN_HLCS_COLUMN || col == COLUMN_SIGS_COLUMN {
+        return true;
+    }
+    col.ends_with("__crdt_ts")
+        || col.ends_with("__crdt_source")
+        || col.ends_with("__crdt_ts_source")
 }
 
 /// Post-write signing pass: for every row that carries `haex_hlc == tx_hlc`
@@ -284,7 +315,8 @@ fn sign_written_rows(
 /// For every row inserted into `haex_shared_space_sync` during this tx
 /// (identified by matching `haex_hlc` against the tx HLC), do:
 ///
-/// 1. **I1**: reject if `table_name` targets a `haex_*` / `sqlite_*` system table.
+/// 1. **I1**: reject if `table_name` targets a system table on the shared
+///    denylist (see `column_sig::register_lookup::is_register_target_forbidden`).
 /// 2. **I2**: reject if `authored_by_did` is not a local identity, or if the
 ///    vault does not hold a signing key for `space_id_new` — both conditions
 ///    would let a foreign-authored row be smuggled into a new space.
@@ -305,6 +337,13 @@ fn sign_share_insert_targets(
     // Guard: F2 needs the register carrying both `haex_hlc` (to identify the
     // just-inserted rows) and `authored_by_did` (for the I2 check). Older
     // fixtures / pre-migration tests may lack either — treat as a no-op.
+    //
+    // F#4 (Runde-4 review): warn in that case. In prod the columns are
+    // guaranteed by the CRDT-column migration + Phase-1 schema addition, so
+    // a missing column signals schema drift or a test fixture that skipped
+    // migrations — the F2 sig path is silently bypassed, which previously
+    // masked F#1's blanket-`haex_`-rejection bug. A warning surfaces this
+    // to the operator without breaking legacy callers.
     let register_schema =
         get_table_schema(tx, REGISTER_TABLE).map_err(|e| DatabaseError::DatabaseError {
             reason: format!("get_table_schema({REGISTER_TABLE}) failed: {e}"),
@@ -314,6 +353,16 @@ fn sign_share_insert_targets(
         .any(|c| c.name == HLC_TIMESTAMP_COLUMN);
     let has_author = register_schema.iter().any(|c| c.name == "authored_by_did");
     if !has_hlc || !has_author {
+        tracing::warn!(
+            target: "column_sig",
+            register = REGISTER_TABLE,
+            has_hlc,
+            has_author,
+            "F2 sig path skipped: share register is missing CRDT meta or \
+             `authored_by_did` — schema drift or unmigrated fixture. \
+             Register INSERTs will not produce cross-table column sigs \
+             until the schema catches up."
+        );
         return Ok(());
     }
 
@@ -357,7 +406,12 @@ fn sign_share_insert_targets(
 
     for share in share_rows {
         // I1: never route through the register for system tables.
-        if is_system_table(&share.target_table) || !is_safe_identifier(&share.target_table) {
+        // Uses the shared denylist from `register_lookup` so both F1
+        // (`resolve_extension_row`) and F2 refuse the same set of targets
+        // — see `is_register_target_forbidden`'s docstring for the list.
+        if is_register_target_forbidden(&share.target_table)
+            || !is_safe_identifier(&share.target_table)
+        {
             return Err(DatabaseError::I1RegisterTargetsSystemTable {
                 table: share.target_table,
             });
@@ -526,13 +580,6 @@ fn sign_share_insert_targets(
         }
     }
     Ok(())
-}
-
-/// Reject `haex_*` and `sqlite_*` prefixes — the register may never route
-/// sync for internal tables (ADR 0002 §4b, I1).
-fn is_system_table(table: &str) -> bool {
-    let lower = table.to_ascii_lowercase();
-    lower.starts_with("haex_") || lower.starts_with("sqlite_")
 }
 
 /// Build a WHERE clause + bind vector matching every PK column of the target

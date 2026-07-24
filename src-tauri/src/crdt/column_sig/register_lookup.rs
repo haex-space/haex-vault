@@ -29,6 +29,67 @@ use tracing::error;
 use crate::crdt::scanner::is_space_scoped_table;
 use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
 
+/// Explicit denylist of `haex_*` tables the share register may never route
+/// sync for (ADR 0002 §4b, I1). Every `haex_*` table NOT in this set is
+/// user-facing (`haex_s3_backends`, `haex_spaces`, `haex_vault_settings`,
+/// `haex_passwords_*`, `haex_bookmarks_*`, …) and MAY legitimately appear
+/// as a register target — a blanket `haex_` prefix rule falsely rejects
+/// those and breaks share flows in prod.
+///
+/// The list intentionally hard-codes the table names rather than pulling
+/// them from `crate::table_names::*`, because:
+///   1. Missing an entry is a *bigger* footgun than an extra one (silent
+///      shrink of the denylist vs. loud test failure on the new table),
+///      so the explicit list survives future refactors better.
+///   2. The `_no_sync` suffix rule already sweeps up all cache/state
+///      tables (e.g. `haex_crdt_*_no_sync`, `haex_workspaces_no_sync`,
+///      `haex_desktop_items_no_sync`) so we do not enumerate those.
+///
+/// Any change to this list is a behavioural change — bump the ADR before
+/// touching it.
+const REGISTER_TARGET_DENYLIST: &[&str] = &[
+    // The 5 SPACE_SCOPED_CRDT_TABLES — space-scoped sync infra owned by
+    // the space delivery path, never a legitimate register target.
+    "haex_space_devices",
+    "haex_space_members",
+    "haex_peer_shares",
+    "haex_mls_sync_keys",
+    "haex_device_mls_enrollments",
+    // Identity / UCAN — writing sigs from a foreign space into these
+    // would let the register launder foreign identities into a space
+    // whose members trust local identities.
+    "haex_identities",
+    "haex_ucan_tokens",
+    // The share register itself — self-reference would let the register
+    // sign for its own membership rows.
+    "haex_shared_space_sync",
+    // Delete-log / HLC meta.
+    "haex_deleted_rows",
+];
+
+/// True iff `table` may not appear as `haex_shared_space_sync.table_name`.
+///
+/// Applied on BOTH sig paths (ADR 0002 §4b):
+///   * F2 (`execute.rs::sign_share_insert_targets`) — the register INSERT
+///     itself is rejected with an I1 error.
+///   * F1 (`resolve_extension_row` in this file) — a legacy or malicious
+///     register row targeting a forbidden table is silently ignored (the
+///     path returns an empty space list so no sig is produced), because
+///     it may already be present in the DB and we do not want to error
+///     on every read.
+pub fn is_register_target_forbidden(table: &str) -> bool {
+    let lower = table.to_ascii_lowercase();
+    // SQLite internal tables.
+    if lower.starts_with("sqlite_") {
+        return true;
+    }
+    // Cache / state tables — never CRDT-synced anyway.
+    if lower.ends_with("_no_sync") {
+        return true;
+    }
+    REGISTER_TARGET_DENYLIST.iter().any(|t| lower == *t)
+}
+
 /// SQL for the extension-table path. Uses the I2 filter: only rows whose
 /// `authored_by_did` matches one of the local identities (`private_key
 /// IS NOT NULL`) are counted.
@@ -222,11 +283,21 @@ fn resolve_infra_row(
 /// harnesses that skip the full CRDT-bootstrap, or freshly-created vaults
 /// pre-migration), treat that as "no share entries" and return an empty
 /// list — signing zero spaces is the correct semantic fallback.
+///
+/// F#3 (Runde-4 review): apply the I1 exclusion here too. A legacy or
+/// malicious register row targeting a forbidden `haex_*` / `sqlite_*`
+/// / `_no_sync` table must not cause F1 to sign private-column values
+/// for the target space. Returning an empty vec (rather than erroring)
+/// keeps read-side flows tolerant of legacy garbage — F2 rejects new
+/// register INSERTs of that shape with a hard I1 error.
 fn resolve_extension_row(
     conn: &Connection,
     table_name: &str,
     canonical_pks: &str,
 ) -> rusqlite::Result<Vec<String>> {
+    if is_register_target_forbidden(table_name) {
+        return Ok(Vec::new());
+    }
     let mut stmt = match conn.prepare(SQL_SELECT_REGISTER_OWN_SPACES) {
         Ok(s) => s,
         Err(rusqlite::Error::SqliteFailure(_, Some(msg))) if msg.starts_with("no such table") => {
