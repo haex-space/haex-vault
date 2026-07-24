@@ -3,7 +3,7 @@ use rusqlite::types::Type;
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use tracing::warn;
+use tracing::{error, warn};
 
 use crate::extension::spaces::queries::{SQL_SELECT_ALL_OWN_SPACE_KEYS, SQL_SELECT_OWN_SPACE_KEY};
 use crate::ucan::signing_key_from_pkcs8_base64;
@@ -19,42 +19,71 @@ impl SpaceKeyCache {
     }
 
     pub fn get(&self, space_id: &str) -> Option<SigningKey> {
-        self.inner.read().ok()?.get(space_id).cloned()
+        match self.inner.read() {
+            Ok(guard) => guard.get(space_id).cloned(),
+            Err(e) => {
+                error!(target: "column_sig", error = %e, space_id, "SpaceKeyCache RwLock poisoned on get");
+                None
+            }
+        }
     }
 
     pub fn insert(&self, space_id: &str, key: SigningKey) {
-        if let Ok(mut w) = self.inner.write() {
-            w.insert(space_id.to_string(), key);
+        match self.inner.write() {
+            Ok(mut w) => {
+                w.insert(space_id.to_string(), key);
+            }
+            Err(e) => {
+                error!(target: "column_sig", error = %e, space_id, "SpaceKeyCache RwLock poisoned on insert");
+            }
         }
     }
 
     pub fn remove(&self, space_id: &str) {
-        if let Ok(mut w) = self.inner.write() {
-            w.remove(space_id);
+        match self.inner.write() {
+            Ok(mut w) => {
+                w.remove(space_id);
+            }
+            Err(e) => {
+                error!(target: "column_sig", error = %e, space_id, "SpaceKeyCache RwLock poisoned on remove");
+            }
         }
     }
 
     pub fn contains(&self, space_id: &str) -> bool {
-        self.inner
-            .read()
-            .ok()
-            .map(|r| r.contains_key(space_id))
-            .unwrap_or(false)
+        match self.inner.read() {
+            Ok(guard) => guard.contains_key(space_id),
+            Err(e) => {
+                error!(target: "column_sig", error = %e, space_id, "SpaceKeyCache RwLock poisoned on contains");
+                false
+            }
+        }
     }
 
     /// Load every space where this vault holds a signing key and cache it.
     /// Replaces the current cache contents. Called at vault-open time; per-mutation
     /// invalidation (Task C4) keeps it in sync afterwards.
+    ///
+    /// Returns `Err(ToSqlConversionFailure)` if the internal `RwLock` is poisoned,
+    /// so the caller's warn-log path fires (silent `Ok(0)` would mask the bug —
+    /// see `critical-failure-pattern-plan`).
     pub fn populate_all(&self, conn: &Connection) -> rusqlite::Result<usize> {
         let rows = load_all_own_space_keys(conn)?;
-        if let Ok(mut w) = self.inner.write() {
-            w.clear();
-            for (space_id, key) in &rows {
-                w.insert(space_id.clone(), key.clone());
+        match self.inner.write() {
+            Ok(mut w) => {
+                w.clear();
+                for (space_id, key) in &rows {
+                    w.insert(space_id.clone(), key.clone());
+                }
+                Ok(rows.len())
             }
-            return Ok(rows.len());
+            Err(e) => {
+                error!(target: "column_sig", error = %e, "SpaceKeyCache RwLock poisoned in populate_all");
+                Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                    std::io::Error::other(format!("SpaceKeyCache RwLock poisoned: {e}")),
+                )))
+            }
         }
-        Ok(0)
     }
 
     /// Return the signing key for `space_id`, reloading from the DB on a cache

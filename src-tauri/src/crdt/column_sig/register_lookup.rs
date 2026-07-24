@@ -20,13 +20,14 @@
 //! identification, this filter is expected to migrate to the sig column.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use rusqlite::{params_from_iter, types::Value as SqlValue, Connection};
 use serde_json::Value as JsonValue;
+use tracing::error;
 
 use crate::crdt::scanner::is_space_scoped_table;
-use crate::crdt::trigger::is_safe_identifier;
+use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
 
 /// SQL for the extension-table path. Uses the I2 filter: only rows whose
 /// `authored_by_did` matches one of the local identities (`private_key
@@ -150,6 +151,42 @@ fn resolve_infra_row(
     }
     if !pks.keys().all(|k| is_safe_identifier(k)) {
         return Ok(Vec::new());
+    }
+
+    // F#2: enforce full-PK coverage. A partial PK on a composite-key table
+    // (e.g. `haex_space_members` (space_id, identity_id) with only
+    // `identity_id` supplied) would otherwise silently match an arbitrary
+    // row via LIMIT 1 and return the wrong `space_id` for signing.
+    let schema = get_table_schema(conn, table_name)?;
+    let expected_pk_names: BTreeSet<&str> = schema
+        .iter()
+        .filter(|c| c.is_pk)
+        .map(|c| c.name.as_str())
+        .collect();
+    if expected_pk_names.is_empty() {
+        // Infra tables always have a PK; missing means schema drift.
+        error!(
+            target: "column_sig",
+            table = table_name,
+            "Infra table has no primary key — refusing to sign"
+        );
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "Infra table '{table_name}' has no primary key"
+        )));
+    }
+    let supplied_pk_names: BTreeSet<&str> = pks.keys().map(|s| s.as_str()).collect();
+    if supplied_pk_names != expected_pk_names {
+        error!(
+            target: "column_sig",
+            table = table_name,
+            expected = ?expected_pk_names,
+            supplied = ?supplied_pk_names,
+            "Infra-table PK column set mismatch — refusing to sign"
+        );
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "Infra-table PK mismatch on '{table_name}': expected {:?}, got {:?}",
+            expected_pk_names, supplied_pk_names
+        )));
     }
 
     let mut where_parts: Vec<String> = Vec::with_capacity(pks.len());

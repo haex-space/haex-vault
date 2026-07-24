@@ -171,3 +171,40 @@ fn cache_is_scoped_by_table_and_row_pks() {
         .expect("resolve 3");
     assert_eq!(lookup.cache_hits(), 1);
 }
+
+/// F#2 (Round-3 review): a partial PK on an infra table would otherwise
+/// silently match a random row via `LIMIT 1`. Enforce full-PK coverage.
+#[test]
+fn infra_table_pk_mismatch_returns_error() {
+    let conn = seed();
+    let lookup = RegisterLookup::new();
+    // haex_space_members's PK is `id`; supplying `space_id` alone must fail.
+    let err = lookup
+        .resolve(&conn, "haex_space_members", r#"{"space_id":"space_A"}"#)
+        .expect_err("expected PK mismatch error");
+    match err {
+        rusqlite::Error::InvalidParameterName(msg) => {
+            assert!(
+                msg.contains("PK mismatch") || msg.contains("has no primary key"),
+                "expected PK mismatch message, got: {msg}"
+            );
+        }
+        other => panic!("unexpected error variant: {other:?}"),
+    }
+}
+
+/// F#2 (Round-3 review): extra PK-shaped keys beyond the table's actual
+/// PK set are also refused (callers must submit exactly the PK columns).
+#[test]
+fn infra_table_extra_pk_column_returns_error() {
+    let conn = seed();
+    let lookup = RegisterLookup::new();
+    let err = lookup
+        .resolve(
+            &conn,
+            "haex_space_members",
+            r#"{"id":"mem-1","identity_id":"id-own-a"}"#,
+        )
+        .expect_err("expected PK mismatch error");
+    assert!(matches!(err, rusqlite::Error::InvalidParameterName(_)));
+}

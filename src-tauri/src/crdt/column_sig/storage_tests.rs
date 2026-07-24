@@ -226,3 +226,45 @@ fn upsert_rejects_unsafe_table_name() {
     .unwrap_err();
     assert!(matches!(err, rusqlite::Error::InvalidParameterName(_)));
 }
+
+/// F#1 (Round-3 review): a corrupted root value (non-object) is reset to an
+/// empty map — but logged instead of silently swallowed. The reset itself
+/// still has to work so that a single bad row doesn't wedge every future
+/// upsert on that row.
+#[test]
+fn upsert_recovers_from_non_object_root() {
+    let conn = seed_single_pk_row("\"corrupted-string-value\"");
+    let sig = make_sig("did:key:zAuthor");
+
+    upsert_column_sigs(&conn, "tbl", r#"{"id":"pk1"}"#, "col_a", "space_A", &sig).unwrap();
+
+    let json = read_sigs_single(&conn);
+    assert!(
+        json.is_object(),
+        "root JSON must be an object after recovery"
+    );
+    assert_eq!(
+        json["col_a"]["space_A"]["author_did"],
+        Value::String("did:key:zAuthor".to_string())
+    );
+}
+
+/// F#1 companion: a corrupted per-column entry (root object, but the column
+/// value is a string instead of an object) is reset to an empty map.
+#[test]
+fn upsert_recovers_from_non_object_column_entry() {
+    let conn = seed_single_pk_row(r#"{"col_a":"corrupted-string-value"}"#);
+    let sig = make_sig("did:key:zAuthor");
+
+    upsert_column_sigs(&conn, "tbl", r#"{"id":"pk1"}"#, "col_a", "space_A", &sig).unwrap();
+
+    let json = read_sigs_single(&conn);
+    assert!(
+        json["col_a"].is_object(),
+        "col_a entry must be an object after recovery"
+    );
+    assert_eq!(
+        json["col_a"]["space_A"]["author_did"],
+        Value::String("did:key:zAuthor".to_string())
+    );
+}

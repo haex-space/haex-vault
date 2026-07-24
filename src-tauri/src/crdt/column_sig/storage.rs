@@ -22,6 +22,7 @@ use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rusqlite::{params_from_iter, types::ToSqlOutput, Connection, Error as RusqliteError, ToSql};
 use serde_json::{Map, Value};
+use tracing::warn;
 
 /// A single per-column, per-space signature record.
 ///
@@ -116,7 +117,18 @@ pub fn upsert_column_sigs(
 
     let mut root: Map<String, Value> = match serde_json::from_str::<Value>(&current_raw) {
         Ok(Value::Object(m)) => m,
-        _ => Map::new(),
+        _ => {
+            // Silent reset would drop ALL other (column, space) sigs on this row.
+            // In prod this JSON is only ever produced by this module, so an
+            // unexpected shape is a bug elsewhere. Log loudly (F#1).
+            warn!(
+                target: "column_sig",
+                table = table_name,
+                column = column_name,
+                "haex_column_sigs root is not a JSON object — resetting to empty map"
+            );
+            Map::new()
+        }
     };
 
     // Merge: root[column_name][space_id] = { author_did, sig }
@@ -125,8 +137,15 @@ pub fn upsert_column_sigs(
         .or_insert_with(|| Value::Object(Map::new()));
     let column_map = match column_entry {
         Value::Object(m) => m,
-        // If the entry was corrupted to a non-object, reset it.
         other => {
+            // Same story: dropping non-Object entry drops ALL other spaces'
+            // sigs on this column. Log loudly and reset (F#1).
+            warn!(
+                target: "column_sig",
+                table = table_name,
+                column = column_name,
+                "haex_column_sigs[column] is not a JSON object — refusing to clobber; resetting to empty map"
+            );
             *other = Value::Object(Map::new());
             match other {
                 Value::Object(m) => m,
