@@ -35,6 +35,34 @@ export const useSyncOrchestratorStore = defineStore(
     const syncEngineStore = useSyncEngineStore()
     const syncConfigStore = useSyncConfigStore()
     const { add: addToast } = useToast()
+    const { $i18n } = useNuxtApp()
+
+    // Register verification-toast i18n keys used by `logRejectedChanges`
+    // (src/stores/sync/orchestrator/pull/apply.ts). Kept alongside the
+    // orchestrator store because that store is the one guaranteed to be
+    // instantiated before any pull runs — merging here means the keys are
+    // available on the first rejected batch. Mirrors the file-sync.ts
+    // pattern for locale-registration next to the code that uses it.
+    $i18n.mergeLocaleMessage('de', {
+      sync: {
+        verification: {
+          rowsRejectedOne:
+            '1 Änderung aus dem Sync wurde abgelehnt — der kryptografische Nachweis konnte nicht verifiziert werden. Details im Log.',
+          rowsRejectedOther:
+            '{count} Änderungen aus dem Sync wurden abgelehnt — die kryptografischen Nachweise konnten nicht verifiziert werden. Details im Log.',
+        },
+      },
+    })
+    $i18n.mergeLocaleMessage('en', {
+      sync: {
+        verification: {
+          rowsRejectedOne:
+            '1 change from sync was rejected — its cryptographic proof could not be verified. See logs for details.',
+          rowsRejectedOther:
+            '{count} changes from sync were rejected — their cryptographic proofs could not be verified. See logs for details.',
+        },
+      },
+    })
 
     // Sync state per backend
     const syncStates = ref<BackendSyncState>({})

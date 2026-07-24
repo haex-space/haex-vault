@@ -266,9 +266,20 @@ export const verifyPulledChangesAsync = async (
 }
 
 /**
- * Logs a `rejected` list from {@link verifyPulledChangesAsync} at warn level
- * with structured fields. Task 6 will add a user-visible toast on top of
- * the same call site — this helper is the shared shape.
+ * Reports a `rejected` list from {@link verifyPulledChangesAsync}:
+ *
+ *   1. Structured warn log — machine-readable channel (Task 5, unchanged).
+ *   2. Aggregated warning toast — user-visible mirror of the log (Task 6).
+ *
+ * One toast per batch, not per row: a poisoned page with 1000 rejects must
+ * not spam the UI with 1000 stacked toasts. The `{count}` interpolation
+ * carries the volume; the structured log carries the detail. The two
+ * channels stay in sync because they are triggered from the same call
+ * site.
+ *
+ * i18n keys `sync.verification.rowsRejected{One,Other}` are merged into
+ * the active locale by `useSyncOrchestratorStore` at store init time, so
+ * they are guaranteed to exist by the time a pull runs.
  */
 export const logRejectedChanges = (
   rejected: RejectedChange[],
@@ -285,6 +296,17 @@ export const logRejectedChanges = (
       column: r.columnName,
       reason: r.reason,
     })),
+  })
+
+  const { add: addToast } = useToast()
+  const { $i18n } = useNuxtApp()
+  const key = rejected.length === 1
+    ? 'sync.verification.rowsRejectedOne'
+    : 'sync.verification.rowsRejectedOther'
+  addToast({
+    title: $i18n.t(key, { count: rejected.length }) as string,
+    color: 'warning',
+    icon: 'i-lucide-shield-alert',
   })
 }
 

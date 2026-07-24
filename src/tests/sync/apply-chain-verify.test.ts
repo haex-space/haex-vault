@@ -26,9 +26,23 @@ vi.mock('~/stores/vault', () => ({
   }),
 }))
 
+// Nuxt auto-imports (`useToast`, `useNuxtApp`) are not resolved by vitest —
+// stub them so `logRejectedChanges` can call the toast/$i18n API in a plain
+// module context. The `beforeEach` in each describe wires the mocks; here
+// we only need the globals to exist so a bare `useToast()` call doesn't
+// throw ReferenceError while the file is being parsed.
+vi.stubGlobal('useToast', () => ({ add: vi.fn() }))
+vi.stubGlobal('useNuxtApp', () => ({
+  $i18n: { t: (k: string) => k },
+}))
+
 // Import AFTER mocks are set up.
 import { invoke } from '@tauri-apps/api/core'
-import { verifyPulledChangesAsync } from '~/stores/sync/orchestrator/pull/apply'
+import {
+  verifyPulledChangesAsync,
+  logRejectedChanges,
+  type RejectedChange,
+} from '~/stores/sync/orchestrator/pull/apply'
 
 const mockInvoke = vi.mocked(invoke)
 
@@ -257,5 +271,62 @@ describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
     await expect(
       verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write'),
     ).rejects.toThrow(/malformed shape/)
+  })
+})
+
+describe('logRejectedChanges — user-visible toast (Task 6)', () => {
+  const rejectedRow = (rowPks: string, reason = 'Signature'): RejectedChange => ({
+    rowId: `haex_bookmarks|${rowPks}|title|100/aa`,
+    tableName: 'haex_bookmarks',
+    columnName: 'title',
+    rowPks,
+    reason,
+  })
+
+  let toastAdd: ReturnType<typeof vi.fn>
+  let t: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    // Re-stub per test so `toHaveBeenCalledTimes` is scoped to this test only.
+    toastAdd = vi.fn()
+    // `t` returns a rendered template so we can assert the {count} interpolation
+    // reached the translator — the real Vue I18n resolves the key, but the
+    // stub here just proxies args back into the title.
+    t = vi.fn(
+      (key: string, params?: Record<string, unknown>) =>
+        params && 'count' in params ? `${key}:${params.count}` : key,
+    )
+    vi.stubGlobal('useToast', () => ({ add: toastAdd }))
+    vi.stubGlobal('useNuxtApp', () => ({ $i18n: { t } }))
+  })
+
+  it('triggers exactly one warning toast when rejected.length > 0', () => {
+    const rejected = [rejectedRow('{"id":"r1"}'), rejectedRow('{"id":"r2"}', 'Expired')]
+
+    logRejectedChanges(rejected, { spaceId: 'space-123', backendId: 'backend-a' })
+
+    // One aggregated toast per batch — never one per row (a poisoned page
+    // of 1000 rows must not spam 1000 stacked toasts).
+    expect(toastAdd).toHaveBeenCalledTimes(1)
+    const arg = toastAdd.mock.calls[0]![0] as { title: string; color: string; icon: string }
+    expect(arg.color).toBe('warning')
+    expect(arg.icon).toBe('i-lucide-shield-alert')
+    // The plural key was picked (count > 1) and {count} was forwarded to $i18n.t.
+    expect(t).toHaveBeenCalledWith('sync.verification.rowsRejectedOther', { count: 2 })
+    expect(arg.title).toBe('sync.verification.rowsRejectedOther:2')
+  })
+
+  it('uses the singular key when rejected.length === 1', () => {
+    logRejectedChanges([rejectedRow('{"id":"r1"}')], { spaceId: 'space-123', backendId: 'backend-a' })
+
+    expect(toastAdd).toHaveBeenCalledTimes(1)
+    expect(t).toHaveBeenCalledWith('sync.verification.rowsRejectedOne', { count: 1 })
+  })
+
+  it('does not trigger a toast when rejected.length === 0', () => {
+    logRejectedChanges([], { spaceId: 'space-123', backendId: 'backend-a' })
+
+    expect(toastAdd).not.toHaveBeenCalled()
+    expect(t).not.toHaveBeenCalled()
   })
 })
