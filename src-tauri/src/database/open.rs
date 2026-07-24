@@ -92,6 +92,13 @@ pub fn open_encrypted_database(
         // seeding step in create_encrypted_database (idempotent — no-op
         // when one already exists).
         ensure_default_identity(&state)?;
+        // Warm the column-signature signing-key cache. Non-fatal — a
+        // vault without owned space memberships (e.g. viewer-only device)
+        // is a valid state, and any missed entry is recoverable via
+        // `SpaceKeyCache::get_or_reload` at write-time.
+        if let Err(e) = populate_column_sig_key_cache(&state.column_sig_key_cache, &state.db) {
+            eprintln!("[OPEN_DB] warn: SpaceKeyCache::populate_all failed: {e:?}");
+        }
         Ok(())
     })();
 
@@ -210,3 +217,26 @@ fn initialize_session(
 
     Ok(())
 }
+
+/// Warm the column-signature signing-key cache from the currently-mounted
+/// vault. Called after `open_encrypted_database` / `create_encrypted_database`
+/// have populated `state.db` and finished migrations, so both flows converge
+/// on the same warm-up path.
+///
+/// Bootstrap-safe: a vault with no owned space memberships (freshly created,
+/// or a viewer-only device) returns `Ok(0)`. Errors are returned to the caller
+/// so they can decide the severity — the vault-open flow logs and continues
+/// (missed entries are recoverable via `SpaceKeyCache::get_or_reload`), but
+/// unit tests want a hard `Err` to fail on schema drift.
+pub(super) fn populate_column_sig_key_cache(
+    cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
+    db: &DbConnection,
+) -> Result<usize, DatabaseError> {
+    with_connection(db, |conn| {
+        cache.populate_all(conn).map_err(DatabaseError::from)
+    })
+}
+
+#[cfg(test)]
+#[path = "open_tests.rs"]
+mod tests;

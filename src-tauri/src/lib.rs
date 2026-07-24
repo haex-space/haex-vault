@@ -36,6 +36,7 @@ mod window;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::external_bridge::ExternalBridge;
 use crate::{
+    crdt::column_sig::key_cache::SpaceKeyCache,
     crdt::hlc::HlcService,
     database::{connection_context::ConnectionContext, DbConnection},
     extension::core::ExtensionManager,
@@ -187,6 +188,11 @@ pub struct AppState {
     /// URI schemes don't work for `<audio>`/`<video>` on WebKitGTK — this
     /// is the cross-platform workaround.
     pub media_server: media_server::MediaServer,
+    /// Per-space signing-key cache for column-signature writes. Populated at
+    /// vault-open (both create + open flows warm it from
+    /// `haex_space_members × haex_identities`) and invalidated when own
+    /// identities/memberships change. See `crate::crdt::column_sig::key_cache`.
+    pub column_sig_key_cache: SpaceKeyCache,
 }
 
 impl AppState {
@@ -396,6 +402,7 @@ pub fn run() {
             // preview can't work on WebKitGTK at all.
             media_server: tauri::async_runtime::block_on(media_server::MediaServer::start())
                 .expect("failed to start local media server"),
+            column_sig_key_cache: SpaceKeyCache::new(),
         })
         //.manage(ExtensionState::default())
         .plugin(tauri_plugin_dialog::init())
