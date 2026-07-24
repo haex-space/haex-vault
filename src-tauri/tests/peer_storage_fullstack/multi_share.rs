@@ -24,7 +24,7 @@ async fn multiple_shares_in_same_space() {
             "s1".to_string(),
             "Documents".to_string(),
             tmp1.path().to_string_lossy().to_string(),
-            "shared-space".to_string(),
+            test_space_id("shared-space"),
         )
         .await;
     server
@@ -32,13 +32,13 @@ async fn multiple_shares_in_same_space() {
             "s2".to_string(),
             "Photos".to_string(),
             tmp2.path().to_string_lossy().to_string(),
-            "shared-space".to_string(),
+            test_space_id("shared-space"),
         )
         .await;
 
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
-    spaces.insert("shared-space".to_string());
+    spaces.insert(test_space_id("shared-space"));
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();

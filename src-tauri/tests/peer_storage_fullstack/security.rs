@@ -60,7 +60,7 @@ async fn cross_space_isolation() {
             "s1".to_string(),
             "Public".to_string(),
             tmp1.path().to_string_lossy().to_string(),
-            "space-public".to_string(),
+            test_space_id("space-public"),
         )
         .await;
     server
@@ -68,14 +68,14 @@ async fn cross_space_isolation() {
             "s2".to_string(),
             "Private".to_string(),
             tmp2.path().to_string_lossy().to_string(),
-            "space-private".to_string(),
+            test_space_id("space-private"),
         )
         .await;
 
     // Client only has access to space-public
     let mut allowed = HashMap::new();
     let mut spaces = HashSet::new();
-    spaces.insert("space-public".to_string());
+    spaces.insert(test_space_id("space-public"));
     allowed.insert(client.endpoint_id().to_string(), spaces);
     server.set_allowed_peers(allowed).await;
     let mut owner_dids = HashMap::new();
