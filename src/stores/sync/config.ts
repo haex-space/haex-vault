@@ -8,7 +8,7 @@
  */
 
 import { haexVaultSettings } from '@/database/schemas'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { createLogger } from '@/stores/logging'
 
 // Setting keys as constants
@@ -37,8 +37,9 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
 }
 
 /**
- * Parses a stored `max_ucan_chain_depth` value, applying range clamping and
- * falling back to the default for unparseable input. Exported for unit-testing.
+ * Parses a stored `max_ucan_chain_depth` value, applying range-validation
+ * fallback (out-of-range → default) and falling back to the default for
+ * unparseable input. Exported for unit-testing.
  */
 export const parseMaxUcanChainDepth = (raw: string | null | undefined): number => {
   if (raw === null || raw === undefined) return MAX_UCAN_CHAIN_DEPTH_DEFAULT
@@ -110,32 +111,39 @@ export const useSyncConfigStore = defineStore('syncConfigStore', () => {
 
   /**
    * Upsert helper - SQLite doesn't support qualified column names in ON CONFLICT
-   * So we do a manual check: update if exists, insert if not
+   * So we do a manual check: update if exists, insert if not.
+   *
+   * Scoped to the global row (`device_id IS NULL`) to match the Rust reader
+   * (see `src-tauri/src/ucan/config.rs::read_max_ucan_chain_depth`, which
+   * filters `WHERE key = ? AND device_id IS NULL`). Without this, a
+   * device-scoped row for the same `key` could shadow the global one and
+   * writes would non-deterministically target the wrong row.
    */
   const upsertSettingAsync = async (
     db: NonNullable<typeof vaultStore.currentVault>['drizzle'],
     key: string,
     value: string,
   ): Promise<void> => {
-    // Check if setting exists
+    // Check if setting exists (global row only — deviceId IS NULL).
     const existing = await db
       .select()
       .from(haexVaultSettings)
-      .where(eq(haexVaultSettings.key, key))
+      .where(and(eq(haexVaultSettings.key, key), isNull(haexVaultSettings.deviceId)))
       .limit(1)
 
     if (existing.length > 0) {
-      // Update existing
+      // Update existing global row.
       await db
         .update(haexVaultSettings)
         .set({ value })
-        .where(eq(haexVaultSettings.key, key))
+        .where(and(eq(haexVaultSettings.key, key), isNull(haexVaultSettings.deviceId)))
     } else {
-      // Insert new
+      // Insert new global row (deviceId explicitly null for readability).
       await db.insert(haexVaultSettings).values({
         id: crypto.randomUUID(),
         key,
         value,
+        deviceId: null,
       })
     }
   }

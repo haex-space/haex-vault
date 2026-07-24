@@ -1,32 +1,50 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
+// Wrap `isNull` in a spy so we can assert the writer/reader scopes queries
+// to the global row (`device_id IS NULL`). `vi.mock` is hoisted above imports,
+// so any module (including the store under test) that does
+// `import { isNull } from 'drizzle-orm'` picks up the spy binding.
+vi.mock('drizzle-orm', async () => {
+  const actual = await vi.importActual<typeof import('drizzle-orm')>('drizzle-orm')
+  return {
+    ...actual,
+    isNull: vi.fn(actual.isNull),
+  }
+})
+import { isNull as isNullMock } from 'drizzle-orm'
+import { haexVaultSettings } from '~/database/schemas'
+
 // Vault store is a Nuxt auto-import; stub before the store module is loaded so
 // `useVaultStore()` resolves inside setup(). The stub is per-test so we can
 // swap the drizzle mock between cases.
 type Row = { value: string | null }
 type DrizzleMock = {
-  select: () => { from: () => { where: () => { limit: (n: number) => Promise<Row[]> } } }
-  update: () => { set: () => { where: () => Promise<void> } }
+  select: () => { from: () => { where: (predicate: unknown) => { limit: (n: number) => Promise<Row[]> } } }
+  update: () => { set: () => { where: (predicate: unknown) => Promise<void> } }
   insert: () => { values: (row: unknown) => Promise<void> }
 }
 
 const insertSpy = vi.fn(async (_row: unknown) => undefined)
-const updateSpy = vi.fn(async () => undefined)
+const updateSpy = vi.fn(async (_predicate: unknown) => undefined)
+const selectWhereSpy = vi.fn((_predicate: unknown) => undefined)
 let selectQueue: Row[][] = []
 
 const buildDrizzleMock = (): DrizzleMock => ({
   select: () => ({
     from: () => ({
-      where: () => ({
-        limit: async () => selectQueue.shift() ?? [],
-      }),
+      where: (predicate: unknown) => {
+        selectWhereSpy(predicate)
+        return {
+          limit: async () => selectQueue.shift() ?? [],
+        }
+      },
     }),
   }),
   update: () => ({
     set: () => ({
-      where: async () => {
-        await updateSpy()
+      where: async (predicate: unknown) => {
+        await updateSpy(predicate)
       },
     }),
   }),
@@ -148,6 +166,46 @@ describe('useSyncConfigStore — maxUcanChainDepth load/save', () => {
     expect(store.config.maxUcanChainDepth).toBe(8)
     expect(updateSpy).toHaveBeenCalledTimes(1)
     expect(insertSpy).not.toHaveBeenCalled()
+  })
+
+  it('saveConfigAsync scopes SELECT + UPDATE to the global row (deviceId IS NULL) and inserts an explicit deviceId: null', async () => {
+    // INSERT branch — no existing row.
+    selectQueue = [[]]
+    const store = useSyncConfigStore()
+    await store.saveConfigAsync({ maxUcanChainDepth: 4 })
+
+    // isNull(haexVaultSettings.deviceId) must be called at least twice:
+    // once for the check-SELECT, and — since we hit the INSERT branch here —
+    // not for UPDATE, so >=1 is the minimum guarantee. Assert it was called
+    // with the correct column reference.
+    const isNullMocked = vi.mocked(isNullMock)
+    expect(isNullMocked).toHaveBeenCalled()
+    const columnsPassedToIsNull = isNullMocked.mock.calls.map((c) => c[0])
+    expect(columnsPassedToIsNull).toContain(haexVaultSettings.deviceId)
+
+    // INSERT row explicitly carries deviceId: null (readable intent).
+    const inserted = insertSpy.mock.calls[0]?.[0] as unknown as {
+      key: string
+      value: string
+      deviceId: string | null
+    } | undefined
+    expect(inserted?.deviceId).toBeNull()
+  })
+
+  it('saveConfigAsync UPDATE branch also filters by deviceId IS NULL', async () => {
+    // UPDATE branch — existing row.
+    selectQueue = [[{ value: '5' }]]
+    const store = useSyncConfigStore()
+    const isNullMocked = vi.mocked(isNullMock)
+    isNullMocked.mockClear()
+
+    await store.saveConfigAsync({ maxUcanChainDepth: 9 })
+
+    // Called at least twice: once for the check-SELECT, once for the UPDATE.
+    expect(isNullMocked.mock.calls.length).toBeGreaterThanOrEqual(2)
+    for (const call of isNullMocked.mock.calls) {
+      expect(call[0]).toBe(haexVaultSettings.deviceId)
+    }
   })
 
   it('saveConfigAsync rejects below-min value without touching db or reactive state', async () => {
