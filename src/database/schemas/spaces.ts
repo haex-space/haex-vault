@@ -81,7 +81,9 @@ export const haexSpaceDevices = sqliteTable(
     avatarOptions: text(tableNames.haex.space_devices.columns.avatarOptions), // JSON DiceBear options
     relayUrl: text(tableNames.haex.space_devices.columns.relayUrl),
     leaderPriority: integer(tableNames.haex.space_devices.columns.leaderPriority).default(10),
-    authoredByDid: text(tableNames.haex.space_devices.columns.authoredByDid),
+    haexColumnSigs: text(tableNames.haex.space_devices.columns.haexColumnSigs)
+      .notNull()
+      .default('{}'),
     createdAt: text(tableNames.haex.space_devices.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [
@@ -112,7 +114,9 @@ export const haexSpaceMembers = sqliteTable(
       .notNull()
       .references(() => haexIdentities.id, { onDelete: 'cascade' }),
     role: text(tableNames.haex.space_members.columns.role).notNull().default('read'),
-    authoredByDid: text(tableNames.haex.space_members.columns.authoredByDid),
+    haexColumnSigs: text(tableNames.haex.space_members.columns.haexColumnSigs)
+      .notNull()
+      .default('{}'),
     joinedAt: text(tableNames.haex.space_members.columns.joinedAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -149,7 +153,9 @@ export const haexPeerShares = sqliteTable(
     endpointId: text(tableNames.haex.peer_shares.columns.endpointId).notNull(),
     name: text(tableNames.haex.peer_shares.columns.name).notNull(),
     localPath: text(tableNames.haex.peer_shares.columns.localPath).notNull(),
-    authoredByDid: text(tableNames.haex.peer_shares.columns.authoredByDid),
+    haexColumnSigs: text(tableNames.haex.peer_shares.columns.haexColumnSigs)
+      .notNull()
+      .default('{}'),
     createdAt: text(tableNames.haex.peer_shares.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
 )
@@ -176,7 +182,9 @@ export const haexSharedSpaceSync = sqliteTable(
     groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
     type: text(tableNames.haex.shared_space_sync.columns.type),
     label: text(tableNames.haex.shared_space_sync.columns.label),
-    authoredByDid: text(tableNames.haex.shared_space_sync.columns.authoredByDid),
+    haexColumnSigs: text(tableNames.haex.shared_space_sync.columns.haexColumnSigs)
+      .notNull()
+      .default('{}'),
     createdAt: text(tableNames.haex.shared_space_sync.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -223,7 +231,9 @@ export const haexMlsSyncKeys = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     epoch: integer(tableNames.haex.mls_sync_keys.columns.epoch).notNull(),
     keyData: text(tableNames.haex.mls_sync_keys.columns.keyData).notNull(), // Base64-encoded 32-byte key
-    authoredByDid: text(tableNames.haex.mls_sync_keys.columns.authoredByDid),
+    haexColumnSigs: text(tableNames.haex.mls_sync_keys.columns.haexColumnSigs)
+      .notNull()
+      .default('{}'),
   },
 )
 export type InsertHaexMlsSyncKeys = typeof haexMlsSyncKeys.$inferInsert
@@ -247,7 +257,9 @@ export const haexDeviceMlsEnrollments = sqliteTable(
     pop: text(tableNames.haex.device_mls_enrollments.columns.pop).notNull(), // Base64 proof-of-possession for keyPackage
     welcome: text(tableNames.haex.device_mls_enrollments.columns.welcome), // Base64, set by enrolling device
     status: text(tableNames.haex.device_mls_enrollments.columns.status).notNull().default('pending'), // 'pending' | 'enrolled'
-    authoredByDid: text(tableNames.haex.device_mls_enrollments.columns.authoredByDid),
+    haexColumnSigs: text(tableNames.haex.device_mls_enrollments.columns.haexColumnSigs)
+      .notNull()
+      .default('{}'),
   },
 )
 export type InsertHaexDeviceMlsEnrollments = typeof haexDeviceMlsEnrollments.$inferInsert

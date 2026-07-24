@@ -85,6 +85,13 @@
       "when": 1784726446828,
       "tag": "0011_needy_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1785312000000,
+      "tag": "0012_column_sigs",
+      "breakpoints": true
     }
   ]
 }
