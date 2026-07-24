@@ -13,7 +13,7 @@ import { useExtensionBroadcastStore } from '~/stores/extensions/broadcast'
 import { SYNC_TABLES_INTERNAL_EVENT } from '../../syncEvents'
 import type { PendingColumn } from '@bindings/PendingColumn'
 import { streamPullAndApplyAsync } from './page'
-import { applyRemoteChangesInTransactionAsync, verifyPulledChangesAsync, logRejectedChanges } from './apply'
+import { applyRemoteChangesInTransactionAsync, verifyPulledChangesAsync, logRejectedChanges, surfaceRejectedBatch } from './apply'
 
 /**
  * Resolves the initial cursor for a pull cycle, applying the pending-tables
@@ -318,12 +318,14 @@ export const pullPendingColumnsAsync = async (
     }
 
     // Step 3: Verify signatures + UCAN chain (row-scoped), then apply
-    // only the verified subset. Rejected rows are logged (Task 6 will
-    // add a user toast) but do NOT abort the pending-column apply —
-    // the column is still cleared afterwards, so we don't re-pull the
-    // same poisoned rows on every cycle. If ALL rows were rejected
-    // there is nothing to apply, which is still success as far as the
-    // pending-column tracker is concerned.
+    // only the verified subset. Rejected rows are logged AND surfaced
+    // via a per-call toast; this is a one-shot pull (not a paginated
+    // stream), so per-call and per-batch aggregation are the same. It
+    // does NOT abort the pending-column apply — the column is still
+    // cleared afterwards, so we don't re-pull the same poisoned rows on
+    // every cycle. If ALL rows were rejected there is nothing to apply,
+    // which is still success as far as the pending-column tracker is
+    // concerned.
     if (allChanges.length > 0) {
       const { verified, rejected } = await verifyPulledChangesAsync(
         allChanges,
@@ -332,6 +334,7 @@ export const pullPendingColumnsAsync = async (
         'write',
       )
       logRejectedChanges(rejected, { spaceId, backendId })
+      surfaceRejectedBatch(spaceId, rejected.length)
       if (verified.length > 0) {
         log.info(`Applying ${verified.length}/${allChanges.length} changes for ${pendingCol.tableName}.${pendingCol.columnName}`)
         await applyRemoteChangesInTransactionAsync(verified, vaultKey, backendId, spaceId)

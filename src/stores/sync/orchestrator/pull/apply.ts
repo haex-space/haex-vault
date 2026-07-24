@@ -116,8 +116,9 @@ const rejectedFrom = (c: ColumnChange, reason: string): RejectedChange => ({
  * Row-scoped, not batch-scoped: a single poisoned row no longer aborts
  * the whole page. Each change is sorted into `verified` (safe to apply)
  * or `rejected` (dropped with a stable reason). Callers apply only
- * `verified` and surface `rejected` counts to the user (Task 6 will
- * add a toast; today we log).
+ * `verified`; the log is written per page via `logRejectedChanges` and
+ * the aggregated toast fires once at the end of the pull via
+ * `surfaceRejectedBatch`.
  *
  * Layers:
  *   0. Layer-0 gate: `signature` and `signedBy` must be present. Missing
@@ -266,20 +267,13 @@ export const verifyPulledChangesAsync = async (
 }
 
 /**
- * Reports a `rejected` list from {@link verifyPulledChangesAsync}:
+ * Structured warn log for a `rejected` list from {@link verifyPulledChangesAsync}
+ * (Task 5 contract, unchanged shape).
  *
- *   1. Structured warn log — machine-readable channel (Task 5, unchanged).
- *   2. Aggregated warning toast — user-visible mirror of the log (Task 6).
- *
- * One toast per batch, not per row: a poisoned page with 1000 rejects must
- * not spam the UI with 1000 stacked toasts. The `{count}` interpolation
- * carries the volume; the structured log carries the detail. The two
- * channels stay in sync because they are triggered from the same call
- * site.
- *
- * i18n keys `sync.verification.rowsRejected{One,Other}` are merged into
- * the active locale by `useSyncOrchestratorStore` at store init time, so
- * they are guaranteed to exist by the time a pull runs.
+ * Log-only: the user-visible toast is fired separately by the streaming
+ * caller via {@link surfaceRejectedBatch} once per pull batch, so a pull
+ * that spans N pages emits N structured log lines (useful for debugging)
+ * but at most one toast (the aggregate). No-ops on empty input.
  */
 export const logRejectedChanges = (
   rejected: RejectedChange[],
@@ -297,14 +291,36 @@ export const logRejectedChanges = (
       reason: r.reason,
     })),
   })
+}
 
+/**
+ * Fires ONE aggregated warning toast for a completed pull batch (Task 6).
+ *
+ * The count is the sum across all pages of the streaming pull, not a single
+ * page — a poisoned pull of 1000 rejects spread over 10 pages surfaces as
+ * one toast with count=1000, never ten stacked toasts. The `{count}`
+ * interpolation carries the volume; the structured log (per page, via
+ * {@link logRejectedChanges}) carries the detail.
+ *
+ * No-op on `count === 0` so callers can unconditionally fire this after a
+ * pull without an outer guard. Empty pulls stay silent.
+ *
+ * i18n keys `sync.verification.rowsRejected{One,Other}` are merged into
+ * the active locale by `useSyncOrchestratorStore` at store init time, so
+ * they are guaranteed to exist by the time a pull runs.
+ */
+export const surfaceRejectedBatch = (
+  _spaceId: string | undefined,
+  count: number,
+): void => {
+  if (count <= 0) return
   const { add: addToast } = useToast()
   const { $i18n } = useNuxtApp()
-  const key = rejected.length === 1
+  const key = count === 1
     ? 'sync.verification.rowsRejectedOne'
     : 'sync.verification.rowsRejectedOther'
   addToast({
-    title: $i18n.t(key, { count: rejected.length }) as string,
+    title: $i18n.t(key, { count }) as string,
     color: 'warning',
     icon: 'i-lucide-shield-alert',
   })

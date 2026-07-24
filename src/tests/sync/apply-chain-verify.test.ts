@@ -27,9 +27,9 @@ vi.mock('~/stores/vault', () => ({
 }))
 
 // Nuxt auto-imports (`useToast`, `useNuxtApp`) are not resolved by vitest —
-// stub them so `logRejectedChanges` can call the toast/$i18n API in a plain
-// module context. The `beforeEach` in each describe wires the mocks; here
-// we only need the globals to exist so a bare `useToast()` call doesn't
+// stub them so `surfaceRejectedBatch` can call the toast/$i18n API in a
+// plain module context. The `beforeEach` in each describe wires the mocks;
+// here we only need the globals to exist so a bare `useToast()` call doesn't
 // throw ReferenceError while the file is being parsed.
 vi.stubGlobal('useToast', () => ({ add: vi.fn() }))
 vi.stubGlobal('useNuxtApp', () => ({
@@ -41,6 +41,7 @@ import { invoke } from '@tauri-apps/api/core'
 import {
   verifyPulledChangesAsync,
   logRejectedChanges,
+  surfaceRejectedBatch,
   type RejectedChange,
 } from '~/stores/sync/orchestrator/pull/apply'
 
@@ -274,15 +275,52 @@ describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
   })
 })
 
-describe('logRejectedChanges — user-visible toast (Task 6)', () => {
-  const rejectedRow = (rowPks: string, reason = 'Signature'): RejectedChange => ({
-    rowId: `haex_bookmarks|${rowPks}|title|100/aa`,
-    tableName: 'haex_bookmarks',
-    columnName: 'title',
-    rowPks,
-    reason,
+// Shared factory: rejected-row shape used by both the log-only tests
+// (`logRejectedChanges`) and the toast tests (`surfaceRejectedBatch`).
+const rejectedRow = (rowPks: string, reason = 'Signature'): RejectedChange => ({
+  rowId: `haex_bookmarks|${rowPks}|title|100/aa`,
+  tableName: 'haex_bookmarks',
+  columnName: 'title',
+  rowPks,
+  reason,
+})
+
+describe('logRejectedChanges — structured warn log (Task 5, log-only)', () => {
+  let toastAdd: ReturnType<typeof vi.fn>
+  let t: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    // Re-stub per test so the "no toast fired" regression guard below is
+    // scoped to this test only. `logRejectedChanges` MUST NOT touch the
+    // toast wire — the aggregated toast is a separate helper.
+    toastAdd = vi.fn()
+    t = vi.fn((key: string) => key)
+    vi.stubGlobal('useToast', () => ({ add: toastAdd }))
+    vi.stubGlobal('useNuxtApp', () => ({ $i18n: { t } }))
   })
 
+  it('does NOT trigger a toast (regression guard — toast is caller-side now)', () => {
+    // Task 6 split: aggregation moved to `surfaceRejectedBatch` so a pull
+    // spanning N pages surfaces one toast, not N. Log-only helper must
+    // stay log-only.
+    logRejectedChanges(
+      [rejectedRow('{"id":"r1"}'), rejectedRow('{"id":"r2"}', 'Expired')],
+      { spaceId: 'space-123', backendId: 'backend-a' },
+    )
+
+    expect(toastAdd).not.toHaveBeenCalled()
+    expect(t).not.toHaveBeenCalled()
+  })
+
+  it('no-ops on empty rejected list', () => {
+    logRejectedChanges([], { spaceId: 'space-123', backendId: 'backend-a' })
+
+    expect(toastAdd).not.toHaveBeenCalled()
+    expect(t).not.toHaveBeenCalled()
+  })
+})
+
+describe('surfaceRejectedBatch — aggregated pull-batch toast (Task 6)', () => {
   let toastAdd: ReturnType<typeof vi.fn>
   let t: ReturnType<typeof vi.fn>
 
@@ -300,12 +338,12 @@ describe('logRejectedChanges — user-visible toast (Task 6)', () => {
     vi.stubGlobal('useNuxtApp', () => ({ $i18n: { t } }))
   })
 
-  it('triggers exactly one warning toast when rejected.length > 0', () => {
-    const rejected = [rejectedRow('{"id":"r1"}'), rejectedRow('{"id":"r2"}', 'Expired')]
+  it('triggers exactly one warning toast when count > 0', () => {
+    // Simulate the accumulator hand-off: streaming pull summed 2 rejections
+    // across N pages and surfaces once at the end.
+    surfaceRejectedBatch('space-123', 2)
 
-    logRejectedChanges(rejected, { spaceId: 'space-123', backendId: 'backend-a' })
-
-    // One aggregated toast per batch — never one per row (a poisoned page
+    // One aggregated toast per batch — never one per row (a poisoned pull
     // of 1000 rows must not spam 1000 stacked toasts).
     expect(toastAdd).toHaveBeenCalledTimes(1)
     const arg = toastAdd.mock.calls[0]![0] as { title: string; color: string; icon: string }
@@ -316,17 +354,26 @@ describe('logRejectedChanges — user-visible toast (Task 6)', () => {
     expect(arg.title).toBe('sync.verification.rowsRejectedOther:2')
   })
 
-  it('uses the singular key when rejected.length === 1', () => {
-    logRejectedChanges([rejectedRow('{"id":"r1"}')], { spaceId: 'space-123', backendId: 'backend-a' })
+  it('uses the singular key when count === 1', () => {
+    surfaceRejectedBatch('space-123', 1)
 
     expect(toastAdd).toHaveBeenCalledTimes(1)
     expect(t).toHaveBeenCalledWith('sync.verification.rowsRejectedOne', { count: 1 })
   })
 
-  it('does not trigger a toast when rejected.length === 0', () => {
-    logRejectedChanges([], { spaceId: 'space-123', backendId: 'backend-a' })
+  it('does not trigger a toast when count === 0', () => {
+    surfaceRejectedBatch('space-123', 0)
 
     expect(toastAdd).not.toHaveBeenCalled()
     expect(t).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an aggregated count larger than any single page', () => {
+    // The accumulator-across-pages contract: a pull of 3 pages with 4, 6,
+    // and 90 rejects surfaces once with total=100 (never three toasts).
+    surfaceRejectedBatch('space-123', 100)
+
+    expect(toastAdd).toHaveBeenCalledTimes(1)
+    expect(t).toHaveBeenCalledWith('sync.verification.rowsRejectedOther', { count: 100 })
   })
 })

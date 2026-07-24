@@ -8,7 +8,7 @@ import type { ColumnChange } from '../../tableScanner'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log } from '../types'
-import { applyPageAsync, verifyPulledChangesAsync, logRejectedChanges } from './apply'
+import { applyPageAsync, verifyPulledChangesAsync, logRejectedChanges, surfaceRejectedBatch } from './apply'
 
 /**
  * Fetches ONE page of changes from the server. Stable pagination uses a
@@ -142,8 +142,15 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
   let totalApplied = 0
   let maxHlc = ''
   let lastServerTimestamp: string | null = initialCursor
+  // Accumulator across pages: sum of `rejected.length` from every page. The
+  // toast fires ONCE after the loop with this total, so a pull that spans N
+  // pages emits at most one toast instead of N stacked ones. On early
+  // exit (throw/break) the try/finally below still surfaces whatever was
+  // accumulated so far — the user is not silently kept in the dark.
+  let totalRejected = 0
 
   log.info('Streaming pull-and-apply from server...')
+  try {
   while (hasMore) {
     pageCount++
 
@@ -184,14 +191,16 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
 
     // Verify signatures+UCAN on this page. Row-scoped: a poisoned row is
     // dropped from `verified` and logged in `rejected`; the rest of the
-    // page still applies and the cursor still advances. Task 6 will
-    // surface `rejected` counts to the user via a toast.
+    // page still applies and the cursor still advances. Log rejections
+    // per page (machine-readable channel, Task 5); the aggregated toast
+    // fires once at the end of the pull via `surfaceRejectedBatch`.
     const { verified, rejected } = await verifyPulledChangesAsync(
       page.changes,
       spaceId,
       currentIdentityDid,
       'write',
     )
+    totalRejected += rejected.length
     logRejectedChanges(rejected, { spaceId, backendId })
 
     for (const c of verified) tablesAffected.add(c.tableName)
@@ -215,6 +224,12 @@ export const streamPullAndApplyAsync = async (opts: StreamPullOptions): Promise<
     cursor = page.serverTimestamp
     cursorTableName = page.lastTableName
     cursorRowPks = page.lastRowPks
+  }
+  } finally {
+    // Surface the aggregate ONCE — normal exit, `break` (stall guard), or a
+    // throw from `applyPageAsync`. `surfaceRejectedBatch` no-ops on 0, so
+    // clean pulls stay silent.
+    surfaceRejectedBatch(spaceId, totalRejected)
   }
 
   return { totalApplied, pageCount, tablesAffected, maxHlc, lastServerTimestamp }
