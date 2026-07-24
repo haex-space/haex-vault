@@ -2,24 +2,20 @@ use super::register_lookup::RegisterLookup;
 use rusqlite::Connection;
 
 /// Minimal in-memory DB with:
-///   - `haex_identities` — two own identities (private_key IS NOT NULL) and
-///     one contact identity (private_key NULL).
 ///   - `haex_space_members` — an infra table with `space_id`, used as the
 ///     stand-in for any of the 5 `SPACE_SCOPED_CRDT_TABLES` in the infra path.
-///   - `haex_shared_space_sync` — the share register.
+///   - `haex_shared_space_sync` — the share register (no author column any
+///     more: Runde 5 dropped `authored_by_did`; I2 lives at the caller now).
 ///
 /// One extension-table row (`ext_calendar` / `{"id":"R"}`) is registered
-/// into two spaces: `space_A` under an *own* DID (`did:key:zOwnA`), and
-/// `space_B` under a *foreign* DID (`did:key:zContact`).
+/// into two spaces (`space_A`, `space_B`). Author identity is no longer
+/// tracked on the register row itself — the caller (write-time signer)
+/// intersects with the `SpaceKeyCache` to decide which of these spaces it
+/// may legitimately sign for.
 fn seed() -> Connection {
     let conn = Connection::open_in_memory().expect("open in-memory");
     conn.execute_batch(
-        "CREATE TABLE haex_identities (
-            id TEXT PRIMARY KEY NOT NULL,
-            did TEXT NOT NULL,
-            private_key TEXT
-         );
-         CREATE TABLE haex_space_members (
+        "CREATE TABLE haex_space_members (
             id TEXT PRIMARY KEY NOT NULL,
             space_id TEXT NOT NULL,
             identity_id TEXT NOT NULL
@@ -28,28 +24,10 @@ fn seed() -> Connection {
             id TEXT PRIMARY KEY NOT NULL,
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
-            space_id TEXT NOT NULL,
-            authored_by_did TEXT
+            space_id TEXT NOT NULL
          );",
     )
     .expect("create schema");
-
-    // Identities: two own (with private_key), one contact (foreign).
-    conn.execute(
-        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
-        ["id-own-a", "did:key:zOwnA", "pkcs8-a"],
-    )
-    .unwrap();
-    conn.execute(
-        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
-        ["id-own-b", "did:key:zOwnB", "pkcs8-b"],
-    )
-    .unwrap();
-    conn.execute(
-        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, NULL)",
-        ["id-contact", "did:key:zContact"],
-    )
-    .unwrap();
 
     // Infra row: a `haex_space_members` row in space_A. Used by the
     // "infra table returns space_id from row column" test.
@@ -60,29 +38,18 @@ fn seed() -> Connection {
     .unwrap();
 
     // Register: extension table `ext_calendar` row `{"id":"R"}` is shared
-    // into space_A by us and into space_B by a foreign identity.
+    // into space_A and space_B. Resolve returns BOTH — the caller's
+    // key-cache filter decides which are actually ours to sign for.
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
-        [
-            "reg-own",
-            "ext_calendar",
-            r#"{"id":"R"}"#,
-            "space_A",
-            "did:key:zOwnA",
-        ],
+         (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
+        ["reg-a", "ext_calendar", r#"{"id":"R"}"#, "space_A"],
     )
     .unwrap();
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
-        [
-            "reg-foreign",
-            "ext_calendar",
-            r#"{"id":"R"}"#,
-            "space_B",
-            "did:key:zContact",
-        ],
+         (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
+        ["reg-b", "ext_calendar", r#"{"id":"R"}"#, "space_B"],
     )
     .unwrap();
 
@@ -124,15 +91,17 @@ fn infra_table_missing_row_returns_empty() {
 }
 
 #[test]
-fn extension_table_joins_register_with_i2_filter() {
+fn extension_table_returns_every_space_the_register_maps_to() {
     let conn = seed();
     let lookup = RegisterLookup::new();
-    let spaces = lookup
+    let mut spaces = lookup
         .resolve(&conn, "ext_calendar", r#"{"id":"R"}"#)
         .expect("resolve");
-    // Register has both space_A (mine) and space_B (foreign). Only mine
-    // must survive the I2 filter.
-    assert_eq!(spaces, vec!["space_A".to_string()]);
+    spaces.sort();
+    // Runde 5: RegisterLookup is DID/key-agnostic — both register entries
+    // survive. The caller (write-time signer) intersects with the
+    // SpaceKeyCache to pick the spaces this vault can sign for.
+    assert_eq!(spaces, vec!["space_A".to_string(), "space_B".to_string()]);
 }
 
 #[test]
@@ -145,10 +114,11 @@ fn per_transaction_cache_hits_on_repeated_lookup() {
         .expect("first resolve");
     assert_eq!(lookup.cache_hits(), 0);
     // Second call with the same key: hit → counter bumps.
-    let spaces = lookup
+    let mut spaces = lookup
         .resolve(&conn, "ext_calendar", r#"{"id":"R"}"#)
         .expect("second resolve");
-    assert_eq!(spaces, vec!["space_A".to_string()]);
+    spaces.sort();
+    assert_eq!(spaces, vec!["space_A".to_string(), "space_B".to_string()]);
     assert_eq!(lookup.cache_hits(), 1);
 }
 
@@ -222,13 +192,12 @@ fn resolve_extension_row_ignores_forbidden_system_table_targets() {
     // read path can still be handed such a row from historic writes.
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
+         (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
         [
             "reg-forbidden",
             "haex_identities",
             r#"{"id":"id-own-a"}"#,
             "space_A",
-            "did:key:zOwnA",
         ],
     )
     .unwrap();
@@ -252,13 +221,12 @@ fn resolve_extension_row_ignores_no_sync_suffix_targets() {
     let conn = seed();
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
+         (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
         [
             "reg-no-sync",
             "haex_workspaces_no_sync",
             r#"{"id":"ws-1"}"#,
             "space_A",
-            "did:key:zOwnA",
         ],
     )
     .unwrap();

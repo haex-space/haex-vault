@@ -21,6 +21,7 @@ fn change_at(hlc: &str, column: &str) -> RemoteColumnChange {
         column_name: column.to_string(),
         hlc_timestamp: hlc.to_string(),
         decrypted_value: serde_json::Value::Null,
+        sig: None,
     }
 }
 

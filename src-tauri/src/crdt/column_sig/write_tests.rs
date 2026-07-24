@@ -18,7 +18,8 @@ use crate::ucan::verify::did_key_from_public_key;
 //   * infra tables → space_id from the row itself (not exercised here — E2
 //     runs on extension tables in every test that would touch the register)
 //   * extension tables → SELECT space_id FROM haex_shared_space_sync
-//     WHERE table_name = ? AND row_pks = ? AND authored_by_did IN (my dids)
+//     WHERE table_name = ? AND row_pks = ? (no author filter — I2 lives at
+//     the caller via SpaceKeyCache::contains, see write.rs)
 // ---------------------------------------------------------------------------
 
 fn random_key() -> SigningKey {
@@ -70,8 +71,7 @@ fn seed_shared_to_two_spaces() -> Fixture {
             id TEXT PRIMARY KEY NOT NULL,
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
-            space_id TEXT NOT NULL,
-            authored_by_did TEXT
+            space_id TEXT NOT NULL
          );",
     )
     .expect("create schema");
@@ -106,28 +106,16 @@ fn seed_shared_to_two_spaces() -> Fixture {
     // for each space under my own identity there).
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-            (id, table_name, row_pks, space_id, authored_by_did)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        [
-            "share-A",
-            "ext_calendar",
-            r#"{"id":"R"}"#,
-            "space_A",
-            &did_a,
-        ],
+            (id, table_name, row_pks, space_id)
+         VALUES (?1, ?2, ?3, ?4)",
+        ["share-A", "ext_calendar", r#"{"id":"R"}"#, "space_A"],
     )
     .unwrap();
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-            (id, table_name, row_pks, space_id, authored_by_did)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        [
-            "share-B",
-            "ext_calendar",
-            r#"{"id":"R"}"#,
-            "space_B",
-            &did_b,
-        ],
+            (id, table_name, row_pks, space_id)
+         VALUES (?1, ?2, ?3, ?4)",
+        ["share-B", "ext_calendar", r#"{"id":"R"}"#, "space_B"],
     )
     .unwrap();
 
@@ -267,19 +255,20 @@ fn sign_rejects_oversized_value_bytes() {
 }
 
 #[test]
-fn sign_returns_no_key_error_when_cache_and_db_lack_space() {
-    // A register entry pointing at space_C, but no matching
-    // `haex_space_members`/`haex_identities` row → `SpaceKeyCache::get_or_reload`
-    // returns `Ok(None)` and we surface `NoKeyForSpace`.
+fn sign_silently_skips_spaces_the_vault_holds_no_key_for() {
+    // Runde 5: I2 moved from the register-SQL to the caller. A register
+    // entry pointing at a space we don't hold the key for is not an error —
+    // it is just "not our space", and we silently drop it from the sig set.
+    // The Ok(map) has no entry for the foreign space; the row's own spaces
+    // (space_A, space_B) are absent here because `ext_ghost/G` is not
+    // shared into them.
     let f = seed_shared_to_two_spaces();
-    // authored_by_did = did_a so the RegisterLookup I2 filter surfaces this row,
-    // but space_C has no owning identity in members → no key can be loaded.
     f.conn
         .execute(
             "INSERT INTO haex_shared_space_sync
-                (id, table_name, row_pks, space_id, authored_by_did)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            ["share-C", "ext_ghost", r#"{"id":"G"}"#, "space_C", &f.did_a],
+                (id, table_name, row_pks, space_id)
+             VALUES (?1, ?2, ?3, ?4)",
+            ["share-C", "ext_ghost", r#"{"id":"G"}"#, "space_C"],
         )
         .unwrap();
 
@@ -288,7 +277,7 @@ fn sign_returns_no_key_error_when_cache_and_db_lack_space() {
     // land in the cache. get_or_reload will also miss on the JIT path.
     let register = RegisterLookup::new();
 
-    let err = sign_column_for_spaces(
+    let out = sign_column_for_spaces(
         &f.conn,
         &cache,
         &register,
@@ -298,7 +287,15 @@ fn sign_returns_no_key_error_when_cache_and_db_lack_space() {
         "hlc-1",
         &Value::Text("x".into()),
     )
-    .expect_err("must surface NoKeyForSpace");
+    .expect("silent-skip must be a successful outcome");
 
-    assert!(matches!(err, SignForSpacesError::NoKeyForSpace(ref s) if s == "space_C"));
+    assert!(
+        !out.contains_key("space_C"),
+        "space we hold no key for must not appear in the sig set, got: {:?}",
+        out.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        out.is_empty(),
+        "sig set must be empty — no owned space maps this row"
+    );
 }

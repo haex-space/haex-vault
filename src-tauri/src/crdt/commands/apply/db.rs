@@ -1,8 +1,8 @@
 use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcError, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
-    get_table_schema as get_table_schema_internal, is_safe_identifier, COLUMN_HLCS_COLUMN,
-    DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN,
+    get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
+    COLUMN_HLCS_COLUMN, DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -10,8 +10,10 @@ use crate::table_names::{
     TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS, TABLE_CRDT_PENDING_TABLES,
 };
 use crate::AppState;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
+use rusqlite::{OptionalExtension, Transaction};
 use serde_json::Value as JsonValue;
 use std::collections::{HashMap, HashSet};
 use tauri::State;
@@ -21,7 +23,115 @@ use super::delete_propagation::{
     create_conflict_entry, insert_suppressed_by_deletes, propagate_deleted_rows_to_target_tables,
 };
 use super::grouping::{group_by_transaction_hlc, group_row_changes_in_hlc_order};
-use super::types::RemoteColumnChange;
+use super::types::{ColumnSig, RemoteColumnChange};
+
+/// Idempotently insert a stub `haex_identities` row for a DID we've never
+/// seen before, so downstream FKs referencing `haex_identities.did` don't
+/// fail when the first inbound row for a foreign author lands.
+///
+/// The stub uses the DID itself as its `id` (both columns are TEXT). Once
+/// the real identity handshake arrives — e.g. the invite-claim flow — the
+/// row is UPDATE-merged in place by the usual CRDT path; there is no
+/// separate reconciliation step.
+///
+/// This function is the Rust replacement for the DB-trigger-based stub
+/// creation that the older schema relied on (ADR 0002 §6, §D). It is called
+/// from [`apply_remote_changes_to_db`] for every column change that carries
+/// a **valid** column signature (Runde 5 sig-verifier plumbing). Invalid
+/// or missing sigs must NOT create a stub — that would let a peer flood
+/// `haex_identities` with attacker-picked DIDs.
+fn ensure_identity_stub(tx: &Transaction, did: &str) -> Result<(), DatabaseError> {
+    tx.execute(
+        "INSERT OR IGNORE INTO haex_identities (id, did) VALUES (?1, ?1)",
+        [did],
+    )
+    .map_err(DatabaseError::from)?;
+    Ok(())
+}
+
+/// Compute the `space_id` that a column-sig on this row must have been
+/// signed under. Two sources, in order:
+///
+///   1. An explicit `space_id` column change in the same row-group (the
+///      INSERT path — the row is arriving with its space_id column value).
+///   2. The row's persisted `space_id` column, read straight from the
+///      target table (the UPDATE path).
+///
+/// Returns `Ok(None)` when neither source is available (table has no
+/// `space_id` column, or the row does not exist yet and no `space_id`
+/// column change is in the batch). Sig verification is skipped for that
+/// row, logged, but the batch is not failed — Runde 7 tightens this once
+/// the wire always carries the necessary metadata.
+fn resolve_row_space_id_for_sig(
+    tx: &Transaction,
+    table_name: &str,
+    pk_where_clause: &str,
+    pk_values_for_query: &[JsonValue],
+    row_change_list: &[RemoteColumnChange],
+    schema: &[ColumnInfo],
+) -> Result<Option<String>, DatabaseError> {
+    // (1) Prefer the batch's space_id column change (INSERT-side attribution).
+    if let Some(sp_change) = row_change_list.iter().find(|c| c.column_name == "space_id") {
+        if let JsonValue::String(s) = &sp_change.decrypted_value {
+            return Ok(Some(s.clone()));
+        }
+    }
+    // (2) Fallback: existing row's space_id column.
+    let has_space_id = schema.iter().any(|c| c.name == "space_id");
+    if !has_space_id {
+        return Ok(None);
+    }
+    let sql = format!(
+        "SELECT space_id FROM \"{}\" WHERE {}",
+        table_name, pk_where_clause
+    );
+    let mut stmt = tx.prepare(&sql).map_err(DatabaseError::from)?;
+    let params = json_values_to_sql_params(pk_values_for_query)?;
+    let params_refs: Vec<&dyn rusqlite::ToSql> =
+        params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+    let result: Option<Option<String>> = stmt
+        .query_row(&*params_refs, |row| row.get::<_, Option<String>>(0))
+        .optional()
+        .map_err(DatabaseError::from)?;
+    Ok(result.flatten())
+}
+
+/// Verify a single `RemoteColumnChange`'s attached column signature against
+/// the row's `space_id`. Returns `Ok(())` on a good sig, `Err(reason)` when
+/// the sig is malformed, the space_id is unavailable, or the Ed25519 check
+/// fails. The caller drops the change from `columns_to_update` on `Err` and
+/// keeps the rest of the batch flowing (row-scoped rejection — Phase-2
+/// pattern from ADR 0002 §6).
+///
+/// This function only runs when the change carries `sig: Some(_)`. The
+/// no-sig path stays untouched until Runde 7 turns on the push-side signer.
+fn verify_change_sig(
+    change: &RemoteColumnChange,
+    sig: &ColumnSig,
+    row_space_id: Option<&str>,
+    table_name: &str,
+    row_pks: &str,
+) -> Result<(), String> {
+    let space_id =
+        row_space_id.ok_or_else(|| "space_id unavailable — cannot verify sig".to_string())?;
+    let sql_value = ValueConverter::json_to_rusqlite_value(&change.decrypted_value)
+        .map_err(|e| format!("value convert: {e}"))?;
+    let value_bytes_vec = crate::crdt::column_sig::value_bytes::to_canonical_bytes(&sql_value);
+    let sig_bytes = BASE64
+        .decode(&sig.sig)
+        .map_err(|e| format!("malformed sig base64: {e}"))?;
+    crate::crdt::column_sig::verify::verify_column_sig(
+        space_id.as_bytes(),
+        table_name.as_bytes(),
+        row_pks.as_bytes(),
+        change.column_name.as_bytes(),
+        change.hlc_timestamp.as_bytes(),
+        &sig.author_did,
+        &value_bytes_vec,
+        &sig_bytes,
+    )
+    .map_err(|e| format!("verify_column_sig: {e:?}"))
+}
 
 /// Applies remote changes in a single transaction, with HLC-ordered grouping.
 /// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
@@ -325,6 +435,26 @@ pub fn apply_remote_changes_to_db(
                 let existing_columns: std::collections::HashSet<&str> =
                     schema.iter().map(|col| col.name.as_str()).collect();
 
+                // Runde 5 sig-verifier plumbing: precompute the row's
+                // space_id so per-change sig checks below don't hit the DB
+                // per column. Only paid when a change actually carries a
+                // sig (Option<ColumnSig>, populated by Runde 7's push
+                // path); otherwise stays None and the whole sig path is a
+                // no-op.
+                let row_space_id_for_sig: Option<String> =
+                    if row_change_list.iter().any(|c| c.sig.is_some()) {
+                        resolve_row_space_id_for_sig(
+                            &tx,
+                            &first_change.table_name,
+                            &pk_where_clause,
+                            &pk_values_for_query,
+                            &row_change_list,
+                            &schema,
+                        )?
+                    } else {
+                        None
+                    };
+
                 // Collect all column changes that are newer than current
                 let mut columns_to_update: Vec<(String, JsonValue, String)> = Vec::new(); // (column_name, json_value, hlc)
                 let mut max_hlc_for_row = first_change.hlc_timestamp.clone();
@@ -368,6 +498,36 @@ pub fn apply_remote_changes_to_db(
                         // columns; re-skipping on each subsequent pre-migration
                         // sync is harmless (idempotent INSERT OR IGNORE).
                         continue;
+                    }
+
+                    // Runde 5 sig-verifier plumbing: when the wire carries
+                    // a column-sig, verify it against the row's space_id.
+                    // Invalid sigs drop the change (row-scoped rejection,
+                    // ADR 0002 §6) so the rest of the batch still lands.
+                    // Valid sigs also seed a `haex_identities` stub for
+                    // the author DID, replacing the previous DB-trigger
+                    // stubbing path (ADR 0002 §D). Missing sigs (`None`)
+                    // are Runde 7's job — for now the loop drops through
+                    // to the existing HLC compare unchanged.
+                    if let Some(sig) = &change.sig {
+                        match verify_change_sig(
+                            change,
+                            sig,
+                            row_space_id_for_sig.as_deref(),
+                            &first_change.table_name,
+                            &first_change.row_pks,
+                        ) {
+                            Ok(()) => {
+                                ensure_identity_stub(&tx, &sig.author_did)?;
+                            }
+                            Err(reason) => {
+                                eprintln!(
+                                    "[SYNC RUST] Dropping change with invalid sig on {}.{}: {}",
+                                    first_change.table_name, change.column_name, reason
+                                );
+                                continue;
+                            }
+                        }
                     }
 
                     let current_hlc = column_hlcs
@@ -712,6 +872,8 @@ pub fn apply_remote_changes_to_db(
 #[cfg_attr(test, allow(clippy::unwrap_used))]
 mod tests {
     use super::*;
+    use crate::crdt::column_sig::sign::sign_column;
+    use crate::crdt::column_sig::value_bytes;
     use crate::database::migrations::{
         clear_pending_table_inner, get_recoverable_pending_tables_inner,
     };
@@ -769,6 +931,7 @@ mod tests {
             column_name: col.to_string(),
             hlc_timestamp: hlc.to_string(),
             decrypted_value: JsonValue::String(val.to_string()),
+            sig: None,
         }
     }
 
@@ -850,6 +1013,7 @@ mod tests {
             column_name: "value".to_string(),
             hlc_timestamp: "1/aabbcc".to_string(),
             decrypted_value: JsonValue::String("data".to_string()),
+            sig: None,
         }];
 
         let result = apply_remote_changes_to_db(&db, changes, None, None);
@@ -974,5 +1138,171 @@ mod tests {
             row_hlc, "10/aaa",
             "row haex_hlc must not regress below T=10 after applying an older T=5 change"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Runde-5 sig-verifier plumbing (Task G1c + G1d)
+    // -----------------------------------------------------------------------
+
+    use crate::ucan::verify::did_key_from_public_key;
+    use ed25519_dalek::SigningKey;
+
+    /// Extension of `setup_db()` that also has `haex_identities` so the
+    /// Runde-5 `ensure_identity_stub` path has somewhere to insert into,
+    /// and seeds a device row so sig verification can read its `space_id`.
+    fn setup_db_with_identities() -> DbConnection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+             CREATE TABLE {DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );
+             CREATE TABLE haex_identities (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 did TEXT NOT NULL
+             );
+             CREATE TABLE devices (
+                 id TEXT PRIMARY KEY,
+                 space_id TEXT NOT NULL,
+                 avatar TEXT,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );
+             INSERT INTO devices (id, space_id, avatar, haex_hlc, haex_column_hlcs) \
+              VALUES ('dev-1', 's1', 'old.png', '10/aaa', '{{\"space_id\":\"10/aaa\",\"avatar\":\"3/aaa\"}}');"
+        ))
+        .unwrap();
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    /// Runde 5 G1d — a change carrying a well-formed but invalid Ed25519
+    /// signature is dropped from the batch (row-scoped rejection). The
+    /// target row stays untouched and the invalid author DID is NOT stub-
+    /// inserted into `haex_identities` (that path only fires for verified
+    /// sigs — otherwise a peer could flood the table with attacker DIDs).
+    #[test]
+    fn apply_rejects_change_with_invalid_signature() {
+        let db = setup_db_with_identities();
+        let did = "did:key:zFakeAuthorForBadSigTest";
+        let hlc = "20/xxx"; // > existing avatar HLC 3/aaa so it would apply if verified
+
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::String("tampered.png".to_string()),
+            sig: Some(ColumnSig {
+                author_did: did.to_string(),
+                // 64 bytes of zero — right length, wrong signature.
+                sig: BASE64.encode([0u8; 64]),
+            }),
+        };
+
+        apply_remote_changes_to_db(&db, vec![change], None, None)
+            .expect("apply must succeed (row-scoped rejection, not batch abort)");
+
+        // The row's avatar must not have been overwritten.
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            avatar, "old.png",
+            "invalid-sig change must be dropped, existing value preserved"
+        );
+
+        // No identity stub — invalid sigs must not seed `haex_identities`.
+        let stub_count: i64 = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM haex_identities WHERE did = ?",
+                [did],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            stub_count, 0,
+            "invalid-sig author DID must NOT get a stub row"
+        );
+    }
+
+    /// Runde 5 G1c — a change with a **valid** sig from a DID we've never
+    /// seen locally triggers `ensure_identity_stub`, which INSERT OR IGNOREs
+    /// a row into `haex_identities` so downstream FKs / joins can bind. The
+    /// change itself also lands (updates the row).
+    #[test]
+    fn apply_ensures_identity_stub_for_new_author_did() {
+        let db = setup_db_with_identities();
+
+        let seed: [u8; 32] = rand::random();
+        let signing_key = SigningKey::from_bytes(&seed);
+        let did = did_key_from_public_key(&signing_key.verifying_key());
+        let space_id = "s1"; // seeded on the row in setup
+        let new_avatar = "verified.png";
+        let hlc = "20/xxx";
+
+        let value_bytes_vec =
+            value_bytes::to_canonical_bytes(&SqlValue::Text(new_avatar.to_string()));
+        let sig = sign_column(
+            &signing_key,
+            space_id.as_bytes(),
+            b"devices",
+            br#"{"id":"dev-1"}"#,
+            b"avatar",
+            hlc.as_bytes(),
+            did.as_bytes(),
+            &value_bytes_vec,
+        );
+
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::String(new_avatar.to_string()),
+            sig: Some(ColumnSig {
+                author_did: did.clone(),
+                sig: BASE64.encode(sig.to_bytes()),
+            }),
+        };
+
+        apply_remote_changes_to_db(&db, vec![change], None, None).expect("apply must succeed");
+
+        let stub_count: i64 = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM haex_identities WHERE did = ?",
+                [&did],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            stub_count, 1,
+            "verified-sig new author DID must produce exactly one stub"
+        );
+
+        // And the change itself must have landed.
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(avatar, new_avatar);
     }
 }

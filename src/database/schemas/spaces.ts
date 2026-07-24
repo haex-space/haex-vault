@@ -176,7 +176,6 @@ export const haexSharedSpaceSync = sqliteTable(
     groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
     type: text(tableNames.haex.shared_space_sync.columns.type),
     label: text(tableNames.haex.shared_space_sync.columns.label),
-    authoredByDid: text(tableNames.haex.shared_space_sync.columns.authoredByDid),
     createdAt: text(tableNames.haex.shared_space_sync.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),

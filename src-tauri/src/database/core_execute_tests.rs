@@ -83,8 +83,7 @@ fn setup_fixture() -> Fixture {
             id TEXT PRIMARY KEY NOT NULL,
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
-            space_id TEXT NOT NULL,
-            authored_by_did TEXT
+            space_id TEXT NOT NULL
          );",
     )
     .unwrap();
@@ -128,28 +127,16 @@ fn setup_fixture() -> Fixture {
     .unwrap();
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-            (id, table_name, row_pks, space_id, authored_by_did)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![
-            "share-A",
-            "ext_calendar",
-            r#"{"id":"R"}"#,
-            "space_A",
-            &did_a
-        ],
+            (id, table_name, row_pks, space_id)
+         VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params!["share-A", "ext_calendar", r#"{"id":"R"}"#, "space_A"],
     )
     .unwrap();
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-            (id, table_name, row_pks, space_id, authored_by_did)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![
-            "share-B",
-            "ext_calendar",
-            r#"{"id":"R"}"#,
-            "space_B",
-            &did_b
-        ],
+            (id, table_name, row_pks, space_id)
+         VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params!["share-B", "ext_calendar", r#"{"id":"R"}"#, "space_B"],
     )
     .unwrap();
 
@@ -402,15 +389,14 @@ fn insert_into_share_register_signs_all_columns_of_referenced_row() {
 
     core::execute_with_crdt(
         "INSERT INTO haex_shared_space_sync \
-            (id, table_name, row_pks, space_id, authored_by_did) \
-         VALUES (?1, ?2, ?3, ?4, ?5)"
+            (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
             .to_string(),
         vec![
             JsonValue::String("share-C".to_string()),
             JsonValue::String("ext_calendar".to_string()),
             JsonValue::String(r#"{"id":"SOLO"}"#.to_string()),
             JsonValue::String("space_C".to_string()),
-            JsonValue::String(f.did_c.clone()),
         ],
         &f.db,
         &hlc_guard,
@@ -437,7 +423,11 @@ fn insert_into_share_register_signs_all_columns_of_referenced_row() {
 }
 
 #[test]
-fn share_insert_rejects_when_authored_by_did_is_foreign_i2_violation() {
+fn share_insert_rejects_when_vault_has_no_key_for_space_i2_violation() {
+    // Runde-5 I2: sig-based identity. The register INSERT declares a share
+    // for `space_UNKNOWN` — a space the vault has no signing key for. F2
+    // cannot legitimately author into a space it doesn't own, so the
+    // transaction must fail with I2ForeignShareInsert and roll back.
     let f = setup_fixture_f2();
     seed_solo_row_hlcs(&f);
 
@@ -450,18 +440,17 @@ fn share_insert_rejects_when_authored_by_did_is_foreign_i2_violation() {
     let hlc_mutex = Mutex::new(f.hlc);
     let hlc_guard = hlc_mutex.lock().unwrap();
 
-    let foreign_did = "did:key:z6MkFakeForeignAuthorForI2Test".to_string();
     let result = core::execute_with_crdt(
         "INSERT INTO haex_shared_space_sync \
-            (id, table_name, row_pks, space_id, authored_by_did) \
-         VALUES (?1, ?2, ?3, ?4, ?5)"
+            (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
             .to_string(),
         vec![
             JsonValue::String("share-EVIL".to_string()),
             JsonValue::String("ext_calendar".to_string()),
             JsonValue::String(r#"{"id":"SOLO"}"#.to_string()),
-            JsonValue::String("space_C".to_string()),
-            JsonValue::String(foreign_did),
+            // Space we hold NO signing key for — Runde-5 I2 hard-rejects.
+            JsonValue::String("space_UNKNOWN".to_string()),
         ],
         &f.db,
         &hlc_guard,
@@ -482,14 +471,14 @@ fn share_insert_rejects_when_authored_by_did_is_foreign_i2_violation() {
         &f.db,
         "SELECT COUNT(*) FROM haex_shared_space_sync WHERE id = 'share-EVIL'",
     );
-    assert_eq!(after, 0, "foreign-share INSERT must roll back");
+    assert_eq!(after, 0, "unowned-share INSERT must roll back");
 
-    // No sigs must exist for SOLO under space_C either.
+    // No sigs must exist for SOLO under the unowned space either.
     let sigs = read_column_sigs_json(&f.db, "ext_calendar", "SOLO");
     if let Some(t) = sigs.get("title").and_then(|v| v.as_object()) {
         assert!(
-            !t.contains_key("space_C"),
-            "foreign share must not produce a space_C sig, got: {:?}",
+            !t.contains_key("space_UNKNOWN"),
+            "unowned share must not produce a space_UNKNOWN sig, got: {:?}",
             t.keys().collect::<Vec<_>>()
         );
     }
@@ -504,15 +493,14 @@ fn share_insert_rejects_when_target_table_is_haex_system_i1_violation() {
 
     let result = core::execute_with_crdt(
         "INSERT INTO haex_shared_space_sync \
-            (id, table_name, row_pks, space_id, authored_by_did) \
-         VALUES (?1, ?2, ?3, ?4, ?5)"
+            (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
             .to_string(),
         vec![
             JsonValue::String("share-SYS".to_string()),
             JsonValue::String("haex_identities".to_string()),
             JsonValue::String(r#"{"id":"id-a"}"#.to_string()),
             JsonValue::String("space_C".to_string()),
-            JsonValue::String(f.did_a.clone()),
         ],
         &f.db,
         &hlc_guard,
@@ -564,15 +552,14 @@ fn share_insert_reuses_historical_column_hlc_not_tx_hlc() {
     let hlc_guard = hlc_mutex.lock().unwrap();
     core::execute_with_crdt(
         "INSERT INTO haex_shared_space_sync \
-            (id, table_name, row_pks, space_id, authored_by_did) \
-         VALUES (?1, ?2, ?3, ?4, ?5)"
+            (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
             .to_string(),
         vec![
             JsonValue::String("share-D".to_string()),
             JsonValue::String("ext_calendar".to_string()),
             JsonValue::String(r#"{"id":"SOLO"}"#.to_string()),
             JsonValue::String("space_C".to_string()),
-            JsonValue::String(f.did_c.clone()),
         ],
         &f.db,
         &hlc_guard,
@@ -666,14 +653,8 @@ fn execute_with_crdt_signs_columns_on_insert() {
         let conn = guard.as_ref().unwrap();
         conn.execute(
             "INSERT INTO haex_shared_space_sync \
-             (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![
-                "share-NEW",
-                "ext_calendar",
-                r#"{"id":"NEW"}"#,
-                "space_A",
-                &f.did_a
-            ],
+             (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["share-NEW", "ext_calendar", r#"{"id":"NEW"}"#, "space_A"],
         )
         .unwrap();
     }
@@ -726,14 +707,8 @@ fn execute_with_crdt_insert_without_column_list_signs_all_columns() {
         let conn = guard.as_ref().unwrap();
         conn.execute(
             "INSERT INTO haex_shared_space_sync \
-             (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![
-                "share-BULK",
-                "ext_calendar",
-                r#"{"id":"BULK"}"#,
-                "space_A",
-                &f.did_a
-            ],
+             (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["share-BULK", "ext_calendar", r#"{"id":"BULK"}"#, "space_A"],
         )
         .unwrap();
     }
@@ -830,14 +805,13 @@ fn execute_with_crdt_signs_composite_pk_row() {
         // Share the (space_A_row, item_1) composite key into space_A.
         conn.execute(
             "INSERT INTO haex_shared_space_sync \
-             (id, table_name, row_pks, space_id, authored_by_did) VALUES (?1, ?2, ?3, ?4, ?5)",
+             (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
             rusqlite::params![
                 "share-COMP",
                 "ext_composite",
                 // Canonical order (BTreeMap → sorted keys): item_id, space_ref
                 r#"{"item_id":"item_1","space_ref":"space_A_row"}"#,
                 "space_A",
-                &f.did_a
             ],
         )
         .unwrap();

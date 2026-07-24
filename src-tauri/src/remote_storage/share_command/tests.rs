@@ -188,7 +188,6 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             group_id TEXT,
             type TEXT,
             label TEXT,
-            authored_by_did TEXT,
             created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
@@ -266,8 +265,54 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
     )
     .expect("seed space");
 
+    // Runde 5 F2: inserting into `haex_shared_space_sync` now triggers
+    // sig-based I2 — the vault must hold a signing key for the space via
+    // (haex_space_members ⋈ haex_identities.private_key). Seed those two
+    // tables + a valid PKCS8 blob so `SpaceKeyCache::get_or_reload`'s JIT
+    // reload succeeds; the sig content is not asserted here.
+    conn.execute_batch(
+        "CREATE TABLE haex_identities (
+            id TEXT PRIMARY KEY NOT NULL,
+            did TEXT NOT NULL,
+            private_key TEXT
+         );
+         CREATE TABLE haex_space_members (
+            id TEXT PRIMARY KEY NOT NULL,
+            space_id TEXT NOT NULL,
+            identity_id TEXT NOT NULL
+         );",
+    )
+    .expect("seed identities + members tables");
+    let pkcs8_b64 = seeded_share_pkcs8_b64();
+    conn.execute(
+        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
+        rusqlite::params!["ident-owner", "did:key:zOwnForShareTests", &pkcs8_b64],
+    )
+    .expect("seed identity");
+    conn.execute(
+        "INSERT INTO haex_space_members (id, space_id, identity_id)
+         VALUES ('mem-owner', ?1, 'ident-owner')",
+        rusqlite::params![&space_id],
+    )
+    .expect("seed membership");
+
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
     (db, hlc_service, storage_id, space_id)
+}
+
+/// Deterministic PKCS8 Ed25519 blob for share-command tests (seeded random
+/// bytes; content is not asserted, only well-formedness for JIT reload).
+fn seeded_share_pkcs8_b64() -> String {
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+    let pkcs8_prefix: [u8; 16] = [
+        0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04,
+        0x20,
+    ];
+    let seed: [u8; 32] = rand::random();
+    let mut der = Vec::with_capacity(48);
+    der.extend_from_slice(&pkcs8_prefix);
+    der.extend_from_slice(&seed);
+    BASE64.encode(&der)
 }
 
 fn make_hint() -> IamAdminCredHint {

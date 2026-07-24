@@ -20,10 +20,7 @@ mod tests {
     use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
     use crate::database::row::get_string;
     use crate::database::DbConnection;
-    use crate::extension::spaces::queries::{
-        SQL_INSERT_SHARED_SPACE_SYNC, SQL_SELECT_OWN_DID_FOR_SPACE,
-        SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY,
-    };
+    use crate::extension::spaces::queries::SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY;
     use crate::table_names::{
         TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC,
     };
@@ -99,7 +96,6 @@ mod tests {
                 group_id TEXT,
                 type TEXT,
                 label TEXT,
-                authored_by_did TEXT,
                 created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
             )",
             TABLE_SHARED_SPACE_SYNC
@@ -140,6 +136,43 @@ mod tests {
         (db, hlc)
     }
 
+    /// Runde 5 helper: seed a local identity + membership for sp-1 with a
+    /// well-formed PKCS8 Ed25519 blob, then return a `SpaceKeyCache` pre-
+    /// populated with the key. Tests that call `execute_with_crdt` on an
+    /// INSERT into `haex_shared_space_sync` need this so F2's sig-based I2
+    /// check finds a signing key. Sig content is not asserted by callers.
+    fn seed_sp1_key(db: &DbConnection) -> SpaceKeyCache {
+        use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+        let pkcs8_prefix: [u8; 16] = [
+            0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
+            0x04, 0x20,
+        ];
+        let seed: [u8; 32] = rand::random();
+        let mut der = Vec::with_capacity(48);
+        der.extend_from_slice(&pkcs8_prefix);
+        der.extend_from_slice(&seed);
+        let pkcs8_b64 = BASE64.encode(&der);
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute(
+            "INSERT INTO haex_identities (id, did, name, source, private_key) \
+             VALUES ('id-key-provider', 'did:key:zSp1KeyProviderForTests', 'KeyProvider', 'own', ?1)",
+            [pkcs8_b64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_space_members (id, space_id, identity_id) \
+             VALUES ('mem-key-provider', 'sp-1', 'id-key-provider')",
+            [],
+        )
+        .unwrap();
+
+        let cache = SpaceKeyCache::new();
+        cache.populate_all(conn).expect("populate cache");
+        cache
+    }
+
     // =========================================================================
     // assign: execute_with_crdt sets HLC + marks dirty
     // =========================================================================
@@ -147,6 +180,7 @@ mod tests {
     #[test]
     fn test_assign_sets_hlc_timestamp() {
         let (db, hlc) = setup_test_db();
+        let cache = seed_sp1_key(&db);
         let hlc_mutex = Mutex::new(hlc);
         let hlc_guard = hlc_mutex.lock().unwrap();
 
@@ -163,7 +197,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
-            &SpaceKeyCache::new(),
+            &cache,
         )
         .unwrap();
 
@@ -232,6 +266,7 @@ mod tests {
     #[test]
     fn test_unassign_hard_deletes_row_and_logs_to_delete_log() {
         let (db, hlc) = setup_test_db();
+        let cache = seed_sp1_key(&db);
         let hlc_mutex = Mutex::new(hlc);
         let hlc_guard = hlc_mutex.lock().unwrap();
 
@@ -248,7 +283,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
-            &SpaceKeyCache::new(),
+            &cache,
         )
         .unwrap();
 
@@ -315,78 +350,6 @@ mod tests {
             delete_log_count, 1,
             "BEFORE-DELETE trigger must log to haex_deleted_rows"
         );
-    }
-
-    // =========================================================================
-    // extension_space_assign: stamps authored_by_did with the sharer's own
-    // space-specific DID (resolved via SQL_SELECT_OWN_DID_FOR_SPACE).
-    // =========================================================================
-
-    #[test]
-    fn test_extension_space_assign_stamps_authored_by_did() {
-        let (db, hlc) = setup_test_db();
-        let hlc_mutex = Mutex::new(hlc);
-        let hlc_guard = hlc_mutex.lock().unwrap();
-
-        {
-            let guard = db.0.lock().unwrap();
-            let conn = guard.as_ref().unwrap();
-            conn.execute(
-                "INSERT INTO haex_identities (id, did, name, source, private_key) \
-                 VALUES ('id-own', 'did:key:own', 'Me', 'own', 'PRIVKEY')",
-                [],
-            )
-            .unwrap();
-            conn.execute(
-                "INSERT INTO haex_space_members (id, space_id, identity_id) \
-                 VALUES ('mem-1', 'sp-1', 'id-own')",
-                [],
-            )
-            .unwrap();
-        }
-
-        let own_did = core::select_with_crdt(
-            SQL_SELECT_OWN_DID_FOR_SPACE.clone(),
-            vec![serde_json::Value::String("sp-1".to_string())],
-            &db,
-        )
-        .unwrap()
-        .first()
-        .map(|row| get_string(row, 0));
-        assert_eq!(own_did.as_deref(), Some("did:key:own"));
-
-        core::execute_with_crdt(
-            SQL_INSERT_SHARED_SPACE_SYNC.clone(),
-            vec![
-                serde_json::Value::String("assign-authored".to_string()),
-                serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-authored".to_string()),
-                serde_json::Value::String("sp-1".to_string()),
-                serde_json::Value::String("ext-pubkey".to_string()),
-                serde_json::Value::String("ext-name".to_string()),
-                serde_json::Value::Null,
-                serde_json::Value::Null,
-                serde_json::Value::Null,
-                serde_json::Value::String(own_did.unwrap()),
-            ],
-            &db,
-            &hlc_guard,
-            &SpaceKeyCache::new(),
-        )
-        .unwrap();
-
-        let rows = core::select_with_crdt(
-            format!(
-                "SELECT authored_by_did FROM {} WHERE id = ?1",
-                TABLE_SHARED_SPACE_SYNC
-            ),
-            vec![serde_json::Value::String("assign-authored".to_string())],
-            &db,
-        )
-        .unwrap();
-
-        assert_eq!(rows.len(), 1);
-        assert_eq!(get_string(&rows[0], 0), "did:key:own");
     }
 
     // =========================================================================

@@ -142,13 +142,12 @@ pub enum DatabaseError {
     #[error("I1 integrity violation: share register may not target system table '{table}'")]
     I1RegisterTargetsSystemTable { table: String },
 
-    /// Shared-space integrity violation I2 (ADR 0002 §4b / §6): a share-register
-    /// row's `authored_by_did` is not a DID owned by this vault (no matching
-    /// entry in `haex_identities` with a `private_key`), or the vault does not
-    /// hold a signing key for the declared `space_id`. Signing for that space
-    /// would let a foreign-authored row leak into it — reject the transaction.
-    #[error("I2 integrity violation: share-register author DID '{did}' is not a local identity or vault has no key for space '{space_id}'")]
-    I2ForeignShareInsert { did: String, space_id: String },
+    /// Shared-space integrity violation I2 (ADR 0002 §4b / §6): the vault does
+    /// not hold a signing key for the declared `space_id`, so it cannot
+    /// legitimately author the share entry. Signing for a foreign space would
+    /// let a foreign-authored row leak into it — reject the transaction.
+    #[error("I2 integrity violation: vault has no signing key for space '{space_id}' — cannot author share")]
+    I2ForeignShareInsert { space_id: String },
 
     /// The caller of `execute_with_crdt` tried to write to a CRDT meta column
     /// directly (`haex_hlc`, `haex_column_hlcs`, `haex_column_sigs`). Those

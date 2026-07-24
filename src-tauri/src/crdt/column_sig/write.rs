@@ -27,8 +27,6 @@ use crate::ucan::verify::did_key_from_public_key;
 pub enum SignForSpacesError {
     #[error("value bytes too large: {0}")]
     ValueBytesTooLarge(String),
-    #[error("no signing key available for space {0}")]
-    NoKeyForSpace(String),
     /// Reserved for future use: today we derive the author DID from the
     /// `SigningKey.verifying_key()`, so the DID is always available whenever
     /// a key is. Kept in the contract so callers can pattern-match on it if
@@ -41,10 +39,18 @@ pub enum SignForSpacesError {
     Database(#[from] rusqlite::Error),
 }
 
-/// Sign one column-write for every space the row is shared into.
+/// Sign one column-write for every space the row is shared into that this
+/// vault holds a signing key for.
+///
+/// I2 filter (Runde 5): the [`RegisterLookup`] returns every space the
+/// register maps the row into — including foreign shares synced in from
+/// other vaults. This function silently drops any `space_id` for which
+/// `key_cache.contains(space_id)` is false — no key means not our space,
+/// and signing anyway would fabricate authorship into a space we don't own
+/// (the self-exfiltration vector I2 guards against).
 ///
 /// Returns `HashMap<space_id, SigRecord>`. An empty map is a valid result
-/// (row is not in any space → caller writes `{}` into `haex_column_sigs`).
+/// (row is not in any owned space → caller writes `{}` into `haex_column_sigs`).
 #[allow(clippy::too_many_arguments)]
 pub fn sign_column_for_spaces(
     conn: &Connection,
@@ -64,9 +70,13 @@ pub fn sign_column_for_spaces(
     let mut out = HashMap::with_capacity(spaces.len());
 
     for space_id in spaces {
-        let key = key_cache
-            .get_or_reload(conn, &space_id)?
-            .ok_or_else(|| SignForSpacesError::NoKeyForSpace(space_id.clone()))?;
+        // I2 filter — drop spaces we don't hold the key for. `get_or_reload`
+        // does one JIT DB round-trip on a cache miss; a `None` return here
+        // means "not our space", so we silently skip (no error, no sig).
+        let key = match key_cache.get_or_reload(conn, &space_id)? {
+            Some(k) => k,
+            None => continue,
+        };
         let did = did_key_from_public_key(&key.verifying_key());
         let sig = sign_column(
             &key,

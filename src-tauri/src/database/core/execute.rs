@@ -2,7 +2,7 @@
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rusqlite::types::Value as RusqliteValue;
-use rusqlite::{ToSql, Transaction};
+use rusqlite::{OptionalExtension, ToSql, Transaction};
 use serde_json::Value as JsonValue;
 use sqlparser::ast::{AssignmentTarget, ObjectName, Statement, TableFactor, TableObject};
 
@@ -317,9 +317,12 @@ fn sign_written_rows(
 ///
 /// 1. **I1**: reject if `table_name` targets a system table on the shared
 ///    denylist (see `column_sig::register_lookup::is_register_target_forbidden`).
-/// 2. **I2**: reject if `authored_by_did` is not a local identity, or if the
-///    vault does not hold a signing key for `space_id_new` — both conditions
-///    would let a foreign-authored row be smuggled into a new space.
+/// 2. **I2**: reject if the vault does not hold a signing key for
+///    `space_id_new` — the only way to legitimately author a share entry
+///    for a space is to hold that space's member signing key. Sig-based
+///    identity replaces the earlier `authored_by_did` DB lookup: no key
+///    means not our space, and signing anyway would smuggle a foreign row
+///    into that space.
 /// 3. Load every non-meta column of the referenced row and sign it for
 ///    `space_id_new` using the local key. HLC per column comes from the row's
 ///    stored `haex_column_hlcs[col]` — we sign columns AS THEY EXIST, with
@@ -332,18 +335,9 @@ fn sign_share_insert_targets(
     tx: &Transaction,
     key_cache: &SpaceKeyCache,
 ) -> Result<(), DatabaseError> {
-    use rusqlite::OptionalExtension;
-
-    // Guard: F2 needs the register carrying both `haex_hlc` (to identify the
-    // just-inserted rows) and `authored_by_did` (for the I2 check). Older
-    // fixtures / pre-migration tests may lack either — treat as a no-op.
-    //
-    // F#4 (Runde-4 review): warn in that case. In prod the columns are
-    // guaranteed by the CRDT-column migration + Phase-1 schema addition, so
-    // a missing column signals schema drift or a test fixture that skipped
-    // migrations — the F2 sig path is silently bypassed, which previously
-    // masked F#1's blanket-`haex_`-rejection bug. A warning surfaces this
-    // to the operator without breaking legacy callers.
+    // Guard: F2 needs the register carrying `haex_hlc` to identify the
+    // just-inserted rows. Older fixtures / pre-migration tests may lack it —
+    // treat as a no-op with a warn (schema drift or unmigrated fixture).
     let register_schema =
         get_table_schema(tx, REGISTER_TABLE).map_err(|e| DatabaseError::DatabaseError {
             reason: format!("get_table_schema({REGISTER_TABLE}) failed: {e}"),
@@ -351,15 +345,12 @@ fn sign_share_insert_targets(
     let has_hlc = register_schema
         .iter()
         .any(|c| c.name == HLC_TIMESTAMP_COLUMN);
-    let has_author = register_schema.iter().any(|c| c.name == "authored_by_did");
-    if !has_hlc || !has_author {
+    if !has_hlc {
         tracing::warn!(
             target: "column_sig",
             register = REGISTER_TABLE,
-            has_hlc,
-            has_author,
-            "F2 sig path skipped: share register is missing CRDT meta or \
-             `authored_by_did` — schema drift or unmigrated fixture. \
+            "F2 sig path skipped: share register is missing CRDT meta \
+             (`haex_hlc`) — schema drift or unmigrated fixture. \
              Register INSERTs will not produce cross-table column sigs \
              until the schema catches up."
         );
@@ -378,12 +369,11 @@ fn sign_share_insert_targets(
         target_table: String,
         row_pks: String,
         space_id: String,
-        author_did: String,
     }
     let share_rows: Vec<ShareRow> = {
         let mut stmt = tx
             .prepare(&format!(
-                "SELECT table_name, row_pks, space_id, authored_by_did \
+                "SELECT table_name, row_pks, space_id \
                  FROM {REGISTER_TABLE} \
                  WHERE \"{HLC_TIMESTAMP_COLUMN}\" = ?1"
             ))
@@ -393,12 +383,10 @@ fn sign_share_insert_targets(
             .map_err(DatabaseError::from)?;
         let mut out = Vec::new();
         while let Some(row) = rows.next().map_err(DatabaseError::from)? {
-            let did: Option<String> = row.get(3).map_err(DatabaseError::from)?;
             out.push(ShareRow {
                 target_table: row.get(0).map_err(DatabaseError::from)?,
                 row_pks: row.get(1).map_err(DatabaseError::from)?,
                 space_id: row.get(2).map_err(DatabaseError::from)?,
-                author_did: did.unwrap_or_default(),
             });
         }
         out
@@ -417,43 +405,19 @@ fn sign_share_insert_targets(
             });
         }
 
-        // Pre-Phase-1 register rows may not carry `authored_by_did` at all.
-        // Absent claim → nothing to promote, just skip signing this row and
-        // let the register INSERT stand. A non-empty but foreign DID is a
-        // real I2 violation (a caller impersonating a different vault) and
-        // must fail.
-        if share.author_did.is_empty() {
-            continue;
-        }
-
-        // I2 (a): author must be a local identity — otherwise this vault has
-        // no legitimate claim to author the share entry.
-        let author_is_local: bool = tx
-            .query_row(
-                "SELECT 1 FROM haex_identities \
-                 WHERE did = ?1 AND private_key IS NOT NULL LIMIT 1",
-                [&share.author_did],
-                |_| Ok(true),
-            )
-            .optional()
-            .map_err(DatabaseError::from)?
-            .unwrap_or(false);
-        if !author_is_local {
-            return Err(DatabaseError::I2ForeignShareInsert {
-                did: share.author_did,
-                space_id: share.space_id,
-            });
-        }
-
-        // I2 (b): the vault must own a signing key for the declared space.
-        // Author claims to be local (checked above), so a missing / undecodable
-        // key here means fixture-only state — skip signing but let the
-        // register INSERT stand rather than crashing every legacy caller.
-        // A real forgery is already caught by I2 (a).
+        // I2: the vault must own a signing key for the declared space —
+        // that key IS this vault's authorisation to author into the space.
+        // No key → hard reject: register-INSERT would create a share row we
+        // cannot cryptographically stand behind (Runde-5 sig-based I2).
+        // Reload errors are treated as hard failure (schema is either dead
+        // or the key was corrupted — both need the operator's attention).
         let signing_key = match key_cache.get_or_reload(&*tx, &share.space_id) {
             Ok(Some(k)) => k,
-            Ok(None) => continue,
-            Err(_) => continue,
+            Ok(None) | Err(_) => {
+                return Err(DatabaseError::I2ForeignShareInsert {
+                    space_id: share.space_id,
+                });
+            }
         };
         let derived_did = did_key_from_public_key(&signing_key.verifying_key());
 

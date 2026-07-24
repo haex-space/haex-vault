@@ -5,7 +5,7 @@
 //! - List shared spaces from the local database
 
 use super::queries::{
-    SQL_DELETE_SHARED_SPACE_SYNC, SQL_INSERT_SHARED_SPACE_SYNC, SQL_SELECT_OWN_DID_FOR_SPACE,
+    SQL_DELETE_SHARED_SPACE_SYNC, SQL_INSERT_SHARED_SPACE_SYNC,
     SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY, SQL_SHARED_SPACE_SYNC_SELECT_COLS,
 };
 use crate::critical::CriticalFailureCode;
@@ -17,8 +17,6 @@ use crate::extension::permissions::manager::PermissionManager;
 use crate::extension::permissions::types::{Principal, SpaceAction};
 use crate::extension::utils::{get_extension_table_prefix, prompt_on_err, resolve_extension_id};
 use crate::AppState;
-
-use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State, WebviewWindow};
@@ -53,7 +51,6 @@ pub struct SpaceAssignmentRow {
     #[serde(rename = "type")]
     pub type_name: Option<String>,
     pub label: Option<String>,
-    pub authored_by_did: Option<String>,
     pub created_at: Option<String>,
 }
 
@@ -145,30 +142,9 @@ pub async fn extension_space_assign(
     let ext_public_key = extension.manifest.public_key.clone();
     let ext_name = extension.manifest.name.clone();
 
-    // Own space-specific DID per distinct space_id, resolved lazily and cached
-    // (matches the identity that signs the push for that space).
-    let mut own_dids: HashMap<String, Option<String>> = HashMap::new();
-
     let mut total_inserted: u64 = 0;
     for assignment in &assignments {
         let id = uuid::Uuid::new_v4().to_string();
-
-        let own_did = match own_dids.get(&assignment.space_id) {
-            Some(cached) => cached.clone(),
-            None => {
-                let resolved = core::select_with_crdt(
-                    SQL_SELECT_OWN_DID_FOR_SPACE.clone(),
-                    vec![serde_json::Value::String(assignment.space_id.clone())],
-                    &state.db,
-                )
-                .map_err(|e| ExtensionError::Database { source: e })?
-                .first()
-                .map(|row| get_string(row, 0))
-                .filter(|s| !s.is_empty());
-                own_dids.insert(assignment.space_id.clone(), resolved.clone());
-                resolved
-            }
-        };
 
         core::execute_with_crdt(
             SQL_INSERT_SHARED_SPACE_SYNC.clone(),
@@ -197,10 +173,6 @@ pub async fn extension_space_assign(
                     .map_or(serde_json::Value::Null, |v| {
                         serde_json::Value::String(v.clone())
                     }),
-                match own_did.as_deref() {
-                    Some(did) => serde_json::Value::String(did.to_string()),
-                    None => serde_json::Value::Null,
-                },
             ],
             &state.db,
             &hlc_guard,
@@ -355,8 +327,7 @@ pub async fn extension_space_get_assignments(
             group_id: Some(get_string(row, 6)).filter(|s| !s.is_empty()),
             type_name: Some(get_string(row, 7)).filter(|s| !s.is_empty()),
             label: Some(get_string(row, 8)).filter(|s| !s.is_empty()),
-            authored_by_did: Some(get_string(row, 9)).filter(|s| !s.is_empty()),
-            created_at: Some(get_string(row, 10)).filter(|s| !s.is_empty()),
+            created_at: Some(get_string(row, 9)).filter(|s| !s.is_empty()),
         })
         .collect();
 

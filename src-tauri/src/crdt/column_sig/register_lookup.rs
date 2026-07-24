@@ -1,23 +1,23 @@
 //! Per-transaction resolver for "into which spaces is this row shared?".
 //!
-//! For each `(table, row_pks)` pair the resolver returns the list of `space_id`s
-//! for which the *local* vault should produce column signatures. The result is
-//! cached inside the lookup instance so a single transaction that touches many
-//! columns of the same row only pays one DB round-trip.
+//! For each `(table, row_pks)` pair the resolver returns the list of every
+//! `space_id` that has ever been declared as sharing this row (extension path)
+//! or the row's own space (infra path). Result is cached inside the lookup
+//! instance so a single transaction that touches many columns of the same row
+//! only pays one DB round-trip.
 //!
 //! Two paths:
 //!   * **Infra tables** — the five [`SPACE_SCOPED_CRDT_TABLES`] carry a
 //!     `space_id` column inline; the row itself is authoritative. We SELECT
 //!     from that table.
 //!   * **Extension tables** — everything else. Ownership is expressed via
-//!     the share register `haex_shared_space_sync`. We join it against the
-//!     local `haex_identities` (I2 filter) so only entries authored by *this
-//!     vault's* identity survive; foreign share entries pointing to other
-//!     spaces are ignored — we cannot sign for a space we do not own.
-//!
-//! The I2 filter currently keys off `haex_shared_space_sync.authored_by_did`;
-//! once Task D1/G1 removes that column in favour of column-sig-based author
-//! identification, this filter is expected to migrate to the sig column.
+//!     the share register `haex_shared_space_sync`. We return every space the
+//!     register maps the row into, with **no author filter** — I2 is the
+//!     caller's job now (Runde 5): the write-time signer filters via the
+//!     `SpaceKeyCache` (`key_cache.contains(space_id)`), so only spaces this
+//!     vault holds a signing key for survive. A DID/key-agnostic register
+//!     resolver keeps the SQL cheap and moves the security policy to the
+//!     signer where it belongs.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -90,16 +90,15 @@ pub fn is_register_target_forbidden(table: &str) -> bool {
     REGISTER_TARGET_DENYLIST.iter().any(|t| lower == *t)
 }
 
-/// SQL for the extension-table path. Uses the I2 filter: only rows whose
-/// `authored_by_did` matches one of the local identities (`private_key
-/// IS NOT NULL`) are counted.
-const SQL_SELECT_REGISTER_OWN_SPACES: &str = "\
+/// SQL for the extension-table path. Returns every distinct `space_id`
+/// mapped to this `(table, row_pks)` by the register — no author filter.
+/// I2 (only sign for spaces this vault owns) is enforced at the caller
+/// via `SpaceKeyCache::contains`, not here (see module docs).
+const SQL_SELECT_REGISTER_SPACES: &str = "\
     SELECT DISTINCT r.space_id \
     FROM haex_shared_space_sync r \
     WHERE r.table_name = ?1 \
-      AND r.row_pks = ?2 \
-      AND r.authored_by_did IN \
-          (SELECT did FROM haex_identities WHERE private_key IS NOT NULL)";
+      AND r.row_pks = ?2";
 
 /// Per-transaction resolver for space membership of a `(table, row_pks)` pair.
 ///
@@ -118,9 +117,10 @@ impl RegisterLookup {
 
     /// Resolves which space_ids `(table_name, row_pks_json)` is shared into.
     ///
-    /// Result is filtered by the I2 rule for extension tables (only share
-    /// entries authored by a local identity). Infra tables return the
-    /// row's own `space_id`.
+    /// Returns every space the register maps this row into (extension path)
+    /// or the row's own `space_id` (infra path). **No I2 filter** — the
+    /// caller decides which spaces this vault may legitimately sign for,
+    /// typically by intersecting with the `SpaceKeyCache`.
     ///
     /// `row_pks_json` is expected to be a JSON object of PK column values
     /// as produced by the CRDT scanner (e.g. `{"id":"abc-123"}`). It is
@@ -277,12 +277,13 @@ fn resolve_infra_row(
     }
 }
 
-/// Extension-table path: consult the share register with the I2 filter.
+/// Extension-table path: consult the share register with no author filter.
 ///
-/// If `haex_shared_space_sync` or `haex_identities` do not exist (test
-/// harnesses that skip the full CRDT-bootstrap, or freshly-created vaults
-/// pre-migration), treat that as "no share entries" and return an empty
-/// list — signing zero spaces is the correct semantic fallback.
+/// If `haex_shared_space_sync` does not exist (test harnesses that skip the
+/// full CRDT-bootstrap, or freshly-created vaults pre-migration), treat that
+/// as "no share entries" and return an empty list — signing zero spaces is
+/// the correct semantic fallback. I2 (owned-space filter) is enforced at the
+/// caller via `SpaceKeyCache::contains`.
 ///
 /// F#3 (Runde-4 review): apply the I1 exclusion here too. A legacy or
 /// malicious register row targeting a forbidden `haex_*` / `sqlite_*`
@@ -298,7 +299,7 @@ fn resolve_extension_row(
     if is_register_target_forbidden(table_name) {
         return Ok(Vec::new());
     }
-    let mut stmt = match conn.prepare(SQL_SELECT_REGISTER_OWN_SPACES) {
+    let mut stmt = match conn.prepare(SQL_SELECT_REGISTER_SPACES) {
         Ok(s) => s,
         Err(rusqlite::Error::SqliteFailure(_, Some(msg))) if msg.starts_with("no such table") => {
             return Ok(Vec::new());

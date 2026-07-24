@@ -165,7 +165,6 @@ fn setup_revoke_db() -> (DbConnection, HlcService, String) {
             group_id TEXT,
             type TEXT,
             label TEXT,
-            authored_by_did TEXT,
             created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
