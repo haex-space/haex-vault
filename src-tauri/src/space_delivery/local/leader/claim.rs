@@ -340,6 +340,20 @@ pub async fn handle_claim_invite(
         }
     }
 
+    // 12b. Task C4: keep the SpaceKeyCache warm for this space. The leader
+    //      already loaded its own signing key at vault-open, so this is a
+    //      defensive JIT reload — a no-op cache hit in the common path and
+    //      a self-repair if the entry was evicted mid-session (e.g. by a
+    //      concurrent `local_delivery_stop` + restart cycle).
+    super::super::column_sig_hook::warm_column_sig_cache(
+        &state
+            .app_handle
+            .state::<crate::AppState>()
+            .column_sig_key_cache,
+        &state.db,
+        &space_id,
+    );
+
     // 13. Consume the token — **only now**, after the claim has fully
     //     succeeded. If anything above failed, the token is still unspent
     //     and the invitee can retry without a manually re-issued invite.

@@ -536,6 +536,17 @@ pub async fn local_delivery_claim_invite(
     .map_err(|e| format!("Failed to mark invite as accepted: {e}"))?;
     eprintln!("[ClaimInvite] [trace] AFTER mark accepted — returning Ok");
 
+    // 8a. Task C4: hydrate the column-sig SpaceKeyCache for this newly-joined
+    //     space. On the claimant side the local `haex_space_members` row is
+    //     seeded via CRDT sync from the leader (may not have arrived yet at
+    //     this point), so this reload is often a miss — `get_or_reload` will
+    //     retry via JIT on the next signing call.
+    super::super::column_sig_hook::warm_column_sig_cache(
+        &state.column_sig_key_cache,
+        &db,
+        &space_id,
+    );
+
     // 8b. Clean up other pending invites for the same space — once we've
     //     joined, leftover invites (from the same inviter via duplicate
     //     retries that slipped past idempotency, or from other inviters
