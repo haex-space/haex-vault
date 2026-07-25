@@ -62,7 +62,22 @@ pub struct VerifyColumnSigBatchInput {
 
 /// Per-change rejection with the composite `row_key` + a stable variant-
 /// name reason. Reason strings are the vocabulary a TS caller pattern-
-/// matches on; keep them in sync with [`verify_error_variant_name`].
+/// matches on and come from two sources — keep both in sync when adding
+/// a new one:
+///
+///   1. `"MalformedValueBytes"` — batch-layer only, emitted when the
+///      per-change `value_bytes` field fails base64-STANDARD decoding.
+///      No compile-time exhaustiveness guard exists for this source;
+///      the string is defined at [`verify_column_sig_batch_inner`]'s
+///      base64 fallback.
+///   2. The four [`VerifyColumnSigError`] variants routed through
+///      [`verify_error_variant_name`] — `"MalformedDid"`,
+///      `"InvalidSignature"`, `"MalformedSignatureBytes"`,
+///      `"ValueBytesTooLarge"`. Adding a new variant to the enum
+///      compile-fails the mapper. Note that `"MalformedSignatureBytes"`
+///      is also emitted directly by the batch layer when the sig field
+///      fails base64 decode — the two sources deliberately converge on
+///      the same reason string since both mean "sig bytes are invalid".
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RejectedRecord {

@@ -104,3 +104,40 @@ fn verify_batch_returns_verified_and_rejected_split() {
     assert_eq!(out.rejected[0].row_key, tampered_key);
     assert_eq!(out.rejected[0].reason, "InvalidSignature");
 }
+
+#[test]
+fn verify_batch_rejects_malformed_value_bytes() {
+    let key = make_key();
+    let did = did_key_from_public_key(&key.verifying_key());
+    let space_id = "space_A";
+
+    // Value_bytes carries a payload that is NOT valid base64. Sig is
+    // valid base64 (empty payload decodes to empty bytes, still
+    // acceptable to base64::decode) — this isolates the value_bytes
+    // decode failure from the sig decode failure.
+    let change = ColumnSigChange {
+        table_name: "ext_calendar".to_string(),
+        row_pks: r#"{"id":"R1"}"#.to_string(),
+        column_name: "title".to_string(),
+        hlc_timestamp: "hlc-1".to_string(),
+        value_bytes: "!!!not-base64!!!".to_string(),
+        sig: ColumnSig {
+            author_did: did,
+            sig: BASE64.encode([0u8; 64]),
+        },
+    };
+    let expected_key = format!(
+        "{}|{}|{}|{}",
+        change.table_name, change.row_pks, change.column_name, change.hlc_timestamp
+    );
+
+    let out = verify_column_sig_batch_inner(VerifyColumnSigBatchInput {
+        changes: vec![change],
+        expected_space_id: space_id.to_string(),
+    });
+
+    assert!(out.verified.is_empty());
+    assert_eq!(out.rejected.len(), 1);
+    assert_eq!(out.rejected[0].row_key, expected_key);
+    assert_eq!(out.rejected[0].reason, "MalformedValueBytes");
+}
