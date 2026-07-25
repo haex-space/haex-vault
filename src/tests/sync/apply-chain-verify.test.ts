@@ -44,16 +44,17 @@ import {
 
 const mockInvoke = vi.mocked(invoke)
 
-/** Composite row-key format that `verify_column_sig_batch` echoes back on
- *  both `verified` and `rejected` — mirrors `compose_row_key` in
- *  `src-tauri/src/crdt/column_sig/commands.rs`. */
+/** Composite row-key format that `verify_ucan_chain_batch` echoes back —
+ *  mirrors the `rowKey` helper inside apply.ts. */
 const rowKey = (c: ColumnChange) =>
   `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`
 
 /**
- * Factory: build a `ColumnChange` with the new Phase-1 wire fields —
- * a per-column `sig` and canonical `valueBytes`. `authorDid` doubles as
- * the signer DID that the UCAN layer will look up in `haex_ucan_tokens`.
+ * Factory: build a `ColumnChange` carrying only the fields that survive
+ * the ADR-aligned wire (no plaintext `valueBytes`). The canonical bytes
+ * used by the column-sig verifier are computed post-decrypt inside
+ * `applyRemoteChangesInTransactionAsync` — this file covers only
+ * `verifyPulledChangesAsync` (sig-presence gate + UCAN chain).
  */
 const change = (
   rowPks: string,
@@ -65,39 +66,10 @@ const change = (
   columnName: 'title',
   hlcTimestamp: hlc,
   deviceId: 'dev-1',
-  valueBytes: 'AAAAAAAAAA==', // arbitrary base64 stub — Rust verifier is mocked
   sig: { authorDid, sig: 'c2ln' },
 })
 
-/**
- * Configure the two Rust invocations for the happy shared-space path:
- *   1. `verify_column_sig_batch` accepts every row in `sigOk`.
- *   2. `verify_ucan_chain_batch` accepts every row in `ucanOk`.
- * Any change not listed as OK is silently dropped by the mock (models
- * `MissingResult`). Callers pass row-ids as they will appear in the
- * `rowKey`/`rowId` payloads.
- */
-const mockRustHappyPath = (opts: {
-  sigOk: string[]
-  ucanOk: string[]
-  sigRejects?: Array<{ rowKey: string; reason: string }>
-}) => {
-  mockInvoke.mockImplementation(async (cmd, _args) => {
-    if (cmd === 'verify_column_sig_batch') {
-      return { verified: opts.sigOk, rejected: opts.sigRejects ?? [] }
-    }
-    if (cmd === 'verify_ucan_chain_batch') {
-      return opts.ucanOk.map((rowId) => ({
-        rowId,
-        tableName: 'haex_bookmarks',
-        outcome: { kind: 'ok', rootDid: 'did:key:zroot' },
-      }))
-    }
-    throw new Error(`unexpected invoke: ${cmd}`)
-  })
-}
-
-describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', () => {
+describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-review)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Default: every signer has one cached UCAN token in haex_ucan_tokens.
@@ -106,61 +78,64 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
     ])
   })
 
-  it('shared-space: routes column-sig verify to Rust and only applies verified rows', async () => {
+  it('shared-space: routes UCAN check to Rust and only accepts verified rows', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     const r2 = change('{"id":"r2"}', 'did:key:zauthor2')
-    mockRustHappyPath({
-      sigOk: [rowKey(r1)],
-      ucanOk: [rowKey(r1)],
-      sigRejects: [{ rowKey: rowKey(r2), reason: 'InvalidSignature' }],
-    })
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
+      { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'rejected', reason: 'Signature' } },
+    ])
 
     const result = await verifyPulledChangesAsync([r1, r2], 'space-123', 'did:key:zme', 'write')
 
     expect(result.verified).toHaveLength(1)
     expect(result.verified[0]!.rowPks).toBe('{"id":"r1"}')
     expect(result.rejected).toHaveLength(1)
-    expect(result.rejected[0]!.reason).toBe('InvalidSignature')
+    expect(result.rejected[0]!.reason).toBe('Signature')
   })
 
-  it('invokes verify_column_sig_batch with the batch input shape', async () => {
+  it('invokes ONLY verify_ucan_chain_batch (column-sig verify moved post-decrypt)', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
-    mockRustHappyPath({ sigOk: [rowKey(r1)], ucanOk: [rowKey(r1)] })
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
+    ])
 
     await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
 
+    // Column-sig verify is no longer part of this path — invocations
+    // hitting it here would leak plaintext value bytes on the wire.
+    const commands = mockInvoke.mock.calls.map((c) => c[0])
+    expect(commands).toContain('verify_ucan_chain_batch')
+    expect(commands).not.toContain('verify_column_sig_batch')
+
     expect(mockInvoke).toHaveBeenCalledWith(
-      'verify_column_sig_batch',
+      'verify_ucan_chain_batch',
       expect.objectContaining({
-        input: expect.objectContaining({
-          expectedSpaceId: 'space-123',
-          changes: expect.arrayContaining([
-            expect.objectContaining({
-              tableName: 'haex_bookmarks',
-              rowPks: '{"id":"r1"}',
-              columnName: 'title',
-              hlcTimestamp: '100/aa',
-              valueBytes: 'AAAAAAAAAA==',
-              sig: { authorDid: 'did:key:zauthor1', sig: 'c2ln' },
-            }),
-          ]),
-        }),
+        requests: expect.arrayContaining([
+          expect.objectContaining({
+            token: 'ucan-token-stub',
+            expectedSpaceId: 'space-123',
+            expectedAudience: 'did:key:zme',
+            capabilityNeeded: 'write',
+            rowId: rowKey(r1),
+            tableName: 'haex_bookmarks',
+          }),
+        ]),
       }),
     )
   })
 
-  it('rejects rows missing sig or valueBytes with reason=Unsigned', async () => {
-    // Layer-0 gate: an unsigned row (or one without canonical value
-    // bytes) never reaches Rust — reject immediately with the synthetic
-    // reason so the caller can distinguish it from a Rust-side reject.
+  it('rejects rows missing sig with reason=Unsigned', async () => {
+    // Layer-0 gate: a change without a sig never reaches Rust — reject
+    // immediately with the synthetic reason so the caller can
+    // distinguish it from a Rust-side reject.
     const unsigned: ColumnChange = {
       tableName: 'haex_bookmarks',
       rowPks: '{"id":"r-unsigned"}',
       columnName: 'title',
       hlcTimestamp: '100/aa',
       deviceId: 'dev-1',
-      valueBytes: '',
-      // sig omitted
+      // no sig
     }
     const result = await verifyPulledChangesAsync(
       [unsigned],
@@ -175,32 +150,16 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
     expect(result.rejected[0]!.reason).toBe('Unsigned')
   })
 
-  it('propagates the 5-string Rust reason vocabulary verbatim', async () => {
-    // A single Rust reject drives every reason path — reason string
-    // ends up on `RejectedChange.reason` untouched.
-    const bad = change('{"id":"r-bad"}', 'did:key:zauthor-bad')
-    mockRustHappyPath({
-      sigOk: [],
-      ucanOk: [],
-      sigRejects: [{ rowKey: rowKey(bad), reason: 'MalformedDid' }],
-    })
-
-    const result = await verifyPulledChangesAsync([bad], 'space-123', 'did:key:zme', 'write')
-
-    expect(result.rejected).toHaveLength(1)
-    expect(result.rejected[0]!.reason).toBe('MalformedDid')
-  })
-
-  it('personal-vault (no spaceId): skips both column-sig and UCAN layers', async () => {
+  it('personal-vault (no spaceId): skips both layers entirely', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    // Even an unsigned row passes through — Phase 1 doesn't sign
+    // personal-vault sync.
     const r2: ColumnChange = {
       tableName: 'haex_bookmarks',
       rowPks: '{"id":"r2"}',
       columnName: 'title',
       hlcTimestamp: '100/aa',
       deviceId: 'dev-1',
-      valueBytes: '',
-      // Even unsigned rows pass through — Phase 1 does not sign personal-vault sync.
     }
 
     const result = await verifyPulledChangesAsync([r1, r2], undefined, 'did:key:zme', 'write')
@@ -220,15 +179,13 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
   it('rejects rows whose signer has no cached UCAN in haex_ucan_tokens', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     mockDbWhere.mockResolvedValue([]) // no UCAN cached
-    mockRustHappyPath({ sigOk: [rowKey(r1)], ucanOk: [rowKey(r1)] })
 
     const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
 
-    // verify_column_sig_batch runs (layer-1 passes), verify_ucan_chain_batch
-    // is skipped because we have no token to hand it.
-    const calls = mockInvoke.mock.calls.map((c) => c[0])
-    expect(calls).toContain('verify_column_sig_batch')
-    expect(calls).not.toContain('verify_ucan_chain_batch')
+    // verify_ucan_chain_batch never fires — we cannot ask Rust to
+    // verify a token we do not possess. The row is dropped with a
+    // synthetic reason.
+    expect(mockInvoke).not.toHaveBeenCalled()
     expect(result.verified).toHaveLength(0)
     expect(result.rejected).toHaveLength(1)
     expect(result.rejected[0]!.reason).toBe('MissingLocalUcan')
@@ -237,18 +194,10 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
   it('propagates UCAN reject reasons (Signature, Expired, …) from Rust', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     const r2 = change('{"id":"r2"}', 'did:key:zauthor2')
-    mockInvoke.mockImplementation(async (cmd) => {
-      if (cmd === 'verify_column_sig_batch') {
-        return { verified: [rowKey(r1), rowKey(r2)], rejected: [] }
-      }
-      if (cmd === 'verify_ucan_chain_batch') {
-        return [
-          { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
-          { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'rejected', reason: 'Expired' } },
-        ]
-      }
-      throw new Error(`unexpected invoke: ${cmd}`)
-    })
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+      { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'rejected', reason: 'Expired' } },
+    ])
 
     const result = await verifyPulledChangesAsync([r1, r2], 'space-123', 'did:key:zme', 'write')
 
@@ -257,14 +206,10 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
     expect(result.rejected[0]!.reason).toBe('Expired')
   })
 
-  it('assigns MissingResult when Rust drops a row silently in either layer', async () => {
+  it('assigns MissingResult when Rust drops a row silently', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
-    // Rust returned neither verified nor rejected for r1 in the column-sig
-    // layer — synthetic MissingResult must fire.
-    mockInvoke.mockImplementation(async (cmd) => {
-      if (cmd === 'verify_column_sig_batch') return { verified: [], rejected: [] }
-      throw new Error(`unexpected invoke: ${cmd}`)
-    })
+    // Empty results array — Rust dropped the row without an outcome entry.
+    mockInvoke.mockResolvedValue([])
 
     const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
 
@@ -280,7 +225,9 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
       { token: 'admin-token', capability: 'space/admin', expiresAt: 9999999999 },
       { token: 'write-token', capability: 'space/write', expiresAt: 9999999999 },
     ])
-    mockRustHappyPath({ sigOk: [rowKey(r1)], ucanOk: [rowKey(r1)] })
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+    ])
 
     await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
 
@@ -298,21 +245,13 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     const r2 = change('{"id":"r2"}', 'did:key:zauthor2')
     const r3 = change('{"id":"r3"}', 'did:key:zauthor3')
-    mockInvoke.mockImplementation(async (cmd) => {
-      if (cmd === 'verify_column_sig_batch') {
-        return { verified: [rowKey(r1), rowKey(r2), rowKey(r3)], rejected: [] }
-      }
-      if (cmd === 'verify_ucan_chain_batch') {
-        // Rust responds in a scrambled order — TS must still emit
-        // verified rows in original input order.
-        return [
-          { rowId: rowKey(r3), tableName: r3.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
-          { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
-          { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
-        ]
-      }
-      throw new Error(`unexpected invoke: ${cmd}`)
-    })
+    // Rust responds in a scrambled order — TS must still emit
+    // verified rows in original input order.
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r3), tableName: r3.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+      { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+    ])
 
     const result = await verifyPulledChangesAsync([r1, r2, r3], 'space-123', 'did:key:zme', 'write')
     expect(result.verified.map((c) => c.rowPks)).toEqual([
@@ -322,26 +261,19 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
     ])
   })
 
-  it('throws when verify_column_sig_batch returns a malformed shape', async () => {
+  it('throws when verify_ucan_chain_batch returns a malformed shape', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
-    mockInvoke.mockImplementation(async (cmd) => {
-      if (cmd === 'verify_column_sig_batch') return { verified: 'bogus', rejected: [] }
-      throw new Error(`unexpected invoke: ${cmd}`)
-    })
+    // outcome=null violates the IPC contract.
+    mockInvoke.mockResolvedValue([{ rowId: rowKey(r1), outcome: null }])
 
     await expect(
       verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write'),
-    ).rejects.toThrow(/verify_column_sig_batch returned malformed shape/)
+    ).rejects.toThrow(/verify_ucan_chain_batch returned malformed shape/)
   })
 
-  it('throws when verify_ucan_chain_batch returns a malformed shape', async () => {
+  it('throws when Rust returns something that is not an array', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
-    mockInvoke.mockImplementation(async (cmd) => {
-      if (cmd === 'verify_column_sig_batch') return { verified: [rowKey(r1)], rejected: [] }
-      // UCAN layer: outcome=null violates the IPC contract.
-      if (cmd === 'verify_ucan_chain_batch') return [{ rowId: rowKey(r1), outcome: null }]
-      throw new Error(`unexpected invoke: ${cmd}`)
-    })
+    mockInvoke.mockResolvedValue({ error: 'oops' } as unknown as never)
 
     await expect(
       verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write'),
@@ -351,7 +283,7 @@ describe('verifyPulledChangesAsync — Phase 1 column-sig + UCAN chain bridge', 
 
 // Shared factory: rejected-row shape used by both the log-only tests
 // (`logRejectedChanges`) and the toast tests (`surfaceRejectedBatch`).
-const rejectedRow = (rowPks: string, reason = 'InvalidSignature'): RejectedChange => ({
+const rejectedRow = (rowPks: string, reason = 'Signature'): RejectedChange => ({
   rowId: `haex_bookmarks|${rowPks}|title|100/aa`,
   tableName: 'haex_bookmarks',
   columnName: 'title',

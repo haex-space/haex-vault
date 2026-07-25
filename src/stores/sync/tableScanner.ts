@@ -10,7 +10,6 @@ import { encryptCrdtData } from '@haex-space/vault-sdk'
 import tableNames from '@/database/tableNames.json'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createLogger } from '@/stores/logging'
-import { toCanonicalBase64 } from '@/utils/columnSigCanonical'
 
 const CRDT_COLUMNS = tableNames.crdt.columns
 const SYNC_METADATA_COLUMNS = tableNames.sync_metadata.columns
@@ -43,19 +42,15 @@ export interface ColumnChange {
   deviceId: string // Device that created this change
   epoch?: number // MLS epoch that encrypted this change (absent = vaultKey encrypted)
   /**
-   * base64-STANDARD-encoded canonical value bytes (matches the Rust
-   * `to_canonical_bytes` output for the corresponding SQLite storage
-   * class). Populated on scan for every change — signed values verify
-   * against these exact bytes, so any drift between push-side canonical
-   * bytes and the sig preimage on pull-side would fail Ed25519 verify.
-   * See `src/utils/columnSigCanonical.ts` for the encoder spec.
-   */
-  valueBytes: string
-  /**
    * Per-column authorship signature (Phase 1). Present when the source
    * table stores `haex_column_sigs` AND the scanner had a `spaceId`
    * (shared-space push path). Absent for personal-vault sync where no
    * space-scoped signature applies. See ADR 0002 §4b.
+   *
+   * NOTE: no `valueBytes` field on the wire — that would leak plaintext
+   * to the sync relay (ADR 0002 §2 confidentiality guarantee). The
+   * verifier canonicalises against the *decrypted* value locally, using
+   * the same `toCanonicalBytes` port the signer used on the write path.
    */
   sig?: ColumnSigWire
 }
@@ -241,16 +236,13 @@ async function processRowsToChangesAsync(
         !lastPushHlcTimestamp ||
         hlcIsNewer(hlcToUse, lastPushHlcTimestamp)
       ) {
+        // Encrypt the column value (wrap in object for encryptCrdtDataAsync).
+        // The canonical value bytes needed for column-sig verify are NOT
+        // computed here — that would put plaintext on the wire and leak
+        // values to the sync relay (ADR 0002 §2). The receiver decrypts
+        // and canonicalises locally with the same `toCanonicalBytes`
+        // encoder the signer used on the write path.
         const value = row[col.name]
-
-        // Canonical value bytes match Rust's `to_canonical_bytes` (SQLite
-        // storage-class encoding). Computed once per column and shipped
-        // over the wire so pull-side verify uses the exact preimage the
-        // push-side (or `execute_with_crdt` on the original author's
-        // device) signed against — no re-canonicalisation drift risk.
-        const valueBytes = toCanonicalBase64(value, col.type)
-
-        // Encrypt the column value (wrap in object for encryptCrdtDataAsync)
         const valueObject = { value }
         const { encryptedData, nonce } = await encryptCrdtData(
           valueObject as object,
@@ -281,7 +273,6 @@ async function processRowsToChangesAsync(
           deviceId,
           encryptedValue: encryptedData,
           nonce,
-          valueBytes,
           ...(epoch !== undefined && { epoch }),
           ...(sig && { sig }),
         })

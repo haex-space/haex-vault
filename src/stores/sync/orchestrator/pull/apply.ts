@@ -6,6 +6,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
 import type { ColumnChange } from '../../tableScanner'
+import { getTableSchemaAsync } from '../../tableScanner'
+import { toCanonicalBase64 } from '@/utils/columnSigCanonical'
 import { hlcIsNewer } from '@/utils/hlc'
 import { orchestratorLog as log } from '../types'
 import { splitCompleteGroups, groupByHlcAscending } from '../pull-helpers'
@@ -137,7 +139,7 @@ interface VerifyColumnSigBatchOutput {
 }
 
 /**
- * Verifies column-sigs + UCAN chains on pulled changes.
+ * Verifies sig-presence + UCAN chains on pulled changes.
  *
  * Row-scoped, not batch-scoped: a single poisoned row no longer aborts
  * the whole page. Each change is sorted into `verified` (safe to apply)
@@ -147,22 +149,22 @@ interface VerifyColumnSigBatchOutput {
  * `surfaceRejectedBatch`.
  *
  * Layers:
- *   0. Layer-0 gate (shared-space only): `sig` and `valueBytes` must be
- *      present. Missing either → reject with `Unsigned`.
- *   1. Layer-1 (column signature, shared-space only): the Ed25519
- *      signature must verify against the domain-tagged
- *      `(space_id, table, row_pks, column, hlc, author_did, value_bytes)`
- *      preimage. Rust's `verify_column_sig_batch` is the single verifier;
- *      TS never re-implements the Ed25519 check. Rejection reasons come
- *      from the 5-string vocabulary documented on `RejectedChange`.
- *   2. Layer-2 (UCAN chain, shared spaces only): for each surviving
+ *   0. Layer-0 gate (shared-space only): `sig` must be present. Missing
+ *      → reject with `Unsigned`. This is a cheap pre-decrypt gate;
+ *      cryptographic verify runs later against the decrypted value.
+ *   1. Layer-1 (column signature): NOT here. It moved into
+ *      `applyRemoteChangesInTransactionAsync` because the preimage
+ *      needs the *decrypted* canonical bytes — shipping those on the
+ *      wire alongside `encryptedValue` would leak plaintext to the sync
+ *      relay (ADR 0002 §2). See `verifyColumnSigsAgainstDecryptedAsync`.
+ *   2. Layer-2 (UCAN chain, shared spaces only): for each sig-bearing
  *      change, look up any locally-cached UCAN in `haex_ucan_tokens`
  *      addressed to the signer (`sig.authorDid`) for this space, then
  *      hand the batch to Rust's `verify_ucan_chain_batch`. Rust walks
  *      the `prf` chain to a self-signed root and verifies the Phase-0
  *      `space_id` binding on that root.
  *
- * Personal-vault sync (`spaceId === undefined`) skips all three layers:
+ * Personal-vault sync (`spaceId === undefined`) skips all layers:
  * Phase 1 does not sign personal-vault changes, and there is no UCAN
  * chain to walk when the batch is scoped to the owner's own vault.
  */
@@ -182,13 +184,15 @@ export const verifyPulledChangesAsync = async (
 
   const rejected: RejectedChange[] = []
 
-  // === Layer-0: presence gate for sig + valueBytes. ===
-  // Old peers that pushed before Phase 1 Runde 7 do not carry these
-  // fields; those rows are `Unsigned` and dropped so a malicious push
-  // cannot piggy-back on the missing-verify path.
+  // === Layer-0: sig-presence gate ===
+  // Old peers that pushed before Phase 1 Runde 7 don't carry a `sig`;
+  // reject as `Unsigned` so a malicious push can't piggy-back on the
+  // missing-verify path. Note: presence-only — the cryptographic verify
+  // happens post-decrypt in `verifyColumnSigsAgainstDecryptedAsync`,
+  // which is called by `applyRemoteChangesInTransactionAsync`.
   const withSig: ColumnChange[] = []
   for (const change of changes) {
-    if (!change.sig || !change.valueBytes) {
+    if (!change.sig) {
       rejected.push(rejectedFrom(change, 'Unsigned'))
       continue
     }
@@ -196,59 +200,15 @@ export const verifyPulledChangesAsync = async (
   }
   if (withSig.length === 0) return { verified: [], rejected }
 
-  // === Layer-1: batch column-sig verify via Rust. ===
-  const sigChanges: ColumnSigChangeWire[] = withSig.map((c) => ({
-    tableName: c.tableName,
-    rowPks: c.rowPks,
-    columnName: c.columnName,
-    hlcTimestamp: c.hlcTimestamp,
-    valueBytes: c.valueBytes,
-    sig: c.sig!, // guaranteed by layer-0 gate
-  }))
-
-  const sigResult = await invoke<VerifyColumnSigBatchOutput>(
-    'verify_column_sig_batch',
-    { input: { changes: sigChanges, expectedSpaceId: spaceId } },
-  )
-
-  // Guard the IPC boundary — bare `invoke<T>()` is a cast, not validation.
-  if (
-    !sigResult
-    || !Array.isArray(sigResult.verified)
-    || !Array.isArray(sigResult.rejected)
-  ) {
-    throw new Error('verify_column_sig_batch returned malformed shape')
-  }
-
-  const verifiedSet = new Set(sigResult.verified)
-  const reasonByKey = new Map<string, string>()
-  for (const r of sigResult.rejected) reasonByKey.set(r.rowKey, r.reason)
-
-  const passedLayer1: ColumnChange[] = []
-  for (const change of withSig) {
-    const key = rowKey(change)
-    if (verifiedSet.has(key)) {
-      passedLayer1.push(change)
-    } else {
-      // A change that appears in neither list means Rust dropped a row
-      // silently — treat as `MissingResult` so the caller distinguishes
-      // it from a legitimate Rust-side reject.
-      const reason = reasonByKey.get(key) ?? 'MissingResult'
-      rejected.push(rejectedFrom(change, reason))
-    }
-  }
-  if (passedLayer1.length === 0) return { verified: [], rejected }
-
   // === Layer-2: UCAN chain verify via Rust. ===
-  // The signer DID now comes straight from `sig.authorDid` — no more
-  // SPKI-to-DID derivation (Phase 1 dropped the SPKI-based `signedBy`
-  // field entirely; the column-sig already carries a canonical DID).
+  // The signer DID comes straight from `sig.authorDid` — the column-sig
+  // already carries a canonical DID (no SPKI-to-DID derivation).
   const db = requireDb()
   const tokenBySigner = new Map<string, string | null>()
   const requests: VerifyChainRequest[] = []
   const layer1AwaitingRust: ColumnChange[] = []
 
-  for (const change of passedLayer1) {
+  for (const change of withSig) {
     const signerDid = change.sig!.authorDid
     let token = tokenBySigner.get(signerDid)
     if (token === undefined) {
@@ -586,6 +546,10 @@ export const applyRemoteChangesInTransactionAsync = async (
       columnName: change.columnName,
       hlcTimestamp: change.hlcTimestamp,
       decryptedValue,
+      // Retained on the intermediate struct (not sent to Rust) so the
+      // post-decrypt column-sig verify below has the wire sig to pair
+      // with the freshly-decrypted plaintext.
+      sig: change.sig,
     }
 
     decryptedChanges.push(changeObj)
@@ -609,13 +573,108 @@ export const applyRemoteChangesInTransactionAsync = async (
 
   const decryptionTime = (performance.now() - startTime) / 1000
   log.info(`[PERF] Decryption complete in ${decryptionTime.toFixed(1)}s. Max HLC: ${maxHlc}`)
-  log.info(`[PERF] Invoking Rust: apply_remote_changes_in_transaction (${decryptedChanges.length} changes)`)
+
+  // === Column-sig verify (Layer 1) — POST-DECRYPT, shared-space only. ===
+  // The preimage over `(space_id, table, row_pks, column, hlc,
+  // author_did, canonical_value_bytes)` uses the *decrypted* value's
+  // canonical bytes, which never leave this device — shipping them
+  // alongside `encryptedValue` on the wire would defeat the ADR §2
+  // confidentiality guarantee against the sync relay. Rust is the
+  // single verifier; TS canonicalises locally, batches, and filters
+  // rejects by row_key. Personal-vault sync (no `spaceId`) has no
+  // signatures to check.
+  const applicableForSig = spaceId
+    ? decryptedChanges.filter((c) => c.sig)
+    : []
+  let verifiedDecrypted = decryptedChanges
+  if (applicableForSig.length > 0) {
+    // Cache per-table column-type lookups. `sig`-bearing changes
+    // usually cluster on a handful of tables per HLC group, so this
+    // is bounded (typically ≤ 6 shared-space tables).
+    const columnTypeByTable = new Map<string, Map<string, string>>()
+    const resolveColumnType = async (
+      tableName: string,
+      columnName: string,
+    ): Promise<string | undefined> => {
+      let table = columnTypeByTable.get(tableName)
+      if (!table) {
+        const schema = await getTableSchemaAsync(tableName)
+        table = new Map(schema.map((c) => [c.name, c.type]))
+        columnTypeByTable.set(tableName, table)
+      }
+      return table.get(columnName)
+    }
+
+    const sigChanges: ColumnSigChangeWire[] = []
+    const sigDropped: Array<{ rowKey: string; reason: string }> = []
+    for (const c of applicableForSig) {
+      const columnType = await resolveColumnType(c.tableName, c.columnName)
+      if (!columnType) {
+        // Local schema drift — the column no longer exists in the
+        // receiving schema. Drop the change with a synthetic reason
+        // rather than send a mismatched preimage to Rust.
+        sigDropped.push({
+          rowKey: `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`,
+          reason: 'MissingResult',
+        })
+        continue
+      }
+      sigChanges.push({
+        tableName: c.tableName,
+        rowPks: c.rowPks,
+        columnName: c.columnName,
+        hlcTimestamp: c.hlcTimestamp,
+        valueBytes: toCanonicalBase64(c.decryptedValue, columnType),
+        sig: c.sig!,
+      })
+    }
+
+    const sigResult = await invoke<VerifyColumnSigBatchOutput>(
+      'verify_column_sig_batch',
+      { input: { changes: sigChanges, expectedSpaceId: spaceId! } },
+    )
+    if (
+      !sigResult
+      || !Array.isArray(sigResult.verified)
+      || !Array.isArray(sigResult.rejected)
+    ) {
+      throw new Error('verify_column_sig_batch returned malformed shape')
+    }
+
+    const verifiedSet = new Set(sigResult.verified)
+    const rejectReasonByKey = new Map<string, string>()
+    for (const r of sigResult.rejected) rejectReasonByKey.set(r.rowKey, r.reason)
+    for (const d of sigDropped) rejectReasonByKey.set(d.rowKey, d.reason)
+
+    verifiedDecrypted = decryptedChanges.filter((c) => {
+      // Personal-vault-scoped rows on a shared backend (unsigned) are
+      // out-of-band and never reach here because the outer verify
+      // layer requires `sig` for shared-space pulls — but be defensive.
+      if (!c.sig) return true
+      const key = `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`
+      if (verifiedSet.has(key)) return true
+      const reason = rejectReasonByKey.get(key) ?? 'MissingResult'
+      log.warn(`column-sig verify rejected ${key}: ${reason}`)
+      return false
+    })
+    const dropped = decryptedChanges.length - verifiedDecrypted.length
+    if (dropped > 0) {
+      log.warn(`column-sig verify dropped ${dropped} change(s) in this transaction`)
+    }
+  }
+
+  // Strip the wire-sig field from the intermediate before crossing the
+  // Rust boundary — the apply command only consumes the decrypted
+  // value plus its co-ordinates.
+  const applyPayload = verifiedDecrypted.map(({ sig: _sig, ...rest }) => rest)
+
+  log.info(`[PERF] Invoking Rust: apply_remote_changes_in_transaction (${applyPayload.length} changes)`)
 
   // Call Tauri command to apply changes in a transaction
   const rustStartTime = performance.now()
   try {
     await invoke('apply_remote_changes_in_transaction', {
-      changes: decryptedChanges,
+      changes: applyPayload,
       backendId,
       maxHlc,
     })

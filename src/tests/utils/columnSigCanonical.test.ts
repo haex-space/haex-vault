@@ -124,6 +124,15 @@ describe('toCanonicalBytes — storage-class-driven canonicalisation', () => {
     expect(() => toCanonicalBytes({}, 'BLOB')).toThrow(TypeError)
   })
 
+  it('BLOB rejects out-of-range or non-integer entries in number[]', () => {
+    // Silent coercion here would diverge preimages across languages:
+    // -1 would become 255, 300 would become 44, 1.7 would truncate to 1.
+    expect(() => toCanonicalBytes([-1], 'BLOB')).toThrow(TypeError)
+    expect(() => toCanonicalBytes([300], 'BLOB')).toThrow(TypeError)
+    expect(() => toCanonicalBytes([1.7], 'BLOB')).toThrow(TypeError)
+    expect(() => toCanonicalBytes([Number.NaN], 'BLOB')).toThrow(TypeError)
+  })
+
   it('INTEGER rejects unsupported JS types', () => {
     expect(() => toCanonicalBytes({}, 'INTEGER')).toThrow(TypeError)
   })

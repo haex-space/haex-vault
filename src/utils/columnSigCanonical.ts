@@ -87,7 +87,20 @@ export function toCanonicalBytes(value: unknown, columnType: string): Uint8Array
 
   if (affinity === 'BLOB') {
     if (value instanceof Uint8Array) return new Uint8Array(value)
-    if (Array.isArray(value)) return new Uint8Array(value as number[])
+    if (Array.isArray(value)) {
+      // `Uint8Array.from(array)` silently coerces out-of-range or non-integer
+      // entries (-1 → 255, 300 → 44, 1.7 → 1). Rust's `Value::Blob(Vec<u8>)`
+      // carries verbatim bytes, so a silent coercion here would diverge the
+      // preimage across languages. Validate per entry and throw explicitly.
+      return Uint8Array.from(value as unknown[], (v) => {
+        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 255) {
+          throw new TypeError(
+            `toCanonicalBytes: BLOB entry ${JSON.stringify(v)} is not a byte (0..=255 integer)`,
+          )
+        }
+        return v
+      })
+    }
     if (typeof value === 'string') return new TextEncoder().encode(value)
     throw new TypeError(`toCanonicalBytes: unsupported BLOB value type ${typeof value}`)
   }

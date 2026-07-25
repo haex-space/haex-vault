@@ -383,10 +383,11 @@ export const pushChangesToServerAsync = async (
     throw new Error(`Cannot push: backend ${backend.id} has no identity private key — DID-auth header cannot be signed`)
   }
 
-  // Format changes for the server API. `sig` and `valueBytes` are already
-  // populated on the ColumnChange by `processRowsToChangesAsync` — the
-  // sig from the DB's `haex_column_sigs`, the value bytes from the raw
-  // SQL value canonicalised by `toCanonicalBase64`.
+  // Format changes for the server API. `sig` is already on the
+  // `ColumnChange` (populated by the scanner from `haex_column_sigs`).
+  // No `valueBytes` on the wire — that would leak plaintext to the sync
+  // relay (ADR 0002 §2). The receiver decrypts and re-canonicalises
+  // locally using the same encoder the signer used.
   const formattedChanges = changes.map((change) => {
     const formatted: Record<string, unknown> = {
       tableName: change.tableName,
@@ -396,7 +397,6 @@ export const pushChangesToServerAsync = async (
       deviceId,
       encryptedValue: change.encryptedValue,
       nonce: change.nonce,
-      valueBytes: change.valueBytes,
     }
     if (change.epoch !== undefined) formatted.epoch = change.epoch
     if (change.sig) formatted.sig = change.sig
