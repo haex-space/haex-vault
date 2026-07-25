@@ -1,3 +1,4 @@
+pub mod commands;
 pub mod key_cache;
 pub mod limits;
 pub mod preimage;
@@ -8,6 +9,8 @@ pub mod value_bytes;
 pub mod verify;
 pub mod write;
 
+#[cfg(test)]
+mod commands_tests;
 #[cfg(test)]
 mod key_cache_tests;
 #[cfg(test)]

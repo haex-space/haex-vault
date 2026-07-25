@@ -530,6 +530,7 @@ pub fn run() {
             critical::commands::critical_notifications_cleanup,
             critical::commands::critical_app_restart,
             ucan::commands::verify_ucan_chain_batch,
+            crdt::column_sig::commands::verify_column_sig_batch,
             crdt::commands::get_table_schema,
             crdt::commands::get_dirty_tables,
             crdt::commands::clear_dirty_table,
