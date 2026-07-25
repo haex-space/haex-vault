@@ -10,11 +10,28 @@ import { encryptCrdtData } from '@haex-space/vault-sdk'
 import tableNames from '@/database/tableNames.json'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createLogger } from '@/stores/logging'
+import { toCanonicalBase64 } from '@/utils/columnSigCanonical'
 
 const CRDT_COLUMNS = tableNames.crdt.columns
 const SYNC_METADATA_COLUMNS = tableNames.sync_metadata.columns
 
 const log = createLogger('SYNC SCANNER')
+
+/**
+ * Per-column Ed25519 authorship signature. Field vocabulary mirrors the
+ * Rust wire struct `crate::crdt::commands::apply::ColumnSig`
+ * (`#[serde(rename_all = "camelCase")]`): `authorDid` is the signer's
+ * `did:key:z…` DID, `sig` is a base64-STANDARD-encoded 64-byte signature.
+ *
+ * `null` (as opposed to `undefined`) is legal on the wire — an old peer
+ * pushing before the sig plumbing was completed would send changes
+ * without the field; downstream verifiers must treat any absent/null
+ * value the same way (reject as `Unsigned` for shared-space pulls).
+ */
+export interface ColumnSigWire {
+  authorDid: string
+  sig: string
+}
 
 export interface ColumnChange {
   tableName: string
@@ -25,9 +42,28 @@ export interface ColumnChange {
   nonce?: string
   deviceId: string // Device that created this change
   epoch?: number // MLS epoch that encrypted this change (absent = vaultKey encrypted)
-  signature?: string // Ed25519 signature over the record (present for space backends)
-  signedBy?: string // Base64 SPKI public key of the signer
+  /**
+   * base64-STANDARD-encoded canonical value bytes (matches the Rust
+   * `to_canonical_bytes` output for the corresponding SQLite storage
+   * class). Populated on scan for every change — signed values verify
+   * against these exact bytes, so any drift between push-side canonical
+   * bytes and the sig preimage on pull-side would fail Ed25519 verify.
+   * See `src/utils/columnSigCanonical.ts` for the encoder spec.
+   */
+  valueBytes: string
+  /**
+   * Per-column authorship signature (Phase 1). Present when the source
+   * table stores `haex_column_sigs` AND the scanner had a `spaceId`
+   * (shared-space push path). Absent for personal-vault sync where no
+   * space-scoped signature applies. See ADR 0002 §4b.
+   */
+  sig?: ColumnSigWire
 }
+
+/** Legal shape of the per-row `haex_column_sigs` JSON payload:
+ *   { column_name: { space_id: { authorDid, sig } } }
+ */
+type ColumnSigsJson = Record<string, Record<string, ColumnSigWire>>
 
 /**
  * Gets schema information for a table
@@ -80,6 +116,7 @@ async function getTableColumnsAsync(tableName: string) {
       !col.isPk &&
       col.name !== CRDT_COLUMNS.haexHlc &&
       col.name !== CRDT_COLUMNS.haexColumnHlcs &&
+      col.name !== CRDT_COLUMNS.haexColumnSigs &&
       col.name !== SYNC_METADATA_COLUMNS.lastPushHlcTimestamp &&
       col.name !== SYNC_METADATA_COLUMNS.lastPullServerTimestamp &&
       col.name !== SYNC_METADATA_COLUMNS.updatedAt &&
@@ -91,15 +128,22 @@ async function getTableColumnsAsync(tableName: string) {
     throw new Error(`Table ${tableName} has no primary key`)
   }
 
-  // The full list of columns to select (PKs + data + CRDT metadata)
+  // `haex_column_sigs` is only present on the 6 tables migration 0012
+  // added it to (see ADR 0002 §Phase 1 Runde 5). For every other CRDT
+  // table the SELECT would fail with "no such column", so we probe the
+  // schema and only include the column when it actually exists.
+  const hasColumnSigs = schema.some((c) => c.name === CRDT_COLUMNS.haexColumnSigs)
+
+  // The full list of columns to select (PKs + data + CRDT metadata).
   const allColumns = [
     ...pkColumns.map((c) => c.name),
     ...dataColumns.map((c) => c.name),
     CRDT_COLUMNS.haexHlc,
     CRDT_COLUMNS.haexColumnHlcs,
+    ...(hasColumnSigs ? [CRDT_COLUMNS.haexColumnSigs] : []),
   ]
 
-  return { schema, pkColumns, dataColumns, allColumns }
+  return { schema, pkColumns, dataColumns, allColumns, hasColumnSigs }
 }
 
 /**
@@ -115,7 +159,8 @@ async function processRowsToChangesAsync(
   tableName: string,
   vaultKey: Uint8Array,
   deviceId: string,
-  epoch?: number,
+  epoch: number | undefined,
+  opts: { spaceId?: string; hasColumnSigs: boolean },
 ): Promise<ColumnChange[]> {
   // Convert result to rows - we know the column order from allColumns
   const rows: Array<Record<string, unknown>> = []
@@ -148,6 +193,28 @@ async function processRowsToChangesAsync(
       typeof hlcsString === 'string' ? hlcsString : '{}',
     )
 
+    // Parse column sigs. Absent on tables migration 0012 didn't touch —
+    // scanner falls through to `sig: undefined` for those (personal
+    // vault, extension tables without haex_column_sigs). The JSON shape
+    // is `{ col_name: { space_id: { authorDid, sig } } }`; a corrupted
+    // payload short-circuits to `{}` so one bad row can't wedge push.
+    let columnSigs: ColumnSigsJson = {}
+    if (opts.hasColumnSigs) {
+      const sigsRaw = row[CRDT_COLUMNS.haexColumnSigs]
+      if (typeof sigsRaw === 'string' && sigsRaw.length > 0) {
+        try {
+          columnSigs = JSON.parse(sigsRaw) as ColumnSigsJson
+        } catch (err) {
+          log.warn(
+            `Failed to parse haex_column_sigs for ${tableName} row ${JSON.stringify(
+              extractPrimaryKeys(row, pkColumns),
+            )}; treating as unsigned:`,
+            err,
+          )
+        }
+      }
+    }
+
     // Extract primary keys
     const pks = extractPrimaryKeys(row, pkColumns)
     const pkJson = JSON.stringify(pks)
@@ -174,13 +241,37 @@ async function processRowsToChangesAsync(
         !lastPushHlcTimestamp ||
         hlcIsNewer(hlcToUse, lastPushHlcTimestamp)
       ) {
-        // Encrypt the column value (wrap in object for encryptCrdtDataAsync)
         const value = row[col.name]
+
+        // Canonical value bytes match Rust's `to_canonical_bytes` (SQLite
+        // storage-class encoding). Computed once per column and shipped
+        // over the wire so pull-side verify uses the exact preimage the
+        // push-side (or `execute_with_crdt` on the original author's
+        // device) signed against — no re-canonicalisation drift risk.
+        const valueBytes = toCanonicalBase64(value, col.type)
+
+        // Encrypt the column value (wrap in object for encryptCrdtDataAsync)
         const valueObject = { value }
         const { encryptedData, nonce } = await encryptCrdtData(
           valueObject as object,
           vaultKey,
         )
+
+        // Shared-space push: attach the (col, space) signature stored
+        // under this row's haex_column_sigs. Personal-vault sync has no
+        // spaceId and skips this — Phase 1 signs only for shared spaces.
+        // A row that lacks a sig entry (should not happen post-Runde 4
+        // F1 for a live write) is logged and left `sig: undefined`; the
+        // verifier on the receiving end will drop it as `Unsigned`.
+        let sig: ColumnSigWire | undefined
+        if (opts.spaceId && opts.hasColumnSigs) {
+          sig = columnSigs[col.name]?.[opts.spaceId]
+          if (!sig) {
+            log.warn(
+              `No column-sig for (${tableName}.${col.name}, space=${opts.spaceId}) — pushing without sig`,
+            )
+          }
+        }
 
         changes.push({
           tableName,
@@ -190,7 +281,9 @@ async function processRowsToChangesAsync(
           deviceId,
           encryptedValue: encryptedData,
           nonce,
+          valueBytes,
           ...(epoch !== undefined && { epoch }),
+          ...(sig && { sig }),
         })
       }
     }
@@ -213,7 +306,7 @@ export async function scanTableForChangesAsync(
   log.info(`Scanning table: ${tableName}`)
   log.debug(`  lastPushHlcTimestamp: ${lastPushHlcTimestamp || '(none - full scan)'}`)
 
-  const { schema, pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
+  const { schema, pkColumns, dataColumns, allColumns, hasColumnSigs } = await getTableColumnsAsync(tableName)
 
   log.debug(`  Schema: ${schema.length} columns, ${pkColumns.length} PKs, ${dataColumns.length} data columns`)
 
@@ -238,9 +331,12 @@ export async function scanTableForChangesAsync(
 
   log.info(`  Query returned ${result.length} rows`)
 
+  // Personal-vault sync path (no spaceId): column-sig-verify is a no-op
+  // on the receiver, so we don't need to attach a sig here either.
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
     lastPushHlcTimestamp, tableName, vaultKey, deviceId, epoch,
+    { hasColumnSigs },
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
@@ -270,7 +366,7 @@ export async function scanTableForSpaceColumnChangesAsync(
 ): Promise<ColumnChange[]> {
   log.info(`Scanning space-scoped table: ${tableName} (spaceId: ${spaceId} via ${spaceColumn})`)
 
-  const { pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
+  const { pkColumns, dataColumns, allColumns, hasColumnSigs } = await getTableColumnsAsync(tableName)
 
   const columnList = allColumns.map((c) => `"${c}"`).join(', ')
   const hlcFilter = lastPushHlcTimestamp
@@ -291,6 +387,7 @@ export async function scanTableForSpaceColumnChangesAsync(
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
     lastPushHlcTimestamp, tableName, vaultKey, deviceId, epoch,
+    { spaceId, hasColumnSigs },
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
@@ -325,7 +422,7 @@ export async function scanTableForSpaceChangesAsync(
     return []
   }
 
-  const { schema, pkColumns, dataColumns, allColumns } = await getTableColumnsAsync(tableName)
+  const { schema, pkColumns, dataColumns, allColumns, hasColumnSigs } = await getTableColumnsAsync(tableName)
 
   log.debug(`  Schema: ${schema.length} columns, ${pkColumns.length} PKs, ${dataColumns.length} data columns`)
 
@@ -367,6 +464,7 @@ export async function scanTableForSpaceChangesAsync(
   const changes = await processRowsToChangesAsync(
     result, allColumns, pkColumns, dataColumns,
     lastPushHlcTimestamp, tableName, vaultKey, deviceId, epoch,
+    { spaceId, hasColumnSigs },
   )
 
   log.info(`  Generated ${changes.length} column changes from ${result.length} rows`)
