@@ -3,7 +3,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { decryptCrdtData, verifyRecordSignatureAsync, publicKeyToDidKeyAsync } from '@haex-space/vault-sdk'
+import { decryptCrdtData } from '@haex-space/vault-sdk'
 import { eq, and } from 'drizzle-orm'
 import type { ColumnChange } from '../../tableScanner'
 import { hlcIsNewer } from '@/utils/hlc'
@@ -20,14 +20,20 @@ export type CapabilityLevel = 'read' | 'write' | 'invite' | 'admin'
 
 /**
  * A pulled change that failed verification. `reason` is a stable variant
- * name — either a `UcanVerifyError` variant surfaced by the Rust chain
- * walker (`Signature`, `Expired`, `WrongSpace`, `ChainTooDeep`,
- * `ChainBroken`, `CapabilityEscalation`, `RootNotSelfSigned`,
- * `RootBindingMismatch`, `RootBindingMalformed`, `MalformedToken`,
- * `AudienceMismatch`, `EmptyExpectedAudience`, `MissingCapability`,
- * `InsufficientCapability`, `UnknownCapability`) or one of the synthetic
- * reasons this TS layer contributes (`Unsigned`, `InvalidRecordSignature`,
- * `MissingLocalUcan`, `MissingResult`).
+ * name — either
+ *
+ *   - a `VerifyColumnSigError` variant echoed back from Rust's
+ *     `verify_column_sig_batch` (`MalformedDid`, `InvalidSignature`,
+ *     `MalformedSignatureBytes`, `ValueBytesTooLarge`) plus the
+ *     batch-layer-only `MalformedValueBytes` (base64 decode failure);
+ *   - a `UcanVerifyError` variant surfaced by the Rust chain walker
+ *     (`Signature`, `Expired`, `WrongSpace`, `ChainTooDeep`, `ChainBroken`,
+ *     `CapabilityEscalation`, `RootNotSelfSigned`, `RootBindingMismatch`,
+ *     `RootBindingMalformed`, `MalformedToken`, `AudienceMismatch`,
+ *     `EmptyExpectedAudience`, `MissingCapability`, `InsufficientCapability`,
+ *     `UnknownCapability`);
+ *   - a synthetic reason this TS layer contributes (`Unsigned`,
+ *     `MissingLocalUcan`, `MissingResult`).
  */
 export interface RejectedChange {
   rowId: string        // synthetic composite: `${tableName}|${rowPks}|${columnName}|${hlcTimestamp}`
@@ -111,7 +117,27 @@ const rejectedFrom = (c: ColumnChange, reason: string): RejectedChange => ({
 })
 
 /**
- * Verifies signatures + UCAN chains on pulled changes.
+ * Batch column-sig verify request/response shapes. Mirrors the Rust
+ * command in `src-tauri/src/crdt/column_sig/commands.rs`. Field names
+ * are camelCase on the wire because every Rust wire struct uses
+ * `#[serde(rename_all = "camelCase")]`.
+ */
+interface ColumnSigChangeWire {
+  tableName: string
+  rowPks: string
+  columnName: string
+  hlcTimestamp: string
+  valueBytes: string
+  sig: { authorDid: string; sig: string }
+}
+
+interface VerifyColumnSigBatchOutput {
+  verified: string[]
+  rejected: Array<{ rowKey: string; reason: string }>
+}
+
+/**
+ * Verifies column-sigs + UCAN chains on pulled changes.
  *
  * Row-scoped, not batch-scoped: a single poisoned row no longer aborts
  * the whole page. Each change is sorted into `verified` (safe to apply)
@@ -121,23 +147,24 @@ const rejectedFrom = (c: ColumnChange, reason: string): RejectedChange => ({
  * `surfaceRejectedBatch`.
  *
  * Layers:
- *   0. Layer-0 gate: `signature` and `signedBy` must be present. Missing
- *      either → reject with `Unsigned`.
- *   1. Layer-1 (record signature): the Ed25519 signature over
- *      `(tableName, rowPks, columnName, encryptedValue, hlcTimestamp)`
- *      must verify against `signedBy`. Broken → reject with
- *      `InvalidRecordSignature`.
+ *   0. Layer-0 gate (shared-space only): `sig` and `valueBytes` must be
+ *      present. Missing either → reject with `Unsigned`.
+ *   1. Layer-1 (column signature, shared-space only): the Ed25519
+ *      signature must verify against the domain-tagged
+ *      `(space_id, table, row_pks, column, hlc, author_did, value_bytes)`
+ *      preimage. Rust's `verify_column_sig_batch` is the single verifier;
+ *      TS never re-implements the Ed25519 check. Rejection reasons come
+ *      from the 5-string vocabulary documented on `RejectedChange`.
  *   2. Layer-2 (UCAN chain, shared spaces only): for each surviving
  *      change, look up any locally-cached UCAN in `haex_ucan_tokens`
- *      addressed to the signer for this space, then hand the batch to
- *      Rust's `verify_ucan_chain_batch`. Rust is the single source of
- *      chain-walking truth — it walks the `prf` chain to a self-signed
- *      root and verifies the Phase-0 `space_id` binding on that root.
+ *      addressed to the signer (`sig.authorDid`) for this space, then
+ *      hand the batch to Rust's `verify_ucan_chain_batch`. Rust walks
+ *      the `prf` chain to a self-signed root and verifies the Phase-0
+ *      `space_id` binding on that root.
  *
- * The old admin fallback (an inline "self-signed root UCAN grants full
- * authority" TS bypass) has been removed. Even a space owner's root
- * UCAN must now bind to a self-certifying `space_id` (ADR 0002 §Phase-0)
- * via the Rust chain walker.
+ * Personal-vault sync (`spaceId === undefined`) skips all three layers:
+ * Phase 1 does not sign personal-vault changes, and there is no UCAN
+ * chain to walk when the batch is scoped to the owner's own vault.
  */
 export const verifyPulledChangesAsync = async (
   changes: ColumnChange[],
@@ -147,46 +174,82 @@ export const verifyPulledChangesAsync = async (
 ): Promise<{ verified: ColumnChange[]; rejected: RejectedChange[] }> => {
   if (changes.length === 0) return { verified: [], rejected: [] }
 
-  const rejected: RejectedChange[] = []
-  const passedLayer1: ColumnChange[] = []
+  // Non-shared-space pulls (owner-vault sync) skip authenticity + authz:
+  // Phase 1 signs only shared-space rows, and there is no UCAN chain
+  // outside a space. The batch flows through untouched — the outer
+  // HTTP-level DID-auth header already authorised the whole request.
+  if (!spaceId) return { verified: changes, rejected: [] }
 
+  const rejected: RejectedChange[] = []
+
+  // === Layer-0: presence gate for sig + valueBytes. ===
+  // Old peers that pushed before Phase 1 Runde 7 do not carry these
+  // fields; those rows are `Unsigned` and dropped so a malicious push
+  // cannot piggy-back on the missing-verify path.
+  const withSig: ColumnChange[] = []
   for (const change of changes) {
-    if (!change.signature || !change.signedBy) {
+    if (!change.sig || !change.valueBytes) {
       rejected.push(rejectedFrom(change, 'Unsigned'))
       continue
     }
-    const isValid = await verifyRecordSignatureAsync(
-      {
-        tableName: change.tableName,
-        rowPks: change.rowPks,
-        columnName: change.columnName,
-        encryptedValue: change.encryptedValue ?? null,
-        hlcTimestamp: change.hlcTimestamp,
-      },
-      change.signature,
-      change.signedBy,
-    )
-    if (!isValid) {
-      rejected.push(rejectedFrom(change, 'InvalidRecordSignature'))
-      continue
-    }
-    passedLayer1.push(change)
+    withSig.push(change)
+  }
+  if (withSig.length === 0) return { verified: [], rejected }
+
+  // === Layer-1: batch column-sig verify via Rust. ===
+  const sigChanges: ColumnSigChangeWire[] = withSig.map((c) => ({
+    tableName: c.tableName,
+    rowPks: c.rowPks,
+    columnName: c.columnName,
+    hlcTimestamp: c.hlcTimestamp,
+    valueBytes: c.valueBytes,
+    sig: c.sig!, // guaranteed by layer-0 gate
+  }))
+
+  const sigResult = await invoke<VerifyColumnSigBatchOutput>(
+    'verify_column_sig_batch',
+    { input: { changes: sigChanges, expectedSpaceId: spaceId } },
+  )
+
+  // Guard the IPC boundary — bare `invoke<T>()` is a cast, not validation.
+  if (
+    !sigResult
+    || !Array.isArray(sigResult.verified)
+    || !Array.isArray(sigResult.rejected)
+  ) {
+    throw new Error('verify_column_sig_batch returned malformed shape')
   }
 
-  // Non-shared-space pulls (owner-vault sync) stop at layer 1 — no UCAN
-  // chain applies, so anything with a valid record signature is verified.
-  if (!spaceId) return { verified: passedLayer1, rejected }
+  const verifiedSet = new Set(sigResult.verified)
+  const reasonByKey = new Map<string, string>()
+  for (const r of sigResult.rejected) reasonByKey.set(r.rowKey, r.reason)
 
-  // Resolve signer DIDs and cache one UCAN per signer for this space.
-  // A change whose signer has no cached UCAN is rejected outright: we
-  // cannot ask Rust to verify a token we do not possess.
+  const passedLayer1: ColumnChange[] = []
+  for (const change of withSig) {
+    const key = rowKey(change)
+    if (verifiedSet.has(key)) {
+      passedLayer1.push(change)
+    } else {
+      // A change that appears in neither list means Rust dropped a row
+      // silently — treat as `MissingResult` so the caller distinguishes
+      // it from a legitimate Rust-side reject.
+      const reason = reasonByKey.get(key) ?? 'MissingResult'
+      rejected.push(rejectedFrom(change, reason))
+    }
+  }
+  if (passedLayer1.length === 0) return { verified: [], rejected }
+
+  // === Layer-2: UCAN chain verify via Rust. ===
+  // The signer DID now comes straight from `sig.authorDid` — no more
+  // SPKI-to-DID derivation (Phase 1 dropped the SPKI-based `signedBy`
+  // field entirely; the column-sig already carries a canonical DID).
   const db = requireDb()
   const tokenBySigner = new Map<string, string | null>()
   const requests: VerifyChainRequest[] = []
   const layer1AwaitingRust: ColumnChange[] = []
 
   for (const change of passedLayer1) {
-    const signerDid = await publicKeyToDidKeyAsync(change.signedBy!)
+    const signerDid = change.sig!.authorDid
     let token = tokenBySigner.get(signerDid)
     if (token === undefined) {
       const rows = await db
