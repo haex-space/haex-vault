@@ -153,8 +153,8 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
       swiper:
-        specifier: ^14.0.5
-        version: 14.0.5
+        specifier: ^14.0.6
+        version: 14.0.6
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -6749,8 +6749,8 @@ packages:
     engines: {node: '>=16'}
     hasBin: true
 
-  swiper@14.0.5:
-    resolution: {integrity: sha512-SMSKS0sj+lPIFzngfIKb5cyBtzmAuJw7rXgXdyYiDReb+pSpJXuNljHYgT4DXa5Stnl2Ew2/Lam5ipv4PIqZ7A==}
+  swiper@14.0.6:
+    resolution: {integrity: sha512-ArptjmcZMBvpLCbvzSKuqvQpjjITCbZdymiGOrbZQffQ3ZSjgpvMByXX0WZBUt+FV4PPIumdYfZ9ZdBbFsdH6g==}
     engines: {node: '>= 4.7.0'}
 
   symbol-tree@3.2.4:
@@ -15147,7 +15147,7 @@ snapshots:
       picocolors: 1.1.1
       sax: 1.6.0
 
-  swiper@14.0.5: {}
+  swiper@14.0.6: {}
 
   symbol-tree@3.2.4: {}
 
