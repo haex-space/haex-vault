@@ -58,7 +58,7 @@
     "@vueuse/core": "^14.3.0",
     "@vueuse/gesture": "^2.0.0",
     "@vueuse/nuxt": "^14.3.0",
-    "driver.js": "^1.6.0",
+    "driver.js": "^1.8.0",
     "drizzle-orm": "^0.45.2",
     "echarts": "^6.1.0",
     "fuse.js": "^7.5.0",
