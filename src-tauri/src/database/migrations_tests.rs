@@ -333,6 +333,89 @@ fn pragma_column_names(conn: &Connection, table: &str) -> Vec<String> {
 }
 
 #[test]
+fn fresh_vault_shared_space_delete_log_receives_crdt_meta_via_transformer() {
+    // Fresh-vault path: the migration SQL is piped through CrdtTransformer
+    // at CREATE-TABLE transform time, which injects the CRDT meta columns.
+    // Regression guard for Runde-10 fresh-vault issue from
+    // [[column-sig-canonical-encoding]] — a hardcoded exclusion list in the
+    // transformer would silently skip the new tables and leave them without
+    // haex_hlc, so discover_crdt_tables would never pick them up.
+    use crate::crdt::transformer::CrdtTransformer;
+    let transformer = CrdtTransformer::new();
+
+    let mig_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("database/migrations");
+    let sql_path = std::fs::read_dir(&mig_dir)
+        .unwrap()
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("0013_") && n.ends_with(".sql"))
+        })
+        .expect("0013 migration must exist");
+    let raw = std::fs::read_to_string(&sql_path).unwrap();
+
+    let conn = Connection::open_in_memory().unwrap();
+    for stmt in raw.split("--> statement-breakpoint") {
+        let stmt = stmt.trim();
+        if stmt.is_empty() {
+            continue;
+        }
+        let transformed = transformer
+            .transform_ddl_statement(stmt)
+            .unwrap_or_else(|e| panic!("transform failed for stmt: {stmt}\n{e:?}"));
+        conn.execute_batch(&transformed)
+            .unwrap_or_else(|e| panic!("apply failed for {transformed}\n{e:?}"));
+    }
+
+    for table in ["haex_shared_space_deleted_rows", "haex_space_compaction_anchors"] {
+        let cols = pragma_column_names(&conn, table);
+        assert!(
+            cols.iter().any(|c| c == "haex_hlc"),
+            "{table} must have haex_hlc after CrdtTransformer, got: {cols:?}"
+        );
+        assert!(
+            cols.iter().any(|c| c == "haex_column_hlcs"),
+            "{table} must have haex_column_hlcs, got: {cols:?}"
+        );
+        assert!(
+            cols.iter().any(|c| c == "haex_column_sigs"),
+            "{table} must have haex_column_sigs, got: {cols:?}"
+        );
+    }
+}
+
+#[test]
+fn retrofit_ensure_crdt_columns_adds_meta_to_shared_space_delete_log() {
+    // Retrofit path: an existing dev vault at 0012 applies 0013, then
+    // ensure_crdt_columns injects the CRDT meta cols. Task 2 lesson from
+    // [[column-sig-canonical-encoding]] Runde 10 — verify both tables.
+    use crate::crdt::trigger::ensure_crdt_columns;
+    let mut conn = Connection::open_in_memory().unwrap();
+    apply_migration_by_tag(&conn, "0013_");
+    let tx = conn.transaction().unwrap();
+    ensure_crdt_columns(&tx, "haex_shared_space_deleted_rows").unwrap();
+    ensure_crdt_columns(&tx, "haex_space_compaction_anchors").unwrap();
+    tx.commit().unwrap();
+
+    for table in ["haex_shared_space_deleted_rows", "haex_space_compaction_anchors"] {
+        let cols = pragma_column_names(&conn, table);
+        assert!(
+            cols.iter().any(|c| c == "haex_hlc"),
+            "{table} must have haex_hlc after ensure_crdt_columns, got: {cols:?}"
+        );
+        assert!(
+            cols.iter().any(|c| c == "haex_column_hlcs"),
+            "{table} must have haex_column_hlcs, got: {cols:?}"
+        );
+        assert!(
+            cols.iter().any(|c| c == "haex_column_sigs"),
+            "{table} must have haex_column_sigs, got: {cols:?}"
+        );
+    }
+}
+
+#[test]
 fn migration_0013_creates_shared_space_delete_log_table() {
     let conn = Connection::open_in_memory().unwrap();
     apply_migration_by_tag(&conn, "0013_");
