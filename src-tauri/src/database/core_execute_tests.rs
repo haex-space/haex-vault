@@ -233,14 +233,14 @@ fn execute_with_crdt_signs_all_changed_columns_for_all_spaces() {
 
     let space_a = title.get("space_A").and_then(|v| v.as_object()).unwrap();
     assert_eq!(
-        space_a.get("author_did").and_then(|v| v.as_str()),
+        space_a.get("authorDid").and_then(|v| v.as_str()),
         Some(f.did_a.as_str())
     );
     assert!(space_a.get("sig").and_then(|v| v.as_str()).is_some());
 
     let space_b = title.get("space_B").and_then(|v| v.as_object()).unwrap();
     assert_eq!(
-        space_b.get("author_did").and_then(|v| v.as_str()),
+        space_b.get("authorDid").and_then(|v| v.as_str()),
         Some(f.did_b.as_str())
     );
 }
@@ -416,7 +416,7 @@ fn insert_into_share_register_signs_all_columns_of_referenced_row() {
     );
     let space_c = title.get("space_C").and_then(|v| v.as_object()).unwrap();
     assert_eq!(
-        space_c.get("author_did").and_then(|v| v.as_str()),
+        space_c.get("authorDid").and_then(|v| v.as_str()),
         Some(f.did_c.as_str())
     );
     assert!(space_c.get("sig").and_then(|v| v.as_str()).is_some());
@@ -630,7 +630,7 @@ fn execute_with_crdt_signs_infra_table_columns_for_row_space() {
 
     let space_a = avatar.get("space_A").and_then(|v| v.as_object()).unwrap();
     assert_eq!(
-        space_a.get("author_did").and_then(|v| v.as_str()),
+        space_a.get("authorDid").and_then(|v| v.as_str()),
         Some(f.did_a.as_str())
     );
 }
@@ -686,7 +686,7 @@ fn execute_with_crdt_signs_columns_on_insert() {
     );
     let space_a = title.get("space_A").and_then(|v| v.as_object()).unwrap();
     assert_eq!(
-        space_a.get("author_did").and_then(|v| v.as_str()),
+        space_a.get("authorDid").and_then(|v| v.as_str()),
         Some(f.did_a.as_str())
     );
 }

@@ -21,7 +21,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::SigningKey;
 use haex_vault_lib::crdt::column_sig::key_cache::SpaceKeyCache;
 use haex_vault_lib::crdt::commands::apply::{
-    apply_remote_changes_to_db, ColumnSig, RemoteColumnChange,
+    apply_remote_changes_to_db_scoped, ColumnSig, RemoteColumnChange,
 };
 use haex_vault_lib::crdt::hlc::HlcService;
 use haex_vault_lib::crdt::trigger::{ensure_crdt_columns, setup_triggers_for_table};
@@ -84,11 +84,19 @@ fn setup_sender() -> Sender {
         "CREATE TABLE {} (key TEXT PRIMARY KEY, type TEXT NOT NULL, value TEXT NOT NULL);
          CREATE TABLE {} (table_name TEXT PRIMARY KEY, last_modified TEXT);
          INSERT INTO {} (key, type, value) VALUES ('triggers_enabled', 'system', '1');
+         -- Column set + nullability mirrors migration 0000 for the columns
+         -- `ensure_identity_stub` has to satisfy. `name TEXT NOT NULL` with no
+         -- default is load-bearing: a stub INSERT that omits it is silently
+         -- dropped by `OR IGNORE`, which is exactly the regression this
+         -- fixture must be able to catch.
          CREATE TABLE haex_identities (
              id TEXT PRIMARY KEY NOT NULL,
              did TEXT NOT NULL,
+             name TEXT NOT NULL,
+             source TEXT DEFAULT 'contact' NOT NULL,
              private_key TEXT
          );
+         CREATE UNIQUE INDEX haex_identities_did_unique ON haex_identities (did);
          CREATE TABLE haex_space_members (
              id TEXT PRIMARY KEY NOT NULL,
              space_id TEXT NOT NULL,
@@ -113,7 +121,7 @@ fn setup_sender() -> Sender {
     let sender_did = did_key_from_public_key(&sender_key.verifying_key());
     let space_id = "space_roundtrip".to_string();
     conn.execute(
-        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
+        "INSERT INTO haex_identities (id, did, name, private_key) VALUES (?1, ?2, ?2, ?3)",
         rusqlite::params!["id-sender", &sender_did, pkcs8_b64(&sender_key)],
     )
     .unwrap();
@@ -179,10 +187,16 @@ fn setup_receiver() -> DbConnection {
     let conn = Connection::open_in_memory().expect("in-memory receiver DB");
     conn.execute_batch(&format!(
         "CREATE TABLE {} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+         -- Faithful to migration 0000 for the columns the stub INSERT touches:
+         -- `name TEXT NOT NULL` without a default is what made the original
+         -- `INSERT OR IGNORE (id, did)` a silent no-op in production.
          CREATE TABLE haex_identities (
              id TEXT PRIMARY KEY NOT NULL,
-             did TEXT NOT NULL
+             did TEXT NOT NULL,
+             name TEXT NOT NULL,
+             source TEXT DEFAULT 'contact' NOT NULL
          );
+         CREATE UNIQUE INDEX haex_identities_did_unique ON haex_identities (did);
          CREATE TABLE haex_deleted_rows (
              id TEXT PRIMARY KEY,
              table_name TEXT NOT NULL,
@@ -190,9 +204,16 @@ fn setup_receiver() -> DbConnection {
              haex_hlc TEXT,
              haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
          );
+         -- Same shape as the sender's `ext_calendar`. Extension tables carry
+         -- NO inline `space_id`: membership lives in the share register
+         -- (`haex_shared_space_sync`). The earlier version of this fixture
+         -- gave the receiver an extra `space_id NOT NULL` column that the
+         -- sender did not have, which forced the test to ship a synthetic
+         -- `space_id` column change — and that change was what the apply-side
+         -- verifier then used as its signature anchor. Keeping the schemas
+         -- symmetric means the anchor can only come from the pull scope.
          CREATE TABLE ext_calendar (
              id TEXT PRIMARY KEY NOT NULL,
-             space_id TEXT NOT NULL,
              title TEXT,
              haex_hlc TEXT,
              haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
@@ -236,7 +257,7 @@ fn extract_sig(
         .and_then(|v| v.as_object())
         .unwrap_or_else(|| panic!("no sig entry for space {space_id}, col_entry={col_entry:?}"));
     let author_did = space_entry
-        .get("author_did")
+        .get("authorDid")
         .and_then(|v| v.as_str())
         .unwrap_or_else(|| panic!("missing author_did, space_entry={space_entry:?}"))
         .to_string();
@@ -304,11 +325,15 @@ fn roundtrip_write_then_apply_verifies_and_creates_identity_stub() {
     );
 
     // ---- Wire hop: build RemoteColumnChanges -------------------------------
-    // The receiver's ext_calendar row does not exist yet, so we ship both
-    // `space_id` (so `resolve_row_space_id_for_sig` can attribute the row
-    // via the INSERT-side branch) and `title` (the signed column). Only the
-    // `title` change carries a sig — `space_id` is meta on the arrival path
-    // and receiver-side attribution keys off it, not off its own sig.
+    // `ext_calendar` is an extension table: it has no `space_id` column, so
+    // the receiver cannot read the row's space off the row. The anchor comes
+    // from the caller instead — the space the pull was scoped to, passed as
+    // `expected_space_id` below.
+    //
+    // It deliberately does NOT come from a `space_id` column change riding
+    // along in the batch. That value is unsigned and fully attacker-chosen,
+    // and using it would let a peer nominate the space its own signatures are
+    // verified under (see `resolve_row_space_id_for_sig`).
     let rowpks = r#"{"id":"R"}"#.to_string();
     let title_change = RemoteColumnChange {
         table_name: "ext_calendar".to_string(),
@@ -321,23 +346,14 @@ fn roundtrip_write_then_apply_verifies_and_creates_identity_stub() {
             sig: sig_b64.clone(),
         }),
     };
-    let space_change = RemoteColumnChange {
-        table_name: "ext_calendar".to_string(),
-        row_pks: rowpks.clone(),
-        column_name: "space_id".to_string(),
-        // Any HLC ≥ receiver's current (which is "" for a fresh row) applies.
-        hlc_timestamp: column_hlc.clone(),
-        decrypted_value: JsonValue::String(sender.space_id.clone()),
-        sig: None,
-    };
-
     // ---- Receiver: apply ----------------------------------------------------
     let receiver = setup_receiver();
-    apply_remote_changes_to_db(
+    apply_remote_changes_to_db_scoped(
         &receiver,
-        vec![space_change, title_change],
+        vec![title_change],
         None, // local delivery
         None, // no HLC advance service needed for the apply-side assertions
+        Some(&sender.space_id),
     )
     .expect("receiver apply must succeed");
 

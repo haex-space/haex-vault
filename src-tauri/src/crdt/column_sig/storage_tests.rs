@@ -78,7 +78,7 @@ fn upsert_adds_new_column_space_entry() {
 
     let json = read_sigs_single(&conn);
     assert_eq!(
-        json["col_a"]["space_A"]["author_did"],
+        json["col_a"]["space_A"]["authorDid"],
         Value::String("did:key:zAuthor".to_string())
     );
     assert_eq!(json["col_a"]["space_A"]["sig"], Value::String(sig_b64));
@@ -90,7 +90,7 @@ fn upsert_preserves_other_spaces_for_same_column() {
     let existing = serde_json::json!({
         "col_a": {
             "space_A": {
-                "author_did": sig_a.author_did,
+                "authorDid": sig_a.author_did,
                 "sig": BASE64.encode(sig_a.sig),
             }
         }
@@ -103,11 +103,11 @@ fn upsert_preserves_other_spaces_for_same_column() {
 
     let json = read_sigs_single(&conn);
     assert_eq!(
-        json["col_a"]["space_A"]["author_did"],
+        json["col_a"]["space_A"]["authorDid"],
         Value::String("did:key:zAlice".to_string())
     );
     assert_eq!(
-        json["col_a"]["space_B"]["author_did"],
+        json["col_a"]["space_B"]["authorDid"],
         Value::String("did:key:zBob".to_string())
     );
     assert_eq!(
@@ -122,7 +122,7 @@ fn upsert_preserves_other_columns() {
     let existing = serde_json::json!({
         "col_a": {
             "space_A": {
-                "author_did": sig_a.author_did,
+                "authorDid": sig_a.author_did,
                 "sig": BASE64.encode(sig_a.sig),
             }
         }
@@ -155,7 +155,7 @@ fn upsert_replaces_existing_entry() {
     let existing = serde_json::json!({
         "col_a": {
             "space_A": {
-                "author_did": sig_1.author_did,
+                "authorDid": sig_1.author_did,
                 "sig": BASE64.encode(sig_1.sig),
             }
         }
@@ -168,7 +168,7 @@ fn upsert_replaces_existing_entry() {
 
     let json = read_sigs_single(&conn);
     assert_eq!(
-        json["col_a"]["space_A"]["author_did"],
+        json["col_a"]["space_A"]["authorDid"],
         Value::String("did:key:zNew".to_string())
     );
     assert_eq!(
@@ -201,7 +201,7 @@ fn upsert_composite_pk_row() {
         .unwrap();
     let json: Value = serde_json::from_str(&raw).unwrap();
     assert_eq!(
-        json["role"]["space_A"]["author_did"],
+        json["role"]["space_A"]["authorDid"],
         Value::String("did:key:zAuthor".to_string())
     );
     assert_eq!(
@@ -244,7 +244,7 @@ fn upsert_recovers_from_non_object_root() {
         "root JSON must be an object after recovery"
     );
     assert_eq!(
-        json["col_a"]["space_A"]["author_did"],
+        json["col_a"]["space_A"]["authorDid"],
         Value::String("did:key:zAuthor".to_string())
     );
 }
@@ -264,7 +264,28 @@ fn upsert_recovers_from_non_object_column_entry() {
         "col_a entry must be an object after recovery"
     );
     assert_eq!(
-        json["col_a"]["space_A"]["author_did"],
+        json["col_a"]["space_A"]["authorDid"],
         Value::String("did:key:zAuthor".to_string())
     );
+}
+
+/// The stored record is forwarded verbatim onto the sync wire by the TS
+/// scanner, so its JSON keys MUST deserialise into the camelCase wire
+/// struct `crdt::commands::apply::ColumnSig`. This test is the seam guard:
+/// it round-trips a persisted entry through `serde_json::from_value::<ColumnSig>`
+/// so a rename on either side fails here instead of silently rejecting
+/// every shared-space pull with `authorDid: undefined`.
+#[test]
+fn stored_entry_deserialises_into_the_wire_struct() {
+    let conn = seed_single_pk_row("{}");
+    let sig = make_sig("did:key:zWireShape");
+
+    upsert_column_sigs(&conn, "tbl", r#"{"id":"pk1"}"#, "col_a", "space_A", &sig).unwrap();
+
+    let entry = read_sigs_single(&conn)["col_a"]["space_A"].clone();
+    let wire: crate::crdt::commands::apply::ColumnSig = serde_json::from_value(entry)
+        .expect("stored sig entry must match the ColumnSig wire shape");
+
+    assert_eq!(wire.author_did, "did:key:zWireShape");
+    assert_eq!(wire.sig, BASE64.encode(sig.sig));
 }

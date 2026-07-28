@@ -7,7 +7,7 @@
 //! {
 //!   "<column_name>": {
 //!     "<space_id>": {
-//!       "author_did": "did:key:z6M…",
+//!       "authorDid": "did:key:z6M…",
 //!       "sig": "<base64-encoded 64-byte Ed25519 signature>"
 //!     }
 //!   }
@@ -17,12 +17,33 @@
 //! [`upsert_column_sigs`] merges a new `(column_name, space_id)` entry into
 //! the JSON blob on the target row, preserving all other columns and other
 //! spaces on the same column.
+//!
+//! ## Why the inner keys are camelCase
+//!
+//! The stored record is forwarded **verbatim** onto the sync wire: the TS
+//! scanner (`src/stores/sync/tableScanner.ts`) parses this JSON, picks
+//! `[column][space]` and attaches the object as `ColumnChange.sig` without
+//! rewriting keys. The receiving end deserialises it into
+//! [`crate::crdt::commands::apply::ColumnSig`], which is
+//! `#[serde(rename_all = "camelCase")]`. A snake_case `author_did` here
+//! therefore arrives as an unknown field and the DID reads back as
+//! `undefined` in TS / fails to deserialise in Rust — see
+//! [`AUTHOR_DID_KEY`]. Keep this key and the wire struct in lockstep.
 
 use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rusqlite::{params_from_iter, types::ToSqlOutput, Connection, Error as RusqliteError, ToSql};
 use serde_json::{Map, Value};
 use tracing::warn;
+
+/// JSON key holding the signer DID inside a stored sig record.
+///
+/// Deliberately camelCase: the stored record travels to the wire unchanged
+/// (see module docs). `SIG_KEY` is spelled the same in both worlds, but is
+/// named here so both keys live next to each other.
+pub const AUTHOR_DID_KEY: &str = "authorDid";
+/// JSON key holding the base64 signature inside a stored sig record.
+pub const SIG_KEY: &str = "sig";
 
 /// A single per-column, per-space signature record.
 ///
@@ -131,7 +152,7 @@ pub fn upsert_column_sigs(
         }
     };
 
-    // Merge: root[column_name][space_id] = { author_did, sig }
+    // Merge: root[column_name][space_id] = { authorDid, sig }
     let column_entry = root
         .entry(column_name.to_string())
         .or_insert_with(|| Value::Object(Map::new()));
@@ -155,10 +176,10 @@ pub fn upsert_column_sigs(
     };
     let mut entry = Map::with_capacity(2);
     entry.insert(
-        "author_did".to_string(),
+        AUTHOR_DID_KEY.to_string(),
         Value::String(sig.author_did.clone()),
     );
-    entry.insert("sig".to_string(), Value::String(BASE64.encode(sig.sig)));
+    entry.insert(SIG_KEY.to_string(), Value::String(BASE64.encode(sig.sig)));
     column_map.insert(space_id.to_string(), Value::Object(entry));
 
     let new_raw = serde_json::to_string(&Value::Object(root)).map_err(|e| {
