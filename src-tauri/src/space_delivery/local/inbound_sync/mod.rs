@@ -48,6 +48,7 @@
 //!    with `identity_id = mallory` or hijacking Bob's device endpoint
 //!    registration.
 
+pub mod anchor_check;
 pub mod ownership;
 pub mod space_scope;
 mod util;
@@ -59,6 +60,7 @@ use crate::ucan::{require_capability, CapabilityLevel, ValidatedUcan};
 
 use super::ucan::is_active_space_member;
 
+pub use anchor_check::{check_batch_against_anchor, BelowCompactionAnchor};
 pub use ownership::filter_ownership_violations;
 pub use space_scope::enforce_row_space_scope;
 pub use validate::validate_and_attribute;
@@ -158,6 +160,26 @@ pub fn authorize_inbound_sync_push(
         Err(e) => {
             return InboundSyncPushOutcome::Rejected {
                 reason: format!("Membership check failed: {e}"),
+            };
+        }
+    }
+
+    // (2.5) Compaction-anchor gate (Task 9, ADR 0002 §6.5).
+    // Reject the whole batch if any change carries an HLC older than the
+    // per-space anti-resurrection anchor. Partial apply would leave the
+    // peer with a torn state — a peer that pushed the batch must clear
+    // its outbound queue and refresh-pull.
+    match check_batch_against_anchor(db, space_id, &raw_changes) {
+        Ok(None) => {}
+        Ok(Some(rej)) => {
+            eprintln!("[InboundSync] Compaction-anchor reject: {rej}");
+            return InboundSyncPushOutcome::Rejected {
+                reason: format!("{rej}"),
+            };
+        }
+        Err(e) => {
+            return InboundSyncPushOutcome::Rejected {
+                reason: format!("Anchor check failed: {e}"),
             };
         }
     }
