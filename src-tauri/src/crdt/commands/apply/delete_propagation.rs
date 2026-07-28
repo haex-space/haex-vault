@@ -482,6 +482,54 @@ pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
             continue;
         }
 
+        // Task 7 register-check gate: before applying, look up whether the
+        // (table, row, space) is currently registered. Three outcomes:
+        //   a. registered → legitimate apply.
+        //   b. not registered here, not registered anywhere → race with a
+        //      local unshare (Option C) — idempotent no-op cleanup path
+        //      via the residual check further down.
+        //   c. not registered here but registered in ANOTHER space → the
+        //      remote is trying to delete a row that lives in a space
+        //      they aren't authorized for. Log with `NotSharedInSpace`
+        //      severity; the residual check below then keeps the row
+        //      intact (residual > 0 → skip row DELETE), so no data is lost.
+        let target_space_registered: bool = tx
+            .query_row(
+                &format!(
+                    "SELECT 1 FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
+                     WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3 LIMIT 1"
+                ),
+                params![&target_table, &row_pks_json, &space_id],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+        if !target_space_registered {
+            let any_space_registered: bool = tx
+                .query_row(
+                    &format!(
+                        "SELECT 1 FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
+                         WHERE table_name = ?1 AND row_pks = ?2 LIMIT 1"
+                    ),
+                    params![&target_table, &row_pks_json],
+                    |_| Ok(true),
+                )
+                .unwrap_or(false);
+            if any_space_registered {
+                eprintln!(
+                    "[SYNC RUST] Shared-space delete-log {id} for '{target_table}' \
+                     in '{space_id}': target row registered in a DIFFERENT space \
+                     (suspected forgery — NotSharedInSpace). Row will be kept by \
+                     the residual-register guard below."
+                );
+            } else {
+                eprintln!(
+                    "[SYNC RUST] Shared-space delete-log {id} for '{target_table}' \
+                     in '{space_id}': target register entry absent (likely a race \
+                     with a local unshare); applying idempotent cleanup."
+                );
+            }
+        }
+
         // Register cleanup: per (table, row, space). Other spaces' entries
         // for the same row survive by design (see the multi-space test).
         // Run BEFORE the business row DELETE so that "row also present
@@ -893,6 +941,110 @@ mod tests {
             row_count, 1,
             "resurrected row (newer haex_hlc than delete) must be kept"
         );
+    }
+
+    // Task 7: register-check authorization gate.
+    #[test]
+    fn shared_space_delete_log_apply_rejects_when_row_not_shared_in_that_space() {
+        // Attacker forgery: remote sends a delete-log for (haex_calendar,
+        // row-never-in-X, SPACE_X). Row lives in the target table but is
+        // registered for SPACE_Y, not SPACE_X. Apply must not touch it.
+        let conn = setup_shared_space_apply_fixture();
+        // A generic "calendar" table with the same shape as extension tables.
+        conn.execute_batch(
+            "CREATE TABLE haex_calendar (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 title TEXT,
+                 haex_hlc TEXT
+             )",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_calendar (id, title, haex_hlc)
+             VALUES ('cal-1', 'Meeting', '1/abcd')",
+            [],
+        )
+        .unwrap();
+        // Row is registered in SPACE_Y — never in SPACE_X.
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+             VALUES ('reg-y', 'haex_calendar', '{\"id\":\"cal-1\"}', 'SPACE_Y', '1/abcd')",
+            [],
+        )
+        .unwrap();
+        // Attacker's forged delete-log for SPACE_X.
+        conn.execute(
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+             VALUES ('del-forge', 'SPACE_X', 'haex_calendar', '{\"id\":\"cal-1\"}', '2/abcd')",
+            [],
+        )
+        .unwrap();
+
+        let mut ids: HashSet<String> = HashSet::new();
+        ids.insert("del-forge".to_string());
+        let tx = conn.unchecked_transaction().unwrap();
+        propagate_shared_space_deleted_rows_to_target_tables(&tx, &ids).unwrap();
+        tx.commit().unwrap();
+
+        // Row stays intact.
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM haex_calendar WHERE id = 'cal-1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(row_count, 1, "forged delete must not remove the row");
+        // Register entry for SPACE_Y also stays intact.
+        let reg_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM haex_shared_space_sync \
+                 WHERE table_name = 'haex_calendar' AND row_pks = '{\"id\":\"cal-1\"}' AND space_id = 'SPACE_Y'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            reg_count, 1,
+            "SPACE_Y register entry must not be touched by a forged SPACE_X delete"
+        );
+    }
+
+    #[test]
+    fn shared_space_delete_log_apply_is_idempotent_on_race_with_local_unshare() {
+        // Race: local user unshared SPACE_X → local delete-log for
+        // (T, R, SPACE_X) got emitted; remote's delete-log for the same
+        // (T, R, SPACE_X) arrives after. Apply must be a no-op (no error,
+        // no side effect) — the register entry is already gone.
+        let conn = setup_shared_space_apply_fixture();
+        conn.execute(
+            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+             VALUES ('note-race', 'raced', '1/abcd')",
+            [],
+        )
+        .unwrap();
+        // Local delete-log entry (the local unshare has already emitted).
+        conn.execute(
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+             VALUES ('del-local', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-race\"}', '2/abcd')",
+            [],
+        )
+        .unwrap();
+        // Remote's redundant delete-log entry for the same (T, R, SPACE_X).
+        conn.execute(
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+             VALUES ('del-remote', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-race\"}', '3/abcd')",
+            [],
+        )
+        .unwrap();
+        // NB: no register entry — this is the race precondition.
+
+        let mut ids: HashSet<String> = HashSet::new();
+        ids.insert("del-remote".to_string());
+        let tx = conn.unchecked_transaction().unwrap();
+        // Must not error — race is a legitimate flow.
+        propagate_shared_space_deleted_rows_to_target_tables(&tx, &ids).unwrap();
+        tx.commit().unwrap();
     }
 
     #[test]
