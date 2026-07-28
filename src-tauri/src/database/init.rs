@@ -19,7 +19,12 @@ use rusqlite::{params, Connection};
 /// - 3: Track haex_tombstone column to enable proper sync of soft-deletes
 /// - 4: Delete-log architecture — DELETE trigger logs to haex_deleted_rows, no tombstone column
 /// - 5: haex_deleted_rows is exempt from the BEFORE-DELETE trigger (cleanup must not recurse)
-const TRIGGER_VERSION: i32 = 5;
+/// - 6: haex_shared_space_sync grew a fanout BEFORE-DELETE trigger writing to
+///      haex_shared_space_deleted_rows (per-space delete-log, ADR 0002 §6.5);
+///      haex_shared_space_deleted_rows itself is exempt from the generic
+///      BEFORE-DELETE trigger (retention pruning must not recurse — same
+///      pattern as haex_deleted_rows).
+const TRIGGER_VERSION: i32 = 6;
 
 /// Scans the database for all sync-relevant tables (those that have a `haex_hlc` column).
 /// `_no_sync` tables are excluded not by their name but because they are created

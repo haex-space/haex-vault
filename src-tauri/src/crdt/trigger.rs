@@ -31,6 +31,22 @@ pub const COLUMN_SIGS_COLUMN: &str = "haex_column_sigs";
 /// keine Tombstone-Spalten mehr.
 pub const DELETED_ROWS_TABLE: &str = "haex_deleted_rows";
 
+/// Name des Registers (`haex_shared_space_sync`) — die per-Space-Zuordnung
+/// business_row → space. DELETE auf dieser Tabelle fächert per Fanout-Trigger
+/// zusätzlich in `haex_shared_space_deleted_rows` (ADR 0002 §6.5).
+pub const SHARED_SPACE_SYNC_TABLE: &str = "haex_shared_space_sync";
+
+/// Name des per-Space Delete-Logs (ADR 0002 §6.5, revised 2026-07-29). Anders
+/// als `haex_deleted_rows` (Owner-Domain) trägt jede Zeile hier explizit die
+/// Space-Zugehörigkeit, damit Applying-Members den Empfänger-Reduce ausführen
+/// können (Row + Register löschen) — vgl. Task 6.
+pub const SHARED_SPACE_DELETED_ROWS_TABLE: &str = "haex_shared_space_deleted_rows";
+
+/// Name der Register-DELETE-Fanout-Trigger. Zweiter Trigger neben dem generischen
+/// `z_dirty_haex_shared_space_sync_delete`; feuert zusätzlich das per-Space
+/// Signal in `haex_shared_space_deleted_rows`.
+const SHARED_SPACE_DELETE_FANOUT_TRIGGER_TPL: &str = "z_shared_space_delete_fanout";
+
 // Sync metadata columns that should NOT be tracked (to prevent trigger loops)
 const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp";
 const LAST_PULL_SERVER_TIMESTAMP_COLUMN: &str = "last_pull_server_timestamp";
@@ -187,9 +203,18 @@ pub fn setup_triggers_for_table(
     // Auf der Log-Tabelle selbst würde das Cleanup-DELETEs rekursiv ins Log
     // zurückschreiben — also legen wir für sie keinen DELETE-Trigger an.
     // Sie ist die einzige Tabelle mit dieser Ausnahme.
-    if table_name != DELETED_ROWS_TABLE {
+    if table_name != DELETED_ROWS_TABLE && table_name != SHARED_SPACE_DELETED_ROWS_TABLE {
         let delete_trigger_sql = generate_delete_trigger_sql(table_name, &pks);
         tx.execute_batch(&delete_trigger_sql)?;
+    }
+
+    // Register-DELETE fanout: additionally emit a per-space delete-log signal
+    // (ADR 0002 §6.5). Owner-domain sync continues to receive the standard
+    // `haex_deleted_rows` row from `generate_delete_trigger_sql` above; the
+    // shared-space-domain gets its own signal here.
+    if table_name == SHARED_SPACE_SYNC_TABLE {
+        let fanout_sql = generate_shared_space_sync_delete_fanout_trigger_sql();
+        tx.execute_batch(&fanout_sql)?;
     }
 
     Ok(TriggerSetupResult::Success)
@@ -229,8 +254,18 @@ pub fn drop_triggers_for_table(
     let drop_delete_trigger_sql =
         drop_trigger_sql(DELETE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name));
 
-    let sql_batch =
+    let mut sql_batch =
         format!("{drop_insert_trigger_sql}\n{drop_update_trigger_sql}\n{drop_delete_trigger_sql}");
+
+    // Register-DELETE fanout trigger (Task 4) is scoped to
+    // `haex_shared_space_sync`; drop it alongside the standard triggers so a
+    // recreate leaves the DB in a fully clean state.
+    if table_name == SHARED_SPACE_SYNC_TABLE {
+        sql_batch.push('\n');
+        sql_batch.push_str(&drop_trigger_sql(
+            SHARED_SPACE_DELETE_FANOUT_TRIGGER_TPL.to_string(),
+        ));
+    }
 
     tx.execute_batch(&sql_batch)?;
     Ok(())
@@ -439,6 +474,42 @@ fn generate_delete_trigger_sql(table_name: &str, pks: &[String]) -> String {
             VALUES ({UUID_FUNCTION_NAME}(), '{table_name}', json_object({row_pks_json}), {HLC_FUNCTION_NAME}(), '{{}}');
             INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
             VALUES ('{DELETED_ROWS_TABLE}', datetime('now'));
+            END;"
+    )
+}
+
+/// Generates SQL for the register-DELETE fanout trigger.
+///
+/// Installed in addition to the generic BEFORE-DELETE trigger on
+/// `haex_shared_space_sync`. Whenever a register entry is removed (unshare
+/// or business-table DELETE cascade — Task 5), this trigger emits a per-space
+/// signal into `haex_shared_space_deleted_rows` so every space member's
+/// apply-path (Task 6) can converge on the removal.
+///
+/// The row_pks column carries the business-row identity JSON verbatim from
+/// the register — receivers use it to reconstruct the target-row WHERE clause.
+///
+/// Gated by `triggers_enabled` so the apply-path can DELETE from the register
+/// during row-plus-register removal without re-emitting.
+fn generate_shared_space_sync_delete_fanout_trigger_sql() -> String {
+    format!(
+        "CREATE TRIGGER IF NOT EXISTS \"{SHARED_SPACE_DELETE_FANOUT_TRIGGER_TPL}\"
+            BEFORE DELETE ON \"{SHARED_SPACE_SYNC_TABLE}\"
+            FOR EACH ROW
+            WHEN (SELECT COALESCE(value, '1') FROM {TABLE_CRDT_CONFIGS} WHERE key = 'triggers_enabled') = '1'
+            BEGIN
+            INSERT INTO {SHARED_SPACE_DELETED_ROWS_TABLE}
+                (id, space_id, table_name, row_pks, {HLC_TIMESTAMP_COLUMN}, {COLUMN_HLCS_COLUMN})
+            VALUES (
+                {UUID_FUNCTION_NAME}(),
+                OLD.space_id,
+                OLD.table_name,
+                OLD.row_pks,
+                {HLC_FUNCTION_NAME}(),
+                '{{}}'
+            );
+            INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
+            VALUES ('{SHARED_SPACE_DELETED_ROWS_TABLE}', datetime('now'));
             END;"
     )
 }
@@ -656,6 +727,206 @@ mod tests {
         assert!(column_names.contains(&HLC_TIMESTAMP_COLUMN));
         assert!(column_names.contains(&COLUMN_HLCS_COLUMN));
         assert!(column_names.contains(&COLUMN_SIGS_COLUMN));
+    }
+
+    // =====================================================================
+    // Task 4 — Register-DELETE fanout trigger.
+    //
+    // Deleting a row from `haex_shared_space_sync` (register) must produce a
+    // per-space signal in `haex_shared_space_deleted_rows` so other members
+    // of the space converge on the removal (unshare or hard-delete). Owner-
+    // domain sync continues to receive its signal via the standard
+    // `haex_deleted_rows` trigger installed by `setup_triggers_for_table`.
+    //
+    // Aus ADR 0002 §6.5 (revised 2026-07-29).
+    // =====================================================================
+
+    use rusqlite::functions::FunctionFlags;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    fn register_shared_space_test_udfs(conn: &Connection) {
+        // Fresh test UDFs: gen_uuid returns unique strings, current_hlc returns
+        // a monotonically increasing string so LWW ordering is well-defined.
+        static UUID_COUNTER: AtomicU64 = AtomicU64::new(0);
+        static HLC_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+        conn.create_scalar_function(
+            UUID_FUNCTION_NAME,
+            0,
+            FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_INNOCUOUS,
+            |_| {
+                Ok(format!(
+                    "test-uuid-{}",
+                    UUID_COUNTER.fetch_add(1, Ordering::Relaxed)
+                ))
+            },
+        )
+        .expect("register gen_uuid");
+        conn.create_scalar_function(
+            HLC_FUNCTION_NAME,
+            0,
+            FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_INNOCUOUS,
+            |_| {
+                Ok(format!(
+                    "hlc-{:016}",
+                    HLC_COUNTER.fetch_add(1, Ordering::Relaxed)
+                ))
+            },
+        )
+        .expect("register current_hlc");
+    }
+
+    /// Builds a bare in-memory DB with the minimal CRDT plumbing needed to
+    /// exercise the register-DELETE fanout trigger. Doesn't touch the real
+    /// migration file — the schemas here match production so a divergence in
+    /// column names shows up immediately.
+    fn setup_register_delete_fixture() -> Connection {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        register_shared_space_test_udfs(&conn);
+
+        // Bookkeeping tables the triggers read/write.
+        conn.execute_batch(
+            "CREATE TABLE haex_crdt_configs_no_sync (
+                 key TEXT PRIMARY KEY NOT NULL,
+                 value TEXT,
+                 type TEXT
+             );
+             CREATE TABLE haex_crdt_dirty_tables_no_sync (
+                 table_name TEXT PRIMARY KEY NOT NULL,
+                 last_modified TEXT
+             );
+             INSERT INTO haex_crdt_configs_no_sync (key, value, type)
+             VALUES ('triggers_enabled', '1', 'boolean');",
+        )
+        .unwrap();
+
+        // Owner-domain delete-log (same shape as production 0000 migration
+        // plus CRDT meta cols the transformer injects at CREATE-TABLE time).
+        conn.execute_batch(
+            "CREATE TABLE haex_deleted_rows (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+             );",
+        )
+        .unwrap();
+
+        // Register table.
+        conn.execute_batch(
+            "CREATE TABLE haex_shared_space_sync (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 space_id TEXT NOT NULL,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+             );",
+        )
+        .unwrap();
+
+        // Shared-space-domain delete-log (Migration 0013 + CRDT meta cols).
+        conn.execute_batch(
+            "CREATE TABLE haex_shared_space_deleted_rows (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 space_id TEXT NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+             );",
+        )
+        .unwrap();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        setup_triggers_for_table(&tx, "haex_shared_space_sync", false).expect("register triggers");
+        tx.commit().unwrap();
+
+        conn
+    }
+
+    #[test]
+    fn deleting_register_entry_writes_shared_space_delete_log_row() {
+        let conn = setup_register_delete_fixture();
+
+        // Seed a register row saying "table T row {id:R} shared into SPACE_X".
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+             VALUES ('reg-1', 'haex_peer_shares', '{\"id\":\"R\"}', 'SPACE_X', 'hlc-seed')",
+            [],
+        )
+        .unwrap();
+
+        // Delete the register row (models an unshare or the cascade from a
+        // business-table DELETE — see Task 5).
+        conn.execute("DELETE FROM haex_shared_space_sync WHERE id = 'reg-1'", [])
+            .unwrap();
+
+        // Assert: a delete-log row landed with the correct per-space info.
+        let rows: Vec<(String, String, String)> = conn
+            .prepare("SELECT space_id, table_name, row_pks FROM haex_shared_space_deleted_rows")
+            .unwrap()
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        assert_eq!(
+            rows.len(),
+            1,
+            "exactly one shared-space-delete-log row expected, got {rows:?}"
+        );
+        assert_eq!(
+            rows[0],
+            (
+                "SPACE_X".to_string(),
+                "haex_peer_shares".to_string(),
+                r#"{"id":"R"}"#.to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn deleting_register_entry_gated_by_triggers_enabled_flag() {
+        // When triggers_enabled=0 the fanout must NOT fire — this is the
+        // apply-path gate that lets the receiver clear the register without
+        // re-emitting a delete-log entry (which would loop).
+        let conn = setup_register_delete_fixture();
+        conn.execute(
+            "UPDATE haex_crdt_configs_no_sync SET value = '0' WHERE key = 'triggers_enabled'",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+             VALUES ('reg-1', 'haex_peer_shares', '{\"id\":\"R\"}', 'SPACE_X', 'hlc-seed')",
+            [],
+        )
+        .unwrap();
+        conn.execute("DELETE FROM haex_shared_space_sync WHERE id = 'reg-1'", [])
+            .unwrap();
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM haex_shared_space_deleted_rows",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            count, 0,
+            "delete-log must not receive a row when triggers_enabled=0"
+        );
     }
 
     #[test]
