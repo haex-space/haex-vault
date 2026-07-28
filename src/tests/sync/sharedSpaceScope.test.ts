@@ -3,6 +3,7 @@ import {
   SHARED_SPACE_BUILTIN_TABLES,
   isBuiltinSharedSpaceTable,
   getBuiltinSharedSpacePolicy,
+  isRegisterShareableTable,
   rowPksMatchSpace,
 } from '~/stores/sync/sharedSpaceScope'
 
@@ -90,6 +91,20 @@ describe('sharedSpaceScope', () => {
     it('returns null for tables outside the whitelist', () => {
       expect(getBuiltinSharedSpacePolicy('haex_identities')).toBeNull()
       expect(getBuiltinSharedSpacePolicy('not_a_real_table')).toBeNull()
+    })
+  })
+
+  describe('isRegisterShareableTable', () => {
+    it('allows extension tables and the explicitly reviewed scoped-storage payload', () => {
+      expect(isRegisterShareableTable('ext_calendar_events')).toBe(true)
+      expect(isRegisterShareableTable('haex_s3_backends')).toBe(true)
+    })
+
+    it('fails closed for built-ins, future system tables, SQLite internals, and caches', () => {
+      expect(isRegisterShareableTable('haex_space_members')).toBe(false)
+      expect(isRegisterShareableTable('haex_future_private_table')).toBe(false)
+      expect(isRegisterShareableTable('sqlite_sequence')).toBe(false)
+      expect(isRegisterShareableTable('ext_cache_no_sync')).toBe(false)
     })
   })
 

@@ -42,12 +42,11 @@ pub enum SignForSpacesError {
 /// Sign one column-write for every space the row is shared into that this
 /// vault holds a signing key for.
 ///
-/// I2 filter (Runde 5): the [`RegisterLookup`] returns every space the
-/// register maps the row into — including foreign shares synced in from
-/// other vaults. This function silently drops any `space_id` for which
-/// `key_cache.contains(space_id)` is false — no key means not our space,
-/// and signing anyway would fabricate authorship into a space we don't own
-/// (the self-exfiltration vector I2 guards against).
+/// I2 is enforced in two layers: [`RegisterLookup`] returns only mappings
+/// whose routing columns were signed by this vault's own member identity,
+/// then this function drops any `space_id` for which no local signing key can
+/// be loaded. A foreign register entry therefore cannot turn into a push of
+/// local content merely because this vault is also a member of that space.
 ///
 /// Returns `HashMap<space_id, SigRecord>`. An empty map is a valid result
 /// (row is not in any owned space → caller writes `{}` into `haex_column_sigs`).
@@ -93,6 +92,7 @@ pub fn sign_column_for_spaces(
             SigRecord {
                 author_did: did,
                 sig: sig.to_bytes(),
+                storage_class: value_bytes::StorageClass::of(value),
             },
         );
     }

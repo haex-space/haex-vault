@@ -55,6 +55,7 @@ fn build_change(
         sig: ColumnSig {
             author_did: did,
             sig: sig_b64,
+            storage_class: super::value_bytes::StorageClass::Text,
         },
     }
 }
@@ -124,6 +125,7 @@ fn verify_batch_rejects_malformed_value_bytes() {
         sig: ColumnSig {
             author_did: did,
             sig: BASE64.encode([0u8; 64]),
+            storage_class: super::value_bytes::StorageClass::Text,
         },
     };
     let expected_key = format!(
@@ -140,4 +142,57 @@ fn verify_batch_rejects_malformed_value_bytes() {
     assert_eq!(out.rejected.len(), 1);
     assert_eq!(out.rejected[0].row_key, expected_key);
     assert_eq!(out.rejected[0].reason, "MalformedValueBytes");
+}
+
+#[test]
+fn verify_batch_rejects_oversized_base64_before_decode() {
+    let key = make_key();
+    let did = did_key_from_public_key(&key.verifying_key());
+    let max_encoded = super::limits::MAX_VALUE_BYTES_LEN * 4 / 3 + 4;
+    let change = ColumnSigChange {
+        table_name: "ext_calendar".to_string(),
+        row_pks: r#"{"id":"R1"}"#.to_string(),
+        column_name: "title".to_string(),
+        hlc_timestamp: "hlc-1".to_string(),
+        value_bytes: "A".repeat(max_encoded + 1),
+        sig: ColumnSig {
+            author_did: did,
+            sig: BASE64.encode([0u8; 64]),
+            storage_class: super::value_bytes::StorageClass::Text,
+        },
+    };
+
+    let out = verify_column_sig_batch_inner(VerifyColumnSigBatchInput {
+        changes: vec![change],
+        expected_space_id: "space_A".to_string(),
+    });
+
+    assert!(out.verified.is_empty());
+    assert_eq!(out.rejected.len(), 1);
+    assert_eq!(out.rejected[0].reason, "ValueBytesTooLarge");
+}
+
+#[test]
+fn verify_batch_rejects_oversized_signature_before_decode() {
+    let key = make_key();
+    let mut change = build_change(
+        &key,
+        "space_A",
+        "ext_calendar",
+        r#"{"id":"R1"}"#,
+        "title",
+        "hlc-1",
+        b"Hi",
+        false,
+    );
+    change.sig.sig = "A".repeat(89);
+
+    let out = verify_column_sig_batch_inner(VerifyColumnSigBatchInput {
+        changes: vec![change],
+        expected_space_id: "space_A".to_string(),
+    });
+
+    assert!(out.verified.is_empty());
+    assert_eq!(out.rejected.len(), 1);
+    assert_eq!(out.rejected[0].reason, "MalformedSignatureBytes");
 }

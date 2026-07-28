@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { invoke } from '@tauri-apps/api/core'
 import type { ColumnChange } from '~/stores/sync/tableScanner'
+import {
+  verifyPulledChangesAsync,
+  logRejectedChanges,
+  surfaceRejectedBatch,
+  type RejectedChange,
+} from '~/stores/sync/orchestrator/pull/apply'
 
 // Mock BEFORE importing apply.ts. Vitest hoists vi.mock() automatically.
 vi.mock('@tauri-apps/api/core', () => ({
@@ -33,15 +40,6 @@ vi.stubGlobal('useNuxtApp', () => ({
   $i18n: { t: (k: string) => k },
 }))
 
-// Import AFTER mocks are set up.
-import { invoke } from '@tauri-apps/api/core'
-import {
-  verifyPulledChangesAsync,
-  logRejectedChanges,
-  surfaceRejectedBatch,
-  type RejectedChange,
-} from '~/stores/sync/orchestrator/pull/apply'
-
 const mockInvoke = vi.mocked(invoke)
 
 /** Composite row-key format that `verify_ucan_chain_batch` echoes back —
@@ -66,7 +64,7 @@ const change = (
   columnName: 'title',
   hlcTimestamp: hlc,
   deviceId: 'dev-1',
-  sig: { authorDid, sig: 'c2ln' },
+  sig: { authorDid, sig: 'c2ln', storageClass: 'text' },
 })
 
 describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-review)', () => {

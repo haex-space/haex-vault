@@ -26,8 +26,8 @@ use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::TABLE_CRDT_CONFIGS;
 use crate::ucan::verify::did_key_from_public_key;
 
-/// Table F2 owns (haex_shared_space_sync register) — signing there needs the
-/// dedicated F2 flow so we skip it here to keep F1 orthogonal.
+/// The share register has two signing duties: the normal F1 pass signs the
+/// register row itself, while F2 retro-signs the referenced content row.
 const REGISTER_TABLE: &str = "haex_shared_space_sync";
 
 /// Maximum serialized size of a single CRDT transaction (ADR 0001).
@@ -233,11 +233,6 @@ fn sign_written_rows(
     table_name: &str,
     columns: &TouchedColumns,
 ) -> Result<(), DatabaseError> {
-    // F2 territory — the register itself carries its own signing flow.
-    if table_name.eq_ignore_ascii_case(REGISTER_TABLE) {
-        return Ok(());
-    }
-
     let schema = get_table_schema(tx, table_name).map_err(|e| DatabaseError::DatabaseError {
         reason: format!("get_table_schema({table_name}) failed: {e}"),
     })?;
@@ -360,8 +355,9 @@ fn sign_written_rows(
 /// For every row inserted into `haex_shared_space_sync` during this tx
 /// (identified by matching `haex_hlc` against the tx HLC), do:
 ///
-/// 1. **I1**: reject if `table_name` targets a system table on the shared
-///    denylist (see `column_sig::register_lookup::is_register_target_forbidden`).
+/// 1. **I1**: reject if `table_name` targets an unreviewed
+///    Haex/SQLite/internal table (see
+///    `column_sig::register_lookup::is_register_target_forbidden`).
 /// 2. **I2**: reject if the vault does not hold a signing key for
 ///    `space_id_new` — the only way to legitimately author a share entry
 ///    for a space is to hold that space's member signing key. Sig-based
@@ -438,10 +434,9 @@ fn sign_share_insert_targets(
     };
 
     for share in share_rows {
-        // I1: never route through the register for system tables.
-        // Uses the shared denylist from `register_lookup` so both F1
-        // (`resolve_extension_row`) and F2 refuse the same set of targets
-        // — see `is_register_target_forbidden`'s docstring for the list.
+        // I1: never route through the register for system tables. The shared
+        // fail-closed predicate keeps F1 and F2 aligned for existing and
+        // future `haex_*` tables.
         if is_register_target_forbidden(&share.target_table)
             || !is_safe_identifier(&share.target_table)
         {
@@ -583,6 +578,7 @@ fn sign_share_insert_targets(
                 &SigRecord {
                     author_did: derived_did.clone(),
                     sig: signature.to_bytes(),
+                    storage_class: value_bytes::StorageClass::of(val),
                 },
             )
             .map_err(DatabaseError::from)?;

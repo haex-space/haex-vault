@@ -36,6 +36,21 @@ fn pkcs8_b64(key: &SigningKey) -> String {
     BASE64.encode(&der)
 }
 
+fn self_authored_register_routing_sigs(space_id: &str, did: &str) -> String {
+    serde_json::json!({
+        "table_name": {
+            space_id: { "authorDid": did }
+        },
+        "row_pks": {
+            space_id: { "authorDid": did }
+        },
+        "space_id": {
+            space_id: { "authorDid": did }
+        }
+    })
+    .to_string()
+}
+
 struct Fixture {
     db: DbConnection,
     hlc: HlcService,
@@ -162,6 +177,21 @@ fn setup_fixture() -> Fixture {
         ensure_crdt_columns(&tx, "haex_shared_space_sync").unwrap();
         tx.commit().unwrap();
     }
+
+    // The register lookup deliberately ignores remotely-authored routing
+    // metadata. These fixture rows predate the signing path, so seed the
+    // minimum trusted routing metadata they would have received when written
+    // through `execute_with_crdt` in production.
+    conn.execute(
+        "UPDATE haex_shared_space_sync SET haex_column_sigs = ?1 WHERE id = 'share-A'",
+        [self_authored_register_routing_sigs("space_A", &did_a)],
+    )
+    .unwrap();
+    conn.execute(
+        "UPDATE haex_shared_space_sync SET haex_column_sigs = ?1 WHERE id = 'share-B'",
+        [self_authored_register_routing_sigs("space_B", &did_b)],
+    )
+    .unwrap();
 
     let cache = SpaceKeyCache::new();
     cache.populate_all(&conn).expect("populate cache");
@@ -653,8 +683,15 @@ fn execute_with_crdt_signs_columns_on_insert() {
         let conn = guard.as_ref().unwrap();
         conn.execute(
             "INSERT INTO haex_shared_space_sync \
-             (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params!["share-NEW", "ext_calendar", r#"{"id":"NEW"}"#, "space_A"],
+             (id, table_name, row_pks, space_id, haex_column_sigs) \
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                "share-NEW",
+                "ext_calendar",
+                r#"{"id":"NEW"}"#,
+                "space_A",
+                self_authored_register_routing_sigs("space_A", &f.did_a),
+            ],
         )
         .unwrap();
     }
@@ -805,13 +842,15 @@ fn execute_with_crdt_signs_composite_pk_row() {
         // Share the (space_A_row, item_1) composite key into space_A.
         conn.execute(
             "INSERT INTO haex_shared_space_sync \
-             (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
+             (id, table_name, row_pks, space_id, haex_column_sigs) \
+             VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![
                 "share-COMP",
                 "ext_composite",
                 // Canonical order (BTreeMap → sorted keys): item_id, space_ref
                 r#"{"item_id":"item_1","space_ref":"space_A_row"}"#,
                 "space_A",
+                self_authored_register_routing_sigs("space_A", &f.did_a),
             ],
         )
         .unwrap();

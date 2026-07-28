@@ -130,7 +130,7 @@ interface ColumnSigChangeWire {
   columnName: string
   hlcTimestamp: string
   valueBytes: string
-  sig: { authorDid: string; sig: string }
+  sig: { authorDid: string; sig: string; storageClass: 'integer' | 'real' | 'text' | 'blob' | 'null' }
 }
 
 interface VerifyColumnSigBatchOutput {
@@ -607,8 +607,17 @@ export const applyRemoteChangesInTransactionAsync = async (
 
     const sigChanges: ColumnSigChangeWire[] = []
     const sigDropped: Array<{ rowKey: string; reason: string }> = []
+    const seenSigRowKeys = new Set<string>()
     for (const c of applicableForSig) {
       const rowKey = `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`
+      if (seenSigRowKeys.has(rowKey)) {
+        // The verifier correlates results by this key, so two entries would
+        // be ambiguous. Marking the key rejected drops every duplicate
+        // without wedging the pull cursor on attacker-controlled input.
+        sigDropped.push({ rowKey, reason: 'DuplicateRowKey' })
+        continue
+      }
+      seenSigRowKeys.add(rowKey)
       const columnType = await resolveColumnType(c.tableName, c.columnName)
       if (!columnType) {
         // Local schema drift — the column no longer exists in the
@@ -624,7 +633,11 @@ export const applyRemoteChangesInTransactionAsync = async (
       // transaction and wedge the cursor behind it.
       let valueBytes: string
       try {
-        valueBytes = toCanonicalBase64(c.decryptedValue, columnType)
+        valueBytes = toCanonicalBase64(
+          c.decryptedValue,
+          columnType,
+          c.sig!.storageClass,
+        )
       } catch (err) {
         log.warn(`canonicalisation failed for ${rowKey}:`, err)
         sigDropped.push({ rowKey, reason: 'MalformedValueBytes' })
@@ -663,9 +676,13 @@ export const applyRemoteChangesInTransactionAsync = async (
       // layer requires `sig` for shared-space pulls — but be defensive.
       if (!c.sig) return true
       const key = `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`
+      const explicitRejection = rejectReasonByKey.get(key)
+      if (explicitRejection) {
+        log.warn(`column-sig verify rejected ${key}: ${explicitRejection}`)
+        return false
+      }
       if (verifiedSet.has(key)) return true
-      const reason = rejectReasonByKey.get(key) ?? 'MissingResult'
-      log.warn(`column-sig verify rejected ${key}: ${reason}`)
+      log.warn(`column-sig verify rejected ${key}: MissingResult`)
       return false
     })
     const dropped = decryptedChanges.length - verifiedDecrypted.length
@@ -674,10 +691,10 @@ export const applyRemoteChangesInTransactionAsync = async (
     }
   }
 
-  // Strip the wire-sig field from the intermediate before crossing the
-  // Rust boundary — the apply command only consumes the decrypted
-  // value plus its co-ordinates.
-  const applyPayload = verifiedDecrypted.map(({ sig: _sig, ...rest }) => rest)
+  // Keep the verified signature attached: Rust persists it beside the
+  // applied value so this receiver can later relay the original author's
+  // change without re-signing it.
+  const applyPayload = verifiedDecrypted
 
   log.info(`[PERF] Invoking Rust: apply_remote_changes_in_transaction (${applyPayload.length} changes)`)
 

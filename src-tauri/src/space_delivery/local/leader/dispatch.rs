@@ -12,7 +12,7 @@ use super::claim::handle_claim_invite;
 use super::notify::{notify_all_mls, notify_others_sync};
 use super::util::{base64_decode, base64_encode};
 use super::LeaderState;
-use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
+use crate::crdt::commands::RemoteColumnChange;
 use crate::crdt::scanner::{
     paginate_changes, scan_space_scoped_tables_for_local_changes, LocalColumnChange,
     PULL_PAGE_BUDGET,
@@ -475,9 +475,13 @@ pub(crate) async fn handle_delivery_request(
                     };
                 }
             };
-            if let Err(e) =
-                apply_remote_changes_to_db(&state.db, remote_changes, None, Some(&hlc_service))
-            {
+            if let Err(e) = crate::crdt::commands::apply_remote_changes_to_db_scoped(
+                &state.db,
+                remote_changes,
+                None,
+                Some(&hlc_service),
+                Some(&space_id),
+            ) {
                 eprintln!("[SpaceDelivery] SyncPush: failed to apply changes: {e}");
                 return Response::Error {
                     message: format!("Failed to apply changes: {e}"),
