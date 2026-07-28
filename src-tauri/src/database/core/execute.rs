@@ -86,7 +86,7 @@ pub fn execute_with_crdt(
     // only safe choice — silent stripping is indistinguishable from success.
     if let Some(bad) = touched
         .as_ref()
-        .and_then(|(_, cols)| cols.iter().find(|c| is_crdt_meta_column(c)))
+        .and_then(|(_, cols)| cols.explicit().iter().find(|c| is_crdt_meta_column(c)))
     {
         return Err(DatabaseError::CrdtMetaColumnWriteForbidden {
             column: bad.clone(),
@@ -126,7 +126,7 @@ pub fn execute_with_crdt(
 /// True iff `statement` is an INSERT whose target is the shared-space register.
 fn is_share_register_insert(
     statement: &Statement,
-    touched: Option<&(String, Vec<String>)>,
+    touched: Option<&(String, TouchedColumns)>,
 ) -> bool {
     // Fast path: `touched` already carries the table name for INSERT statements.
     if let Some((name, _)) = touched {
@@ -136,22 +136,51 @@ fn is_share_register_insert(
     false
 }
 
+/// Which columns of the target table a statement writes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TouchedColumns {
+    /// The statement names its columns: `INSERT INTO t (a, b) …` /
+    /// `UPDATE t SET a = …`. Exactly these, nothing else.
+    Explicit(Vec<String>),
+    /// `INSERT INTO t VALUES (…)` with no column list. The write covers every
+    /// column of the table positionally, so the signer must fall back to the
+    /// table's schema instead of treating "no names" as "nothing written" —
+    /// otherwise the row lands in a shared space with no signatures at all
+    /// and remote peers see it as unsigned.
+    AllColumns,
+}
+
+impl TouchedColumns {
+    /// Column names the caller spelled out, for the meta-column write guard.
+    /// Empty for [`Self::AllColumns`] — there are no names to inspect; that
+    /// case is caught later against the real schema in [`sign_written_rows`].
+    fn explicit(&self) -> &[String] {
+        match self {
+            Self::Explicit(cols) => cols,
+            Self::AllColumns => &[],
+        }
+    }
+}
+
 /// Extracts `(table_name, touched_columns)` for statements that carry column
 /// writes; returns `None` for statements the signer doesn't handle
 /// (SELECT/DELETE/DDL).
-fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, Vec<String>)> {
+fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, TouchedColumns)> {
     match stmt {
         Statement::Insert(insert) => {
             let name = match &insert.table {
                 TableObject::TableName(n) => object_name_last(n)?,
                 _ => return None,
             };
+            if insert.columns.is_empty() {
+                return Some((name, TouchedColumns::AllColumns));
+            }
             let cols: Vec<String> = insert
                 .columns
                 .iter()
                 .filter_map(|obj| object_name_last(obj))
                 .collect();
-            Some((name, cols))
+            Some((name, TouchedColumns::Explicit(cols)))
         }
         Statement::Update(update) => {
             let name = match &update.table.relation {
@@ -166,7 +195,7 @@ fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, Vec<String>)
                     _ => None,
                 })
                 .collect();
-            Some((name, cols))
+            Some((name, TouchedColumns::Explicit(cols)))
         }
         _ => None,
     }
@@ -202,7 +231,7 @@ fn sign_written_rows(
     tx: &Transaction,
     key_cache: &SpaceKeyCache,
     table_name: &str,
-    columns: &[String],
+    columns: &TouchedColumns,
 ) -> Result<(), DatabaseError> {
     // F2 territory — the register itself carries its own signing flow.
     if table_name.eq_ignore_ascii_case(REGISTER_TABLE) {
@@ -221,20 +250,36 @@ fn sign_written_rows(
         return Ok(());
     }
 
-    // Filter out CRDT meta columns and any columns not present in the schema
-    // (defensive: parser can hand us anything).
-    let schema_names: std::collections::HashSet<&str> =
-        schema.iter().map(|c| c.name.as_str()).collect();
-    let signable: Vec<String> = columns
-        .iter()
-        .filter(|c| {
-            c.as_str() != HLC_TIMESTAMP_COLUMN
-                && c.as_str() != COLUMN_HLCS_COLUMN
-                && c.as_str() != COLUMN_SIGS_COLUMN
-                && schema_names.contains(c.as_str())
-        })
-        .cloned()
-        .collect();
+    let is_meta =
+        |c: &str| c == HLC_TIMESTAMP_COLUMN || c == COLUMN_HLCS_COLUMN || c == COLUMN_SIGS_COLUMN;
+
+    let signable: Vec<String> = match columns {
+        // Filter out CRDT meta columns and any columns not present in the
+        // schema (defensive: parser can hand us anything).
+        TouchedColumns::Explicit(cols) => {
+            let schema_names: std::collections::HashSet<&str> =
+                schema.iter().map(|c| c.name.as_str()).collect();
+            cols.iter()
+                .filter(|c| !is_meta(c) && schema_names.contains(c.as_str()))
+                .cloned()
+                .collect()
+        }
+        // A columnless `INSERT INTO t VALUES (…)` writes every column
+        // positionally. On a CRDT table that necessarily includes the three
+        // meta columns, which the caller must never supply — the statement
+        // sidesteps `CrdtMetaColumnWriteForbidden` only because it names no
+        // columns for that guard to inspect. Reject it here, where the schema
+        // is available; `sign_written_rows` runs before `tx.commit()`, so the
+        // write rolls back.
+        TouchedColumns::AllColumns => {
+            return Err(DatabaseError::CrdtMetaColumnWriteForbidden {
+                column: format!(
+                    "{COLUMN_SIGS_COLUMN} (columnless INSERT INTO \"{table_name}\" VALUES (…) \
+                     assigns CRDT meta columns positionally — name the columns explicitly)"
+                ),
+            });
+        }
+    };
     if signable.is_empty() {
         return Ok(());
     }
