@@ -247,8 +247,6 @@ impl ExtensionManager {
             // Persist to database using CRDT-aware update
             let display_mode_str = format!("{:?}", display_mode).to_lowercase();
 
-            // Update in-memory state
-            extension.manifest.display_mode = Some(display_mode);
             let params = vec![
                 JsonValue::String(display_mode_str),
                 JsonValue::String(extension_id.to_string()),
@@ -268,6 +266,9 @@ impl ExtensionManager {
                 &state.column_sig_key_cache,
             )?;
 
+            // Keep memory and durable state in lockstep when persistence
+            // fails (including a column-signing failure).
+            extension.manifest.display_mode = Some(display_mode);
             return Ok(());
         }
 

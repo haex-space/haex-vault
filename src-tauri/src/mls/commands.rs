@@ -158,10 +158,16 @@ pub fn mls_export_epoch_key(
     let id = uuid::Uuid::new_v4().to_string();
     let key_b64 = BASE64.encode(&epoch_key.key);
 
-    // Delete existing entry for this space+epoch, then insert
-    execute_with_crdt(
-        format!("DELETE FROM haex_mls_sync_keys WHERE space_id = ?1 AND epoch = ?2"),
+    // Update in place when the epoch already exists. This avoids the old
+    // delete-then-insert sequence, where a signing failure on the INSERT
+    // permanently removed the previously valid key.
+    let updated = execute_with_crdt(
+        "UPDATE haex_mls_sync_keys SET key_data = ?1 \
+         WHERE space_id = ?2 AND epoch = ?3 \
+         RETURNING id"
+            .to_string(),
         vec![
+            JsonValue::String(key_b64.clone()),
             JsonValue::String(space_id.clone()),
             JsonValue::Number((epoch_key.epoch as i64).into()),
         ],
@@ -169,20 +175,25 @@ pub fn mls_export_epoch_key(
         &hlc,
         &state.column_sig_key_cache,
     )
-    .map_err(|e| format!("Failed to delete old sync key: {e}"))?;
+    .map_err(|e| format!("Failed to update sync key: {e}"))?;
 
-    execute_with_crdt(
-        format!("INSERT INTO haex_mls_sync_keys (id, space_id, epoch, key_data) VALUES (?1, ?2, ?3, ?4)"),
-        vec![
-            JsonValue::String(id),
-            JsonValue::String(space_id),
-            JsonValue::Number((epoch_key.epoch as i64).into()),
-            JsonValue::String(key_b64),
-        ],
-        &state.db,
-        &hlc,
-        &state.column_sig_key_cache,
-    ).map_err(|e| format!("Failed to store sync key: {e}"))?;
+    if updated.is_empty() {
+        execute_with_crdt(
+            "INSERT INTO haex_mls_sync_keys (id, space_id, epoch, key_data) \
+             VALUES (?1, ?2, ?3, ?4)"
+                .to_string(),
+            vec![
+                JsonValue::String(id),
+                JsonValue::String(space_id),
+                JsonValue::Number((epoch_key.epoch as i64).into()),
+                JsonValue::String(key_b64),
+            ],
+            &state.db,
+            &hlc,
+            &state.column_sig_key_cache,
+        )
+        .map_err(|e| format!("Failed to store sync key: {e}"))?;
+    }
 
     Ok(epoch_key)
 }
