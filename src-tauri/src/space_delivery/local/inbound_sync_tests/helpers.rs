@@ -25,6 +25,7 @@ pub(super) fn make_change(
         hlc_timestamp: hlc.to_string(),
         value,
         device_id: "device-under-test".to_string(),
+        sig: None,
     }
 }
 
@@ -42,6 +43,7 @@ pub(super) fn change(
         hlc_timestamp: hlc.to_string(),
         value,
         device_id: "wire-device-id".to_string(),
+        sig: None,
     }
 }
 

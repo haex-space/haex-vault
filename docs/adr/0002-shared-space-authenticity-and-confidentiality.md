@@ -13,8 +13,8 @@ und Dateien. Operativer Umsetzungs-Prompt (lokal): `docs/plans/2026-07-23-shared
 ## 0. Terminologie (verbindlich)
 
 - **Vault-private Tabellen:** alle `haex_*`-System-Tabellen **außer den unten
-  genannten Sync-Ausnahmen** (die 5 Infra-Tabellen + Share-Register). Kreuzen **nie**
-  einen Space-Stream.
+  genannten Sync-Ausnahmen** (die 5 Infra-Tabellen + Share-Register) und explizit
+  geprüften Register-Payloads. Kreuzen **nie** einen Space-Stream.
 - **Space-Infrastruktur-Tabellen:** die 5 `SPACE_SCOPED_CRDT_TABLES`
   (`haex_space_devices`, `haex_space_members`, `haex_peer_shares`,
   `haex_mls_sync_keys`, `haex_device_mls_enrollments`). Die bewusste Ausnahme, die
@@ -35,7 +35,9 @@ Drei Schichten:
 2. Space-Infrastruktur (die 5 Infra-Tabellen + Share-Register) → sync **1:1** via
    `space_id`-Spalte, signiert wie jede space-scoped Tabelle.
 3. Erweiterungs-Daten + Dateien → **M:N**, getrieben durch das (synchronisierte)
-   Share-Register (+ File-Sync).
+   Share-Register (+ File-Sync). `haex_s3_backends` ist die einzige explizit geprüfte
+   Systemtabellen-Ausnahme in dieser Schicht: geteilt wird ausschließlich die vom
+   Remote-Storage-Flow erzeugte, gescopedte Child-Credential-Row.
 
 ---
 
@@ -203,8 +205,10 @@ ist die Row nach gemischtem Merge inkohärent.
   space-übergreifend re-spielbar. Phase 1 stellt beides um: Klartext signieren, `space_id`
   + `author_did` ins Preimage.
 - **Storage:** neue CRDT-Metadaten-Spalte `haex_column_sigs`, gekeyt **pro (Spalte,
-  space_id)**: `column -> { space_id -> {author_did, sig} }`. Parallel zu
-  `haex_column_hlcs`. Infra-Tabellen = degenerierter Fall (genau ein Space).
+  space_id)**: `column -> { space_id -> {authorDid, sig, storageClass} }`. Parallel zu
+  `haex_column_hlcs`. `storageClass` erhält die von JSON/IPC verlorene Unterscheidung
+  zwischen INTEGER/REAL/TEXT/BLOB/NULL. Infra-Tabellen = degenerierter Fall (genau ein
+  Space).
 - **`authored_by_did` wird KOMPLETT gelöscht** (§6.3 gelöst): bei Ko-Autorschaft
   row-level bedeutungslos. Autoritative Autorschaft ist die per-Spalte `author_did`.
   Die zwei FK-Parent-Trigger (`*_ensure_refs`) lasen `NEW.authored_by_did` → die
@@ -292,9 +296,12 @@ Das Share-Register darf **nie** eine vault-private `haex_*`-Tabelle als Ziel akz
 — **inklusive sich selbst** (`haex_shared_space_sync` ist kein zulässiges Share-Ziel).
 Die Zugangs-Prüfung **komponiert**: Extension-Tabellen via Register erlaubt; die 5
 Infra-Tabellen **und das Share-Register selbst** syncen via `space_id` (Bootstrap-Pfad,
-nicht über einen Register-Eintrag); **alle anderen `haex_*` kategorisch verboten auf
-beiden Pfaden.** `is_space_scoped_table()` wird zu dieser zusammengesetzten Prüfung, die
-die 6 Sync-Ausnahmen zulässt und jede andere System-Tabelle weiterhin ausschließt.
+nicht über einen Register-Eintrag); **alle nicht explizit geprüften `haex_*`
+kategorisch verboten auf beiden Pfaden.** Die zusammengesetzte Prüfung besteht aus
+`is_space_scoped_table()` für die 6 Bootstrap-Ausnahmen und
+`is_register_target_forbidden()` für Register-Payloads. Als Register-Ziel ist zusätzlich
+nur `haex_s3_backends` erlaubt; jede neue System-Tabelle bleibt ohne explizite
+Security-Review ausgeschlossen.
 
 ### I2 — Owner-initiiertes Teilen / Exfiltrationsresistenz
 Ein Vault sendet **nur Daten, die physisch in seiner eigenen DB liegen**, und bestimmt
@@ -382,6 +389,11 @@ Sync, damit Extension-Daten nie ungeschützt fließen).
   späteren Runde. Vertraulichkeit: `value_bytes` liegt nie auf dem Wire (Ship-Blocker
   aus Runde 7); Empfänger canonicalisiert den entschlüsselten Wert lokal via
   `toCanonicalBase64` und batched dann zu `verify_column_sig_batch` (Rust-Command).
+  ✅ **Review-Follow-up:** Der P2P-Pfad transportiert und erzwingt die Signatur nun
+  ebenfalls, persistiert verifizierte Signaturen für Relay, synchronisiert das
+  Share-Register als sechste Bootstrap-Tabelle und verwirft unsignierte
+  Shared-Space-Changes. Das Register treibt einen Push nur bei selbst signierten
+  Routing-Spalten (I2); neue `haex_*`-Ziele fallen geschlossen aus (I1).
 - **Phase 2 — UCAN-Delegations-Ketten-Verifikation (4c):** `prf` laufen, Root-Anker — auf
   **beiden** Apply-Pfaden. Für den TS-Pfad (`verifyPulledChangesAsync`, `apply.ts`): volle
   `prf`-Kette statt materialisiertem `haex_ucan_tokens`, und den Admin-Fallback

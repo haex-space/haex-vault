@@ -17,9 +17,9 @@ use crate::ucan::verify::did_key_from_public_key;
 // Semantics assumed for the register (matches design-doc §E1 + plan E1):
 //   * infra tables → space_id from the row itself (not exercised here — E2
 //     runs on extension tables in every test that would touch the register)
-//   * extension tables → SELECT space_id FROM haex_shared_space_sync
-//     WHERE table_name = ? AND row_pks = ? (no author filter — I2 lives at
-//     the caller via SpaceKeyCache::contains, see write.rs)
+//   * extension tables → only self-authored register mappings are eligible.
+//     Holding a space key is not enough: all three routing columns must carry
+//     this vault's member DID in their verified signature metadata.
 // ---------------------------------------------------------------------------
 
 fn random_key() -> SigningKey {
@@ -36,6 +36,15 @@ fn pkcs8_b64(key: &SigningKey) -> String {
     der.extend_from_slice(&pkcs8_prefix);
     der.extend_from_slice(&key.to_bytes());
     BASE64.encode(&der)
+}
+
+fn routing_sigs(space_id: &str, author_did: &str) -> String {
+    serde_json::json!({
+        "table_name": { (space_id): { "authorDid": author_did } },
+        "row_pks": { (space_id): { "authorDid": author_did } },
+        "space_id": { (space_id): { "authorDid": author_did } },
+    })
+    .to_string()
 }
 
 struct Fixture {
@@ -71,7 +80,8 @@ fn seed_shared_to_two_spaces() -> Fixture {
             id TEXT PRIMARY KEY NOT NULL,
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
-            space_id TEXT NOT NULL
+            space_id TEXT NOT NULL,
+            haex_column_sigs TEXT NOT NULL DEFAULT '{}'
          );",
     )
     .expect("create schema");
@@ -106,16 +116,28 @@ fn seed_shared_to_two_spaces() -> Fixture {
     // for each space under my own identity there).
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-            (id, table_name, row_pks, space_id)
-         VALUES (?1, ?2, ?3, ?4)",
-        ["share-A", "ext_calendar", r#"{"id":"R"}"#, "space_A"],
+            (id, table_name, row_pks, space_id, haex_column_sigs)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        [
+            "share-A",
+            "ext_calendar",
+            r#"{"id":"R"}"#,
+            "space_A",
+            &routing_sigs("space_A", &did_a),
+        ],
     )
     .unwrap();
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-            (id, table_name, row_pks, space_id)
-         VALUES (?1, ?2, ?3, ?4)",
-        ["share-B", "ext_calendar", r#"{"id":"R"}"#, "space_B"],
+            (id, table_name, row_pks, space_id, haex_column_sigs)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        [
+            "share-B",
+            "ext_calendar",
+            r#"{"id":"R"}"#,
+            "space_B",
+            &routing_sigs("space_B", &did_b),
+        ],
     )
     .unwrap();
 
@@ -256,9 +278,8 @@ fn sign_rejects_oversized_value_bytes() {
 
 #[test]
 fn sign_silently_skips_spaces_the_vault_holds_no_key_for() {
-    // Runde 5: I2 moved from the register-SQL to the caller. A register
-    // entry pointing at a space we don't hold the key for is not an error —
-    // it is just "not our space", and we silently drop it from the sig set.
+    // A register entry pointing at a space we don't hold the key for is not
+    // an error — it is just "not our space", and we silently drop it.
     // The Ok(map) has no entry for the foreign space; the row's own spaces
     // (space_A, space_B) are absent here because `ext_ghost/G` is not
     // shared into them.

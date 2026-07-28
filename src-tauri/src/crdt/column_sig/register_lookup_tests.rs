@@ -1,21 +1,26 @@
-use super::register_lookup::RegisterLookup;
+use super::register_lookup::{is_register_target_forbidden, RegisterLookup};
 use rusqlite::Connection;
 
 /// Minimal in-memory DB with:
 ///   - `haex_space_members` — an infra table with `space_id`, used as the
 ///     stand-in for any of the 5 `SPACE_SCOPED_CRDT_TABLES` in the infra path.
-///   - `haex_shared_space_sync` — the share register (no author column any
-///     more: Runde 5 dropped `authored_by_did`; I2 lives at the caller now).
+///   - `haex_shared_space_sync` — the signed share register.
+///   - `haex_identities` — distinguishes a locally-owned identity from a
+///     foreign member identity.
 ///
 /// One extension-table row (`ext_calendar` / `{"id":"R"}`) is registered
-/// into two spaces (`space_A`, `space_B`). Author identity is no longer
-/// tracked on the register row itself — the caller (write-time signer)
-/// intersects with the `SpaceKeyCache` to decide which of these spaces it
-/// may legitimately sign for.
+/// into two spaces (`space_A`, `space_B`). Only the space_A assignment was
+/// authored by this vault; the space_B assignment is a relayed foreign share
+/// and must not cause this vault to sign the referenced row.
 fn seed() -> Connection {
     let conn = Connection::open_in_memory().expect("open in-memory");
     conn.execute_batch(
-        "CREATE TABLE haex_space_members (
+        "CREATE TABLE haex_identities (
+            id TEXT PRIMARY KEY NOT NULL,
+            did TEXT NOT NULL,
+            private_key TEXT
+         );
+         CREATE TABLE haex_space_members (
             id TEXT PRIMARY KEY NOT NULL,
             space_id TEXT NOT NULL,
             identity_id TEXT NOT NULL
@@ -24,7 +29,8 @@ fn seed() -> Connection {
             id TEXT PRIMARY KEY NOT NULL,
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
-            space_id TEXT NOT NULL
+            space_id TEXT NOT NULL,
+            haex_column_sigs TEXT NOT NULL DEFAULT '{}'
          );",
     )
     .expect("create schema");
@@ -32,24 +38,53 @@ fn seed() -> Connection {
     // Infra row: a `haex_space_members` row in space_A. Used by the
     // "infra table returns space_id from row column" test.
     conn.execute(
+        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
+        ["id-own-a", "did:key:own-a", "owned-key"],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, NULL)",
+        ["id-foreign-b", "did:key:foreign-b"],
+    )
+    .unwrap();
+    conn.execute(
         "INSERT INTO haex_space_members (id, space_id, identity_id) VALUES (?1, ?2, ?3)",
         ["mem-1", "space_A", "id-own-a"],
     )
     .unwrap();
+    conn.execute(
+        "INSERT INTO haex_space_members (id, space_id, identity_id) VALUES (?1, ?2, ?3)",
+        ["mem-2", "space_B", "id-foreign-b"],
+    )
+    .unwrap();
 
     // Register: extension table `ext_calendar` row `{"id":"R"}` is shared
-    // into space_A and space_B. Resolve returns BOTH — the caller's
-    // key-cache filter decides which are actually ours to sign for.
+    // into space_A and space_B. Only A's routing columns carry this vault's
+    // own DID; B's carry a foreign member DID.
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
-        ["reg-a", "ext_calendar", r#"{"id":"R"}"#, "space_A"],
+         (id, table_name, row_pks, space_id, haex_column_sigs)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        [
+            "reg-a",
+            "ext_calendar",
+            r#"{"id":"R"}"#,
+            "space_A",
+            r#"{"table_name":{"space_A":{"authorDid":"did:key:own-a"}},"row_pks":{"space_A":{"authorDid":"did:key:own-a"}},"space_id":{"space_A":{"authorDid":"did:key:own-a"}}}"#,
+        ],
     )
     .unwrap();
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, table_name, row_pks, space_id) VALUES (?1, ?2, ?3, ?4)",
-        ["reg-b", "ext_calendar", r#"{"id":"R"}"#, "space_B"],
+         (id, table_name, row_pks, space_id, haex_column_sigs)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        [
+            "reg-b",
+            "ext_calendar",
+            r#"{"id":"R"}"#,
+            "space_B",
+            r#"{"table_name":{"space_B":{"authorDid":"did:key:foreign-b"}},"row_pks":{"space_B":{"authorDid":"did:key:foreign-b"}},"space_id":{"space_B":{"authorDid":"did:key:foreign-b"}}}"#,
+        ],
     )
     .unwrap();
 
@@ -91,17 +126,14 @@ fn infra_table_missing_row_returns_empty() {
 }
 
 #[test]
-fn extension_table_returns_every_space_the_register_maps_to() {
+fn extension_table_returns_only_self_authored_register_mappings() {
     let conn = seed();
     let lookup = RegisterLookup::new();
     let mut spaces = lookup
         .resolve(&conn, "ext_calendar", r#"{"id":"R"}"#)
         .expect("resolve");
     spaces.sort();
-    // Runde 5: RegisterLookup is DID/key-agnostic — both register entries
-    // survive. The caller (write-time signer) intersects with the
-    // SpaceKeyCache to pick the spaces this vault can sign for.
-    assert_eq!(spaces, vec!["space_A".to_string(), "space_B".to_string()]);
+    assert_eq!(spaces, vec!["space_A".to_string()]);
 }
 
 #[test]
@@ -118,7 +150,7 @@ fn per_transaction_cache_hits_on_repeated_lookup() {
         .resolve(&conn, "ext_calendar", r#"{"id":"R"}"#)
         .expect("second resolve");
     spaces.sort();
-    assert_eq!(spaces, vec!["space_A".to_string(), "space_B".to_string()]);
+    assert_eq!(spaces, vec!["space_A".to_string()]);
     assert_eq!(lookup.cache_hits(), 1);
 }
 
@@ -236,4 +268,12 @@ fn resolve_extension_row_ignores_no_sync_suffix_targets() {
         .resolve(&conn, "haex_workspaces_no_sync", r#"{"id":"ws-1"}"#)
         .expect("resolve");
     assert!(spaces.is_empty());
+}
+
+#[test]
+fn system_target_policy_is_fail_closed_with_scoped_storage_exception() {
+    assert!(!is_register_target_forbidden("haex_s3_backends"));
+    assert!(is_register_target_forbidden("haex_future_private_table"));
+    assert!(is_register_target_forbidden("sqlite_sequence"));
+    assert!(is_register_target_forbidden("ext_cache_no_sync"));
 }

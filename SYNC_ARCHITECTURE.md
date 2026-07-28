@@ -21,7 +21,7 @@ Each CRDT-enabled table carries three runtime-added columns:
 |--------------------|------------------------------------------------------------------|
 | `haex_hlc`         | HLC timestamp of the most recent write to any column in this row |
 | `haex_column_hlcs` | JSON object `{columnName: hlc}` for per-column LWW decisions     |
-| `haex_column_sigs` | JSON object `{columnName: {spaceId: {authorDid, sig}}}` for per-(column, space) Ed25519 author signatures (ADR 0002 Phase 1) |
+| `haex_column_sigs` | JSON object `{columnName: {spaceId: {authorDid, sig, storageClass}}}` for per-(column, space) Ed25519 author signatures (ADR 0002 Phase 1) |
 
 Sync pushes work by scanning each dirty table for rows whose `haex_hlc` has
 advanced past `lastPushHlcTimestamp` and emitting one `ColumnChange` per

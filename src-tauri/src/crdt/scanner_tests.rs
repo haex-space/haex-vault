@@ -372,7 +372,8 @@ fn setup_scoped_test_db() -> Connection {
                 space_id TEXT NOT NULL,
                 data TEXT,
                 haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -381,10 +382,28 @@ fn setup_scoped_test_db() -> Connection {
 
 fn insert_scoped_row(conn: &Connection, id: &str, space_id: &str, data: &str, hlc: &str) {
     let hlcs = format!("{{\"space_id\":\"{hlc}\",\"data\":\"{hlc}\"}}");
+    let sigs = serde_json::json!({
+        "space_id": {
+            (space_id): {
+                "authorDid": "did:key:test",
+                "sig": "",
+                "storageClass": "text",
+            }
+        },
+        "data": {
+            (space_id): {
+                "authorDid": "did:key:test",
+                "sig": "",
+                "storageClass": "text",
+            }
+        },
+    })
+    .to_string();
     conn.execute(
-        "INSERT INTO scoped_items (id, space_id, data, haex_hlc, haex_column_hlcs)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![id, space_id, data, hlc, hlcs],
+        "INSERT INTO scoped_items
+             (id, space_id, data, haex_hlc, haex_column_hlcs, haex_column_sigs)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![id, space_id, data, hlc, hlcs, sigs],
     )
     .unwrap();
 }
@@ -426,6 +445,13 @@ fn test_scoped_filter_returns_only_matching_space() {
 
     // 2 matching rows × 2 data columns (space_id, data) = 4 changes.
     assert_eq!(changes.len(), 4);
+    assert!(changes.iter().all(|change| change.sig.is_some()));
+    assert!(
+        changes
+            .iter()
+            .all(|change| change.column_name != "haex_column_sigs"),
+        "signature metadata must never be emitted as user data"
+    );
 
     // No row from space-B may appear — this is the leak gate.
     for change in &changes {
@@ -478,7 +504,8 @@ fn scan_all_crdt_tables_for_owner_includes_vault_private_and_space_tables() {
                 space_id TEXT NOT NULL,
                 data TEXT,
                 haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();

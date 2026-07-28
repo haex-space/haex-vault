@@ -23,6 +23,7 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde::{Deserialize, Serialize};
 
+use super::limits::MAX_VALUE_BYTES_LEN;
 use super::verify::{verify_column_sig, VerifyColumnSigError};
 use crate::crdt::commands::apply::ColumnSig;
 
@@ -134,6 +135,15 @@ pub(crate) fn verify_column_sig_batch_inner(
     for change in changes {
         let row_key = compose_row_key(&change);
 
+        // Base64 expands by at most 4/3 plus padding. Reject before decoding
+        // so a hostile wire value cannot force an oversized allocation.
+        if change.value_bytes.len() > MAX_VALUE_BYTES_LEN * 4 / 3 + 4 {
+            rejected.push(RejectedRecord {
+                row_key,
+                reason: "ValueBytesTooLarge".to_string(),
+            });
+            continue;
+        }
         let value_bytes = match BASE64.decode(change.value_bytes.as_bytes()) {
             Ok(v) => v,
             Err(_) => {
@@ -145,6 +155,15 @@ pub(crate) fn verify_column_sig_batch_inner(
             }
         };
 
+        // An Ed25519 signature is exactly 64 bytes, hence at most 88 bytes
+        // in padded base64. Bound this allocation before decoding too.
+        if change.sig.sig.len() > 88 {
+            rejected.push(RejectedRecord {
+                row_key,
+                reason: "MalformedSignatureBytes".to_string(),
+            });
+            continue;
+        }
         let sig_bytes = match BASE64.decode(change.sig.sig.as_bytes()) {
             Ok(v) => v,
             Err(_) => {

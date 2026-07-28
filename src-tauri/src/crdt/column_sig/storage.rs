@@ -8,7 +8,8 @@
 //!   "<column_name>": {
 //!     "<space_id>": {
 //!       "authorDid": "did:key:z6M…",
-//!       "sig": "<base64-encoded 64-byte Ed25519 signature>"
+//!       "sig": "<base64-encoded 64-byte Ed25519 signature>",
+//!       "storageClass": "text"
 //!     }
 //!   }
 //! }
@@ -30,6 +31,7 @@
 //! `undefined` in TS / fails to deserialise in Rust — see
 //! [`AUTHOR_DID_KEY`]. Keep this key and the wire struct in lockstep.
 
+use crate::crdt::column_sig::value_bytes::StorageClass;
 use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rusqlite::{params_from_iter, types::ToSqlOutput, Connection, Error as RusqliteError, ToSql};
@@ -44,6 +46,8 @@ use tracing::warn;
 pub const AUTHOR_DID_KEY: &str = "authorDid";
 /// JSON key holding the base64 signature inside a stored sig record.
 pub const SIG_KEY: &str = "sig";
+/// JSON key holding the SQLite storage class covered by the signature.
+pub const STORAGE_CLASS_KEY: &str = "storageClass";
 
 /// A single per-column, per-space signature record.
 ///
@@ -52,6 +56,7 @@ pub const SIG_KEY: &str = "sig";
 pub struct SigRecord {
     pub author_did: String,
     pub sig: [u8; 64],
+    pub storage_class: StorageClass,
 }
 
 /// Merges a signature into the `haex_column_sigs` JSON column of the row
@@ -180,6 +185,12 @@ pub fn upsert_column_sigs(
         Value::String(sig.author_did.clone()),
     );
     entry.insert(SIG_KEY.to_string(), Value::String(BASE64.encode(sig.sig)));
+    entry.insert(
+        STORAGE_CLASS_KEY.to_string(),
+        serde_json::to_value(sig.storage_class).map_err(|e| {
+            RusqliteError::ToSqlConversionFailure(Box::new(std::io::Error::other(e.to_string())))
+        })?,
+    );
     column_map.insert(space_id.to_string(), Value::Object(entry));
 
     let new_raw = serde_json::to_string(&Value::Object(root)).map_err(|e| {

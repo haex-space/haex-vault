@@ -135,22 +135,14 @@ fn setup_sender() -> Sender {
         [],
     )
     .unwrap();
-    conn.execute(
-        "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id) \
-         VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params!["share-1", "ext_calendar", r#"{"id":"R"}"#, &space_id],
-    )
-    .unwrap();
-
-    // Grow the extension table into a CRDT-aware one so execute_with_crdt can
-    // sign into `haex_column_sigs`. Triggers must be installed too so per-
-    // column HLCs land in `haex_column_hlcs` — the receiver-side wire
-    // payload draws `hlc_timestamp` from that map, and the sig-preimage
-    // uses the same tx-HLC, so both must exist.
+    // Grow both tables into CRDT-aware ones. The register must be signed too:
+    // I2 deliberately ignores a mapping that was not authored by this vault.
     {
         let tx = conn.unchecked_transaction().unwrap();
         ensure_crdt_columns(&tx, "ext_calendar").unwrap();
         setup_triggers_for_table(&tx, "ext_calendar", true).unwrap();
+        ensure_crdt_columns(&tx, "haex_shared_space_sync").unwrap();
+        setup_triggers_for_table(&tx, "haex_shared_space_sync", true).unwrap();
         tx.commit().unwrap();
     }
     // The pre-seeded 'R' row was inserted before CRDT columns existed, so
@@ -167,6 +159,25 @@ fn setup_sender() -> Sender {
     cache.populate_all(&conn).expect("populate sender cache");
 
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+    let hlc_mutex = Mutex::new(hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-1".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"R"}"#.to_string()),
+            JsonValue::String(space_id.clone()),
+        ],
+        &db,
+        &hlc_guard,
+        &cache,
+    )
+    .expect("self-authored share mapping must succeed");
+    drop(hlc_guard);
+
     Sender {
         db,
         hlc,
@@ -216,7 +227,8 @@ fn setup_receiver() -> DbConnection {
              id TEXT PRIMARY KEY NOT NULL,
              title TEXT,
              haex_hlc TEXT,
-             haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}',
+             haex_column_sigs TEXT NOT NULL DEFAULT '{{}}'
          );",
         TABLE_CRDT_CONFIGS
     ))
@@ -233,7 +245,7 @@ fn extract_sig(
     row_id: &str,
     column: &str,
     space_id: &str,
-) -> (String, String) {
+) -> (String, String, String) {
     let guard = db.0.lock().unwrap();
     let conn = guard.as_ref().unwrap();
     let raw: String = conn
@@ -266,7 +278,12 @@ fn extract_sig(
         .and_then(|v| v.as_str())
         .unwrap_or_else(|| panic!("missing sig, space_entry={space_entry:?}"))
         .to_string();
-    (author_did, sig)
+    let storage_class = space_entry
+        .get("storageClass")
+        .and_then(|v| v.as_str())
+        .unwrap_or_else(|| panic!("missing storageClass, space_entry={space_entry:?}"))
+        .to_string();
+    (author_did, sig, storage_class)
 }
 
 /// Read (column_hlc, row_hlc) from a sender row. Both are populated by the
@@ -312,12 +329,13 @@ fn roundtrip_write_then_apply_verifies_and_creates_identity_stub() {
         .expect("sender UPDATE must succeed");
     }
 
-    let (author_did, sig_b64) =
+    let (author_did, sig_b64, storage_class) =
         extract_sig(&sender.db, "ext_calendar", "R", "title", &sender.space_id);
     assert_eq!(
         author_did, sender.signer_did,
         "sig.author_did must match sender's identity DID"
     );
+    assert_eq!(storage_class, "text");
     let column_hlc = read_column_hlc(&sender.db, "ext_calendar", "R", "title");
     assert!(
         !column_hlc.is_empty(),
@@ -344,6 +362,7 @@ fn roundtrip_write_then_apply_verifies_and_creates_identity_stub() {
         sig: Some(ColumnSig {
             author_did: author_did.clone(),
             sig: sig_b64.clone(),
+            storage_class: haex_vault_lib::crdt::column_sig::value_bytes::StorageClass::Text,
         }),
     };
     // ---- Receiver: apply ----------------------------------------------------
@@ -392,4 +411,20 @@ fn roundtrip_write_then_apply_verifies_and_creates_identity_stub() {
         total_identities, 1,
         "only the sender's stub identity may be present"
     );
+
+    // 4. The verified signature metadata lands alongside the value so this
+    // receiver can relay the change without re-signing it.
+    let receiver_sigs: String = conn
+        .query_row(
+            "SELECT haex_column_sigs FROM ext_calendar WHERE id = 'R'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("receiver must persist column signatures");
+    let receiver_sigs: JsonValue =
+        serde_json::from_str(&receiver_sigs).expect("receiver sig JSON must parse");
+    let landed_sig = &receiver_sigs["title"][&sender.space_id];
+    assert_eq!(landed_sig["authorDid"], author_did);
+    assert_eq!(landed_sig["sig"], sig_b64);
+    assert_eq!(landed_sig["storageClass"], storage_class);
 }

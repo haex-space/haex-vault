@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { ColumnInfo } from '@bindings/ColumnInfo'
 import type { DirtyTable } from '@bindings/DirtyTable'
 import { encryptCrdtData } from '@haex-space/vault-sdk'
+import type { SqliteStorageClass } from '~/utils/columnSigCanonical'
 import tableNames from '@/database/tableNames.json'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createLogger } from '@/stores/logging'
@@ -30,6 +31,7 @@ const log = createLogger('SYNC SCANNER')
 export interface ColumnSigWire {
   authorDid: string
   sig: string
+  storageClass: SqliteStorageClass
 }
 
 export interface ColumnChange {
@@ -216,6 +218,7 @@ async function processRowsToChangesAsync(
 
     // Get row-level HLC to use as fallback for columns without individual HLC
     const rowHlc = row[CRDT_COLUMNS.haexHlc] as string
+    let warnedUnsigned = false
 
     // For each data column, create a change entry if it has a newer HLC
     for (const col of dataColumns) {
@@ -236,6 +239,25 @@ async function processRowsToChangesAsync(
         !lastPushHlcTimestamp ||
         hlcIsNewer(hlcToUse, lastPushHlcTimestamp)
       ) {
+        // Shared-space changes fail closed: an unsigned value is not useful
+        // to any receiver and must not be encrypted or uploaded.
+        let sig: ColumnSigWire | undefined
+        if (opts.spaceId) {
+          sig = opts.hasColumnSigs
+            ? columnSigs[col.name]?.[opts.spaceId]
+            : undefined
+          if (!sig) {
+            if (!warnedUnsigned) {
+              log.warn(
+                `Skipping unsigned shared-space row ${tableName}/${pkJson} `
+                + `(space=${opts.spaceId})`,
+              )
+              warnedUnsigned = true
+            }
+            continue
+          }
+        }
+
         // Encrypt the column value (wrap in object for encryptCrdtDataAsync).
         // The canonical value bytes needed for column-sig verify are NOT
         // computed here — that would put plaintext on the wire and leak
@@ -248,22 +270,6 @@ async function processRowsToChangesAsync(
           valueObject as object,
           vaultKey,
         )
-
-        // Shared-space push: attach the (col, space) signature stored
-        // under this row's haex_column_sigs. Personal-vault sync has no
-        // spaceId and skips this — Phase 1 signs only for shared spaces.
-        // A row that lacks a sig entry (should not happen post-Runde 4
-        // F1 for a live write) is logged and left `sig: undefined`; the
-        // verifier on the receiving end will drop it as `Unsigned`.
-        let sig: ColumnSigWire | undefined
-        if (opts.spaceId && opts.hasColumnSigs) {
-          sig = columnSigs[col.name]?.[opts.spaceId]
-          if (!sig) {
-            log.warn(
-              `No column-sig for (${tableName}.${col.name}, space=${opts.spaceId}) — pushing without sig`,
-            )
-          }
-        }
 
         changes.push({
           tableName,
@@ -404,8 +410,23 @@ export async function scanTableForSpaceChangesAsync(
 
   // Check if this table has any assignments for this space
   const assignmentCheck = await invoke<unknown[][]>('sql_select', {
-    sql: 'SELECT 1 FROM "haex_shared_space_sync" WHERE "table_name" = ? AND "space_id" = ? LIMIT 1',
-    params: [tableName, spaceId],
+    sql: `SELECT 1
+          FROM "haex_shared_space_sync" a
+          JOIN "haex_space_members" m ON m."space_id" = a."space_id"
+          JOIN "haex_identities" i
+            ON i."id" = m."identity_id" AND i."private_key" IS NOT NULL
+          WHERE a."table_name" = ? AND a."space_id" = ?
+            AND json_extract(a."haex_column_sigs", ?) = i."did"
+            AND json_extract(a."haex_column_sigs", ?) = i."did"
+            AND json_extract(a."haex_column_sigs", ?) = i."did"
+          LIMIT 1`,
+    params: [
+      tableName,
+      spaceId,
+      `$.table_name.${spaceId}.authorDid`,
+      `$.row_pks.${spaceId}.authorDid`,
+      `$.space_id.${spaceId}.authorDid`,
+    ],
   })
 
   if (assignmentCheck.length === 0) {
@@ -435,9 +456,20 @@ export async function scanTableForSpaceChangesAsync(
   const query = `SELECT ${columnList} FROM "${tableName}" t `
     + `INNER JOIN "haex_shared_space_sync" a `
     + `ON a."table_name" = ? AND a."space_id" = ? AND a."row_pks" = ${jsonObjectExpr} `
-    + `WHERE 1=1 ${hlcFilter}`
+    + `INNER JOIN "haex_space_members" m ON m."space_id" = a."space_id" `
+    + `INNER JOIN "haex_identities" i `
+    + `ON i."id" = m."identity_id" AND i."private_key" IS NOT NULL `
+    + `WHERE json_extract(a."haex_column_sigs", ?) = i."did" `
+    + `AND json_extract(a."haex_column_sigs", ?) = i."did" `
+    + `AND json_extract(a."haex_column_sigs", ?) = i."did" ${hlcFilter}`
 
-  const params: unknown[] = [tableName, spaceId]
+  const params: unknown[] = [
+    tableName,
+    spaceId,
+    `$.table_name.${spaceId}.authorDid`,
+    `$.row_pks.${spaceId}.authorDid`,
+    `$.space_id.${spaceId}.authorDid`,
+  ]
   if (lastPushHlcTimestamp) {
     params.push(lastPushHlcTimestamp)
   }

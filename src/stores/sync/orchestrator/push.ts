@@ -16,7 +16,7 @@ import {
 } from '../tableScanner'
 import {
   SHARED_SPACE_BUILTIN_TABLES,
-  isBuiltinSharedSpaceTable,
+  isRegisterShareableTable,
 } from '../sharedSpaceScope'
 import { hlcIsNewer } from '@/utils/hlc'
 import { DidAuthAction } from '@haex-space/ucan'
@@ -176,11 +176,26 @@ export const pushToBackendAsync = async (
     let extensionTablesForSpace = new Set<string>()
     if (isSharedSpace) {
       const rows = await invoke<unknown[][]>('sql_select', {
-        sql: 'SELECT DISTINCT "table_name" FROM "haex_shared_space_sync" WHERE "space_id" = ?',
-        params: [backend.spaceId],
+        sql: `SELECT DISTINCT a."table_name"
+              FROM "haex_shared_space_sync" a
+              JOIN "haex_space_members" m ON m."space_id" = a."space_id"
+              JOIN "haex_identities" i
+                ON i."id" = m."identity_id" AND i."private_key" IS NOT NULL
+              WHERE a."space_id" = ?
+                AND json_extract(a."haex_column_sigs", ?) = i."did"
+                AND json_extract(a."haex_column_sigs", ?) = i."did"
+                AND json_extract(a."haex_column_sigs", ?) = i."did"`,
+        params: [
+          backend.spaceId,
+          `$.table_name.${backend.spaceId}.authorDid`,
+          `$.row_pks.${backend.spaceId}.authorDid`,
+          `$.space_id.${backend.spaceId}.authorDid`,
+        ],
       })
       extensionTablesForSpace = new Set(
-        rows.map((r) => String(r[0])).filter((name) => !isBuiltinSharedSpaceTable(name)),
+        rows
+          .map((r) => String(r[0]))
+          .filter(isRegisterShareableTable),
       )
     }
 
