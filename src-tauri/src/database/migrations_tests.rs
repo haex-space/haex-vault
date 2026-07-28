@@ -311,7 +311,9 @@ fn apply_migration_by_tag(conn: &Connection, tag_prefix: &str) {
                 .and_then(|n| n.to_str())
                 .is_some_and(|n| n.starts_with(tag_prefix) && n.ends_with(".sql"))
         })
-        .unwrap_or_else(|| panic!("migration with prefix '{tag_prefix}' must exist in {mig_dir:?}"));
+        .unwrap_or_else(|| {
+            panic!("migration with prefix '{tag_prefix}' must exist in {mig_dir:?}")
+        });
     let sql = std::fs::read_to_string(&sql_path).unwrap();
     for stmt in sql.split("--> statement-breakpoint") {
         let stmt = stmt.trim();
@@ -368,7 +370,10 @@ fn fresh_vault_shared_space_delete_log_receives_crdt_meta_via_transformer() {
             .unwrap_or_else(|e| panic!("apply failed for {transformed}\n{e:?}"));
     }
 
-    for table in ["haex_shared_space_deleted_rows", "haex_space_compaction_anchors"] {
+    for table in [
+        "haex_shared_space_deleted_rows",
+        "haex_space_compaction_anchors",
+    ] {
         let cols = pragma_column_names(&conn, table);
         assert!(
             cols.iter().any(|c| c == "haex_hlc"),
@@ -398,7 +403,10 @@ fn retrofit_ensure_crdt_columns_adds_meta_to_shared_space_delete_log() {
     ensure_crdt_columns(&tx, "haex_space_compaction_anchors").unwrap();
     tx.commit().unwrap();
 
-    for table in ["haex_shared_space_deleted_rows", "haex_space_compaction_anchors"] {
+    for table in [
+        "haex_shared_space_deleted_rows",
+        "haex_space_compaction_anchors",
+    ] {
         let cols = pragma_column_names(&conn, table);
         assert!(
             cols.iter().any(|c| c == "haex_hlc"),
