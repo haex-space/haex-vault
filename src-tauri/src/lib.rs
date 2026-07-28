@@ -7,7 +7,7 @@
 // across every test module.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
-mod crdt;
+pub mod crdt;
 pub mod critical;
 mod crypto;
 pub mod database;
