@@ -394,14 +394,17 @@ mod tests {
         vec![
             ColumnInfo {
                 name: "id".to_string(),
+                column_type: "TEXT".to_string(),
                 is_pk: true,
             },
             ColumnInfo {
                 name: "device_id".to_string(),
+                column_type: "TEXT".to_string(),
                 is_pk: false,
             },
             ColumnInfo {
                 name: "key".to_string(),
+                column_type: "TEXT".to_string(),
                 is_pk: false,
             },
         ]

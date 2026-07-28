@@ -99,6 +99,9 @@ pub enum TriggerSetupResult {
 #[serde(rename_all = "camelCase")]
 pub struct ColumnInfo {
     pub name: String,
+    #[serde(rename = "type")]
+    #[ts(rename = "type")]
+    pub column_type: String,
     pub is_pk: bool,
 }
 
@@ -106,6 +109,7 @@ impl ColumnInfo {
     pub fn from_row(row: &Row) -> RusqliteResult<Self> {
         Ok(ColumnInfo {
             name: row.get("name")?,
+            column_type: row.get("type")?,
             is_pk: row.get::<_, i64>("pk")? > 0,
         })
     }
