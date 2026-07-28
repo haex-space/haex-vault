@@ -95,15 +95,31 @@ const KEYS: Record<string, Key> = Object.fromEntries(
 //   - `src-tauri/src/crdt/column_sig/value_bytes.rs::to_canonical_bytes`
 //   - `src/utils/columnSigCanonical.ts::toCanonicalBytes`
 //
-// Storage-class → bytes:
-//   - NULL     → empty
-//   - INTEGER  → i64 big-endian, 8 bytes
-//   - REAL     → f64 big-endian IEEE-754 bits;
+// Layout: `storage_class_tag (1 byte) || native byte form`, tag values are
+// SQLite's own type codes (INTEGER=1, FLOAT=2, TEXT=3, BLOB=4, NULL=5).
+//   - NULL     → [NULL]
+//   - INTEGER  → [INTEGER] + i64 big-endian, 8 bytes
+//   - REAL     → [REAL] + f64 big-endian IEEE-754 bits;
 //                NaN → 0x7FF8_0000_0000_0000, -0.0 → +0.0
-//   - TEXT     → UTF-8 bytes verbatim (no Unicode normalisation)
-//   - BLOB     → bytes verbatim
+//   - TEXT     → [TEXT] + UTF-8 bytes verbatim (no Unicode normalisation)
+//   - BLOB     → [BLOB] + bytes verbatim
 // ---------------------------------------------------------------------------
 const CANONICAL_QUIET_NAN = 0x7ff8_0000_0000_0000n
+
+const STORAGE_CLASS_TAG = {
+  integer: 1,
+  real: 2,
+  text: 3,
+  blob: 4,
+  null: 5,
+} as const
+
+function tagged(tag: number, body: ArrayLike<number>): Uint8Array {
+  const out = new Uint8Array(1 + body.length)
+  out[0] = tag
+  out.set(body, 1)
+  return out
+}
 
 type StorageValue =
   | { kind: 'null' }
@@ -115,11 +131,11 @@ type StorageValue =
 function canonicalBytes(v: StorageValue): Uint8Array {
   switch (v.kind) {
     case 'null':
-      return new Uint8Array(0)
+      return new Uint8Array([STORAGE_CLASS_TAG.null])
     case 'integer': {
       const buf = new ArrayBuffer(8)
       new DataView(buf).setBigInt64(0, v.value, false)
-      return new Uint8Array(buf)
+      return tagged(STORAGE_CLASS_TAG.integer, new Uint8Array(buf))
     }
     case 'real': {
       const buf = new ArrayBuffer(8)
@@ -127,12 +143,12 @@ function canonicalBytes(v: StorageValue): Uint8Array {
       if (Number.isNaN(v.value)) view.setBigUint64(0, CANONICAL_QUIET_NAN, false)
       else if (v.value === 0) view.setBigUint64(0, 0n, false)
       else view.setFloat64(0, v.value, false)
-      return new Uint8Array(buf)
+      return tagged(STORAGE_CLASS_TAG.real, new Uint8Array(buf))
     }
     case 'text':
-      return new TextEncoder().encode(v.value)
+      return tagged(STORAGE_CLASS_TAG.text, new TextEncoder().encode(v.value))
     case 'blob':
-      return new Uint8Array(v.value)
+      return tagged(STORAGE_CLASS_TAG.blob, v.value)
   }
 }
 
@@ -504,6 +520,77 @@ function buildAllVectors(): Vector[] {
     fail('multi-space sigs collided — spaceId/authorDid missing from preimage?')
   }
 
+  // Same-signer space isolation. The pair above uses two DIFFERENT keys, so
+  // Ed25519 forces distinct signatures regardless of what the preimage
+  // contains — it cannot prove `space_id` is covered. This pair holds the
+  // signer (and every other field) fixed and varies ONLY `space_id`, so
+  // identical sigs here mean `space_id` fell out of the preimage.
+  const sameSignerSpaceA = buildValid({
+    name: 'same_signer_space_a_valid',
+    spaceId: PRIMARY_SPACE,
+    columnName: 'space_bound_col',
+    columnType: 'TEXT',
+    hlc: '7/aaaaaaaaaaaaaaaa',
+    signer: KEYS.primary!,
+    storage: sharedText,
+  })
+  const sameSignerSpaceB = buildValid({
+    name: 'same_signer_space_b_valid',
+    spaceId: SECONDARY_SPACE,
+    columnName: 'space_bound_col',
+    columnType: 'TEXT',
+    hlc: '7/aaaaaaaaaaaaaaaa',
+    signer: KEYS.primary!,
+    storage: sharedText,
+  })
+  if (sameSignerSpaceA.sig === sameSignerSpaceB.sig) {
+    fail('same-signer space-only vectors collided — spaceId missing from preimage')
+  }
+
+  // Storage-class isolation. NULL, TEXT('') and BLOB([]) have empty bodies,
+  // so before the storage-class tag they shared one preimage and a signature
+  // over any of them verified against the other two. Same signer, same
+  // coordinates, only the storage class differs — distinct sigs prove the
+  // tag reached the preimage.
+  const emptyText = buildValid({
+    name: 'empty_text_valid',
+    spaceId: PRIMARY_SPACE,
+    columnName: 'class_probe',
+    columnType: 'TEXT',
+    hlc: '8/aaaaaaaaaaaaaaaa',
+    signer: KEYS.primary!,
+    storage: { kind: 'text', value: '' },
+  })
+  const emptyBlob = buildValid({
+    name: 'empty_blob_valid',
+    spaceId: PRIMARY_SPACE,
+    columnName: 'class_probe',
+    columnType: 'BLOB',
+    hlc: '8/aaaaaaaaaaaaaaaa',
+    signer: KEYS.primary!,
+    storage: { kind: 'blob', value: new Uint8Array(0) },
+  })
+  const nullProbe = buildValid({
+    name: 'null_class_probe_valid',
+    spaceId: PRIMARY_SPACE,
+    columnName: 'class_probe',
+    columnType: 'TEXT',
+    hlc: '8/aaaaaaaaaaaaaaaa',
+    signer: KEYS.primary!,
+    storage: { kind: 'null' },
+  })
+  const classProbes = [emptyText, emptyBlob, nullProbe]
+  for (let i = 0; i < classProbes.length; i++) {
+    for (let j = i + 1; j < classProbes.length; j++) {
+      if (classProbes[i]!.sig === classProbes[j]!.sig) {
+        fail(
+          `${classProbes[i]!.name} and ${classProbes[j]!.name} collided — `
+            + 'storage-class tag missing from canonical bytes',
+        )
+      }
+    }
+  }
+
   return [
     nullVec,
     integerVec,
@@ -515,6 +602,11 @@ function buildAllVectors(): Vector[] {
     rejectWrongDid,
     multiSpaceA,
     multiSpaceB,
+    sameSignerSpaceA,
+    sameSignerSpaceB,
+    emptyText,
+    emptyBlob,
+    nullProbe,
   ]
 }
 
@@ -523,8 +615,8 @@ function buildAllVectors(): Vector[] {
 // ---------------------------------------------------------------------------
 function main(): void {
   const vectors = buildAllVectors()
-  if (vectors.length !== 10) {
-    fail(`expected 10 vectors, got ${vectors.length}`)
+  if (vectors.length !== 15) {
+    fail(`expected 15 vectors, got ${vectors.length}`)
   }
   selfVerify(vectors)
 
@@ -536,6 +628,8 @@ function main(): void {
       'Every valid vector rebuilds preimage from (spaceId, tableName, rowPks,',
       'columnName, hlc, authorDid, valueBytes) via the domain-separated',
       'length-prefixed layout of `preimage.rs::build_preimage`.',
+      'valueBytes carry a leading SQLite storage-class tag byte',
+      '(INTEGER=1, REAL=2, TEXT=3, BLOB=4, NULL=5).',
       'Reject vectors are ok-vectors with one field or the sig bit-flipped;',
       'all three converge to `VerifyColumnSigError::InvalidSignature` in Rust.',
       'Regenerate via `pnpm run gen:column-sig-vectors`; output is deterministic.',

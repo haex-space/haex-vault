@@ -72,6 +72,11 @@ impl HlcService {
     /// items because they compile as a separate crate. Dropping the gate is
     /// the smallest surface change; the `_for_testing` suffix and doc
     /// comment continue to signal the production/test boundary.
+    ///
+    /// Because it is no longer `#[cfg(test)]`, this function is part of the
+    /// production lib build and must satisfy the crate's
+    /// `-D clippy::unwrap-used` policy — hence the explicit fallback below
+    /// rather than an `unwrap()`.
     pub fn new_for_testing(device_id: &str) -> Self {
         use uhlc::{HLCBuilder, ID};
         use uuid::Uuid;
@@ -91,8 +96,13 @@ impl HlcService {
         )
         .unwrap_or_else(|_| Uuid::new_v4());
 
-        let node_id = ID::try_from(*uuid.as_bytes()).unwrap();
-        let hlc = HLCBuilder::new().with_id(node_id).build();
+        // `ID::try_from` rejects an all-zero byte array (uhlc IDs must be
+        // non-zero), which a pathological `device_id` could produce. Fall back
+        // to `HLCBuilder`'s default, which seeds a random `ID::rand()`.
+        let hlc = match ID::try_from(*uuid.as_bytes()) {
+            Ok(node_id) => HLCBuilder::new().with_id(node_id).build(),
+            Err(_) => HLCBuilder::new().build(),
+        };
 
         HlcService {
             hlc: Arc::new(Mutex::new(Some(hlc))),

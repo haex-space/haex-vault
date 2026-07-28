@@ -6,13 +6,18 @@
  * breaks the sig chain across languages. Runde 8 §I locks it down with a
  * cross-language fixture; until then callers depend on the mirroring below.
  *
- * SQLite storage class → bytes:
- *   - NULL     → empty
- *   - INTEGER  → i64 big-endian, 8 bytes
- *   - REAL     → f64 big-endian IEEE-754 bits, NaN → canonical quiet-NaN
- *                (`0x7FF8_0000_0000_0000`), -0.0 normalised to +0.0
- *   - TEXT     → UTF-8 bytes verbatim (no Unicode normalisation)
- *   - BLOB     → bytes verbatim
+ * Layout: `storage_class_tag (1 byte) || native byte form`.
+ *   - NULL     → `[NULL]`
+ *   - INTEGER  → `[INTEGER]` + i64 big-endian, 8 bytes
+ *   - REAL     → `[REAL]` + f64 big-endian IEEE-754 bits, NaN → canonical
+ *                quiet-NaN (`0x7FF8_0000_0000_0000`), -0.0 → +0.0
+ *   - TEXT     → `[TEXT]` + UTF-8 bytes verbatim (no Unicode normalisation)
+ *   - BLOB     → `[BLOB]` + bytes verbatim
+ *
+ * The tag makes each storage class a distinct preimage. Without it `NULL`,
+ * `TEXT('')` and `BLOB([])` all encode to the same empty byte string, so a
+ * signature captured over one verifies against the others — see the Rust
+ * doc comment for the full replay argument.
  *
  * Tauri IPC flattens SQL Integer and SQL Real to the same JS `number`, so
  * storage class cannot be recovered from the arrived value. We drive
@@ -20,9 +25,36 @@
  * instead — which matches Rust's `Value` discriminator because CRDT columns
  * are written via `execute_with_crdt` and SQLite honours affinity → storage
  * class on ingest.
+ *
+ * That inference is not total: SQLite permits any storage class in any
+ * column (e.g. a non-numeric string stored in an INTEGER-affinity column
+ * stays TEXT). Such a row diverges from the signer's class and now fails
+ * verification loudly instead of being accepted against a substituted
+ * preimage. Restricting signed columns to non-lossy affinity mappings, or
+ * carrying the class explicitly, is Phase-3 work.
  */
 
 const CANONICAL_QUIET_NAN = 0x7ff8_0000_0000_0000n
+
+/**
+ * Storage-class tags. MUST match
+ * `src-tauri/src/crdt/column_sig/value_bytes.rs::tag` — the values are
+ * SQLite's own `SQLITE_*` type codes.
+ */
+export const STORAGE_CLASS_TAG = {
+  INTEGER: 1,
+  REAL: 2,
+  TEXT: 3,
+  BLOB: 4,
+  NULL: 5,
+} as const
+
+function tagged(tag: number, body: ArrayLike<number>): Uint8Array {
+  const out = new Uint8Array(1 + body.length)
+  out[0] = tag
+  out.set(body, 1)
+  return out
+}
 
 type Affinity = 'INTEGER' | 'REAL' | 'TEXT' | 'BLOB' | 'NUMERIC'
 
@@ -43,7 +75,7 @@ export function affinityOf(columnType: string): Affinity {
 function encodeI64BE(n: bigint): Uint8Array {
   const buf = new ArrayBuffer(8)
   new DataView(buf).setBigInt64(0, n, false)
-  return new Uint8Array(buf)
+  return tagged(STORAGE_CLASS_TAG.INTEGER, new Uint8Array(buf))
 }
 
 function encodeF64BE(n: number): Uint8Array {
@@ -57,7 +89,37 @@ function encodeF64BE(n: number): Uint8Array {
   } else {
     view.setFloat64(0, n, false)
   }
-  return new Uint8Array(buf)
+  return tagged(STORAGE_CLASS_TAG.REAL, new Uint8Array(buf))
+}
+
+/**
+ * `BigInt(x)` rejects non-integral and non-numeric input with `RangeError`
+ * (`Infinity`, `NaN`) or `SyntaxError` (a non-numeric string) rather than
+ * the `TypeError` every other branch of `toCanonicalBytes` throws. Callers
+ * catch on a single error type to drop one change, so funnel all three into
+ * `TypeError` — otherwise an odd value escapes as an unhandled rejection and
+ * aborts the whole pull transaction instead of costing one change.
+ */
+function toI64(value: bigint | number | string, source: string): bigint {
+  try {
+    if (typeof value === 'bigint') return value
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) {
+        throw new TypeError(
+          `toCanonicalBytes: ${source} value ${String(value)} is not a finite number`,
+        )
+      }
+      return BigInt(Math.trunc(value))
+    }
+    return BigInt(value.trim())
+  } catch (err) {
+    if (err instanceof TypeError) throw err
+    throw new TypeError(
+      `toCanonicalBytes: ${source} value ${JSON.stringify(value)} is not an integer (${
+        err instanceof Error ? err.message : String(err)
+      })`,
+    )
+  }
 }
 
 /**
@@ -66,42 +128,57 @@ function encodeF64BE(n: number): Uint8Array {
  * type from `getTableSchemaAsync` — its affinity drives the discriminator.
  */
 export function toCanonicalBytes(value: unknown, columnType: string): Uint8Array {
-  if (value === null || value === undefined) return new Uint8Array(0)
+  if (value === null || value === undefined) {
+    return new Uint8Array([STORAGE_CLASS_TAG.NULL])
+  }
 
   const affinity = affinityOf(columnType)
 
   if (affinity === 'INTEGER') {
-    if (typeof value === 'bigint') return encodeI64BE(value)
-    if (typeof value === 'number') return encodeI64BE(BigInt(Math.trunc(value)))
     if (typeof value === 'boolean') return encodeI64BE(value ? 1n : 0n)
-    if (typeof value === 'string') return encodeI64BE(BigInt(value))
+    if (typeof value === 'bigint' || typeof value === 'number' || typeof value === 'string') {
+      return encodeI64BE(toI64(value, 'INTEGER'))
+    }
     throw new TypeError(`toCanonicalBytes: unsupported INTEGER value type ${typeof value}`)
   }
 
   if (affinity === 'REAL') {
     if (typeof value === 'number') return encodeF64BE(value)
     if (typeof value === 'bigint') return encodeF64BE(Number(value))
-    if (typeof value === 'string') return encodeF64BE(Number.parseFloat(value))
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value)
+      if (Number.isNaN(parsed) && value.trim().toLowerCase() !== 'nan') {
+        throw new TypeError(
+          `toCanonicalBytes: REAL value ${JSON.stringify(value)} is not a number`,
+        )
+      }
+      return encodeF64BE(parsed)
+    }
     throw new TypeError(`toCanonicalBytes: unsupported REAL value type ${typeof value}`)
   }
 
   if (affinity === 'BLOB') {
-    if (value instanceof Uint8Array) return new Uint8Array(value)
+    if (value instanceof Uint8Array) return tagged(STORAGE_CLASS_TAG.BLOB, value)
     if (Array.isArray(value)) {
       // `Uint8Array.from(array)` silently coerces out-of-range or non-integer
       // entries (-1 → 255, 300 → 44, 1.7 → 1). Rust's `Value::Blob(Vec<u8>)`
       // carries verbatim bytes, so a silent coercion here would diverge the
       // preimage across languages. Validate per entry and throw explicitly.
-      return Uint8Array.from(value as unknown[], (v) => {
-        if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 255) {
-          throw new TypeError(
-            `toCanonicalBytes: BLOB entry ${JSON.stringify(v)} is not a byte (0..=255 integer)`,
-          )
-        }
-        return v
-      })
+      return tagged(
+        STORAGE_CLASS_TAG.BLOB,
+        Uint8Array.from(value as unknown[], (v) => {
+          if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 255) {
+            throw new TypeError(
+              `toCanonicalBytes: BLOB entry ${JSON.stringify(v)} is not a byte (0..=255 integer)`,
+            )
+          }
+          return v
+        }),
+      )
     }
-    if (typeof value === 'string') return new TextEncoder().encode(value)
+    if (typeof value === 'string') {
+      return tagged(STORAGE_CLASS_TAG.BLOB, new TextEncoder().encode(value))
+    }
     throw new TypeError(`toCanonicalBytes: unsupported BLOB value type ${typeof value}`)
   }
 
@@ -109,7 +186,7 @@ export function toCanonicalBytes(value: unknown, columnType: string): Uint8Array
   // value isn't obviously a number, and CRDT rows never store literal
   // number blobs under NUMERIC columns in practice).
   const asText = typeof value === 'string' ? value : String(value)
-  return new TextEncoder().encode(asText)
+  return tagged(STORAGE_CLASS_TAG.TEXT, new TextEncoder().encode(asText))
 }
 
 /**

@@ -608,15 +608,26 @@ export const applyRemoteChangesInTransactionAsync = async (
     const sigChanges: ColumnSigChangeWire[] = []
     const sigDropped: Array<{ rowKey: string; reason: string }> = []
     for (const c of applicableForSig) {
+      const rowKey = `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`
       const columnType = await resolveColumnType(c.tableName, c.columnName)
       if (!columnType) {
         // Local schema drift — the column no longer exists in the
         // receiving schema. Drop the change with a synthetic reason
         // rather than send a mismatched preimage to Rust.
-        sigDropped.push({
-          rowKey: `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`,
-          reason: 'MissingResult',
-        })
+        sigDropped.push({ rowKey, reason: 'MissingResult' })
+        continue
+      }
+      // A decrypted value that cannot be canonicalised (wrong JS type for the
+      // column's affinity, a non-byte entry in a blob array, a non-numeric
+      // string in an INTEGER column) is one bad change, not a bad batch.
+      // Letting `toCanonicalBase64` throw here would reject the whole pull
+      // transaction and wedge the cursor behind it.
+      let valueBytes: string
+      try {
+        valueBytes = toCanonicalBase64(c.decryptedValue, columnType)
+      } catch (err) {
+        log.warn(`canonicalisation failed for ${rowKey}:`, err)
+        sigDropped.push({ rowKey, reason: 'MalformedValueBytes' })
         continue
       }
       sigChanges.push({
@@ -624,7 +635,7 @@ export const applyRemoteChangesInTransactionAsync = async (
         rowPks: c.rowPks,
         columnName: c.columnName,
         hlcTimestamp: c.hlcTimestamp,
-        valueBytes: toCanonicalBase64(c.decryptedValue, columnType),
+        valueBytes,
         sig: c.sig!,
       })
     }
@@ -677,6 +688,10 @@ export const applyRemoteChangesInTransactionAsync = async (
       changes: applyPayload,
       backendId,
       maxHlc,
+      // Pull scope. Rust needs it to anchor column-sig verification for rows
+      // that do not exist locally yet; without it the only available anchor
+      // would be the batch's own (unauthenticated) `space_id` column change.
+      spaceId: spaceId ?? null,
     })
     const rustTime = (performance.now() - rustStartTime) / 1000
     log.info(`[PERF] Rust command completed in ${rustTime.toFixed(1)}s`)

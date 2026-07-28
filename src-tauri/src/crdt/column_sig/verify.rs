@@ -1,7 +1,7 @@
 use super::limits::MAX_VALUE_BYTES_LEN;
 use super::preimage::build_preimage;
 use crate::ucan::verify::public_key_from_did;
-use ed25519_dalek::{Signature, Verifier};
+use ed25519_dalek::Signature;
 
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyColumnSigError {
@@ -45,8 +45,14 @@ pub fn verify_column_sig(
         author_did.as_bytes(),
         value_bytes,
     );
+    // `verify_strict`, not `verify`: the permissive RFC-8032 path accepts
+    // small-order (weak) public keys and small-order signature R components,
+    // which allow forging a signature that validates against almost any
+    // message. This signature IS the authorship binding for shared-space row
+    // changes, so a weak-key forgery is a direct impersonation. Strict
+    // verification rejects both cases.
     verifying
-        .verify(&preimage, &sig)
+        .verify_strict(&preimage, &sig)
         .map_err(|_| VerifyColumnSigError::InvalidSignature)?;
     Ok(())
 }

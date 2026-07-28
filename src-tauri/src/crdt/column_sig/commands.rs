@@ -182,7 +182,18 @@ pub(crate) fn verify_column_sig_batch_inner(
 /// Never errors on verification failure — bad changes populate
 /// `rejected` with a stable reason string. Pure crypto, no DB access,
 /// so no infrastructure failure mode exists today.
+///
+/// `async` + `spawn_blocking` is deliberate. A synchronous `#[tauri::command]`
+/// runs on the main thread, and a single pull page can carry hundreds of
+/// changes — each a full Ed25519 verify over a domain-separated preimage.
+/// That is enough CPU to visibly stall the UI, and `async` alone would only
+/// move the stall onto a Tokio worker (blocking other async tasks instead).
+/// `spawn_blocking` puts it on the dedicated blocking pool.
 #[tauri::command]
-pub fn verify_column_sig_batch(input: VerifyColumnSigBatchInput) -> VerifyColumnSigBatchOutput {
-    verify_column_sig_batch_inner(input)
+pub async fn verify_column_sig_batch(
+    input: VerifyColumnSigBatchInput,
+) -> Result<VerifyColumnSigBatchOutput, String> {
+    tauri::async_runtime::spawn_blocking(move || verify_column_sig_batch_inner(input))
+        .await
+        .map_err(|e| format!("verify_column_sig_batch join error: {e}"))
 }

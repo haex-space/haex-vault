@@ -1,5 +1,5 @@
 {
-  "_readme": "Cross-language column-sig verification fixture (Phase 1, Task I1). Consumed by Rust `src-tauri/tests/column_sig_vectors.rs` (I2) and TS `src/tests/sync/column-sig-vectors.test.ts` (I3). Every valid vector rebuilds preimage from (spaceId, tableName, rowPks, columnName, hlc, authorDid, valueBytes) via the domain-separated length-prefixed layout of `preimage.rs::build_preimage`. Reject vectors are ok-vectors with one field or the sig bit-flipped; all three converge to `VerifyColumnSigError::InvalidSignature` in Rust. Regenerate via `pnpm run gen:column-sig-vectors`; output is deterministic.",
+  "_readme": "Cross-language column-sig verification fixture (Phase 1, Task I1). Consumed by Rust `src-tauri/tests/column_sig_vectors.rs` (I2) and TS `src/tests/sync/column-sig-vectors.test.ts` (I3). Every valid vector rebuilds preimage from (spaceId, tableName, rowPks, columnName, hlc, authorDid, valueBytes) via the domain-separated length-prefixed layout of `preimage.rs::build_preimage`. valueBytes carry a leading SQLite storage-class tag byte (INTEGER=1, REAL=2, TEXT=3, BLOB=4, NULL=5). Reject vectors are ok-vectors with one field or the sig bit-flipped; all three converge to `VerifyColumnSigError::InvalidSignature` in Rust. Regenerate via `pnpm run gen:column-sig-vectors`; output is deterministic.",
   "domain_tag": "haex/space-col-sig/v1",
   "primary_space": "spc_A_TEST_ONLY_NEVER_PROD",
   "secondary_space": "spc_B_TEST_ONLY_NEVER_PROD",
@@ -16,8 +16,8 @@
       "hlc": "1/aaaaaaaaaaaaaaaa",
       "authorDid": "did:key:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
       "value": null,
-      "valueBytes": "",
-      "sig": "lKOeank/FkXgF2YLw4p9Akcyxnzk8DFtp/8DGtGdELY6WKeCobS5KN1Z8DtCwLD7zAaKrBTLThZNtHaV+3MyCw==",
+      "valueBytes": "BQ==",
+      "sig": "u9rHnMIXoj8fJcyh0lcjFMDAZAVSn+Ewz2THKZ/CL0giL1gBqH3dHqz5EbcbvAgaP+W1SWNemJG+ZuUS/lWADA==",
       "expected": "verify_ok"
     },
     {
@@ -32,8 +32,8 @@
       "value": {
         "integer": "-1"
       },
-      "valueBytes": "//////////8=",
-      "sig": "LfFwqXQtHZ+MDKx7h4l1gQTy12Zyy8bbpE9OweVs4WnxmGDPwqpjydf8MYqRcyZ1xWIeby8Y0UkWN524FnUwAQ==",
+      "valueBytes": "Af//////////",
+      "sig": "zBJ7mPEFqwGb7tESLAWGpz/sGK7XEBYdAkhCcinUGFAYZrJRv5Xwe7F6aiwHd0kcmPc4WfJGfOFWYfuC/ZjNCA==",
       "expected": "verify_ok"
     },
     {
@@ -48,8 +48,8 @@
       "value": {
         "realNaN": true
       },
-      "valueBytes": "f/gAAAAAAAA=",
-      "sig": "YRAFxR6QwP4pK5GOoWr0UH8XeDTVQRTeFkxdWX7kx85H0212AtZf7M0lfW7VTekv0WJ3JZSVXMvoVKxGQkqvCQ==",
+      "valueBytes": "An/4AAAAAAAA",
+      "sig": "bGoA0PaVFkkXWtzgtQOeDDKLCx3YQRaxPGegdu2GrH+0cuzutEal4WkbeIlwJu+pWHc8WV5vQivoL1L1d1kGBQ==",
       "expected": "verify_ok"
     },
     {
@@ -64,8 +64,8 @@
       "value": {
         "text": "ä"
       },
-      "valueBytes": "w6Q=",
-      "sig": "aXNJ5jFQ8eih/yLyoe0P89TJeDHJhy1Zbmm8OnoEGDsARY7QoH+YCA3w4z20JXb2sd/OUsWZFbP5j6cuNs24DA==",
+      "valueBytes": "A8Ok",
+      "sig": "Re2g7pwr7aZ3KyHHIP8J/xwqpEmwYXLKf7CZ8OsmY+kA+TidHh9585ft29WRy7dmqt6AtyZouu86qm0g3zPXBg==",
       "expected": "verify_ok"
     },
     {
@@ -113,8 +113,8 @@
           47
         ]
       },
-      "valueBytes": "EBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8=",
-      "sig": "2SGqHrl/Xy6GnRV2A5r78gP2Hzfuh2R6CZbRK6022OwlmF3gE4EnKjXfQQAGmhbuaP3dABZPYpLs98KWg6XfCQ==",
+      "valueBytes": "BBAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4v",
+      "sig": "e8OJwf4x/C93o2vfzuc4SNkd7YIUKwMffYHllBSPoHmcpuup+0bH9stiQqt1Uaz0/GKJ72U2FIFztVHCmuYLDw==",
       "expected": "verify_ok"
     },
     {
@@ -129,8 +129,8 @@
       "value": {
         "text": "ä"
       },
-      "valueBytes": "w6Q=",
-      "sig": "aXNJ5jFQ8eih/yPyoe0P89TJeDHJhy1Zbmm8OnoEGDsARY7QoH+YCA3w4z20JXb2sd/OUsWZFbP5j6cuNs24DA==",
+      "valueBytes": "A8Ok",
+      "sig": "Re2g7pwr7aZ3KyDHIP8J/xwqpEmwYXLKf7CZ8OsmY+kA+TidHh9585ft29WRy7dmqt6AtyZouu86qm0g3zPXBg==",
       "expected": "verify_rejected_sig"
     },
     {
@@ -145,8 +145,8 @@
       "value": {
         "text": "ä"
       },
-      "valueBytes": "w6Q=",
-      "sig": "aXNJ5jFQ8eih/yLyoe0P89TJeDHJhy1Zbmm8OnoEGDsARY7QoH+YCA3w4z20JXb2sd/OUsWZFbP5j6cuNs24DA==",
+      "valueBytes": "A8Ok",
+      "sig": "Re2g7pwr7aZ3KyHHIP8J/xwqpEmwYXLKf7CZ8OsmY+kA+TidHh9585ft29WRy7dmqt6AtyZouu86qm0g3zPXBg==",
       "expected": "verify_rejected_wrong_space"
     },
     {
@@ -161,8 +161,8 @@
       "value": {
         "text": "ä"
       },
-      "valueBytes": "w6Q=",
-      "sig": "aXNJ5jFQ8eih/yLyoe0P89TJeDHJhy1Zbmm8OnoEGDsARY7QoH+YCA3w4z20JXb2sd/OUsWZFbP5j6cuNs24DA==",
+      "valueBytes": "A8Ok",
+      "sig": "Re2g7pwr7aZ3KyHHIP8J/xwqpEmwYXLKf7CZ8OsmY+kA+TidHh9585ft29WRy7dmqt6AtyZouu86qm0g3zPXBg==",
       "expected": "verify_rejected_wrong_did"
     },
     {
@@ -177,8 +177,8 @@
       "value": {
         "text": "shared-value"
       },
-      "valueBytes": "c2hhcmVkLXZhbHVl",
-      "sig": "5da7KEWqTiRGrGG4k64T9bYKANnm4/vgY6+heToKrMNBCM2W96mWt6qXM23GGlhDH7VH2QHTsOU0tY7/Nj/tCg==",
+      "valueBytes": "A3NoYXJlZC12YWx1ZQ==",
+      "sig": "Z5goyD7mIBIB4h8lJoQIU4akwhqoCsDTnvWkJwhEzMD0dyocGhO/wvqK4OXpmmEPur8fFw5K7e7dWVihHEh7AQ==",
       "expected": "verify_ok"
     },
     {
@@ -193,8 +193,86 @@
       "value": {
         "text": "shared-value"
       },
-      "valueBytes": "c2hhcmVkLXZhbHVl",
-      "sig": "4SZhDWy3G4+RTi/Xrb4IC04dROF0CU6FfiFexYItZhm0W2V1XJEUpE0rDL1PYP3XaWMNE4bPAAD7m4Hl+/SsBg==",
+      "valueBytes": "A3NoYXJlZC12YWx1ZQ==",
+      "sig": "wbm4BwkJtjI+6WYckuIywWAbuz5s97/zRjXOCXXgfjLvtpBA3fMUwDcyRCiCU+UfjCW81Hmh8LGMVCiwNEBRAA==",
+      "expected": "verify_ok"
+    },
+    {
+      "name": "same_signer_space_a_valid",
+      "spaceId": "spc_A_TEST_ONLY_NEVER_PROD",
+      "tableName": "devices",
+      "rowPks": "{\"id\":\"dev-1\"}",
+      "columnName": "space_bound_col",
+      "columnType": "TEXT",
+      "hlc": "7/aaaaaaaaaaaaaaaa",
+      "authorDid": "did:key:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+      "value": {
+        "text": "shared-value"
+      },
+      "valueBytes": "A3NoYXJlZC12YWx1ZQ==",
+      "sig": "EzDMApHoNFXWmAZiM0rsZT9t5tW+EjLBSWOH2JViBeJgUAT+G6DRqXA2Rm3QRfml1QLyrHY84c2Sa867gDCxCg==",
+      "expected": "verify_ok"
+    },
+    {
+      "name": "same_signer_space_b_valid",
+      "spaceId": "spc_B_TEST_ONLY_NEVER_PROD",
+      "tableName": "devices",
+      "rowPks": "{\"id\":\"dev-1\"}",
+      "columnName": "space_bound_col",
+      "columnType": "TEXT",
+      "hlc": "7/aaaaaaaaaaaaaaaa",
+      "authorDid": "did:key:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+      "value": {
+        "text": "shared-value"
+      },
+      "valueBytes": "A3NoYXJlZC12YWx1ZQ==",
+      "sig": "AAzQJ9/DcTU8UESWmCJvPXJC0cJzLldnjPKPTysb2rpTJv0X7pM/4TZRegpRVzqYm2tFkU/Pda5yyn5PDHP6BA==",
+      "expected": "verify_ok"
+    },
+    {
+      "name": "empty_text_valid",
+      "spaceId": "spc_A_TEST_ONLY_NEVER_PROD",
+      "tableName": "devices",
+      "rowPks": "{\"id\":\"dev-1\"}",
+      "columnName": "class_probe",
+      "columnType": "TEXT",
+      "hlc": "8/aaaaaaaaaaaaaaaa",
+      "authorDid": "did:key:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+      "value": {
+        "text": ""
+      },
+      "valueBytes": "Aw==",
+      "sig": "g0X/rwrCr4b0L1+8PBDYDXK/j5x5AVajk/LMavN2Zvxt6NDbApjViX3ytuv6mTwpHZKZKUkpAoEe61RaVVFkCw==",
+      "expected": "verify_ok"
+    },
+    {
+      "name": "empty_blob_valid",
+      "spaceId": "spc_A_TEST_ONLY_NEVER_PROD",
+      "tableName": "devices",
+      "rowPks": "{\"id\":\"dev-1\"}",
+      "columnName": "class_probe",
+      "columnType": "BLOB",
+      "hlc": "8/aaaaaaaaaaaaaaaa",
+      "authorDid": "did:key:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+      "value": {
+        "blob": []
+      },
+      "valueBytes": "BA==",
+      "sig": "qGaWJRLhIPo4zRpMCVl6z83PL84F1HTjgf87uytHUDTZFCgWcd5cIySq4NriqoGkTuf9fEADeWmegzgPXcW+Dg==",
+      "expected": "verify_ok"
+    },
+    {
+      "name": "null_class_probe_valid",
+      "spaceId": "spc_A_TEST_ONLY_NEVER_PROD",
+      "tableName": "devices",
+      "rowPks": "{\"id\":\"dev-1\"}",
+      "columnName": "class_probe",
+      "columnType": "TEXT",
+      "hlc": "8/aaaaaaaaaaaaaaaa",
+      "authorDid": "did:key:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+      "value": null,
+      "valueBytes": "BQ==",
+      "sig": "zDpMF4eRG4ISuacGwU6H5CSUDc/FBDzeX2sTHvoruacD0IZ6Gvy97pjKQWfqHKT/Z/bh74uMXrU2LVOLn1HECg==",
       "expected": "verify_ok"
     }
   ]

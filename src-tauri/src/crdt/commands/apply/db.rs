@@ -40,9 +40,17 @@ use super::types::{ColumnSig, RemoteColumnChange};
 /// a **valid** column signature (Runde 5 sig-verifier plumbing). Invalid
 /// or missing sigs must NOT create a stub — that would let a peer flood
 /// `haex_identities` with attacker-picked DIDs.
+///
+/// `name` is written explicitly (with the DID as the placeholder label)
+/// because the column is `TEXT NOT NULL` with **no default**: omitting it
+/// makes SQLite raise a NOT NULL constraint violation that `OR IGNORE`
+/// then swallows, so the stub is silently never created and the FK it was
+/// meant to satisfy still dangles. `source` relies on its schema default
+/// (`'contact'`), which is the correct provenance for a DID we only know
+/// from an inbound signature.
 fn ensure_identity_stub(tx: &Transaction, did: &str) -> Result<(), DatabaseError> {
     tx.execute(
-        "INSERT OR IGNORE INTO haex_identities (id, did) VALUES (?1, ?1)",
+        "INSERT OR IGNORE INTO haex_identities (id, did, name) VALUES (?1, ?1, ?1)",
         [did],
     )
     .map_err(DatabaseError::from)?;
@@ -50,18 +58,29 @@ fn ensure_identity_stub(tx: &Transaction, did: &str) -> Result<(), DatabaseError
 }
 
 /// Compute the `space_id` that a column-sig on this row must have been
-/// signed under. Two sources, in order:
+/// signed under.
 ///
-///   1. An explicit `space_id` column change in the same row-group (the
-///      INSERT path — the row is arriving with its space_id column value).
-///   2. The row's persisted `space_id` column, read straight from the
-///      target table (the UPDATE path).
+/// **The locally persisted `space_id` always wins.** The batch-supplied
+/// `space_id` column change is only consulted when the row does not exist
+/// locally yet (the INSERT path), and even then only if it agrees with
+/// `expected_space_id` — the space the caller scoped this pull to.
 ///
-/// Returns `Ok(None)` when neither source is available (table has no
-/// `space_id` column, or the row does not exist yet and no `space_id`
-/// column change is in the batch). Sig verification is skipped for that
-/// row, logged, but the batch is not failed — Runde 7 tightens this once
-/// the wire always carries the necessary metadata.
+/// Precedence is not cosmetic. `space_id` arrives as an ordinary,
+/// unauthenticated column change off the wire, so trusting it over the
+/// stored value hands the attacker the verification anchor: a peer holding
+/// a signing key for its own space `S_evil` could push
+/// `{space_id: "S_evil", <target column>: <value>}` at a row that locally
+/// belongs to `S_victim`. Both changes then verify under `S_evil`, and the
+/// column update lands on the victim row — defeating the space binding in
+/// the preimage (ADR 0002 §4b) precisely because the verifier let the
+/// attacker pick the binding.
+///
+/// Returns `Ok(None)` when no trustworthy anchor exists (table has no
+/// `space_id` column, the row is new and the caller gave no
+/// `expected_space_id`, or the batch's claimed space contradicts it).
+/// `verify_change_sig` turns that into a per-change rejection, so an
+/// unanchored row drops its signed changes rather than applying them
+/// unverified.
 fn resolve_row_space_id_for_sig(
     tx: &Transaction,
     table_name: &str,
@@ -69,31 +88,56 @@ fn resolve_row_space_id_for_sig(
     pk_values_for_query: &[JsonValue],
     row_change_list: &[RemoteColumnChange],
     schema: &[ColumnInfo],
+    expected_space_id: Option<&str>,
 ) -> Result<Option<String>, DatabaseError> {
-    // (1) Prefer the batch's space_id column change (INSERT-side attribution).
-    if let Some(sp_change) = row_change_list.iter().find(|c| c.column_name == "space_id") {
-        if let JsonValue::String(s) = &sp_change.decrypted_value {
-            return Ok(Some(s.clone()));
+    // (1) Authoritative source: the row's own persisted space_id.
+    if schema.iter().any(|c| c.name == "space_id") {
+        let sql = format!(
+            "SELECT space_id FROM \"{}\" WHERE {}",
+            table_name, pk_where_clause
+        );
+        let mut stmt = tx.prepare(&sql).map_err(DatabaseError::from)?;
+        let params = json_values_to_sql_params(pk_values_for_query)?;
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+        let persisted: Option<Option<String>> = stmt
+            .query_row(&*params_refs, |row| row.get::<_, Option<String>>(0))
+            .optional()
+            .map_err(DatabaseError::from)?;
+        if let Some(space_id) = persisted.flatten() {
+            return Ok(Some(space_id));
         }
     }
-    // (2) Fallback: existing row's space_id column.
-    let has_space_id = schema.iter().any(|c| c.name == "space_id");
-    if !has_space_id {
-        return Ok(None);
+
+    // (2) INSERT path — the row is new, so there is nothing persisted to
+    // anchor on. Fall back to the batch's claimed space_id, but only after
+    // cross-checking it against the space this pull was scoped to. Without
+    // an expected space there is no way to tell an honest claim from a
+    // forged one, so we refuse to guess.
+    let expected = match expected_space_id {
+        Some(e) => e,
+        None => return Ok(None),
+    };
+    let claimed = row_change_list
+        .iter()
+        .find(|c| c.column_name == "space_id")
+        .and_then(|c| match &c.decrypted_value {
+            JsonValue::String(s) => Some(s.as_str()),
+            _ => None,
+        });
+    match claimed {
+        // No claim in the batch: the pull scope is still a valid anchor —
+        // every change in this batch was fetched for `expected`.
+        None => Ok(Some(expected.to_string())),
+        Some(c) if c == expected => Ok(Some(expected.to_string())),
+        Some(c) => {
+            eprintln!(
+                "[SYNC RUST] Refusing sig anchor for new row in '{}': batch claims space_id '{}' but pull is scoped to '{}'",
+                table_name, c, expected
+            );
+            Ok(None)
+        }
     }
-    let sql = format!(
-        "SELECT space_id FROM \"{}\" WHERE {}",
-        table_name, pk_where_clause
-    );
-    let mut stmt = tx.prepare(&sql).map_err(DatabaseError::from)?;
-    let params = json_values_to_sql_params(pk_values_for_query)?;
-    let params_refs: Vec<&dyn rusqlite::ToSql> =
-        params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
-    let result: Option<Option<String>> = stmt
-        .query_row(&*params_refs, |row| row.get::<_, Option<String>>(0))
-        .optional()
-        .map_err(DatabaseError::from)?;
-    Ok(result.flatten())
 }
 
 /// Verify a single `RemoteColumnChange`'s attached column signature against
@@ -135,11 +179,17 @@ fn verify_change_sig(
 
 /// Applies remote changes in a single transaction, with HLC-ordered grouping.
 /// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
+///
+/// `space_id` is the space this pull was scoped to. It is the only
+/// trustworthy anchor for verifying a signature on a row that does not exist
+/// locally yet — see [`resolve_row_space_id_for_sig`]. `None` for
+/// personal-vault sync, where nothing is signed.
 #[tauri::command]
 pub fn apply_remote_changes_in_transaction(
     changes: Vec<RemoteColumnChange>,
     backend_id: String,
     max_hlc: String,
+    space_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), DatabaseError> {
     // Lock HLC via `lock_or_fail` so a poisoned mutex fails LOUD with a
@@ -154,11 +204,12 @@ pub fn apply_remote_changes_in_transaction(
         "crdt::commands::apply_remote_changes_in_transaction",
         serde_json::json!({}),
     )?;
-    apply_remote_changes_to_db(
+    apply_remote_changes_to_db_scoped(
         &state.db,
         changes,
         Some((&backend_id, &max_hlc)),
         Some(&*hlc_service),
+        space_id.as_deref(),
     )
 }
 
@@ -171,11 +222,33 @@ pub fn apply_remote_changes_in_transaction(
 /// received remote timestamp after applying all changes. This ensures future local
 /// operations generate timestamps strictly greater than any received remote timestamp,
 /// preventing incomplete rows on the server during push.
+///
+/// Equivalent to [`apply_remote_changes_to_db_scoped`] with no expected
+/// space. Callers that know which space the batch was pulled for should use
+/// the scoped variant so column signatures on newly inserted rows can be
+/// anchored — without it, such rows have no trustworthy `space_id` and their
+/// signed changes are dropped rather than verified against a
+/// batch-supplied (i.e. attacker-supplied) space.
 pub fn apply_remote_changes_to_db(
     db: &crate::database::DbConnection,
     changes: Vec<RemoteColumnChange>,
     backend_info: Option<(&str, &str)>,
     hlc_service: Option<&HlcService>,
+) -> Result<(), DatabaseError> {
+    apply_remote_changes_to_db_scoped(db, changes, backend_info, hlc_service, None)
+}
+
+/// [`apply_remote_changes_to_db`] plus the space this batch was pulled for.
+///
+/// See [`resolve_row_space_id_for_sig`] for why the expected space matters:
+/// it is the cross-check that stops a peer from choosing the space its own
+/// signatures are verified under.
+pub fn apply_remote_changes_to_db_scoped(
+    db: &crate::database::DbConnection,
+    changes: Vec<RemoteColumnChange>,
+    backend_info: Option<(&str, &str)>,
+    hlc_service: Option<&HlcService>,
+    expected_space_id: Option<&str>,
 ) -> Result<(), DatabaseError> {
     eprintln!("[SYNC RUST] ========== APPLY REMOTE CHANGES START ==========");
     eprintln!(
@@ -450,6 +523,7 @@ pub fn apply_remote_changes_to_db(
                             &pk_values_for_query,
                             &row_change_list,
                             &schema,
+                            expected_space_id,
                         )?
                     } else {
                         None
@@ -1161,10 +1235,18 @@ mod tests {
                  haex_hlc TEXT,
                  haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
              );
+             -- `name TEXT NOT NULL` without a default mirrors migration 0000
+             -- and is load-bearing: a stub INSERT that omits it is silently
+             -- swallowed by `OR IGNORE`, which is the bug
+             -- `apply_ensures_identity_stub_for_new_author_did` must be able
+             -- to see.
              CREATE TABLE haex_identities (
                  id TEXT PRIMARY KEY NOT NULL,
-                 did TEXT NOT NULL
+                 did TEXT NOT NULL,
+                 name TEXT NOT NULL,
+                 source TEXT DEFAULT 'contact' NOT NULL
              );
+             CREATE UNIQUE INDEX haex_identities_did_unique ON haex_identities (did);
              CREATE TABLE devices (
                  id TEXT PRIMARY KEY,
                  space_id TEXT NOT NULL,
@@ -1328,5 +1410,245 @@ mod tests {
             .unwrap()
         };
         assert_eq!(avatar, new_avatar);
+    }
+
+    /// Helper: sign `value` for `space_id` on `devices.avatar` at `hlc` and
+    /// wrap it in a ready-to-apply `RemoteColumnChange`.
+    fn signed_avatar_change(
+        signing_key: &SigningKey,
+        space_id: &str,
+        value: &str,
+        hlc: &str,
+    ) -> RemoteColumnChange {
+        let did = did_key_from_public_key(&signing_key.verifying_key());
+        let value_bytes_vec = value_bytes::to_canonical_bytes(&SqlValue::Text(value.to_string()));
+        let sig = sign_column(
+            signing_key,
+            space_id.as_bytes(),
+            b"devices",
+            br#"{"id":"dev-1"}"#,
+            b"avatar",
+            hlc.as_bytes(),
+            did.as_bytes(),
+            &value_bytes_vec,
+        );
+        RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::String(value.to_string()),
+            sig: Some(ColumnSig {
+                author_did: did,
+                sig: BASE64.encode(sig.to_bytes()),
+            }),
+        }
+    }
+
+    fn read_avatar(db: &DbConnection) -> String {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+            r.get(0)
+        })
+        .unwrap()
+    }
+
+    /// The verification anchor must be the row's PERSISTED `space_id`, never
+    /// a `space_id` column change riding along in the same batch.
+    ///
+    /// Attack shape: a peer holds a signing key for its own space `s_evil`
+    /// and pushes `{space_id: "s_evil", avatar: "pwned.png"}` at `dev-1`,
+    /// which locally belongs to `s1`. If the resolver preferred the batch's
+    /// claim, both changes would verify under `s_evil` and the avatar update
+    /// would land on the victim row — the space binding in the preimage
+    /// (ADR 0002 §4b) defeated because the attacker chose the binding.
+    #[test]
+    fn apply_anchors_sig_on_persisted_space_id_not_batch_claim() {
+        let db = setup_db_with_identities();
+
+        let seed: [u8; 32] = rand::random();
+        let attacker_key = SigningKey::from_bytes(&seed);
+        let hlc = "20/xxx";
+
+        // Both changes are correctly signed — but for `s_evil`, not `s1`.
+        let avatar_change = signed_avatar_change(&attacker_key, "s_evil", "pwned.png", hlc);
+        let mut space_change = signed_avatar_change(&attacker_key, "s_evil", "s_evil", hlc);
+        space_change.column_name = "space_id".to_string();
+
+        apply_remote_changes_to_db(&db, vec![space_change, avatar_change], None, None)
+            .expect("apply must succeed — rejection is row-scoped, not fatal");
+
+        assert_eq!(
+            read_avatar(&db),
+            "old.png",
+            "sig signed for a foreign space must not verify against the row's own space"
+        );
+    }
+
+    /// Same row, same attacker key, but this time signed for the row's real
+    /// space `s1` — proving the test above fails for the right reason (wrong
+    /// space) rather than because the harness is broken.
+    #[test]
+    fn apply_accepts_sig_matching_persisted_space_id() {
+        let db = setup_db_with_identities();
+
+        let seed: [u8; 32] = rand::random();
+        let key = SigningKey::from_bytes(&seed);
+        let mut space_change = signed_avatar_change(&key, "s1", "s_evil", "20/xxx");
+        space_change.column_name = "space_id".to_string();
+        let avatar_change = signed_avatar_change(&key, "s1", "accepted.png", "20/xxx");
+
+        apply_remote_changes_to_db(&db, vec![space_change, avatar_change], None, None)
+            .expect("apply must succeed");
+
+        assert_eq!(read_avatar(&db), "accepted.png");
+    }
+
+    /// A row that does not exist locally has no persisted anchor. Without an
+    /// `expected_space_id` from the caller there is no way to tell an honest
+    /// claim from a forged one, so signed changes are dropped rather than
+    /// verified against whatever the batch asserts.
+    #[test]
+    fn apply_drops_signed_insert_when_no_expected_space_is_given() {
+        let db = setup_db_with_identities();
+
+        let seed: [u8; 32] = rand::random();
+        let key = SigningKey::from_bytes(&seed);
+        let mut space_change = signed_avatar_change(&key, "s_new", "s_new", "20/xxx");
+        space_change.column_name = "space_id".to_string();
+        let mut avatar_change = signed_avatar_change(&key, "s_new", "new-row.png", "20/xxx");
+        avatar_change.row_pks = r#"{"id":"dev-2"}"#.to_string();
+        space_change.row_pks = r#"{"id":"dev-2"}"#.to_string();
+
+        apply_remote_changes_to_db(&db, vec![space_change, avatar_change], None, None)
+            .expect("apply must succeed");
+
+        let count: i64 = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT COUNT(*) FROM devices WHERE id = 'dev-2'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            count, 0,
+            "unanchored signed insert must be dropped, not applied unverified"
+        );
+    }
+
+    /// With the pull scope supplied, a signed INSERT whose claimed `space_id`
+    /// agrees with that scope verifies and lands.
+    #[test]
+    fn apply_scoped_accepts_signed_insert_matching_expected_space() {
+        let db = setup_db_with_identities();
+
+        let seed: [u8; 32] = rand::random();
+        let key = SigningKey::from_bytes(&seed);
+        // NOTE: row_pks must match what was signed, so build then retarget
+        // both changes consistently before signing is irrelevant — the pks
+        // are part of the preimage, so sign for dev-2 directly.
+        let did = did_key_from_public_key(&key.verifying_key());
+        let hlc = "20/xxx";
+        let mk = |column: &str, value: &str| {
+            let vb = value_bytes::to_canonical_bytes(&SqlValue::Text(value.to_string()));
+            let sig = sign_column(
+                &key,
+                b"s_new",
+                b"devices",
+                br#"{"id":"dev-2"}"#,
+                column.as_bytes(),
+                hlc.as_bytes(),
+                did.as_bytes(),
+                &vb,
+            );
+            RemoteColumnChange {
+                table_name: "devices".to_string(),
+                row_pks: r#"{"id":"dev-2"}"#.to_string(),
+                column_name: column.to_string(),
+                hlc_timestamp: hlc.to_string(),
+                decrypted_value: JsonValue::String(value.to_string()),
+                sig: Some(ColumnSig {
+                    author_did: did.clone(),
+                    sig: BASE64.encode(sig.to_bytes()),
+                }),
+            }
+        };
+
+        apply_remote_changes_to_db_scoped(
+            &db,
+            vec![mk("space_id", "s_new"), mk("avatar", "new-row.png")],
+            None,
+            None,
+            Some("s_new"),
+        )
+        .expect("apply must succeed");
+
+        let avatar: Option<String> = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-2'", [], |r| {
+                r.get(0)
+            })
+            .ok()
+        };
+        assert_eq!(avatar.as_deref(), Some("new-row.png"));
+    }
+
+    /// The cross-check bites: a signed INSERT claiming a space other than the
+    /// one the pull was scoped to is refused even though its signature is
+    /// internally consistent.
+    #[test]
+    fn apply_scoped_rejects_signed_insert_claiming_a_different_space() {
+        let db = setup_db_with_identities();
+
+        let seed: [u8; 32] = rand::random();
+        let key = SigningKey::from_bytes(&seed);
+        let did = did_key_from_public_key(&key.verifying_key());
+        let hlc = "20/xxx";
+        let mk = |column: &str, value: &str| {
+            let vb = value_bytes::to_canonical_bytes(&SqlValue::Text(value.to_string()));
+            let sig = sign_column(
+                &key,
+                b"s_evil",
+                b"devices",
+                br#"{"id":"dev-2"}"#,
+                column.as_bytes(),
+                hlc.as_bytes(),
+                did.as_bytes(),
+                &vb,
+            );
+            RemoteColumnChange {
+                table_name: "devices".to_string(),
+                row_pks: r#"{"id":"dev-2"}"#.to_string(),
+                column_name: column.to_string(),
+                hlc_timestamp: hlc.to_string(),
+                decrypted_value: JsonValue::String(value.to_string()),
+                sig: Some(ColumnSig {
+                    author_did: did.clone(),
+                    sig: BASE64.encode(sig.to_bytes()),
+                }),
+            }
+        };
+
+        apply_remote_changes_to_db_scoped(
+            &db,
+            vec![mk("space_id", "s_evil"), mk("avatar", "new-row.png")],
+            None,
+            None,
+            Some("s_expected"),
+        )
+        .expect("apply must succeed");
+
+        let count: i64 = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT COUNT(*) FROM devices WHERE id = 'dev-2'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(count, 0, "space-mismatched signed insert must be dropped");
     }
 }
