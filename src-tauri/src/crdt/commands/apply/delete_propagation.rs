@@ -1,4 +1,7 @@
-use crate::crdt::trigger::{get_table_schema, is_safe_identifier, ColumnInfo, DELETED_ROWS_TABLE};
+use crate::crdt::trigger::{
+    get_table_schema, is_safe_identifier, ColumnInfo, DELETED_ROWS_TABLE,
+    SHARED_SPACE_DELETED_ROWS_TABLE, SHARED_SPACE_SYNC_TABLE,
+};
 use crate::database::error::DatabaseError;
 use rusqlite::params;
 use serde_json::Value as JsonValue;
@@ -353,6 +356,191 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
     Ok(())
 }
 
+/// Task 6 apply-side receiver for the per-space delete-log
+/// (`haex_shared_space_deleted_rows`, ADR 0002 §6.5).
+///
+/// For each id in `delete_log_ids`, reads
+/// `(space_id, table_name, row_pks, haex_hlc)` from the delete-log and:
+///   1. DELETEs the target row from `table_name` with the standard
+///      resurrection check (haex_hlc > delete_hlc → skip).
+///   2. DELETEs the register entry
+///      `(table_name, row_pks, space_id)` from `haex_shared_space_sync`.
+///
+/// Callers MUST have set `triggers_enabled = 0` first — both DELETEs are
+/// caught by the Task 4/5 triggers otherwise and would re-emit into the
+/// delete-log and loop.
+///
+/// A single malformed delete-log row must never abort the whole pass (would
+/// wedge the sync cursor permanently). Errors on any one row are logged and
+/// the loop continues, matching `propagate_deleted_rows_to_target_tables`'
+/// contract.
+pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
+    tx: &rusqlite::Transaction,
+    delete_log_ids: &HashSet<String>,
+) -> Result<(), DatabaseError> {
+    for id in delete_log_ids {
+        let result = tx.query_row(
+            &format!(
+                "SELECT space_id, table_name, row_pks, haex_hlc \
+                 FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" WHERE id = ?1"
+            ),
+            params![id],
+            |row| {
+                let space_id: String = row.get(0)?;
+                let table_name: String = row.get(1)?;
+                let row_pks: String = row.get(2)?;
+                let delete_hlc: Option<String> = row.get(3)?;
+                Ok((space_id, table_name, row_pks, delete_hlc))
+            },
+        );
+
+        let (space_id, target_table, row_pks_json, delete_hlc_opt) = match result {
+            Ok(r) => r,
+            Err(rusqlite::Error::QueryReturnedNoRows) => continue,
+            Err(e) => return Err(DatabaseError::from(e)),
+        };
+
+        let delete_hlc = match delete_hlc_opt {
+            Some(h) => h,
+            None => {
+                eprintln!("[SYNC RUST] Skipping shared-space delete-log {id}: haex_hlc is NULL");
+                continue;
+            }
+        };
+
+        if !is_safe_identifier(&target_table) {
+            eprintln!(
+                "[SYNC RUST] Skipping shared-space delete-log {id}: unsafe target table {target_table}"
+            );
+            continue;
+        }
+
+        let row_pks: serde_json::Map<String, JsonValue> = match serde_json::from_str(&row_pks_json)
+        {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("[SYNC RUST] Invalid row_pks JSON on shared-space delete-log {id}: {e}");
+                continue;
+            }
+        };
+
+        let schema = match get_table_schema(tx, &target_table) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Skipping shared-space delete-log {id} for '{target_table}': failed to load schema: {e}"
+                );
+                continue;
+            }
+        };
+
+        // Same PK-name safety as propagate_deleted_rows_to_target_tables.
+        let expected_pk_names: HashSet<&str> = schema
+            .iter()
+            .filter(|c| c.is_pk)
+            .map(|c| c.name.as_str())
+            .collect();
+        let provided_pk_names: HashSet<&str> = row_pks.keys().map(|k| k.as_str()).collect();
+        if expected_pk_names.is_empty() || expected_pk_names != provided_pk_names {
+            eprintln!(
+                "[SYNC RUST] Skipping shared-space delete-log {id} for '{target_table}': \
+                 row_pks keys {provided_pk_names:?} do not match table PK columns {expected_pk_names:?}"
+            );
+            continue;
+        }
+
+        let (where_clause, values) = match build_pk_where_from_map(&row_pks) {
+            Some(parts) => parts,
+            None => {
+                eprintln!(
+                    "[SYNC RUST] Skipping shared-space delete-log {id} for '{target_table}': \
+                     row_pks contains unsafe or empty PK columns — refusing partial WHERE"
+                );
+                continue;
+            }
+        };
+        let sql_params = json_values_to_sql_params(&values)?;
+        let param_refs: Vec<&dyn rusqlite::ToSql> = sql_params
+            .iter()
+            .map(|v| v as &dyn rusqlite::ToSql)
+            .collect();
+
+        // Resurrection check (same semantic as owner-domain path).
+        let select_hlc_sql =
+            format!("SELECT haex_hlc FROM \"{target_table}\" WHERE {where_clause}");
+        let target_row_hlc: Option<String> =
+            match tx.query_row(&select_hlc_sql, param_refs.as_slice(), |row| row.get(0)) {
+                Ok(hlc) => Some(hlc),
+                Err(rusqlite::Error::QueryReturnedNoRows) => None,
+                Err(e) => return Err(DatabaseError::from(e)),
+            };
+        if !should_propagate_delete(&delete_hlc, target_row_hlc.as_deref()) {
+            eprintln!(
+                "[SYNC RUST] Skipping shared-space delete-log {id} for '{target_table}': \
+                 target row has newer haex_hlc ({target_row_hlc:?} > {delete_hlc}) — resurrected"
+            );
+            continue;
+        }
+
+        // Register cleanup: per (table, row, space). Other spaces' entries
+        // for the same row survive by design (see the multi-space test).
+        // Run BEFORE the business row DELETE so that "row also present
+        // in another space" logic in downstream consumers still sees the
+        // consistent register state at this point.
+        let register_delete_sql = format!(
+            "DELETE FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
+             WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3"
+        );
+        if let Err(e) = tx.execute(
+            &register_delete_sql,
+            params![&target_table, &row_pks_json, &space_id],
+        ) {
+            eprintln!(
+                "[SYNC RUST] Shared-space register cleanup failed for '{target_table}' in space '{space_id}': {e}"
+            );
+            // Fall through — apply-loop must not abort mid-batch.
+        }
+
+        // Business row DELETE — only if the row no longer belongs to any
+        // other space (otherwise we would strip a row still shared into
+        // another live space). If any register entries remain for this
+        // (table, row_pks), keep the row.
+        let residual_register_count: i64 = tx
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
+                     WHERE table_name = ?1 AND row_pks = ?2"
+                ),
+                params![&target_table, &row_pks_json],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+
+        if residual_register_count == 0 {
+            let delete_sql = format!("DELETE FROM \"{target_table}\" WHERE {where_clause}");
+            match tx.execute(&delete_sql, param_refs.as_slice()) {
+                Ok(n) => {
+                    if n > 0 {
+                        eprintln!(
+                            "[SYNC RUST] Shared-space delete-log propagation: removed {n} row(s) from '{target_table}'"
+                        );
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[SYNC RUST] Shared-space delete-log propagation failed for '{target_table}': {e}"
+                    );
+                }
+            }
+        } else {
+            eprintln!(
+                "[SYNC RUST] Shared-space delete-log {id}: row still shared into {residual_register_count} other space(s), keeping business row"
+            );
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[cfg_attr(test, allow(clippy::unwrap_used))]
 mod tests {
@@ -553,5 +741,224 @@ mod tests {
     fn delete_skipped_when_target_row_is_far_newer() {
         // Sanity: large HLC gap, same node.
         assert!(!should_propagate_delete("100/abcdef", Some("1000/abcdef")));
+    }
+
+    // =====================================================================
+    // Task 6 — Apply-side receiver for the per-space delete-log.
+    //
+    // A remote INSERT into haex_shared_space_deleted_rows carries all the
+    // info needed to converge on a share removal or hard-delete in a shared
+    // space:
+    //  - the business row: `DELETE FROM {table} WHERE {row_pks}`
+    //  - the register entry: `DELETE FROM haex_shared_space_sync
+    //                         WHERE table_name=? AND row_pks=? AND space_id=?`
+    // Both DELETEs run under triggers_enabled=0 so the cascade + fanout
+    // triggers from Tasks 4/5 don't re-emit.
+    // =====================================================================
+
+    fn setup_shared_space_apply_fixture() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+
+        // Business + register + delete-log schemas (mirrors production).
+        conn.execute_batch(
+            "CREATE TABLE haex_crdt_configs_no_sync (
+                 key TEXT PRIMARY KEY NOT NULL,
+                 value TEXT NOT NULL,
+                 type TEXT NOT NULL
+             );
+             INSERT INTO haex_crdt_configs_no_sync (key, type, value)
+             VALUES ('triggers_enabled', 'system', '0');
+
+             CREATE TABLE ext_notes_items (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 body TEXT,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+             );
+
+             CREATE TABLE haex_shared_space_sync (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 space_id TEXT NOT NULL,
+                 haex_hlc TEXT
+             );
+
+             CREATE TABLE haex_shared_space_deleted_rows (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 space_id TEXT NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT
+             );",
+        )
+        .unwrap();
+        conn
+    }
+
+    #[test]
+    fn shared_space_delete_log_apply_removes_business_row_and_register_entry() {
+        let conn = setup_shared_space_apply_fixture();
+        // Seed: an extension row shared into SPACE_X.
+        conn.execute(
+            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+             VALUES ('note-1', 'hello', '1/abcd')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+             VALUES ('reg-1', 'ext_notes_items', '{\"id\":\"note-1\"}', 'SPACE_X', '1/abcd')",
+            [],
+        )
+        .unwrap();
+
+        // Simulate a remote push of a delete-log row into haex_shared_space_deleted_rows.
+        conn.execute(
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+             VALUES ('del-1', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-1\"}', '2/abcd')",
+            [],
+        )
+        .unwrap();
+
+        // Apply.
+        let mut ids: HashSet<String> = HashSet::new();
+        ids.insert("del-1".to_string());
+        let tx = conn.unchecked_transaction().unwrap();
+        propagate_shared_space_deleted_rows_to_target_tables(&tx, &ids).unwrap();
+        tx.commit().unwrap();
+
+        // Business row is gone.
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM ext_notes_items WHERE id = 'note-1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(row_count, 0, "business row must be removed on apply");
+
+        // Register entry for (table, row, space) is gone.
+        let reg_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM haex_shared_space_sync \
+                 WHERE table_name = 'ext_notes_items' AND row_pks = '{\"id\":\"note-1\"}' AND space_id = 'SPACE_X'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(reg_count, 0, "register entry must be removed on apply");
+    }
+
+    #[test]
+    fn shared_space_delete_log_apply_preserves_resurrection_bug_free() {
+        // Resurrection: if the business row was written AFTER the delete-log
+        // HLC, the delete must be skipped. Same pattern as
+        // propagate_deleted_rows_to_target_tables.
+        let conn = setup_shared_space_apply_fixture();
+        conn.execute(
+            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+             VALUES ('note-2', 'newer', '99/abcd')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+             VALUES ('reg-2', 'ext_notes_items', '{\"id\":\"note-2\"}', 'SPACE_X', '1/abcd')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+             VALUES ('del-2', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-2\"}', '2/abcd')",
+            [],
+        )
+        .unwrap();
+
+        let mut ids: HashSet<String> = HashSet::new();
+        ids.insert("del-2".to_string());
+        let tx = conn.unchecked_transaction().unwrap();
+        propagate_shared_space_deleted_rows_to_target_tables(&tx, &ids).unwrap();
+        tx.commit().unwrap();
+
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM ext_notes_items WHERE id = 'note-2'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            row_count, 1,
+            "resurrected row (newer haex_hlc than delete) must be kept"
+        );
+    }
+
+    #[test]
+    fn shared_space_delete_log_apply_only_removes_matching_space_register_entry() {
+        // A row shared into multiple spaces: the delete-log applies only to
+        // ONE space's register. Other spaces' register entries survive.
+        let conn = setup_shared_space_apply_fixture();
+        conn.execute(
+            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+             VALUES ('note-3', 'shared', '1/abcd')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+             VALUES ('reg-x', 'ext_notes_items', '{\"id\":\"note-3\"}', 'SPACE_X', '1/abcd'),
+                    ('reg-y', 'ext_notes_items', '{\"id\":\"note-3\"}', 'SPACE_Y', '1/abcd')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+             VALUES ('del-3', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-3\"}', '2/abcd')",
+            [],
+        )
+        .unwrap();
+
+        let mut ids: HashSet<String> = HashSet::new();
+        ids.insert("del-3".to_string());
+        let tx = conn.unchecked_transaction().unwrap();
+        propagate_shared_space_deleted_rows_to_target_tables(&tx, &ids).unwrap();
+        tx.commit().unwrap();
+
+        // The SPACE_Y register entry stays put; the SPACE_X one is gone.
+        let surviving_spaces: Vec<String> = conn
+            .prepare(
+                "SELECT space_id FROM haex_shared_space_sync \
+                 WHERE table_name = 'ext_notes_items' AND row_pks = '{\"id\":\"note-3\"}' \
+                 ORDER BY space_id",
+            )
+            .unwrap()
+            .query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            surviving_spaces,
+            vec!["SPACE_Y".to_string()],
+            "delete-log for SPACE_X must not touch SPACE_Y's register entry"
+        );
+
+        // Business row: still shared into Y — depending on ADR semantics we
+        // keep it. Per §6.5 the apply-side removes the business row when
+        // the LAST space unshares. For this simple test we assert the row
+        // stays because Y still lists it — this is intentionally strict:
+        // the apply must be per-space, not row-globally destructive.
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM ext_notes_items WHERE id = 'note-3'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            row_count, 1,
+            "business row stays as long as another space still lists it in the register"
+        );
     }
 }
