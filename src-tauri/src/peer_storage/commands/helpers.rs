@@ -124,9 +124,10 @@ pub(super) fn load_own_identity_for_device(
 /// could legitimately accept connections from. The query joins
 /// `haex_space_devices` (cross-vault, UCAN-attributed) against
 /// `haex_devices` (vault-private, populated by the
-/// `haex_space_devices_ensure_refs` trigger from `authored_by_did`). The
-/// result is the DB-side ground truth that the quic_did_auth handshake's
-/// crypto-verified DID is cross-checked against in `handle_connection`.
+/// `haex_space_devices_ensure_refs` trigger from the incoming
+/// space-device row's identity attribution). The result is the DB-side
+/// ground truth that the quic_did_auth handshake's crypto-verified DID
+/// is cross-checked against in `handle_connection`.
 ///
 /// Excludes our own endpoint and skips rows whose `owner_did` is NULL —
 /// the latter only happens transiently during a partial sync and we'd

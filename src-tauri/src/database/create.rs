@@ -204,6 +204,7 @@ fn create_encrypted_database_inner(
             vec![],
             &state.db,
             &hlc_service,
+            &state.column_sig_key_cache,
         )?;
     }
     println!("[CREATE_DB] ✅ __core__ extension seeded");
@@ -213,6 +214,17 @@ fn create_encrypted_database_inner(
     println!("[CREATE_DB] Step 6: Seeding default identity...");
     ensure_default_identity(state)?;
     println!("[CREATE_DB] ✅ default identity ensured");
+
+    // Step 7: Warm the column-signature signing-key cache. A brand-new
+    // vault has no owned space memberships yet (returns 0), but the
+    // symmetric call in `open_encrypted_database` requires the same
+    // AppState field — keeping both callsites parallel avoids a class of
+    // "cache was empty because create skipped the warm-up" bugs.
+    if let Err(e) =
+        super::open::populate_column_sig_key_cache(&state.column_sig_key_cache, &state.db)
+    {
+        eprintln!("[CREATE_DB] warn: SpaceKeyCache::populate_all failed: {e:?}");
+    }
 
     // `space_id` is intentionally NOT seeded anymore. The legacy vault-UUID
     // setting was conceptually a device identity proxy; the device-identity

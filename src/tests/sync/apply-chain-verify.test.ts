@@ -7,8 +7,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 vi.mock('@haex-space/vault-sdk', () => ({
-  verifyRecordSignatureAsync: vi.fn(async () => true),
-  publicKeyToDidKeyAsync: vi.fn(async (spki: string) => `did:key:z${spki}`),
   decryptCrdtData: vi.fn(),
 }))
 
@@ -28,9 +26,8 @@ vi.mock('~/stores/vault', () => ({
 
 // Nuxt auto-imports (`useToast`, `useNuxtApp`) are not resolved by vitest —
 // stub them so `surfaceRejectedBatch` can call the toast/$i18n API in a
-// plain module context. The `beforeEach` in each describe wires the mocks;
-// here we only need the globals to exist so a bare `useToast()` call doesn't
-// throw ReferenceError while the file is being parsed.
+// plain module context. Each describe block re-stubs to scope its own
+// mock instances.
 vi.stubGlobal('useToast', () => ({ add: vi.fn() }))
 vi.stubGlobal('useNuxtApp', () => ({
   $i18n: { t: (k: string) => k },
@@ -47,24 +44,32 @@ import {
 
 const mockInvoke = vi.mocked(invoke)
 
-// Factory: build a ColumnChange with signature + signedBy so it passes the
-// layer-1 gate. The `signedBy` value doubles as the SPKI stub — the mocked
-// `publicKeyToDidKeyAsync` derives the signer DID from it deterministically.
-const change = (rowPks: string, signedBy: string, hlc = '100/aa'): ColumnChange => ({
+/** Composite row-key format that `verify_ucan_chain_batch` echoes back —
+ *  mirrors the `rowKey` helper inside apply.ts. */
+const rowKey = (c: ColumnChange) =>
+  `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`
+
+/**
+ * Factory: build a `ColumnChange` carrying only the fields that survive
+ * the ADR-aligned wire (no plaintext `valueBytes`). The canonical bytes
+ * used by the column-sig verifier are computed post-decrypt inside
+ * `applyRemoteChangesInTransactionAsync` — this file covers only
+ * `verifyPulledChangesAsync` (sig-presence gate + UCAN chain).
+ */
+const change = (
+  rowPks: string,
+  authorDid: string,
+  hlc = '100/aa',
+): ColumnChange => ({
   tableName: 'haex_bookmarks',
   rowPks,
   columnName: 'title',
   hlcTimestamp: hlc,
   deviceId: 'dev-1',
-  signature: 'sig-' + rowPks,
-  signedBy,
+  sig: { authorDid, sig: 'c2ln' },
 })
 
-// Composite key used for correlating verify_ucan_chain_batch results back to
-// their input rows. Mirrors the `rowKey` helper inside apply.ts.
-const rowKey = (c: ColumnChange) => `${c.tableName}|${c.rowPks}|${c.columnName}|${c.hlcTimestamp}`
-
-describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
+describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-review)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Default: every signer has one cached UCAN token in haex_ucan_tokens.
@@ -73,35 +78,36 @@ describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
     ])
   })
 
-  it('sorts rows into verified and rejected buckets based on Rust outcome', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
-    const r2 = change('{"id":"r2"}', 'signer2')
-    const r3 = change('{"id":"r3"}', 'signer3')
-
+  it('shared-space: routes UCAN check to Rust and only accepts verified rows', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    const r2 = change('{"id":"r2"}', 'did:key:zauthor2')
     mockInvoke.mockResolvedValue([
       { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
       { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'rejected', reason: 'Signature' } },
-      { rowId: rowKey(r3), tableName: r3.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
     ])
 
-    const result = await verifyPulledChangesAsync([r1, r2, r3], 'space-123', 'did:key:zme', 'write')
+    const result = await verifyPulledChangesAsync([r1, r2], 'space-123', 'did:key:zme', 'write')
 
-    expect(result.verified).toHaveLength(2)
-    expect(result.verified.map((c) => c.rowPks)).toEqual(['{"id":"r1"}', '{"id":"r3"}'])
+    expect(result.verified).toHaveLength(1)
+    expect(result.verified[0]!.rowPks).toBe('{"id":"r1"}')
     expect(result.rejected).toHaveLength(1)
-    expect(result.rejected[0]!.tableName).toBe('haex_bookmarks')
     expect(result.rejected[0]!.reason).toBe('Signature')
   })
 
-  it('invokes verify_ucan_chain_batch with the correct request shape', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
+  it('invokes ONLY verify_ucan_chain_batch (column-sig verify moved post-decrypt)', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     mockInvoke.mockResolvedValue([
       { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
     ])
 
     await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
 
-    expect(mockInvoke).toHaveBeenCalledTimes(1)
+    // Column-sig verify is no longer part of this path — invocations
+    // hitting it here would leak plaintext value bytes on the wire.
+    const commands = mockInvoke.mock.calls.map((c) => c[0])
+    expect(commands).toContain('verify_ucan_chain_batch')
+    expect(commands).not.toContain('verify_column_sig_batch')
+
     expect(mockInvoke).toHaveBeenCalledWith(
       'verify_ucan_chain_batch',
       expect.objectContaining({
@@ -119,56 +125,24 @@ describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
     )
   })
 
-  it('preserves input order in the verified array', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
-    const r2 = change('{"id":"r2"}', 'signer2')
-    const r3 = change('{"id":"r3"}', 'signer3')
-
-    // Rust responds in a scrambled order — TS must still emit verified rows
-    // in the original input order so the applier sees them chronologically.
-    mockInvoke.mockResolvedValue([
-      { rowId: rowKey(r3), tableName: r3.tableName, outcome: { kind: 'ok', rootDid: 'did:key:z1' } },
-      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:z1' } },
-      { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'ok', rootDid: 'did:key:z1' } },
-    ])
-
-    const result = await verifyPulledChangesAsync([r1, r2, r3], 'space-123', 'did:key:zme', 'write')
-    expect(result.verified.map((c) => c.rowPks)).toEqual(['{"id":"r1"}', '{"id":"r2"}', '{"id":"r3"}'])
-  })
-
-  it('empty input returns empty buckets and skips the Rust call', async () => {
-    const result = await verifyPulledChangesAsync([], 'space-123', 'did:key:zme', 'write')
-    expect(result.verified).toEqual([])
-    expect(result.rejected).toEqual([])
-    expect(mockInvoke).not.toHaveBeenCalled()
-  })
-
-  it('rejects rows whose signer has no cached UCAN in haex_ucan_tokens', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
-    // Local UCAN cache is empty for every signer — no local grant found.
-    mockDbWhere.mockResolvedValue([])
-
-    const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
-
-    // The Rust command never fires: we cannot ask it to verify a token we
-    // do not possess. The row is dropped with a synthetic reason so the
-    // caller (Task 6 toast) can distinguish this from a Rust-side reject.
-    expect(mockInvoke).not.toHaveBeenCalled()
-    expect(result.verified).toHaveLength(0)
-    expect(result.rejected).toHaveLength(1)
-    expect(result.rejected[0]!.reason).toBe('MissingLocalUcan')
-  })
-
-  it('rejects rows missing signature or signedBy with reason=Unsigned', async () => {
+  it('rejects rows missing sig with reason=Unsigned', async () => {
+    // Layer-0 gate: a change without a sig never reaches Rust — reject
+    // immediately with the synthetic reason so the caller can
+    // distinguish it from a Rust-side reject.
     const unsigned: ColumnChange = {
       tableName: 'haex_bookmarks',
       rowPks: '{"id":"r-unsigned"}',
       columnName: 'title',
       hlcTimestamp: '100/aa',
       deviceId: 'dev-1',
-      // No signature, no signedBy — layer-0 gate.
+      // no sig
     }
-    const result = await verifyPulledChangesAsync([unsigned], 'space-123', 'did:key:zme', 'write')
+    const result = await verifyPulledChangesAsync(
+      [unsigned],
+      'space-123',
+      'did:key:zme',
+      'write',
+    )
 
     expect(mockInvoke).not.toHaveBeenCalled()
     expect(result.verified).toHaveLength(0)
@@ -176,61 +150,75 @@ describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
     expect(result.rejected[0]!.reason).toBe('Unsigned')
   })
 
-  it('rejects rows whose record-signature fails layer-1 verification', async () => {
-    const bad = change('{"id":"r-badsig"}', 'signer1')
-    const { verifyRecordSignatureAsync } = await import('@haex-space/vault-sdk')
-    vi.mocked(verifyRecordSignatureAsync).mockResolvedValueOnce(false)
+  it('personal-vault (no spaceId): skips both layers entirely', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    // Even an unsigned row passes through — Phase 1 doesn't sign
+    // personal-vault sync.
+    const r2: ColumnChange = {
+      tableName: 'haex_bookmarks',
+      rowPks: '{"id":"r2"}',
+      columnName: 'title',
+      hlcTimestamp: '100/aa',
+      deviceId: 'dev-1',
+    }
 
-    const result = await verifyPulledChangesAsync([bad], 'space-123', 'did:key:zme', 'write')
+    const result = await verifyPulledChangesAsync([r1, r2], undefined, 'did:key:zme', 'write')
 
     expect(mockInvoke).not.toHaveBeenCalled()
-    expect(result.rejected).toHaveLength(1)
-    expect(result.rejected[0]!.reason).toBe('InvalidRecordSignature')
+    expect(result.verified).toHaveLength(2)
+    expect(result.rejected).toHaveLength(0)
   })
 
-  it('assigns MissingResult when Rust does not echo the rowId back', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
-    // Rust returned an empty result array despite a non-empty request.
-    // This models an IPC drop or a Rust-side bug — the row must be
-    // rejected (never verified) with the synthetic MissingResult reason
-    // so the caller can distinguish it from a Rust-side reject.
+  it('empty input returns empty buckets and never invokes Rust', async () => {
+    const result = await verifyPulledChangesAsync([], 'space-123', 'did:key:zme', 'write')
+    expect(result.verified).toEqual([])
+    expect(result.rejected).toEqual([])
+    expect(mockInvoke).not.toHaveBeenCalled()
+  })
+
+  it('rejects rows whose signer has no cached UCAN in haex_ucan_tokens', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    mockDbWhere.mockResolvedValue([]) // no UCAN cached
+
+    const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    // verify_ucan_chain_batch never fires — we cannot ask Rust to
+    // verify a token we do not possess. The row is dropped with a
+    // synthetic reason.
+    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(result.verified).toHaveLength(0)
+    expect(result.rejected).toHaveLength(1)
+    expect(result.rejected[0]!.reason).toBe('MissingLocalUcan')
+  })
+
+  it('propagates UCAN reject reasons (Signature, Expired, …) from Rust', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    const r2 = change('{"id":"r2"}', 'did:key:zauthor2')
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+      { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'rejected', reason: 'Expired' } },
+    ])
+
+    const result = await verifyPulledChangesAsync([r1, r2], 'space-123', 'did:key:zme', 'write')
+
+    expect(result.verified).toHaveLength(1)
+    expect(result.rejected).toHaveLength(1)
+    expect(result.rejected[0]!.reason).toBe('Expired')
+  })
+
+  it('assigns MissingResult when Rust drops a row silently', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    // Empty results array — Rust dropped the row without an outcome entry.
     mockInvoke.mockResolvedValue([])
 
     const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
 
-    expect(result.verified).toHaveLength(0)
     expect(result.rejected).toHaveLength(1)
     expect(result.rejected[0]!.reason).toBe('MissingResult')
   })
 
   it('picks the highest-capability cached UCAN when multiple exist for a signer', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
-    // Signer has both a read AND a write token cached. Without an ORDER BY
-    // the picked row would be arbitrary; the fix ranks by capability so a
-    // write-scoped change is served by the write token.
-    mockDbWhere.mockResolvedValue([
-      { token: 'read-token', capability: 'space/read', expiresAt: 9999999999 },
-      { token: 'write-token', capability: 'space/write', expiresAt: 9999999999 },
-    ])
-    mockInvoke.mockResolvedValue([
-      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
-    ])
-
-    await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
-
-    expect(mockInvoke).toHaveBeenCalledWith(
-      'verify_ucan_chain_batch',
-      expect.objectContaining({
-        requests: expect.arrayContaining([
-          expect.objectContaining({ token: 'write-token' }),
-        ]),
-      }),
-    )
-  })
-
-  it('picks admin over write/read/invite regardless of row order', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
-    // Rows returned in a scrambled order — admin must still win by rank.
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     mockDbWhere.mockResolvedValue([
       { token: 'read-token', capability: 'space/read', expiresAt: 9999999999 },
       { token: 'invite-token', capability: 'space/invite', expiresAt: 9999999999 },
@@ -238,7 +226,7 @@ describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
       { token: 'write-token', capability: 'space/write', expiresAt: 9999999999 },
     ])
     mockInvoke.mockResolvedValue([
-      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'did:key:zroot' } },
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
     ])
 
     await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
@@ -253,25 +241,43 @@ describe('verifyPulledChangesAsync — Rust chain-verify bridge', () => {
     )
   })
 
-  it('throws when Rust returns a malformed VerifyChainResult shape', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
-    // outcome=null violates the IPC contract (must be { kind: 'ok' | 'rejected', ... }).
-    // The bare `invoke<T>()` cast wouldn't catch this — the runtime guard must.
+  it('preserves input order in the verified array', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    const r2 = change('{"id":"r2"}', 'did:key:zauthor2')
+    const r3 = change('{"id":"r3"}', 'did:key:zauthor3')
+    // Rust responds in a scrambled order — TS must still emit
+    // verified rows in original input order.
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r3), tableName: r3.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+      { rowId: rowKey(r2), tableName: r2.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+    ])
+
+    const result = await verifyPulledChangesAsync([r1, r2, r3], 'space-123', 'did:key:zme', 'write')
+    expect(result.verified.map((c) => c.rowPks)).toEqual([
+      '{"id":"r1"}',
+      '{"id":"r2"}',
+      '{"id":"r3"}',
+    ])
+  })
+
+  it('throws when verify_ucan_chain_batch returns a malformed shape', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    // outcome=null violates the IPC contract.
     mockInvoke.mockResolvedValue([{ rowId: rowKey(r1), outcome: null }])
 
     await expect(
       verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write'),
-    ).rejects.toThrow(/malformed shape/)
+    ).rejects.toThrow(/verify_ucan_chain_batch returned malformed shape/)
   })
 
   it('throws when Rust returns something that is not an array', async () => {
-    const r1 = change('{"id":"r1"}', 'signer1')
-    // Rust bug or IPC corruption — non-array on the wire.
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     mockInvoke.mockResolvedValue({ error: 'oops' } as unknown as never)
 
     await expect(
       verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write'),
-    ).rejects.toThrow(/malformed shape/)
+    ).rejects.toThrow(/verify_ucan_chain_batch returned malformed shape/)
   })
 })
 
@@ -285,7 +291,7 @@ const rejectedRow = (rowPks: string, reason = 'Signature'): RejectedChange => ({
   reason,
 })
 
-describe('logRejectedChanges — structured warn log (Task 5, log-only)', () => {
+describe('logRejectedChanges — structured warn log (log-only)', () => {
   let toastAdd: ReturnType<typeof vi.fn>
   let t: ReturnType<typeof vi.fn>
 
@@ -300,9 +306,6 @@ describe('logRejectedChanges — structured warn log (Task 5, log-only)', () => 
   })
 
   it('does NOT trigger a toast (regression guard — toast is caller-side now)', () => {
-    // Task 6 split: aggregation moved to `surfaceRejectedBatch` so a pull
-    // spanning N pages surfaces one toast, not N. Log-only helper must
-    // stay log-only.
     logRejectedChanges(
       [rejectedRow('{"id":"r1"}'), rejectedRow('{"id":"r2"}', 'Expired')],
       { spaceId: 'space-123', backendId: 'backend-a' },
@@ -320,16 +323,12 @@ describe('logRejectedChanges — structured warn log (Task 5, log-only)', () => 
   })
 })
 
-describe('surfaceRejectedBatch — aggregated pull-batch toast (Task 6)', () => {
+describe('surfaceRejectedBatch — aggregated pull-batch toast', () => {
   let toastAdd: ReturnType<typeof vi.fn>
   let t: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    // Re-stub per test so `toHaveBeenCalledTimes` is scoped to this test only.
     toastAdd = vi.fn()
-    // `t` returns a rendered template so we can assert the {count} interpolation
-    // reached the translator — the real Vue I18n resolves the key, but the
-    // stub here just proxies args back into the title.
     t = vi.fn(
       (key: string, params?: Record<string, unknown>) =>
         params && 'count' in params ? `${key}:${params.count}` : key,
@@ -339,17 +338,12 @@ describe('surfaceRejectedBatch — aggregated pull-batch toast (Task 6)', () => 
   })
 
   it('triggers exactly one warning toast when count > 0', () => {
-    // Simulate the accumulator hand-off: streaming pull summed 2 rejections
-    // across N pages and surfaces once at the end.
     surfaceRejectedBatch('space-123', 2)
 
-    // One aggregated toast per batch — never one per row (a poisoned pull
-    // of 1000 rows must not spam 1000 stacked toasts).
     expect(toastAdd).toHaveBeenCalledTimes(1)
     const arg = toastAdd.mock.calls[0]![0] as { title: string; color: string; icon: string }
     expect(arg.color).toBe('warning')
     expect(arg.icon).toBe('i-lucide-shield-alert')
-    // The plural key was picked (count > 1) and {count} was forwarded to $i18n.t.
     expect(t).toHaveBeenCalledWith('sync.verification.rowsRejectedOther', { count: 2 })
     expect(arg.title).toBe('sync.verification.rowsRejectedOther:2')
   })
@@ -369,8 +363,6 @@ describe('surfaceRejectedBatch — aggregated pull-batch toast (Task 6)', () => 
   })
 
   it('surfaces an aggregated count larger than any single page', () => {
-    // The accumulator-across-pages contract: a pull of 3 pages with 4, 6,
-    // and 90 rejects surfaces once with total=100 (never three toasts).
     surfaceRejectedBatch('space-123', 100)
 
     expect(toastAdd).toHaveBeenCalledTimes(1)

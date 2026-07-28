@@ -195,8 +195,14 @@ pub async fn external_bridge_revoke_client(
 
         let params = vec![JsonValue::String(client_id.clone())];
 
-        execute_with_crdt(SQL_DELETE_CLIENT.to_string(), params, &state.db, &hlc_guard)
-            .map_err(|e| e.to_string())?;
+        execute_with_crdt(
+            SQL_DELETE_CLIENT.to_string(),
+            params,
+            &state.db,
+            &hlc_guard,
+            &state.column_sig_key_cache,
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     PermissionManager::delete_permissions(&state, &client_id)
@@ -388,6 +394,7 @@ pub async fn external_bridge_client_allow(
                         params,
                         &state.db,
                         &hlc_guard,
+                        &state.column_sig_key_cache,
                     )
                     .map_err(|e| e.to_string())?;
                 } else {
@@ -400,8 +407,14 @@ pub async fn external_bridge_client_allow(
                         JsonValue::String(extension_id.clone()),
                         JsonValue::String(canonical.clone()),
                     ];
-                    execute_with_crdt(SQL_INSERT_CLIENT.to_string(), params, &state.db, &hlc_guard)
-                        .map_err(|e| e.to_string())?;
+                    execute_with_crdt(
+                        SQL_INSERT_CLIENT.to_string(),
+                        params,
+                        &state.db,
+                        &hlc_guard,
+                        &state.column_sig_key_cache,
+                    )
+                    .map_err(|e| e.to_string())?;
                 }
 
                 // Align the stored manifest on ALL of this client's rows with
@@ -415,6 +428,7 @@ pub async fn external_bridge_client_allow(
                     ],
                     &state.db,
                     &hlc_guard,
+                    &state.column_sig_key_cache,
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -523,6 +537,7 @@ pub async fn external_bridge_client_block(
                 params,
                 &state.db,
                 &hlc_guard,
+                &state.column_sig_key_cache,
             )
             .map_err(|e| e.to_string())?;
         }
@@ -587,6 +602,7 @@ pub fn external_bridge_unblock_client(
         params,
         &state.db,
         &hlc_guard,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| e.to_string())?;
 

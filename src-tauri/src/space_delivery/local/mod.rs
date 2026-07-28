@@ -1,5 +1,6 @@
 pub mod auth_gate;
 pub mod buffer;
+pub mod column_sig_hook;
 pub mod commands;
 pub mod discovery;
 pub mod dos_defence;

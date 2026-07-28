@@ -190,6 +190,7 @@ pub fn handle_push_invite(
     }
 
     // 5. Remove older pending invites from the same inviter for this space
+    let app_state_for_sig = app_handle.state::<crate::AppState>();
     let _ = core::execute_with_crdt(
         "DELETE FROM haex_pending_invites \
          WHERE space_id = ?1 AND inviter_did = ?2 AND status = 'pending'"
@@ -200,6 +201,7 @@ pub fn handle_push_invite(
         ],
         db,
         &hlc_guard,
+        &app_state_for_sig.column_sig_key_cache,
     );
 
     // 6. Create pending invite with embedded space metadata.
@@ -255,6 +257,7 @@ pub fn handle_push_invite(
         ],
         db,
         &hlc_guard,
+        &app_state_for_sig.column_sig_key_cache,
     );
 
     // Release the HLC lock now — the remaining work only logs (via LogSink)

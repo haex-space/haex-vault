@@ -363,6 +363,14 @@ Sync, damit Extension-Daten nie ungeschützt fließen).
   `execute_with_crdt`, Verifizieren im Apply, `authored_by_did` löschen + Stubs nach Rust.
   Schließt die **Umstellung des bestehenden TS-Preimage** ein (§3a): `space_id` +
   `author_did` aufnehmen und Klartext statt Ciphertext signieren (sign-then-encrypt).
+  ✅ **SHIPPED via PR #718 (2026-07-28).** `authored_by_did` wurde nur aus
+  `haex_shared_space_sync` (Migration 0012) gedroppt; die 5 SPACE_SCOPED_CRDT_TABLES
+  (`haex_space_devices`, `haex_space_members`, `haex_peer_shares`, `haex_mls_sync_keys`,
+  `haex_device_mls_enrollments`) behalten die Spalte bewusst — die Leader-Injection in
+  `inbound_sync/validate.rs` bleibt dort die einzige Anti-Forgery-Maßnahme bis zu einer
+  späteren Runde. Vertraulichkeit: `value_bytes` liegt nie auf dem Wire (Ship-Blocker
+  aus Runde 7); Empfänger canonicalisiert den entschlüsselten Wert lokal via
+  `toCanonicalBase64` und batched dann zu `verify_column_sig_batch` (Rust-Command).
 - **Phase 2 — UCAN-Delegations-Ketten-Verifikation (4c):** `prf` laufen, Root-Anker — auf
   **beiden** Apply-Pfaden. Für den TS-Pfad (`verifyPulledChangesAsync`, `apply.ts`): volle
   `prf`-Kette statt materialisiertem `haex_ucan_tokens`, und den Admin-Fallback

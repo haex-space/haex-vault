@@ -19,6 +19,7 @@ use async_trait::async_trait;
 use rusqlite::Connection;
 
 use super::{revoke_storage_share_core, RevokeStorageShareArgs};
+use crate::crdt::column_sig::key_cache::SpaceKeyCache;
 use crate::crdt::hlc::HlcService;
 use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
@@ -357,6 +358,7 @@ async fn happy_path_deletes_iam_user_and_both_db_rows() {
     revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: seeded.shared_id.clone(),
         },
@@ -414,6 +416,7 @@ async fn storage_not_found_when_shared_id_unknown() {
     let err = revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: unknown_id.clone(),
         },
@@ -443,6 +446,7 @@ async fn not_a_share_row_when_passed_owned_backend_id() {
     let err = revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: parent_id.clone(),
         },
@@ -484,6 +488,7 @@ async fn iam_admin_cred_missing_when_no_cred_stored() {
     let err = revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: seeded.shared_id.clone(),
         },
@@ -535,6 +540,7 @@ async fn iam_not_found_is_idempotent_db_still_cleaned() {
     revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: seeded.shared_id.clone(),
         },
@@ -576,6 +582,7 @@ async fn iam_other_error_prevents_db_deletion() {
     let err = revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: seeded.shared_id.clone(),
         },
@@ -636,6 +643,7 @@ async fn db_delete_failure_after_iam_success_surfaces_error() {
     let err = revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: seeded.shared_id.clone(),
         },
@@ -741,6 +749,7 @@ async fn parent_with_non_owned_origin_still_permits_revoke() {
     revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: seeded.shared_id.clone(),
         },
@@ -780,6 +789,7 @@ async fn parent_absent_still_returns_parent_backend_missing() {
     let err = revoke_storage_share_core(
         &db,
         &hlc,
+        &SpaceKeyCache::new(),
         RevokeStorageShareArgs {
             shared_backend_id: seeded.shared_id.clone(),
         },

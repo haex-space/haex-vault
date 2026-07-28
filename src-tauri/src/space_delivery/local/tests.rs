@@ -10,6 +10,7 @@ mod tests {
     use rusqlite::Connection;
     use std::sync::{Arc, Mutex};
 
+    use crate::crdt::column_sig::key_cache::SpaceKeyCache;
     use crate::crdt::hlc::HlcService;
     use crate::crdt::trigger::ensure_crdt_columns;
     use crate::database::connection_context::ConnectionContext;
@@ -125,6 +126,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         );
 
         assert!(
@@ -154,6 +156,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 
@@ -174,6 +177,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         );
 
         assert!(
@@ -198,6 +202,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 
@@ -215,6 +220,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         );
 
         assert!(
@@ -238,6 +244,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 
@@ -258,6 +265,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         );
 
         assert!(
@@ -285,6 +293,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 
@@ -319,6 +328,7 @@ mod tests {
             ],
             &db,
             &hlc_guard,
+            &SpaceKeyCache::new(),
         )
         .unwrap();
 

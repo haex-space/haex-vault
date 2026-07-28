@@ -1,0 +1,338 @@
+//! Per-transaction resolver for "into which spaces is this row shared?".
+//!
+//! For each `(table, row_pks)` pair the resolver returns the list of every
+//! `space_id` that has ever been declared as sharing this row (extension path)
+//! or the row's own space (infra path). Result is cached inside the lookup
+//! instance so a single transaction that touches many columns of the same row
+//! only pays one DB round-trip.
+//!
+//! Two paths:
+//!   * **Infra tables** — the five [`SPACE_SCOPED_CRDT_TABLES`] carry a
+//!     `space_id` column inline; the row itself is authoritative. We SELECT
+//!     from that table.
+//!   * **Extension tables** — everything else. Ownership is expressed via
+//!     the share register `haex_shared_space_sync`. We return every space the
+//!     register maps the row into, with **no author filter** — I2 is the
+//!     caller's job now (Runde 5): the write-time signer filters via the
+//!     `SpaceKeyCache` (`key_cache.contains(space_id)`), so only spaces this
+//!     vault holds a signing key for survive. A DID/key-agnostic register
+//!     resolver keeps the SQL cheap and moves the security policy to the
+//!     signer where it belongs.
+
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+
+use rusqlite::{params_from_iter, types::Value as SqlValue, Connection};
+use serde_json::Value as JsonValue;
+use tracing::error;
+
+use crate::crdt::scanner::is_space_scoped_table;
+use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
+
+/// Explicit denylist of `haex_*` tables the share register may never route
+/// sync for (ADR 0002 §4b, I1). Every `haex_*` table NOT in this set is
+/// user-facing (`haex_s3_backends`, `haex_spaces`, `haex_vault_settings`,
+/// `haex_passwords_*`, `haex_bookmarks_*`, …) and MAY legitimately appear
+/// as a register target — a blanket `haex_` prefix rule falsely rejects
+/// those and breaks share flows in prod.
+///
+/// The list intentionally hard-codes the table names rather than pulling
+/// them from `crate::table_names::*`, because:
+///   1. Missing an entry is a *bigger* footgun than an extra one (silent
+///      shrink of the denylist vs. loud test failure on the new table),
+///      so the explicit list survives future refactors better.
+///   2. The `_no_sync` suffix rule already sweeps up all cache/state
+///      tables (e.g. `haex_crdt_*_no_sync`, `haex_workspaces_no_sync`,
+///      `haex_desktop_items_no_sync`) so we do not enumerate those.
+///
+/// Any change to this list is a behavioural change — bump the ADR before
+/// touching it.
+const REGISTER_TARGET_DENYLIST: &[&str] = &[
+    // The 5 SPACE_SCOPED_CRDT_TABLES — space-scoped sync infra owned by
+    // the space delivery path, never a legitimate register target.
+    "haex_space_devices",
+    "haex_space_members",
+    "haex_peer_shares",
+    "haex_mls_sync_keys",
+    "haex_device_mls_enrollments",
+    // Identity / UCAN — writing sigs from a foreign space into these
+    // would let the register launder foreign identities into a space
+    // whose members trust local identities.
+    "haex_identities",
+    "haex_ucan_tokens",
+    // The share register itself — self-reference would let the register
+    // sign for its own membership rows.
+    "haex_shared_space_sync",
+    // Delete-log / HLC meta.
+    "haex_deleted_rows",
+];
+
+/// True iff `table` may not appear as `haex_shared_space_sync.table_name`.
+///
+/// Applied on BOTH sig paths (ADR 0002 §4b):
+///   * F2 (`execute.rs::sign_share_insert_targets`) — the register INSERT
+///     itself is rejected with an I1 error.
+///   * F1 (`resolve_extension_row` in this file) — a legacy or malicious
+///     register row targeting a forbidden table is silently ignored (the
+///     path returns an empty space list so no sig is produced), because
+///     it may already be present in the DB and we do not want to error
+///     on every read.
+pub fn is_register_target_forbidden(table: &str) -> bool {
+    let lower = table.to_ascii_lowercase();
+    // SQLite internal tables.
+    if lower.starts_with("sqlite_") {
+        return true;
+    }
+    // Cache / state tables — never CRDT-synced anyway.
+    if lower.ends_with("_no_sync") {
+        return true;
+    }
+    REGISTER_TARGET_DENYLIST.iter().any(|t| lower == *t)
+}
+
+/// SQL for the extension-table path. Returns every distinct `space_id`
+/// mapped to this `(table, row_pks)` by the register — no author filter.
+/// I2 (only sign for spaces this vault owns) is enforced at the caller
+/// via `SpaceKeyCache::contains`, not here (see module docs).
+const SQL_SELECT_REGISTER_SPACES: &str = "\
+    SELECT DISTINCT r.space_id \
+    FROM haex_shared_space_sync r \
+    WHERE r.table_name = ?1 \
+      AND r.row_pks = ?2";
+
+/// Per-transaction resolver for space membership of a `(table, row_pks)` pair.
+///
+/// Not `Send`/`Sync`: uses interior mutability (`RefCell`, `Cell`) and is
+/// intended to live for the duration of a single write transaction.
+#[derive(Default)]
+pub struct RegisterLookup {
+    cache: RefCell<HashMap<(String, String), Vec<String>>>,
+    hits: Cell<usize>,
+}
+
+impl RegisterLookup {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Resolves which space_ids `(table_name, row_pks_json)` is shared into.
+    ///
+    /// Returns every space the register maps this row into (extension path)
+    /// or the row's own `space_id` (infra path). **No I2 filter** — the
+    /// caller decides which spaces this vault may legitimately sign for,
+    /// typically by intersecting with the `SpaceKeyCache`.
+    ///
+    /// `row_pks_json` is expected to be a JSON object of PK column values
+    /// as produced by the CRDT scanner (e.g. `{"id":"abc-123"}`). It is
+    /// normalised via `serde_json` before use so that cache keys survive
+    /// whitespace / key-order differences produced by different callers.
+    pub fn resolve(
+        &self,
+        conn: &Connection,
+        table_name: &str,
+        row_pks_json: &str,
+    ) -> rusqlite::Result<Vec<String>> {
+        let canonical_pks = canonicalize_row_pks(row_pks_json)?;
+        let cache_key = (table_name.to_string(), canonical_pks.clone());
+
+        if let Some(cached) = self.cache.borrow().get(&cache_key) {
+            self.hits.set(self.hits.get() + 1);
+            return Ok(cached.clone());
+        }
+
+        let spaces = if is_space_scoped_table(table_name) {
+            resolve_infra_row(conn, table_name, &canonical_pks)?
+        } else {
+            resolve_extension_row(conn, table_name, &canonical_pks)?
+        };
+
+        self.cache.borrow_mut().insert(cache_key, spaces.clone());
+        Ok(spaces)
+    }
+
+    /// Number of resolves served from the in-memory cache. Useful for tests
+    /// and future observability; not part of the correctness contract.
+    pub fn cache_hits(&self) -> usize {
+        self.hits.get()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Normalises `row_pks_json` by parsing into a `BTreeMap` (sorted keys) and
+/// re-serialising. Two callers that produce logically-equal PK payloads with
+/// different key orderings will hit the same cache entry and match the same
+/// register rows.
+fn canonicalize_row_pks(row_pks_json: &str) -> rusqlite::Result<String> {
+    let parsed: BTreeMap<String, JsonValue> = serde_json::from_str(row_pks_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            0,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("row_pks JSON parse: {e}"),
+            )),
+        )
+    })?;
+    serde_json::to_string(&parsed).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            0,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("row_pks JSON reserialise: {e}"),
+            )),
+        )
+    })
+}
+
+/// Extract the space_id from an infra table's row itself.
+///
+/// The five [`SPACE_SCOPED_CRDT_TABLES`](crate::crdt::scanner::SPACE_SCOPED_CRDT_TABLES)
+/// all carry a `space_id` column; the row is authoritative. Returns an empty
+/// vector when the row does not exist (a caller mid-insert may resolve before
+/// the row is materialised — signing zero spaces is the correct fallback).
+fn resolve_infra_row(
+    conn: &Connection,
+    table_name: &str,
+    canonical_pks: &str,
+) -> rusqlite::Result<Vec<String>> {
+    // Defense-in-depth: even though `is_space_scoped_table` limited us to a
+    // hardcoded whitelist, re-check identifier shape before interpolating.
+    if !is_safe_identifier(table_name) {
+        return Ok(Vec::new());
+    }
+
+    let pks: BTreeMap<String, JsonValue> =
+        serde_json::from_str(canonical_pks).expect("canonicalize_row_pks produced non-object JSON");
+    if pks.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !pks.keys().all(|k| is_safe_identifier(k)) {
+        return Ok(Vec::new());
+    }
+
+    // F#2: enforce full-PK coverage. A partial PK on a composite-key table
+    // (e.g. `haex_space_members` (space_id, identity_id) with only
+    // `identity_id` supplied) would otherwise silently match an arbitrary
+    // row via LIMIT 1 and return the wrong `space_id` for signing.
+    let schema = get_table_schema(conn, table_name)?;
+    let expected_pk_names: BTreeSet<&str> = schema
+        .iter()
+        .filter(|c| c.is_pk)
+        .map(|c| c.name.as_str())
+        .collect();
+    if expected_pk_names.is_empty() {
+        // Infra tables always have a PK; missing means schema drift.
+        error!(
+            target: "column_sig",
+            table = table_name,
+            "Infra table has no primary key — refusing to sign"
+        );
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "Infra table '{table_name}' has no primary key"
+        )));
+    }
+    let supplied_pk_names: BTreeSet<&str> = pks.keys().map(|s| s.as_str()).collect();
+    if supplied_pk_names != expected_pk_names {
+        error!(
+            target: "column_sig",
+            table = table_name,
+            expected = ?expected_pk_names,
+            supplied = ?supplied_pk_names,
+            "Infra-table PK column set mismatch — refusing to sign"
+        );
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "Infra-table PK mismatch on '{table_name}': expected {:?}, got {:?}",
+            expected_pk_names, supplied_pk_names
+        )));
+    }
+
+    let mut where_parts: Vec<String> = Vec::with_capacity(pks.len());
+    let mut binds: Vec<SqlValue> = Vec::with_capacity(pks.len());
+    for (col, value) in &pks {
+        match value {
+            JsonValue::Null => {
+                where_parts.push(format!("\"{col}\" IS NULL"));
+            }
+            _ => {
+                where_parts.push(format!("\"{col}\" = ?"));
+                binds.push(json_to_sql_value(value));
+            }
+        }
+    }
+
+    let sql = format!(
+        "SELECT space_id FROM \"{table_name}\" WHERE {} LIMIT 1",
+        where_parts.join(" AND ")
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query(params_from_iter(binds.iter()))?;
+    if let Some(row) = rows.next()? {
+        Ok(vec![row.get::<_, String>(0)?])
+    } else {
+        Ok(Vec::new())
+    }
+}
+
+/// Extension-table path: consult the share register with no author filter.
+///
+/// If `haex_shared_space_sync` does not exist (test harnesses that skip the
+/// full CRDT-bootstrap, or freshly-created vaults pre-migration), treat that
+/// as "no share entries" and return an empty list — signing zero spaces is
+/// the correct semantic fallback. I2 (owned-space filter) is enforced at the
+/// caller via `SpaceKeyCache::contains`.
+///
+/// F#3 (Runde-4 review): apply the I1 exclusion here too. A legacy or
+/// malicious register row targeting a forbidden `haex_*` / `sqlite_*`
+/// / `_no_sync` table must not cause F1 to sign private-column values
+/// for the target space. Returning an empty vec (rather than erroring)
+/// keeps read-side flows tolerant of legacy garbage — F2 rejects new
+/// register INSERTs of that shape with a hard I1 error.
+fn resolve_extension_row(
+    conn: &Connection,
+    table_name: &str,
+    canonical_pks: &str,
+) -> rusqlite::Result<Vec<String>> {
+    if is_register_target_forbidden(table_name) {
+        return Ok(Vec::new());
+    }
+    let mut stmt = match conn.prepare(SQL_SELECT_REGISTER_SPACES) {
+        Ok(s) => s,
+        Err(rusqlite::Error::SqliteFailure(_, Some(msg))) if msg.starts_with("no such table") => {
+            return Ok(Vec::new());
+        }
+        Err(e) => return Err(e),
+    };
+    let mut rows = stmt.query((table_name, canonical_pks))?;
+    let mut out = Vec::new();
+    while let Some(row) = rows.next()? {
+        out.push(row.get::<_, String>(0)?);
+    }
+    Ok(out)
+}
+
+/// Convert a JSON PK value into the SQLite storage class that the row was
+/// most likely written as. Strings stay as text, integers stay as integers,
+/// floats stay as reals, booleans map to `0`/`1`, and anything else is
+/// serialised back to JSON text (matches how the CRDT scanner encodes
+/// composite PKs).
+fn json_to_sql_value(value: &JsonValue) -> SqlValue {
+    match value {
+        JsonValue::Null => SqlValue::Null,
+        JsonValue::Bool(b) => SqlValue::Integer(if *b { 1 } else { 0 }),
+        JsonValue::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                SqlValue::Integer(i)
+            } else if let Some(f) = n.as_f64() {
+                SqlValue::Real(f)
+            } else {
+                SqlValue::Text(n.to_string())
+            }
+        }
+        JsonValue::String(s) => SqlValue::Text(s.clone()),
+        other => SqlValue::Text(other.to_string()),
+    }
+}

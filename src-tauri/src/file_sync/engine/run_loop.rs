@@ -61,7 +61,13 @@ async fn auto_disable_rule(app: &tauri::AppHandle, rule_id: &str, failures: u32,
         let sql = "UPDATE haex_sync_rules SET enabled = 0 WHERE id = ?1".to_string();
         let params = vec![JsonValue::String(rule_id.to_string())];
 
-        if let Err(e) = crate::database::core::execute_with_crdt(sql, params, &state.db, &hlc) {
+        if let Err(e) = crate::database::core::execute_with_crdt(
+            sql,
+            params,
+            &state.db,
+            &hlc,
+            &state.column_sig_key_cache,
+        ) {
             eprintln!("[FileSyncEngine] Failed to persist auto-pause for rule {rule_id}: {e}");
         }
     }

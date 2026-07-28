@@ -5,7 +5,6 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { fetch } from '@tauri-apps/plugin-http'
-import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import {
   getDirtyTablesAsync,
   getAllCrdtTablesAsync,
@@ -374,31 +373,22 @@ export const pushChangesToServerAsync = async (
   const deviceStore = useDeviceStore()
   const deviceId = deviceStore.deviceId
 
-  // Resolve identity for record signing + auth. Every push MUST be signed;
-  // an unsigned backend identity is a configuration error and aborts the push.
+  // Resolve identity for the DID-auth header only. Per-change signing is
+  // gone as of Phase 1 Runde 7 (ADR 0002 §4b): the pushed `sig` field is
+  // pulled straight out of `haex_column_sigs`, populated by Rust's
+  // `execute_with_crdt` on the original author's device. TS never signs.
   const identityStore = useIdentityStore()
   const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
   if (!identity?.privateKey) {
-    throw new Error(`Cannot push: backend ${backend.id} has no identity private key — records cannot be signed`)
+    throw new Error(`Cannot push: backend ${backend.id} has no identity private key — DID-auth header cannot be signed`)
   }
-  const identityPrivateKey = identity.privateKey
-  const identityPublicKey = await didKeyToPublicKeyAsync(identity.did)
 
-  const { signRecordAsync } = await import('@haex-space/vault-sdk')
-
-  // Format changes for server API — every change is signed.
-  const formattedChanges = await Promise.all(changes.map(async (change) => {
-    const signature = await signRecordAsync(
-      {
-        tableName: change.tableName,
-        rowPks: change.rowPks,
-        columnName: change.columnName,
-        encryptedValue: change.encryptedValue ?? null,
-        hlcTimestamp: change.hlcTimestamp,
-      },
-      identityPrivateKey,
-    )
-
+  // Format changes for the server API. `sig` is already on the
+  // `ColumnChange` (populated by the scanner from `haex_column_sigs`).
+  // No `valueBytes` on the wire — that would leak plaintext to the sync
+  // relay (ADR 0002 §2). The receiver decrypts and re-canonicalises
+  // locally using the same encoder the signer used.
+  const formattedChanges = changes.map((change) => {
     const formatted: Record<string, unknown> = {
       tableName: change.tableName,
       rowPks: change.rowPks,
@@ -407,13 +397,12 @@ export const pushChangesToServerAsync = async (
       deviceId,
       encryptedValue: change.encryptedValue,
       nonce: change.nonce,
-      signature,
-      signedBy: identityPublicKey,
     }
     if (change.epoch !== undefined) formatted.epoch = change.epoch
+    if (change.sig) formatted.sig = change.sig
 
     return formatted
-  }))
+  })
 
   const url = `${backend.homeServerUrl}/sync/push`
   const requestBody = JSON.stringify({ spaceId, changes: formattedChanges })

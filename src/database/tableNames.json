@@ -2,7 +2,8 @@
   "crdt": {
     "columns": {
       "haexHlc": "haex_hlc",
-      "haexColumnHlcs": "haex_column_hlcs"
+      "haexColumnHlcs": "haex_column_hlcs",
+      "haexColumnSigs": "haex_column_sigs"
     }
   },
   "sync_metadata": {
@@ -192,7 +193,6 @@
         "groupId": "group_id",
         "type": "type",
         "label": "label",
-        "authoredByDid": "authored_by_did",
         "createdAt": "created_at"
       }
     },

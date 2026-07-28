@@ -134,6 +134,30 @@ pub enum DatabaseError {
     /// is enforced as a per-call write-size guard at that chokepoint.
     #[error("CRDT transaction too large: {bytes} bytes exceeds the {limit} byte limit; use file storage for large payloads")]
     TransactionTooLarge { bytes: usize, limit: usize },
+
+    /// Shared-space integrity violation I1 (ADR 0002 §4b): a row was inserted
+    /// into the share register `haex_shared_space_sync` whose `table_name`
+    /// points at an internal `haex_*` (or `sqlite_*`) system table. The
+    /// register may never target internal tables — reject the transaction.
+    #[error("I1 integrity violation: share register may not target system table '{table}'")]
+    I1RegisterTargetsSystemTable { table: String },
+
+    /// Shared-space integrity violation I2 (ADR 0002 §4b / §6): the vault does
+    /// not hold a signing key for the declared `space_id`, so it cannot
+    /// legitimately author the share entry. Signing for a foreign space would
+    /// let a foreign-authored row leak into it — reject the transaction.
+    #[error("I2 integrity violation: vault has no signing key for space '{space_id}' — cannot author share")]
+    I2ForeignShareInsert { space_id: String },
+
+    /// The caller of `execute_with_crdt` tried to write to a CRDT meta column
+    /// directly (`haex_hlc`, `haex_column_hlcs`, `haex_column_sigs`). Those
+    /// columns are managed exclusively by the CRDT transformer + the F1/F2
+    /// signing passes — a caller-supplied value would either be silently
+    /// clobbered by the transformer (`haex_hlc`) or, worse, would feed a
+    /// forged HLC/sig into the sig preimage (`haex_column_hlcs`, sig-forgery
+    /// vector). Reject the whole statement — no silent stripping.
+    #[error("CRDT meta column write is forbidden: '{column}' is managed by the CRDT layer and must not be set by callers")]
+    CrdtMetaColumnWriteForbidden { column: String },
 }
 
 impl From<rusqlite::Error> for DatabaseError {

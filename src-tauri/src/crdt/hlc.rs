@@ -64,9 +64,14 @@ impl HlcService {
         }
     }
 
-    /// Create an HLC service with a fixed device ID for unit tests.
+    /// Create an HLC service with a fixed device ID for tests.
     /// No database or AppHandle required — the HLC is immediately usable.
-    #[cfg(test)]
+    ///
+    /// Callable from both in-crate unit tests and out-of-crate integration
+    /// tests (`tests/*.rs`); the latter cannot see `#[cfg(test)]`-gated
+    /// items because they compile as a separate crate. Dropping the gate is
+    /// the smallest surface change; the `_for_testing` suffix and doc
+    /// comment continue to signal the production/test boundary.
     pub fn new_for_testing(device_id: &str) -> Self {
         use uhlc::{HLCBuilder, ID};
         use uuid::Uuid;

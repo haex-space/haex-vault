@@ -10,6 +10,7 @@ use crate::critical::CriticalFailureCode;
 use crate::database::DbConnection;
 use crate::AppState;
 
+use super::super::column_sig_hook::{drop_column_sig_cache, warm_column_sig_cache};
 use super::super::invite_tokens;
 use super::super::leader::LeaderState;
 use super::super::types::DeliveryStatus;
@@ -82,6 +83,14 @@ pub async fn local_delivery_start(
     // already holds an `Arc` to `state.leader_state`, so the leader row we
     // just inserted is visible to it without any further wiring.
 
+    // Task C4: `createLocalSpace` invokes this command after inserting the
+    // owner's `haex_space_members` row, so the signing key for `space_id`
+    // is discoverable in the DB by now — hydrate the cache eagerly. The
+    // original `db_conn` was moved into `LeaderState`; the underlying
+    // `Arc<Mutex<..>>` is cheap to re-wrap here.
+    let cache_db = DbConnection(state.db.0.clone());
+    warm_column_sig_cache(&state.column_sig_key_cache, &cache_db, &space_id);
+
     eprintln!("[SpaceDelivery] Started leader mode for space {space_id}");
     Ok(())
 }
@@ -147,6 +156,11 @@ pub async fn local_delivery_stop(
         .map_err(|e| e.to_string())?;
 
     state.leader_state.write().await.remove(&space_id);
+
+    // Task C4: leader mode is only stopped when the space itself is being
+    // torn down locally (leaveSpace path). Evict the cached signing key so
+    // the map doesn't accumulate stale entries across long sessions.
+    drop_column_sig_cache(&state.column_sig_key_cache, &space_id);
 
     eprintln!("[SpaceDelivery] Stopped leader mode for space {space_id}");
     Ok(())

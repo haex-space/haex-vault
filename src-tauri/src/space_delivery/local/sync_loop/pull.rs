@@ -17,6 +17,11 @@ use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
 
 /// Convert a `LocalColumnChange` to a `RemoteColumnChange` for the apply function.
+///
+/// `sig` is `None` here: the P2P leader-relay path does not yet propagate
+/// per-column signatures on the wire — that plumbing lands in Runde 7 (Task
+/// H3). Until then the apply-side verifier stays dormant for changes that
+/// arrive via this converter.
 pub fn local_to_remote_change(local: &LocalColumnChange) -> RemoteColumnChange {
     RemoteColumnChange {
         table_name: local.table_name.clone(),
@@ -24,6 +29,7 @@ pub fn local_to_remote_change(local: &LocalColumnChange) -> RemoteColumnChange {
         column_name: local.column_name.clone(),
         hlc_timestamp: local.hlc_timestamp.clone(),
         decrypted_value: local.value.clone(),
+        sig: None,
     }
 }
 

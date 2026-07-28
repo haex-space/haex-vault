@@ -10,6 +10,7 @@ use time::OffsetDateTime;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use crate::crdt::column_sig::key_cache::SpaceKeyCache;
 use crate::crdt::hlc::HlcService;
 use crate::database::core;
 use crate::database::DbConnection;
@@ -54,6 +55,7 @@ impl LocalInviteToken {
 pub fn create_contact_invite_token(
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
+    key_cache: &SpaceKeyCache,
     invite_tokens: &Arc<RwLock<Vec<LocalInviteToken>>>,
     space_id: &str,
     target_did: &str,
@@ -80,7 +82,7 @@ pub fn create_contact_invite_token(
     };
 
     // Persist to CRDT-synced DB
-    persist_invite_token(db, hlc, &token)?;
+    persist_invite_token(db, hlc, key_cache, &token)?;
 
     // Also keep in memory for fast validation
     let tokens = invite_tokens.clone();
@@ -99,6 +101,7 @@ pub fn create_contact_invite_token(
 pub async fn create_conference_invite_token(
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
+    key_cache: &SpaceKeyCache,
     invite_tokens: &Arc<RwLock<Vec<LocalInviteToken>>>,
     space_id: &str,
     capability: &str,
@@ -124,7 +127,7 @@ pub async fn create_conference_invite_token(
     };
 
     // Persist to CRDT-synced DB
-    persist_invite_token(db, hlc, &token)?;
+    persist_invite_token(db, hlc, key_cache, &token)?;
 
     // Also keep in memory for fast validation
     invite_tokens.write().await.push(token);
@@ -186,6 +189,7 @@ pub async fn validate_invite(
 pub async fn consume_invite(
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
+    key_cache: &SpaceKeyCache,
     invite_tokens: &Arc<RwLock<Vec<LocalInviteToken>>>,
     token_id: &str,
 ) -> Result<(), DeliveryError> {
@@ -202,7 +206,7 @@ pub async fn consume_invite(
     let current_uses = token.current_uses;
 
     // Persist updated usage count to DB (CRDT-synced)
-    update_token_usage(db, hlc, token_id, current_uses)?;
+    update_token_usage(db, hlc, key_cache, token_id, current_uses)?;
     Ok(())
 }
 
@@ -214,6 +218,7 @@ pub async fn consume_invite(
 fn persist_invite_token(
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
+    key_cache: &SpaceKeyCache,
     token: &LocalInviteToken,
 ) -> Result<(), DeliveryError> {
     let hlc_guard = hlc.lock().map_err(|_| DeliveryError::Database {
@@ -252,6 +257,7 @@ fn persist_invite_token(
         ],
         db,
         &hlc_guard,
+        key_cache,
     )
     .map_err(|e| DeliveryError::Database {
         reason: e.to_string(),
@@ -398,6 +404,7 @@ fn load_invite_token_by_id(
 fn update_token_usage(
     db: &DbConnection,
     hlc: &Arc<Mutex<HlcService>>,
+    key_cache: &SpaceKeyCache,
     token_id: &str,
     current_uses: u32,
 ) -> Result<(), DeliveryError> {
@@ -412,6 +419,7 @@ fn update_token_usage(
         ],
         db,
         &hlc_guard,
+        key_cache,
     )
     .map_err(|e| DeliveryError::Database {
         reason: e.to_string(),

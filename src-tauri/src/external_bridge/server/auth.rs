@@ -133,6 +133,7 @@ pub(super) async fn update_client_last_seen(
         params,
         &state.db,
         &hlc_guard,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| BridgeError::Database(e.to_string()))?;
 

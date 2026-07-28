@@ -110,6 +110,7 @@ mod tests {
             column_name: col.to_string(),
             hlc_timestamp: hlc.to_string(),
             decrypted_value: JsonValue::Null,
+            sig: None,
         }
     }
 

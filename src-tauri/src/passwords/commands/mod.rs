@@ -433,6 +433,7 @@ pub async fn extension_password_delete(
         vec![JsonValue::String(item_id)],
         &state.db,
         &hlc,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| ExtensionError::Database { source: e })?;
 

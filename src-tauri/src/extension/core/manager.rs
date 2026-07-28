@@ -265,6 +265,7 @@ impl ExtensionManager {
                 params,
                 &state.db,
                 &hlc_guard,
+                &state.column_sig_key_cache,
             )?;
 
             return Ok(());

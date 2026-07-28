@@ -64,6 +64,7 @@ fn change(pk: &str, col: &str, val: &str, hlc: &str) -> RemoteColumnChange {
         column_name: col.to_string(),
         hlc_timestamp: hlc.to_string(),
         decrypted_value: JsonValue::String(val.to_string()),
+        sig: None,
     }
 }
 

@@ -15,18 +15,19 @@ HLC + delete-log refactor.
 
 ## Table-scan approach
 
-Each CRDT-enabled table carries two runtime-added columns:
+Each CRDT-enabled table carries three runtime-added columns:
 
 | Column             | Meaning                                                          |
 |--------------------|------------------------------------------------------------------|
 | `haex_hlc`         | HLC timestamp of the most recent write to any column in this row |
 | `haex_column_hlcs` | JSON object `{columnName: hlc}` for per-column LWW decisions     |
+| `haex_column_sigs` | JSON object `{columnName: {spaceId: {authorDid, sig}}}` for per-(column, space) Ed25519 author signatures (ADR 0002 Phase 1) |
 
 Sync pushes work by scanning each dirty table for rows whose `haex_hlc` has
 advanced past `lastPushHlcTimestamp` and emitting one `ColumnChange` per
 changed column. The CRDT engine automatically adds `haex_hlc` /
-`haex_column_hlcs` to any non-`_no_sync` table at `CREATE TABLE` time — app
-code never has to think about them.
+`haex_column_hlcs` / `haex_column_sigs` to any non-`_no_sync` table at
+`CREATE TABLE` time — app code never has to think about them.
 
 ## Transaction-scope HLC
 

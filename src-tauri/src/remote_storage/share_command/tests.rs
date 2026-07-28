@@ -17,6 +17,7 @@ use super::{
     share_storage_backend_core, IamAdapterFactory, IamAdminCredHint, ShareStorageBackendArgs,
     SharedStorageBackend,
 };
+use crate::crdt::column_sig::key_cache::SpaceKeyCache;
 use crate::crdt::hlc::HlcService;
 use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
@@ -264,8 +265,54 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
     )
     .expect("seed space");
 
+    // Runde 5 F2: inserting into `haex_shared_space_sync` now triggers
+    // sig-based I2 — the vault must hold a signing key for the space via
+    // (haex_space_members ⋈ haex_identities.private_key). Seed those two
+    // tables + a valid PKCS8 blob so `SpaceKeyCache::get_or_reload`'s JIT
+    // reload succeeds; the sig content is not asserted here.
+    conn.execute_batch(
+        "CREATE TABLE haex_identities (
+            id TEXT PRIMARY KEY NOT NULL,
+            did TEXT NOT NULL,
+            private_key TEXT
+         );
+         CREATE TABLE haex_space_members (
+            id TEXT PRIMARY KEY NOT NULL,
+            space_id TEXT NOT NULL,
+            identity_id TEXT NOT NULL
+         );",
+    )
+    .expect("seed identities + members tables");
+    let pkcs8_b64 = seeded_share_pkcs8_b64();
+    conn.execute(
+        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
+        rusqlite::params!["ident-owner", "did:key:zOwnForShareTests", &pkcs8_b64],
+    )
+    .expect("seed identity");
+    conn.execute(
+        "INSERT INTO haex_space_members (id, space_id, identity_id)
+         VALUES ('mem-owner', ?1, 'ident-owner')",
+        rusqlite::params![&space_id],
+    )
+    .expect("seed membership");
+
     let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
     (db, hlc_service, storage_id, space_id)
+}
+
+/// Deterministic PKCS8 Ed25519 blob for share-command tests (seeded random
+/// bytes; content is not asserted, only well-formedness for JIT reload).
+fn seeded_share_pkcs8_b64() -> String {
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+    let pkcs8_prefix: [u8; 16] = [
+        0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04,
+        0x20,
+    ];
+    let seed: [u8; 32] = rand::random();
+    let mut der = Vec::with_capacity(48);
+    der.extend_from_slice(&pkcs8_prefix);
+    der.extend_from_slice(&seed);
+    BASE64.encode(&der)
 }
 
 fn make_hint() -> IamAdminCredHint {
@@ -315,9 +362,10 @@ async fn happy_path_writes_row_and_mapping() {
 
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011); // LIST|GET
 
-    let result: SharedStorageBackend = share_storage_backend_core(&db, &hlc, args, &factory)
-        .await
-        .expect("share should succeed");
+    let result: SharedStorageBackend =
+        share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
+            .await
+            .expect("share should succeed");
 
     // Response shape reflects the mock output.
     assert_eq!(result.r#type, "s3");
@@ -420,7 +468,7 @@ async fn iam_admin_cred_missing_when_no_hint_and_no_prior_cred() {
         iam_admin_cred_hint: None,
     };
 
-    let err = share_storage_backend_core(&db, &hlc, args, &factory)
+    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
         .await
         .expect_err("must fail without a cred");
     match err {
@@ -444,7 +492,7 @@ async fn iam_admin_cred_missing_cleared_by_hint() {
     let adapter_1 = Arc::new(MockIamAdapter::new(Ok(true), Ok(scoped_1.clone())));
     let factory_1 = MockIamAdapterFactory { adapter: adapter_1 };
     let args_1 = args_with_hint(&storage_id, &space_id, make_hint(), 0b0001);
-    let out_1 = share_storage_backend_core(&db, &hlc, args_1, &factory_1)
+    let out_1 = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args_1, &factory_1)
         .await
         .expect("first share should succeed via hint");
     assert_eq!(out_1.iam_user_name, scoped_1.iam_user_name);
@@ -462,7 +510,7 @@ async fn iam_admin_cred_missing_cleared_by_hint() {
         access_flags: 0b0011,
         iam_admin_cred_hint: None,
     };
-    let out_2 = share_storage_backend_core(&db, &hlc, args_2, &factory_2)
+    let out_2 = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args_2, &factory_2)
         .await
         .expect("second share should succeed by reusing stored cred");
     assert_eq!(out_2.iam_user_name, scoped_2.iam_user_name);
@@ -480,7 +528,7 @@ async fn probe_access_denied_returns_iam_admin_insufficient() {
     };
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, args, &factory)
+    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
         .await
         .expect_err("must reject when probe denies");
     assert!(matches!(err, StorageError::IamAdminInsufficient));
@@ -498,7 +546,7 @@ async fn create_scoped_user_failure_writes_no_db_rows() {
     let factory = MockIamAdapterFactory { adapter };
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, args, &factory)
+    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
         .await
         .expect_err("must propagate adapter failure");
     match err {
@@ -575,7 +623,7 @@ async fn db_failure_after_iam_success_calls_delete_scoped_user() {
     };
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, args, &factory)
+    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
         .await
         .expect_err("db insert must fail");
     assert!(
@@ -632,7 +680,7 @@ async fn share_returns_existing_when_called_twice_with_same_args() {
     };
 
     let args_1 = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
-    let out_1 = share_storage_backend_core(&db, &hlc, args_1, &factory)
+    let out_1 = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args_1, &factory)
         .await
         .expect("first share should succeed");
 
@@ -646,7 +694,7 @@ async fn share_returns_existing_when_called_twice_with_same_args() {
         access_flags: 0b0011,
         iam_admin_cred_hint: None,
     };
-    let out_2 = share_storage_backend_core(&db, &hlc, args_2, &factory)
+    let out_2 = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args_2, &factory)
         .await
         .expect("second share should short-circuit to the existing row");
 
@@ -696,7 +744,7 @@ async fn access_flags_zero_is_invalid() {
     };
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0);
 
-    let err = share_storage_backend_core(&db, &hlc, args, &factory)
+    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
         .await
         .expect_err("access_flags=0 must be rejected");
     assert!(matches!(err, StorageError::InvalidArgs { .. }));
@@ -719,7 +767,7 @@ async fn prefix_with_iam_wildcard_characters_is_invalid() {
         let mut args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
         args.prefix = Some(bad_prefix.to_string());
 
-        let err = share_storage_backend_core(&db, &hlc, args, &factory)
+        let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
             .await
             .expect_err("wildcard prefix must be rejected");
         assert!(
@@ -749,7 +797,7 @@ async fn object_key_present_returns_object_scope_not_yet_supported() {
         iam_admin_cred_hint: Some(make_hint()),
     };
 
-    let err = share_storage_backend_core(&db, &hlc, args, &factory)
+    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
         .await
         .expect_err("object scope must be v1-rejected");
     assert!(matches!(err, StorageError::ObjectScopeNotYetSupported));
@@ -768,7 +816,7 @@ async fn storage_not_found_when_id_unknown() {
     let unknown_id = rand_string("no-such-storage");
     let args = args_with_hint(&unknown_id, &space_id, make_hint(), 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, args, &factory)
+    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
         .await
         .expect_err("unknown storage_id must fail");
     match err {
@@ -797,7 +845,7 @@ async fn minio_provider_rejected_in_hint() {
     };
     let args = args_with_hint(&storage_id, &space_id, minio_hint, 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, args, &factory)
+    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
         .await
         .expect_err("MinIO must be rejected upfront");
     match err {

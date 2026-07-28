@@ -262,6 +262,7 @@ pub async fn device_create_for_vault(
         ],
         &state.db,
         &hlc,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| DeviceError::Database {
         reason: format!("INSERT haex_devices: {e}"),
@@ -351,6 +352,7 @@ pub async fn device_reclaim_existing(
         ],
         &state.db,
         &hlc,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| DeviceError::Database {
         reason: format!("UPDATE haex_devices: {e}"),

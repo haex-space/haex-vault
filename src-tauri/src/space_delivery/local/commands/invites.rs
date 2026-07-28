@@ -48,6 +48,7 @@ pub async fn local_delivery_create_invite(
             invite_tokens::create_contact_invite_token(
                 &leader_state.db,
                 &leader_state.hlc,
+                &state.column_sig_key_cache,
                 &leader_state.invite_tokens,
                 &space_id,
                 &did,
@@ -61,6 +62,7 @@ pub async fn local_delivery_create_invite(
         None => invite_tokens::create_conference_invite_token(
             &leader_state.db,
             &leader_state.hlc,
+            &state.column_sig_key_cache,
             &leader_state.invite_tokens,
             &space_id,
             &capability,
@@ -151,6 +153,7 @@ pub(crate) struct PersistClaimedUcan<'a> {
 pub(crate) fn persist_claimed_ucan(
     db: &DbConnection,
     hlc_guard: &std::sync::MutexGuard<'_, crate::crdt::hlc::HlcService>,
+    key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     p: PersistClaimedUcan<'_>,
 ) -> Result<(), String> {
     let ucan_id = uuid::Uuid::new_v4().to_string();
@@ -176,6 +179,7 @@ pub(crate) fn persist_claimed_ucan(
         ],
         db,
         hlc_guard,
+        key_cache,
     )
     .map_err(|e| format!("Failed to persist UCAN: {e}"))?;
 
@@ -198,6 +202,7 @@ pub(crate) fn persist_claimed_ucan(
         ],
         db,
         hlc_guard,
+        key_cache,
     );
 
     Ok(())
@@ -500,6 +505,7 @@ pub async fn local_delivery_claim_invite(
         ],
         &db,
         &hlc_guard,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| format!("Failed to persist space: {e}"))?;
     eprintln!("[ClaimInvite] [trace] AFTER execute_with_crdt INSERT haex_spaces");
@@ -509,6 +515,7 @@ pub async fn local_delivery_claim_invite(
     persist_claimed_ucan(
         &db,
         &hlc_guard,
+        &state.column_sig_key_cache,
         PersistClaimedUcan {
             space_id: &space_id,
             inviter_did: &inviter_did,
@@ -532,9 +539,21 @@ pub async fn local_delivery_claim_invite(
         ],
         &db,
         &hlc_guard,
+        &state.column_sig_key_cache,
     )
     .map_err(|e| format!("Failed to mark invite as accepted: {e}"))?;
     eprintln!("[ClaimInvite] [trace] AFTER mark accepted — returning Ok");
+
+    // 8a. Task C4: hydrate the column-sig SpaceKeyCache for this newly-joined
+    //     space. On the claimant side the local `haex_space_members` row is
+    //     seeded via CRDT sync from the leader (may not have arrived yet at
+    //     this point), so this reload is often a miss — `get_or_reload` will
+    //     retry via JIT on the next signing call.
+    super::super::column_sig_hook::warm_column_sig_cache(
+        &state.column_sig_key_cache,
+        &db,
+        &space_id,
+    );
 
     // 8b. Clean up other pending invites for the same space — once we've
     //     joined, leftover invites (from the same inviter via duplicate
@@ -556,6 +575,7 @@ pub async fn local_delivery_claim_invite(
         ],
         &db,
         &hlc_guard,
+        &state.column_sig_key_cache,
     ) {
         eprintln!(
             "[ClaimInvite] [warn] sibling pending-invite cleanup failed for space={} token={}: {e}",
