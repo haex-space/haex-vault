@@ -164,3 +164,80 @@ fn multi_space_vectors_have_distinct_sigs() {
         "multi-space vectors must declare distinct author DIDs"
     );
 }
+
+/// `multi_space_vectors_have_distinct_sigs` cannot actually prove `space_id`
+/// is in the preimage: its two vectors use two different signing keys, and
+/// Ed25519 produces distinct signatures for distinct keys no matter what the
+/// preimage holds. This pair fixes the signer and every other field and
+/// varies ONLY `space_id`, so equal sigs here mean `space_id` dropped out.
+#[test]
+fn same_signer_vectors_differing_only_in_space_id_have_distinct_sigs() {
+    let vectors = load_fixture().vectors;
+    let a = vectors
+        .iter()
+        .find(|v| v.name == "same_signer_space_a_valid")
+        .expect("same_signer_space_a_valid vector must be present");
+    let b = vectors
+        .iter()
+        .find(|v| v.name == "same_signer_space_b_valid")
+        .expect("same_signer_space_b_valid vector must be present");
+
+    assert_eq!(a.author_did, b.author_did, "signer must be held fixed");
+    assert_eq!(a.table_name, b.table_name);
+    assert_eq!(a.row_pks, b.row_pks);
+    assert_eq!(a.column_name, b.column_name);
+    assert_eq!(a.hlc, b.hlc);
+    assert_eq!(a.value_bytes, b.value_bytes);
+    assert_ne!(
+        a.space_id, b.space_id,
+        "space_id must be the only varying field"
+    );
+
+    assert_ne!(
+        a.sig, b.sig,
+        "same signer + identical coordinates + different space_id must yield \
+         different sigs — space_id missing from the preimage?"
+    );
+}
+
+/// The storage-class tag in the canonical value encoding is what stops a
+/// signature over `NULL` from verifying against `TEXT('')` or `BLOB([])`:
+/// all three have empty bodies, so untagged they shared one preimage. Same
+/// signer, same coordinates, only the storage class differs.
+#[test]
+fn empty_bodied_storage_classes_have_distinct_sigs() {
+    let vectors = load_fixture().vectors;
+    let names = [
+        "empty_text_valid",
+        "empty_blob_valid",
+        "null_class_probe_valid",
+    ];
+    let probes: Vec<_> = names
+        .iter()
+        .map(|n| {
+            vectors
+                .iter()
+                .find(|v| v.name == *n)
+                .unwrap_or_else(|| panic!("{n} vector must be present"))
+        })
+        .collect();
+
+    for (i, a) in probes.iter().enumerate() {
+        for b in probes.iter().skip(i + 1) {
+            assert_eq!(a.author_did, b.author_did, "signer must be held fixed");
+            assert_eq!(a.column_name, b.column_name);
+            assert_eq!(a.hlc, b.hlc);
+            assert_ne!(
+                a.value_bytes, b.value_bytes,
+                "{} and {} must canonicalise to different bytes — storage-class \
+                 tag missing?",
+                a.name, b.name
+            );
+            assert_ne!(
+                a.sig, b.sig,
+                "{} and {} must not share a sig",
+                a.name, b.name
+            );
+        }
+    }
+}

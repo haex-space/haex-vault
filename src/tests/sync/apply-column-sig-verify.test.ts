@@ -97,8 +97,9 @@ describe('applyRemoteChangesInTransactionAsync — post-decrypt column-sig verif
     expect(capturedSigCall).not.toBeNull()
     expect(capturedSigCall!.input.expectedSpaceId).toBe('space-123')
     expect(capturedSigCall!.input.changes).toHaveLength(1)
-    // TEXT 'Hi' canonicalises to UTF-8 [0x48, 0x69] → base64 'SGk='
-    expect(capturedSigCall!.input.changes[0]!.valueBytes).toBe('SGk=')
+    // TEXT 'Hi' canonicalises to the TEXT storage-class tag followed by its
+    // UTF-8 bytes: [0x03, 0x48, 0x69] → base64 'A0hp'.
+    expect(capturedSigCall!.input.changes[0]!.valueBytes).toBe('A0hp')
     expect(capturedSigCall!.input.changes[0]!.sig).toEqual({
       authorDid: 'did:key:z1',
       sig: 'c2ln',
@@ -216,10 +217,11 @@ describe('applyRemoteChangesInTransactionAsync — post-decrypt column-sig verif
 
     expect(capturedSigCall).not.toBeNull()
     expect(capturedSigCall!.input.changes).toHaveLength(1)
-    // NULL → empty bytes → empty base64 string. The verifier receives
-    // this and can compare against the sig's preimage (which was signed
-    // over the same empty bytes on the writer side).
-    expect(capturedSigCall!.input.changes[0]!.valueBytes).toBe('')
+    // NULL → the bare NULL storage-class tag [0x05] → base64 'BQ=='. It is
+    // deliberately NOT the empty string: an empty body is what NULL,
+    // TEXT('') and BLOB([]) used to share, and that collision let one
+    // signature verify against all three values.
+    expect(capturedSigCall!.input.changes[0]!.valueBytes).toBe('BQ==')
   })
 
   it('empty batch is a no-op', async () => {

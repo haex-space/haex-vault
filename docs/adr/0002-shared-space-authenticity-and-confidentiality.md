@@ -184,6 +184,17 @@ ist die Row nach gemischtem Merge inkohärent.
   und **nie der übertragene Ciphertext**. `domain_tag` = fester Präfix
   `"haex/space-col-sig/v1"` gegen Cross-Protocol-Reuse. ⚠️ Impl-Risiko: Value darf durch
   die Pipeline nie re-serialisiert werden (`1.0`→`1`); signierte Bytes verbatim mitführen.
+- **Storage-Class-Tag in `value_bytes` (Phase-1-Review-Nachtrag):**
+  `value_bytes = storage_class_tag (1 Byte) ‖ native Byte-Form`, Tag-Werte = SQLites eigene
+  Typ-Codes (`INTEGER=1, REAL=2, TEXT=3, BLOB=4, NULL=5`). Die Längen-Präfixe trennen
+  **Felder**, nicht **Typen innerhalb eines Feldes** — ohne Tag kodieren `NULL`, `TEXT('')`
+  und `BLOB([])` alle zur leeren Byte-Folge, und `Integer(1)` kollidiert mit
+  `Blob([0,0,0,0,0,0,0,1])`. Ein Angreifer könnte also eine gültige Signatur über einen
+  Wert replayen und dabei einen byte-gleichen Wert einer anderen Storage-Class einsetzen
+  (`NULL` → `""` ist der einfache Fall). Der Tag macht jede Storage-Class zu einem eigenen
+  Preimage. Implementiert in `value_bytes.rs::tag`, `columnSigCanonical.ts::STORAGE_CLASS_TAG`
+  und `scripts/gen-column-sig-vectors.ts`; Fixture-Vektoren `empty_text_valid` /
+  `empty_blob_valid` / `null_class_probe_valid` sichern es cross-language ab.
 - **Signatur-über-Klartext (kohärent mit 4e):** Die Signatur deckt den **Klartext**
   (`value_bytes`), transportiert/gespeichert wird der Ciphertext (**sign-then-encrypt**).
   ⚠️ Der heutige TS-Server-Sync macht das **Gegenteil** (signiert `encryptedValue` =
