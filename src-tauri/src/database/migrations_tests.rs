@@ -295,6 +295,83 @@ fn row_aware_helpers_handle_composite_row_pks() {
     );
 }
 
+/// Applies a specific bundled migration by tag to an in-memory connection.
+/// Mirrors the production runner: splits on `--> statement-breakpoint`, applies
+/// each statement in order. Does NOT pipe through CrdtTransformer — callers
+/// that need the injected `haex_hlc` / `haex_column_hlcs` / `haex_column_sigs`
+/// meta columns should call `ensure_crdt_columns` afterwards, matching the
+/// retrofit path.
+fn apply_migration_by_tag(conn: &Connection, tag_prefix: &str) {
+    let mig_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("database/migrations");
+    let sql_path = std::fs::read_dir(&mig_dir)
+        .unwrap()
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(tag_prefix) && n.ends_with(".sql"))
+        })
+        .unwrap_or_else(|| panic!("migration with prefix '{tag_prefix}' must exist in {mig_dir:?}"));
+    let sql = std::fs::read_to_string(&sql_path).unwrap();
+    for stmt in sql.split("--> statement-breakpoint") {
+        let stmt = stmt.trim();
+        if !stmt.is_empty() {
+            conn.execute_batch(stmt)
+                .unwrap_or_else(|e| panic!("statement in {sql_path:?} failed: {e}\nSQL:\n{stmt}"));
+        }
+    }
+}
+
+fn pragma_column_names(conn: &Connection, table: &str) -> Vec<String> {
+    let mut stmt = conn
+        .prepare(&format!("SELECT name FROM pragma_table_info('{table}')"))
+        .expect("prepare pragma");
+    stmt.query_map([], |row| row.get(0))
+        .expect("pragma query")
+        .collect::<Result<Vec<String>, _>>()
+        .expect("collect columns")
+}
+
+#[test]
+fn migration_0013_creates_shared_space_delete_log_table() {
+    let conn = Connection::open_in_memory().unwrap();
+    apply_migration_by_tag(&conn, "0013_");
+    let cols = pragma_column_names(&conn, "haex_shared_space_deleted_rows");
+    assert!(
+        cols.iter().any(|c| c == "id"),
+        "missing id column, got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "space_id"),
+        "missing space_id column, got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "table_name"),
+        "missing table_name column, got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "row_pks"),
+        "missing row_pks column, got: {cols:?}"
+    );
+    // CRDT meta columns are added by CrdtTransformer / ensure_crdt_columns —
+    // verified separately in Task 2.
+}
+
+#[test]
+fn migration_0013_creates_compaction_anchors_table() {
+    let conn = Connection::open_in_memory().unwrap();
+    apply_migration_by_tag(&conn, "0013_");
+    let cols = pragma_column_names(&conn, "haex_space_compaction_anchors");
+    assert!(
+        cols.iter().any(|c| c == "space_id"),
+        "missing space_id column, got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "min_valid_hlc"),
+        "missing min_valid_hlc column, got: {cols:?}"
+    );
+}
+
 #[test]
 fn pending_columns_migration_0003_widens_pk_to_row_aware() {
     // The shipped 0003 migration must produce a (table_name, column_name,
