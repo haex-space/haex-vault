@@ -28,7 +28,8 @@
     "android:init": "node scripts/android-init.js",
     "android:dev": "pnpm android:init && tauri android dev",
     "android:build": "pnpm android:init && tauri android build",
-    "gen:ucan-vectors": "tsx scripts/gen-ucan-chain-vectors.ts"
+    "gen:ucan-vectors": "tsx scripts/gen-ucan-chain-vectors.ts",
+    "gen:column-sig-vectors": "tsx scripts/gen-column-sig-vectors.ts"
   },
   "dependencies": {
     "@choochmeque/tauri-plugin-biometry-api": "^0.2.8",
