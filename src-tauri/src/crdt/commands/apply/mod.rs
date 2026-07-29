@@ -3,6 +3,12 @@ mod delete_propagation;
 mod grouping;
 mod types;
 
+#[cfg(feature = "e2e-hooks")]
+pub mod e2e_hooks;
+
+#[cfg(all(test, feature = "e2e-hooks"))]
+mod e2e_hooks_tests;
+
 pub use db::*;
 pub(crate) use grouping::*;
 pub use types::*;
