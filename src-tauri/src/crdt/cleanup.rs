@@ -2,7 +2,7 @@
 
 use crate::crdt::trigger::{DELETED_ROWS_TABLE, SHARED_SPACE_DELETED_ROWS_TABLE};
 use crate::table_names::TABLE_CRDT_CONFIGS;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use ts_rs::TS;
@@ -538,13 +538,18 @@ pub fn advance_shared_space_anchor(
     // comparator — INSERT OR REPLACE with plain string MAX() would ignore
     // node-id disambiguation and could accept a lexicographically smaller
     // string that is actually newer.
+    // Use `.optional()` (not `.ok()`) so only `QueryReturnedNoRows` collapses to
+    // `None`. Any other rusqlite error (locked/busy DB, corruption, missing
+    // column) propagates instead of being silently treated as "first write",
+    // which would cause the UPSERT below to overwrite an existing higher anchor
+    // with `new_hlc` — a regression of the anti-resurrection watermark.
     let current: Option<String> = conn
         .query_row(
             "SELECT min_valid_hlc FROM haex_space_compaction_anchors WHERE space_id = ?1",
             [space_id],
             |row| row.get(0),
         )
-        .ok();
+        .optional()?;
     let effective = match current.as_deref() {
         Some(cur) => {
             if crate::crdt::hlc::hlc_is_newer(new_hlc, cur) {
@@ -592,6 +597,9 @@ pub fn advance_owner_delete_log_anchor(
     conn: &Connection,
     new_hlc: &str,
 ) -> Result<(), rusqlite::Error> {
+    // See `advance_shared_space_anchor` for the rationale behind `.optional()`
+    // instead of `.ok()`: real read errors must propagate rather than be
+    // conflated with "no anchor yet" and silently regress the watermark.
     let current: Option<String> = conn
         .query_row(
             "SELECT value FROM haex_vault_settings \
@@ -599,7 +607,7 @@ pub fn advance_owner_delete_log_anchor(
             [OWNER_DELETE_LOG_ANCHOR_KEY],
             |row| row.get(0),
         )
-        .ok();
+        .optional()?;
     let effective = match current.as_deref() {
         Some(cur) => {
             if crate::crdt::hlc::hlc_is_newer(new_hlc, cur) {
