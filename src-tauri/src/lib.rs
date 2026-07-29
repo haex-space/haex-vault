@@ -538,6 +538,8 @@ pub fn run() {
             crdt::commands::get_all_crdt_tables,
             crdt::commands::ensure_extension_triggers,
             crdt::commands::apply_remote_changes_in_transaction,
+            #[cfg(feature = "e2e-hooks")]
+            crdt::commands::apply::e2e_hooks::test_seed_shared_space_delete_log_entry,
             extension::database::commands::extension_database_execute,
             extension::database::commands::extension_database_transaction,
             extension::database::commands::extension_database_query,
