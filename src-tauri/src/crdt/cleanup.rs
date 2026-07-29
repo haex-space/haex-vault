@@ -247,6 +247,59 @@ pub fn cleanup_deleted_rows(
     let _fk_guard = ForeignKeyGuard::disable(conn)?;
 
     let deleted = if retention_days == 0 {
+        // Advance BOTH anchors to the max HLC observed across the two
+        // delete logs BEFORE pruning. Symmetric to the retention-based
+        // path (see below) — a crash between advance and delete leaves
+        // an anchor that is at most as strict as the surviving entries,
+        // never looser.
+        let owner_max_hlc: Option<String> = conn
+            .query_row(
+                &format!(
+                    "SELECT haex_hlc FROM \"{DELETED_ROWS_TABLE}\" \
+                     WHERE haex_hlc IS NOT NULL \
+                     ORDER BY \
+                       CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) DESC \
+                     LIMIT 1"
+                ),
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok();
+        if let Some(hlc) = owner_max_hlc {
+            advance_owner_delete_log_anchor(conn, &hlc)?;
+        }
+
+        let mut per_space_stmt = conn.prepare(&format!(
+            "SELECT space_id, haex_hlc FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
+             WHERE haex_hlc IS NOT NULL"
+        ))?;
+        let mut per_space_maxes: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        let rows = per_space_stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for r in rows {
+            let (space_id, hlc) = r?;
+            per_space_maxes
+                .entry(space_id)
+                .and_modify(|cur| {
+                    if crate::crdt::hlc::hlc_is_newer(&hlc, cur) {
+                        *cur = hlc.clone();
+                    }
+                })
+                .or_insert(hlc);
+        }
+        drop(per_space_stmt);
+        for (space_id, hlc) in &per_space_maxes {
+            advance_shared_space_anchor(conn, space_id, hlc)?;
+        }
+
+        let shared_delete_sql = format!("DELETE FROM \"{}\"", SHARED_SPACE_DELETED_ROWS_TABLE);
+        let shared_deleted = conn.execute(&shared_delete_sql, [])?;
+        if shared_deleted > 0 {
+            eprintln!("Cleaned up {shared_deleted} entries from {SHARED_SPACE_DELETED_ROWS_TABLE}");
+        }
+
         let delete_sql = format!("DELETE FROM \"{}\"", DELETED_ROWS_TABLE);
         conn.execute(&delete_sql, [])?
     } else {
@@ -311,8 +364,12 @@ pub fn cleanup_deleted_rows(
                 |row| row.get::<_, String>(0),
             )
             .ok();
+        // If anchor advancement fails we MUST NOT proceed with the DELETE:
+        // deleting delete-log entries without advancing the anchor would
+        // widen the resurrection window on the next inbound push. Propagate
+        // the error and let the caller retry the cleanup pass.
         if let Some(hlc) = owner_max_hlc {
-            let _ = advance_owner_delete_log_anchor(conn, &hlc);
+            advance_owner_delete_log_anchor(conn, &hlc)?;
         }
 
         // Shared-space anchors: per-space max HLC of entries about to be
@@ -341,7 +398,7 @@ pub fn cleanup_deleted_rows(
         }
         drop(per_space_stmt);
         for (space_id, hlc) in &per_space_maxes {
-            let _ = advance_shared_space_anchor(conn, space_id, hlc);
+            advance_shared_space_anchor(conn, space_id, hlc)?;
         }
 
         let delete_sql = format!(
@@ -499,16 +556,19 @@ pub fn advance_shared_space_anchor(
         None => new_hlc.to_string(),
     };
 
-    // haex_hlc/haex_column_hlcs are populated by the CRDT AFTER-INSERT
-    // trigger, but we also stamp haex_hlc here so the WHERE-key of the row
-    // is deterministic before triggers run. The trigger then updates
-    // haex_column_hlcs.
+    // `min_valid_hlc` (the anti-resurrection watermark) and `haex_hlc`
+    // (this CRDT row's own timestamp) are semantically distinct: the
+    // former is the max HLC pruned from the delete-log for this space;
+    // the latter is a fresh local HLC stamping *this* update to the
+    // anchor row. Stamp haex_hlc via the `current_hlc()` UDF so the row
+    // gets a real local HLC, and the CRDT AFTER-INSERT trigger populates
+    // haex_column_hlcs / haex_column_sigs on top.
     conn.execute(
         "INSERT INTO haex_space_compaction_anchors (space_id, min_valid_hlc, haex_hlc) \
-         VALUES (?1, ?2, ?2) \
+         VALUES (?1, ?2, current_hlc()) \
          ON CONFLICT(space_id) DO UPDATE SET \
              min_valid_hlc = excluded.min_valid_hlc, \
-             haex_hlc = excluded.haex_hlc",
+             haex_hlc = current_hlc()",
         rusqlite::params![space_id, &effective],
     )?;
     Ok(())
@@ -568,8 +628,28 @@ mod anchor_tests {
     use crate::crdt::trigger::SHARED_SPACE_DELETED_ROWS_TABLE;
     use rusqlite::Connection;
 
+    /// Test-only stub for the `current_hlc()` SQL UDF. Production wires
+    /// this to `HlcService::new_timestamp()`; in-memory unit tests only
+    /// need a monotonically-increasing string so the compaction-anchor
+    /// upsert can succeed.
+    fn register_current_hlc_stub(conn: &Connection) {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(1);
+        conn.create_scalar_function(
+            "current_hlc",
+            0,
+            rusqlite::functions::FunctionFlags::SQLITE_UTF8,
+            |_| {
+                let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+                Ok(format!("{n}/testnode"))
+            },
+        )
+        .expect("register current_hlc test stub");
+    }
+
     fn setup_anchor_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
+        register_current_hlc_stub(&conn);
         conn.execute_batch(&format!(
             "CREATE TABLE haex_space_compaction_anchors (
                  space_id TEXT PRIMARY KEY NOT NULL,

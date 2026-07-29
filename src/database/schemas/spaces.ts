@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   foreignKey,
+  index,
   integer,
   sqliteTable,
   text,
@@ -183,6 +184,11 @@ export const haexSharedSpaceSync = sqliteTable(
   (table) => [
     uniqueIndex('haex_shared_space_sync_table_row_space_unique')
       .on(table.tableName, table.rowPks, table.spaceId),
+    // Migration 0013 adds this index to accelerate the register-cascade
+    // BEFORE-DELETE trigger (see trigger.rs::generate_shared_space_register_cascade_trigger_sql)
+    // and the residual-register count in delete_propagation.rs, both of which
+    // filter on (table_name, row_pks) without space_id.
+    index('idx_haex_shared_space_sync_table_row').on(table.tableName, table.rowPks),
     foreignKey({
       columns: [table.extensionPublicKey, table.extensionName],
       foreignColumns: [haexExtensions.public_key, haexExtensions.name],

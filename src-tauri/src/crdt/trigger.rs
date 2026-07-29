@@ -606,6 +606,19 @@ fn generate_shared_space_infra_emit_trigger_sql(table_name: &str, pks: &[String]
 /// For space-scoped infra tables this DELETE is a no-op — they are register
 /// denylisted, so no matching register rows exist. Path A above handles their
 /// direct emit. Path B stays generic to cover both infra and extension.
+///
+/// **row_pks canonical encoding contract.** The trigger's `json_object(...)`
+/// call produces the string `{"pk1":"v1","pk2":"v2",...}` with keys in
+/// **primary-key-definition order** (as returned by `PRAGMA table_info`) and
+/// no whitespace. Every production writer inserting into
+/// `haex_shared_space_sync` MUST use the same encoding, otherwise this
+/// BEFORE-DELETE trigger's `WHERE row_pks = json_object(...)` will not match
+/// the stored register entry and the cascade will silently no-op.
+///
+/// Follow-up: audit all Rust register-insert sites (see grep hits for
+/// `INSERT INTO haex_shared_space_sync` outside test setups) and factor the
+/// encoding into a shared helper to make divergence a compile error rather
+/// than a runtime miss.
 fn generate_shared_space_register_cascade_trigger_sql(table_name: &str, pks: &[String]) -> String {
     let trigger_name =
         SHARED_SPACE_REGISTER_CASCADE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);

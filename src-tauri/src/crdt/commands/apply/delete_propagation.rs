@@ -484,57 +484,79 @@ pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
 
         // Task 7 register-check gate: before applying, look up whether the
         // (table, row, space) is currently registered. Three outcomes:
-        //   a. registered → legitimate apply.
-        //   b. not registered here, not registered anywhere → race with a
-        //      local unshare (Option C) — idempotent no-op cleanup path
-        //      via the residual check further down.
-        //   c. not registered here but registered in ANOTHER space → the
-        //      remote is trying to delete a row that lives in a space
-        //      they aren't authorized for. Log with `NotSharedInSpace`
-        //      severity; the residual check below then keeps the row
-        //      intact (residual > 0 → skip row DELETE), so no data is lost.
-        let target_space_registered: bool = tx
-            .query_row(
+        //   a. registered here → positive authorization: run register
+        //      cleanup and (if no other space still lists the row) the
+        //      business-row DELETE.
+        //   b. not registered here, not registered anywhere → no
+        //      authorization evidence. Common case: race with a local
+        //      unshare (either the receiver already ran the same
+        //      unshare, or the sender did and the register-DELETE has
+        //      already propagated). The business row must survive —
+        //      per ADR 0002 §6.5 an unshare must NOT hard-delete rows.
+        //   c. not registered here but registered in ANOTHER space →
+        //      suspected forgery (`NotSharedInSpace`). Keep both the
+        //      business row and the other-space register entry intact.
+        //
+        // SQL errors on any of the three lookups are treated as
+        // fail-closed: skip this delete-log entry (log + continue) so
+        // a transient DB error can never silently authorize a delete.
+        let target_space_registered: bool = match tx.query_row(
+            &format!(
+                "SELECT 1 FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
+                 WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3 LIMIT 1"
+            ),
+            params![&target_table, &row_pks_json, &space_id],
+            |_| Ok(true),
+        ) {
+            Ok(_) => true,
+            Err(rusqlite::Error::QueryReturnedNoRows) => false,
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Shared-space delete-log {id} for '{target_table}' in '{space_id}': \
+                     register lookup failed ({e}) — fail-closed, skipping."
+                );
+                continue;
+            }
+        };
+
+        if !target_space_registered {
+            let any_space_registered: bool = match tx.query_row(
                 &format!(
                     "SELECT 1 FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
-                     WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3 LIMIT 1"
+                     WHERE table_name = ?1 AND row_pks = ?2 LIMIT 1"
                 ),
-                params![&target_table, &row_pks_json, &space_id],
+                params![&target_table, &row_pks_json],
                 |_| Ok(true),
-            )
-            .unwrap_or(false);
-        if !target_space_registered {
-            let any_space_registered: bool = tx
-                .query_row(
-                    &format!(
-                        "SELECT 1 FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
-                         WHERE table_name = ?1 AND row_pks = ?2 LIMIT 1"
-                    ),
-                    params![&target_table, &row_pks_json],
-                    |_| Ok(true),
-                )
-                .unwrap_or(false);
+            ) {
+                Ok(_) => true,
+                Err(rusqlite::Error::QueryReturnedNoRows) => false,
+                Err(e) => {
+                    eprintln!(
+                        "[SYNC RUST] Shared-space delete-log {id} for '{target_table}' in '{space_id}': \
+                         any-space register lookup failed ({e}) — fail-closed, skipping."
+                    );
+                    continue;
+                }
+            };
             if any_space_registered {
                 eprintln!(
                     "[SYNC RUST] Shared-space delete-log {id} for '{target_table}' \
                      in '{space_id}': target row registered in a DIFFERENT space \
-                     (suspected forgery — NotSharedInSpace). Row will be kept by \
-                     the residual-register guard below."
+                     (suspected forgery — NotSharedInSpace). Keeping row."
                 );
             } else {
                 eprintln!(
                     "[SYNC RUST] Shared-space delete-log {id} for '{target_table}' \
-                     in '{space_id}': target register entry absent (likely a race \
-                     with a local unshare); applying idempotent cleanup."
+                     in '{space_id}': no register entry (likely a race with a local \
+                     unshare). No-op — keeping business row per unshare semantics."
                 );
             }
+            continue;
         }
 
-        // Register cleanup: per (table, row, space). Other spaces' entries
-        // for the same row survive by design (see the multi-space test).
-        // Run BEFORE the business row DELETE so that "row also present
-        // in another space" logic in downstream consumers still sees the
-        // consistent register state at this point.
+        // Positive gate cleared — target-space register entry exists.
+        // Register cleanup runs BEFORE the business-row DELETE so the
+        // residual-register check below sees the consistent state.
         let register_delete_sql = format!(
             "DELETE FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
              WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3"
@@ -544,25 +566,30 @@ pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
             params![&target_table, &row_pks_json, &space_id],
         ) {
             eprintln!(
-                "[SYNC RUST] Shared-space register cleanup failed for '{target_table}' in space '{space_id}': {e}"
+                "[SYNC RUST] Shared-space register cleanup failed for '{target_table}' in space '{space_id}': {e} — skipping business DELETE (fail-closed)."
             );
-            // Fall through — apply-loop must not abort mid-batch.
+            continue;
         }
 
         // Business row DELETE — only if the row no longer belongs to any
         // other space (otherwise we would strip a row still shared into
-        // another live space). If any register entries remain for this
-        // (table, row_pks), keep the row.
-        let residual_register_count: i64 = tx
-            .query_row(
-                &format!(
-                    "SELECT COUNT(*) FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
-                     WHERE table_name = ?1 AND row_pks = ?2"
-                ),
-                params![&target_table, &row_pks_json],
-                |r| r.get(0),
-            )
-            .unwrap_or(0);
+        // another live space). Fail-closed on DB errors here as well.
+        let residual_register_count: i64 = match tx.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
+                 WHERE table_name = ?1 AND row_pks = ?2"
+            ),
+            params![&target_table, &row_pks_json],
+            |r| r.get(0),
+        ) {
+            Ok(n) => n,
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Shared-space delete-log {id}: residual-register check failed ({e}) — fail-closed, skipping business DELETE."
+                );
+                continue;
+            }
+        };
 
         if residual_register_count == 0 {
             let delete_sql = format!("DELETE FROM \"{target_table}\" WHERE {where_clause}");
@@ -1015,7 +1042,10 @@ mod tests {
         // Race: local user unshared SPACE_X → local delete-log for
         // (T, R, SPACE_X) got emitted; remote's delete-log for the same
         // (T, R, SPACE_X) arrives after. Apply must be a no-op (no error,
-        // no side effect) — the register entry is already gone.
+        // no side effect) — the register entry is already gone AND the
+        // business row must survive because an unshare must NOT hard-delete
+        // the row (ADR 0002 §6.5). Without positive register evidence for
+        // the claimed space, the apply skips the business DELETE.
         let conn = setup_shared_space_apply_fixture();
         conn.execute(
             "INSERT INTO ext_notes_items (id, body, haex_hlc)
@@ -1045,6 +1075,22 @@ mod tests {
         // Must not error — race is a legitimate flow.
         propagate_shared_space_deleted_rows_to_target_tables(&tx, &ids).unwrap();
         tx.commit().unwrap();
+
+        // Business row survives: without positive register evidence the
+        // apply must not hard-delete. This is the key assertion — the old
+        // code fell through to the residual-count-zero branch and deleted
+        // the row, silently breaking the "unshare keeps the row" contract.
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM ext_notes_items WHERE id = 'note-race'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            row_count, 1,
+            "business row must survive a local-unshare race — no register evidence, no delete"
+        );
     }
 
     #[test]

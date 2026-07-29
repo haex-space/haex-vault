@@ -324,6 +324,23 @@ fn apply_migration_by_tag(conn: &Connection, tag_prefix: &str) {
     }
 }
 
+/// Test-fixture stub: create a minimal `haex_shared_space_sync` table so
+/// migration 0013's `CREATE INDEX ... ON haex_shared_space_sync (...)` can
+/// resolve. Production has this table via migration 0012; the isolated-
+/// migration fixtures don't apply prior tags, so we synthesize just enough
+/// of the schema to accept the index.
+fn create_shared_space_sync_stub(conn: &Connection) {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS haex_shared_space_sync (
+             id TEXT PRIMARY KEY NOT NULL,
+             table_name TEXT NOT NULL,
+             row_pks TEXT NOT NULL,
+             space_id TEXT NOT NULL
+         );",
+    )
+    .expect("create haex_shared_space_sync stub");
+}
+
 fn pragma_column_names(conn: &Connection, table: &str) -> Vec<String> {
     let mut stmt = conn
         .prepare(&format!("SELECT name FROM pragma_table_info('{table}')"))
@@ -358,6 +375,7 @@ fn fresh_vault_shared_space_delete_log_receives_crdt_meta_via_transformer() {
     let raw = std::fs::read_to_string(&sql_path).unwrap();
 
     let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_stub(&conn);
     for stmt in raw.split("--> statement-breakpoint") {
         let stmt = stmt.trim();
         if stmt.is_empty() {
@@ -397,6 +415,7 @@ fn retrofit_ensure_crdt_columns_adds_meta_to_shared_space_delete_log() {
     // [[column-sig-canonical-encoding]] Runde 10 — verify both tables.
     use crate::crdt::trigger::ensure_crdt_columns;
     let mut conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_stub(&conn);
     apply_migration_by_tag(&conn, "0013_");
     let tx = conn.transaction().unwrap();
     ensure_crdt_columns(&tx, "haex_shared_space_deleted_rows").unwrap();
@@ -426,6 +445,7 @@ fn retrofit_ensure_crdt_columns_adds_meta_to_shared_space_delete_log() {
 #[test]
 fn migration_0013_creates_shared_space_delete_log_table() {
     let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_stub(&conn);
     apply_migration_by_tag(&conn, "0013_");
     let cols = pragma_column_names(&conn, "haex_shared_space_deleted_rows");
     assert!(
@@ -451,6 +471,7 @@ fn migration_0013_creates_shared_space_delete_log_table() {
 #[test]
 fn migration_0013_creates_compaction_anchors_table() {
     let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_stub(&conn);
     apply_migration_by_tag(&conn, "0013_");
     let cols = pragma_column_names(&conn, "haex_space_compaction_anchors");
     assert!(

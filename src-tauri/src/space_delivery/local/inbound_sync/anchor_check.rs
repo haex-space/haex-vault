@@ -40,9 +40,12 @@ impl std::fmt::Display for BelowCompactionAnchor {
 }
 
 /// Look up the compaction anchor for `space_id`. Returns `None` when no
-/// anchor exists yet (retention has never pruned entries for this space)
-/// or when the anchor table itself is absent (pre-migration-0013 fixtures
-/// used in unit tests — production always has the table after 0013).
+/// anchor row exists for this space (retention has never pruned entries).
+///
+/// Missing-table tolerance is `#[cfg(test)]`-gated so unit-test fixtures
+/// that pre-date migration 0013 can skip the anchor table. In production,
+/// a genuine missing anchor table is a hard error — silently returning
+/// `Ok(None)` would disable the anti-resurrection gate.
 pub fn load_anchor(db: &DbConnection, space_id: &str) -> Result<Option<String>, String> {
     let guard = db.0.lock().map_err(|e| format!("lock poison: {e}"))?;
     let conn = guard
@@ -56,11 +59,7 @@ pub fn load_anchor(db: &DbConnection, space_id: &str) -> Result<Option<String>, 
     .map(Some)
     .or_else(|e| match e {
         rusqlite::Error::QueryReturnedNoRows => Ok(None),
-        // Tolerate missing table: unit-test fixtures that pre-date
-        // migration 0013 skip the anchor table entirely. Production
-        // vaults always have it via migration; a genuine absence at
-        // runtime would surface upstream via any other read of the
-        // table (e.g. the retention job).
+        #[cfg(test)]
         rusqlite::Error::SqliteFailure(_, Some(ref msg))
             if msg.contains("no such table: haex_space_compaction_anchors") =>
         {

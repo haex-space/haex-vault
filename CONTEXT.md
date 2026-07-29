@@ -19,7 +19,7 @@ Design decisions live in `docs/adr/`; this file is a glossary only.
 - **Register** — `haex_shared_space_sync`. M:N-Mapping von Business-Rows zu Spaces. Per-Space-gefiltert in Whitelist. Push-Deklaration eines Owners ("Ich behaupte: Row R gehört in Space X"), kein Pull-Signal für andere Peers.
 - **Unshare vs. Hard-Delete** — Unshare löscht nur einen Register-Eintrag (Business-Row bleibt lokal). Hard-Delete löscht die Business-Row (Register-Einträge cascadieren mit). Aus Peer-Empfänger-Sicht identisches Signal.
 - **Compaction-Anchor** — `haex_space_compaction_anchors` pro Space (synced, max-wins-merge, Leader-only advance); Owner-Domain analog mit einem globalen Anchor in `haex_vault_settings`. Verhindert Zombie-Wiederauferstehung nach Retention-Pruning.
-- **Register-Check** — Autorisierungs-Gate beim Apply eines Delete-Log-Eintrags: `(target_table, target_row_pks, target_space_id)` muss einer aktiven oder in-flight-getombstoneten Share-Row entsprechen.
+- **Register-Check** — Autorisierungs-Gate beim Apply eines Delete-Log-Eintrags: Positive Register-Evidenz für `(target_table, target_row_pks, target_space_id)` in `haex_shared_space_sync` MUSS vorliegen, damit die Business-Row gelöscht wird. Fehlt der Register-Eintrag lokal, ist der Signal-Apply ein No-op — sowohl bei "row shared in another space" (Forgery-Schutz) als auch bei "Race mit local unshare" (Unshare hält die Business-Row per §6.5). Register-Cleanup läuft nur nach positive Gate.
 
 ## Space-Rollen
 

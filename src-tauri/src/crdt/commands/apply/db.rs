@@ -362,35 +362,59 @@ pub fn apply_remote_changes_to_db_scoped(
             > = {
                 let mut map: HashMap<String, Vec<(serde_json::Map<String, JsonValue>, String)>> =
                     HashMap::new();
-                let mut stmt = tx
-                    .prepare(&format!(
-                        "SELECT table_name, row_pks, haex_hlc FROM \"{}\"",
-                        DELETED_ROWS_TABLE
-                    ))
-                    .map_err(DatabaseError::from)?;
-                // `haex_hlc` is added to `haex_deleted_rows` via a nullable
-                // ALTER (see `ensure_crdt_columns`), so a legacy or directly-
-                // inserted row could leave it NULL. Read it as `Option<String>`
-                // and skip NULL entries — a single bad row must not abort the
-                // entire apply pass (would wedge the pull cursor permanently).
-                let mapped = stmt
-                    .query_map([], |row| {
-                        Ok((
-                            row.get::<_, String>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, Option<String>>(2)?,
+
+                // Helper: load (table_name, row_pks, haex_hlc) triples from a
+                // delete-log table into `map`. `haex_hlc` is added via a
+                // nullable ALTER (see `ensure_crdt_columns`), so a legacy or
+                // directly-inserted row could leave it NULL. Read it as
+                // `Option<String>` and skip NULL entries — a single bad row
+                // must not abort the entire apply pass (would wedge the
+                // pull cursor permanently).
+                let mut load_from = |source_table: &str| -> Result<(), DatabaseError> {
+                    let mut stmt = tx
+                        .prepare(&format!(
+                            "SELECT table_name, row_pks, haex_hlc FROM \"{source_table}\""
                         ))
-                    })
-                    .map_err(DatabaseError::from)?;
-                for r in mapped {
-                    let (table_name, pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
-                    if let (Some(del_hlc), Ok(pks_map)) = (
-                        del_hlc,
-                        serde_json::from_str::<serde_json::Map<String, JsonValue>>(&pks_str),
-                    ) {
-                        map.entry(table_name).or_default().push((pks_map, del_hlc));
+                        .map_err(DatabaseError::from)?;
+                    let mapped = stmt
+                        .query_map([], |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, Option<String>>(2)?,
+                            ))
+                        })
+                        .map_err(DatabaseError::from)?;
+                    for r in mapped {
+                        let (table_name, pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
+                        if let (Some(del_hlc), Ok(pks_map)) = (
+                            del_hlc,
+                            serde_json::from_str::<serde_json::Map<String, JsonValue>>(&pks_str),
+                        ) {
+                            map.entry(table_name).or_default().push((pks_map, del_hlc));
+                        }
                     }
+                    Ok(())
+                };
+
+                load_from(DELETED_ROWS_TABLE)?;
+
+                // Union the per-space delete log (ADR 0002 §6.5): a shared-
+                // space delete signal must suppress an older-HLC insert of the
+                // same row, even when no owner-domain delete-log entry exists.
+                // Without this union, a peer with a stale outbound queue could
+                // resurrect a row whose only delete signal came via the
+                // shared-space log. `haex_shared_space_deleted_rows` carries
+                // multiple entries per (table, row) — one per space — but
+                // `delete_shadows_insert` picks the max HLC across all
+                // entries, so duplicates are harmless.
+                if !get_table_schema_internal(&tx, SHARED_SPACE_DELETED_ROWS_TABLE)
+                    .map_err(DatabaseError::from)?
+                    .is_empty()
+                {
+                    load_from(SHARED_SPACE_DELETED_ROWS_TABLE)?;
                 }
+
                 map
             };
 

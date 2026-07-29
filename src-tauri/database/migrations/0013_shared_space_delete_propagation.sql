@@ -10,3 +10,5 @@ CREATE TABLE `haex_space_compaction_anchors` (
 	`space_id` text PRIMARY KEY NOT NULL,
 	`min_valid_hlc` text DEFAULT '0' NOT NULL
 );
+--> statement-breakpoint
+CREATE INDEX `idx_haex_shared_space_sync_table_row` ON `haex_shared_space_sync` (`table_name`,`row_pks`);
