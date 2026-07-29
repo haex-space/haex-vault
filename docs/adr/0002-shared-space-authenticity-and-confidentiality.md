@@ -355,11 +355,69 @@ Komplett löschen, Stub-Erzeugung nach Rust (siehe 4b).
 ### §6.4 Content-Bindung — GELÖST
 Kein Content-Hash nötig; Relay via Sharer≠Autor (siehe 4a).
 
-### §6.5 Delete-Handling
-**Deletes/Unshares signieren** (gleiche Maschinerie), Owner-only via Zugriffsart-Logik.
-Ein weggelassener Eintrag = akzeptiert (Withholding); ein *injizierter gefälschter Delete*
-im Namen von A = aktive Manipulation → ausgeschlossen. Deletes laufen über
-`haex_deleted_rows` (Delete-Log).
+### §6.5 Delete-Handling — REVIDIERT 2026-07-29
+
+**Grundsatz:** Deletes/Unshares signieren (gleiche Maschinerie, Phase-1 Column-Sig).
+Zugriffsart = Write (kein separates Delete-Cap — Write-Member könnte via Overwrite
+inhaltlich ohnehin löschen). Ein weggelassener Eintrag = akzeptiert (Withholding);
+ein injizierter gefälschter Delete im Namen von A = aktive Manipulation → ausgeschlossen.
+
+**Zwei Delete-Log-Domänen.** Frühere Formulierung *"Deletes laufen über
+`haex_deleted_rows`"* war pre-Shared-Space und stale — `haex_deleted_rows` ist NICHT in
+der Shared-Space-Whitelist (`SPACE_SCOPED_CRDT_TABLES`) und erreicht Space-Peers nie:
+
+- **Owner-Domain** — `haex_deleted_rows` (bestehend). Fließt ausschließlich zwischen
+  den Geräten desselben Owners via `scan_all_crdt_tables_for_owner`.
+- **Shared-Space-Domain** — `haex_shared_space_deleted_rows` (neu, per-Space,
+  `space_id`-Column). Steht in der Shared-Space-Whitelist. Fließt an Members
+  über alle drei Sync-Modi (Server-Relay, P2P, Federation).
+
+**Signal-Ableitung.** `BEFORE DELETE`-Trigger auf einer Business-Tabelle cascadiert
+lokal in Register-Cleanup (`DELETE FROM haex_shared_space_sync WHERE ...`) + schreibt
+per-Space-Einträge in `haex_shared_space_deleted_rows`. Unshare (Register-DELETE ohne
+Row-Löschung) erzeugt denselben Peer-Signal-Typ. Empfänger führt Business-Row-DELETE
+UND Register-Cleanup aus **einem einzigen** Signal-Row aus — Register-Cleanup wird lokal
+abgeleitet, keine zwei Signale nötig.
+
+**Apply-Gate (Register-Check).** Vor Ausführung des lokalen Business-Row-DELETEs prüft
+der Empfänger `(target_table, target_row_pks, target_space_id)` gegen das Register.
+Nur bei **positiver Register-Evidenz** für den claimed Space werden Register-Cleanup +
+Business-Row-DELETE ausgeführt. Fehlt der Register-Eintrag lokal, ist der Apply ein
+row-scoped No-op — zwei Sub-Fälle:
+
+- **In anderem Space registriert** (`any_space_registered = true`) → suspected forgery
+  (`NotSharedInSpace`). Business-Row bleibt intakt; das Register-Entry des anderen
+  Spaces wird nicht angefasst.
+- **Nirgends registriert** → Race mit lokalem Unshare (Sender-Seite hat Register-DELETE
+  bereits gefanned out; Empfänger applyt das Signal auf einen bereits unshareten Zustand).
+  Unshare hält die Business-Row per §6.5-Grundsatz — kein Business-DELETE.
+
+Datenbank-Fehler auf einem der Register-Lookups sind fail-closed: Log + skip des
+Signal-Eintrags, damit ein transienter DB-Fehler nie stillschweigend einen Delete
+autorisieren kann.
+
+**Compaction-Anchor.** Pro Space in `haex_space_compaction_anchors` (synced,
+max-wins-merge, Leader-only advance). Retention-Job pruned Delete-Log-Einträge älter
+als `N` Tage UND schiebt den Anchor synchron nach vorne. Push-Batches mit
+`haex_hlc < anchor` → Reject; Peer muss Refresh-Pull. Verhindert Zombie-Wieder-
+auferstehung nach Retention-Pruning. Owner-Domain nutzt denselben Mechanismus mit
+einem globalen Anchor in `haex_vault_settings` (statt per-Space).
+
+**Race-Handling (idempotent).** Wenn ein Delete-Log-Signal beim Apply auf einen
+lokal bereits gelöschten Target-Row trifft (paralleles Unshare + Hard-Delete oder
+Multi-Hop-Sync-Ordnung): No-op statt Reject. Konvergenz > exakte Ordnung; passt zum
+"weggelassener Eintrag = akzeptiert" aus §2.
+
+**Cross-Space-Relay (bewusst nicht abgedeckt, §2-scope):** Bob kann von Alice erhaltene
+Rows explizit weiter-sharen (Alice → Bob in X → Charlie in Y). ADR §2 listet
+Relay-Consent als "bewusst akzeptiert / nicht abgedeckt"; Härtungs-Aspekt in Phase 4.
+
+**Follow-up-Tickets** (nicht Teil dieses Abschnitts):
+- **HLC-Sanity-Check system-weit** — Poisoning-Schutz für alle received HLCs
+  (`remote_hlc.wall_time <= local_wall_time + MAX_SKEW`), gilt für jede CRDT-Row nicht
+  nur Deletes.
+- **Rust ↔ TS Shared-Space-Whitelist-Alignment** — Rust `SPACE_SCOPED_CRDT_TABLES` als
+  single source of truth, TS konsumiert per ts-rs-Binding statt zu duplizieren.
 
 ### §6.6 Performance
 Keine Design-Entscheidung — Impl-Validierung (per-Spalte ed25519 auf Bulk messen).
@@ -403,6 +461,12 @@ Sync, damit Extension-Daten nie ungeschützt fließen).
   Tauri-Command. Row-scoped Rejection + aggregierter User-Toast statt Batch-Abbruch.
 - **Phase 3 — Generischer register-getriebener Extension-Sync (4a)** + signierte
   Ressourcen-Zugriffsarten (4d) + Invarianten I1/I2. Chat & Kalender werden hier möglich.
+- **Phase 3.a — Shared-Space Delete-Propagation (V2).** Prerequisite/parallel für Phase 3.
+  Impl: `haex_shared_space_deleted_rows` (per-Space Delete-Log),
+  `haex_space_compaction_anchors` (Anti-Resurrection), Register-DELETE-Cascade,
+  Register-Check-Gate, Retention + Anchor-Advance im Leader. Design-Details in §6.5
+  (revidiert 2026-07-29). Impl-Plan liegt lokal unter
+  `docs/plans/2026-07-29-shared-space-delete-propagation.md`.
 - **Phase 4 — Vertraulichkeit (4e):** CRDT-Payload-Verschlüsselung, dann File-Content.
 
 Jede Phase ist für sich testbar und liefert Wert.

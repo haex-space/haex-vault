@@ -3,7 +3,7 @@ use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcError, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
-    COLUMN_HLCS_COLUMN, DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN,
+    COLUMN_HLCS_COLUMN, DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN, SHARED_SPACE_DELETED_ROWS_TABLE,
 };
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
@@ -22,6 +22,7 @@ use tauri::State;
 use super::super::helpers::{build_pk_where_clause, json_values_to_sql_params};
 use super::delete_propagation::{
     create_conflict_entry, insert_suppressed_by_deletes, propagate_deleted_rows_to_target_tables,
+    propagate_shared_space_deleted_rows_to_target_tables,
 };
 use super::grouping::{group_by_transaction_hlc, group_row_changes_in_hlc_order};
 use super::types::{ColumnSig, RemoteColumnChange};
@@ -348,14 +349,25 @@ pub fn apply_remote_changes_to_db_scoped(
             //      the apply loop (triggers are still disabled then).
             let mut all_hlc_timestamps: Vec<String> = Vec::with_capacity(changes.len());
             let mut inbound_delete_log_ids: HashSet<String> = HashSet::new();
+            // Symmetric collector for Task 6: shared-space per-space delete-log
+            // entries applied via `propagate_shared_space_deleted_rows_to_target_tables`
+            // after the main apply loop, while triggers are still disabled.
+            let mut inbound_shared_space_delete_log_ids: HashSet<String> = HashSet::new();
             for change in &changes {
                 all_hlc_timestamps.push(change.hlc_timestamp.clone());
-                if change.table_name == DELETED_ROWS_TABLE {
+                let target_id_set: Option<&mut HashSet<String>> = match change.table_name.as_str() {
+                    n if n == DELETED_ROWS_TABLE => Some(&mut inbound_delete_log_ids),
+                    n if n == SHARED_SPACE_DELETED_ROWS_TABLE => {
+                        Some(&mut inbound_shared_space_delete_log_ids)
+                    }
+                    _ => None,
+                };
+                if let Some(set) = target_id_set {
                     if let Ok(map) =
                         serde_json::from_str::<serde_json::Map<String, JsonValue>>(&change.row_pks)
                     {
                         if let Some(JsonValue::String(id)) = map.get("id") {
-                            inbound_delete_log_ids.insert(id.clone());
+                            set.insert(id.clone());
                         }
                     }
                 }
@@ -413,6 +425,29 @@ pub fn apply_remote_changes_to_db_scoped(
                         map.entry(table_name).or_default().push((pks_map, del_hlc));
                     }
                 }
+                // NOTE: The per-space delete log (haex_shared_space_deleted_rows)
+                // is intentionally NOT unioned here. A per-space signal is only
+                // authoritative in the context of ITS space's register — pouring
+                // it into the global shadow map lets a forged or unshare-only
+                // signal from space X suppress a legitimate insert scoped to
+                // space Y (the register-check gate in
+                // propagate_shared_space_deleted_rows_to_target_tables would
+                // reject the delete, but the shadow-map bypasses that gate).
+                //
+                // The remaining resurrection gap — an old insert arriving after
+                // a shared-space delete has been applied but before the
+                // compaction anchor has advanced — is accepted by design:
+                //   1. Register-check gate + per-space anchor already reject
+                //      the shared-space delete's own resurrection vector.
+                //   2. A resurrected business row without a register entry is
+                //      user-visible as an unregistered stray, not a security
+                //      breach.
+                //   3. Client-side refresh-pull on `BelowCompactionAnchor`
+                //      (follow-up ticket) closes the recovery window.
+                //
+                // If we ever need space-scoped shadowing here, the correct
+                // shape is a per-(table, row, space_id) map plus space-context
+                // at insert-check time — not a global union.
                 map
             };
 
@@ -977,6 +1012,37 @@ pub fn apply_remote_changes_to_db_scoped(
                     inbound_delete_log_ids.len()
                 );
                 propagate_deleted_rows_to_target_tables(&tx, &inbound_delete_log_ids)?;
+            }
+
+            // Task 6: propagate per-space delete-log entries. Each entry removes
+            // the register entry for (table, row, space), and removes the target
+            // row iff no other space still lists it. Triggers stay disabled so
+            // the Task 4/5 fanout/cascade doesn't re-emit.
+            //
+            // Interaction with the owner-space sig-enforce exemption above:
+            // owner-vault sync (`enforce_sigs == false`) can carry
+            // `haex_shared_space_deleted_rows` entries between the owner's own
+            // devices without per-column signatures. That's intentional —
+            // authorization of the actual DELETE does NOT rely on
+            // `enforce_sigs` here. `propagate_shared_space_deleted_rows_to_target_tables`
+            // reads the entry's own `space_id` and gates on the local
+            // `haex_shared_space_sync` register for that space (register-check),
+            // failing closed on DB errors. So on the owner-sync route the
+            // sig-enforcement being off just lets the delete-log entry LAND;
+            // whether to actually delete the business row is still decided by
+            // the receiver's register state (which owner-sync mirrors from the
+            // sender). Shared-space delivery (non-owner `expected_space_id`)
+            // keeps `enforce_sigs == true`, so unsigned per-space delete-log
+            // entries drop at the outer gate before ever reaching propagation.
+            if !inbound_shared_space_delete_log_ids.is_empty() {
+                eprintln!(
+                    "[SYNC RUST] Propagating {} shared-space delete-log entries",
+                    inbound_shared_space_delete_log_ids.len()
+                );
+                propagate_shared_space_deleted_rows_to_target_tables(
+                    &tx,
+                    &inbound_shared_space_delete_log_ids,
+                )?;
             }
 
             // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled

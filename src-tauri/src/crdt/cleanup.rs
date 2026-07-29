@@ -1,8 +1,8 @@
 // src-tauri/src/crdt/cleanup.rs
 
-use crate::crdt::trigger::DELETED_ROWS_TABLE;
+use crate::crdt::trigger::{DELETED_ROWS_TABLE, SHARED_SPACE_DELETED_ROWS_TABLE};
 use crate::table_names::TABLE_CRDT_CONFIGS;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use ts_rs::TS;
@@ -247,6 +247,59 @@ pub fn cleanup_deleted_rows(
     let _fk_guard = ForeignKeyGuard::disable(conn)?;
 
     let deleted = if retention_days == 0 {
+        // Advance BOTH anchors to the max HLC observed across the two
+        // delete logs BEFORE pruning. Symmetric to the retention-based
+        // path (see below) — a crash between advance and delete leaves
+        // an anchor that is at most as strict as the surviving entries,
+        // never looser.
+        let owner_max_hlc: Option<String> = conn
+            .query_row(
+                &format!(
+                    "SELECT haex_hlc FROM \"{DELETED_ROWS_TABLE}\" \
+                     WHERE haex_hlc IS NOT NULL \
+                     ORDER BY \
+                       CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) DESC \
+                     LIMIT 1"
+                ),
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok();
+        if let Some(hlc) = owner_max_hlc {
+            advance_owner_delete_log_anchor(conn, &hlc)?;
+        }
+
+        let mut per_space_stmt = conn.prepare(&format!(
+            "SELECT space_id, haex_hlc FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
+             WHERE haex_hlc IS NOT NULL"
+        ))?;
+        let mut per_space_maxes: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        let rows = per_space_stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for r in rows {
+            let (space_id, hlc) = r?;
+            per_space_maxes
+                .entry(space_id)
+                .and_modify(|cur| {
+                    if crate::crdt::hlc::hlc_is_newer(&hlc, cur) {
+                        *cur = hlc.clone();
+                    }
+                })
+                .or_insert(hlc);
+        }
+        drop(per_space_stmt);
+        for (space_id, hlc) in &per_space_maxes {
+            advance_shared_space_anchor(conn, space_id, hlc)?;
+        }
+
+        let shared_delete_sql = format!("DELETE FROM \"{}\"", SHARED_SPACE_DELETED_ROWS_TABLE);
+        let shared_deleted = conn.execute(&shared_delete_sql, [])?;
+        if shared_deleted > 0 {
+            eprintln!("Cleaned up {shared_deleted} entries from {SHARED_SPACE_DELETED_ROWS_TABLE}");
+        }
+
         let delete_sql = format!("DELETE FROM \"{}\"", DELETED_ROWS_TABLE);
         conn.execute(&delete_sql, [])?
     } else {
@@ -290,13 +343,85 @@ pub fn cleanup_deleted_rows(
             }
         };
 
+        // Task 8: Anchor advancement must happen BEFORE deletion so a mid-
+        // job crash leaves the DB in a state where the anchor is at most as
+        // strict as the surviving entries. Advancing after DELETE would
+        // temporarily allow re-resurrection of already-pruned rows on
+        // crash-recovery.
+
+        // Owner-domain anchor: max HLC of entries about to be pruned.
+        let owner_max_hlc: Option<String> = conn
+            .query_row(
+                &format!(
+                    "SELECT haex_hlc FROM \"{DELETED_ROWS_TABLE}\" \
+                     WHERE haex_hlc IS NOT NULL \
+                       AND CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) < ?1 \
+                     ORDER BY \
+                       CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) DESC \
+                     LIMIT 1"
+                ),
+                [cutoff_hlc_num],
+                |row| row.get::<_, String>(0),
+            )
+            .ok();
+        // If anchor advancement fails we MUST NOT proceed with the DELETE:
+        // deleting delete-log entries without advancing the anchor would
+        // widen the resurrection window on the next inbound push. Propagate
+        // the error and let the caller retry the cleanup pass.
+        if let Some(hlc) = owner_max_hlc {
+            advance_owner_delete_log_anchor(conn, &hlc)?;
+        }
+
+        // Shared-space anchors: per-space max HLC of entries about to be
+        // pruned. Iterate spaces separately so each anchor advances by only
+        // its own space's pruned max — not the global max.
+        let mut per_space_stmt = conn.prepare(&format!(
+            "SELECT space_id, haex_hlc FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
+             WHERE haex_hlc IS NOT NULL \
+               AND CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) < ?1"
+        ))?;
+        let mut per_space_maxes: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        let rows = per_space_stmt.query_map([cutoff_hlc_num], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for r in rows {
+            let (space_id, hlc) = r?;
+            per_space_maxes
+                .entry(space_id)
+                .and_modify(|cur| {
+                    if crate::crdt::hlc::hlc_is_newer(&hlc, cur) {
+                        *cur = hlc.clone();
+                    }
+                })
+                .or_insert(hlc);
+        }
+        drop(per_space_stmt);
+        for (space_id, hlc) in &per_space_maxes {
+            advance_shared_space_anchor(conn, space_id, hlc)?;
+        }
+
         let delete_sql = format!(
             "DELETE FROM \"{}\"
              WHERE haex_hlc IS NOT NULL
              AND CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) < ?1",
             DELETED_ROWS_TABLE
         );
-        conn.execute(&delete_sql, [cutoff_hlc_num])?
+        let owner_deleted = conn.execute(&delete_sql, [cutoff_hlc_num])?;
+
+        // Prune the per-space delete-log too. Symmetric to owner-domain.
+        let shared_delete_sql = format!(
+            "DELETE FROM \"{}\"
+             WHERE haex_hlc IS NOT NULL
+             AND CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) < ?1",
+            SHARED_SPACE_DELETED_ROWS_TABLE
+        );
+        let shared_deleted = conn.execute(&shared_delete_sql, [cutoff_hlc_num])?;
+        if shared_deleted > 0 {
+            eprintln!("Cleaned up {shared_deleted} entries from {SHARED_SPACE_DELETED_ROWS_TABLE}");
+        }
+
+        owner_deleted
     };
 
     if deleted > 0 {
@@ -384,6 +509,319 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
         update_count: applied,
         delete_count,
     })
+}
+
+// =====================================================================
+// Task 8 — Compaction anchors (ADR 0002 §6.5).
+//
+// Retention prunes old entries from the two delete-logs; we synchronously
+// advance a per-space anchor (haex_space_compaction_anchors) and a single
+// owner-domain anchor (haex_vault_settings key='owner_delete_log_anchor').
+// Task 9's push handler rejects incoming batches with hlc < anchor so a
+// stale peer cannot resurrect a row whose delete-signal has been pruned.
+// =====================================================================
+
+pub const OWNER_DELETE_LOG_ANCHOR_KEY: &str = "owner_delete_log_anchor";
+
+/// Advance the per-space compaction anchor for `space_id` to the max of its
+/// existing value and `new_hlc`. Idempotent, monotonic (never regresses).
+///
+/// Writes to `haex_space_compaction_anchors` which is CRDT-synced; the
+/// AFTER-INSERT trigger populates haex_column_hlcs so other members converge
+/// on the advance via normal sync.
+pub fn advance_shared_space_anchor(
+    conn: &Connection,
+    space_id: &str,
+    new_hlc: &str,
+) -> Result<(), rusqlite::Error> {
+    // Read the current value (if any) and compare via the numeric HLC
+    // comparator — INSERT OR REPLACE with plain string MAX() would ignore
+    // node-id disambiguation and could accept a lexicographically smaller
+    // string that is actually newer.
+    // Use `.optional()` (not `.ok()`) so only `QueryReturnedNoRows` collapses to
+    // `None`. Any other rusqlite error (locked/busy DB, corruption, missing
+    // column) propagates instead of being silently treated as "first write",
+    // which would cause the UPSERT below to overwrite an existing higher anchor
+    // with `new_hlc` — a regression of the anti-resurrection watermark.
+    let current: Option<String> = conn
+        .query_row(
+            "SELECT min_valid_hlc FROM haex_space_compaction_anchors WHERE space_id = ?1",
+            [space_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let effective = match current.as_deref() {
+        Some(cur) => {
+            if crate::crdt::hlc::hlc_is_newer(new_hlc, cur) {
+                new_hlc.to_string()
+            } else {
+                return Ok(()); // no regression — nothing to write
+            }
+        }
+        None => new_hlc.to_string(),
+    };
+
+    // `min_valid_hlc` (the anti-resurrection watermark) and `haex_hlc`
+    // (this CRDT row's own timestamp) are semantically distinct: the
+    // former is the max HLC pruned from the delete-log for this space;
+    // the latter is a fresh local HLC stamping *this* update to the
+    // anchor row. Stamp haex_hlc via the `current_hlc()` UDF so the row
+    // gets a real local HLC, and the CRDT AFTER-INSERT trigger populates
+    // haex_column_hlcs / haex_column_sigs on top.
+    conn.execute(
+        "INSERT INTO haex_space_compaction_anchors (space_id, min_valid_hlc, haex_hlc) \
+         VALUES (?1, ?2, current_hlc()) \
+         ON CONFLICT(space_id) DO UPDATE SET \
+             min_valid_hlc = excluded.min_valid_hlc, \
+             haex_hlc = current_hlc()",
+        rusqlite::params![space_id, &effective],
+    )?;
+    Ok(())
+}
+
+/// Advance the owner-domain delete-log anchor stored in
+/// `haex_vault_settings` (key=`owner_delete_log_anchor`, device_id NULL).
+///
+/// Same monotonic max-wins semantic as the per-space variant, but stored in
+/// vault_settings rather than a dedicated table — there's exactly one owner
+/// anchor per vault so a full table would be overkill.
+///
+/// **Concurrency contract.** SQLite treats NULL as distinct in unique
+/// indexes, so the composite `(key, device_id)` index does NOT enforce
+/// single-row-ness for `device_id IS NULL`. Migration 0013 adds the partial
+/// unique index `idx_haex_vault_settings_owner_key ON (key) WHERE device_id
+/// IS NULL` explicitly so the `ON CONFLICT` clause below can target a
+/// deterministic slot and two concurrent cleanup passes cannot each insert
+/// a duplicate owner-anchor row.
+pub fn advance_owner_delete_log_anchor(
+    conn: &Connection,
+    new_hlc: &str,
+) -> Result<(), rusqlite::Error> {
+    // See `advance_shared_space_anchor` for the rationale behind `.optional()`
+    // instead of `.ok()`: real read errors must propagate rather than be
+    // conflated with "no anchor yet" and silently regress the watermark.
+    let current: Option<String> = conn
+        .query_row(
+            "SELECT value FROM haex_vault_settings \
+             WHERE key = ?1 AND device_id IS NULL",
+            [OWNER_DELETE_LOG_ANCHOR_KEY],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let effective = match current.as_deref() {
+        Some(cur) => {
+            if crate::crdt::hlc::hlc_is_newer(new_hlc, cur) {
+                new_hlc.to_string()
+            } else {
+                return Ok(());
+            }
+        }
+        None => new_hlc.to_string(),
+    };
+
+    // Single atomic UPSERT targeting the partial unique index added by
+    // migration 0013 (`idx_haex_vault_settings_owner_key ON (key) WHERE
+    // device_id IS NULL`). Without the partial index, two concurrent
+    // cleanup calls could both see `updated == 0` on the pre-check above
+    // and both `INSERT`, leaving duplicate owner-anchor rows that break
+    // the monotonic-watermark contract.
+    conn.execute(
+        "INSERT INTO haex_vault_settings (id, key, value, device_id) \
+         VALUES (lower(hex(randomblob(16))), ?1, ?2, NULL) \
+         ON CONFLICT (key) WHERE device_id IS NULL \
+         DO UPDATE SET value = excluded.value",
+        rusqlite::params![OWNER_DELETE_LOG_ANCHOR_KEY, &effective],
+    )?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod anchor_tests {
+    use super::*;
+    use crate::crdt::trigger::SHARED_SPACE_DELETED_ROWS_TABLE;
+    use rusqlite::Connection;
+
+    /// Test-only stub for the `current_hlc()` SQL UDF. Production wires
+    /// this to `HlcService::new_timestamp()`; in-memory unit tests only
+    /// need a monotonically-increasing string so the compaction-anchor
+    /// upsert can succeed.
+    fn register_current_hlc_stub(conn: &Connection) {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(1);
+        conn.create_scalar_function(
+            "current_hlc",
+            0,
+            rusqlite::functions::FunctionFlags::SQLITE_UTF8,
+            |_| {
+                let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+                Ok(format!("{n}/testnode"))
+            },
+        )
+        .expect("register current_hlc test stub");
+    }
+
+    fn setup_anchor_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        register_current_hlc_stub(&conn);
+        // Mirror migration 0013's partial unique index so the atomic
+        // `ON CONFLICT (key) WHERE device_id IS NULL` upsert in
+        // `advance_owner_delete_log_anchor` can target it.
+        conn.execute_batch(&format!(
+            "CREATE TABLE haex_space_compaction_anchors (
+                 space_id TEXT PRIMARY KEY NOT NULL,
+                 min_valid_hlc TEXT NOT NULL DEFAULT '0',
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}',
+                 haex_column_sigs TEXT NOT NULL DEFAULT '{{}}'
+             );
+             CREATE TABLE haex_vault_settings (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 key TEXT NOT NULL,
+                 value TEXT,
+                 device_id TEXT
+             );
+             CREATE UNIQUE INDEX haex_vault_settings_key_device_unique
+                 ON haex_vault_settings (key, device_id);
+             CREATE UNIQUE INDEX idx_haex_vault_settings_owner_key
+                 ON haex_vault_settings (key) WHERE device_id IS NULL;
+             CREATE TABLE {SHARED_SPACE_DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 space_id TEXT NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT
+             );
+             CREATE TABLE {DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );"
+        ))
+        .unwrap();
+        conn
+    }
+
+    #[test]
+    fn advance_shared_space_anchor_sets_first_value() {
+        let conn = setup_anchor_db();
+        advance_shared_space_anchor(&conn, "SPACE_X", "100/aabb").unwrap();
+        let v: String = conn
+            .query_row(
+                "SELECT min_valid_hlc FROM haex_space_compaction_anchors WHERE space_id = 'SPACE_X'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "100/aabb");
+    }
+
+    #[test]
+    fn advance_shared_space_anchor_is_monotonic() {
+        let conn = setup_anchor_db();
+        advance_shared_space_anchor(&conn, "SPACE_X", "100/aabb").unwrap();
+        advance_shared_space_anchor(&conn, "SPACE_X", "50/aabb").unwrap();
+        let v: String = conn
+            .query_row(
+                "SELECT min_valid_hlc FROM haex_space_compaction_anchors WHERE space_id = 'SPACE_X'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "100/aabb", "regression must be rejected (max-wins)");
+    }
+
+    #[test]
+    fn advance_shared_space_anchor_advances_on_newer() {
+        let conn = setup_anchor_db();
+        advance_shared_space_anchor(&conn, "SPACE_X", "100/aabb").unwrap();
+        advance_shared_space_anchor(&conn, "SPACE_X", "200/aabb").unwrap();
+        let v: String = conn
+            .query_row(
+                "SELECT min_valid_hlc FROM haex_space_compaction_anchors WHERE space_id = 'SPACE_X'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "200/aabb");
+    }
+
+    #[test]
+    fn advance_owner_delete_log_anchor_inserts_when_absent() {
+        let conn = setup_anchor_db();
+        advance_owner_delete_log_anchor(&conn, "300/aabb").unwrap();
+        let v: String = conn
+            .query_row(
+                "SELECT value FROM haex_vault_settings \
+                 WHERE key = ?1 AND device_id IS NULL",
+                [OWNER_DELETE_LOG_ANCHOR_KEY],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "300/aabb");
+    }
+
+    #[test]
+    fn advance_owner_delete_log_anchor_is_monotonic() {
+        let conn = setup_anchor_db();
+        advance_owner_delete_log_anchor(&conn, "300/aabb").unwrap();
+        advance_owner_delete_log_anchor(&conn, "100/aabb").unwrap();
+        let v: String = conn
+            .query_row(
+                "SELECT value FROM haex_vault_settings \
+                 WHERE key = ?1 AND device_id IS NULL",
+                [OWNER_DELETE_LOG_ANCHOR_KEY],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "300/aabb", "regression must be rejected");
+    }
+
+    #[test]
+    fn cleanup_prunes_shared_space_delete_log_and_advances_anchor() {
+        // Seed: two entries in space X, one older than cutoff, one newer.
+        // After cleanup only the newer survives, and the anchor advances to
+        // the max HLC of pruned entries.
+        let conn = setup_anchor_db();
+        // Set an HLC in configs so cutoff can be computed.
+        conn.execute_batch(&format!(
+            "CREATE TABLE IF NOT EXISTS {TABLE_CRDT_CONFIGS} (
+                 key TEXT PRIMARY KEY NOT NULL,
+                 value TEXT,
+                 type TEXT
+             );
+             INSERT INTO {TABLE_CRDT_CONFIGS} (key, value, type) \
+             VALUES ('hlc_timestamp', '9223372036854775807/aabb', 'hlc');"
+        ))
+        .unwrap();
+        conn.execute(
+            &format!(
+                "INSERT INTO {SHARED_SPACE_DELETED_ROWS_TABLE} \
+                 (id, space_id, table_name, row_pks, haex_hlc) VALUES \
+                 ('old-1', 'SPACE_X', 'ext_notes', '{{\"id\":\"a\"}}', '1/aabb'), \
+                 ('old-2', 'SPACE_X', 'ext_notes', '{{\"id\":\"b\"}}', '5/aabb'), \
+                 ('new-1', 'SPACE_X', 'ext_notes', '{{\"id\":\"c\"}}', '9223372036854775800/aabb')"
+            ),
+            [],
+        )
+        .unwrap();
+
+        cleanup_deleted_rows(&conn, 30).unwrap();
+
+        let anchor_hlc: Option<String> = conn
+            .query_row(
+                "SELECT min_valid_hlc FROM haex_space_compaction_anchors \
+                 WHERE space_id = 'SPACE_X'",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        assert!(
+            matches!(anchor_hlc.as_deref(), Some(v) if crate::crdt::hlc::compare_hlc_strings(v, "5/aabb") != std::cmp::Ordering::Less),
+            "anchor must advance to at least max HLC of pruned entries, got {anchor_hlc:?}"
+        );
+    }
 }
 
 #[cfg(test)]

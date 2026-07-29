@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   foreignKey,
+  index,
   integer,
   sqliteTable,
   text,
@@ -183,6 +184,11 @@ export const haexSharedSpaceSync = sqliteTable(
   (table) => [
     uniqueIndex('haex_shared_space_sync_table_row_space_unique')
       .on(table.tableName, table.rowPks, table.spaceId),
+    // Migration 0013 adds this index to accelerate the register-cascade
+    // BEFORE-DELETE trigger (see trigger.rs::generate_shared_space_register_cascade_trigger_sql)
+    // and the residual-register count in delete_propagation.rs, both of which
+    // filter on (table_name, row_pks) without space_id.
+    index('idx_haex_shared_space_sync_table_row').on(table.tableName, table.rowPks),
     foreignKey({
       columns: [table.extensionPublicKey, table.extensionName],
       foreignColumns: [haexExtensions.public_key, haexExtensions.name],
@@ -206,6 +212,46 @@ export const haexSharedSpaceSync = sqliteTable(
 )
 export type InsertHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferInsert
 export type SelectHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Shared-Space Delete Log — per-space signal that a row was deleted or unshared.
+// Applied by other members to remove both the business row and the register
+// entry. See ADR 0002 §6.5 (revised 2026-07-29). CRDT-synced; CRDT-meta columns
+// (haex_hlc / haex_column_hlcs / haex_column_sigs) are injected by
+// CrdtTransformer at CREATE-TABLE time and by ensure_crdt_columns at retrofit.
+// ---------------------------------------------------------------------------
+
+export const haexSharedSpaceDeletedRows = sqliteTable(
+  tableNames.haex.shared_space_deleted_rows.name,
+  {
+    id: text(tableNames.haex.shared_space_deleted_rows.columns.id).primaryKey(),
+    spaceId: text(tableNames.haex.shared_space_deleted_rows.columns.spaceId).notNull(),
+    tableName: text(tableNames.haex.shared_space_deleted_rows.columns.tableName).notNull(),
+    rowPks: text(tableNames.haex.shared_space_deleted_rows.columns.rowPks).notNull(),
+  },
+)
+export type InsertHaexSharedSpaceDeletedRows = typeof haexSharedSpaceDeletedRows.$inferInsert
+export type SelectHaexSharedSpaceDeletedRows = typeof haexSharedSpaceDeletedRows.$inferSelect
+
+// ---------------------------------------------------------------------------
+// Space Compaction Anchor — per-space anti-resurrection lower bound. Retention
+// job advances this to the max HLC pruned from haex_shared_space_deleted_rows;
+// pushes with a lower HLC are rejected so a peer with stale local state cannot
+// re-introduce a row whose delete-signal has already been pruned.
+// See ADR 0002 §6.5. CRDT-synced.
+// ---------------------------------------------------------------------------
+
+export const haexSpaceCompactionAnchors = sqliteTable(
+  tableNames.haex.space_compaction_anchors.name,
+  {
+    spaceId: text(tableNames.haex.space_compaction_anchors.columns.spaceId).primaryKey(),
+    minValidHlc: text(tableNames.haex.space_compaction_anchors.columns.minValidHlc)
+      .notNull()
+      .default('0'),
+  },
+)
+export type InsertHaexSpaceCompactionAnchors = typeof haexSpaceCompactionAnchors.$inferInsert
+export type SelectHaexSpaceCompactionAnchors = typeof haexSpaceCompactionAnchors.$inferSelect
 
 // ---------------------------------------------------------------------------
 // MLS Sync Keys — epoch-derived encryption keys for shared spaces (CRDT-synced)

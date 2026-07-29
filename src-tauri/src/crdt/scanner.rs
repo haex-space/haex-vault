@@ -40,7 +40,18 @@ pub const SPACE_SCOPED_CRDT_TABLES: &[&str] = &[
     "haex_peer_shares",
     "haex_mls_sync_keys",
     "haex_device_mls_enrollments",
+    // Register itself: unshare = delete a row here without deleting the
+    // business row. Members must see the register-DELETE to hide the row.
     "haex_shared_space_sync",
+    // Per-space delete-log (ADR 0002 §6.5): DELETE cascade on business tables
+    // writes here; apply-path on receiver removes both the business row and
+    // the register entry, gated by a register-check.
+    "haex_shared_space_deleted_rows",
+    // Per-space anti-resurrection anchor (ADR 0002 §6.5): retention job
+    // advances this to the max HLC pruned from the delete-log; pushes with
+    // hlc < anchor are rejected so a stale peer cannot re-introduce a row
+    // whose delete-signal has been pruned.
+    "haex_space_compaction_anchors",
 ];
 
 /// Subset of [`SPACE_SCOPED_CRDT_TABLES`] that every member — including

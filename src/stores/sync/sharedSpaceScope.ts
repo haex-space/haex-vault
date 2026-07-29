@@ -47,6 +47,13 @@ export const SHARED_SPACE_BUILTIN_TABLES: Record<string, SharedSpaceScopePolicy>
   haex_pending_invites: { kind: 'spaceIdColumn', column: 'space_id' },
   haex_sync_rules: { kind: 'spaceIdColumn', column: 'space_id' },
   haex_shared_space_sync: { kind: 'spaceIdColumn', column: 'space_id' },
+  // Per-space delete-log (ADR 0002 §6.5). The receiver removes both the
+  // business row and its register entry when applying an insert here.
+  haex_shared_space_deleted_rows: { kind: 'spaceIdColumn', column: 'space_id' },
+  // Per-space anti-resurrection anchor (ADR 0002 §6.5). PK IS space_id but the
+  // column filter is identical to the standard spaceIdColumn shape, so we
+  // reuse the same kind rather than introducing a new one.
+  haex_space_compaction_anchors: { kind: 'spaceIdColumn', column: 'space_id' },
 }
 
 export function isBuiltinSharedSpaceTable(tableName: string): boolean {
