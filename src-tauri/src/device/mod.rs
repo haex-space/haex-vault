@@ -300,24 +300,6 @@ pub async fn device_reclaim_existing(
     let device_id = load_or_generate_device_id_file(&app_handle)?;
     let (secret_hex, endpoint_id) = generate_keypair();
 
-    // Verify the target row exists before issuing the UPDATE; without this
-    // a typo or stale id would silently no-op and the frontend would treat
-    // it as a successful reclaim, deferring the failure to the next
-    // endpoint_load_for_device call.
-    let existing = core::select_with_crdt(
-        "SELECT id FROM haex_devices WHERE id = ? LIMIT 1".to_string(),
-        vec![JsonValue::String(existing_id.clone())],
-        &state.db,
-    )
-    .map_err(|e| DeviceError::Database {
-        reason: format!("SELECT haex_devices for reclaim: {e}"),
-    })?;
-    if existing.is_empty() {
-        return Err(DeviceError::Database {
-            reason: format!("no haex_devices row with id {existing_id}"),
-        });
-    }
-
     let hlc = state.lock_or_fail(
         &state.hlc,
         CriticalFailureCode::HlcMutexPoisoned,
@@ -327,7 +309,7 @@ pub async fn device_reclaim_existing(
 
     // COALESCE keeps the existing column value whenever the caller passes
     // `None`. Avatars can be cleared explicitly with an empty string if needed.
-    core::execute_with_crdt(
+    let updated = core::execute_with_crdt(
         "UPDATE haex_devices SET \
            owner_did = ?, \
            device_id = ?, \
@@ -337,7 +319,8 @@ pub async fn device_reclaim_existing(
            platform = COALESCE(?, platform), \
            avatar = COALESCE(?, avatar), \
            avatar_options = COALESCE(?, avatar_options) \
-         WHERE id = ?"
+         WHERE id = ? \
+         RETURNING id"
             .to_string(),
         vec![
             JsonValue::String(owner_did),
@@ -357,6 +340,11 @@ pub async fn device_reclaim_existing(
     .map_err(|e| DeviceError::Database {
         reason: format!("UPDATE haex_devices: {e}"),
     })?;
+    if updated.is_empty() {
+        return Err(DeviceError::Database {
+            reason: format!("no haex_devices row with id {existing_id}"),
+        });
+    }
 
     Ok(DeviceCreated {
         id: existing_id,

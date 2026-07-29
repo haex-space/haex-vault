@@ -168,6 +168,59 @@ pub(super) fn has_password(db: &DbConnection, row_id: &str, secret: &str) -> boo
         > 0
 }
 
+/// Delete `haex_passwords[row_id]` in a way the scanner will pick up: insert a
+/// `haex_deleted_rows` entry that targets the row and remove the row itself.
+/// This mirrors what the production BEFORE-DELETE trigger writes to the
+/// delete-log; doing it directly keeps the test independent of trigger setup
+/// (which the minimal test schema does not install).
+pub(super) fn delete_password(db: &DbConnection, row_id: &str, delete_log_id: &str, hlc: &str) {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    let row_pks_json = format!("{{\"id\":\"{row_id}\"}}");
+    // Both columns get the same HLC so they scan into the same
+    // transaction-HLC group on the receiver.
+    let col_hlcs = format!("{{\"table_name\":\"{hlc}\",\"row_pks\":\"{hlc}\"}}");
+    conn.execute(
+        "INSERT INTO haex_deleted_rows (id, table_name, row_pks, haex_hlc, haex_column_hlcs) \
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![delete_log_id, "haex_passwords", row_pks_json, hlc, col_hlcs],
+    )
+    .unwrap();
+    conn.execute(
+        "DELETE FROM haex_passwords WHERE id = ?1",
+        rusqlite::params![row_id],
+    )
+    .unwrap();
+}
+
+/// Update `haex_passwords[row_id].secret` to `new_secret`, advancing the row
+/// HLC and per-column HLC to `hlc`. Mirrors what the CRDT UPDATE trigger
+/// would write; doing it directly keeps the test independent of trigger
+/// setup.
+pub(super) fn update_password_secret(db: &DbConnection, row_id: &str, new_secret: &str, hlc: &str) {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    let col_hlcs = format!("{{\"secret\":\"{hlc}\"}}");
+    conn.execute(
+        "UPDATE haex_passwords SET secret = ?1, haex_hlc = ?2, haex_column_hlcs = ?3 \
+         WHERE id = ?4",
+        rusqlite::params![new_secret, hlc, col_hlcs, row_id],
+    )
+    .unwrap();
+}
+
+/// Read `haex_passwords[row_id].secret`. Returns `None` if the row is absent.
+pub(super) fn read_password_secret(db: &DbConnection, row_id: &str) -> Option<String> {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    conn.query_row(
+        "SELECT secret FROM haex_passwords WHERE id = ?1",
+        rusqlite::params![row_id],
+        |r| r.get::<_, String>(0),
+    )
+    .ok()
+}
+
 /// Build a local-only iroh endpoint (RelayMode::Disabled, `haex-delivery/2`
 /// ALPN) whose address book is pre-seeded with `known` peers' full
 /// `EndpointAddr`s (direct addrs included, since RelayMode::Disabled), so a

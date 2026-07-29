@@ -1,3 +1,4 @@
+use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
 use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcError, HlcService};
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
@@ -148,8 +149,6 @@ fn resolve_row_space_id_for_sig(
 /// keeps the rest of the batch flowing (row-scoped rejection — Phase-2
 /// pattern from ADR 0002 §6).
 ///
-/// This function only runs when the change carries `sig: Some(_)`. The
-/// no-sig path stays untouched until Runde 7 turns on the push-side signer.
 fn verify_change_sig(
     change: &RemoteColumnChange,
     sig: &ColumnSig,
@@ -159,8 +158,18 @@ fn verify_change_sig(
 ) -> Result<(), String> {
     let space_id =
         row_space_id.ok_or_else(|| "space_id unavailable — cannot verify sig".to_string())?;
-    let sql_value = ValueConverter::json_to_rusqlite_value(&change.decrypted_value)
-        .map_err(|e| format!("value convert: {e}"))?;
+    if sig.sig.len() > 88 {
+        return Err("signature exceeds the 64-byte Ed25519 wire size".to_string());
+    }
+    if sig.storage_class == crate::crdt::column_sig::value_bytes::StorageClass::Blob {
+        if let Some(encoded) = change.decrypted_value.as_str() {
+            let max = crate::crdt::column_sig::limits::MAX_VALUE_BYTES_LEN;
+            if encoded.len() > max * 4 / 3 + 4 {
+                return Err("BLOB value exceeds the column-signature size limit".to_string());
+            }
+        }
+    }
+    let sql_value = sig.storage_class.restore(&change.decrypted_value)?;
     let value_bytes_vec = crate::crdt::column_sig::value_bytes::to_canonical_bytes(&sql_value);
     let sig_bytes = BASE64
         .decode(&sig.sig)
@@ -299,6 +308,31 @@ pub fn apply_remote_changes_to_db_scoped(
             eprintln!("[SYNC RUST] Starting transaction...");
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
+            // Whether per-column signatures are required on this batch. Owner-
+            // vault sync between two devices of the same identity carries an
+            // `expected_space_id` (the vault space id) but is intentionally
+            // UNSIGNED on the write side: `sign_column_for_spaces` only signs
+            // rows the register maps into a space, so owner-private rows have
+            // `haex_column_sigs = {}`. Peer legitimacy on that path is already
+            // established by QUIC-level DID auth plus the peer's row in
+            // `haex_space_devices`; per-column sig enforcement adds nothing on
+            // top and would silently drop every unsigned owner-private change
+            // on the receiver (deletes included, since `haex_deleted_rows` is a
+            // normal CRDT-synced table).
+            //
+            // Shared-space applies (non-owner space) keep the strict Phase-1
+            // gate: unsigned changes are dropped. When there is no vault space
+            // at all, `is_owner_space` returns false, so the safe default is
+            // "enforce" whenever an `expected_space_id` was given.
+            //
+            // Computed once per apply pass because `expected_space_id` is stable
+            // for the whole batch.
+            let enforce_sigs = match expected_space_id {
+                Some(sid) => !crate::owner_sync::scope::is_owner_space(&tx, sid)
+                    .map_err(DatabaseError::from)?,
+                None => false,
+            };
+
             // Disable triggers temporarily to prevent marking tables as dirty
             // when applying remote changes (we don't want to re-sync changes we just pulled)
             eprintln!("[SYNC RUST] Disabling triggers for remote changes");
@@ -424,7 +458,7 @@ pub fn apply_remote_changes_to_db_scoped(
 
                 // Get table schema to identify PK columns
                 // If table doesn't exist (e.g., from a dev extension not installed here), skip it
-                let schema = get_table_schema_internal(&tx, &first_change.table_name)
+                let mut schema = get_table_schema_internal(&tx, &first_change.table_name)
                     .map_err(DatabaseError::from)?;
 
                 if schema.is_empty() {
@@ -450,18 +484,47 @@ pub fn apply_remote_changes_to_db_scoped(
                 // Ensure table has CRDT columns (haex_hlc, haex_column_hlcs)
                 // This handles tables created in dev mode that don't have CRDT columns yet.
                 // When sync data arrives, we know it's from a production extension, so we need CRDT.
-                let has_hlcs_column = schema.iter().any(|col| col.name == "haex_column_hlcs");
-                if !has_hlcs_column {
+                let has_core_crdt_columns =
+                    schema.iter().any(|col| col.name == HLC_TIMESTAMP_COLUMN)
+                        && schema.iter().any(|col| col.name == COLUMN_HLCS_COLUMN);
+                let has_column_sigs = schema
+                    .iter()
+                    .any(|col| col.name == crate::crdt::trigger::COLUMN_SIGS_COLUMN);
+                if !has_core_crdt_columns || !has_column_sigs {
                     eprintln!(
                     "[SYNC RUST] Table '{}' missing CRDT columns (created in dev mode?) - upgrading now",
                     first_change.table_name
                 );
-                    match trigger::ensure_crdt_columns_and_triggers(&tx, &first_change.table_name) {
+                    let upgrade = trigger::ensure_crdt_columns(&tx, &first_change.table_name)
+                        .and_then(|columns_added| {
+                            // Adding only the signature metadata column to an
+                            // existing CRDT table does not require trigger
+                            // recreation. This also keeps minimal test/dev
+                            // schemas from acquiring triggers whose support
+                            // tables they intentionally omit.
+                            if has_core_crdt_columns {
+                                Ok((columns_added, false))
+                            } else {
+                                trigger::setup_triggers_for_table(
+                                    &tx,
+                                    &first_change.table_name,
+                                    true,
+                                )
+                                .map(|result| {
+                                    let triggers_created =
+                                        matches!(result, trigger::TriggerSetupResult::Success);
+                                    (columns_added, triggers_created)
+                                })
+                            }
+                        });
+                    match upgrade {
                         Ok((columns_added, triggers_created)) => {
                             eprintln!(
                                 "[SYNC RUST] Upgraded '{}': columns={}, triggers={}",
                                 first_change.table_name, columns_added, triggers_created
                             );
+                            schema = get_table_schema_internal(&tx, &first_change.table_name)
+                                .map_err(DatabaseError::from)?;
                         }
                         Err(e) => {
                             eprintln!(
@@ -543,12 +606,7 @@ pub fn apply_remote_changes_to_db_scoped(
                 let existing_columns: std::collections::HashSet<&str> =
                     schema.iter().map(|col| col.name.as_str()).collect();
 
-                // Runde 5 sig-verifier plumbing: precompute the row's
-                // space_id so per-change sig checks below don't hit the DB
-                // per column. Only paid when a change actually carries a
-                // sig (Option<ColumnSig>, populated by Runde 7's push
-                // path); otherwise stays None and the whole sig path is a
-                // no-op.
+                // Precompute the trustworthy space anchor once per row.
                 let row_space_id_for_sig: Option<String> =
                     if row_change_list.iter().any(|c| c.sig.is_some()) {
                         resolve_row_space_id_for_sig(
@@ -565,7 +623,9 @@ pub fn apply_remote_changes_to_db_scoped(
                     };
 
                 // Collect all column changes that are newer than current
-                let mut columns_to_update: Vec<(String, JsonValue, String)> = Vec::new(); // (column_name, json_value, hlc)
+                // (column_name, exact SQLite value, hlc, verified sig to persist)
+                let mut columns_to_update: Vec<(String, SqlValue, String, Option<SigRecord>)> =
+                    Vec::new();
                 let mut max_hlc_for_row = first_change.hlc_timestamp.clone();
 
                 for change in &row_change_list {
@@ -609,16 +669,28 @@ pub fn apply_remote_changes_to_db_scoped(
                         continue;
                     }
 
-                    // Runde 5 sig-verifier plumbing: when the wire carries
-                    // a column-sig, verify it against the row's space_id.
-                    // Invalid sigs drop the change (row-scoped rejection,
-                    // ADR 0002 §6) so the rest of the batch still lands.
-                    // Valid sigs also seed a `haex_identities` stub for
-                    // the author DID, replacing the previous DB-trigger
-                    // stubbing path (ADR 0002 §D). Missing sigs (`None`)
-                    // are Runde 7's job — for now the loop drops through
-                    // to the existing HLC compare unchanged.
-                    if let Some(sig) = &change.sig {
+                    // Shared-space applies fail closed on missing signatures.
+                    // `authored_by_did` is legacy leader-attributed metadata,
+                    // not authoritative authorship; it remains the sole
+                    // unsigned compatibility column until the schema drops it.
+                    //
+                    // Owner-space applies (`enforce_sigs == false`) skip this
+                    // gate — see the `enforce_sigs` computation above. Signed
+                    // changes still verify below regardless of the flag, so
+                    // there is no downgrade path from signed to unsigned on
+                    // the owner-space route.
+                    if enforce_sigs
+                        && change.sig.is_none()
+                        && change.column_name != "authored_by_did"
+                    {
+                        eprintln!(
+                            "[SYNC RUST] Dropping unsigned shared-space change on {}.{}",
+                            first_change.table_name, change.column_name
+                        );
+                        continue;
+                    }
+
+                    let verified_sig = if let Some(sig) = &change.sig {
                         match verify_change_sig(
                             change,
                             sig,
@@ -628,6 +700,21 @@ pub fn apply_remote_changes_to_db_scoped(
                         ) {
                             Ok(()) => {
                                 ensure_identity_stub(&tx, &sig.author_did)?;
+                                let bytes = BASE64.decode(&sig.sig).map_err(|e| {
+                                    DatabaseError::SerializationError {
+                                        reason: format!("verified signature stopped decoding: {e}"),
+                                    }
+                                })?;
+                                let sig_bytes: [u8; 64] = bytes.try_into().map_err(|_| {
+                                    DatabaseError::SerializationError {
+                                        reason: "verified signature has wrong length".to_string(),
+                                    }
+                                })?;
+                                Some(SigRecord {
+                                    author_did: sig.author_did.clone(),
+                                    sig: sig_bytes,
+                                    storage_class: sig.storage_class,
+                                })
                             }
                             Err(reason) => {
                                 eprintln!(
@@ -637,7 +724,9 @@ pub fn apply_remote_changes_to_db_scoped(
                                 continue;
                             }
                         }
-                    }
+                    } else {
+                        None
+                    };
 
                     let current_hlc = column_hlcs
                         .get(&change.column_name)
@@ -645,6 +734,15 @@ pub fn apply_remote_changes_to_db_scoped(
                         .unwrap_or("");
 
                     if hlc_is_newer(change.hlc_timestamp.as_str(), current_hlc) {
+                        let sql_value = match &change.sig {
+                            Some(sig) => sig
+                                .storage_class
+                                .restore(&change.decrypted_value)
+                                .map_err(|reason| DatabaseError::SerializationError { reason })?,
+                            None => {
+                                ValueConverter::json_to_rusqlite_value(&change.decrypted_value)?
+                            }
+                        };
                         // Remote change is newer, include it
                         column_hlcs.insert(
                             change.column_name.clone(),
@@ -652,8 +750,9 @@ pub fn apply_remote_changes_to_db_scoped(
                         );
                         columns_to_update.push((
                             change.column_name.clone(),
-                            change.decrypted_value.clone(),
+                            sql_value,
                             change.hlc_timestamp.clone(),
+                            verified_sig,
                         ));
 
                         // Track max HLC for row timestamp
@@ -683,7 +782,7 @@ pub fn apply_remote_changes_to_db_scoped(
                         // Row exists, update it with all changed columns
                         let set_clauses: Vec<String> = columns_to_update
                             .iter()
-                            .map(|(col_name, _, _)| format!("\"{}\" = ?", col_name))
+                            .map(|(col_name, _, _, _)| format!("\"{}\" = ?", col_name))
                             .collect();
 
                         let update_sql = format!(
@@ -695,10 +794,10 @@ pub fn apply_remote_changes_to_db_scoped(
 
                         let mut params_vec: Vec<SqlValue> = Vec::new();
 
-                        // Add column values (convert JSON to SQL values)
-                        for (_col_name, json_value, _) in &columns_to_update {
-                            let sql_value = ValueConverter::json_to_rusqlite_value(json_value)?;
-                            params_vec.push(sql_value);
+                        // Add exact SQLite values reconstructed from the signed
+                        // storage class.
+                        for (_col_name, sql_value, _, _) in &columns_to_update {
+                            params_vec.push(sql_value.clone());
                         }
 
                         // Add HLCs and timestamp
@@ -764,11 +863,10 @@ pub fn apply_remote_changes_to_db_scoped(
                             values.push(sql_val);
                         }
 
-                        // Add changed columns (convert JSON to SQL values)
-                        for (col_name, json_value, _) in &columns_to_update {
+                        // Add changed columns with their exact SQLite classes.
+                        for (col_name, sql_value, _, _) in &columns_to_update {
                             columns.push(col_name.clone());
-                            let sql_value = ValueConverter::json_to_rusqlite_value(json_value)?;
-                            values.push(sql_value);
+                            values.push(sql_value.clone());
                         }
 
                         // Add CRDT metadata
@@ -884,6 +982,25 @@ pub fn apply_remote_changes_to_db_scoped(
                             }
                         }
                     }
+
+                    // A verified signature is CRDT metadata too. Persist it
+                    // only after the corresponding value write succeeded so a
+                    // receiver can relay the change without re-signing it.
+                    if let Some(space_id) = row_space_id_for_sig.as_deref() {
+                        for (column, _, _, sig) in &columns_to_update {
+                            if let Some(sig) = sig {
+                                upsert_column_sigs(
+                                    &tx,
+                                    &first_change.table_name,
+                                    &first_change.row_pks,
+                                    column,
+                                    space_id,
+                                    sig,
+                                )
+                                .map_err(DatabaseError::from)?;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -901,6 +1018,22 @@ pub fn apply_remote_changes_to_db_scoped(
             // the register entry for (table, row, space), and removes the target
             // row iff no other space still lists it. Triggers stay disabled so
             // the Task 4/5 fanout/cascade doesn't re-emit.
+            //
+            // Interaction with the owner-space sig-enforce exemption above:
+            // owner-vault sync (`enforce_sigs == false`) can carry
+            // `haex_shared_space_deleted_rows` entries between the owner's own
+            // devices without per-column signatures. That's intentional —
+            // authorization of the actual DELETE does NOT rely on
+            // `enforce_sigs` here. `propagate_shared_space_deleted_rows_to_target_tables`
+            // reads the entry's own `space_id` and gates on the local
+            // `haex_shared_space_sync` register for that space (register-check),
+            // failing closed on DB errors. So on the owner-sync route the
+            // sig-enforcement being off just lets the delete-log entry LAND;
+            // whether to actually delete the business row is still decided by
+            // the receiver's register state (which owner-sync mirrors from the
+            // sender). Shared-space delivery (non-owner `expected_space_id`)
+            // keeps `enforce_sigs == true`, so unsigned per-space delete-log
+            // entries drop at the outer gate before ever reaching propagation.
             if !inbound_shared_space_delete_log_ids.is_empty() {
                 eprintln!(
                     "[SYNC RUST] Propagating {} shared-space delete-log entries",
@@ -1356,6 +1489,7 @@ mod tests {
             sig: Some(ColumnSig {
                 author_did: did.clone(),
                 sig: BASE64.encode(sig.to_bytes()),
+                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
             }),
         };
 
@@ -1391,6 +1525,32 @@ mod tests {
             stub_count, 0,
             "invalid-sig author DID must NOT get a stub row"
         );
+    }
+
+    #[test]
+    fn apply_scoped_rejects_unsigned_shared_space_change() {
+        let db = setup_db_with_identities();
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: "20/xxx".to_string(),
+            decrypted_value: JsonValue::String("unsigned.png".to_string()),
+            sig: None,
+        };
+
+        apply_remote_changes_to_db_scoped(&db, vec![change], None, None, Some("s1"))
+            .expect("unsigned rejection is row-scoped");
+
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(avatar, "old.png");
     }
 
     /// Runde 5 G1c — a change with a **valid** sig from a DID we've never
@@ -1430,6 +1590,7 @@ mod tests {
             sig: Some(ColumnSig {
                 author_did: did.clone(),
                 sig: BASE64.encode(sig.to_bytes()),
+                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
             }),
         };
 
@@ -1491,6 +1652,7 @@ mod tests {
             sig: Some(ColumnSig {
                 author_did: did,
                 sig: BASE64.encode(sig.to_bytes()),
+                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
             }),
         }
     }
@@ -1622,6 +1784,7 @@ mod tests {
                 sig: Some(ColumnSig {
                     author_did: did.clone(),
                     sig: BASE64.encode(sig.to_bytes()),
+                    storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
                 }),
             }
         };
@@ -1678,6 +1841,7 @@ mod tests {
                 sig: Some(ColumnSig {
                     author_did: did.clone(),
                     sig: BASE64.encode(sig.to_bytes()),
+                    storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
                 }),
             }
         };
@@ -1700,5 +1864,132 @@ mod tests {
             .unwrap()
         };
         assert_eq!(count, 0, "space-mismatched signed insert must be dropped");
+    }
+
+    // -----------------------------------------------------------------------
+    // Owner-space trust: unsigned changes must land when the expected space
+    // is this vault's own owner-space (VAULT-type row in haex_spaces). See
+    // owner_sync::scope::is_owner_space for the rationale.
+    // -----------------------------------------------------------------------
+
+    /// Test schema mirroring `setup_db_with_identities` but *with* a
+    /// `haex_spaces` row of `type='vault'` so `is_owner_space` can resolve.
+    /// `owner_space_id` is the vault-space id.
+    fn setup_db_with_owner_space(owner_space_id: &str) -> DbConnection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+             CREATE TABLE {DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );
+             CREATE TABLE haex_identities (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 did TEXT NOT NULL,
+                 name TEXT NOT NULL,
+                 source TEXT DEFAULT 'contact' NOT NULL
+             );
+             CREATE UNIQUE INDEX haex_identities_did_unique ON haex_identities (did);
+             CREATE TABLE haex_spaces (
+                 id TEXT PRIMARY KEY,
+                 type TEXT NOT NULL,
+                 owner_identity_id TEXT
+             );
+             CREATE TABLE devices (
+                 id TEXT PRIMARY KEY,
+                 space_id TEXT NOT NULL,
+                 avatar TEXT,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );
+             INSERT INTO haex_identities (id, did, name) VALUES ('id-owner', 'did:key:zOwner', 'owner');
+             INSERT INTO haex_spaces (id, type, owner_identity_id) VALUES ('{owner_space_id}', 'vault', 'id-owner');
+             INSERT INTO devices (id, space_id, avatar, haex_hlc, haex_column_hlcs) \
+              VALUES ('dev-1', '{owner_space_id}', 'old.png', '10/aaa', '{{\"space_id\":\"10/aaa\",\"avatar\":\"3/aaa\"}}');"
+        ))
+        .unwrap();
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    /// Owner-sync between two devices of the same identity carries
+    /// `expected_space_id` = the vault-space id, but the wire payload is
+    /// unsigned by design (`sign_column_for_spaces` yields `{}` for owner-
+    /// private rows). Before the trust-own-vault gate, this batch was
+    /// silently dropped and every owner-private CRDT row failed to converge
+    /// (see the failing e2e test
+    /// `tests/sync/owner-sync-delete-convergence.spec.ts`).
+    #[test]
+    fn apply_remote_changes_to_db_scoped_accepts_unsigned_when_expected_space_is_owner_space() {
+        let owner_space = "vault-owner-space";
+        let db = setup_db_with_owner_space(owner_space);
+
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: "20/xxx".to_string(),
+            decrypted_value: JsonValue::String("unsigned-owner.png".to_string()),
+            sig: None,
+        };
+
+        apply_remote_changes_to_db_scoped(&db, vec![change], None, None, Some(owner_space))
+            .expect("apply must succeed for owner-space unsigned change");
+
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            avatar, "unsigned-owner.png",
+            "unsigned owner-space change must land: sig enforcement is off on the owner-space route"
+        );
+    }
+
+    /// Regression guard: the "shared-space unsigned change is dropped"
+    /// semantic must survive even with the owner-space gate in place. When
+    /// `expected_space_id` points to a space that is NOT this vault's
+    /// owner-space (either a shared space id or an id that does not exist in
+    /// `haex_spaces` at all), the strict Phase-1 gate stays on.
+    #[test]
+    fn apply_remote_changes_to_db_scoped_rejects_unsigned_when_expected_space_is_shared() {
+        let owner_space = "vault-owner-space";
+        let db = setup_db_with_owner_space(owner_space);
+
+        // Shared space id (any id != the vault-space id). No row for it needs
+        // to exist in haex_spaces — is_owner_space is a positive check on the
+        // vault-space row, everything else is "not owner-space" → enforce.
+        let shared_space = "shared-space-abc";
+
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: "20/xxx".to_string(),
+            decrypted_value: JsonValue::String("dropped.png".to_string()),
+            sig: None,
+        };
+
+        apply_remote_changes_to_db_scoped(&db, vec![change], None, None, Some(shared_space))
+            .expect("apply must succeed — rejection is row-scoped, not fatal");
+
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            avatar, "old.png",
+            "unsigned shared-space change must be dropped: sig enforcement stays on for non-owner spaces"
+        );
     }
 }

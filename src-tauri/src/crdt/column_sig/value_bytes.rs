@@ -1,4 +1,7 @@
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rusqlite::types::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 
 const CANONICAL_QUIET_NAN: u64 = 0x7FF8_0000_0000_0000;
 
@@ -13,6 +16,80 @@ pub mod tag {
     pub const TEXT: u8 = 3;
     pub const BLOB: u8 = 4;
     pub const NULL: u8 = 5;
+}
+
+/// SQLite storage class carried alongside a column signature.
+///
+/// Tauri IPC and JSON erase distinctions that are part of the signature
+/// preimage: an integer-valued REAL becomes an ordinary JS number and a BLOB
+/// becomes a base64 string. Keeping the original class in the signed record
+/// lets every receiver reconstruct the exact canonical bytes. Tampering with
+/// this field only makes verification fail because the class tag is itself the
+/// first signed byte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StorageClass {
+    Integer,
+    Real,
+    Text,
+    Blob,
+    Null,
+}
+
+impl StorageClass {
+    pub fn of(value: &Value) -> Self {
+        match value {
+            Value::Integer(_) => Self::Integer,
+            Value::Real(_) => Self::Real,
+            Value::Text(_) => Self::Text,
+            Value::Blob(_) => Self::Blob,
+            Value::Null => Self::Null,
+        }
+    }
+
+    /// Reconstruct the original SQLite value from its JSON/IPC projection.
+    pub fn restore(self, value: &JsonValue) -> Result<Value, String> {
+        match self {
+            Self::Null if value.is_null() => Ok(Value::Null),
+            Self::Null => Err("NULL storage class carried a non-null value".to_string()),
+            Self::Integer => value
+                .as_i64()
+                .map(Value::Integer)
+                .or_else(|| value.as_bool().map(|v| Value::Integer(i64::from(v))))
+                .ok_or_else(|| "INTEGER storage class carried a non-integer value".to_string()),
+            Self::Real => value
+                .as_f64()
+                .map(Value::Real)
+                .ok_or_else(|| "REAL storage class carried a non-number value".to_string()),
+            Self::Text => value
+                .as_str()
+                .map(|v| Value::Text(v.to_string()))
+                .ok_or_else(|| "TEXT storage class carried a non-string value".to_string()),
+            Self::Blob => {
+                if let Some(encoded) = value.as_str() {
+                    return BASE64
+                        .decode(encoded)
+                        .map(Value::Blob)
+                        .map_err(|e| format!("BLOB value is not base64: {e}"));
+                }
+                let bytes = value
+                    .as_array()
+                    .ok_or_else(|| {
+                        "BLOB storage class carried neither base64 nor bytes".to_string()
+                    })?
+                    .iter()
+                    .map(|entry| {
+                        entry
+                            .as_u64()
+                            .filter(|byte| *byte <= u8::MAX as u64)
+                            .map(|byte| byte as u8)
+                            .ok_or_else(|| "BLOB array contains a non-byte value".to_string())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Value::Blob(bytes))
+            }
+        }
+    }
 }
 
 /// Canonical byte encoding of a SQLite value for use as a signature preimage

@@ -57,6 +57,7 @@ function tagged(tag: number, body: ArrayLike<number>): Uint8Array {
 }
 
 type Affinity = 'INTEGER' | 'REAL' | 'TEXT' | 'BLOB' | 'NUMERIC'
+export type SqliteStorageClass = 'integer' | 'real' | 'text' | 'blob' | 'null'
 
 /**
  * SQLite type-affinity rules (§3.1 of the SQLite datatype spec), matching
@@ -118,6 +119,7 @@ function toI64(value: bigint | number | string, source: string): bigint {
       `toCanonicalBytes: ${source} value ${JSON.stringify(value)} is not an integer (${
         err instanceof Error ? err.message : String(err)
       })`,
+      { cause: err },
     )
   }
 }
@@ -127,12 +129,32 @@ function toI64(value: bigint | number | string, source: string): bigint {
  * byte form for column-sig preimages. `columnType` is the declared column
  * type from `getTableSchemaAsync` — its affinity drives the discriminator.
  */
-export function toCanonicalBytes(value: unknown, columnType: string): Uint8Array {
+export function toCanonicalBytes(
+  value: unknown,
+  columnType: string,
+  storageClass?: SqliteStorageClass,
+): Uint8Array {
   if (value === null || value === undefined) {
+    if (storageClass && storageClass !== 'null') {
+      throw new TypeError(
+        `toCanonicalBytes: ${storageClass.toUpperCase()} storage class carried a null value`,
+      )
+    }
     return new Uint8Array([STORAGE_CLASS_TAG.NULL])
   }
+  if (storageClass === 'null') {
+    throw new TypeError('toCanonicalBytes: NULL storage class carried a non-null value')
+  }
 
-  const affinity = affinityOf(columnType)
+  const affinity = storageClass
+    ? ({
+        integer: 'INTEGER',
+        real: 'REAL',
+        text: 'TEXT',
+        blob: 'BLOB',
+        null: 'TEXT',
+      } as const)[storageClass]
+    : affinityOf(columnType)
 
   if (affinity === 'INTEGER') {
     if (typeof value === 'boolean') return encodeI64BE(value ? 1n : 0n)
@@ -177,6 +199,23 @@ export function toCanonicalBytes(value: unknown, columnType: string): Uint8Array
       )
     }
     if (typeof value === 'string') {
+      if (storageClass === 'blob') {
+        try {
+          const decoded = atob(value)
+          return tagged(
+            STORAGE_CLASS_TAG.BLOB,
+            Uint8Array.from(decoded, (char) => char.charCodeAt(0)),
+          )
+        }
+        catch (err) {
+          throw new TypeError(
+            `toCanonicalBytes: BLOB value is not base64 (${
+              err instanceof Error ? err.message : String(err)
+            })`,
+            { cause: err },
+          )
+        }
+      }
       return tagged(STORAGE_CLASS_TAG.BLOB, new TextEncoder().encode(value))
     }
     throw new TypeError(`toCanonicalBytes: unsupported BLOB value type ${typeof value}`)
@@ -194,8 +233,12 @@ export function toCanonicalBytes(value: unknown, columnType: string): Uint8Array
  * `base64::engine::general_purpose::STANDARD` used by
  * `crdt::column_sig::commands::verify_column_sig_batch_inner`.
  */
-export function toCanonicalBase64(value: unknown, columnType: string): string {
-  return bytesToBase64Standard(toCanonicalBytes(value, columnType))
+export function toCanonicalBase64(
+  value: unknown,
+  columnType: string,
+  storageClass?: SqliteStorageClass,
+): string {
+  return bytesToBase64Standard(toCanonicalBytes(value, columnType, storageClass))
 }
 
 /**

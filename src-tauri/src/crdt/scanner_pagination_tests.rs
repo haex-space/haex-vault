@@ -20,6 +20,7 @@ fn change_at(hlc: &str, column: &str, value: &str) -> LocalColumnChange {
         hlc_timestamp: hlc.to_string(),
         value: serde_json::Value::String(value.to_string()),
         device_id: "dev".to_string(),
+        sig: None,
     }
 }
 

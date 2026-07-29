@@ -306,6 +306,7 @@ fn change(table: &str, column: &str, row_pks: &str) -> LocalColumnChange {
         hlc_timestamp: "1000000000000000000/aabbccdd".to_string(),
         value: serde_json::Value::String("v".to_string()),
         device_id: "leader".to_string(),
+        sig: None,
     }
 }
 

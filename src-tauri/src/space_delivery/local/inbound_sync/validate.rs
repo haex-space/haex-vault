@@ -83,6 +83,7 @@ pub fn validate_and_attribute(
             hlc_timestamp: hlc,
             value: JsonValue::String(ucan_audience.to_string()),
             device_id,
+            sig: None,
         });
     }
 

@@ -163,6 +163,7 @@ mod tests {
             hlc_timestamp: hlc.to_string(),
             value: JsonValue::String("hello".to_string()),
             device_id: "dev-1".to_string(),
+            sig: None,
         }
     }
 

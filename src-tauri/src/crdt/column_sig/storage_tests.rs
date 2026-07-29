@@ -16,6 +16,7 @@ fn make_sig(did: &str) -> SigRecord {
     SigRecord {
         author_did: did.to_string(),
         sig: random_sig_bytes(),
+        storage_class: super::value_bytes::StorageClass::Text,
     }
 }
 

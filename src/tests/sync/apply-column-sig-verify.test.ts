@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { invoke } from '@tauri-apps/api/core'
 import type { ColumnChange } from '~/stores/sync/tableScanner'
+import { applyRemoteChangesInTransactionAsync } from '~/stores/sync/orchestrator/pull/apply'
 
 // Mock BEFORE importing apply.ts. Vitest hoists vi.mock() automatically.
 vi.mock('@tauri-apps/api/core', () => ({
@@ -25,9 +27,6 @@ vi.mock('~/stores/vault', () => ({
 vi.stubGlobal('useToast', () => ({ add: vi.fn() }))
 vi.stubGlobal('useNuxtApp', () => ({ $i18n: { t: (k: string) => k } }))
 
-import { invoke } from '@tauri-apps/api/core'
-import { applyRemoteChangesInTransactionAsync } from '~/stores/sync/orchestrator/pull/apply'
-
 const mockInvoke = vi.mocked(invoke)
 
 /**
@@ -41,6 +40,7 @@ const wireChange = (opts: {
   columnName?: string
   authorDid: string
   hlc?: string
+  storageClass?: 'integer' | 'real' | 'text' | 'blob' | 'null'
 }): ColumnChange => ({
   tableName: 'haex_bookmarks',
   rowPks: opts.rowPks,
@@ -49,7 +49,11 @@ const wireChange = (opts: {
   deviceId: 'dev-1',
   encryptedValue: 'enc',
   nonce: 'nnc',
-  sig: { authorDid: opts.authorDid, sig: 'c2ln' },
+  sig: {
+    authorDid: opts.authorDid,
+    sig: 'c2ln',
+    storageClass: opts.storageClass ?? 'text',
+  },
 })
 
 /** Composite row_key mirroring the Rust side. */
@@ -103,6 +107,7 @@ describe('applyRemoteChangesInTransactionAsync — post-decrypt column-sig verif
     expect(capturedSigCall!.input.changes[0]!.sig).toEqual({
       authorDid: 'did:key:z1',
       sig: 'c2ln',
+      storageClass: 'text',
     })
   })
 
@@ -147,9 +152,45 @@ describe('applyRemoteChangesInTransactionAsync — post-decrypt column-sig verif
     expect(capturedApplyCall).not.toBeNull()
     expect(capturedApplyCall!.changes).toHaveLength(1)
     expect(capturedApplyCall!.changes[0]!.rowPks).toBe('{"id":"r1"}')
-    // The wire `sig` field is stripped before the Rust boundary — the
-    // apply command consumes only the decrypted value + coordinates.
-    expect(capturedApplyCall!.changes[0]!).not.toHaveProperty('sig')
+    expect(capturedApplyCall!.changes[0]!.sig).toEqual(r1.sig)
+  })
+
+  it('shared-space: drops every change with an ambiguous duplicate correlation key', async () => {
+    const first = wireChange({ rowPks: '{"id":"r1"}', authorDid: 'did:key:z1' })
+    const duplicate = { ...first, encryptedValue: 'different-ciphertext' }
+    mockDecrypt.mockResolvedValueOnce({ value: 'Hi' })
+    mockDecrypt.mockResolvedValueOnce({ value: 'Tampered' })
+
+    let verifiedInputCount = -1
+    let appliedChanges: Array<Record<string, unknown>> | null = null
+    mockInvoke.mockImplementation(async (cmd, args) => {
+      if (cmd === 'get_table_schema') {
+        return [
+          { name: 'id', type: 'TEXT', isPk: true },
+          { name: 'title', type: 'TEXT', isPk: false },
+        ]
+      }
+      if (cmd === 'verify_column_sig_batch') {
+        const call = args as { input: { changes: unknown[] } }
+        verifiedInputCount = call.input.changes.length
+        return { verified: [rowKey(first)], rejected: [] }
+      }
+      if (cmd === 'apply_remote_changes_in_transaction') {
+        appliedChanges = (args as { changes: Array<Record<string, unknown>> }).changes
+        return undefined
+      }
+      throw new Error(`unexpected invoke: ${cmd}`)
+    })
+
+    await applyRemoteChangesInTransactionAsync(
+      [first, duplicate],
+      new Uint8Array(32),
+      'backend-A',
+      'space-123',
+    )
+
+    expect(verifiedInputCount).toBe(1)
+    expect(appliedChanges).toEqual([])
   })
 
   it('personal-vault (no spaceId): does not invoke verify_column_sig_batch', async () => {
@@ -180,13 +221,15 @@ describe('applyRemoteChangesInTransactionAsync — post-decrypt column-sig verif
     expect(commands).not.toContain('verify_column_sig_batch')
   })
 
-  it('NULL column with valid sig reaches the verifier (regression: empty valueBytes is legitimate)', async () => {
-    // Regression guard for the reviewer's Ship-Blocker #1: an empty
-    // canonical byte string is the canonical form of NULL. Before the
-    // refactor, a Layer-0 gate `!valueBytes` would have false-rejected
-    // this as `Unsigned`. Post-refactor, we compute bytes locally and
-    // NULL naturally yields empty bytes — must reach the verifier.
-    const r1 = wireChange({ rowPks: '{"id":"r1"}', authorDid: 'did:key:z1' })
+  it('NULL column with valid sig reaches the verifier', async () => {
+    // Regression guard for the reviewer's Ship-Blocker #1: NULL is a valid
+    // signed value and must reach the verifier. Its canonical encoding now
+    // contains the explicit NULL storage-class tag.
+    const r1 = wireChange({
+      rowPks: '{"id":"r1"}',
+      authorDid: 'did:key:z1',
+      storageClass: 'null',
+    })
     mockDecrypt.mockResolvedValue({ value: null })
 
     let capturedSigCall:

@@ -71,6 +71,23 @@ describe('STORAGE_CLASS_TAG', () => {
 })
 
 describe('toCanonicalBytes — storage-class-driven canonicalisation', () => {
+  it('uses the transported SQLite storage class instead of declared affinity', () => {
+    expect(asArray(toCanonicalBytes(1, 'TEXT', 'real'))).toEqual([
+      STORAGE_CLASS_TAG.REAL, 0x3f, 0xf0, 0, 0, 0, 0, 0, 0,
+    ])
+    expect(asArray(toCanonicalBytes('AAEC/w==', 'TEXT', 'blob'))).toEqual([
+      STORAGE_CLASS_TAG.BLOB, 0, 1, 2, 255,
+    ])
+    expect(asArray(toCanonicalBytes('AAEC/w==', 'BLOB', 'text'))).toEqual([
+      STORAGE_CLASS_TAG.TEXT, 0x41, 0x41, 0x45, 0x43, 0x2f, 0x77, 0x3d, 0x3d,
+    ])
+  })
+
+  it('rejects a non-null value labelled with the NULL storage class', () => {
+    expect(() => toCanonicalBytes('not-null', 'TEXT', 'null')).toThrow(TypeError)
+    expect(() => toCanonicalBytes(null, 'TEXT', 'real')).toThrow(TypeError)
+  })
+
   it('null and undefined -> bare NULL tag, regardless of column affinity', () => {
     const nullBytes = [STORAGE_CLASS_TAG.NULL]
     expect(asArray(toCanonicalBytes(null, 'TEXT'))).toEqual(nullBytes)

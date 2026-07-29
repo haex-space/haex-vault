@@ -4,9 +4,10 @@
 //! It produces unencrypted column-level changes for local space sync over QUIC,
 //! which provides transport encryption.
 
+use crate::crdt::commands::apply::ColumnSig;
 use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::trigger::{
-    get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, HLC_TIMESTAMP_COLUMN,
+    get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN, HLC_TIMESTAMP_COLUMN,
 };
 use crate::database::core::{
     convert_value_ref_to_json, with_connection, MAX_CRDT_TRANSACTION_BYTES,
@@ -100,13 +101,17 @@ pub struct LocalColumnChange {
     /// Plain value (not encrypted)
     pub value: JsonValue,
     pub device_id: String,
+    /// Per-column signature for the requested shared-space stream. Owner-vault
+    /// sync is unscoped and therefore leaves this absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sig: Option<ColumnSig>,
 }
 
 /// Splits a table schema into PK columns and syncable data columns.
 ///
 /// Data columns exclude:
 /// - PK columns
-/// - CRDT metadata: `haex_hlc`, `haex_column_hlcs`
+/// - CRDT metadata: `haex_hlc`, `haex_column_hlcs`, `haex_column_sigs`
 /// - Sync metadata: `last_push_hlc_timestamp`, `last_pull_server_timestamp`, `updated_at`, `created_at`
 fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInfo>) {
     let pk_columns: Vec<&ColumnInfo> = schema.iter().filter(|c| c.is_pk).collect();
@@ -116,6 +121,7 @@ fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInf
             !c.is_pk
                 && c.name != HLC_TIMESTAMP_COLUMN
                 && c.name != COLUMN_HLCS_COLUMN
+                && c.name != COLUMN_SIGS_COLUMN
                 && !EXCLUDED_SYNC_COLUMNS.contains(&c.name.as_str())
         })
         .collect();
@@ -172,6 +178,10 @@ pub fn scan_table_for_local_changes_scoped(
     }
     select_columns.push(HLC_TIMESTAMP_COLUMN);
     select_columns.push(COLUMN_HLCS_COLUMN);
+    let has_column_sigs = schema.iter().any(|c| c.name == COLUMN_SIGS_COLUMN);
+    if has_column_sigs {
+        select_columns.push(COLUMN_SIGS_COLUMN);
+    }
 
     let column_list: String = select_columns
         .iter()
@@ -239,6 +249,11 @@ pub fn scan_table_for_local_changes_scoped(
             Some(JsonValue::String(s)) => serde_json::from_str(s).unwrap_or_default(),
             _ => HashMap::new(),
         };
+        let column_sigs: JsonValue = row_map
+            .get(COLUMN_SIGS_COLUMN)
+            .and_then(JsonValue::as_str)
+            .and_then(|raw| serde_json::from_str(raw).ok())
+            .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
 
         // Build PK JSON string
         let pk_map: serde_json::Map<String, JsonValue> = pk_columns
@@ -299,6 +314,13 @@ pub fn scan_table_for_local_changes_scoped(
                     .get(col.name.as_str())
                     .cloned()
                     .unwrap_or(JsonValue::Null);
+                let sig = space_id_filter.and_then(|space_id| {
+                    column_sigs
+                        .get(&col.name)
+                        .and_then(|by_space| by_space.get(space_id))
+                        .cloned()
+                        .and_then(|record| serde_json::from_value(record).ok())
+                });
 
                 changes.push(LocalColumnChange {
                     table_name: table_name.to_string(),
@@ -307,6 +329,7 @@ pub fn scan_table_for_local_changes_scoped(
                     hlc_timestamp: hlc_to_use.to_string(),
                     value,
                     device_id: device_id.to_string(),
+                    sig,
                 });
             }
         }

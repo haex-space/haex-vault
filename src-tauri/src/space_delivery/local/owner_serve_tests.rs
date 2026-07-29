@@ -281,6 +281,7 @@ fn sample_changes() -> Vec<LocalColumnChange> {
             hlc_timestamp: "1000000000000000000/aabbccdd".to_string(),
             value: serde_json::json!("first"),
             device_id: "leader".to_string(),
+            sig: None,
         },
         LocalColumnChange {
             table_name: "notes".to_string(),
@@ -289,6 +290,7 @@ fn sample_changes() -> Vec<LocalColumnChange> {
             hlc_timestamp: "2000000000000000000/aabbccdd".to_string(),
             value: serde_json::json!("second"),
             device_id: "leader".to_string(),
+            sig: None,
         },
     ]
 }
@@ -356,6 +358,7 @@ fn make_change(table: &str, id: &str, col: &str, hlc: &str) -> LocalColumnChange
         hlc_timestamp: hlc.to_string(),
         value: serde_json::json!("v"),
         device_id: "peer".to_string(),
+        sig: None,
     }
 }
 

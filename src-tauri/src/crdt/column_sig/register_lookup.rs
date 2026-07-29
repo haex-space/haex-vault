@@ -7,17 +7,14 @@
 //! only pays one DB round-trip.
 //!
 //! Two paths:
-//!   * **Infra tables** — the five [`SPACE_SCOPED_CRDT_TABLES`] carry a
+//!   * **Built-in space-scoped tables** — [`SPACE_SCOPED_CRDT_TABLES`] carry a
 //!     `space_id` column inline; the row itself is authoritative. We SELECT
 //!     from that table.
 //!   * **Extension tables** — everything else. Ownership is expressed via
-//!     the share register `haex_shared_space_sync`. We return every space the
-//!     register maps the row into, with **no author filter** — I2 is the
-//!     caller's job now (Runde 5): the write-time signer filters via the
-//!     `SpaceKeyCache` (`key_cache.contains(space_id)`), so only spaces this
-//!     vault holds a signing key for survive. A DID/key-agnostic register
-//!     resolver keeps the SQL cheap and moves the security policy to the
-//!     signer where it belongs.
+//!     the share register `haex_shared_space_sync`. We return only mappings
+//!     whose routing columns were signed by an identity whose private key
+//!     belongs to this vault. Space membership alone is not proof that this
+//!     vault initiated the share (ADR 0002 I2).
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -29,43 +26,13 @@ use tracing::error;
 use crate::crdt::scanner::is_space_scoped_table;
 use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
 
-/// Explicit denylist of `haex_*` tables the share register may never route
-/// sync for (ADR 0002 §4b, I1). Every `haex_*` table NOT in this set is
-/// user-facing (`haex_s3_backends`, `haex_spaces`, `haex_vault_settings`,
-/// `haex_passwords_*`, `haex_bookmarks_*`, …) and MAY legitimately appear
-/// as a register target — a blanket `haex_` prefix rule falsely rejects
-/// those and breaks share flows in prod.
+/// System-table payloads that intentionally use the register rather than an
+/// inline `space_id`. This list is fail-closed: adding a new `haex_*` table
+/// requires an explicit security review.
 ///
-/// The list intentionally hard-codes the table names rather than pulling
-/// them from `crate::table_names::*`, because:
-///   1. Missing an entry is a *bigger* footgun than an extra one (silent
-///      shrink of the denylist vs. loud test failure on the new table),
-///      so the explicit list survives future refactors better.
-///   2. The `_no_sync` suffix rule already sweeps up all cache/state
-///      tables (e.g. `haex_crdt_*_no_sync`, `haex_workspaces_no_sync`,
-///      `haex_desktop_items_no_sync`) so we do not enumerate those.
-///
-/// Any change to this list is a behavioural change — bump the ADR before
-/// touching it.
-const REGISTER_TARGET_DENYLIST: &[&str] = &[
-    // The 5 SPACE_SCOPED_CRDT_TABLES — space-scoped sync infra owned by
-    // the space delivery path, never a legitimate register target.
-    "haex_space_devices",
-    "haex_space_members",
-    "haex_peer_shares",
-    "haex_mls_sync_keys",
-    "haex_device_mls_enrollments",
-    // Identity / UCAN — writing sigs from a foreign space into these
-    // would let the register launder foreign identities into a space
-    // whose members trust local identities.
-    "haex_identities",
-    "haex_ucan_tokens",
-    // The share register itself — self-reference would let the register
-    // sign for its own membership rows.
-    "haex_shared_space_sync",
-    // Delete-log / HLC meta.
-    "haex_deleted_rows",
-];
+/// `haex_s3_backends` stores the scoped child credential created by the
+/// remote-storage share flow; the owner/backend rows are never registered.
+const REGISTER_SHAREABLE_SYSTEM_TABLES: &[&str] = &["haex_s3_backends"];
 
 /// True iff `table` may not appear as `haex_shared_space_sync.table_name`.
 ///
@@ -79,24 +46,19 @@ const REGISTER_TARGET_DENYLIST: &[&str] = &[
 ///     on every read.
 pub fn is_register_target_forbidden(table: &str) -> bool {
     let lower = table.to_ascii_lowercase();
-    // SQLite internal tables.
-    if lower.starts_with("sqlite_") {
-        return true;
-    }
-    // Cache / state tables — never CRDT-synced anyway.
-    if lower.ends_with("_no_sync") {
-        return true;
-    }
-    REGISTER_TARGET_DENYLIST.iter().any(|t| lower == *t)
+    // I1 is fail-closed: every new Haex system table is private until it is
+    // explicitly reviewed as a register-carried payload.
+    (lower.starts_with("haex_") && !REGISTER_SHAREABLE_SYSTEM_TABLES.contains(&lower.as_str()))
+        || lower.starts_with("sqlite_")
+        || lower.ends_with("_no_sync")
 }
 
-/// SQL for the extension-table path. Returns every distinct `space_id`
-/// mapped to this `(table, row_pks)` by the register — no author filter.
-/// I2 (only sign for spaces this vault owns) is enforced at the caller
-/// via `SpaceKeyCache::contains`, not here (see module docs).
+/// Candidate mappings plus this vault's own member DID for the space.
 const SQL_SELECT_REGISTER_SPACES: &str = "\
-    SELECT DISTINCT r.space_id \
+    SELECT r.space_id, r.haex_column_sigs, i.did \
     FROM haex_shared_space_sync r \
+    JOIN haex_space_members m ON m.space_id = r.space_id \
+    JOIN haex_identities i ON i.id = m.identity_id AND i.private_key IS NOT NULL \
     WHERE r.table_name = ?1 \
       AND r.row_pks = ?2";
 
@@ -117,10 +79,8 @@ impl RegisterLookup {
 
     /// Resolves which space_ids `(table_name, row_pks_json)` is shared into.
     ///
-    /// Returns every space the register maps this row into (extension path)
-    /// or the row's own `space_id` (infra path). **No I2 filter** — the
-    /// caller decides which spaces this vault may legitimately sign for,
-    /// typically by intersecting with the `SpaceKeyCache`.
+    /// Returns every self-authored mapping (extension path) or the row's own
+    /// `space_id` (built-in space-scoped path).
     ///
     /// `row_pks_json` is expected to be a JSON object of PK column values
     /// as produced by the CRDT scanner (e.g. `{"id":"abc-123"}`). It is
@@ -277,13 +237,12 @@ fn resolve_infra_row(
     }
 }
 
-/// Extension-table path: consult the share register with no author filter.
+/// Extension-table path: consult only self-authored share-register rows.
 ///
 /// If `haex_shared_space_sync` does not exist (test harnesses that skip the
 /// full CRDT-bootstrap, or freshly-created vaults pre-migration), treat that
 /// as "no share entries" and return an empty list — signing zero spaces is
-/// the correct semantic fallback. I2 (owned-space filter) is enforced at the
-/// caller via `SpaceKeyCache::contains`.
+/// the correct semantic fallback.
 ///
 /// F#3 (Runde-4 review): apply the I1 exclusion here too. A legacy or
 /// malicious register row targeting a forbidden `haex_*` / `sqlite_*`
@@ -299,19 +258,48 @@ fn resolve_extension_row(
     if is_register_target_forbidden(table_name) {
         return Ok(Vec::new());
     }
-    let mut stmt = match conn.prepare(SQL_SELECT_REGISTER_SPACES) {
-        Ok(s) => s,
-        Err(rusqlite::Error::SqliteFailure(_, Some(msg))) if msg.starts_with("no such table") => {
+    for required in [
+        "haex_shared_space_sync",
+        "haex_space_members",
+        "haex_identities",
+    ] {
+        let exists = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+            [required],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if !exists {
             return Ok(Vec::new());
         }
-        Err(e) => return Err(e),
-    };
+    }
+
+    let mut stmt = conn.prepare(SQL_SELECT_REGISTER_SPACES)?;
     let mut rows = stmt.query((table_name, canonical_pks))?;
     let mut out = Vec::new();
     while let Some(row) = rows.next()? {
-        out.push(row.get::<_, String>(0)?);
+        let space_id = row.get::<_, String>(0)?;
+        let sigs = row.get::<_, String>(1)?;
+        let own_did = row.get::<_, String>(2)?;
+        if register_routing_is_self_authored(&sigs, &space_id, &own_did) {
+            out.push(space_id);
+        }
     }
+    out.sort();
+    out.dedup();
     Ok(out)
+}
+
+fn register_routing_is_self_authored(sigs: &str, space_id: &str, own_did: &str) -> bool {
+    let Ok(JsonValue::Object(root)) = serde_json::from_str::<JsonValue>(sigs) else {
+        return false;
+    };
+    ["table_name", "row_pks", "space_id"].iter().all(|column| {
+        root.get(*column)
+            .and_then(|by_space| by_space.get(space_id))
+            .and_then(|record| record.get("authorDid"))
+            .and_then(JsonValue::as_str)
+            == Some(own_did)
+    })
 }
 
 /// Convert a JSON PK value into the SQLite storage class that the row was

@@ -60,6 +60,24 @@ export function isBuiltinSharedSpaceTable(tableName: string): boolean {
   return tableName in SHARED_SPACE_BUILTIN_TABLES
 }
 
+/**
+ * System-table payloads deliberately carried through the share register.
+ * New `haex_*` tables fail closed unless they are explicitly reviewed here
+ * and in Rust's `REGISTER_SHAREABLE_SYSTEM_TABLES`.
+ */
+export const REGISTER_SHAREABLE_SYSTEM_TABLES = new Set([
+  'haex_s3_backends',
+])
+
+export function isRegisterShareableTable(tableName: string): boolean {
+  const lower = tableName.toLowerCase()
+  if (REGISTER_SHAREABLE_SYSTEM_TABLES.has(lower)) return true
+  return !isBuiltinSharedSpaceTable(tableName)
+    && !lower.startsWith('haex_')
+    && !lower.startsWith('sqlite_')
+    && !lower.endsWith('_no_sync')
+}
+
 export function getBuiltinSharedSpacePolicy(
   tableName: string,
 ): SharedSpaceScopePolicy | null {
