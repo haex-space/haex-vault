@@ -580,6 +580,14 @@ pub fn advance_shared_space_anchor(
 /// Same monotonic max-wins semantic as the per-space variant, but stored in
 /// vault_settings rather than a dedicated table — there's exactly one owner
 /// anchor per vault so a full table would be overkill.
+///
+/// **Concurrency contract.** SQLite treats NULL as distinct in unique
+/// indexes, so the composite `(key, device_id)` index does NOT enforce
+/// single-row-ness for `device_id IS NULL`. Migration 0013 adds the partial
+/// unique index `idx_haex_vault_settings_owner_key ON (key) WHERE device_id
+/// IS NULL` explicitly so the `ON CONFLICT` clause below can target a
+/// deterministic slot and two concurrent cleanup passes cannot each insert
+/// a duplicate owner-anchor row.
 pub fn advance_owner_delete_log_anchor(
     conn: &Connection,
     new_hlc: &str,
@@ -603,22 +611,19 @@ pub fn advance_owner_delete_log_anchor(
         None => new_hlc.to_string(),
     };
 
-    // Upsert on (key, device_id IS NULL). The unique index is
-    // (key, device_id) so a NULL slot uniquely identifies the owner-domain
-    // anchor row.
-    let updated = conn.execute(
-        "UPDATE haex_vault_settings SET value = ?1 \
-         WHERE key = ?2 AND device_id IS NULL",
-        rusqlite::params![&effective, OWNER_DELETE_LOG_ANCHOR_KEY],
+    // Single atomic UPSERT targeting the partial unique index added by
+    // migration 0013 (`idx_haex_vault_settings_owner_key ON (key) WHERE
+    // device_id IS NULL`). Without the partial index, two concurrent
+    // cleanup calls could both see `updated == 0` on the pre-check above
+    // and both `INSERT`, leaving duplicate owner-anchor rows that break
+    // the monotonic-watermark contract.
+    conn.execute(
+        "INSERT INTO haex_vault_settings (id, key, value, device_id) \
+         VALUES (lower(hex(randomblob(16))), ?1, ?2, NULL) \
+         ON CONFLICT (key) WHERE device_id IS NULL \
+         DO UPDATE SET value = excluded.value",
+        rusqlite::params![OWNER_DELETE_LOG_ANCHOR_KEY, &effective],
     )?;
-    if updated == 0 {
-        // Row didn't exist — insert with a fresh UUID.
-        conn.execute(
-            "INSERT INTO haex_vault_settings (id, key, value, device_id) \
-             VALUES (lower(hex(randomblob(16))), ?1, ?2, NULL)",
-            rusqlite::params![OWNER_DELETE_LOG_ANCHOR_KEY, &effective],
-        )?;
-    }
     Ok(())
 }
 
@@ -650,6 +655,9 @@ mod anchor_tests {
     fn setup_anchor_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         register_current_hlc_stub(&conn);
+        // Mirror migration 0013's partial unique index so the atomic
+        // `ON CONFLICT (key) WHERE device_id IS NULL` upsert in
+        // `advance_owner_delete_log_anchor` can target it.
         conn.execute_batch(&format!(
             "CREATE TABLE haex_space_compaction_anchors (
                  space_id TEXT PRIMARY KEY NOT NULL,
@@ -666,6 +674,8 @@ mod anchor_tests {
              );
              CREATE UNIQUE INDEX haex_vault_settings_key_device_unique
                  ON haex_vault_settings (key, device_id);
+             CREATE UNIQUE INDEX idx_haex_vault_settings_owner_key
+                 ON haex_vault_settings (key) WHERE device_id IS NULL;
              CREATE TABLE {SHARED_SPACE_DELETED_ROWS_TABLE} (
                  id TEXT PRIMARY KEY NOT NULL,
                  space_id TEXT NOT NULL,

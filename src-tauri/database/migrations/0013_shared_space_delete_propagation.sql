@@ -11,4 +11,5 @@ CREATE TABLE `haex_space_compaction_anchors` (
 	`min_valid_hlc` text DEFAULT '0' NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `idx_haex_shared_space_sync_table_row` ON `haex_shared_space_sync` (`table_name`,`row_pks`);
+CREATE INDEX `idx_haex_shared_space_sync_table_row` ON `haex_shared_space_sync` (`table_name`,`row_pks`);--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_haex_vault_settings_owner_key` ON `haex_vault_settings` (`key`) WHERE `device_id` IS NULL;

@@ -324,11 +324,11 @@ fn apply_migration_by_tag(conn: &Connection, tag_prefix: &str) {
     }
 }
 
-/// Test-fixture stub: create a minimal `haex_shared_space_sync` table so
-/// migration 0013's `CREATE INDEX ... ON haex_shared_space_sync (...)` can
-/// resolve. Production has this table via migration 0012; the isolated-
-/// migration fixtures don't apply prior tags, so we synthesize just enough
-/// of the schema to accept the index.
+/// Test-fixture stub: create the two tables that migration 0013's indexes
+/// reference (`haex_shared_space_sync` from migration 0012, `haex_vault_settings`
+/// from migration 0000). Production always has both by the time 0013 runs;
+/// isolated-migration fixtures don't apply prior tags, so we synthesize just
+/// enough of each schema to accept 0013's `CREATE INDEX` statements.
 fn create_shared_space_sync_stub(conn: &Connection) {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS haex_shared_space_sync (
@@ -336,9 +336,15 @@ fn create_shared_space_sync_stub(conn: &Connection) {
              table_name TEXT NOT NULL,
              row_pks TEXT NOT NULL,
              space_id TEXT NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS haex_vault_settings (
+             id TEXT PRIMARY KEY NOT NULL,
+             key TEXT NOT NULL,
+             value TEXT,
+             device_id TEXT
          );",
     )
-    .expect("create haex_shared_space_sync stub");
+    .expect("create haex_shared_space_sync + haex_vault_settings stubs");
 }
 
 fn pragma_column_names(conn: &Connection, table: &str) -> Vec<String> {
