@@ -1,15 +1,15 @@
 //! Owner-device PULL paths over real QUIC (full-vault SyncPull and column
 //! SyncPullColumns).
 
-use crate::crdt::commands::apply_remote_changes_to_db;
+use crate::crdt::commands::apply_remote_changes_to_db_scoped;
 use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
 
 use super::super::peer::PeerSession;
 use super::helpers::{
-    build_endpoint, count_passwords, has_password, insert_password, poll_until,
-    run_owner_accept_loop, seed_vault_db, Identity,
+    build_endpoint, count_passwords, delete_password, has_password, insert_password, poll_until,
+    read_password_secret, run_owner_accept_loop, seed_vault_db, update_password_secret, Identity,
 };
 
 // ---------------------------------------------------------------------------
@@ -75,7 +75,10 @@ async fn owner_device_pulls_full_vault_over_real_quic() {
     );
 
     // Apply on B via the REAL apply path (HlcService built directly — no
-    // AppHandle), mirroring sync_loop's pull-apply.
+    // AppHandle), mirroring sync_loop's pull-apply. Production
+    // `run_pull_phase` calls the SCOPED apply with `Some(space_id)`, so this
+    // test mirrors that — a scoped apply on the owner-space route must accept
+    // the unsigned owner-vault dump (see is_owner_space in owner_sync::scope).
     let remote_locals: Vec<LocalColumnChange> =
         serde_json::from_value(changes_json).expect("deserialize pulled changes");
     let remote_changes: Vec<_> = remote_locals
@@ -83,8 +86,14 @@ async fn owner_device_pulls_full_vault_over_real_quic() {
         .map(super::super::sync_loop::local_to_remote_change)
         .collect();
     let hlc_b = HlcService::new_for_testing("device-b");
-    apply_remote_changes_to_db(&db_b, remote_changes, None, Some(&hlc_b))
-        .expect("apply remote changes on B");
+    apply_remote_changes_to_db_scoped(
+        &db_b,
+        remote_changes,
+        None,
+        Some(&hlc_b),
+        Some(&vault_space_id),
+    )
+    .expect("apply remote changes on B");
 
     // FINAL-STATE assertion via bounded-retry poll (apply is synchronous, so
     // this converges immediately, but we poll to stay race-free).
@@ -92,6 +101,203 @@ async fn owner_device_pulls_full_vault_over_real_quic() {
     assert!(
         converged,
         "B must have A's haex_passwords row after owner-vault pull+apply"
+    );
+
+    session.close();
+    accept_task.abort();
+}
+
+// ---------------------------------------------------------------------------
+// Test 2 — delete propagates after the initial sync
+// ---------------------------------------------------------------------------
+
+/// Regression for the P2P owner-sync delete convergence e2e failure
+/// (`tests/sync/owner-sync-delete-convergence.spec.ts`): A and B initially
+/// hold the same `haex_passwords` row; A then deletes it (writes a
+/// `haex_deleted_rows` entry and removes the row). B pulls A's vault via
+/// real QUIC and applies via `apply_remote_changes_to_db_scoped` (mirroring
+/// `run_pull_phase`). The row must be gone on B after apply.
+///
+/// The delete-log entry is a normal CRDT-synced row, so under the pre-fix
+/// Phase-1 gate the scoped apply dropped its unsigned columns (owner-vault
+/// sync leaves `sig` absent by design — see
+/// `sign_column_for_spaces`/`RegisterLookup`). Nothing landed in B's
+/// `haex_deleted_rows`, `propagate_deleted_rows_to_target_tables` silently
+/// skipped, and the password stayed on B forever.
+#[tokio::test]
+async fn owner_sync_propagates_delete_after_initial_sync() {
+    let owner = Identity::random();
+
+    let a_ep = build_endpoint(&[]).await;
+    let a_endpoint_id = a_ep.id().to_string();
+    let a_addr = a_ep.addr();
+    let b_ep = build_endpoint(&[a_addr]).await;
+    let b_endpoint_id = b_ep.id().to_string();
+
+    let vault_space_id = format!("vault-{}", rand::random::<u64>());
+
+    // Both A and B start with the SAME password (already-converged initial
+    // state).
+    let db_a = seed_vault_db(&owner, &a_endpoint_id, &b_endpoint_id, &vault_space_id);
+    let db_b = seed_vault_db(&owner, &b_endpoint_id, &a_endpoint_id, &vault_space_id);
+    let row_id = format!("pw-{}", rand::random::<u64>());
+    let secret = format!("s3cr3t-{}", rand::random::<u64>());
+    let initial_hlc = "1000000000000000000/aabbccdd0011";
+    let delete_hlc = "2000000000000000000/aabbccdd0011";
+    insert_password(&db_a, &row_id, &secret, initial_hlc);
+    insert_password(&db_b, &row_id, &secret, initial_hlc);
+    assert!(
+        has_password(&db_b, &row_id, &secret),
+        "B must start with the password (already-synced state)"
+    );
+
+    // A deletes the row.
+    let delete_log_id = format!("del-{}", rand::random::<u64>());
+    delete_password(&db_a, &row_id, &delete_log_id, delete_hlc);
+    assert_eq!(
+        count_passwords(&db_a),
+        0,
+        "A must have removed the password locally"
+    );
+
+    // B pulls A's vault (real QUIC) and applies scoped, mirroring production.
+    let accept_task = tokio::spawn(run_owner_accept_loop(a_ep, DbConnection(db_a.0.clone())));
+    let session = PeerSession::connect_owner(
+        &b_ep,
+        &a_endpoint_id,
+        None,
+        &owner.did,
+        &owner.signing_key,
+        &b_endpoint_id,
+    )
+    .await
+    .expect("B → A connect_owner");
+
+    let (changes_json, has_more) = session
+        .pull_changes(&vault_space_id, None)
+        .await
+        .expect("B pull_changes");
+    assert!(
+        !has_more,
+        "expected single-page pull; streaming-apply tests live in dedicated coverage"
+    );
+
+    let remote_locals: Vec<LocalColumnChange> =
+        serde_json::from_value(changes_json).expect("deserialize pulled changes");
+    let remote_changes: Vec<_> = remote_locals
+        .iter()
+        .map(super::super::sync_loop::local_to_remote_change)
+        .collect();
+    let hlc_b = HlcService::new_for_testing("device-b");
+    apply_remote_changes_to_db_scoped(
+        &db_b,
+        remote_changes,
+        None,
+        Some(&hlc_b),
+        Some(&vault_space_id),
+    )
+    .expect("apply remote changes on B");
+
+    // FINAL-STATE: B must have converged — the password is gone.
+    let converged = poll_until(|| count_passwords(&db_b) == 0).await;
+    assert!(
+        converged,
+        "B must have removed the password after applying A's delete-log entry"
+    );
+
+    session.close();
+    accept_task.abort();
+}
+
+// ---------------------------------------------------------------------------
+// Test 3 — column update propagates after the initial sync
+// ---------------------------------------------------------------------------
+
+/// Sibling of the delete test: A and B initially hold the same
+/// `haex_passwords` row; A then rotates the secret. B pulls A's vault via
+/// real QUIC and applies via `apply_remote_changes_to_db_scoped`. The new
+/// secret must land on B.
+///
+/// Same failure mode as the delete case under the pre-fix gate: the column
+/// change carries `sig = None` (owner-vault sync writes are unsigned) and
+/// `expected_space_id = Some(vault_space_id)`, so the strict Phase-1 gate
+/// dropped it and B never saw the new secret.
+#[tokio::test]
+async fn owner_sync_propagates_update_after_initial_sync() {
+    let owner = Identity::random();
+
+    let a_ep = build_endpoint(&[]).await;
+    let a_endpoint_id = a_ep.id().to_string();
+    let a_addr = a_ep.addr();
+    let b_ep = build_endpoint(&[a_addr]).await;
+    let b_endpoint_id = b_ep.id().to_string();
+
+    let vault_space_id = format!("vault-{}", rand::random::<u64>());
+
+    // Same initial state on A and B.
+    let db_a = seed_vault_db(&owner, &a_endpoint_id, &b_endpoint_id, &vault_space_id);
+    let db_b = seed_vault_db(&owner, &b_endpoint_id, &a_endpoint_id, &vault_space_id);
+    let row_id = format!("pw-{}", rand::random::<u64>());
+    let old_secret = format!("old-{}", rand::random::<u64>());
+    let new_secret = format!("new-{}", rand::random::<u64>());
+    let initial_hlc = "1000000000000000000/aabbccdd0011";
+    let update_hlc = "2000000000000000000/aabbccdd0011";
+    insert_password(&db_a, &row_id, &old_secret, initial_hlc);
+    insert_password(&db_b, &row_id, &old_secret, initial_hlc);
+
+    // A rotates the secret.
+    update_password_secret(&db_a, &row_id, &new_secret, update_hlc);
+    assert_eq!(
+        read_password_secret(&db_a, &row_id).as_deref(),
+        Some(new_secret.as_str()),
+        "A must have the new secret locally"
+    );
+
+    let accept_task = tokio::spawn(run_owner_accept_loop(a_ep, DbConnection(db_a.0.clone())));
+    let session = PeerSession::connect_owner(
+        &b_ep,
+        &a_endpoint_id,
+        None,
+        &owner.did,
+        &owner.signing_key,
+        &b_endpoint_id,
+    )
+    .await
+    .expect("B → A connect_owner");
+
+    let (changes_json, has_more) = session
+        .pull_changes(&vault_space_id, None)
+        .await
+        .expect("B pull_changes");
+    assert!(
+        !has_more,
+        "expected single-page pull; streaming-apply tests live in dedicated coverage"
+    );
+
+    let remote_locals: Vec<LocalColumnChange> =
+        serde_json::from_value(changes_json).expect("deserialize pulled changes");
+    let remote_changes: Vec<_> = remote_locals
+        .iter()
+        .map(super::super::sync_loop::local_to_remote_change)
+        .collect();
+    let hlc_b = HlcService::new_for_testing("device-b");
+    apply_remote_changes_to_db_scoped(
+        &db_b,
+        remote_changes,
+        None,
+        Some(&hlc_b),
+        Some(&vault_space_id),
+    )
+    .expect("apply remote changes on B");
+
+    // FINAL-STATE: B must have converged on the new secret.
+    let converged =
+        poll_until(|| read_password_secret(&db_b, &row_id).as_deref() == Some(new_secret.as_str()))
+            .await;
+    assert!(
+        converged,
+        "B must have the new secret after applying A's UPDATE (got {:?})",
+        read_password_secret(&db_b, &row_id)
     );
 
     session.close();

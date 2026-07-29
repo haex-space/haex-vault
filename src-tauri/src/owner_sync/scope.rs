@@ -56,6 +56,42 @@ pub fn resolve_vault_space_id(conn: &Connection) -> rusqlite::Result<Option<Stri
     .optional()
 }
 
+/// Is `space_id` the current vault's owner-space (the `type='vault'` row)?
+///
+/// Used by the CRDT apply-gate to decide whether per-column signature
+/// enforcement applies to an inbound batch:
+///
+/// - **Owner-space (`true`)** → sig enforcement OFF. Owner-vault sync between
+///   two devices of the same identity is deliberately unsigned on the write
+///   side ([`crate::crdt::column_sig::write::sign_column_for_spaces`] only
+///   signs rows the register maps into a space; owner-private rows carry
+///   `haex_column_sigs = {}`). Peer legitimacy is already established by
+///   QUIC-level DID auth plus the peer's row in `haex_space_devices`, so
+///   per-column sig enforcement adds nothing on top and would drop every
+///   unsigned owner-private CRDT change on the receiver.
+/// - **Non-owner space (`false`)** → sig enforcement ON. Shared-space apply
+///   keeps the strict "unsigned changes are dropped" behavior from ADR 0002
+///   Phase 1.
+///
+/// A vault with no `type='vault'` row (e.g. a fresh install in the middle of
+/// setup, or a minimal test schema that never creates `haex_spaces`) returns
+/// `false`, so the strict shared-space semantics remain the safe default
+/// when in doubt.
+pub fn is_owner_space(conn: &Connection, space_id: &str) -> rusqlite::Result<bool> {
+    // Defensive against very early setup / minimal test schemas: if
+    // `haex_spaces` does not exist yet, treat this space as NOT the owner-
+    // space (the strict shared-space gate remains active).
+    let has_spaces_table: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='haex_spaces'",
+        [],
+        |r| r.get(0),
+    )?;
+    if has_spaces_table == 0 {
+        return Ok(false);
+    }
+    Ok(resolve_vault_space_id(conn)?.as_deref() == Some(space_id))
+}
+
 /// Resolve the vault-owner DID and vault space id in a single atomic query.
 ///
 /// This is the serving-gate inputs combined: the routing decision must compare

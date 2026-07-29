@@ -307,6 +307,31 @@ pub fn apply_remote_changes_to_db_scoped(
             eprintln!("[SYNC RUST] Starting transaction...");
             let tx = conn.transaction().map_err(DatabaseError::from)?;
 
+            // Whether per-column signatures are required on this batch. Owner-
+            // vault sync between two devices of the same identity carries an
+            // `expected_space_id` (the vault space id) but is intentionally
+            // UNSIGNED on the write side: `sign_column_for_spaces` only signs
+            // rows the register maps into a space, so owner-private rows have
+            // `haex_column_sigs = {}`. Peer legitimacy on that path is already
+            // established by QUIC-level DID auth plus the peer's row in
+            // `haex_space_devices`; per-column sig enforcement adds nothing on
+            // top and would silently drop every unsigned owner-private change
+            // on the receiver (deletes included, since `haex_deleted_rows` is a
+            // normal CRDT-synced table).
+            //
+            // Shared-space applies (non-owner space) keep the strict Phase-1
+            // gate: unsigned changes are dropped. When there is no vault space
+            // at all, `is_owner_space` returns false, so the safe default is
+            // "enforce" whenever an `expected_space_id` was given.
+            //
+            // Computed once per apply pass because `expected_space_id` is stable
+            // for the whole batch.
+            let enforce_sigs = match expected_space_id {
+                Some(sid) => !crate::owner_sync::scope::is_owner_space(&tx, sid)
+                    .map_err(DatabaseError::from)?,
+                None => false,
+            };
+
             // Disable triggers temporarily to prevent marking tables as dirty
             // when applying remote changes (we don't want to re-sync changes we just pulled)
             eprintln!("[SYNC RUST] Disabling triggers for remote changes");
@@ -613,7 +638,13 @@ pub fn apply_remote_changes_to_db_scoped(
                     // `authored_by_did` is legacy leader-attributed metadata,
                     // not authoritative authorship; it remains the sole
                     // unsigned compatibility column until the schema drops it.
-                    if expected_space_id.is_some()
+                    //
+                    // Owner-space applies (`enforce_sigs == false`) skip this
+                    // gate — see the `enforce_sigs` computation above. Signed
+                    // changes still verify below regardless of the flag, so
+                    // there is no downgrade path from signed to unsigned on
+                    // the owner-space route.
+                    if enforce_sigs
                         && change.sig.is_none()
                         && change.column_name != "authored_by_did"
                     {
@@ -1767,5 +1798,132 @@ mod tests {
             .unwrap()
         };
         assert_eq!(count, 0, "space-mismatched signed insert must be dropped");
+    }
+
+    // -----------------------------------------------------------------------
+    // Owner-space trust: unsigned changes must land when the expected space
+    // is this vault's own owner-space (VAULT-type row in haex_spaces). See
+    // owner_sync::scope::is_owner_space for the rationale.
+    // -----------------------------------------------------------------------
+
+    /// Test schema mirroring `setup_db_with_identities` but *with* a
+    /// `haex_spaces` row of `type='vault'` so `is_owner_space` can resolve.
+    /// `owner_space_id` is the vault-space id.
+    fn setup_db_with_owner_space(owner_space_id: &str) -> DbConnection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+             CREATE TABLE {DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );
+             CREATE TABLE haex_identities (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 did TEXT NOT NULL,
+                 name TEXT NOT NULL,
+                 source TEXT DEFAULT 'contact' NOT NULL
+             );
+             CREATE UNIQUE INDEX haex_identities_did_unique ON haex_identities (did);
+             CREATE TABLE haex_spaces (
+                 id TEXT PRIMARY KEY,
+                 type TEXT NOT NULL,
+                 owner_identity_id TEXT
+             );
+             CREATE TABLE devices (
+                 id TEXT PRIMARY KEY,
+                 space_id TEXT NOT NULL,
+                 avatar TEXT,
+                 haex_hlc TEXT,
+                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             );
+             INSERT INTO haex_identities (id, did, name) VALUES ('id-owner', 'did:key:zOwner', 'owner');
+             INSERT INTO haex_spaces (id, type, owner_identity_id) VALUES ('{owner_space_id}', 'vault', 'id-owner');
+             INSERT INTO devices (id, space_id, avatar, haex_hlc, haex_column_hlcs) \
+              VALUES ('dev-1', '{owner_space_id}', 'old.png', '10/aaa', '{{\"space_id\":\"10/aaa\",\"avatar\":\"3/aaa\"}}');"
+        ))
+        .unwrap();
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    /// Owner-sync between two devices of the same identity carries
+    /// `expected_space_id` = the vault-space id, but the wire payload is
+    /// unsigned by design (`sign_column_for_spaces` yields `{}` for owner-
+    /// private rows). Before the trust-own-vault gate, this batch was
+    /// silently dropped and every owner-private CRDT row failed to converge
+    /// (see the failing e2e test
+    /// `tests/sync/owner-sync-delete-convergence.spec.ts`).
+    #[test]
+    fn apply_remote_changes_to_db_scoped_accepts_unsigned_when_expected_space_is_owner_space() {
+        let owner_space = "vault-owner-space";
+        let db = setup_db_with_owner_space(owner_space);
+
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: "20/xxx".to_string(),
+            decrypted_value: JsonValue::String("unsigned-owner.png".to_string()),
+            sig: None,
+        };
+
+        apply_remote_changes_to_db_scoped(&db, vec![change], None, None, Some(owner_space))
+            .expect("apply must succeed for owner-space unsigned change");
+
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            avatar, "unsigned-owner.png",
+            "unsigned owner-space change must land: sig enforcement is off on the owner-space route"
+        );
+    }
+
+    /// Regression guard: the "shared-space unsigned change is dropped"
+    /// semantic must survive even with the owner-space gate in place. When
+    /// `expected_space_id` points to a space that is NOT this vault's
+    /// owner-space (either a shared space id or an id that does not exist in
+    /// `haex_spaces` at all), the strict Phase-1 gate stays on.
+    #[test]
+    fn apply_remote_changes_to_db_scoped_rejects_unsigned_when_expected_space_is_shared() {
+        let owner_space = "vault-owner-space";
+        let db = setup_db_with_owner_space(owner_space);
+
+        // Shared space id (any id != the vault-space id). No row for it needs
+        // to exist in haex_spaces — is_owner_space is a positive check on the
+        // vault-space row, everything else is "not owner-space" → enforce.
+        let shared_space = "shared-space-abc";
+
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: "20/xxx".to_string(),
+            decrypted_value: JsonValue::String("dropped.png".to_string()),
+            sig: None,
+        };
+
+        apply_remote_changes_to_db_scoped(&db, vec![change], None, None, Some(shared_space))
+            .expect("apply must succeed — rejection is row-scoped, not fatal");
+
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            avatar, "old.png",
+            "unsigned shared-space change must be dropped: sig enforcement stays on for non-owner spaces"
+        );
     }
 }
