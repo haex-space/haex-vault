@@ -374,11 +374,22 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
 /// wedge the sync cursor permanently). Errors on any one row are logged and
 /// the loop continues, matching `propagate_deleted_rows_to_target_tables`'
 /// contract.
+///
+/// **Atomicity per entry.** Once the positive-register gate is cleared, the
+/// register-DELETE + residual-count + business-row-DELETE trio is wrapped in
+/// a per-entry SQLite savepoint. If any of those writes/reads errors, the
+/// savepoint is rolled back so this entry's partial changes are undone
+/// atomically — the outer transaction still commits with every OTHER entry
+/// intact. Without the savepoint a mid-sequence error would commit a
+/// register-gone/business-row-remains state (Case B: business-DELETE
+/// intended but failed → silent local drift, since the row was meant to be
+/// gone but a subsequent sync run would find no register entry and would
+/// treat the delete-log entry as an unshare no-op).
 pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
     tx: &rusqlite::Transaction,
     delete_log_ids: &HashSet<String>,
 ) -> Result<(), DatabaseError> {
-    for id in delete_log_ids {
+    for (i, id) in delete_log_ids.iter().enumerate() {
         let result = tx.query_row(
             &format!(
                 "SELECT space_id, table_name, row_pks, haex_hlc \
@@ -554,63 +565,67 @@ pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
             continue;
         }
 
-        // Positive gate cleared — target-space register entry exists.
+        // Positive gate cleared — enter savepoint-protected write section.
         // Register cleanup runs BEFORE the business-row DELETE so the
-        // residual-register check below sees the consistent state.
-        let register_delete_sql = format!(
-            "DELETE FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
-             WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3"
-        );
-        if let Err(e) = tx.execute(
-            &register_delete_sql,
-            params![&target_table, &row_pks_json, &space_id],
-        ) {
-            eprintln!(
-                "[SYNC RUST] Shared-space register cleanup failed for '{target_table}' in space '{space_id}': {e} — skipping business DELETE (fail-closed)."
+        // residual-register check sees the consistent state. The savepoint
+        // is per-entry so a failure here rolls back only this entry's
+        // writes; other delete-log entries and the outer transaction stay
+        // committed. Iteration index (`i`) is used in the savepoint name to
+        // avoid identifier collisions across entries in the same batch.
+        let sp_name = format!("prop_shared_delete_{i}");
+        tx.execute_batch(&format!("SAVEPOINT \"{sp_name}\""))
+            .map_err(DatabaseError::from)?;
+
+        let inner: Result<(), rusqlite::Error> = (|| {
+            let register_delete_sql = format!(
+                "DELETE FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
+                 WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3"
             );
-            continue;
-        }
+            tx.execute(
+                &register_delete_sql,
+                params![&target_table, &row_pks_json, &space_id],
+            )?;
 
-        // Business row DELETE — only if the row no longer belongs to any
-        // other space (otherwise we would strip a row still shared into
-        // another live space). Fail-closed on DB errors here as well.
-        let residual_register_count: i64 = match tx.query_row(
-            &format!(
-                "SELECT COUNT(*) FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
-                 WHERE table_name = ?1 AND row_pks = ?2"
-            ),
-            params![&target_table, &row_pks_json],
-            |r| r.get(0),
-        ) {
-            Ok(n) => n,
-            Err(e) => {
-                eprintln!(
-                    "[SYNC RUST] Shared-space delete-log {id}: residual-register check failed ({e}) — fail-closed, skipping business DELETE."
-                );
-                continue;
-            }
-        };
+            // Residual-count — did any OTHER space still list this row?
+            let residual_register_count: i64 = tx.query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM \"{SHARED_SPACE_SYNC_TABLE}\" \
+                     WHERE table_name = ?1 AND row_pks = ?2"
+                ),
+                params![&target_table, &row_pks_json],
+                |r| r.get(0),
+            )?;
 
-        if residual_register_count == 0 {
-            let delete_sql = format!("DELETE FROM \"{target_table}\" WHERE {where_clause}");
-            match tx.execute(&delete_sql, param_refs.as_slice()) {
-                Ok(n) => {
-                    if n > 0 {
-                        eprintln!(
-                            "[SYNC RUST] Shared-space delete-log propagation: removed {n} row(s) from '{target_table}'"
-                        );
-                    }
-                }
-                Err(e) => {
+            if residual_register_count == 0 {
+                let delete_sql = format!("DELETE FROM \"{target_table}\" WHERE {where_clause}");
+                let n = tx.execute(&delete_sql, param_refs.as_slice())?;
+                if n > 0 {
                     eprintln!(
-                        "[SYNC RUST] Shared-space delete-log propagation failed for '{target_table}': {e}"
+                        "[SYNC RUST] Shared-space delete-log propagation: removed {n} row(s) from '{target_table}'"
                     );
                 }
+            } else {
+                eprintln!(
+                    "[SYNC RUST] Shared-space delete-log {id}: row still shared into {residual_register_count} other space(s), keeping business row"
+                );
             }
-        } else {
-            eprintln!(
-                "[SYNC RUST] Shared-space delete-log {id}: row still shared into {residual_register_count} other space(s), keeping business row"
-            );
+            Ok(())
+        })();
+
+        match inner {
+            Ok(_) => {
+                tx.execute_batch(&format!("RELEASE SAVEPOINT \"{sp_name}\""))
+                    .map_err(DatabaseError::from)?;
+            }
+            Err(e) => {
+                eprintln!(
+                    "[SYNC RUST] Shared-space delete-log {id}: write phase errored ({e}) — rolling back savepoint. Register + business row unchanged for this entry (fail-closed)."
+                );
+                tx.execute_batch(&format!("ROLLBACK TO SAVEPOINT \"{sp_name}\""))
+                    .map_err(DatabaseError::from)?;
+                tx.execute_batch(&format!("RELEASE SAVEPOINT \"{sp_name}\""))
+                    .map_err(DatabaseError::from)?;
+            }
         }
     }
     Ok(())
