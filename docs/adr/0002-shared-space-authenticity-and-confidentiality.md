@@ -372,11 +372,22 @@ Row-Löschung) erzeugt denselben Peer-Signal-Typ. Empfänger führt Business-Row
 UND Register-Cleanup aus **einem einzigen** Signal-Row aus — Register-Cleanup wird lokal
 abgeleitet, keine zwei Signale nötig.
 
-**Apply-Gate (Register-Check).** Vor Ausführung des lokalen DELETEs prüft der Empfänger
-`(target_table, target_row_pks, target_space_id)` gegen das Register (via
-`register_lookup.rs`-Pattern). Kein aktiver Share vorhanden → row-scoped Reject. Blockt
-den Fall "Peer postuliert Delete-Log-Row für Target das nie in diesem Space war"
-(inkl. Deletes für Tabellen die gar nicht im Space existieren).
+**Apply-Gate (Register-Check).** Vor Ausführung des lokalen Business-Row-DELETEs prüft
+der Empfänger `(target_table, target_row_pks, target_space_id)` gegen das Register.
+Nur bei **positiver Register-Evidenz** für den claimed Space werden Register-Cleanup +
+Business-Row-DELETE ausgeführt. Fehlt der Register-Eintrag lokal, ist der Apply ein
+row-scoped No-op — zwei Sub-Fälle:
+
+- **In anderem Space registriert** (`any_space_registered = true`) → suspected forgery
+  (`NotSharedInSpace`). Business-Row bleibt intakt; das Register-Entry des anderen
+  Spaces wird nicht angefasst.
+- **Nirgends registriert** → Race mit lokalem Unshare (Sender-Seite hat Register-DELETE
+  bereits gefanned out; Empfänger applyt das Signal auf einen bereits unshareten Zustand).
+  Unshare hält die Business-Row per §6.5-Grundsatz — kein Business-DELETE.
+
+Datenbank-Fehler auf einem der Register-Lookups sind fail-closed: Log + skip des
+Signal-Eintrags, damit ein transienter DB-Fehler nie stillschweigend einen Delete
+autorisieren kann.
 
 **Compaction-Anchor.** Pro Space in `haex_space_compaction_anchors` (synced,
 max-wins-merge, Leader-only advance). Retention-Job pruned Delete-Log-Einträge älter

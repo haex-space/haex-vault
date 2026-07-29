@@ -102,6 +102,23 @@ mod tests {
         ))
         .unwrap();
 
+        // Migration 0013: per-space delete-log. The register-DELETE fanout
+        // trigger (Task 4 of the shared-space-delete-propagation plan)
+        // INSERTs here on every register-DELETE, so the table MUST exist
+        // wherever the fixture wires up the register triggers.
+        conn.execute_batch(
+            "CREATE TABLE haex_shared_space_deleted_rows (
+                id TEXT PRIMARY KEY NOT NULL,
+                space_id TEXT NOT NULL,
+                table_name TEXT NOT NULL,
+                row_pks TEXT NOT NULL,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+            )",
+        )
+        .unwrap();
+
         conn.execute_batch(
             "CREATE TABLE haex_identities (
                 id TEXT PRIMARY KEY NOT NULL,

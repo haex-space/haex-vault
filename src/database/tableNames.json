@@ -818,6 +818,22 @@
         "rowPks": "row_pks"
       }
     },
+    "shared_space_deleted_rows": {
+      "name": "haex_shared_space_deleted_rows",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "tableName": "table_name",
+        "rowPks": "row_pks"
+      }
+    },
+    "space_compaction_anchors": {
+      "name": "haex_space_compaction_anchors",
+      "columns": {
+        "spaceId": "space_id",
+        "minValidHlc": "min_valid_hlc"
+      }
+    },
     "marketplaces": {
       "name": "haex_marketplaces",
       "columns": {

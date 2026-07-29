@@ -639,6 +639,26 @@ fn scan_single_column_for_owner_does_not_origin_filter() {
 }
 
 #[test]
+fn space_scoped_crdt_tables_includes_register_delete_log_and_anchor() {
+    // Guard: the three new shared-space infrastructure tables must be in the
+    // Rust P2P whitelist so scan_space_scoped_tables_for_local_changes ships
+    // them across a space-delivery stream. If any is missing, deletes will
+    // still write local delete-log rows but never reach other members.
+    assert!(
+        SPACE_SCOPED_CRDT_TABLES.contains(&"haex_shared_space_sync"),
+        "register itself must sync so unshare (register-DELETE without row-DELETE) reaches peers"
+    );
+    assert!(
+        SPACE_SCOPED_CRDT_TABLES.contains(&"haex_shared_space_deleted_rows"),
+        "per-space delete-log must sync so hard-delete + unshare propagate"
+    );
+    assert!(
+        SPACE_SCOPED_CRDT_TABLES.contains(&"haex_space_compaction_anchors"),
+        "anti-resurrection anchor must sync so a peer's push below anchor is rejectable"
+    );
+}
+
+#[test]
 fn scan_single_column_for_owner_nonexistent_table_or_column_is_empty() {
     let conn = setup_test_db();
     insert_row(&conn, "r1", "hello", 42, "1000000000000000000/aabbccdd");
