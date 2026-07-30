@@ -20,6 +20,8 @@ mod tests {
     use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
     use crate::database::row::get_string;
     use crate::database::DbConnection;
+    use crate::extension::error::ExtensionError;
+    use crate::extension::spaces::commands::require_active_local_member;
     use crate::extension::spaces::queries::SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY;
     use crate::table_names::{
         TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC,
@@ -436,6 +438,76 @@ mod tests {
         assert!(
             !contact_is_self,
             "contact identity must have isSelf = false"
+        );
+    }
+
+    // =========================================================================
+    // W3 Task 2: failing tests for the space-membership gate on
+    // `extension_space_assign` / `extension_space_unassign`.
+    //
+    // These drive `require_active_local_member` directly at the SQL fixture
+    // layer because invoking the Tauri command end-to-end from a Rust unit
+    // test would require a full `AppHandle` + `WebviewWindow` fixture — no
+    // such harness exists in this crate and the task explicitly permits the
+    // SQL-layer path.
+    //
+    // Today both tests FAIL because `require_active_local_member` is a stub
+    // that panics with `unimplemented!()`. W3 Task 3 fills in the stub with
+    // the actual SQL check (see plan §Task 3) — at that point both tests
+    // must PASS.
+    // =========================================================================
+
+    /// Non-member REJECTED: seed `haex_spaces` row for SPACE_A but NO
+    /// `haex_space_members` row for any local identity in SPACE_A. The
+    /// membership check MUST return `Err(SecurityViolation)`.
+    #[test]
+    fn non_member_registration_is_rejected() {
+        let (db, _hlc) = setup_test_db();
+
+        // Seed SPACE_A — no members, no identities.
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO haex_spaces (id, type, status, name) \
+                 VALUES ('space-a', 'local', 'active', 'A')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        let result = require_active_local_member(conn, "space-a");
+
+        assert!(
+            matches!(result, Err(ExtensionError::SecurityViolation { .. })),
+            "non-member registration into space-a MUST be rejected with \
+             SecurityViolation; got: {:?}",
+            result.as_ref().map_err(|e| e.to_string())
+        );
+    }
+
+    /// Member ACCEPTED: seed `haex_spaces` row for SPACE_A AND a local
+    /// identity (own — `private_key IS NOT NULL`) with a
+    /// `haex_space_members` row for SPACE_A. The membership check MUST
+    /// return `Ok(())`.
+    ///
+    /// Reuses `seed_sp1_key` which seeds an own identity + membership for
+    /// `sp-1` (`setup_test_db` already inserts the `sp-1` space row).
+    #[test]
+    fn member_registration_is_accepted() {
+        let (db, _hlc) = setup_test_db();
+        let _cache = seed_sp1_key(&db);
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        let result = require_active_local_member(conn, "sp-1");
+
+        assert!(
+            matches!(result, Ok(())),
+            "active local member of sp-1 MUST be accepted; got: {:?}",
+            result.as_ref().map_err(|e| e.to_string())
         );
     }
 }

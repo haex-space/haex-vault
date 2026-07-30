@@ -54,6 +54,29 @@ pub struct SpaceAssignmentRow {
     pub created_at: Option<String>,
 }
 
+/// Verify the vault owns at least one active local identity that is an active
+/// member of `space_id`. Called from `extension_space_assign` /
+/// `extension_space_unassign` BEFORE any write to `haex_shared_space_sync`
+/// so non-members cannot register (or un-register) rows into a space.
+///
+/// "Active local identity" means a row in `haex_identities` with
+/// `private_key IS NOT NULL` (the local user), joined via `identity_id` to
+/// a `haex_space_members` row for `space_id`.
+///
+/// **W3 Task 3 will implement this.** Today it is `unimplemented!()` so the
+/// failing tests in `tests.rs` (`non_member_registration_is_rejected`,
+/// `member_registration_is_accepted`) demonstrate the missing gate.
+/// See `docs/plans/2026-07-30-shared-space-w3-registry-scanner.md` §Task 3.
+pub(super) fn require_active_local_member(
+    _conn: &rusqlite::Connection,
+    _space_id: &str,
+) -> Result<(), ExtensionError> {
+    unimplemented!(
+        "W3 Task 3 must implement the space-membership gate — see \
+         docs/plans/2026-07-30-shared-space-w3-registry-scanner.md §Task 3"
+    )
+}
+
 /// Validates that all table names in the assignments start with the extension's prefix.
 fn validate_table_prefixes(
     assignments: &[SpaceAssignment],
