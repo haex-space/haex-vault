@@ -17,7 +17,7 @@ use crate::database::DbConnection;
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Sync metadata columns to exclude from scanning (not user data).
 const EXCLUDED_SYNC_COLUMNS: &[&str] = &[
@@ -282,103 +282,291 @@ pub fn scan_table_for_local_changes_scoped(
     let mut changes: Vec<LocalColumnChange> = Vec::new();
 
     while let Some(row) = rows.next().map_err(DatabaseError::from)? {
-        // Read all column values into a name -> JsonValue map
-        let mut row_map: HashMap<&str, JsonValue> = HashMap::new();
-        for (i, col_name) in select_columns.iter().enumerate() {
-            let value_ref = row.get_ref(i).map_err(DatabaseError::from)?;
-            let json_val = convert_value_ref_to_json(value_ref)?;
-            row_map.insert(col_name, json_val);
+        // The sig-space is the same as the `space_id` filter in this caller:
+        // if a row survived the WHERE clause it is *this* space's row, so any
+        // sig we forward must also be indexed by *this* space.
+        emit_row_changes(
+            row,
+            &select_columns,
+            &pk_columns,
+            &data_columns,
+            table_name,
+            after_hlc,
+            device_id,
+            space_id_filter,
+            origin_node_filter,
+            None,
+            &mut changes,
+        )?;
+    }
+
+    Ok(changes)
+}
+
+/// Per-row column-change emitter shared by both scan paths.
+///
+/// Extracted from `scan_table_for_local_changes_scoped` when the registry-
+/// driven pass (`scan_registered_table_rows_for_space`, Task 5) needed the
+/// same row → columns emission logic but with two differences:
+///
+/// * `sig_space_id` is decoupled from the SQL `space_id` filter (extension
+///   tables have no `space_id` column but still carry per-space sigs in
+///   `haex_column_sigs`), and
+/// * an optional `row_pks_filter` short-circuits emission for rows whose
+///   canonical PK JSON is not on the registry-provided allow-list.
+///
+/// Old callers pass `sig_space_id = space_id_filter` and
+/// `row_pks_filter = None` — semantics are preserved.
+#[allow(clippy::too_many_arguments)]
+fn emit_row_changes(
+    row: &rusqlite::Row<'_>,
+    select_columns: &[&str],
+    pk_columns: &[&ColumnInfo],
+    data_columns: &[&ColumnInfo],
+    table_name: &str,
+    after_hlc: Option<&str>,
+    device_id: &str,
+    sig_space_id: Option<&str>,
+    origin_node_filter: Option<u128>,
+    row_pks_filter: Option<&HashSet<&str>>,
+    out: &mut Vec<LocalColumnChange>,
+) -> Result<(), DatabaseError> {
+    // Read all column values into a name -> JsonValue map
+    let mut row_map: HashMap<&str, JsonValue> = HashMap::new();
+    for (i, col_name) in select_columns.iter().enumerate() {
+        let value_ref = row.get_ref(i).map_err(DatabaseError::from)?;
+        let json_val = convert_value_ref_to_json(value_ref)?;
+        row_map.insert(col_name, json_val);
+    }
+
+    // Parse haex_column_hlcs JSON
+    let column_hlcs: HashMap<String, String> = match row_map.get(COLUMN_HLCS_COLUMN) {
+        Some(JsonValue::String(s)) => serde_json::from_str(s).unwrap_or_default(),
+        _ => HashMap::new(),
+    };
+    let column_sigs: JsonValue = row_map
+        .get(COLUMN_SIGS_COLUMN)
+        .and_then(JsonValue::as_str)
+        .and_then(|raw| serde_json::from_str(raw).ok())
+        .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
+
+    // Build canonical PK JSON string (matches the on-wire / register encoding).
+    let pk_map: serde_json::Map<String, JsonValue> = pk_columns
+        .iter()
+        .filter_map(|pk| {
+            row_map
+                .get(pk.name.as_str())
+                .map(|v| (pk.name.clone(), v.clone()))
+        })
+        .collect();
+    let pk_json = serde_json::to_string(&pk_map).unwrap_or_else(|_| "{}".to_string());
+
+    // Registry-driven scan: skip rows whose PK JSON is not on the allow-list.
+    // The allow-list is derived from `haex_shared_space_sync.row_pks`, which
+    // uses the same canonical encoding, so a plain string membership check is
+    // sufficient.
+    if let Some(wanted) = row_pks_filter {
+        if !wanted.contains(pk_json.as_str()) {
+            return Ok(());
         }
+    }
 
-        // Parse haex_column_hlcs JSON
-        let column_hlcs: HashMap<String, String> = match row_map.get(COLUMN_HLCS_COLUMN) {
-            Some(JsonValue::String(s)) => serde_json::from_str(s).unwrap_or_default(),
-            _ => HashMap::new(),
+    // Row-level HLC as fallback. An empty string is treated as "absent":
+    // a corrupt/legacy row can carry `haex_hlc = ''` (e.g. inserted before
+    // the HLC trigger existed, or by an older build), and an empty HLC must
+    // never be propagated as if it were a real timestamp.
+    let row_hlc = match row_map.get(HLC_TIMESTAMP_COLUMN) {
+        Some(JsonValue::String(s)) if !s.is_empty() => Some(s.as_str()),
+        _ => None,
+    };
+
+    // For each data column, emit a change if its HLC > after_hlc
+    for col in data_columns {
+        // Treat an empty per-column HLC as absent so it falls back to the
+        // row HLC; if both are empty/missing the column has no usable
+        // timestamp and is skipped. This stops empty-string HLCs (`""`)
+        // from ever being emitted as `hlc_timestamp`. Downstream, every
+        // apply ran `compare_hlc_strings("")` per such column — the source
+        // of the `[HLC] cannot parse time component of ""` log flood — and
+        // the row could never converge (`"" > anything` is always false),
+        // so it was re-scanned and re-sent on every full pull forever.
+        let col_hlc = column_hlcs
+            .get(&col.name)
+            .map(|s| s.as_str())
+            .filter(|s| !s.is_empty());
+
+        let hlc_to_use = match col_hlc.or(row_hlc) {
+            Some(h) => h,
+            None => continue, // no usable HLC — skip
         };
-        let column_sigs: JsonValue = row_map
-            .get(COLUMN_SIGS_COLUMN)
-            .and_then(JsonValue::as_str)
-            .and_then(|raw| serde_json::from_str(raw).ok())
-            .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
 
-        // Build PK JSON string
-        let pk_map: serde_json::Map<String, JsonValue> = pk_columns
-            .iter()
-            .filter_map(|pk| {
-                row_map
-                    .get(pk.name.as_str())
-                    .map(|v| (pk.name.clone(), v.clone()))
-            })
-            .collect();
-        let pk_json = serde_json::to_string(&pk_map).unwrap_or_else(|_| "{}".to_string());
-
-        // Row-level HLC as fallback. An empty string is treated as "absent":
-        // a corrupt/legacy row can carry `haex_hlc = ''` (e.g. inserted before
-        // the HLC trigger existed, or by an older build), and an empty HLC must
-        // never be propagated as if it were a real timestamp.
-        let row_hlc = match row_map.get(HLC_TIMESTAMP_COLUMN) {
-            Some(JsonValue::String(s)) if !s.is_empty() => Some(s.as_str()),
-            _ => None,
+        // Check if this column's HLC is newer than after_hlc
+        let passes_hlc = match after_hlc {
+            Some(threshold) => hlc_is_newer(hlc_to_use, threshold),
+            None => true,
         };
 
-        // For each data column, emit a change if its HLC > after_hlc
-        for col in &data_columns {
-            // Treat an empty per-column HLC as absent so it falls back to the
-            // row HLC; if both are empty/missing the column has no usable
-            // timestamp and is skipped. This stops empty-string HLCs (`""`)
-            // from ever being emitted as `hlc_timestamp`. Downstream, every
-            // apply ran `compare_hlc_strings("")` per such column — the source
-            // of the `[HLC] cannot parse time component of ""` log flood — and
-            // the row could never converge (`"" > anything` is always false),
-            // so it was re-scanned and re-sent on every full pull forever.
-            let col_hlc = column_hlcs
-                .get(&col.name)
-                .map(|s| s.as_str())
-                .filter(|s| !s.is_empty());
+        // If the caller asked for origin filtering, only emit columns we
+        // wrote ourselves. Rows applied from inbound sync carry the
+        // remote peer's node-id and must not be pushed back.
+        let passes_origin = match origin_node_filter {
+            Some(our_node) => crate::crdt::hlc::hlc_is_from_node(hlc_to_use, our_node),
+            None => true,
+        };
 
-            let hlc_to_use = match col_hlc.or(row_hlc) {
-                Some(h) => h,
-                None => continue, // no usable HLC — skip
-            };
-
-            // Check if this column's HLC is newer than after_hlc
-            let passes_hlc = match after_hlc {
-                Some(threshold) => hlc_is_newer(hlc_to_use, threshold),
-                None => true,
-            };
-
-            // If the caller asked for origin filtering, only emit columns we
-            // wrote ourselves. Rows applied from inbound sync carry the
-            // remote peer's node-id and must not be pushed back.
-            let passes_origin = match origin_node_filter {
-                Some(our_node) => crate::crdt::hlc::hlc_is_from_node(hlc_to_use, our_node),
-                None => true,
-            };
-
-            if passes_hlc && passes_origin {
-                let value = row_map
-                    .get(col.name.as_str())
+        if passes_hlc && passes_origin {
+            let value = row_map
+                .get(col.name.as_str())
+                .cloned()
+                .unwrap_or(JsonValue::Null);
+            let sig = sig_space_id.and_then(|space_id| {
+                column_sigs
+                    .get(&col.name)
+                    .and_then(|by_space| by_space.get(space_id))
                     .cloned()
-                    .unwrap_or(JsonValue::Null);
-                let sig = space_id_filter.and_then(|space_id| {
-                    column_sigs
-                        .get(&col.name)
-                        .and_then(|by_space| by_space.get(space_id))
-                        .cloned()
-                        .and_then(|record| serde_json::from_value(record).ok())
-                });
+                    .and_then(|record| serde_json::from_value(record).ok())
+            });
 
-                changes.push(LocalColumnChange {
-                    table_name: table_name.to_string(),
-                    row_pks: pk_json.clone(),
-                    column_name: col.name.clone(),
-                    hlc_timestamp: hlc_to_use.to_string(),
-                    value,
-                    device_id: device_id.to_string(),
-                    sig,
-                });
-            }
+            out.push(LocalColumnChange {
+                table_name: table_name.to_string(),
+                row_pks: pk_json.clone(),
+                column_name: col.name.clone(),
+                hlc_timestamp: hlc_to_use.to_string(),
+                value,
+                device_id: device_id.to_string(),
+                sig,
+            });
         }
+    }
+
+    Ok(())
+}
+
+/// Scans an extension-owned table for rows whose canonical PK JSON is on the
+/// `row_pks_set` allow-list — i.e. rows the caller has already resolved as
+/// belonging to `space_id` via `haex_shared_space_sync`.
+///
+/// Unlike [`scan_table_for_local_changes_scoped`], this does NOT filter by a
+/// `space_id` column on the target table: extension/content tables typically
+/// do not carry one, and the row-to-space mapping lives entirely in the
+/// registry. Per-column signatures are still extracted for `space_id` from
+/// `haex_column_sigs` (W1 → W2 contract: the receiver's registered-content
+/// gate rejects rows without a matching per-space sig).
+///
+/// # Parameters
+///
+/// * `row_pks_set` — canonical PK JSON strings (`{"id":"row-1"}`, or
+///   `{"col_a":"x","col_b":"y"}` for composite PKs). Encoding must match what
+///   [`emit_row_changes`] produces via `serde_json::to_string` on a
+///   `serde_json::Map` populated in schema-declared PK order.
+/// * `after_hlc` — exclusive HLC lower bound, same semantics as
+///   [`scan_table_for_local_changes_scoped`].
+/// * `origin_node` — ping-pong filter, same semantics as
+///   [`scan_table_for_local_changes_scoped`].
+fn scan_registered_table_rows_for_space(
+    conn: &Connection,
+    table_name: &str,
+    space_id: &str,
+    row_pks_set: &[String],
+    after_hlc: Option<&str>,
+    device_id: &str,
+    origin_node: Option<u128>,
+) -> Result<Vec<LocalColumnChange>, DatabaseError> {
+    if row_pks_set.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let schema = get_table_schema(conn, table_name).map_err(DatabaseError::from)?;
+
+    // Unknown table (empty schema) — silently skip. A stale registry entry
+    // referencing a dropped table must not crash the whole scan.
+    if schema.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let (pk_columns, data_columns) = partition_columns(&schema);
+
+    if pk_columns.is_empty() {
+        return Err(DatabaseError::ExecutionError {
+            sql: format!("PRAGMA table_info(\"{}\")", table_name),
+            reason: format!("Table '{}' has no primary key", table_name),
+            table: Some(table_name.to_string()),
+        });
+    }
+
+    // Build column list: PKs + data columns + CRDT metadata.
+    let mut select_columns: Vec<&str> = Vec::new();
+    for col in &pk_columns {
+        select_columns.push(&col.name);
+    }
+    for col in &data_columns {
+        select_columns.push(&col.name);
+    }
+    select_columns.push(HLC_TIMESTAMP_COLUMN);
+    select_columns.push(COLUMN_HLCS_COLUMN);
+    let has_column_sigs = schema.iter().any(|c| c.name == COLUMN_SIGS_COLUMN);
+    if has_column_sigs {
+        select_columns.push(COLUMN_SIGS_COLUMN);
+    }
+
+    let column_list: String = select_columns
+        .iter()
+        .map(|c| format!("\"{}\"", c))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    // Only the HLC threshold is pushed down to SQL — the PK allow-list is
+    // applied in-memory via `row_pks_filter`. Registry sizes are expected to
+    // be dozens–thousands per space, so an extra scan of the target table is
+    // cheaper than building a variadic PK-tuple WHERE clause. If perf
+    // measurements later say otherwise, switch to per-PK WHERE binding.
+    let mut where_clauses: Vec<String> = Vec::new();
+    let mut params: Vec<String> = Vec::new();
+
+    if let Some(hlc) = after_hlc {
+        where_clauses.push(format!(
+            "(\"{col}\" > ?{n} OR \"{col}\" IS NULL OR \"{col}\" = '')",
+            col = HLC_TIMESTAMP_COLUMN,
+            n = where_clauses.len() + 1
+        ));
+        params.push(hlc.to_string());
+    }
+
+    let query = if where_clauses.is_empty() {
+        format!("SELECT {} FROM \"{}\"", column_list, table_name)
+    } else {
+        format!(
+            "SELECT {} FROM \"{}\" WHERE {}",
+            column_list,
+            table_name,
+            where_clauses.join(" AND ")
+        )
+    };
+
+    let mut stmt = conn.prepare(&query).map_err(DatabaseError::from)?;
+    let param_refs: Vec<&dyn rusqlite::ToSql> =
+        params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+    let mut rows = stmt
+        .query(param_refs.as_slice())
+        .map_err(DatabaseError::from)?;
+
+    let wanted: HashSet<&str> = row_pks_set.iter().map(String::as_str).collect();
+
+    let mut changes: Vec<LocalColumnChange> = Vec::new();
+    while let Some(row) = rows.next().map_err(DatabaseError::from)? {
+        emit_row_changes(
+            row,
+            &select_columns,
+            &pk_columns,
+            &data_columns,
+            table_name,
+            after_hlc,
+            device_id,
+            Some(space_id),
+            origin_node,
+            Some(&wanted),
+            &mut changes,
+        )?;
     }
 
     Ok(changes)
@@ -403,6 +591,9 @@ pub fn scan_space_scoped_tables_for_local_changes(
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
     with_connection(db, |conn| {
         let mut all_changes: Vec<LocalColumnChange> = Vec::new();
+
+        // Pass 1: static whitelist of control-plane tables scoped by their
+        // own `space_id` column.
         for table_name in SPACE_SCOPED_CRDT_TABLES {
             let changes = scan_table_for_local_changes_scoped(
                 conn,
@@ -410,6 +601,59 @@ pub fn scan_space_scoped_tables_for_local_changes(
                 after_hlc,
                 device_id,
                 Some(space_id),
+                origin_node,
+            )?;
+            all_changes.extend(changes);
+        }
+
+        // Pass 2 (Task 5, W3): registry-driven scan of extension/content
+        // tables. `haex_shared_space_sync` maps `(table_name, row_pks)` to
+        // `space_id` for tables that do not carry a `space_id` column of
+        // their own. The register and the whitelist are additive — a
+        // whitelisted table already emitted its rows in pass 1, so any
+        // register row referencing a whitelisted table is filtered out here
+        // as defence-in-depth against a malicious/malformed registry entry.
+        let registered: Vec<(String, String)> = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT DISTINCT table_name, row_pks \
+                     FROM haex_shared_space_sync \
+                     WHERE space_id = ?1",
+                )
+                .map_err(DatabaseError::from)?;
+            let mapped = stmt
+                .query_map(rusqlite::params![space_id], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(DatabaseError::from)?;
+            let mut out: Vec<(String, String)> = Vec::new();
+            for r in mapped {
+                out.push(r.map_err(DatabaseError::from)?);
+            }
+            out
+        };
+
+        // Group PKs by table so we make one scan call per table.
+        let mut by_table: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for (t, pks) in registered {
+            if SPACE_SCOPED_CRDT_TABLES.contains(&t.as_str()) {
+                // Guard: never route control-plane through the registry
+                // path. A registry row lying about a whitelisted table would
+                // otherwise re-emit the row without the `space_id`-column
+                // scope check pass 1 performs.
+                continue;
+            }
+            by_table.entry(t).or_default().push(pks);
+        }
+
+        for (table_name, row_pks_set) in by_table {
+            let changes = scan_registered_table_rows_for_space(
+                conn,
+                &table_name,
+                space_id,
+                &row_pks_set,
+                after_hlc,
+                device_id,
                 origin_node,
             )?;
             all_changes.extend(changes);

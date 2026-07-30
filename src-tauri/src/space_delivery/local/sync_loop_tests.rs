@@ -81,6 +81,11 @@ use std::sync::{Arc, Mutex};
 /// vault-private table (`haex_passwords`, no `space_id`). Used to prove
 /// that owner mode ships BOTH while space-scoped mode ships only the
 /// whitelisted one.
+///
+/// The registry table `haex_shared_space_sync` is created empty so the
+/// space-scoped scanner's Task-5 registry pass finds no extension rows.
+/// A missing registry table would be a production-schema bug — always
+/// materialised by core migrations — so the fixture matches that shape.
 fn setup_owner_vs_space_db() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(
@@ -96,6 +101,15 @@ fn setup_owner_vs_space_db() -> Connection {
                 secret TEXT,
                 haex_hlc TEXT,
                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+            );
+             CREATE TABLE haex_shared_space_sync (
+                id TEXT PRIMARY KEY NOT NULL,
+                table_name TEXT NOT NULL,
+                row_pks TEXT NOT NULL,
+                space_id TEXT NOT NULL,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
