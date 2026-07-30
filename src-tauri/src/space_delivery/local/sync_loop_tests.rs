@@ -86,6 +86,12 @@ use std::sync::{Arc, Mutex};
 /// space-scoped scanner's Task-5 registry pass finds no extension rows.
 /// A missing registry table would be a production-schema bug — always
 /// materialised by core migrations — so the fixture matches that shape.
+///
+/// The extension-content table `ext_notes_v1` is created empty for the
+/// same reason: the registry-driven push test (Task 7) populates it
+/// together with a matching registry row, while the older push-mode
+/// tests leave it untouched and therefore see nothing from it. Column
+/// shape mirrors `crdt::scanner_tests::setup_registry_scan_db`.
 fn setup_owner_vs_space_db() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(
@@ -110,10 +116,65 @@ fn setup_owner_vs_space_db() -> Connection {
                 haex_hlc TEXT,
                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+            );
+             CREATE TABLE ext_notes_v1 (
+                id TEXT PRIMARY KEY,
+                body TEXT,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
     conn
+}
+
+/// Seed one row into `ext_notes_v1` with a per-column signature keyed by
+/// `sig_space_id` (mirrors the shape `execute_with_crdt` produces at the
+/// W1 write path). Direct INSERT is fine here — the outbound scan only
+/// READS the row, so bypassing the CRDT triggers matches the Task-4
+/// scanner-test convention (`crdt::scanner_tests::insert_ext_row`).
+fn insert_ext_note_row(conn: &Connection, id: &str, body: &str, hlc: &str, sig_space_id: &str) {
+    let hlcs = format!("{{\"body\":\"{hlc}\"}}");
+    let sigs = serde_json::json!({
+        "body": {
+            (sig_space_id): {
+                "authorDid": "did:key:test",
+                "sig": "",
+                "storageClass": "text",
+            }
+        }
+    })
+    .to_string();
+    conn.execute(
+        "INSERT INTO ext_notes_v1 (id, body, haex_hlc, haex_column_hlcs, haex_column_sigs)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, body, hlc, hlcs, sigs],
+    )
+    .unwrap();
+}
+
+/// Seed a `(space_id, table_name, row_pks)` triple into
+/// `haex_shared_space_sync`. Direct INSERT (not `execute_with_crdt`) —
+/// the outbound scan only reads the register, so the register-fanout
+/// trigger is not on the tested path. Same trade-off as
+/// `crdt::scanner_tests::insert_registry_entry`.
+fn insert_shared_sync_entry(
+    conn: &Connection,
+    registry_row_id: &str,
+    space_id: &str,
+    table_name: &str,
+    row_pks: &str,
+) {
+    let hlc = "1000000000000000000/aabbccdd";
+    let hlcs = format!("{{\"table_name\":\"{hlc}\",\"row_pks\":\"{hlc}\",\"space_id\":\"{hlc}\"}}");
+    conn.execute(
+        "INSERT INTO haex_shared_space_sync
+             (id, table_name, row_pks, space_id, haex_hlc, haex_column_hlcs)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![registry_row_id, table_name, row_pks, space_id, hlc, hlcs],
+    )
+    .unwrap();
 }
 
 fn insert_peer_share(conn: &Connection, id: &str, space_id: &str, data: &str, hlc: &str) {
@@ -219,6 +280,90 @@ fn space_scoped_mode_collects_only_space_tables() {
     assert!(
         !tables_seen.contains("haex_passwords"),
         "space-scoped mode leaked the off-whitelist vault-private table"
+    );
+}
+
+/// Task 7 (W3): the registry-driven scan must ride through the full
+/// space-scoped push-collection path — not just the raw scanner.
+///
+/// Given `(space-A, ext_notes_v1, {"id":"row-registered"})` in
+/// `haex_shared_space_sync`, and both a registered and an unregistered
+/// row in the extension table, the batch returned by
+/// `collect_push_changes` (the mode → scanner dispatch inside
+/// `run_push_phase`) MUST:
+///   1. include the registered row,
+///   2. NOT include the unregistered row (cross-space leak guard), and
+///   3. carry the per-column signature verbatim — the receiver's W2
+///      gate rejects registered rows arriving with `sig: None`.
+///
+/// Task 4 already covered #1–#3 at the scanner level; this test locks
+/// them in at the push-collection level so a future refactor of
+/// `collect_push_changes` (e.g. adding an extra filter) can't silently
+/// drop them.
+#[test]
+fn space_scoped_push_includes_registered_extension_rows() {
+    let conn = setup_owner_vs_space_db();
+    insert_ext_note_row(
+        &conn,
+        "row-registered",
+        "hello",
+        "3000000000000000000/aabbccdd",
+        "space-A",
+    );
+    insert_ext_note_row(
+        &conn,
+        "row-unregistered",
+        "sekrit",
+        "4000000000000000000/aabbccdd",
+        "space-A",
+    );
+    insert_shared_sync_entry(
+        &conn,
+        "reg-1",
+        "space-A",
+        "ext_notes_v1",
+        r#"{"id":"row-registered"}"#,
+    );
+    let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+
+    let changes = collect_push_changes(
+        &SyncMode::SpaceScoped,
+        &db,
+        "space-A",
+        None,
+        "device-1",
+        None,
+        true, // can_push_user_content → registry-driven pass runs
+    )
+    .unwrap();
+
+    // Registered ext row present.
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.table_name == "ext_notes_v1" && c.row_pks.contains("row-registered")),
+        "registered extension row must ride the P2P push, got: {changes:?}",
+    );
+    // Unregistered ext row absent.
+    assert!(
+        !changes
+            .iter()
+            .any(|c| c.row_pks.contains("row-unregistered")),
+        "unregistered extension row must not leak into P2P push, got: {changes:?}",
+    );
+    // Sig forwarded (W1 → W2 contract): receiver rejects sig: None on a
+    // registered extension row.
+    let extension_changes: Vec<_> = changes
+        .iter()
+        .filter(|c| c.table_name == "ext_notes_v1")
+        .collect();
+    assert!(
+        !extension_changes.is_empty(),
+        "at least one ext_notes_v1 change is required for the sig assertion to be meaningful",
+    );
+    assert!(
+        extension_changes.iter().all(|c| c.sig.is_some()),
+        "registered extension rows must carry a per-column signature: {extension_changes:?}",
     );
 }
 
