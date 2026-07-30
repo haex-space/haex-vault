@@ -18,6 +18,7 @@ use crate::extension::permissions::types::{Principal, SpaceAction};
 use crate::extension::utils::{get_extension_table_prefix, prompt_on_err, resolve_extension_id};
 use crate::AppState;
 
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State, WebviewWindow};
 
@@ -63,18 +64,35 @@ pub struct SpaceAssignmentRow {
 /// `private_key IS NOT NULL` (the local user), joined via `identity_id` to
 /// a `haex_space_members` row for `space_id`.
 ///
-/// **W3 Task 3 will implement this.** Today it is `unimplemented!()` so the
-/// failing tests in `tests.rs` (`non_member_registration_is_rejected`,
-/// `member_registration_is_accepted`) demonstrate the missing gate.
-/// See `docs/plans/2026-07-30-shared-space-w3-registry-scanner.md` §Task 3.
+/// Fails closed on DB errors: any rusqlite error is propagated as
+/// `ExtensionError::Database` (never silently treated as "not a member =
+/// accept"). See memory `design-decision-positive-register-gate`.
 pub(super) fn require_active_local_member(
-    _conn: &rusqlite::Connection,
-    _space_id: &str,
+    conn: &rusqlite::Connection,
+    space_id: &str,
 ) -> Result<(), ExtensionError> {
-    unimplemented!(
-        "W3 Task 3 must implement the space-membership gate — see \
-         docs/plans/2026-07-30-shared-space-w3-registry-scanner.md §Task 3"
-    )
+    let is_member: bool = conn
+        .query_row(
+            "SELECT 1 FROM haex_space_members m \
+             JOIN haex_identities i ON i.id = m.identity_id \
+             WHERE m.space_id = ?1 AND i.private_key IS NOT NULL \
+             LIMIT 1",
+            rusqlite::params![space_id],
+            |_| Ok(true),
+        )
+        .optional()
+        .map_err(|e| ExtensionError::Database {
+            source: DatabaseError::DatabaseError {
+                reason: e.to_string(),
+            },
+        })?
+        .unwrap_or(false);
+    if !is_member {
+        return Err(ExtensionError::SecurityViolation {
+            reason: format!("caller is not an active local member of space_id={space_id}"),
+        });
+    }
+    Ok(())
 }
 
 /// Validates that all table names in the assignments start with the extension's prefix.
@@ -145,6 +163,31 @@ pub async fn extension_space_assign(
     if assignments.is_empty() {
         return Ok(0);
     }
+
+    // Space-membership gate: only vaults with an active local member of the
+    // target space may (un-)register rows. Dedupe first — one check per
+    // distinct space is enough — and reject the whole batch if any one
+    // space fails (all-or-nothing).
+    //
+    // `with_connection` returns `Result<T, DatabaseError>`; we thread the
+    // per-call `ExtensionError` through as the inner Result so
+    // `SecurityViolation` reaches the caller without being flattened to a
+    // stringly-typed DatabaseError. The `??` unwraps: outer `?` = DB /
+    // lock error, inner `?` = ExtensionError from `require_active_local_member`.
+    let unique_space_ids: std::collections::BTreeSet<&str> =
+        assignments.iter().map(|a| a.space_id.as_str()).collect();
+    core::with_connection(
+        &state.db,
+        |conn| -> Result<Result<(), ExtensionError>, DatabaseError> {
+            for space_id in &unique_space_ids {
+                if let Err(e) = require_active_local_member(conn, space_id) {
+                    return Ok(Err(e));
+                }
+            }
+            Ok(Ok(()))
+        },
+    )
+    .map_err(|e| ExtensionError::Database { source: e })??;
 
     let hlc_guard = state.lock_or_fail(
         &state.hlc,
@@ -245,6 +288,24 @@ pub async fn extension_space_unassign(
     if assignments.is_empty() {
         return Ok(0);
     }
+
+    // Symmetric with `extension_space_assign`: only active local members of
+    // the target space may un-register rows. See that function for the
+    // rationale and the `??` error-threading pattern.
+    let unique_space_ids: std::collections::BTreeSet<&str> =
+        assignments.iter().map(|a| a.space_id.as_str()).collect();
+    core::with_connection(
+        &state.db,
+        |conn| -> Result<Result<(), ExtensionError>, DatabaseError> {
+            for space_id in &unique_space_ids {
+                if let Err(e) = require_active_local_member(conn, space_id) {
+                    return Ok(Err(e));
+                }
+            }
+            Ok(Ok(()))
+        },
+    )
+    .map_err(|e| ExtensionError::Database { source: e })??;
 
     let hlc_guard = state.lock_or_fail(
         &state.hlc,

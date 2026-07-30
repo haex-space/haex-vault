@@ -510,4 +510,50 @@ mod tests {
             result.as_ref().map_err(|e| e.to_string())
         );
     }
+
+    /// Foreign-identity member REJECTED: seed a `haex_space_members` row for
+    /// space-b whose linked identity has `private_key IS NULL` (a contact,
+    /// not a local identity). The SQL join in `require_active_local_member`
+    /// filters on `i.private_key IS NOT NULL`, so this row must NOT satisfy
+    /// the check — the vault owns no active local member of the space and
+    /// registration MUST be rejected.
+    #[test]
+    fn foreign_identity_member_is_rejected() {
+        let (db, _hlc) = setup_test_db();
+
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO haex_spaces (id, type, status, name) \
+                 VALUES ('space-b', 'local', 'active', 'B')",
+                [],
+            )
+            .unwrap();
+            // Contact identity: private_key IS NULL.
+            conn.execute(
+                "INSERT INTO haex_identities (id, did, name, source, private_key) \
+                 VALUES ('id-foreign', 'did:key:foreign', 'Bob', 'contact', NULL)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_space_members (id, space_id, identity_id) \
+                 VALUES ('mem-foreign', 'space-b', 'id-foreign')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        let result = require_active_local_member(conn, "space-b");
+
+        assert!(
+            matches!(result, Err(ExtensionError::SecurityViolation { .. })),
+            "space-b has only a foreign-identity member — registration MUST \
+             be rejected with SecurityViolation; got: {:?}",
+            result.as_ref().map_err(|e| e.to_string())
+        );
+    }
 }
