@@ -152,11 +152,53 @@ pub(super) fn setup_authz_db() -> DbConnection {
             name TEXT NOT NULL,
             local_path TEXT NOT NULL,
             authored_by_did TEXT
+        );
+
+        CREATE TABLE haex_shared_space_sync (
+            id TEXT PRIMARY KEY NOT NULL,
+            table_name TEXT NOT NULL,
+            row_pks TEXT NOT NULL,
+            space_id TEXT NOT NULL
         );",
     )
     .unwrap();
 
     DbConnection(Arc::new(Mutex::new(Some(conn))))
+}
+
+/// Seed a `haex_shared_space_sync` registry row so
+/// `validate_and_attribute` treats `(table, row_pks, space_id)` as
+/// registered even when `table` is NOT on the static whitelist.
+///
+/// Uses `INSERT` directly (not `execute_with_crdt`) — these tests exercise
+/// the authorisation gate, not the CRDT merge layer, so the register-fanout
+/// trigger machinery is out of scope. `row_pks` must match the encoding
+/// produced by `make_change`/`change` (`{"id":"..."}` JSON).
+///
+/// Production INSERTs into `haex_shared_space_sync` MUST go through
+/// `core::execute_with_crdt` so the register-fanout trigger fires; this
+/// helper is test-only.
+pub(super) fn insert_registered(
+    db: &DbConnection,
+    registry_row_id: &str,
+    table_name: &str,
+    row_pks: &str,
+    space_id: &str,
+) {
+    core::execute(
+        "INSERT INTO haex_shared_space_sync \
+         (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            json!(registry_row_id),
+            json!(table_name),
+            json!(row_pks),
+            json!(space_id),
+        ],
+        db,
+    )
+    .unwrap();
 }
 
 pub(super) fn insert_device(

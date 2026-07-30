@@ -185,10 +185,11 @@ pub fn authorize_inbound_sync_push(
     }
 
     // (3) Payload validation + origin attribution
-    let attributed = match validate_and_attribute(space_id, &validated_ucan.audience, raw_changes) {
-        InboundSyncPushOutcome::Accepted { changes } => changes,
-        rejected @ InboundSyncPushOutcome::Rejected { .. } => return rejected,
-    };
+    let attributed =
+        match validate_and_attribute(db, space_id, &validated_ucan.audience, raw_changes) {
+            InboundSyncPushOutcome::Accepted { changes } => changes,
+            rejected @ InboundSyncPushOutcome::Rejected { .. } => return rejected,
+        };
 
     // (4) Per-row space scope — the existing row's space_id must match
     // request_space_id, and inserts must declare space_id. Without this

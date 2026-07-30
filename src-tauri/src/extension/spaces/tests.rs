@@ -20,6 +20,10 @@ mod tests {
     use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
     use crate::database::row::get_string;
     use crate::database::DbConnection;
+    use crate::extension::error::ExtensionError;
+    use crate::extension::spaces::commands::{
+        require_active_local_member, require_active_local_member_for_all, SpaceAssignment,
+    };
     use crate::extension::spaces::queries::SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY;
     use crate::table_names::{
         TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC,
@@ -436,6 +440,187 @@ mod tests {
         assert!(
             !contact_is_self,
             "contact identity must have isSelf = false"
+        );
+    }
+
+    // =========================================================================
+    // Space-membership gate on `extension_space_assign` /
+    // `extension_space_unassign`.
+    //
+    // These drive `require_active_local_member` directly at the SQL fixture
+    // layer because invoking the Tauri command end-to-end from a Rust unit
+    // test would require a full `AppHandle` + `WebviewWindow` fixture — no
+    // such harness exists in this crate, and the SQL-layer path is the
+    // authoritative check.
+    //
+    // The three tests below cover the non-member, active local member, and
+    // foreign-identity-only member cases against the implemented SQL check.
+    // =========================================================================
+
+    /// Non-member REJECTED: seed `haex_spaces` row for SPACE_A but NO
+    /// `haex_space_members` row for any local identity in SPACE_A. The
+    /// membership check MUST return `Err(SecurityViolation)`.
+    #[test]
+    fn non_member_registration_is_rejected() {
+        let (db, _hlc) = setup_test_db();
+
+        // Seed SPACE_A — no members, no identities.
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO haex_spaces (id, type, status, name) \
+                 VALUES ('space-a', 'local', 'active', 'A')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        let result = require_active_local_member(conn, "space-a");
+
+        assert!(
+            matches!(result, Err(ExtensionError::SecurityViolation { .. })),
+            "non-member registration into space-a MUST be rejected with \
+             SecurityViolation; got: {:?}",
+            result.as_ref().map_err(|e| e.to_string())
+        );
+    }
+
+    /// Member ACCEPTED: seed `haex_spaces` row for SPACE_A AND a local
+    /// identity (own — `private_key IS NOT NULL`) with a
+    /// `haex_space_members` row for SPACE_A. The membership check MUST
+    /// return `Ok(())`.
+    ///
+    /// Reuses `seed_sp1_key` which seeds an own identity + membership for
+    /// `sp-1` (`setup_test_db` already inserts the `sp-1` space row).
+    #[test]
+    fn member_registration_is_accepted() {
+        let (db, _hlc) = setup_test_db();
+        let _cache = seed_sp1_key(&db);
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        let result = require_active_local_member(conn, "sp-1");
+
+        assert!(
+            matches!(result, Ok(())),
+            "active local member of sp-1 MUST be accepted; got: {:?}",
+            result.as_ref().map_err(|e| e.to_string())
+        );
+    }
+
+    /// Build a bare `SpaceAssignment` for the batch-check tests. Only
+    /// `space_id` is consulted by `require_active_local_member_for_all`;
+    /// the other fields hold plausible stub values.
+    fn stub_assignment(space_id: &str) -> SpaceAssignment {
+        SpaceAssignment {
+            table_name: format!("ext_t_v1_{}", space_id),
+            row_pks: r#"{"id":"row-1"}"#.to_string(),
+            space_id: space_id.to_string(),
+            group_id: None,
+            type_name: None,
+            label: None,
+        }
+    }
+
+    /// All-or-nothing: a batch mixing one space the vault is an active
+    /// local member of with a space it isn't a member of MUST reject the
+    /// whole batch. The dedup path also runs the check against every
+    /// distinct `space_id` exactly once.
+    #[test]
+    fn batch_member_check_rejects_when_any_space_is_non_member() {
+        let (db, _hlc) = setup_test_db();
+        // Seed sp-1 as active-local-member via the shared helper.
+        let _cache = seed_sp1_key(&db);
+        // Seed sp-2 with no member row so the batch check must fail on it.
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO haex_spaces (id, type, status, name) \
+                 VALUES ('sp-2', 'local', 'active', 'Two')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let assignments = vec![stub_assignment("sp-1"), stub_assignment("sp-2")];
+        let result = require_active_local_member_for_all(&db, &assignments);
+        assert!(
+            matches!(result, Err(ExtensionError::SecurityViolation { .. })),
+            "batch containing non-member space sp-2 MUST reject as \
+             SecurityViolation; got: {:?}",
+            result.as_ref().map_err(|e| e.to_string())
+        );
+    }
+
+    /// Duplicate `space_id`s in the input dedup to a single check — the
+    /// caller passing the same id twice must not change the outcome.
+    /// Positive case: all duplicates resolve to an active-local-member
+    /// space so the batch is accepted.
+    #[test]
+    fn batch_member_check_dedupes_duplicate_space_ids() {
+        let (db, _hlc) = setup_test_db();
+        let _cache = seed_sp1_key(&db);
+
+        let assignments = vec![
+            stub_assignment("sp-1"),
+            stub_assignment("sp-1"),
+            stub_assignment("sp-1"),
+        ];
+        let result = require_active_local_member_for_all(&db, &assignments);
+        assert!(
+            matches!(result, Ok(())),
+            "duplicate-only batch of active-local-member sp-1 MUST accept; got: {:?}",
+            result.as_ref().map_err(|e| e.to_string())
+        );
+    }
+
+    /// Foreign-identity member REJECTED: seed a `haex_space_members` row for
+    /// space-b whose linked identity has `private_key IS NULL` (a contact,
+    /// not a local identity). The SQL join in `require_active_local_member`
+    /// filters on `i.private_key IS NOT NULL`, so this row must NOT satisfy
+    /// the check — the vault owns no active local member of the space and
+    /// registration MUST be rejected.
+    #[test]
+    fn foreign_identity_member_is_rejected() {
+        let (db, _hlc) = setup_test_db();
+
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO haex_spaces (id, type, status, name) \
+                 VALUES ('space-b', 'local', 'active', 'B')",
+                [],
+            )
+            .unwrap();
+            // Contact identity: private_key IS NULL.
+            conn.execute(
+                "INSERT INTO haex_identities (id, did, name, source, private_key) \
+                 VALUES ('id-foreign', 'did:key:foreign', 'Bob', 'contact', NULL)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO haex_space_members (id, space_id, identity_id) \
+                 VALUES ('mem-foreign', 'space-b', 'id-foreign')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        let result = require_active_local_member(conn, "space-b");
+
+        assert!(
+            matches!(result, Err(ExtensionError::SecurityViolation { .. })),
+            "space-b has only a foreign-identity member — registration MUST \
+             be rejected with SecurityViolation; got: {:?}",
+            result.as_ref().map_err(|e| e.to_string())
         );
     }
 }

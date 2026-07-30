@@ -18,6 +18,7 @@ use crate::extension::permissions::types::{Principal, SpaceAction};
 use crate::extension::utils::{get_extension_table_prefix, prompt_on_err, resolve_extension_id};
 use crate::AppState;
 
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State, WebviewWindow};
 
@@ -52,6 +53,84 @@ pub struct SpaceAssignmentRow {
     pub type_name: Option<String>,
     pub label: Option<String>,
     pub created_at: Option<String>,
+}
+
+/// Verify the vault owns at least one active local identity that is an active
+/// member of `space_id`. Called from `extension_space_assign` /
+/// `extension_space_unassign` BEFORE any write to `haex_shared_space_sync`
+/// so non-members cannot register (or un-register) rows into a space.
+///
+/// "Active local identity" means a row in `haex_identities` with
+/// `private_key IS NOT NULL` (the local user), joined via `identity_id` to
+/// a `haex_space_members` row for `space_id`.
+///
+/// There is no `status` column on `haex_space_members` today — row existence
+/// IS the membership. The word "active" in this fn name refers to
+/// `haex_identities.private_key IS NOT NULL` (the local identity's private
+/// key is present), NOT to a membership status flag.
+///
+/// Fails closed on DB errors: any rusqlite error is propagated as
+/// `ExtensionError::Database` (never silently treated as "not a member =
+/// accept"). See memory `design-decision-positive-register-gate`.
+pub(super) fn require_active_local_member(
+    conn: &rusqlite::Connection,
+    space_id: &str,
+) -> Result<(), ExtensionError> {
+    let is_member: bool = conn
+        .query_row(
+            "SELECT 1 FROM haex_space_members m \
+             JOIN haex_identities i ON i.id = m.identity_id \
+             WHERE m.space_id = ?1 AND i.private_key IS NOT NULL \
+             LIMIT 1",
+            rusqlite::params![space_id],
+            |_| Ok(true),
+        )
+        .optional()
+        .map_err(|e| ExtensionError::Database {
+            source: DatabaseError::DatabaseError {
+                reason: e.to_string(),
+            },
+        })?
+        .unwrap_or(false);
+    if !is_member {
+        return Err(ExtensionError::SecurityViolation {
+            reason: format!("caller is not an active local member of space_id={space_id}"),
+        });
+    }
+    Ok(())
+}
+
+/// Verifies the active local identity is a member of every space referenced
+/// in `assignments`. All-or-nothing: the first non-member rejects the whole
+/// batch. Callers pass their assignment list; dedup happens here.
+///
+/// `with_connection` returns `Result<T, DatabaseError>`; we thread the
+/// per-call `ExtensionError` through as the inner `Result` so
+/// `SecurityViolation` reaches the caller without being flattened to a
+/// stringly-typed `DatabaseError`. The `??` unwraps: outer `?` = DB / lock
+/// error, inner `?` = `ExtensionError` from `require_active_local_member`.
+///
+/// Fail-closed on DB errors — a DB failure surfaces as
+/// [`ExtensionError::Database`], not silently as "member".
+pub(super) fn require_active_local_member_for_all(
+    db: &crate::database::DbConnection,
+    assignments: &[SpaceAssignment],
+) -> Result<(), ExtensionError> {
+    let unique_space_ids: std::collections::BTreeSet<&str> =
+        assignments.iter().map(|a| a.space_id.as_str()).collect();
+    core::with_connection(
+        db,
+        |conn| -> Result<Result<(), ExtensionError>, DatabaseError> {
+            for space_id in &unique_space_ids {
+                if let Err(e) = require_active_local_member(conn, space_id) {
+                    return Ok(Err(e));
+                }
+            }
+            Ok(Ok(()))
+        },
+    )
+    .map_err(|e| ExtensionError::Database { source: e })??;
+    Ok(())
 }
 
 /// Validates that all table names in the assignments start with the extension's prefix.
@@ -122,6 +201,10 @@ pub async fn extension_space_assign(
     if assignments.is_empty() {
         return Ok(0);
     }
+
+    // Space-membership gate: only vaults with an active local member of the
+    // target space may (un-)register rows. See helper for rationale.
+    require_active_local_member_for_all(&state.db, &assignments)?;
 
     let hlc_guard = state.lock_or_fail(
         &state.hlc,
@@ -222,6 +305,10 @@ pub async fn extension_space_unassign(
     if assignments.is_empty() {
         return Ok(0);
     }
+
+    // Symmetric with `extension_space_assign`: only active local members of
+    // the target space may un-register rows. See helper for rationale.
+    require_active_local_member_for_all(&state.db, &assignments)?;
 
     let hlc_guard = state.lock_or_fail(
         &state.hlc,
