@@ -13,6 +13,8 @@ use serde_json::Value as JsonValue;
 
 use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::scanner::{is_space_scoped_table, LocalColumnChange};
+use crate::database::core::with_connection;
+use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 
 use super::InboundSyncPushOutcome;
@@ -36,21 +38,37 @@ pub fn validate_and_attribute(
     ucan_audience: &str,
     changes: Vec<LocalColumnChange>,
 ) -> InboundSyncPushOutcome {
-    // TODO(w3-task-3a-impl): consult haex_shared_space_sync when a table
-    // is not on the static whitelist. Failing tests in
-    // `inbound_sync_tests::validate_and_attribute` currently pin the
-    // "registered-triple must be accepted" contract.
-    let _ = db;
-
-    // --- (1) + (2): whitelist and space_id scope -------------------------
+    // --- (1) + (2): whitelist / registry and space_id scope --------------
     for change in &changes {
         if !is_space_scoped_table(&change.table_name) {
-            return InboundSyncPushOutcome::Rejected {
-                reason: format!(
-                    "Table {} is not allowed in space-scoped sync",
-                    change.table_name
-                ),
-            };
+            // Fallback: extension-owned content tables aren't on the static
+            // whitelist; they're registered per-space via
+            // `haex_shared_space_sync`. Accept iff the exact
+            // (table, row_pks, space_id) triple is registered.
+            match is_registered_for_space(db, &change.table_name, &change.row_pks, space_id) {
+                Ok(true) => {} // allowed via registry
+                Ok(false) => {
+                    return InboundSyncPushOutcome::Rejected {
+                        reason: format!(
+                            "Table {} row {} is not allowed in space-scoped sync (not whitelisted, not registered for space {})",
+                            change.table_name, change.row_pks, space_id
+                        ),
+                    };
+                }
+                Err(e) => {
+                    // Fail-CLOSED. A DB error MUST NOT collapse into
+                    // accept ("permissive on error" bypass), and it MUST
+                    // NOT be silently swallowed as an unregistered-reject
+                    // either — surface the underlying failure in the
+                    // reason so operators see why we rejected.
+                    return InboundSyncPushOutcome::Rejected {
+                        reason: format!(
+                            "Registry lookup failed for {} row {}: {}",
+                            change.table_name, change.row_pks, e
+                        ),
+                    };
+                }
+            }
         }
 
         if change.column_name == "space_id" {
@@ -105,4 +123,50 @@ pub fn validate_and_attribute(
     }
 
     InboundSyncPushOutcome::Accepted { changes: stripped }
+}
+
+/// Returns `Ok(true)` iff `(table_name, row_pks, space_id)` appears in
+/// `haex_shared_space_sync` — i.e. the row has been explicitly registered
+/// as belonging to the space via
+/// [`extension_space_assign`](crate::extension::spaces::commands::extension_space_assign).
+///
+/// **Fail-CLOSED contract.** A DB failure MUST propagate up as `Err`, not
+/// collapse into `Ok(false)` — the caller uses the error to reject the
+/// batch while surfacing the underlying cause. Never widen this to
+/// `.unwrap_or(false)` or similar: that would either silently accept an
+/// unregistered row (if the semantics were flipped) or hide the DB
+/// failure signal that operators need to diagnose the wedge.
+///
+/// The `row_pks` encoding must match what the outbound scanner produces —
+/// the CRDT machinery uses canonical JSON like `{"id":"row-1"}`, and
+/// `haex_shared_space_sync.row_pks` stores exactly the same form.
+fn is_registered_for_space(
+    db: &DbConnection,
+    table_name: &str,
+    row_pks: &str,
+    space_id: &str,
+) -> Result<bool, DatabaseError> {
+    with_connection(db, |conn| {
+        let mut stmt = conn
+            .prepare(
+                "SELECT 1 FROM haex_shared_space_sync \
+                 WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3 \
+                 LIMIT 1",
+            )
+            .map_err(|e| DatabaseError::QueryError {
+                reason: format!("prepare is_registered_for_space: {e}"),
+            })?;
+        let mut rows = stmt
+            .query(rusqlite::params![table_name, row_pks, space_id])
+            .map_err(|e| DatabaseError::QueryError {
+                reason: format!("query is_registered_for_space: {e}"),
+            })?;
+        let found = rows
+            .next()
+            .map_err(|e| DatabaseError::QueryError {
+                reason: format!("row-step is_registered_for_space: {e}"),
+            })?
+            .is_some();
+        Ok(found)
+    })
 }
