@@ -15,6 +15,7 @@ use serde_json::Value as JsonValue;
 use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::scanner::{is_registered_for_space, is_space_scoped_table, LocalColumnChange};
 use crate::database::core::with_connection;
+use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 
 use super::InboundSyncPushOutcome;
@@ -39,51 +40,111 @@ pub fn validate_and_attribute(
     changes: Vec<LocalColumnChange>,
 ) -> InboundSyncPushOutcome {
     // --- (1) + (2): whitelist / registry and space_id scope --------------
-    for change in &changes {
-        if !is_space_scoped_table(&change.table_name) {
-            // Fallback: extension-owned content tables aren't on the static
-            // whitelist; they're registered per-space via
-            // `haex_shared_space_sync`. Accept iff the exact
-            // (table, row_pks, space_id) triple is registered.
-            let lookup = with_connection(db, |conn| {
-                is_registered_for_space(conn, &change.table_name, &change.row_pks, space_id)
-            });
-            match lookup {
-                Ok(true) => {} // allowed via registry
-                Ok(false) => {
-                    return InboundSyncPushOutcome::Rejected {
-                        reason: format!(
-                            "Table {} row {} is not allowed in space-scoped sync (not whitelisted, not registered for space {})",
-                            change.table_name, change.row_pks, space_id
-                        ),
-                    };
-                }
-                Err(e) => {
-                    // Fail-CLOSED. A DB error MUST NOT collapse into
-                    // accept ("permissive on error" bypass), and it MUST
-                    // NOT be silently swallowed as an unregistered-reject
-                    // either — surface the underlying failure in the
-                    // reason so operators see why we rejected.
-                    return InboundSyncPushOutcome::Rejected {
-                        reason: format!(
-                            "Registry lookup failed for {} row {}: {}",
-                            change.table_name, change.row_pks, e
-                        ),
-                    };
-                }
-            }
-        }
+    //
+    // Registration is a per-`(table_name, row_pks)` property — every
+    // column change on the same row shares the same registry answer.
+    // Acquire the DB connection once for the whole batch and memoize
+    // lookups so a batch of N column changes on M unique rows does M
+    // (rather than N) `SELECT`s against `haex_shared_space_sync`.
+    //
+    // A DB error is threaded out as `Err` and turned into a fail-CLOSED
+    // `Rejected` below — it must not collapse into accept and must not
+    // be silently swallowed as unregistered-reject.
+    enum ScopeReject {
+        NotRegistered {
+            table: String,
+            row_pks: String,
+        },
+        SpaceIdMismatch {
+            table: String,
+            inbound: JsonValue,
+        },
+        LookupError {
+            table: String,
+            row_pks: String,
+            error: DatabaseError,
+        },
+    }
 
-        if change.column_name == "space_id" {
-            let inbound = change.value.as_str();
-            if inbound != Some(space_id) {
-                return InboundSyncPushOutcome::Rejected {
-                    reason: format!(
-                        "Row in {} sets space_id={:?} but request is for {}",
-                        change.table_name, change.value, space_id
-                    ),
-                };
+    let scope_result: Result<Result<(), ScopeReject>, DatabaseError> =
+        with_connection(db, |conn| {
+            let mut seen: HashMap<(&str, &str), bool> = HashMap::new();
+            for change in &changes {
+                if !is_space_scoped_table(&change.table_name) {
+                    // Fallback: extension-owned content tables aren't on the
+                    // static whitelist; they're registered per-space via
+                    // `haex_shared_space_sync`. Accept iff the exact
+                    // (table, row_pks, space_id) triple is registered.
+                    let key = (change.table_name.as_str(), change.row_pks.as_str());
+                    let registered = match seen.get(&key) {
+                        Some(v) => *v,
+                        None => match is_registered_for_space(conn, key.0, key.1, space_id) {
+                            Ok(v) => {
+                                seen.insert(key, v);
+                                v
+                            }
+                            Err(e) => {
+                                return Ok(Err(ScopeReject::LookupError {
+                                    table: change.table_name.clone(),
+                                    row_pks: change.row_pks.clone(),
+                                    error: e,
+                                }));
+                            }
+                        },
+                    };
+                    if !registered {
+                        return Ok(Err(ScopeReject::NotRegistered {
+                            table: change.table_name.clone(),
+                            row_pks: change.row_pks.clone(),
+                        }));
+                    }
+                }
+
+                if change.column_name == "space_id" {
+                    let inbound = change.value.as_str();
+                    if inbound != Some(space_id) {
+                        return Ok(Err(ScopeReject::SpaceIdMismatch {
+                            table: change.table_name.clone(),
+                            inbound: change.value.clone(),
+                        }));
+                    }
+                }
             }
+            Ok(Ok(()))
+        });
+
+    match scope_result {
+        Ok(Ok(())) => {}
+        Ok(Err(ScopeReject::NotRegistered { table, row_pks })) => {
+            return InboundSyncPushOutcome::Rejected {
+                reason: format!(
+                    "Table {table} row {row_pks} is not allowed in space-scoped sync (not whitelisted, not registered for space {space_id})",
+                ),
+            };
+        }
+        Ok(Err(ScopeReject::SpaceIdMismatch { table, inbound })) => {
+            return InboundSyncPushOutcome::Rejected {
+                reason: format!(
+                    "Row in {table} sets space_id={inbound:?} but request is for {space_id}",
+                ),
+            };
+        }
+        Ok(Err(ScopeReject::LookupError {
+            table,
+            row_pks,
+            error,
+        })) => {
+            return InboundSyncPushOutcome::Rejected {
+                reason: format!("Registry lookup failed for {table} row {row_pks}: {error}",),
+            };
+        }
+        Err(e) => {
+            // DB / lock error acquiring the connection itself — also
+            // fail-CLOSED so `Rejected` is the only path a caller sees
+            // when the check cannot be performed.
+            return InboundSyncPushOutcome::Rejected {
+                reason: format!("Registry lookup failed (connection): {e}"),
+            };
         }
     }
 

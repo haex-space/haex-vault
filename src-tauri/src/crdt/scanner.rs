@@ -355,17 +355,6 @@ fn emit_row_changes(
         row_map.insert(col_name, json_val);
     }
 
-    // Parse haex_column_hlcs JSON
-    let column_hlcs: HashMap<String, String> = match row_map.get(COLUMN_HLCS_COLUMN) {
-        Some(JsonValue::String(s)) => serde_json::from_str(s).unwrap_or_default(),
-        _ => HashMap::new(),
-    };
-    let column_sigs: JsonValue = row_map
-        .get(COLUMN_SIGS_COLUMN)
-        .and_then(JsonValue::as_str)
-        .and_then(|raw| serde_json::from_str(raw).ok())
-        .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
-
     // Build canonical PK JSON string in **schema-declaration order** — the
     // writer wire form. `extension_space_assign` stores `row_pks` verbatim
     // from the caller, and TS extensions produce PK JSON via
@@ -412,12 +401,25 @@ fn emit_row_changes(
     // Registry-driven scan: skip rows whose PK JSON is not on the allow-list.
     // The allow-list is derived from `haex_shared_space_sync.row_pks`, which
     // uses the same canonical encoding, so a plain string membership check is
-    // sufficient.
+    // sufficient. Applied here — before parsing the HLC/sig JSON blobs —
+    // so a table with many rows but few registered PKs pays deserialisation
+    // cost only for allow-listed rows.
     if let Some(wanted) = row_pks_filter {
         if !wanted.contains(pk_json.as_str()) {
             return Ok(());
         }
     }
+
+    // Parse haex_column_hlcs JSON
+    let column_hlcs: HashMap<String, String> = match row_map.get(COLUMN_HLCS_COLUMN) {
+        Some(JsonValue::String(s)) => serde_json::from_str(s).unwrap_or_default(),
+        _ => HashMap::new(),
+    };
+    let column_sigs: JsonValue = row_map
+        .get(COLUMN_SIGS_COLUMN)
+        .and_then(JsonValue::as_str)
+        .and_then(|raw| serde_json::from_str(raw).ok())
+        .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
 
     // Row-level HLC as fallback. An empty string is treated as "absent":
     // a corrupt/legacy row can carry `haex_hlc = ''` (e.g. inserted before
@@ -533,22 +535,39 @@ fn scan_registered_table_rows_for_space(
         return Ok(Vec::new());
     }
 
-    let schema = get_table_schema(conn, table_name).map_err(DatabaseError::from)?;
-
-    // Unknown table (empty schema) — silently skip. A stale registry entry
-    // referencing a dropped table must not crash the whole scan.
-    if schema.is_empty() {
-        return Ok(Vec::new());
-    }
+    // `table_name` comes from `haex_shared_space_sync`, which is itself
+    // replicated content and therefore peer-influenced — treat it as
+    // untrusted here. A malformed registry entry (unsafe identifier,
+    // dropped/renamed target table, or a table with no primary key) must
+    // not abort the whole space push: pass 1 (control-plane) already
+    // produced changes above, and other register entries for the same
+    // space must still be scanned. Skip with a `warn!` instead of
+    // propagating the error.
+    let schema = match get_table_schema(conn, table_name) {
+        Ok(s) if !s.is_empty() => s,
+        Ok(_) => return Ok(Vec::new()),
+        Err(e) => {
+            tracing::warn!(
+                target: "crdt::scanner",
+                table = %table_name,
+                space_id,
+                error = %e,
+                "registry references unreadable table; skipping"
+            );
+            return Ok(Vec::new());
+        }
+    };
 
     let (pk_columns, data_columns) = partition_columns(&schema);
 
     if pk_columns.is_empty() {
-        return Err(DatabaseError::ExecutionError {
-            sql: format!("PRAGMA table_info(\"{}\")", table_name),
-            reason: format!("Table '{}' has no primary key", table_name),
-            table: Some(table_name.to_string()),
-        });
+        tracing::warn!(
+            target: "crdt::scanner",
+            table = %table_name,
+            space_id,
+            "registry references table without a primary key; skipping"
+        );
+        return Ok(Vec::new());
     }
 
     // Build column list: PKs + data columns + CRDT metadata.

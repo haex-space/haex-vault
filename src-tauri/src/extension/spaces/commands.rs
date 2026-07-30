@@ -112,7 +112,7 @@ pub(super) fn require_active_local_member(
 ///
 /// Fail-closed on DB errors — a DB failure surfaces as
 /// [`ExtensionError::Database`], not silently as "member".
-fn require_active_local_member_for_all(
+pub(super) fn require_active_local_member_for_all(
     db: &crate::database::DbConnection,
     assignments: &[SpaceAssignment],
 ) -> Result<(), ExtensionError> {

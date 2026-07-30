@@ -397,3 +397,41 @@ fn rejects_registered_content_row_when_space_id_differs() {
         "reason should name the table: {reason}"
     );
 }
+
+#[test]
+fn rejects_when_registry_lookup_fails() {
+    // Fail-CLOSED: if `is_registered_for_space` returns `Err` (e.g. the
+    // registry table is missing or corrupt), an unwhitelisted-table change
+    // MUST reject rather than either accept or silently be treated as
+    // unregistered. This guards against a future `.unwrap_or(false)`-style
+    // regression.
+    let db = setup_authz_db();
+    // Drop the registry table so the lookup errors out. Direct SQL (not
+    // `core::execute_with_crdt`) — we're setting up an error condition,
+    // not exercising the CRDT layer.
+    {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute("DROP TABLE haex_shared_space_sync", [])
+            .unwrap();
+    }
+
+    let changes = vec![make_change(
+        EXT_TABLE,
+        "row-1",
+        "body",
+        "1000/abcd",
+        json!("hello"),
+    )];
+
+    let reason = expect_rejected(validate_and_attribute(
+        &db,
+        "space-A",
+        "did:key:zAlice",
+        changes,
+    ));
+    assert!(
+        reason.contains("Registry lookup failed"),
+        "reason should surface the underlying lookup failure: {reason}"
+    );
+}

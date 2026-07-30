@@ -702,34 +702,32 @@ fn scan_single_column_for_owner_nonexistent_table_or_column_is_empty() {
 }
 
 // -----------------------------------------------------------------------
-// Task 4 (W3): failing tests for registry-driven P2P scan
+// Registry-driven P2P scan coverage
 // -----------------------------------------------------------------------
 //
-// `scan_space_scoped_tables_for_local_changes` today iterates only the
-// static [`SPACE_SCOPED_CRDT_TABLES`] whitelist — that covers the
-// membership-system tables but misses extension-owned content tables,
-// whose rows are registered per-`(table, row_pks, space_id)` in
-// `haex_shared_space_sync`. Task 3a landed the RECEIVER's registry-
-// driven acceptance (`is_registered_for_space`); Task 5 lands the
-// outbound counterpart.
+// `scan_space_scoped_tables_for_local_changes` runs two passes:
 //
-// These tests describe the behaviour Task 5 must produce.
+// * Pass 1 — static [`SPACE_SCOPED_CRDT_TABLES`] whitelist for the
+//   membership-system tables scoped by their own `space_id` column.
+// * Pass 2 — registry-driven scan of extension-owned content tables via
+//   `haex_shared_space_sync`, which maps `(table_name, row_pks)` to a
+//   `space_id` for tables that carry no `space_id` column of their own.
+//   The register and the whitelist are additive; the guard in the pass 2
+//   loop drops any register row referencing a whitelisted table so
+//   control-plane data cannot be re-emitted through the ext path.
 //
-// Test 1 (`registered_extension_row_included_in_p2p_scan`) is the load-
-// bearing failing test: current code iterates only the whitelist so a
-// registered `ext_notes_v1` row is invisible to the scan — the assertion
-// that it appears in `changes` FAILS.
+// The tests below lock the observable contract of that pipeline in:
 //
-// Test 2 (`registered_row_in_different_space_not_included`) is a cross-
-// space leak guard. It currently passes trivially (ext tables aren't
-// scanned at all) but becomes load-bearing once Task 5 is in place: a
-// naive impl that iterates every registry row without matching
-// `registry.space_id` against the scan space would leak.
-//
-// Test 3 (`control_plane_scan_still_works_without_registry_entries`) is
-// a regression guard — passes today and MUST keep passing so Task 5
-// does not accidentally gate whitelisted tables behind a registry
-// lookup.
+// * `registered_extension_row_included_in_p2p_scan` — a registered
+//   `ext_notes_v1` row appears in the scan output and a sibling
+//   unregistered row does not.
+// * `registered_row_in_different_space_not_included` — cross-space leak
+//   guard: the registry-space filter matches on `registry.space_id`, so
+//   a row registered for space B is invisible to a scan targeting
+//   space A.
+// * `control_plane_scan_still_works_without_registry_entries` —
+//   regression guard: pass 1 continues to emit whitelisted rows even
+//   when the registry holds nothing for the space.
 
 /// Convention: extension-owned CRDT tables use an `ext_<name>_v<n>`
 /// prefix. Matches the literal used in `inbound_sync_tests::
@@ -879,15 +877,10 @@ fn insert_member_row(conn: &Connection, id: &str, space_id: &str, identity_id: &
 fn registered_extension_row_included_in_p2p_scan() {
     // Given `(space-A, EXT_TABLE, {"id":"row-1"})` is registered in
     // haex_shared_space_sync and the corresponding row exists in
-    // EXT_TABLE, the space-scoped P2P scan MUST return it. A second
-    // row in the same table that is NOT registered must not leak
-    // into the output — that's the whole point of the register.
-    //
-    // FAILING TODAY: `scan_space_scoped_tables_for_local_changes`
-    // iterates only `SPACE_SCOPED_CRDT_TABLES`, which does NOT include
-    // `ext_notes_v1`. The scanner never opens the extension table, so
-    // the "row-1" assertion trips. Task 5 lifts this by consulting the
-    // register per space.
+    // EXT_TABLE, the space-scoped P2P scan returns it. A second row in
+    // the same table that is NOT registered stays out of the output —
+    // the register is the sole entry point for extension-owned rows
+    // into pass 2 of `scan_space_scoped_tables_for_local_changes`.
     let conn = setup_registry_scan_db();
     insert_ext_row(
         &conn,
