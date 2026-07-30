@@ -976,21 +976,20 @@ fn registered_row_in_different_space_not_included() {
 /// Composite-PK smoke test for the registry-driven pass.
 ///
 /// Regression guard for the "PK JSON key ordering" concern (Task 5 code
-/// review): the register writer may emit PKs in schema-declared order
-/// (`{"b":"yb","a":"xa"}`) while the outbound scanner's `serde_json::Map`
-/// (a `BTreeMap` — this crate does NOT enable the `preserve_order`
-/// feature) serialises alphabetically (`{"a":"xa","b":"yb"}`). A naive
-/// `HashSet::contains(pk_json)` filter would then miss composite-PK rows.
+/// review): the writer path (`extension_space_assign`) stores `row_pks`
+/// verbatim from the caller, and TS extensions produce PK JSON via
+/// `JSON.stringify` on object literals built in schema-PK-declaration
+/// order (matching the TS reader `tableScanner.ts:446-449`). The outbound
+/// scanner MUST produce the same schema-declaration-order form, or a
+/// `HashSet::contains(pk_json)` filter would miss composite-PK rows and
+/// silently drop them.
 ///
-/// The scanner's canonical form is **alphabetical** because
-/// `serde_json::Map` sorts keys on serialisation. This test locks that
-/// contract in from the read side: a registry entry stored in alphabetical
-/// order MUST match; a registry entry stored in schema-declared order
-/// (non-alphabetical) MUST NOT match — that is what the alphabetical
-/// contract means, and any register-writer that produces a different
-/// order would have to be updated to sort keys.
+/// The scanner's canonical form is **schema-declaration order** — the
+/// order PK columns are declared in the CREATE TABLE. This test locks
+/// that contract in from the read side: a registry entry stored in
+/// schema-declaration order (matching the writer wire form) MUST match.
 #[test]
-fn registered_composite_pk_row_scanned_across_json_key_orderings() {
+fn registered_composite_pk_row_matches_schema_order_wire_form() {
     let conn = setup_registry_scan_db();
 
     // Composite-PK extension table where schema order (b, a) != alphabetical (a, b).
@@ -1026,13 +1025,16 @@ fn registered_composite_pk_row_scanned_across_json_key_orderings() {
     )
     .unwrap();
 
-    // Register with ALPHABETICAL key order — matches the scanner's canonical form.
+    // Register with SCHEMA-DECLARATION key order — matches the writer wire
+    // form (`JSON.stringify({b: ..., a: ...})` on a schema-order object
+    // literal, which is what TS extensions produce and what
+    // `extension_space_assign` stores verbatim).
     insert_registry_entry(
         &conn,
-        "reg-alpha",
+        "reg-schema-order",
         "space-A",
         "ext_composite_v1",
-        r#"{"a":"xa","b":"yb"}"#,
+        r#"{"b":"yb","a":"xa"}"#,
     );
 
     let db = wrap_db(conn);
@@ -1045,23 +1047,23 @@ fn registered_composite_pk_row_scanned_across_json_key_orderings() {
         .collect();
     assert!(
         !composite_hits.is_empty(),
-        "composite-PK row registered in canonical (alphabetical) key order must be \
+        "composite-PK row registered in canonical (schema-declaration) key order must be \
          included in the space-scoped scan, got: {changes:?}",
     );
-    // Sanity: the scanner emitted the row_pks in alphabetical order too,
+    // Sanity: the scanner emitted the row_pks in schema-declaration order too,
     // proving both writer and scanner agree on the canonical form.
     assert_eq!(
-        composite_hits[0].row_pks, r#"{"a":"xa","b":"yb"}"#,
-        "scanner must emit composite PKs in alphabetical key order (serde_json::Map == BTreeMap)"
+        composite_hits[0].row_pks, r#"{"b":"yb","a":"xa"}"#,
+        "scanner must emit composite PKs in schema-declaration key order (matches writer wire form)"
     );
 }
 
-/// Negative counterpart: a register entry stored in schema-declared PK
-/// order (non-alphabetical) MUST NOT match, because the outbound scanner
-/// produces alphabetical PK JSON. If this test starts failing, either the
-/// register writer began emitting canonical form (good — remove this
-/// test), or someone enabled `serde_json/preserve_order` and broke the
-/// canonical contract (bad — see the doc on `is_registered_for_space`).
+/// Negative counterpart: a register entry stored in alphabetical PK
+/// order (non-canonical under the current wire form) MUST NOT match,
+/// because the outbound scanner produces schema-declaration-order PK
+/// JSON. If this test starts failing, someone likely changed the scanner
+/// to emit alphabetical form (e.g. reintroduced `serde_json::Map`) —
+/// see the doc on `is_registered_for_space` for the wire contract.
 #[test]
 fn registered_composite_pk_row_ignored_when_registry_key_order_differs() {
     let conn = setup_registry_scan_db();
@@ -1085,14 +1087,14 @@ fn registered_composite_pk_row_ignored_when_registry_key_order_differs() {
         rusqlite::params!["yb", "xa", "hello", hlc, hlcs],
     )
     .unwrap();
-    // Register with schema-declared (b, a) key order — NOT the canonical
-    // alphabetical form the scanner produces.
+    // Register with ALPHABETICAL (a, b) key order — NOT the canonical
+    // schema-declaration form the scanner produces.
     insert_registry_entry(
         &conn,
-        "reg-schema-order",
+        "reg-alphabetical",
         "space-A",
         "ext_composite_v1",
-        r#"{"b":"yb","a":"xa"}"#,
+        r#"{"a":"xa","b":"yb"}"#,
     );
 
     let db = wrap_db(conn);
@@ -1101,8 +1103,9 @@ fn registered_composite_pk_row_ignored_when_registry_key_order_differs() {
 
     assert!(
         !changes.iter().any(|c| c.table_name == "ext_composite_v1"),
-        "register entry using non-canonical key order MUST NOT match — the register \
-         writer is responsible for producing alphabetical PK JSON: {changes:?}",
+        "register entry using non-canonical (alphabetical) key order MUST NOT match — \
+         the register writer is responsible for producing schema-declaration-order \
+         PK JSON: {changes:?}",
     );
 }
 

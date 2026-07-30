@@ -106,15 +106,24 @@ pub fn is_space_scoped_table(table_name: &str) -> bool {
 /// here because it only converts `QueryReturnedNoRows` to `Ok(None)`.
 ///
 /// The `row_pks` encoding must match what the outbound scanner produces.
-/// The **canonical form is alphabetical-by-key**: the CRDT scanner builds
-/// PK JSON via `serde_json::Map` (which, without the `preserve_order`
-/// feature enabled on this crate's `serde_json`, is a `BTreeMap` and
-/// serialises keys in sorted order — see `emit_row_changes`). Every
-/// writer of `haex_shared_space_sync.row_pks` must produce the same
-/// alphabetical form, or a `HashSet::contains` filter on composite PKs
-/// with schema-declared order like `(col_b, col_a)` will miss the row.
-/// See `crdt::column_sig::register_lookup::canonicalize_row_pks` for a
-/// helper that normalises via `BTreeMap`.
+/// The **canonical form is schema-declaration order** — the order PK
+/// columns are declared in the table's CREATE TABLE. This matches the TS
+/// `JSON.stringify` on object literals built in schema-PK-declaration
+/// order (which `extension_space_assign` stores verbatim), and the TS
+/// reader `tableScanner.ts:446-449` (`json_object('pk1', t."pk1", 'pk2',
+/// t."pk2")`, iteration order = schema order). The Rust CRDT scanner
+/// builds its PK JSON via an explicit string builder iterating
+/// `pk_columns` in schema order — see `emit_row_changes`.
+///
+/// Every writer of `haex_shared_space_sync.row_pks` must produce the same
+/// schema-declaration form, or a `HashSet::contains` filter on composite
+/// PKs with non-alphabetical schema order like `(col_b, col_a)` will miss
+/// the row.
+///
+/// Note: `crdt::column_sig::register_lookup::canonicalize_row_pks`
+/// normalises to alphabetical order — it is used **only** for internal
+/// cache-key normalisation and is NOT the wire form. Do not use it to
+/// build register entries.
 pub fn is_registered_for_space(
     conn: &Connection,
     table_name: &str,
@@ -357,16 +366,48 @@ fn emit_row_changes(
         .and_then(|raw| serde_json::from_str(raw).ok())
         .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
 
-    // Build canonical PK JSON string (matches the on-wire / register encoding).
-    let pk_map: serde_json::Map<String, JsonValue> = pk_columns
-        .iter()
-        .filter_map(|pk| {
-            row_map
-                .get(pk.name.as_str())
-                .map(|v| (pk.name.clone(), v.clone()))
-        })
-        .collect();
-    let pk_json = serde_json::to_string(&pk_map).unwrap_or_else(|_| "{}".to_string());
+    // Build canonical PK JSON string in **schema-declaration order** — the
+    // writer wire form. `extension_space_assign` stores `row_pks` verbatim
+    // from the caller, and TS extensions produce PK JSON via
+    // `JSON.stringify({pk1: ..., pk2: ...})` where the object literal is
+    // built in schema-PK-declaration order. The TS reader
+    // (`tableScanner.ts:446-449`) mirrors that via
+    // `json_object('pk1', t."pk1", 'pk2', t."pk2")`, which also preserves
+    // schema order. This scanner must produce the same form, or a
+    // `HashSet::contains(pk_json)` filter on composite PKs with
+    // non-alphabetical schema order like `(b, a)` would miss the row and
+    // silently drop it.
+    //
+    // We cannot use `serde_json::Map<String, JsonValue>` here — without the
+    // `preserve_order` feature it is a `BTreeMap` and sorts keys
+    // alphabetically. Construct the JSON string explicitly instead, iterating
+    // `pk_columns` in the order returned by `get_table_schema` (schema-
+    // declaration order).
+    let mut pk_json = String::from("{");
+    let mut first = true;
+    for pk in pk_columns {
+        let val = row_map
+            .get(pk.name.as_str())
+            .cloned()
+            .unwrap_or(JsonValue::Null);
+        if !first {
+            pk_json.push(',');
+        }
+        first = false;
+        // Both key and value go through serde_json so escaping (quotes,
+        // backslashes, control chars, non-ASCII) matches what TS
+        // `JSON.stringify` produces.
+        let key_json = serde_json::to_string(&pk.name).map_err(|e| DatabaseError::QueryError {
+            reason: format!("serialize pk column name '{}': {e}", pk.name),
+        })?;
+        let val_json = serde_json::to_string(&val).map_err(|e| DatabaseError::QueryError {
+            reason: format!("serialize pk column value for '{}': {e}", pk.name),
+        })?;
+        pk_json.push_str(&key_json);
+        pk_json.push(':');
+        pk_json.push_str(&val_json);
+    }
+    pk_json.push('}');
 
     // Registry-driven scan: skip rows whose PK JSON is not on the allow-list.
     // The allow-list is derived from `haex_shared_space_sync.row_pks`, which
@@ -463,13 +504,18 @@ fn emit_row_changes(
 /// # Parameters
 ///
 /// * `row_pks_set` — canonical PK JSON strings (`{"id":"row-1"}`, or
-///   `{"col_a":"x","col_b":"y"}` for composite PKs). Encoding must match what
-///   [`emit_row_changes`] produces via `serde_json::to_string` on a
-///   `serde_json::Map`, which **without the `preserve_order` feature is a
-///   `BTreeMap` and emits keys in alphabetical order** — every register
-///   writer must therefore also emit alphabetical PK JSON, or composite-PK
-///   rows with non-alphabetical schema order will silently be skipped by
-///   the `HashSet::contains` check in `emit_row_changes`.
+///   `{"col_b":"y","col_a":"x"}` for a composite PK declared `(col_b,
+///   col_a)`). Encoding must match what [`emit_row_changes`] produces via
+///   the explicit string builder iterating `pk_columns` in
+///   **schema-declaration order** (the order returned by
+///   `get_table_schema`). This matches the writer wire form: TS extensions
+///   emit `JSON.stringify({pk1: ..., pk2: ...})` on object literals built
+///   in schema-PK-declaration order, and `extension_space_assign` stores
+///   `row_pks` verbatim. See `tableScanner.ts:446-449` for the TS reader's
+///   `json_object` construction, which also preserves schema order. Every
+///   register writer must therefore emit schema-declaration-order PK JSON,
+///   or composite-PK rows with non-alphabetical schema order will silently
+///   be skipped by the `HashSet::contains` check in [`emit_row_changes`].
 /// * `after_hlc` — exclusive HLC lower bound, same semantics as
 ///   [`scan_table_for_local_changes_scoped`].
 /// * `origin_node` — ping-pong filter, same semantics as
