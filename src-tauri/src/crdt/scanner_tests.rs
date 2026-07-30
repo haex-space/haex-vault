@@ -1136,3 +1136,56 @@ fn control_plane_scan_still_works_without_registry_entries() {
         "whitelisted control-plane row must be scanned even with an empty registry, got: {changes:?}",
     );
 }
+
+#[test]
+fn read_only_push_excludes_registered_extension_rows() {
+    // Regression guard. Read-only members push via
+    // `scan_membership_tables_for_local_changes`, which filters to
+    // `MEMBERSHIP_SYSTEM_TABLES` only. Registered extension rows are
+    // content, not membership, and must never leak into that pipe —
+    // pushing them with Read capability would make the leader reject
+    // the whole batch and wedge the read-only push cursor at t=0.
+    //
+    // Passes trivially today (the whitelist filter can't contain an
+    // extension table), but Task 5 taught `scan_space_scoped_...` to
+    // consult the registry; this test locks the read-only pipe down
+    // against a future refactor that accidentally routes extension
+    // rows through it.
+    let conn = setup_registry_scan_db();
+    // Seed a registered extension row into space-A — same fixture
+    // shape as `registered_extension_row_included_in_p2p_scan`.
+    insert_ext_row(
+        &conn,
+        "row-1",
+        "hello",
+        "1000000000000000000/aabbccdd",
+        Some("space-A"),
+    );
+    insert_registry_entry(&conn, "reg-1", "space-A", EXT_TABLE, r#"{"id":"row-1"}"#);
+    // Also seed a whitelisted membership row so the assertion below is
+    // non-vacuous — the test would trivially pass on "no changes at
+    // all", we want it to confirm the read-only pipe still surfaces
+    // whitelisted rows while dropping extension rows.
+    insert_member_row(
+        &conn,
+        "mem-1",
+        "space-A",
+        "id-alice",
+        "2000000000000000000/aabbccdd",
+    );
+
+    let db = wrap_db(conn);
+    let changes =
+        scan_membership_tables_for_local_changes(&db, "space-A", None, "device-A", None).unwrap();
+
+    assert!(
+        !changes.iter().any(|c| c.table_name == EXT_TABLE),
+        "read-only push MUST NOT include registered extension rows: {changes:?}",
+    );
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.table_name == "haex_space_members"),
+        "read-only push must still surface whitelisted MEMBERSHIP_SYSTEM_TABLES rows, got: {changes:?}",
+    );
+}
