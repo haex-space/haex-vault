@@ -700,3 +700,303 @@ fn scan_single_column_for_owner_nonexistent_table_or_column_is_empty() {
         scan_single_column_for_owner(&conn, "test_items", "nonexistent_col", "device-1").unwrap();
     assert!(no_column.is_empty());
 }
+
+// -----------------------------------------------------------------------
+// Task 4 (W3): failing tests for registry-driven P2P scan
+// -----------------------------------------------------------------------
+//
+// `scan_space_scoped_tables_for_local_changes` today iterates only the
+// static [`SPACE_SCOPED_CRDT_TABLES`] whitelist — that covers the
+// membership-system tables but misses extension-owned content tables,
+// whose rows are registered per-`(table, row_pks, space_id)` in
+// `haex_shared_space_sync`. Task 3a landed the RECEIVER's registry-
+// driven acceptance (`is_registered_for_space`); Task 5 lands the
+// outbound counterpart.
+//
+// These tests describe the behaviour Task 5 must produce.
+//
+// Test 1 (`registered_extension_row_included_in_p2p_scan`) is the load-
+// bearing failing test: current code iterates only the whitelist so a
+// registered `ext_notes_v1` row is invisible to the scan — the assertion
+// that it appears in `changes` FAILS.
+//
+// Test 2 (`registered_row_in_different_space_not_included`) is a cross-
+// space leak guard. It currently passes trivially (ext tables aren't
+// scanned at all) but becomes load-bearing once Task 5 is in place: a
+// naive impl that iterates every registry row without matching
+// `registry.space_id` against the scan space would leak.
+//
+// Test 3 (`control_plane_scan_still_works_without_registry_entries`) is
+// a regression guard — passes today and MUST keep passing so Task 5
+// does not accidentally gate whitelisted tables behind a registry
+// lookup.
+
+/// Convention: extension-owned CRDT tables use an `ext_<name>_v<n>`
+/// prefix. Matches the literal used in `inbound_sync_tests::
+/// validate_and_attribute::EXT_TABLE`, so the receiver-side and
+/// scanner-side tests exercise the same shape.
+const EXT_TABLE: &str = "ext_notes_v1";
+
+/// Wrap an in-memory `Connection` in a [`DbConnection`] the way the
+/// production code expects. Mirrors the pattern in
+/// `space_delivery::local::inbound_sync_tests::helpers::setup_authz_db`.
+fn wrap_db(conn: Connection) -> crate::database::DbConnection {
+    use std::sync::{Arc, Mutex};
+    crate::database::DbConnection(Arc::new(Mutex::new(Some(conn))))
+}
+
+/// In-memory DB with the schemas the registry-driven scan needs:
+/// the register itself, one whitelisted control-plane table
+/// (`haex_space_members`), and one extension-owned content table
+/// (`EXT_TABLE`). No CRDT triggers or migrations — the scanner reads
+/// plain rows.
+fn setup_registry_scan_db() -> Connection {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE haex_shared_space_sync (
+                id TEXT PRIMARY KEY NOT NULL,
+                table_name TEXT NOT NULL,
+                row_pks TEXT NOT NULL,
+                space_id TEXT NOT NULL,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+            );
+
+            CREATE TABLE haex_space_members (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                identity_id TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'read',
+                authored_by_did TEXT,
+                joined_at TEXT,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+            );
+
+            CREATE TABLE ext_notes_v1 (
+                id TEXT PRIMARY KEY,
+                body TEXT,
+                haex_hlc TEXT,
+                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+            );",
+    )
+    .unwrap();
+    conn
+}
+
+/// Seed one row into `EXT_TABLE` with a per-column signature keyed by
+/// `sig_space_id` (which is how the W1 write path attaches sigs
+/// through `execute_with_crdt`). `sig_space_id = None` writes no sig,
+/// used by the leak guard to prove the scanner still emits scoped
+/// data even in that shape.
+fn insert_ext_row(conn: &Connection, id: &str, body: &str, hlc: &str, sig_space_id: Option<&str>) {
+    let hlcs = format!("{{\"body\":\"{hlc}\"}}");
+    let sigs = match sig_space_id {
+        Some(space_id) => serde_json::json!({
+            "body": {
+                (space_id): {
+                    "authorDid": "did:key:test",
+                    "sig": "",
+                    "storageClass": "text",
+                }
+            }
+        })
+        .to_string(),
+        None => "{}".to_string(),
+    };
+    conn.execute(
+        "INSERT INTO ext_notes_v1 (id, body, haex_hlc, haex_column_hlcs, haex_column_sigs)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, body, hlc, hlcs, sigs],
+    )
+    .unwrap();
+}
+
+/// Seed a `(table, row_pks, space_id)` triple into the register.
+///
+/// Direct INSERT (not `core::execute_with_crdt`) — the scanner only
+/// READS `haex_shared_space_sync`, so bypassing the register-fanout
+/// trigger is fine. Same trade-off as
+/// `inbound_sync_tests::helpers::insert_registered`.
+fn insert_registry_entry(
+    conn: &Connection,
+    registry_row_id: &str,
+    space_id: &str,
+    table_name: &str,
+    row_pks: &str,
+) {
+    // Give the register row a plausible HLC + per-column HLC map so the
+    // scanner emits realistic `LocalColumnChange`s from the register
+    // table itself (`haex_shared_space_sync` IS on the whitelist).
+    // Without this, the register-row changes come out with
+    // `hlc_timestamp = "haex_hlc"` (a literal-string fallback), which
+    // is confusing when debugging failures on the ext-table assertions.
+    let hlc = "1000000000000000000/aabbccdd";
+    let hlcs = format!("{{\"table_name\":\"{hlc}\",\"row_pks\":\"{hlc}\",\"space_id\":\"{hlc}\"}}");
+    conn.execute(
+        "INSERT INTO haex_shared_space_sync
+             (id, table_name, row_pks, space_id, haex_hlc, haex_column_hlcs)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![registry_row_id, table_name, row_pks, space_id, hlc, hlcs],
+    )
+    .unwrap();
+}
+
+/// Seed one row into `haex_space_members` with per-column sigs keyed by
+/// `space_id`. Used by the regression guard test.
+fn insert_member_row(conn: &Connection, id: &str, space_id: &str, identity_id: &str, hlc: &str) {
+    let hlcs = format!("{{\"identity_id\":\"{hlc}\",\"role\":\"{hlc}\"}}");
+    let sigs = serde_json::json!({
+        "identity_id": {
+            (space_id): {
+                "authorDid": "did:key:test",
+                "sig": "",
+                "storageClass": "text",
+            }
+        },
+        "role": {
+            (space_id): {
+                "authorDid": "did:key:test",
+                "sig": "",
+                "storageClass": "text",
+            }
+        }
+    })
+    .to_string();
+    conn.execute(
+        "INSERT INTO haex_space_members
+             (id, space_id, identity_id, role, haex_hlc, haex_column_hlcs, haex_column_sigs)
+             VALUES (?1, ?2, ?3, 'read', ?4, ?5, ?6)",
+        rusqlite::params![id, space_id, identity_id, hlc, hlcs, sigs],
+    )
+    .unwrap();
+}
+
+#[test]
+fn registered_extension_row_included_in_p2p_scan() {
+    // Given `(space-A, EXT_TABLE, {"id":"row-1"})` is registered in
+    // haex_shared_space_sync and the corresponding row exists in
+    // EXT_TABLE, the space-scoped P2P scan MUST return it. A second
+    // row in the same table that is NOT registered must not leak
+    // into the output — that's the whole point of the register.
+    //
+    // FAILING TODAY: `scan_space_scoped_tables_for_local_changes`
+    // iterates only `SPACE_SCOPED_CRDT_TABLES`, which does NOT include
+    // `ext_notes_v1`. The scanner never opens the extension table, so
+    // the "row-1" assertion trips. Task 5 lifts this by consulting the
+    // register per space.
+    let conn = setup_registry_scan_db();
+    insert_ext_row(
+        &conn,
+        "row-1",
+        "hello",
+        "1000000000000000000/aabbccdd",
+        Some("space-A"),
+    );
+    insert_ext_row(
+        &conn,
+        "row-unregistered",
+        "sekrit",
+        "2000000000000000000/aabbccdd",
+        Some("space-A"),
+    );
+    insert_registry_entry(&conn, "reg-1", "space-A", EXT_TABLE, r#"{"id":"row-1"}"#);
+
+    let db = wrap_db(conn);
+    let changes =
+        scan_space_scoped_tables_for_local_changes(&db, "space-A", None, "device-A", None).unwrap();
+
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.table_name == EXT_TABLE && c.row_pks.contains("row-1")),
+        "registered extension row must be scanned for P2P push, got: {changes:?}",
+    );
+    assert!(
+        !changes
+            .iter()
+            .any(|c| c.row_pks.contains("row-unregistered")),
+        "unregistered rows must not leak into P2P scan, got: {changes:?}",
+    );
+
+    // Sig-forwarding (W1 → W2 contract). The receiver's W2 gate REJECTS
+    // a registered extension row that arrives without a per-column sig
+    // for the requested space, so the outbound scan MUST forward the
+    // sig it read off the row. The fixture writes the sig via direct
+    // INSERT (same shape `execute_with_crdt` would produce); if a
+    // future refactor stops seeding sigs here, this assertion will
+    // fail spuriously and needs re-inspection alongside the W1 write
+    // path.
+    let extension_changes: Vec<_> = changes
+        .iter()
+        .filter(|c| c.table_name == EXT_TABLE)
+        .collect();
+    assert!(
+        !extension_changes.is_empty(),
+        "at least one ext change is required for the sig-forwarding assertion to be meaningful",
+    );
+    assert!(
+        extension_changes.iter().all(|c| c.sig.is_some()),
+        "registered extension rows must carry a per-column signature (W1): {extension_changes:?}",
+    );
+}
+
+#[test]
+fn registered_row_in_different_space_not_included() {
+    // Cross-space leak guard. The row is registered for SPACE_B but
+    // the scan requests SPACE_A — the row must NOT appear. Passes
+    // trivially today (ext tables are never scanned) and becomes
+    // load-bearing once Task 5 iterates the register: a naive impl
+    // that reads every register row without matching `space_id`
+    // against the scan space would leak SPACE_B rows to a SPACE_A
+    // peer.
+    let conn = setup_registry_scan_db();
+    insert_ext_row(
+        &conn,
+        "row-1",
+        "hidden",
+        "1000000000000000000/aabbccdd",
+        Some("space-B"),
+    );
+    insert_registry_entry(&conn, "reg-b", "space-B", EXT_TABLE, r#"{"id":"row-1"}"#);
+
+    let db = wrap_db(conn);
+    let changes =
+        scan_space_scoped_tables_for_local_changes(&db, "space-A", None, "device-A", None).unwrap();
+
+    assert!(
+        !changes.iter().any(|c| c.table_name == EXT_TABLE),
+        "row registered in space-B must never appear in a space-A scan, got: {changes:?}",
+    );
+}
+
+#[test]
+fn control_plane_scan_still_works_without_registry_entries() {
+    // Regression guard. Whitelisted control-plane tables must keep
+    // being scanned even when `haex_shared_space_sync` holds no rows
+    // for the scan space. Locks in that Task 5 does not accidentally
+    // gate whitelisted tables behind a register lookup — the whitelist
+    // and the register are additive, not one-or-the-other.
+    let conn = setup_registry_scan_db();
+    insert_member_row(
+        &conn,
+        "mem-1",
+        "space-A",
+        "id-alice",
+        "1000000000000000000/aabbccdd",
+    );
+
+    let db = wrap_db(conn);
+    let changes =
+        scan_space_scoped_tables_for_local_changes(&db, "space-A", None, "device-A", None).unwrap();
+
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.table_name == "haex_space_members"),
+        "whitelisted control-plane row must be scanned even with an empty registry, got: {changes:?}",
+    );
+}
