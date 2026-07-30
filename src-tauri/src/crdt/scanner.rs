@@ -14,7 +14,7 @@ use crate::database::core::{
 };
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -80,6 +80,52 @@ pub const MEMBERSHIP_SYSTEM_TABLES: &[&str] = &[
 /// Returns true if `table_name` may be synchronised as part of a shared space.
 pub fn is_space_scoped_table(table_name: &str) -> bool {
     SPACE_SCOPED_CRDT_TABLES.contains(&table_name)
+}
+
+/// Returns `Ok(true)` iff `(table_name, row_pks, space_id)` appears in
+/// `haex_shared_space_sync` — i.e. the row has been explicitly registered
+/// as belonging to the space via
+/// [`extension_space_assign`](crate::extension::spaces::commands::extension_space_assign).
+///
+/// This is the second half of the "is this row in scope for the space?"
+/// decision paired with [`is_space_scoped_table`]: whitelisted tables are
+/// always in scope, everything else must be registered per-row via the
+/// registry consulted here.
+///
+/// Call sites (both must apply the same fail-CLOSED semantics):
+/// * `space_delivery::local::inbound_sync::validate_and_attribute` — inbound
+///   scope check on leader-side accept.
+/// * Task 4 outbound scanner — space-scoped push filter, to be added.
+///
+/// **Fail-CLOSED contract.** A DB failure MUST propagate up as `Err`, not
+/// collapse into `Ok(false)` — the caller uses the error to reject the
+/// batch while surfacing the underlying cause. Never widen this to
+/// `.unwrap_or(false)` or `.ok()`: that would either silently accept an
+/// unregistered row (if the semantics were flipped) or hide the DB failure
+/// signal that operators need to diagnose the wedge. `.optional()` is safe
+/// here because it only converts `QueryReturnedNoRows` to `Ok(None)`.
+///
+/// The `row_pks` encoding must match what the outbound scanner produces —
+/// the CRDT machinery uses canonical JSON like `{"id":"row-1"}`, and
+/// `haex_shared_space_sync.row_pks` stores exactly the same form.
+pub fn is_registered_for_space(
+    conn: &Connection,
+    table_name: &str,
+    row_pks: &str,
+    space_id: &str,
+) -> Result<bool, DatabaseError> {
+    conn.query_row(
+        "SELECT 1 FROM haex_shared_space_sync \
+         WHERE table_name = ?1 AND row_pks = ?2 AND space_id = ?3 \
+         LIMIT 1",
+        rusqlite::params![table_name, row_pks, space_id],
+        |_| Ok(()),
+    )
+    .optional()
+    .map(|opt| opt.is_some())
+    .map_err(|e| DatabaseError::QueryError {
+        reason: format!("is_registered_for_space({table_name}, {row_pks}, {space_id}): {e}"),
+    })
 }
 
 /// Returns true if a push targeting `table_name` only requires the caller to

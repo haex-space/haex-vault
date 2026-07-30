@@ -174,6 +174,10 @@ pub(super) fn setup_authz_db() -> DbConnection {
 /// the authorisation gate, not the CRDT merge layer, so the register-fanout
 /// trigger machinery is out of scope. `row_pks` must match the encoding
 /// produced by `make_change`/`change` (`{"id":"..."}` JSON).
+///
+/// Production INSERTs into `haex_shared_space_sync` MUST go through
+/// `core::execute_with_crdt` so the register-fanout trigger fires; this
+/// helper is test-only.
 pub(super) fn insert_registered(
     db: &DbConnection,
     registry_row_id: &str,
