@@ -973,6 +973,139 @@ fn registered_row_in_different_space_not_included() {
     );
 }
 
+/// Composite-PK smoke test for the registry-driven pass.
+///
+/// Regression guard for the "PK JSON key ordering" concern (Task 5 code
+/// review): the register writer may emit PKs in schema-declared order
+/// (`{"b":"yb","a":"xa"}`) while the outbound scanner's `serde_json::Map`
+/// (a `BTreeMap` — this crate does NOT enable the `preserve_order`
+/// feature) serialises alphabetically (`{"a":"xa","b":"yb"}`). A naive
+/// `HashSet::contains(pk_json)` filter would then miss composite-PK rows.
+///
+/// The scanner's canonical form is **alphabetical** because
+/// `serde_json::Map` sorts keys on serialisation. This test locks that
+/// contract in from the read side: a registry entry stored in alphabetical
+/// order MUST match; a registry entry stored in schema-declared order
+/// (non-alphabetical) MUST NOT match — that is what the alphabetical
+/// contract means, and any register-writer that produces a different
+/// order would have to be updated to sort keys.
+#[test]
+fn registered_composite_pk_row_scanned_across_json_key_orderings() {
+    let conn = setup_registry_scan_db();
+
+    // Composite-PK extension table where schema order (b, a) != alphabetical (a, b).
+    conn.execute_batch(
+        "CREATE TABLE ext_composite_v1 (
+            b TEXT NOT NULL,
+            a TEXT NOT NULL,
+            body TEXT,
+            haex_hlc TEXT,
+            haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+            haex_column_sigs TEXT NOT NULL DEFAULT '{}',
+            PRIMARY KEY (b, a)
+        );",
+    )
+    .unwrap();
+
+    let hlc = "1000000000000000000/aabbccdd";
+    let hlcs = format!("{{\"body\":\"{hlc}\"}}");
+    let sigs = serde_json::json!({
+        "body": {
+            "space-A": {
+                "authorDid": "did:key:test",
+                "sig": "",
+                "storageClass": "text",
+            }
+        }
+    })
+    .to_string();
+    conn.execute(
+        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc, haex_column_hlcs, haex_column_sigs)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params!["yb", "xa", "hello", hlc, hlcs, sigs],
+    )
+    .unwrap();
+
+    // Register with ALPHABETICAL key order — matches the scanner's canonical form.
+    insert_registry_entry(
+        &conn,
+        "reg-alpha",
+        "space-A",
+        "ext_composite_v1",
+        r#"{"a":"xa","b":"yb"}"#,
+    );
+
+    let db = wrap_db(conn);
+    let changes =
+        scan_space_scoped_tables_for_local_changes(&db, "space-A", None, "device-A", None).unwrap();
+
+    let composite_hits: Vec<_> = changes
+        .iter()
+        .filter(|c| c.table_name == "ext_composite_v1")
+        .collect();
+    assert!(
+        !composite_hits.is_empty(),
+        "composite-PK row registered in canonical (alphabetical) key order must be \
+         included in the space-scoped scan, got: {changes:?}",
+    );
+    // Sanity: the scanner emitted the row_pks in alphabetical order too,
+    // proving both writer and scanner agree on the canonical form.
+    assert_eq!(
+        composite_hits[0].row_pks, r#"{"a":"xa","b":"yb"}"#,
+        "scanner must emit composite PKs in alphabetical key order (serde_json::Map == BTreeMap)"
+    );
+}
+
+/// Negative counterpart: a register entry stored in schema-declared PK
+/// order (non-alphabetical) MUST NOT match, because the outbound scanner
+/// produces alphabetical PK JSON. If this test starts failing, either the
+/// register writer began emitting canonical form (good — remove this
+/// test), or someone enabled `serde_json/preserve_order` and broke the
+/// canonical contract (bad — see the doc on `is_registered_for_space`).
+#[test]
+fn registered_composite_pk_row_ignored_when_registry_key_order_differs() {
+    let conn = setup_registry_scan_db();
+    conn.execute_batch(
+        "CREATE TABLE ext_composite_v1 (
+            b TEXT NOT NULL,
+            a TEXT NOT NULL,
+            body TEXT,
+            haex_hlc TEXT,
+            haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+            haex_column_sigs TEXT NOT NULL DEFAULT '{}',
+            PRIMARY KEY (b, a)
+        );",
+    )
+    .unwrap();
+    let hlc = "1000000000000000000/aabbccdd";
+    let hlcs = format!("{{\"body\":\"{hlc}\"}}");
+    conn.execute(
+        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc, haex_column_hlcs)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params!["yb", "xa", "hello", hlc, hlcs],
+    )
+    .unwrap();
+    // Register with schema-declared (b, a) key order — NOT the canonical
+    // alphabetical form the scanner produces.
+    insert_registry_entry(
+        &conn,
+        "reg-schema-order",
+        "space-A",
+        "ext_composite_v1",
+        r#"{"b":"yb","a":"xa"}"#,
+    );
+
+    let db = wrap_db(conn);
+    let changes =
+        scan_space_scoped_tables_for_local_changes(&db, "space-A", None, "device-A", None).unwrap();
+
+    assert!(
+        !changes.iter().any(|c| c.table_name == "ext_composite_v1"),
+        "register entry using non-canonical key order MUST NOT match — the register \
+         writer is responsible for producing alphabetical PK JSON: {changes:?}",
+    );
+}
+
 #[test]
 fn control_plane_scan_still_works_without_registry_entries() {
     // Regression guard. Whitelisted control-plane tables must keep

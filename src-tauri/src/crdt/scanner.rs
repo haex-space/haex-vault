@@ -105,9 +105,16 @@ pub fn is_space_scoped_table(table_name: &str) -> bool {
 /// signal that operators need to diagnose the wedge. `.optional()` is safe
 /// here because it only converts `QueryReturnedNoRows` to `Ok(None)`.
 ///
-/// The `row_pks` encoding must match what the outbound scanner produces —
-/// the CRDT machinery uses canonical JSON like `{"id":"row-1"}`, and
-/// `haex_shared_space_sync.row_pks` stores exactly the same form.
+/// The `row_pks` encoding must match what the outbound scanner produces.
+/// The **canonical form is alphabetical-by-key**: the CRDT scanner builds
+/// PK JSON via `serde_json::Map` (which, without the `preserve_order`
+/// feature enabled on this crate's `serde_json`, is a `BTreeMap` and
+/// serialises keys in sorted order — see `emit_row_changes`). Every
+/// writer of `haex_shared_space_sync.row_pks` must produce the same
+/// alphabetical form, or a `HashSet::contains` filter on composite PKs
+/// with schema-declared order like `(col_b, col_a)` will miss the row.
+/// See `crdt::column_sig::register_lookup::canonicalize_row_pks` for a
+/// helper that normalises via `BTreeMap`.
 pub fn is_registered_for_space(
     conn: &Connection,
     table_name: &str,
@@ -458,7 +465,11 @@ fn emit_row_changes(
 /// * `row_pks_set` — canonical PK JSON strings (`{"id":"row-1"}`, or
 ///   `{"col_a":"x","col_b":"y"}` for composite PKs). Encoding must match what
 ///   [`emit_row_changes`] produces via `serde_json::to_string` on a
-///   `serde_json::Map` populated in schema-declared PK order.
+///   `serde_json::Map`, which **without the `preserve_order` feature is a
+///   `BTreeMap` and emits keys in alphabetical order** — every register
+///   writer must therefore also emit alphabetical PK JSON, or composite-PK
+///   rows with non-alphabetical schema order will silently be skipped by
+///   the `HashSet::contains` check in `emit_row_changes`.
 /// * `after_hlc` — exclusive HLC lower bound, same semantics as
 ///   [`scan_table_for_local_changes_scoped`].
 /// * `origin_node` — ping-pong filter, same semantics as
@@ -641,6 +652,12 @@ pub fn scan_space_scoped_tables_for_local_changes(
                 // path. A registry row lying about a whitelisted table would
                 // otherwise re-emit the row without the `space_id`-column
                 // scope check pass 1 performs.
+                tracing::warn!(
+                    target: "crdt::scanner",
+                    table = %t,
+                    space_id,
+                    "registry references control-plane table; skipping (should not happen — investigate register writer)"
+                );
                 continue;
             }
             by_table.entry(t).or_default().push(pks);
