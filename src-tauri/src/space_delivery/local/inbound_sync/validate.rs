@@ -1,9 +1,11 @@
-//! Pure-transform validation of inbound CRDT pushes: table whitelist,
-//! `space_id` column scoping, and `authored_by_did` strip + re-injection
-//! from the validated UCAN audience.
+//! Validation of inbound CRDT pushes: table whitelist / registry, the
+//! `space_id` column scoping, and the `authored_by_did` strip +
+//! re-injection from the validated UCAN audience.
 //!
-//! No DB access. The caller (`authorize_inbound_sync_push`) chains this
-//! before the row-scope and ownership gates, which then talk to the DB.
+//! The attribution and column-level checks are pure transforms. The
+//! table-level scope check consults `haex_shared_space_sync` when a table
+//! is not on the static whitelist, which is the one DB read this module
+//! performs — see [`is_registered_for_space`].
 
 use std::collections::HashMap;
 
@@ -11,6 +13,7 @@ use serde_json::Value as JsonValue;
 
 use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::scanner::{is_space_scoped_table, LocalColumnChange};
+use crate::database::DbConnection;
 
 use super::InboundSyncPushOutcome;
 
@@ -20,11 +23,25 @@ use super::InboundSyncPushOutcome;
 /// expected to be the validated UCAN audience for the request — i.e. the
 /// Space-Member-DID the leader already confirmed is an active member of
 /// `space_id` via the membership check.
+///
+/// A change is table-scope-accepted iff its table is on the static
+/// [`SPACE_SCOPED_CRDT_TABLES`][crate::crdt::scanner::SPACE_SCOPED_CRDT_TABLES]
+/// whitelist OR the `(table_name, row_pks, space_id)` triple is registered
+/// in `haex_shared_space_sync` (extension-owned content tables). The
+/// registry lookup fails CLOSED — a DB error on the lookup rejects the
+/// batch rather than accepting it as unregistered.
 pub fn validate_and_attribute(
+    db: &DbConnection,
     space_id: &str,
     ucan_audience: &str,
     changes: Vec<LocalColumnChange>,
 ) -> InboundSyncPushOutcome {
+    // TODO(w3-task-3a-impl): consult haex_shared_space_sync when a table
+    // is not on the static whitelist. Failing tests in
+    // `inbound_sync_tests::validate_and_attribute` currently pin the
+    // "registered-triple must be accepted" contract.
+    let _ = db;
+
     // --- (1) + (2): whitelist and space_id scope -------------------------
     for change in &changes {
         if !is_space_scoped_table(&change.table_name) {
