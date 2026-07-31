@@ -40,8 +40,11 @@ pub struct RegistryRowSigPayload<'a> {
     pub space_id: &'a str,
     pub table_name: &'a str,
     pub row_pks: &'a str,
-    pub extension_public_key: &'a str,
-    pub extension_name: &'a str,
+    /// `None` iff `extension_name` is also `None` — the DB enforces this
+    /// pairing via `haex_shared_space_sync_extension_pair` (both-null or
+    /// both-present) for infra/non-extension-owned rows.
+    pub extension_public_key: Option<&'a str>,
+    pub extension_name: Option<&'a str>,
     pub category: Option<&'a str>,
     pub r#type: Option<&'a str>,
     pub category_label: Option<&'a str>,
@@ -78,10 +81,8 @@ impl RegistryRowSigPayload<'_> {
                 + self.table_name.len()
                 + 4
                 + self.row_pks.len()
-                + 4
-                + self.extension_public_key.len()
-                + 4
-                + self.extension_name.len()
+                + optional_len(self.extension_public_key)
+                + optional_len(self.extension_name)
                 + optional_len(self.category)
                 + optional_len(self.r#type)
                 + optional_len(self.category_label)
@@ -96,8 +97,8 @@ impl RegistryRowSigPayload<'_> {
         push_field(&mut buf, self.space_id.as_bytes());
         push_field(&mut buf, self.table_name.as_bytes());
         push_field(&mut buf, self.row_pks.as_bytes());
-        push_field(&mut buf, self.extension_public_key.as_bytes());
-        push_field(&mut buf, self.extension_name.as_bytes());
+        push_optional_field(&mut buf, self.extension_public_key);
+        push_optional_field(&mut buf, self.extension_name);
         push_optional_field(&mut buf, self.category);
         push_optional_field(&mut buf, self.r#type);
         push_optional_field(&mut buf, self.category_label);

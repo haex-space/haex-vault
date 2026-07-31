@@ -9,8 +9,8 @@ fn base_payload() -> RegistryRowSigPayload<'static> {
         space_id: "space-1",
         table_name: "ext_calendar_v1",
         row_pks: r#"{"id":"evt-42"}"#,
-        extension_public_key: "epk",
-        extension_name: "calendar",
+        extension_public_key: Some("epk"),
+        extension_name: Some("calendar"),
         category: Some("work"),
         r#type: Some("event"),
         category_label: Some("Work Calendar"),
@@ -42,6 +42,25 @@ fn test_registry_row_sig_payload_null_vs_empty_string_distinguished() {
 
     let mut with_none = base_payload();
     with_none.category = None;
+
+    assert_ne!(
+        with_empty.canonical_encoding(),
+        with_none.canonical_encoding()
+    );
+}
+
+#[test]
+fn test_registry_row_sig_payload_extension_public_key_null_vs_empty_string_distinguished() {
+    // Concern 1 (Task B.3): extension_public_key/extension_name are Option
+    // to match the DB's nullable columns (infra rows pair NULL/NULL via the
+    // `haex_shared_space_sync_extension_pair` CHECK). `None` (no extension
+    // owns this row) and `Some("")` (an extension with an empty key) must
+    // never collide.
+    let mut with_empty = base_payload();
+    with_empty.extension_public_key = Some("");
+
+    let mut with_none = base_payload();
+    with_none.extension_public_key = None;
 
     assert_ne!(
         with_empty.canonical_encoding(),
