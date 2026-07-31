@@ -29,3 +29,7 @@ mod pending_columns_tests;
 #[cfg(test)]
 #[path = "../../commands_delete_resurrection_tests.rs"]
 mod delete_resurrection_tests;
+
+#[cfg(test)]
+#[path = "../../commands_apply_registry_row_sig_tests.rs"]
+mod apply_registry_row_sig_tests;
