@@ -311,6 +311,17 @@ fn execute_with_crdt_skips_signing_when_row_has_no_spaces() {
 /// `schema_names`, so `schema_names.contains("mixedcase")` was `false` and the
 /// column was silently dropped from the per-column signing path: the write
 /// succeeded with no signature covering that column at all.
+///
+/// Follow-up correction: the first fix for this finding (commit `930dd78e`)
+/// case-folded `schema_names` so the membership check passed, but then pushed
+/// the *lowercased* touched-name into `signable` — so the sig landed at
+/// `haex_column_sigs["mixedcase"]` with a preimage built over `b"mixedcase"`,
+/// while every consumer (F2, the Rust/TS registry scanners, the verifier) all
+/// read `col.name` from `PRAGMA table_info` and look up / reconstruct the
+/// preimage using the DDL-cased `"MixedCase"`. The column would have shipped
+/// unsigned end-to-end despite the JSON blob having *an* entry. This test
+/// pins the DDL-cased key and independently rebuilds the verifier's preimage
+/// to prove the stored signature is the one a real verifier would accept.
 #[test]
 fn sign_written_rows_covers_mixedcase_ddl_columns() {
     let f = setup_fixture();
@@ -338,9 +349,9 @@ fn sign_written_rows_covers_mixedcase_ddl_columns() {
 
     let sigs = read_column_sigs_json(&f.db, "ext_calendar", "R");
     let mixed = sigs
-        .get("mixedcase")
+        .get("MixedCase")
         .and_then(|v| v.as_object())
-        .expect("sigs must have a 'mixedcase' entry for the mixed-case DDL column");
+        .expect("sigs must have a 'MixedCase' entry (DDL casing) for the mixed-case DDL column");
     assert!(
         mixed.contains_key("space_A"),
         "expected space_A sig for the mixed-case column, got: {:?}",
@@ -350,6 +361,47 @@ fn sign_written_rows_covers_mixedcase_ddl_columns() {
         mixed.contains_key("space_B"),
         "expected space_B sig for the mixed-case column, got: {:?}",
         mixed.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        sigs.get("mixedcase").is_none(),
+        "stale lowercased key must not exist alongside the DDL-cased one"
+    );
+
+    // Independently reconstruct the preimage a real verifier/scanner would
+    // build — DDL-cased column name, the row's actual per-tx HLC, and the
+    // canonical value bytes — and confirm the stored signature verifies
+    // against it. This is the part the JSON-key assertion above can't catch:
+    // a stale preimage would still deserialize fine but fail `verify_strict`.
+    let row_hlc: String = {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT haex_hlc FROM ext_calendar WHERE id = 'R'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    let space_a = mixed.get("space_A").and_then(|v| v.as_object()).unwrap();
+    let sig_b64 = space_a.get("sig").and_then(|v| v.as_str()).unwrap();
+    let sig_bytes = BASE64.decode(sig_b64).unwrap();
+    let value_bytes = crate::crdt::column_sig::value_bytes::to_canonical_bytes(
+        &rusqlite::types::Value::Text("mixed-value".to_string()),
+    );
+    crate::crdt::column_sig::verify::verify_column_sig(
+        "space_A".as_bytes(),
+        "ext_calendar".as_bytes(),
+        r#"{"id":"R"}"#.as_bytes(),
+        "MixedCase".as_bytes(),
+        row_hlc.as_bytes(),
+        &f.did_a,
+        &value_bytes,
+        &sig_bytes,
+    )
+    .expect(
+        "stored sig must verify against the DDL-cased preimage a real verifier would build; \
+         a lowercased signable name (the bug in 930dd78e) would sign b\"mixedcase\" instead \
+         and fail here",
     );
 }
 
@@ -502,6 +554,85 @@ fn insert_into_share_register_signs_all_columns_of_referenced_row() {
         Some(f.did_c.as_str())
     );
     assert!(space_c.get("sig").and_then(|v| v.as_str()).is_some());
+}
+
+/// F1+F2 consistency regression for CodeRabbit PR #741 finding 2: F1
+/// (`sign_written_rows`, the generic per-write signer) and F2
+/// (`sign_share_insert_targets`, the cross-table retro-signer that runs when
+/// a share-register row is INSERTed) must land their signatures under the
+/// *same* `haex_column_sigs` JSON key for a mixed-case DDL column, since both
+/// paths feed the same wire consumers (Rust/TS registry scanners, verifier).
+/// F2's own `signable_cols` (execute.rs:~542) has always read `c.name`
+/// straight from `PRAGMA table_info` with no case-folding at all, so it was
+/// never susceptible to the F1 bug this file's other `mixedcase` test
+/// documents — this test proves the two paths agree by making both sign the
+/// SAME row's SAME mixed-case column and checking they merge into one entry.
+#[test]
+fn f1_and_f2_sign_mixedcase_ddl_column_under_the_same_key() {
+    let f = setup_fixture_f2();
+    {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute("ALTER TABLE ext_calendar ADD COLUMN \"MixedCase\" TEXT", [])
+            .unwrap();
+    }
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    // F1: row `R` is already shared into space_A + space_B (base fixture) —
+    // an ordinary UPDATE through `execute_with_crdt` exercises the generic
+    // per-write signer for the mixed-case column.
+    core::execute_with_crdt(
+        "UPDATE ext_calendar SET \"MixedCase\" = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("mixed-value".to_string()),
+            JsonValue::String("R".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("F1 update succeeds");
+
+    // F2: share row `R` into a brand-new space_C — this retro-signs every
+    // non-meta column of `R` (title AND MixedCase) for space_C.
+    core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync \
+            (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-C-mixed".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"R"}"#.to_string()),
+            JsonValue::String("space_C".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("F2 share INSERT succeeds");
+
+    let sigs = read_column_sigs_json(&f.db, "ext_calendar", "R");
+    let mixed = sigs
+        .get("MixedCase")
+        .and_then(|v| v.as_object())
+        .expect("F1+F2 must merge into a single 'MixedCase' entry (DDL casing)");
+    assert!(
+        mixed.contains_key("space_A") && mixed.contains_key("space_B"),
+        "expected F1's space_A/space_B sigs under 'MixedCase', got: {:?}",
+        mixed.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        mixed.contains_key("space_C"),
+        "expected F2's space_C sig merged under the SAME 'MixedCase' key as F1's, got: {:?}",
+        mixed.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        sigs.get("mixedcase").is_none(),
+        "neither F1 nor F2 may produce a stale lowercased key"
+    );
 }
 
 #[test]

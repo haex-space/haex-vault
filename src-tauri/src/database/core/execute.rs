@@ -290,15 +290,28 @@ fn sign_written_rows(
         TouchedColumns::Explicit(cols) => {
             // `cols` is already case-folded to lowercase by
             // `extract_touched_for_signing`, but `schema` comes straight from
-            // `PRAGMA table_info` and preserves DDL casing. Fold
-            // `schema_names` to lowercase too, so a table declared with a
-            // mixed-case column (`CREATE TABLE t (MixedCase TEXT)`) still
-            // matches instead of being silently dropped from signing.
-            let schema_names: std::collections::HashSet<String> =
-                schema.iter().map(|c| c.name.to_ascii_lowercase()).collect();
+            // `PRAGMA table_info` and preserves DDL casing. The case-fold may
+            // only decide *whether* a column is in scope — every downstream
+            // consumer of `signable` (this function's own SELECT/upsert
+            // below, F2's cross-table signer, the Rust and TS registry
+            // scanners, and the verifier) reads the DDL-cased name straight
+            // from the schema, and the Ed25519 preimage is built over that
+            // same name. Emitting the lowercased touched-name here would
+            // sign/store under a key nothing else ever looks up (a table
+            // declared with a mixed-case column — `CREATE TABLE t (MixedCase
+            // TEXT)` — folds to `mixedcase` on the touched-column side but
+            // must resolve back to `MixedCase` for the sig).
+            //
+            // Build a folded→DDL map once and use it both as the
+            // case-insensitive membership check and to recover the DDL
+            // casing for `signable`.
+            let ddl_by_folded: std::collections::HashMap<String, &str> = schema
+                .iter()
+                .map(|c| (c.name.to_ascii_lowercase(), c.name.as_str()))
+                .collect();
             cols.iter()
-                .filter(|c| !is_meta(c) && schema_names.contains(c.as_str()))
-                .cloned()
+                .filter(|c| !is_meta(c))
+                .filter_map(|c| ddl_by_folded.get(c.as_str()).map(|ddl| ddl.to_string()))
                 .collect()
         }
         // A columnless `INSERT INTO t VALUES (…)` writes every column
