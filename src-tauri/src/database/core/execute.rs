@@ -194,6 +194,16 @@ fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, TouchedColum
                 .columns
                 .iter()
                 .filter_map(|obj| object_name_last(obj))
+                // SQL identifiers are case-insensitive (SQLite folds ASCII
+                // case when resolving them), but every downstream `==` check
+                // (`is_crdt_meta_column`, B.3's row_sig/authored_by_did
+                // guards) compares against our lowercase `COL_*` constants.
+                // Without this fold, `SET ROW_SIG = …` / `SET HAEX_HLC = …`
+                // pass the exact-match checks unnoticed and reach the DB with
+                // their forbidden effect intact — case-fold here, once, so
+                // every consumer of the touched-column list is safe by
+                // construction instead of each having to remember to.
+                .map(|c| c.to_ascii_lowercase())
                 .collect();
             Some((name, TouchedColumns::Explicit(cols)))
         }
@@ -209,6 +219,8 @@ fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, TouchedColum
                     AssignmentTarget::ColumnName(obj) => object_name_last(obj),
                     _ => None,
                 })
+                // See the matching case-fold in the INSERT branch above.
+                .map(|c| c.to_ascii_lowercase())
                 .collect();
             Some((name, TouchedColumns::Explicit(cols)))
         }

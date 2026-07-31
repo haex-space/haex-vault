@@ -972,6 +972,43 @@ fn execute_with_crdt_rejects_user_supplied_haex_hlc_on_insert() {
     }
 }
 
+/// Case-insensitivity regression (spec-review Critical finding): SQL column
+/// identifiers are case-insensitive, but `is_crdt_meta_column` matched the
+/// touched-column name with `==` against lowercase constants — an INSERT
+/// naming `HAEX_HLC` (any case) sailed through unnoticed. Fixed by
+/// case-folding column identifiers once, in `extract_touched_for_signing`.
+#[test]
+fn execute_with_crdt_rejects_user_supplied_uppercase_haex_hlc_on_insert() {
+    let f = setup_fixture();
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    let result = core::execute_with_crdt(
+        "INSERT INTO ext_calendar (id, title, HAEX_HLC) VALUES (?1, ?2, ?3)".to_string(),
+        vec![
+            JsonValue::String("EVIL2".to_string()),
+            JsonValue::String("t".to_string()),
+            JsonValue::String("9999-99-99T99:99:99.999999999Z/deadbeef".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    match result {
+        Err(crate::database::error::DatabaseError::CrdtMetaColumnWriteForbidden { column }) => {
+            assert_eq!(
+                column, "haex_hlc",
+                "column name is case-folded to lowercase"
+            );
+        }
+        other => panic!(
+            "expected CrdtMetaColumnWriteForbidden for uppercase HAEX_HLC, got: {:?}",
+            other
+        ),
+    }
+}
+
 /// F#2: `haex_column_sigs` is also managed by the sig layer — a caller
 /// setting it directly could plant a valid signature the sig layer
 /// doesn't recompute.

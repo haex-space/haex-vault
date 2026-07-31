@@ -555,3 +555,124 @@ fn test_execute_with_crdt_canonicalizes_row_pks_before_signing() {
         "sig must verify against the canonicalised row_pks actually persisted"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Case-insensitivity regression (spec-review Critical finding): SQL column
+// identifiers are case-insensitive, but the guards above matched touched
+// column names with `==` against lowercase constants — `SET ROW_SIG = …`
+// bypassed `RegistryRowSigColumnWriteForbidden` and `SET AUTHORED_BY_DID = …`
+// bypassed `RegistryRowAuthoredByDidImmutable`. Fixed by case-folding column
+// identifiers once, in `extract_touched_for_signing`.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_execute_with_crdt_rejects_uppercase_row_sig_write() {
+    let f = setup_fixture();
+    insert_minimal_row(&f, "row-8", r#"{"id":"evt-8"}"#);
+
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    let result = core::execute_with_crdt(
+        "UPDATE haex_shared_space_sync SET ROW_SIG = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("totally-forged-sig".to_string()),
+            JsonValue::String("row-8".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(DatabaseError::RegistryRowSigColumnWriteForbidden { .. })
+        ),
+        "uppercase ROW_SIG must still be rejected, got: {:?}",
+        result
+    );
+}
+
+#[test]
+fn test_execute_with_crdt_rejects_mixedcase_row_sig_write() {
+    let f = setup_fixture();
+    insert_minimal_row(&f, "row-9", r#"{"id":"evt-9"}"#);
+
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    let result = core::execute_with_crdt(
+        "UPDATE haex_shared_space_sync SET Row_Sig = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("totally-forged-sig".to_string()),
+            JsonValue::String("row-9".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(DatabaseError::RegistryRowSigColumnWriteForbidden { .. })
+        ),
+        "mixed-case Row_Sig must still be rejected, got: {:?}",
+        result
+    );
+}
+
+#[test]
+fn test_execute_with_crdt_rejects_uppercase_authored_by_did_update() {
+    let f = setup_fixture();
+    insert_minimal_row(&f, "row-10", r#"{"id":"evt-10"}"#);
+
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    let result = core::execute_with_crdt(
+        "UPDATE haex_shared_space_sync SET AUTHORED_BY_DID = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("did:key:bob".to_string()),
+            JsonValue::String("row-10".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(DatabaseError::RegistryRowAuthoredByDidImmutable { .. })
+        ),
+        "uppercase AUTHORED_BY_DID must still be rejected, got: {:?}",
+        result
+    );
+}
+
+#[test]
+fn test_execute_with_crdt_rejects_mixedcase_authored_by_did_update() {
+    let f = setup_fixture();
+    insert_minimal_row(&f, "row-11", r#"{"id":"evt-11"}"#);
+
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    let result = core::execute_with_crdt(
+        "UPDATE haex_shared_space_sync SET authored_By_did = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("did:key:bob".to_string()),
+            JsonValue::String("row-11".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(DatabaseError::RegistryRowAuthoredByDidImmutable { .. })
+        ),
+        "mixed-case authored_By_did must still be rejected, got: {:?}",
+        result
+    );
+}
