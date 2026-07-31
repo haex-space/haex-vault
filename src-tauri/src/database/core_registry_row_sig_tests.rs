@@ -269,3 +269,85 @@ fn test_execute_with_crdt_auto_populates_authored_by_did_when_missing() {
     assert_eq!(row.authored_by_did, f.did_alice);
     assert!(!row.row_sig.is_empty());
 }
+
+#[test]
+fn test_execute_with_crdt_rejects_registry_write_with_foreign_authored_by_did() {
+    let f = setup_fixture();
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    let result = core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync \
+            (id, table_name, row_pks, space_id, authored_by_did) \
+         VALUES (?1, ?2, ?3, ?4, ?5)"
+            .to_string(),
+        vec![
+            JsonValue::String("row-evil".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"evt-evil"}"#.to_string()),
+            JsonValue::String("space_1".to_string()),
+            // Not this vault's DID for space_1 — cannot forge foreign
+            // authorship on a local write.
+            JsonValue::String("did:key:mallory".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(DatabaseError::RegistryRowForeignAuthoredByDid { .. })
+        ),
+        "expected RegistryRowForeignAuthoredByDid, got: {:?}",
+        result
+    );
+    drop(hlc_guard);
+
+    let guard = f.db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM haex_shared_space_sync WHERE id = 'row-evil'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(count, 0, "forged-authorship INSERT must roll back");
+}
+
+#[test]
+fn test_execute_with_crdt_rejects_authored_by_did_update() {
+    let f = setup_fixture();
+    insert_minimal_row(&f, "row-3", r#"{"id":"evt-3"}"#);
+
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    let result = core::execute_with_crdt(
+        "UPDATE haex_shared_space_sync SET authored_by_did = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("did:key:bob".to_string()),
+            JsonValue::String("row-3".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(DatabaseError::RegistryRowAuthoredByDidImmutable { .. })
+        ),
+        "expected RegistryRowAuthoredByDidImmutable, got: {:?}",
+        result
+    );
+    drop(hlc_guard);
+
+    let row = load_row(&f.db, "row-3");
+    assert_eq!(
+        row.authored_by_did, f.did_alice,
+        "rejected UPDATE must roll back, authored_by_did stays as auto-populated"
+    );
+}
