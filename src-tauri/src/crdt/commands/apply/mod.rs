@@ -1,6 +1,7 @@
 mod db;
 mod delete_propagation;
 mod grouping;
+mod registry_row_gate;
 mod types;
 
 #[cfg(feature = "e2e-hooks")]
