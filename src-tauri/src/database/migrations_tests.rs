@@ -559,14 +559,15 @@ fn migration_0014_unique_constraint_rejects_duplicate_author_category() {
     create_shared_space_sync_pre_0014_stub(&conn);
     apply_migration_by_tag(&conn, "0014_");
 
-    let insert = |id: &str, author: &str, space: &str, table: &str, row_pks: &str, category: &str| {
-        conn.execute(
-            "INSERT INTO haex_shared_space_sync
+    let insert =
+        |id: &str, author: &str, space: &str, table: &str, row_pks: &str, category: &str| {
+            conn.execute(
+                "INSERT INTO haex_shared_space_sync
                 (id, table_name, row_pks, space_id, authored_by_did, category, row_sig)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sig')",
-            rusqlite::params![id, table, row_pks, space, author, category],
-        )
-    };
+                rusqlite::params![id, table, row_pks, space, author, category],
+            )
+        };
 
     insert(
         "share-1",
