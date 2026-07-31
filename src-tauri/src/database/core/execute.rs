@@ -870,12 +870,53 @@ fn sign_registry_row_self(
     Ok(())
 }
 
+/// Maps a parsed `row_pks_json` value onto `(pk_column_name, value)` pairs in
+/// `schema`'s PK order, for both shapes `build_pk_where` accepts.
+///
+/// Returns `None` — a safe "we don't know how to map this" skip — when:
+///   * **Object**: the key set doesn't have exactly `pk_cols.len()` entries,
+///     or a `pk_cols` name is missing from the object.
+///   * **Array**: the array is empty, its length doesn't match
+///     `pk_cols.len()`, or any element is `Value::Null` (arrays are
+///     positional — a null slot can't be safely matched to "no PK column").
+///   * Anything else (scalar, malformed) is never a valid row_pks shape.
+fn values_by_pk_column<'a>(
+    pk_cols: &[&'a str],
+    value: &JsonValue,
+) -> Option<Vec<(&'a str, JsonValue)>> {
+    match value {
+        JsonValue::Object(m) => {
+            if m.len() != pk_cols.len() {
+                return None;
+            }
+            let mut out = Vec::with_capacity(pk_cols.len());
+            for col in pk_cols {
+                out.push((*col, m.get(*col)?.clone()));
+            }
+            Some(out)
+        }
+        JsonValue::Array(arr) => {
+            if arr.is_empty() || arr.len() != pk_cols.len() || arr.iter().any(JsonValue::is_null) {
+                return None;
+            }
+            Some(pk_cols.iter().copied().zip(arr.iter().cloned()).collect())
+        }
+        _ => None,
+    }
+}
+
 /// Build a WHERE clause + bind vector matching every PK column of the target
 /// row from a canonicalised `row_pks_json` payload.
 ///
-/// Returns `(empty, [])` if the PK column set on `schema` and the object keys
-/// in `row_pks_json` disagree — the caller treats that as a silent skip since
-/// register rows with malformed PK payloads should not silently sign the wrong row.
+/// Accepts the same two shapes as `canonicalize_row_pks`: a JSON **object**
+/// keyed by PK column name (the CRDT scanner's usual form), or a JSON
+/// **array** matched positionally against `schema`'s PK column order (the
+/// shape `persist_shared_backend` writes for `haex_s3_backends` — PR #741
+/// finding 3).
+///
+/// Returns `(empty, [])` if the shape doesn't line up with `schema`'s PK
+/// columns — the caller treats that as a silent skip since register rows
+/// with malformed PK payloads should not silently sign the wrong row.
 fn build_pk_where(
     schema: &[crate::crdt::trigger::ColumnInfo],
     row_pks_json: &str,
@@ -889,20 +930,17 @@ fn build_pk_where(
         return Ok((String::new(), Vec::new()));
     }
 
-    let parsed: serde_json::Map<String, JsonValue> =
-        match serde_json::from_str::<JsonValue>(row_pks_json) {
-            Ok(JsonValue::Object(m)) => m,
-            _ => return Ok((String::new(), Vec::new())),
-        };
-    if parsed.len() != pk_cols.len() {
+    let parsed: JsonValue = match serde_json::from_str(row_pks_json) {
+        Ok(v) => v,
+        Err(_) => return Ok((String::new(), Vec::new())),
+    };
+    let Some(pairs) = values_by_pk_column(&pk_cols, &parsed) else {
         return Ok((String::new(), Vec::new()));
-    }
-    let mut parts = Vec::with_capacity(pk_cols.len());
-    let mut binds = Vec::with_capacity(pk_cols.len());
-    for col in &pk_cols {
-        let Some(v) = parsed.get(*col) else {
-            return Ok((String::new(), Vec::new()));
-        };
+    };
+
+    let mut parts = Vec::with_capacity(pairs.len());
+    let mut binds = Vec::with_capacity(pairs.len());
+    for (col, v) in &pairs {
         if !is_safe_identifier(col) {
             return Ok((String::new(), Vec::new()));
         }

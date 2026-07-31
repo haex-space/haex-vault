@@ -1036,3 +1036,195 @@ fn execute_with_crdt_rejects_user_supplied_haex_column_sigs() {
         other => panic!("expected CrdtMetaColumnWriteForbidden, got: {:?}", other),
     }
 }
+
+// ---------------------------------------------------------------------------
+// PR #741 finding 3 followup — array-shape row_pks (`persist_shared_backend`)
+// ---------------------------------------------------------------------------
+
+/// Dedicated fixture for the `persist_shared_backend` (`haex_s3_backends`)
+/// scenario. Unlike `setup_fixture`/`setup_fixture_f2`, the register table
+/// here carries the FULL B.3 schema (`row_sig`, `authored_by_did`, …,
+/// mirrors `core_registry_row_sig_tests.rs`'s fixture) so
+/// `sign_registry_row_self` actually signs the registry row, AND a real
+/// `haex_s3_backends` table exists as the F2 retro-sign target with CRDT
+/// triggers wired up — `persist_shared_backend`
+/// (`remote_storage::share_command`) is the one production writer of
+/// array-shaped `row_pks` into the register.
+struct FixtureS3Backends {
+    db: DbConnection,
+    hlc: HlcService,
+    cache: SpaceKeyCache,
+}
+
+fn setup_fixture_s3_backends() -> FixtureS3Backends {
+    let conn = Connection::open_in_memory().expect("in-memory DB");
+
+    let hlc = HlcService::new_for_testing("test-device-s3");
+    let ctx = ConnectionContext::new();
+    register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
+    install_tx_hlc_hooks(&conn, ctx).unwrap();
+
+    conn.execute_batch(&format!(
+        "CREATE TABLE {} (key TEXT PRIMARY KEY, type TEXT NOT NULL, value TEXT NOT NULL);
+         CREATE TABLE {} (table_name TEXT PRIMARY KEY, last_modified TEXT);
+         INSERT INTO {} (key, type, value) VALUES ('triggers_enabled', 'system', '1');",
+        TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_CRDT_CONFIGS
+    ))
+    .unwrap();
+
+    // Full registry schema (mirrors migrations 0000 + 0014, same as
+    // `core_registry_row_sig_tests.rs::setup_fixture`) so B.3's
+    // `sign_registry_row_self` actually runs instead of no-opping on its
+    // `has_row_sig` schema-drift guard.
+    conn.execute_batch(
+        "CREATE TABLE haex_identities (
+            id TEXT PRIMARY KEY NOT NULL,
+            did TEXT NOT NULL,
+            private_key TEXT
+         );
+         CREATE TABLE haex_space_members (
+            id TEXT PRIMARY KEY NOT NULL,
+            space_id TEXT NOT NULL,
+            identity_id TEXT NOT NULL
+         );
+         CREATE TABLE haex_shared_space_sync (
+            id TEXT PRIMARY KEY NOT NULL,
+            table_name TEXT NOT NULL,
+            row_pks TEXT NOT NULL,
+            space_id TEXT NOT NULL,
+            extension_public_key TEXT,
+            extension_name TEXT,
+            category TEXT,
+            type TEXT,
+            type_label TEXT,
+            category_label TEXT,
+            authored_by_did TEXT DEFAULT '' NOT NULL,
+            row_sig TEXT DEFAULT '' NOT NULL,
+            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+         );
+         CREATE TABLE haex_s3_backends (
+            id TEXT PRIMARY KEY NOT NULL,
+            endpoint TEXT
+         );",
+    )
+    .unwrap();
+
+    let key = random_key();
+    let did = did_key_from_public_key(&key.verifying_key());
+    conn.execute(
+        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
+        rusqlite::params!["id-s3", &did, pkcs8_b64(&key)],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO haex_space_members (id, space_id, identity_id) VALUES (?1, ?2, ?3)",
+        ["mem-s3", "space_S3", "id-s3"],
+    )
+    .unwrap();
+
+    {
+        let tx = conn.unchecked_transaction().unwrap();
+        ensure_crdt_columns(&tx, "haex_shared_space_sync").unwrap();
+        ensure_crdt_columns(&tx, "haex_s3_backends").unwrap();
+        // F2 reads `haex_column_hlcs` for its per-column sig preimage HLC —
+        // that blob is only kept current by the AFTER-UPDATE trigger
+        // (mirrors `setup_fixture_f2`'s rationale for `ext_calendar`).
+        setup_triggers_for_table(&tx, "haex_s3_backends", true).unwrap();
+        tx.commit().unwrap();
+    }
+
+    conn.execute(
+        "INSERT INTO haex_s3_backends (id, endpoint, haex_column_hlcs, haex_column_sigs) \
+         VALUES (?1, ?2, '{}', '{}')",
+        ["backend-1", "https://s3.example.com"],
+    )
+    .unwrap();
+
+    let cache = SpaceKeyCache::new();
+    cache.populate_all(&conn).expect("populate cache");
+
+    let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+    FixtureS3Backends { db, hlc, cache }
+}
+
+/// PR #741 finding 3 followup: `persist_shared_backend` writes `row_pks` as a
+/// JSON ARRAY into the register (`["<uuid>"]`), not the object shape the CRDT
+/// scanner uses elsewhere. Before the `build_pk_where` array-shape fix, that
+/// shape fell through to an empty WHERE clause, and F2's caller-side guard
+/// (`where_clause.is_empty()` → `continue`) silently skipped the cross-table
+/// retro-sign — a loud crash traded for a silent security-relevant no-op.
+#[test]
+fn share_insert_with_array_row_pks_signs_registry_row_and_target_columns() {
+    let f = setup_fixture_s3_backends();
+
+    // Warm up `endpoint`'s per-column HLC via a real execute_with_crdt UPDATE
+    // (mirrors `seed_solo_row_hlcs`) so F2 has a historical HLC to sign with.
+    {
+        let hlc_mutex = Mutex::new(f.hlc.clone());
+        let hlc_guard = hlc_mutex.lock().unwrap();
+        core::execute_with_crdt(
+            "UPDATE haex_s3_backends SET endpoint = ?1 WHERE id = ?2".to_string(),
+            vec![
+                JsonValue::String("https://s3.example.com/warm".to_string()),
+                JsonValue::String("backend-1".to_string()),
+            ],
+            &f.db,
+            &hlc_guard,
+            &f.cache,
+        )
+        .expect("warm-up UPDATE succeeds");
+    }
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    // Mirrors `persist_shared_backend`'s exact `row_pks` construction: a JSON
+    // array of the target's PK value(s), not an object.
+    let row_pks_json = serde_json::to_string(&vec!["backend-1"]).unwrap();
+    core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-s3-1".to_string()),
+            JsonValue::String("haex_s3_backends".to_string()),
+            JsonValue::String(row_pks_json),
+            JsonValue::String("space_S3".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("share INSERT succeeds");
+    drop(hlc_guard);
+
+    // B.3: the registry row itself must be self-signed.
+    let row_sig: String = {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT row_sig FROM haex_shared_space_sync WHERE id = 'share-s3-1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    assert!(
+        !row_sig.is_empty(),
+        "registry row must be self-signed (B.3)"
+    );
+
+    // F2: the shared haex_s3_backends row must carry a cross-table retro-sign
+    // for space_S3 — this assertion fails without the build_pk_where
+    // array-shape fix (empty WHERE clause → F2 silently skips the row).
+    let sigs = read_column_sigs_json(&f.db, "haex_s3_backends", "backend-1");
+    let endpoint = sigs
+        .get("endpoint")
+        .and_then(|v| v.as_object())
+        .expect("F2 must retro-sign haex_s3_backends.endpoint for array-shape row_pks");
+    assert!(
+        endpoint.contains_key("space_S3"),
+        "expected space_S3 sig on haex_s3_backends.endpoint, got: {:?}",
+        endpoint.keys().collect::<Vec<_>>()
+    );
+}

@@ -330,6 +330,18 @@ fn canonicalize_row_pks_array_preserves_order() {
 }
 
 #[test]
+fn canonicalize_row_pks_accepts_empty_object() {
+    let canonical = canonicalize_row_pks("{}").expect("empty object accepted");
+    assert_eq!(canonical, "{}");
+}
+
+#[test]
+fn canonicalize_row_pks_accepts_empty_array() {
+    let canonical = canonicalize_row_pks("[]").expect("empty array accepted");
+    assert_eq!(canonical, "[]");
+}
+
+#[test]
 fn canonicalize_row_pks_rejects_scalar_string() {
     canonicalize_row_pks(r#""foo""#).expect_err("bare string scalar must be rejected");
 }
