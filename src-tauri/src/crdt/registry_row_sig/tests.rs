@@ -1,6 +1,6 @@
 use super::payload::{RegistryRowSigPayload, DOMAIN_TAG};
 use super::sign::sign_registry_row;
-use super::verify::verify_registry_row;
+use super::verify::{verify_registry_row, VerifyRegistryRowSigError};
 use ed25519_dalek::SigningKey;
 
 fn base_payload() -> RegistryRowSigPayload<'static> {
@@ -76,7 +76,7 @@ fn test_sign_and_verify_registry_row_roundtrip() {
     let payload = base_payload();
 
     let sig = sign_registry_row(&payload, &sk);
-    assert!(verify_registry_row(&payload, &sig, &pk));
+    assert!(verify_registry_row(&payload, &sig.to_bytes(), &pk).is_ok());
 }
 
 #[test]
@@ -87,7 +87,10 @@ fn test_verify_fails_for_wrong_key() {
     let payload = base_payload();
 
     let sig = sign_registry_row(&payload, &sk);
-    assert!(!verify_registry_row(&payload, &sig, &pk_other));
+    assert_eq!(
+        verify_registry_row(&payload, &sig.to_bytes(), &pk_other).unwrap_err(),
+        VerifyRegistryRowSigError::InvalidSignature
+    );
 }
 
 #[test]
@@ -98,7 +101,10 @@ fn test_verify_fails_for_mutated_payload() {
 
     let sig = sign_registry_row(&payload, &sk);
     payload.category = Some("private");
-    assert!(!verify_registry_row(&payload, &sig, &pk));
+    assert_eq!(
+        verify_registry_row(&payload, &sig.to_bytes(), &pk).unwrap_err(),
+        VerifyRegistryRowSigError::InvalidSignature
+    );
 }
 
 #[test]
@@ -108,8 +114,14 @@ fn test_verify_fails_for_malformed_signature_bytes() {
     let payload = base_payload();
 
     // Signature too short
-    assert!(!verify_registry_row(&payload, b"too short", &pk));
+    assert_eq!(
+        verify_registry_row(&payload, b"too short", &pk).unwrap_err(),
+        VerifyRegistryRowSigError::MalformedSignatureBytes
+    );
     // Signature 64 bytes but not a valid signature
     let bogus = [0u8; 64];
-    assert!(!verify_registry_row(&payload, &bogus, &pk));
+    assert_eq!(
+        verify_registry_row(&payload, &bogus, &pk).unwrap_err(),
+        VerifyRegistryRowSigError::InvalidSignature
+    );
 }

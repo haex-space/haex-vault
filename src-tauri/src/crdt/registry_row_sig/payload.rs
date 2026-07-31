@@ -57,9 +57,9 @@ impl RegistryRowSigPayload<'_> {
     /// one-byte presence tag ahead of their length-prefixed bytes so `None`
     /// and `Some("")` encode differently.
     ///
-    /// Field order: id, spaceId, tableName, rowPks, extensionPublicKey,
-    /// extensionName, category, type, categoryLabel, typeLabel,
-    /// authoredByDid, createdAt. No field-name bytes are embedded — like
+    /// Field order: id, space_id, table_name, row_pks, extension_public_key,
+    /// extension_name, category, type, category_label, type_label,
+    /// authored_by_did, created_at. No field-name bytes are embedded — like
     /// `build_preimage`, field identity comes from fixed position, not from
     /// an embedded label.
     pub fn canonical_encoding(&self) -> Vec<u8> {
