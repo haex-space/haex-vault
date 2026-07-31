@@ -676,3 +676,67 @@ fn test_execute_with_crdt_rejects_mixedcase_authored_by_did_update() {
         result
     );
 }
+
+#[test]
+fn test_execute_with_crdt_signs_registry_row_when_table_name_uppercase() {
+    // Same threat model as the column-case bypass: the register-table
+    // dispatch check in sign_registry_row_self compares the extracted table
+    // name against TABLE_SHARED_SPACE_SYNC. An uppercase table name must not
+    // let the whole sign pass be silently skipped.
+    let f = setup_fixture();
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    core::execute_with_crdt(
+        "INSERT INTO HAEX_SHARED_SPACE_SYNC (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("row-12".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"evt-12"}"#.to_string()),
+            JsonValue::String("space_1".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("insert succeeds even with uppercase table name");
+    drop(hlc_guard);
+
+    let row = load_row(&f.db, "row-12");
+    assert!(
+        !row.row_sig.is_empty(),
+        "uppercase table name must not bypass sign_registry_row_self"
+    );
+}
+
+#[test]
+fn test_execute_with_crdt_signs_registry_row_when_table_name_mixedcase() {
+    let f = setup_fixture();
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    core::execute_with_crdt(
+        "INSERT INTO Haex_Shared_Space_Sync (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("row-13".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"evt-13"}"#.to_string()),
+            JsonValue::String("space_1".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("insert succeeds even with mixed-case table name");
+    drop(hlc_guard);
+
+    let row = load_row(&f.db, "row-13");
+    assert!(
+        !row.row_sig.is_empty(),
+        "mixed-case table name must not bypass sign_registry_row_self"
+    );
+}

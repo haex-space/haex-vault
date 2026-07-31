@@ -183,8 +183,16 @@ impl TouchedColumns {
 fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, TouchedColumns)> {
     match stmt {
         Statement::Insert(insert) => {
+            // Case-fold the table name at the same choke point as the column
+            // names below. Every current consumer already guards itself with
+            // `eq_ignore_ascii_case` (`is_share_register_insert`,
+            // `sign_registry_row_self`) rather than `==`, so this is
+            // defense-in-depth, not a fix for a reachable bypass today — but
+            // it means a future table-name check doesn't have to remember to
+            // fold case itself; the touched-table value is canonical by
+            // construction, same as the column list.
             let name = match &insert.table {
-                TableObject::TableName(n) => object_name_last(n)?,
+                TableObject::TableName(n) => object_name_last(n)?.to_ascii_lowercase(),
                 _ => return None,
             };
             if insert.columns.is_empty() {
@@ -208,8 +216,9 @@ fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, TouchedColum
             Some((name, TouchedColumns::Explicit(cols)))
         }
         Statement::Update(update) => {
+            // See the matching case-fold in the INSERT branch above.
             let name = match &update.table.relation {
-                TableFactor::Table { name, .. } => object_name_last(name)?,
+                TableFactor::Table { name, .. } => object_name_last(name)?.to_ascii_lowercase(),
                 _ => return None,
             };
             let cols: Vec<String> = update
