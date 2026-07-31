@@ -191,8 +191,26 @@ fn resolve_infra_row(
         return Ok(Vec::new());
     }
 
+    // Space-scoped infra tables always carry object-shape PKs (the CRDT
+    // scanner's usual form) — the array shape `canonicalize_row_pks` also
+    // accepts is only ever written for register-routed extension/system
+    // tables (e.g. `haex_s3_backends`), which never reach this path (see
+    // `is_space_scoped_table`). Fail closed instead of panicking so a future
+    // caller violating that invariant gets a `rusqlite::Error`, not a crash.
+    let parse_error = |e: &dyn std::fmt::Display| {
+        rusqlite::Error::FromSqlConversionFailure(
+            0,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "infra-row canonical row_pks must be a JSON object, table '{table_name}': {e}"
+                ),
+            )),
+        )
+    };
     let pks: BTreeMap<String, JsonValue> =
-        serde_json::from_str(canonical_pks).expect("canonicalize_row_pks produced non-object JSON");
+        serde_json::from_str(canonical_pks).map_err(|e| parse_error(&e))?;
     if pks.is_empty() {
         return Ok(Vec::new());
     }
