@@ -288,8 +288,14 @@ fn sign_written_rows(
         // Filter out CRDT meta columns and any columns not present in the
         // schema (defensive: parser can hand us anything).
         TouchedColumns::Explicit(cols) => {
-            let schema_names: std::collections::HashSet<&str> =
-                schema.iter().map(|c| c.name.as_str()).collect();
+            // `cols` is already case-folded to lowercase by
+            // `extract_touched_for_signing`, but `schema` comes straight from
+            // `PRAGMA table_info` and preserves DDL casing. Fold
+            // `schema_names` to lowercase too, so a table declared with a
+            // mixed-case column (`CREATE TABLE t (MixedCase TEXT)`) still
+            // matches instead of being silently dropped from signing.
+            let schema_names: std::collections::HashSet<String> =
+                schema.iter().map(|c| c.name.to_ascii_lowercase()).collect();
             cols.iter()
                 .filter(|c| !is_meta(c) && schema_names.contains(c.as_str()))
                 .cloned()

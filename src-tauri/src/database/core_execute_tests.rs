@@ -302,6 +302,57 @@ fn execute_with_crdt_skips_signing_when_row_has_no_spaces() {
     );
 }
 
+/// CodeRabbit PR #741 finding 2: `extract_touched_for_signing` case-folds
+/// touched-column names to lowercase, but `sign_written_rows` used to compare
+/// them against `schema_names` built straight from `PRAGMA table_info` (which
+/// preserves DDL casing). An extension table declared with a mixed-case
+/// column — `CREATE TABLE ext_x (id TEXT, MixedCase TEXT)` — folds to
+/// `mixedcase` on the touched-column side but stays `MixedCase` in
+/// `schema_names`, so `schema_names.contains("mixedcase")` was `false` and the
+/// column was silently dropped from the per-column signing path: the write
+/// succeeded with no signature covering that column at all.
+#[test]
+fn sign_written_rows_covers_mixedcase_ddl_columns() {
+    let f = setup_fixture();
+    {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute("ALTER TABLE ext_calendar ADD COLUMN \"MixedCase\" TEXT", [])
+            .unwrap();
+    }
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    core::execute_with_crdt(
+        "UPDATE ext_calendar SET \"MixedCase\" = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("mixed-value".to_string()),
+            JsonValue::String("R".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("update succeeds");
+
+    let sigs = read_column_sigs_json(&f.db, "ext_calendar", "R");
+    let mixed = sigs
+        .get("mixedcase")
+        .and_then(|v| v.as_object())
+        .expect("sigs must have a 'mixedcase' entry for the mixed-case DDL column");
+    assert!(
+        mixed.contains_key("space_A"),
+        "expected space_A sig for the mixed-case column, got: {:?}",
+        mixed.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        mixed.contains_key("space_B"),
+        "expected space_B sig for the mixed-case column, got: {:?}",
+        mixed.keys().collect::<Vec<_>>()
+    );
+}
+
 // ---------------------------------------------------------------------------
 // F2 — share-insert cross-table signing
 // ---------------------------------------------------------------------------
