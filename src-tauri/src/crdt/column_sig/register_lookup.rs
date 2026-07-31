@@ -125,7 +125,13 @@ impl RegisterLookup {
 /// re-serialising. Two callers that produce logically-equal PK payloads with
 /// different key orderings will hit the same cache entry and match the same
 /// register rows.
-fn canonicalize_row_pks(row_pks_json: &str) -> rusqlite::Result<String> {
+///
+/// `pub(crate)`: also used by `execute.rs`'s registry-row sign-on-write pass
+/// (Task B.3) to canonicalise `haex_shared_space_sync.row_pks` before it is
+/// signed/persisted — this is the same exact-string-match value
+/// [`resolve_extension_row`] compares against, so the two must agree on one
+/// canonical form.
+pub(crate) fn canonicalize_row_pks(row_pks_json: &str) -> rusqlite::Result<String> {
     let parsed: BTreeMap<String, JsonValue> = serde_json::from_str(row_pks_json).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(
             0,

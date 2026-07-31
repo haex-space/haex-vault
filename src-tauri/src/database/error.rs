@@ -158,6 +158,33 @@ pub enum DatabaseError {
     /// vector). Reject the whole statement — no silent stripping.
     #[error("CRDT meta column write is forbidden: '{column}' is managed by the CRDT layer and must not be set by callers")]
     CrdtMetaColumnWriteForbidden { column: String },
+
+    /// Task B.3 sign-on-write: a local INSERT into `haex_shared_space_sync`
+    /// declared `authored_by_did = '{claimed}'`, but this vault's own
+    /// signing key for `space_id` derives DID `{derived}`. Only the DID that
+    /// comes out of the space's own key may author a registry row — a
+    /// caller may never claim foreign authorship.
+    #[error("registry row declares authoredByDid='{claimed}' but this vault's key for space '{space_id}' derives DID='{derived}' — cannot author as a foreign identity")]
+    RegistryRowForeignAuthoredByDid {
+        space_id: String,
+        claimed: String,
+        derived: String,
+    },
+
+    /// Task B.3 sign-on-write: a caller-issued UPDATE on
+    /// `haex_shared_space_sync` tried to change `authored_by_did`.
+    /// Authorship is immutable after the row is created — only the
+    /// sign-on-write pass may populate it, once, on INSERT.
+    #[error("registry row UPDATE on '{table}' may not change authoredByDid — authorship is immutable after creation")]
+    RegistryRowAuthoredByDidImmutable { table: String },
+
+    /// Task B.3 sign-on-write: a caller-issued write to
+    /// `haex_shared_space_sync.row_sig` supplied a value directly. That
+    /// column is derived exclusively by the sign-on-write pass from the
+    /// row's 12 signed fields — a caller-supplied value could replay or
+    /// forge a signature without holding the space's signing key.
+    #[error("registry row_sig write is forbidden: '{column}' is derived by the sign-on-write pass and must not be set by callers")]
+    RegistryRowSigColumnWriteForbidden { column: String },
 }
 
 impl From<rusqlite::Error> for DatabaseError {

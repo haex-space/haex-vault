@@ -7,11 +7,15 @@ use serde_json::Value as JsonValue;
 use sqlparser::ast::{AssignmentTarget, ObjectName, Statement, TableFactor, TableObject};
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::column_sig::register_lookup::{is_register_target_forbidden, RegisterLookup};
+use crate::crdt::column_sig::register_lookup::{
+    canonicalize_row_pks, is_register_target_forbidden, RegisterLookup,
+};
 use crate::crdt::column_sig::sign::sign_column;
 use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
 use crate::crdt::column_sig::value_bytes;
 use crate::crdt::column_sig::write::sign_column_for_spaces;
+use crate::crdt::registry_row_sig::payload::RegistryRowSigPayload;
+use crate::crdt::registry_row_sig::sign::sign_registry_row;
 use crate::crdt::trigger::{
     get_table_schema, is_safe_identifier, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN,
     HLC_FUNCTION_NAME, HLC_TIMESTAMP_COLUMN,
@@ -23,7 +27,15 @@ use crate::database::core::value::{convert_value_ref_to_json, ValueConverter};
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
-use crate::table_names::TABLE_CRDT_CONFIGS;
+use crate::table_names::{
+    COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID, COL_SHARED_SPACE_SYNC_CATEGORY,
+    COL_SHARED_SPACE_SYNC_CATEGORY_LABEL, COL_SHARED_SPACE_SYNC_CREATED_AT,
+    COL_SHARED_SPACE_SYNC_EXTENSION_NAME, COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
+    COL_SHARED_SPACE_SYNC_ID, COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_ROW_SIG,
+    COL_SHARED_SPACE_SYNC_SPACE_ID, COL_SHARED_SPACE_SYNC_TABLE_NAME,
+    COL_SHARED_SPACE_SYNC_TYPE, COL_SHARED_SPACE_SYNC_TYPE_LABEL, TABLE_CRDT_CONFIGS,
+    TABLE_SHARED_SPACE_SYNC,
+};
 use crate::ucan::verify::did_key_from_public_key;
 
 /// The share register has two signing duties: the normal F1 pass signs the
@@ -108,6 +120,10 @@ pub fn execute_with_crdt(
         if let Some((table_name, columns)) = &touched {
             sign_written_rows(&tx, key_cache, table_name, columns)?;
         }
+
+        // B.3: sign-on-write for the share register's own row. Runs before F2
+        // so F2 reads the canonicalised `row_pks` this pass persists.
+        sign_registry_row_self(&tx, key_cache, &statement, touched.as_ref())?;
 
         // F2: an INSERT into the share register itself declares that a
         // pre-existing extension row now belongs to a new space. Retro-sign
@@ -587,6 +603,226 @@ fn sign_share_insert_targets(
     Ok(())
 }
 
+/// Column names of the 12 fields covered by a registry row's `row_sig`
+/// (Task B.3), in `RegistryRowSigPayload` field order minus
+/// `authored_by_did` — that one field alone is immutable post-creation, so
+/// it is checked separately from "does this write need a fresh signature".
+const REGISTRY_ROW_SIGNED_COLUMNS: &[&str] = &[
+    COL_SHARED_SPACE_SYNC_ID,
+    COL_SHARED_SPACE_SYNC_SPACE_ID,
+    COL_SHARED_SPACE_SYNC_TABLE_NAME,
+    COL_SHARED_SPACE_SYNC_ROW_PKS,
+    COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
+    COL_SHARED_SPACE_SYNC_EXTENSION_NAME,
+    COL_SHARED_SPACE_SYNC_CATEGORY,
+    COL_SHARED_SPACE_SYNC_TYPE,
+    COL_SHARED_SPACE_SYNC_CATEGORY_LABEL,
+    COL_SHARED_SPACE_SYNC_TYPE_LABEL,
+    COL_SHARED_SPACE_SYNC_CREATED_AT,
+];
+
+/// Task B.3 — sign-on-write for the share register's own rows.
+///
+/// Every INSERT/UPDATE that touches `haex_shared_space_sync` runs through
+/// here after F1's generic column-sign pass and before F2's cross-table
+/// retro-sign. On INSERT the row always gets a fresh `row_sig`; on UPDATE
+/// only if the write actually touches one of the 12 signed fields.
+///
+/// `authored_by_did` is the owner-DID: on INSERT an explicit value must
+/// match the DID derived from this vault's signing key for the row's
+/// `space_id` (holding that key IS the authorization — same I2 rule F2
+/// enforces for the cross-table retro-sign), an absent value (DB default
+/// `''`) is auto-populated with that derived DID. On UPDATE it is immutable
+/// — changing it always fails, even for the current owner. Direct writes to
+/// `row_sig` itself are rejected outright: it is a derived column, not
+/// caller-settable (mirrors `CrdtMetaColumnWriteForbidden`'s "reject, don't
+/// silently overwrite" rationale).
+///
+/// No-op for every other table and for statement kinds other than
+/// INSERT/UPDATE (SELECT/DELETE/DDL never reach here — `touched` is `None`
+/// for those already).
+fn sign_registry_row_self(
+    tx: &Transaction,
+    key_cache: &SpaceKeyCache,
+    statement: &Statement,
+    touched: Option<&(String, TouchedColumns)>,
+) -> Result<(), DatabaseError> {
+    let Some((table_name, columns)) = touched else {
+        return Ok(());
+    };
+    if !table_name.eq_ignore_ascii_case(TABLE_SHARED_SPACE_SYNC) {
+        return Ok(());
+    }
+    let is_update = matches!(statement, Statement::Update(_));
+    let is_insert = matches!(statement, Statement::Insert(_));
+    if !is_insert && !is_update {
+        return Ok(());
+    }
+
+    if let TouchedColumns::Explicit(cols) = columns {
+        // row_sig is derived exclusively by this pass — a caller supplying
+        // it directly (INSERT or UPDATE) is rejected rather than silently
+        // overwritten, so a forged value never has a chance to look like it
+        // "worked".
+        if cols
+            .iter()
+            .any(|c| c == COL_SHARED_SPACE_SYNC_ROW_SIG)
+        {
+            return Err(DatabaseError::RegistryRowSigColumnWriteForbidden {
+                column: COL_SHARED_SPACE_SYNC_ROW_SIG.to_string(),
+            });
+        }
+        if is_update {
+            if cols
+                .iter()
+                .any(|c| c == COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID)
+            {
+                return Err(DatabaseError::RegistryRowAuthoredByDidImmutable {
+                    table: TABLE_SHARED_SPACE_SYNC.to_string(),
+                });
+            }
+            let touches_signed_field = cols
+                .iter()
+                .any(|c| REGISTRY_ROW_SIGNED_COLUMNS.contains(&c.as_str()));
+            if !touches_signed_field {
+                // Only sync-meta / row_sig would be left, and both are
+                // already handled above (rejected) or upstream
+                // (CrdtMetaColumnWriteForbidden) — nothing here needs a
+                // fresh signature.
+                return Ok(());
+            }
+        }
+    }
+    // TouchedColumns::AllColumns only reaches this point for an INSERT into a
+    // register table that (unusually) lacks `haex_column_sigs` — F1 already
+    // rejects it otherwise. INSERT always (re)signs regardless, so no
+    // touched-column check is needed on that branch.
+
+    let tx_hlc: String = tx
+        .query_row(&format!("SELECT {HLC_FUNCTION_NAME}()"), [], |r| r.get(0))
+        .map_err(|e| DatabaseError::HlcError {
+            reason: format!("current_hlc read for registry row self-sign: {e}"),
+        })?;
+
+    struct RegistryRow {
+        id: String,
+        space_id: String,
+        table_name: String,
+        row_pks: String,
+        extension_public_key: Option<String>,
+        extension_name: Option<String>,
+        category: Option<String>,
+        r#type: Option<String>,
+        category_label: Option<String>,
+        type_label: Option<String>,
+        authored_by_did: String,
+        created_at: String,
+    }
+
+    let rows: Vec<RegistryRow> = {
+        let select_sql = format!(
+            "SELECT {COL_SHARED_SPACE_SYNC_ID}, {COL_SHARED_SPACE_SYNC_SPACE_ID}, \
+                    {COL_SHARED_SPACE_SYNC_TABLE_NAME}, {COL_SHARED_SPACE_SYNC_ROW_PKS}, \
+                    {COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY}, \
+                    {COL_SHARED_SPACE_SYNC_EXTENSION_NAME}, {COL_SHARED_SPACE_SYNC_CATEGORY}, \
+                    {COL_SHARED_SPACE_SYNC_TYPE}, {COL_SHARED_SPACE_SYNC_CATEGORY_LABEL}, \
+                    {COL_SHARED_SPACE_SYNC_TYPE_LABEL}, {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID}, \
+                    {COL_SHARED_SPACE_SYNC_CREATED_AT} \
+             FROM {TABLE_SHARED_SPACE_SYNC} WHERE \"{HLC_TIMESTAMP_COLUMN}\" = ?1"
+        );
+        let mut stmt = tx.prepare(&select_sql).map_err(DatabaseError::from)?;
+        let mut result_rows = stmt
+            .query([&tx_hlc as &dyn ToSql])
+            .map_err(DatabaseError::from)?;
+        let mut out = Vec::new();
+        while let Some(row) = result_rows.next().map_err(DatabaseError::from)? {
+            out.push(RegistryRow {
+                id: row.get(0).map_err(DatabaseError::from)?,
+                space_id: row.get(1).map_err(DatabaseError::from)?,
+                table_name: row.get(2).map_err(DatabaseError::from)?,
+                row_pks: row.get(3).map_err(DatabaseError::from)?,
+                extension_public_key: row.get(4).map_err(DatabaseError::from)?,
+                extension_name: row.get(5).map_err(DatabaseError::from)?,
+                category: row.get(6).map_err(DatabaseError::from)?,
+                r#type: row.get(7).map_err(DatabaseError::from)?,
+                category_label: row.get(8).map_err(DatabaseError::from)?,
+                type_label: row.get(9).map_err(DatabaseError::from)?,
+                authored_by_did: row.get(10).map_err(DatabaseError::from)?,
+                created_at: row.get(11).map_err(DatabaseError::from)?,
+            });
+        }
+        out
+    };
+
+    for row in rows {
+        // I2 (same rule as F2): holding the space's signing key IS the
+        // authorization to author into it. No key → cannot legitimately
+        // derive an owner DID for this row at all.
+        let signing_key = match key_cache.get_or_reload(&*tx, &row.space_id) {
+            Ok(Some(k)) => k,
+            Ok(None) | Err(_) => {
+                return Err(DatabaseError::I2ForeignShareInsert {
+                    space_id: row.space_id,
+                });
+            }
+        };
+        let derived_did = did_key_from_public_key(&signing_key.verifying_key());
+
+        // authored_by_did defaults to '' (migration 0014) when the caller
+        // does not set it explicitly — treat empty as "not set yet" and
+        // auto-populate; any other value must match this vault's own DID.
+        let final_authored_by_did = if row.authored_by_did.is_empty() {
+            derived_did.clone()
+        } else if row.authored_by_did != derived_did {
+            return Err(DatabaseError::RegistryRowForeignAuthoredByDid {
+                space_id: row.space_id,
+                claimed: row.authored_by_did,
+                derived: derived_did,
+            });
+        } else {
+            row.authored_by_did
+        };
+
+        // Concern 2: the register's row_pks must be canonical JSON — it is
+        // both part of the signed payload and the exact-string value
+        // `RegisterLookup::resolve` matches against later, so the
+        // chokepoint (not each caller) enforces one canonical form.
+        let canonical_row_pks =
+            canonicalize_row_pks(&row.row_pks).map_err(DatabaseError::from)?;
+
+        let payload = RegistryRowSigPayload {
+            id: &row.id,
+            space_id: &row.space_id,
+            table_name: &row.table_name,
+            row_pks: &canonical_row_pks,
+            extension_public_key: row.extension_public_key.as_deref(),
+            extension_name: row.extension_name.as_deref(),
+            category: row.category.as_deref(),
+            r#type: row.r#type.as_deref(),
+            category_label: row.category_label.as_deref(),
+            type_label: row.type_label.as_deref(),
+            authored_by_did: &final_authored_by_did,
+            created_at: &row.created_at,
+        };
+        let signature = sign_registry_row(&payload, &signing_key);
+        let sig_b64 = BASE64.encode(signature.to_bytes());
+
+        tx.execute(
+            &format!(
+                "UPDATE {TABLE_SHARED_SPACE_SYNC} SET \
+                    {COL_SHARED_SPACE_SYNC_ROW_SIG} = ?1, \
+                    {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID} = ?2, \
+                    {COL_SHARED_SPACE_SYNC_ROW_PKS} = ?3 \
+                 WHERE {COL_SHARED_SPACE_SYNC_ID} = ?4"
+            ),
+            rusqlite::params![sig_b64, final_authored_by_did, canonical_row_pks, row.id],
+        )
+        .map_err(DatabaseError::from)?;
+    }
+
+    Ok(())
+}
+
 /// Build a WHERE clause + bind vector matching every PK column of the target
 /// row from a canonicalised `row_pks_json` payload.
 ///
@@ -746,3 +982,7 @@ mod max_tx_size_tests;
 #[cfg(test)]
 #[path = "../core_execute_tests.rs"]
 mod execute_tests;
+
+#[cfg(test)]
+#[path = "../core_registry_row_sig_tests.rs"]
+mod registry_row_sig_tests;
