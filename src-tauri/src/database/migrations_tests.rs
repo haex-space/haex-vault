@@ -490,6 +490,121 @@ fn migration_0013_creates_compaction_anchors_table() {
     );
 }
 
+/// Test-fixture stub: the `haex_shared_space_sync` shape immediately before
+/// migration 0014 runs — i.e. after 0000 (create) + 0010 (add
+/// `authored_by_did`) + 0012 (drop `authored_by_did`) + 0013 (adds an index,
+/// doesn't touch this table's columns). `authored_by_did` is intentionally
+/// absent here (dropped by 0012, ADR 0002 §6.3) — 0014 reintroduces it as the
+/// Registry-Row-Ownership author, this time paired with `row_sig` so the
+/// claim is cryptographically verifiable (see
+/// docs/plans/2026-07-31-shared-space-authorization-design.md).
+fn create_shared_space_sync_pre_0014_stub(conn: &Connection) {
+    conn.execute_batch(
+        "CREATE TABLE haex_shared_space_sync (
+             id TEXT PRIMARY KEY NOT NULL,
+             table_name TEXT NOT NULL,
+             row_pks TEXT NOT NULL,
+             space_id TEXT NOT NULL,
+             extension_public_key TEXT,
+             extension_name TEXT,
+             group_id TEXT,
+             type TEXT,
+             label TEXT,
+             created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+         );",
+    )
+    .expect("create pre-0014 haex_shared_space_sync stub");
+}
+
+#[test]
+fn migration_0014_renames_and_adds_registry_authorization_columns() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_pre_0014_stub(&conn);
+    apply_migration_by_tag(&conn, "0014_");
+
+    let cols = pragma_column_names(&conn, "haex_shared_space_sync");
+    assert!(
+        cols.iter().any(|c| c == "category"),
+        "missing category (renamed from group_id), got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "type_label"),
+        "missing type_label (renamed from label), got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "category_label"),
+        "missing category_label, got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "authored_by_did"),
+        "missing authored_by_did, got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "row_sig"),
+        "missing row_sig, got: {cols:?}"
+    );
+    assert!(
+        !cols.iter().any(|c| c == "group_id"),
+        "group_id must be renamed away, got: {cols:?}"
+    );
+    assert!(
+        !cols.iter().any(|c| c == "label"),
+        "label must be renamed away, got: {cols:?}"
+    );
+}
+
+#[test]
+fn migration_0014_unique_constraint_rejects_duplicate_author_category() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_pre_0014_stub(&conn);
+    apply_migration_by_tag(&conn, "0014_");
+
+    let insert = |id: &str, author: &str, space: &str, table: &str, row_pks: &str, category: &str| {
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync
+                (id, table_name, row_pks, space_id, authored_by_did, category, row_sig)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sig')",
+            rusqlite::params![id, table, row_pks, space, author, category],
+        )
+    };
+
+    insert(
+        "share-1",
+        "alice-did",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r1"}"#,
+        "work",
+    )
+    .expect("first insert for alice/space-1/ext_cal_v1/work must succeed");
+
+    // Different content row, same (author, space, table, category) — must be
+    // rejected by the new unique index, not merely by the pre-existing
+    // (table_name, row_pks, space_id) uniqueness (hence the distinct row_pks).
+    let dup = insert(
+        "share-2",
+        "alice-did",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r2"}"#,
+        "work",
+    );
+    assert!(
+        dup.is_err(),
+        "second insert with same (author, space, table, category) must fail"
+    );
+
+    insert(
+        "share-3",
+        "bob-did",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r3"}"#,
+        "work",
+    )
+    .expect("different author with same (space, table, category) must be allowed");
+}
+
 #[test]
 fn pending_columns_migration_0003_widens_pk_to_row_aware() {
     // The shipped 0003 migration must produce a (table_name, column_name,
