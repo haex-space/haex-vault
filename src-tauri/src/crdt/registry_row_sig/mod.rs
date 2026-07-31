@@ -11,9 +11,5 @@ pub mod payload;
 pub mod sign;
 pub mod verify;
 
-pub use payload::{RegistryRowSigPayload, DOMAIN_TAG};
-pub use sign::sign_registry_row;
-pub use verify::verify_registry_row;
-
 #[cfg(test)]
 mod tests;

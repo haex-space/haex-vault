@@ -1,4 +1,6 @@
-use super::{sign_registry_row, verify_registry_row, RegistryRowSigPayload, DOMAIN_TAG};
+use super::payload::{RegistryRowSigPayload, DOMAIN_TAG};
+use super::sign::sign_registry_row;
+use super::verify::verify_registry_row;
 use ed25519_dalek::SigningKey;
 
 fn base_payload() -> RegistryRowSigPayload<'static> {

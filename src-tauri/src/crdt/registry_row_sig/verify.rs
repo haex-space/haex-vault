@@ -10,11 +10,7 @@ use ed25519_dalek::{Signature, VerifyingKey};
 /// a weak-key forgery is a direct impersonation. Strict verification rejects
 /// both cases — see `column_sig::verify::verify_column_sig` for the same
 /// rationale.
-pub fn verify_registry_row(
-    payload: &RegistryRowSigPayload,
-    sig: &[u8],
-    pk: &VerifyingKey,
-) -> bool {
+pub fn verify_registry_row(payload: &RegistryRowSigPayload, sig: &[u8], pk: &VerifyingKey) -> bool {
     let msg = payload.canonical_encoding();
     let sig_arr: [u8; 64] = match sig.try_into() {
         Ok(a) => a,
