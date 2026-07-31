@@ -277,3 +277,15 @@ fn system_target_policy_is_fail_closed_with_scoped_storage_exception() {
     assert!(is_register_target_forbidden("sqlite_sequence"));
     assert!(is_register_target_forbidden("ext_cache_no_sync"));
 }
+
+#[test]
+fn ucan_grants_are_forbidden_register_targets() {
+    // Defense-in-depth: even if `haex_space_ucan_grants_no_sync` (Task A.2,
+    // local-only UCAN grants store) were somehow written into
+    // `haex_shared_space_sync.table_name`, both the `haex_` prefix rule and
+    // the `_no_sync` suffix rule must independently reject it as a register
+    // target, so the F1/F2 register-driven sync path can never pick it up.
+    assert!(is_register_target_forbidden(
+        crate::table_names::TABLE_SPACE_UCAN_GRANTS_NO_SYNC
+    ));
+}
