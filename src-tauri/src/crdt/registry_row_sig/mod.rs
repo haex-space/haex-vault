@@ -8,8 +8,11 @@
 //! puller.
 
 pub mod payload;
+pub mod puller_verify;
 pub mod sign;
 pub mod verify;
 
+#[cfg(test)]
+mod puller_verify_tests;
 #[cfg(test)]
 mod tests;
