@@ -121,10 +121,23 @@ impl RegisterLookup {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Normalises `row_pks_json` by parsing into a `BTreeMap` (sorted keys) and
-/// re-serialising. Two callers that produce logically-equal PK payloads with
-/// different key orderings will hit the same cache entry and match the same
-/// register rows.
+/// Normalises `row_pks_json` into a canonical string form. Two callers that
+/// produce logically-equal PK payloads with different key orderings will hit
+/// the same cache entry and match the same register rows.
+///
+/// Accepts two shapes:
+///   * **JSON object** — the usual PK-column-map form produced by the CRDT
+///     scanner (e.g. `{"id":"abc-123"}`). Parsed into a `BTreeMap` (sorted
+///     keys) and re-serialised, so key order never affects the canonical
+///     string.
+///   * **JSON array** — e.g. `["abc-123"]`, as written by
+///     `persist_shared_backend` (`remote_storage::share_command`) into
+///     `haex_shared_space_sync.row_pks` (PR #741 finding 3). Arrays are
+///     already positionally unambiguous, so they are simply re-serialised
+///     as-is (order preserved, not sorted).
+///
+/// Scalars and `null` are rejected — neither shape is a valid row_pks
+/// payload.
 ///
 /// `pub(crate)`: also used by `execute.rs`'s registry-row sign-on-write pass
 /// (Task B.3) to canonicalise `haex_shared_space_sync.row_pks` before it is
@@ -132,26 +145,33 @@ impl RegisterLookup {
 /// [`resolve_extension_row`] compares against, so the two must agree on one
 /// canonical form.
 pub(crate) fn canonicalize_row_pks(row_pks_json: &str) -> rusqlite::Result<String> {
-    let parsed: BTreeMap<String, JsonValue> = serde_json::from_str(row_pks_json).map_err(|e| {
+    let parse_error = |context: &str, e: &dyn std::fmt::Display| {
         rusqlite::Error::FromSqlConversionFailure(
             0,
             rusqlite::types::Type::Text,
             Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("row_pks JSON parse: {e}"),
+                format!("row_pks JSON {context}: {e}"),
             )),
         )
-    })?;
-    serde_json::to_string(&parsed).map_err(|e| {
-        rusqlite::Error::FromSqlConversionFailure(
-            0,
-            rusqlite::types::Type::Text,
-            Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("row_pks JSON reserialise: {e}"),
-            )),
-        )
-    })
+    };
+
+    let value: JsonValue =
+        serde_json::from_str(row_pks_json).map_err(|e| parse_error("parse", &e))?;
+    match value {
+        JsonValue::Object(_) => {
+            let map: BTreeMap<String, JsonValue> =
+                serde_json::from_value(value).map_err(|e| parse_error("parse", &e))?;
+            serde_json::to_string(&map).map_err(|e| parse_error("reserialise", &e))
+        }
+        JsonValue::Array(arr) => {
+            serde_json::to_string(&arr).map_err(|e| parse_error("reserialise", &e))
+        }
+        _ => Err(parse_error(
+            "parse",
+            &"row_pks must be a JSON object or array, got a scalar or null",
+        )),
+    }
 }
 
 /// Extract the space_id from an infra table's row itself.

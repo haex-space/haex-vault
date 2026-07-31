@@ -260,6 +260,36 @@ fn test_execute_with_crdt_signs_registry_row_on_insert() {
     );
 }
 
+/// PR #741 finding 3 (CRITICAL): `persist_shared_backend`
+/// (`remote_storage::share_command`) writes `row_pks` as a JSON ARRAY
+/// (`["<uuid>"]`), not the JSON-object shape the CRDT scanner produces for
+/// every other table. Before the fix, `canonicalize_row_pks` only accepted
+/// objects, so this INSERT aborted the whole write with a deserialize error.
+/// Mirrors `persist_shared_backend`'s exact `row_pks` construction.
+#[test]
+fn test_execute_with_crdt_signs_registry_row_with_array_row_pks() {
+    let f = setup_fixture();
+    let row_pks_json = serde_json::to_string(&vec!["backend-id-1"]).unwrap();
+    insert_minimal_row(&f, "row-array", &row_pks_json);
+
+    let row = load_row(&f.db, "row-array");
+    assert_eq!(row.row_pks, r#"["backend-id-1"]"#);
+    assert!(!row.row_sig.is_empty(), "row_sig must be populated");
+
+    let sig_bytes = BASE64
+        .decode(&row.row_sig)
+        .expect("row_sig is valid base64");
+    let pk = f
+        .cache
+        .get("space_1")
+        .expect("space_1 key cached")
+        .verifying_key();
+    assert!(
+        verify_registry_row(&row.payload(), &sig_bytes, &pk).is_ok(),
+        "row_sig must verify against the persisted payload"
+    );
+}
+
 #[test]
 fn test_execute_with_crdt_auto_populates_authored_by_did_when_missing() {
     let f = setup_fixture();
