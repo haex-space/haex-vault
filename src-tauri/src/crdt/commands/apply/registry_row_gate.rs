@@ -179,12 +179,15 @@ pub(super) fn build_incoming_registry_change(
 ) -> Result<RegistryRowChangeOutcome, DatabaseError> {
     let persisted = fetch_persisted_registry_row_full(tx, pk_where_clause, pk_values_for_query)?;
 
-    let touches_signed_payload = batch
-        .iter()
-        .any(|c| SIGNED_PAYLOAD_COLUMNS.contains(&c.column_name.as_str()));
-    let has_fresh_row_sig = batch
-        .iter()
-        .any(|c| c.column_name == COL_SHARED_SPACE_SYNC_ROW_SIG);
+    let touches_signed_payload = batch.iter().any(|c| {
+        SIGNED_PAYLOAD_COLUMNS
+            .iter()
+            .any(|s| c.column_name.eq_ignore_ascii_case(s))
+    });
+    let has_fresh_row_sig = batch.iter().any(|c| {
+        c.column_name
+            .eq_ignore_ascii_case(COL_SHARED_SPACE_SYNC_ROW_SIG)
+    });
 
     // An existing row whose batch touches nothing sig-relevant needs no
     // fresh verification — its persisted row_sig already covers its
@@ -458,5 +461,72 @@ mod tests {
             outcome,
             RegistryRowChangeOutcome::NothingSignedTouched
         ));
+    }
+
+    /// Same attack as `..._rejects_batch_with_only_row_sig`, but the
+    /// incoming column name is mixed-case (`Row_Sig`). The local schema is
+    /// fixed lowercase today, so this can only arise from a malformed/
+    /// forged batch — but the case-sensitive `==`/`contains` checks this
+    /// guards against would otherwise let it slip through as
+    /// `NothingSignedTouched` (matching neither `SIGNED_PAYLOAD_COLUMNS` nor
+    /// `COL_SHARED_SPACE_SYNC_ROW_SIG` literally), even though SQLite itself
+    /// resolves the column name case-insensitively at the eventual write.
+    /// `eq_ignore_ascii_case` must catch it and still produce
+    /// `RowSigOnlyBatch`.
+    #[test]
+    fn build_incoming_registry_change_rejects_mixed_case_row_sig_column() {
+        let mut conn = setup_db();
+        conn.execute(
+            &format!(
+                "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
+                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at) \
+                 VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', \
+                         'did:key:alice', 'original-sig', '2026-01-01T00:00:00Z')"
+            ),
+            [],
+        )
+        .unwrap();
+
+        let tx = conn.transaction().unwrap();
+        let row_pks_map = serde_json::json!({ "id": "reg-1" })
+            .as_object()
+            .unwrap()
+            .clone();
+        let batch = vec![RemoteColumnChange {
+            table_name: TABLE_SHARED_SPACE_SYNC.to_string(),
+            row_pks: r#"{"id":"reg-1"}"#.to_string(),
+            column_name: "Row_Sig".to_string(),
+            hlc_timestamp: "2/bbb".to_string(),
+            decrypted_value: JsonValue::String("attacker-old-sig".to_string()),
+            sig: None,
+        }];
+
+        let outcome = build_incoming_registry_change(
+            &tx,
+            "id = ?1",
+            &[JsonValue::String("reg-1".to_string())],
+            &row_pks_map,
+            &batch,
+        )
+        .unwrap();
+
+        match outcome {
+            RegistryRowChangeOutcome::RowSigOnlyBatch {
+                space_id,
+                authored_by_did,
+            } => {
+                assert_eq!(space_id, "space-1");
+                assert_eq!(authored_by_did, "did:key:alice");
+            }
+            RegistryRowChangeOutcome::NothingSignedTouched => {
+                panic!("expected RowSigOnlyBatch, got NothingSignedTouched")
+            }
+            RegistryRowChangeOutcome::MissingFreshRowSig(_) => {
+                panic!("expected RowSigOnlyBatch, got MissingFreshRowSig")
+            }
+            RegistryRowChangeOutcome::Ready { .. } => {
+                panic!("expected RowSigOnlyBatch, got Ready")
+            }
+        }
     }
 }
