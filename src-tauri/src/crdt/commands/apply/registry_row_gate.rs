@@ -65,12 +65,21 @@ pub(super) enum RegistryRowChangeOutcome {
     NothingSignedTouched,
     /// A signed field changed but the batch did not carry a fresh
     /// `row_sig` alongside it. Rejected without even calling B.4 — there is
-    /// nothing legitimate to verify against.
-    MissingFreshRowSig,
-    /// Ready to hand to `verify_incoming_registry_change`. Boxed — this
-    /// variant is far larger than its siblings (`IncomingRegistryChange`
-    /// carries a dozen owned `String`/`Option<String>` fields).
-    Ready(Box<IncomingRegistryChange>),
+    /// nothing legitimate to verify against. Carries the names of the
+    /// touched signed column(s), for forensic logging at the call site.
+    MissingFreshRowSig(Vec<String>),
+    /// Ready to hand to `verify_incoming_registry_change`. `change` is
+    /// boxed — this variant is far larger than its siblings
+    /// (`IncomingRegistryChange` carries a dozen owned
+    /// `String`/`Option<String>` fields). `persisted` is the row's existing
+    /// `authored_by_did` (already read as part of the same full-row fetch
+    /// this function needed anyway for column fallback) — `None` for an
+    /// INSERT, `Some` for an UPDATE. The caller feeds it straight into
+    /// `verify_incoming_registry_change` without a second SELECT.
+    Ready {
+        change: Box<IncomingRegistryChange>,
+        persisted: Option<PersistedRegistryRow>,
+    },
 }
 
 /// Every field of a persisted `haex_shared_space_sync` row, used to fill in
@@ -134,27 +143,6 @@ fn fetch_persisted_registry_row_full(
     .map_err(DatabaseError::from)
 }
 
-/// Fetch just the persisted `authored_by_did` of a `haex_shared_space_sync`
-/// row — the only field B.4's immutability check needs. `None` when the row
-/// does not exist locally yet (the INSERT case).
-pub(super) fn fetch_persisted_registry_authored_by_did(
-    tx: &Transaction,
-    pk_where_clause: &str,
-    pk_values_for_query: &[JsonValue],
-) -> Result<Option<PersistedRegistryRow>, DatabaseError> {
-    let sql = format!(
-        "SELECT {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID} \
-         FROM \"{TABLE_SHARED_SPACE_SYNC}\" WHERE {pk_where_clause}"
-    );
-    let pk_values = json_values_to_sql_params(pk_values_for_query)?;
-    let mut stmt = tx.prepare(&sql).map_err(DatabaseError::from)?;
-    let authored_by_did: Option<String> = stmt
-        .query_row(&*pk_params_refs(&pk_values), |row| row.get(0))
-        .optional()
-        .map_err(DatabaseError::from)?;
-    Ok(authored_by_did.map(|authored_by_did| PersistedRegistryRow { authored_by_did }))
-}
-
 /// Batch this row's `RemoteColumnChange`s into an [`IncomingRegistryChange`],
 /// filling every column the batch does not touch from the row's persisted
 /// value (or `""`/`None` on the INSERT path, where there is no persisted
@@ -190,7 +178,14 @@ pub(super) fn build_incoming_registry_change(
         .iter()
         .any(|c| c.column_name == COL_SHARED_SPACE_SYNC_ROW_SIG);
     if touches_signed_payload && !has_fresh_row_sig {
-        return Ok(RegistryRowChangeOutcome::MissingFreshRowSig);
+        let touched_signed_columns: Vec<String> = batch
+            .iter()
+            .filter(|c| SIGNED_PAYLOAD_COLUMNS.contains(&c.column_name.as_str()))
+            .map(|c| c.column_name.clone())
+            .collect();
+        return Ok(RegistryRowChangeOutcome::MissingFreshRowSig(
+            touched_signed_columns,
+        ));
     }
 
     // Batch value wins; otherwise fall back to the persisted value (empty/
@@ -271,5 +266,17 @@ pub(super) fn build_incoming_registry_change(
         ),
     };
 
-    Ok(RegistryRowChangeOutcome::Ready(Box::new(change)))
+    // Extract after `change` is built — `p` (borrowed from `persisted`)
+    // is done being read by that point, so `persisted` can be consumed here
+    // instead of re-fetched. This is the same row this function's own
+    // `fetch_persisted_registry_row_full` call above already read; a
+    // second SELECT for just `authored_by_did` would be redundant.
+    let persisted_authored_by_did = persisted.map(|full| PersistedRegistryRow {
+        authored_by_did: full.authored_by_did,
+    });
+
+    Ok(RegistryRowChangeOutcome::Ready {
+        change: Box::new(change),
+        persisted: persisted_authored_by_did,
+    })
 }

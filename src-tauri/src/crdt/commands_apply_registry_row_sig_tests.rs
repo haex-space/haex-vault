@@ -284,6 +284,19 @@ fn query_registry_row(db: &DbConnection, id: &str) -> Option<(String, String, Op
     .ok()
 }
 
+fn query_registry_row_sig(db: &DbConnection, id: &str) -> Option<String> {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    conn.query_row(
+        &format!(
+            "SELECT {COL_SHARED_SPACE_SYNC_ROW_SIG} FROM {TABLE_SHARED_SPACE_SYNC} WHERE id = ?1"
+        ),
+        [id],
+        |row| row.get(0),
+    )
+    .ok()
+}
+
 /// A validly self-signed INSERT lands: the row's `row_sig` verifies against
 /// its own `authored_by_did` and the row is applied normally.
 #[test]
@@ -327,6 +340,49 @@ fn apply_pipeline_rejects_registry_row_with_bad_row_sig() {
     assert!(
         query_registry_row(&db, "reg-2").is_none(),
         "forged row_sig must drop the entire row, not just the row_sig column"
+    );
+}
+
+/// An UPDATE that mutates a signed field (`category`) WITHOUT including a
+/// fresh `row_sig` in the same batch at all (not even a stale/forged one —
+/// the column is simply absent) must be rejected outright by
+/// `RegistryRowChangeOutcome::MissingFreshRowSig`, before B.4's verify
+/// function is even called. Both the mutation and the row's `row_sig` must
+/// be left exactly as seeded.
+#[test]
+fn apply_pipeline_rejects_registry_update_that_omits_fresh_row_sig() {
+    let db = setup_registry_db();
+    let (sk, pk) = generate_keypair();
+    let did = did_key_from_public_key(&pk);
+    let fields = RegistryFields::sample("reg-5", "space-1", &did);
+    let seeded_row_sig = fields.row_sig_b64(&sk);
+    apply_remote_changes_to_db(&db, full_batch(&fields, &sk, None, "1/aaa"), None, None)
+        .expect("seed insert must succeed");
+
+    // UPDATE batch: mutate `category` only — no `row_sig` column at all.
+    let row_pks_json = format!(r#"{{"id":"{}"}}"#, fields.id);
+    let mutate_only = build_change(
+        &row_pks_json,
+        COL_SHARED_SPACE_SYNC_CATEGORY,
+        JsonValue::String("hijacked".to_string()),
+        "2/bbb",
+        None,
+        &fields.space_id,
+    );
+
+    apply_remote_changes_to_db(&db, vec![mutate_only], None, None)
+        .expect("apply must succeed — rejection is row-scoped, not fatal");
+
+    let stored = query_registry_row(&db, "reg-5").expect("row must still exist");
+    assert_eq!(
+        stored.2.as_deref(),
+        Some("work"),
+        "category must remain the seeded value, not the attempted mutation"
+    );
+    assert_eq!(
+        query_registry_row_sig(&db, "reg-5").as_deref(),
+        Some(seeded_row_sig.as_str()),
+        "row_sig must remain the seeded signature, unchanged"
     );
 }
 

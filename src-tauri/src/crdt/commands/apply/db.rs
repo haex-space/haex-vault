@@ -27,10 +27,7 @@ use super::delete_propagation::{
     propagate_shared_space_deleted_rows_to_target_tables,
 };
 use super::grouping::{group_by_transaction_hlc, group_row_changes_in_hlc_order};
-use super::registry_row_gate::{
-    build_incoming_registry_change, fetch_persisted_registry_authored_by_did,
-    RegistryRowChangeOutcome,
-};
+use super::registry_row_gate::{build_incoming_registry_change, RegistryRowChangeOutcome};
 use super::types::{ColumnSig, RemoteColumnChange};
 
 /// Idempotently insert a stub `haex_identities` row for a DID we've never
@@ -637,25 +634,20 @@ pub fn apply_remote_changes_to_db_scoped(
                     )?;
                     match outcome {
                         RegistryRowChangeOutcome::NothingSignedTouched => {}
-                        RegistryRowChangeOutcome::MissingFreshRowSig => {
+                        RegistryRowChangeOutcome::MissingFreshRowSig(touched_signed_columns) => {
                             eprintln!(
-                                "[SYNC RUST] Rejected registry row {} in '{}' — signed field changed without a fresh row_sig",
-                                row_pks_str, first_change.table_name
+                                "[SYNC RUST] Rejected registry row {} in '{}' — signed column(s) {:?} changed without a fresh row_sig in the same batch",
+                                row_pks_str, first_change.table_name, touched_signed_columns
                             );
                             continue;
                         }
-                        RegistryRowChangeOutcome::Ready(incoming_change) => {
-                            let existing = fetch_persisted_registry_authored_by_did(
-                                &tx,
-                                &pk_where_clause,
-                                &pk_values_for_query,
-                            )?;
+                        RegistryRowChangeOutcome::Ready { change, persisted } => {
                             if let Err(err) =
-                                verify_incoming_registry_change(&incoming_change, existing.as_ref())
+                                verify_incoming_registry_change(&change, persisted.as_ref())
                             {
                                 eprintln!(
-                                    "[SYNC RUST] Rejected registry row {} in '{}' — {:?}",
-                                    row_pks_str, first_change.table_name, err
+                                    "[SYNC RUST] Rejected registry row {} in '{}' (claimed authored_by_did='{}') — {:?}",
+                                    row_pks_str, first_change.table_name, change.authored_by_did, err
                                 );
                                 continue;
                             }

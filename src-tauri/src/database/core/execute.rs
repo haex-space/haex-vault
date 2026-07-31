@@ -627,6 +627,14 @@ fn sign_share_insert_targets(
 /// (Task B.3), in `RegistryRowSigPayload` field order minus
 /// `authored_by_did` — that one field alone is immutable post-creation, so
 /// it is checked separately from "does this write need a fresh signature".
+///
+/// Deliberately asymmetric with the puller-side
+/// `crdt::commands::apply::registry_row_gate::SIGNED_PAYLOAD_COLUMNS` (Task
+/// B.5), which is the mirror image: it EXCLUDES `id` (never carried as a
+/// column-level change over the wire) and INCLUDES `authored_by_did` (a
+/// peer forging that field must trip the puller's "needs a fresh row_sig"
+/// check too, since B.5 has no separate local-write immutability guard to
+/// catch it first). Not a bug — don't unify without re-deriving both.
 const REGISTRY_ROW_SIGNED_COLUMNS: &[&str] = &[
     COL_SHARED_SPACE_SYNC_ID,
     COL_SHARED_SPACE_SYNC_SPACE_ID,
