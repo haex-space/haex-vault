@@ -651,6 +651,13 @@ pub fn apply_remote_changes_to_db_scoped(
                             );
                             continue;
                         }
+                        RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(null_columns) => {
+                            eprintln!(
+                                "[SYNC RUST] Rejected registry row {} in '{}' — required column(s) {:?} were explicitly set to null (never legitimate; dropping data in transit or forgery attempt)",
+                                row_pks_str, first_change.table_name, null_columns
+                            );
+                            continue;
+                        }
                         RegistryRowChangeOutcome::Ready { change, persisted } => {
                             if let Err(err) =
                                 verify_incoming_registry_change(&change, persisted.as_ref())

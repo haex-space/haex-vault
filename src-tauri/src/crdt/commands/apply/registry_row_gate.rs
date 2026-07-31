@@ -56,6 +56,26 @@ const SIGNED_PAYLOAD_COLUMNS: &[&str] = &[
     COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID,
 ];
 
+/// Columns whose corresponding field on both `IncomingRegistryChange` and
+/// `RegistryRowSigPayload` (`registry_row_sig::payload`) is a plain,
+/// non-`Option` string — i.e. the fields fed through the `text()` closure
+/// below, not `opt_text()`. There is no legitimate way for a peer to send
+/// an explicit JSON `null` for one of these: unlike an *absent* column
+/// (which correctly falls back to the row's persisted value), a
+/// *present-but-null* column here can only mean data loss in transit or a
+/// forgery attempt, and silently falling back to the persisted value would
+/// corrupt signature reconstruction — the real signer's payload had `null`
+/// for this field, not the stale persisted string. See
+/// `RegistryRowChangeOutcome::RequiredFieldExplicitlyNull`.
+const REQUIRED_TEXT_COLUMNS: &[&str] = &[
+    COL_SHARED_SPACE_SYNC_SPACE_ID,
+    COL_SHARED_SPACE_SYNC_TABLE_NAME,
+    COL_SHARED_SPACE_SYNC_ROW_PKS,
+    COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID,
+    COL_SHARED_SPACE_SYNC_CREATED_AT,
+    COL_SHARED_SPACE_SYNC_ROW_SIG,
+];
+
 /// Outcome of assembling one registry row's incoming change.
 pub(super) enum RegistryRowChangeOutcome {
     /// The batch touched nothing covered by the row-sig payload on an
@@ -86,6 +106,16 @@ pub(super) enum RegistryRowChangeOutcome {
     /// nothing legitimate to verify against. Carries the names of the
     /// touched signed column(s), for forensic logging at the call site.
     MissingFreshRowSig(Vec<String>),
+    /// The batch carried an explicit JSON `null` for one of
+    /// [`REQUIRED_TEXT_COLUMNS`] — a column backing a plain (non-`Option`)
+    /// field on the reconstructed payload. Distinct from that column being
+    /// merely *absent* from the batch, which is the normal
+    /// fall-back-to-persisted-value case. Rejected rather than silently
+    /// substituting the stale persisted value, which would decouple the
+    /// reconstructed payload from whatever the real signer actually signed.
+    /// Carries the name(s) of the offending column(s), for forensic logging
+    /// at the call site.
+    RequiredFieldExplicitlyNull(Vec<String>),
     /// Ready to hand to `verify_incoming_registry_change`. `change` is
     /// boxed — this variant is far larger than its siblings
     /// (`IncomingRegistryChange` carries a dozen owned
@@ -220,6 +250,27 @@ pub(super) fn build_incoming_registry_change(
             .collect();
         return Ok(RegistryRowChangeOutcome::MissingFreshRowSig(
             touched_signed_columns,
+        ));
+    }
+
+    // A column in REQUIRED_TEXT_COLUMNS present with an explicit JSON
+    // `null` is never legitimate (see `RequiredFieldExplicitlyNull`'s
+    // doc-comment) — reject before `text()` below gets a chance to collapse
+    // it into the "absent" fallback path. Checked case-insensitively, same
+    // as `touches_signed_payload`/`has_fresh_row_sig` above.
+    let explicit_null_required_columns: Vec<String> = batch
+        .iter()
+        .filter(|c| {
+            c.decrypted_value.is_null()
+                && REQUIRED_TEXT_COLUMNS
+                    .iter()
+                    .any(|s| c.column_name.eq_ignore_ascii_case(s))
+        })
+        .map(|c| c.column_name.clone())
+        .collect();
+    if !explicit_null_required_columns.is_empty() {
+        return Ok(RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(
+            explicit_null_required_columns,
         ));
     }
 
@@ -409,6 +460,9 @@ mod tests {
             RegistryRowChangeOutcome::MissingFreshRowSig(_) => {
                 panic!("expected RowSigOnlyBatch, got MissingFreshRowSig")
             }
+            RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(_) => {
+                panic!("expected RowSigOnlyBatch, got RequiredFieldExplicitlyNull")
+            }
             RegistryRowChangeOutcome::Ready { .. } => {
                 panic!("expected RowSigOnlyBatch, got Ready")
             }
@@ -524,9 +578,141 @@ mod tests {
             RegistryRowChangeOutcome::MissingFreshRowSig(_) => {
                 panic!("expected RowSigOnlyBatch, got MissingFreshRowSig")
             }
+            RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(_) => {
+                panic!("expected RowSigOnlyBatch, got RequiredFieldExplicitlyNull")
+            }
             RegistryRowChangeOutcome::Ready { .. } => {
                 panic!("expected RowSigOnlyBatch, got Ready")
             }
+        }
+    }
+
+    fn column_change(column_name: &str, value: JsonValue) -> RemoteColumnChange {
+        RemoteColumnChange {
+            table_name: TABLE_SHARED_SPACE_SYNC.to_string(),
+            row_pks: r#"{"id":"reg-1"}"#.to_string(),
+            column_name: column_name.to_string(),
+            hlc_timestamp: "2/bbb".to_string(),
+            decrypted_value: value,
+            sig: None,
+        }
+    }
+
+    fn insert_reg1_with_category(conn: &Connection, category: &str) {
+        conn.execute(
+            &format!(
+                "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
+                 (id, table_name, row_pks, space_id, category, authored_by_did, row_sig, created_at) \
+                 VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', '{category}', \
+                         'did:key:alice', 'original-sig', '2026-01-01T00:00:00Z')"
+            ),
+            [],
+        )
+        .unwrap();
+    }
+
+    fn reg1_pk_args() -> (serde_json::Map<String, JsonValue>, Vec<JsonValue>) {
+        let row_pks_map = serde_json::json!({ "id": "reg-1" })
+            .as_object()
+            .unwrap()
+            .clone();
+        (row_pks_map, vec![JsonValue::String("reg-1".to_string())])
+    }
+
+    /// A batch that does not touch `category` at all must fall back to the
+    /// row's persisted `category` (the normal "absent column" case). A
+    /// batch that touches `category` with an explicit JSON `null` must
+    /// clear it to `None` instead (an explicit clear from the peer) — the
+    /// two are distinct wire states and must not collapse into the same
+    /// outcome.
+    #[test]
+    fn build_incoming_registry_change_distinguishes_absent_from_null_category() {
+        // Case A: category absent from the batch -> falls back to persisted.
+        let mut conn = setup_db();
+        insert_reg1_with_category(&conn, "work");
+        let tx = conn.transaction().unwrap();
+        let (row_pks_map, pk_values) = reg1_pk_args();
+        let batch = vec![
+            column_change(
+                COL_SHARED_SPACE_SYNC_TYPE_LABEL,
+                JsonValue::String("Updated Label".to_string()),
+            ),
+            column_change(
+                COL_SHARED_SPACE_SYNC_ROW_SIG,
+                JsonValue::String("fresh-sig".to_string()),
+            ),
+        ];
+        let outcome =
+            build_incoming_registry_change(&tx, "id = ?1", &pk_values, &row_pks_map, &batch)
+                .unwrap();
+        match outcome {
+            RegistryRowChangeOutcome::Ready { change, .. } => {
+                assert_eq!(change.category.as_deref(), Some("work"));
+            }
+            _ => panic!("expected Ready"),
+        }
+        drop(tx);
+
+        // Case B: category present with explicit JSON null -> cleared.
+        let mut conn = setup_db();
+        insert_reg1_with_category(&conn, "work");
+        let tx = conn.transaction().unwrap();
+        let (row_pks_map, pk_values) = reg1_pk_args();
+        let batch = vec![
+            column_change(COL_SHARED_SPACE_SYNC_CATEGORY, JsonValue::Null),
+            column_change(
+                COL_SHARED_SPACE_SYNC_ROW_SIG,
+                JsonValue::String("fresh-sig".to_string()),
+            ),
+        ];
+        let outcome =
+            build_incoming_registry_change(&tx, "id = ?1", &pk_values, &row_pks_map, &batch)
+                .unwrap();
+        match outcome {
+            RegistryRowChangeOutcome::Ready { change, .. } => {
+                assert_eq!(change.category, None);
+            }
+            _ => panic!("expected Ready"),
+        }
+    }
+
+    /// `authored_by_did` backs a plain (non-`Option`) field on both
+    /// `IncomingRegistryChange` and `RegistryRowSigPayload` — there is no
+    /// legitimate way for a peer to send it as an explicit JSON `null`.
+    /// Must be rejected as `RequiredFieldExplicitlyNull`, not silently
+    /// collapsed into the "absent -> use persisted value" fallback path.
+    #[test]
+    fn build_incoming_registry_change_rejects_required_field_explicit_null() {
+        let mut conn = setup_db();
+        insert_reg1_with_category(&conn, "work");
+        let tx = conn.transaction().unwrap();
+        let (row_pks_map, pk_values) = reg1_pk_args();
+        let batch = vec![
+            column_change(COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID, JsonValue::Null),
+            column_change(
+                COL_SHARED_SPACE_SYNC_ROW_SIG,
+                JsonValue::String("fresh-sig".to_string()),
+            ),
+        ];
+        let outcome =
+            build_incoming_registry_change(&tx, "id = ?1", &pk_values, &row_pks_map, &batch)
+                .unwrap();
+        match outcome {
+            RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(cols) => {
+                assert!(cols
+                    .iter()
+                    .any(|c| c.eq_ignore_ascii_case(COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID)));
+            }
+            other => panic!(
+                "expected RequiredFieldExplicitlyNull, got a different outcome: {}",
+                match other {
+                    RegistryRowChangeOutcome::NothingSignedTouched => "NothingSignedTouched",
+                    RegistryRowChangeOutcome::RowSigOnlyBatch { .. } => "RowSigOnlyBatch",
+                    RegistryRowChangeOutcome::MissingFreshRowSig(_) => "MissingFreshRowSig",
+                    RegistryRowChangeOutcome::Ready { .. } => "Ready",
+                    RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(_) => unreachable!(),
+                }
+            ),
         }
     }
 }
