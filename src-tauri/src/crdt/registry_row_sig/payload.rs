@@ -1,4 +1,4 @@
-use super::column_sig::preimage::push_field;
+use crate::crdt::column_sig::preimage::push_field;
 
 /// Domain separation tag for [`RegistryRowSigPayload::canonical_encoding`].
 ///
@@ -79,6 +79,3 @@ impl RegistryRowSigPayload<'_> {
         buf
     }
 }
-
-#[cfg(test)]
-mod tests;
