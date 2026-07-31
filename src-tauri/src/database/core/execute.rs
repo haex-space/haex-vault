@@ -783,7 +783,7 @@ fn sign_registry_row_self(
         category_label: Option<String>,
         type_label: Option<String>,
         authored_by_did: String,
-        created_at: String,
+        created_at: Option<String>,
     }
 
     let rows: Vec<RegistryRow> = {
@@ -868,7 +868,7 @@ fn sign_registry_row_self(
             category_label: row.category_label.as_deref(),
             type_label: row.type_label.as_deref(),
             authored_by_did: &final_authored_by_did,
-            created_at: &row.created_at,
+            created_at: row.created_at.as_deref(),
         };
         let signature = sign_registry_row(&payload, &signing_key);
         let sig_b64 = BASE64.encode(signature.to_bytes());

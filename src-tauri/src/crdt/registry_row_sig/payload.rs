@@ -50,7 +50,14 @@ pub struct RegistryRowSigPayload<'a> {
     pub category_label: Option<&'a str>,
     pub type_label: Option<&'a str>,
     pub authored_by_did: &'a str,
-    pub created_at: &'a str,
+    /// `None` iff the persisted `created_at` column is NULL. The DB schema
+    /// (`created_at text DEFAULT (CURRENT_TIMESTAMP)`, migration
+    /// `0000_jazzy_chat.sql`, unchanged by `0014_registry_authorization_schema.sql`)
+    /// has no `NOT NULL` — every current write path lets the default
+    /// populate it, but nothing prevents a genuinely-NULL persisted value
+    /// (PR #741 finding 8). Optional so a NULL persisted value can be
+    /// represented and re-signed instead of failing the row fetch.
+    pub created_at: Option<&'a str>,
 }
 
 impl RegistryRowSigPayload<'_> {
@@ -64,7 +71,9 @@ impl RegistryRowSigPayload<'_> {
     /// extension_name, category, type, category_label, type_label,
     /// authored_by_did, created_at. No field-name bytes are embedded — like
     /// `build_preimage`, field identity comes from fixed position, not from
-    /// an embedded label.
+    /// an embedded label. `created_at` carries the same presence tag as the
+    /// other optional fields, even though it sits after `authored_by_did` in
+    /// field order rather than alongside the other `Option` fields.
     pub fn canonical_encoding(&self) -> Vec<u8> {
         // Exact size (mirrors `column_sig::preimage::build_preimage`'s
         // capacity calc): each required field costs a 4-byte length prefix
@@ -89,8 +98,7 @@ impl RegistryRowSigPayload<'_> {
                 + optional_len(self.type_label)
                 + 4
                 + self.authored_by_did.len()
-                + 4
-                + self.created_at.len(),
+                + optional_len(self.created_at),
         );
         push_field(&mut buf, DOMAIN_TAG.as_bytes());
         push_field(&mut buf, self.id.as_bytes());
@@ -104,7 +112,7 @@ impl RegistryRowSigPayload<'_> {
         push_optional_field(&mut buf, self.category_label);
         push_optional_field(&mut buf, self.type_label);
         push_field(&mut buf, self.authored_by_did.as_bytes());
-        push_field(&mut buf, self.created_at.as_bytes());
+        push_optional_field(&mut buf, self.created_at);
         buf
     }
 }

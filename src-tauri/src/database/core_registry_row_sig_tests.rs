@@ -146,7 +146,7 @@ struct StoredRow {
     category_label: Option<String>,
     type_label: Option<String>,
     authored_by_did: String,
-    created_at: String,
+    created_at: Option<String>,
     row_sig: String,
 }
 
@@ -164,7 +164,7 @@ impl StoredRow {
             category_label: self.category_label.as_deref(),
             type_label: self.type_label.as_deref(),
             authored_by_did: &self.authored_by_did,
-            created_at: &self.created_at,
+            created_at: self.created_at.as_deref(),
         }
     }
 }
@@ -768,5 +768,55 @@ fn test_execute_with_crdt_signs_registry_row_when_table_name_mixedcase() {
     assert!(
         !row.row_sig.is_empty(),
         "mixed-case table name must not bypass sign_registry_row_self"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// PR #741 finding 8: `created_at` is nullable in the DB schema (migration
+// 0000_jazzy_chat.sql declares `created_at text DEFAULT (CURRENT_TIMESTAMP)`
+// with no `NOT NULL`, unchanged by migration 0014) even though every current
+// write path lets the DB default populate it. Simulates a row whose
+// `created_at` is genuinely NULL and confirms a later payload-signed UPDATE
+// still succeeds instead of erroring out on the fetch.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_execute_with_crdt_resigns_row_with_null_created_at() {
+    let f = setup_fixture();
+    insert_minimal_row(&f, "row-null-created-at", r#"{"id":"evt-null"}"#);
+    {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute(
+            "UPDATE haex_shared_space_sync SET created_at = NULL WHERE id = 'row-null-created-at'",
+            [],
+        )
+        .unwrap();
+    }
+
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    core::execute_with_crdt(
+        "UPDATE haex_shared_space_sync SET category = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("leisure".to_string()),
+            JsonValue::String("row-null-created-at".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("update must succeed even with a NULL persisted created_at");
+    drop(hlc_guard);
+
+    let row = load_row(&f.db, "row-null-created-at");
+    assert_eq!(row.created_at, None);
+    assert_eq!(row.category.as_deref(), Some("leisure"));
+
+    let sig_bytes = BASE64.decode(&row.row_sig).unwrap();
+    let pk = f.cache.get("space_1").unwrap().verifying_key();
+    assert!(
+        verify_registry_row(&row.payload(), &sig_bytes, &pk).is_ok(),
+        "sig must verify against a payload with created_at = None"
     );
 }

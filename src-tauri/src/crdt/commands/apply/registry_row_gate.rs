@@ -67,12 +67,17 @@ const SIGNED_PAYLOAD_COLUMNS: &[&str] = &[
 /// corrupt signature reconstruction — the real signer's payload had `null`
 /// for this field, not the stale persisted string. See
 /// `RegistryRowChangeOutcome::RequiredFieldExplicitlyNull`.
+///
+/// `created_at` is deliberately absent from this list (PR #741 finding 8):
+/// unlike the others, its DB column has no `NOT NULL` (migration
+/// `0000_jazzy_chat.sql`), so an explicit JSON `null` on the wire is a
+/// legitimate "signer's payload had `created_at` = `None`" state — it is fed
+/// through `opt_text()` like the other nullable payload fields.
 const REQUIRED_TEXT_COLUMNS: &[&str] = &[
     COL_SHARED_SPACE_SYNC_SPACE_ID,
     COL_SHARED_SPACE_SYNC_TABLE_NAME,
     COL_SHARED_SPACE_SYNC_ROW_PKS,
     COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID,
-    COL_SHARED_SPACE_SYNC_CREATED_AT,
     COL_SHARED_SPACE_SYNC_ROW_SIG,
 ];
 
@@ -144,7 +149,7 @@ struct PersistedRegistryRowFull {
     category_label: Option<String>,
     type_label: Option<String>,
     authored_by_did: String,
-    created_at: String,
+    created_at: Option<String>,
     row_sig: String,
 }
 
@@ -382,9 +387,9 @@ pub(super) fn build_incoming_registry_change(
             COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID,
             p.map_or("", |r| r.authored_by_did.as_str()),
         ),
-        created_at: text(
+        created_at: opt_text(
             COL_SHARED_SPACE_SYNC_CREATED_AT,
-            p.map_or("", |r| r.created_at.as_str()),
+            p.and_then(|r| r.created_at.as_deref()),
         ),
         row_sig: text(
             COL_SHARED_SPACE_SYNC_ROW_SIG,
@@ -838,6 +843,87 @@ mod tests {
                     RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(_) => unreachable!(),
                 }
             ),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // PR #741 finding 8: `created_at` is nullable in the DB schema (migration
+    // `0000_jazzy_chat.sql` has no `NOT NULL`, unchanged by `0014`) even
+    // though every current write path lets the DB default populate it.
+    // Before this fix, `PersistedRegistryRowFull.created_at` was a plain
+    // `String`, so a genuinely-NULL persisted value made the fallback fetch
+    // itself fail (`rusqlite`'s `String` `FromSql` rejects `NULL`) rather
+    // than falling back to `None` like every other optional payload field.
+    // -----------------------------------------------------------------------
+
+    /// A batch that does not touch `created_at` at all, on a row whose
+    /// persisted `created_at` is genuinely NULL, must fall back to `None`
+    /// rather than erroring out the whole fetch.
+    #[test]
+    fn build_incoming_registry_change_falls_back_to_null_persisted_created_at() {
+        let mut conn = setup_db();
+        conn.execute(
+            &format!(
+                "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
+                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at) \
+                 VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', \
+                         'did:key:alice', 'original-sig', NULL)"
+            ),
+            [],
+        )
+        .unwrap();
+
+        let tx = conn.transaction().unwrap();
+        let (row_pks_map, pk_values) = reg1_pk_args();
+        let batch = vec![
+            column_change(
+                COL_SHARED_SPACE_SYNC_TYPE_LABEL,
+                JsonValue::String("Updated Label".to_string()),
+            ),
+            column_change(
+                COL_SHARED_SPACE_SYNC_ROW_SIG,
+                JsonValue::String("fresh-sig".to_string()),
+            ),
+        ];
+
+        let outcome =
+            build_incoming_registry_change(&tx, "id = ?1", &pk_values, &row_pks_map, &batch)
+                .unwrap();
+
+        match outcome {
+            RegistryRowChangeOutcome::Ready { change, .. } => {
+                assert_eq!(change.created_at, None);
+            }
+            _ => panic!("expected Ready"),
+        }
+    }
+
+    /// `created_at` present on the wire with an explicit JSON `null` — a
+    /// legitimate "signer's payload had `created_at` = `None`" state now that
+    /// the column is nullable, not a `RequiredFieldExplicitlyNull` violation.
+    #[test]
+    fn build_incoming_registry_change_accepts_explicit_null_created_at() {
+        let mut conn = setup_db();
+        insert_reg1_with_category(&conn, "work");
+        let tx = conn.transaction().unwrap();
+        let (row_pks_map, pk_values) = reg1_pk_args();
+        let batch = vec![
+            column_change(COL_SHARED_SPACE_SYNC_CREATED_AT, JsonValue::Null),
+            column_change(
+                COL_SHARED_SPACE_SYNC_ROW_SIG,
+                JsonValue::String("fresh-sig".to_string()),
+            ),
+        ];
+
+        let outcome =
+            build_incoming_registry_change(&tx, "id = ?1", &pk_values, &row_pks_map, &batch)
+                .unwrap();
+
+        match outcome {
+            RegistryRowChangeOutcome::Ready { change, .. } => {
+                assert_eq!(change.created_at, None);
+            }
+            _ => panic!("expected Ready"),
         }
     }
 }

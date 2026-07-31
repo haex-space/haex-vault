@@ -55,7 +55,9 @@ pub struct IncomingRegistryChange {
     pub category_label: Option<String>,
     pub type_label: Option<String>,
     pub authored_by_did: String,
-    pub created_at: String,
+    /// `None` iff the reconstructed value (batch or persisted fallback) for
+    /// `created_at` is NULL — see `RegistryRowSigPayload::created_at`.
+    pub created_at: Option<String>,
     /// Base64-encoded Ed25519 signature, or `""` for a pre-migration-0014
     /// row (the DB default). Always rejected here — see
     /// [`RegistryVerifyError::RowSigMissingOrEmpty`] — the graceful skip
@@ -159,7 +161,7 @@ pub fn verify_incoming_registry_change(
         category_label: change.category_label.as_deref(),
         type_label: change.type_label.as_deref(),
         authored_by_did: &change.authored_by_did,
-        created_at: &change.created_at,
+        created_at: change.created_at.as_deref(),
     };
 
     verify_registry_row(&payload, &sig_bytes, &pk).map_err(RegistryVerifyError::SignatureInvalid)

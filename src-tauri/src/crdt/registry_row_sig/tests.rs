@@ -16,7 +16,7 @@ fn base_payload() -> RegistryRowSigPayload<'static> {
         category_label: Some("Work Calendar"),
         type_label: Some("Termin"),
         authored_by_did: "did:key:alice",
-        created_at: "2026-07-31T00:00:00Z",
+        created_at: Some("2026-07-31T00:00:00Z"),
     }
 }
 
@@ -61,6 +61,24 @@ fn test_registry_row_sig_payload_extension_public_key_null_vs_empty_string_disti
 
     let mut with_none = base_payload();
     with_none.extension_public_key = None;
+
+    assert_ne!(
+        with_empty.canonical_encoding(),
+        with_none.canonical_encoding()
+    );
+}
+
+#[test]
+fn test_registry_row_sig_payload_created_at_null_vs_empty_string_distinguished() {
+    // PR #741 finding 8: created_at is nullable in the DB schema (migration
+    // 0000 has no NOT NULL), so it must round-trip through the same
+    // presence-tag mechanism as extension_public_key/extension_name rather
+    // than being encoded as a mandatory field.
+    let mut with_empty = base_payload();
+    with_empty.created_at = Some("");
+
+    let mut with_none = base_payload();
+    with_none.created_at = None;
 
     assert_ne!(
         with_empty.canonical_encoding(),

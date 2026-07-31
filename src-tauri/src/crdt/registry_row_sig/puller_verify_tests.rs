@@ -73,7 +73,7 @@ impl SampleRow {
             category_label: self.category_label.as_deref(),
             type_label: self.type_label.as_deref(),
             authored_by_did: &self.authored_by_did,
-            created_at: &self.created_at,
+            created_at: Some(&self.created_at),
         }
     }
 
@@ -93,7 +93,7 @@ impl SampleRow {
             category_label: self.category_label.clone(),
             type_label: self.type_label.clone(),
             authored_by_did: self.authored_by_did.clone(),
-            created_at: self.created_at.clone(),
+            created_at: Some(self.created_at.clone()),
             row_sig: BASE64.encode(sig.to_bytes()),
         }
     }
