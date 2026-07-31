@@ -436,3 +436,115 @@ fn test_execute_with_crdt_does_not_resign_on_sync_meta_only_update() {
     let row = load_row(&f.db, "row-5");
     assert_eq!(row.row_sig, original_sig, "raw meta-only write must not resign");
 }
+
+// ---------------------------------------------------------------------------
+// Additional guards discovered while implementing B.3 (not in the original
+// task's test list, but required for the stated invariants to actually hold
+// — see report Concerns/Deviations).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_execute_with_crdt_rejects_direct_row_sig_write() {
+    // row_sig is derived exclusively by the sign-on-write pass. Without this
+    // guard, an UPDATE that touches only `row_sig` (the one column on this
+    // table that is neither a signed field nor forbidden CRDT meta) would
+    // skip re-signing entirely and let a caller-supplied value straight
+    // through — a forgery/replay vector.
+    let f = setup_fixture();
+    insert_minimal_row(&f, "row-6", r#"{"id":"evt-6"}"#);
+
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    let result = core::execute_with_crdt(
+        "UPDATE haex_shared_space_sync SET row_sig = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("forged-sig".to_string()),
+            JsonValue::String("row-6".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(
+            result,
+            Err(DatabaseError::RegistryRowSigColumnWriteForbidden { .. })
+        ),
+        "expected RegistryRowSigColumnWriteForbidden, got: {:?}",
+        result
+    );
+}
+
+#[test]
+fn test_execute_with_crdt_rejects_registry_insert_for_space_without_local_key() {
+    // Mirrors F2's I2: holding the space's signing key IS the authorization
+    // to author a registry row for it. `space_UNKNOWN` has no member row in
+    // the fixture, so the vault holds no key for it.
+    let f = setup_fixture();
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    let result = core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("row-unowned".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"evt-unowned"}"#.to_string()),
+            JsonValue::String("space_UNKNOWN".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    assert!(
+        matches!(result, Err(DatabaseError::I2ForeignShareInsert { .. })),
+        "expected I2ForeignShareInsert, got: {:?}",
+        result
+    );
+}
+
+#[test]
+fn test_execute_with_crdt_canonicalizes_row_pks_before_signing() {
+    // Concern 2 (Task B.3): row_pks must be canonical JSON before it is
+    // signed and persisted — RegisterLookup::resolve compares against it
+    // with exact-string equality, so two callers writing the same PK set in
+    // different key orders must land on one shared, canonical form.
+    let f = setup_fixture();
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("row-7".to_string()),
+            JsonValue::String("ext_multi_pk".to_string()),
+            JsonValue::String(r#"{"b":2,"a":1}"#.to_string()),
+            JsonValue::String("space_1".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("insert succeeds");
+    drop(hlc_guard);
+
+    let row = load_row(&f.db, "row-7");
+    assert_eq!(
+        row.row_pks,
+        r#"{"a":1,"b":2}"#,
+        "row_pks must be persisted in canonical (sorted-key) form"
+    );
+
+    let sig_bytes = BASE64.decode(&row.row_sig).unwrap();
+    let pk = f.cache.get("space_1").unwrap().verifying_key();
+    assert!(
+        verify_registry_row(&row.payload(), &sig_bytes, &pk).is_ok(),
+        "sig must verify against the canonicalised row_pks actually persisted"
+    );
+}
