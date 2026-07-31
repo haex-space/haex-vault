@@ -246,7 +246,9 @@ fn test_execute_with_crdt_signs_registry_row_on_insert() {
     let row = load_row(&f.db, "row-1");
     assert!(!row.row_sig.is_empty(), "row_sig must be populated");
 
-    let sig_bytes = BASE64.decode(&row.row_sig).expect("row_sig is valid base64");
+    let sig_bytes = BASE64
+        .decode(&row.row_sig)
+        .expect("row_sig is valid base64");
     let pk = f
         .cache
         .get("space_1")
@@ -394,7 +396,10 @@ fn test_execute_with_crdt_resigns_on_payload_column_update() {
 
     let row = load_row(&f.db, "row-4");
     assert_eq!(row.category.as_deref(), Some("leisure"));
-    assert_ne!(row.row_sig, original_sig, "changed payload field must re-sign");
+    assert_ne!(
+        row.row_sig, original_sig,
+        "changed payload field must re-sign"
+    );
 
     let sig_bytes = BASE64.decode(&row.row_sig).unwrap();
     let pk = f.cache.get("space_1").unwrap().verifying_key();
@@ -434,7 +439,10 @@ fn test_execute_with_crdt_does_not_resign_on_sync_meta_only_update() {
     }
 
     let row = load_row(&f.db, "row-5");
-    assert_eq!(row.row_sig, original_sig, "raw meta-only write must not resign");
+    assert_eq!(
+        row.row_sig, original_sig,
+        "raw meta-only write must not resign"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -536,8 +544,7 @@ fn test_execute_with_crdt_canonicalizes_row_pks_before_signing() {
 
     let row = load_row(&f.db, "row-7");
     assert_eq!(
-        row.row_pks,
-        r#"{"a":1,"b":2}"#,
+        row.row_pks, r#"{"a":1,"b":2}"#,
         "row_pks must be persisted in canonical (sorted-key) form"
     );
 

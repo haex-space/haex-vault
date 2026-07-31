@@ -32,9 +32,8 @@ use crate::table_names::{
     COL_SHARED_SPACE_SYNC_CATEGORY_LABEL, COL_SHARED_SPACE_SYNC_CREATED_AT,
     COL_SHARED_SPACE_SYNC_EXTENSION_NAME, COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
     COL_SHARED_SPACE_SYNC_ID, COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_ROW_SIG,
-    COL_SHARED_SPACE_SYNC_SPACE_ID, COL_SHARED_SPACE_SYNC_TABLE_NAME,
-    COL_SHARED_SPACE_SYNC_TYPE, COL_SHARED_SPACE_SYNC_TYPE_LABEL, TABLE_CRDT_CONFIGS,
-    TABLE_SHARED_SPACE_SYNC,
+    COL_SHARED_SPACE_SYNC_SPACE_ID, COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE,
+    COL_SHARED_SPACE_SYNC_TYPE_LABEL, TABLE_CRDT_CONFIGS, TABLE_SHARED_SPACE_SYNC,
 };
 use crate::ucan::verify::did_key_from_public_key;
 
@@ -659,15 +658,35 @@ fn sign_registry_row_self(
         return Ok(());
     }
 
+    // Guard: this pass needs the full 12-field + row_sig schema (migration
+    // 0014). Older fixtures / pre-migration vaults may still carry only the
+    // original register columns — treat as a no-op with a warn, mirroring
+    // F2's `has_hlc` guard in `sign_share_insert_targets`.
+    let register_schema = get_table_schema(tx, TABLE_SHARED_SPACE_SYNC).map_err(|e| {
+        DatabaseError::DatabaseError {
+            reason: format!("get_table_schema({TABLE_SHARED_SPACE_SYNC}) failed: {e}"),
+        }
+    })?;
+    let has_row_sig = register_schema
+        .iter()
+        .any(|c| c.name == COL_SHARED_SPACE_SYNC_ROW_SIG);
+    if !has_row_sig {
+        tracing::warn!(
+            target: "registry_row_sig",
+            table = TABLE_SHARED_SPACE_SYNC,
+            "B.3 sign-on-write skipped: register table is missing `row_sig` — \
+             schema drift or unmigrated fixture. Registry rows will not be \
+             self-signed until the schema catches up."
+        );
+        return Ok(());
+    }
+
     if let TouchedColumns::Explicit(cols) = columns {
         // row_sig is derived exclusively by this pass — a caller supplying
         // it directly (INSERT or UPDATE) is rejected rather than silently
         // overwritten, so a forged value never has a chance to look like it
         // "worked".
-        if cols
-            .iter()
-            .any(|c| c == COL_SHARED_SPACE_SYNC_ROW_SIG)
-        {
+        if cols.iter().any(|c| c == COL_SHARED_SPACE_SYNC_ROW_SIG) {
             return Err(DatabaseError::RegistryRowSigColumnWriteForbidden {
                 column: COL_SHARED_SPACE_SYNC_ROW_SIG.to_string(),
             });
@@ -787,8 +806,7 @@ fn sign_registry_row_self(
         // both part of the signed payload and the exact-string value
         // `RegisterLookup::resolve` matches against later, so the
         // chokepoint (not each caller) enforces one canonical form.
-        let canonical_row_pks =
-            canonicalize_row_pks(&row.row_pks).map_err(DatabaseError::from)?;
+        let canonical_row_pks = canonicalize_row_pks(&row.row_pks).map_err(DatabaseError::from)?;
 
         let payload = RegistryRowSigPayload {
             id: &row.id,
