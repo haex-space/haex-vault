@@ -829,3 +829,59 @@ fn migration_0015_partial_unique_rejects_duplicate_active_grant() {
     insert("g4", "received")
         .expect("a different role for the same (space, issuer, audience) must be accepted");
 }
+
+#[test]
+fn migration_0016_removes_unique_and_allows_multiple_rows_per_category() {
+    // CodeRabbit finding on PR #741: 0014's unique index on (authored_by_did,
+    // space_id, table_name, category) was wrong — category is a container
+    // holding N rows (e.g. alice's "work" calendar has 5 events), not a
+    // per-author singleton. 0016 drops that index and replaces it with a
+    // non-unique lookup index over the same columns.
+    let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_pre_0014_stub(&conn);
+    apply_migration_by_tag(&conn, "0014_");
+    apply_migration_by_tag(&conn, "0016_");
+
+    let insert =
+        |id: &str, author: &str, space: &str, table: &str, row_pks: &str, category: &str| {
+            conn.execute(
+                "INSERT INTO haex_shared_space_sync
+                (id, table_name, row_pks, space_id, authored_by_did, category, row_sig)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sig')",
+                rusqlite::params![id, table, row_pks, space, author, category],
+            )
+        };
+
+    insert(
+        "share-1",
+        "alice-did",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r1"}"#,
+        "work",
+    )
+    .expect("first row for alice/space-1/ext_cal_v1/work must succeed");
+
+    insert(
+        "share-2",
+        "alice-did",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r2"}"#,
+        "work",
+    )
+    .expect(
+        "second row with the same (author, space, table, category) must now \
+         succeed — the over-restrictive unique index from 0014 is dropped",
+    );
+
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM haex_shared_space_sync", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(
+        count, 2,
+        "both rows for the same (author, space, table, category) must persist"
+    );
+}
