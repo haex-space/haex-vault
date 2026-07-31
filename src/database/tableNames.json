@@ -190,9 +190,12 @@
         "spaceId": "space_id",
         "extensionPublicKey": "extension_public_key",
         "extensionName": "extension_name",
-        "groupId": "group_id",
+        "category": "category",
         "type": "type",
-        "label": "label",
+        "typeLabel": "type_label",
+        "categoryLabel": "category_label",
+        "authoredByDid": "authored_by_did",
+        "rowSig": "row_sig",
         "createdAt": "created_at"
       }
     },

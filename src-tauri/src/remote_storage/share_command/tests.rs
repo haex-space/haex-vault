@@ -185,9 +185,9 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             space_id TEXT NOT NULL,
             extension_public_key TEXT,
             extension_name TEXT,
-            group_id TEXT,
+            category TEXT,
             type TEXT,
-            label TEXT,
+            type_label TEXT,
             created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
@@ -418,12 +418,20 @@ async fn happy_path_writes_row_and_mapping() {
         "bucket must be inherited from owner"
     );
 
-    // Assert the shared-space-sync mapping row exists.
-    let (mapping_table, mapping_space, mapping_type): (String, String, String) = {
+    // Assert the shared-space-sync mapping row exists. `type_label` carries
+    // the human-readable row name (migration 0014 renamed `label` ->
+    // `type_label`); `category` stays NULL for user-owned (non-extension)
+    // shares.
+    let (mapping_table, mapping_space, mapping_type, mapping_type_label): (
+        String,
+        String,
+        String,
+        String,
+    ) = {
         let guard = db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         conn.query_row(
-            "SELECT table_name, space_id, type FROM haex_shared_space_sync
+            "SELECT table_name, space_id, type, type_label FROM haex_shared_space_sync
              WHERE space_id = ?1",
             [&space_id],
             |row| {
@@ -431,6 +439,7 @@ async fn happy_path_writes_row_and_mapping() {
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
                 ))
             },
         )
@@ -439,6 +448,10 @@ async fn happy_path_writes_row_and_mapping() {
     assert_eq!(mapping_table, "haex_s3_backends");
     assert_eq!(mapping_space, space_id);
     assert_eq!(mapping_type, "cloud_storage");
+    assert_eq!(
+        mapping_type_label, result.name,
+        "type_label must carry the shared row's display name"
+    );
 
     // Adapter should NOT have been asked to delete the scoped user.
     assert!(
@@ -601,9 +614,9 @@ async fn db_failure_after_iam_success_calls_delete_scoped_user() {
                  space_id TEXT NOT NULL,
                  extension_public_key TEXT,
                  extension_name TEXT,
-                 group_id TEXT,
+                 category TEXT,
                  type TEXT,
-                 label TEXT,
+                 type_label TEXT,
                  must_be_present TEXT NOT NULL,
                  created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
              );",

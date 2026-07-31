@@ -174,9 +174,14 @@ export const haexSharedSpaceSync = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     extensionPublicKey: text(tableNames.haex.shared_space_sync.columns.extensionPublicKey),
     extensionName: text(tableNames.haex.shared_space_sync.columns.extensionName),
-    groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
+    category: text(tableNames.haex.shared_space_sync.columns.category),
     type: text(tableNames.haex.shared_space_sync.columns.type),
-    label: text(tableNames.haex.shared_space_sync.columns.label),
+    typeLabel: text(tableNames.haex.shared_space_sync.columns.typeLabel),
+    categoryLabel: text(tableNames.haex.shared_space_sync.columns.categoryLabel),
+    authoredByDid: text(tableNames.haex.shared_space_sync.columns.authoredByDid)
+      .notNull()
+      .default(''),
+    rowSig: text(tableNames.haex.shared_space_sync.columns.rowSig).notNull().default(''),
     createdAt: text(tableNames.haex.shared_space_sync.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),

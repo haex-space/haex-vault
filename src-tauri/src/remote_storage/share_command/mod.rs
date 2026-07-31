@@ -701,7 +701,7 @@ fn persist_shared_backend(
     let insert_mapping = format!(
         "INSERT INTO {TABLE_SHARED_SPACE_SYNC} \
          (id, table_name, row_pks, space_id, extension_public_key, extension_name, \
-          group_id, type, label) \
+          category, type, type_label) \
          VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, ?5, ?6)"
     );
     if let Err(map_err) = execute_with_crdt(

@@ -29,13 +29,13 @@ pub struct SpaceAssignment {
     pub table_name: String,
     pub row_pks: String,
     pub space_id: String,
-    /// Optional group identifier for logically related assignments (e.g. calendar ID)
-    pub group_id: Option<String>,
+    /// Optional category identifier for logically related assignments (e.g. calendar ID)
+    pub category: Option<String>,
     /// Optional type label for display (e.g. "Calendar", "Password Folder")
     #[serde(rename = "type")]
     pub type_name: Option<String>,
     /// Optional display label (e.g. "Personal", "Team Q1")
-    pub label: Option<String>,
+    pub type_label: Option<String>,
 }
 
 /// Result of a space assignment query.
@@ -48,10 +48,10 @@ pub struct SpaceAssignmentRow {
     pub space_id: String,
     pub extension_public_key: Option<String>,
     pub extension_name: Option<String>,
-    pub group_id: Option<String>,
+    pub category: Option<String>,
     #[serde(rename = "type")]
     pub type_name: Option<String>,
-    pub label: Option<String>,
+    pub type_label: Option<String>,
     pub created_at: Option<String>,
 }
 
@@ -239,7 +239,7 @@ pub async fn extension_space_assign(
                 serde_json::Value::String(ext_public_key.clone()),
                 serde_json::Value::String(ext_name.clone()),
                 assignment
-                    .group_id
+                    .category
                     .as_ref()
                     .map_or(serde_json::Value::Null, |v| {
                         serde_json::Value::String(v.clone())
@@ -251,7 +251,7 @@ pub async fn extension_space_assign(
                         serde_json::Value::String(v.clone())
                     }),
                 assignment
-                    .label
+                    .type_label
                     .as_ref()
                     .map_or(serde_json::Value::Null, |v| {
                         serde_json::Value::String(v.clone())
@@ -411,9 +411,9 @@ pub async fn extension_space_get_assignments(
             space_id: get_string(row, 3),
             extension_public_key: Some(get_string(row, 4)).filter(|s| !s.is_empty()),
             extension_name: Some(get_string(row, 5)).filter(|s| !s.is_empty()),
-            group_id: Some(get_string(row, 6)).filter(|s| !s.is_empty()),
+            category: Some(get_string(row, 6)).filter(|s| !s.is_empty()),
             type_name: Some(get_string(row, 7)).filter(|s| !s.is_empty()),
-            label: Some(get_string(row, 8)).filter(|s| !s.is_empty()),
+            type_label: Some(get_string(row, 8)).filter(|s| !s.is_empty()),
             created_at: Some(get_string(row, 9)).filter(|s| !s.is_empty()),
         })
         .collect();

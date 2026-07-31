@@ -59,15 +59,15 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
     ) ?? null
   }
 
-  /** Remove all assignments sharing the same groupId+spaceId, or a single assignment by id */
+  /** Remove all assignments sharing the same category+spaceId, or a single assignment by id */
   const removeAssignmentAsync = async (assignment: SelectHaexSharedSpaceSync) => {
     const db = getDb()
     if (!db) return
 
-    if (assignment.groupId) {
+    if (assignment.category) {
       await db.delete(haexSharedSpaceSync).where(
         and(
-          eq(haexSharedSpaceSync.groupId, assignment.groupId),
+          eq(haexSharedSpaceSync.category, assignment.category),
           eq(haexSharedSpaceSync.spaceId, assignment.spaceId),
         ),
       )
@@ -83,10 +83,10 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
   const groups = computed<SpaceLinkedItemGroup[]>(() => {
     const result: SpaceLinkedItemGroup[] = []
 
-    // Extension data — group by (extensionPublicKey, extensionName, groupId) for logical units
+    // Extension data — group by (extensionPublicKey, extensionName, category) for logical units
     const byExtension = new Map<string, {
       ext: ReturnType<typeof findExtension>
-      /** Logical groups within this extension (by groupId) */
+      /** Logical groups within this extension (by category) */
       logicalGroups: Map<string, SelectHaexSharedSpaceSync[]>
     }>()
 
@@ -100,8 +100,8 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
           logicalGroups: new Map(),
         })
       }
-      // Group by groupId within extension; ungrouped items get their own id as key
-      const groupKey = assignment.groupId ?? `_ungrouped_${assignment.id}`
+      // Group by category within extension; ungrouped items get their own id as key
+      const groupKey = assignment.category ?? `_ungrouped_${assignment.id}`
       const entry = byExtension.get(extKey)!
       if (!entry.logicalGroups.has(groupKey)) {
         entry.logicalGroups.set(groupKey, [])
@@ -115,12 +115,12 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
       // Each logical group becomes one item in the extension group
       const items: SpaceLinkedItem[] = []
       for (const [, assignments] of logicalGroups) {
-        // Use metadata from the first assignment that has label/type
-        const representative = assignments.find((a) => a.label) ?? assignments[0]
+        // Use metadata from the first assignment that has typeLabel/type
+        const representative = assignments.find((a) => a.typeLabel) ?? assignments[0]
         if (!representative) continue
 
         items.push({
-          label: representative.label || representative.tableName.split('__').pop() || representative.tableName,
+          label: representative.typeLabel || representative.tableName.split('__').pop() || representative.tableName,
           subtitle: representative.type ?? undefined,
           icon: extensionIcon,
           remove: async () => removeAssignmentAsync(representative),
