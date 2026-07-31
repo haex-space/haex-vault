@@ -302,6 +302,19 @@
         "expiresAt": "expires_at"
       }
     },
+    "space_ucan_grants_no_sync": {
+      "name": "haex_space_ucan_grants_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "issuerDid": "issuer_did",
+        "audienceDid": "audience_did",
+        "ucanToken": "ucan_token",
+        "role": "role",
+        "createdAt": "created_at",
+        "revokedAt": "revoked_at"
+      }
+    },
     "pending_invites": {
       "name": "haex_pending_invites",
       "columns": {

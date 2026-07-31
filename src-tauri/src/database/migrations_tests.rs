@@ -667,3 +667,110 @@ fn pending_columns_migration_0003_widens_pk_to_row_aware() {
         "exact (table,column,row_pks) duplicate must be rejected"
     );
 }
+
+/// Test-fixture stub: a minimal `haex_spaces` parent table, just enough for
+/// migration 0015's `space_id` FK to resolve against a real parent row.
+/// FK enforcement is on by default in this project's SQLCipher-backed
+/// rusqlite build, so inserts against a non-existent parent id fail on the
+/// FK before any other constraint is even reached.
+fn create_haex_spaces_stub(conn: &Connection) {
+    conn.execute_batch("CREATE TABLE haex_spaces (id TEXT PRIMARY KEY NOT NULL);")
+        .expect("create haex_spaces stub");
+}
+
+#[test]
+fn migration_0015_creates_ucan_grants_no_sync_table() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+
+    let exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='haex_space_ucan_grants_no_sync'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(exists, 1);
+}
+
+#[test]
+fn migration_0015_role_check_rejects_invalid_value() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+    // Real parent row so the insert below fails on the role CHECK alone,
+    // not incidentally on the space_id FK (FK enforcement is on by default
+    // in this project's SQLCipher-backed rusqlite build).
+    conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
+        .unwrap();
+
+    let bad = conn.execute(
+        "INSERT INTO haex_space_ucan_grants_no_sync
+            (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+         VALUES ('x', 's1', 'a', 'b', 'token', 'invalid_role', '2026-07-31')",
+        [],
+    );
+    assert!(
+        bad.is_err(),
+        "role CHECK constraint must reject 'invalid_role'"
+    );
+}
+
+#[test]
+fn migration_0015_role_check_accepts_issued_and_received() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+    conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
+        .unwrap();
+
+    conn.execute(
+        "INSERT INTO haex_space_ucan_grants_no_sync
+            (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+         VALUES ('g-issued', 's1', 'a', 'b', 'token', 'issued', '2026-07-31')",
+        [],
+    )
+    .expect("role='issued' must be accepted");
+
+    conn.execute(
+        "INSERT INTO haex_space_ucan_grants_no_sync
+            (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+         VALUES ('g-received', 's1', 'b', 'a', 'token', 'received', '2026-07-31')",
+        [],
+    )
+    .expect("role='received' must be accepted");
+}
+
+#[test]
+fn migration_0015_fk_cascade_deletes_grant_when_space_deleted() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+    conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+    conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
+        .unwrap();
+    conn.execute(
+        "INSERT INTO haex_space_ucan_grants_no_sync
+            (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+         VALUES ('g1', 's1', 'a', 'b', 'token', 'issued', '2026-07-31')",
+        [],
+    )
+    .unwrap();
+
+    conn.execute("DELETE FROM haex_spaces WHERE id = 's1'", [])
+        .unwrap();
+
+    let remaining: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM haex_space_ucan_grants_no_sync",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        remaining, 0,
+        "deleting the parent space must cascade-delete its ucan grants"
+    );
+}
