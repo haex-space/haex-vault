@@ -351,3 +351,88 @@ fn test_execute_with_crdt_rejects_authored_by_did_update() {
         "rejected UPDATE must roll back, authored_by_did stays as auto-populated"
     );
 }
+
+#[test]
+fn test_execute_with_crdt_resigns_on_payload_column_update() {
+    let f = setup_fixture();
+    let hlc_mutex = Mutex::new(f.hlc.clone());
+    {
+        let hlc_guard = hlc_mutex.lock().unwrap();
+        core::execute_with_crdt(
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, category) \
+             VALUES (?1, ?2, ?3, ?4, ?5)"
+                .to_string(),
+            vec![
+                JsonValue::String("row-4".to_string()),
+                JsonValue::String("ext_calendar".to_string()),
+                JsonValue::String(r#"{"id":"evt-4"}"#.to_string()),
+                JsonValue::String("space_1".to_string()),
+                JsonValue::String("work".to_string()),
+            ],
+            &f.db,
+            &hlc_guard,
+            &f.cache,
+        )
+        .expect("insert succeeds");
+    }
+    let original_sig = load_row(&f.db, "row-4").row_sig;
+    assert!(!original_sig.is_empty());
+
+    let hlc_guard = hlc_mutex.lock().unwrap();
+    core::execute_with_crdt(
+        "UPDATE haex_shared_space_sync SET category = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("leisure".to_string()),
+            JsonValue::String("row-4".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("update succeeds");
+    drop(hlc_guard);
+
+    let row = load_row(&f.db, "row-4");
+    assert_eq!(row.category.as_deref(), Some("leisure"));
+    assert_ne!(row.row_sig, original_sig, "changed payload field must re-sign");
+
+    let sig_bytes = BASE64.decode(&row.row_sig).unwrap();
+    let pk = f.cache.get("space_1").unwrap().verifying_key();
+    assert!(
+        verify_registry_row(&row.payload(), &sig_bytes, &pk).is_ok(),
+        "new sig must verify against the new payload"
+    );
+}
+
+#[test]
+fn test_execute_with_crdt_does_not_resign_on_sync_meta_only_update() {
+    // Every non-CRDT-meta column of this table is either one of the 12
+    // signed fields or `row_sig` itself (rejected as a direct write, see
+    // `test_execute_with_crdt_rejects_direct_row_sig_write`) — so there is
+    // no legitimate `execute_with_crdt` call that touches only sync-meta
+    // columns; `CrdtMetaColumnWriteForbidden` already rejects any caller
+    // write to haex_hlc/haex_column_hlcs/haex_column_sigs regardless of
+    // table. The realistic equivalent of "a CRDT-internal update touches
+    // sync meta" is a raw connection write, exactly like the CRDT-apply
+    // path (`apply_remote_changes_to_db_scoped`) uses when merging remote
+    // state — it does not go through `execute_with_crdt` either. Assert
+    // that such a write leaves `row_sig` untouched: the sign-on-write pass
+    // only ever fires from inside `execute_with_crdt`.
+    let f = setup_fixture();
+    insert_minimal_row(&f, "row-5", r#"{"id":"evt-5"}"#);
+    let original_sig = load_row(&f.db, "row-5").row_sig;
+    assert!(!original_sig.is_empty());
+
+    {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute(
+            "UPDATE haex_shared_space_sync SET haex_hlc = 'fake-remote-hlc' WHERE id = 'row-5'",
+            [],
+        )
+        .unwrap();
+    }
+
+    let row = load_row(&f.db, "row-5");
+    assert_eq!(row.row_sig, original_sig, "raw meta-only write must not resign");
+}
