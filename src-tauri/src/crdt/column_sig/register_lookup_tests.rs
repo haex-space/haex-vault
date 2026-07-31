@@ -360,3 +360,22 @@ fn canonicalize_row_pks_rejects_null() {
 fn canonicalize_row_pks_rejects_invalid_json() {
     canonicalize_row_pks("not json").expect_err("invalid JSON must be rejected");
 }
+
+/// Fix #3 followup (`fcb0873e`): `resolve_infra_row` converts a non-object
+/// canonical row_pks into a `rusqlite::Error` instead of panicking via
+/// `.expect()`. Array-shape row_pks is a valid `canonicalize_row_pks` output
+/// (PR #741 finding 3) but is never valid for a space-scoped infra table —
+/// `haex_space_members` (one of the `SPACE_SCOPED_CRDT_TABLES`) always
+/// carries object-shape PKs. Pins the fail-closed behaviour.
+#[test]
+fn resolve_infra_row_fails_closed_on_non_object_row_pks() {
+    let conn = seed();
+    let lookup = RegisterLookup::new();
+    let err = lookup
+        .resolve(&conn, "haex_space_members", r#"["x"]"#)
+        .expect_err("array-shape row_pks on an infra table must fail closed");
+    assert!(
+        matches!(err, rusqlite::Error::FromSqlConversionFailure(..)),
+        "expected FromSqlConversionFailure, got: {err:?}"
+    );
+}

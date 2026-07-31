@@ -11,6 +11,7 @@ use rusqlite::Connection;
 use serde_json::Value as JsonValue;
 use std::sync::{Arc, Mutex};
 
+use super::values_by_pk_column;
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
 use crate::crdt::hlc::HlcService;
 use crate::crdt::trigger::{ensure_crdt_columns, setup_triggers_for_table};
@@ -1226,5 +1227,70 @@ fn share_insert_with_array_row_pks_signs_registry_row_and_target_columns() {
         endpoint.contains_key("space_S3"),
         "expected space_S3 sig on haex_s3_backends.endpoint, got: {:?}",
         endpoint.keys().collect::<Vec<_>>()
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `values_by_pk_column` — PR #741 finding 3 followup (Gap 2)
+// ---------------------------------------------------------------------------
+//
+// `build_pk_where`'s shape-mapping helper was previously only exercised
+// indirectly (happy-path single-element array) via
+// `share_insert_with_array_row_pks_signs_registry_row_and_target_columns`
+// above. These pin every documented skip-signal edge case directly.
+
+#[test]
+fn values_by_pk_column_empty_array_returns_none() {
+    let pk_cols = ["id"];
+    let value: JsonValue = serde_json::json!([]);
+    assert!(values_by_pk_column(&pk_cols, &value).is_none());
+}
+
+#[test]
+fn values_by_pk_column_array_length_mismatch_returns_none() {
+    let pk_cols = ["id"];
+    let value: JsonValue = serde_json::json!(["a", "b"]);
+    assert!(values_by_pk_column(&pk_cols, &value).is_none());
+}
+
+#[test]
+fn values_by_pk_column_array_with_null_element_returns_none() {
+    let pk_cols = ["id"];
+    let value: JsonValue = serde_json::json!([JsonValue::Null]);
+    assert!(values_by_pk_column(&pk_cols, &value).is_none());
+}
+
+#[test]
+fn values_by_pk_column_object_missing_pk_column_returns_none() {
+    let pk_cols = ["id"];
+    let value: JsonValue = serde_json::json!({"other": "x"});
+    assert!(values_by_pk_column(&pk_cols, &value).is_none());
+}
+
+#[test]
+fn values_by_pk_column_composite_pk_object_returns_pairs_in_schema_order() {
+    let pk_cols = ["space_ref", "item_id"];
+    let value: JsonValue = serde_json::json!({"item_id": "item_1", "space_ref": "space_A"});
+    let pairs = values_by_pk_column(&pk_cols, &value).expect("object with both PK cols");
+    assert_eq!(
+        pairs,
+        vec![
+            ("space_ref", JsonValue::String("space_A".to_string())),
+            ("item_id", JsonValue::String("item_1".to_string())),
+        ]
+    );
+}
+
+#[test]
+fn values_by_pk_column_composite_pk_array_returns_pairs_positionally() {
+    let pk_cols = ["space_ref", "item_id"];
+    let value: JsonValue = serde_json::json!(["space_A", "item_1"]);
+    let pairs = values_by_pk_column(&pk_cols, &value).expect("array matching PK length");
+    assert_eq!(
+        pairs,
+        vec![
+            ("space_ref", JsonValue::String("space_A".to_string())),
+            ("item_id", JsonValue::String("item_1".to_string())),
+        ]
     );
 }
