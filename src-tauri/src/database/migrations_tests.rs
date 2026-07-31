@@ -884,4 +884,47 @@ fn migration_0016_removes_unique_and_allows_multiple_rows_per_category() {
         count, 2,
         "both rows for the same (author, space, table, category) must persist"
     );
+
+    // Independently verify the replacement lookup index actually exists —
+    // the inserts above only prove the old unique index is gone, not that
+    // 0016 created the new non-unique index with the right name/columns.
+    let mut index_list_stmt = conn
+        .prepare("PRAGMA index_list('haex_shared_space_sync')")
+        .expect("prepare index_list pragma");
+    let indexes: Vec<(String, i64)> = index_list_stmt
+        .query_map([], |row| Ok((row.get(1)?, row.get(2)?)))
+        .expect("query index_list")
+        .collect::<Result<Vec<(String, i64)>, _>>()
+        .expect("collect index_list rows");
+
+    let new_index = indexes
+        .iter()
+        .find(|(name, _)| name == "haex_shared_space_sync_author_category_idx")
+        .expect("new lookup index haex_shared_space_sync_author_category_idx must exist");
+    assert_eq!(
+        new_index.1, 0,
+        "haex_shared_space_sync_author_category_idx must be non-unique"
+    );
+
+    assert!(
+        !indexes
+            .iter()
+            .any(|(name, _)| name == "haex_shared_space_sync_author_category_uniq"),
+        "old unique index haex_shared_space_sync_author_category_uniq must no longer exist"
+    );
+
+    let mut index_info_stmt = conn
+        .prepare("PRAGMA index_info('haex_shared_space_sync_author_category_idx')")
+        .expect("prepare index_info pragma");
+    let index_columns: Vec<String> = index_info_stmt
+        .query_map([], |row| row.get(2))
+        .expect("query index_info")
+        .collect::<Result<Vec<String>, _>>()
+        .expect("collect index_info rows");
+
+    assert_eq!(
+        index_columns,
+        vec!["authored_by_did", "space_id", "table_name", "category"],
+        "lookup index must cover columns in this order"
+    );
 }
