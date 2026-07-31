@@ -224,3 +224,71 @@ fn puller_accepts_registry_update_from_same_author() {
     let result = verify_incoming_registry_change(&update, Some(&existing));
     assert!(matches!(result, Ok(())), "{result:?}");
 }
+
+// -----------------------------------------------------------------------
+// B.4 code-quality review gaps (filled as part of B.5's TDD cycle) — M1-M3
+// -----------------------------------------------------------------------
+
+/// M1: the signer produced the canonical (sorted-key) `row_pks` encoding,
+/// but the wire change carries the SAME logical PKs with keys in a
+/// different order. `verify_incoming_registry_change` must canonicalize
+/// before rebuilding the payload — otherwise a peer's differently-ordered
+/// (but semantically identical) JSON would spuriously fail verification.
+#[test]
+fn puller_accepts_row_pks_with_unsorted_json_keys() {
+    let (sk, pk) = generate_keypair();
+    let did = did_key_from_public_key(&pk);
+    let mut row = SampleRow::with_did(&did);
+    row.row_pks = r#"{"a":1,"b":2}"#.to_string(); // canonical (sorted) form
+    let mut change = row.signed_change(&sk);
+    change.row_pks = r#"{"b":2,"a":1}"#.to_string(); // peer sends unsorted
+
+    let result = verify_incoming_registry_change(&change, None);
+    assert!(matches!(result, Ok(())), "{result:?}");
+}
+
+/// M2: `extension_public_key` / `extension_name` are `None` (an infra-owned
+/// registry row, not an extension-owned one — the DB enforces both-null-or-
+/// both-present via `haex_shared_space_sync_extension_pair`). The optional
+/// fields must round-trip through `canonical_encoding`'s presence tag
+/// without breaking verification.
+#[test]
+fn puller_accepts_row_with_none_extension_fields() {
+    let (sk, pk) = generate_keypair();
+    let did = did_key_from_public_key(&pk);
+    let mut row = SampleRow::with_did(&did);
+    row.extension_public_key = None;
+    row.extension_name = None;
+    let change = row.signed_change(&sk);
+
+    let result = verify_incoming_registry_change(&change, None);
+    assert!(matches!(result, Ok(())), "{result:?}");
+}
+
+/// M3: an UPDATE claims the SAME `authored_by_did` as the persisted row
+/// (immutability check passes) but mutates a signed field (`category`)
+/// while replaying the OLD `row_sig` — which never covered the new value.
+/// Immutability alone is not proof of integrity; the signature check must
+/// still catch the tampered content.
+#[test]
+fn puller_rejects_update_with_matching_did_but_tampered_content() {
+    let (sk_alice, pk_alice) = generate_keypair();
+    let did_alice = did_key_from_public_key(&pk_alice);
+    let row = SampleRow::with_did(&did_alice);
+    let existing_change = row.signed_change(&sk_alice); // payload_v1, row_sig covers it
+    let existing = PersistedRegistryRow {
+        authored_by_did: existing_change.authored_by_did.clone(),
+    };
+
+    // Same authored_by_did, same row_sig (payload_v1's), but category is
+    // mutated post-signing — as if a peer relabeled the field in transit
+    // without re-signing.
+    let mut tampered = existing_change.clone();
+    tampered.category = Some("changed".to_string());
+
+    let result = verify_incoming_registry_change(&tampered, Some(&existing));
+    assert!(
+        matches!(result, Err(RegistryVerifyError::SignatureInvalid(_))),
+        "{result:?}"
+    );
+}
