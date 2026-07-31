@@ -276,6 +276,33 @@ pub(super) fn build_incoming_registry_change(
         }
     }
 
+    // PR #741 finding 5 (investigated 2026-08-01, deferred — see
+    // docs/plans/2026-08-01-pr741-finding-5-defer.md): this branch also
+    // fires for a *legitimate* split — a peer that pushed a signed column
+    // in one batch and its fresh `row_sig` in a later one. Today that split
+    // cannot actually happen:
+    //   - Writer side: `sign_registry_row_self` (execute.rs) always
+    //     re-signs `row_sig` inside the SAME `execute_with_crdt` transaction
+    //     as any write to a `SIGNED_PAYLOAD_COLUMNS` field, so the two
+    //     changes are structurally born with the same HLC.
+    //   - Wire side: `group_by_transaction_hlc` groups by HLC == one
+    //     transaction, and both the sender's pagination
+    //     (`scanner::paginate_changes`) and the puller's page buffering
+    //     (`sync_loop::pull::split_complete_groups` /
+    //     `apply_groups_advancing_cursor`) never apply or advance the
+    //     cursor past a group until it is received whole — so same-HLC
+    //     changes always arrive, and apply, together.
+    // The one path that bypasses this atomicity is the owner-vault
+    // pending-column schema-drift recovery (`run_owner_pending_column_recovery`
+    // / `handle_owner_pull_columns`), which pulls one `(table, column)` pair
+    // at a time with no `row_sig` pairing. It cannot split `row_sig` from a
+    // `SIGNED_PAYLOAD_COLUMNS` field TODAY because migration 0014 introduced
+    // both together — no schema state exists where a device knows one but
+    // not the other. If a FUTURE migration adds a new signed registry column
+    // after `row_sig` already exists, that recovery path could reintroduce a
+    // genuine split; at that point a `PendingSplitBatch` outcome plus the
+    // existing `TABLE_CRDT_PENDING_COLUMNS` marker/no-HLC-advance pattern
+    // (see `apply/db.rs`'s unknown-column handling) is the right fix.
     if touches_signed_payload && !has_fresh_row_sig {
         let touched_signed_columns: Vec<String> = batch
             .iter()
