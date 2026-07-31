@@ -63,6 +63,24 @@ pub(super) enum RegistryRowChangeOutcome {
     /// existing `row_sig` already covers the row's identity — safe to skip
     /// B.5 verification and fall through to the normal per-column apply.
     NothingSignedTouched,
+    /// The batch touched `row_sig` and NOTHING ELSE from
+    /// [`SIGNED_PAYLOAD_COLUMNS`], on an existing row. A `row_sig` cannot be
+    /// verified on its own: verification reconstructs the signed preimage
+    /// from the payload columns, which this batch does not carry — it can
+    /// only fall back to the row's *already-persisted* payload. Accepting
+    /// the incoming `row_sig` in that case would let an attacker overwrite
+    /// the persisted signature with a stale-but-internally-valid one lifted
+    /// from an earlier version of the same row (a replay), decoupling the
+    /// stored `row_sig` from the content it is supposed to cover without
+    /// ever running it through verification. Rejected outright — the
+    /// mirror-image case of `MissingFreshRowSig` below, but for the payload
+    /// side rather than the signature side. Carries the persisted row's
+    /// `space_id` and `authored_by_did`, for forensic logging at the call
+    /// site.
+    RowSigOnlyBatch {
+        space_id: String,
+        authored_by_did: String,
+    },
     /// A signed field changed but the batch did not carry a fresh
     /// `row_sig` alongside it. Rejected without even calling B.4 — there is
     /// nothing legitimate to verify against. Carries the names of the
@@ -164,19 +182,33 @@ pub(super) fn build_incoming_registry_change(
     let touches_signed_payload = batch
         .iter()
         .any(|c| SIGNED_PAYLOAD_COLUMNS.contains(&c.column_name.as_str()));
+    let has_fresh_row_sig = batch
+        .iter()
+        .any(|c| c.column_name == COL_SHARED_SPACE_SYNC_ROW_SIG);
 
     // An existing row whose batch touches nothing sig-relevant needs no
     // fresh verification — its persisted row_sig already covers its
     // identity. A brand-new row always goes through Ready below (it needs
     // its very first verification), even in the — practically impossible —
     // case where its INSERT batch happens to touch nothing on this list.
-    if !touches_signed_payload && persisted.is_some() {
-        return Ok(RegistryRowChangeOutcome::NothingSignedTouched);
+    //
+    // EXCEPT: if the batch touches `row_sig` itself while touching nothing
+    // else on the payload list, that is not "nothing sig-relevant" — it is
+    // exactly the shape of a replay attack (see `RowSigOnlyBatch`'s
+    // doc-comment). Reject it before it can reach the per-column apply loop
+    // and overwrite the persisted signature unchecked.
+    if !touches_signed_payload {
+        if let Some(p) = persisted.as_ref() {
+            if has_fresh_row_sig {
+                return Ok(RegistryRowChangeOutcome::RowSigOnlyBatch {
+                    space_id: p.space_id.clone(),
+                    authored_by_did: p.authored_by_did.clone(),
+                });
+            }
+            return Ok(RegistryRowChangeOutcome::NothingSignedTouched);
+        }
     }
 
-    let has_fresh_row_sig = batch
-        .iter()
-        .any(|c| c.column_name == COL_SHARED_SPACE_SYNC_ROW_SIG);
     if touches_signed_payload && !has_fresh_row_sig {
         let touched_signed_columns: Vec<String> = batch
             .iter()
@@ -279,4 +311,152 @@ pub(super) fn build_incoming_registry_change(
         change: Box::new(change),
         persisted: persisted_authored_by_did,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    /// Minimal schema for `build_incoming_registry_change` — just the
+    /// registry columns this module reads directly. The CRDT bookkeeping
+    /// columns (`haex_hlc`, `haex_column_hlcs`, ...) the full apply pipeline
+    /// needs live one level up in `db.rs` and are irrelevant to this
+    /// function.
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE \"{TABLE_SHARED_SPACE_SYNC}\" (
+                id TEXT PRIMARY KEY NOT NULL,
+                table_name TEXT NOT NULL,
+                row_pks TEXT NOT NULL,
+                space_id TEXT NOT NULL,
+                extension_public_key TEXT,
+                extension_name TEXT,
+                category TEXT,
+                type TEXT,
+                type_label TEXT,
+                category_label TEXT,
+                authored_by_did TEXT DEFAULT '' NOT NULL,
+                row_sig TEXT DEFAULT '' NOT NULL,
+                created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            );"
+        ))
+        .unwrap();
+        conn
+    }
+
+    fn row_sig_only_change(value: &str) -> RemoteColumnChange {
+        RemoteColumnChange {
+            table_name: TABLE_SHARED_SPACE_SYNC.to_string(),
+            row_pks: r#"{"id":"reg-1"}"#.to_string(),
+            column_name: COL_SHARED_SPACE_SYNC_ROW_SIG.to_string(),
+            hlc_timestamp: "2/bbb".to_string(),
+            decrypted_value: JsonValue::String(value.to_string()),
+            sig: None,
+        }
+    }
+
+    /// The attack this fix closes: a batch touching ONLY `row_sig` on an
+    /// existing row — no payload column present to verify it against —
+    /// must be rejected as `RowSigOnlyBatch`, not silently treated as
+    /// `NothingSignedTouched` (which would let the per-column apply loop
+    /// write the attacker-supplied `row_sig` unchecked).
+    #[test]
+    fn build_incoming_registry_change_rejects_batch_with_only_row_sig() {
+        let mut conn = setup_db();
+        conn.execute(
+            &format!(
+                "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
+                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at) \
+                 VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', \
+                         'did:key:alice', 'original-sig', '2026-01-01T00:00:00Z')"
+            ),
+            [],
+        )
+        .unwrap();
+
+        let tx = conn.transaction().unwrap();
+        let row_pks_map = serde_json::json!({ "id": "reg-1" })
+            .as_object()
+            .unwrap()
+            .clone();
+        let batch = vec![row_sig_only_change("attacker-old-sig")];
+
+        let outcome = build_incoming_registry_change(
+            &tx,
+            "id = ?1",
+            &[JsonValue::String("reg-1".to_string())],
+            &row_pks_map,
+            &batch,
+        )
+        .unwrap();
+
+        match outcome {
+            RegistryRowChangeOutcome::RowSigOnlyBatch {
+                space_id,
+                authored_by_did,
+            } => {
+                assert_eq!(space_id, "space-1");
+                assert_eq!(authored_by_did, "did:key:alice");
+            }
+            RegistryRowChangeOutcome::NothingSignedTouched => {
+                panic!("expected RowSigOnlyBatch, got NothingSignedTouched")
+            }
+            RegistryRowChangeOutcome::MissingFreshRowSig(_) => {
+                panic!("expected RowSigOnlyBatch, got MissingFreshRowSig")
+            }
+            RegistryRowChangeOutcome::Ready { .. } => {
+                panic!("expected RowSigOnlyBatch, got Ready")
+            }
+        }
+    }
+
+    /// A batch touching neither `row_sig` nor any payload column on an
+    /// existing row is still the benign `NothingSignedTouched` case — the
+    /// new guard must not over-reject.
+    #[test]
+    fn build_incoming_registry_change_allows_batch_touching_neither_row_sig_nor_payload() {
+        let mut conn = setup_db();
+        conn.execute(
+            &format!(
+                "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
+                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at) \
+                 VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', \
+                         'did:key:alice', 'original-sig', '2026-01-01T00:00:00Z')"
+            ),
+            [],
+        )
+        .unwrap();
+
+        let tx = conn.transaction().unwrap();
+        let row_pks_map = serde_json::json!({ "id": "reg-1" })
+            .as_object()
+            .unwrap()
+            .clone();
+        // A change to some hypothetical non-signed column — none of the
+        // payload list, and not row_sig either.
+        let batch = vec![RemoteColumnChange {
+            table_name: TABLE_SHARED_SPACE_SYNC.to_string(),
+            row_pks: r#"{"id":"reg-1"}"#.to_string(),
+            column_name: "some_untracked_column".to_string(),
+            hlc_timestamp: "2/bbb".to_string(),
+            decrypted_value: JsonValue::Null,
+            sig: None,
+        }];
+
+        let outcome = build_incoming_registry_change(
+            &tx,
+            "id = ?1",
+            &[JsonValue::String("reg-1".to_string())],
+            &row_pks_map,
+            &batch,
+        )
+        .unwrap();
+
+        assert!(matches!(
+            outcome,
+            RegistryRowChangeOutcome::NothingSignedTouched
+        ));
+    }
 }

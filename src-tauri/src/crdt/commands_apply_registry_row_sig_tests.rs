@@ -422,6 +422,52 @@ fn apply_pipeline_rejects_registry_update_that_changes_authored_by_did() {
     );
 }
 
+/// The attack this test guards against: Mallory sends an UPDATE batch that
+/// touches ONLY `row_sig` — no payload column (`category`, `table_name`,
+/// ...) present at all — carrying a well-formed-but-wrong signature (stand-in
+/// for a replayed signature from an older version of the same row). Before
+/// this fix, `touches_signed_payload` was `false` for such a batch, so the
+/// gate took the `NothingSignedTouched` fast path and skipped verification
+/// entirely, and the per-column apply loop below it then wrote the incoming
+/// `row_sig` unchecked. The persisted `row_sig` must remain exactly the
+/// seeded value.
+#[test]
+fn apply_pipeline_rejects_row_sig_only_batch_and_preserves_original_sig() {
+    let db = setup_registry_db();
+    let (sk, pk) = generate_keypair();
+    let did = did_key_from_public_key(&pk);
+    let fields = RegistryFields::sample("reg-6", "space-1", &did);
+    let original_row_sig = fields.row_sig_b64(&sk);
+    apply_remote_changes_to_db(&db, full_batch(&fields, &sk, None, "1/aaa"), None, None)
+        .expect("seed insert must succeed");
+
+    // UPDATE batch: ONLY row_sig, no payload column at all.
+    let row_pks_json = format!(r#"{{"id":"{}"}}"#, fields.id);
+    let row_sig_only = build_change(
+        &row_pks_json,
+        COL_SHARED_SPACE_SYNC_ROW_SIG,
+        JsonValue::String(BASE64.encode([7u8; 64])),
+        "2/bbb",
+        None,
+        &fields.space_id,
+    );
+
+    apply_remote_changes_to_db(&db, vec![row_sig_only], None, None)
+        .expect("apply must succeed — rejection is row-scoped, not fatal");
+
+    assert_eq!(
+        query_registry_row_sig(&db, "reg-6").as_deref(),
+        Some(original_row_sig.as_str()),
+        "row_sig must remain the seeded signature — a row_sig-only batch must never overwrite it unverified"
+    );
+    let stored = query_registry_row(&db, "reg-6").expect("row must still exist");
+    assert_eq!(
+        stored.2.as_deref(),
+        Some("work"),
+        "no other column should have changed either"
+    );
+}
+
 /// The row-sig gate (Stage 5b) and the pre-existing per-column sig gate are
 /// stacked, not exclusive. A row with a VALID row_sig can still have one of
 /// its OWN columns dropped by the per-column gate — orthogonally, on its own

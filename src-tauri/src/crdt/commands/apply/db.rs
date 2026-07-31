@@ -634,6 +634,16 @@ pub fn apply_remote_changes_to_db_scoped(
                     )?;
                     match outcome {
                         RegistryRowChangeOutcome::NothingSignedTouched => {}
+                        RegistryRowChangeOutcome::RowSigOnlyBatch {
+                            space_id,
+                            authored_by_did,
+                        } => {
+                            eprintln!(
+                                "[SYNC RUST] Rejected registry row {} in '{}' (space_id='{}', authored_by_did='{}') — batch touched ONLY row_sig with no signed-payload column; a bare row_sig cannot be verified and would let a stale-but-valid signature overwrite the persisted one (possible replay)",
+                                row_pks_str, first_change.table_name, space_id, authored_by_did
+                            );
+                            continue;
+                        }
                         RegistryRowChangeOutcome::MissingFreshRowSig(touched_signed_columns) => {
                             eprintln!(
                                 "[SYNC RUST] Rejected registry row {} in '{}' — signed column(s) {:?} changed without a fresh row_sig in the same batch",
