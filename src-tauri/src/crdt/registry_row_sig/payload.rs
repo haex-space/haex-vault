@@ -34,6 +34,7 @@ fn push_optional_field(buf: &mut Vec<u8>, field: Option<&str>) {
 ///
 /// Fields borrow (`&'a str`) rather than own, so building the preimage on
 /// the sign/verify hot path allocates nothing beyond the output `Vec<u8>`.
+#[derive(Debug, Clone)]
 pub struct RegistryRowSigPayload<'a> {
     pub id: &'a str,
     pub space_id: &'a str,
@@ -62,7 +63,34 @@ impl RegistryRowSigPayload<'_> {
     /// `build_preimage`, field identity comes from fixed position, not from
     /// an embedded label.
     pub fn canonical_encoding(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
+        // Exact size (mirrors `column_sig::preimage::build_preimage`'s
+        // capacity calc): each required field costs a 4-byte length prefix
+        // plus its bytes; each optional field costs a 1-byte presence tag
+        // plus, when present, the same 4-byte-prefix-plus-bytes shape.
+        let optional_len = |field: Option<&str>| 1 + field.map_or(0, |v| 4 + v.len());
+        let mut buf = Vec::with_capacity(
+            4 + DOMAIN_TAG.len()
+                + 4
+                + self.id.len()
+                + 4
+                + self.space_id.len()
+                + 4
+                + self.table_name.len()
+                + 4
+                + self.row_pks.len()
+                + 4
+                + self.extension_public_key.len()
+                + 4
+                + self.extension_name.len()
+                + optional_len(self.category)
+                + optional_len(self.r#type)
+                + optional_len(self.category_label)
+                + optional_len(self.type_label)
+                + 4
+                + self.authored_by_did.len()
+                + 4
+                + self.created_at.len(),
+        );
         push_field(&mut buf, DOMAIN_TAG.as_bytes());
         push_field(&mut buf, self.id.as_bytes());
         push_field(&mut buf, self.space_id.as_bytes());

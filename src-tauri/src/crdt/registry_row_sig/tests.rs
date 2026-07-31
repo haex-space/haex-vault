@@ -47,42 +47,17 @@ fn test_registry_row_sig_payload_null_vs_empty_string_distinguished() {
 }
 
 #[test]
-fn test_registry_row_sig_payload_field_order_is_deterministic() {
-    // Encoding must be the same regardless of the field ORDER used to
-    // construct the payload. Rust's named-field struct literals are already
-    // order-independent, so this test documents the invariant rather than
-    // exercising a real risk: `canonical_encoding` walks fields in the fixed
-    // order defined by the impl, not in source-literal order.
-    let forward = RegistryRowSigPayload {
-        id: "row-1",
-        space_id: "space-1",
-        table_name: "ext_calendar_v1",
-        row_pks: r#"{"id":"evt-42"}"#,
-        extension_public_key: "epk",
-        extension_name: "calendar",
-        category: Some("work"),
-        r#type: Some("event"),
-        category_label: Some("Work Calendar"),
-        type_label: Some("Termin"),
-        authored_by_did: "did:key:alice",
-        created_at: "2026-07-31T00:00:00Z",
-    };
-    let reordered = RegistryRowSigPayload {
-        created_at: "2026-07-31T00:00:00Z",
-        authored_by_did: "did:key:alice",
-        type_label: Some("Termin"),
-        category_label: Some("Work Calendar"),
-        r#type: Some("event"),
-        category: Some("work"),
-        extension_name: "calendar",
-        extension_public_key: "epk",
-        row_pks: r#"{"id":"evt-42"}"#,
-        table_name: "ext_calendar_v1",
-        space_id: "space-1",
-        id: "row-1",
-    };
+fn canonical_encoding_is_position_sensitive() {
+    // Swapping id and space_id VALUES must produce a different encoding
+    // (guards against future refactor accidentally reordering push_field calls).
+    let mut base = base_payload();
+    let base_bytes = base.canonical_encoding();
 
-    assert_eq!(forward.canonical_encoding(), reordered.canonical_encoding());
+    base.id = "space-1";
+    base.space_id = "row-1";
+    let swapped_bytes = base.canonical_encoding();
+
+    assert_ne!(base_bytes, swapped_bytes);
 }
 
 #[test]
