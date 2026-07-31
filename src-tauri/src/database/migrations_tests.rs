@@ -747,7 +747,9 @@ fn migration_0015_fk_cascade_deletes_grant_when_space_deleted() {
     let conn = Connection::open_in_memory().unwrap();
     create_haex_spaces_stub(&conn);
     apply_migration_by_tag(&conn, "0015_");
-    conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+    // FK enforcement is on by default in this project's SQLCipher-backed
+    // rusqlite build (see create_haex_spaces_stub doc-comment) — no explicit
+    // `PRAGMA foreign_keys = ON` needed here.
 
     conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
         .unwrap();
@@ -758,6 +760,18 @@ fn migration_0015_fk_cascade_deletes_grant_when_space_deleted() {
         [],
     )
     .unwrap();
+
+    let before: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM haex_space_ucan_grants_no_sync",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        before, 1,
+        "grant insert must have actually landed before we test the cascade"
+    );
 
     conn.execute("DELETE FROM haex_spaces WHERE id = 's1'", [])
         .unwrap();
@@ -773,4 +787,44 @@ fn migration_0015_fk_cascade_deletes_grant_when_space_deleted() {
         remaining, 0,
         "deleting the parent space must cascade-delete its ucan grants"
     );
+}
+
+#[test]
+fn migration_0015_partial_unique_rejects_duplicate_active_grant() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+    conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
+        .unwrap();
+
+    let insert = |id: &str, role: &str| {
+        conn.execute(
+            "INSERT INTO haex_space_ucan_grants_no_sync
+                (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+             VALUES (?1, 's1', 'alice', 'bob', 'token', ?2, '2026-07-31')",
+            rusqlite::params![id, role],
+        )
+    };
+
+    insert("g1", "issued").expect("first active grant must be accepted");
+
+    let dup = insert("g2", "issued");
+    assert!(
+        dup.is_err(),
+        "a second active grant for the same (space, issuer, audience, role) must be rejected"
+    );
+
+    conn.execute(
+        "UPDATE haex_space_ucan_grants_no_sync SET revoked_at = '2026-08-01' WHERE id = 'g1'",
+        [],
+    )
+    .expect("revoking g1 must succeed");
+
+    insert("g3", "issued").expect(
+        "once g1 is revoked, a new active grant for the same tuple must be accepted \
+         (revoked grants don't count against the partial unique index)",
+    );
+
+    insert("g4", "received")
+        .expect("a different role for the same (space, issuer, audience) must be accepted");
 }

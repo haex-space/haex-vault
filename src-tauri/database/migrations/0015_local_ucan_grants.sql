@@ -11,4 +11,6 @@ CREATE TABLE `haex_space_ucan_grants_no_sync` (
 	CONSTRAINT "haex_space_ucan_grants_no_sync_role_check" CHECK(role IN ('issued','received'))
 );
 --> statement-breakpoint
-CREATE INDEX `haex_space_ucan_grants_lookup` ON `haex_space_ucan_grants_no_sync` (`space_id`,`audience_did`,`revoked_at`);
+CREATE INDEX `haex_space_ucan_grants_active_lookup` ON `haex_space_ucan_grants_no_sync` (`space_id`,`audience_did`) WHERE `revoked_at` IS NULL;
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_space_ucan_grants_active_uniq` ON `haex_space_ucan_grants_no_sync` (`space_id`,`issuer_did`,`audience_did`,`role`) WHERE `revoked_at` IS NULL;
