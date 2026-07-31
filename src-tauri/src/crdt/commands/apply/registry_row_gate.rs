@@ -214,10 +214,44 @@ pub(super) fn build_incoming_registry_change(
             .iter()
             .any(|s| c.column_name.eq_ignore_ascii_case(s))
     });
+    // Non-null on top of presence: an explicit JSON `null` for `row_sig` is
+    // never a "fresh" signature — it is caught by the
+    // `explicit_null_required_columns` pre-check below (row_sig is itself
+    // one of `REQUIRED_TEXT_COLUMNS`). Requiring non-null here too means
+    // that check, not this one, is what a null row_sig sees first, since it
+    // runs before the branches below that consume this flag.
     let has_fresh_row_sig = batch.iter().any(|c| {
         c.column_name
             .eq_ignore_ascii_case(COL_SHARED_SPACE_SYNC_ROW_SIG)
+            && !c.decrypted_value.is_null()
     });
+
+    // A column in REQUIRED_TEXT_COLUMNS present with an explicit JSON
+    // `null` is never legitimate (see `RequiredFieldExplicitlyNull`'s
+    // doc-comment) — reject before `text()` further down gets a chance to
+    // collapse it into the "absent" fallback path. Checked case-insensitively,
+    // same as `touches_signed_payload`/`has_fresh_row_sig`.
+    //
+    // Runs BEFORE the `touches_signed_payload`/`has_fresh_row_sig` branches
+    // below: `row_sig` is itself a `REQUIRED_TEXT_COLUMNS` entry, so a batch
+    // carrying `row_sig: null` must land here — as
+    // `RequiredFieldExplicitlyNull` — rather than being misclassified as
+    // `RowSigOnlyBatch` or `MissingFreshRowSig` by the branches that follow.
+    let explicit_null_required_columns: Vec<String> = batch
+        .iter()
+        .filter(|c| {
+            c.decrypted_value.is_null()
+                && REQUIRED_TEXT_COLUMNS
+                    .iter()
+                    .any(|s| c.column_name.eq_ignore_ascii_case(s))
+        })
+        .map(|c| c.column_name.clone())
+        .collect();
+    if !explicit_null_required_columns.is_empty() {
+        return Ok(RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(
+            explicit_null_required_columns,
+        ));
+    }
 
     // An existing row whose batch touches nothing sig-relevant needs no
     // fresh verification — its persisted row_sig already covers its
@@ -250,27 +284,6 @@ pub(super) fn build_incoming_registry_change(
             .collect();
         return Ok(RegistryRowChangeOutcome::MissingFreshRowSig(
             touched_signed_columns,
-        ));
-    }
-
-    // A column in REQUIRED_TEXT_COLUMNS present with an explicit JSON
-    // `null` is never legitimate (see `RequiredFieldExplicitlyNull`'s
-    // doc-comment) — reject before `text()` below gets a chance to collapse
-    // it into the "absent" fallback path. Checked case-insensitively, same
-    // as `touches_signed_payload`/`has_fresh_row_sig` above.
-    let explicit_null_required_columns: Vec<String> = batch
-        .iter()
-        .filter(|c| {
-            c.decrypted_value.is_null()
-                && REQUIRED_TEXT_COLUMNS
-                    .iter()
-                    .any(|s| c.column_name.eq_ignore_ascii_case(s))
-        })
-        .map(|c| c.column_name.clone())
-        .collect();
-    if !explicit_null_required_columns.is_empty() {
-        return Ok(RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(
-            explicit_null_required_columns,
         ));
     }
 
@@ -673,6 +686,91 @@ mod tests {
                 assert_eq!(change.category, None);
             }
             _ => panic!("expected Ready"),
+        }
+    }
+
+    /// A batch touching ONLY `row_sig` — present, but with an explicit JSON
+    /// `null` rather than a fresh signature string — on an existing row.
+    /// `row_sig` is itself one of `REQUIRED_TEXT_COLUMNS`, so this must be
+    /// rejected as `RequiredFieldExplicitlyNull`, not `RowSigOnlyBatch`: the
+    /// latter would misclassify "peer sent a null" as "peer sent a
+    /// bare/replayed signature", which matters for forensic logging even
+    /// though both outcomes reject the row.
+    #[test]
+    fn row_sig_present_null_alone_is_required_field_explicit_null() {
+        let mut conn = setup_db();
+        insert_reg1_with_category(&conn, "work");
+        let tx = conn.transaction().unwrap();
+        let (row_pks_map, pk_values) = reg1_pk_args();
+        let batch = vec![column_change(
+            COL_SHARED_SPACE_SYNC_ROW_SIG,
+            JsonValue::Null,
+        )];
+
+        let outcome =
+            build_incoming_registry_change(&tx, "id = ?1", &pk_values, &row_pks_map, &batch)
+                .unwrap();
+
+        match outcome {
+            RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(cols) => {
+                assert!(cols
+                    .iter()
+                    .any(|c| c.eq_ignore_ascii_case(COL_SHARED_SPACE_SYNC_ROW_SIG)));
+            }
+            other => panic!(
+                "expected RequiredFieldExplicitlyNull, got a different outcome: {}",
+                match other {
+                    RegistryRowChangeOutcome::NothingSignedTouched => "NothingSignedTouched",
+                    RegistryRowChangeOutcome::RowSigOnlyBatch { .. } => "RowSigOnlyBatch",
+                    RegistryRowChangeOutcome::MissingFreshRowSig(_) => "MissingFreshRowSig",
+                    RegistryRowChangeOutcome::Ready { .. } => "Ready",
+                    RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(_) => unreachable!(),
+                }
+            ),
+        }
+    }
+
+    /// A batch touching a signed-payload column (`type_label`) AND
+    /// `row_sig` — present, but explicit JSON `null` instead of a fresh
+    /// signature string. Must still be rejected as
+    /// `RequiredFieldExplicitlyNull`, not `MissingFreshRowSig` — the latter
+    /// implies "no row_sig at all in the batch", which is a different wire
+    /// state (and a different forensic message) than "row_sig present but
+    /// null".
+    #[test]
+    fn row_sig_present_null_with_payload_columns_is_required_field_explicit_null() {
+        let mut conn = setup_db();
+        insert_reg1_with_category(&conn, "work");
+        let tx = conn.transaction().unwrap();
+        let (row_pks_map, pk_values) = reg1_pk_args();
+        let batch = vec![
+            column_change(
+                COL_SHARED_SPACE_SYNC_TYPE_LABEL,
+                JsonValue::String("Updated Label".to_string()),
+            ),
+            column_change(COL_SHARED_SPACE_SYNC_ROW_SIG, JsonValue::Null),
+        ];
+
+        let outcome =
+            build_incoming_registry_change(&tx, "id = ?1", &pk_values, &row_pks_map, &batch)
+                .unwrap();
+
+        match outcome {
+            RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(cols) => {
+                assert!(cols
+                    .iter()
+                    .any(|c| c.eq_ignore_ascii_case(COL_SHARED_SPACE_SYNC_ROW_SIG)));
+            }
+            other => panic!(
+                "expected RequiredFieldExplicitlyNull, got a different outcome: {}",
+                match other {
+                    RegistryRowChangeOutcome::NothingSignedTouched => "NothingSignedTouched",
+                    RegistryRowChangeOutcome::RowSigOnlyBatch { .. } => "RowSigOnlyBatch",
+                    RegistryRowChangeOutcome::MissingFreshRowSig(_) => "MissingFreshRowSig",
+                    RegistryRowChangeOutcome::Ready { .. } => "Ready",
+                    RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(_) => unreachable!(),
+                }
+            ),
         }
     }
 
