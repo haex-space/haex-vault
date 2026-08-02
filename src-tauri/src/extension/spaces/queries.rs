@@ -39,8 +39,11 @@ lazy_static! {
     ///
     /// Security: columns 5+6 MUST be filled from the authenticated extension
     /// manifest, never from caller-provided strings. See `extension_space_assign`.
-    /// Author identity is expressed via the column-sig produced by F2 in
-    /// `execute_with_crdt`, not via a DB column any more (Runde 5).
+    /// `authored_by_did` and `row_sig` intentionally stay out of this column
+    /// list: `sign_registry_row_self` derives the author DID from the local
+    /// space key and writes the row signature. Caller-supplied values are
+    /// rejected (`RegistryRowForeignAuthoredByDid` /
+    /// `RegistryRowSigColumnWriteForbidden`).
     pub static ref SQL_INSERT_SHARED_SPACE_SYNC: String = format!(
         "INSERT OR IGNORE INTO {TABLE_SHARED_SPACE_SYNC} \
          ({COL_SHARED_SPACE_SYNC_ID}, {COL_SHARED_SPACE_SYNC_TABLE_NAME}, \

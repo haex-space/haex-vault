@@ -554,10 +554,31 @@ fn migration_0014_renames_and_adds_registry_authorization_columns() {
 }
 
 #[test]
-fn migration_0014_unique_constraint_rejects_duplicate_author_category() {
+fn migration_0014_unique_constraint_allows_distinct_rows_in_same_category() {
     let conn = Connection::open_in_memory().unwrap();
     create_shared_space_sync_pre_0014_stub(&conn);
+
+    let insert_pre_migration = |id: &str, row_pks: &str| {
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync
+                (id, table_name, row_pks, space_id, group_id)
+             VALUES (?1, 'ext_cal_v1', ?2, 'space-1', 'work')",
+            rusqlite::params![id, row_pks],
+        )
+    };
+
+    // Existing vaults can already contain several rows in one category. The
+    // migration must not abort when all of them receive authored_by_did = ''.
+    insert_pre_migration("share-1", r#"{"id":"r1"}"#).unwrap();
+    insert_pre_migration("share-2", r#"{"id":"r2"}"#).unwrap();
     apply_migration_by_tag(&conn, "0014_");
+
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM haex_shared_space_sync", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 2, "migration must preserve both category rows");
 
     let insert =
         |id: &str, author: &str, space: &str, table: &str, row_pks: &str, category: &str| {
@@ -569,41 +590,30 @@ fn migration_0014_unique_constraint_rejects_duplicate_author_category() {
             )
         };
 
+    // The transient 0014 constraint is row-scoped: the same author cannot
+    // register the same shared row twice, even under another category.
+    let dup = insert(
+        "share-3",
+        "",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r1"}"#,
+        "personal",
+    );
+    assert!(
+        dup.is_err(),
+        "second insert with same (author, space, table, row_pks) must fail"
+    );
+
     insert(
-        "share-1",
-        "alice-did",
+        "share-4",
+        "bob-did",
         "space-1",
         "ext_cal_v1",
         r#"{"id":"r1"}"#,
         "work",
     )
-    .expect("first insert for alice/space-1/ext_cal_v1/work must succeed");
-
-    // Different content row, same (author, space, table, category) — must be
-    // rejected by the new unique index, not merely by the pre-existing
-    // (table_name, row_pks, space_id) uniqueness (hence the distinct row_pks).
-    let dup = insert(
-        "share-2",
-        "alice-did",
-        "space-1",
-        "ext_cal_v1",
-        r#"{"id":"r2"}"#,
-        "work",
-    );
-    assert!(
-        dup.is_err(),
-        "second insert with same (author, space, table, category) must fail"
-    );
-
-    insert(
-        "share-3",
-        "bob-did",
-        "space-1",
-        "ext_cal_v1",
-        r#"{"id":"r3"}"#,
-        "work",
-    )
-    .expect("different author with same (space, table, category) must be allowed");
+    .expect("different author for the same shared row must be allowed");
 }
 
 #[test]
@@ -911,6 +921,12 @@ fn migration_0016_removes_unique_and_allows_multiple_rows_per_category() {
             .iter()
             .any(|(name, _)| name == "haex_shared_space_sync_author_category_uniq"),
         "old unique index haex_shared_space_sync_author_category_uniq must no longer exist"
+    );
+    assert!(
+        !indexes
+            .iter()
+            .any(|(name, _)| name == "haex_shared_space_sync_author_row_uniq"),
+        "transient unique index haex_shared_space_sync_author_row_uniq must no longer exist"
     );
 
     let mut index_info_stmt = conn

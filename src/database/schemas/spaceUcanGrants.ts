@@ -22,7 +22,9 @@ export const haexSpaceUcanGrants = sqliteTable(
     issuerDid: text(tableNames.haex.space_ucan_grants_no_sync.columns.issuerDid).notNull(),
     audienceDid: text(tableNames.haex.space_ucan_grants_no_sync.columns.audienceDid).notNull(),
     ucanToken: text(tableNames.haex.space_ucan_grants_no_sync.columns.ucanToken).notNull(),
-    role: text(tableNames.haex.space_ucan_grants_no_sync.columns.role).notNull(), // 'issued' | 'received'
+    role: text(tableNames.haex.space_ucan_grants_no_sync.columns.role)
+      .$type<'issued' | 'received'>()
+      .notNull(),
     createdAt: text(tableNames.haex.space_ucan_grants_no_sync.columns.createdAt).notNull(),
     revokedAt: text(tableNames.haex.space_ucan_grants_no_sync.columns.revokedAt),
   },

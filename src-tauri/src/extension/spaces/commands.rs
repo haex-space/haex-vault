@@ -31,10 +31,10 @@ pub struct SpaceAssignment {
     pub space_id: String,
     /// Optional category identifier for logically related assignments (e.g. calendar ID)
     pub category: Option<String>,
-    /// Optional type label for display (e.g. "Calendar", "Password Folder")
+    /// Optional type name for display (e.g. "Calendar", "Password Folder")
     #[serde(rename = "type")]
     pub type_name: Option<String>,
-    /// Optional display label (e.g. "Personal", "Team Q1")
+    /// Optional instance label for display (e.g. "Personal", "Team Q1")
     pub type_label: Option<String>,
 }
 

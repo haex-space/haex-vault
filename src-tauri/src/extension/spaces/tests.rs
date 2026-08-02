@@ -103,6 +103,9 @@ mod tests {
                 category TEXT,
                 type TEXT,
                 type_label TEXT,
+                category_label TEXT,
+                authored_by_did TEXT DEFAULT '' NOT NULL,
+                row_sig TEXT DEFAULT '' NOT NULL,
                 created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
             )",
             TABLE_SHARED_SPACE_SYNC
@@ -216,7 +219,7 @@ mod tests {
             vec![
                 serde_json::Value::String("assign-1".to_string()),
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-001".to_string()),
+                serde_json::Value::String(r#"{"id":"item-001"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
             ],
             &db,
@@ -227,7 +230,7 @@ mod tests {
 
         let rows = core::select_with_crdt(
             format!(
-                "SELECT id, haex_hlc FROM {} WHERE id = ?1",
+                "SELECT id, haex_hlc, authored_by_did, row_sig FROM {} WHERE id = ?1",
                 TABLE_SHARED_SPACE_SYNC
             ),
             vec![serde_json::Value::String("assign-1".to_string())],
@@ -237,6 +240,14 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert!(!rows[0][1].is_null(), "haex_hlc must be set after assign");
+        assert!(
+            !get_string(&rows[0], 2).is_empty(),
+            "authored_by_did must be derived during registry-row signing"
+        );
+        assert!(
+            !get_string(&rows[0], 3).is_empty(),
+            "row_sig must be written during registry-row signing"
+        );
     }
 
     /// Migration 0014 renamed `group_id` -> `category` and `label` ->
@@ -257,7 +268,7 @@ mod tests {
             vec![
                 serde_json::Value::String("assign-cat-1".to_string()),
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-cat-001".to_string()),
+                serde_json::Value::String(r#"{"id":"item-cat-001"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
                 serde_json::Value::String("pubkey-1".to_string()),
                 serde_json::Value::String("ext-name-1".to_string()),
@@ -306,7 +317,7 @@ mod tests {
             vec![
                 serde_json::Value::String("assign-dirty".to_string()),
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-002".to_string()),
+                serde_json::Value::String(r#"{"id":"item-002"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
             ],
             &db,
@@ -354,7 +365,7 @@ mod tests {
             vec![
                 serde_json::Value::String("del-1".to_string()),
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-del".to_string()),
+                serde_json::Value::String(r#"{"id":"item-del"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
             ],
             &db,
@@ -378,7 +389,7 @@ mod tests {
             ),
             vec![
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-del".to_string()),
+                serde_json::Value::String(r#"{"id":"item-del"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
             ],
             &db,

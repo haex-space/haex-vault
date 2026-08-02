@@ -649,6 +649,21 @@ pub fn apply_remote_changes_to_db_scoped(
                                 "[SYNC RUST] Rejected registry row {} in '{}' — signed column(s) {:?} changed without a fresh row_sig in the same batch",
                                 row_pks_str, first_change.table_name, touched_signed_columns
                             );
+                            // Column-level CRDT can split a row across pull
+                            // windows. Record the missing row_sig so recovery
+                            // can reset the server cursor and re-pull it.
+                            tx.execute(
+                                &format!(
+                                    "INSERT OR IGNORE INTO {} (table_name, column_name, row_pks) VALUES (?, ?, ?)",
+                                    TABLE_CRDT_PENDING_COLUMNS
+                                ),
+                                params![
+                                    &first_change.table_name,
+                                    COL_SHARED_SPACE_SYNC_ROW_SIG,
+                                    &first_change.row_pks
+                                ],
+                            )
+                            .map_err(DatabaseError::from)?;
                             continue;
                         }
                         RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(null_columns) => {

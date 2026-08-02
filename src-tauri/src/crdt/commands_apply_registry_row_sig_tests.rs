@@ -23,12 +23,12 @@ use crate::table_names::{
     COL_SHARED_SPACE_SYNC_EXTENSION_NAME, COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
     COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_ROW_SIG, COL_SHARED_SPACE_SYNC_SPACE_ID,
     COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE, COL_SHARED_SPACE_SYNC_TYPE_LABEL,
-    TABLE_CRDT_CONFIGS, TABLE_SHARED_SPACE_SYNC,
+    TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS, TABLE_SHARED_SPACE_SYNC,
 };
 use crate::ucan::verify::did_key_from_public_key;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::{SigningKey, VerifyingKey};
-use rusqlite::types::Value as SqlValue;
+use rusqlite::{types::Value as SqlValue, OptionalExtension};
 use serde_json::Value as JsonValue;
 use std::sync::{Arc, Mutex};
 
@@ -53,6 +53,12 @@ fn setup_registry_db() -> DbConnection {
              row_pks TEXT NOT NULL,
              haex_hlc TEXT,
              haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+         );
+         CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
+             table_name TEXT NOT NULL,
+             column_name TEXT NOT NULL,
+             row_pks TEXT NOT NULL,
+             PRIMARY KEY(table_name, column_name, row_pks)
          );
          CREATE TABLE haex_identities (
              id TEXT PRIMARY KEY NOT NULL,
@@ -281,7 +287,8 @@ fn query_registry_row(db: &DbConnection, id: &str) -> Option<(String, String, Op
         [id],
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )
-    .ok()
+    .optional()
+    .expect("registry row query failed")
 }
 
 fn query_registry_row_sig(db: &DbConnection, id: &str) -> Option<String> {
@@ -294,7 +301,28 @@ fn query_registry_row_sig(db: &DbConnection, id: &str) -> Option<String> {
         [id],
         |row| row.get(0),
     )
-    .ok()
+    .optional()
+    .expect("registry row_sig query failed")
+}
+
+fn query_pending_registry_row_sig(db: &DbConnection, row_pks: &str) -> bool {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    conn.query_row(
+        &format!(
+            "SELECT 1 FROM {TABLE_CRDT_PENDING_COLUMNS} \
+             WHERE table_name = ?1 AND column_name = ?2 AND row_pks = ?3"
+        ),
+        rusqlite::params![
+            TABLE_SHARED_SPACE_SYNC,
+            COL_SHARED_SPACE_SYNC_ROW_SIG,
+            row_pks
+        ],
+        |_| Ok(()),
+    )
+    .optional()
+    .expect("pending registry row_sig query failed")
+    .is_some()
 }
 
 /// A validly self-signed INSERT lands: the row's `row_sig` verifies against
@@ -372,6 +400,11 @@ fn apply_pipeline_rejects_registry_update_that_omits_fresh_row_sig() {
 
     apply_remote_changes_to_db(&db, vec![mutate_only], None, None)
         .expect("apply must succeed — rejection is row-scoped, not fatal");
+
+    assert!(
+        query_pending_registry_row_sig(&db, &row_pks_json),
+        "rejected partial batch must record the missing row_sig for recovery"
+    );
 
     let stored = query_registry_row(&db, "reg-5").expect("row must still exist");
     assert_eq!(

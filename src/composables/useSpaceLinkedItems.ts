@@ -59,7 +59,7 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
     ) ?? null
   }
 
-  /** Remove all assignments sharing the same category+spaceId, or a single assignment by id */
+  /** Remove one displayed extension/category group, or a single assignment by id */
   const removeAssignmentAsync = async (assignment: SelectHaexSharedSpaceSync) => {
     const db = getDb()
     if (!db) return
@@ -69,6 +69,12 @@ export function useSpaceLinkedItems(spaceId: MaybeRefOrGetter<string>) {
         and(
           eq(haexSharedSpaceSync.category, assignment.category),
           eq(haexSharedSpaceSync.spaceId, assignment.spaceId),
+          assignment.extensionPublicKey && assignment.extensionName
+            ? and(
+                eq(haexSharedSpaceSync.extensionPublicKey, assignment.extensionPublicKey),
+                eq(haexSharedSpaceSync.extensionName, assignment.extensionName),
+              )
+            : eq(haexSharedSpaceSync.tableName, assignment.tableName),
         ),
       )
     } else {

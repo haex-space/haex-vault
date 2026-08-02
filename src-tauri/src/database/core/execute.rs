@@ -39,8 +39,6 @@ use crate::ucan::verify::did_key_from_public_key;
 
 /// The share register has two signing duties: the normal F1 pass signs the
 /// register row itself, while F2 retro-signs the referenced content row.
-const REGISTER_TABLE: &str = "haex_shared_space_sync";
-
 /// Maximum serialized size of a single CRDT transaction (ADR 0001).
 ///
 /// One `execute_with_crdt` call parses one statement and runs it in its own
@@ -146,7 +144,7 @@ fn is_share_register_insert(
     // Fast path: `touched` already carries the table name for INSERT statements.
     if let Some((name, _)) = touched {
         return matches!(statement, Statement::Insert(_))
-            && name.eq_ignore_ascii_case(REGISTER_TABLE);
+            && name.eq_ignore_ascii_case(TABLE_SHARED_SPACE_SYNC);
     }
     false
 }
@@ -434,17 +432,18 @@ fn sign_share_insert_targets(
     // Guard: F2 needs the register carrying `haex_hlc` to identify the
     // just-inserted rows. Older fixtures / pre-migration tests may lack it —
     // treat as a no-op with a warn (schema drift or unmigrated fixture).
-    let register_schema =
-        get_table_schema(tx, REGISTER_TABLE).map_err(|e| DatabaseError::DatabaseError {
-            reason: format!("get_table_schema({REGISTER_TABLE}) failed: {e}"),
-        })?;
+    let register_schema = get_table_schema(tx, TABLE_SHARED_SPACE_SYNC).map_err(|e| {
+        DatabaseError::DatabaseError {
+            reason: format!("get_table_schema({TABLE_SHARED_SPACE_SYNC}) failed: {e}"),
+        }
+    })?;
     let has_hlc = register_schema
         .iter()
         .any(|c| c.name == HLC_TIMESTAMP_COLUMN);
     if !has_hlc {
         tracing::warn!(
             target: "column_sig",
-            register = REGISTER_TABLE,
+            register = TABLE_SHARED_SPACE_SYNC,
             "F2 sig path skipped: share register is missing CRDT meta \
              (`haex_hlc`) — schema drift or unmigrated fixture. \
              Register INSERTs will not produce cross-table column sigs \
@@ -470,7 +469,7 @@ fn sign_share_insert_targets(
         let mut stmt = tx
             .prepare(&format!(
                 "SELECT table_name, row_pks, space_id \
-                 FROM {REGISTER_TABLE} \
+                 FROM {TABLE_SHARED_SPACE_SYNC} \
                  WHERE \"{HLC_TIMESTAMP_COLUMN}\" = ?1"
             ))
             .map_err(DatabaseError::from)?;
