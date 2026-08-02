@@ -520,6 +520,138 @@ jobs:
         with:
           args: ${{ matrix.args }}
 
+      - name: Smoke test Windows binary
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Test-TcpPort {
+            param([int] $Port)
+
+            $client = [System.Net.Sockets.TcpClient]::new()
+            try {
+              $client.Connect('127.0.0.1', $Port)
+              return $true
+            } catch {
+              return $false
+            } finally {
+              $client.Dispose()
+            }
+          }
+
+          $exe = Join-Path $PWD 'src-tauri\target\release\haex-vault.exe'
+          if (!(Test-Path $exe)) {
+            throw "Windows binary not found at $exe"
+          }
+
+          if (Test-TcpPort 19455) {
+            throw 'External bridge port 19455 is already in use before haex-vault.exe starts'
+          }
+
+          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              if ($process.HasExited) {
+                throw "haex-vault.exe exited early with code $($process.ExitCode)"
+              }
+
+              if (Test-TcpPort 19455) {
+                $ready = $true
+                break
+              }
+
+              Start-Sleep -Seconds 1
+            }
+
+            if (!$ready) {
+              throw 'External bridge port 19455 did not open within 60 seconds'
+            }
+          } finally {
+            if (!$process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+              $process.WaitForExit()
+            }
+          }
+
+      - name: Smoke test macOS binary
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          port_open() {
+            nc -z 127.0.0.1 19455 >/dev/null 2>&1
+          }
+
+          case "$(uname -m)" in
+            arm64)
+              native_target="aarch64-apple-darwin"
+              ;;
+            x86_64)
+              native_target="x86_64-apple-darwin"
+              ;;
+            *)
+              echo "::warning::Unsupported macOS runner architecture: $(uname -m). Skipping binary smoke test."
+              exit 0
+              ;;
+          esac
+
+          if [[ "${{ matrix.args }}" != *"$native_target"* ]]; then
+            echo "Skipping smoke test for cross-built target: ${{ matrix.args }} on $(uname -m)"
+            exit 0
+          fi
+
+          app_dir="src-tauri/target/$native_target/release/bundle/macos/Haex Vault.app"
+          app_exe=""
+          for candidate in "$app_dir/Contents/MacOS"/*; do
+            if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+              app_exe="$candidate"
+              break
+            fi
+          done
+          if [ -z "$app_exe" ] || [ ! -x "$app_exe" ]; then
+            echo "::error::macOS app executable not found under $app_dir/Contents/MacOS"
+            exit 1
+          fi
+
+          if port_open; then
+            echo "::error::External bridge port 19455 is already in use before Haex Vault starts"
+            exit 1
+          fi
+
+          "$app_exe" &
+          app_pid=$!
+
+          cleanup() {
+            if kill -0 "$app_pid" 2>/dev/null; then
+              kill "$app_pid" 2>/dev/null || true
+              sleep 2
+              kill -9 "$app_pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          for _ in {1..60}; do
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              exit_code=0
+              wait "$app_pid" || exit_code=$?
+              echo "::error::Haex Vault exited early with code $exit_code"
+              exit 1
+            fi
+
+            if port_open; then
+              echo "External bridge opened on port 19455"
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          echo "::error::External bridge port 19455 did not open within 60 seconds"
+          exit 1
+
       - name: Upload artifacts (macOS)
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v7
