@@ -1438,9 +1438,9 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "5.0.0-rc.0"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f359e08ca85e7bd759e1fd933ff2bccd81864c60a8fba0e259c7f822b0924bf"
+checksum = "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.0",
@@ -1855,11 +1855,11 @@ dependencies = [
 
 [[package]]
 name = "ed25519-dalek"
-version = "3.0.0-rc.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b011170fe4f04665565b4110afef66774fe9ffff278f3eb5b81cc73d26e27d60"
+checksum = "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de"
 dependencies = [
- "curve25519-dalek 5.0.0-rc.0",
+ "curve25519-dalek 5.0.0",
  "ed25519 3.0.0",
  "rand_core 0.10.0",
  "serde",
@@ -2771,7 +2771,7 @@ dependencies = [
  "blake3",
  "bs58",
  "chacha20poly1305 0.11.0",
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek 3.0.0",
  "fs2",
  "fs_extra",
  "futures",
@@ -3642,7 +3642,7 @@ dependencies = [
  "ctutils",
  "data-encoding",
  "derive_more 2.1.1",
- "ed25519-dalek 3.0.0-rc.0",
+ "ed25519-dalek 3.0.0",
  "futures-util",
  "getrandom 0.4.1",
  "hickory-resolver",
@@ -3686,11 +3686,11 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6be73e16ee21c923aca9b3121aaa0db936f7c7ecc156ff47b8dac944c68d59a8"
 dependencies = [
- "curve25519-dalek 5.0.0-rc.0",
+ "curve25519-dalek 5.0.0",
  "data-encoding",
  "data-encoding-macro",
  "derive_more 2.1.1",
- "ed25519-dalek 3.0.0-rc.0",
+ "ed25519-dalek 3.0.0",
  "getrandom 0.4.1",
  "n0-error",
  "rand 0.10.2",
@@ -7522,6 +7522,9 @@ name = "signature"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5"
+dependencies = [
+ "rand_core 0.10.0",
+]
 
 [[package]]
 name = "simd-adler32"
