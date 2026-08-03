@@ -24,9 +24,16 @@ pub struct LocalInviteToken {
     pub space_id: String,
     /// If Some, only this DID can claim (contact invite). If None, anyone can (conference).
     pub target_did: Option<String>,
-    /// Pre-created UCAN for contact invites (target_did is known).
+    /// Pre-created UCAN for contact invites (target_did is known). Covers
+    /// only `capabilities[0]` — the only current producer of a pre-created
+    /// UCAN (`create_contact_invite_token`) is always called with exactly
+    /// one capability.
     pub pre_created_ucan: Option<String>,
-    pub capability: String,
+    /// Capabilities granted by this invite. Orthogonal, not ranked — e.g.
+    /// `["space/write","space/invite"]` grants both independently; there is
+    /// no "highest" one to pick. Claiming issues one delegated UCAN per
+    /// entry (see `leader::claim::handle_claim_invite`).
+    pub capabilities: Vec<String>,
     /// Whether to include space history when the invitee joins.
     pub include_history: bool,
     pub max_uses: u32,
@@ -73,7 +80,7 @@ pub fn create_contact_invite_token(
         space_id: space_id.to_string(),
         target_did: Some(target_did.to_string()),
         pre_created_ucan: Some(pre_created_ucan),
-        capability: capability.to_string(),
+        capabilities: vec![capability.to_string()],
         include_history,
         max_uses: 1,
         current_uses: 0,
@@ -118,7 +125,7 @@ pub async fn create_conference_invite_token(
         space_id: space_id.to_string(),
         target_did: None,
         pre_created_ucan: None,
-        capability: capability.to_string(),
+        capabilities: vec![capability.to_string()],
         include_history,
         max_uses,
         current_uses: 0,
@@ -139,7 +146,8 @@ pub async fn create_conference_invite_token(
 // ============================================================================
 
 /// Read-only check that the token is claimable by this DID. Returns
-/// (capability, Option<pre-created UCAN>) without mutating `current_uses`.
+/// (capabilities, Option<pre-created UCAN for capabilities[0]>) without
+/// mutating `current_uses`.
 ///
 /// Caller must invoke [`consume_invite`] **after** the claim has fully
 /// succeeded (MLS add_member, welcome buffered, response ready) so that a
@@ -153,7 +161,7 @@ pub async fn validate_invite(
     invite_tokens: &Arc<RwLock<Vec<LocalInviteToken>>>,
     token_id: &str,
     claimer_did: &str,
-) -> Result<(String, Option<String>), DeliveryError> {
+) -> Result<(Vec<String>, Option<String>), DeliveryError> {
     let mut tokens = invite_tokens.write().await;
 
     // Try in-memory first; if not found, look up this specific token from DB
@@ -181,7 +189,7 @@ pub async fn validate_invite(
         });
     }
 
-    Ok((token.capability.clone(), token.pre_created_ucan.clone()))
+    Ok((token.capabilities.clone(), token.pre_created_ucan.clone()))
 }
 
 /// Increment `current_uses` on the token and persist it. Call **only after**
@@ -224,7 +232,7 @@ fn persist_invite_token(
     let hlc_guard = hlc.lock().map_err(|_| DeliveryError::Database {
         reason: "Failed to lock HLC service".to_string(),
     })?;
-    let caps_json = format!("[\"{}\"]", token.capability);
+    let caps_json = serde_json::to_string(&token.capabilities).unwrap_or_else(|_| "[]".to_string());
     let expires_str = token
         .expires_at
         .format(&time::format_description::well_known::Rfc3339)
@@ -265,6 +273,17 @@ fn persist_invite_token(
     Ok(())
 }
 
+/// Parses the `capabilities` JSON column into the granted set, verbatim —
+/// no ranking, no picking a "winner". Falls back to `["space/read"]` only
+/// when the column is missing/malformed/empty, never to narrow a genuine
+/// multi-capability grant.
+fn parse_capabilities(caps_json: &str) -> Vec<String> {
+    serde_json::from_str::<Vec<String>>(caps_json)
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| vec!["space/read".to_string()])
+}
+
 /// Load all invite tokens from DB for a space.
 pub fn load_invite_tokens(
     db: &DbConnection,
@@ -296,10 +315,7 @@ pub fn load_invite_tokens(
             .to_string();
         let target_did = row.get(2).and_then(|v| v.as_str()).map(|s| s.to_string());
         let caps_json = row.get(3).and_then(|v| v.as_str()).unwrap_or("[]");
-        let capability = serde_json::from_str::<Vec<String>>(caps_json)
-            .ok()
-            .and_then(|v| v.into_iter().next())
-            .unwrap_or_else(|| "space/read".to_string());
+        let capabilities = parse_capabilities(caps_json);
         let pre_created_ucan = row.get(4).and_then(|v| v.as_str()).map(|s| s.to_string());
         let include_history = row.get(5).and_then(|v| v.as_i64()).unwrap_or(0) != 0;
         let max_uses = row.get(6).and_then(|v| v.as_u64()).unwrap_or(1) as u32;
@@ -323,7 +339,7 @@ pub fn load_invite_tokens(
             space_id,
             target_did,
             pre_created_ucan,
-            capability,
+            capabilities,
             include_history,
             max_uses,
             current_uses,
@@ -368,10 +384,7 @@ fn load_invite_token_by_id(
         .to_string();
     let target_did = row.get(2).and_then(|v| v.as_str()).map(|s| s.to_string());
     let caps_json = row.get(3).and_then(|v| v.as_str()).unwrap_or("[]");
-    let capability = serde_json::from_str::<Vec<String>>(caps_json)
-        .ok()
-        .and_then(|v| v.into_iter().next())
-        .unwrap_or_else(|| "space/read".to_string());
+    let capabilities = parse_capabilities(caps_json);
     let pre_created_ucan = row.get(4).and_then(|v| v.as_str()).map(|s| s.to_string());
     let include_history = row.get(5).and_then(|v| v.as_i64()).unwrap_or(0) != 0;
     let max_uses = row.get(6).and_then(|v| v.as_u64()).unwrap_or(1) as u32;
@@ -391,7 +404,7 @@ fn load_invite_token_by_id(
         space_id,
         target_did,
         pre_created_ucan,
-        capability,
+        capabilities,
         include_history,
         max_uses,
         current_uses,
@@ -527,5 +540,51 @@ mod target_did_anti_manipulation_tests {
              the row's own target_did field — the entire authoritative \
              chain hinges on this exact comparison"
         );
+    }
+}
+
+#[cfg(test)]
+mod parse_capabilities_tests {
+    //! Regression coverage for the capability-collapse bug found via the
+    //! haex-e2e-tests 2-device write-capability spec: an invite offering
+    //! `["space/read","space/write"]` used to resolve to just `"space/read"`
+    //! because the old code took the array's first element. Capabilities
+    //! are orthogonal grants, not a rank — `parse_capabilities` must
+    //! preserve the full set verbatim, never pick a "winner".
+
+    use super::parse_capabilities;
+
+    #[test]
+    fn preserves_every_capability_regardless_of_array_order() {
+        assert_eq!(
+            parse_capabilities(r#"["space/read","space/write"]"#),
+            vec!["space/read", "space/write"]
+        );
+        assert_eq!(
+            parse_capabilities(r#"["space/write","space/read"]"#),
+            vec!["space/write", "space/read"]
+        );
+    }
+
+    #[test]
+    fn preserves_orthogonal_write_and_invite_together() {
+        assert_eq!(
+            parse_capabilities(r#"["space/write","space/invite"]"#),
+            vec!["space/write", "space/invite"]
+        );
+    }
+
+    #[test]
+    fn single_capability_is_returned_unchanged() {
+        assert_eq!(
+            parse_capabilities(r#"["space/write"]"#),
+            vec!["space/write"]
+        );
+    }
+
+    #[test]
+    fn falls_back_to_read_on_empty_or_malformed_json() {
+        assert_eq!(parse_capabilities("[]"), vec!["space/read"]);
+        assert_eq!(parse_capabilities("not json"), vec!["space/read"]);
     }
 }

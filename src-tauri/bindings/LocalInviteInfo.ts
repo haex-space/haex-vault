@@ -3,4 +3,8 @@
 /**
  * Info about a local invite token (exposed to frontend).
  */
-export type LocalInviteInfo = { id: string, targetDid: string | null, capability: string, maxUses: number, currentUses: number, expiresAt: string, };
+export type LocalInviteInfo = { id: string, targetDid: string | null, 
+/**
+ * Orthogonal grants, not a rank — an invite can offer several.
+ */
+capabilities: Array<string>, maxUses: number, currentUses: number, expiresAt: string, };

@@ -90,7 +90,7 @@ pub async fn local_delivery_list_invites(
         .map(|t| LocalInviteInfo {
             id: t.id.clone(),
             target_did: t.target_did.clone(),
-            capability: t.capability.clone(),
+            capabilities: t.capabilities.clone(),
             max_uses: t.max_uses,
             current_uses: t.current_uses,
             expires_at: t
@@ -123,7 +123,7 @@ pub async fn local_delivery_revoke_invite(
     Ok(())
 }
 
-/// Parameters for persisting the UCAN row on the claimant's side. Grouped
+/// Parameters for persisting the UCAN rows on the claimant's side. Grouped
 /// into a struct so callers can't accidentally swap `inviter_did` and
 /// `claimant_did` at the call site — that mistake is exactly the bug this
 /// helper was extracted to prevent.
@@ -131,79 +131,92 @@ pub(crate) struct PersistClaimedUcan<'a> {
     pub space_id: &'a str,
     pub inviter_did: &'a str,
     pub claimant_did: &'a str,
-    pub capability: &'a str,
-    pub token: &'a str,
+    /// (capability, token) pairs — one per capability the invite granted.
+    /// Capabilities are orthogonal grants, not a rank, so every pair gets
+    /// its own row rather than picking one to keep.
+    pub granted: &'a [(String, String)],
 }
 
-/// Persist the UCAN row that represents the delegation `inviter → claimant`
-/// for a freshly-claimed local invite. `issuer` is the inviter because the
-/// ucan_token is signed by them; storing the claimant there (as an earlier
-/// revision did) misrepresents the delegation chain.
+/// Persist the UCAN rows that represent the delegation `inviter → claimant`
+/// for a freshly-claimed local invite — one row per granted capability.
+/// `issuer` is the inviter because the ucan_token is signed by them; storing
+/// the claimant there (as an earlier revision did) misrepresents the
+/// delegation chain.
 ///
 /// Any prior UCAN rows for `(space_id, audience_did = claimant)` are deleted
-/// AFTER the new row lands. A leave-then-rejoin cycle leaves the previous
-/// UCAN row behind (the LEAVING-state sync loop needs it to push the
-/// membership delete), so without this cleanup a re-invite stacks the new
-/// token on top of the old. The new invite may even carry different
-/// capabilities, and a stale-token-wins resolution in `getUcanForSpaceAsync`
-/// would silently use the wrong rights. We insert first so a failure in the
-/// cleanup never strands the claimant without a valid UCAN for the space.
-/// `haex_ucan_tokens` is not in `SPACE_SCOPED_CRDT_TABLES`, so the cleanup
-/// is purely local — peers are unaffected.
+/// AFTER all of this claim's new rows land. A leave-then-rejoin cycle leaves
+/// the previous UCAN rows behind (the LEAVING-state sync loop needs them to
+/// push the membership delete), so without this cleanup a re-invite stacks
+/// the new tokens on top of the old. The new invite may even carry
+/// different capabilities, and a stale-token-wins resolution in
+/// `getUcanForSpaceAsync` would silently use the wrong rights. We insert
+/// first so a failure in the cleanup never strands the claimant without a
+/// valid UCAN for the space. `haex_ucan_tokens` is not in
+/// `SPACE_SCOPED_CRDT_TABLES`, so the cleanup is purely local — peers are
+/// unaffected.
 pub(crate) fn persist_claimed_ucan(
     db: &DbConnection,
     hlc_guard: &std::sync::MutexGuard<'_, crate::crdt::hlc::HlcService>,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     p: PersistClaimedUcan<'_>,
 ) -> Result<(), String> {
-    let ucan_id = uuid::Uuid::new_v4().to_string();
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    crate::database::core::execute_with_crdt(
-        "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
-            .to_string(),
-        vec![
-            serde_json::Value::String(ucan_id.clone()),
-            serde_json::Value::String(p.space_id.to_string()),
-            serde_json::Value::String(p.inviter_did.to_string()),
-            serde_json::Value::String(p.claimant_did.to_string()),
-            serde_json::Value::String(p.capability.to_string()),
-            serde_json::Value::String(p.token.to_string()),
-            serde_json::Value::Number(serde_json::Number::from(now_secs)),
-            serde_json::Value::Number(serde_json::Number::from(
-                now_secs + super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
-            )),
-        ],
-        db,
-        hlc_guard,
-        key_cache,
-    )
-    .map_err(|e| format!("Failed to persist UCAN: {e}"))?;
 
-    // Cleanup is best-effort. If the new row landed but the cleanup query
+    let mut new_ids = Vec::with_capacity(p.granted.len());
+    for (capability, token) in p.granted {
+        let ucan_id = uuid::Uuid::new_v4().to_string();
+        crate::database::core::execute_with_crdt(
+            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                .to_string(),
+            vec![
+                serde_json::Value::String(ucan_id.clone()),
+                serde_json::Value::String(p.space_id.to_string()),
+                serde_json::Value::String(p.inviter_did.to_string()),
+                serde_json::Value::String(p.claimant_did.to_string()),
+                serde_json::Value::String(capability.clone()),
+                serde_json::Value::String(token.clone()),
+                serde_json::Value::Number(serde_json::Number::from(now_secs)),
+                serde_json::Value::Number(serde_json::Number::from(
+                    now_secs + super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
+                )),
+            ],
+            db,
+            hlc_guard,
+            key_cache,
+        )
+        .map_err(|e| format!("Failed to persist UCAN: {e}"))?;
+        new_ids.push(ucan_id);
+    }
+
+    // Cleanup is best-effort. If the new rows landed but the cleanup query
     // fails (e.g. transient lock contention), the next consumer simply sees
-    // the freshly-inserted token plus a stale leftover instead of just the
-    // new one — `getUcanForSpaceAsync` is keyed by spaceId, so it returns
+    // this claim's fresh tokens plus stale leftovers instead of just the
+    // new ones — `getUcanForSpaceAsync` is keyed by spaceId, so it returns
     // *some* valid UCAN either way. A failing DELETE must NOT roll back the
-    // INSERT — that would leave the claimant without authentication after a
-    // successful ClaimInvite, which is the exact failure mode the
+    // INSERTs — that would leave the claimant without authentication after
+    // a successful ClaimInvite, which is the exact failure mode the
     // insert-first ordering exists to prevent.
-    let _ = crate::database::core::execute_with_crdt(
-        "DELETE FROM haex_ucan_tokens \
-         WHERE space_id = ?1 AND audience_did = ?2 AND id != ?3"
-            .to_string(),
-        vec![
+    //
+    // `NOT IN` covers every id inserted above — not just one — so deleting
+    // stale rows from a *previous* claim never deletes a sibling capability
+    // from *this* claim.
+    if !new_ids.is_empty() {
+        let placeholders: Vec<String> = (3..3 + new_ids.len()).map(|i| format!("?{i}")).collect();
+        let sql = format!(
+            "DELETE FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2 AND id NOT IN ({})",
+            placeholders.join(", ")
+        );
+        let mut params = vec![
             serde_json::Value::String(p.space_id.to_string()),
             serde_json::Value::String(p.claimant_did.to_string()),
-            serde_json::Value::String(ucan_id),
-        ],
-        db,
-        hlc_guard,
-        key_cache,
-    );
+        ];
+        params.extend(new_ids.into_iter().map(serde_json::Value::String));
+        let _ = crate::database::core::execute_with_crdt(sql, params, db, hlc_guard, key_cache);
+    }
 
     Ok(())
 }
@@ -416,17 +429,22 @@ pub async fn local_delivery_claim_invite(
     })?;
 
     // 4. Process response
-    let (welcome_b64, ucan_token, capability) = match response {
-        Response::InviteClaimed {
-            welcome,
-            ucan,
-            capability,
-        } => {
+    let (welcome_b64, granted) = match response {
+        Response::InviteClaimed { welcome, granted } => {
+            let caps = granted
+                .iter()
+                .map(|g| g.capability.as_str())
+                .collect::<Vec<_>>()
+                .join(",");
             log(
                 "info",
-                &format!("Invite claimed successfully, capability={capability}"),
+                &format!("Invite claimed successfully, capabilities={caps}"),
             );
-            (welcome, ucan, capability)
+            let granted: Vec<(String, String)> = granted
+                .into_iter()
+                .map(|g| (g.capability, g.token))
+                .collect();
+            (welcome, granted)
         }
         Response::Error { message } => {
             log("error", &format!("Leader rejected: {message}"));
@@ -510,7 +528,7 @@ pub async fn local_delivery_claim_invite(
     .map_err(|e| format!("Failed to persist space: {e}"))?;
     eprintln!("[ClaimInvite] [trace] AFTER execute_with_crdt INSERT haex_spaces");
 
-    // 7. Persist UCAN token
+    // 7. Persist UCAN tokens — one per granted capability
     eprintln!("[ClaimInvite] [trace] BEFORE persist_claimed_ucan");
     persist_claimed_ucan(
         &db,
@@ -520,8 +538,7 @@ pub async fn local_delivery_claim_invite(
             space_id: &space_id,
             inviter_did: &inviter_did,
             claimant_did: &identity_did,
-            capability: &capability,
-            token: &ucan_token,
+            granted: &granted,
         },
     )?;
     eprintln!("[ClaimInvite] [trace] AFTER persist_claimed_ucan");
@@ -586,6 +603,6 @@ pub async fn local_delivery_claim_invite(
 
     Ok(ClaimInviteResult {
         space_id,
-        capability,
+        capabilities: granted.into_iter().map(|(cap, _)| cap).collect(),
     })
 }
