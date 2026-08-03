@@ -162,9 +162,9 @@ fn setup_revoke_db() -> (DbConnection, HlcService, String) {
             space_id TEXT NOT NULL,
             extension_public_key TEXT,
             extension_name TEXT,
-            group_id TEXT,
+            category TEXT,
             type TEXT,
-            label TEXT,
+            type_label TEXT,
             created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
@@ -288,7 +288,7 @@ fn seed_share(
         conn.execute(
             "INSERT INTO haex_shared_space_sync
              (id, table_name, row_pks, space_id, extension_public_key,
-              extension_name, group_id, type, label)
+              extension_name, category, type, type_label)
              VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, 'cloud_storage', 'Shared')",
             rusqlite::params![&mapping_id, "haex_s3_backends", &row_pks, &space_id],
         )

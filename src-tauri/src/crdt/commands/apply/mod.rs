@@ -1,6 +1,7 @@
 mod db;
 mod delete_propagation;
 mod grouping;
+mod registry_row_gate;
 mod types;
 
 #[cfg(feature = "e2e-hooks")]
@@ -28,3 +29,7 @@ mod pending_columns_tests;
 #[cfg(test)]
 #[path = "../../commands_delete_resurrection_tests.rs"]
 mod delete_resurrection_tests;
+
+#[cfg(test)]
+#[path = "../../commands_apply_registry_row_sig_tests.rs"]
+mod apply_registry_row_sig_tests;

@@ -1,5 +1,6 @@
 use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
 use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcError, HlcService};
+use crate::crdt::registry_row_sig::puller_verify::verify_incoming_registry_change;
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
     get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
@@ -8,7 +9,8 @@ use crate::crdt::trigger::{
 use crate::database::core::{with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
 use crate::table_names::{
-    TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS, TABLE_CRDT_PENDING_TABLES,
+    COL_SHARED_SPACE_SYNC_ROW_SIG, TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS,
+    TABLE_CRDT_PENDING_TABLES, TABLE_SHARED_SPACE_SYNC,
 };
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -25,6 +27,7 @@ use super::delete_propagation::{
     propagate_shared_space_deleted_rows_to_target_tables,
 };
 use super::grouping::{group_by_transaction_hlc, group_row_changes_in_hlc_order};
+use super::registry_row_gate::{build_incoming_registry_change, RegistryRowChangeOutcome};
 use super::types::{ColumnSig, RemoteColumnChange};
 
 /// Idempotently insert a stub `haex_identities` row for a DID we've never
@@ -605,6 +608,84 @@ pub fn apply_remote_changes_to_db_scoped(
                 // Build a set of existing column names for quick lookup
                 let existing_columns: std::collections::HashSet<&str> =
                     schema.iter().map(|col| col.name.as_str()).collect();
+
+                // Stage 5b (Task B.5) — row-level registry-row-sig gate.
+                // Runs BEFORE the per-column sig gate below: a bad row_sig
+                // drops this row's ENTIRE change set atomically, unlike a
+                // per-column sig failure which only drops that one column.
+                // Stacks on top of (does not replace) the per-column gate —
+                // that one still runs afterwards for defense-in-depth.
+                //
+                // Case-insensitive per the B.3.1 pattern (Concern B).
+                // Skips gracefully — mirroring `sign_registry_row_self`'s own
+                // guard — when the local schema predates migration 0014
+                // (no `row_sig` column yet): nothing to verify against.
+                if first_change
+                    .table_name
+                    .eq_ignore_ascii_case(TABLE_SHARED_SPACE_SYNC)
+                    && existing_columns.contains(COL_SHARED_SPACE_SYNC_ROW_SIG)
+                {
+                    let outcome = build_incoming_registry_change(
+                        &tx,
+                        &pk_where_clause,
+                        &pk_values_for_query,
+                        &row_pks,
+                        &row_change_list,
+                    )?;
+                    match outcome {
+                        RegistryRowChangeOutcome::NothingSignedTouched => {}
+                        RegistryRowChangeOutcome::RowSigOnlyBatch {
+                            space_id,
+                            authored_by_did,
+                        } => {
+                            eprintln!(
+                                "[SYNC RUST] Rejected registry row {} in '{}' (space_id='{}', authored_by_did='{}') — batch touched ONLY row_sig with no signed-payload column; a bare row_sig cannot be verified and would let a stale-but-valid signature overwrite the persisted one (possible replay)",
+                                row_pks_str, first_change.table_name, space_id, authored_by_did
+                            );
+                            continue;
+                        }
+                        RegistryRowChangeOutcome::MissingFreshRowSig(touched_signed_columns) => {
+                            eprintln!(
+                                "[SYNC RUST] Rejected registry row {} in '{}' — signed column(s) {:?} changed without a fresh row_sig in the same batch",
+                                row_pks_str, first_change.table_name, touched_signed_columns
+                            );
+                            // Column-level CRDT can split a row across pull
+                            // windows. Record the missing row_sig so recovery
+                            // can reset the server cursor and re-pull it.
+                            tx.execute(
+                                &format!(
+                                    "INSERT OR IGNORE INTO {} (table_name, column_name, row_pks) VALUES (?, ?, ?)",
+                                    TABLE_CRDT_PENDING_COLUMNS
+                                ),
+                                params![
+                                    &first_change.table_name,
+                                    COL_SHARED_SPACE_SYNC_ROW_SIG,
+                                    &first_change.row_pks
+                                ],
+                            )
+                            .map_err(DatabaseError::from)?;
+                            continue;
+                        }
+                        RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(null_columns) => {
+                            eprintln!(
+                                "[SYNC RUST] Rejected registry row {} in '{}' — required column(s) {:?} were explicitly set to null (never legitimate; dropping data in transit or forgery attempt)",
+                                row_pks_str, first_change.table_name, null_columns
+                            );
+                            continue;
+                        }
+                        RegistryRowChangeOutcome::Ready { change, persisted } => {
+                            if let Err(err) =
+                                verify_incoming_registry_change(&change, persisted.as_ref())
+                            {
+                                eprintln!(
+                                    "[SYNC RUST] Rejected registry row {} in '{}' (claimed authored_by_did='{}') — {:?}",
+                                    row_pks_str, first_change.table_name, change.authored_by_did, err
+                                );
+                                continue;
+                            }
+                        }
+                    }
+                }
 
                 // Precompute the trustworthy space anchor once per row.
                 let row_space_id_for_sig: Option<String> =

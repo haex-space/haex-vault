@@ -211,6 +211,20 @@ fn upsert_composite_pk_row() {
     );
 }
 
+/// PR #741 finding 3 followup (Gap 1): the array branch must reject a null
+/// element just like `execute.rs::values_by_pk_column` does — arrays are
+/// positional, so a null slot can't be safely matched to "no PK column".
+/// Not reachable in production today (F2 filters via `build_pk_where`
+/// first), but pins the "same treatment" claim made in `82a89263`.
+#[test]
+fn upsert_rejects_array_row_pks_with_null_element() {
+    let conn = seed_single_pk_row("{}");
+    let sig = make_sig("did:key:zAuthor");
+
+    let err = upsert_column_sigs(&conn, "tbl", "[null]", "col_a", "space_A", &sig).unwrap_err();
+    assert!(matches!(err, rusqlite::Error::InvalidParameterName(_)));
+}
+
 #[test]
 fn upsert_rejects_unsafe_table_name() {
     let conn = seed_single_pk_row("{}");

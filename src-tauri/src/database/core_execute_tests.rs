@@ -11,6 +11,7 @@ use rusqlite::Connection;
 use serde_json::Value as JsonValue;
 use std::sync::{Arc, Mutex};
 
+use super::values_by_pk_column;
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
 use crate::crdt::hlc::HlcService;
 use crate::crdt::trigger::{ensure_crdt_columns, setup_triggers_for_table};
@@ -301,6 +302,109 @@ fn execute_with_crdt_skips_signing_when_row_has_no_spaces() {
     );
 }
 
+/// CodeRabbit PR #741 finding 2: `extract_touched_for_signing` case-folds
+/// touched-column names to lowercase, but `sign_written_rows` used to compare
+/// them against `schema_names` built straight from `PRAGMA table_info` (which
+/// preserves DDL casing). An extension table declared with a mixed-case
+/// column — `CREATE TABLE ext_x (id TEXT, MixedCase TEXT)` — folds to
+/// `mixedcase` on the touched-column side but stays `MixedCase` in
+/// `schema_names`, so `schema_names.contains("mixedcase")` was `false` and the
+/// column was silently dropped from the per-column signing path: the write
+/// succeeded with no signature covering that column at all.
+///
+/// Follow-up correction: the first fix for this finding (commit `930dd78e`)
+/// case-folded `schema_names` so the membership check passed, but then pushed
+/// the *lowercased* touched-name into `signable` — so the sig landed at
+/// `haex_column_sigs["mixedcase"]` with a preimage built over `b"mixedcase"`,
+/// while every consumer (F2, the Rust/TS registry scanners, the verifier) all
+/// read `col.name` from `PRAGMA table_info` and look up / reconstruct the
+/// preimage using the DDL-cased `"MixedCase"`. The column would have shipped
+/// unsigned end-to-end despite the JSON blob having *an* entry. This test
+/// pins the DDL-cased key and independently rebuilds the verifier's preimage
+/// to prove the stored signature is the one a real verifier would accept.
+#[test]
+fn sign_written_rows_covers_mixedcase_ddl_columns() {
+    let f = setup_fixture();
+    {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute("ALTER TABLE ext_calendar ADD COLUMN \"MixedCase\" TEXT", [])
+            .unwrap();
+    }
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    core::execute_with_crdt(
+        "UPDATE ext_calendar SET \"MixedCase\" = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("mixed-value".to_string()),
+            JsonValue::String("R".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("update succeeds");
+
+    let sigs = read_column_sigs_json(&f.db, "ext_calendar", "R");
+    let mixed = sigs
+        .get("MixedCase")
+        .and_then(|v| v.as_object())
+        .expect("sigs must have a 'MixedCase' entry (DDL casing) for the mixed-case DDL column");
+    assert!(
+        mixed.contains_key("space_A"),
+        "expected space_A sig for the mixed-case column, got: {:?}",
+        mixed.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        mixed.contains_key("space_B"),
+        "expected space_B sig for the mixed-case column, got: {:?}",
+        mixed.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        sigs.get("mixedcase").is_none(),
+        "stale lowercased key must not exist alongside the DDL-cased one"
+    );
+
+    // Independently reconstruct the preimage a real verifier/scanner would
+    // build — DDL-cased column name, the row's actual per-tx HLC, and the
+    // canonical value bytes — and confirm the stored signature verifies
+    // against it. This is the part the JSON-key assertion above can't catch:
+    // a stale preimage would still deserialize fine but fail `verify_strict`.
+    let row_hlc: String = {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT haex_hlc FROM ext_calendar WHERE id = 'R'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    let space_a = mixed.get("space_A").and_then(|v| v.as_object()).unwrap();
+    let sig_b64 = space_a.get("sig").and_then(|v| v.as_str()).unwrap();
+    let sig_bytes = BASE64.decode(sig_b64).unwrap();
+    let value_bytes = crate::crdt::column_sig::value_bytes::to_canonical_bytes(
+        &rusqlite::types::Value::Text("mixed-value".to_string()),
+    );
+    crate::crdt::column_sig::verify::verify_column_sig(
+        "space_A".as_bytes(),
+        "ext_calendar".as_bytes(),
+        r#"{"id":"R"}"#.as_bytes(),
+        "MixedCase".as_bytes(),
+        row_hlc.as_bytes(),
+        &f.did_a,
+        &value_bytes,
+        &sig_bytes,
+    )
+    .expect(
+        "stored sig must verify against the DDL-cased preimage a real verifier would build; \
+         a lowercased signable name (the bug in 930dd78e) would sign b\"mixedcase\" instead \
+         and fail here",
+    );
+}
+
 // ---------------------------------------------------------------------------
 // F2 — share-insert cross-table signing
 // ---------------------------------------------------------------------------
@@ -450,6 +554,85 @@ fn insert_into_share_register_signs_all_columns_of_referenced_row() {
         Some(f.did_c.as_str())
     );
     assert!(space_c.get("sig").and_then(|v| v.as_str()).is_some());
+}
+
+/// F1+F2 consistency regression for CodeRabbit PR #741 finding 2: F1
+/// (`sign_written_rows`, the generic per-write signer) and F2
+/// (`sign_share_insert_targets`, the cross-table retro-signer that runs when
+/// a share-register row is INSERTed) must land their signatures under the
+/// *same* `haex_column_sigs` JSON key for a mixed-case DDL column, since both
+/// paths feed the same wire consumers (Rust/TS registry scanners, verifier).
+/// F2's own `signable_cols` (execute.rs:~542) has always read `c.name`
+/// straight from `PRAGMA table_info` with no case-folding at all, so it was
+/// never susceptible to the F1 bug this file's other `mixedcase` test
+/// documents — this test proves the two paths agree by making both sign the
+/// SAME row's SAME mixed-case column and checking they merge into one entry.
+#[test]
+fn f1_and_f2_sign_mixedcase_ddl_column_under_the_same_key() {
+    let f = setup_fixture_f2();
+    {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute("ALTER TABLE ext_calendar ADD COLUMN \"MixedCase\" TEXT", [])
+            .unwrap();
+    }
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    // F1: row `R` is already shared into space_A + space_B (base fixture) —
+    // an ordinary UPDATE through `execute_with_crdt` exercises the generic
+    // per-write signer for the mixed-case column.
+    core::execute_with_crdt(
+        "UPDATE ext_calendar SET \"MixedCase\" = ?1 WHERE id = ?2".to_string(),
+        vec![
+            JsonValue::String("mixed-value".to_string()),
+            JsonValue::String("R".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("F1 update succeeds");
+
+    // F2: share row `R` into a brand-new space_C — this retro-signs every
+    // non-meta column of `R` (title AND MixedCase) for space_C.
+    core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync \
+            (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-C-mixed".to_string()),
+            JsonValue::String("ext_calendar".to_string()),
+            JsonValue::String(r#"{"id":"R"}"#.to_string()),
+            JsonValue::String("space_C".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("F2 share INSERT succeeds");
+
+    let sigs = read_column_sigs_json(&f.db, "ext_calendar", "R");
+    let mixed = sigs
+        .get("MixedCase")
+        .and_then(|v| v.as_object())
+        .expect("F1+F2 must merge into a single 'MixedCase' entry (DDL casing)");
+    assert!(
+        mixed.contains_key("space_A") && mixed.contains_key("space_B"),
+        "expected F1's space_A/space_B sigs under 'MixedCase', got: {:?}",
+        mixed.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        mixed.contains_key("space_C"),
+        "expected F2's space_C sig merged under the SAME 'MixedCase' key as F1's, got: {:?}",
+        mixed.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        sigs.get("mixedcase").is_none(),
+        "neither F1 nor F2 may produce a stale lowercased key"
+    );
 }
 
 #[test]
@@ -972,6 +1155,43 @@ fn execute_with_crdt_rejects_user_supplied_haex_hlc_on_insert() {
     }
 }
 
+/// Case-insensitivity regression (spec-review Critical finding): SQL column
+/// identifiers are case-insensitive, but `is_crdt_meta_column` matched the
+/// touched-column name with `==` against lowercase constants — an INSERT
+/// naming `HAEX_HLC` (any case) sailed through unnoticed. Fixed by
+/// case-folding column identifiers once, in `extract_touched_for_signing`.
+#[test]
+fn execute_with_crdt_rejects_user_supplied_uppercase_haex_hlc_on_insert() {
+    let f = setup_fixture();
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    let result = core::execute_with_crdt(
+        "INSERT INTO ext_calendar (id, title, HAEX_HLC) VALUES (?1, ?2, ?3)".to_string(),
+        vec![
+            JsonValue::String("EVIL2".to_string()),
+            JsonValue::String("t".to_string()),
+            JsonValue::String("9999-99-99T99:99:99.999999999Z/deadbeef".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    );
+
+    match result {
+        Err(crate::database::error::DatabaseError::CrdtMetaColumnWriteForbidden { column }) => {
+            assert_eq!(
+                column, "haex_hlc",
+                "column name is case-folded to lowercase"
+            );
+        }
+        other => panic!(
+            "expected CrdtMetaColumnWriteForbidden for uppercase HAEX_HLC, got: {:?}",
+            other
+        ),
+    }
+}
+
 /// F#2: `haex_column_sigs` is also managed by the sig layer — a caller
 /// setting it directly could plant a valid signature the sig layer
 /// doesn't recompute.
@@ -998,4 +1218,261 @@ fn execute_with_crdt_rejects_user_supplied_haex_column_sigs() {
         }
         other => panic!("expected CrdtMetaColumnWriteForbidden, got: {:?}", other),
     }
+}
+
+// ---------------------------------------------------------------------------
+// PR #741 finding 3 followup — array-shape row_pks (`persist_shared_backend`)
+// ---------------------------------------------------------------------------
+
+/// Dedicated fixture for the `persist_shared_backend` (`haex_s3_backends`)
+/// scenario. Unlike `setup_fixture`/`setup_fixture_f2`, the register table
+/// here carries the FULL B.3 schema (`row_sig`, `authored_by_did`, …,
+/// mirrors `core_registry_row_sig_tests.rs`'s fixture) so
+/// `sign_registry_row_self` actually signs the registry row, AND a real
+/// `haex_s3_backends` table exists as the F2 retro-sign target with CRDT
+/// triggers wired up — `persist_shared_backend`
+/// (`remote_storage::share_command`) is the one production writer of
+/// array-shaped `row_pks` into the register.
+struct FixtureS3Backends {
+    db: DbConnection,
+    hlc: HlcService,
+    cache: SpaceKeyCache,
+}
+
+fn setup_fixture_s3_backends() -> FixtureS3Backends {
+    let conn = Connection::open_in_memory().expect("in-memory DB");
+
+    let hlc = HlcService::new_for_testing("test-device-s3");
+    let ctx = ConnectionContext::new();
+    register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
+    install_tx_hlc_hooks(&conn, ctx).unwrap();
+
+    conn.execute_batch(&format!(
+        "CREATE TABLE {} (key TEXT PRIMARY KEY, type TEXT NOT NULL, value TEXT NOT NULL);
+         CREATE TABLE {} (table_name TEXT PRIMARY KEY, last_modified TEXT);
+         INSERT INTO {} (key, type, value) VALUES ('triggers_enabled', 'system', '1');",
+        TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_CRDT_CONFIGS
+    ))
+    .unwrap();
+
+    // Full registry schema (mirrors migrations 0000 + 0014, same as
+    // `core_registry_row_sig_tests.rs::setup_fixture`) so B.3's
+    // `sign_registry_row_self` actually runs instead of no-opping on its
+    // `has_row_sig` schema-drift guard.
+    conn.execute_batch(
+        "CREATE TABLE haex_identities (
+            id TEXT PRIMARY KEY NOT NULL,
+            did TEXT NOT NULL,
+            private_key TEXT
+         );
+         CREATE TABLE haex_space_members (
+            id TEXT PRIMARY KEY NOT NULL,
+            space_id TEXT NOT NULL,
+            identity_id TEXT NOT NULL
+         );
+         CREATE TABLE haex_shared_space_sync (
+            id TEXT PRIMARY KEY NOT NULL,
+            table_name TEXT NOT NULL,
+            row_pks TEXT NOT NULL,
+            space_id TEXT NOT NULL,
+            extension_public_key TEXT,
+            extension_name TEXT,
+            category TEXT,
+            type TEXT,
+            type_label TEXT,
+            category_label TEXT,
+            authored_by_did TEXT DEFAULT '' NOT NULL,
+            row_sig TEXT DEFAULT '' NOT NULL,
+            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+         );
+         CREATE TABLE haex_s3_backends (
+            id TEXT PRIMARY KEY NOT NULL,
+            endpoint TEXT
+         );",
+    )
+    .unwrap();
+
+    let key = random_key();
+    let did = did_key_from_public_key(&key.verifying_key());
+    conn.execute(
+        "INSERT INTO haex_identities (id, did, private_key) VALUES (?1, ?2, ?3)",
+        rusqlite::params!["id-s3", &did, pkcs8_b64(&key)],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO haex_space_members (id, space_id, identity_id) VALUES (?1, ?2, ?3)",
+        ["mem-s3", "space_S3", "id-s3"],
+    )
+    .unwrap();
+
+    {
+        let tx = conn.unchecked_transaction().unwrap();
+        ensure_crdt_columns(&tx, "haex_shared_space_sync").unwrap();
+        ensure_crdt_columns(&tx, "haex_s3_backends").unwrap();
+        // F2 reads `haex_column_hlcs` for its per-column sig preimage HLC —
+        // that blob is only kept current by the AFTER-UPDATE trigger
+        // (mirrors `setup_fixture_f2`'s rationale for `ext_calendar`).
+        setup_triggers_for_table(&tx, "haex_s3_backends", true).unwrap();
+        tx.commit().unwrap();
+    }
+
+    conn.execute(
+        "INSERT INTO haex_s3_backends (id, endpoint, haex_column_hlcs, haex_column_sigs) \
+         VALUES (?1, ?2, '{}', '{}')",
+        ["backend-1", "https://s3.example.com"],
+    )
+    .unwrap();
+
+    let cache = SpaceKeyCache::new();
+    cache.populate_all(&conn).expect("populate cache");
+
+    let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+    FixtureS3Backends { db, hlc, cache }
+}
+
+/// PR #741 finding 3 followup: `persist_shared_backend` writes `row_pks` as a
+/// JSON ARRAY into the register (`["<uuid>"]`), not the object shape the CRDT
+/// scanner uses elsewhere. Before the `build_pk_where` array-shape fix, that
+/// shape fell through to an empty WHERE clause, and F2's caller-side guard
+/// (`where_clause.is_empty()` → `continue`) silently skipped the cross-table
+/// retro-sign — a loud crash traded for a silent security-relevant no-op.
+#[test]
+fn share_insert_with_array_row_pks_signs_registry_row_and_target_columns() {
+    let f = setup_fixture_s3_backends();
+
+    // Warm up `endpoint`'s per-column HLC via a real execute_with_crdt UPDATE
+    // (mirrors `seed_solo_row_hlcs`) so F2 has a historical HLC to sign with.
+    {
+        let hlc_mutex = Mutex::new(f.hlc.clone());
+        let hlc_guard = hlc_mutex.lock().unwrap();
+        core::execute_with_crdt(
+            "UPDATE haex_s3_backends SET endpoint = ?1 WHERE id = ?2".to_string(),
+            vec![
+                JsonValue::String("https://s3.example.com/warm".to_string()),
+                JsonValue::String("backend-1".to_string()),
+            ],
+            &f.db,
+            &hlc_guard,
+            &f.cache,
+        )
+        .expect("warm-up UPDATE succeeds");
+    }
+
+    let hlc_mutex = Mutex::new(f.hlc);
+    let hlc_guard = hlc_mutex.lock().unwrap();
+
+    // Mirrors `persist_shared_backend`'s exact `row_pks` construction: a JSON
+    // array of the target's PK value(s), not an object.
+    let row_pks_json = serde_json::to_string(&vec!["backend-1"]).unwrap();
+    core::execute_with_crdt(
+        "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id) \
+         VALUES (?1, ?2, ?3, ?4)"
+            .to_string(),
+        vec![
+            JsonValue::String("share-s3-1".to_string()),
+            JsonValue::String("haex_s3_backends".to_string()),
+            JsonValue::String(row_pks_json),
+            JsonValue::String("space_S3".to_string()),
+        ],
+        &f.db,
+        &hlc_guard,
+        &f.cache,
+    )
+    .expect("share INSERT succeeds");
+    drop(hlc_guard);
+
+    // B.3: the registry row itself must be self-signed.
+    let row_sig: String = {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT row_sig FROM haex_shared_space_sync WHERE id = 'share-s3-1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    assert!(
+        !row_sig.is_empty(),
+        "registry row must be self-signed (B.3)"
+    );
+
+    // F2: the shared haex_s3_backends row must carry a cross-table retro-sign
+    // for space_S3 — this assertion fails without the build_pk_where
+    // array-shape fix (empty WHERE clause → F2 silently skips the row).
+    let sigs = read_column_sigs_json(&f.db, "haex_s3_backends", "backend-1");
+    let endpoint = sigs
+        .get("endpoint")
+        .and_then(|v| v.as_object())
+        .expect("F2 must retro-sign haex_s3_backends.endpoint for array-shape row_pks");
+    assert!(
+        endpoint.contains_key("space_S3"),
+        "expected space_S3 sig on haex_s3_backends.endpoint, got: {:?}",
+        endpoint.keys().collect::<Vec<_>>()
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `values_by_pk_column` — PR #741 finding 3 followup (Gap 2)
+// ---------------------------------------------------------------------------
+//
+// `build_pk_where`'s shape-mapping helper was previously only exercised
+// indirectly (happy-path single-element array) via
+// `share_insert_with_array_row_pks_signs_registry_row_and_target_columns`
+// above. These pin every documented skip-signal edge case directly.
+
+#[test]
+fn values_by_pk_column_empty_array_returns_none() {
+    let pk_cols = ["id"];
+    let value: JsonValue = serde_json::json!([]);
+    assert!(values_by_pk_column(&pk_cols, &value).is_none());
+}
+
+#[test]
+fn values_by_pk_column_array_length_mismatch_returns_none() {
+    let pk_cols = ["id"];
+    let value: JsonValue = serde_json::json!(["a", "b"]);
+    assert!(values_by_pk_column(&pk_cols, &value).is_none());
+}
+
+#[test]
+fn values_by_pk_column_array_with_null_element_returns_none() {
+    let pk_cols = ["id"];
+    let value: JsonValue = serde_json::json!([JsonValue::Null]);
+    assert!(values_by_pk_column(&pk_cols, &value).is_none());
+}
+
+#[test]
+fn values_by_pk_column_object_missing_pk_column_returns_none() {
+    let pk_cols = ["id"];
+    let value: JsonValue = serde_json::json!({"other": "x"});
+    assert!(values_by_pk_column(&pk_cols, &value).is_none());
+}
+
+#[test]
+fn values_by_pk_column_composite_pk_object_returns_pairs_in_schema_order() {
+    let pk_cols = ["space_ref", "item_id"];
+    let value: JsonValue = serde_json::json!({"item_id": "item_1", "space_ref": "space_A"});
+    let pairs = values_by_pk_column(&pk_cols, &value).expect("object with both PK cols");
+    assert_eq!(
+        pairs,
+        vec![
+            ("space_ref", JsonValue::String("space_A".to_string())),
+            ("item_id", JsonValue::String("item_1".to_string())),
+        ]
+    );
+}
+
+#[test]
+fn values_by_pk_column_composite_pk_array_returns_pairs_positionally() {
+    let pk_cols = ["space_ref", "item_id"];
+    let value: JsonValue = serde_json::json!(["space_A", "item_1"]);
+    let pairs = values_by_pk_column(&pk_cols, &value).expect("array matching PK length");
+    assert_eq!(
+        pairs,
+        vec![
+            ("space_ref", JsonValue::String("space_A".to_string())),
+            ("item_id", JsonValue::String("item_1".to_string())),
+        ]
+    );
 }

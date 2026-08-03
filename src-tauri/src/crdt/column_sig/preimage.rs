@@ -1,6 +1,6 @@
 pub const DOMAIN_TAG: &str = "haex/space-col-sig/v1";
 
-fn push_field(buf: &mut Vec<u8>, field: &[u8]) {
+pub(crate) fn push_field(buf: &mut Vec<u8>, field: &[u8]) {
     let len = u32::try_from(field.len()).expect("field length exceeds u32");
     buf.extend_from_slice(&len.to_be_bytes());
     buf.extend_from_slice(field);

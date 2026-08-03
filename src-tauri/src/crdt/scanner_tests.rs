@@ -686,6 +686,26 @@ fn space_scoped_crdt_tables_includes_register_delete_log_and_anchor() {
 }
 
 #[test]
+fn ucan_grants_not_in_space_scoped_crdt_tables() {
+    // Guard: `haex_space_ucan_grants_no_sync` is a deliberately local-only
+    // UCAN grants store (Task A.2). If it were ever added to the P2P
+    // whitelist below, it would start CRDT-syncing across space members,
+    // defeating the point of keeping delegation bookkeeping vault-local.
+    assert!(
+        !SPACE_SCOPED_CRDT_TABLES
+            .iter()
+            .any(|t| *t == crate::table_names::TABLE_SPACE_UCAN_GRANTS_NO_SYNC),
+        "haex_space_ucan_grants_no_sync must never be added to SPACE_SCOPED_CRDT_TABLES — it is a local-only grants store"
+    );
+    assert!(
+        !MEMBERSHIP_SYSTEM_TABLES
+            .iter()
+            .any(|t| *t == crate::table_names::TABLE_SPACE_UCAN_GRANTS_NO_SYNC),
+        "haex_space_ucan_grants_no_sync must never be added to MEMBERSHIP_SYSTEM_TABLES either"
+    );
+}
+
+#[test]
 fn scan_single_column_for_owner_nonexistent_table_or_column_is_empty() {
     let conn = setup_test_db();
     insert_row(&conn, "r1", "hello", 42, "1000000000000000000/aabbccdd");

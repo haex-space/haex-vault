@@ -190,9 +190,12 @@
         "spaceId": "space_id",
         "extensionPublicKey": "extension_public_key",
         "extensionName": "extension_name",
-        "groupId": "group_id",
+        "category": "category",
         "type": "type",
-        "label": "label",
+        "typeLabel": "type_label",
+        "categoryLabel": "category_label",
+        "authoredByDid": "authored_by_did",
+        "rowSig": "row_sig",
         "createdAt": "created_at"
       }
     },
@@ -297,6 +300,19 @@
         "audienceDid": "audience_did",
         "issuedAt": "issued_at",
         "expiresAt": "expires_at"
+      }
+    },
+    "space_ucan_grants_no_sync": {
+      "name": "haex_space_ucan_grants_no_sync",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "issuerDid": "issuer_did",
+        "audienceDid": "audience_did",
+        "ucanToken": "ucan_token",
+        "role": "role",
+        "createdAt": "created_at",
+        "revokedAt": "revoked_at"
       }
     },
     "pending_invites": {

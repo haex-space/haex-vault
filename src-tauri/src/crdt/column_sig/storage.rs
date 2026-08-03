@@ -99,27 +99,43 @@ pub fn upsert_column_sigs(
         )));
     }
 
-    let pks_map: Map<String, Value> = match serde_json::from_str::<Value>(row_pks_json) {
-        Ok(Value::Object(m)) => m,
+    // Ordered PK-values matching pk_columns order, for the WHERE clause.
+    // Accepts both shapes `canonicalize_row_pks` does: a JSON object keyed by
+    // PK column name (the CRDT scanner's usual form, used by every F1 caller
+    // via `sign_written_rows`), or a JSON array matched positionally against
+    // `pk_columns` order (the shape `persist_shared_backend` writes for
+    // `haex_s3_backends` and F2's `sign_share_insert_targets` forwards
+    // verbatim — PR #741 finding 3). A null element in the array is rejected
+    // just like `execute.rs::values_by_pk_column` does — arrays are
+    // positional, so a null slot can't be safely matched to "no PK column".
+    let pk_values: Vec<Value> = match serde_json::from_str::<Value>(row_pks_json) {
+        Ok(Value::Object(m)) => {
+            let mut out = Vec::with_capacity(pk_columns.len());
+            for col in &pk_columns {
+                match m.get(col) {
+                    Some(v) => out.push(v.clone()),
+                    None => {
+                        return Err(RusqliteError::InvalidParameterName(format!(
+                            "row_pks_json is missing primary-key column '{col}'"
+                        )));
+                    }
+                }
+            }
+            out
+        }
+        Ok(Value::Array(arr))
+            if !arr.is_empty()
+                && arr.len() == pk_columns.len()
+                && !arr.iter().any(Value::is_null) =>
+        {
+            arr
+        }
         _ => {
             return Err(RusqliteError::InvalidParameterName(format!(
                 "row_pks_json is not a JSON object: {row_pks_json}"
             )));
         }
     };
-
-    // Ordered PK-values matching pk_columns order, for the WHERE clause.
-    let mut pk_values: Vec<Value> = Vec::with_capacity(pk_columns.len());
-    for col in &pk_columns {
-        match pks_map.get(col) {
-            Some(v) => pk_values.push(v.clone()),
-            None => {
-                return Err(RusqliteError::InvalidParameterName(format!(
-                    "row_pks_json is missing primary-key column '{col}'"
-                )));
-            }
-        }
-    }
 
     let where_clause: String = pk_columns
         .iter()

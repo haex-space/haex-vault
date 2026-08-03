@@ -10,10 +10,10 @@
 
 use crate::table_names::{
     COL_IDENTITIES_DID, COL_IDENTITIES_ID, COL_IDENTITIES_NAME, COL_IDENTITIES_PRIVATE_KEY,
-    COL_SHARED_SPACE_SYNC_CREATED_AT, COL_SHARED_SPACE_SYNC_EXTENSION_NAME,
-    COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY, COL_SHARED_SPACE_SYNC_GROUP_ID,
-    COL_SHARED_SPACE_SYNC_ID, COL_SHARED_SPACE_SYNC_LABEL, COL_SHARED_SPACE_SYNC_ROW_PKS,
-    COL_SHARED_SPACE_SYNC_SPACE_ID, COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE,
+    COL_SHARED_SPACE_SYNC_CATEGORY, COL_SHARED_SPACE_SYNC_CREATED_AT,
+    COL_SHARED_SPACE_SYNC_EXTENSION_NAME, COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
+    COL_SHARED_SPACE_SYNC_ID, COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_SPACE_ID,
+    COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE, COL_SHARED_SPACE_SYNC_TYPE_LABEL,
     COL_SPACE_MEMBERS_IDENTITY_ID, COL_SPACE_MEMBERS_SPACE_ID, TABLE_IDENTITIES,
     TABLE_SHARED_SPACE_SYNC, TABLE_SPACE_MEMBERS,
 };
@@ -26,8 +26,8 @@ lazy_static! {
         "SELECT {COL_SHARED_SPACE_SYNC_ID}, {COL_SHARED_SPACE_SYNC_TABLE_NAME}, \
                 {COL_SHARED_SPACE_SYNC_ROW_PKS}, {COL_SHARED_SPACE_SYNC_SPACE_ID}, \
                 {COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY}, {COL_SHARED_SPACE_SYNC_EXTENSION_NAME}, \
-                {COL_SHARED_SPACE_SYNC_GROUP_ID}, {COL_SHARED_SPACE_SYNC_TYPE}, \
-                {COL_SHARED_SPACE_SYNC_LABEL}, {COL_SHARED_SPACE_SYNC_CREATED_AT} \
+                {COL_SHARED_SPACE_SYNC_CATEGORY}, {COL_SHARED_SPACE_SYNC_TYPE}, \
+                {COL_SHARED_SPACE_SYNC_TYPE_LABEL}, {COL_SHARED_SPACE_SYNC_CREATED_AT} \
          FROM {TABLE_SHARED_SPACE_SYNC}"
     );
 
@@ -35,19 +35,22 @@ lazy_static! {
     /// Params (in order):
     ///   1 id, 2 table_name, 3 row_pks, 4 space_id,
     ///   5 extension_public_key, 6 extension_name,
-    ///   7 group_id, 8 type, 9 label.
+    ///   7 category, 8 type, 9 type_label.
     ///
     /// Security: columns 5+6 MUST be filled from the authenticated extension
     /// manifest, never from caller-provided strings. See `extension_space_assign`.
-    /// Author identity is expressed via the column-sig produced by F2 in
-    /// `execute_with_crdt`, not via a DB column any more (Runde 5).
+    /// `authored_by_did` and `row_sig` intentionally stay out of this column
+    /// list: `sign_registry_row_self` derives the author DID from the local
+    /// space key and writes the row signature. Caller-supplied values are
+    /// rejected (`RegistryRowForeignAuthoredByDid` /
+    /// `RegistryRowSigColumnWriteForbidden`).
     pub static ref SQL_INSERT_SHARED_SPACE_SYNC: String = format!(
         "INSERT OR IGNORE INTO {TABLE_SHARED_SPACE_SYNC} \
          ({COL_SHARED_SPACE_SYNC_ID}, {COL_SHARED_SPACE_SYNC_TABLE_NAME}, \
           {COL_SHARED_SPACE_SYNC_ROW_PKS}, {COL_SHARED_SPACE_SYNC_SPACE_ID}, \
           {COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY}, {COL_SHARED_SPACE_SYNC_EXTENSION_NAME}, \
-          {COL_SHARED_SPACE_SYNC_GROUP_ID}, {COL_SHARED_SPACE_SYNC_TYPE}, \
-          {COL_SHARED_SPACE_SYNC_LABEL}) \
+          {COL_SHARED_SPACE_SYNC_CATEGORY}, {COL_SHARED_SPACE_SYNC_TYPE}, \
+          {COL_SHARED_SPACE_SYNC_TYPE_LABEL}) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
     );
 

@@ -174,9 +174,14 @@ export const haexSharedSpaceSync = sqliteTable(
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     extensionPublicKey: text(tableNames.haex.shared_space_sync.columns.extensionPublicKey),
     extensionName: text(tableNames.haex.shared_space_sync.columns.extensionName),
-    groupId: text(tableNames.haex.shared_space_sync.columns.groupId),
+    category: text(tableNames.haex.shared_space_sync.columns.category),
     type: text(tableNames.haex.shared_space_sync.columns.type),
-    label: text(tableNames.haex.shared_space_sync.columns.label),
+    typeLabel: text(tableNames.haex.shared_space_sync.columns.typeLabel),
+    categoryLabel: text(tableNames.haex.shared_space_sync.columns.categoryLabel),
+    authoredByDid: text(tableNames.haex.shared_space_sync.columns.authoredByDid)
+      .notNull()
+      .default(''),
+    rowSig: text(tableNames.haex.shared_space_sync.columns.rowSig).notNull().default(''),
     createdAt: text(tableNames.haex.shared_space_sync.columns.createdAt).default(
       sql`(CURRENT_TIMESTAMP)`,
     ),
@@ -189,6 +194,17 @@ export const haexSharedSpaceSync = sqliteTable(
     // and the residual-register count in delete_propagation.rs, both of which
     // filter on (table_name, row_pks) without space_id.
     index('idx_haex_shared_space_sync_table_row').on(table.tableName, table.rowPks),
+    // Migration 0016 (rolling back an over-restrictive UNIQUE from 0014):
+    // `category` is a container holding many rows (e.g. one author's "work"
+    // calendar has N events), so (author, space, table, category) must NOT
+    // be unique. This is a plain lookup index for registry-row-ownership
+    // queries filtered on that tuple.
+    index('haex_shared_space_sync_author_category_idx').on(
+      table.authoredByDid,
+      table.spaceId,
+      table.tableName,
+      table.category,
+    ),
     foreignKey({
       columns: [table.extensionPublicKey, table.extensionName],
       foreignColumns: [haexExtensions.public_key, haexExtensions.name],

@@ -24,7 +24,10 @@ mod tests {
     use crate::extension::spaces::commands::{
         require_active_local_member, require_active_local_member_for_all, SpaceAssignment,
     };
-    use crate::extension::spaces::queries::SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY;
+    use crate::extension::spaces::queries::{
+        SQL_INSERT_SHARED_SPACE_SYNC, SQL_SELECT_SPACE_MEMBERS_WITH_IDENTITY,
+        SQL_SHARED_SPACE_SYNC_SELECT_COLS,
+    };
     use crate::table_names::{
         TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC,
     };
@@ -97,9 +100,12 @@ mod tests {
                 space_id TEXT NOT NULL,
                 extension_public_key TEXT,
                 extension_name TEXT,
-                group_id TEXT,
+                category TEXT,
                 type TEXT,
-                label TEXT,
+                type_label TEXT,
+                category_label TEXT,
+                authored_by_did TEXT DEFAULT '' NOT NULL,
+                row_sig TEXT DEFAULT '' NOT NULL,
                 created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
             )",
             TABLE_SHARED_SPACE_SYNC
@@ -213,7 +219,7 @@ mod tests {
             vec![
                 serde_json::Value::String("assign-1".to_string()),
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-001".to_string()),
+                serde_json::Value::String(r#"{"id":"item-001"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
             ],
             &db,
@@ -224,7 +230,7 @@ mod tests {
 
         let rows = core::select_with_crdt(
             format!(
-                "SELECT id, haex_hlc FROM {} WHERE id = ?1",
+                "SELECT id, haex_hlc, authored_by_did, row_sig FROM {} WHERE id = ?1",
                 TABLE_SHARED_SPACE_SYNC
             ),
             vec![serde_json::Value::String("assign-1".to_string())],
@@ -234,6 +240,66 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert!(!rows[0][1].is_null(), "haex_hlc must be set after assign");
+        assert!(
+            !get_string(&rows[0], 2).is_empty(),
+            "authored_by_did must be derived during registry-row signing"
+        );
+        assert!(
+            !get_string(&rows[0], 3).is_empty(),
+            "row_sig must be written during registry-row signing"
+        );
+    }
+
+    /// Migration 0014 renamed `group_id` -> `category` and `label` ->
+    /// `type_label` on `haex_shared_space_sync`. This exercises the actual
+    /// `queries.rs` SQL constants (not just the fixture) end-to-end, so a
+    /// regression that reintroduces the old column names in
+    /// `SQL_INSERT_SHARED_SPACE_SYNC` / `SQL_SHARED_SPACE_SYNC_SELECT_COLS`
+    /// fails here with "no such column" instead of only at runtime in prod.
+    #[test]
+    fn test_assign_and_select_round_trip_category_and_type_label() {
+        let (db, hlc) = setup_test_db();
+        let cache = seed_sp1_key(&db);
+        let hlc_mutex = Mutex::new(hlc);
+        let hlc_guard = hlc_mutex.lock().unwrap();
+
+        core::execute_with_crdt(
+            SQL_INSERT_SHARED_SPACE_SYNC.clone(),
+            vec![
+                serde_json::Value::String("assign-cat-1".to_string()),
+                serde_json::Value::String("ext_test__items".to_string()),
+                serde_json::Value::String(r#"{"id":"item-cat-001"}"#.to_string()),
+                serde_json::Value::String("sp-1".to_string()),
+                serde_json::Value::String("pubkey-1".to_string()),
+                serde_json::Value::String("ext-name-1".to_string()),
+                serde_json::Value::String("calendar-group".to_string()),
+                serde_json::Value::String("Calendar".to_string()),
+                serde_json::Value::String("Team Q1".to_string()),
+            ],
+            &db,
+            &hlc_guard,
+            &cache,
+        )
+        .unwrap();
+
+        let rows = core::select_with_crdt(
+            format!("{} WHERE id = ?1", *SQL_SHARED_SPACE_SYNC_SELECT_COLS),
+            vec![serde_json::Value::String("assign-cat-1".to_string())],
+            &db,
+        )
+        .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            get_string(&rows[0], 6),
+            "calendar-group",
+            "category column must round-trip"
+        );
+        assert_eq!(
+            get_string(&rows[0], 8),
+            "Team Q1",
+            "type_label column must round-trip"
+        );
     }
 
     #[test]
@@ -251,7 +317,7 @@ mod tests {
             vec![
                 serde_json::Value::String("assign-dirty".to_string()),
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-002".to_string()),
+                serde_json::Value::String(r#"{"id":"item-002"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
             ],
             &db,
@@ -299,7 +365,7 @@ mod tests {
             vec![
                 serde_json::Value::String("del-1".to_string()),
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-del".to_string()),
+                serde_json::Value::String(r#"{"id":"item-del"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
             ],
             &db,
@@ -323,7 +389,7 @@ mod tests {
             ),
             vec![
                 serde_json::Value::String("ext_test__items".to_string()),
-                serde_json::Value::String("item-del".to_string()),
+                serde_json::Value::String(r#"{"id":"item-del"}"#.to_string()),
                 serde_json::Value::String("sp-1".to_string()),
             ],
             &db,
@@ -519,9 +585,9 @@ mod tests {
             table_name: format!("ext_t_v1_{}", space_id),
             row_pks: r#"{"id":"row-1"}"#.to_string(),
             space_id: space_id.to_string(),
-            group_id: None,
+            category: None,
             type_name: None,
-            label: None,
+            type_label: None,
         }
     }
 

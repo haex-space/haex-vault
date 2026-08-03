@@ -7,11 +7,15 @@ use serde_json::Value as JsonValue;
 use sqlparser::ast::{AssignmentTarget, ObjectName, Statement, TableFactor, TableObject};
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::column_sig::register_lookup::{is_register_target_forbidden, RegisterLookup};
+use crate::crdt::column_sig::register_lookup::{
+    canonicalize_row_pks, is_register_target_forbidden, RegisterLookup,
+};
 use crate::crdt::column_sig::sign::sign_column;
 use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
 use crate::crdt::column_sig::value_bytes;
 use crate::crdt::column_sig::write::sign_column_for_spaces;
+use crate::crdt::registry_row_sig::payload::RegistryRowSigPayload;
+use crate::crdt::registry_row_sig::sign::sign_registry_row;
 use crate::crdt::trigger::{
     get_table_schema, is_safe_identifier, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN,
     HLC_FUNCTION_NAME, HLC_TIMESTAMP_COLUMN,
@@ -23,13 +27,18 @@ use crate::database::core::value::{convert_value_ref_to_json, ValueConverter};
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
-use crate::table_names::TABLE_CRDT_CONFIGS;
+use crate::table_names::{
+    COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID, COL_SHARED_SPACE_SYNC_CATEGORY,
+    COL_SHARED_SPACE_SYNC_CATEGORY_LABEL, COL_SHARED_SPACE_SYNC_CREATED_AT,
+    COL_SHARED_SPACE_SYNC_EXTENSION_NAME, COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
+    COL_SHARED_SPACE_SYNC_ID, COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_ROW_SIG,
+    COL_SHARED_SPACE_SYNC_SPACE_ID, COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE,
+    COL_SHARED_SPACE_SYNC_TYPE_LABEL, TABLE_CRDT_CONFIGS, TABLE_SHARED_SPACE_SYNC,
+};
 use crate::ucan::verify::did_key_from_public_key;
 
 /// The share register has two signing duties: the normal F1 pass signs the
 /// register row itself, while F2 retro-signs the referenced content row.
-const REGISTER_TABLE: &str = "haex_shared_space_sync";
-
 /// Maximum serialized size of a single CRDT transaction (ADR 0001).
 ///
 /// One `execute_with_crdt` call parses one statement and runs it in its own
@@ -109,6 +118,10 @@ pub fn execute_with_crdt(
             sign_written_rows(&tx, key_cache, table_name, columns)?;
         }
 
+        // B.3: sign-on-write for the share register's own row. Runs before F2
+        // so F2 reads the canonicalised `row_pks` this pass persists.
+        sign_registry_row_self(&tx, key_cache, &statement, touched.as_ref())?;
+
         // F2: an INSERT into the share register itself declares that a
         // pre-existing extension row now belongs to a new space. Retro-sign
         // every non-meta column of that row for the newly-declared space,
@@ -131,7 +144,7 @@ fn is_share_register_insert(
     // Fast path: `touched` already carries the table name for INSERT statements.
     if let Some((name, _)) = touched {
         return matches!(statement, Statement::Insert(_))
-            && name.eq_ignore_ascii_case(REGISTER_TABLE);
+            && name.eq_ignore_ascii_case(TABLE_SHARED_SPACE_SYNC);
     }
     false
 }
@@ -168,8 +181,16 @@ impl TouchedColumns {
 fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, TouchedColumns)> {
     match stmt {
         Statement::Insert(insert) => {
+            // Case-fold the table name at the same choke point as the column
+            // names below. Every current consumer already guards itself with
+            // `eq_ignore_ascii_case` (`is_share_register_insert`,
+            // `sign_registry_row_self`) rather than `==`, so this is
+            // defense-in-depth, not a fix for a reachable bypass today — but
+            // it means a future table-name check doesn't have to remember to
+            // fold case itself; the touched-table value is canonical by
+            // construction, same as the column list.
             let name = match &insert.table {
-                TableObject::TableName(n) => object_name_last(n)?,
+                TableObject::TableName(n) => object_name_last(n)?.to_ascii_lowercase(),
                 _ => return None,
             };
             if insert.columns.is_empty() {
@@ -179,12 +200,23 @@ fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, TouchedColum
                 .columns
                 .iter()
                 .filter_map(|obj| object_name_last(obj))
+                // SQL identifiers are case-insensitive (SQLite folds ASCII
+                // case when resolving them), but every downstream `==` check
+                // (`is_crdt_meta_column`, B.3's row_sig/authored_by_did
+                // guards) compares against our lowercase `COL_*` constants.
+                // Without this fold, `SET ROW_SIG = …` / `SET HAEX_HLC = …`
+                // pass the exact-match checks unnoticed and reach the DB with
+                // their forbidden effect intact — case-fold here, once, so
+                // every consumer of the touched-column list is safe by
+                // construction instead of each having to remember to.
+                .map(|c| c.to_ascii_lowercase())
                 .collect();
             Some((name, TouchedColumns::Explicit(cols)))
         }
         Statement::Update(update) => {
+            // See the matching case-fold in the INSERT branch above.
             let name = match &update.table.relation {
-                TableFactor::Table { name, .. } => object_name_last(name)?,
+                TableFactor::Table { name, .. } => object_name_last(name)?.to_ascii_lowercase(),
                 _ => return None,
             };
             let cols: Vec<String> = update
@@ -194,6 +226,8 @@ fn extract_touched_for_signing(stmt: &Statement) -> Option<(String, TouchedColum
                     AssignmentTarget::ColumnName(obj) => object_name_last(obj),
                     _ => None,
                 })
+                // See the matching case-fold in the INSERT branch above.
+                .map(|c| c.to_ascii_lowercase())
                 .collect();
             Some((name, TouchedColumns::Explicit(cols)))
         }
@@ -252,11 +286,30 @@ fn sign_written_rows(
         // Filter out CRDT meta columns and any columns not present in the
         // schema (defensive: parser can hand us anything).
         TouchedColumns::Explicit(cols) => {
-            let schema_names: std::collections::HashSet<&str> =
-                schema.iter().map(|c| c.name.as_str()).collect();
+            // `cols` is already case-folded to lowercase by
+            // `extract_touched_for_signing`, but `schema` comes straight from
+            // `PRAGMA table_info` and preserves DDL casing. The case-fold may
+            // only decide *whether* a column is in scope — every downstream
+            // consumer of `signable` (this function's own SELECT/upsert
+            // below, F2's cross-table signer, the Rust and TS registry
+            // scanners, and the verifier) reads the DDL-cased name straight
+            // from the schema, and the Ed25519 preimage is built over that
+            // same name. Emitting the lowercased touched-name here would
+            // sign/store under a key nothing else ever looks up (a table
+            // declared with a mixed-case column — `CREATE TABLE t (MixedCase
+            // TEXT)` — folds to `mixedcase` on the touched-column side but
+            // must resolve back to `MixedCase` for the sig).
+            //
+            // Build a folded→DDL map once and use it both as the
+            // case-insensitive membership check and to recover the DDL
+            // casing for `signable`.
+            let ddl_by_folded: std::collections::HashMap<String, &str> = schema
+                .iter()
+                .map(|c| (c.name.to_ascii_lowercase(), c.name.as_str()))
+                .collect();
             cols.iter()
-                .filter(|c| !is_meta(c) && schema_names.contains(c.as_str()))
-                .cloned()
+                .filter(|c| !is_meta(c))
+                .filter_map(|c| ddl_by_folded.get(c.as_str()).map(|ddl| ddl.to_string()))
                 .collect()
         }
         // A columnless `INSERT INTO t VALUES (…)` writes every column
@@ -379,17 +432,18 @@ fn sign_share_insert_targets(
     // Guard: F2 needs the register carrying `haex_hlc` to identify the
     // just-inserted rows. Older fixtures / pre-migration tests may lack it —
     // treat as a no-op with a warn (schema drift or unmigrated fixture).
-    let register_schema =
-        get_table_schema(tx, REGISTER_TABLE).map_err(|e| DatabaseError::DatabaseError {
-            reason: format!("get_table_schema({REGISTER_TABLE}) failed: {e}"),
-        })?;
+    let register_schema = get_table_schema(tx, TABLE_SHARED_SPACE_SYNC).map_err(|e| {
+        DatabaseError::DatabaseError {
+            reason: format!("get_table_schema({TABLE_SHARED_SPACE_SYNC}) failed: {e}"),
+        }
+    })?;
     let has_hlc = register_schema
         .iter()
         .any(|c| c.name == HLC_TIMESTAMP_COLUMN);
     if !has_hlc {
         tracing::warn!(
             target: "column_sig",
-            register = REGISTER_TABLE,
+            register = TABLE_SHARED_SPACE_SYNC,
             "F2 sig path skipped: share register is missing CRDT meta \
              (`haex_hlc`) — schema drift or unmigrated fixture. \
              Register INSERTs will not produce cross-table column sigs \
@@ -415,7 +469,7 @@ fn sign_share_insert_targets(
         let mut stmt = tx
             .prepare(&format!(
                 "SELECT table_name, row_pks, space_id \
-                 FROM {REGISTER_TABLE} \
+                 FROM {TABLE_SHARED_SPACE_SYNC} \
                  WHERE \"{HLC_TIMESTAMP_COLUMN}\" = ?1"
             ))
             .map_err(DatabaseError::from)?;
@@ -587,12 +641,300 @@ fn sign_share_insert_targets(
     Ok(())
 }
 
+/// Column names of the 12 fields covered by a registry row's `row_sig`
+/// (Task B.3), in `RegistryRowSigPayload` field order minus
+/// `authored_by_did` — that one field alone is immutable post-creation, so
+/// it is checked separately from "does this write need a fresh signature".
+///
+/// Deliberately asymmetric with the puller-side
+/// `crdt::commands::apply::registry_row_gate::SIGNED_PAYLOAD_COLUMNS` (Task
+/// B.5), which is the mirror image: it EXCLUDES `id` (never carried as a
+/// column-level change over the wire) and INCLUDES `authored_by_did` (a
+/// peer forging that field must trip the puller's "needs a fresh row_sig"
+/// check too, since B.5 has no separate local-write immutability guard to
+/// catch it first). Not a bug — don't unify without re-deriving both.
+const REGISTRY_ROW_SIGNED_COLUMNS: &[&str] = &[
+    COL_SHARED_SPACE_SYNC_ID,
+    COL_SHARED_SPACE_SYNC_SPACE_ID,
+    COL_SHARED_SPACE_SYNC_TABLE_NAME,
+    COL_SHARED_SPACE_SYNC_ROW_PKS,
+    COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
+    COL_SHARED_SPACE_SYNC_EXTENSION_NAME,
+    COL_SHARED_SPACE_SYNC_CATEGORY,
+    COL_SHARED_SPACE_SYNC_TYPE,
+    COL_SHARED_SPACE_SYNC_CATEGORY_LABEL,
+    COL_SHARED_SPACE_SYNC_TYPE_LABEL,
+    COL_SHARED_SPACE_SYNC_CREATED_AT,
+];
+
+/// Task B.3 — sign-on-write for the share register's own rows.
+///
+/// Every INSERT/UPDATE that touches `haex_shared_space_sync` runs through
+/// here after F1's generic column-sign pass and before F2's cross-table
+/// retro-sign. On INSERT the row always gets a fresh `row_sig`; on UPDATE
+/// only if the write actually touches one of the 12 signed fields.
+///
+/// `authored_by_did` is the owner-DID: on INSERT an explicit value must
+/// match the DID derived from this vault's signing key for the row's
+/// `space_id` (holding that key IS the authorization — same I2 rule F2
+/// enforces for the cross-table retro-sign), an absent value (DB default
+/// `''`) is auto-populated with that derived DID. On UPDATE it is immutable
+/// — changing it always fails, even for the current owner. Direct writes to
+/// `row_sig` itself are rejected outright: it is a derived column, not
+/// caller-settable (mirrors `CrdtMetaColumnWriteForbidden`'s "reject, don't
+/// silently overwrite" rationale).
+///
+/// No-op for every other table and for statement kinds other than
+/// INSERT/UPDATE (SELECT/DELETE/DDL never reach here — `touched` is `None`
+/// for those already).
+fn sign_registry_row_self(
+    tx: &Transaction,
+    key_cache: &SpaceKeyCache,
+    statement: &Statement,
+    touched: Option<&(String, TouchedColumns)>,
+) -> Result<(), DatabaseError> {
+    let Some((table_name, columns)) = touched else {
+        return Ok(());
+    };
+    if !table_name.eq_ignore_ascii_case(TABLE_SHARED_SPACE_SYNC) {
+        return Ok(());
+    }
+    let is_update = matches!(statement, Statement::Update(_));
+    let is_insert = matches!(statement, Statement::Insert(_));
+    if !is_insert && !is_update {
+        return Ok(());
+    }
+
+    // Guard: this pass needs the full 12-field + row_sig schema (migration
+    // 0014). Older fixtures / pre-migration vaults may still carry only the
+    // original register columns — treat as a no-op with a warn, mirroring
+    // F2's `has_hlc` guard in `sign_share_insert_targets`.
+    let register_schema = get_table_schema(tx, TABLE_SHARED_SPACE_SYNC).map_err(|e| {
+        DatabaseError::DatabaseError {
+            reason: format!("get_table_schema({TABLE_SHARED_SPACE_SYNC}) failed: {e}"),
+        }
+    })?;
+    let has_row_sig = register_schema
+        .iter()
+        .any(|c| c.name == COL_SHARED_SPACE_SYNC_ROW_SIG);
+    if !has_row_sig {
+        tracing::warn!(
+            target: "registry_row_sig",
+            table = TABLE_SHARED_SPACE_SYNC,
+            "B.3 sign-on-write skipped: register table is missing `row_sig` — \
+             schema drift or unmigrated fixture. Registry rows will not be \
+             self-signed until the schema catches up."
+        );
+        return Ok(());
+    }
+
+    if let TouchedColumns::Explicit(cols) = columns {
+        // row_sig is derived exclusively by this pass — a caller supplying
+        // it directly (INSERT or UPDATE) is rejected rather than silently
+        // overwritten, so a forged value never has a chance to look like it
+        // "worked".
+        if cols.iter().any(|c| c == COL_SHARED_SPACE_SYNC_ROW_SIG) {
+            return Err(DatabaseError::RegistryRowSigColumnWriteForbidden {
+                column: COL_SHARED_SPACE_SYNC_ROW_SIG.to_string(),
+            });
+        }
+        if is_update {
+            if cols
+                .iter()
+                .any(|c| c == COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID)
+            {
+                return Err(DatabaseError::RegistryRowAuthoredByDidImmutable {
+                    table: TABLE_SHARED_SPACE_SYNC.to_string(),
+                });
+            }
+            let touches_signed_field = cols
+                .iter()
+                .any(|c| REGISTRY_ROW_SIGNED_COLUMNS.contains(&c.as_str()));
+            if !touches_signed_field {
+                // Only sync-meta / row_sig would be left, and both are
+                // already handled above (rejected) or upstream
+                // (CrdtMetaColumnWriteForbidden) — nothing here needs a
+                // fresh signature.
+                return Ok(());
+            }
+        }
+    }
+    // TouchedColumns::AllColumns only reaches this point for an INSERT into a
+    // register table that (unusually) lacks `haex_column_sigs` — F1 already
+    // rejects it otherwise. INSERT always (re)signs regardless, so no
+    // touched-column check is needed on that branch.
+
+    let tx_hlc: String = tx
+        .query_row(&format!("SELECT {HLC_FUNCTION_NAME}()"), [], |r| r.get(0))
+        .map_err(|e| DatabaseError::HlcError {
+            reason: format!("current_hlc read for registry row self-sign: {e}"),
+        })?;
+
+    struct RegistryRow {
+        id: String,
+        space_id: String,
+        table_name: String,
+        row_pks: String,
+        extension_public_key: Option<String>,
+        extension_name: Option<String>,
+        category: Option<String>,
+        r#type: Option<String>,
+        category_label: Option<String>,
+        type_label: Option<String>,
+        authored_by_did: String,
+        created_at: Option<String>,
+    }
+
+    let rows: Vec<RegistryRow> = {
+        let select_sql = format!(
+            "SELECT {COL_SHARED_SPACE_SYNC_ID}, {COL_SHARED_SPACE_SYNC_SPACE_ID}, \
+                    {COL_SHARED_SPACE_SYNC_TABLE_NAME}, {COL_SHARED_SPACE_SYNC_ROW_PKS}, \
+                    {COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY}, \
+                    {COL_SHARED_SPACE_SYNC_EXTENSION_NAME}, {COL_SHARED_SPACE_SYNC_CATEGORY}, \
+                    {COL_SHARED_SPACE_SYNC_TYPE}, {COL_SHARED_SPACE_SYNC_CATEGORY_LABEL}, \
+                    {COL_SHARED_SPACE_SYNC_TYPE_LABEL}, {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID}, \
+                    {COL_SHARED_SPACE_SYNC_CREATED_AT} \
+             FROM {TABLE_SHARED_SPACE_SYNC} WHERE \"{HLC_TIMESTAMP_COLUMN}\" = ?1"
+        );
+        let mut stmt = tx.prepare(&select_sql).map_err(DatabaseError::from)?;
+        let mut result_rows = stmt
+            .query([&tx_hlc as &dyn ToSql])
+            .map_err(DatabaseError::from)?;
+        let mut out = Vec::new();
+        while let Some(row) = result_rows.next().map_err(DatabaseError::from)? {
+            out.push(RegistryRow {
+                id: row.get(0).map_err(DatabaseError::from)?,
+                space_id: row.get(1).map_err(DatabaseError::from)?,
+                table_name: row.get(2).map_err(DatabaseError::from)?,
+                row_pks: row.get(3).map_err(DatabaseError::from)?,
+                extension_public_key: row.get(4).map_err(DatabaseError::from)?,
+                extension_name: row.get(5).map_err(DatabaseError::from)?,
+                category: row.get(6).map_err(DatabaseError::from)?,
+                r#type: row.get(7).map_err(DatabaseError::from)?,
+                category_label: row.get(8).map_err(DatabaseError::from)?,
+                type_label: row.get(9).map_err(DatabaseError::from)?,
+                authored_by_did: row.get(10).map_err(DatabaseError::from)?,
+                created_at: row.get(11).map_err(DatabaseError::from)?,
+            });
+        }
+        out
+    };
+
+    for row in rows {
+        // I2 (same rule as F2): holding the space's signing key IS the
+        // authorization to author into it. No key → cannot legitimately
+        // derive an owner DID for this row at all.
+        let signing_key = match key_cache.get_or_reload(&*tx, &row.space_id) {
+            Ok(Some(k)) => k,
+            Ok(None) | Err(_) => {
+                return Err(DatabaseError::I2ForeignShareInsert {
+                    space_id: row.space_id,
+                });
+            }
+        };
+        let derived_did = did_key_from_public_key(&signing_key.verifying_key());
+
+        // authored_by_did defaults to '' (migration 0014) when the caller
+        // does not set it explicitly — treat empty as "not set yet" and
+        // auto-populate; any other value must match this vault's own DID.
+        let final_authored_by_did = if row.authored_by_did.is_empty() {
+            derived_did.clone()
+        } else if row.authored_by_did != derived_did {
+            return Err(DatabaseError::RegistryRowForeignAuthoredByDid {
+                space_id: row.space_id,
+                claimed: row.authored_by_did,
+                derived: derived_did,
+            });
+        } else {
+            row.authored_by_did
+        };
+
+        // Concern 2: the register's row_pks must be canonical JSON — it is
+        // both part of the signed payload and the exact-string value
+        // `RegisterLookup::resolve` matches against later, so the
+        // chokepoint (not each caller) enforces one canonical form.
+        let canonical_row_pks = canonicalize_row_pks(&row.row_pks).map_err(DatabaseError::from)?;
+
+        let payload = RegistryRowSigPayload {
+            id: &row.id,
+            space_id: &row.space_id,
+            table_name: &row.table_name,
+            row_pks: &canonical_row_pks,
+            extension_public_key: row.extension_public_key.as_deref(),
+            extension_name: row.extension_name.as_deref(),
+            category: row.category.as_deref(),
+            r#type: row.r#type.as_deref(),
+            category_label: row.category_label.as_deref(),
+            type_label: row.type_label.as_deref(),
+            authored_by_did: &final_authored_by_did,
+            created_at: row.created_at.as_deref(),
+        };
+        let signature = sign_registry_row(&payload, &signing_key);
+        let sig_b64 = BASE64.encode(signature.to_bytes());
+
+        tx.execute(
+            &format!(
+                "UPDATE {TABLE_SHARED_SPACE_SYNC} SET \
+                    {COL_SHARED_SPACE_SYNC_ROW_SIG} = ?1, \
+                    {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID} = ?2, \
+                    {COL_SHARED_SPACE_SYNC_ROW_PKS} = ?3 \
+                 WHERE {COL_SHARED_SPACE_SYNC_ID} = ?4"
+            ),
+            rusqlite::params![sig_b64, final_authored_by_did, canonical_row_pks, row.id],
+        )
+        .map_err(DatabaseError::from)?;
+    }
+
+    Ok(())
+}
+
+/// Maps a parsed `row_pks_json` value onto `(pk_column_name, value)` pairs in
+/// `schema`'s PK order, for both shapes `build_pk_where` accepts.
+///
+/// Returns `None` — a safe "we don't know how to map this" skip — when:
+///   * **Object**: the key set doesn't have exactly `pk_cols.len()` entries,
+///     or a `pk_cols` name is missing from the object.
+///   * **Array**: the array is empty, its length doesn't match
+///     `pk_cols.len()`, or any element is `Value::Null` (arrays are
+///     positional — a null slot can't be safely matched to "no PK column").
+///   * Anything else (scalar, malformed) is never a valid row_pks shape.
+fn values_by_pk_column<'a>(
+    pk_cols: &[&'a str],
+    value: &JsonValue,
+) -> Option<Vec<(&'a str, JsonValue)>> {
+    match value {
+        JsonValue::Object(m) => {
+            if m.len() != pk_cols.len() {
+                return None;
+            }
+            let mut out = Vec::with_capacity(pk_cols.len());
+            for col in pk_cols {
+                out.push((*col, m.get(*col)?.clone()));
+            }
+            Some(out)
+        }
+        JsonValue::Array(arr) => {
+            if arr.is_empty() || arr.len() != pk_cols.len() || arr.iter().any(JsonValue::is_null) {
+                return None;
+            }
+            Some(pk_cols.iter().copied().zip(arr.iter().cloned()).collect())
+        }
+        _ => None,
+    }
+}
+
 /// Build a WHERE clause + bind vector matching every PK column of the target
 /// row from a canonicalised `row_pks_json` payload.
 ///
-/// Returns `(empty, [])` if the PK column set on `schema` and the object keys
-/// in `row_pks_json` disagree — the caller treats that as a silent skip since
-/// register rows with malformed PK payloads should not silently sign the wrong row.
+/// Accepts the same two shapes as `canonicalize_row_pks`: a JSON **object**
+/// keyed by PK column name (the CRDT scanner's usual form), or a JSON
+/// **array** matched positionally against `schema`'s PK column order (the
+/// shape `persist_shared_backend` writes for `haex_s3_backends` — PR #741
+/// finding 3).
+///
+/// Returns `(empty, [])` if the shape doesn't line up with `schema`'s PK
+/// columns — the caller treats that as a silent skip since register rows
+/// with malformed PK payloads should not silently sign the wrong row.
 fn build_pk_where(
     schema: &[crate::crdt::trigger::ColumnInfo],
     row_pks_json: &str,
@@ -606,20 +948,17 @@ fn build_pk_where(
         return Ok((String::new(), Vec::new()));
     }
 
-    let parsed: serde_json::Map<String, JsonValue> =
-        match serde_json::from_str::<JsonValue>(row_pks_json) {
-            Ok(JsonValue::Object(m)) => m,
-            _ => return Ok((String::new(), Vec::new())),
-        };
-    if parsed.len() != pk_cols.len() {
+    let parsed: JsonValue = match serde_json::from_str(row_pks_json) {
+        Ok(v) => v,
+        Err(_) => return Ok((String::new(), Vec::new())),
+    };
+    let Some(pairs) = values_by_pk_column(&pk_cols, &parsed) else {
         return Ok((String::new(), Vec::new()));
-    }
-    let mut parts = Vec::with_capacity(pk_cols.len());
-    let mut binds = Vec::with_capacity(pk_cols.len());
-    for col in &pk_cols {
-        let Some(v) = parsed.get(*col) else {
-            return Ok((String::new(), Vec::new()));
-        };
+    };
+
+    let mut parts = Vec::with_capacity(pairs.len());
+    let mut binds = Vec::with_capacity(pairs.len());
+    for (col, v) in &pairs {
         if !is_safe_identifier(col) {
             return Ok((String::new(), Vec::new()));
         }
@@ -746,3 +1085,7 @@ mod max_tx_size_tests;
 #[cfg(test)]
 #[path = "../core_execute_tests.rs"]
 mod execute_tests;
+
+#[cfg(test)]
+#[path = "../core_registry_row_sig_tests.rs"]
+mod registry_row_sig_tests;

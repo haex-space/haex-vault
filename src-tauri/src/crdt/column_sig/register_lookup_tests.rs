@@ -1,4 +1,4 @@
-use super::register_lookup::{is_register_target_forbidden, RegisterLookup};
+use super::register_lookup::{canonicalize_row_pks, is_register_target_forbidden, RegisterLookup};
 use rusqlite::Connection;
 
 /// Minimal in-memory DB with:
@@ -276,4 +276,106 @@ fn system_target_policy_is_fail_closed_with_scoped_storage_exception() {
     assert!(is_register_target_forbidden("haex_future_private_table"));
     assert!(is_register_target_forbidden("sqlite_sequence"));
     assert!(is_register_target_forbidden("ext_cache_no_sync"));
+}
+
+#[test]
+fn ucan_grants_are_forbidden_register_targets() {
+    // Defense-in-depth: even if `haex_space_ucan_grants_no_sync` (Task A.2,
+    // local-only UCAN grants store) were somehow written into
+    // `haex_shared_space_sync.table_name`, both the `haex_` prefix rule and
+    // the `_no_sync` suffix rule must independently reject it as a register
+    // target, so the F1/F2 register-driven sync path can never pick it up.
+    assert!(is_register_target_forbidden(
+        crate::table_names::TABLE_SPACE_UCAN_GRANTS_NO_SYNC
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// `canonicalize_row_pks` — PR #741 finding 3 (CRITICAL)
+//
+// `persist_shared_backend` (remote_storage/share_command/mod.rs) writes
+// `haex_shared_space_sync.row_pks` as a JSON ARRAY (`["<uuid>"]`), not the
+// JSON OBJECT shape the CRDT scanner produces for every other table. Both
+// shapes must canonicalise without error; only scalars/null are rejected.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn canonicalize_row_pks_accepts_object() {
+    let canonical = canonicalize_row_pks(r#"{"id":"R"}"#).expect("object accepted");
+    assert_eq!(canonical, r#"{"id":"R"}"#);
+}
+
+#[test]
+fn canonicalize_row_pks_object_is_key_sorted() {
+    let canonical = canonicalize_row_pks(r#"{"b":"2","a":"1"}"#).expect("object accepted");
+    let a_pos = canonical.find("\"a\"").expect("has key a");
+    let b_pos = canonical.find("\"b\"").expect("has key b");
+    assert!(
+        a_pos < b_pos,
+        "expected key 'a' before 'b', got: {canonical}"
+    );
+}
+
+#[test]
+fn canonicalize_row_pks_accepts_array() {
+    let canonical = canonicalize_row_pks(r#"["a","b"]"#).expect("array accepted");
+    assert_eq!(canonical, r#"["a","b"]"#);
+}
+
+#[test]
+fn canonicalize_row_pks_array_preserves_order() {
+    // Arrays are positional, not sorted — unlike object keys.
+    let canonical = canonicalize_row_pks(r#"["b","a"]"#).expect("array accepted");
+    assert_eq!(canonical, r#"["b","a"]"#);
+}
+
+#[test]
+fn canonicalize_row_pks_accepts_empty_object() {
+    let canonical = canonicalize_row_pks("{}").expect("empty object accepted");
+    assert_eq!(canonical, "{}");
+}
+
+#[test]
+fn canonicalize_row_pks_accepts_empty_array() {
+    let canonical = canonicalize_row_pks("[]").expect("empty array accepted");
+    assert_eq!(canonical, "[]");
+}
+
+#[test]
+fn canonicalize_row_pks_rejects_scalar_string() {
+    canonicalize_row_pks(r#""foo""#).expect_err("bare string scalar must be rejected");
+}
+
+#[test]
+fn canonicalize_row_pks_rejects_scalar_number() {
+    canonicalize_row_pks("42").expect_err("bare number scalar must be rejected");
+}
+
+#[test]
+fn canonicalize_row_pks_rejects_null() {
+    canonicalize_row_pks("null").expect_err("JSON null must be rejected");
+}
+
+#[test]
+fn canonicalize_row_pks_rejects_invalid_json() {
+    canonicalize_row_pks("not json").expect_err("invalid JSON must be rejected");
+}
+
+/// Fix #3 followup (`fcb0873e`): `resolve_infra_row` converts a non-object
+/// canonical row_pks into a `rusqlite::Error` instead of panicking via
+/// `.expect()`. Array-shape row_pks is a valid `canonicalize_row_pks` output
+/// (PR #741 finding 3) but is never valid for a space-scoped infra table —
+/// `haex_space_members` (one of the `SPACE_SCOPED_CRDT_TABLES`) always
+/// carries object-shape PKs. Pins the fail-closed behaviour.
+#[test]
+fn resolve_infra_row_fails_closed_on_non_object_row_pks() {
+    let conn = seed();
+    let lookup = RegisterLookup::new();
+    let err = lookup
+        .resolve(&conn, "haex_space_members", r#"["x"]"#)
+        .expect_err("array-shape row_pks on an infra table must fail closed");
+    assert!(
+        matches!(err, rusqlite::Error::FromSqlConversionFailure(..)),
+        "expected FromSqlConversionFailure, got: {err:?}"
+    );
 }

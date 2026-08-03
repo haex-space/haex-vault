@@ -490,6 +490,132 @@ fn migration_0013_creates_compaction_anchors_table() {
     );
 }
 
+/// Test-fixture stub: the `haex_shared_space_sync` shape immediately before
+/// migration 0014 runs — i.e. after 0000 (create) + 0010 (add
+/// `authored_by_did`) + 0012 (drop `authored_by_did`) + 0013 (adds an index,
+/// doesn't touch this table's columns). `authored_by_did` is intentionally
+/// absent here (dropped by 0012, ADR 0002 §6.3) — 0014 reintroduces it as the
+/// Registry-Row-Ownership author, this time paired with `row_sig` so the
+/// claim is cryptographically verifiable (see
+/// docs/plans/2026-07-31-shared-space-authorization-design.md).
+fn create_shared_space_sync_pre_0014_stub(conn: &Connection) {
+    conn.execute_batch(
+        "CREATE TABLE haex_shared_space_sync (
+             id TEXT PRIMARY KEY NOT NULL,
+             table_name TEXT NOT NULL,
+             row_pks TEXT NOT NULL,
+             space_id TEXT NOT NULL,
+             extension_public_key TEXT,
+             extension_name TEXT,
+             group_id TEXT,
+             type TEXT,
+             label TEXT,
+             created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+         );",
+    )
+    .expect("create pre-0014 haex_shared_space_sync stub");
+}
+
+#[test]
+fn migration_0014_renames_and_adds_registry_authorization_columns() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_pre_0014_stub(&conn);
+    apply_migration_by_tag(&conn, "0014_");
+
+    let cols = pragma_column_names(&conn, "haex_shared_space_sync");
+    assert!(
+        cols.iter().any(|c| c == "category"),
+        "missing category (renamed from group_id), got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "type_label"),
+        "missing type_label (renamed from label), got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "category_label"),
+        "missing category_label, got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "authored_by_did"),
+        "missing authored_by_did, got: {cols:?}"
+    );
+    assert!(
+        cols.iter().any(|c| c == "row_sig"),
+        "missing row_sig, got: {cols:?}"
+    );
+    assert!(
+        !cols.iter().any(|c| c == "group_id"),
+        "group_id must be renamed away, got: {cols:?}"
+    );
+    assert!(
+        !cols.iter().any(|c| c == "label"),
+        "label must be renamed away, got: {cols:?}"
+    );
+}
+
+#[test]
+fn migration_0014_unique_constraint_allows_distinct_rows_in_same_category() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_pre_0014_stub(&conn);
+
+    let insert_pre_migration = |id: &str, row_pks: &str| {
+        conn.execute(
+            "INSERT INTO haex_shared_space_sync
+                (id, table_name, row_pks, space_id, group_id)
+             VALUES (?1, 'ext_cal_v1', ?2, 'space-1', 'work')",
+            rusqlite::params![id, row_pks],
+        )
+    };
+
+    // Existing vaults can already contain several rows in one category. The
+    // migration must not abort when all of them receive authored_by_did = ''.
+    insert_pre_migration("share-1", r#"{"id":"r1"}"#).unwrap();
+    insert_pre_migration("share-2", r#"{"id":"r2"}"#).unwrap();
+    apply_migration_by_tag(&conn, "0014_");
+
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM haex_shared_space_sync", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 2, "migration must preserve both category rows");
+
+    let insert =
+        |id: &str, author: &str, space: &str, table: &str, row_pks: &str, category: &str| {
+            conn.execute(
+                "INSERT INTO haex_shared_space_sync
+                (id, table_name, row_pks, space_id, authored_by_did, category, row_sig)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sig')",
+                rusqlite::params![id, table, row_pks, space, author, category],
+            )
+        };
+
+    // The transient 0014 constraint is row-scoped: the same author cannot
+    // register the same shared row twice, even under another category.
+    let dup = insert(
+        "share-3",
+        "",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r1"}"#,
+        "personal",
+    );
+    assert!(
+        dup.is_err(),
+        "second insert with same (author, space, table, row_pks) must fail"
+    );
+
+    insert(
+        "share-4",
+        "bob-did",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r1"}"#,
+        "work",
+    )
+    .expect("different author for the same shared row must be allowed");
+}
+
 #[test]
 fn pending_columns_migration_0003_widens_pk_to_row_aware() {
     // The shipped 0003 migration must produce a (table_name, column_name,
@@ -550,5 +676,271 @@ fn pending_columns_migration_0003_widens_pk_to_row_aware() {
     assert!(
         dup.is_err(),
         "exact (table,column,row_pks) duplicate must be rejected"
+    );
+}
+
+/// Test-fixture stub: a minimal `haex_spaces` parent table, just enough for
+/// migration 0015's `space_id` FK to resolve against a real parent row.
+/// FK enforcement is on by default in this project's SQLCipher-backed
+/// rusqlite build, so inserts against a non-existent parent id fail on the
+/// FK before any other constraint is even reached.
+fn create_haex_spaces_stub(conn: &Connection) {
+    conn.execute_batch("CREATE TABLE haex_spaces (id TEXT PRIMARY KEY NOT NULL);")
+        .expect("create haex_spaces stub");
+}
+
+#[test]
+fn migration_0015_creates_ucan_grants_no_sync_table() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+
+    let exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='haex_space_ucan_grants_no_sync'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(exists, 1);
+}
+
+#[test]
+fn migration_0015_role_check_rejects_invalid_value() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+    // Real parent row so the insert below fails on the role CHECK alone,
+    // not incidentally on the space_id FK (FK enforcement is on by default
+    // in this project's SQLCipher-backed rusqlite build).
+    conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
+        .unwrap();
+
+    let bad = conn.execute(
+        "INSERT INTO haex_space_ucan_grants_no_sync
+            (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+         VALUES ('x', 's1', 'a', 'b', 'token', 'invalid_role', '2026-07-31')",
+        [],
+    );
+    assert!(
+        bad.is_err(),
+        "role CHECK constraint must reject 'invalid_role'"
+    );
+}
+
+#[test]
+fn migration_0015_role_check_accepts_issued_and_received() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+    conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
+        .unwrap();
+
+    conn.execute(
+        "INSERT INTO haex_space_ucan_grants_no_sync
+            (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+         VALUES ('g-issued', 's1', 'a', 'b', 'token', 'issued', '2026-07-31')",
+        [],
+    )
+    .expect("role='issued' must be accepted");
+
+    conn.execute(
+        "INSERT INTO haex_space_ucan_grants_no_sync
+            (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+         VALUES ('g-received', 's1', 'b', 'a', 'token', 'received', '2026-07-31')",
+        [],
+    )
+    .expect("role='received' must be accepted");
+}
+
+#[test]
+fn migration_0015_fk_cascade_deletes_grant_when_space_deleted() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+    // FK enforcement is on by default in this project's SQLCipher-backed
+    // rusqlite build (see create_haex_spaces_stub doc-comment) — no explicit
+    // `PRAGMA foreign_keys = ON` needed here.
+
+    conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
+        .unwrap();
+    conn.execute(
+        "INSERT INTO haex_space_ucan_grants_no_sync
+            (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+         VALUES ('g1', 's1', 'a', 'b', 'token', 'issued', '2026-07-31')",
+        [],
+    )
+    .unwrap();
+
+    let before: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM haex_space_ucan_grants_no_sync",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        before, 1,
+        "grant insert must have actually landed before we test the cascade"
+    );
+
+    conn.execute("DELETE FROM haex_spaces WHERE id = 's1'", [])
+        .unwrap();
+
+    let remaining: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM haex_space_ucan_grants_no_sync",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        remaining, 0,
+        "deleting the parent space must cascade-delete its ucan grants"
+    );
+}
+
+#[test]
+fn migration_0015_partial_unique_rejects_duplicate_active_grant() {
+    let conn = Connection::open_in_memory().unwrap();
+    create_haex_spaces_stub(&conn);
+    apply_migration_by_tag(&conn, "0015_");
+    conn.execute("INSERT INTO haex_spaces (id) VALUES ('s1')", [])
+        .unwrap();
+
+    let insert = |id: &str, role: &str| {
+        conn.execute(
+            "INSERT INTO haex_space_ucan_grants_no_sync
+                (id, space_id, issuer_did, audience_did, ucan_token, role, created_at)
+             VALUES (?1, 's1', 'alice', 'bob', 'token', ?2, '2026-07-31')",
+            rusqlite::params![id, role],
+        )
+    };
+
+    insert("g1", "issued").expect("first active grant must be accepted");
+
+    let dup = insert("g2", "issued");
+    assert!(
+        dup.is_err(),
+        "a second active grant for the same (space, issuer, audience, role) must be rejected"
+    );
+
+    conn.execute(
+        "UPDATE haex_space_ucan_grants_no_sync SET revoked_at = '2026-08-01' WHERE id = 'g1'",
+        [],
+    )
+    .expect("revoking g1 must succeed");
+
+    insert("g3", "issued").expect(
+        "once g1 is revoked, a new active grant for the same tuple must be accepted \
+         (revoked grants don't count against the partial unique index)",
+    );
+
+    insert("g4", "received")
+        .expect("a different role for the same (space, issuer, audience) must be accepted");
+}
+
+#[test]
+fn migration_0016_removes_unique_and_allows_multiple_rows_per_category() {
+    // CodeRabbit finding on PR #741: 0014's unique index on (authored_by_did,
+    // space_id, table_name, category) was wrong — category is a container
+    // holding N rows (e.g. alice's "work" calendar has 5 events), not a
+    // per-author singleton. 0016 drops that index and replaces it with a
+    // non-unique lookup index over the same columns.
+    let conn = Connection::open_in_memory().unwrap();
+    create_shared_space_sync_pre_0014_stub(&conn);
+    apply_migration_by_tag(&conn, "0014_");
+    apply_migration_by_tag(&conn, "0016_");
+
+    let insert =
+        |id: &str, author: &str, space: &str, table: &str, row_pks: &str, category: &str| {
+            conn.execute(
+                "INSERT INTO haex_shared_space_sync
+                (id, table_name, row_pks, space_id, authored_by_did, category, row_sig)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sig')",
+                rusqlite::params![id, table, row_pks, space, author, category],
+            )
+        };
+
+    insert(
+        "share-1",
+        "alice-did",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r1"}"#,
+        "work",
+    )
+    .expect("first row for alice/space-1/ext_cal_v1/work must succeed");
+
+    insert(
+        "share-2",
+        "alice-did",
+        "space-1",
+        "ext_cal_v1",
+        r#"{"id":"r2"}"#,
+        "work",
+    )
+    .expect(
+        "second row with the same (author, space, table, category) must now \
+         succeed — the over-restrictive unique index from 0014 is dropped",
+    );
+
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM haex_shared_space_sync", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(
+        count, 2,
+        "both rows for the same (author, space, table, category) must persist"
+    );
+
+    // Independently verify the replacement lookup index actually exists —
+    // the inserts above only prove the old unique index is gone, not that
+    // 0016 created the new non-unique index with the right name/columns.
+    let mut index_list_stmt = conn
+        .prepare("PRAGMA index_list('haex_shared_space_sync')")
+        .expect("prepare index_list pragma");
+    let indexes: Vec<(String, i64)> = index_list_stmt
+        .query_map([], |row| Ok((row.get(1)?, row.get(2)?)))
+        .expect("query index_list")
+        .collect::<Result<Vec<(String, i64)>, _>>()
+        .expect("collect index_list rows");
+
+    let new_index = indexes
+        .iter()
+        .find(|(name, _)| name == "haex_shared_space_sync_author_category_idx")
+        .expect("new lookup index haex_shared_space_sync_author_category_idx must exist");
+    assert_eq!(
+        new_index.1, 0,
+        "haex_shared_space_sync_author_category_idx must be non-unique"
+    );
+
+    assert!(
+        !indexes
+            .iter()
+            .any(|(name, _)| name == "haex_shared_space_sync_author_category_uniq"),
+        "old unique index haex_shared_space_sync_author_category_uniq must no longer exist"
+    );
+    assert!(
+        !indexes
+            .iter()
+            .any(|(name, _)| name == "haex_shared_space_sync_author_row_uniq"),
+        "transient unique index haex_shared_space_sync_author_row_uniq must no longer exist"
+    );
+
+    let mut index_info_stmt = conn
+        .prepare("PRAGMA index_info('haex_shared_space_sync_author_category_idx')")
+        .expect("prepare index_info pragma");
+    let index_columns: Vec<String> = index_info_stmt
+        .query_map([], |row| row.get(2))
+        .expect("query index_info")
+        .collect::<Result<Vec<String>, _>>()
+        .expect("collect index_info rows");
+
+    assert_eq!(
+        index_columns,
+        vec!["authored_by_did", "space_id", "table_name", "category"],
+        "lookup index must cover columns in this order"
     );
 }
