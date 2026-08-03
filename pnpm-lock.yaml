@@ -187,8 +187,8 @@ importers:
         specifier: ^0.17.4
         version: 0.17.4
       '@oxc-minify/binding-linux-x64-gnu':
-        specifier: ^0.141.0
-        version: 0.141.0
+        specifier: ^0.142.0
+        version: 0.142.0
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -1604,8 +1604,8 @@ packages:
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
 
-  '@oxc-minify/binding-linux-x64-gnu@0.141.0':
-    resolution: {integrity: sha512-mP69bh2L/VVq10UEQ3wb0EsO0472TzOIZUfS/ADmxnr4gSxAzhRbO8w5QryL3BNyyyjSaXIlrAnAKO6G3srGwg==}
+  '@oxc-minify/binding-linux-x64-gnu@0.142.0':
+    resolution: {integrity: sha512-d1Kw/Z5mAU/V8jdhrOGE2Gy/O1p+MG2u6M6qNyNqcPwA4eyMUVlTB3gOjlKE0zjYDtAz2jEx0WfbVpnixTAbgQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
@@ -9931,7 +9931,7 @@ snapshots:
   '@opentelemetry/api@1.9.0':
     optional: true
 
-  '@oxc-minify/binding-linux-x64-gnu@0.141.0': {}
+  '@oxc-minify/binding-linux-x64-gnu@0.142.0': {}
 
   '@oxc-parser/binding-android-arm-eabi@0.132.0':
     optional: true
