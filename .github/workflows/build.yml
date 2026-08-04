@@ -285,8 +285,8 @@ jobs:
           - platform: macos
             artifact: haex-vault-macos-e2e
     uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
-    # Forwards this repo's secrets, notably TS_OAUTH_CLIENT_ID/SECRET (needed
-    # by the windows/macos legs' Tailscale bridge — see haex-e2e-tests).
+    # Forwards this repo's secrets, notably TS_AUTHKEY (needed by the
+    # windows/macos legs' Tailscale bridge — see haex-e2e-tests).
     secrets: inherit
     with:
       build_type: build
