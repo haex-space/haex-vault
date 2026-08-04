@@ -96,9 +96,22 @@ pub async fn handle_claim_invite(
     //    after a leave finds it gone and is correctly treated as a fresh
     //    claim instead of resurrecting the old grant.
     let existing = load_existing_claim(&state.db, &space_id, &did);
-    let is_current_member =
-        super::super::ucan::is_active_space_member(&state.db, &space_id, &did).unwrap_or(false);
-    let is_retry = existing.is_some() && is_current_member;
+    let is_retry = match &existing {
+        None => false,
+        Some(_) => match super::super::ucan::is_active_space_member(&state.db, &space_id, &did) {
+            Ok(is_member) => is_member,
+            Err(e) => {
+                // Fail closed: an unknown membership state must not be
+                // silently treated as "not a member" (which would route a
+                // true retry through the fresh-claim path — re-validating an
+                // already-consumed, single-use invite token and rejecting a
+                // legitimate retry outright).
+                return Response::Error {
+                    message: format!("Failed to check space membership: {e}"),
+                };
+            }
+        },
+    };
     if is_retry {
         eprintln!(
             "[SpaceDelivery] ClaimInvite: retry for {} in space {} — regenerating welcome with fresh KeyPackage",

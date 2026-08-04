@@ -561,7 +561,10 @@ mod claim_invite_stale_retry_tests {
     /// `is_retry` must require the claimant to still be an active space
     /// member, not just the presence of a `haex_ucan_tokens` row — a row
     /// alone can be a stale leftover from a membership that has since
-    /// ended.
+    /// ended. And an error from that membership check must propagate
+    /// rather than default to "not a member": silently treating an unknown
+    /// state as "fresh claim" would re-validate an already-consumed,
+    /// single-use invite token on a true retry and reject it outright.
     #[test]
     fn is_retry_requires_active_membership_not_just_an_existing_row() {
         let source = production_source();
@@ -576,10 +579,19 @@ mod claim_invite_stale_retry_tests {
              an unfinished attempt at the current claim."
         );
         assert!(
-            production.contains("let is_retry = existing.is_some() && is_current_member;"),
+            production.contains("let is_retry = match &existing {")
+                && production.contains("None => false,"),
             "is_retry must be gated on both an existing row AND current active \
              membership — dropping either half reintroduces the stale-retry \
              misdetection or breaks true-retry idempotency."
+        );
+        assert!(
+            !production
+                .contains("is_active_space_member(&state.db, &space_id, &did).unwrap_or(false)"),
+            "an error from is_active_space_member must propagate as \
+             Response::Error, not collapse to `false` via unwrap_or — that \
+             would silently treat an unknown membership state as \"not a \
+             member\", misrouting a true retry through the fresh-claim path."
         );
     }
 
