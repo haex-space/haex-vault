@@ -208,13 +208,18 @@ pub fn is_active_space_member(
 /// the leader rejects the entire batch when it sees any non-membership-system
 /// row, which leaves the push cursor at t=0 and blocks membership-data uploads.
 pub fn has_write_capability(db: &DbConnection, space_id: &str, audience_did: &str) -> bool {
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
     let sql = "SELECT 1 FROM haex_ucan_tokens \
                WHERE space_id = ?1 AND audience_did = ?2 \
-               AND capability IN ('space/write', 'space/admin') LIMIT 1"
+               AND capability IN ('space/write', 'space/admin') AND expires_at > ?3 LIMIT 1"
         .to_string();
     let params = vec![
         serde_json::Value::String(space_id.to_string()),
         serde_json::Value::String(audience_did.to_string()),
+        serde_json::Value::Number(now_secs.into()),
     ];
     crate::database::core::select_with_crdt(sql, params, db)
         .map(|rows| !rows.is_empty())
@@ -295,5 +300,37 @@ mod multi_capability_lookup_tests {
         assert!(load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID)
             .unwrap()
             .is_none());
+    }
+
+    /// Regression for the CodeRabbit finding that `has_write_capability`'s
+    /// query had no `expires_at` filter, unlike its sibling
+    /// `load_active_ucan_for_audience` just above it — an expired
+    /// `space/write` row would still make this return `true`.
+    #[test]
+    fn has_write_capability_ignores_expired_write_row() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE haex_ucan_tokens (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                token TEXT NOT NULL,
+                capability TEXT NOT NULL,
+                issuer_did TEXT NOT NULL,
+                audience_did TEXT NOT NULL,
+                issued_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL
+            );",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO haex_ucan_tokens \
+             (id, space_id, token, capability, issuer_did, audience_did, issued_at, expires_at) \
+             VALUES ('write', ?1, 'token-write', 'space/write', 'did:key:admin', ?2, 1000, 1001)",
+            rusqlite::params![SPACE_ID, AUDIENCE_DID],
+        )
+        .unwrap();
+        let db = DbConnection(Arc::new(Mutex::new(Some(conn))));
+
+        assert!(!has_write_capability(&db, SPACE_ID, AUDIENCE_DID));
     }
 }
