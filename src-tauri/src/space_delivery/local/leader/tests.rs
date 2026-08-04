@@ -533,3 +533,81 @@ mod dispatch_variant_exhaustiveness_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod claim_invite_stale_retry_tests {
+    //! Regression guard for a bug found via the haex-e2e-tests
+    //! leave-then-re-invite spec (`quic-phases/06-data-consistency.ts`,
+    //! "re-invite to same space results in exactly one UCAN row"):
+    //! `leaveSpaceAsync`'s local-leave branch deletes UCANs on the
+    //! *leaving* device only and deliberately never notifies this leader
+    //! (see `src/stores/spaces/index.ts`), so a departed DID's row in
+    //! this leader's own `haex_ucan_tokens` can survive indefinitely.
+    //! `load_existing_claim` used to treat any such row as proof of an
+    //! in-flight retry — scoped only by `(space_id, audience_did)` — so a
+    //! brand-new claim after a leave was misdetected as a retry of a claim
+    //! that had, in fact, already ended: `validate_invite` for the new
+    //! token was skipped and the stale (possibly multi-row, pre-leave)
+    //! grant was resurrected instead, producing two UCAN rows in the CI
+    //! failure this guards against.
+    //!
+    //! Same reasoning as `claim_invite_did_binding_tests` for why these are
+    //! source-text assertions rather than a full behavioural test: driving
+    //! `handle_claim_invite` end-to-end needs an MLS-backed `LeaderState`
+    //! that the E2E spec above already covers.
+
+    use super::production_source;
+
+    /// `is_retry` must require the claimant to still be an active space
+    /// member, not just the presence of a `haex_ucan_tokens` row — a row
+    /// alone can be a stale leftover from a membership that has since
+    /// ended.
+    #[test]
+    fn is_retry_requires_active_membership_not_just_an_existing_row() {
+        let source = production_source();
+        let production = source.as_str();
+
+        assert!(
+            production.contains("is_active_space_member(&state.db, &space_id, &did)"),
+            "handle_claim_invite must check is_active_space_member(...) when \
+             deciding is_retry — a haex_ucan_tokens row for this DID can be a \
+             stale leftover from a past, already-ended membership (e.g. a local \
+             self-leave, which never notifies this leader) rather than proof of \
+             an unfinished attempt at the current claim."
+        );
+        assert!(
+            production.contains("let is_retry = existing.is_some() && is_current_member;"),
+            "is_retry must be gated on both an existing row AND current active \
+             membership — dropping either half reintroduces the stale-retry \
+             misdetection or breaks true-retry idempotency."
+        );
+    }
+
+    /// `persist_admin_ucan` must purge stale rows for `(space_id,
+    /// audience_did)` on a fresh (non-retry) claim — otherwise a rejoin's
+    /// new grant sits alongside old rows from before a leave, or the
+    /// per-capability exists-check silently drops it for a capability the
+    /// DID held previously.
+    #[test]
+    fn persist_admin_ucan_purges_stale_rows_on_non_retry_claim() {
+        let source = production_source();
+        let production = source.as_str();
+
+        assert!(
+            production.contains("fn persist_admin_ucan(") && production.contains("is_retry: bool"),
+            "persist_admin_ucan must take an is_retry flag so it can tell a \
+             fresh claim (purge stale rows first) apart from a true retry \
+             (idempotent re-insert of the same grant)."
+        );
+        assert!(
+            production.contains("if !is_retry {")
+                && production.contains(
+                    "DELETE FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2"
+                ),
+            "persist_admin_ucan must DELETE any pre-existing haex_ucan_tokens \
+             rows for (space_id, audience_did) before inserting a fresh claim's \
+             grant, so leftovers from a past membership don't coexist with — or \
+             block, via the per-capability exists-check — the new one."
+        );
+    }
+}

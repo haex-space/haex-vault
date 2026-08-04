@@ -81,8 +81,24 @@ pub async fn handle_claim_invite(
     //    duplicate-leaf handling in `MlsManager::add_member` quietly removes
     //    the stale leaf from the prior attempt before re-adding, so the
     //    group ends up consistent at the cost of two extra epoch advances.
+    //
+    //    A row in `haex_ucan_tokens` alone is NOT sufficient evidence of an
+    //    in-flight retry: `leaveSpaceAsync`'s local-leave branch (see
+    //    `src/stores/spaces/index.ts`) deletes UCANs on the *leaving* device
+    //    only and deliberately never notifies this leader, so a departed
+    //    DID's row here can be a stale leftover from a membership that has
+    //    since ended rather than an unfinished attempt at the current one.
+    //    Requiring the DID to still be an *active* member (tombstoned by the
+    //    same background sync that eventually carries the leave's
+    //    `haex_space_members` delete to us) tells the two cases apart: a
+    //    true retry always finds the member still active (step 12 below
+    //    inserted it before this function could return), while a re-invite
+    //    after a leave finds it gone and is correctly treated as a fresh
+    //    claim instead of resurrecting the old grant.
     let existing = load_existing_claim(&state.db, &space_id, &did);
-    let is_retry = existing.is_some();
+    let is_current_member =
+        super::super::ucan::is_active_space_member(&state.db, &space_id, &did).unwrap_or(false);
+    let is_retry = existing.is_some() && is_current_member;
     if is_retry {
         eprintln!(
             "[SpaceDelivery] ClaimInvite: retry for {} in space {} — regenerating welcome with fresh KeyPackage",
@@ -100,8 +116,8 @@ pub async fn handle_claim_invite(
     //      consumed in the first attempt, no re-validation needed).
     //    - First attempt: read-only validate the token; consume happens at
     //      step 13 only after the rest of the flow succeeds.
-    let granted: Vec<(String, String)> = if let Some(existing) = existing {
-        existing
+    let granted: Vec<(String, String)> = if is_retry {
+        existing.expect("is_retry implies load_existing_claim returned Some")
     } else {
         let (capabilities, pre_ucan) = match invite_tokens::validate_invite(
             &state.db,
@@ -256,7 +272,7 @@ pub async fn handle_claim_invite(
     // 10. Persist UCAN token to admin's local DB (CRDT-synced). Needed so
     //     future invite retries by this DID can recognize the already-claimed
     //     state (see step 1 idempotency check).
-    persist_admin_ucan(state, &space_id, &did, &granted);
+    persist_admin_ucan(state, &space_id, &did, &granted, is_retry);
 
     // 11. Register peer as connected
     let member_label = label.clone();
@@ -483,17 +499,29 @@ fn admin_ucan_row_exists(
 /// means the next retry will be treated as a first attempt (still safe —
 /// the duplicate-leaf handling in `add_member` covers it).
 ///
-/// Skips a given `(capability, token)` pair if a row for that exact
-/// `(space_id, audience_did, capability)` triple already exists — avoids
-/// duplicate entries when CRDT sync later propagates the claimant-side
-/// self-issued UCAN row back to the admin. Checked per capability, not
-/// per `(space_id, audience_did)`: capabilities are independent grants, so
-/// an existing `space/read` row must not block a fresh `space/write` one.
+/// On a retry (`is_retry`), skips a given `(capability, token)` pair if a
+/// row for that exact `(space_id, audience_did, capability)` triple already
+/// exists — avoids inserting a duplicate on every retry of the same claim,
+/// since `granted` on a retry is reloaded verbatim from that same row.
+/// Checked per capability, not per `(space_id, audience_did)`: capabilities
+/// are independent grants, so an existing `space/read` row must not block a
+/// fresh `space/write` one.
+///
+/// On a fresh (non-retry) claim, any pre-existing rows for
+/// `(space_id, audience_did)` are purged first instead. These can only be
+/// leftovers from a past membership that has since ended — `is_retry` is
+/// false here specifically because the DID is no longer an active member
+/// (see step 1) — most commonly a local self-leave, which never notifies
+/// this leader (`leaveSpaceAsync`'s local branch). Without the purge, a
+/// rejoin's fresh grant would sit alongside the stale one (or be skipped
+/// outright by the exists-check for a capability the DID held before), and
+/// a later true retry of *this* claim would reload the stale row instead.
 fn persist_admin_ucan(
     state: &LeaderState,
     space_id: &str,
     audience_did: &str,
     granted: &[(String, String)],
+    is_retry: bool,
 ) {
     let admin = match super::super::ucan::load_admin_identity(&state.db, space_id) {
         Ok(a) => a,
@@ -514,8 +542,26 @@ fn persist_admin_ucan(
         Err(_) => return,
     };
 
+    if !is_retry {
+        let purge_sql =
+            "DELETE FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2".to_string();
+        let purge_params = vec![
+            JsonValue::String(space_id.to_string()),
+            JsonValue::String(audience_did.to_string()),
+        ];
+        if let Err(e) = crate::database::core::execute_with_crdt(
+            purge_sql,
+            purge_params,
+            &state.db,
+            &hlc_guard,
+            &app_state.column_sig_key_cache,
+        ) {
+            eprintln!("[SpaceDelivery] persist_admin_ucan: purge of stale rows failed: {e}");
+        }
+    }
+
     for (capability, ucan_token) in granted {
-        if admin_ucan_row_exists(&state.db, space_id, audience_did, capability) {
+        if is_retry && admin_ucan_row_exists(&state.db, space_id, audience_did, capability) {
             continue;
         }
 
