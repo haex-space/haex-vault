@@ -15,6 +15,11 @@ default = []
 # through the normal UI/sync path. NEVER enable in binaries shipped to end
 # users — the commands bypass wire-side authorization by design.
 e2e-hooks = []
+# Embeds a W3C WebDriver automation server (tauri-plugin-webdriver) for
+# macOS E2E builds only. tauri-driver has no WKWebView support, so macOS
+# E2E automation needs this in-process alternative instead. NEVER enable
+# in binaries shipped to end users — see haex-e2e-tests for the consumer.
+e2e-webdriver-macos = ["dep:tauri-plugin-webdriver"]
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -170,6 +175,12 @@ notify-debouncer-mini = "0.7"
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
 webkit2gtk = "2.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Version pinned per github.com/Choochmeque/tauri-webdriver docs; re-check
+# against the crate's published docs before bumping. Optional + feature-gated
+# (see e2e-webdriver-macos above) so it never ships in production builds.
+tauri-plugin-webdriver = { version = "0.2", optional = true }
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-biometry = "0.2"

@@ -313,6 +313,14 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_android_fs::init());
     }
 
+    // WebDriver automation server (macOS E2E builds only) - tauri-driver has
+    // no WKWebView support, so haex-e2e-tests drives macOS via this in-process
+    // WebDriver server instead. Never enabled in binaries shipped to users.
+    #[cfg(all(target_os = "macos", feature = "e2e-webdriver-macos"))]
+    {
+        builder = builder.plugin(tauri_plugin_webdriver::init());
+    }
+
     // Note: previously `tauri_plugin_single_instance` was registered here to
     // lock the app to one running instance per user, with a secondary purpose
     // of forwarding `haexvault://` deep-link CLI args from a 2nd launch to
