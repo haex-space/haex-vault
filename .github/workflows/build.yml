@@ -564,7 +564,12 @@ jobs:
           jq '.app.security.csp["connect-src"] += ["http://*.${{ vars.TAILSCALE_TAILNET_DOMAIN }}:8000", "http://*.${{ vars.TAILSCALE_TAILNET_DOMAIN }}:8001", "http://*.${{ vars.TAILSCALE_TAILNET_DOMAIN }}:3001", "ws://*.${{ vars.TAILSCALE_TAILNET_DOMAIN }}:8000", "wss://*.${{ vars.TAILSCALE_TAILNET_DOMAIN }}:8000"]' \
             src-tauri/tauri.conf.json > /tmp/tauri-e2e.conf.json && \
             mv /tmp/tauri-e2e.conf.json src-tauri/tauri.conf.json
-          cd src-tauri && cargo tauri build --target aarch64-apple-darwin --features tauri/custom-protocol,e2e-webdriver-macos
+          # `cargo tauri` isn't installed as a standalone subcommand in this
+          # job (tauri-apps/tauri-action doesn't expose it on PATH) — use the
+          # already-installed @tauri-apps/cli from node_modules instead. Run
+          # from the repo root: tauri-cli auto-locates src-tauri/ from there,
+          # same as the pnpm-driven "Build Tauri app" step above.
+          pnpm tauri build --target aarch64-apple-darwin --features tauri/custom-protocol,e2e-webdriver-macos
 
       - name: Upload macOS binary for E2E tests
         if: matrix.platform == 'macos-latest' && contains(matrix.args, 'aarch64')
