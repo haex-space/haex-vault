@@ -284,7 +284,10 @@ jobs:
             artifact: haex-vault-windows-e2e
           - platform: macos
             artifact: haex-vault-macos-e2e
-    uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
+    # TEMPORARY for testing PR #758/haex-e2e-tests#74 together — revert to
+    # @main before merging (reusable-workflow refs are pinned; @main doesn't
+    # have haex_vault_platform etc. until haex-e2e-tests#74 is merged).
+    uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@worktree-ci-e2e-multi-platform
     # Forwards this repo's secrets, notably TS_AUTHKEY (needed by the
     # windows/macos legs' Tailscale bridge — see haex-e2e-tests).
     secrets: inherit
