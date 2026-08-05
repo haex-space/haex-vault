@@ -688,7 +688,16 @@ jobs:
           # devUrl (http://localhost:31303), which doesn't exist in the e2e
           # container. `cargo tauri build` enables it implicitly; plain
           # `cargo build` must pass it explicitly.
-          cd src-tauri && cargo build --release --features tauri/custom-protocol
+          #
+          # e2e-hooks registers the test-only Tauri commands the shared-space
+          # adversarial specs drive (test_seed_shared_space_delete_log_entry).
+          # It belongs here and only here: this artifact exists solely to be
+          # run by haex-e2e-tests, while the bundles uploaded above ship to
+          # users and must stay on `default = []`. Without it the e2e image's
+          # prebuilt path silently yields a binary lacking those commands —
+          # haex-e2e-tests' Dockerfile passes the feature on its build-from-
+          # source fallback, which the prebuilt path skips entirely.
+          cd src-tauri && cargo build --release --features tauri/custom-protocol,e2e-hooks
 
       - name: Upload Linux binary for E2E tests
         if: matrix.platform == 'ubuntu-22.04'
