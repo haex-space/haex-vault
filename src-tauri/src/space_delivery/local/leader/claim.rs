@@ -81,8 +81,37 @@ pub async fn handle_claim_invite(
     //    duplicate-leaf handling in `MlsManager::add_member` quietly removes
     //    the stale leaf from the prior attempt before re-adding, so the
     //    group ends up consistent at the cost of two extra epoch advances.
+    //
+    //    A row in `haex_ucan_tokens` alone is NOT sufficient evidence of an
+    //    in-flight retry: `leaveSpaceAsync`'s local-leave branch (see
+    //    `src/stores/spaces/index.ts`) deletes UCANs on the *leaving* device
+    //    only and deliberately never notifies this leader, so a departed
+    //    DID's row here can be a stale leftover from a membership that has
+    //    since ended rather than an unfinished attempt at the current one.
+    //    Requiring the DID to still be an *active* member (tombstoned by the
+    //    same background sync that eventually carries the leave's
+    //    `haex_space_members` delete to us) tells the two cases apart: a
+    //    true retry always finds the member still active (step 12 below
+    //    inserted it before this function could return), while a re-invite
+    //    after a leave finds it gone and is correctly treated as a fresh
+    //    claim instead of resurrecting the old grant.
     let existing = load_existing_claim(&state.db, &space_id, &did);
-    let is_retry = existing.is_some();
+    let is_retry = match &existing {
+        None => false,
+        Some(_) => match super::super::ucan::is_active_space_member(&state.db, &space_id, &did) {
+            Ok(is_member) => is_member,
+            Err(e) => {
+                // Fail closed: an unknown membership state must not be
+                // silently treated as "not a member" (which would route a
+                // true retry through the fresh-claim path — re-validating an
+                // already-consumed, single-use invite token and rejecting a
+                // legitimate retry outright).
+                return Response::Error {
+                    message: format!("Failed to check space membership: {e}"),
+                };
+            }
+        },
+    };
     if is_retry {
         eprintln!(
             "[SpaceDelivery] ClaimInvite: retry for {} in space {} — regenerating welcome with fresh KeyPackage",
@@ -91,15 +120,19 @@ pub async fn handle_claim_invite(
         );
     }
 
-    // 2. Resolve capability + UCAN.
-    //    - Retry: reuse the previously-issued UCAN (token already consumed
-    //      in the first attempt, no re-validation needed).
+    // 2. Resolve capabilities + UCANs — one UCAN per granted capability.
+    //    Capabilities are orthogonal grants (write/invite/admin do not
+    //    imply or rank above one another — see ADR 0002 Phase C), so every
+    //    entry in the invite's capabilities array gets its own
+    //    independently-issued, independently-verifiable UCAN.
+    //    - Retry: reuse the previously-issued UCANs (tokens already
+    //      consumed in the first attempt, no re-validation needed).
     //    - First attempt: read-only validate the token; consume happens at
     //      step 13 only after the rest of the flow succeeds.
-    let (capability, ucan_token) = if let Some((existing_cap, existing_ucan)) = existing {
-        (existing_cap, existing_ucan)
+    let granted: Vec<(String, String)> = if is_retry {
+        existing.expect("is_retry implies load_existing_claim returned Some")
     } else {
-        let (capability, pre_ucan) = match invite_tokens::validate_invite(
+        let (capabilities, pre_ucan) = match invite_tokens::validate_invite(
             &state.db,
             &state.invite_tokens,
             &token,
@@ -115,10 +148,12 @@ pub async fn handle_claim_invite(
             }
         };
 
-        // 3. Determine UCAN: use pre-created (contact) or create now (conference)
-        let ucan_token = match pre_ucan {
-            Some(ucan) => ucan,
-            None => {
+        // 3. Determine UCANs: use the pre-created one (contact invites,
+        //    always exactly one capability) or create one per capability
+        //    now (conference invites — UCANs are created at claim time).
+        match (pre_ucan, capabilities.as_slice()) {
+            (Some(ucan), [single_capability]) => vec![(single_capability.clone(), ucan)],
+            (_, capabilities) => {
                 let admin = match super::super::ucan::load_admin_identity(&state.db, &space_id) {
                     Ok(a) => a,
                     Err(e) => {
@@ -127,25 +162,28 @@ pub async fn handle_claim_invite(
                         }
                     }
                 };
-                match super::super::ucan::create_delegated_ucan(
-                    &admin.did,
-                    &admin.private_key_base64,
-                    &did,
-                    &space_id,
-                    &capability,
-                    Some(&admin.root_ucan),
-                    super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
-                ) {
-                    Ok(t) => t,
-                    Err(e) => {
-                        return Response::Error {
-                            message: format!("Failed to create UCAN: {e}"),
+                let mut issued = Vec::with_capacity(capabilities.len());
+                for capability in capabilities {
+                    match super::super::ucan::create_delegated_ucan(
+                        &admin.did,
+                        &admin.private_key_base64,
+                        &did,
+                        &space_id,
+                        capability,
+                        Some(&admin.root_ucan),
+                        super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
+                    ) {
+                        Ok(t) => issued.push((capability.clone(), t)),
+                        Err(e) => {
+                            return Response::Error {
+                                message: format!("Failed to create UCAN: {e}"),
+                            }
                         }
                     }
                 }
+                issued
             }
-        };
-        (capability, ucan_token)
+        }
     };
 
     // 4. Replace stale KeyPackages from prior attempts with the fresh batch.
@@ -247,7 +285,7 @@ pub async fn handle_claim_invite(
     // 10. Persist UCAN token to admin's local DB (CRDT-synced). Needed so
     //     future invite retries by this DID can recognize the already-claimed
     //     state (see step 1 idempotency check).
-    persist_admin_ucan(state, &space_id, &did, &capability, &ucan_token);
+    persist_admin_ucan(state, &space_id, &did, &granted, is_retry);
 
     // 11. Register peer as connected
     let member_label = label.clone();
@@ -323,10 +361,18 @@ pub async fn handle_claim_invite(
             (id, space_id, identity_id, role, joined_at) \
             SELECT ?1, ?2, id, ?3, ?4 FROM haex_identities WHERE did = ?5"
             .to_string();
+        // `haex_space_members.role` is a single legacy display column, not
+        // an authorization source (that's `haex_ucan_tokens`, checked
+        // per-capability by the AuthGate) — it holds whichever capability
+        // happens to be first in `granted`, not the full orthogonal set.
+        let role = granted
+            .first()
+            .map(|(cap, _)| cap.clone())
+            .unwrap_or_else(|| "space/read".to_string());
         let member_params = vec![
             JsonValue::String(uuid::Uuid::new_v4().to_string()),
             JsonValue::String(space_id.clone()),
-            JsonValue::String(capability.clone()),
+            JsonValue::String(role),
             JsonValue::String(now),
             JsonValue::String(did.clone()),
         ];
@@ -383,26 +429,34 @@ pub async fn handle_claim_invite(
         }
     }
 
-    // 14. Return welcome + UCAN
+    // 14. Return welcome + one UCAN per granted capability
     Response::InviteClaimed {
         welcome: base64_encode(&welcome_blob),
-        ucan: ucan_token,
-        capability,
+        granted: granted
+            .into_iter()
+            .map(
+                |(capability, token)| super::super::protocol::ClaimedCapabilityUcan {
+                    capability,
+                    token,
+                },
+            )
+            .collect(),
     }
 }
 
-/// Look up an already-granted UCAN for this DID in this space, if any.
-/// Returns (capability, ucan_token) so the idempotency path can re-serve
-/// exactly the same values a previous successful claim produced.
+/// Look up all already-granted UCANs for this DID in this space, if any.
+/// Returns (capability, ucan_token) pairs — one per previously-issued
+/// capability — so the idempotency path can re-serve exactly the same
+/// values a previous successful claim produced. Capabilities are
+/// orthogonal grants, so a prior claim may have issued several.
 fn load_existing_claim(
     db: &crate::database::DbConnection,
     space_id: &str,
     claimer_did: &str,
-) -> Option<(String, String)> {
+) -> Option<Vec<(String, String)>> {
     let rows = crate::database::core::select_with_crdt(
         "SELECT capability, token FROM haex_ucan_tokens \
-         WHERE space_id = ?1 AND audience_did = ?2 \
-         ORDER BY issued_at DESC LIMIT 1"
+         WHERE space_id = ?1 AND audience_did = ?2"
             .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
@@ -412,33 +466,76 @@ fn load_existing_claim(
     )
     .ok()?;
 
-    let row = rows.first()?;
-    let capability = row.first()?.as_str()?.to_string();
-    let ucan = row.get(1)?.as_str()?.to_string();
-    Some((capability, ucan))
+    let granted: Vec<(String, String)> = rows
+        .iter()
+        .filter_map(|row| {
+            let capability = row.first()?.as_str()?.to_string();
+            let ucan = row.get(1)?.as_str()?.to_string();
+            Some((capability, ucan))
+        })
+        .collect();
+
+    if granted.is_empty() {
+        None
+    } else {
+        Some(granted)
+    }
 }
 
-/// Persist the granted UCAN on the admin's side so subsequent claim retries
-/// for the same DID can be detected and routed through the regenerate path.
-/// Errors are logged and swallowed: the UCAN was successfully delivered to
-/// the invitee regardless, and losing this row only means the next retry
-/// will be treated as a first attempt (still safe — the duplicate-leaf
-/// handling in `add_member` covers it).
+/// Returns `true` if `haex_ucan_tokens` already has a row for this exact
+/// `(space_id, audience_did, capability)` triple.
+fn admin_ucan_row_exists(
+    db: &crate::database::DbConnection,
+    space_id: &str,
+    audience_did: &str,
+    capability: &str,
+) -> bool {
+    crate::database::core::select_with_crdt(
+        "SELECT 1 FROM haex_ucan_tokens \
+         WHERE space_id = ?1 AND audience_did = ?2 AND capability = ?3 LIMIT 1"
+            .to_string(),
+        vec![
+            serde_json::Value::String(space_id.to_string()),
+            serde_json::Value::String(audience_did.to_string()),
+            serde_json::Value::String(capability.to_string()),
+        ],
+        db,
+    )
+    .map(|rows| !rows.is_empty())
+    .unwrap_or(false)
+}
+
+/// Persist the granted UCANs on the admin's side so subsequent claim
+/// retries for the same DID can be detected and routed through the
+/// regenerate path. Errors are logged and swallowed: the UCANs were
+/// successfully delivered to the invitee regardless, and losing a row only
+/// means the next retry will be treated as a first attempt (still safe —
+/// the duplicate-leaf handling in `add_member` covers it).
 ///
-/// Skips insertion if a row for this `(space_id, audience_did)` already
-/// exists — avoids duplicate entries when CRDT sync later propagates the
-/// claimant-side self-issued UCAN row back to the admin.
+/// On a retry (`is_retry`), skips a given `(capability, token)` pair if a
+/// row for that exact `(space_id, audience_did, capability)` triple already
+/// exists — avoids inserting a duplicate on every retry of the same claim,
+/// since `granted` on a retry is reloaded verbatim from that same row.
+/// Checked per capability, not per `(space_id, audience_did)`: capabilities
+/// are independent grants, so an existing `space/read` row must not block a
+/// fresh `space/write` one.
+///
+/// On a fresh (non-retry) claim, any pre-existing rows for
+/// `(space_id, audience_did)` are purged first instead. These can only be
+/// leftovers from a past membership that has since ended — `is_retry` is
+/// false here specifically because the DID is no longer an active member
+/// (see step 1) — most commonly a local self-leave, which never notifies
+/// this leader (`leaveSpaceAsync`'s local branch). Without the purge, a
+/// rejoin's fresh grant would sit alongside the stale one (or be skipped
+/// outright by the exists-check for a capability the DID held before), and
+/// a later true retry of *this* claim would reload the stale row instead.
 fn persist_admin_ucan(
     state: &LeaderState,
     space_id: &str,
     audience_did: &str,
-    capability: &str,
-    ucan_token: &str,
+    granted: &[(String, String)],
+    is_retry: bool,
 ) {
-    if load_existing_claim(&state.db, space_id, audience_did).is_some() {
-        return;
-    }
-
     let admin = match super::super::ucan::load_admin_identity(&state.db, space_id) {
         Ok(a) => a,
         Err(e) => {
@@ -458,34 +555,58 @@ fn persist_admin_ucan(
         Err(_) => return,
     };
 
-    let ucan_id = uuid::Uuid::new_v4().to_string();
-    let now_secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-    let sql = "INSERT OR IGNORE INTO haex_ucan_tokens \
-        (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
-        .to_string();
-    let params = vec![
-        JsonValue::String(ucan_id),
-        JsonValue::String(space_id.to_string()),
-        JsonValue::String(admin.did),
-        JsonValue::String(audience_did.to_string()),
-        JsonValue::String(capability.to_string()),
-        JsonValue::String(ucan_token.to_string()),
-        JsonValue::Number(serde_json::Number::from(now_secs)),
-        JsonValue::Number(serde_json::Number::from(
-            now_secs + super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
-        )),
-    ];
-    if let Err(e) = crate::database::core::execute_with_crdt(
-        sql,
-        params,
-        &state.db,
-        &hlc_guard,
-        &app_state.column_sig_key_cache,
-    ) {
-        eprintln!("[SpaceDelivery] persist_admin_ucan: insert failed: {e}");
+    if !is_retry {
+        let purge_sql =
+            "DELETE FROM haex_ucan_tokens WHERE space_id = ?1 AND audience_did = ?2".to_string();
+        let purge_params = vec![
+            JsonValue::String(space_id.to_string()),
+            JsonValue::String(audience_did.to_string()),
+        ];
+        if let Err(e) = crate::database::core::execute_with_crdt(
+            purge_sql,
+            purge_params,
+            &state.db,
+            &hlc_guard,
+            &app_state.column_sig_key_cache,
+        ) {
+            eprintln!("[SpaceDelivery] persist_admin_ucan: purge of stale rows failed: {e}");
+        }
+    }
+
+    for (capability, ucan_token) in granted {
+        if is_retry && admin_ucan_row_exists(&state.db, space_id, audience_did, capability) {
+            continue;
+        }
+
+        let ucan_id = uuid::Uuid::new_v4().to_string();
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        let sql = "INSERT OR IGNORE INTO haex_ucan_tokens \
+            (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+            .to_string();
+        let params = vec![
+            JsonValue::String(ucan_id),
+            JsonValue::String(space_id.to_string()),
+            JsonValue::String(admin.did.clone()),
+            JsonValue::String(audience_did.to_string()),
+            JsonValue::String(capability.to_string()),
+            JsonValue::String(ucan_token.to_string()),
+            JsonValue::Number(serde_json::Number::from(now_secs)),
+            JsonValue::Number(serde_json::Number::from(
+                now_secs + super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS as i64,
+            )),
+        ];
+        if let Err(e) = crate::database::core::execute_with_crdt(
+            sql,
+            params,
+            &state.db,
+            &hlc_guard,
+            &app_state.column_sig_key_cache,
+        ) {
+            eprintln!("[SpaceDelivery] persist_admin_ucan: insert failed: {e}");
+        }
     }
 }

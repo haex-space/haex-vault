@@ -398,6 +398,15 @@ impl Request {
 // Response types
 // ============================================================================
 
+/// A single delegated UCAN issued for one capability of a claimed invite.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaimedCapabilityUcan {
+    /// The capability this UCAN grants (e.g. "space/write").
+    pub capability: String,
+    /// The delegated UCAN token for this capability.
+    pub token: String,
+}
+
 /// All response types for the space delivery protocol.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -442,14 +451,15 @@ pub enum Response {
         changes: serde_json::Value,
         has_more: bool,
     },
-    /// Invite claimed successfully — includes MLS welcome and delegated UCAN
+    /// Invite claimed successfully — includes MLS welcome and one delegated
+    /// UCAN per granted capability. Capabilities are orthogonal grants, not
+    /// a rank (a member can hold write + invite with neither implying the
+    /// other) — each gets its own UCAN rather than collapsing to one.
     InviteClaimed {
         /// Base64-encoded MLS welcome message
         welcome: String,
-        /// The delegated UCAN token for this member
-        ucan: String,
-        /// The capability granted (e.g. "space/write")
-        capability: String,
+        /// One delegated UCAN per capability the invite granted.
+        granted: Vec<ClaimedCapabilityUcan>,
     },
     /// Acknowledgment for a push invite
     PushInviteAck { accepted: bool },

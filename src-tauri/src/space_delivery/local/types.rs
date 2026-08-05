@@ -76,7 +76,8 @@ pub struct ElectionResultInfo {
 pub struct LocalInviteInfo {
     pub id: String,
     pub target_did: Option<String>,
-    pub capability: String,
+    /// Orthogonal grants, not a rank — an invite can offer several.
+    pub capabilities: Vec<String>,
     pub max_uses: u32,
     pub current_uses: u32,
     pub expires_at: String,
@@ -88,7 +89,8 @@ pub struct LocalInviteInfo {
 #[ts(export)]
 pub struct ClaimInviteResult {
     pub space_id: String,
-    pub capability: String,
+    /// Orthogonal grants actually issued — one UCAN per entry.
+    pub capabilities: Vec<String>,
 }
 
 /// Result of an outbox delivery attempt.

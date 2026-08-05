@@ -3,4 +3,8 @@
 /**
  * Result of claiming a local invite.
  */
-export type ClaimInviteResult = { spaceId: string, capability: string, };
+export type ClaimInviteResult = { spaceId: string, 
+/**
+ * Orthogonal grants actually issued — one UCAN per entry.
+ */
+capabilities: Array<string>, };
