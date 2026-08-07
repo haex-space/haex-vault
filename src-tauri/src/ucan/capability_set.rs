@@ -102,6 +102,63 @@ impl core::fmt::Display for DuplicateCapError {
 impl std::error::Error for DuplicateCapError {}
 
 // ---------------------------------------------------------------------------
+// Delegation-attenuation predicate (C.2 — wire-independent)
+// ---------------------------------------------------------------------------
+
+/// Reason a child token's capability set cannot be delegated from a parent's.
+///
+/// A child cap violates the delegation rule in one of two ways:
+/// - [`Self::Missing`] — parent doesn't hold the cap at all.
+/// - [`Self::NotDelegatable`] — parent holds the cap but with `delegatable=false`.
+///
+/// Reported in child-cap discriminant order so callers (and tests) see a
+/// deterministic first-offender surface.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DelegationError {
+    Missing(Cap),
+    NotDelegatable(Cap),
+}
+
+impl core::fmt::Display for DelegationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Missing(cap) => write!(f, "parent does not hold capability {cap:?}"),
+            Self::NotDelegatable(cap) => {
+                write!(f, "parent capability {cap:?} is not delegatable")
+            }
+        }
+    }
+}
+
+impl std::error::Error for DelegationError {}
+
+/// Enforce the UCAN attenuation rule for one parent → child hop:
+///
+/// For every cap the child holds, the parent MUST hold that same cap AND
+/// have it marked `delegatable=true`. A child that adds a cap the parent
+/// never had, or a cap the parent held only for its own exercise
+/// (`delegatable=false`), is rejected.
+///
+/// Note: this function only checks *this hop*. The full UCAN chain walker
+/// applies it pairwise along the `prf` chain — that integration lands with
+/// C.5.
+pub fn enforce_delegatable(
+    parent: &CapabilitySet,
+    child: &CapabilitySet,
+) -> Result<(), DelegationError> {
+    for entry in child.entries() {
+        match parent.entries().find(|p| p.cap == entry.cap) {
+            None => return Err(DelegationError::Missing(entry.cap)),
+            Some(parent_entry) if !parent_entry.delegatable => {
+                return Err(DelegationError::NotDelegatable(entry.cap));
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Serde: canonical array form, lenient about input order, strict on duplicates
 // ---------------------------------------------------------------------------
 

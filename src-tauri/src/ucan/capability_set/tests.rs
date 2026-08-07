@@ -1,4 +1,4 @@
-use super::{Cap, CapEntry, CapabilitySet};
+use super::{enforce_delegatable, Cap, CapEntry, CapabilitySet, DelegationError};
 
 #[test]
 fn capability_set_is_orthogonal() {
@@ -125,4 +125,75 @@ fn cap_entry_direct_construction() {
     };
     assert_eq!(entry.cap, Cap::Write);
     assert!(entry.delegatable);
+}
+
+// ---------------------------------------------------------------------------
+// C.2 — Chain-verify delegatable enforcement (pure predicate fn)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn enforce_delegatable_allows_delegation_of_delegatable_cap() {
+    let parent = CapabilitySet::builder().read(true).build();
+    let child = CapabilitySet::builder().read(false).build();
+    assert!(enforce_delegatable(&parent, &child).is_ok());
+}
+
+#[test]
+fn enforce_delegatable_rejects_non_delegatable_parent() {
+    let parent = CapabilitySet::builder().invite(false).build();
+    let child = CapabilitySet::builder().invite(true).build();
+    let err = enforce_delegatable(&parent, &child).unwrap_err();
+    assert_eq!(err, DelegationError::NotDelegatable(Cap::Invite));
+}
+
+#[test]
+fn enforce_delegatable_rejects_missing_cap_in_parent() {
+    let parent = CapabilitySet::builder().read(true).build();
+    let child = CapabilitySet::builder().write(false).build();
+    let err = enforce_delegatable(&parent, &child).unwrap_err();
+    assert_eq!(err, DelegationError::Missing(Cap::Write));
+}
+
+#[test]
+fn enforce_delegatable_empty_child_is_ok() {
+    let parent = CapabilitySet::builder().read(true).build();
+    let child = CapabilitySet::default();
+    assert!(enforce_delegatable(&parent, &child).is_ok());
+}
+
+#[test]
+fn enforce_delegatable_child_subset_of_parent() {
+    let parent = CapabilitySet::builder()
+        .read(true)
+        .write(true)
+        .invite(true)
+        .build();
+    let child = CapabilitySet::builder().read(false).write(false).build();
+    assert!(enforce_delegatable(&parent, &child).is_ok());
+}
+
+#[test]
+fn enforce_delegatable_reports_first_violating_cap_by_discriminant_order() {
+    // Child holds Read (parent OK, delegatable) + Write (parent has, not delegatable)
+    // + Invite (parent doesn't have). First violation encountered walking child in
+    // discriminant order is Write (NotDelegatable) — that must be reported first,
+    // NOT Invite (Missing). Deterministic error surface for debuggers/tests.
+    let parent = CapabilitySet::builder().read(true).write(false).build();
+    let child = CapabilitySet::builder()
+        .read(false)
+        .write(true)
+        .invite(false)
+        .build();
+    let err = enforce_delegatable(&parent, &child).unwrap_err();
+    assert_eq!(err, DelegationError::NotDelegatable(Cap::Write));
+}
+
+#[test]
+fn cap_holder_may_exercise_even_without_delegatability() {
+    // The plan (`cap_can_be_exercised_even_if_not_delegatable`) — holding a
+    // non-delegatable cap is still a valid hold; the flag only gates onward
+    // delegation, not exercise. `can()` must NOT depend on `delegatable`.
+    let set = CapabilitySet::builder().invite(false).build();
+    assert!(set.can(Cap::Invite));
+    assert!(!set.is_delegatable(Cap::Invite));
 }
