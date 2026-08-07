@@ -421,8 +421,12 @@ jobs:
     # too, not from a slow build but a slow apt-get against the Azure
     # Ubuntu mirror (~15 min for a handful of dev packages) eating most of
     # the 30 min budget before the real build even started — same fix,
-    # same headroom as macOS.
-    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 45 || 35 }}
+    # same headroom as macOS. Windows also does a second, CSP-patched
+    # build for the e2e artifact (see "Build E2E binary with Tailscale
+    # CSP (Windows)" below); on a cold cache the two builds together hit
+    # the 45 min cap mid-compile and got cancelled, so it needs the same
+    # kind of headroom macOS already has for its aarch64 leg.
+    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 60 || 35 }}
     strategy:
       fail-fast: false
       matrix:
