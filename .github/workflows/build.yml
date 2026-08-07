@@ -417,8 +417,12 @@ jobs:
     # cache plus ~2 min for cache save — the extra headroom on Windows/
     # macOS prevents the cache-save step from being killed by the
     # timeout, which would leave the cache unpopulated and trap us in a
-    # loop of cold-compile runs.
-    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 45 || matrix.platform == 'macos-latest' && 35 || 30 }}
+    # loop of cold-compile runs. Linux hit the same class of problem once
+    # too, not from a slow build but a slow apt-get against the Azure
+    # Ubuntu mirror (~15 min for a handful of dev packages) eating most of
+    # the 30 min budget before the real build even started — same fix,
+    # same headroom as macOS.
+    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 45 || 35 }}
     strategy:
       fail-fast: false
       matrix:
