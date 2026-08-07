@@ -265,20 +265,39 @@ jobs:
       - name: Check formatting
         run: cd src-tauri && cargo fmt --check
 
-  # Desktop E2E tests (run after desktop build, independent of Android)
+  # Desktop E2E tests (run after desktop build, independent of Android).
+  # One matrix leg per built binary (linux/windows/macos) so all three run
+  # in parallel rather than sequentially. Each leg calls the same reusable
+  # workflow with its own artifact + haex_vault_platform; haex-e2e-tests
+  # picks the right runner/automation path (tauri-driver, tauri-driver +
+  # msedgedriver, or the in-process WebDriver plugin) from that input.
   e2e-tests:
     needs: [test, check-skip, build-desktop]
     if: needs.check-skip.outputs.should_skip != 'true' && needs.check-skip.outputs.skip_e2e != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            artifact: haex-vault-linux-e2e
+          - platform: windows
+            artifact: haex-vault-windows-e2e
+          - platform: macos
+            artifact: haex-vault-macos-e2e
     uses: haex-space/haex-e2e-tests/.github/workflows/e2e-tests.yml@main
+    # Forwards this repo's secrets, notably TS_AUTHKEY (needed by the
+    # windows/macos legs' Tailscale bridge — see haex-e2e-tests).
+    secrets: inherit
     with:
       build_type: build
       # Clone the same ref we just built from so the Nuxt/TS bundle matches
       # the Rust binary. Without this the frontend falls back to 'main' and
       # ships a different contract than the backend, e.g. missing fields
       # that the Rust command layer now requires.
-      haex_vault_version: ${{ github.head_ref || github.ref_name }}
-      haex_vault_artifact: haex-vault-linux-e2e
+      haex_vault_version: ${{ inputs.ref || github.head_ref || github.ref_name }}
+      haex_vault_artifact: ${{ matrix.artifact }}
       haex_vault_artifact_run_id: ${{ github.run_id }}
+      haex_vault_platform: ${{ matrix.platform }}
       haextension_version: main
       vault_sdk_version: main
       sync_server_version: main
@@ -387,12 +406,24 @@ jobs:
     if: needs.check-skip.outputs.should_skip != 'true'
     # Cap build time so a hung apt-get or CDN 504 doesn't silently burn
     # 6 hours of runner time (GitHub's default) and block the release
-    # pipeline indefinitely. Observed normal runtime: Linux/macOS ~15-22 min,
-    # Windows ~27 min on a cold cache plus ~2 min for cache save — the extra
-    # headroom on Windows prevents the cache-save step from being killed by
-    # the timeout, which would leave the cache unpopulated and trap us in a
-    # loop of cold-compile runs.
-    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 45 || 30 }}
+    # pipeline indefinitely. Observed normal runtime: Linux ~15-22 min,
+    # macOS ~15-22 min normally but the aarch64 leg also does a second,
+    # CSP-patched build for the e2e artifact (see "Build E2E binary with
+    # Tailscale CSP (macOS)" below) which pushed one run to the full 30
+    # min and got cancelled mid cache-save, Windows ~27 min on a cold
+    # cache plus ~2 min for cache save — the extra headroom on Windows/
+    # macOS prevents the cache-save step from being killed by the
+    # timeout, which would leave the cache unpopulated and trap us in a
+    # loop of cold-compile runs. Linux hit the same class of problem once
+    # too, not from a slow build but a slow apt-get against the Azure
+    # Ubuntu mirror (~15 min for a handful of dev packages) eating most of
+    # the 30 min budget before the real build even started — same fix,
+    # same headroom as macOS. Windows also does a second, CSP-patched
+    # build for the e2e artifact (see "Build E2E binary with Tailscale
+    # CSP (Windows)" below); on a cold cache the two builds together hit
+    # the 45 min cap mid-compile and got cancelled, so it needs the same
+    # kind of headroom macOS already has for its aarch64 leg.
+    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 60 || 35 }}
     strategy:
       fail-fast: false
       matrix:
@@ -520,138 +551,6 @@ jobs:
         with:
           args: ${{ matrix.args }}
 
-      - name: Smoke test Windows binary
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          function Test-TcpPort {
-            param([int] $Port)
-
-            $client = [System.Net.Sockets.TcpClient]::new()
-            try {
-              $client.Connect('127.0.0.1', $Port)
-              return $true
-            } catch {
-              return $false
-            } finally {
-              $client.Dispose()
-            }
-          }
-
-          $exe = Join-Path $PWD 'src-tauri\target\release\haex-vault.exe'
-          if (!(Test-Path $exe)) {
-            throw "Windows binary not found at $exe"
-          }
-
-          if (Test-TcpPort 19455) {
-            throw 'External bridge port 19455 is already in use before haex-vault.exe starts'
-          }
-
-          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
-          try {
-            $ready = $false
-            for ($i = 0; $i -lt 60; $i++) {
-              if ($process.HasExited) {
-                throw "haex-vault.exe exited early with code $($process.ExitCode)"
-              }
-
-              if (Test-TcpPort 19455) {
-                $ready = $true
-                break
-              }
-
-              Start-Sleep -Seconds 1
-            }
-
-            if (!$ready) {
-              throw 'External bridge port 19455 did not open within 60 seconds'
-            }
-          } finally {
-            if (!$process.HasExited) {
-              Stop-Process -Id $process.Id -Force
-              $process.WaitForExit()
-            }
-          }
-
-      - name: Smoke test macOS binary
-        if: matrix.platform == 'macos-latest'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          port_open() {
-            nc -z 127.0.0.1 19455 >/dev/null 2>&1
-          }
-
-          case "$(uname -m)" in
-            arm64)
-              native_target="aarch64-apple-darwin"
-              ;;
-            x86_64)
-              native_target="x86_64-apple-darwin"
-              ;;
-            *)
-              echo "::warning::Unsupported macOS runner architecture: $(uname -m). Skipping binary smoke test."
-              exit 0
-              ;;
-          esac
-
-          if [[ "${{ matrix.args }}" != *"$native_target"* ]]; then
-            echo "Skipping smoke test for cross-built target: ${{ matrix.args }} on $(uname -m)"
-            exit 0
-          fi
-
-          app_dir="src-tauri/target/$native_target/release/bundle/macos/Haex Vault.app"
-          app_exe=""
-          for candidate in "$app_dir/Contents/MacOS"/*; do
-            if [ -f "$candidate" ] && [ -x "$candidate" ]; then
-              app_exe="$candidate"
-              break
-            fi
-          done
-          if [ -z "$app_exe" ] || [ ! -x "$app_exe" ]; then
-            echo "::error::macOS app executable not found under $app_dir/Contents/MacOS"
-            exit 1
-          fi
-
-          if port_open; then
-            echo "::error::External bridge port 19455 is already in use before Haex Vault starts"
-            exit 1
-          fi
-
-          "$app_exe" &
-          app_pid=$!
-
-          cleanup() {
-            if kill -0 "$app_pid" 2>/dev/null; then
-              kill "$app_pid" 2>/dev/null || true
-              sleep 2
-              kill -9 "$app_pid" 2>/dev/null || true
-            fi
-          }
-          trap cleanup EXIT
-
-          for _ in {1..60}; do
-            if ! kill -0 "$app_pid" 2>/dev/null; then
-              exit_code=0
-              wait "$app_pid" || exit_code=$?
-              echo "::error::Haex Vault exited early with code $exit_code"
-              exit 1
-            fi
-
-            if port_open; then
-              echo "External bridge opened on port 19455"
-              exit 0
-            fi
-
-            sleep 1
-          done
-
-          echo "::error::External bridge port 19455 did not open within 60 seconds"
-          exit 1
-
       - name: Upload artifacts (macOS)
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v7
@@ -660,6 +559,51 @@ jobs:
           path: |
             src-tauri/target/*/release/bundle/dmg/*.dmg
             src-tauri/target/*/release/bundle/macos/*.app
+
+      # Build E2E binary with relaxed CSP for the Tailscale-reachable backend
+      # stack (see haex-e2e-tests) and the in-process WebDriver plugin
+      # enabled (tauri-driver has no WKWebView support on macOS). Native
+      # (aarch64) leg only: GitHub's macos-latest runner is Apple Silicon, so
+      # the cross-compiled x86_64 leg can't even execute what it produces.
+      # TAILSCALE_TAILNET_DOMAIN must be configured as a repo/org Actions
+      # variable (the MagicDNS suffix of the tailnet used by haex-e2e-tests).
+      - name: Build E2E binary with Tailscale CSP (macOS)
+        if: matrix.platform == 'macos-latest' && contains(matrix.args, 'aarch64')
+        env:
+          # Routed through env instead of interpolating ${{ vars.* }} directly
+          # into the shell script: GHA expands template expressions before
+          # the shell sees them, so a raw interpolation is a template-
+          # injection risk if the variable ever contained shell metachars.
+          TAILSCALE_TAILNET_DOMAIN: ${{ vars.TAILSCALE_TAILNET_DOMAIN }}
+        run: |
+          if [ -z "$TAILSCALE_TAILNET_DOMAIN" ]; then
+            echo "::error::TAILSCALE_TAILNET_DOMAIN repo/org Actions variable is not set — required to build the macOS e2e binary's CSP"
+            exit 1
+          fi
+          # --arg (not string interpolation) keeps the domain value as inert
+          # JSON-encoded data, never part of the jq program text.
+          jq --arg domain "$TAILSCALE_TAILNET_DOMAIN" \
+            '.app.security.csp["connect-src"] += ["http://*." + $domain + ":8000", "http://*." + $domain + ":8001", "http://*." + $domain + ":3001", "ws://*." + $domain + ":8000", "wss://*." + $domain + ":8000"]' \
+            src-tauri/tauri.conf.json > /tmp/tauri-e2e.conf.json && \
+            mv /tmp/tauri-e2e.conf.json src-tauri/tauri.conf.json
+          # `cargo tauri` isn't installed as a standalone subcommand in this
+          # job (tauri-apps/tauri-action doesn't expose it on PATH) — use the
+          # already-installed @tauri-apps/cli from node_modules instead. Run
+          # from the repo root: tauri-cli auto-locates src-tauri/ from there,
+          # same as the pnpm-driven "Build Tauri app" step above.
+          pnpm tauri build --target aarch64-apple-darwin --features tauri/custom-protocol,e2e-webdriver-macos
+
+      - name: Upload macOS binary for E2E tests
+        if: matrix.platform == 'macos-latest' && contains(matrix.args, 'aarch64')
+        uses: actions/upload-artifact@v7
+        with:
+          name: haex-vault-macos-e2e
+          # database/ holds the migration resources tauri places next to the
+          # bundled app — see the Linux e2e upload comment below for why.
+          path: |
+            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Haex Vault.app
+            src-tauri/target/aarch64-apple-darwin/release/database
+          retention-days: 1
 
       - name: Upload artifacts (Ubuntu)
         if: startsWith(matrix.platform, 'ubuntu-22.04')
@@ -721,6 +665,61 @@ jobs:
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
+
+      # Build E2E binary with relaxed CSP for the Tailscale-reachable backend
+      # stack (see haex-e2e-tests). tauri-driver's Windows support (Microsoft
+      # Edge WebDriver against WebView2) is official, so no extra plugin
+      # feature is needed here — only the CSP + custom-protocol rebuild, same
+      # as the Linux e2e path. TAILSCALE_TAILNET_DOMAIN must be configured as
+      # a repo/org Actions variable (see the macOS e2e step above).
+      #
+      # additionalBrowserArgs/dataDirectory: as of WebView2 Evergreen ~150,
+      # a security hardening change makes WebView2 IGNORE the WEBVIEW2_*
+      # environment variable / HKCU-policy mechanism it used to read
+      # browser args from whenever the host process runs elevated — which
+      # is exactly what GitHub's Windows runner user is. tauri-driver's
+      # `tauri:options.webviewOptions.additionalBrowserArguments` capability
+      # goes through that same (now-ignored) mechanism, so msedgedriver's
+      # "New Session" call always failed with "session not created:
+      # DevToolsActivePort file doesn't exist" — WebView2 never actually
+      # opened a debug port for it to find. Baking `--remote-debugging-
+      # port=0` into the COMPILED config instead is "trusted" input (an
+      # app API call, not a user-writable env var/policy) and still works
+      # under elevation. dataDirectory is fixed and must match the
+      # `webviewOptions.userDataFolder` the E2E harness sends when creating
+      # the session (see global-setup.ts) — that's where WebView2 writes
+      # the DevToolsActivePort file msedgedriver polls for.
+      - name: Build E2E binary with Tailscale CSP (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          # See the macOS e2e step's comment above for why this goes through
+          # env instead of direct ${{ vars.* }} interpolation.
+          TAILSCALE_TAILNET_DOMAIN: ${{ vars.TAILSCALE_TAILNET_DOMAIN }}
+        run: |
+          if [ -z "$TAILSCALE_TAILNET_DOMAIN" ]; then
+            echo "::error::TAILSCALE_TAILNET_DOMAIN repo/org Actions variable is not set — required to build the Windows e2e binary's CSP"
+            exit 1
+          fi
+          jq --arg domain "$TAILSCALE_TAILNET_DOMAIN" \
+            '.app.security.csp["connect-src"] += ["http://*." + $domain + ":8000", "http://*." + $domain + ":8001", "http://*." + $domain + ":3001", "ws://*." + $domain + ":8000", "wss://*." + $domain + ":8000"]
+             | .app.windows[0].additionalBrowserArgs = "--remote-debugging-port=0 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+             | .app.windows[0].dataDirectory = "C:\\haex-e2e-webview-data"' \
+            src-tauri/tauri.conf.json > /tmp/tauri-e2e.conf.json && \
+            mv /tmp/tauri-e2e.conf.json src-tauri/tauri.conf.json
+          cd src-tauri && cargo build --release --features tauri/custom-protocol
+
+      - name: Upload Windows binary for E2E tests
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: haex-vault-windows-e2e
+          # database/ holds the migration resources tauri places next to the
+          # binary — see the Linux e2e upload comment below for why.
+          path: |
+            src-tauri/target/release/haex-vault.exe
+            src-tauri/target/release/database
+          retention-days: 1
 
   build-android:
     needs: [test, check-skip]
