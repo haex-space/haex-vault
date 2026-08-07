@@ -662,6 +662,23 @@ jobs:
       # feature is needed here — only the CSP + custom-protocol rebuild, same
       # as the Linux e2e path. TAILSCALE_TAILNET_DOMAIN must be configured as
       # a repo/org Actions variable (see the macOS e2e step above).
+      #
+      # additionalBrowserArgs/dataDirectory: as of WebView2 Evergreen ~150,
+      # a security hardening change makes WebView2 IGNORE the WEBVIEW2_*
+      # environment variable / HKCU-policy mechanism it used to read
+      # browser args from whenever the host process runs elevated — which
+      # is exactly what GitHub's Windows runner user is. tauri-driver's
+      # `tauri:options.webviewOptions.additionalBrowserArguments` capability
+      # goes through that same (now-ignored) mechanism, so msedgedriver's
+      # "New Session" call always failed with "session not created:
+      # DevToolsActivePort file doesn't exist" — WebView2 never actually
+      # opened a debug port for it to find. Baking `--remote-debugging-
+      # port=0` into the COMPILED config instead is "trusted" input (an
+      # app API call, not a user-writable env var/policy) and still works
+      # under elevation. dataDirectory is fixed and must match the
+      # `webviewOptions.userDataFolder` the E2E harness sends when creating
+      # the session (see global-setup.ts) — that's where WebView2 writes
+      # the DevToolsActivePort file msedgedriver polls for.
       - name: Build E2E binary with Tailscale CSP (Windows)
         if: matrix.platform == 'windows-latest'
         shell: bash
@@ -675,7 +692,9 @@ jobs:
             exit 1
           fi
           jq --arg domain "$TAILSCALE_TAILNET_DOMAIN" \
-            '.app.security.csp["connect-src"] += ["http://*." + $domain + ":8000", "http://*." + $domain + ":8001", "http://*." + $domain + ":3001", "ws://*." + $domain + ":8000", "wss://*." + $domain + ":8000"]' \
+            '.app.security.csp["connect-src"] += ["http://*." + $domain + ":8000", "http://*." + $domain + ":8001", "http://*." + $domain + ":3001", "ws://*." + $domain + ":8000", "wss://*." + $domain + ":8000"]
+             | .app.windows[0].additionalBrowserArgs = "--remote-debugging-port=0 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+             | .app.windows[0].dataDirectory = "C:\\haex-e2e-webview-data"' \
             src-tauri/tauri.conf.json > /tmp/tauri-e2e.conf.json && \
             mv /tmp/tauri-e2e.conf.json src-tauri/tauri.conf.json
           cd src-tauri && cargo build --release --features tauri/custom-protocol

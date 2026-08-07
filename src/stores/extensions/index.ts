@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { readFile } from '@tauri-apps/plugin-fs'
 import { getExtensionUrl, getExtensionIconUrl } from '~/utils/extension'
 
@@ -166,7 +167,14 @@ export const useExtensionsStore = defineStore('extensionsStore', () => {
    */
   const downloadAndPreviewAsync = async (downloadUrl: string, _expectedHash?: string) => {
     try {
-      const response = await fetch(downloadUrl)
+      // The webview's own fetch is subject to platform network policy
+      // (e.g. macOS WKWebView's App Transport Security blocks plain HTTP to
+      // hosts outside its local-network exception list, which a
+      // self-hosted marketplace on a non-RFC1918 address — a Tailscale
+      // CGNAT IP, a LAN host by hostname, etc. — doesn't qualify for).
+      // Tauri's HTTP plugin proxies through the Rust backend instead,
+      // same as buildAuthedFetch() in useMarketplaces.ts, so it isn't.
+      const response = await tauriFetch(downloadUrl)
 
       if (!response.ok) {
         throw new Error(`Download fehlgeschlagen: ${response.status} ${response.statusText}`)
