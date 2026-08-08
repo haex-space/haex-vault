@@ -193,6 +193,12 @@ pub enum UcanVerifyError {
     /// (e.g. Write child under a Read parent).
     #[error("child capability exceeds parent capability")]
     CapabilityEscalation,
+    /// A child token claims a row-level capability that its parent does not
+    /// hold for the same space. MVP enforces structural equality on
+    /// `(variant, predicate)`; Predicate-strictness comparison is not yet
+    /// modelled (see `walk_prf_chain` docs).
+    #[error("row-cap attenuation failed for space {space_id}")]
+    RowCapAttenuation { space_id: String },
     /// Chain terminated at a token that is not a proper root — either its
     /// `proofs` list is non-empty but the walk depth was exhausted first,
     /// or it has no proofs but is not self-signed at Admin level.
@@ -454,6 +460,30 @@ fn walk_prf_chain(
             .ok_or(UcanVerifyError::WrongSpace)?;
         if !parent_cap.allows(&current_cap) {
             return Err(UcanVerifyError::CapabilityEscalation);
+        }
+
+        // Row-cap attenuation (C.5). Every row-cap the child claims for
+        // `expected_space_id` must appear structurally in the parent's
+        // row-cap set. MVP is exact-match on (variant, predicate); a
+        // strictness-aware Predicate subset check is left as a future
+        // attenuation rule (P1 ⊑ P2 is NP-hard in the general case).
+        //
+        // Row-caps are OPT-IN per hop: a child that carries no row-caps
+        // inherits nothing — no free lunch — but its silence is not a
+        // violation either. Only *claiming* an unheld cap is an escalation.
+        if let Some(child_caps) = current.row_capabilities.get(expected_space_id) {
+            let empty: Vec<RowCapability> = Vec::new();
+            let parent_caps = parent
+                .row_capabilities
+                .get(expected_space_id)
+                .unwrap_or(&empty);
+            for child_cap in child_caps {
+                if !parent_caps.contains(child_cap) {
+                    return Err(UcanVerifyError::RowCapAttenuation {
+                        space_id: expected_space_id.to_string(),
+                    });
+                }
+            }
         }
 
         current = parent;

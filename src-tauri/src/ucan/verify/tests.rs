@@ -630,3 +630,256 @@ fn parse_ucan_ignores_row_cap_entries_without_space_prefix() {
     assert_eq!(parsed.row_capabilities.len(), 1);
     assert!(parsed.row_capabilities.contains_key("space-abc"));
 }
+
+// ---------------------------------------------------------------------------
+// walk_prf_chain — row-cap attenuation (Task 3)
+// ---------------------------------------------------------------------------
+//
+// The chain walker already enforces CapabilityLevel attenuation
+// (parent_cap.allows(child_cap)). This block extends that discipline to
+// row-caps: every row-cap the child claims must appear structurally in the
+// parent's row-cap set for the same space. See UcanVerifyError::RowCapAttenuation.
+//
+// MVP semantics (documented in walk_prf_chain):
+//  - Exact structural equality on (variant, predicate). No Predicate P1 ⊑ P2
+//    comparison — that is NP-hard in the general case; leave it as a future
+//    attenuation rule when concrete cases demand it.
+//  - Row-caps are opt-in per hop: a child MAY omit row-caps entirely and
+//    inherit the parent's silently (in the sense that no further claim is
+//    made — the child does NOT gain the parent's row-caps by omission).
+
+/// Build a 2-hop chain: self-signed admin root + delegated leaf. The root
+/// carries `root_row_cap`; the leaf carries `leaf_row_cap`. Returns
+/// `(leaf_token, root_did, leaf_aud_did, space_id)`.
+fn build_two_hop_with_row_caps(
+    root_key: &SigningKey,
+    leaf_key: &SigningKey,
+    root_row_cap: serde_json::Value,
+    leaf_row_cap: serde_json::Value,
+) -> (String, String, String, String) {
+    use crate::ucan::space_id::derive_space_id;
+    use ed25519_dalek::Signer;
+
+    let root_did = did_from_verifying_key(&root_key.verifying_key());
+    let leaf_did = did_from_verifying_key(&leaf_key.verifying_key());
+    let space_id = derive_space_id(&root_did, &[0x11; 16]);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    // Root: self-signed admin.
+    let root_payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": root_did,
+        "aud": root_did,
+        "cap": { format!("space:{}", space_id): "space/admin" },
+        "row_cap": root_row_cap,
+        "exp": now + 3600,
+        "iat": now,
+        "prf": [],
+        "nnc": "root"
+    });
+    let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
+    let header_b64 = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
+    let root_payload_b64 =
+        BASE64URL.encode(serde_json::to_string(&root_payload).unwrap().as_bytes());
+    let root_sig = root_key.sign(format!("{}.{}", header_b64, root_payload_b64).as_bytes());
+    let root_token = format!(
+        "{}.{}.{}",
+        header_b64,
+        root_payload_b64,
+        BASE64URL.encode(root_sig.to_bytes())
+    );
+
+    // Leaf: issued by root, audience=leaf_did.
+    let leaf_payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": root_did,
+        "aud": leaf_did,
+        "cap": { format!("space:{}", space_id): "space/admin" },
+        "row_cap": leaf_row_cap,
+        "exp": now + 3600,
+        "iat": now,
+        "prf": [root_token],
+        "nnc": "leaf"
+    });
+    let leaf_payload_b64 =
+        BASE64URL.encode(serde_json::to_string(&leaf_payload).unwrap().as_bytes());
+    // NB: leaf is signed by ROOT (iss=root_did) — same key that signed the root.
+    let leaf_sig = root_key.sign(format!("{}.{}", header_b64, leaf_payload_b64).as_bytes());
+    let leaf_token = format!(
+        "{}.{}.{}",
+        header_b64,
+        leaf_payload_b64,
+        BASE64URL.encode(leaf_sig.to_bytes())
+    );
+
+    (leaf_token, root_did, leaf_did, space_id)
+}
+
+fn row_cap_insert_where_cat(value: &str) -> serde_json::Value {
+    serde_json::json!({
+        "op": "row_insert",
+        "where": { "col": "cat", "eq": value },
+    })
+}
+
+/// Compute the deterministic space_id for a given key's DID. The 2-hop
+/// helper below uses the same nonce, so tests can precompute the space_id
+/// before choosing row_caps that reference it.
+fn deterministic_space_id_for(key: &SigningKey) -> String {
+    use crate::ucan::space_id::derive_space_id;
+    let did = did_from_verifying_key(&key.verifying_key());
+    derive_space_id(&did, &[0x11; 16])
+}
+
+#[test]
+fn walk_chain_rejects_when_child_claims_row_cap_parent_lacks() {
+    // Attack B: parent has no row_cap; child claims one. Delegatee cannot
+    // grant itself capabilities the delegator never held.
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    let space_id = deterministic_space_id_for(&root_key);
+    let leaf_row_cap = serde_json::json!({
+        format!("space:{}", space_id): [row_cap_insert_where_cat("work")],
+    });
+    let (leaf_token, _root_did, leaf_did, _space_id) = build_two_hop_with_row_caps(
+        &root_key,
+        &leaf_key,
+        serde_json::json!({}), // parent: nothing
+        leaf_row_cap,
+    );
+    let err =
+        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap_err();
+    match err {
+        UcanVerifyError::RowCapAttenuation { space_id: reported } => {
+            assert_eq!(reported, space_id, "RowCapAttenuation must name the space");
+        }
+        other => panic!("expected RowCapAttenuation for {space_id}, got {other:?}"),
+    }
+}
+
+#[test]
+fn walk_chain_accepts_identical_row_caps_on_both_hops() {
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    let space_id = deterministic_space_id_for(&root_key);
+    let same_caps = serde_json::json!({
+        format!("space:{}", space_id): [row_cap_insert_where_cat("work")],
+    });
+    let (leaf_token, _root_did, leaf_did, _space_id) =
+        build_two_hop_with_row_caps(&root_key, &leaf_key, same_caps.clone(), same_caps);
+    let validated =
+        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    assert_eq!(validated.row_capabilities.get(&space_id).unwrap().len(), 1);
+}
+
+#[test]
+fn walk_chain_accepts_child_row_caps_that_are_subset_of_parent() {
+    // Parent has three row-caps; child holds two of them. Attenuation
+    // must accept the strict subset.
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    let space_id = deterministic_space_id_for(&root_key);
+    let parent_caps = serde_json::json!({
+        format!("space:{}", space_id): [
+            row_cap_insert_where_cat("work"),
+            row_cap_insert_where_cat("home"),
+            row_cap_insert_where_cat("misc"),
+        ],
+    });
+    let child_caps = serde_json::json!({
+        format!("space:{}", space_id): [
+            row_cap_insert_where_cat("work"),
+            row_cap_insert_where_cat("misc"),
+        ],
+    });
+    let (leaf_token, _root_did, leaf_did, _space_id) =
+        build_two_hop_with_row_caps(&root_key, &leaf_key, parent_caps, child_caps);
+    let validated =
+        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    assert_eq!(validated.row_capabilities.get(&space_id).unwrap().len(), 2);
+}
+
+#[test]
+fn walk_chain_rejects_when_child_has_extra_row_cap_beyond_parent() {
+    // Attack C: overlap plus one extra. The overlap alone would validate;
+    // the walker must still reject on the single un-inherited cap.
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    let space_id = deterministic_space_id_for(&root_key);
+    let parent_caps = serde_json::json!({
+        format!("space:{}", space_id): [row_cap_insert_where_cat("work")],
+    });
+    let child_caps = serde_json::json!({
+        format!("space:{}", space_id): [
+            row_cap_insert_where_cat("work"),
+            row_cap_insert_where_cat("secret"),  // <-- not in parent
+        ],
+    });
+    let (leaf_token, _root_did, leaf_did, _space_id) =
+        build_two_hop_with_row_caps(&root_key, &leaf_key, parent_caps, child_caps);
+    let err =
+        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap_err();
+    assert!(matches!(err, UcanVerifyError::RowCapAttenuation { .. }));
+}
+
+#[test]
+fn walk_chain_rejects_when_child_op_differs_even_with_same_predicate() {
+    // Attack D: same predicate, different operation. row_insert and
+    // row_delete are structurally distinct RowCapability variants; the
+    // parent granting one must not implicitly grant the other.
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    let space_id = deterministic_space_id_for(&root_key);
+    let parent_caps = serde_json::json!({
+        format!("space:{}", space_id): [
+            {"op": "row_insert", "where": {"col": "cat", "eq": "work"}},
+        ],
+    });
+    let child_caps = serde_json::json!({
+        format!("space:{}", space_id): [
+            {"op": "row_delete", "where": {"col": "cat", "eq": "work"}},
+        ],
+    });
+    let (leaf_token, _root_did, leaf_did, _space_id) =
+        build_two_hop_with_row_caps(&root_key, &leaf_key, parent_caps, child_caps);
+    let err =
+        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap_err();
+    assert!(matches!(err, UcanVerifyError::RowCapAttenuation { .. }));
+}
+
+#[test]
+fn walk_chain_accepts_child_with_no_row_caps_under_parent_with_row_caps() {
+    // "Opt-in per hop" semantics: a child claiming nothing gets nothing;
+    // it does not need to explicitly acknowledge the parent's row-caps.
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    let space_id = deterministic_space_id_for(&root_key);
+    let parent_caps = serde_json::json!({
+        format!("space:{}", space_id): [row_cap_insert_where_cat("work")],
+    });
+    let (leaf_token, _root_did, leaf_did, _space_id) =
+        build_two_hop_with_row_caps(&root_key, &leaf_key, parent_caps, serde_json::json!({}));
+    let validated =
+        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    assert!(validated.row_capabilities.is_empty());
+}
+
+#[test]
+fn walk_chain_accepts_two_hop_with_no_row_caps_on_either_side() {
+    // Baseline sanity: today's tokens (pre-C.5, no row_cap) keep working.
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    let space_id = deterministic_space_id_for(&root_key);
+    let (leaf_token, _root_did, leaf_did, _space_id) = build_two_hop_with_row_caps(
+        &root_key,
+        &leaf_key,
+        serde_json::json!({}),
+        serde_json::json!({}),
+    );
+    let validated =
+        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    assert!(validated.row_capabilities.is_empty());
+}
