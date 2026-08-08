@@ -210,12 +210,19 @@ impl CapabilitySetBuilder {
         self
     }
 
-    pub fn build(self) -> CapabilitySet {
-        // Builder path cannot produce duplicates (see `with`), so the
-        // `from_entries` error is unreachable here — but going through
-        // it keeps the canonical-order invariant in one place.
-        CapabilitySet::from_entries(self.entries)
-            .expect("builder is duplicate-free by construction")
+    pub fn build(mut self) -> CapabilitySet {
+        // Builder's `with` updates in place, so duplicates are impossible by
+        // construction — only sorting is left to establish the canonical
+        // form. Debug-assert the invariant so a future refactor of `with`
+        // can't silently break it.
+        self.entries.sort_by_key(|e| e.cap as u8);
+        debug_assert!(
+            self.entries.windows(2).all(|w| w[0].cap != w[1].cap),
+            "builder produced duplicate cap entries"
+        );
+        CapabilitySet {
+            entries: self.entries,
+        }
     }
 }
 

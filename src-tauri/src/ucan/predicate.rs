@@ -121,7 +121,7 @@ impl Predicate {
             }
             Predicate::In { col, values } => {
                 let value = row.get(col).cloned().unwrap_or(PrimitiveValue::Null);
-                values.iter().any(|v| *v == value)
+                values.contains(&value)
             }
             Predicate::StartsWith { col, starts_with } => match row.get(col) {
                 Some(PrimitiveValue::String(s)) => s.starts_with(starts_with.as_str()),
