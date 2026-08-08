@@ -205,6 +205,73 @@ fn rejects_empty_object() {
 }
 
 // ---------------------------------------------------------------------------
+// Fail-closed on mixed / extraneous operator fields (CodeRabbit finding on
+// PR #761). Without `deny_unknown_fields`, an untagged serde enum silently
+// picks the first variant whose required fields are present and drops any
+// extras. For an authorisation predicate that is a fail-open bug: a payload
+// that carries `eq` + `starts_with` would deserialise as `Eq`, the
+// `starts_with` constraint would be silently dropped, and the puller would
+// accept rows the issuer meant to constrain further.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rejects_eq_with_extra_starts_with_field() {
+    let json = r#"{"col":"owner","eq":"alice","starts_with":"a"}"#;
+    let result: Result<Predicate, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "eq + starts_with in the same object must be rejected — silently \
+         dropping starts_with would be fail-open"
+    );
+}
+
+#[test]
+fn rejects_eq_with_extra_in_field() {
+    let json = r#"{"col":"owner","eq":"alice","in":["bob"]}"#;
+    let result: Result<Predicate, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_in_with_extra_eq_field() {
+    let json = r#"{"col":"owner","in":["alice"],"eq":"bob"}"#;
+    let result: Result<Predicate, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_starts_with_with_extra_eq_field() {
+    let json = r#"{"col":"owner","starts_with":"al","eq":"bob"}"#;
+    let result: Result<Predicate, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_and_with_extra_operator_field() {
+    // AND-combinator carrying an unrelated leaf operator alongside `and`
+    // — must fail rather than silently ignore the leaf.
+    let json = r#"{"and":[{"col":"a","eq":1}],"eq":"x"}"#;
+    let result: Result<Predicate, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_not_with_extra_operator_field() {
+    let json = r#"{"not":{"col":"a","eq":1},"eq":"x"}"#;
+    let result: Result<Predicate, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_eq_with_completely_extraneous_field() {
+    // Legal Eq form + arbitrary extra field — the extra field is the
+    // fail-open surface CodeRabbit flagged; unknown-fields must be rejected.
+    let json = r#"{"col":"owner","eq":"alice","junk":42}"#;
+    let result: Result<Predicate, _> = serde_json::from_str(json);
+    assert!(result.is_err());
+}
+
+// ---------------------------------------------------------------------------
 // Roundtrip
 // ---------------------------------------------------------------------------
 

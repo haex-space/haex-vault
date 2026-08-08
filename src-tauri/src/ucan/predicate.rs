@@ -30,8 +30,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// A boolean predicate over a row's payload. See module docs for grammar.
+///
+/// **Fail-closed on unknown fields.** `deny_unknown_fields` is critical here:
+/// without it, an untagged enum picks the first variant whose required
+/// fields are present and silently drops any extras. For an authorisation
+/// predicate that is a fail-open bug — `{"col":"owner","eq":"alice",
+/// "starts_with":"a"}` would deserialise as `Eq` and drop the `starts_with`
+/// constraint, so the puller would accept rows the issuer meant to
+/// constrain further. Do NOT remove the attribute.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Predicate {
     And {
         and: Vec<Predicate>,
