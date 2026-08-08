@@ -11,6 +11,7 @@ pub mod capability_set;
 pub mod commands;
 pub mod config;
 mod create;
+pub mod predicate;
 pub mod space_id;
 pub mod verify;
 
