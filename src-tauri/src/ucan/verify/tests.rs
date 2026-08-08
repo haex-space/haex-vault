@@ -6,6 +6,8 @@
 //! `src-tauri/tests/ucan_chain_vectors.rs`.
 
 use super::*;
+use crate::ucan::predicate::{Predicate, PrimitiveValue};
+use crate::ucan::row_capability::RowCapability;
 use ed25519_dalek::SigningKey;
 
 fn did_from_verifying_key(verifying_key: &VerifyingKey) -> String {
@@ -152,6 +154,7 @@ fn dummy_validated_ucan(cap: CapabilityLevel, space_id: &str) -> ValidatedUcan {
         issuer: "did:key:z6MkIssuer".to_string(),
         audience: "did:key:z6MkAudience".to_string(),
         capabilities: caps,
+        row_capabilities: HashMap::new(),
         expires_at: u64::MAX,
         root_did: "did:key:z6MkRoot".to_string(),
     }
@@ -336,6 +339,7 @@ fn require_audience_rejects_empty_expected_regardless_of_token_audience() {
         issuer: "did:key:z6MkIssuer".to_string(),
         audience: String::new(),
         capabilities: HashMap::new(),
+        row_capabilities: HashMap::new(),
         expires_at: 0,
         root_did: "did:key:z6MkRoot".to_string(),
     };
@@ -346,4 +350,283 @@ fn require_audience_rejects_empty_expected_regardless_of_token_audience() {
          the validated audience is also empty (defense in depth: empty \
          == empty would silently bypass the replay-protection layer)"
     );
+}
+
+// ---------------------------------------------------------------------------
+// parse_ucan — row_cap envelope (C.5)
+// ---------------------------------------------------------------------------
+//
+// The `row_cap` payload field is *optional and parallel* to `cap`. It carries
+// a per-space list of [`RowCapability`] objects that the row-sig verifier
+// evaluates against a candidate row payload. Adding this envelope does not
+// alter `cap` semantics — a token can hold either, both, or neither.
+
+/// Build a JWT with a caller-supplied `row_cap` value in the payload.
+///
+/// `row_cap_json` is inserted verbatim; pass `serde_json::Value::Null` (or
+/// don't call this helper) to test the "missing row_cap" path via
+/// [`make_test_token`] instead.
+fn make_token_with_row_cap(
+    signing_key: &SigningKey,
+    space_id: &str,
+    capability: &str,
+    row_cap_json: serde_json::Value,
+    expires_in: u64,
+) -> String {
+    use ed25519_dalek::Signer;
+    let issuer_did = did_from_verifying_key(&signing_key.verifying_key());
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
+    let payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": issuer_did,
+        "aud": "did:key:z6MkAudience",
+        "cap": { format!("space:{}", space_id): capability },
+        "row_cap": row_cap_json,
+        "exp": now + expires_in,
+        "iat": now,
+        "prf": [],
+        "nnc": "row-cap-fixture"
+    });
+    let header_b64 = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
+    let payload_b64 = BASE64URL.encode(serde_json::to_string(&payload).unwrap().as_bytes());
+    let signing_input = format!("{}.{}", header_b64, payload_b64);
+    let signature = signing_key.sign(signing_input.as_bytes());
+    format!(
+        "{}.{}.{}",
+        header_b64,
+        payload_b64,
+        BASE64URL.encode(signature.to_bytes())
+    )
+}
+
+#[test]
+fn parse_ucan_extracts_row_capabilities_for_named_space() {
+    let key = random_signing_key();
+    let row_cap = serde_json::json!({
+        "space:space-abc": [
+            { "op": "row_insert", "where": { "col": "category", "eq": "work" } },
+        ],
+    });
+    let token = make_token_with_row_cap(&key, "space-abc", "space/write", row_cap, 3600);
+    let parsed = parse_ucan(&token).unwrap();
+
+    let caps = parsed
+        .row_capabilities
+        .get("space-abc")
+        .expect("row_capabilities must contain the delegated space");
+    assert_eq!(caps.len(), 1);
+    assert_eq!(
+        caps[0],
+        RowCapability::RowInsert {
+            matches: Predicate::Eq {
+                col: "category".into(),
+                eq: PrimitiveValue::String("work".into()),
+            }
+        },
+    );
+}
+
+#[test]
+fn parse_ucan_missing_row_cap_field_yields_empty_map() {
+    // Backwards compat with today's tokens: no `row_cap` at all is fine.
+    let key = random_signing_key();
+    let token = make_test_token(&key, "space-abc", "space/write", 3600);
+    let parsed = parse_ucan(&token).unwrap();
+    assert!(parsed.row_capabilities.is_empty());
+}
+
+#[test]
+fn parse_ucan_row_cap_empty_object_yields_empty_map() {
+    let key = random_signing_key();
+    let token = make_token_with_row_cap(
+        &key,
+        "space-abc",
+        "space/write",
+        serde_json::json!({}),
+        3600,
+    );
+    let parsed = parse_ucan(&token).unwrap();
+    assert!(parsed.row_capabilities.is_empty());
+}
+
+#[test]
+fn parse_ucan_rejects_row_cap_that_is_not_an_object() {
+    let key = random_signing_key();
+    let token = make_token_with_row_cap(
+        &key,
+        "space-abc",
+        "space/write",
+        serde_json::json!("not-an-object"),
+        3600,
+    );
+    let err = parse_ucan(&token).unwrap_err();
+    assert!(
+        matches!(err, UcanVerifyError::MalformedToken(_)),
+        "row_cap must be an object; got {err:?}",
+    );
+}
+
+#[test]
+fn parse_ucan_rejects_row_cap_entry_that_is_not_an_array() {
+    let key = random_signing_key();
+    let token = make_token_with_row_cap(
+        &key,
+        "space-abc",
+        "space/write",
+        serde_json::json!({ "space:space-abc": "not-an-array" }),
+        3600,
+    );
+    let err = parse_ucan(&token).unwrap_err();
+    assert!(matches!(err, UcanVerifyError::MalformedToken(_)));
+}
+
+#[test]
+fn parse_ucan_rejects_row_cap_with_unknown_op() {
+    // The RowCapability serde is `deny_unknown_fields` + tagged; an unknown
+    // `op` must be surfaced as MalformedToken so a forged token cannot smuggle
+    // an unmodelled operation past the puller.
+    let key = random_signing_key();
+    let token = make_token_with_row_cap(
+        &key,
+        "space-abc",
+        "space/write",
+        serde_json::json!({
+            "space:space-abc": [
+                { "op": "row_read", "where": { "col": "c", "eq": "v" } },
+            ],
+        }),
+        3600,
+    );
+    let err = parse_ucan(&token).unwrap_err();
+    assert!(matches!(err, UcanVerifyError::MalformedToken(_)));
+}
+
+/// Build a self-signed admin root token whose `space_id` binds to the
+/// signer's DID, and which carries a supplied `row_cap` payload. Returns
+/// `(token, iss_did, space_id)`.
+fn make_self_signed_admin_root_with_row_cap(
+    signing_key: &SigningKey,
+    row_cap_json: serde_json::Value,
+) -> (String, String, String) {
+    use crate::ucan::space_id::derive_space_id;
+    use ed25519_dalek::Signer;
+    let iss_did = did_from_verifying_key(&signing_key.verifying_key());
+    // Deterministic nonce keeps the fixture reproducible without adding a
+    // second RNG source; the actual bytes are irrelevant to the binding.
+    let space_id = derive_space_id(&iss_did, &[0xAB; 16]);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
+    let payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": iss_did,
+        "aud": iss_did,  // self-signed root
+        "cap": { format!("space:{}", space_id): "space/admin" },
+        "row_cap": row_cap_json,
+        "exp": now + 3600,
+        "iat": now,
+        "prf": [],
+        "nnc": "self-root-fixture"
+    });
+    let header_b64 = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
+    let payload_b64 = BASE64URL.encode(serde_json::to_string(&payload).unwrap().as_bytes());
+    let signing_input = format!("{}.{}", header_b64, payload_b64);
+    let signature = signing_key.sign(signing_input.as_bytes());
+    let token = format!(
+        "{}.{}.{}",
+        header_b64,
+        payload_b64,
+        BASE64URL.encode(signature.to_bytes())
+    );
+    (token, iss_did, space_id)
+}
+
+#[test]
+fn validate_token_propagates_row_capabilities_to_validated() {
+    let key = random_signing_key();
+    let row_cap = serde_json::json!({}); // populated below with dynamic space_id
+    let (_probe_token, iss_did, space_id) = make_self_signed_admin_root_with_row_cap(&key, row_cap);
+    // Rebuild with the resolved space_id in the row_cap key.
+    let row_cap = serde_json::json!({
+        format!("space:{}", space_id): [
+            { "op": "row_insert", "where": { "col": "cat", "eq": "work" } },
+            { "op": "row_delete", "where": { "col": "cat", "eq": "trash" } },
+        ],
+    });
+    let (token, _iss_did, space_id) = make_self_signed_admin_root_with_row_cap(&key, row_cap);
+
+    let validated = validate_token(&token, &space_id, &iss_did, CapabilityLevel::Admin, 5).unwrap();
+
+    let caps = validated
+        .row_capabilities
+        .get(&space_id)
+        .expect("row_capabilities must be populated for the target space");
+    assert_eq!(caps.len(), 2);
+    assert!(matches!(caps[0], RowCapability::RowInsert { .. }));
+    assert!(matches!(caps[1], RowCapability::RowDelete { .. }));
+}
+
+#[test]
+fn validate_token_yields_empty_row_capabilities_when_field_absent() {
+    // A token with no `row_cap` at all validates fine and exposes an empty
+    // row-cap map on the ValidatedUcan.
+    use crate::ucan::space_id::derive_space_id;
+    use ed25519_dalek::Signer;
+    let key = random_signing_key();
+    let iss_did = did_from_verifying_key(&key.verifying_key());
+    let space_id = derive_space_id(&iss_did, &[0xCD; 16]);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
+    let payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": iss_did,
+        "aud": iss_did,
+        "cap": { format!("space:{}", space_id): "space/admin" },
+        "exp": now + 3600,
+        "iat": now,
+        "prf": [],
+        "nnc": "no-row-cap"
+    });
+    let header_b64 = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
+    let payload_b64 = BASE64URL.encode(serde_json::to_string(&payload).unwrap().as_bytes());
+    let signing_input = format!("{}.{}", header_b64, payload_b64);
+    let signature = key.sign(signing_input.as_bytes());
+    let token = format!(
+        "{}.{}.{}",
+        header_b64,
+        payload_b64,
+        BASE64URL.encode(signature.to_bytes())
+    );
+
+    let validated = validate_token(&token, &space_id, &iss_did, CapabilityLevel::Admin, 5).unwrap();
+    assert!(validated.row_capabilities.is_empty());
+}
+
+#[test]
+fn parse_ucan_ignores_row_cap_entries_without_space_prefix() {
+    // Only `space:<id>` keys are consumed; any other keys (future
+    // resource namespaces) must be silently ignored to keep the wire
+    // envelope forward-compatible.
+    let key = random_signing_key();
+    let row_cap = serde_json::json!({
+        "space:space-abc": [
+            { "op": "row_insert", "where": { "col": "c", "eq": "v" } },
+        ],
+        "future:something-else": [
+            { "op": "row_insert", "where": { "col": "c", "eq": "v" } },
+        ],
+    });
+    let token = make_token_with_row_cap(&key, "space-abc", "space/write", row_cap, 3600);
+    let parsed = parse_ucan(&token).unwrap();
+    assert_eq!(parsed.row_capabilities.len(), 1);
+    assert!(parsed.row_capabilities.contains_key("space-abc"));
 }
