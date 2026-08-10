@@ -68,7 +68,7 @@
     "html5-qrcode": "^2.3.8",
     "katex": "^0.18.1",
     "kdbxweb": "^2.1.1",
-    "md-editor-v3": "^6.5.5",
+    "md-editor-v3": "^6.5.6",
     "mermaid": "^11.16.1",
     "nuxt-zod-i18n": "^1.12.1",
     "otpauth": "^9.5.1",
