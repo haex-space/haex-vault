@@ -78,7 +78,7 @@
     "swiper": "^14.1.0",
     "tailwindcss": "^4.3.3",
     "tldts": "^7.4.9",
-    "vue": "^3.5.40",
+    "vue": "^3.5.41",
     "vue-advanced-cropper": "^2.8.9"
   },
   "devDependencies": {
@@ -96,7 +96,7 @@
     "@vitejs/plugin-vue": "6.0.8",
     "@vitest/ui": "^4.1.10",
     "@vue-dnd-kit/core": "2.4.6",
-    "@vue/compiler-sfc": "^3.5.40",
+    "@vue/compiler-sfc": "^3.5.41",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.8.0",
     "globals": "^17.9.0",
@@ -108,7 +108,7 @@
     "typescript": "^6.0.3",
     "unplugin-auto-import": "^21.1.0",
     "vitest": "^4.1.10",
-    "vue-tsc": "3.3.8",
+    "vue-tsc": "3.3.9",
     "zod": "^3.25.76"
   },
   "prettier": {
