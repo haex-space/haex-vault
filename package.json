@@ -99,7 +99,7 @@
     "@vue/compiler-sfc": "^3.5.40",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.8.0",
-    "globals": "^17.7.0",
+    "globals": "^17.9.0",
     "jsdom": "^30.0.1",
     "nuxt": "4.5.1",
     "prettier": "3.9.6",
