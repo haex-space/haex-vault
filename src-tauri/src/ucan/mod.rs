@@ -7,9 +7,11 @@
 //! 2. [`validate_token`] — full pipeline: parse + audience + capability +
 //!    prf-chain walk to a self-signed root + self-certifying `space_id` binding.
 
+pub mod capability_set;
 pub mod commands;
 pub mod config;
 mod create;
+pub mod predicate;
 pub mod space_id;
 pub mod verify;
 
