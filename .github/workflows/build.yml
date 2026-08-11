@@ -591,7 +591,7 @@ jobs:
           # already-installed @tauri-apps/cli from node_modules instead. Run
           # from the repo root: tauri-cli auto-locates src-tauri/ from there,
           # same as the pnpm-driven "Build Tauri app" step above.
-          pnpm tauri build --target aarch64-apple-darwin --features tauri/custom-protocol,e2e-webdriver-macos
+          pnpm tauri build --target aarch64-apple-darwin --features tauri/custom-protocol,e2e-webdriver-macos,e2e-hooks
 
       - name: Upload macOS binary for E2E tests
         if: matrix.platform == 'macos-latest' && contains(matrix.args, 'aarch64')
@@ -635,12 +635,13 @@ jobs:
           #
           # e2e-hooks registers the test-only Tauri commands the shared-space
           # adversarial specs drive (test_seed_shared_space_delete_log_entry).
-          # It belongs here and only here: this artifact exists solely to be
-          # run by haex-e2e-tests, while the bundles uploaded above ship to
-          # users and must stay on `default = []`. Without it the e2e image's
-          # prebuilt path silently yields a binary lacking those commands —
-          # haex-e2e-tests' Dockerfile passes the feature on its build-from-
-          # source fallback, which the prebuilt path skips entirely.
+          # It belongs on every e2e artifact (Linux here, Windows + macOS in
+          # the platform-specific e2e build steps below), while the bundles
+          # uploaded above ship to users and must stay on `default = []`.
+          # Without it the e2e image's prebuilt path silently yields a binary
+          # lacking those commands — haex-e2e-tests' Dockerfile passes the
+          # feature on its build-from-source fallback, which the prebuilt
+          # path skips entirely.
           cd src-tauri && cargo build --release --features tauri/custom-protocol,e2e-hooks
 
       - name: Upload Linux binary for E2E tests
@@ -707,7 +708,7 @@ jobs:
              | .app.windows[0].dataDirectory = "C:\\haex-e2e-webview-data"' \
             src-tauri/tauri.conf.json > /tmp/tauri-e2e.conf.json && \
             mv /tmp/tauri-e2e.conf.json src-tauri/tauri.conf.json
-          cd src-tauri && cargo build --release --features tauri/custom-protocol
+          cd src-tauri && cargo build --release --features tauri/custom-protocol,e2e-hooks
 
       - name: Upload Windows binary for E2E tests
         if: matrix.platform == 'windows-latest'
