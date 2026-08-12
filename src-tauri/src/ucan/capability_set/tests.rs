@@ -94,6 +94,17 @@ fn deserialize_rejects_duplicate_cap_entries() {
 }
 
 #[test]
+fn deserialize_rejects_unknown_cap_entry_fields() {
+    // Fail-closed on unknown fields: a future revision that adds a
+    // security-relevant CapEntry constraint (expires_at, restricted_to_row,
+    // …) must NOT be silently dropped by an older peer, which would turn
+    // an expired/restricted grant into an unrestricted one on the wire.
+    let json = r#"[{"cap":"read","delegatable":true,"junk":42}]"#;
+    let result: Result<CapabilitySet, _> = serde_json::from_str(json);
+    assert!(result.is_err(), "unknown cap entry fields must be rejected");
+}
+
+#[test]
 fn deserialize_normalizes_out_of_order_input() {
     // Wire input in non-canonical order MUST parse (be lenient in reading)
     // and produce an internally-canonical set (be strict in writing).
