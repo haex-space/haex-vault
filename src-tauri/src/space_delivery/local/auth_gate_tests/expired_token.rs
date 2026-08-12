@@ -25,6 +25,7 @@ async fn rejects_request_with_expired_cached_ucan() {
         issuer: "did:key:zIssuer".to_string(),
         audience: "did:key:zPeer".to_string(),
         capabilities: HashMap::from([("SPACE".to_string(), CapabilityLevel::Write)]),
+        row_capabilities: HashMap::new(),
         expires_at: 0,
         root_did: "did:key:zRoot".to_string(),
     };

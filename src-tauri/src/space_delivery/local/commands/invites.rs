@@ -40,6 +40,7 @@ pub async fn local_delivery_create_invite(
                 &did,
                 &leader_state.space_id,
                 &capability,
+                None,
                 Some(&admin.root_ucan),
                 super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
             )

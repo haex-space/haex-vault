@@ -12,6 +12,7 @@ pub mod commands;
 pub mod config;
 mod create;
 pub mod predicate;
+pub mod row_capability;
 pub mod space_id;
 pub mod verify;
 

@@ -170,6 +170,7 @@ pub async fn handle_claim_invite(
                         &did,
                         &space_id,
                         capability,
+                        None,
                         Some(&admin.root_ucan),
                         super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
                     ) {

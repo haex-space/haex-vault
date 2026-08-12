@@ -33,6 +33,7 @@ pub enum Cap {
 /// A single capability grant: which capability, and whether the holder may
 /// delegate it to a child token.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CapEntry {
     pub cap: Cap,
     #[serde(default)]

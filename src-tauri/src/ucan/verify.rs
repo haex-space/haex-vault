@@ -21,6 +21,7 @@
 //! can walk that ancestry to the space-root DID and check that the
 //! self-certifying `space_id` binds to it.
 
+use crate::ucan::row_capability::RowCapability;
 use base64::Engine;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use std::collections::HashMap;
@@ -121,6 +122,11 @@ pub struct ParsedUcan {
     /// `space_id → CapabilityLevel` from the `cap` claim. Every entry has
     /// prefix `space:<id>` stripped so the map key is the raw `space_id`.
     pub capabilities: HashMap<String, CapabilityLevel>,
+    /// `space_id → row-cap list` from the optional `row_cap` claim (C.5
+    /// envelope). Parallel to [`Self::capabilities`]: a token may carry
+    /// either, both, or neither. Space-key prefix `space:<id>` is stripped
+    /// symmetrically with [`Self::capabilities`].
+    pub row_capabilities: HashMap<String, Vec<RowCapability>>,
     /// Raw proof tokens (embedded UCAN JWT strings) from the `prf` claim.
     /// Kept as strings so [`walk_prf_chain`] can recursively re-parse them.
     pub proofs: Vec<String>,
@@ -137,6 +143,11 @@ pub struct ValidatedUcan {
     /// permitted at parse time, but [`validate_token`] only chain-verifies
     /// against a single `expected_space_id`.
     pub capabilities: HashMap<String, CapabilityLevel>,
+    /// space_id → row-cap list from the optional `row_cap` claim (C.5
+    /// envelope). Propagated verbatim from the leaf's [`ParsedUcan`]; the
+    /// puller evaluates these predicates against candidate rows. Empty for
+    /// tokens that only carry space-level [`Self::capabilities`].
+    pub row_capabilities: HashMap<String, Vec<RowCapability>>,
     pub expires_at: u64,
     /// DID of the self-signed chain root — the Space-Root DID that
     /// `space_id` must bind to. Populated by [`walk_prf_chain`] and
@@ -182,6 +193,12 @@ pub enum UcanVerifyError {
     /// (e.g. Write child under a Read parent).
     #[error("child capability exceeds parent capability")]
     CapabilityEscalation,
+    /// A child token claims a row-level capability that its parent does not
+    /// hold for the same space. MVP enforces structural equality on
+    /// `(variant, predicate)`; Predicate-strictness comparison is not yet
+    /// modelled (see `walk_prf_chain` docs).
+    #[error("row-cap attenuation failed for space {space_id}")]
+    RowCapAttenuation { space_id: String },
     /// Chain terminated at a token that is not a proper root — either its
     /// `proofs` list is non-empty but the walk depth was exhausted first,
     /// or it has no proofs but is not self-signed at Admin level.
@@ -278,6 +295,11 @@ pub fn parse_ucan(token: &str) -> Result<ParsedUcan, UcanVerifyError> {
         }
     }
 
+    // Parse row capabilities (C.5 envelope). Optional field — a missing
+    // `row_cap` yields an empty map (backwards-compat with today's tokens).
+    // Shape: { "space:<id>": [ {"op":"row_insert","where":...}, ... ], ... }
+    let row_capabilities = parse_row_cap_field(&payload)?;
+
     // Parse proofs: JSON array of embedded token strings.
     let proofs = match payload.get("prf") {
         None => Vec::new(),
@@ -299,8 +321,58 @@ pub fn parse_ucan(token: &str) -> Result<ParsedUcan, UcanVerifyError> {
         exp,
         iat,
         capabilities,
+        row_capabilities,
         proofs,
     })
+}
+
+/// Extract the optional `row_cap` payload field into a `space_id → Vec<RowCapability>` map.
+///
+/// Wire shape:
+/// ```json
+/// { "row_cap": { "space:<id>": [ {"op":"row_insert","where":...}, ... ] } }
+/// ```
+///
+/// - Missing field → empty map (opt-in envelope, parallel to `cap`).
+/// - Present-but-not-object → [`UcanVerifyError::MalformedToken`].
+/// - Each entry's value must be a JSON array; each element deserialises via
+///   [`RowCapability`]'s `deny_unknown_fields`/tagged serde. A bad element
+///   surfaces as `MalformedToken` — a forged token must not smuggle an
+///   unmodelled operation past the puller.
+/// - Keys without `space:` prefix are silently skipped so future resource
+///   namespaces remain forward-compatible with today's parsers.
+fn parse_row_cap_field(
+    payload: &serde_json::Value,
+) -> Result<HashMap<String, Vec<RowCapability>>, UcanVerifyError> {
+    let Some(raw) = payload.get("row_cap") else {
+        return Ok(HashMap::new());
+    };
+    let obj = raw
+        .as_object()
+        .ok_or_else(|| UcanVerifyError::MalformedToken("row_cap must be an object".into()))?;
+
+    let mut out: HashMap<String, Vec<RowCapability>> = HashMap::new();
+    for (resource, list_value) in obj {
+        let Some(space_id) = resource.strip_prefix("space:") else {
+            continue;
+        };
+        let arr = list_value.as_array().ok_or_else(|| {
+            UcanVerifyError::MalformedToken(format!(
+                "row_cap[{resource}] must be an array of RowCapability"
+            ))
+        })?;
+        let mut caps: Vec<RowCapability> = Vec::with_capacity(arr.len());
+        for element in arr {
+            let cap: RowCapability = serde_json::from_value(element.clone()).map_err(|e| {
+                UcanVerifyError::MalformedToken(format!(
+                    "row_cap[{resource}] element rejected: {e}"
+                ))
+            })?;
+            caps.push(cap);
+        }
+        out.insert(space_id.to_string(), caps);
+    }
+    Ok(out)
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +462,30 @@ fn walk_prf_chain(
             return Err(UcanVerifyError::CapabilityEscalation);
         }
 
+        // Row-cap attenuation (C.5). Every row-cap the child claims for
+        // `expected_space_id` must appear structurally in the parent's
+        // row-cap set. MVP is exact-match on (variant, predicate); a
+        // strictness-aware Predicate subset check is left as a future
+        // attenuation rule (P1 ⊑ P2 is NP-hard in the general case).
+        //
+        // Row-caps are OPT-IN per hop: a child that carries no row-caps
+        // inherits nothing — no free lunch — but its silence is not a
+        // violation either. Only *claiming* an unheld cap is an escalation.
+        if let Some(child_caps) = current.row_capabilities.get(expected_space_id) {
+            let empty: Vec<RowCapability> = Vec::new();
+            let parent_caps = parent
+                .row_capabilities
+                .get(expected_space_id)
+                .unwrap_or(&empty);
+            for child_cap in child_caps {
+                if !parent_caps.contains(child_cap) {
+                    return Err(UcanVerifyError::RowCapAttenuation {
+                        space_id: expected_space_id.to_string(),
+                    });
+                }
+            }
+        }
+
         current = parent;
     }
 }
@@ -467,6 +563,7 @@ pub fn validate_token(
         issuer: parsed.iss,
         audience: parsed.aud,
         capabilities: parsed.capabilities,
+        row_capabilities: parsed.row_capabilities,
         expires_at: parsed.exp,
         root_did: root.iss,
     })

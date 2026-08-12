@@ -93,6 +93,7 @@ fn variant_name(e: &UcanVerifyError) -> &'static str {
         UcanVerifyError::ChainTooDeep(_) => "ChainTooDeep",
         UcanVerifyError::ChainBroken => "ChainBroken",
         UcanVerifyError::CapabilityEscalation => "CapabilityEscalation",
+        UcanVerifyError::RowCapAttenuation { .. } => "RowCapAttenuation",
         UcanVerifyError::RootNotSelfSigned => "RootNotSelfSigned",
         UcanVerifyError::RootBindingMismatch => "RootBindingMismatch",
         UcanVerifyError::RootBindingMalformed => "RootBindingMalformed",
