@@ -1,0 +1,333 @@
+//! Phase-1 authorization for incoming MLS commits.
+//!
+//! MLS (RFC 9420) provides cryptographic group agreement but no role model —
+//! any group member can propose any commit and OpenMLS will happily merge it
+//! as long as the crypto verifies. Without an application-policy layer that
+//! means:
+//!
+//! - a legitimate member can add an arbitrary outsider (silent eavesdropper),
+//! - a legitimate member can remove any other member (including the owner),
+//! - a legitimate member can rotate their leaf into a different DID.
+//!
+//! This module runs between `MlsGroup::process_message` and
+//! `merge_staged_commit` (see [`crate::mls::manager::MlsManager::decrypt`])
+//! and rejects commits that violate the space's application-level rules.
+//! Rejecting means the local group does not advance to the new epoch; the
+//! caller falls back to epoch-gap recovery. This is a fail-closed check.
+//!
+//! Phase-1 policy:
+//!
+//! - **Addee membership**: every Add proposal's credential DID must already
+//!   be a member of the space (`haex_space_members` ⋈ `haex_identities`).
+//!   External-commit joiners are checked with the same rule.
+//! - **Credential stability**: an Update (whether an inline proposal or a
+//!   path-in-commit leaf rotation) must not change the DID at the target
+//!   leaf.
+//! - **Fail-closed on unmodelled proposals**: any proposal type this module
+//!   does not model (PSK, ReInit, GroupContextExtensions, SelfRemove,
+//!   Custom, …) rejects the whole commit.
+//! - **Self-removal recorded but unenforced**: this phase does not check the
+//!   committer's own capability, so a self-leave is trivially allowed. The
+//!   flag is surfaced so a later phase that adds a committer-capability
+//!   check can grant the standard "leave is always allowed" exemption.
+//!
+//! **Not** in Phase 1 (deferred to Phase 2/3 of the plan):
+//!
+//! - Committer authorization (needs `CapabilityLevel::Invite`-or-higher on
+//!   the committer). Without this, a read-only member can still legitimately
+//!   remove another member, which Phase 1 does not stop.
+//! - Proof-of-possession as a KeyPackage extension. Without it the addee
+//!   membership check only raises the bar from "add any stranger" to
+//!   "impersonate an existing member's DID". Phase 2 closes that.
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use openmls::credentials::Credential;
+use openmls::framing::Sender;
+use openmls::group::{MlsGroup, StagedCommit};
+use openmls::messages::proposals::{Proposal, ProposalType};
+use rusqlite::Connection;
+
+/// One entry per Add proposal in the commit.
+#[derive(Debug, Clone)]
+pub(crate) struct AddFact {
+    /// DID string extracted from the KeyPackage's BasicCredential.
+    pub credential_did: String,
+}
+
+/// One entry per Remove proposal in the commit.
+#[derive(Debug, Clone)]
+pub(crate) struct RemoveFact {
+    /// Leaf index the Remove targets.
+    pub leaf_index: u32,
+    /// DID at that leaf in the pre-commit tree; `None` if the leaf slot was
+    /// already empty (defensive — a Remove on an empty slot is not something
+    /// we expect). Surfaced for Phase-3 committer-capability checks; Phase-1
+    /// does not gate removes.
+    #[allow(dead_code)]
+    pub credential_did: Option<String>,
+}
+
+/// One entry per Update proposal (inline) or path-in-commit leaf rotation.
+#[derive(Debug, Clone)]
+pub(crate) struct UpdateFact {
+    /// Leaf index the update rotates.
+    pub leaf_index: u32,
+    /// DID at that leaf before the commit is applied.
+    pub old_did: Option<String>,
+    /// DID the new leaf's credential carries.
+    pub new_did: String,
+}
+
+/// Facts extracted from a `StagedCommit` for the policy layer to decide on.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct CommitFacts {
+    pub adds: Vec<AddFact>,
+    /// Recorded but not consumed by Phase-1 policy; the Phase-3 committer-
+    /// capability check will use these to enforce "read-only members cannot
+    /// remove anyone else".
+    #[allow(dead_code)]
+    pub removes: Vec<RemoveFact>,
+    pub updates: Vec<UpdateFact>,
+    /// For an external commit (`Sender::NewMemberCommit`), the joiner's DID
+    /// from their own leaf credential. Checked with the same membership rule
+    /// as an Add proposal — the joiner is essentially "adding themselves".
+    pub external_joiner: Option<String>,
+    /// Descriptions of any queued proposal whose type this module does not
+    /// model. Non-empty means the commit is rejected fail-closed.
+    pub unmodelled: Vec<&'static str>,
+    /// True if the committer removed their own leaf (a leave). Not consumed
+    /// by Phase-1 policy; surfaced so a later committer-capability check can
+    /// grant the standard leave exemption.
+    #[allow(dead_code)]
+    pub self_removal: bool,
+}
+
+/// Extract the DID string from a BasicCredential.
+///
+/// The vault sets `BasicCredential::new(did.as_bytes().to_vec())` in
+/// [`crate::mls::manager::MlsManager::init_identity`], so
+/// `serialized_content()` on such a credential is the raw DID bytes. Non-
+/// UTF8 content returns `None` and callers treat it as "no DID" — a
+/// non-BasicCredential would land here too, which for Phase 1 we surface as
+/// an empty-DID reject.
+fn did_from_credential(cred: &Credential) -> Option<String> {
+    String::from_utf8(cred.serialized_content().to_vec()).ok()
+}
+
+/// Inspect a staged commit against the current group state.
+///
+/// Must be called AFTER `process_message` (which produced `staged`) but
+/// BEFORE `merge_staged_commit` — the pre-commit leaf → DID mapping we
+/// snapshot here would otherwise reflect the new epoch.
+pub(crate) fn inspect(
+    sender: &Sender,
+    committer_credential: &Credential,
+    staged: &StagedCommit,
+    group: &MlsGroup,
+) -> CommitFacts {
+    // Snapshot the current tree's leaf → DID map. Used for:
+    //   - Remove target lookup (§ RemoveFact.credential_did)
+    //   - Update old-DID lookup (§ UpdateFact.old_did)
+    let leaf_to_did: HashMap<u32, String> = group
+        .members()
+        .filter_map(|m| did_from_credential(&m.credential).map(|d| (m.index.u32(), d)))
+        .collect();
+
+    // Committer's own leaf index and the external-commit joiner's DID (only
+    // one of the two applies).
+    let (committer_leaf, external_joiner) = match sender {
+        Sender::Member(idx) => (Some(idx.u32()), None),
+        Sender::NewMemberCommit => (None, did_from_credential(committer_credential)),
+        // External senders and NewMemberProposal are not expected on a commit
+        // path per RFC 9420; leave both fields empty so the addee/joiner
+        // checks fall through and the unmodelled path (below) does the reject.
+        Sender::NewMemberProposal | Sender::External(_) => (None, None),
+    };
+
+    let mut adds: Vec<AddFact> = Vec::new();
+    for add in staged.add_proposals() {
+        let did = did_from_credential(add.add_proposal().key_package().leaf_node().credential())
+            .unwrap_or_default();
+        adds.push(AddFact {
+            credential_did: did,
+        });
+    }
+
+    let mut removes: Vec<RemoveFact> = Vec::new();
+    for rem in staged.remove_proposals() {
+        let idx = rem.remove_proposal().removed().u32();
+        removes.push(RemoveFact {
+            leaf_index: idx,
+            credential_did: leaf_to_did.get(&idx).cloned(),
+        });
+    }
+
+    let mut updates: Vec<UpdateFact> = Vec::new();
+    // Update proposals + path-in-commit leaf rotations are credential-
+    // stability concerns. They only carry that meaning when the sender is an
+    // existing group member (`Sender::Member`): the update targets that
+    // sender's own leaf, and the pre-commit DID must equal the post-commit
+    // DID.
+    //
+    // For a `Sender::NewMemberCommit` the path leaf is the joiner's OWN new
+    // leaf — that DID is already checked via `external_joiner`. Skipping it
+    // here avoids a spurious credential-stability reject against an empty
+    // pre-commit slot.
+    if let Some(committer_slot) = committer_leaf {
+        for upd in staged.update_proposals() {
+            let new_did = did_from_credential(upd.update_proposal().leaf_node().credential())
+                .unwrap_or_default();
+            updates.push(UpdateFact {
+                leaf_index: committer_slot,
+                old_did: leaf_to_did.get(&committer_slot).cloned(),
+                new_did,
+            });
+        }
+        if let Some(leaf) = staged.update_path_leaf_node() {
+            let new_did = did_from_credential(leaf.credential()).unwrap_or_default();
+            updates.push(UpdateFact {
+                leaf_index: committer_slot,
+                old_did: leaf_to_did.get(&committer_slot).cloned(),
+                new_did,
+            });
+        }
+    }
+
+    // Sweep every queued proposal so we don't miss a type openmls exposes
+    // that isn't in the four typed iterators.
+    //
+    // Add / Remove / Update: handled above.
+    //
+    // ExternalInit: RFC 9420 §12.2 — the joining member's own initialisation
+    // signal inside an external commit. Only valid when the sender is
+    // `NewMemberCommit`; the joiner is already checked via `external_joiner`.
+    // Reject it if it appears elsewhere.
+    //
+    // Everything else — PSK, ReInit, GroupContextExtensions, SelfRemove,
+    // Custom, … — is fail-closed.
+    let sender_is_new_member = matches!(sender, Sender::NewMemberCommit);
+    let mut unmodelled: Vec<&'static str> = Vec::new();
+    for qp in staged.queued_proposals() {
+        let ty = qp.proposal().proposal_type();
+        match ty {
+            ProposalType::Add | ProposalType::Remove | ProposalType::Update => {}
+            ProposalType::ExternalInit if sender_is_new_member => {}
+            _ => unmodelled.push(name_of(&ty)),
+        }
+    }
+
+    let self_removal = committer_leaf
+        .map(|c| removes.iter().any(|r| r.leaf_index == c))
+        .unwrap_or(false);
+
+    CommitFacts {
+        adds,
+        removes,
+        updates,
+        external_joiner,
+        unmodelled,
+        self_removal,
+    }
+}
+
+fn name_of(t: &ProposalType) -> &'static str {
+    match t {
+        ProposalType::Add => "Add",
+        ProposalType::Update => "Update",
+        ProposalType::Remove => "Remove",
+        ProposalType::PreSharedKey => "PreSharedKey",
+        ProposalType::Reinit => "ReInit",
+        ProposalType::ExternalInit => "ExternalInit",
+        ProposalType::GroupContextExtensions => "GroupContextExtensions",
+        ProposalType::SelfRemove => "SelfRemove",
+        ProposalType::Custom(_) => "Custom",
+        _ => "Unknown",
+    }
+}
+
+/// Apply the Phase-1 policy to `facts`. Returns `Ok(())` if the commit may
+/// be merged, `Err(reason)` if it must be rejected without advancing the
+/// epoch. Any error condition (mutex poisoning, absent connection, SQL
+/// failure) is treated as reject — this is a fail-closed check.
+pub(crate) fn authorize(
+    conn: &Arc<Mutex<Option<Connection>>>,
+    space_id: &str,
+    facts: &CommitFacts,
+) -> Result<(), String> {
+    if !facts.unmodelled.is_empty() {
+        return Err(format!(
+            "Rejecting MLS commit for space {space_id}: unmodelled proposal type(s) {:?} — Phase-1 authorization is fail-closed",
+            facts.unmodelled
+        ));
+    }
+
+    for u in &facts.updates {
+        match &u.old_did {
+            Some(old) if old != &u.new_did => {
+                return Err(format!(
+                    "Rejecting MLS commit for space {space_id}: leaf {} DID changed from {old} to {} (credential-stability violation)",
+                    u.leaf_index, u.new_did
+                ));
+            }
+            None => {
+                return Err(format!(
+                    "Rejecting MLS commit for space {space_id}: Update at leaf {} has no prior credential (unexpected shape)",
+                    u.leaf_index
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+
+    let mut addees: Vec<&str> = facts
+        .adds
+        .iter()
+        .map(|a| a.credential_did.as_str())
+        .collect();
+    if let Some(j) = &facts.external_joiner {
+        addees.push(j.as_str());
+    }
+
+    if !addees.is_empty() {
+        let guard = conn
+            .lock()
+            .map_err(|e| format!("Authorization mutex poisoned: {e}"))?;
+        let conn_ref = guard.as_ref().ok_or_else(|| {
+            "No database connection available for MLS commit authorization".to_string()
+        })?;
+        for did in addees {
+            if did.is_empty() {
+                return Err(format!(
+                    "Rejecting MLS commit for space {space_id}: addee credential is empty or non-UTF8"
+                ));
+            }
+            if !is_space_member(conn_ref, space_id, did)? {
+                return Err(format!(
+                    "Rejecting MLS commit for space {space_id}: addee {did} is not a member of this space (haex_space_members ⋈ haex_identities)"
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn is_space_member(conn: &Connection, space_id: &str, did: &str) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM haex_space_members m \
+         JOIN haex_identities i ON m.identity_id = i.id \
+         WHERE m.space_id = ?1 AND i.did = ?2 \
+           AND IFNULL(m.haex_tombstone, 0) != 1 \
+           AND IFNULL(i.haex_tombstone, 0) != 1",
+        rusqlite::params![space_id, did],
+        |row| row.get::<_, i64>(0),
+    )
+    .map(|c| c > 0)
+    .map_err(|e| format!("Membership lookup failed for space={space_id} did={did}: {e}"))
+}
+
+#[cfg(test)]
+#[path = "authorization_tests.rs"]
+mod tests;

@@ -123,7 +123,10 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
     .unwrap();
 
     // Space members table (for ACK tracking). Members reference an identity
-    // row by `identity_id`; the DID lives on haex_identities.
+    // row by `identity_id`; the DID lives on haex_identities. `haex_tombstone`
+    // mirrors the CRDT convention used on both sync tables in production
+    // (`src/database/schemas/*.ts`) so the MLS commit-authorization query in
+    // `mls::authorization::is_space_member` can filter out revoked rows.
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS haex_identities (
             id TEXT PRIMARY KEY NOT NULL,
@@ -131,14 +134,16 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             name TEXT NOT NULL,
             source TEXT DEFAULT 'contact' NOT NULL,
             private_key TEXT,
-            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+            haex_tombstone INTEGER
         );
         CREATE TABLE IF NOT EXISTS haex_space_members (
             id TEXT PRIMARY KEY NOT NULL,
             space_id TEXT NOT NULL,
             identity_id TEXT NOT NULL,
             role TEXT DEFAULT 'read' NOT NULL,
-            joined_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            joined_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+            haex_tombstone INTEGER
         );",
     )
     .unwrap();
@@ -459,11 +464,41 @@ mod mls_manager_tests {
 
     /// Create an MlsManager with a fresh in-memory DB and initialized identity.
     fn setup_mls(identity: &TestIdentity) -> MlsManager {
+        setup_mls_with_conn(identity).0
+    }
+
+    /// Same as `setup_mls` but also returns the raw DB handle, for tests that
+    /// need to seed application tables (e.g. `haex_space_members` for the
+    /// MLS commit-authorization check).
+    fn setup_mls_with_conn(
+        identity: &TestIdentity,
+    ) -> (MlsManager, Arc<Mutex<Option<Connection>>>) {
         let conn = setup_test_db();
-        let manager = MlsManager::new(conn);
+        let manager = MlsManager::new(conn.clone());
         manager.init_tables().unwrap();
         manager.init_identity(&identity.did).unwrap();
-        manager
+        (manager, conn)
+    }
+
+    /// Seed a `haex_space_members` row (plus its `haex_identities` row) so
+    /// the MLS commit-authorization check finds the DID.
+    fn seed_member(conn: &Arc<Mutex<Option<Connection>>>, space_id: &str, did: &str) {
+        let guard = conn.lock().unwrap();
+        let c = guard.as_ref().unwrap();
+        let identity_id = format!("id-{did}");
+        let member_id = format!("mem-{space_id}-{did}");
+        c.execute(
+            "INSERT OR IGNORE INTO haex_identities (id, did, name, source, haex_tombstone) \
+             VALUES (?1, ?2, ?3, 'contact', 0)",
+            rusqlite::params![identity_id, did, did],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT OR IGNORE INTO haex_space_members (id, space_id, identity_id, role, haex_tombstone) \
+             VALUES (?1, ?2, ?3, 'member', 0)",
+            rusqlite::params![member_id, space_id, identity_id],
+        )
+        .unwrap();
     }
 
     #[test]
@@ -486,8 +521,12 @@ mod mls_manager_tests {
 
     #[test]
     fn external_commit_rejoin_roundtrip() {
-        // Setup: admin creates group and adds a member
-        let admin = setup_mls(&TestIdentity::new());
+        // Setup: admin creates group and adds a member. Admin's DB doubles
+        // as the receiver for the external commit at the end of the test —
+        // seed `haex_space_members` there for the members whose commits admin
+        // will process, so the Phase-1 addee/joiner membership check passes.
+        let admin_identity = TestIdentity::new();
+        let (admin, admin_conn) = setup_mls_with_conn(&admin_identity);
         admin.create_group("space-rejoin").unwrap();
 
         let member_identity = TestIdentity::new();
@@ -552,6 +591,12 @@ mod mls_manager_tests {
             new_epoch_key.epoch >= admin_epoch,
             "Rejoined member epoch should be >= admin epoch"
         );
+
+        // Register `member` as a legitimate space member in admin's DB. In
+        // production a leader / claim-invite flow writes this row via CRDT.
+        // Without it, Phase-1 authorization would (correctly) reject the
+        // external commit because the joiner's DID is not in the space.
+        seed_member(&admin_conn, "space-rejoin", &member_identity.did);
 
         // Admin processes the external commit
         admin

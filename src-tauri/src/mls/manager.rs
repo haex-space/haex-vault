@@ -14,13 +14,18 @@ const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA2
 
 pub struct MlsManager {
     provider: HaexMlsProvider,
+    /// Kept for read-only application-policy queries (membership, capability)
+    /// that run alongside MLS operations. The provider's storage adapter
+    /// clones from the same Arc.
+    conn: Arc<Mutex<Option<Connection>>>,
 }
 
 impl MlsManager {
     pub fn new(conn: Arc<Mutex<Option<Connection>>>) -> Self {
-        let storage = SqlCipherMlsStorage { conn };
+        let storage = SqlCipherMlsStorage { conn: conn.clone() };
         Self {
             provider: HaexMlsProvider::new(storage),
+            conn,
         }
     }
 
@@ -286,9 +291,25 @@ impl MlsManager {
             .process_message(&self.provider, protocol_message)
             .map_err(|e| format!("Failed to process message: {e}"))?;
 
+        // Snapshot sender + credential BEFORE `into_content` consumes `processed`.
+        // Both feed the authorization inspector for the StagedCommit arm.
+        let sender = processed.sender().clone();
+        let committer_credential = processed.credential().clone();
+
         match processed.into_content() {
             ProcessedMessageContent::ApplicationMessage(app_msg) => Ok(app_msg.into_bytes()),
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                // Phase-1 membership-change authorization. Runs BEFORE
+                // `merge_staged_commit` so a rejected commit does not
+                // advance the local epoch. See `mls::authorization`.
+                let facts = crate::mls::authorization::inspect(
+                    &sender,
+                    &committer_credential,
+                    &staged_commit,
+                    &group,
+                );
+                crate::mls::authorization::authorize(&self.conn, space_id, &facts)?;
+
                 group
                     .merge_staged_commit(&self.provider, *staged_commit)
                     .map_err(|e| format!("Failed to merge staged commit: {e}"))?;

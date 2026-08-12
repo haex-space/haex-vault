@@ -1,3 +1,4 @@
+pub mod authorization;
 pub mod blocking;
 pub mod commands;
 pub mod manager;
