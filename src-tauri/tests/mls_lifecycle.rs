@@ -123,10 +123,10 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
     .unwrap();
 
     // Space members table (for ACK tracking). Members reference an identity
-    // row by `identity_id`; the DID lives on haex_identities. `haex_tombstone`
-    // mirrors the CRDT convention used on both sync tables in production
-    // (`src/database/schemas/*.ts`) so the MLS commit-authorization query in
-    // `mls::authorization::is_space_member` can filter out revoked rows.
+    // row by `identity_id`; the DID lives on haex_identities. Matches the
+    // production Drizzle schema (`src-tauri/database/migrations/0000_*.sql`)
+    // which does NOT carry a `haex_tombstone` column — revocation is
+    // expressed by row absence in the delete-log model.
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS haex_identities (
             id TEXT PRIMARY KEY NOT NULL,
@@ -134,16 +134,14 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             name TEXT NOT NULL,
             source TEXT DEFAULT 'contact' NOT NULL,
             private_key TEXT,
-            created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
-            haex_tombstone INTEGER
+            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
         CREATE TABLE IF NOT EXISTS haex_space_members (
             id TEXT PRIMARY KEY NOT NULL,
             space_id TEXT NOT NULL,
             identity_id TEXT NOT NULL,
             role TEXT DEFAULT 'read' NOT NULL,
-            joined_at TEXT DEFAULT (CURRENT_TIMESTAMP),
-            haex_tombstone INTEGER
+            joined_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );",
     )
     .unwrap();
@@ -488,14 +486,14 @@ mod mls_manager_tests {
         let identity_id = format!("id-{did}");
         let member_id = format!("mem-{space_id}-{did}");
         c.execute(
-            "INSERT OR IGNORE INTO haex_identities (id, did, name, source, haex_tombstone) \
-             VALUES (?1, ?2, ?3, 'contact', 0)",
+            "INSERT OR IGNORE INTO haex_identities (id, did, name, source) \
+             VALUES (?1, ?2, ?3, 'contact')",
             rusqlite::params![identity_id, did, did],
         )
         .unwrap();
         c.execute(
-            "INSERT OR IGNORE INTO haex_space_members (id, space_id, identity_id, role, haex_tombstone) \
-             VALUES (?1, ?2, ?3, 'member', 0)",
+            "INSERT OR IGNORE INTO haex_space_members (id, space_id, identity_id, role) \
+             VALUES (?1, ?2, ?3, 'member')",
             rusqlite::params![member_id, space_id, identity_id],
         )
         .unwrap();
@@ -607,6 +605,42 @@ mod mls_manager_tests {
         let admin_epoch_after = admin.derive_epoch_key("space-rejoin").unwrap().epoch;
         let member_epoch_after = member.derive_epoch_key("space-rejoin").unwrap().epoch;
         assert_eq!(admin_epoch_after, member_epoch_after);
+    }
+
+    /// Mirror of `external_commit_rejoin_roundtrip` without seeding the
+    /// joiner's `haex_space_members` row: Phase-1 authorization must reject
+    /// the external commit at `process_message` time and admin's local epoch
+    /// must not advance.
+    #[test]
+    fn external_commit_from_unseeded_joiner_is_rejected() {
+        let admin_identity = TestIdentity::new();
+        let (admin, _admin_conn) = setup_mls_with_conn(&admin_identity);
+        admin.create_group("space-reject").unwrap();
+
+        let joiner_identity = TestIdentity::new();
+        let joiner = setup_mls(&joiner_identity);
+
+        let group_info = admin.get_group_info("space-reject").unwrap();
+        let (commit_bytes, _) = joiner
+            .join_by_external_commit("space-reject", &group_info)
+            .unwrap();
+
+        let epoch_before = admin.derive_epoch_key("space-reject").unwrap().epoch;
+
+        // No `seed_member` call: the joiner's DID is not a space member.
+        let err = admin
+            .process_message("space-reject", &commit_bytes)
+            .expect_err("unauthorized external commit must be rejected");
+        assert!(
+            err.contains("not a member"),
+            "expected an addee-not-member reject, got: {err}"
+        );
+
+        let epoch_after = admin.derive_epoch_key("space-reject").unwrap().epoch;
+        assert_eq!(
+            epoch_before, epoch_after,
+            "a rejected commit must not advance the local epoch"
+        );
     }
 
     #[test]

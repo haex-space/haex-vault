@@ -1,9 +1,11 @@
 //! Unit tests for the Phase-1 authorization policy.
 //!
 //! End-to-end coverage over an actual `MlsManager::decrypt` cycle lives in
-//! `manager_tests.rs` (see `decrypt_rejects_add_of_non_member`); these tests
-//! synthesize `CommitFacts` directly so each §7 row of the plan can be
-//! exercised without spinning up a real openmls group.
+//! `src-tauri/tests/mls_lifecycle.rs` (see
+//! `external_commit_rejoin_roundtrip` for the accepted path and
+//! `external_commit_from_unseeded_joiner_is_rejected` for the fail-closed
+//! path); these tests synthesize `CommitFacts` directly so each §7 row of
+//! the plan can be exercised without spinning up a real openmls group.
 
 use std::sync::{Arc, Mutex};
 
@@ -12,19 +14,18 @@ use rusqlite::Connection;
 use super::{authorize, AddFact, CommitFacts, UpdateFact};
 
 /// Minimal schema: only the two tables the addee-membership check joins.
-/// `haex_tombstone` mirrors the CRDT convention used by `select_with_crdt`.
+/// No `haex_tombstone` column — in the delete-log model post `crate::crdt`
+/// refactor, revocation is expressed by row absence, not a tombstone flag.
 const MEMBERSHIP_SQL: &str = "
 CREATE TABLE haex_identities (
     id TEXT PRIMARY KEY,
-    did TEXT NOT NULL,
-    haex_tombstone INTEGER
+    did TEXT NOT NULL
 );
 CREATE TABLE haex_space_members (
     id TEXT PRIMARY KEY,
     space_id TEXT NOT NULL,
     identity_id TEXT NOT NULL,
-    role TEXT,
-    haex_tombstone INTEGER
+    role TEXT
 );
 ";
 
@@ -41,27 +42,29 @@ fn seed_member(conn: &Arc<Mutex<Option<Connection>>>, space_id: &str, did: &str)
     let identity_id = format!("id-{did}");
     let member_id = format!("mem-{space_id}-{did}");
     c.execute(
-        "INSERT INTO haex_identities (id, did, haex_tombstone) VALUES (?1, ?2, 0)",
+        "INSERT INTO haex_identities (id, did) VALUES (?1, ?2)",
         rusqlite::params![identity_id, did],
     )
     .expect("insert identity");
     c.execute(
-        "INSERT INTO haex_space_members (id, space_id, identity_id, role, haex_tombstone) VALUES (?1, ?2, ?3, 'member', 0)",
+        "INSERT INTO haex_space_members (id, space_id, identity_id, role) VALUES (?1, ?2, ?3, 'member')",
         rusqlite::params![member_id, space_id, identity_id],
     )
     .expect("insert member");
 }
 
-fn tombstone_member(conn: &Arc<Mutex<Option<Connection>>>, space_id: &str, did: &str) {
+/// Simulate the delete-log apply path: remove a member row so the DID is no
+/// longer present when `authorize` looks it up. Revocation = absence.
+fn remove_member(conn: &Arc<Mutex<Option<Connection>>>, space_id: &str, did: &str) {
     let guard = conn.lock().unwrap();
     let c = guard.as_ref().unwrap();
     c.execute(
-        "UPDATE haex_space_members SET haex_tombstone = 1 \
+        "DELETE FROM haex_space_members \
          WHERE space_id = ?1 \
            AND identity_id IN (SELECT id FROM haex_identities WHERE did = ?2)",
         rusqlite::params![space_id, did],
     )
-    .expect("tombstone member");
+    .expect("remove member");
 }
 
 fn add(did: &str) -> AddFact {
@@ -120,17 +123,21 @@ fn add_of_a_non_member_did_is_rejected() {
 }
 
 #[test]
-fn add_of_a_tombstoned_member_is_rejected() {
+fn add_of_a_removed_member_is_rejected() {
+    // Post delete-log refactor a revoked member is simply absent from
+    // `haex_space_members` (the delete-log apply path removes the row); a
+    // successful membership lookup requires the row to be there. Simulate
+    // that by seeding then removing.
     let db = fresh_db();
     let space = "space-a";
     seed_member(&db, space, "did:key:zEx");
-    tombstone_member(&db, space, "did:key:zEx");
+    remove_member(&db, space, "did:key:zEx");
     let facts = CommitFacts {
         adds: vec![add("did:key:zEx")],
         ..CommitFacts::default()
     };
     let err = authorize(&db, space, &facts)
-        .expect_err("tombstoned addee must be rejected via IFNULL filter");
+        .expect_err("removed addee must be rejected — absence in haex_space_members = revocation");
     assert!(err.contains("not a member"), "unexpected error: {err}");
 }
 
@@ -320,8 +327,10 @@ fn self_removal_records_the_flag_and_stays_permitted() {
 #[test]
 fn commit_with_no_membership_change_is_accepted() {
     let db = fresh_db();
-    // A commit that only carries an update-path leaf with a stable DID and
-    // no queued proposals — e.g. a periodic key rotation. Empty facts pass.
+    // Fully empty `CommitFacts`: no adds, no removes, no updates, no
+    // unmodelled proposals. `authorize` has nothing to reject on and returns
+    // Ok. Stable-DID path-in-commit rotation is covered by
+    // `update_that_preserves_did_is_accepted`.
     let facts = CommitFacts::default();
     authorize(&db, "space-a", &facts)
         .expect("a commit without adds/removes/updates/unmodelled is a no-op for Phase-1");

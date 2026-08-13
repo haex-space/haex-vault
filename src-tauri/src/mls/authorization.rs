@@ -43,7 +43,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use openmls::credentials::Credential;
+use openmls::credentials::{Credential, CredentialType};
 use openmls::framing::Sender;
 use openmls::group::{MlsGroup, StagedCommit};
 use openmls::messages::proposals::{Proposal, ProposalType};
@@ -108,11 +108,15 @@ pub(crate) struct CommitFacts {
 ///
 /// The vault sets `BasicCredential::new(did.as_bytes().to_vec())` in
 /// [`crate::mls::manager::MlsManager::init_identity`], so
-/// `serialized_content()` on such a credential is the raw DID bytes. Non-
-/// UTF8 content returns `None` and callers treat it as "no DID" — a
-/// non-BasicCredential would land here too, which for Phase 1 we surface as
-/// an empty-DID reject.
+/// `serialized_content()` on such a credential is the raw DID bytes. Any
+/// non-Basic credential (X.509, Custom, …) has a different serialisation
+/// shape and returns `None`; callers treat that as "no DID" and the
+/// addee/joiner check then fails fail-closed. Non-UTF8 Basic content also
+/// returns `None`.
 fn did_from_credential(cred: &Credential) -> Option<String> {
+    if cred.credential_type() != CredentialType::Basic {
+        return None;
+    }
     String::from_utf8(cred.serialized_content().to_vec()).ok()
 }
 
@@ -135,15 +139,28 @@ pub(crate) fn inspect(
         .filter_map(|m| did_from_credential(&m.credential).map(|d| (m.index.u32(), d)))
         .collect();
 
+    // Unmodelled proposals AND unexpected sender variants both funnel into
+    // the same fail-closed collection. `authorize` rejects the commit if this
+    // is non-empty at the end of `inspect`.
+    let mut unmodelled: Vec<&'static str> = Vec::new();
+
     // Committer's own leaf index and the external-commit joiner's DID (only
     // one of the two applies).
     let (committer_leaf, external_joiner) = match sender {
         Sender::Member(idx) => (Some(idx.u32()), None),
         Sender::NewMemberCommit => (None, did_from_credential(committer_credential)),
         // External senders and NewMemberProposal are not expected on a commit
-        // path per RFC 9420; leave both fields empty so the addee/joiner
-        // checks fall through and the unmodelled path (below) does the reject.
-        Sender::NewMemberProposal | Sender::External(_) => (None, None),
+        // path per RFC 9420; record the anomaly so `authorize` rejects the
+        // whole commit rather than silently accepting when no adds/updates
+        // happen to be present.
+        Sender::NewMemberProposal => {
+            unmodelled.push("UnexpectedSender:NewMemberProposal");
+            (None, None)
+        }
+        Sender::External(_) => {
+            unmodelled.push("UnexpectedSender:External");
+            (None, None)
+        }
     };
 
     let mut adds: Vec<AddFact> = Vec::new();
@@ -165,26 +182,32 @@ pub(crate) fn inspect(
     }
 
     let mut updates: Vec<UpdateFact> = Vec::new();
-    // Update proposals + path-in-commit leaf rotations are credential-
-    // stability concerns. They only carry that meaning when the sender is an
-    // existing group member (`Sender::Member`): the update targets that
-    // sender's own leaf, and the pre-commit DID must equal the post-commit
-    // DID.
-    //
-    // For a `Sender::NewMemberCommit` the path leaf is the joiner's OWN new
-    // leaf — that DID is already checked via `external_joiner`. Skipping it
-    // here avoids a spurious credential-stability reject against an empty
-    // pre-commit slot.
-    if let Some(committer_slot) = committer_leaf {
-        for upd in staged.update_proposals() {
-            let new_did = did_from_credential(upd.update_proposal().leaf_node().credential())
-                .unwrap_or_default();
-            updates.push(UpdateFact {
-                leaf_index: committer_slot,
-                old_did: leaf_to_did.get(&committer_slot).cloned(),
-                new_did,
-            });
+    // Update proposals carry credential-stability semantics: the update
+    // targets the PROPOSER's own leaf, which is not necessarily the
+    // committer. `QueuedUpdateProposal::sender()` gives the proposer's
+    // sender; only `Sender::Member(idx)` is meaningful here, so we attribute
+    // the update to that leaf and record the anomaly for anything else.
+    for upd in staged.update_proposals() {
+        let new_did =
+            did_from_credential(upd.update_proposal().leaf_node().credential()).unwrap_or_default();
+        match upd.sender() {
+            Sender::Member(idx) => {
+                let leaf = idx.u32();
+                updates.push(UpdateFact {
+                    leaf_index: leaf,
+                    old_did: leaf_to_did.get(&leaf).cloned(),
+                    new_did,
+                });
+            }
+            _ => unmodelled.push("UpdateProposalFromNonMemberSender"),
         }
+    }
+    // The path-in-commit leaf update is emitted by the committer and rotates
+    // the committer's own leaf. For a `Sender::NewMemberCommit` the path
+    // leaf is the joiner's OWN new leaf — that DID is already checked via
+    // `external_joiner`. Skipping it here avoids a spurious credential-
+    // stability reject against an empty pre-commit slot.
+    if let Some(committer_slot) = committer_leaf {
         if let Some(leaf) = staged.update_path_leaf_node() {
             let new_did = did_from_credential(leaf.credential()).unwrap_or_default();
             updates.push(UpdateFact {
@@ -208,7 +231,6 @@ pub(crate) fn inspect(
     // Everything else — PSK, ReInit, GroupContextExtensions, SelfRemove,
     // Custom, … — is fail-closed.
     let sender_is_new_member = matches!(sender, Sender::NewMemberCommit);
-    let mut unmodelled: Vec<&'static str> = Vec::new();
     for qp in staged.queued_proposals() {
         let ty = qp.proposal().proposal_type();
         match ty {
@@ -315,12 +337,15 @@ pub(crate) fn authorize(
 }
 
 fn is_space_member(conn: &Connection, space_id: &str, did: &str) -> Result<bool, String> {
+    // Post delete-log refactor there is no `haex_tombstone` column on
+    // `haex_space_members` / `haex_identities`; revocation is expressed by
+    // row absence (the delete-log apply path removes the row). See
+    // `crate::crdt::transformer` where the tombstone filter was removed on
+    // main-table selects.
     conn.query_row(
         "SELECT COUNT(*) FROM haex_space_members m \
          JOIN haex_identities i ON m.identity_id = i.id \
-         WHERE m.space_id = ?1 AND i.did = ?2 \
-           AND IFNULL(m.haex_tombstone, 0) != 1 \
-           AND IFNULL(i.haex_tombstone, 0) != 1",
+         WHERE m.space_id = ?1 AND i.did = ?2",
         rusqlite::params![space_id, did],
         |row| row.get::<_, i64>(0),
     )
