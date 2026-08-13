@@ -37,6 +37,12 @@
 //! of the plan; a dedicated orthogonal `Cap::ManageMembers` is deferred to
 //! the `CapabilitySet` migration (Phase 4).
 //!
+//! [`authorize_local_removal`] extends the Phase-3 gate to commits **we
+//! originate** locally (`MlsManager::remove_member`) — those never pass
+//! through `decrypt`/`inspect` at all, so nothing gated them until this was
+//! added (a CodeRabbit finding on PR #781). See that function's docs for
+//! why `MlsManager::add_member` is deliberately NOT gated the same way.
+//!
 //! **Not yet closed:**
 //!
 //! - External-commit joiners are not PoP-verified (openmls 0.8.1 limitation,
@@ -518,10 +524,18 @@ fn committer_capability(
     space_id: &str,
     did: &str,
 ) -> Result<Option<CapabilityLevel>, String> {
+    // Fail closed on a broken clock rather than defaulting to 0: a `now_secs`
+    // of 0 would make `expires_at > 0` true for essentially every stored
+    // token, i.e. treat everything as unexpired. `load_active_ucan_for_audience`
+    // has the same `unwrap_or(0)` shape for a non-authorization read; here,
+    // where the result gates a membership change, silently answering "yes,
+    // valid" on a clock error is the wrong default.
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+        .map_err(|e| {
+            format!("System clock is before UNIX epoch, refusing to evaluate token expiry: {e}")
+        })?
+        .as_secs() as i64;
 
     let mut stmt = conn
         .prepare(
@@ -547,6 +561,60 @@ fn committer_capability(
         }
     }
     Ok(best)
+}
+
+/// Require the LOCAL committer to hold `CapabilityLevel::Invite`-or-higher
+/// before locally originating a Remove of an ACTIVE member. Mirrors
+/// [`authorize_committer_capability`]'s gate, but for commits **we create**
+/// (`MlsManager::remove_member`) rather than commits we receive: those never
+/// reach `decrypt`/`inspect`, so nothing gated them before this fix (a
+/// CodeRabbit finding on PR #781).
+///
+/// Exempt: `target_did` is no longer an active `haex_space_members` row.
+/// This covers the leader-side rekey-after-self-leave flow
+/// (`reconcileMls.ts`): once a member leaves, the CRDT delete-log entry
+/// removes their `haex_space_members` row on every peer, and *any* peer —
+/// not necessarily one holding Invite/Admin — may become the elected P2P
+/// delivery leader (`elect_leader` picks by network priority/reachability
+/// only, see `space_delivery::local::election`) responsible for rotating
+/// the MLS key afterward. Gating that rekey on the leader's own capability
+/// would incorrectly block a legitimate, already-authorized cleanup.
+///
+/// NOT applied to `MlsManager::add_member`: the authority to add a member
+/// comes from the invite's own delegated UCAN capability (checked when the
+/// invite is created/consumed), not from the local device's capability —
+/// the device calling `add_member` may just be the elected delivery leader
+/// relaying a `ClaimInvite` for a token a real Invite/Admin holder issued.
+/// Gating `add_member` the same way would break that relay path for any
+/// leader who happens to hold only Read/Write.
+pub(crate) fn authorize_local_removal(
+    conn: &Arc<Mutex<Option<Connection>>>,
+    space_id: &str,
+    committer_did: &str,
+    target_did: &str,
+) -> Result<(), String> {
+    let guard = conn
+        .lock()
+        .map_err(|e| format!("Authorization mutex poisoned: {e}"))?;
+    let conn_ref = guard.as_ref().ok_or_else(|| {
+        "No database connection available for MLS commit authorization".to_string()
+    })?;
+
+    if !is_space_member(conn_ref, space_id, target_did)? {
+        return Ok(());
+    }
+
+    match committer_capability(conn_ref, space_id, committer_did)? {
+        Some(level) if level.allows(&CapabilityLevel::Invite) => Ok(()),
+        Some(level) => Err(format!(
+            "Rejecting local MLS remove for space {space_id}: committer {committer_did} holds \
+             {level:?} but removing an active member requires Invite-or-higher"
+        )),
+        None => Err(format!(
+            "Rejecting local MLS remove for space {space_id}: committer {committer_did} holds \
+             no capability for this space"
+        )),
+    }
 }
 
 fn is_space_member(conn: &Connection, space_id: &str, did: &str) -> Result<bool, String> {

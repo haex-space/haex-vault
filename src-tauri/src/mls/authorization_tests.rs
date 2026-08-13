@@ -12,7 +12,8 @@ use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 
 use super::{
-    authorize, authorize_committer_capability, verify_pops, AddFact, CommitFacts, UpdateFact,
+    authorize, authorize_committer_capability, authorize_local_removal, verify_pops, AddFact,
+    CommitFacts, UpdateFact,
 };
 
 /// Minimal schema: the two tables the addee-membership check joins, plus
@@ -783,6 +784,63 @@ fn missing_committer_did_is_rejected_when_membership_changing() {
         .expect_err("an unresolvable committer DID must reject a membership-changing commit");
     assert!(
         err.contains("no resolvable committer DID"),
+        "unexpected error: {err}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Local-path gate (CodeRabbit finding on PR #781): `remove_member` never
+// passes through `decrypt`/`inspect`, so `authorize_local_removal` is the
+// only thing gating it.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn removing_an_active_member_requires_invite_or_higher() {
+    let db = fresh_db();
+    let space = "space-a";
+    seed_member(&db, space, "did:key:zTarget");
+    grant_capability(&db, space, "did:key:zReadOnly", "space/read");
+    let err = authorize_local_removal(&db, space, "did:key:zReadOnly", "did:key:zTarget")
+        .expect_err("read-only committer must not be able to locally kick an active member");
+    assert!(
+        err.contains("Read") && err.contains("Invite-or-higher"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn removing_an_active_member_with_invite_capability_is_allowed() {
+    let db = fresh_db();
+    let space = "space-a";
+    seed_member(&db, space, "did:key:zTarget");
+    grant_capability(&db, space, "did:key:zAdmin", "space/invite");
+    authorize_local_removal(&db, space, "did:key:zAdmin", "did:key:zTarget")
+        .expect("invite-capable committer must be allowed to locally kick an active member");
+}
+
+#[test]
+fn removing_an_already_departed_member_needs_no_capability() {
+    // Mirrors the leader-side rekey-after-self-leave flow: the target's
+    // `haex_space_members` row is already gone (they left on their own),
+    // so this call is only catching up MLS state — no capability required
+    // from whichever peer happens to be the elected delivery leader.
+    let db = fresh_db();
+    let space = "space-a";
+    // No seed_member call — target is not (or no longer) an active member.
+    authorize_local_removal(&db, space, "did:key:zAnyLeader", "did:key:zAlreadyGone")
+        .expect("cleaning up a departed member's stale leaf must never require a capability");
+}
+
+#[test]
+fn removing_an_active_member_with_no_capability_grant_is_rejected() {
+    let db = fresh_db();
+    let space = "space-a";
+    seed_member(&db, space, "did:key:zTarget");
+    // No grant_capability call for the committer at all.
+    let err = authorize_local_removal(&db, space, "did:key:zNobody", "did:key:zTarget")
+        .expect_err("a committer with no capability grant must not be able to kick anyone");
+    assert!(
+        err.contains("holds no capability"),
         "unexpected error: {err}"
     );
 }

@@ -182,6 +182,14 @@ impl MlsManager {
 
         // Check for duplicate signature key in existing group members.
         // This can happen on re-invite after partial success or retry scenarios.
+        //
+        // Not gated by `authorization::authorize_local_removal`: the leaf
+        // being cleaned up here belongs to the SAME `expected_did` already
+        // authorized (via PoP + credential checks above) to be (re-)added —
+        // this is a self-cleanup of the invitee's own stale prior leaf, not
+        // a removal of a different member. See that function's docs for why
+        // `add_member` as a whole is not gated by the local committer's own
+        // capability (invite-token authority model, not device authority).
         let new_sig_key = key_package.leaf_node().signature_key().as_slice().to_vec();
         let own_leaf = group.own_leaf_index();
         let conflicting_index = group
@@ -252,6 +260,25 @@ impl MlsManager {
             .ok_or_else(|| format!("Group not found for space: {space_id}"))?;
 
         let leaf_index = LeafNodeIndex::new(member_index);
+
+        // This commit never passes through `decrypt`/`authorization::inspect`
+        // (only INCOMING commits do), so nothing else gates it. Require the
+        // local committer to hold Invite-or-higher unless the target has
+        // already left — see `authorization::authorize_local_removal` for
+        // the full rationale (leader-side rekey-after-self-leave exemption).
+        let target_did = group
+            .members()
+            .find(|m| m.index == leaf_index)
+            .map(|m| String::from_utf8_lossy(m.credential.serialized_content()).into_owned())
+            .ok_or_else(|| format!("No member at leaf index {member_index} in space {space_id}"))?;
+        let committer_did = self.get_own_did()?;
+        crate::mls::authorization::authorize_local_removal(
+            &self.conn,
+            space_id,
+            &committer_did,
+            &target_did,
+        )?;
+
         let (commit, _welcome, _group_info) = group
             .remove_members(&self.provider, &signer, &[leaf_index])
             .map_err(|e| format!("Failed to remove member: {e}"))?;
