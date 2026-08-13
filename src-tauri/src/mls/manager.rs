@@ -144,23 +144,41 @@ impl MlsManager {
             ));
         }
 
-        // Proof-of-possession: the credential check above only matches a
-        // self-asserted string. Verify the MLS signature key was attested by
-        // the identity key `expected_did` resolves to — otherwise an attacker
-        // holding their own identity key could still mint a KeyPackage naming
-        // someone else's DID and pass the check above.
+        // Proof-of-possession. The authoritative source is now the PoP
+        // carried as a leaf-node extension inside the KeyPackage itself
+        // (`mls::pop::HAEX_POP_EXTENSION_TYPE`) — that is what remote
+        // receivers verify in `mls::authorization`. Extract + verify it
+        // here on the local Add path too, so a malformed or stripped KP
+        // fails fast rather than round-tripping through delivery.
+        //
+        // The explicit `pop` argument is retained for the transitional
+        // leader-side plumbing (`buffer::store_key_package` /
+        // `haex_local_delivery_key_packages_no_sync.pop_blob`); we
+        // cross-check it against the leaf-embedded PoP so a bug in that
+        // plumbing (mismatched pair, wrong KP for a PoP) cannot slip past
+        // this layer. A follow-up will drop the parallel plumbing once
+        // the extension is the single source of truth end-to-end.
         let identity_pub = crate::ucan::public_key_from_did(expected_did)
             .map_err(|e| format!("Cannot resolve identity key from DID {expected_did}: {e}"))?;
-        let pop_sig = ed25519_dalek::Signature::try_from(pop)
-            .map_err(|e| format!("Malformed proof-of-possession signature: {e}"))?;
         let mls_sig_pub: &[u8; 32] = key_package
             .leaf_node()
             .signature_key()
             .as_slice()
             .try_into()
             .map_err(|_| "MLS signature key is not 32 bytes".to_string())?;
-        crate::mls::pop::verify_pop(&identity_pub, mls_sig_pub, expected_did, &pop_sig)
-            .map_err(|e| format!("Invalid proof-of-possession: {e}"))?;
+        let embedded_pop = crate::mls::pop::extract_pop_from_leaf(key_package.leaf_node())
+            .ok_or_else(|| {
+                "KeyPackage is missing the required proof-of-possession leaf extension".to_string()
+            })?;
+        crate::mls::pop::verify_pop(&identity_pub, mls_sig_pub, expected_did, &embedded_pop)
+            .map_err(|e| format!("Invalid proof-of-possession in KeyPackage extension: {e}"))?;
+        if pop != embedded_pop.to_bytes().as_slice() {
+            return Err(
+                "Passed proof-of-possession does not match the KeyPackage-embedded PoP \
+                 (leader-plumbing mismatch)"
+                    .to_string(),
+            );
+        }
 
         // Check for duplicate signature key in existing group members.
         // This can happen on re-invite after partial success or retry scenarios.
@@ -299,9 +317,9 @@ impl MlsManager {
         match processed.into_content() {
             ProcessedMessageContent::ApplicationMessage(app_msg) => Ok(app_msg.into_bytes()),
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                // Phase-1 membership-change authorization. Runs BEFORE
-                // `merge_staged_commit` so a rejected commit does not
-                // advance the local epoch. See `mls::authorization`.
+                // Phase-1 + Phase-2 membership-change authorization. Runs
+                // BEFORE `merge_staged_commit` so a rejected commit does
+                // not advance the local epoch. See `mls::authorization`.
                 let facts = crate::mls::authorization::inspect(
                     &sender,
                     &committer_credential,
@@ -309,6 +327,7 @@ impl MlsManager {
                     &group,
                 );
                 crate::mls::authorization::authorize(&self.conn, space_id, &facts)?;
+                crate::mls::authorization::verify_pops(space_id, &facts)?;
 
                 group
                     .merge_staged_commit(&self.provider, *staged_commit)
@@ -400,6 +419,17 @@ impl MlsManager {
     /// lives in `haex_identities`, outside the MLS provider's own storage, so the
     /// caller resolves and passes it in rather than this module reaching across
     /// into an unrelated table.
+    ///
+    /// Every KeyPackage additionally carries the PoP as a leaf-node extension
+    /// under [`crate::mls::pop::HAEX_POP_EXTENSION_TYPE`], so a receiver can
+    /// verify the DID↔MLS-key binding on incoming Add proposals without an
+    /// out-of-band channel. External-commit joiners are not covered by this
+    /// extension (openmls 0.8.1's external commit builder does not expose
+    /// leaf-node extensions); those still rely on the Phase-1 addee-DID
+    /// membership check in [`crate::mls::authorization`]. The tuple's second
+    /// element (the raw PoP bytes) is retained for the transitional
+    /// leader-side plumbing (`haex_local_delivery_key_packages_no_sync.pop_blob`)
+    /// — receivers authoritatively use the embedded extension.
     pub fn generate_key_packages(
         &self,
         count: u32,
@@ -410,9 +440,30 @@ impl MlsManager {
         let own_did = String::from_utf8_lossy(credential_with_key.credential.serialized_content())
             .into_owned();
 
+        // The vault uses a single MLS signature key per identity (see
+        // `init_identity`), so every KeyPackage this call mints shares the
+        // same `mls_sig_pub` — one PoP signature covers them all. Compute it
+        // once and clone the resulting extension into each KP's leaf.
+        let mls_sig_pub_vec = signer.to_public_vec();
+        let mls_sig_pub: &[u8; 32] = mls_sig_pub_vec
+            .as_slice()
+            .try_into()
+            .map_err(|_| "MLS signature key is not 32 bytes".to_string())?;
+        let pop = crate::mls::pop::sign_pop(identity_signing_key, mls_sig_pub, &own_did);
+        let pop_bytes = pop.to_bytes().to_vec();
+        let leaf_extensions = Extensions::single(crate::mls::pop::pop_leaf_extension(&pop))
+            .map_err(|e| format!("Failed to build PoP leaf extension list: {e:?}"))?;
+        let leaf_capabilities = Capabilities::builder()
+            .extensions(vec![ExtensionType::Unknown(
+                crate::mls::pop::HAEX_POP_EXTENSION_TYPE,
+            )])
+            .build();
+
         let mut packages = Vec::with_capacity(count as usize);
         for _ in 0..count {
             let bundle = KeyPackage::builder()
+                .leaf_node_capabilities(leaf_capabilities.clone())
+                .leaf_node_extensions(leaf_extensions.clone())
                 .build(
                     CIPHERSUITE,
                     &self.provider,
@@ -421,20 +472,11 @@ impl MlsManager {
                 )
                 .map_err(|e| format!("Failed to build key package: {e}"))?;
 
-            let mls_sig_pub: &[u8; 32] = bundle
-                .key_package()
-                .leaf_node()
-                .signature_key()
-                .as_slice()
-                .try_into()
-                .map_err(|_| "MLS signature key is not 32 bytes".to_string())?;
-            let pop = crate::mls::pop::sign_pop(identity_signing_key, mls_sig_pub, &own_did);
-
             let bytes = bundle
                 .key_package()
                 .tls_serialize_detached()
                 .map_err(|e| format!("Failed to serialize key package: {e}"))?;
-            packages.push((bytes, pop.to_bytes().to_vec()));
+            packages.push((bytes, pop_bytes.clone()));
         }
         Ok(packages)
     }

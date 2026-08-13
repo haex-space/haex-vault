@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 
-use super::{authorize, AddFact, CommitFacts, UpdateFact};
+use super::{authorize, verify_pops, AddFact, CommitFacts, UpdateFact};
 
 /// Minimal schema: only the two tables the addee-membership check joins.
 /// No `haex_tombstone` column — in the delete-log model post `crate::crdt`
@@ -68,8 +68,13 @@ fn remove_member(conn: &Arc<Mutex<Option<Connection>>>, space_id: &str, did: &st
 }
 
 fn add(did: &str) -> AddFact {
+    // Existing Phase-1 tests exercise `authorize` only, which does not
+    // consume `mls_sig_pub` or `pop_bytes`; zeros / `None` are fine.
+    // Phase-2 tests below construct `AddFact` inline with real values.
     AddFact {
         credential_did: did.to_string(),
+        mls_sig_pub: [0u8; 32],
+        pop_bytes: None,
     }
 }
 
@@ -334,4 +339,145 @@ fn commit_with_no_membership_change_is_accepted() {
     let facts = CommitFacts::default();
     authorize(&db, "space-a", &facts)
         .expect("a commit without adds/removes/updates/unmodelled is a no-op for Phase-1");
+}
+
+// ---------------------------------------------------------------------------
+// Phase-2: proof-of-possession leaf-extension verification
+// ---------------------------------------------------------------------------
+
+fn real_identity() -> (String, ed25519_dalek::SigningKey) {
+    let sk = ed25519_dalek::SigningKey::from_bytes(&rand::random());
+    let did = crate::ucan::did_key_from_public_key(&sk.verifying_key());
+    (did, sk)
+}
+
+fn add_with_valid_pop(
+    did: &str,
+    identity_sk: &ed25519_dalek::SigningKey,
+    mls_sig_pub: [u8; 32],
+) -> AddFact {
+    let sig = crate::mls::pop::sign_pop(identity_sk, &mls_sig_pub, did);
+    AddFact {
+        credential_did: did.to_string(),
+        mls_sig_pub,
+        pop_bytes: Some(sig.to_bytes().to_vec()),
+    }
+}
+
+#[test]
+fn verify_pops_accepts_a_valid_pop() {
+    let (did, id_sk) = real_identity();
+    let mls_sig_pub = rand::random::<[u8; 32]>();
+    let facts = CommitFacts {
+        adds: vec![add_with_valid_pop(&did, &id_sk, mls_sig_pub)],
+        ..CommitFacts::default()
+    };
+    verify_pops("space-a", &facts).expect("a valid PoP must be accepted");
+}
+
+#[test]
+fn verify_pops_rejects_missing_extension() {
+    let (did, _) = real_identity();
+    // Simulate an addee whose KeyPackage has no PoP leaf extension —
+    // `inspect` would set `pop_bytes: None` in that case.
+    let facts = CommitFacts {
+        adds: vec![AddFact {
+            credential_did: did.clone(),
+            mls_sig_pub: rand::random(),
+            pop_bytes: None,
+        }],
+        ..CommitFacts::default()
+    };
+    let err =
+        verify_pops("space-a", &facts).expect_err("addee without PoP extension must be rejected");
+    assert!(
+        err.contains("missing the required proof-of-possession"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn verify_pops_rejects_malformed_pop_bytes() {
+    let (did, _) = real_identity();
+    let facts = CommitFacts {
+        adds: vec![AddFact {
+            credential_did: did,
+            mls_sig_pub: rand::random(),
+            // Wrong length (5 bytes) — not a 64-byte Ed25519 signature.
+            pop_bytes: Some(vec![0u8; 5]),
+        }],
+        ..CommitFacts::default()
+    };
+    let err = verify_pops("space-a", &facts).expect_err("malformed PoP length must be rejected");
+    assert!(err.contains("malformed"), "unexpected error: {err}");
+}
+
+#[test]
+fn verify_pops_rejects_pop_signed_by_a_different_identity_key() {
+    // Attacker mints a KeyPackage naming the victim's DID, but signs the
+    // PoP with their OWN identity key. The receiver resolves `identity_pub`
+    // from the victim DID and rejects on signature verification failure.
+    let (victim_did, _victim_sk) = real_identity();
+    let (_attacker_did, attacker_sk) = real_identity();
+    let mls_sig_pub = rand::random::<[u8; 32]>();
+    let facts = CommitFacts {
+        adds: vec![add_with_valid_pop(&victim_did, &attacker_sk, mls_sig_pub)],
+        ..CommitFacts::default()
+    };
+    let err = verify_pops("space-a", &facts)
+        .expect_err("PoP signed by attacker's identity key must not verify against victim DID");
+    assert!(err.contains("does not verify"), "unexpected error: {err}");
+}
+
+#[test]
+fn verify_pops_rejects_pop_covering_a_different_mls_sig_key() {
+    // Attacker replays a legitimate PoP the victim's identity key signed
+    // over some other MLS signature key, but puts a different key on their
+    // KeyPackage. `verify_pop` fails because the covered message differs.
+    let (victim_did, victim_sk) = real_identity();
+    let original_mls_sig_pub = rand::random::<[u8; 32]>();
+    let sig = crate::mls::pop::sign_pop(&victim_sk, &original_mls_sig_pub, &victim_did);
+    let facts = CommitFacts {
+        adds: vec![AddFact {
+            credential_did: victim_did,
+            // KP carries a DIFFERENT MLS sig key from what the PoP covers.
+            mls_sig_pub: rand::random(),
+            pop_bytes: Some(sig.to_bytes().to_vec()),
+        }],
+        ..CommitFacts::default()
+    };
+    let err = verify_pops("space-a", &facts)
+        .expect_err("PoP bound to a different MLS sig key must not verify");
+    assert!(err.contains("does not verify"), "unexpected error: {err}");
+}
+
+#[test]
+fn verify_pops_rejects_when_did_does_not_resolve() {
+    // A syntactically invalid DID cannot be resolved to a public key. Reject
+    // with the resolution error rather than blindly accepting.
+    let facts = CommitFacts {
+        adds: vec![add_with_valid_pop(
+            "did:key:not-a-real-did",
+            &ed25519_dalek::SigningKey::from_bytes(&rand::random()),
+            rand::random(),
+        )],
+        ..CommitFacts::default()
+    };
+    let err = verify_pops("space-a", &facts).expect_err("unresolvable DID must be rejected");
+    assert!(
+        err.contains("cannot resolve identity key"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn verify_pops_is_a_no_op_with_no_adds() {
+    // An external commit or a remove-only commit carries no Add proposals;
+    // Phase-2 has nothing to do. (External-commit joiners are documented as
+    // out of scope for Phase 2 due to openmls-0.8.1's builder limitation.)
+    let facts = CommitFacts {
+        external_joiner: Some("did:key:zAnyone".to_string()),
+        ..CommitFacts::default()
+    };
+    verify_pops("space-a", &facts).expect("verify_pops has nothing to do when there are no adds");
 }
