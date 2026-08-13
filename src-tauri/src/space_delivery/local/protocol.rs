@@ -80,6 +80,24 @@ pub enum Request {
         /// Base64-encoded MLS message
         message: String,
         message_type: String,
+        /// Base64-encoded UCAN token the committer holds for this space.
+        /// Present iff the message is a membership-changing commit whose
+        /// committer holds `Invite`-or-higher; absent for application
+        /// messages, key rotations, self-leaves, and leader-rekey-after-
+        /// self-leave commits (where every removed leaf's DID is already
+        /// gone from `haex_space_members`, so the receiver's target-gone
+        /// exemption applies and no capability proof is needed). See
+        /// `mls::authorization::authorize_committer_capability`.
+        #[serde(default)]
+        committer_ucan: Option<String>,
+        /// Base64-encoded ed25519 signature over
+        /// `sha256("haex-mls-commit-bind-v1" || sha256(mls_bytes))`
+        /// produced with the identity key resolvable from
+        /// `committer_ucan`'s `audience_did`. Prevents a captured UCAN from
+        /// being replayed against a different commit. Present iff
+        /// `committer_ucan` is present.
+        #[serde(default)]
+        committer_commit_bind_sig: Option<String>,
     },
     /// Fetch MLS messages after a given ID
     MlsFetchMessages {
@@ -503,6 +521,14 @@ pub struct MlsMessageEntry {
     pub message_type: String,
     /// Base64-encoded
     pub message: String,
+    /// Base64-encoded UCAN token attached to the commit at send time.
+    /// See `Request::MlsSendMessage::committer_ucan` for the semantics.
+    #[serde(default)]
+    pub committer_ucan: Option<String>,
+    /// Base64-encoded ed25519 commit-bind signature. See
+    /// `Request::MlsSendMessage::committer_commit_bind_sig`.
+    #[serde(default)]
+    pub committer_commit_bind_sig: Option<String>,
     pub created_at: String,
 }
 

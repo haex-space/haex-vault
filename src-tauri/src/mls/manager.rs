@@ -241,10 +241,17 @@ impl MlsManager {
             .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize group info: {e}"))?;
 
+        // Adds do not carry a receive-side committer-capability proof
+        // (plan §5.0 — leader-relay-Add case). The KeyPackage's own PoP
+        // and Phase-1 addee-membership check bound the Add; nothing on
+        // the wire encodes a "the leader relaying this ClaimInvite held
+        // Invite-or-higher itself" claim.
         Ok(MlsCommitBundle {
             commit: commit_bytes,
             welcome: Some(welcome_bytes),
             group_info: group_info_bytes,
+            committer_ucan: None,
+            committer_commit_bind_sig: None,
         })
     }
 
@@ -324,10 +331,17 @@ impl MlsManager {
             .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize group info: {e}"))?;
 
+        // Committer UCAN + bind sig are populated by a follow-up wiring
+        // task (plan §6 / todo #11). Left as `None` here so the compile
+        // stays clean while the wiring lands incrementally; the receive-
+        // side gate treats `None` as "no proof presented" and the
+        // target-gone exemption handles the leader-rekey case for now.
         Ok(MlsCommitBundle {
             commit: commit_bytes,
             welcome: None,
             group_info: group_info_bytes,
+            committer_ucan: None,
+            committer_commit_bind_sig: None,
         })
     }
 

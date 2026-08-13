@@ -439,6 +439,8 @@
         "senderDid": "sender_did",
         "messageType": "message_type",
         "messageBlob": "message_blob",
+        "committerUcan": "committer_ucan",
+        "committerCommitBindSig": "committer_commit_bind_sig",
         "createdAt": "created_at"
       }
     },
