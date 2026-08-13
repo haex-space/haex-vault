@@ -11,11 +11,17 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 
-use super::{authorize, verify_pops, AddFact, CommitFacts, UpdateFact};
+use super::{
+    authorize, authorize_committer_capability, authorize_local_removal, verify_pops, AddFact,
+    CommitFacts, UpdateFact,
+};
 
-/// Minimal schema: only the two tables the addee-membership check joins.
-/// No `haex_tombstone` column — in the delete-log model post `crate::crdt`
+/// Minimal schema: the two tables the addee-membership check joins, plus
+/// `haex_ucan_tokens` for the Phase-3 committer-capability lookup. No
+/// `haex_tombstone` column — in the delete-log model post `crate::crdt`
 /// refactor, revocation is expressed by row absence, not a tombstone flag.
+/// `haex_ucan_tokens` never had a tombstone column even before that
+/// refactor (see production schema `0000_jazzy_chat.sql`).
 const MEMBERSHIP_SQL: &str = "
 CREATE TABLE haex_identities (
     id TEXT PRIMARY KEY,
@@ -26,6 +32,16 @@ CREATE TABLE haex_space_members (
     space_id TEXT NOT NULL,
     identity_id TEXT NOT NULL,
     role TEXT
+);
+CREATE TABLE haex_ucan_tokens (
+    id TEXT PRIMARY KEY,
+    space_id TEXT NOT NULL,
+    token TEXT NOT NULL,
+    capability TEXT NOT NULL,
+    issuer_did TEXT NOT NULL,
+    audience_did TEXT NOT NULL,
+    issued_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
 );
 ";
 
@@ -65,6 +81,38 @@ fn remove_member(conn: &Arc<Mutex<Option<Connection>>>, space_id: &str, did: &st
         rusqlite::params![space_id, did],
     )
     .expect("remove member");
+}
+
+/// Grant `did` a `space/<capability>` UCAN token for `space_id`, expiring
+/// far in the future (2286 — same order of magnitude as production's
+/// `MEMBER_UCAN_EXPIRES_IN_SECONDS`, just a literal here since this module
+/// has no access to that constant's crate path).
+fn grant_capability(
+    conn: &Arc<Mutex<Option<Connection>>>,
+    space_id: &str,
+    did: &str,
+    capability: &str,
+) {
+    grant_capability_expiring_at(conn, space_id, did, capability, 9_999_999_999);
+}
+
+fn grant_capability_expiring_at(
+    conn: &Arc<Mutex<Option<Connection>>>,
+    space_id: &str,
+    did: &str,
+    capability: &str,
+    expires_at: i64,
+) {
+    let guard = conn.lock().unwrap();
+    let c = guard.as_ref().unwrap();
+    let id = format!("ucan-{space_id}-{did}-{capability}-{expires_at}");
+    c.execute(
+        "INSERT INTO haex_ucan_tokens \
+         (id, space_id, token, capability, issuer_did, audience_did, issued_at, expires_at) \
+         VALUES (?1, ?2, 'test-token', ?3, 'did:key:zIssuer', ?4, 0, ?5)",
+        rusqlite::params![id, space_id, capability, did, expires_at],
+    )
+    .expect("insert ucan token");
 }
 
 fn add(did: &str) -> AddFact {
@@ -480,4 +528,350 @@ fn verify_pops_is_a_no_op_with_no_adds() {
         ..CommitFacts::default()
     };
     verify_pops("space-a", &facts).expect("verify_pops has nothing to do when there are no adds");
+}
+
+// ---------------------------------------------------------------------------
+// Phase-3: committer-capability gate (§7 rows involving the committer)
+// ---------------------------------------------------------------------------
+
+fn remove_of(leaf_index: u32, did: &str) -> super::RemoveFact {
+    super::RemoveFact {
+        leaf_index,
+        credential_did: Some(did.to_string()),
+    }
+}
+
+#[test]
+fn no_membership_change_needs_no_capability() {
+    let db = fresh_db();
+    // Committer holds nothing at all — no ucan row seeded — yet an empty
+    // commit (key rotation / PSK / ordinary traffic) must still pass.
+    let facts = CommitFacts {
+        committer_did: Some("did:key:zNobody".to_string()),
+        ..CommitFacts::default()
+    };
+    authorize_committer_capability(&db, "space-a", &facts)
+        .expect("a commit with no adds/removes needs no committer capability");
+}
+
+#[test]
+fn read_only_committer_cannot_add() {
+    let db = fresh_db();
+    let space = "space-a";
+    grant_capability(&db, space, "did:key:zCommitter", "space/read");
+    let facts = CommitFacts {
+        adds: vec![add("did:key:zSomeone")],
+        committer_did: Some("did:key:zCommitter".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts)
+        .expect_err("read-only committer must not be allowed to add anyone");
+    assert!(
+        err.contains("Read") && err.contains("Invite-or-higher"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn invite_committer_can_add() {
+    let db = fresh_db();
+    let space = "space-a";
+    grant_capability(&db, space, "did:key:zCommitter", "space/invite");
+    let facts = CommitFacts {
+        adds: vec![add("did:key:zSomeone")],
+        committer_did: Some("did:key:zCommitter".to_string()),
+        ..CommitFacts::default()
+    };
+    authorize_committer_capability(&db, space, &facts)
+        .expect("invite-capable committer must be allowed to add");
+}
+
+#[test]
+fn admin_committer_can_remove_anyone() {
+    let db = fresh_db();
+    let space = "space-a";
+    grant_capability(&db, space, "did:key:zAdmin", "space/admin");
+    let facts = CommitFacts {
+        removes: vec![remove_of(2, "did:key:zOwner")],
+        committer_did: Some("did:key:zAdmin".to_string()),
+        ..CommitFacts::default()
+    };
+    authorize_committer_capability(&db, space, &facts)
+        .expect("admin committer must be allowed to remove any member, including the owner");
+}
+
+#[test]
+fn read_only_committer_cannot_remove_the_owner() {
+    // Mirrors the plan's §7 row: "member removes the space owner | rejected
+    // (owner is a member; committer needs the capability)".
+    let db = fresh_db();
+    let space = "space-a";
+    grant_capability(&db, space, "did:key:zReadOnly", "space/read");
+    let facts = CommitFacts {
+        removes: vec![remove_of(1, "did:key:zOwner")],
+        committer_did: Some("did:key:zReadOnly".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts)
+        .expect_err("read-only member must not be able to kick the owner");
+    assert!(err.contains("zReadOnly"), "unexpected error: {err}");
+}
+
+#[test]
+fn write_capability_does_not_allow_membership_changes() {
+    // Write sits strictly between Read and Invite in the lattice — must not
+    // satisfy the Invite-or-higher gate.
+    let db = fresh_db();
+    let space = "space-a";
+    grant_capability(&db, space, "did:key:zWriter", "space/write");
+    let facts = CommitFacts {
+        removes: vec![remove_of(3, "did:key:zTarget")],
+        committer_did: Some("did:key:zWriter".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts)
+        .expect_err("space/write must not satisfy the Invite-or-higher gate");
+    assert!(err.contains("Write"), "unexpected error: {err}");
+}
+
+#[test]
+fn committer_with_no_capability_row_is_rejected() {
+    let db = fresh_db();
+    let space = "space-a";
+    // No grant_capability call at all — committer holds nothing.
+    let facts = CommitFacts {
+        removes: vec![remove_of(1, "did:key:zTarget")],
+        committer_did: Some("did:key:zNobody".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts)
+        .expect_err("a committer with no capability grant at all must be rejected");
+    assert!(
+        err.contains("holds no capability"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn expired_capability_token_is_ignored() {
+    let db = fresh_db();
+    let space = "space-a";
+    // Token exists but expired a long time ago (unix epoch + 1 second).
+    grant_capability_expiring_at(&db, space, "did:key:zStale", "space/admin", 1);
+    let facts = CommitFacts {
+        removes: vec![remove_of(1, "did:key:zTarget")],
+        committer_did: Some("did:key:zStale".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts)
+        .expect_err("an expired capability token must not count");
+    assert!(
+        err.contains("holds no capability"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn highest_of_several_capability_tokens_is_used() {
+    // A member can hold several orthogonal grants at once (e.g. read +
+    // invite from separate claims); the gate must pick the best one.
+    let db = fresh_db();
+    let space = "space-a";
+    grant_capability(&db, space, "did:key:zMulti", "space/read");
+    grant_capability(&db, space, "did:key:zMulti", "space/invite");
+    let facts = CommitFacts {
+        adds: vec![add("did:key:zSomeone")],
+        committer_did: Some("did:key:zMulti".to_string()),
+        ..CommitFacts::default()
+    };
+    authorize_committer_capability(&db, space, &facts)
+        .expect("holding invite alongside read must still satisfy the gate");
+}
+
+#[test]
+fn pure_self_leave_needs_no_capability() {
+    // Exactly one Remove, targeting the committer's own leaf, no Adds — the
+    // committer holds NOTHING and must still be allowed to leave.
+    let db = fresh_db();
+    let space = "space-a";
+    let facts = CommitFacts {
+        removes: vec![remove_of(5, "did:key:zLeaver")],
+        self_removal: true,
+        committer_did: Some("did:key:zLeaver".to_string()),
+        ..CommitFacts::default()
+    };
+    authorize_committer_capability(&db, space, &facts)
+        .expect("a member leaving on their own must never require a capability");
+}
+
+#[test]
+fn external_rejoin_cleanup_remove_of_own_stale_leaf_needs_no_capability() {
+    // Regression: openmls auto-generates a Remove for a rejoining member's
+    // own stale leaf when the external commit reuses the same MLS signature
+    // key (real scenario exercised end-to-end by
+    // `external_commit_rejoin_roundtrip` in `mls_lifecycle.rs`, which
+    // originally broke this test suite when the committer-capability gate
+    // was first wired in). `committer_leaf` is `None` for
+    // `Sender::NewMemberCommit`, so a leaf-index comparison always misses
+    // it; `inspect` recognises it by comparing the removed leaf's MLS
+    // signature key against the commit's own update-path leaf key. Here we
+    // assert only the consequence: `self_removal` set on such a commit
+    // exempts it.
+    let db = fresh_db();
+    let space = "space-a";
+    let facts = CommitFacts {
+        removes: vec![remove_of(1, "did:key:zRejoiner")],
+        self_removal: true,
+        committer_did: Some("did:key:zRejoiner".to_string()),
+        external_joiner: Some("did:key:zRejoiner".to_string()),
+        ..CommitFacts::default()
+    };
+    authorize_committer_capability(&db, space, &facts)
+        .expect("rejoin cleanup of one's own stale leaf must never require a capability");
+}
+
+#[test]
+fn external_joiner_removing_a_leaf_that_is_not_its_own_requires_capability() {
+    // The DID-spoof shape: an external-commit joiner asserts a victim's DID
+    // in its credential (Phase-1 lets it through because the victim IS a
+    // member, and `verify_pops` cannot check an external commit's leaf) and
+    // bundles a single Remove of the victim's leaf. `inspect` must NOT set
+    // `self_removal` there — the removed leaf's MLS signature key is the
+    // victim's, not the joiner's — so the commit stays subject to the gate.
+    // This test pins the caller half: without the exemption, a joiner
+    // holding nothing is rejected.
+    let db = fresh_db();
+    let space = "space-a";
+    let facts = CommitFacts {
+        removes: vec![remove_of(1, "did:key:zVictim")],
+        self_removal: false,
+        committer_did: Some("did:key:zVictim".to_string()),
+        external_joiner: Some("did:key:zVictim".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts).expect_err(
+        "an external-commit joiner removing a leaf that is not its own must need the capability",
+    );
+    assert!(
+        err.contains("holds no capability"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn self_leave_bundled_with_another_remove_requires_capability() {
+    // The committer removes themselves AND someone else in the same commit.
+    // The bundled extra removal means the exemption does not apply — the
+    // capability gate still fires for the commit as a whole.
+    let db = fresh_db();
+    let space = "space-a";
+    let facts = CommitFacts {
+        removes: vec![
+            remove_of(5, "did:key:zLeaver"),
+            remove_of(6, "did:key:zOther"),
+        ],
+        self_removal: true,
+        committer_did: Some("did:key:zLeaver".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts).expect_err(
+        "self-leave bundled with removing someone else must still require the capability",
+    );
+    assert!(
+        err.contains("holds no capability"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn self_leave_bundled_with_an_add_requires_capability() {
+    let db = fresh_db();
+    let space = "space-a";
+    let facts = CommitFacts {
+        adds: vec![add("did:key:zNewcomer")],
+        removes: vec![remove_of(5, "did:key:zLeaver")],
+        self_removal: true,
+        committer_did: Some("did:key:zLeaver".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts)
+        .expect_err("self-leave bundled with an add must still require the capability");
+    assert!(
+        err.contains("holds no capability"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn missing_committer_did_is_rejected_when_membership_changing() {
+    let db = fresh_db();
+    let space = "space-a";
+    let facts = CommitFacts {
+        adds: vec![add("did:key:zSomeone")],
+        committer_did: None,
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts)
+        .expect_err("an unresolvable committer DID must reject a membership-changing commit");
+    assert!(
+        err.contains("no resolvable committer DID"),
+        "unexpected error: {err}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Local-path gate (CodeRabbit finding on PR #781): `remove_member` never
+// passes through `decrypt`/`inspect`, so `authorize_local_removal` is the
+// only thing gating it.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn removing_an_active_member_requires_invite_or_higher() {
+    let db = fresh_db();
+    let space = "space-a";
+    seed_member(&db, space, "did:key:zTarget");
+    grant_capability(&db, space, "did:key:zReadOnly", "space/read");
+    let err = authorize_local_removal(&db, space, "did:key:zReadOnly", "did:key:zTarget")
+        .expect_err("read-only committer must not be able to locally kick an active member");
+    assert!(
+        err.contains("Read") && err.contains("Invite-or-higher"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn removing_an_active_member_with_invite_capability_is_allowed() {
+    let db = fresh_db();
+    let space = "space-a";
+    seed_member(&db, space, "did:key:zTarget");
+    grant_capability(&db, space, "did:key:zAdmin", "space/invite");
+    authorize_local_removal(&db, space, "did:key:zAdmin", "did:key:zTarget")
+        .expect("invite-capable committer must be allowed to locally kick an active member");
+}
+
+#[test]
+fn removing_an_already_departed_member_needs_no_capability() {
+    // Mirrors the leader-side rekey-after-self-leave flow: the target's
+    // `haex_space_members` row is already gone (they left on their own),
+    // so this call is only catching up MLS state — no capability required
+    // from whichever peer happens to be the elected delivery leader.
+    let db = fresh_db();
+    let space = "space-a";
+    // No seed_member call — target is not (or no longer) an active member.
+    authorize_local_removal(&db, space, "did:key:zAnyLeader", "did:key:zAlreadyGone")
+        .expect("cleaning up a departed member's stale leaf must never require a capability");
+}
+
+#[test]
+fn removing_an_active_member_with_no_capability_grant_is_rejected() {
+    let db = fresh_db();
+    let space = "space-a";
+    seed_member(&db, space, "did:key:zTarget");
+    // No grant_capability call for the committer at all.
+    let err = authorize_local_removal(&db, space, "did:key:zNobody", "did:key:zTarget")
+        .expect_err("a committer with no capability grant must not be able to kick anyone");
+    assert!(
+        err.contains("holds no capability"),
+        "unexpected error: {err}"
+    );
 }

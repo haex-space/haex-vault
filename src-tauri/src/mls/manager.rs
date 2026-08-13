@@ -182,6 +182,14 @@ impl MlsManager {
 
         // Check for duplicate signature key in existing group members.
         // This can happen on re-invite after partial success or retry scenarios.
+        //
+        // Not gated by `authorization::authorize_local_removal`: the leaf
+        // being cleaned up here belongs to the SAME `expected_did` already
+        // authorized (via PoP + credential checks above) to be (re-)added —
+        // this is a self-cleanup of the invitee's own stale prior leaf, not
+        // a removal of a different member. See that function's docs for why
+        // `add_member` as a whole is not gated by the local committer's own
+        // capability (invite-token authority model, not device authority).
         let new_sig_key = key_package.leaf_node().signature_key().as_slice().to_vec();
         let own_leaf = group.own_leaf_index();
         let conflicting_index = group
@@ -252,6 +260,52 @@ impl MlsManager {
             .ok_or_else(|| format!("Group not found for space: {space_id}"))?;
 
         let leaf_index = LeafNodeIndex::new(member_index);
+
+        // This commit never passes through `decrypt`/`authorization::inspect`
+        // (only INCOMING commits do), so nothing else gates it. Require the
+        // local committer to hold Invite-or-higher unless the target has
+        // already left — see `authorization::authorize_local_removal` for
+        // the full rationale (leader-side rekey-after-self-leave exemption).
+        //
+        // Both DIDs go through `authorization::did_from_credential`, which
+        // returns `None` for anything that is not a UTF-8 BasicCredential.
+        // A lossy conversion here would fail OPEN: the mangled string could
+        // never match a `haex_identities.did`, so `is_space_member` would
+        // answer "already left" and skip the gate entirely.
+        let resolve_did = |m: &Member, what: &str| -> Result<String, String> {
+            crate::mls::authorization::did_from_credential(&m.credential).ok_or_else(|| {
+                format!(
+                    "Cannot resolve a DID from the {what} credential at leaf {} in space \
+                     {space_id} (not a UTF-8 BasicCredential)",
+                    m.index.u32()
+                )
+            })
+        };
+        let target_did = group
+            .members()
+            .find(|m| m.index == leaf_index)
+            .ok_or_else(|| format!("No member at leaf index {member_index} in space {space_id}"))
+            .and_then(|m| resolve_did(&m, "removal target's"))?;
+        // The DID that will actually SIGN this commit is the one on our own
+        // leaf in this group, not `get_own_did()` — the latter is a single
+        // device-global value (`storage::store_own_did`) that a later
+        // `init_identity` with a different default identity would overwrite
+        // while the group leaf keeps the DID it was created/joined with.
+        // Authorizing anything other than the signing DID would gate the
+        // wrong principal.
+        let own_leaf = group.own_leaf_index();
+        let committer_did = group
+            .members()
+            .find(|m| m.index == own_leaf)
+            .ok_or_else(|| format!("Own leaf {own_leaf:?} not present in space {space_id}"))
+            .and_then(|m| resolve_did(&m, "own"))?;
+        crate::mls::authorization::authorize_local_removal(
+            &self.conn,
+            space_id,
+            &committer_did,
+            &target_did,
+        )?;
+
         let (commit, _welcome, _group_info) = group
             .remove_members(&self.provider, &signer, &[leaf_index])
             .map_err(|e| format!("Failed to remove member: {e}"))?;
@@ -317,8 +371,8 @@ impl MlsManager {
         match processed.into_content() {
             ProcessedMessageContent::ApplicationMessage(app_msg) => Ok(app_msg.into_bytes()),
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                // Phase-1 + Phase-2 membership-change authorization. Runs
-                // BEFORE `merge_staged_commit` so a rejected commit does
+                // Phase-1 + Phase-2 + Phase-3 membership-change authorization.
+                // Runs BEFORE `merge_staged_commit` so a rejected commit does
                 // not advance the local epoch. See `mls::authorization`.
                 let facts = crate::mls::authorization::inspect(
                     &sender,
@@ -328,6 +382,9 @@ impl MlsManager {
                 );
                 crate::mls::authorization::authorize(&self.conn, space_id, &facts)?;
                 crate::mls::authorization::verify_pops(space_id, &facts)?;
+                crate::mls::authorization::authorize_committer_capability(
+                    &self.conn, space_id, &facts,
+                )?;
 
                 group
                     .merge_staged_commit(&self.provider, *staged_commit)
