@@ -26,9 +26,14 @@ const ED25519_PUBLIC_KEY_LEN: usize = 32;
 /// (`0xF000-0xFFFF`) — no coordination required with the IETF-managed
 /// short values, no clash with GREASE (which uses the `0xNANA` pattern,
 /// never `0xF001`). Every KeyPackage the vault produces carries this
-/// extension; every receiver checking an Add proposal or an external-commit
-/// leaf demands its presence and verifies the signature against the
-/// credential DID.
+/// extension; every receiver checking an Add proposal demands its presence
+/// and verifies the signature against the credential DID.
+///
+/// External-commit joiners are out of scope: openmls 0.8.1's external
+/// commit builder does not expose leaf-node extensions, so the joining
+/// leaf carries none. The Phase-1 addee-DID membership check in
+/// [`crate::mls::authorization`] still fires against `haex_space_members`,
+/// which is what defends the external-commit path today.
 ///
 /// This is the wire-level identifier — changing it is a breaking
 /// KeyPackage-format change. There are no production users today so a

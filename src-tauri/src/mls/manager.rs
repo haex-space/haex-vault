@@ -422,11 +422,14 @@ impl MlsManager {
     ///
     /// Every KeyPackage additionally carries the PoP as a leaf-node extension
     /// under [`crate::mls::pop::HAEX_POP_EXTENSION_TYPE`], so a receiver can
-    /// verify the DID↔MLS-key binding on incoming Add proposals and external
-    /// commits without an out-of-band channel. The tuple's second element (the
-    /// raw PoP bytes) is retained for the transitional leader-side plumbing
-    /// (`haex_local_delivery_key_packages_no_sync.pop_blob`) — receivers
-    /// authoritatively use the embedded extension.
+    /// verify the DID↔MLS-key binding on incoming Add proposals without an
+    /// out-of-band channel. External-commit joiners are not covered by this
+    /// extension (openmls 0.8.1's external commit builder does not expose
+    /// leaf-node extensions); those still rely on the Phase-1 addee-DID
+    /// membership check in [`crate::mls::authorization`]. The tuple's second
+    /// element (the raw PoP bytes) is retained for the transitional
+    /// leader-side plumbing (`haex_local_delivery_key_packages_no_sync.pop_blob`)
+    /// — receivers authoritatively use the embedded extension.
     pub fn generate_key_packages(
         &self,
         count: u32,
