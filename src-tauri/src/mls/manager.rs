@@ -317,8 +317,8 @@ impl MlsManager {
         match processed.into_content() {
             ProcessedMessageContent::ApplicationMessage(app_msg) => Ok(app_msg.into_bytes()),
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                // Phase-1 + Phase-2 membership-change authorization. Runs
-                // BEFORE `merge_staged_commit` so a rejected commit does
+                // Phase-1 + Phase-2 + Phase-3 membership-change authorization.
+                // Runs BEFORE `merge_staged_commit` so a rejected commit does
                 // not advance the local epoch. See `mls::authorization`.
                 let facts = crate::mls::authorization::inspect(
                     &sender,
@@ -328,6 +328,9 @@ impl MlsManager {
                 );
                 crate::mls::authorization::authorize(&self.conn, space_id, &facts)?;
                 crate::mls::authorization::verify_pops(space_id, &facts)?;
+                crate::mls::authorization::authorize_committer_capability(
+                    &self.conn, space_id, &facts,
+                )?;
 
                 group
                     .merge_staged_commit(&self.provider, *staged_commit)

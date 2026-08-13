@@ -26,19 +26,24 @@
 //! - **Fail-closed on unmodelled proposals**: any proposal type this module
 //!   does not model (PSK, ReInit, GroupContextExtensions, SelfRemove,
 //!   Custom, …) rejects the whole commit.
-//! - **Self-removal recorded but unenforced**: this phase does not check the
-//!   committer's own capability, so a self-leave is trivially allowed. The
-//!   flag is surfaced so a later phase that adds a committer-capability
-//!   check can grant the standard "leave is always allowed" exemption.
 //!
-//! **Not** in Phase 1 (deferred to Phase 2/3 of the plan):
+//! Phase-2 additionally verifies the proof-of-possession KeyPackage
+//! extension on every Add proposal (see [`verify_pops`]).
 //!
-//! - Committer authorization (needs `CapabilityLevel::Invite`-or-higher on
-//!   the committer). Without this, a read-only member can still legitimately
-//!   remove another member, which Phase 1 does not stop.
-//! - Proof-of-possession as a KeyPackage extension. Without it the addee
-//!   membership check only raises the bar from "add any stranger" to
-//!   "impersonate an existing member's DID". Phase 2 closes that.
+//! Phase-3 additionally requires the committer to hold
+//! `CapabilityLevel::Invite`-or-higher before a membership-changing commit
+//! (Add or Remove) may merge, with a self-leave exemption (see
+//! [`authorize_committer_capability`]). This is the interim rule from §5.7
+//! of the plan; a dedicated orthogonal `Cap::ManageMembers` is deferred to
+//! the `CapabilitySet` migration (Phase 4).
+//!
+//! **Not yet closed:**
+//!
+//! - External-commit joiners are not PoP-verified (openmls 0.8.1 limitation,
+//!   documented on [`verify_pops`]).
+//! - The interim `Invite`-or-higher rule is a blunt hierarchical gate, not
+//!   the orthogonal "may remove but not invite" / "may invite but not kick"
+//!   split the plan's final design calls for.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -48,6 +53,8 @@ use openmls::framing::Sender;
 use openmls::group::{MlsGroup, StagedCommit};
 use openmls::messages::proposals::{Proposal, ProposalType};
 use rusqlite::Connection;
+
+use crate::ucan::CapabilityLevel;
 
 /// One entry per Add proposal in the commit.
 #[derive(Debug, Clone)]
@@ -74,9 +81,12 @@ pub(crate) struct RemoveFact {
     pub leaf_index: u32,
     /// DID at that leaf in the pre-commit tree; `None` if the leaf slot was
     /// already empty (defensive — a Remove on an empty slot is not something
-    /// we expect). Surfaced for Phase-3 committer-capability checks; Phase-1
-    /// does not gate removes.
-    #[allow(dead_code)]
+    /// we expect). Feeds [`CommitFacts::self_removal`] via DID comparison
+    /// against the committer — necessary because a rejoining external-commit
+    /// joiner cleaning up their own stale leaf has no *pre-commit* leaf of
+    /// their own to compare indices against (`Sender::NewMemberCommit` has
+    /// no meaningful "own leaf" before the commit); comparing identities
+    /// instead of leaf positions covers that case correctly.
     pub credential_did: Option<String>,
 }
 
@@ -95,10 +105,6 @@ pub(crate) struct UpdateFact {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct CommitFacts {
     pub adds: Vec<AddFact>,
-    /// Recorded but not consumed by Phase-1 policy; the Phase-3 committer-
-    /// capability check will use these to enforce "read-only members cannot
-    /// remove anyone else".
-    #[allow(dead_code)]
     pub removes: Vec<RemoveFact>,
     pub updates: Vec<UpdateFact>,
     /// For an external commit (`Sender::NewMemberCommit`), the joiner's DID
@@ -108,11 +114,16 @@ pub(crate) struct CommitFacts {
     /// Descriptions of any queued proposal whose type this module does not
     /// model. Non-empty means the commit is rejected fail-closed.
     pub unmodelled: Vec<&'static str>,
-    /// True if the committer removed their own leaf (a leave). Not consumed
-    /// by Phase-1 policy; surfaced so a later committer-capability check can
-    /// grant the standard leave exemption.
-    #[allow(dead_code)]
+    /// True if the committer removed their own leaf (a leave). Consumed by
+    /// [`authorize_committer_capability`] to grant the leave exemption —
+    /// only when it's the ONLY membership change in the commit (see there).
     pub self_removal: bool,
+    /// DID resolved from the committer's own credential (`Sender::Member`'s
+    /// own leaf, or the joiner's credential for `Sender::NewMemberCommit`).
+    /// `None` for the anomalous sender variants, which are already rejected
+    /// via `unmodelled` before this would matter. Feeds the capability
+    /// lookup in [`authorize_committer_capability`].
+    pub committer_did: Option<String>,
 }
 
 /// Extract the DID string from a BasicCredential.
@@ -264,8 +275,29 @@ pub(crate) fn inspect(
         }
     }
 
-    let self_removal = committer_leaf
-        .map(|c| removes.iter().any(|r| r.leaf_index == c))
+    // The committer's own DID, regardless of sender variant. For the
+    // anomalous senders (External/NewMemberProposal) this is whatever
+    // openmls populated `committer_credential` with — irrelevant in
+    // practice since `unmodelled` already rejects those before this field
+    // would be consulted.
+    let committer_did = did_from_credential(committer_credential);
+
+    // Identity-based, NOT leaf-index-based: a `Sender::Member` self-leave
+    // removes the leaf holding the committer's own DID, which
+    // `leaf_to_did`-derived `RemoveFact::credential_did` already captures.
+    // A `Sender::NewMemberCommit` rejoin can ALSO carry a Remove — openmls
+    // auto-generates one to clean up the rejoiner's own stale prior leaf
+    // when they reuse the same MLS signature key — and that remove targets
+    // the joiner's own (pre-commit) leaf too, identified by the SAME DID.
+    // `committer_leaf` is `None` for `NewMemberCommit`, so a leaf-index
+    // comparison would miss this; comparing DIDs catches both shapes.
+    let self_removal = committer_did
+        .as_deref()
+        .map(|did| {
+            removes
+                .iter()
+                .any(|r| r.credential_did.as_deref() == Some(did))
+        })
         .unwrap_or(false);
 
     CommitFacts {
@@ -275,6 +307,7 @@ pub(crate) fn inspect(
         external_joiner,
         unmodelled,
         self_removal,
+        committer_did,
     }
 }
 
@@ -407,6 +440,113 @@ pub(crate) fn verify_pops(space_id: &str, facts: &CommitFacts) -> Result<(), Str
             })?;
     }
     Ok(())
+}
+
+/// Phase-3 check: a membership-changing commit (at least one Add or Remove
+/// proposal) requires the committer to hold `CapabilityLevel::Invite`-or-
+/// higher for this space. This is the interim rule from §5.7 of the plan —
+/// no dedicated `Cap::ManageMembers`, just the existing hierarchical
+/// lattice (`Admin > Invite > Write > Read`).
+///
+/// Exemptions:
+/// - No Add/Remove at all (key rotation, PSK, ordinary application
+///   traffic) — no capability requirement.
+/// - A member removing ONLY themselves — exactly one Remove, targeting
+///   their own leaf (`CommitFacts::self_removal`), and no Adds — must
+///   always be allowed. Leaving a space can never require a capability the
+///   leaver may not hold; if a self-remove is bundled with anything else
+///   (another Remove, or an Add), the capability requirement still applies
+///   to the commit as a whole.
+///
+/// Trust model: like [`authorize`]'s addee-membership check, this reads
+/// `haex_ucan_tokens`, a CRDT-synced table — as trustworthy as the write-
+/// side row-authorization that guards it (see the W4 `CapabilitySet` /
+/// `row_cap` work), not re-verified here. This mirrors the trust boundary
+/// `crate::space_delivery::local::ucan::load_active_ucan_for_audience`
+/// already relies on.
+pub(crate) fn authorize_committer_capability(
+    conn: &Arc<Mutex<Option<Connection>>>,
+    space_id: &str,
+    facts: &CommitFacts,
+) -> Result<(), String> {
+    let membership_changing = !facts.adds.is_empty() || !facts.removes.is_empty();
+    if !membership_changing {
+        return Ok(());
+    }
+
+    let is_pure_self_leave =
+        facts.adds.is_empty() && facts.self_removal && facts.removes.len() == 1;
+    if is_pure_self_leave {
+        return Ok(());
+    }
+
+    let committer_did = facts.committer_did.as_deref().ok_or_else(|| {
+        format!(
+            "Rejecting MLS commit for space {space_id}: membership-changing commit has no \
+             resolvable committer DID"
+        )
+    })?;
+
+    let guard = conn
+        .lock()
+        .map_err(|e| format!("Authorization mutex poisoned: {e}"))?;
+    let conn_ref = guard.as_ref().ok_or_else(|| {
+        "No database connection available for MLS commit authorization".to_string()
+    })?;
+
+    match committer_capability(conn_ref, space_id, committer_did)? {
+        Some(level) if level.allows(&CapabilityLevel::Invite) => Ok(()),
+        Some(level) => Err(format!(
+            "Rejecting MLS commit for space {space_id}: committer {committer_did} holds \
+             {level:?} but membership changes require Invite-or-higher"
+        )),
+        None => Err(format!(
+            "Rejecting MLS commit for space {space_id}: committer {committer_did} holds no \
+             capability for this space"
+        )),
+    }
+}
+
+/// Highest-ranked, non-expired `CapabilityLevel` held by `did` in
+/// `space_id`, or `None` if none. Mirrors
+/// `crate::space_delivery::local::ucan::load_active_ucan_for_audience`'s
+/// query shape (same table, same `expires_at` filter) but returns the
+/// parsed level directly since the caller only needs the rank, not the
+/// token string.
+fn committer_capability(
+    conn: &Connection,
+    space_id: &str,
+    did: &str,
+) -> Result<Option<CapabilityLevel>, String> {
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT capability FROM haex_ucan_tokens \
+             WHERE space_id = ?1 AND audience_did = ?2 AND expires_at > ?3",
+        )
+        .map_err(|e| format!("Failed to prepare capability lookup: {e}"))?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![space_id, did, now_secs], |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(|e| format!("Capability lookup failed for space={space_id} did={did}: {e}"))?;
+
+    let mut best: Option<CapabilityLevel> = None;
+    for row in rows {
+        let capability_str = row.map_err(|e| format!("Failed to read capability row: {e}"))?;
+        if let Some(level) = CapabilityLevel::from_capability_string(&capability_str) {
+            best = Some(match best {
+                Some(current) if current >= level => current,
+                _ => level,
+            });
+        }
+    }
+    Ok(best)
 }
 
 fn is_space_member(conn: &Connection, space_id: &str, did: &str) -> Result<bool, String> {
