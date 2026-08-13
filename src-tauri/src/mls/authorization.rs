@@ -54,6 +54,17 @@ use rusqlite::Connection;
 pub(crate) struct AddFact {
     /// DID string extracted from the KeyPackage's BasicCredential.
     pub credential_did: String,
+    /// The 32-byte Ed25519 MLS signature key on the KP's leaf. Feeds
+    /// [`verify_pops`] together with `pop_bytes`. Zeroed when the facts
+    /// are synthesized in unit tests that do not exercise PoP.
+    #[allow(dead_code)]
+    pub mls_sig_pub: [u8; 32],
+    /// The 64-byte Ed25519 PoP signature extracted from the KP's leaf
+    /// extension [`crate::mls::pop::HAEX_POP_EXTENSION_TYPE`]. `None` if
+    /// the extension was absent or malformed — [`verify_pops`] treats
+    /// that as reject-closed.
+    #[allow(dead_code)]
+    pub pop_bytes: Option<Vec<u8>>,
 }
 
 /// One entry per Remove proposal in the commit.
@@ -165,10 +176,23 @@ pub(crate) fn inspect(
 
     let mut adds: Vec<AddFact> = Vec::new();
     for add in staged.add_proposals() {
-        let did = did_from_credential(add.add_proposal().key_package().leaf_node().credential())
-            .unwrap_or_default();
+        let leaf = add.add_proposal().key_package().leaf_node();
+        let did = did_from_credential(leaf.credential()).unwrap_or_default();
+        let mls_sig_pub = {
+            let slice = leaf.signature_key().as_slice();
+            let mut buf = [0u8; 32];
+            if slice.len() == 32 {
+                buf.copy_from_slice(slice);
+            }
+            // Length !=32 → leave zeroed; `verify_pops` will reject when
+            // the resulting key does not verify the PoP.
+            buf
+        };
+        let pop_bytes = crate::mls::pop::extract_pop_from_leaf(leaf).map(|s| s.to_bytes().to_vec());
         adds.push(AddFact {
             credential_did: did,
+            mls_sig_pub,
+            pop_bytes,
         });
     }
 
@@ -333,6 +357,55 @@ pub(crate) fn authorize(
         }
     }
 
+    Ok(())
+}
+
+/// Phase-2 check: every Add proposal's KeyPackage MUST carry a
+/// proof-of-possession leaf extension that binds the leaf's MLS signature
+/// key to the credential DID's identity key. Runs AFTER
+/// [`authorize`] (which handles Phase-1 checks); rejecting here means the
+/// staged commit is not merged.
+///
+/// External-commit joiners are NOT checked here — openmls 0.8.1's external
+/// commit builder does not expose leaf-node extensions, so the joining
+/// leaf carries none, and we cannot embed a PoP on it. Phase-1's addee
+/// membership check still fires against `haex_space_members`, which stops
+/// "join as a total stranger" but not "impersonate an existing member's
+/// DID by putting it in the external-commit credential". Closing that
+/// requires either a vendored openmls patch or an upstream feature — filed
+/// as a follow-up.
+pub(crate) fn verify_pops(space_id: &str, facts: &CommitFacts) -> Result<(), String> {
+    for add in &facts.adds {
+        let pop_bytes = add.pop_bytes.as_deref().ok_or_else(|| {
+            format!(
+                "Rejecting MLS commit for space {space_id}: addee {} — KeyPackage \
+                 is missing the required proof-of-possession leaf extension",
+                add.credential_did
+            )
+        })?;
+        let sig = ed25519_dalek::Signature::try_from(pop_bytes).map_err(|e| {
+            format!(
+                "Rejecting MLS commit for space {space_id}: addee {} — malformed PoP \
+                 signature bytes: {e}",
+                add.credential_did
+            )
+        })?;
+        let identity_pub = crate::ucan::public_key_from_did(&add.credential_did).map_err(|e| {
+            format!(
+                "Rejecting MLS commit for space {space_id}: addee {} — cannot resolve \
+                     identity key from DID: {e}",
+                add.credential_did
+            )
+        })?;
+        crate::mls::pop::verify_pop(&identity_pub, &add.mls_sig_pub, &add.credential_did, &sig)
+            .map_err(|e| {
+                format!(
+                    "Rejecting MLS commit for space {space_id}: addee {} — PoP does not \
+                     verify against the credential-DID identity key: {e}",
+                    add.credential_did
+                )
+            })?;
+    }
     Ok(())
 }
 
