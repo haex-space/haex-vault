@@ -46,7 +46,21 @@
 //! **Not yet closed:**
 //!
 //! - External-commit joiners are not PoP-verified (openmls 0.8.1 limitation,
-//!   documented on [`verify_pops`]).
+//!   documented on [`verify_pops`]). Because of this, nothing in this module
+//!   may treat a `Sender::NewMemberCommit` credential DID as authenticated —
+//!   see the `self_removal` derivation in [`inspect`].
+//! - `haex_ucan_tokens`, the table [`authorize_committer_capability`] reads,
+//!   is NOT in `crate::crdt::scanner::SPACE_SCOPED_CRDT_TABLES`, so it does
+//!   not sync between the members of a shared space. A member's vault only
+//!   holds rows whose `audience_did` is one of its own identities (plus, on
+//!   the space admin only, rows for claimants it processed itself in
+//!   `space_delivery::local::leader::claim::persist_admin_ucan`). Every
+//!   other receiver resolves a remote committer to "no capability" and
+//!   rejects the commit. Phase-1's addee check does not have this problem
+//!   because `haex_space_members` IS on that whitelist. Resolving this needs
+//!   a space-synced capability source (`haex_space_members.role` once the
+//!   join paths stop hard-coding `'read'`, or the committer's UCAN carried
+//!   on the commit) — tracked as a Phase-3 follow-up.
 //! - The interim `Invite`-or-higher rule is a blunt hierarchical gate, not
 //!   the orthogonal "may remove but not invite" / "may invite but not kick"
 //!   split the plan's final design calls for.
@@ -87,12 +101,13 @@ pub(crate) struct RemoveFact {
     pub leaf_index: u32,
     /// DID at that leaf in the pre-commit tree; `None` if the leaf slot was
     /// already empty (defensive — a Remove on an empty slot is not something
-    /// we expect). Feeds [`CommitFacts::self_removal`] via DID comparison
-    /// against the committer — necessary because a rejoining external-commit
-    /// joiner cleaning up their own stale leaf has no *pre-commit* leaf of
-    /// their own to compare indices against (`Sender::NewMemberCommit` has
-    /// no meaningful "own leaf" before the commit); comparing identities
-    /// instead of leaf positions covers that case correctly.
+    /// we expect). Feeds the `Sender::NewMemberCommit` arm of
+    /// [`CommitFacts::self_removal`] as a *secondary* condition next to the
+    /// authoritative MLS-signature-key comparison — a rejoining
+    /// external-commit joiner has no pre-commit leaf of their own, so there
+    /// is no leaf index to compare against. On its own a DID match would be
+    /// worthless there: the credential on an external commit is
+    /// self-asserted and PoP-unverified (see [`verify_pops`]).
     pub credential_did: Option<String>,
 }
 
@@ -120,15 +135,20 @@ pub(crate) struct CommitFacts {
     /// Descriptions of any queued proposal whose type this module does not
     /// model. Non-empty means the commit is rejected fail-closed.
     pub unmodelled: Vec<&'static str>,
-    /// True if the committer removed their own leaf (a leave). Consumed by
-    /// [`authorize_committer_capability`] to grant the leave exemption —
-    /// only when it's the ONLY membership change in the commit (see there).
+    /// True if every Remove in the commit targets the committer's own leaf
+    /// (a leave, or an external-commit rejoin cleaning up its own stale
+    /// leaf). Consumed by [`authorize_committer_capability`] to grant the
+    /// leave exemption — only when it's the ONLY membership change in the
+    /// commit (see there). Established from MLS-authenticated facts, never
+    /// from the self-asserted credential DID alone; see the derivation in
+    /// [`inspect`].
     pub self_removal: bool,
     /// DID resolved from the committer's own credential (`Sender::Member`'s
     /// own leaf, or the joiner's credential for `Sender::NewMemberCommit`).
-    /// `None` for the anomalous sender variants, which are already rejected
-    /// via `unmodelled` before this would matter. Feeds the capability
-    /// lookup in [`authorize_committer_capability`].
+    /// `None` for the anomalous sender variants (which `unmodelled` already
+    /// rejects) so no caller can accidentally authorize against a
+    /// meaningless credential. Feeds the capability lookup in
+    /// [`authorize_committer_capability`].
     pub committer_did: Option<String>,
 }
 
@@ -141,7 +161,7 @@ pub(crate) struct CommitFacts {
 /// shape and returns `None`; callers treat that as "no DID" and the
 /// addee/joiner check then fails fail-closed. Non-UTF8 Basic content also
 /// returns `None`.
-fn did_from_credential(cred: &Credential) -> Option<String> {
+pub(crate) fn did_from_credential(cred: &Credential) -> Option<String> {
     if cred.credential_type() != CredentialType::Basic {
         return None;
     }
@@ -167,26 +187,45 @@ pub(crate) fn inspect(
         .filter_map(|m| did_from_credential(&m.credential).map(|d| (m.index.u32(), d)))
         .collect();
 
+    // Pre-commit MLS signature key per leaf. Unlike the credential DID this
+    // is the key the leaf's own signatures verify against, so it is the only
+    // MLS-authenticated way to recognise "this Remove targets the sender's
+    // own (stale) leaf" for a `Sender::NewMemberCommit`, which has no
+    // pre-commit leaf index of its own. See `self_removal` below.
+    let leaf_to_sig_key: HashMap<u32, Vec<u8>> = group
+        .members()
+        .map(|m| (m.index.u32(), m.signature_key.clone()))
+        .collect();
+
     // Unmodelled proposals AND unexpected sender variants both funnel into
     // the same fail-closed collection. `authorize` rejects the commit if this
     // is non-empty at the end of `inspect`.
     let mut unmodelled: Vec<&'static str> = Vec::new();
 
+    // The committer's own DID. Resolved once and reused for both
+    // `external_joiner` and `CommitFacts::committer_did`.
+    let mut committer_did = did_from_credential(committer_credential);
+
     // Committer's own leaf index and the external-commit joiner's DID (only
     // one of the two applies).
     let (committer_leaf, external_joiner) = match sender {
         Sender::Member(idx) => (Some(idx.u32()), None),
-        Sender::NewMemberCommit => (None, did_from_credential(committer_credential)),
+        Sender::NewMemberCommit => (None, committer_did.clone()),
         // External senders and NewMemberProposal are not expected on a commit
         // path per RFC 9420; record the anomaly so `authorize` rejects the
         // whole commit rather than silently accepting when no adds/updates
-        // happen to be present.
+        // happen to be present. Drop `committer_did` too — whatever openmls
+        // put in `committer_credential` for those variants is meaningless,
+        // and a `None` keeps `authorize_committer_capability` fail-closed
+        // even if it is ever reached without `authorize` running first.
         Sender::NewMemberProposal => {
             unmodelled.push("UnexpectedSender:NewMemberProposal");
+            committer_did = None;
             (None, None)
         }
         Sender::External(_) => {
             unmodelled.push("UnexpectedSender:External");
+            committer_did = None;
             (None, None)
         }
     };
@@ -281,30 +320,48 @@ pub(crate) fn inspect(
         }
     }
 
-    // The committer's own DID, regardless of sender variant. For the
-    // anomalous senders (External/NewMemberProposal) this is whatever
-    // openmls populated `committer_credential` with — irrelevant in
-    // practice since `unmodelled` already rejects those before this field
-    // would be consulted.
-    let committer_did = did_from_credential(committer_credential);
-
-    // Identity-based, NOT leaf-index-based: a `Sender::Member` self-leave
-    // removes the leaf holding the committer's own DID, which
-    // `leaf_to_did`-derived `RemoveFact::credential_did` already captures.
-    // A `Sender::NewMemberCommit` rejoin can ALSO carry a Remove — openmls
-    // auto-generates one to clean up the rejoiner's own stale prior leaf
-    // when they reuse the same MLS signature key — and that remove targets
-    // the joiner's own (pre-commit) leaf too, identified by the SAME DID.
-    // `committer_leaf` is `None` for `NewMemberCommit`, so a leaf-index
-    // comparison would miss this; comparing DIDs catches both shapes.
-    let self_removal = committer_did
-        .as_deref()
-        .map(|did| {
-            removes
-                .iter()
-                .any(|r| r.credential_did.as_deref() == Some(did))
-        })
-        .unwrap_or(false);
+    // Two genuinely different shapes of "the committer removed only their
+    // own leaf", each established from MLS-authenticated facts only.
+    //
+    // Deliberately NOT a plain `credential_did == committer_did` comparison:
+    // the credential on an external commit is self-asserted and NOT
+    // PoP-verified (openmls 0.8.1 limitation, see `verify_pops`), so a DID
+    // match alone would turn the leave exemption in
+    // `authorize_committer_capability` into "evict any member whose DID you
+    // can name" — exactly the hole the committer-capability gate exists to
+    // close.
+    let self_removal = match sender {
+        // A `Sender::Member` leave removes the sender's own leaf. The leaf
+        // index comes from the MLS framing, which `process_message` has
+        // already authenticated against that leaf's signature key.
+        Sender::Member(idx) => {
+            let own = idx.u32();
+            !removes.is_empty() && removes.iter().all(|r| r.leaf_index == own)
+        }
+        // A rejoining external-commit member has no pre-commit leaf of their
+        // own, so there is no index to compare. openmls auto-generates a
+        // Remove for the rejoiner's stale leaf precisely when the new leaf
+        // REUSES THE SAME MLS SIGNATURE KEY (which `join_by_external_commit`
+        // does — one persisted signer per identity), so key equality against
+        // the commit's own update-path leaf is what identifies the cleanup.
+        // The credential DID must match as well, as a secondary check.
+        Sender::NewMemberCommit => {
+            match (staged.update_path_leaf_node(), committer_did.as_deref()) {
+                (Some(own_leaf), Some(did)) => {
+                    let own_sig_key = own_leaf.signature_key().as_slice();
+                    !removes.is_empty()
+                        && removes.iter().all(|r| {
+                            leaf_to_sig_key.get(&r.leaf_index).map(|k| k.as_slice())
+                                == Some(own_sig_key)
+                                && r.credential_did.as_deref() == Some(did)
+                        })
+                }
+                _ => false,
+            }
+        }
+        // Anomalous senders are rejected via `unmodelled`; never exempt them.
+        Sender::NewMemberProposal | Sender::External(_) => false,
+    };
 
     CommitFacts {
         adds,
@@ -463,13 +520,25 @@ pub(crate) fn verify_pops(space_id: &str, facts: &CommitFacts) -> Result<(), Str
 ///   leaver may not hold; if a self-remove is bundled with anything else
 ///   (another Remove, or an Add), the capability requirement still applies
 ///   to the commit as a whole.
+/// - An external-commit joiner adding only THEMSELVES carries no Add or
+///   Remove proposal at all (just `ExternalInit`), so it falls under the
+///   first exemption. That is deliberate: a read-only member must be able
+///   to rejoin the group after an epoch gap, and their own re-entry is
+///   already gated by [`authorize`]'s addee-membership check against
+///   `haex_space_members`.
 ///
-/// Trust model: like [`authorize`]'s addee-membership check, this reads
-/// `haex_ucan_tokens`, a CRDT-synced table — as trustworthy as the write-
-/// side row-authorization that guards it (see the W4 `CapabilitySet` /
-/// `row_cap` work), not re-verified here. This mirrors the trust boundary
+/// Trust model: this reads `haex_ucan_tokens` and takes the stored
+/// `capability` at face value — the token itself is not re-verified here.
+/// That mirrors the trust boundary
 /// `crate::space_delivery::local::ucan::load_active_ucan_for_audience`
 /// already relies on.
+///
+/// Unlike [`authorize`]'s addee-membership check (which reads the
+/// space-scoped `haex_space_members`), `haex_ucan_tokens` is vault-private
+/// and does NOT sync between space members, so on any receiver other than
+/// the granting admin this lookup answers "no capability" for a remote
+/// committer. See the "Not yet closed" note in the module header — the gate
+/// is not yet usable on the receive path because of it.
 pub(crate) fn authorize_committer_capability(
     conn: &Arc<Mutex<Option<Connection>>>,
     space_id: &str,
@@ -493,22 +562,46 @@ pub(crate) fn authorize_committer_capability(
         )
     })?;
 
+    with_authz_conn(conn, |conn_ref| {
+        require_invite_or_higher(conn_ref, space_id, committer_did, "MLS commit")
+    })
+}
+
+/// Run `f` with the authorization connection. Every failure to obtain it —
+/// poisoned mutex, no open database — is an `Err`, i.e. reject: all three
+/// authorization gates in this module are fail-closed.
+fn with_authz_conn<T>(
+    conn: &Arc<Mutex<Option<Connection>>>,
+    f: impl FnOnce(&Connection) -> Result<T, String>,
+) -> Result<T, String> {
     let guard = conn
         .lock()
         .map_err(|e| format!("Authorization mutex poisoned: {e}"))?;
     let conn_ref = guard.as_ref().ok_or_else(|| {
         "No database connection available for MLS commit authorization".to_string()
     })?;
+    f(conn_ref)
+}
 
-    match committer_capability(conn_ref, space_id, committer_did)? {
+/// Shared decision of both capability gates: `did` must hold
+/// `CapabilityLevel::Invite`-or-higher in `space_id`. `operation` names the
+/// gated action for the rejection message ("MLS commit" / "local MLS
+/// remove").
+fn require_invite_or_higher(
+    conn: &Connection,
+    space_id: &str,
+    did: &str,
+    operation: &str,
+) -> Result<(), String> {
+    match committer_capability(conn, space_id, did)? {
         Some(level) if level.allows(&CapabilityLevel::Invite) => Ok(()),
         Some(level) => Err(format!(
-            "Rejecting MLS commit for space {space_id}: committer {committer_did} holds \
-             {level:?} but membership changes require Invite-or-higher"
+            "Rejecting {operation} for space {space_id}: committer {did} holds {level:?} but \
+             membership changes require Invite-or-higher"
         )),
         None => Err(format!(
-            "Rejecting MLS commit for space {space_id}: committer {committer_did} holds no \
-             capability for this space"
+            "Rejecting {operation} for space {space_id}: committer {did} holds no capability \
+             for this space"
         )),
     }
 }
@@ -550,12 +643,17 @@ fn committer_capability(
         })
         .map_err(|e| format!("Capability lookup failed for space={space_id} did={did}: {e}"))?;
 
+    // Ranked via the hand-written `allows` lattice, NOT the derived `Ord`:
+    // `CapabilityLevel::allows` is deliberately spelled out arm-by-arm so a
+    // future orthogonal capability (one that must only allow itself) cannot
+    // be silently ordered by discriminant. Using `>=` here would reintroduce
+    // exactly that.
     let mut best: Option<CapabilityLevel> = None;
     for row in rows {
         let capability_str = row.map_err(|e| format!("Failed to read capability row: {e}"))?;
         if let Some(level) = CapabilityLevel::from_capability_string(&capability_str) {
             best = Some(match best {
-                Some(current) if current >= level => current,
+                Some(current) if current.allows(&level) => current,
                 _ => level,
             });
         }
@@ -593,28 +691,12 @@ pub(crate) fn authorize_local_removal(
     committer_did: &str,
     target_did: &str,
 ) -> Result<(), String> {
-    let guard = conn
-        .lock()
-        .map_err(|e| format!("Authorization mutex poisoned: {e}"))?;
-    let conn_ref = guard.as_ref().ok_or_else(|| {
-        "No database connection available for MLS commit authorization".to_string()
-    })?;
-
-    if !is_space_member(conn_ref, space_id, target_did)? {
-        return Ok(());
-    }
-
-    match committer_capability(conn_ref, space_id, committer_did)? {
-        Some(level) if level.allows(&CapabilityLevel::Invite) => Ok(()),
-        Some(level) => Err(format!(
-            "Rejecting local MLS remove for space {space_id}: committer {committer_did} holds \
-             {level:?} but removing an active member requires Invite-or-higher"
-        )),
-        None => Err(format!(
-            "Rejecting local MLS remove for space {space_id}: committer {committer_did} holds \
-             no capability for this space"
-        )),
-    }
+    with_authz_conn(conn, |conn_ref| {
+        if !is_space_member(conn_ref, space_id, target_did)? {
+            return Ok(());
+        }
+        require_invite_or_higher(conn_ref, space_id, committer_did, "local MLS remove")
+    })
 }
 
 fn is_space_member(conn: &Connection, space_id: &str, did: &str) -> Result<bool, String> {

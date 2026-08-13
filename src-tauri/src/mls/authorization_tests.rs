@@ -710,10 +710,13 @@ fn external_rejoin_cleanup_remove_of_own_stale_leaf_needs_no_capability() {
     // own stale leaf when the external commit reuses the same MLS signature
     // key (real scenario exercised end-to-end by
     // `external_commit_rejoin_roundtrip` in `mls_lifecycle.rs`, which
-    // originally broke this test suite until `self_removal` was switched
-    // from leaf-index to DID comparison). `committer_leaf` is `None` for
-    // `Sender::NewMemberCommit`, so only DID-based `self_removal` catches
-    // this — a leaf-index comparison would always miss it.
+    // originally broke this test suite when the committer-capability gate
+    // was first wired in). `committer_leaf` is `None` for
+    // `Sender::NewMemberCommit`, so a leaf-index comparison always misses
+    // it; `inspect` recognises it by comparing the removed leaf's MLS
+    // signature key against the commit's own update-path leaf key. Here we
+    // assert only the consequence: `self_removal` set on such a commit
+    // exempts it.
     let db = fresh_db();
     let space = "space-a";
     let facts = CommitFacts {
@@ -725,6 +728,34 @@ fn external_rejoin_cleanup_remove_of_own_stale_leaf_needs_no_capability() {
     };
     authorize_committer_capability(&db, space, &facts)
         .expect("rejoin cleanup of one's own stale leaf must never require a capability");
+}
+
+#[test]
+fn external_joiner_removing_a_leaf_that_is_not_its_own_requires_capability() {
+    // The DID-spoof shape: an external-commit joiner asserts a victim's DID
+    // in its credential (Phase-1 lets it through because the victim IS a
+    // member, and `verify_pops` cannot check an external commit's leaf) and
+    // bundles a single Remove of the victim's leaf. `inspect` must NOT set
+    // `self_removal` there — the removed leaf's MLS signature key is the
+    // victim's, not the joiner's — so the commit stays subject to the gate.
+    // This test pins the caller half: without the exemption, a joiner
+    // holding nothing is rejected.
+    let db = fresh_db();
+    let space = "space-a";
+    let facts = CommitFacts {
+        removes: vec![remove_of(1, "did:key:zVictim")],
+        self_removal: false,
+        committer_did: Some("did:key:zVictim".to_string()),
+        external_joiner: Some("did:key:zVictim".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts).expect_err(
+        "an external-commit joiner removing a leaf that is not its own must need the capability",
+    );
+    assert!(
+        err.contains("holds no capability"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]

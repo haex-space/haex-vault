@@ -107,7 +107,14 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
     )
     .unwrap();
 
-    // UCAN tokens table (for membership checks)
+    // UCAN tokens table (membership + committer-capability checks).
+    // `issued_at`/`expires_at` are INTEGER unix seconds, matching the
+    // production schema (`database/migrations/0000_jazzy_chat.sql`). They
+    // used to be declared `expires_at TEXT` here, which gives the column
+    // TEXT affinity: SQLite then coerces the integer bind in
+    // `mls::authorization`'s `expires_at > ?3` to text and compares
+    // lexicographically, so an expiry check could answer differently than
+    // it does in production.
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS haex_ucan_tokens (
             id TEXT PRIMARY KEY NOT NULL,
@@ -116,8 +123,8 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             audience_did TEXT NOT NULL,
             capability TEXT NOT NULL,
             token TEXT NOT NULL,
-            expires_at TEXT,
-            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            issued_at INTEGER NOT NULL DEFAULT 0,
+            expires_at INTEGER NOT NULL DEFAULT 0
         );",
     )
     .unwrap();

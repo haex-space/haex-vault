@@ -266,12 +266,39 @@ impl MlsManager {
         // local committer to hold Invite-or-higher unless the target has
         // already left — see `authorization::authorize_local_removal` for
         // the full rationale (leader-side rekey-after-self-leave exemption).
+        //
+        // Both DIDs go through `authorization::did_from_credential`, which
+        // returns `None` for anything that is not a UTF-8 BasicCredential.
+        // A lossy conversion here would fail OPEN: the mangled string could
+        // never match a `haex_identities.did`, so `is_space_member` would
+        // answer "already left" and skip the gate entirely.
+        let resolve_did = |m: &Member, what: &str| -> Result<String, String> {
+            crate::mls::authorization::did_from_credential(&m.credential).ok_or_else(|| {
+                format!(
+                    "Cannot resolve a DID from the {what} credential at leaf {} in space \
+                     {space_id} (not a UTF-8 BasicCredential)",
+                    m.index.u32()
+                )
+            })
+        };
         let target_did = group
             .members()
             .find(|m| m.index == leaf_index)
-            .map(|m| String::from_utf8_lossy(m.credential.serialized_content()).into_owned())
-            .ok_or_else(|| format!("No member at leaf index {member_index} in space {space_id}"))?;
-        let committer_did = self.get_own_did()?;
+            .ok_or_else(|| format!("No member at leaf index {member_index} in space {space_id}"))
+            .and_then(|m| resolve_did(&m, "removal target's"))?;
+        // The DID that will actually SIGN this commit is the one on our own
+        // leaf in this group, not `get_own_did()` — the latter is a single
+        // device-global value (`storage::store_own_did`) that a later
+        // `init_identity` with a different default identity would overwrite
+        // while the group leaf keeps the DID it was created/joined with.
+        // Authorizing anything other than the signing DID would gate the
+        // wrong principal.
+        let own_leaf = group.own_leaf_index();
+        let committer_did = group
+            .members()
+            .find(|m| m.index == own_leaf)
+            .ok_or_else(|| format!("Own leaf {own_leaf:?} not present in space {space_id}"))
+            .and_then(|m| resolve_did(&m, "own"))?;
         crate::mls::authorization::authorize_local_removal(
             &self.conn,
             space_id,
