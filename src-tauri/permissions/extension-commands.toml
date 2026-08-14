@@ -193,6 +193,8 @@ commands.allow = [
   # feature-gated), so an unused ACL grant for it is inert when the feature
   # is off and required for it to be callable at all when the feature is on.
   "test_seed_shared_space_delete_log_entry",
+  "test_mls_process_commit_report",
+  "test_mls_remove_member_unchecked",
 
   # SQL helpers
   "sql_execute",
