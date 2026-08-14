@@ -140,9 +140,9 @@ pub(in crate::peer_storage) async fn handle_stream(
 
     if let Some(space_id) = &target_space_id {
         let required = if request.requires_write() {
-            crate::ucan::CapabilityLevel::Write
+            crate::ucan::Cap::Write
         } else {
-            crate::ucan::CapabilityLevel::Read
+            crate::ucan::Cap::Read
         };
 
         if let Err(e) = crate::ucan::validate_token(

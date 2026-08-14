@@ -452,9 +452,12 @@ mod buffer_message_cursor_tests {
 
 mod mls_manager_tests {
     use super::*;
+    #[cfg(feature = "e2e-hooks")]
     use haex_vault_lib::mls::authorization::PresentedCapability;
     use haex_vault_lib::mls::manager::MlsManager;
-    use haex_vault_lib::ucan::{did_key_from_public_key, CapabilityLevel};
+    use haex_vault_lib::ucan::did_key_from_public_key;
+    #[cfg(feature = "e2e-hooks")]
+    use haex_vault_lib::ucan::CapabilitySet;
 
     /// A real (identity DID, signing key) pair. PoP verification decodes the
     /// credential DID via `did:key`, so test DIDs must be genuine — an
@@ -649,7 +652,7 @@ mod mls_manager_tests {
 
         let presented = PresentedCapability {
             audience_did: b_identity.did.clone(),
-            level: CapabilityLevel::Invite,
+            capabilities: CapabilitySet::builder().invite(false).build(),
         };
         let epoch_before = a.current_epoch(SPACE_DST).unwrap();
         let err = a

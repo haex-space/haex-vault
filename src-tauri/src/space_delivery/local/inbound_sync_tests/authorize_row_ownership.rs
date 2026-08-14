@@ -6,7 +6,7 @@ use crate::space_delivery::local::inbound_sync::{
     authorize_inbound_sync_push, InboundSyncPushOutcome,
 };
 use crate::space_delivery::local::test_support::{insert_identity, insert_member, make_ucan};
-use crate::ucan::CapabilityLevel;
+use crate::ucan::Cap;
 
 use super::helpers::{change, expect_accepted, expect_rejected, insert_device, setup_authz_db};
 
@@ -21,7 +21,7 @@ fn authz_read_only_cannot_overwrite_admin_membership_row() {
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "read");
     insert_member(&db, "mem-bob", "space-A", "id-bob", "admin");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![change(
         "haex_space_members",
         "mem-bob",
@@ -53,7 +53,7 @@ fn authz_read_only_cannot_modify_foreign_member_role() {
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "read");
     insert_member(&db, "mem-bob", "space-A", "id-bob", "read");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![change(
         "haex_space_members",
         "mem-bob",
@@ -81,7 +81,7 @@ fn authz_member_can_insert_own_new_membership_row() {
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_member(&db, "mem-mallory-old", "space-A", "id-mallory", "read");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![
         change(
             "haex_space_members",
@@ -122,7 +122,7 @@ fn authz_member_cannot_insert_membership_with_others_identity() {
     insert_identity(&db, "id-bob", "did:key:zBob");
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "read");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![
         change(
             "haex_space_members",
@@ -166,7 +166,7 @@ fn authz_member_can_register_own_device() {
     insert_identity(&db, "id-alice", "did:key:zAlice");
     insert_member(&db, "mem-alice", "space-A", "id-alice", "read");
 
-    let ucan = make_ucan("did:key:zAlice", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zAlice", "space-A", Cap::Read);
     let changes = vec![
         change(
             "haex_space_devices",
@@ -207,7 +207,7 @@ fn authz_member_cannot_hijack_foreign_device_endpoint() {
     insert_identity(&db, "id-bob", "did:key:zBob");
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "read");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![
         change(
             "haex_space_devices",
@@ -263,7 +263,7 @@ fn authz_member_cannot_modify_foreign_device_row() {
         "Bob's Phone",
     );
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![change(
         "haex_space_devices",
         "dev-bob",
@@ -296,7 +296,7 @@ fn authz_mixed_batch_foreign_row_filtered_own_row_accepted() {
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "read");
     insert_member(&db, "mem-bob", "space-A", "id-bob", "read");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![
         change(
             "haex_space_members",
@@ -340,7 +340,7 @@ fn authz_cross_space_id_injection_blocked() {
     insert_identity(&db, "id-alice", "did:key:zAlice");
     insert_member(&db, "mem-alice", "space-A", "id-alice", "write");
 
-    let ucan = make_ucan("did:key:zAlice", "space-A", CapabilityLevel::Write);
+    let ucan = make_ucan("did:key:zAlice", "space-A", Cap::Write);
     let changes = vec![change(
         "haex_peer_shares",
         "share-1",

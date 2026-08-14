@@ -7,7 +7,7 @@
 //! `pub` visibility on the UCAN types or to the shape of `ValidatedUcan`
 //! that would silently break out-of-crate consumers.
 
-use haex_vault_lib::ucan::{validate_token, CapabilityLevel, UcanVerifyError, ValidatedUcan};
+use haex_vault_lib::ucan::{cap_from_str, validate_token, Cap, UcanVerifyError, ValidatedUcan};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -56,8 +56,8 @@ fn load_vectors() -> Vectors {
     serde_json::from_str(&raw).unwrap_or_else(|e| panic!("parse fixture {path:?}: {e}"))
 }
 
-fn required_capability(v: &Vector) -> CapabilityLevel {
-    CapabilityLevel::from_capability_string(&v.capability_needed).unwrap_or_else(|| {
+fn required_capability(v: &Vector) -> Cap {
+    cap_from_str(&v.capability_needed).unwrap_or_else(|_| {
         panic!(
             "unknown capability_needed in vector {}: {}",
             v.name, v.capability_needed
@@ -92,7 +92,8 @@ fn variant_name(e: &UcanVerifyError) -> &'static str {
         UcanVerifyError::UnknownCapability(_) => "UnknownCapability",
         UcanVerifyError::ChainTooDeep(_) => "ChainTooDeep",
         UcanVerifyError::ChainBroken => "ChainBroken",
-        UcanVerifyError::CapabilityEscalation => "CapabilityEscalation",
+        UcanVerifyError::DelegationMissing { .. } => "DelegationMissing",
+        UcanVerifyError::DelegationNotDelegatable { .. } => "DelegationNotDelegatable",
         UcanVerifyError::RowCapAttenuation { .. } => "RowCapAttenuation",
         UcanVerifyError::RootNotSelfSigned => "RootNotSelfSigned",
         UcanVerifyError::RootBindingMismatch => "RootBindingMismatch",

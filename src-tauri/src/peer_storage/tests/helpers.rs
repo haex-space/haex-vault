@@ -35,17 +35,21 @@ fn sign_ucan_payload(signer: &SigningKey, payload: &serde_json::Value) -> String
 
 /// Mint a self-certifying two-hop UCAN chain:
 ///
-/// - Root: `iss = aud = root_did`, `cap = space/admin`, `prf = []` — the
-///   self-signed Space-Root that the Phase-2 walker terminates on.
-/// - Leaf: `iss = root_did`, `aud = audience`, `cap = <capability>`,
+/// - Root: `iss = aud = root_did`, `capabilities = [{cap: admin,
+///   delegatable: true}]`, `prf = []` — the self-signed Space-Root that
+///   the Phase-2 walker terminates on. Root must be delegatable so the
+///   delegation-attenuation check at the root→leaf hop passes.
+/// - Leaf: `iss = root_did`, `aud = audience`,
+///   `capabilities = [{cap: <cap>, delegatable: <flag>}]`,
 ///   `prf = [root_token]` — the delegated grant presented on the wire.
 ///
 /// `space_id` MUST be derived from `root_did` via `derive_space_id` so the
-/// self-certifying binding check inside `validate_token` succeeds.
+/// self-certifying binding check inside `validate_token` succeeds. `cap`
+/// is the [`crate::ucan::Cap`] snake-case name (`"read"`, `"write"`, …).
 pub(super) fn mint_delegated_ucan(
     root_signer: &SigningKey,
     space_id: &str,
-    capability: &str,
+    cap: &str,
     audience: &str,
 ) -> String {
     let root_did = did_from_signing_key(root_signer);
@@ -53,11 +57,26 @@ pub(super) fn mint_delegated_ucan(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
+    // Root token carries Admin + the leaf's requested cap, both delegatable
+    // — the parent→child attenuation check requires the parent to hold the
+    // child's cap AND have `delegatable` set. When the leaf itself requests
+    // Admin we mint a single-entry set to avoid the `CapabilitySet`
+    // duplicate-cap rejection.
+    let root_caps = if cap == "admin" {
+        serde_json::json!([{ "cap": "admin", "delegatable": true }])
+    } else {
+        serde_json::json!([
+            { "cap": "admin", "delegatable": true },
+            { "cap": cap, "delegatable": true },
+        ])
+    };
     let root_payload = serde_json::json!({
         "ucv": "1.0",
         "iss": root_did,
         "aud": root_did,
-        "cap": { format!("space:{}", space_id): "space/admin" },
+        "capabilities": {
+            format!("space:{}", space_id): root_caps
+        },
         "exp": now + 3600,
         "iat": now,
         "prf": [],
@@ -68,7 +87,11 @@ pub(super) fn mint_delegated_ucan(
         "ucv": "1.0",
         "iss": root_did,
         "aud": audience,
-        "cap": { format!("space:{}", space_id): capability },
+        "capabilities": {
+            format!("space:{}", space_id): [
+                { "cap": cap, "delegatable": false }
+            ]
+        },
         "exp": now + 3600,
         "iat": now,
         "prf": [root_token],
@@ -78,11 +101,11 @@ pub(super) fn mint_delegated_ucan(
 }
 
 pub(super) fn read_ucan(root_signer: &SigningKey, space_id: &str, audience: &str) -> String {
-    mint_delegated_ucan(root_signer, space_id, "space/read", audience)
+    mint_delegated_ucan(root_signer, space_id, "read", audience)
 }
 
 pub(super) fn write_ucan(root_signer: &SigningKey, space_id: &str, audience: &str) -> String {
-    mint_delegated_ucan(root_signer, space_id, "space/write", audience)
+    mint_delegated_ucan(root_signer, space_id, "write", audience)
 }
 
 /// Derive a self-certifying `space_id` for `root_did` with a random 16-byte

@@ -18,7 +18,7 @@ use crate::crdt::scanner::{
     PULL_PAGE_BUDGET,
 };
 use crate::critical::CriticalFailureCode;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::Cap;
 use tauri::{Emitter, Manager};
 
 /// Target number of key packages the leader wants each peer to maintain.
@@ -138,7 +138,7 @@ pub(crate) async fn handle_delivery_request(
                 ucan_token_str,
                 &space_id,
                 &did,
-                CapabilityLevel::Read,
+                Cap::Read,
                 "Announce",
                 &state.db,
             ) {
@@ -164,7 +164,7 @@ pub(crate) async fn handle_delivery_request(
             if let Err(r) = require_ucan_capability(
                 &validated,
                 &space_id,
-                CapabilityLevel::Read,
+                Cap::Read,
                 &did,
                 "Announce",
                 &state.db,

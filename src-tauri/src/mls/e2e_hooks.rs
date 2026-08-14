@@ -150,7 +150,11 @@ pub async fn test_mls_process_commit_report(
         committer_ucan.as_deref(),
     );
     let resolved_audience_did = presented.as_ref().map(|p| p.audience_did.clone());
-    let resolved_level = presented.as_ref().map(|p| format!("{:?}", p.level));
+    // W4 PR-3: `PresentedCapability.level` is now a `CapabilitySet`. Format
+    // it as-is for the e2e diagnostic — the JSON field is still called
+    // `resolved_level` for spec-schema continuity; Task 8 renames the wire
+    // side.
+    let resolved_level = presented.as_ref().map(|p| format!("{:?}", p.capabilities));
 
     let manager = MlsManager::new(state.db.0.clone());
     // `current_epoch` errors when the local group is missing — surface that

@@ -4,7 +4,7 @@
 
 use crate::database::DbConnection;
 use crate::space_delivery::local::error::DeliveryError;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::{cap_from_str, Cap};
 
 // Re-export from shared module so existing callers keep working
 pub use crate::ucan::create_delegated_ucan;
@@ -109,8 +109,13 @@ pub fn load_admin_identity(
 /// other); this is used where exactly one token must be presented for a
 /// whole connection (the Announce handshake caches one `ValidatedUcan` per
 /// peer, see `leader::auth`), so it picks whichever held token ranks
-/// highest under the current [`CapabilityLevel`] lattice — that one
-/// satisfies every `require_capability` check the others would.
+/// highest by [`Cap`] discriminant (`Admin > Invite > Write > Read`) —
+/// that one carries the most-privileged single capability grant, which
+/// under the DB's one-token-per-capability shape is a reasonable proxy for
+/// "the token most likely to satisfy an arbitrary downstream check".
+/// Under orthogonal caps this is a heuristic, not a proof: post-Task-8b
+/// the schema is expected to carry a full [`crate::ucan::CapabilitySet`]
+/// per token and the picker can then choose by set-coverage.
 /// `ORDER BY issued_at DESC LIMIT 1` used to be the selection here, which
 /// broke as soon as a claim could mint more than one token: capabilities
 /// issued in the same claim share the same `issued_at` second, so the tie
@@ -150,8 +155,7 @@ pub fn load_active_ucan_for_audience(
         .filter_map(|row| {
             let capability = row.first()?.as_str()?;
             let token = row.get(1)?.as_str()?.to_string();
-            let rank = CapabilityLevel::from_capability_string(capability)
-                .unwrap_or(CapabilityLevel::Read);
+            let rank = cap_from_str(capability).unwrap_or(Cap::Read);
             Some((rank, token))
         })
         .max_by_key(|(rank, _)| *rank)
@@ -246,24 +250,20 @@ pub fn resolve_presented_committer_capability(
     })
     .unwrap_or(crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT) as usize;
 
-    let validated = match crate::ucan::validate_token(
-        token,
-        space_id,
-        &peeked.aud,
-        CapabilityLevel::Read,
-        max_chain_depth,
-    ) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!(
-                "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
+    let validated =
+        match crate::ucan::validate_token(token, space_id, &peeked.aud, Cap::Read, max_chain_depth)
+        {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!(
+                    "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
                  validate_token failed ({e})"
-            );
-            return None;
-        }
-    };
-    let level = match validated.capabilities.get(space_id) {
-        Some(l) => *l,
+                );
+                return None;
+            }
+        };
+    let capabilities = match validated.capabilities.get(space_id) {
+        Some(set) => set.clone(),
         None => {
             eprintln!(
                 "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
@@ -274,7 +274,7 @@ pub fn resolve_presented_committer_capability(
     };
     Some(crate::mls::authorization::PresentedCapability {
         audience_did: validated.audience,
-        level,
+        capabilities,
     })
 }
 

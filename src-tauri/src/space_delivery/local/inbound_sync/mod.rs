@@ -56,7 +56,7 @@ pub mod validate;
 
 use crate::crdt::scanner::{is_membership_system_table, LocalColumnChange};
 use crate::database::DbConnection;
-use crate::ucan::{require_capability, CapabilityLevel, ValidatedUcan};
+use crate::ucan::{require_capability, Cap, ValidatedUcan};
 
 use super::ucan::is_active_space_member;
 
@@ -77,19 +77,24 @@ pub enum InboundSyncPushOutcome {
     Rejected { reason: String },
 }
 
-/// Decide which capability level a push needs given the tables it touches.
+/// Decide which [`Cap`] a push needs given the tables it touches.
 /// A push that touches only [membership-system tables] is allowed for any
-/// member (Read suffices). Any other table requires Write.
+/// member ([`Cap::Read`] suffices). Any other table requires [`Cap::Write`].
+///
+/// Under the orthogonal `CapabilitySet` model the returned cap is the
+/// **specific** cap the pusher must hold, not a floor — a Write-only token
+/// no longer satisfies a Read gate, so issuers grant both when both
+/// operations are wanted.
 ///
 /// [membership-system tables]: crate::crdt::scanner::MEMBERSHIP_SYSTEM_TABLES
-fn required_capability_for(changes: &[LocalColumnChange]) -> CapabilityLevel {
+fn required_capability_for(changes: &[LocalColumnChange]) -> Cap {
     if changes
         .iter()
         .all(|c| is_membership_system_table(&c.table_name))
     {
-        CapabilityLevel::Read
+        Cap::Read
     } else {
-        CapabilityLevel::Write
+        Cap::Write
     }
 }
 

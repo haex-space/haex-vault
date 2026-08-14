@@ -5,8 +5,10 @@ use serde_json::json;
 use crate::space_delivery::local::inbound_sync::{
     authorize_inbound_sync_push, InboundSyncPushOutcome,
 };
-use crate::space_delivery::local::test_support::{insert_identity, insert_member, make_ucan};
-use crate::ucan::CapabilityLevel;
+use crate::space_delivery::local::test_support::{
+    insert_identity, insert_member, make_ucan, make_ucan_with_set,
+};
+use crate::ucan::{Cap, CapabilitySet};
 
 use super::helpers::{change, expect_rejected, setup_authz_db};
 
@@ -16,7 +18,7 @@ fn authz_read_only_member_can_push_own_membership_update() {
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "read");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![change(
         "haex_space_members",
         "mem-mallory",
@@ -38,7 +40,7 @@ fn authz_read_only_member_cannot_push_peer_shares() {
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "read");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![change(
         "haex_peer_shares",
         "share-1",
@@ -66,7 +68,7 @@ fn authz_write_member_can_push_peer_shares() {
     insert_identity(&db, "id-alice", "did:key:zAlice");
     insert_member(&db, "mem-alice", "space-A", "id-alice", "write");
 
-    let ucan = make_ucan("did:key:zAlice", "space-A", CapabilityLevel::Write);
+    let ucan = make_ucan("did:key:zAlice", "space-A", Cap::Write);
     let changes = vec![
         change(
             "haex_peer_shares",
@@ -113,7 +115,7 @@ fn authz_mixed_push_with_user_table_requires_write() {
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "read");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Read);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Read);
     let changes = vec![
         change(
             "haex_space_members",
@@ -150,7 +152,15 @@ fn authz_member_for_other_space_rejected() {
     insert_identity(&db, "id-mallory", "did:key:zMallory");
     insert_member(&db, "mem-mallory", "space-B", "id-mallory", "write");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Write);
+    // Grant Read + Write so the capability floor passes and the test
+    // reaches the membership gate it's actually pinning. Under orthogonal
+    // caps a Write-only holder would trip the capability check on
+    // membership-system tables (which need Read).
+    let ucan = make_ucan_with_set(
+        "did:key:zMallory",
+        "space-A",
+        CapabilitySet::builder().read(false).write(false).build(),
+    );
     let changes = vec![change(
         "haex_space_members",
         "mem-mallory",

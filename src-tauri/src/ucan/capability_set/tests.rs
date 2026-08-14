@@ -1,4 +1,4 @@
-use super::{enforce_delegatable, Cap, CapEntry, CapabilitySet, DelegationError};
+use super::{cap_from_str, enforce_delegatable, Cap, CapEntry, CapabilitySet, DelegationError};
 
 #[test]
 fn capability_set_is_orthogonal() {
@@ -207,4 +207,31 @@ fn cap_holder_may_exercise_even_without_delegatability() {
     let set = CapabilitySet::builder().invite(false).build();
     assert!(set.can(Cap::Invite));
     assert!(!set.is_delegatable(Cap::Invite));
+}
+
+#[test]
+fn cap_from_str_accepts_bare_names() {
+    assert_eq!(cap_from_str("read"), Ok(Cap::Read));
+    assert_eq!(cap_from_str("write"), Ok(Cap::Write));
+    assert_eq!(cap_from_str("invite"), Ok(Cap::Invite));
+    assert_eq!(cap_from_str("admin"), Ok(Cap::Admin));
+}
+
+#[test]
+fn cap_from_str_accepts_space_prefixed_bridge() {
+    // Pre-Task-8 frontend still emits the "space/" prefix; the helper
+    // strips it so backend code can migrate ahead of the wire.
+    assert_eq!(cap_from_str("space/read"), Ok(Cap::Read));
+    assert_eq!(cap_from_str("space/write"), Ok(Cap::Write));
+    assert_eq!(cap_from_str("space/invite"), Ok(Cap::Invite));
+    assert_eq!(cap_from_str("space/admin"), Ok(Cap::Admin));
+}
+
+#[test]
+fn cap_from_str_rejects_unknown_names() {
+    assert!(cap_from_str("").is_err());
+    assert!(cap_from_str("space/").is_err());
+    assert!(cap_from_str("owner").is_err());
+    assert!(cap_from_str("READ").is_err()); // case-sensitive
+    assert!(cap_from_str("space/READ").is_err());
 }

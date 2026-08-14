@@ -15,7 +15,7 @@ use super::{
     authorize, authorize_committer_capability, authorize_local_removal, verify_pops, AddFact,
     CommitFacts, PresentedCapability, UpdateFact,
 };
-use crate::ucan::CapabilityLevel;
+use crate::ucan::CapabilitySet;
 
 /// Minimal schema: the two tables the addee-membership check joins, plus
 /// `haex_ucan_tokens` for the Phase-3 committer-capability lookup. No
@@ -586,7 +586,7 @@ fn remove_of_an_active_member_with_valid_invite_capability_is_accepted() {
     };
     let presented = PresentedCapability {
         audience_did: "did:key:zAdmin".to_string(),
-        level: CapabilityLevel::Admin,
+        capabilities: CapabilitySet::builder().admin(false).build(),
     };
     authorize_committer_capability(&db, space, &facts, Some(&presented))
         .expect("a presented Admin capability must be allowed to remove any active member");
@@ -606,20 +606,21 @@ fn remove_of_an_active_member_with_read_capability_presented_is_rejected() {
     };
     let presented = PresentedCapability {
         audience_did: "did:key:zReadOnly".to_string(),
-        level: CapabilityLevel::Read,
+        capabilities: CapabilitySet::builder().read(false).build(),
     };
     let err = authorize_committer_capability(&db, space, &facts, Some(&presented))
         .expect_err("read-only member must not be able to kick the owner");
     assert!(
-        err.contains("Read") && err.contains("Invite-or-higher"),
+        err.contains("Read") && err.contains("Invite or Admin"),
         "unexpected error: {err}"
     );
 }
 
 #[test]
 fn write_capability_does_not_allow_membership_changes() {
-    // Write sits strictly between Read and Invite in the lattice — must not
-    // satisfy the Invite-or-higher gate.
+    // Under the orthogonal [`CapabilitySet`] model, [`Cap::Write`] is
+    // independent of the membership-changing caps [`Cap::Invite`] and
+    // [`Cap::Admin`]. Holding Write alone must not satisfy the gate.
     let db = fresh_db();
     let space = "space-a";
     seed_member(&db, space, "did:key:zTarget");
@@ -630,10 +631,10 @@ fn write_capability_does_not_allow_membership_changes() {
     };
     let presented = PresentedCapability {
         audience_did: "did:key:zWriter".to_string(),
-        level: CapabilityLevel::Write,
+        capabilities: CapabilitySet::builder().write(false).build(),
     };
     let err = authorize_committer_capability(&db, space, &facts, Some(&presented))
-        .expect_err("space/write must not satisfy the Invite-or-higher gate");
+        .expect_err("Write must not satisfy the Invite/Admin gate");
     assert!(err.contains("Write"), "unexpected error: {err}");
 }
 
@@ -668,7 +669,7 @@ fn presented_capability_with_mismatched_audience_is_rejected() {
     };
     let presented = PresentedCapability {
         audience_did: "did:key:zSomeoneElse".to_string(),
-        level: CapabilityLevel::Admin,
+        capabilities: CapabilitySet::builder().admin(false).build(),
     };
     let err = authorize_committer_capability(&db, space, &facts, Some(&presented))
         .expect_err("a capability presented for a different DID must not authorize this commit");
@@ -926,7 +927,7 @@ fn removing_an_active_member_requires_invite_or_higher() {
     let err = authorize_local_removal(&db, space, "did:key:zReadOnly", "did:key:zTarget")
         .expect_err("read-only committer must not be able to locally kick an active member");
     assert!(
-        err.contains("Read") && err.contains("Invite-or-higher"),
+        err.contains("Read") && err.contains("Invite or Admin"),
         "unexpected error: {err}"
     );
 }

@@ -5,7 +5,10 @@ use std::collections::HashMap;
 #[test]
 fn connected_peer_carries_validated_ucan() {
     let mut capabilities = HashMap::new();
-    capabilities.insert("space-1".to_string(), crate::ucan::CapabilityLevel::Read);
+    capabilities.insert(
+        "space-1".to_string(),
+        crate::ucan::CapabilitySet::builder().read(false).build(),
+    );
     let validated = ValidatedUcan {
         issuer: "did:key:zIssuer".into(),
         audience: "did:key:zPeer".into(),

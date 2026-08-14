@@ -5,11 +5,27 @@ use tauri::State;
 
 use crate::critical::CriticalFailureCode;
 use crate::database::DbConnection;
+use crate::ucan::{Cap, CapabilitySet};
 use crate::AppState;
 
 use super::super::invite_tokens;
 use super::super::protocol::{Request, Response};
 use super::super::types::{ClaimInviteResult, LocalInviteInfo};
+
+/// Lift a single [`Cap`] + `delegatable` bit into a [`CapabilitySet`] for
+/// [`create_delegated_ucan`]. The invite-token and claim-invite paths still
+/// mint one UCAN per capability (each row in `haex_ucan_tokens` grants a
+/// single cap), so every issued token embeds a set of exactly one entry.
+fn build_singleton_capset(cap: Cap, delegatable: bool) -> CapabilitySet {
+    let builder = CapabilitySet::builder();
+    match cap {
+        Cap::Read => builder.read(delegatable),
+        Cap::Write => builder.write(delegatable),
+        Cap::Invite => builder.invite(delegatable),
+        Cap::Admin => builder.admin(delegatable),
+    }
+    .build()
+}
 
 /// Create a local invite token (admin-side, requires leader mode).
 ///
@@ -34,12 +50,20 @@ pub async fn local_delivery_create_invite(
             let admin =
                 super::super::ucan::load_admin_identity(&leader_state.db, &leader_state.space_id)
                     .map_err(|e| e.to_string())?;
+            // Frontend still emits `"space/<cap>"` (Task 8 removes the
+            // prefix); `cap_from_str` strips the bridge on the fly.
+            let cap = crate::ucan::cap_from_str(&capability).map_err(|e| e.to_string())?;
+            // D9: contact invites for admin-tier caps stay delegatable so
+            // the invitee can further delegate their own peer set;
+            // Write/Read invites are terminal grants.
+            let delegatable = matches!(cap, crate::ucan::Cap::Admin | crate::ucan::Cap::Invite);
+            let capability_set = build_singleton_capset(cap, delegatable);
             let ucan_token = super::super::ucan::create_delegated_ucan(
                 &admin.did,
                 &admin.private_key_base64,
                 &did,
                 &leader_state.space_id,
-                &capability,
+                capability_set,
                 None,
                 Some(&admin.root_ucan),
                 super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,

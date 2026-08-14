@@ -227,5 +227,43 @@ impl CapabilitySetBuilder {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Cap parse helper (wire-boundary)
+// ---------------------------------------------------------------------------
+
+/// Reason [`cap_from_str`] could not resolve a string to a [`Cap`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseCapError(pub String);
+
+impl core::fmt::Display for ParseCapError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "unrecognized capability string: {:?}", self.0)
+    }
+}
+
+impl std::error::Error for ParseCapError {}
+
+/// Parse a bare cap name — `"read" | "write" | "invite" | "admin"` — into
+/// a [`Cap`]. Used at the Tauri-command boundary where the frontend sends
+/// a capability string that the backend must lift into the typed enum.
+///
+/// **Wire bridge:** callers pre-Task-8 may still emit the legacy `"space/*"`
+/// prefixed form (`"space/read"`, …); this helper strips the prefix so
+/// backend code can migrate to the new representation ahead of the
+/// frontend. TODO(Task 8): remove the prefix bridge once the frontend
+/// stops emitting it.
+///
+/// Case-sensitive by design — the wire format is stable lowercase.
+pub fn cap_from_str(s: &str) -> Result<Cap, ParseCapError> {
+    let stripped = s.strip_prefix("space/").unwrap_or(s);
+    match stripped {
+        "read" => Ok(Cap::Read),
+        "write" => Ok(Cap::Write),
+        "invite" => Ok(Cap::Invite),
+        "admin" => Ok(Cap::Admin),
+        _ => Err(ParseCapError(s.to_string())),
+    }
+}
+
 #[cfg(test)]
 mod tests;

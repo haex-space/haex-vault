@@ -16,6 +16,7 @@ pub mod row_capability;
 pub mod space_id;
 pub mod verify;
 
+pub use capability_set::{cap_from_str, Cap, CapEntry, CapabilitySet, ParseCapError};
 pub use commands::{verify_ucan_chain_batch, VerifyChainRequest, VerifyChainResult, VerifyOutcome};
 pub use config::{
     read_max_ucan_chain_depth, MAX_UCAN_CHAIN_DEPTH_DEFAULT, MAX_UCAN_CHAIN_DEPTH_KEY,

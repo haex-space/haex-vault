@@ -4,9 +4,19 @@ use tokio::sync::RwLock;
 
 use super::helpers::{assert_single_audit_row, authorize_default, empty_db, make_peer};
 use crate::space_delivery::local::protocol::{Request, Response};
-use crate::space_delivery::local::test_support::{insert_identity, make_ucan, setup_membership_db};
+use crate::space_delivery::local::test_support::{
+    insert_identity, make_ucan_with_set, setup_membership_db,
+};
 use crate::space_delivery::local::types::ConnectedPeer;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::CapabilitySet;
+
+/// Cap set the seeded "write member" fixtures issue under W4 PR-3 —
+/// `Read` + `Write` together so downstream gates isolate the check they
+/// actually intend (revocation, membership DB, audience) rather than the
+/// cap floor.
+fn write_member_set() -> CapabilitySet {
+    CapabilitySet::builder().read(false).write(false).build()
+}
 
 #[tokio::test]
 async fn rejects_revoked_member() {
@@ -29,7 +39,7 @@ async fn rejects_revoked_member() {
         make_peer(
             "endpoint-id",
             "did:key:zRevoked",
-            make_ucan("did:key:zRevoked", "SPACE", CapabilityLevel::Write),
+            make_ucan_with_set("did:key:zRevoked", "SPACE", write_member_set()),
         ),
     );
     let peers = RwLock::new(peers_map);
@@ -80,7 +90,7 @@ async fn surfaces_db_error_from_membership_check_as_explicit_error() {
         make_peer(
             "endpoint-id",
             "did:key:zPeer",
-            make_ucan("did:key:zPeer", "SPACE", CapabilityLevel::Write),
+            make_ucan_with_set("did:key:zPeer", "SPACE", write_member_set()),
         ),
     );
     let peers = RwLock::new(peers_map);

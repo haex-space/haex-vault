@@ -11,7 +11,23 @@ use super::notify::notify_all_mls;
 use super::util::{base64_decode, base64_encode};
 use super::LeaderState;
 use crate::critical::CriticalFailureCode;
+use crate::ucan::{cap_from_str, Cap, CapabilitySet};
 use serde_json::Value as JsonValue;
+
+/// Lift a single [`Cap`] + `delegatable` bit into a [`CapabilitySet`] for
+/// [`create_delegated_ucan`]. Claim-invite mints one UCAN per stored
+/// capability (each row in `haex_ucan_tokens` grants a single cap), so
+/// every issued token embeds a set of exactly one entry.
+fn build_singleton_capset(cap: Cap, delegatable: bool) -> CapabilitySet {
+    let builder = CapabilitySet::builder();
+    match cap {
+        Cap::Read => builder.read(delegatable),
+        Cap::Write => builder.write(delegatable),
+        Cap::Invite => builder.invite(delegatable),
+        Cap::Admin => builder.admin(delegatable),
+    }
+    .build()
+}
 
 // ============================================================================
 // ClaimInvite handler
@@ -164,12 +180,32 @@ pub async fn handle_claim_invite(
                 };
                 let mut issued = Vec::with_capacity(capabilities.len());
                 for capability in capabilities {
+                    // Frontend + invite-token wire still emits `"space/<cap>"`
+                    // strings (Task 8 removes the prefix); `cap_from_str`
+                    // strips the bridge on the fly.
+                    let cap = match cap_from_str(capability) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            return Response::Error {
+                                message: format!("Unrecognized capability {capability}: {e}"),
+                            }
+                        }
+                    };
+                    // D9: admin-tier grants (Admin, Invite) stay delegatable
+                    // so the claimant can further delegate their own peer
+                    // set; Write/Read are terminal. Mirrors the choice in
+                    // `space_delivery::local::commands::invites` — matching
+                    // heuristics on both create sites keeps
+                    // contact-invite and conference-invite tokens
+                    // observationally identical.
+                    let delegatable = matches!(cap, Cap::Admin | Cap::Invite);
+                    let capability_set = build_singleton_capset(cap, delegatable);
                     match super::super::ucan::create_delegated_ucan(
                         &admin.did,
                         &admin.private_key_base64,
                         &did,
                         &space_id,
-                        capability,
+                        capability_set,
                         None,
                         Some(&admin.root_ucan),
                         super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,

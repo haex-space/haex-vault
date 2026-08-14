@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::database::core::MAX_CRDT_TRANSACTION_BYTES;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::Cap;
 
 /// ALPN protocol identifier for space delivery.
 ///
@@ -289,14 +289,14 @@ impl Request {
         }
     }
 
-    /// Returns the minimum `CapabilityLevel` required to dispatch this
-    /// request, or `None` if it bypasses the AuthGate.
+    /// Returns the [`Cap`] required to dispatch this request, or `None` if
+    /// it bypasses the AuthGate.
     ///
-    /// For `Some(level)`, the level is a **minimum floor**: the gate (see
-    /// `auth_gate::authorize_request`, arriving in Phase 3 of the
-    /// unified-authgate refactor) permits any capability `>= level` via
-    /// `require_capability`. So a `Write` member always satisfies a `Read`
-    /// floor.
+    /// For `Some(cap)`, the returned cap is the **specific capability the
+    /// gate demands** — post W4 PR-3 the caps are orthogonal, so the gate's
+    /// `require_capability` call checks `held.can(cap)` literally. A member
+    /// with `Write` alone does **not** satisfy a `Read` gate; issuers must
+    /// grant both caps if they want both operations enabled.
     ///
     /// - `Announce` bypasses because it bootstraps the membership cache the
     ///   gate would query — gating it against itself is circular.
@@ -307,7 +307,7 @@ impl Request {
     ///
     /// `RequestRejoin` and `SubmitExternalCommit` are deliberately classified
     /// as `Read` to mirror the existing inline UCAN checks in
-    /// `leader.rs::dispatch_request` (search for `CapabilityLevel::Read` in
+    /// `leader.rs::dispatch_request` (search for `Cap::Read` in
     /// the `RequestRejoin` / `SubmitExternalCommit` arms). This refactor must
     /// not change behaviour — a read-only member that has fallen out of MLS
     /// epoch can rejoin today, and must keep being able to rejoin after the
@@ -356,7 +356,7 @@ impl Request {
     ///   here is layered defense, but it is the wrong layer — it makes
     ///   "read-only space member" mean "second-class MLS member", which
     ///   does not exist in the protocol.
-    pub fn required_capability(&self) -> Option<CapabilityLevel> {
+    pub fn required_capability(&self) -> Option<Cap> {
         match self {
             Request::MlsFetchKeyPackage { .. }
             | Request::MlsFetchMessages { .. }
@@ -370,7 +370,7 @@ impl Request {
             | Request::SyncPullColumns { .. }
             | Request::SyncPush { .. }
             | Request::RequestRejoin { .. }
-            | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
+            | Request::SubmitExternalCommit { .. } => Some(Cap::Read),
 
             Request::Announce { .. } | Request::ClaimInvite { .. } | Request::PushInvite { .. } => {
                 None
