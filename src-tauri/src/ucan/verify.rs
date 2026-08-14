@@ -281,11 +281,11 @@ pub fn parse_ucan(token: &str) -> Result<ParsedUcan, UcanVerifyError> {
         return Err(UcanVerifyError::Expired);
     }
 
-    // Parse capabilities: { "space:<id>": "space/write", ... }
+    // Parse capabilities: { "space:<id>": [ {"cap":"read","delegatable":true}, ... ], ... }
     let audience = payload["aud"].as_str().unwrap_or_default().to_string();
-    let cap_obj = payload["cap"]
+    let cap_obj = payload["capabilities"]
         .as_object()
-        .ok_or_else(|| UcanVerifyError::MalformedToken("missing cap object".into()))?;
+        .ok_or_else(|| UcanVerifyError::MalformedToken("missing capabilities object".into()))?;
 
     let mut capabilities: HashMap<String, CapabilitySet> = HashMap::new();
     for (resource, capability_value) in cap_obj {
