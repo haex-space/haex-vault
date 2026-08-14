@@ -6,7 +6,7 @@
 //! `src-tauri/tests/ucan_chain_vectors.rs`.
 
 use super::*;
-use crate::ucan::capability_set::Cap;
+use crate::ucan::capability_set::{Cap, CapabilitySet};
 use crate::ucan::predicate::{Predicate, PrimitiveValue};
 use crate::ucan::row_capability::RowCapability;
 use ed25519_dalek::SigningKey;
@@ -21,7 +21,7 @@ fn did_from_verifying_key(verifying_key: &VerifyingKey) -> String {
 fn make_test_token(
     signing_key: &SigningKey,
     space_id: &str,
-    capability: &str,
+    capability: CapabilitySet,
     expires_in: u64,
 ) -> String {
     use ed25519_dalek::Signer;
@@ -37,7 +37,7 @@ fn make_test_token(
         "ucv": "1.0",
         "iss": issuer_did,
         "aud": "did:key:z6MkAudience",
-        "cap": { format!("space:{}", space_id): capability },
+        "capabilities": { format!("space:{}", space_id): capability },
         "exp": now + expires_in,
         "iat": now,
         "prf": [],
@@ -69,36 +69,50 @@ fn random_signing_key() -> SigningKey {
 #[test]
 fn parse_ucan_extracts_read_capability() {
     let key = random_signing_key();
-    let token = make_test_token(&key, "space-123", "space/read", 3600);
-    let parsed = parse_ucan(&token).unwrap();
-    assert_eq!(
-        parsed.capabilities.get("space-123"),
-        Some(&CapabilityLevel::Read)
+    let token = make_test_token(
+        &key,
+        "space-123",
+        CapabilitySet::builder().read(true).build(),
+        3600,
     );
+    let parsed = parse_ucan(&token).unwrap();
+    let set = parsed
+        .capabilities
+        .get("space-123")
+        .expect("space-123 entry present");
+    assert!(set.can(Cap::Read));
+    assert!(!set.can(Cap::Write));
 }
 
 #[test]
 fn parse_ucan_extracts_write_capability() {
     let key = random_signing_key();
-    let token = make_test_token(&key, "space-123", "space/write", 3600);
-    let parsed = parse_ucan(&token).unwrap();
-    assert_eq!(
-        parsed.capabilities.get("space-123"),
-        Some(&CapabilityLevel::Write)
+    let token = make_test_token(
+        &key,
+        "space-123",
+        CapabilitySet::builder().write(true).build(),
+        3600,
     );
+    let parsed = parse_ucan(&token).unwrap();
+    let set = parsed
+        .capabilities
+        .get("space-123")
+        .expect("space-123 entry present");
+    assert!(set.can(Cap::Write));
+    assert!(!set.can(Cap::Read));
 }
 
 #[test]
 fn parse_ucan_rejects_expired_token() {
     let key = random_signing_key();
-    let token = make_test_token(&key, "s", "space/read", 0);
+    let token = make_test_token(&key, "s", CapabilitySet::builder().read(true).build(), 0);
     assert!(matches!(parse_ucan(&token), Err(UcanVerifyError::Expired)));
 }
 
 #[test]
 fn parse_ucan_rejects_tampered_signature() {
     let key = random_signing_key();
-    let mut token = make_test_token(&key, "s", "space/read", 3600);
+    let mut token = make_test_token(&key, "s", CapabilitySet::builder().read(true).build(), 3600);
     // Flip last char
     let last = token.pop().unwrap();
     token.push(if last == 'A' { 'B' } else { 'A' });
@@ -123,7 +137,9 @@ fn parse_ucan_populates_proofs_when_present() {
         "ucv": "1.0",
         "iss": issuer_did,
         "aud": "did:key:z6MkAudience",
-        "cap": { "space:s1": "space/read" },
+        "capabilities": {
+            "space:s1": CapabilitySet::builder().read(true).build(),
+        },
         "exp": now + 3600,
         "iat": now,
         "prf": ["parent.token.here"],
@@ -148,7 +164,7 @@ fn parse_ucan_populates_proofs_when_present() {
 // require_capability — used by AuthGate on cached UCANs
 // ---------------------------------------------------------------------------
 
-fn dummy_validated_ucan(cap: CapabilityLevel, space_id: &str) -> ValidatedUcan {
+fn dummy_validated_ucan(cap: CapabilitySet, space_id: &str) -> ValidatedUcan {
     let mut caps = HashMap::new();
     caps.insert(space_id.to_string(), cap);
     ValidatedUcan {
@@ -163,24 +179,33 @@ fn dummy_validated_ucan(cap: CapabilityLevel, space_id: &str) -> ValidatedUcan {
 
 #[test]
 fn require_write_with_only_read_fails() {
-    let validated = dummy_validated_ucan(CapabilityLevel::Read, "space-123");
+    let validated = dummy_validated_ucan(CapabilitySet::builder().read(true).build(), "space-123");
     assert!(matches!(
-        require_capability(&validated, "space-123", CapabilityLevel::Write),
+        require_capability(&validated, "space-123", Cap::Write),
         Err(UcanVerifyError::InsufficientCapability { .. })
     ));
 }
 
 #[test]
-fn require_read_with_write_succeeds() {
-    let validated = dummy_validated_ucan(CapabilityLevel::Write, "space-123");
-    assert!(require_capability(&validated, "space-123", CapabilityLevel::Read).is_ok());
+fn require_read_with_only_write_fails() {
+    // Orthogonal semantics: holding Write does NOT satisfy a required Read.
+    // In the pre-migration hierarchical world, Write "allowed" Read via
+    // CapabilityLevel::allows(); that silent lift is gone by design.
+    let validated = dummy_validated_ucan(CapabilitySet::builder().write(true).build(), "space-123");
+    assert!(matches!(
+        require_capability(&validated, "space-123", Cap::Read),
+        Err(UcanVerifyError::InsufficientCapability {
+            required: Cap::Read,
+            ..
+        })
+    ));
 }
 
 #[test]
 fn wrong_space_fails() {
-    let validated = dummy_validated_ucan(CapabilityLevel::Admin, "space-123");
+    let validated = dummy_validated_ucan(CapabilitySet::builder().admin(true).build(), "space-123");
     assert!(matches!(
-        require_capability(&validated, "other-space", CapabilityLevel::Read),
+        require_capability(&validated, "other-space", Cap::Read),
         Err(UcanVerifyError::MissingCapability { .. })
     ));
 }
@@ -304,7 +329,7 @@ fn allows_read_does_not_allow_admin() {
 
 #[test]
 fn require_audience_rejects_mismatch() {
-    let validated = dummy_validated_ucan(CapabilityLevel::Read, "s");
+    let validated = dummy_validated_ucan(CapabilitySet::builder().read(true).build(), "s");
     // dummy_validated_ucan sets audience = "did:key:z6MkAudience"
     let result = require_audience(&validated, "did:key:z6MkOtherPeer");
     assert!(
@@ -316,13 +341,13 @@ fn require_audience_rejects_mismatch() {
 
 #[test]
 fn require_audience_accepts_match() {
-    let validated = dummy_validated_ucan(CapabilityLevel::Read, "s");
+    let validated = dummy_validated_ucan(CapabilitySet::builder().read(true).build(), "s");
     assert!(require_audience(&validated, "did:key:z6MkAudience").is_ok());
 }
 
 #[test]
 fn require_audience_rejects_empty_expected() {
-    let validated = dummy_validated_ucan(CapabilityLevel::Read, "s");
+    let validated = dummy_validated_ucan(CapabilitySet::builder().read(true).build(), "s");
     let result = require_audience(&validated, "");
     assert!(matches!(
         result,
@@ -370,7 +395,7 @@ fn require_audience_rejects_empty_expected_regardless_of_token_audience() {
 fn make_token_with_row_cap(
     signing_key: &SigningKey,
     space_id: &str,
-    capability: &str,
+    capability: CapabilitySet,
     row_cap_json: serde_json::Value,
     expires_in: u64,
 ) -> String {
@@ -385,7 +410,7 @@ fn make_token_with_row_cap(
         "ucv": "1.0",
         "iss": issuer_did,
         "aud": "did:key:z6MkAudience",
-        "cap": { format!("space:{}", space_id): capability },
+        "capabilities": { format!("space:{}", space_id): capability },
         "row_cap": row_cap_json,
         "exp": now + expires_in,
         "iat": now,
@@ -412,7 +437,13 @@ fn parse_ucan_extracts_row_capabilities_for_named_space() {
             { "op": "row_insert", "where": { "col": "category", "eq": "work" } },
         ],
     });
-    let token = make_token_with_row_cap(&key, "space-abc", "space/write", row_cap, 3600);
+    let token = make_token_with_row_cap(
+        &key,
+        "space-abc",
+        CapabilitySet::builder().write(true).build(),
+        row_cap,
+        3600,
+    );
     let parsed = parse_ucan(&token).unwrap();
 
     let caps = parsed
@@ -435,7 +466,12 @@ fn parse_ucan_extracts_row_capabilities_for_named_space() {
 fn parse_ucan_missing_row_cap_field_yields_empty_map() {
     // Backwards compat with today's tokens: no `row_cap` at all is fine.
     let key = random_signing_key();
-    let token = make_test_token(&key, "space-abc", "space/write", 3600);
+    let token = make_test_token(
+        &key,
+        "space-abc",
+        CapabilitySet::builder().write(true).build(),
+        3600,
+    );
     let parsed = parse_ucan(&token).unwrap();
     assert!(parsed.row_capabilities.is_empty());
 }
@@ -446,7 +482,7 @@ fn parse_ucan_row_cap_empty_object_yields_empty_map() {
     let token = make_token_with_row_cap(
         &key,
         "space-abc",
-        "space/write",
+        CapabilitySet::builder().write(true).build(),
         serde_json::json!({}),
         3600,
     );
@@ -460,7 +496,7 @@ fn parse_ucan_rejects_row_cap_that_is_not_an_object() {
     let token = make_token_with_row_cap(
         &key,
         "space-abc",
-        "space/write",
+        CapabilitySet::builder().write(true).build(),
         serde_json::json!("not-an-object"),
         3600,
     );
@@ -477,7 +513,7 @@ fn parse_ucan_rejects_row_cap_entry_that_is_not_an_array() {
     let token = make_token_with_row_cap(
         &key,
         "space-abc",
-        "space/write",
+        CapabilitySet::builder().write(true).build(),
         serde_json::json!({ "space:space-abc": "not-an-array" }),
         3600,
     );
@@ -494,7 +530,7 @@ fn parse_ucan_rejects_row_cap_with_unknown_op() {
     let token = make_token_with_row_cap(
         &key,
         "space-abc",
-        "space/write",
+        CapabilitySet::builder().write(true).build(),
         serde_json::json!({
             "space:space-abc": [
                 { "op": "row_read", "where": { "col": "c", "eq": "v" } },
@@ -528,7 +564,9 @@ fn make_self_signed_admin_root_with_row_cap(
         "ucv": "1.0",
         "iss": iss_did,
         "aud": iss_did,  // self-signed root
-        "cap": { format!("space:{}", space_id): "space/admin" },
+        "capabilities": {
+            format!("space:{}", space_id): CapabilitySet::builder().admin(true).build(),
+        },
         "row_cap": row_cap_json,
         "exp": now + 3600,
         "iat": now,
@@ -562,7 +600,7 @@ fn validate_token_propagates_row_capabilities_to_validated() {
     });
     let (token, _iss_did, space_id) = make_self_signed_admin_root_with_row_cap(&key, row_cap);
 
-    let validated = validate_token(&token, &space_id, &iss_did, CapabilityLevel::Admin, 5).unwrap();
+    let validated = validate_token(&token, &space_id, &iss_did, Cap::Admin, 5).unwrap();
 
     let caps = validated
         .row_capabilities
@@ -591,7 +629,9 @@ fn validate_token_yields_empty_row_capabilities_when_field_absent() {
         "ucv": "1.0",
         "iss": iss_did,
         "aud": iss_did,
-        "cap": { format!("space:{}", space_id): "space/admin" },
+        "capabilities": {
+            format!("space:{}", space_id): CapabilitySet::builder().admin(true).build(),
+        },
         "exp": now + 3600,
         "iat": now,
         "prf": [],
@@ -608,7 +648,7 @@ fn validate_token_yields_empty_row_capabilities_when_field_absent() {
         BASE64URL.encode(signature.to_bytes())
     );
 
-    let validated = validate_token(&token, &space_id, &iss_did, CapabilityLevel::Admin, 5).unwrap();
+    let validated = validate_token(&token, &space_id, &iss_did, Cap::Admin, 5).unwrap();
     assert!(validated.row_capabilities.is_empty());
 }
 
@@ -626,7 +666,13 @@ fn parse_ucan_ignores_row_cap_entries_without_space_prefix() {
             { "op": "row_insert", "where": { "col": "c", "eq": "v" } },
         ],
     });
-    let token = make_token_with_row_cap(&key, "space-abc", "space/write", row_cap, 3600);
+    let token = make_token_with_row_cap(
+        &key,
+        "space-abc",
+        CapabilitySet::builder().write(true).build(),
+        row_cap,
+        3600,
+    );
     let parsed = parse_ucan(&token).unwrap();
     assert_eq!(parsed.row_capabilities.len(), 1);
     assert!(parsed.row_capabilities.contains_key("space-abc"));
@@ -669,12 +715,15 @@ fn build_two_hop_with_row_caps(
         .unwrap()
         .as_secs();
 
-    // Root: self-signed admin.
+    // Root: self-signed admin. Admin must be delegatable=true so the child
+    // hop below (which re-claims Admin) satisfies enforce_delegatable.
     let root_payload = serde_json::json!({
         "ucv": "1.0",
         "iss": root_did,
         "aud": root_did,
-        "cap": { format!("space:{}", space_id): "space/admin" },
+        "capabilities": {
+            format!("space:{}", space_id): CapabilitySet::builder().admin(true).build(),
+        },
         "row_cap": root_row_cap,
         "exp": now + 3600,
         "iat": now,
@@ -698,7 +747,9 @@ fn build_two_hop_with_row_caps(
         "ucv": "1.0",
         "iss": root_did,
         "aud": leaf_did,
-        "cap": { format!("space:{}", space_id): "space/admin" },
+        "capabilities": {
+            format!("space:{}", space_id): CapabilitySet::builder().admin(true).build(),
+        },
         "row_cap": leaf_row_cap,
         "exp": now + 3600,
         "iat": now,
@@ -751,8 +802,7 @@ fn walk_chain_rejects_when_child_claims_row_cap_parent_lacks() {
         serde_json::json!({}), // parent: nothing
         leaf_row_cap,
     );
-    let err =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap_err();
+    let err = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap_err();
     match err {
         UcanVerifyError::RowCapAttenuation { space_id: reported } => {
             assert_eq!(reported, space_id, "RowCapAttenuation must name the space");
@@ -771,8 +821,7 @@ fn walk_chain_accepts_identical_row_caps_on_both_hops() {
     });
     let (leaf_token, _root_did, leaf_did, _space_id) =
         build_two_hop_with_row_caps(&root_key, &leaf_key, same_caps.clone(), same_caps);
-    let validated =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    let validated = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap();
     assert_eq!(validated.row_capabilities.get(&space_id).unwrap().len(), 1);
 }
 
@@ -798,8 +847,7 @@ fn walk_chain_accepts_child_row_caps_that_are_subset_of_parent() {
     });
     let (leaf_token, _root_did, leaf_did, _space_id) =
         build_two_hop_with_row_caps(&root_key, &leaf_key, parent_caps, child_caps);
-    let validated =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    let validated = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap();
     assert_eq!(validated.row_capabilities.get(&space_id).unwrap().len(), 2);
 }
 
@@ -821,8 +869,7 @@ fn walk_chain_rejects_when_child_has_extra_row_cap_beyond_parent() {
     });
     let (leaf_token, _root_did, leaf_did, _space_id) =
         build_two_hop_with_row_caps(&root_key, &leaf_key, parent_caps, child_caps);
-    let err =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap_err();
+    let err = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap_err();
     assert!(matches!(err, UcanVerifyError::RowCapAttenuation { .. }));
 }
 
@@ -846,8 +893,7 @@ fn walk_chain_rejects_when_child_op_differs_even_with_same_predicate() {
     });
     let (leaf_token, _root_did, leaf_did, _space_id) =
         build_two_hop_with_row_caps(&root_key, &leaf_key, parent_caps, child_caps);
-    let err =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap_err();
+    let err = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap_err();
     assert!(matches!(err, UcanVerifyError::RowCapAttenuation { .. }));
 }
 
@@ -863,8 +909,7 @@ fn walk_chain_accepts_child_with_no_row_caps_under_parent_with_row_caps() {
     });
     let (leaf_token, _root_did, leaf_did, _space_id) =
         build_two_hop_with_row_caps(&root_key, &leaf_key, parent_caps, serde_json::json!({}));
-    let validated =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    let validated = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap();
     assert!(validated.row_capabilities.is_empty());
 }
 
@@ -880,8 +925,7 @@ fn walk_chain_accepts_two_hop_with_no_row_caps_on_either_side() {
         serde_json::json!({}),
         serde_json::json!({}),
     );
-    let validated =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    let validated = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap();
     assert!(validated.row_capabilities.is_empty());
 }
 
@@ -928,12 +972,16 @@ fn build_n_hop_chain_with_uniform_row_caps(
     let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
     let header_b64 = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
 
-    // Sign root (self-signed admin).
+    // Sign root (self-signed admin). Admin must be delegatable=true so every
+    // downstream hop that re-claims Admin passes enforce_delegatable.
+    let admin_delegatable = CapabilitySet::builder().admin(true).build();
     let root_payload = serde_json::json!({
         "ucv": "1.0",
         "iss": root_did,
         "aud": root_did,
-        "cap": { format!("space:{}", space_id): "space/admin" },
+        "capabilities": {
+            format!("space:{}", space_id): admin_delegatable,
+        },
         "row_cap": row_cap,
         "exp": now + 3600,
         "iat": now,
@@ -961,7 +1009,9 @@ fn build_n_hop_chain_with_uniform_row_caps(
             "ucv": "1.0",
             "iss": prev_iss,
             "aud": audience_did,
-            "cap": { format!("space:{}", space_id): "space/admin" },
+            "capabilities": {
+                format!("space:{}", space_id): admin_delegatable,
+            },
             "row_cap": row_cap,
             "exp": now + 3600,
             "iat": now,
@@ -1002,15 +1052,14 @@ fn walk_chain_admits_five_hop_row_cap_chain_at_max_depth() {
         build_n_hop_chain_with_uniform_row_caps(&keys, &row_cap);
     assert_eq!(space_id, space_id_returned);
 
-    let validated =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap();
+    let validated = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap();
     assert_eq!(
         validated.row_capabilities.get(&space_id).unwrap().len(),
         1,
         "row_capabilities must survive a full depth-5 chain walk"
     );
     // Depth guard proof: same chain must reject at depth=4.
-    let too_shallow = validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 4);
+    let too_shallow = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 4);
     assert!(
         matches!(too_shallow, Err(UcanVerifyError::ChainTooDeep(_))),
         "depth guard must still fire on a row-cap chain; got {too_shallow:?}"
@@ -1036,8 +1085,7 @@ fn walk_chain_rejects_six_hop_row_cap_chain_beyond_max_depth() {
     let (leaf_token, leaf_did, _space_id) =
         build_n_hop_chain_with_uniform_row_caps(&keys, &row_cap);
 
-    let err =
-        validate_token(&leaf_token, &space_id, &leaf_did, CapabilityLevel::Admin, 5).unwrap_err();
+    let err = validate_token(&leaf_token, &space_id, &leaf_did, Cap::Admin, 5).unwrap_err();
     assert!(
         matches!(err, UcanVerifyError::ChainTooDeep(_)),
         "six-hop row-cap chain must trip the depth guard, got {err:?}"
@@ -1134,4 +1182,155 @@ fn parse_ucan_rejects_legacy_string_capability_form() {
 
     let err = parse_ucan(&token).expect_err("legacy form must be rejected");
     assert!(matches!(err, UcanVerifyError::MalformedToken(_)));
+}
+
+// ---------------------------------------------------------------------------
+// W4 PR-3 Task 3 — orthogonal-attenuation attack tests.
+//
+// These pin the new orthogonal semantics with attacks that were silent
+// (or absent) in the hierarchical world. All three use the low-level
+// payload-signing path (no `create_delegated_ucan`; Task 4 rewires that
+// helper) so they exercise the walker independently of issuance.
+// ---------------------------------------------------------------------------
+
+/// Build a 2-hop chain (self-signed admin root + leaf) with caller-controlled
+/// capability sets on each hop. Returns `(leaf_token, leaf_aud_did,
+/// space_id)`. Root DID is derived from `root_key`; the space_id is the
+/// deterministic derivation bound to the root DID so `validate_token`'s
+/// binding check passes.
+fn build_two_hop_with_cap_sets(
+    root_key: &SigningKey,
+    leaf_key: &SigningKey,
+    root_caps: CapabilitySet,
+    leaf_caps: CapabilitySet,
+) -> (String, String, String) {
+    use crate::ucan::space_id::derive_space_id;
+
+    let root_did = did_from_verifying_key(&root_key.verifying_key());
+    let leaf_did = did_from_verifying_key(&leaf_key.verifying_key());
+    let space_id = derive_space_id(&root_did, &[0x33; 16]);
+    let now = unix_secs_from(SystemTime::now());
+
+    let root_payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": root_did,
+        "aud": root_did,
+        "capabilities": {
+            format!("space:{}", space_id): root_caps,
+        },
+        "exp": now + 3600,
+        "iat": now,
+        "prf": [],
+        "nnc": "attack-root"
+    });
+    let root_token = sign_ucan_payload(root_key, &root_payload);
+
+    let leaf_payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": root_did,       // signed by root — chain-continuity: parent.aud == child.iss
+        "aud": leaf_did,
+        "capabilities": {
+            format!("space:{}", space_id): leaf_caps,
+        },
+        "exp": now + 3600,
+        "iat": now,
+        "prf": [root_token],
+        "nnc": "attack-leaf"
+    });
+    let leaf_token = sign_ucan_payload(root_key, &leaf_payload);
+
+    (leaf_token, leaf_did, space_id)
+}
+
+#[test]
+fn walk_chain_rejects_child_claiming_non_delegatable_parent_cap() {
+    // Parent grants Write with delegatable=false; child re-claims Write.
+    // Enforcement: DelegationError::NotDelegatable → UcanVerifyError::DelegationNotDelegatable
+    // { cap: Write, .. }. In the hierarchical world this was silent — Write
+    // was Write regardless of a "may pass it on" flag.
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    // Root holds Admin (delegatable=true so root passes as self-signed admin
+    // AND child's implicit inheritance path is not blocked at the Admin cap)
+    // and Write NON-delegatable. Leaf claims Write.
+    let root_caps = CapabilitySet::builder().admin(true).write(false).build();
+    let leaf_caps = CapabilitySet::builder().write(true).build();
+    let (leaf_token, leaf_aud, space_id) =
+        build_two_hop_with_cap_sets(&root_key, &leaf_key, root_caps, leaf_caps);
+
+    let err = validate_token(&leaf_token, &space_id, &leaf_aud, Cap::Write, 5).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            UcanVerifyError::DelegationNotDelegatable {
+                cap: Cap::Write,
+                ..
+            }
+        ),
+        "expected DelegationNotDelegatable {{ cap: Write }}, got {err:?}",
+    );
+}
+
+#[test]
+fn walk_chain_rejects_child_claiming_orthogonal_cap_parent_lacks() {
+    // Parent has Admin+Write (both delegatable=true); child claims Read.
+    // Parent doesn't hold Read at all — under orthogonal semantics Read must
+    // be granted explicitly and cannot be lifted "downward" from Write.
+    // Enforcement: DelegationError::Missing → UcanVerifyError::DelegationMissing
+    // { cap: Read, .. }.
+    let root_key = random_signing_key();
+    let leaf_key = random_signing_key();
+    let root_caps = CapabilitySet::builder().admin(true).write(true).build();
+    let leaf_caps = CapabilitySet::builder().read(true).build();
+    let (leaf_token, leaf_aud, space_id) =
+        build_two_hop_with_cap_sets(&root_key, &leaf_key, root_caps, leaf_caps);
+
+    let err = validate_token(&leaf_token, &space_id, &leaf_aud, Cap::Read, 5).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            UcanVerifyError::DelegationMissing { cap: Cap::Read, .. }
+        ),
+        "expected DelegationMissing {{ cap: Read }}, got {err:?}",
+    );
+}
+
+#[test]
+fn validate_token_rejects_write_only_leaf_when_read_needed() {
+    // Regression against silent hierarchical lift: a Write-only cap must NOT
+    // satisfy capability_needed = Cap::Read. This trips `validate_token`'s
+    // per-space capability floor before any chain-walk step is reached, so
+    // the leaf can be self-signed with just Write — no chain-walk required
+    // to observe the reject.
+    use crate::ucan::space_id::derive_space_id;
+    let key = random_signing_key();
+    let did = did_from_verifying_key(&key.verifying_key());
+    let space_id = derive_space_id(&did, &[0x44; 16]);
+    let now = unix_secs_from(SystemTime::now());
+
+    let payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": did,
+        "aud": did,
+        "capabilities": {
+            format!("space:{}", space_id): CapabilitySet::builder().write(true).build(),
+        },
+        "exp": now + 3600,
+        "iat": now,
+        "prf": [],
+        "nnc": "write-only-vs-read"
+    });
+    let token = sign_ucan_payload(&key, &payload);
+
+    let err = validate_token(&token, &space_id, &did, Cap::Read, 5).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            UcanVerifyError::InsufficientCapability {
+                required: Cap::Read,
+                ..
+            }
+        ),
+        "expected InsufficientCapability {{ required: Read }}, got {err:?}",
+    );
 }

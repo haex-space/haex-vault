@@ -12,6 +12,7 @@
 //! regressions in the public API.
 
 use super::*;
+use crate::ucan::capability_set::Cap;
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -68,13 +69,17 @@ fn find_vector(name: &str) -> Vector {
         .unwrap_or_else(|| panic!("fixture vector {name} missing"))
 }
 
-fn required_capability(v: &Vector) -> CapabilityLevel {
-    CapabilityLevel::from_capability_string(&v.capability_needed).unwrap_or_else(|| {
-        panic!(
-            "unknown capability_needed in vector: {}",
-            v.capability_needed
-        )
-    })
+fn required_capability(v: &Vector) -> Cap {
+    // The fixture keeps the `space/*` wire vocabulary for backward-fixture
+    // compatibility (Task 7 regenerates it fully); this local mapping keeps
+    // the runner working under the new orthogonal Cap type in the interim.
+    match v.capability_needed.as_str() {
+        "space/read" => Cap::Read,
+        "space/write" => Cap::Write,
+        "space/invite" => Cap::Invite,
+        "space/admin" => Cap::Admin,
+        other => panic!("unknown capability_needed in vector: {other}"),
+    }
 }
 
 fn run(v: &Vector) -> Result<ValidatedUcan, UcanVerifyError> {
@@ -155,7 +160,8 @@ fn variant_name(e: &UcanVerifyError) -> &'static str {
         UcanVerifyError::UnknownCapability(_) => "UnknownCapability",
         UcanVerifyError::ChainTooDeep(_) => "ChainTooDeep",
         UcanVerifyError::ChainBroken => "ChainBroken",
-        UcanVerifyError::CapabilityEscalation => "CapabilityEscalation",
+        UcanVerifyError::DelegationMissing { .. } => "DelegationMissing",
+        UcanVerifyError::DelegationNotDelegatable { .. } => "DelegationNotDelegatable",
         UcanVerifyError::RowCapAttenuation { .. } => "RowCapAttenuation",
         UcanVerifyError::RootNotSelfSigned => "RootNotSelfSigned",
         UcanVerifyError::RootBindingMismatch => "RootBindingMismatch",
