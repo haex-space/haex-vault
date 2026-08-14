@@ -256,6 +256,54 @@ impl MlsManager {
         })
     }
 
+    /// Resolve `(committer_did, target_did)` for a Remove of `leaf_index`
+    /// in `space_id`. Shared by [`Self::remove_member`] and its e2e-hooks
+    /// sibling [`Self::remove_member_unchecked`] so the two cannot drift on
+    /// which principal signs a commit.
+    ///
+    /// Both DIDs are lifted from the group leaves themselves (via
+    /// `authorization::did_from_credential`), which returns `None` for
+    /// anything that is not a UTF-8 BasicCredential. A lossy conversion
+    /// would fail OPEN: the mangled string could never match a
+    /// `haex_identities.did`, so `is_space_member` would answer
+    /// "already left" and skip the local gate entirely.
+    ///
+    /// The committer DID comes from our own leaf in this group, NOT from
+    /// `get_own_did()` — the latter is a single device-global value
+    /// (`storage::store_own_did`) that a later `init_identity` with a
+    /// different default identity would overwrite while the group leaf
+    /// keeps the DID it was created/joined with. Authorizing anything
+    /// other than the signing DID would gate the wrong principal.
+    fn resolve_removal_dids(
+        &self,
+        group: &MlsGroup,
+        space_id: &str,
+        leaf_index: LeafNodeIndex,
+        member_index: u32,
+    ) -> Result<(String, String), String> {
+        let resolve_did = |m: &Member, what: &str| -> Result<String, String> {
+            crate::mls::authorization::did_from_credential(&m.credential).ok_or_else(|| {
+                format!(
+                    "Cannot resolve a DID from the {what} credential at leaf {} in space \
+                     {space_id} (not a UTF-8 BasicCredential)",
+                    m.index.u32()
+                )
+            })
+        };
+        let target_did = group
+            .members()
+            .find(|m| m.index == leaf_index)
+            .ok_or_else(|| format!("No member at leaf index {member_index} in space {space_id}"))
+            .and_then(|m| resolve_did(&m, "removal target's"))?;
+        let own_leaf = group.own_leaf_index();
+        let committer_did = group
+            .members()
+            .find(|m| m.index == own_leaf)
+            .ok_or_else(|| format!("Own leaf {own_leaf:?} not present in space {space_id}"))
+            .and_then(|m| resolve_did(&m, "own"))?;
+        Ok((committer_did, target_did))
+    }
+
     pub fn remove_member(
         &self,
         space_id: &str,
@@ -275,38 +323,10 @@ impl MlsManager {
         // already left — see `authorization::authorize_local_removal` for
         // the full rationale (leader-side rekey-after-self-leave exemption).
         //
-        // Both DIDs go through `authorization::did_from_credential`, which
-        // returns `None` for anything that is not a UTF-8 BasicCredential.
-        // A lossy conversion here would fail OPEN: the mangled string could
-        // never match a `haex_identities.did`, so `is_space_member` would
-        // answer "already left" and skip the gate entirely.
-        let resolve_did = |m: &Member, what: &str| -> Result<String, String> {
-            crate::mls::authorization::did_from_credential(&m.credential).ok_or_else(|| {
-                format!(
-                    "Cannot resolve a DID from the {what} credential at leaf {} in space \
-                     {space_id} (not a UTF-8 BasicCredential)",
-                    m.index.u32()
-                )
-            })
-        };
-        let target_did = group
-            .members()
-            .find(|m| m.index == leaf_index)
-            .ok_or_else(|| format!("No member at leaf index {member_index} in space {space_id}"))
-            .and_then(|m| resolve_did(&m, "removal target's"))?;
-        // The DID that will actually SIGN this commit is the one on our own
-        // leaf in this group, not `get_own_did()` — the latter is a single
-        // device-global value (`storage::store_own_did`) that a later
-        // `init_identity` with a different default identity would overwrite
-        // while the group leaf keeps the DID it was created/joined with.
-        // Authorizing anything other than the signing DID would gate the
-        // wrong principal.
-        let own_leaf = group.own_leaf_index();
-        let committer_did = group
-            .members()
-            .find(|m| m.index == own_leaf)
-            .ok_or_else(|| format!("Own leaf {own_leaf:?} not present in space {space_id}"))
-            .and_then(|m| resolve_did(&m, "own"))?;
+        // See `resolve_removal_dids` for why we lift both DIDs from the
+        // group leaves themselves (and reject lossy UTF-8 conversions).
+        let (committer_did, target_did) =
+            self.resolve_removal_dids(&group, space_id, leaf_index, member_index)?;
         // `proof_required` mirrors the receiver's own target-gone exemption
         // in `authorize_committer_capability`: `true` iff the target is
         // still an active member (so the receive-side gate will demand a
@@ -412,26 +432,12 @@ impl MlsManager {
 
         let leaf_index = LeafNodeIndex::new(member_index);
 
-        let resolve_did = |m: &Member, what: &str| -> Result<String, String> {
-            crate::mls::authorization::did_from_credential(&m.credential).ok_or_else(|| {
-                format!(
-                    "Cannot resolve a DID from the {what} credential at leaf {} in space \
-                     {space_id} (not a UTF-8 BasicCredential)",
-                    m.index.u32()
-                )
-            })
-        };
-        let target_did = group
-            .members()
-            .find(|m| m.index == leaf_index)
-            .ok_or_else(|| format!("No member at leaf index {member_index} in space {space_id}"))
-            .and_then(|m| resolve_did(&m, "removal target's"))?;
-        let own_leaf = group.own_leaf_index();
-        let committer_did = group
-            .members()
-            .find(|m| m.index == own_leaf)
-            .ok_or_else(|| format!("Own leaf {own_leaf:?} not present in space {space_id}"))
-            .and_then(|m| resolve_did(&m, "own"))?;
+        // Delegate to the shared resolver so this attack-shape commit is
+        // signed by the same principal `remove_member` (production) would
+        // sign with — otherwise a later drift in the resolution rule would
+        // silently exercise a stale identity through these specs.
+        let (committer_did, target_did) =
+            self.resolve_removal_dids(&group, space_id, leaf_index, member_index)?;
 
         let (commit, _welcome, _group_info) = group
             .remove_members(&self.provider, &signer, &[leaf_index])

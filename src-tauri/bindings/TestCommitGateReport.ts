@@ -8,9 +8,11 @@ export type TestCommitGateReport = { outcome: TestCommitGateOutcome,
 /**
  * MLS epoch before / after. Equal on every rejection — the assertion
  * that the gate really is fail-closed on the group state, not just on
- * the returned error.
+ * the returned error. `serde_json` serializes `u64` as a JSON number
+ * (Tauri delivers it as a JavaScript `number`), so pin the binding to
+ * `number` instead of ts-rs's default `bigint`.
  */
-epochBefore: bigint, epochAfter: bigint, 
+epochBefore: number, epochAfter: number, 
 /**
  * Whether `resolve_presented_committer_capability` produced a
  * capability at all, and its audience/level when it did. Lets a spec

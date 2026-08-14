@@ -651,6 +651,7 @@ mod mls_manager_tests {
             audience_did: b_identity.did.clone(),
             level: CapabilityLevel::Invite,
         };
+        let epoch_before = a.current_epoch(SPACE_DST).unwrap();
         let err = a
             .decrypt(SPACE_DST, &commit2, Some(presented), Some(&sig1))
             .expect_err("a bind signature replayed onto a different commit must be rejected");
@@ -658,6 +659,16 @@ mod mls_manager_tests {
         assert!(
             err.contains("commit-bind signature invalid"),
             "unexpected rejection: {err}"
+        );
+        // `MlsManager::decrypt` verifies the commit-bind sig BEFORE
+        // `merge_staged_commit` today, so a rejected replay cannot advance
+        // the epoch. Pin that ordering: if a future change moved the merge
+        // ahead of the bind check, the error assertion above would still
+        // pass while the receiver silently walked forward.
+        assert_eq!(
+            a.current_epoch(SPACE_DST).unwrap(),
+            epoch_before,
+            "a rejected commit must not advance the receiver's epoch"
         );
     }
 

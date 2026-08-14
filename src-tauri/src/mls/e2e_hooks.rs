@@ -59,8 +59,12 @@ pub struct TestCommitGateReport {
     pub outcome: TestCommitGateOutcome,
     /// MLS epoch before / after. Equal on every rejection — the assertion
     /// that the gate really is fail-closed on the group state, not just on
-    /// the returned error.
+    /// the returned error. `serde_json` serializes `u64` as a JSON number
+    /// (Tauri delivers it as a JavaScript `number`), so pin the binding to
+    /// `number` instead of ts-rs's default `bigint`.
+    #[ts(type = "number")]
     pub epoch_before: u64,
+    #[ts(type = "number")]
     pub epoch_after: u64,
     /// Whether `resolve_presented_committer_capability` produced a
     /// capability at all, and its audience/level when it did. Lets a spec
@@ -88,7 +92,15 @@ pub(crate) fn classify_rejection(err: &str) -> TestCommitGateOutcome {
         || err.contains("has no resolvable committer DID")
     {
         TestCommitGateOutcome::RejectedCommitterCapability { reason }
-    } else if err.contains("proof-of-possession") || err.contains("PoP") {
+    } else if err.contains("proof-of-possession")
+        // The two `verify_pops` rejection strings in `mls::authorization`
+        // ("malformed PoP signature bytes …" and "PoP does not verify …")
+        // only spell the acronym, not the full phrase. Both embed `PoP `
+        // followed by a space, which base58btc DIDs never contain — so
+        // this survives DIDs whose base58 encoding happens to include
+        // the bare three-char sequence `PoP`.
+        || err.contains("PoP ")
+    {
         TestCommitGateOutcome::RejectedPop { reason }
     } else if err.contains("is not a member of this space")
         || err.contains("credential-stability violation")
@@ -141,12 +153,30 @@ pub async fn test_mls_process_commit_report(
     let resolved_level = presented.as_ref().map(|p| format!("{:?}", p.level));
 
     let manager = MlsManager::new(state.db.0.clone());
-    let epoch_before = manager.current_epoch(&space_id)?;
+    // `current_epoch` errors when the local group is missing — surface that
+    // as a structured `RejectedOther` so a spec can still assert the
+    // documented outcome instead of the bare error string bubbling through
+    // `?`. Epochs are left at 0 in that case (no group ⇒ no epoch).
+    let epoch_before = match manager.current_epoch(&space_id) {
+        Ok(e) => e,
+        Err(e) => {
+            return Ok(TestCommitGateReport {
+                outcome: classify_rejection(&e),
+                epoch_before: 0,
+                epoch_after: 0,
+                resolved_audience_did,
+                resolved_level,
+            });
+        }
+    };
     let outcome = match manager.decrypt(&space_id, &commit, presented, bind_sig.as_deref()) {
         Ok(_) => TestCommitGateOutcome::Accepted,
         Err(e) => classify_rejection(&e),
     };
-    let epoch_after = manager.current_epoch(&space_id)?;
+    // If the group vanished mid-flight (shouldn't happen — `decrypt` above
+    // would already have failed) fall back to `epoch_before` so a rejected
+    // commit still reports `after == before` as the invariant demands.
+    let epoch_after = manager.current_epoch(&space_id).unwrap_or(epoch_before);
 
     Ok(TestCommitGateReport {
         outcome,
