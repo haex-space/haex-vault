@@ -6,7 +6,7 @@
 //! `src-tauri/tests/ucan_chain_vectors.rs`.
 
 use super::*;
-use crate::ucan::capability_set::{Cap, CapabilitySet};
+use crate::ucan::capability_set::Cap;
 use crate::ucan::predicate::{Predicate, PrimitiveValue};
 use crate::ucan::row_capability::RowCapability;
 use ed25519_dalek::SigningKey;
@@ -1057,10 +1057,6 @@ fn unix_secs_from(t: SystemTime) -> u64 {
     t.duration_since(UNIX_EPOCH).unwrap().as_secs()
 }
 
-fn did_key_from_public_key(vk: &VerifyingKey) -> String {
-    did_from_verifying_key(vk)
-}
-
 fn sign_ucan_payload(signer: &SigningKey, payload: &serde_json::Value) -> String {
     use ed25519_dalek::Signer;
     let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
@@ -1081,15 +1077,17 @@ fn parse_ucan_reads_capability_set_wire_form() {
     // Contract: capabilities in UCAN payload are JSON arrays of {cap, delegatable}
     // entries per space, canonical order (see capability_set.rs serde). Any
     // legacy string form (e.g. "space/write") must be rejected as MalformedToken.
-    let signing_key = ed25519_dalek::SigningKey::from_bytes(&[7u8; 32]);
-    let did = did_key_from_public_key(&signing_key.verifying_key());
+    let signing_key = random_signing_key();
+    let did = did_from_verifying_key(&signing_key.verifying_key());
     let space_id = deterministic_space_id_for(&signing_key);
+    let now = unix_secs_from(SystemTime::now());
 
     let payload = serde_json::json!({
+        "ucv": "1.0",
         "iss": did,
         "aud": did,
-        "exp": unix_secs_from(SystemTime::now()) + 3600,
-        "iat": unix_secs_from(SystemTime::now()),
+        "exp": now + 3600,
+        "iat": now,
         "nnc": "n1",
         "capabilities": {
             format!("space:{space_id}"): [
@@ -1102,6 +1100,7 @@ fn parse_ucan_reads_capability_set_wire_form() {
     let token = sign_ucan_payload(&signing_key, &payload);
 
     let parsed = parse_ucan(&token).expect("valid new-form payload must parse");
+    assert_eq!(parsed.capabilities.len(), 1);
     let set = parsed
         .capabilities
         .get(&space_id)
@@ -1115,14 +1114,16 @@ fn parse_ucan_reads_capability_set_wire_form() {
 
 #[test]
 fn parse_ucan_rejects_legacy_string_capability_form() {
-    let signing_key = ed25519_dalek::SigningKey::from_bytes(&[8u8; 32]);
-    let did = did_key_from_public_key(&signing_key.verifying_key());
+    let signing_key = random_signing_key();
+    let did = did_from_verifying_key(&signing_key.verifying_key());
     let space_id = deterministic_space_id_for(&signing_key);
+    let now = unix_secs_from(SystemTime::now());
 
     let payload = serde_json::json!({
+        "ucv": "1.0",
         "iss": did, "aud": did,
-        "exp": unix_secs_from(SystemTime::now()) + 3600,
-        "iat": unix_secs_from(SystemTime::now()),
+        "exp": now + 3600,
+        "iat": now,
         "nnc": "n1",
         "capabilities": {
             format!("space:{space_id}"): "space/write" // legacy string
