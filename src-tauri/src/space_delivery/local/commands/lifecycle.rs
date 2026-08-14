@@ -102,13 +102,16 @@ pub async fn local_delivery_start(
 /// receive-side capability proof. TS callers pass them through from the
 /// `MlsCommitBundle` returned by `mls_remove_member`; both are optional
 /// so callers that do not produce them (e.g. leader-rekey-after-self-leave
-/// where the target-gone exemption applies) may omit them.
+/// where the target-gone exemption applies) may omit them. `committer_ucan`
+/// is a UCAN JWT string, not a byte blob — the type enforces UTF-8 so
+/// malformed input is rejected at the IPC boundary rather than silently
+/// mangled into replacement characters mid-pipeline.
 #[tauri::command]
 pub async fn local_delivery_broadcast_commit(
     state: State<'_, AppState>,
     space_id: String,
     commit: Vec<u8>,
-    committer_ucan: Option<Vec<u8>>,
+    committer_ucan: Option<String>,
     committer_commit_bind_sig: Option<Vec<u8>>,
 ) -> Result<(), String> {
     let leader_state = super::peers::get_leader_state(&state, &space_id).await?;

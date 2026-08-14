@@ -54,8 +54,10 @@ pub struct FetchedMlsMessage {
     pub message_type: String,
     pub message_blob: Vec<u8>,
     pub created_at: String,
-    /// Raw UCAN token bytes as base64-decoded from the DB column.
-    pub committer_ucan: Option<Vec<u8>>,
+    /// Raw UCAN JWT text as stored in the TEXT column. A UCAN's own
+    /// dot-separated segments are already base64url, so this is exactly
+    /// what the wire carries — no outer base64 wrap, no byte re-encoding.
+    pub committer_ucan: Option<String>,
     /// Raw ed25519 commit-bind signature bytes as base64-decoded from the
     /// DB column (blob column, so pre-decoded once already).
     pub committer_commit_bind_sig: Option<Vec<u8>>,
@@ -66,19 +68,22 @@ pub struct FetchedMlsMessage {
 /// `committer_ucan` and `committer_commit_bind_sig` are optional per plan
 /// §5.8 — present for membership-changing commits whose committer holds
 /// `Invite`-or-higher, absent for everything else (application messages,
-/// key rotations, self-leaves, leader-rekey-after-self-leave).
+/// key rotations, self-leaves, leader-rekey-after-self-leave). `committer_ucan`
+/// is passed as `&str` because a UCAN is a JWT string — the caller has
+/// already established it as valid UTF-8 by the type, so no lossy byte
+/// conversion is done here.
 pub fn store_message(
     db: &DbConnection,
     space_id: &str,
     sender_did: &str,
     message_type: &str,
     message_blob: &[u8],
-    committer_ucan: Option<&[u8]>,
+    committer_ucan: Option<&str>,
     committer_commit_bind_sig: Option<&[u8]>,
 ) -> Result<i64, DeliveryError> {
     let blob_b64 = base64::engine::general_purpose::STANDARD.encode(message_blob);
     let ucan_value = committer_ucan
-        .map(|b| serde_json::Value::String(String::from_utf8_lossy(b).into_owned()))
+        .map(|s| serde_json::Value::String(s.to_string()))
         .unwrap_or(serde_json::Value::Null);
     // Bind-sig is stored as a base64-encoded string in the blob column via
     // the JSON-based core layer; on fetch we base64-decode back to raw
@@ -152,10 +157,7 @@ pub fn fetch_messages(
             .and_then(|v| v.as_str())
             .unwrap_or_default()
             .to_string();
-        let committer_ucan = row
-            .get(5)
-            .and_then(|v| v.as_str())
-            .map(|s| s.as_bytes().to_vec());
+        let committer_ucan = row.get(5).and_then(|v| v.as_str()).map(|s| s.to_string());
         // committer_commit_bind_sig column is BLOB; core::select returns
         // it as base64 (same shape as message_blob above), so decode.
         let committer_commit_bind_sig = row

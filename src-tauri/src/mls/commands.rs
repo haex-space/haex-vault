@@ -95,7 +95,9 @@ pub fn mls_decrypt(
     space_id: String,
     ciphertext: Vec<u8>,
 ) -> Result<Vec<u8>, String> {
-    with_mls_manager(&state, |mgr| mgr.decrypt(&space_id, &ciphertext, None, None))
+    with_mls_manager(&state, |mgr| {
+        mgr.decrypt(&space_id, &ciphertext, None, None)
+    })
 }
 
 #[tauri::command]

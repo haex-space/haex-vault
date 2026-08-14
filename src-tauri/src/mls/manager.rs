@@ -362,8 +362,9 @@ impl MlsManager {
                 &committer_did,
             )
             .map_err(|e| format!("Failed to load identity signing key for {committer_did}: {e}"))?;
-            let sig = crate::mls::commit_bind::sign_commit_bind(&identity.signing_key, &commit_bytes);
-            (Some(ucan_token.into_bytes()), Some(sig.to_bytes().to_vec()))
+            let sig =
+                crate::mls::commit_bind::sign_commit_bind(&identity.signing_key, &commit_bytes);
+            (Some(ucan_token), Some(sig.to_bytes().to_vec()))
         } else {
             (None, None)
         };

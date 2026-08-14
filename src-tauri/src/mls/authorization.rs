@@ -551,11 +551,30 @@ pub struct PresentedCapability {
 /// - **Target-already-gone** — every removed leaf's DID is no longer an
 ///   active member of `haex_space_members` on this receiver. Symmetric with
 ///   [`authorize_local_removal`]'s exemption: the removal was already
-///   authorized upstream by whatever removed the row (e.g. the leader
-///   rotating keys after a member's self-leave already propagated via the
-///   shared-space delete-log), and `haex_space_members` is space-scoped
-///   CRDT state so this check is exercisable on every receiver, not just
-///   the granting admin.
+///   authorized upstream by whatever removed the row (e.g. any peer that
+///   holds Invite/Admin — including the elected delivery leader who may
+///   hold only Read/Write — rotating keys after a member's self-leave
+///   already propagated via the shared-space delete-log), and
+///   `haex_space_members` is space-scoped CRDT state so this check is
+///   exercisable on every receiver, not just the granting admin.
+///
+///   **KNOWN DIVERGENCE RISK (plan §5.8 followup — CodeRabbit finding on
+///   PR #782).** Row absence in `haex_space_members` has two meanings on a
+///   receiver: (a) the delete propagated and the member is gone, and
+///   (b) this receiver has not yet applied the ADD in the first place
+///   (fresh peer, or CRDT sync lagging the MLS commit fan-out). Case (b)
+///   means a proofless Remove commit from an Invite-lacking committer can
+///   still be accepted here while peers who HAVE applied the ADD reject
+///   the same commit, splitting the MLS group. The safest tightening is a
+///   positive-evidence check (delete-log entry keyed on the target's
+///   identity), which requires adding DID/identity to the shared-space
+///   delete-log schema — deferred to the follow-up task tracked in
+///   `docs/plans/2026-08-13-mls-receive-gate-ucan-on-commit.md` §"Deferred
+///   follow-ups". Until then the exemption is intentional: it keeps the
+///   legitimate delivery-leader-rekey-after-self-leave path working on
+///   receivers who have converged on the departure, at the cost of the
+///   divergence window in case (b). Multi-peer attack coverage for this
+///   window is filed in the plan's outstanding e2e-spec matrix.
 ///
 /// Otherwise `presented` must be `Some`, its `audience_did` must equal the
 /// commit's MLS-authenticated `CommitFacts::committer_did`, and its `level`
@@ -585,6 +604,10 @@ pub(crate) fn authorize_committer_capability(
         )
     })?;
 
+    // KNOWN DIVERGENCE RISK: `is_space_member=false` can mean either "the
+    // delete propagated" or "this receiver never applied the ADD". Both
+    // fire the exemption today. See the docstring above for the deferred
+    // positive-evidence fix (plan §5.8 follow-up).
     let all_targets_already_gone = with_authz_conn(conn, |conn_ref| {
         for r in &facts.removes {
             let still_active = match r.credential_did.as_deref() {

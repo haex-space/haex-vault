@@ -226,21 +226,52 @@ pub fn resolve_presented_committer_capability(
     committer_ucan: Option<&str>,
 ) -> Option<crate::mls::authorization::PresentedCapability> {
     let token = committer_ucan?;
-    let peeked = crate::ucan::parse_ucan(token).ok()?;
+    // Log each failure branch with a distinct reason so operators can
+    // tell "no proof presented" (silent `None` above) apart from "a
+    // proof was presented and it failed verification" (any branch below).
+    // Token contents are not logged — the reason label alone is enough
+    // to triage the gate's decision without exposing the JWT.
+    let peeked = match crate::ucan::parse_ucan(token) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!(
+                "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
+                 parse failed ({e})"
+            );
+            return None;
+        }
+    };
     let max_chain_depth = crate::database::core::with_connection(db, |conn| {
         Ok(crate::ucan::read_max_ucan_chain_depth(conn))
     })
     .unwrap_or(crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT) as usize;
 
-    let validated = crate::ucan::validate_token(
+    let validated = match crate::ucan::validate_token(
         token,
         space_id,
         &peeked.aud,
         CapabilityLevel::Read,
         max_chain_depth,
-    )
-    .ok()?;
-    let level = *validated.capabilities.get(space_id)?;
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!(
+                "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
+                 validate_token failed ({e})"
+            );
+            return None;
+        }
+    };
+    let level = match validated.capabilities.get(space_id) {
+        Some(l) => *l,
+        None => {
+            eprintln!(
+                "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
+                 token validated but carries no capability for this space"
+            );
+            return None;
+        }
+    };
     Some(crate::mls::authorization::PresentedCapability {
         audience_did: validated.audience,
         level,

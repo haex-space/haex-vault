@@ -679,6 +679,68 @@ fn presented_capability_with_mismatched_audience_is_rejected() {
 }
 
 #[test]
+fn remove_with_unresolvable_target_did_still_requires_capability() {
+    // Fail-closed pin: a `RemoveFact::credential_did == None` (leaf slot
+    // was already empty in the pre-commit view — anomalous) must NOT
+    // receive the target-gone exemption, since we cannot verify the
+    // leaf's identity. This guards against a future change to
+    // `authorize_committer_capability`'s `None`-arm silently opening
+    // the gate. A `None` here should read as "not provably gone" and
+    // force a capability proof.
+    let db = fresh_db();
+    let space = "space-a";
+    let facts = CommitFacts {
+        removes: vec![super::RemoveFact {
+            leaf_index: 1,
+            credential_did: None,
+        }],
+        committer_did: Some("did:key:zNobody".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts, None).expect_err(
+        "a Remove whose target DID cannot be resolved must not get the target-gone exemption",
+    );
+    assert!(
+        err.contains("none presented"),
+        "expected the standard 'proof required, none presented' rejection, got: {err}"
+    );
+}
+
+#[test]
+fn remove_of_active_member_without_proof_stays_rejected_until_crdt_converges() {
+    // Regression guard for the deferred CRDT-lag divergence risk
+    // (CodeRabbit finding on PR #782, documented in
+    // `authorize_committer_capability`'s docstring under "KNOWN
+    // DIVERGENCE RISK"). This test pins the SAFE direction of the
+    // exemption: while the target is still an active `haex_space_members`
+    // row on this receiver, a proofless Remove must remain rejected.
+    // Once CRDT converges and the delete-log removes the row, the
+    // exemption fires; that second half is covered by
+    // `remove_of_an_already_departed_member_needs_no_capability`.
+    let db = fresh_db();
+    let space = "space-a";
+    // Simulate the "out-of-order membership deletion" scenario: the MLS
+    // Remove commit arrives before the CRDT delete has propagated. The
+    // receiver's `haex_space_members` still lists the target as active.
+    seed_member(&db, space, "did:key:zAlreadyRemovedOnSender");
+    let facts = CommitFacts {
+        removes: vec![remove_of(1, "did:key:zAlreadyRemovedOnSender")],
+        committer_did: Some("did:key:zRelayLeader".to_string()),
+        ..CommitFacts::default()
+    };
+    let err = authorize_committer_capability(&db, space, &facts, None).expect_err(
+        "while CRDT still shows the target as active, a proofless Remove must be rejected — \
+         retry on the next sync round once the delete propagates",
+    );
+    assert!(err.contains("none presented"), "unexpected error: {err}");
+
+    // Now converge: apply the delete and retry — the exemption fires.
+    remove_member(&db, space, "did:key:zAlreadyRemovedOnSender");
+    authorize_committer_capability(&db, space, &facts, None)
+        .expect("after CRDT convergence the target-gone exemption must let the retry through");
+}
+
+#[test]
 fn remove_of_an_already_departed_member_needs_no_capability() {
     // The receive-side mirror of `authorize_local_removal`'s exemption: the
     // leader rotating keys after a member's self-leave already propagated

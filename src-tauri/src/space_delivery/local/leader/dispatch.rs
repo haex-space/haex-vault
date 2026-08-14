@@ -286,10 +286,11 @@ pub(crate) async fn handle_delivery_request(
             let did = verified_did.to_string();
             // Plan §5.8 wire fields: forwarded straight to the buffer.
             // The receive-side gate (`mls::authorization`) checks them at
-            // decrypt time; the leader here is just a relay and stores the
-            // opaque bytes alongside the commit blob.
-            let ucan_bytes: Option<Vec<u8>> =
-                committer_ucan.as_ref().map(|s| s.as_bytes().to_vec());
+            // decrypt time; the leader here is just a relay. `committer_ucan`
+            // is a UCAN JWT string on the wire (its dot-separated segments
+            // are already base64url — no outer base64 wrap), so it passes
+            // through as `&str`; only `committer_commit_bind_sig` is a raw
+            // ed25519 signature carried as base64 and needs a decode.
             let sig_bytes: Option<Vec<u8>> =
                 match committer_commit_bind_sig.as_deref().map(base64_decode) {
                     Some(Ok(b)) => Some(b),
@@ -308,7 +309,7 @@ pub(crate) async fn handle_delivery_request(
                         &did,
                         &message_type,
                         &blob,
-                        ucan_bytes.as_deref(),
+                        committer_ucan.as_deref(),
                         sig_bytes.as_deref(),
                     ) {
                         Ok(id) => {
@@ -352,13 +353,9 @@ pub(crate) async fn handle_delivery_request(
                             sender_did: m.sender_did,
                             message_type: m.message_type,
                             message: base64_encode(&m.message_blob),
-                            // UCAN is stored as raw UTF-8 bytes in the DB;
-                            // the wire type is a String, so pass through.
-                            // Invalid UTF-8 in a UCAN token would fail
-                            // downstream verification anyway.
-                            committer_ucan: m
-                                .committer_ucan
-                                .map(|b| String::from_utf8_lossy(&b).into_owned()),
+                            // UCAN is a JWT string in both the DB TEXT column
+                            // and on the wire — no byte re-encoding needed.
+                            committer_ucan: m.committer_ucan,
                             committer_commit_bind_sig: m
                                 .committer_commit_bind_sig
                                 .as_deref()

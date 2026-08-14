@@ -2,23 +2,30 @@
 
 export type MlsCommitBundle = { commit: Array<number>, welcome: Array<number> | null, groupInfo: Array<number>, 
 /**
- * UCAN token bytes the committer holds for the space. Present iff the
- * commit is membership-changing AND the committing device holds
- * `Invite`-or-higher. Absent for application messages, key rotations,
- * self-leaves, and leader-rekey-after-self-leave (where every removed
- * leaf's DID is already gone from `haex_space_members`, so the
- * receiver's target-gone exemption applies and no proof is needed).
- * Travels alongside `commit` from `mls_remove_member` down to
+ * Raw UCAN JWT token the committer holds for the space. A UCAN's own
+ * dot-separated segments are already base64url and safe as JSON text,
+ * so it is carried as a plain `String` — no outer base64 wrap on the
+ * wire, no lossy byte round-trip in storage.
+ *
+ * Only attached by `MlsManager::remove_member` today, and only when
+ * `authorize_local_removal` reports `proof_required = true` — i.e. the
+ * Remove targets an ACTIVE member and the committer holds
+ * `Invite`-or-higher. Absent for `add_member` (invite-token authority
+ * gates that upstream), self-leaves, and leader-rekey-after-self-leave
+ * where every removed leaf's DID is already gone from
+ * `haex_space_members` on this committer so the receiver's target-gone
+ * exemption applies. Travels from `remove_member` down to
  * `local_delivery_broadcast_commit` and out onto the wire via
  * `Request::MlsSendMessage::committer_ucan`. See
  * `mls::authorization::authorize_committer_capability` (plan §5.8).
  */
-committerUcan: Array<number> | null, 
+committerUcan: string | null, 
 /**
  * ed25519 signature over
  * `sha256("haex-mls-commit-bind-v1" || sha256(commit))`, produced
  * with the identity key resolvable from `committer_ucan`'s
  * `audience_did`. Prevents UCAN replay against a different commit.
- * Present iff `committer_ucan` is present.
+ * Attached under the same `proof_required` condition as
+ * `committer_ucan`; present iff `committer_ucan` is present.
  */
 committerCommitBindSig: Array<number> | null, };
