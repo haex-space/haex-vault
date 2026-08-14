@@ -3,6 +3,7 @@
 //! Produces tokens compatible with the TypeScript `@haex-space/ucan` library:
 //! `base64url(header).base64url(payload).base64url(ed25519_signature)`
 
+use crate::ucan::capability_set::CapabilitySet;
 use crate::ucan::row_capability::RowCapability;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::{Signer, SigningKey};
@@ -30,6 +31,10 @@ const HEADER: UcanHeader = UcanHeader {
 
 /// UCAN payload matching the TypeScript `UcanPayload` interface.
 ///
+/// The `capabilities` claim carries per-space [`CapabilitySet`] values —
+/// canonical form is a JSON array of `{"cap": ..., "delegatable": ...}`
+/// entries, keyed by `space:<id>` (symmetric to `row_cap`).
+///
 /// `row_cap` is skipped when empty so tokens without row-level capabilities
 /// remain byte-identical to pre-C.5 tokens on the wire — a puller that does
 /// not consume the field sees the exact same JSON it saw before.
@@ -38,7 +43,7 @@ struct UcanPayload {
     ucv: &'static str,
     iss: String,
     aud: String,
-    cap: HashMap<String, String>,
+    capabilities: HashMap<String, CapabilitySet>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     row_cap: HashMap<String, Vec<RowCapability>>,
     exp: u64,
@@ -94,7 +99,7 @@ pub fn create_delegated_ucan(
     issuer_private_key_base64: &str,
     audience_did: &str,
     space_id: &str,
-    capability: &str,
+    capabilities: CapabilitySet,
     row_capabilities: Option<HashMap<String, Vec<RowCapability>>>,
     parent_ucan: Option<&str>,
     expires_in_seconds: u64,
@@ -104,8 +109,8 @@ pub fn create_delegated_ucan(
     let now = unix_now()?;
     let nonce = generate_nonce();
 
-    let mut cap = HashMap::new();
-    cap.insert(format!("space:{}", space_id), capability.to_string());
+    let mut capabilities_map = HashMap::new();
+    capabilities_map.insert(format!("space:{}", space_id), capabilities);
 
     let row_cap = row_capabilities
         .map(|map| {
@@ -124,7 +129,7 @@ pub fn create_delegated_ucan(
         ucv: "1.0",
         iss: issuer_did.to_string(),
         aud: audience_did.to_string(),
-        cap,
+        capabilities: capabilities_map,
         row_cap,
         exp: now + expires_in_seconds,
         iat: now,
@@ -222,7 +227,7 @@ mod tests {
             &b64,
             "did:key:z6MkAudience",
             "test-space",
-            "space/write",
+            CapabilitySet::builder().write(true).build(),
             None,
             Some("parent.token"),
             3600,
@@ -240,7 +245,7 @@ mod tests {
             &b64,
             "did:key:z6MkAudience",
             "test-space",
-            "space/write",
+            CapabilitySet::builder().write(true).build(),
             None,
             None,
             3600,
@@ -253,7 +258,16 @@ mod tests {
 
         assert_eq!(payload["iss"], "did:key:z6MkIssuer");
         assert_eq!(payload["aud"], "did:key:z6MkAudience");
-        assert_eq!(payload["cap"]["space:test-space"], "space/write");
+        // Canonical wire form: `capabilities` (plural) claim, each space keyed
+        // as `space:<id>`, value is the CapabilitySet array of
+        // `{cap, delegatable}` entries.
+        let caps_entry = &payload["capabilities"]["space:test-space"];
+        let arr = caps_entry
+            .as_array()
+            .expect("capabilities entry must be a JSON array");
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["cap"], "write");
+        assert_eq!(arr[0]["delegatable"], true);
         assert_eq!(payload["ucv"], "1.0");
         assert!(payload["exp"].as_u64().unwrap() > payload["iat"].as_u64().unwrap());
     }
@@ -311,7 +325,7 @@ mod tests {
             &b64,
             "did:key:z6MkAudience",
             "test-space",
-            "space/write",
+            CapabilitySet::builder().write(true).build(),
             Some(row_caps.clone()),
             None,
             3600,
@@ -322,7 +336,7 @@ mod tests {
         let payload: serde_json::Value =
             serde_json::from_slice(&BASE64URL.decode(parts[1]).unwrap()).unwrap();
 
-        // Wire key is `row_cap`, keyed by `space:<id>` (symmetry with `cap`).
+        // Wire key is `row_cap`, keyed by `space:<id>` (symmetry with `capabilities`).
         let row_cap = payload
             .get("row_cap")
             .expect("row_cap must be present on the wire");
@@ -347,7 +361,7 @@ mod tests {
             &b64,
             "did:key:z6MkAudience",
             "test-space",
-            "space/write",
+            CapabilitySet::builder().write(true).build(),
             None,
             None,
             3600,
@@ -396,7 +410,7 @@ mod tests {
             &b64,
             &issuer_did,
             "s1",
-            "space/write",
+            CapabilitySet::builder().write(true).build(),
             Some(row_caps),
             None,
             3600,
