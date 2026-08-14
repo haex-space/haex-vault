@@ -812,6 +812,8 @@ pub fn run() {
             mls::commands::mls_join_by_external_commit,
             #[cfg(feature = "e2e-hooks")]
             mls::e2e_hooks::test_mls_process_commit_report,
+            #[cfg(feature = "e2e-hooks")]
+            mls::e2e_hooks::test_mls_remove_member_unchecked,
             // File Sync commands
             file_sync::commands::file_sync_start_rule,
             file_sync::commands::file_sync_stop_rule,

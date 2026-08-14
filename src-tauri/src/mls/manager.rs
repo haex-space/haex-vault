@@ -387,6 +387,80 @@ impl MlsManager {
             .map(|g| g.epoch().as_u64())
     }
 
+    /// Gate-free sibling of [`MlsManager::remove_member`] for e2e attack
+    /// specs: produces a cryptographically valid Remove commit WITHOUT
+    /// `authorization::authorize_local_removal` and without attaching a
+    /// committer UCAN. Always returns a commit-bind signature over the
+    /// produced bytes, signed with this device's real identity key — so a
+    /// spec can pair it with any (forged, expired, replayed, absent) UCAN.
+    ///
+    /// Merges the pending commit locally, exactly like the production path:
+    /// this vault's group advances an epoch and diverges from every honest
+    /// peer that rejects the commit. Each attack spec must therefore use its
+    /// own space.
+    #[cfg(feature = "e2e-hooks")]
+    pub fn remove_member_unchecked(
+        &self,
+        space_id: &str,
+        member_index: u32,
+    ) -> Result<(Vec<u8>, Vec<u8>, String, String), String> {
+        let signer = self.get_signer()?;
+        let group_id = GroupId::from_slice(space_id.as_bytes());
+        let mut group = MlsGroup::load(self.provider.storage(), &group_id)
+            .map_err(|e| format!("Failed to load group: {e}"))?
+            .ok_or_else(|| format!("Group not found for space: {space_id}"))?;
+
+        let leaf_index = LeafNodeIndex::new(member_index);
+
+        let resolve_did = |m: &Member, what: &str| -> Result<String, String> {
+            crate::mls::authorization::did_from_credential(&m.credential).ok_or_else(|| {
+                format!(
+                    "Cannot resolve a DID from the {what} credential at leaf {} in space \
+                     {space_id} (not a UTF-8 BasicCredential)",
+                    m.index.u32()
+                )
+            })
+        };
+        let target_did = group
+            .members()
+            .find(|m| m.index == leaf_index)
+            .ok_or_else(|| format!("No member at leaf index {member_index} in space {space_id}"))
+            .and_then(|m| resolve_did(&m, "removal target's"))?;
+        let own_leaf = group.own_leaf_index();
+        let committer_did = group
+            .members()
+            .find(|m| m.index == own_leaf)
+            .ok_or_else(|| format!("Own leaf {own_leaf:?} not present in space {space_id}"))
+            .and_then(|m| resolve_did(&m, "own"))?;
+
+        let (commit, _welcome, _group_info) = group
+            .remove_members(&self.provider, &signer, &[leaf_index])
+            .map_err(|e| format!("Failed to remove member: {e}"))?;
+
+        group
+            .merge_pending_commit(&self.provider)
+            .map_err(|e| format!("Failed to merge commit: {e}"))?;
+
+        let commit_bytes = commit
+            .tls_serialize_detached()
+            .map_err(|e| format!("Failed to serialize commit: {e}"))?;
+
+        let db = crate::database::DbConnection(self.conn.clone());
+        let identity = crate::space_delivery::local::quic_retry::load_signing_identity_for_did(
+            &db,
+            &committer_did,
+        )
+        .map_err(|e| format!("Failed to load identity signing key for {committer_did}: {e}"))?;
+        let sig = crate::mls::commit_bind::sign_commit_bind(&identity.signing_key, &commit_bytes);
+
+        Ok((
+            commit_bytes,
+            sig.to_bytes().to_vec(),
+            committer_did,
+            target_did,
+        ))
+    }
+
     pub fn encrypt(&self, space_id: &str, plaintext: &[u8]) -> Result<Vec<u8>, String> {
         let signer = self.get_signer()?;
         let group_id = GroupId::from_slice(space_id.as_bytes());

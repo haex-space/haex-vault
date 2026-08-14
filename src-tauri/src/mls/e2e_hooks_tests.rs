@@ -22,3 +22,16 @@ fn classify_maps_each_gate_to_its_own_variant() {
         assert_eq!(json["kind"], expected_kind, "misclassified: {err}");
     }
 }
+
+#[test]
+fn unchecked_removal_report_round_trips() {
+    let report = TestUncheckedRemovalReport {
+        commit_b64: "AAECAw==".into(),
+        commit_bind_sig_b64: "BAUGBw==".into(),
+        committer_did: "did:key:zAttacker".into(),
+        target_did: "did:key:zVictim".into(),
+    };
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(json["commitB64"], "AAECAw==");
+    assert_eq!(json["committerDid"], "did:key:zAttacker");
+}

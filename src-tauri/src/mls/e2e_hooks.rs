@@ -157,6 +157,38 @@ pub async fn test_mls_process_commit_report(
     })
 }
 
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct TestUncheckedRemovalReport {
+    pub commit_b64: String,
+    /// Valid bind-sig over `commit_b64`, signed with this vault's real
+    /// identity key. Pair it with a forged UCAN (Spec 3) or move it onto a
+    /// different commit to test replay (Spec 4).
+    pub commit_bind_sig_b64: String,
+    pub committer_did: String,
+    pub target_did: String,
+}
+
+/// Produce a Remove commit with NO local capability gate and NO attached
+/// UCAN — the attacker half of the committer-capability specs.
+#[tauri::command]
+pub async fn test_mls_remove_member_unchecked(
+    state: State<'_, AppState>,
+    space_id: String,
+    member_index: u32,
+) -> Result<TestUncheckedRemovalReport, String> {
+    let manager = MlsManager::new(state.db.0.clone());
+    let (commit, sig, committer_did, target_did) =
+        manager.remove_member_unchecked(&space_id, member_index)?;
+    Ok(TestUncheckedRemovalReport {
+        commit_b64: BASE64.encode(&commit),
+        commit_bind_sig_b64: BASE64.encode(&sig),
+        committer_did,
+        target_did,
+    })
+}
+
 #[cfg(test)]
 #[path = "e2e_hooks_tests.rs"]
 mod tests;
