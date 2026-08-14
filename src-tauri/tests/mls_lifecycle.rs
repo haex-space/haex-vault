@@ -123,7 +123,7 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             space_id TEXT NOT NULL,
             issuer_did TEXT NOT NULL,
             audience_did TEXT NOT NULL,
-            capability TEXT NOT NULL,
+            capabilities TEXT NOT NULL,
             token TEXT NOT NULL,
             issued_at INTEGER NOT NULL DEFAULT 0,
             expires_at INTEGER NOT NULL DEFAULT 0

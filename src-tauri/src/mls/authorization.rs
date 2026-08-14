@@ -85,7 +85,7 @@ use openmls::group::{MlsGroup, StagedCommit};
 use openmls::messages::proposals::{Proposal, ProposalType};
 use rusqlite::Connection;
 
-use crate::ucan::{cap_from_str, Cap, CapabilitySet};
+use crate::ucan::{Cap, CapabilitySet};
 
 /// One entry per Add proposal in the commit.
 #[derive(Debug, Clone)]
@@ -718,12 +718,12 @@ fn require_invite_or_higher(
 /// independent `Read` + `Invite` grants as two separate rows, and both
 /// must count toward "does this member hold Invite".
 ///
-/// **Delegatable flag.** The stored `capability` column carries only the
-/// bare cap string (`space/read` / `space/write` / …) — there is no
-/// per-row delegatable bit under the pre-Task-8b schema. Every aggregated
-/// entry is marked `delegatable = false` here: the gate reads only
-/// [`CapabilitySet::can`], never [`CapabilitySet::is_delegatable`], so the
-/// bit is unobservable and defaulting-to-false is fail-closed.
+/// **Delegatable flag.** Under Task 8b the `capabilities` column carries a
+/// JSON [`CapabilitySet`] per row (may be a singleton or multi-cap). Rows
+/// are merged into one aggregate set for the gate — delegatable bits from
+/// individual entries are collapsed to `false` on merge: the gate reads
+/// only [`CapabilitySet::can`], never [`CapabilitySet::is_delegatable`],
+/// so the bit is unobservable and defaulting-to-false is fail-closed.
 fn committer_capability(
     conn: &Connection,
     space_id: &str,
@@ -744,7 +744,7 @@ fn committer_capability(
 
     let mut stmt = conn
         .prepare(
-            "SELECT capability FROM haex_ucan_tokens \
+            "SELECT capabilities FROM haex_ucan_tokens \
              WHERE space_id = ?1 AND audience_did = ?2 AND expires_at > ?3",
         )
         .map_err(|e| format!("Failed to prepare capability lookup: {e}"))?;
@@ -758,10 +758,16 @@ fn committer_capability(
     let mut builder = CapabilitySet::builder();
     let mut saw_any = false;
     for row in rows {
-        let capability_str = row.map_err(|e| format!("Failed to read capability row: {e}"))?;
-        if let Ok(cap) = cap_from_str(&capability_str) {
+        let capabilities_str = row.map_err(|e| format!("Failed to read capability row: {e}"))?;
+        let Ok(set) = serde_json::from_str::<CapabilitySet>(&capabilities_str) else {
+            // Skip malformed rows silently — belt-and-braces alongside the
+            // Task-8b migration that drops legacy rows; a stray, un-parseable
+            // row must not fail-open the gate for the whole audience.
+            continue;
+        };
+        for entry in set.entries() {
             saw_any = true;
-            builder = match cap {
+            builder = match entry.cap {
                 Cap::Read => builder.read(false),
                 Cap::Write => builder.write(false),
                 Cap::Invite => builder.invite(false),

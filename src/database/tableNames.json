@@ -295,7 +295,7 @@
         "id": "id",
         "spaceId": "space_id",
         "token": "token",
-        "capability": "capability",
+        "capabilities": "capabilities",
         "issuerDid": "issuer_did",
         "audienceDid": "audience_did",
         "issuedAt": "issued_at",

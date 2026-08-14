@@ -63,7 +63,7 @@ mod tests {
                 id TEXT PRIMARY KEY NOT NULL,
                 space_id TEXT NOT NULL,
                 token TEXT NOT NULL,
-                capability TEXT NOT NULL,
+                capabilities TEXT NOT NULL,
                 issuer_did TEXT NOT NULL,
                 audience_did TEXT NOT NULL,
                 issued_at INTEGER NOT NULL,
@@ -162,7 +162,7 @@ mod tests {
 
         let now_secs: i64 = 1700000000;
         let result = core::execute_with_crdt(
-            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
                 .to_string(),
             vec![
@@ -207,7 +207,7 @@ mod tests {
         .unwrap();
 
         let result = core::execute_with_crdt(
-            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token) \
+            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capabilities, token) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
                 .to_string(),
             vec![
@@ -250,7 +250,7 @@ mod tests {
 
         let now: i64 = 1700000000;
         let result = core::execute_with_crdt(
-            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
                 .to_string(),
             vec![

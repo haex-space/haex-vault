@@ -193,8 +193,19 @@ pub(crate) fn persist_claimed_ucan(
     let mut new_ids = Vec::with_capacity(p.granted.len());
     for (capability, token) in p.granted {
         let ucan_id = uuid::Uuid::new_v4().to_string();
+        // Task 8b: `capabilities` is a JSON [`CapabilitySet`]. Each row is
+        // one delegation; the leader mints one UCAN per capability so the
+        // persisted set is a singleton mirroring the token's own set (D9:
+        // Admin/Invite delegatable, Write/Read terminal — same policy as
+        // `build_singleton_capset` above so the stored `delegatable`
+        // matches what's carried inside the UCAN payload).
+        let cap = crate::ucan::cap_from_str(capability)
+            .map_err(|e| format!("Unrecognized capability {capability}: {e}"))?;
+        let delegatable = matches!(cap, Cap::Admin | Cap::Invite);
+        let capability_set_json = serde_json::to_string(&build_singleton_capset(cap, delegatable))
+            .map_err(|e| format!("Failed to serialize CapabilitySet: {e}"))?;
         crate::database::core::execute_with_crdt(
-            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
                 .to_string(),
             vec![
@@ -202,7 +213,7 @@ pub(crate) fn persist_claimed_ucan(
                 serde_json::Value::String(p.space_id.to_string()),
                 serde_json::Value::String(p.inviter_did.to_string()),
                 serde_json::Value::String(p.claimant_did.to_string()),
-                serde_json::Value::String(capability.clone()),
+                serde_json::Value::String(capability_set_json),
                 serde_json::Value::String(token.clone()),
                 serde_json::Value::Number(serde_json::Number::from(now_secs)),
                 serde_json::Value::Number(serde_json::Number::from(

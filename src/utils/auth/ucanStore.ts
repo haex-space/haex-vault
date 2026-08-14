@@ -221,38 +221,40 @@ export async function persistUcanAsync(
   const decoded = decodeUcan(token)
   const { iss, aud, exp, iat } = decoded.payload
 
-  // Under the orthogonal-capability wire form, `cap[<resource>]` is a
-  // SpaceCapabilitySet (array of {cap, delegatable}) for space:* resources,
-  // or a `server/relay` string for server:* resources. The current DB
-  // column is decomposed: one row per hierarchical `space/<cap>` string.
-  // Extract every space cap held for THIS space and write one row each.
-  // TODO(Task 8b): swap the whole decomposed layout for a serialized
-  // SpaceCapabilitySet in a single row.
+  // Task 8b: `haex_ucan_tokens.capabilities` (renamed from `capability`)
+  // stores a serialized `SpaceCapabilitySet` — a JSON array of
+  // `{cap, delegatable}` entries — mirroring the wire form Tasks 2/4 landed
+  // on for the UCAN payload's `cap` map value. One row per delegation
+  // (not per cap): the row's `capabilities` matches exactly the set the
+  // UCAN itself carries, so a downstream `holdsSpaceCap` check on the
+  // parsed set answers the same question as a `holdsSpaceCap` on the
+  // decoded token.
+  //
+  // Fallback: if the payload carries a non-SpaceCapabilitySet value for
+  // this space (e.g. only a server:* delegation), we default to a
+  // singleton `admin` set — matches the pre-8b fallback so an admin/root
+  // token still ends up persisted rather than dropped on the floor.
   const capsMap = decoded.payload.cap
   const spaceValue = capsMap[spaceResource(spaceId)]
-  const capabilities: string[] = isSpaceCapValue(spaceValue)
-    ? spaceValue.map((e) => `space/${e.cap}`)
-    : typeof spaceValue === 'string'
-      ? [spaceValue]
-      : []
-  if (capabilities.length === 0) capabilities.push('space/admin')
+  const capabilitySet: SpaceCapabilitySet = isSpaceCapValue(spaceValue)
+    ? spaceValue
+    : spaceCapabilitySet().admin(false).build()
 
   const issuedAt = iat ?? Math.floor(Date.now() / 1000)
 
-  // Delete existing tokens for this space, then insert one row per cap.
+  // Delete existing tokens for this space, then insert ONE row per token
+  // carrying the full serialized set — no more one-row-per-cap fan-out.
   await db.delete(haexUcanTokens).where(eq(haexUcanTokens.spaceId, spaceId))
-  for (const capability of capabilities) {
-    await db.insert(haexUcanTokens).values({
-      id: crypto.randomUUID(),
-      spaceId,
-      token,
-      capability,
-      issuerDid: iss,
-      audienceDid: aud,
-      issuedAt,
-      expiresAt: exp,
-    })
-  }
+  await db.insert(haexUcanTokens).values({
+    id: crypto.randomUUID(),
+    spaceId,
+    token,
+    capabilities: JSON.stringify(capabilitySet),
+    issuerDid: iss,
+    audienceDid: aud,
+    issuedAt,
+    expiresAt: exp,
+  })
 
   cacheUcan(spaceId, token)
 }

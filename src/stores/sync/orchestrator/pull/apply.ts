@@ -4,7 +4,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
-import { type SpaceCap } from '@haex-space/ucan'
+import { holdsSpaceCap, type SpaceCap, type SpaceCapabilitySet } from '@haex-space/ucan'
 import { eq, and } from 'drizzle-orm'
 import type { ColumnChange } from '../../tableScanner'
 import { getTableSchemaAsync } from '../../tableScanner'
@@ -82,19 +82,24 @@ const isVerifyChainResult = (v: unknown): v is VerifyChainResult => {
 }
 
 /**
- * Bridge: does the DB row's decomposed `capability` column hold `needed`?
+ * Does the DB row's `capabilities` column hold `needed`?
  *
- * The `haex_ucan_tokens.capability` column is a hierarchical string
- * (`space/read`, `space/write`, ...). Task 8b will migrate the column to
- * a serialized `SpaceCapabilitySet`, at which point this check becomes
- * `holdsSpaceCap(deserialize(row.capability), needed)`. Until then, the
- * string-equality bridge is correct — each row is one-cap-per-row.
- *
- * TODO(Task 8b): swap for `holdsSpaceCap` from `@haex-space/ucan` once
- * `capability` is deserialized into a `SpaceCapabilitySet`.
+ * Post Task-8b the column is a JSON-serialized `SpaceCapabilitySet`
+ * (canonical-sorted array of `{cap, delegatable}` entries), so the check
+ * parses once and delegates to `holdsSpaceCap` — the same primitive the
+ * capability library uses everywhere else. Malformed rows (should not
+ * happen — migration `0018` drops legacy rows and the writer serializes
+ * canonical form) fail-close to "does not hold": the row simply doesn't
+ * count toward the audience's held tokens for this pull.
  */
-const rowHoldsCap = (rowCapability: string, needed: SpaceCap): boolean =>
-  rowCapability === `space/${needed}`
+const rowHoldsCap = (rowCapabilities: string, needed: SpaceCap): boolean => {
+  try {
+    const set = JSON.parse(rowCapabilities) as SpaceCapabilitySet
+    return holdsSpaceCap(set, needed)
+  } catch {
+    return false
+  }
+}
 
 /**
  * Composite correlation key for a `ColumnChange`. Rust echoes this back
@@ -215,13 +220,13 @@ export const verifyPulledChangesAsync = async (
             eq(haexUcanTokens.audienceDid, signerDid),
           ),
         )
-      // Multiple cached UCANs for a signer is legal (e.g. one per capability
-      // in the pre-Task-8b decomposed schema, or later, distinct sets with
-      // overlap). Pick any token whose capabilities include the one this
-      // pull needs; if several match, prefer the one closest to expiry
-      // (least-privilege intent: burn down the soonest-expiring valid
-      // token first, keep longer-lived ones in reserve).
-      const capable = rows.filter((r) => rowHoldsCap(r.capability, capabilityNeeded))
+      // Multiple cached UCANs for a signer is legal (e.g. distinct sets
+      // with overlap). Pick any token whose `capabilities` set (post-Task-8b:
+      // one row = one UCAN = one serialized `SpaceCapabilitySet`) includes
+      // the cap this pull needs; if several match, prefer the one closest
+      // to expiry (least-privilege intent: burn down the soonest-expiring
+      // valid token first, keep longer-lived ones in reserve).
+      const capable = rows.filter((r) => rowHoldsCap(r.capabilities, capabilityNeeded))
       const chosen = capable.length === 0
         ? null
         : capable.sort((a, b) => a.expiresAt - b.expiresAt)[0]

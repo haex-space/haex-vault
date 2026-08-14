@@ -15,7 +15,7 @@ use super::{
     authorize, authorize_committer_capability, authorize_local_removal, verify_pops, AddFact,
     CommitFacts, PresentedCapability, UpdateFact,
 };
-use crate::ucan::CapabilitySet;
+use crate::ucan::{cap_from_str, Cap, CapabilitySet};
 
 /// Minimal schema: the two tables the addee-membership check joins, plus
 /// `haex_ucan_tokens` for the Phase-3 committer-capability lookup. No
@@ -38,7 +38,7 @@ CREATE TABLE haex_ucan_tokens (
     id TEXT PRIMARY KEY,
     space_id TEXT NOT NULL,
     token TEXT NOT NULL,
-    capability TEXT NOT NULL,
+    capabilities TEXT NOT NULL,
     issuer_did TEXT NOT NULL,
     audience_did TEXT NOT NULL,
     issued_at INTEGER NOT NULL,
@@ -107,11 +107,24 @@ fn grant_capability_expiring_at(
     let guard = conn.lock().unwrap();
     let c = guard.as_ref().unwrap();
     let id = format!("ucan-{space_id}-{did}-{capability}-{expires_at}");
+    // Task 8b: `capabilities` stores a JSON [`CapabilitySet`]. Build a
+    // singleton set for the cap the test wants to grant.
+    let cap = cap_from_str(capability).expect("test capability string must be valid");
+    let builder = CapabilitySet::builder();
+    let set = match cap {
+        Cap::Read => builder.read(false),
+        Cap::Write => builder.write(false),
+        Cap::Invite => builder.invite(false),
+        Cap::Admin => builder.admin(false),
+    }
+    .build();
+    let capabilities_json =
+        serde_json::to_string(&set).expect("CapabilitySet serialization is infallible");
     c.execute(
         "INSERT INTO haex_ucan_tokens \
-         (id, space_id, token, capability, issuer_did, audience_did, issued_at, expires_at) \
+         (id, space_id, token, capabilities, issuer_did, audience_did, issued_at, expires_at) \
          VALUES (?1, ?2, 'test-token', ?3, 'did:key:zIssuer', ?4, 0, ?5)",
-        rusqlite::params![id, space_id, capability, did, expires_at],
+        rusqlite::params![id, space_id, capabilities_json, did, expires_at],
     )
     .expect("insert ucan token");
 }
