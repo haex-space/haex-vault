@@ -6,6 +6,7 @@
 //! `src-tauri/tests/ucan_chain_vectors.rs`.
 
 use super::*;
+use crate::ucan::capability_set::{Cap, CapabilitySet};
 use crate::ucan::predicate::{Predicate, PrimitiveValue};
 use crate::ucan::row_capability::RowCapability;
 use ed25519_dalek::SigningKey;
@@ -1041,4 +1042,95 @@ fn walk_chain_rejects_six_hop_row_cap_chain_beyond_max_depth() {
         matches!(err, UcanVerifyError::ChainTooDeep(_)),
         "six-hop row-cap chain must trip the depth guard, got {err:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// W4 PR-3 Task 1 — RED tests for the CapabilitySet wire form.
+//
+// These tests are intentionally red against the current hierarchical
+// `CapabilityLevel` parser. They pin the target contract for Task 2, which
+// will migrate `parse_ucan` to read `HashMap<String, CapabilitySet>` from the
+// canonical per-space array form and reject the legacy string form.
+// ---------------------------------------------------------------------------
+
+fn unix_secs_from(t: SystemTime) -> u64 {
+    t.duration_since(UNIX_EPOCH).unwrap().as_secs()
+}
+
+fn did_key_from_public_key(vk: &VerifyingKey) -> String {
+    did_from_verifying_key(vk)
+}
+
+fn sign_ucan_payload(signer: &SigningKey, payload: &serde_json::Value) -> String {
+    use ed25519_dalek::Signer;
+    let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
+    let header_b64 = BASE64URL.encode(serde_json::to_string(&header).unwrap().as_bytes());
+    let payload_b64 = BASE64URL.encode(serde_json::to_string(payload).unwrap().as_bytes());
+    let signing_input = format!("{}.{}", header_b64, payload_b64);
+    let signature = signer.sign(signing_input.as_bytes());
+    format!(
+        "{}.{}.{}",
+        header_b64,
+        payload_b64,
+        BASE64URL.encode(signature.to_bytes())
+    )
+}
+
+#[test]
+fn parse_ucan_reads_capability_set_wire_form() {
+    // Contract: capabilities in UCAN payload are JSON arrays of {cap, delegatable}
+    // entries per space, canonical order (see capability_set.rs serde). Any
+    // legacy string form (e.g. "space/write") must be rejected as MalformedToken.
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&[7u8; 32]);
+    let did = did_key_from_public_key(&signing_key.verifying_key());
+    let space_id = deterministic_space_id_for(&signing_key);
+
+    let payload = serde_json::json!({
+        "iss": did,
+        "aud": did,
+        "exp": unix_secs_from(SystemTime::now()) + 3600,
+        "iat": unix_secs_from(SystemTime::now()),
+        "nnc": "n1",
+        "capabilities": {
+            format!("space:{space_id}"): [
+                {"cap": "read",  "delegatable": true},
+                {"cap": "write", "delegatable": false},
+            ]
+        },
+        "prf": []
+    });
+    let token = sign_ucan_payload(&signing_key, &payload);
+
+    let parsed = parse_ucan(&token).expect("valid new-form payload must parse");
+    let set = parsed
+        .capabilities
+        .get(&space_id)
+        .expect("space key present");
+    assert!(set.can(Cap::Read));
+    assert!(set.can(Cap::Write));
+    assert!(set.is_delegatable(Cap::Read));
+    assert!(!set.is_delegatable(Cap::Write));
+    assert!(!set.can(Cap::Admin));
+}
+
+#[test]
+fn parse_ucan_rejects_legacy_string_capability_form() {
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&[8u8; 32]);
+    let did = did_key_from_public_key(&signing_key.verifying_key());
+    let space_id = deterministic_space_id_for(&signing_key);
+
+    let payload = serde_json::json!({
+        "iss": did, "aud": did,
+        "exp": unix_secs_from(SystemTime::now()) + 3600,
+        "iat": unix_secs_from(SystemTime::now()),
+        "nnc": "n1",
+        "capabilities": {
+            format!("space:{space_id}"): "space/write" // legacy string
+        },
+        "prf": []
+    });
+    let token = sign_ucan_payload(&signing_key, &payload);
+
+    let err = parse_ucan(&token).expect_err("legacy form must be rejected");
+    assert!(matches!(err, UcanVerifyError::MalformedToken(_)));
 }
