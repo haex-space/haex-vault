@@ -24,8 +24,9 @@ const log = createLogger('SPACES:INVITES')
 /**
  * Strip the `space/` hierarchical prefix that older UI paths still carry
  * around and validate the tail against the orthogonal `SpaceCap` set.
- * Falls back to `'read'` for unknown values so a stale caller degrades
- * to a read-only delegation rather than throwing.
+ * Throws on unknown values — under the orthogonal model there is no safe
+ * default cap for a bad input, and silently downgrading would issue a
+ * signed delegation UCAN carrying a cap the caller never asked for.
  *
  * TODO(Task 9): once the UI drops the hierarchical string entirely and
  * passes `SpaceCap` end-to-end, this helper can go.
@@ -35,8 +36,7 @@ const capabilityToSpaceCap = (raw: string): SpaceCap => {
   if (tail === 'read' || tail === 'write' || tail === 'invite' || tail === 'admin') {
     return tail
   }
-  log.warn(`Unknown capability string "${raw}" — falling back to 'read'`)
-  return 'read'
+  throw new Error(`invites.capabilityToSpaceCap: unknown capability "${raw}"`)
 }
 
 /** Fetch with UCAN authorization for space-scoped operations */
