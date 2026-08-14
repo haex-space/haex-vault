@@ -187,12 +187,18 @@ commands.allow = [
   "get_table_schema",
 
   # Test-only, gated behind the `e2e-hooks` Cargo feature (never shipped in
-  # release builds — see crdt/commands/apply/e2e_hooks.rs). Listing it here
-  # is harmless for non-e2e-hooks builds: the command function itself
-  # compiles unconditionally (only its invoke_handler! registration is
-  # feature-gated), so an unused ACL grant for it is inert when the feature
-  # is off and required for it to be callable at all when the feature is on.
+  # release builds — see crdt/commands/apply/e2e_hooks.rs). Listing them here
+  # is harmless for non-e2e-hooks builds: for `test_seed_shared_space_delete_log_entry`
+  # the command function itself compiles unconditionally (only its
+  # invoke_handler! registration is feature-gated), so an unused ACL grant
+  # for it is inert when the feature is off and required for it to be
+  # callable at all when the feature is on. The two `test_mls_*` entries
+  # are stronger still: `mls/mod.rs` feature-gates the whole `e2e_hooks`
+  # module, so those functions are absent — not merely unregistered —
+  # in a build without `e2e-hooks`.
   "test_seed_shared_space_delete_log_entry",
+  "test_mls_process_commit_report",
+  "test_mls_remove_member_unchecked",
 
   # SQL helpers
   "sql_execute",

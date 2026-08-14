@@ -452,8 +452,9 @@ mod buffer_message_cursor_tests {
 
 mod mls_manager_tests {
     use super::*;
+    use haex_vault_lib::mls::authorization::PresentedCapability;
     use haex_vault_lib::mls::manager::MlsManager;
-    use haex_vault_lib::ucan::did_key_from_public_key;
+    use haex_vault_lib::ucan::{did_key_from_public_key, CapabilityLevel};
 
     /// A real (identity DID, signing key) pair. PoP verification decodes the
     /// credential DID via `did:key`, so test DIDs must be genuine — an
@@ -508,6 +509,167 @@ mod mls_manager_tests {
             rusqlite::params![member_id, space_id, identity_id],
         )
         .unwrap();
+    }
+
+    /// PKCS8-DER-wrap a raw Ed25519 key exactly as `haex_identities.private_key`
+    /// stores it, matching `crate::ucan::signing_key_from_pkcs8_base64`'s
+    /// decoder (same prefix bytes as the fixture in `ucan::create::tests`).
+    #[cfg(feature = "e2e-hooks")]
+    fn pkcs8_base64(signing_key: &ed25519_dalek::SigningKey) -> String {
+        use base64::Engine;
+        const PKCS8_PREFIX: [u8; 16] = [
+            0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
+            0x04, 0x20,
+        ];
+        let mut pkcs8 = Vec::with_capacity(48);
+        pkcs8.extend_from_slice(&PKCS8_PREFIX);
+        pkcs8.extend_from_slice(&signing_key.to_bytes());
+        base64::engine::general_purpose::STANDARD.encode(&pkcs8)
+    }
+
+    /// Seed `identity`'s OWN `haex_identities` row on its OWN `conn` with a
+    /// real PKCS8 private key, so `MlsManager::remove_member_unchecked`'s
+    /// `load_signing_identity_for_did(committer_did)` call — which resolves
+    /// the signing key from the COMMITTER'S OWN db, not the receiver's — can
+    /// find one to produce the commit-bind signature.
+    #[cfg(feature = "e2e-hooks")]
+    fn seed_own_signing_identity(conn: &Arc<Mutex<Option<Connection>>>, identity: &TestIdentity) {
+        let guard = conn.lock().unwrap();
+        let c = guard.as_ref().unwrap();
+        c.execute(
+            "INSERT OR REPLACE INTO haex_identities (id, did, name, source, private_key) \
+             VALUES (?1, ?2, ?3, 'contact', ?4)",
+            rusqlite::params![
+                format!("id-{}", identity.did),
+                identity.did,
+                identity.did,
+                pkcs8_base64(&identity.signing_key),
+            ],
+        )
+        .unwrap();
+    }
+
+    /// End-to-end shape of e2e Spec 2, without Playwright: attacker B
+    /// produces a Remove of A with no capability and no UCAN; A's real
+    /// receive path must reject it and must NOT advance its epoch. This is
+    /// the test that proves the e2e-hooks design works — if it fails, the
+    /// design (not just this test) is wrong.
+    #[test]
+    #[cfg(feature = "e2e-hooks")]
+    fn unchecked_removal_from_a_read_only_member_is_rejected_by_the_receiver() {
+        const SPACE: &str = "space-attack-unchecked-removal";
+
+        let a_identity = TestIdentity::new();
+        let (a, a_conn) = setup_mls_with_conn(&a_identity);
+        a.create_group(SPACE).unwrap();
+
+        let b_identity = TestIdentity::new();
+        let (b, b_conn) = setup_mls_with_conn(&b_identity);
+        let b_kps = b.generate_key_packages(1, &b_identity.signing_key).unwrap();
+        let bundle = a
+            .add_member(SPACE, &b_kps[0].0, &b_identity.did, &b_kps[0].1)
+            .unwrap();
+        b.process_welcome(SPACE, bundle.welcome.as_ref().unwrap())
+            .unwrap();
+
+        // C1: A is the removal target — without seeding A's own membership
+        // row on A's OWN db, the target-already-gone exemption fires and the
+        // gate wrongly accepts a proof-less commit.
+        seed_member(&a_conn, SPACE, &a_identity.did);
+        // So remove_member_unchecked can produce a bind signature.
+        seed_own_signing_identity(&b_conn, &b_identity);
+
+        let a_leaf = b
+            .find_member_index_by_did(SPACE, &a_identity.did)
+            .unwrap()
+            .unwrap();
+
+        let (commit, sig, _committer, _target) = b.remove_member_unchecked(SPACE, a_leaf).unwrap();
+
+        let epoch_before = a.current_epoch(SPACE).unwrap();
+        let err = a
+            .decrypt(SPACE, &commit, None, Some(&sig))
+            .expect_err("unauthorized unchecked removal must be rejected");
+
+        assert!(
+            err.contains("requires a committer capability proof, none presented"),
+            "unexpected rejection: {err}"
+        );
+        assert_eq!(
+            a.current_epoch(SPACE).unwrap(),
+            epoch_before,
+            "a rejected commit must not advance the receiver's epoch"
+        );
+    }
+
+    /// A commit-bind signature captured from one commit must not verify
+    /// against a DIFFERENT commit (`commit_bind::verify_commit_bind_bytes`'s
+    /// replay defence) — zero coverage anywhere else in the suite. Signing
+    /// is DID-key-based and carries no group/epoch binding of its own, so
+    /// the two commits are produced in two unrelated spaces: `sig1` (over
+    /// `commit1`, in `-src`) is presented alongside `commit2` (from `-dst`).
+    #[test]
+    #[cfg(feature = "e2e-hooks")]
+    fn a_valid_bind_sig_from_another_commit_is_rejected() {
+        const SPACE_SRC: &str = "space-attack-bind-replay-src";
+        const SPACE_DST: &str = "space-attack-bind-replay-dst";
+
+        let a_identity = TestIdentity::new();
+        let (a, a_conn) = setup_mls_with_conn(&a_identity);
+        a.create_group(SPACE_SRC).unwrap();
+        a.create_group(SPACE_DST).unwrap();
+
+        let b_identity = TestIdentity::new();
+        let (b, b_conn) = setup_mls_with_conn(&b_identity);
+        seed_own_signing_identity(&b_conn, &b_identity);
+        let b_kps = b.generate_key_packages(2, &b_identity.signing_key).unwrap();
+
+        let bundle_src = a
+            .add_member(SPACE_SRC, &b_kps[0].0, &b_identity.did, &b_kps[0].1)
+            .unwrap();
+        b.process_welcome(SPACE_SRC, bundle_src.welcome.as_ref().unwrap())
+            .unwrap();
+        let a_leaf_src = b
+            .find_member_index_by_did(SPACE_SRC, &a_identity.did)
+            .unwrap()
+            .unwrap();
+        let (_commit1, sig1, _c1, _t1) = b.remove_member_unchecked(SPACE_SRC, a_leaf_src).unwrap();
+
+        let bundle_dst = a
+            .add_member(SPACE_DST, &b_kps[1].0, &b_identity.did, &b_kps[1].1)
+            .unwrap();
+        b.process_welcome(SPACE_DST, bundle_dst.welcome.as_ref().unwrap())
+            .unwrap();
+        seed_member(&a_conn, SPACE_DST, &a_identity.did);
+        let a_leaf_dst = b
+            .find_member_index_by_did(SPACE_DST, &a_identity.did)
+            .unwrap()
+            .unwrap();
+        let (commit2, _sig2, _c2, _t2) = b.remove_member_unchecked(SPACE_DST, a_leaf_dst).unwrap();
+
+        let presented = PresentedCapability {
+            audience_did: b_identity.did.clone(),
+            level: CapabilityLevel::Invite,
+        };
+        let epoch_before = a.current_epoch(SPACE_DST).unwrap();
+        let err = a
+            .decrypt(SPACE_DST, &commit2, Some(presented), Some(&sig1))
+            .expect_err("a bind signature replayed onto a different commit must be rejected");
+
+        assert!(
+            err.contains("commit-bind signature invalid"),
+            "unexpected rejection: {err}"
+        );
+        // `MlsManager::decrypt` verifies the commit-bind sig BEFORE
+        // `merge_staged_commit` today, so a rejected replay cannot advance
+        // the epoch. Pin that ordering: if a future change moved the merge
+        // ahead of the bind check, the error assertion above would still
+        // pass while the receiver silently walked forward.
+        assert_eq!(
+            a.current_epoch(SPACE_DST).unwrap(),
+            epoch_before,
+            "a rejected commit must not advance the receiver's epoch"
+        );
     }
 
     #[test]
