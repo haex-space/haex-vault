@@ -21,6 +21,7 @@
 //! can walk that ancestry to the space-root DID and check that the
 //! self-certifying `space_id` binds to it.
 
+use crate::ucan::capability_set::{enforce_delegatable, Cap, CapabilitySet, DelegationError};
 use crate::ucan::row_capability::RowCapability;
 use base64::Engine;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -119,9 +120,9 @@ pub struct ParsedUcan {
     pub aud: String,
     pub exp: u64,
     pub iat: u64,
-    /// `space_id → CapabilityLevel` from the `cap` claim. Every entry has
-    /// prefix `space:<id>` stripped so the map key is the raw `space_id`.
-    pub capabilities: HashMap<String, CapabilityLevel>,
+    /// `space_id → CapabilitySet` from the `capabilities` claim. Every entry
+    /// has prefix `space:<id>` stripped so the map key is the raw `space_id`.
+    pub capabilities: HashMap<String, CapabilitySet>,
     /// `space_id → row-cap list` from the optional `row_cap` claim (C.5
     /// envelope). Parallel to [`Self::capabilities`]: a token may carry
     /// either, both, or neither. Space-key prefix `space:<id>` is stripped
@@ -139,10 +140,11 @@ pub struct ParsedUcan {
 pub struct ValidatedUcan {
     pub issuer: String,
     pub audience: String,
-    /// space_id → capability level from the leaf token. Multi-space UCANs are
-    /// permitted at parse time, but [`validate_token`] only chain-verifies
-    /// against a single `expected_space_id`.
-    pub capabilities: HashMap<String, CapabilityLevel>,
+    /// `space_id → CapabilitySet` from the `capabilities` claim. Every entry
+    /// has prefix `space:<id>` stripped so the map key is the raw `space_id`.
+    /// Multi-space UCANs are permitted at parse time, but [`validate_token`]
+    /// only chain-verifies against a single `expected_space_id`.
+    pub capabilities: HashMap<String, CapabilitySet>,
     /// space_id → row-cap list from the optional `row_cap` claim (C.5
     /// envelope). Propagated verbatim from the leaf's [`ParsedUcan`]; the
     /// puller evaluates these predicates against candidate rows. Empty for
@@ -174,11 +176,8 @@ pub enum UcanVerifyError {
     EmptyExpectedAudience,
     #[error("Missing capability for space {space_id}")]
     MissingCapability { space_id: String },
-    #[error("Insufficient capability: need {required:?}, have {actual:?}")]
-    InsufficientCapability {
-        required: CapabilityLevel,
-        actual: CapabilityLevel,
-    },
+    #[error("Insufficient capability: need {required:?}, held {held:?}")]
+    InsufficientCapability { required: Cap, held: CapabilitySet },
     #[error("Unknown capability: {0}")]
     UnknownCapability(String),
     /// prf chain exceeded `max_chain_depth` edges without reaching a root.
@@ -189,10 +188,15 @@ pub enum UcanVerifyError {
     /// is not a valid delegation graph.
     #[error("prf chain broken (parent.aud != child.iss)")]
     ChainBroken,
-    /// A child token requested a strictly higher capability than its parent
-    /// (e.g. Write child under a Read parent).
-    #[error("child capability exceeds parent capability")]
-    CapabilityEscalation,
+    /// A child token claims a capability its parent does not hold at all for
+    /// the same space.
+    #[error("Chain-hop delegation missing: child claims {cap:?} for space {space_id}, parent doesn't hold it")]
+    DelegationMissing { space_id: String, cap: Cap },
+    /// A child token claims a capability its parent holds only as
+    /// non-delegatable (`delegatable=false`) — the parent may exercise it
+    /// but may not pass it further.
+    #[error("Chain-hop delegation not permitted: parent holds {cap:?} for space {space_id} as non-delegatable")]
+    DelegationNotDelegatable { space_id: String, cap: Cap },
     /// A child token claims a row-level capability that its parent does not
     /// hold for the same space. MVP enforces structural equality on
     /// `(variant, predicate)`; Predicate-strictness comparison is not yet
@@ -283,15 +287,12 @@ pub fn parse_ucan(token: &str) -> Result<ParsedUcan, UcanVerifyError> {
         .as_object()
         .ok_or_else(|| UcanVerifyError::MalformedToken("missing cap object".into()))?;
 
-    let mut capabilities = HashMap::new();
+    let mut capabilities: HashMap<String, CapabilitySet> = HashMap::new();
     for (resource, capability_value) in cap_obj {
         if let Some(space_id) = resource.strip_prefix("space:") {
-            let cap_str = capability_value.as_str().ok_or_else(|| {
-                UcanVerifyError::MalformedToken("capability must be string".into())
-            })?;
-            let level = CapabilityLevel::from_capability_string(cap_str)
-                .ok_or_else(|| UcanVerifyError::UnknownCapability(cap_str.into()))?;
-            capabilities.insert(space_id.to_string(), level);
+            let set: CapabilitySet = serde_json::from_value(capability_value.clone())
+                .map_err(|e| UcanVerifyError::MalformedToken(format!("capability set: {e}")))?;
+            capabilities.insert(space_id.to_string(), set);
         }
     }
 
@@ -392,14 +393,18 @@ fn parse_row_cap_field(
 /// 3. **Space alignment** — `expected_space_id` must appear in both parent's
 ///    and child's capability map. Violation is [`WrongSpace`]: the chain
 ///    drifted to (or through) a different space.
-/// 4. **Attenuation lattice** — `parent_cap.allows(child_cap)`. A child can
-///    request the same or a strictly weaker capability than its parent;
-///    the reverse is [`CapabilityEscalation`].
+/// 4. **Delegation attenuation** — for every [`Cap`] the child holds in the
+///    space, the parent MUST hold that same cap AND have it marked
+///    `delegatable=true`. Violations surface as
+///    [`UcanVerifyError::DelegationMissing`] (parent doesn't hold the cap)
+///    or [`UcanVerifyError::DelegationNotDelegatable`] (parent holds it but
+///    with `delegatable=false`). See
+///    [`crate::ucan::capability_set::enforce_delegatable`].
 ///
-/// Root termination: the current token is a valid self-signed Admin root of
-/// `expected_space_id` when `iss == aud`, its cap for `expected_space_id` is
-/// `Admin`, and `proofs.is_empty()`. Anything else with `proofs.is_empty()`
-/// is [`RootNotSelfSigned`].
+/// Root termination: the current token is a valid self-signed root of
+/// `expected_space_id` when `iss == aud`, its [`CapabilitySet`] for
+/// `expected_space_id` holds [`Cap::Admin`], and `proofs.is_empty()`.
+/// Anything else with `proofs.is_empty()` is [`RootNotSelfSigned`].
 ///
 /// Depth guard: `max_depth` is the maximum number of **tokens** (nodes) the
 /// walker will visit before bailing with [`ChainTooDeep`] — so
@@ -416,15 +421,14 @@ fn walk_prf_chain(
     let mut visited_nodes: usize = 1;
 
     loop {
-        let current_cap = current
+        let current_set = current
             .capabilities
             .get(expected_space_id)
-            .copied()
+            .cloned()
             .ok_or(UcanVerifyError::WrongSpace)?;
 
-        let is_self_signed_admin_root = current.iss == current.aud
-            && current_cap == CapabilityLevel::Admin
-            && current.proofs.is_empty();
+        let is_self_signed_admin_root =
+            current.iss == current.aud && current_set.can(Cap::Admin) && current.proofs.is_empty();
         if is_self_signed_admin_root {
             return Ok(current);
         }
@@ -452,15 +456,22 @@ fn walk_prf_chain(
             return Err(UcanVerifyError::ChainBroken);
         }
 
-        // Space alignment + attenuation.
-        let parent_cap = parent
+        // Space alignment + per-cap delegation attenuation.
+        let parent_set = parent
             .capabilities
             .get(expected_space_id)
-            .copied()
+            .cloned()
             .ok_or(UcanVerifyError::WrongSpace)?;
-        if !parent_cap.allows(&current_cap) {
-            return Err(UcanVerifyError::CapabilityEscalation);
-        }
+        enforce_delegatable(&parent_set, &current_set).map_err(|e| match e {
+            DelegationError::Missing(cap) => UcanVerifyError::DelegationMissing {
+                space_id: expected_space_id.to_string(),
+                cap,
+            },
+            DelegationError::NotDelegatable(cap) => UcanVerifyError::DelegationNotDelegatable {
+                space_id: expected_space_id.to_string(),
+                cap,
+            },
+        })?;
 
         // Row-cap attenuation (C.5). Every row-cap the child claims for
         // `expected_space_id` must appear structurally in the parent's
@@ -517,7 +528,7 @@ pub fn validate_token(
     token: &str,
     expected_space_id: &str,
     expected_audience: &str,
-    capability_needed: CapabilityLevel,
+    capability_needed: Cap,
     max_chain_depth: usize,
 ) -> Result<ValidatedUcan, UcanVerifyError> {
     let parsed = parse_ucan(token)?;
@@ -533,18 +544,18 @@ pub fn validate_token(
         });
     }
 
-    // Capability floor — leaf grants at least what the operation needs.
-    let leaf_cap = parsed
+    // Capability floor — leaf explicitly holds the required cap.
+    let leaf_set = parsed
         .capabilities
         .get(expected_space_id)
-        .copied()
+        .cloned()
         .ok_or_else(|| UcanVerifyError::MissingCapability {
             space_id: expected_space_id.to_string(),
         })?;
-    if !leaf_cap.allows(&capability_needed) {
+    if !leaf_set.can(capability_needed) {
         return Err(UcanVerifyError::InsufficientCapability {
             required: capability_needed,
-            actual: leaf_cap,
+            held: leaf_set,
         });
     }
 
@@ -642,9 +653,9 @@ pub fn require_not_expired(validated: &ValidatedUcan) -> Result<(), UcanVerifyEr
 pub fn require_capability(
     validated: &ValidatedUcan,
     space_id: &str,
-    required: CapabilityLevel,
+    required: Cap,
 ) -> Result<(), UcanVerifyError> {
-    let actual =
+    let held =
         validated
             .capabilities
             .get(space_id)
@@ -652,12 +663,12 @@ pub fn require_capability(
                 space_id: space_id.to_string(),
             })?;
 
-    if *actual >= required {
+    if held.can(required) {
         Ok(())
     } else {
         Err(UcanVerifyError::InsufficientCapability {
             required,
-            actual: *actual,
+            held: held.clone(),
         })
     }
 }
