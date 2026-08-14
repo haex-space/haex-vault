@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 
+use super::authorization::PresentedCapability;
 use super::manager::MlsManager;
 use super::types::{MlsCommitBundle, MlsEpochKey, MlsGroupInfo};
 
@@ -49,8 +50,18 @@ pub async fn process_message(
     conn: Arc<Mutex<Option<Connection>>>,
     space_id: String,
     message: Vec<u8>,
+    presented_capability: Option<PresentedCapability>,
+    presented_commit_bind_sig: Option<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    run_blocking(conn, move |mgr| mgr.process_message(&space_id, &message)).await
+    run_blocking(conn, move |mgr| {
+        mgr.process_message(
+            &space_id,
+            &message,
+            presented_capability,
+            presented_commit_bind_sig.as_deref(),
+        )
+    })
+    .await
 }
 
 pub async fn join_by_external_commit(

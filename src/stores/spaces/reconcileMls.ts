@@ -27,6 +27,7 @@ import type { schema } from '~/database'
 import { createLogger } from '@/stores/logging'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type { ElectionResultInfo } from '@bindings/ElectionResultInfo'
+import type { MlsCommitBundle } from '@bindings/MlsCommitBundle'
 import type { SpaceWithType } from './types'
 
 type DB = SqliteRemoteDatabase<typeof schema>
@@ -90,17 +91,15 @@ async function rekeyMlsForRemovedMemberAsync(
     return
   }
 
-  const bundle = await invoke<{
-    commit: number[]
-    welcome: number[] | null
-    groupInfo: number[]
-  }>('mls_remove_member', { spaceId, memberIndex })
+  const bundle = await invoke<MlsCommitBundle>('mls_remove_member', { spaceId, memberIndex })
 
   if (bundle.commit.length > 0) {
     try {
       await invoke('local_delivery_broadcast_commit', {
         spaceId,
         commit: bundle.commit,
+        committerUcan: bundle.committerUcan,
+        committerCommitBindSig: bundle.committerCommitBindSig,
       })
     } catch (error) {
       // Non-fatal: leader is offline or no peers connected. The commit is

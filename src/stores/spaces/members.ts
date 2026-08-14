@@ -11,6 +11,7 @@ import type {
   SelectHaexIdentities,
   SelectHaexSpaceMembers,
 } from '~/database/schemas'
+import type { MlsCommitBundle } from '@bindings/MlsCommitBundle'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { createLogger } from '@/stores/logging'
@@ -267,14 +268,19 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
   }
 
   // 2. MLS remove_member — creates a commit that rotates the group key
-  const bundle = await invoke<{ commit: number[]; welcome: number[] | null; groupInfo: number[] }>(
+  const bundle = await invoke<MlsCommitBundle>(
     'mls_remove_member', { spaceId, memberIndex },
   )
 
   // 3. Broadcast commit to other members via local delivery
   if (bundle.commit.length > 0) {
     try {
-      await invoke('local_delivery_broadcast_commit', { spaceId, commit: bundle.commit })
+      await invoke('local_delivery_broadcast_commit', {
+        spaceId,
+        commit: bundle.commit,
+        committerUcan: bundle.committerUcan,
+        committerCommitBindSig: bundle.committerCommitBindSig,
+      })
     }
     catch (error) {
       log.warn(`Failed to broadcast removal commit via local delivery: ${error}`)

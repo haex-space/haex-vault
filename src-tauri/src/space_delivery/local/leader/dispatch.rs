@@ -773,10 +773,15 @@ pub(crate) async fn handle_delivery_request(
             // at the old epoch permanently and every subsequent RequestRejoin
             // hands out a GroupInfo for the stale epoch, causing the peer to
             // loop: rejoin → new epoch-N message stored → can't process → rejoin…
+            // External commits are self-remove/self-add rejoins per Phase 3
+            // (`self_removal` derived from the update-path leaf key), always
+            // exempt from the committer-capability gate — no proof to carry.
             if let Err(e) = crate::mls::blocking::process_message(
                 state.db.0.clone(),
                 space_id.clone(),
                 commit_blob.clone(),
+                None,
+                None,
             )
             .await
             {

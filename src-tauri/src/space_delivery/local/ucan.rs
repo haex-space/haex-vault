@@ -196,6 +196,57 @@ pub fn is_active_space_member(
     Ok(count > 0)
 }
 
+/// Resolve a receive-side committer-capability proof carried on an MLS
+/// commit's delivery envelope (plan §5.8:
+/// `docs/plans/2026-08-13-mls-receive-gate-ucan-on-commit.md`).
+///
+/// `committer_ucan` is the raw JWT string as carried on the wire
+/// (`MlsMessageEntry::committer_ucan`) — not base64-encoded; a UCAN's own
+/// dot-separated parts are already base64url and safe as JSON text.
+///
+/// Runs the full [`validate_token`] pipeline (signature, expiry, `prf`-chain
+/// walk to the space's self-signed root, self-certifying `space_id`
+/// binding) with `expected_audience` peeked from the token's own `aud` via
+/// [`parse_ucan`] — the real audience check (this token's `aud` must equal
+/// the commit's MLS-authenticated committer DID) happens downstream in
+/// `mls::authorization::authorize_committer_capability`, which is the only
+/// place that knows the committer DID. This function's job is purely
+/// "is this a validly-chained, non-expired UCAN for this space" — it
+/// deliberately owns the entire UCAN-verify blast radius so
+/// `mls::authorization` never has to parse a raw token (plan §9).
+///
+/// Returns `None` if no UCAN was attached, or if the attached token fails
+/// to verify for any reason (bad signature, expired, broken chain, wrong
+/// space, malformed). The caller (the MLS receive-gate) decides whether the
+/// commit actually needed a proof — `None` there correctly falls through to
+/// "no proof presented", which is rejected only if one was required.
+pub fn resolve_presented_committer_capability(
+    db: &DbConnection,
+    space_id: &str,
+    committer_ucan: Option<&str>,
+) -> Option<crate::mls::authorization::PresentedCapability> {
+    let token = committer_ucan?;
+    let peeked = crate::ucan::parse_ucan(token).ok()?;
+    let max_chain_depth = crate::database::core::with_connection(db, |conn| {
+        Ok(crate::ucan::read_max_ucan_chain_depth(conn))
+    })
+    .unwrap_or(crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT) as usize;
+
+    let validated = crate::ucan::validate_token(
+        token,
+        space_id,
+        &peeked.aud,
+        CapabilityLevel::Read,
+        max_chain_depth,
+    )
+    .ok()?;
+    let level = *validated.capabilities.get(space_id)?;
+    Some(crate::mls::authorization::PresentedCapability {
+        audience_did: validated.audience,
+        level,
+    })
+}
+
 /// Returns `true` if `(space_id, audience_did)` holds **any** UCAN granting
 /// write-level capability (`space/write` or `space/admin`) — a member can
 /// hold several independent, orthogonal tokens at once (e.g. `space/read`

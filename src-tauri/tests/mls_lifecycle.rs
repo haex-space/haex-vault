@@ -609,7 +609,7 @@ mod mls_manager_tests {
 
         // Admin processes the external commit
         admin
-            .process_message("space-rejoin", &commit_bytes)
+            .process_message("space-rejoin", &commit_bytes, None, None)
             .unwrap();
 
         // Both should now be on the same epoch
@@ -640,7 +640,7 @@ mod mls_manager_tests {
 
         // No `seed_member` call: the joiner's DID is not a space member.
         let err = admin
-            .process_message("space-reject", &commit_bytes)
+            .process_message("space-reject", &commit_bytes, None, None)
             .expect_err("unauthorized external commit must be rejected");
         assert!(
             err.contains("not a member"),
