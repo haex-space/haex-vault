@@ -83,13 +83,21 @@ pub fn mls_encrypt(
     with_mls_manager(&state, |mgr| mgr.encrypt(&space_id, &plaintext))
 }
 
+// `mls_decrypt` / `mls_process_message` are used for the online-space
+// (server-mediated) message path, which carries no committer-capability
+// proof on the wire (out of scope for plan §5.8, which only extends the
+// local/P2P `Request::MlsSendMessage` envelope). Both always pass `None`
+// for the new params — a Remove arriving here only merges via the
+// target-already-gone exemption in `authorize_committer_capability`.
 #[tauri::command]
 pub fn mls_decrypt(
     state: State<'_, AppState>,
     space_id: String,
     ciphertext: Vec<u8>,
 ) -> Result<Vec<u8>, String> {
-    with_mls_manager(&state, |mgr| mgr.decrypt(&space_id, &ciphertext))
+    with_mls_manager(&state, |mgr| {
+        mgr.decrypt(&space_id, &ciphertext, None, None)
+    })
 }
 
 #[tauri::command]
@@ -99,7 +107,7 @@ pub fn mls_process_message(
     message: Vec<u8>,
 ) -> Result<MlsProcessedMessage, String> {
     with_mls_manager(&state, |mgr| {
-        let payload = mgr.process_message(&space_id, &message)?;
+        let payload = mgr.process_message(&space_id, &message, None, None)?;
         let content_type = if payload.is_empty() {
             "commit"
         } else {

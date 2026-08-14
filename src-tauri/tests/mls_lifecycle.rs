@@ -79,6 +79,8 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             sender_did TEXT NOT NULL,
             message_type TEXT NOT NULL,
             message_blob TEXT NOT NULL,
+            committer_ucan TEXT,
+            committer_commit_bind_sig BLOB,
             created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
             FOREIGN KEY (space_id) REFERENCES haex_spaces(id)
         );
@@ -375,6 +377,8 @@ mod buffer_message_cursor_tests {
                     "did:key:sender",
                     "commit",
                     format!("blob-{i}").as_bytes(),
+                    None,
+                    None,
                 )
                 .unwrap()
             })
@@ -398,8 +402,8 @@ mod buffer_message_cursor_tests {
         // Cursor at ids[2] (the 3rd message) — only ids[3] and ids[4] must come back.
         let msgs = buffer::fetch_messages(&db, "test-space-1", Some(ids[2])).unwrap();
         assert_eq!(msgs.len(), 2);
-        assert_eq!(msgs[0].0, ids[3]);
-        assert_eq!(msgs[1].0, ids[4]);
+        assert_eq!(msgs[0].id, ids[3]);
+        assert_eq!(msgs[1].id, ids[4]);
     }
 
     // Regression: if the cursor is set to ec_msg_id (the ID the leader assigned
@@ -436,8 +440,8 @@ mod buffer_message_cursor_tests {
 
         let msgs = buffer::fetch_messages(&db, "test-space-1", None).unwrap();
         assert_eq!(msgs.len(), 3);
-        for (msg_id, _, _, _, _) in &msgs {
-            assert!(ids_space1.contains(msg_id));
+        for m in &msgs {
+            assert!(ids_space1.contains(&m.id));
         }
     }
 }
@@ -605,7 +609,7 @@ mod mls_manager_tests {
 
         // Admin processes the external commit
         admin
-            .process_message("space-rejoin", &commit_bytes)
+            .process_message("space-rejoin", &commit_bytes, None, None)
             .unwrap();
 
         // Both should now be on the same epoch
@@ -636,7 +640,7 @@ mod mls_manager_tests {
 
         // No `seed_member` call: the joiner's DID is not a space member.
         let err = admin
-            .process_message("space-reject", &commit_bytes)
+            .process_message("space-reject", &commit_bytes, None, None)
             .expect_err("unauthorized external commit must be rejected");
         assert!(
             err.contains("not a member"),

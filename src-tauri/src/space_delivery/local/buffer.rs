@@ -41,22 +41,67 @@ pub fn get_space_member_dids(
         .collect())
 }
 
+/// One fetched MLS message row from `haex_local_delivery_messages_no_sync`.
+///
+/// `committer_ucan` and `committer_commit_bind_sig` carry the receive-side
+/// capability proof plumbed through by plan §5.8: present iff the sender
+/// attached them to `Request::MlsSendMessage`, absent otherwise. The
+/// receiver's authorization gate treats absence as "no proof presented"
+/// and falls back to the target-already-gone exemption on Remove commits.
+pub struct FetchedMlsMessage {
+    pub id: i64,
+    pub sender_did: String,
+    pub message_type: String,
+    pub message_blob: Vec<u8>,
+    pub created_at: String,
+    /// Raw UCAN JWT text as stored in the TEXT column. A UCAN's own
+    /// dot-separated segments are already base64url, so this is exactly
+    /// what the wire carries — no outer base64 wrap, no byte re-encoding.
+    pub committer_ucan: Option<String>,
+    /// Raw ed25519 commit-bind signature bytes as base64-decoded from the
+    /// DB column (blob column, so pre-decoded once already).
+    pub committer_commit_bind_sig: Option<Vec<u8>>,
+}
+
 /// Store an MLS message in the leader buffer. Returns the auto-incremented ID.
+///
+/// `committer_ucan` and `committer_commit_bind_sig` are optional per plan
+/// §5.8 — present for membership-changing commits whose committer holds
+/// `Invite`-or-higher, absent for everything else (application messages,
+/// key rotations, self-leaves, leader-rekey-after-self-leave). `committer_ucan`
+/// is passed as `&str` because a UCAN is a JWT string — the caller has
+/// already established it as valid UTF-8 by the type, so no lossy byte
+/// conversion is done here.
 pub fn store_message(
     db: &DbConnection,
     space_id: &str,
     sender_did: &str,
     message_type: &str,
     message_blob: &[u8],
+    committer_ucan: Option<&str>,
+    committer_commit_bind_sig: Option<&[u8]>,
 ) -> Result<i64, DeliveryError> {
     let blob_b64 = base64::engine::general_purpose::STANDARD.encode(message_blob);
+    let ucan_value = committer_ucan
+        .map(|s| serde_json::Value::String(s.to_string()))
+        .unwrap_or(serde_json::Value::Null);
+    // Bind-sig is stored as a base64-encoded string in the blob column via
+    // the JSON-based core layer; on fetch we base64-decode back to raw
+    // bytes. Matches how `message_blob` round-trips through this path.
+    let sig_value = committer_commit_bind_sig
+        .map(|b| serde_json::Value::String(base64::engine::general_purpose::STANDARD.encode(b)))
+        .unwrap_or(serde_json::Value::Null);
     let rows = core::execute(
-        "INSERT INTO haex_local_delivery_messages_no_sync (space_id, sender_did, message_type, message_blob) VALUES (?1, ?2, ?3, ?4) RETURNING id".to_string(),
+        "INSERT INTO haex_local_delivery_messages_no_sync \
+         (space_id, sender_did, message_type, message_blob, committer_ucan, committer_commit_bind_sig) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id".to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::String(sender_did.to_string()),
             serde_json::Value::String(message_type.to_string()),
             serde_json::Value::String(blob_b64),
+            ucan_value,
+            sig_value,
         ],
         db,
     ).map_err(map_db)?;
@@ -73,10 +118,11 @@ pub fn fetch_messages(
     db: &DbConnection,
     space_id: &str,
     after_id: Option<i64>,
-) -> Result<Vec<(i64, String, String, Vec<u8>, String)>, DeliveryError> {
+) -> Result<Vec<FetchedMlsMessage>, DeliveryError> {
     let after = after_id.unwrap_or(0);
     let rows = core::select(
-        "SELECT id, sender_did, message_type, message_blob, created_at \
+        "SELECT id, sender_did, message_type, message_blob, created_at, \
+                committer_ucan, committer_commit_bind_sig \
          FROM haex_local_delivery_messages_no_sync \
          WHERE space_id = ?1 AND id > ?2 \
          ORDER BY id ASC"
@@ -111,7 +157,22 @@ pub fn fetch_messages(
             .and_then(|v| v.as_str())
             .unwrap_or_default()
             .to_string();
-        result.push((id, sender_did, msg_type, blob, created_at));
+        let committer_ucan = row.get(5).and_then(|v| v.as_str()).map(|s| s.to_string());
+        // committer_commit_bind_sig column is BLOB; core::select returns
+        // it as base64 (same shape as message_blob above), so decode.
+        let committer_commit_bind_sig = row
+            .get(6)
+            .and_then(|v| v.as_str())
+            .and_then(|s| base64::engine::general_purpose::STANDARD.decode(s).ok());
+        result.push(FetchedMlsMessage {
+            id,
+            sender_did,
+            message_type: msg_type,
+            message_blob: blob,
+            created_at,
+            committer_ucan,
+            committer_commit_bind_sig,
+        });
     }
     Ok(result)
 }

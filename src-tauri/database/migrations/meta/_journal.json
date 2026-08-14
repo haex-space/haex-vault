@@ -120,6 +120,13 @@
       "when": 1785628800000,
       "tag": "0016_drop_registry_uniq_add_lookup_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1786406400000,
+      "tag": "0017_mls_committer_ucan",
+      "breakpoints": true
     }
   ]
 }

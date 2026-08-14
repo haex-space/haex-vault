@@ -80,6 +80,27 @@ pub enum Request {
         /// Base64-encoded MLS message
         message: String,
         message_type: String,
+        /// UCAN JWT string the committer holds for this space. A UCAN's own
+        /// dot-separated segments are already base64url and safe as JSON
+        /// text, so no outer base64 wrap is applied on the wire. Present
+        /// iff the message is a Remove-bearing commit whose committer holds
+        /// `Invite`-or-higher AND the target is still an active member on
+        /// the sender's view; absent for application messages, key
+        /// rotations, self-leaves, and leader-rekey-after-self-leave
+        /// commits (where every removed leaf's DID is already gone from
+        /// `haex_space_members`, so the receiver's target-gone exemption
+        /// applies and no capability proof is needed). See
+        /// `mls::authorization::authorize_committer_capability`.
+        #[serde(default)]
+        committer_ucan: Option<String>,
+        /// Base64-encoded ed25519 signature over
+        /// `sha256("haex-mls-commit-bind-v1" || sha256(mls_bytes))`
+        /// produced with the identity key resolvable from
+        /// `committer_ucan`'s `audience_did`. Prevents a captured UCAN from
+        /// being replayed against a different commit. Present iff
+        /// `committer_ucan` is present.
+        #[serde(default)]
+        committer_commit_bind_sig: Option<String>,
     },
     /// Fetch MLS messages after a given ID
     MlsFetchMessages {
@@ -503,6 +524,14 @@ pub struct MlsMessageEntry {
     pub message_type: String,
     /// Base64-encoded
     pub message: String,
+    /// UCAN JWT string attached to the commit at send time. See
+    /// `Request::MlsSendMessage::committer_ucan` for the semantics.
+    #[serde(default)]
+    pub committer_ucan: Option<String>,
+    /// Base64-encoded ed25519 commit-bind signature. See
+    /// `Request::MlsSendMessage::committer_commit_bind_sig`.
+    #[serde(default)]
+    pub committer_commit_bind_sig: Option<String>,
     pub created_at: String,
 }
 

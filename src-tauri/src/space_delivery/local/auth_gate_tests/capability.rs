@@ -246,6 +246,8 @@ async fn accepts_read_member_mls_send_message_at_gate_level() {
         space_id: "SPACE".into(),
         message: String::new(),
         message_type: "application".into(),
+        committer_ucan: None,
+        committer_commit_bind_sig: None,
     };
 
     let result = authorize_default(

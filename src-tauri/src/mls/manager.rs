@@ -6,6 +6,7 @@ use openmls_basic_credential::SignatureKeyPair;
 use openmls_traits::OpenMlsProvider;
 use rusqlite::Connection;
 
+use crate::mls::authorization::PresentedCapability;
 use crate::mls::provider::HaexMlsProvider;
 use crate::mls::storage::SqlCipherMlsStorage;
 use crate::mls::types::{MlsCommitBundle, MlsEpochKey, MlsGroupInfo, MlsIdentityInfo};
@@ -241,10 +242,17 @@ impl MlsManager {
             .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize group info: {e}"))?;
 
+        // Adds do not carry a receive-side committer-capability proof
+        // (plan §5.0 — leader-relay-Add case). The KeyPackage's own PoP
+        // and Phase-1 addee-membership check bound the Add; nothing on
+        // the wire encodes a "the leader relaying this ClaimInvite held
+        // Invite-or-higher itself" claim.
         Ok(MlsCommitBundle {
             commit: commit_bytes,
             welcome: Some(welcome_bytes),
             group_info: group_info_bytes,
+            committer_ucan: None,
+            committer_commit_bind_sig: None,
         })
     }
 
@@ -299,7 +307,12 @@ impl MlsManager {
             .find(|m| m.index == own_leaf)
             .ok_or_else(|| format!("Own leaf {own_leaf:?} not present in space {space_id}"))
             .and_then(|m| resolve_did(&m, "own"))?;
-        crate::mls::authorization::authorize_local_removal(
+        // `proof_required` mirrors the receiver's own target-gone exemption
+        // in `authorize_committer_capability`: `true` iff the target is
+        // still an active member (so the receive-side gate will demand a
+        // proof too), `false` iff the target already left (leader-rekey
+        // case — no proof needed, and this device may not even hold one).
+        let proof_required = crate::mls::authorization::authorize_local_removal(
             &self.conn,
             space_id,
             &committer_did,
@@ -324,10 +337,44 @@ impl MlsManager {
             .tls_serialize_detached()
             .map_err(|e| format!("Failed to serialize group info: {e}"))?;
 
+        // Plan §6: attach a committer-capability proof only when the
+        // receive-side gate will actually require one. Loading the UCAN by
+        // `committer_did` (not `get_own_did()`) is deliberate — see the
+        // resolution above the DID's own comment; the same reasoning that
+        // picked the signing DID applies to the capability lookup.
+        let (committer_ucan, committer_commit_bind_sig) = if proof_required {
+            let db = crate::database::DbConnection(self.conn.clone());
+            let ucan_token = crate::space_delivery::local::ucan::load_active_ucan_for_audience(
+                &db,
+                space_id,
+                &committer_did,
+            )
+            .map_err(|e| format!("Failed to load committer UCAN for space {space_id}: {e}"))?
+            .ok_or_else(|| {
+                format!(
+                    "Committer {committer_did} holds no UCAN for space {space_id} despite \
+                     passing the local capability gate (data inconsistency)"
+                )
+            })?;
+
+            let identity = crate::space_delivery::local::quic_retry::load_signing_identity_for_did(
+                &db,
+                &committer_did,
+            )
+            .map_err(|e| format!("Failed to load identity signing key for {committer_did}: {e}"))?;
+            let sig =
+                crate::mls::commit_bind::sign_commit_bind(&identity.signing_key, &commit_bytes);
+            (Some(ucan_token), Some(sig.to_bytes().to_vec()))
+        } else {
+            (None, None)
+        };
+
         Ok(MlsCommitBundle {
             commit: commit_bytes,
             welcome: None,
             group_info: group_info_bytes,
+            committer_ucan,
+            committer_commit_bind_sig,
         })
     }
 
@@ -346,7 +393,22 @@ impl MlsManager {
             .map_err(|e| format!("Failed to serialize message: {e}"))
     }
 
-    pub fn decrypt(&self, space_id: &str, ciphertext: &[u8]) -> Result<Vec<u8>, String> {
+    /// `presented_capability` and `presented_commit_bind_sig` carry the
+    /// plan-§5.8 receive-side committer-capability proof: an already
+    /// UCAN-chain-verified capability (see
+    /// `space_delivery::local::ucan::resolve_presented_committer_capability`,
+    /// which owns the chain-walk) plus the raw ed25519 signature bytes
+    /// binding that capability to this exact commit. `None` for anything
+    /// that doesn't carry the proof (application messages, Adds, key
+    /// rotations, self-leaves, callers outside local/P2P delivery). See
+    /// `mls::authorization::authorize_committer_capability`.
+    pub fn decrypt(
+        &self,
+        space_id: &str,
+        ciphertext: &[u8],
+        presented_capability: Option<PresentedCapability>,
+        presented_commit_bind_sig: Option<&[u8]>,
+    ) -> Result<Vec<u8>, String> {
         let group_id = GroupId::from_slice(space_id.as_bytes());
         let mut group = MlsGroup::load(self.provider.storage(), &group_id)
             .map_err(|e| format!("Failed to load group: {e}"))?
@@ -382,8 +444,39 @@ impl MlsManager {
                 );
                 crate::mls::authorization::authorize(&self.conn, space_id, &facts)?;
                 crate::mls::authorization::verify_pops(space_id, &facts)?;
+
+                // A presented capability must verify against THIS commit's
+                // exact bytes before it is trusted at all — independent of
+                // whether the commit even needs one (fail-closed on a
+                // malformed/mismatched proof rather than silently ignoring
+                // it). `ciphertext` here is the same commit bytes the
+                // sender hashed when producing the bind signature
+                // (`MlsManager::remove_member`).
+                if let Some(cap) = presented_capability.as_ref() {
+                    let sig_bytes = presented_commit_bind_sig.ok_or_else(|| {
+                        format!(
+                            "Rejecting MLS commit for space {space_id}: committer capability \
+                             presented without a commit-bind signature"
+                        )
+                    })?;
+                    crate::mls::commit_bind::verify_commit_bind_bytes(
+                        &cap.audience_did,
+                        ciphertext,
+                        sig_bytes,
+                    )
+                    .map_err(|e| {
+                        format!(
+                            "Rejecting MLS commit for space {space_id}: commit-bind signature \
+                             invalid for committer {}: {e}",
+                            cap.audience_did
+                        )
+                    })?;
+                }
                 crate::mls::authorization::authorize_committer_capability(
-                    &self.conn, space_id, &facts,
+                    &self.conn,
+                    space_id,
+                    &facts,
+                    presented_capability.as_ref(),
                 )?;
 
                 group
@@ -401,8 +494,19 @@ impl MlsManager {
         }
     }
 
-    pub fn process_message(&self, space_id: &str, message: &[u8]) -> Result<Vec<u8>, String> {
-        self.decrypt(space_id, message)
+    pub fn process_message(
+        &self,
+        space_id: &str,
+        message: &[u8],
+        presented_capability: Option<PresentedCapability>,
+        presented_commit_bind_sig: Option<&[u8]>,
+    ) -> Result<Vec<u8>, String> {
+        self.decrypt(
+            space_id,
+            message,
+            presented_capability,
+            presented_commit_bind_sig,
+        )
     }
 
     /// Process an MLS Welcome message to join an existing group.

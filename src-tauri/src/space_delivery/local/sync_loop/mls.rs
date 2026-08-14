@@ -43,7 +43,24 @@ pub(super) async fn fetch_and_process_mls_messages(
             }
         };
 
-        match crate::mls::blocking::process_message(db.0.clone(), space_id.to_string(), blob).await
+        let presented_capability = super::super::ucan::resolve_presented_committer_capability(
+            db,
+            space_id,
+            msg.committer_ucan.as_deref(),
+        );
+        let presented_bind_sig: Option<Vec<u8>> = msg
+            .committer_commit_bind_sig
+            .as_deref()
+            .and_then(|s| BASE64.decode(s).ok());
+
+        match crate::mls::blocking::process_message(
+            db.0.clone(),
+            space_id.to_string(),
+            blob,
+            presented_capability,
+            presented_bind_sig,
+        )
+        .await
         {
             Ok(_) => {
                 acked_ids.push(msg.id);

@@ -32,7 +32,7 @@
 //!
 //! Phase-3 additionally requires the committer to hold
 //! `CapabilityLevel::Invite`-or-higher before a membership-changing commit
-//! (Add or Remove) may merge, with a self-leave exemption (see
+//! may merge, with a self-leave exemption (see
 //! [`authorize_committer_capability`]). This is the interim rule from §5.7
 //! of the plan; a dedicated orthogonal `Cap::ManageMembers` is deferred to
 //! the `CapabilitySet` migration (Phase 4).
@@ -43,27 +43,38 @@
 //! added (a CodeRabbit finding on PR #781). See that function's docs for
 //! why `MlsManager::add_member` is deliberately NOT gated the same way.
 //!
+//! **§5.8 follow-up (UCAN-on-commit) — Removes only.** The receive-side gate
+//! in [`authorize_committer_capability`] no longer reads `haex_ucan_tokens`
+//! (vault-private, does not sync — see the history in
+//! `docs/plans/2026-08-13-mls-receive-gate-ucan-on-commit.md` §1/§3 for why
+//! that made every non-granting-admin receiver reject legitimate commits).
+//! Instead the committer's UCAN chain travels alongside the commit on the
+//! wire (`Request::MlsSendMessage::committer_ucan` +
+//! `committer_commit_bind_sig`), gets verified by the caller
+//! (`space_delivery::local::ucan::resolve_presented_committer_capability`,
+//! which owns the UCAN-chain-walk blast radius), and arrives here as an
+//! already-verified [`PresentedCapability`]. Restricted to **Remove**
+//! proposals only (plan §5.0): Adds are already bounded end-to-end by the
+//! Phase-1 addee check, Phase-2 PoP verification, and the `ClaimInvite`
+//! handler consuming the invite's own UCAN upstream of `add_member` — a
+//! blanket committer-capability check on Adds would wedge the leader-relayed
+//! `ClaimInvite` path (the relaying leader may hold only Read/Write) and
+//! external-commit rejoins by Read/Write members.
+//!
 //! **Not yet closed:**
 //!
 //! - External-commit joiners are not PoP-verified (openmls 0.8.1 limitation,
 //!   documented on [`verify_pops`]). Because of this, nothing in this module
 //!   may treat a `Sender::NewMemberCommit` credential DID as authenticated —
 //!   see the `self_removal` derivation in [`inspect`].
-//! - `haex_ucan_tokens`, the table [`authorize_committer_capability`] reads,
-//!   is NOT in `crate::crdt::scanner::SPACE_SCOPED_CRDT_TABLES`, so it does
-//!   not sync between the members of a shared space. A member's vault only
-//!   holds rows whose `audience_did` is one of its own identities (plus, on
-//!   the space admin only, rows for claimants it processed itself in
-//!   `space_delivery::local::leader::claim::persist_admin_ucan`). Every
-//!   other receiver resolves a remote committer to "no capability" and
-//!   rejects the commit. Phase-1's addee check does not have this problem
-//!   because `haex_space_members` IS on that whitelist. Resolving this needs
-//!   a space-synced capability source (`haex_space_members.role` once the
-//!   join paths stop hard-coding `'read'`, or the committer's UCAN carried
-//!   on the commit) — tracked as a Phase-3 follow-up.
 //! - The interim `Invite`-or-higher rule is a blunt hierarchical gate, not
 //!   the orthogonal "may remove but not invite" / "may invite but not kick"
 //!   split the plan's final design calls for.
+//! - Delivery paths outside local/P2P space delivery (e.g. `mls_decrypt` /
+//!   `mls_process_message` Tauri commands, used for online-space message
+//!   processing) have no UCAN-on-commit plumbing and always pass `None` for
+//!   `presented_capability` — a Remove on those paths only merges via the
+//!   target-already-gone exemption. Out of scope for this plan (P2P-only).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -505,47 +516,78 @@ pub(crate) fn verify_pops(space_id: &str, facts: &CommitFacts) -> Result<(), Str
     Ok(())
 }
 
-/// Phase-3 check: a membership-changing commit (at least one Add or Remove
-/// proposal) requires the committer to hold `CapabilityLevel::Invite`-or-
-/// higher for this space. This is the interim rule from §5.7 of the plan —
-/// no dedicated `Cap::ManageMembers`, just the existing hierarchical
-/// lattice (`Admin > Invite > Write > Read`).
+/// A committer capability proof presented alongside a received commit,
+/// already verified by the caller
+/// (`space_delivery::local::ucan::resolve_presented_committer_capability`):
+/// UCAN signature, expiry, `prf`-chain walk to the space root, and the
+/// self-certifying `space_id` binding all passed. This module only makes
+/// the two decisions that remain application policy — does `audience_did`
+/// match the commit's authenticated committer, and does `level` meet the
+/// Invite-or-higher floor — never touching raw UCAN/JWT parsing itself
+/// (plan §5.8/§9: keeps this module out of the UCAN-verify blast radius).
+#[derive(Debug, Clone)]
+pub struct PresentedCapability {
+    /// `aud` of the outermost presented UCAN token.
+    pub audience_did: String,
+    /// That token's capability level for this space.
+    pub level: CapabilityLevel,
+}
+
+/// Phase-3 check, restricted to **Remove** proposals (plan §5.0 — see the
+/// module header for why Adds are excluded): removing an ACTIVE member
+/// requires the committer to hold `CapabilityLevel::Invite`-or-higher. This
+/// is the interim rule from §5.7 of the plan — no dedicated
+/// `Cap::ManageMembers`, just the existing hierarchical lattice
+/// (`Admin > Invite > Write > Read`).
 ///
 /// Exemptions:
-/// - No Add/Remove at all (key rotation, PSK, ordinary application
-///   traffic) — no capability requirement.
+/// - No Remove at all (an Add-only commit, key rotation, PSK, ordinary
+///   application traffic) — no capability requirement.
 /// - A member removing ONLY themselves — exactly one Remove, targeting
 ///   their own leaf (`CommitFacts::self_removal`), and no Adds — must
 ///   always be allowed. Leaving a space can never require a capability the
-///   leaver may not hold; if a self-remove is bundled with anything else
-///   (another Remove, or an Add), the capability requirement still applies
-///   to the commit as a whole.
-/// - An external-commit joiner adding only THEMSELVES carries no Add or
-///   Remove proposal at all (just `ExternalInit`), so it falls under the
-///   first exemption. That is deliberate: a read-only member must be able
-///   to rejoin the group after an epoch gap, and their own re-entry is
-///   already gated by [`authorize`]'s addee-membership check against
-///   `haex_space_members`.
+///   leaver may not hold; if a self-remove is bundled with another Remove
+///   the capability requirement still applies to the commit as a whole.
+/// - **Target-already-gone** — every removed leaf's DID is no longer an
+///   active member of `haex_space_members` on this receiver. Symmetric with
+///   [`authorize_local_removal`]'s exemption: the removal was already
+///   authorized upstream by whatever removed the row (e.g. any peer that
+///   holds Invite/Admin — including the elected delivery leader who may
+///   hold only Read/Write — rotating keys after a member's self-leave
+///   already propagated via the shared-space delete-log), and
+///   `haex_space_members` is space-scoped CRDT state so this check is
+///   exercisable on every receiver, not just the granting admin.
 ///
-/// Trust model: this reads `haex_ucan_tokens` and takes the stored
-/// `capability` at face value — the token itself is not re-verified here.
-/// That mirrors the trust boundary
-/// `crate::space_delivery::local::ucan::load_active_ucan_for_audience`
-/// already relies on.
+///   **KNOWN DIVERGENCE RISK (plan §5.8 followup — CodeRabbit finding on
+///   PR #782).** Row absence in `haex_space_members` has two meanings on a
+///   receiver: (a) the delete propagated and the member is gone, and
+///   (b) this receiver has not yet applied the ADD in the first place
+///   (fresh peer, or CRDT sync lagging the MLS commit fan-out). Case (b)
+///   means a proofless Remove commit from an Invite-lacking committer can
+///   still be accepted here while peers who HAVE applied the ADD reject
+///   the same commit, splitting the MLS group. The safest tightening is a
+///   positive-evidence check (delete-log entry keyed on the target's
+///   identity), which requires adding DID/identity to the shared-space
+///   delete-log schema — deferred to the follow-up task tracked in
+///   `docs/plans/2026-08-13-mls-receive-gate-ucan-on-commit.md` §"Deferred
+///   follow-ups". Until then the exemption is intentional: it keeps the
+///   legitimate delivery-leader-rekey-after-self-leave path working on
+///   receivers who have converged on the departure, at the cost of the
+///   divergence window in case (b). Multi-peer attack coverage for this
+///   window is filed in the plan's outstanding e2e-spec matrix.
 ///
-/// Unlike [`authorize`]'s addee-membership check (which reads the
-/// space-scoped `haex_space_members`), `haex_ucan_tokens` is vault-private
-/// and does NOT sync between space members, so on any receiver other than
-/// the granting admin this lookup answers "no capability" for a remote
-/// committer. See the "Not yet closed" note in the module header — the gate
-/// is not yet usable on the receive path because of it.
+/// Otherwise `presented` must be `Some`, its `audience_did` must equal the
+/// commit's MLS-authenticated `CommitFacts::committer_did`, and its `level`
+/// must satisfy `allows(Invite)`. The caller has already verified the UCAN
+/// chain and the separate commit-bind signature over this exact commit's
+/// bytes before constructing `presented` — this function trusts both.
 pub(crate) fn authorize_committer_capability(
     conn: &Arc<Mutex<Option<Connection>>>,
     space_id: &str,
     facts: &CommitFacts,
+    presented: Option<&PresentedCapability>,
 ) -> Result<(), String> {
-    let membership_changing = !facts.adds.is_empty() || !facts.removes.is_empty();
-    if !membership_changing {
+    if facts.removes.is_empty() {
         return Ok(());
     }
 
@@ -562,9 +604,53 @@ pub(crate) fn authorize_committer_capability(
         )
     })?;
 
-    with_authz_conn(conn, |conn_ref| {
-        require_invite_or_higher(conn_ref, space_id, committer_did, "MLS commit")
-    })
+    // KNOWN DIVERGENCE RISK: `is_space_member=false` can mean either "the
+    // delete propagated" or "this receiver never applied the ADD". Both
+    // fire the exemption today. See the docstring above for the deferred
+    // positive-evidence fix (plan §5.8 follow-up).
+    let all_targets_already_gone = with_authz_conn(conn, |conn_ref| {
+        for r in &facts.removes {
+            let still_active = match r.credential_did.as_deref() {
+                Some(did) => is_space_member(conn_ref, space_id, did)?,
+                // No pre-commit leaf DID resolved for this Remove target —
+                // defensively treat as "not provably gone" so the gate
+                // still requires proof rather than silently exempting.
+                None => true,
+            };
+            if still_active {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    })?;
+    if all_targets_already_gone {
+        return Ok(());
+    }
+
+    let presented = presented.ok_or_else(|| {
+        format!(
+            "Rejecting MLS commit for space {space_id}: Remove of an active member requires a \
+             committer capability proof, none presented"
+        )
+    })?;
+
+    if presented.audience_did != committer_did {
+        return Err(format!(
+            "Rejecting MLS commit for space {space_id}: presented capability audience {} does \
+             not match the commit's committer {committer_did}",
+            presented.audience_did
+        ));
+    }
+
+    if !presented.level.allows(&CapabilityLevel::Invite) {
+        return Err(format!(
+            "Rejecting MLS commit for space {space_id}: committer {committer_did} presented \
+             {:?} but membership removal requires Invite-or-higher",
+            presented.level
+        ));
+    }
+
+    Ok(())
 }
 
 /// Run `f` with the authorization connection. Every failure to obtain it —
@@ -668,6 +754,15 @@ fn committer_capability(
 /// reach `decrypt`/`inspect`, so nothing gated them before this fix (a
 /// CodeRabbit finding on PR #781).
 ///
+/// Returns `Ok(true)` if the removal was gated and passed (an active
+/// member is being removed and the committer holds Invite-or-higher) —
+/// `MlsManager::remove_member` uses this to decide whether to also attach a
+/// committer-capability proof to the outgoing envelope, since a receiver
+/// will independently apply the same target-gone exemption via
+/// [`authorize_committer_capability`] and would reject a proof-less commit
+/// otherwise. Returns `Ok(false)` when `target_did` is exempt (see below) —
+/// no proof needed downstream either.
+///
 /// Exempt: `target_did` is no longer an active `haex_space_members` row.
 /// This covers the leader-side rekey-after-self-leave flow
 /// (`reconcileMls.ts`): once a member leaves, the CRDT delete-log entry
@@ -690,12 +785,13 @@ pub(crate) fn authorize_local_removal(
     space_id: &str,
     committer_did: &str,
     target_did: &str,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     with_authz_conn(conn, |conn_ref| {
         if !is_space_member(conn_ref, space_id, target_did)? {
-            return Ok(());
+            return Ok(false);
         }
-        require_invite_or_higher(conn_ref, space_id, committer_did, "local MLS remove")
+        require_invite_or_higher(conn_ref, space_id, committer_did, "local MLS remove")?;
+        Ok(true)
     })
 }
 
