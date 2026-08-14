@@ -378,6 +378,15 @@ impl MlsManager {
         })
     }
 
+    /// Current MLS epoch of `space_id`'s group.
+    pub fn current_epoch(&self, space_id: &str) -> Result<u64, String> {
+        let group_id = GroupId::from_slice(space_id.as_bytes());
+        MlsGroup::load(self.provider.storage(), &group_id)
+            .map_err(|e| format!("Failed to load group: {e}"))?
+            .ok_or_else(|| format!("Group not found for space: {space_id}"))
+            .map(|g| g.epoch().as_u64())
+    }
+
     pub fn encrypt(&self, space_id: &str, plaintext: &[u8]) -> Result<Vec<u8>, String> {
         let signer = self.get_signer()?;
         let group_id = GroupId::from_slice(space_id.as_bytes());

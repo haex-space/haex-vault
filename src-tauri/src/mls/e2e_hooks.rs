@@ -70,6 +70,93 @@ pub struct TestCommitGateReport {
     pub resolved_level: Option<String>,
 }
 
+/// Map a production rejection string onto the gate that produced it.
+///
+/// Substring matching is deliberate and deliberately narrow: it couples
+/// the specs to the exact wording of each gate, so rewording a message
+/// without updating this function fails the spec instead of silently
+/// downgrading a real attack to `RejectedOther`.
+pub(crate) fn classify_rejection(err: &str) -> TestCommitGateOutcome {
+    let reason = err.to_string();
+    if err.contains("commit-bind signature invalid")
+        || err.contains("presented without a commit-bind signature")
+    {
+        TestCommitGateOutcome::RejectedCommitBind { reason }
+    } else if err.contains("requires a committer capability proof")
+        || err.contains("does not match the commit's committer")
+        || err.contains("membership removal requires Invite-or-higher")
+        || err.contains("has no resolvable committer DID")
+    {
+        TestCommitGateOutcome::RejectedCommitterCapability { reason }
+    } else if err.contains("proof-of-possession") || err.contains("PoP") {
+        TestCommitGateOutcome::RejectedPop { reason }
+    } else if err.contains("is not a member of this space")
+        || err.contains("credential-stability violation")
+        || err.contains("unmodelled proposal type")
+        || err.contains("addee credential is empty")
+    {
+        TestCommitGateOutcome::RejectedPhase1 { reason }
+    } else {
+        TestCommitGateOutcome::RejectedOther { reason }
+    }
+}
+
+/// Feed one commit into the REAL receive path
+/// (`MlsManager::decrypt` — same gates, same order as
+/// `sync_loop::mls::fetch_and_process_mls_messages`) and report the
+/// decision as structured data.
+///
+/// `committer_ucan` / `committer_commit_bind_sig` are supplied by the
+/// caller exactly as the wire would carry them, so a spec can present a
+/// forged, expired, replayed or absent proof. The UCAN still goes through
+/// the production `resolve_presented_committer_capability` — nothing about
+/// verification is bypassed here.
+#[tauri::command]
+pub async fn test_mls_process_commit_report(
+    state: State<'_, AppState>,
+    space_id: String,
+    commit_b64: String,
+    committer_ucan: Option<String>,
+    committer_commit_bind_sig_b64: Option<String>,
+) -> Result<TestCommitGateReport, String> {
+    let commit = BASE64
+        .decode(&commit_b64)
+        .map_err(|e| format!("commit_b64 is not valid base64: {e}"))?;
+    let bind_sig = match committer_commit_bind_sig_b64.as_deref() {
+        Some(s) => Some(
+            BASE64
+                .decode(s)
+                .map_err(|e| format!("bind sig is not valid base64: {e}"))?,
+        ),
+        None => None,
+    };
+
+    let db = crate::database::DbConnection(state.db.0.clone());
+    let presented = crate::space_delivery::local::ucan::resolve_presented_committer_capability(
+        &db,
+        &space_id,
+        committer_ucan.as_deref(),
+    );
+    let resolved_audience_did = presented.as_ref().map(|p| p.audience_did.clone());
+    let resolved_level = presented.as_ref().map(|p| format!("{:?}", p.level));
+
+    let manager = MlsManager::new(state.db.0.clone());
+    let epoch_before = manager.current_epoch(&space_id)?;
+    let outcome = match manager.decrypt(&space_id, &commit, presented, bind_sig.as_deref()) {
+        Ok(_) => TestCommitGateOutcome::Accepted,
+        Err(e) => classify_rejection(&e),
+    };
+    let epoch_after = manager.current_epoch(&space_id)?;
+
+    Ok(TestCommitGateReport {
+        outcome,
+        epoch_before,
+        epoch_after,
+        resolved_audience_did,
+        resolved_level,
+    })
+}
+
 #[cfg(test)]
 #[path = "e2e_hooks_tests.rs"]
 mod tests;
