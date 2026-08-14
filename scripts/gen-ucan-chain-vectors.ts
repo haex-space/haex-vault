@@ -13,6 +13,15 @@
  * drift-check (future task) will diff committed JSON against a regen.
  *
  * WARNING: seeds below are TEST_ONLY_NEVER_PROD. Never use in a live vault.
+ *
+ * W4 PR-3 (Task 7) note: the payload wire form migrated from
+ *   `cap: { "space:<id>": "space/<name>" }`         (singular, hierarchical)
+ * to
+ *   `capabilities: { "space:<id>": [{cap, delegatable}, …] }`  (plural, orthogonal).
+ * `CapabilitySet` and `CapEntry` are inlined here rather than imported from
+ * `@haex-space/ucan` because the installed library (0.1.9) still emits the
+ * legacy `Capabilities` type; this generator is the source-of-truth for
+ * the new wire form until the library catches up.
  */
 import {
   createHash,
@@ -32,7 +41,6 @@ import {
   base64urlEncode,
   publicKeyToDid,
   spaceResource,
-  type Capabilities,
   type EncodedUcan,
 } from '@haex-space/ucan'
 
@@ -163,6 +171,48 @@ function assertSpaceIdAgainstFixture(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Orthogonal capability set (W4 PR-3 wire form)
+//
+// Mirror of `src-tauri/src/ucan/capability_set.rs::{Cap, CapEntry, CapabilitySet}`.
+// Encoded on the wire as a JSON array of `{cap, delegatable}` entries, one
+// per held capability, sorted by cap discriminant (read < write < invite
+// < admin) with no duplicates.
+// ---------------------------------------------------------------------------
+type Cap = 'read' | 'write' | 'invite' | 'admin'
+const CAP_ORDER: Record<Cap, number> = { read: 1, write: 2, invite: 3, admin: 4 }
+
+interface CapEntry {
+  cap: Cap
+  delegatable: boolean
+}
+type CapabilitySet = CapEntry[]
+
+/** Canonicalise a `CapEntry[]` to the wire form (sorted, no duplicates). */
+function capSet(entries: CapEntry[]): CapabilitySet {
+  const seen = new Set<Cap>()
+  for (const e of entries) {
+    if (seen.has(e.cap)) throw new Error(`duplicate cap in set: ${e.cap}`)
+    seen.add(e.cap)
+  }
+  return [...entries].sort((a, b) => CAP_ORDER[a.cap] - CAP_ORDER[b.cap])
+}
+
+/** All four caps, delegatable=true. Handy for root / intermediate admin tokens. */
+function fullDelegatableSet(): CapabilitySet {
+  return capSet([
+    { cap: 'read', delegatable: true },
+    { cap: 'write', delegatable: true },
+    { cap: 'invite', delegatable: true },
+    { cap: 'admin', delegatable: true },
+  ])
+}
+
+/** Single-cap set. `delegatable` defaults to `false` (typical for leaves). */
+function only(cap: Cap, delegatable = false): CapabilitySet {
+  return capSet([{ cap, delegatable }])
+}
+
+// ---------------------------------------------------------------------------
 // UCAN construction (deterministic: caller supplies iat/exp/nonce explicitly).
 //
 // We build the payload manually rather than call `createUcan` because that
@@ -171,13 +221,11 @@ function assertSpaceIdAgainstFixture(): void {
 // ---------------------------------------------------------------------------
 const HEADER = { alg: 'EdDSA' as const, typ: 'JWT' as const }
 
-type SpaceCap = 'space/admin' | 'space/invite' | 'space/write' | 'space/read'
-
 interface TokenSpec {
   key: Key
   audience: string
   spaceId: string
-  cap: SpaceCap
+  capSet: CapabilitySet
   exp: number
   iat: number
   nnc: string
@@ -193,7 +241,8 @@ function makeToken(spec: TokenSpec): EncodedUcan {
     ucv: '1.0',
     iss: spec.key.did,
     aud: spec.audience,
-    cap: { [spaceResource(spec.spaceId)]: spec.cap } satisfies Capabilities,
+    // W4 PR-3: plural `capabilities`, value is a CapabilitySet array.
+    capabilities: { [spaceResource(spec.spaceId)]: spec.capSet },
     exp: spec.exp,
     iat: spec.iat,
     prf: spec.prf,
@@ -249,7 +298,7 @@ interface DecodedPayload {
   ucv: string
   iss: string
   aud: string
-  cap: Record<string, string>
+  capabilities: Record<string, CapabilitySet>
   exp: number
   iat: number
   nnc: string
@@ -300,7 +349,7 @@ function ucanNnc(label: string): string {
 interface VectorChainNode {
   iss: string
   aud: string
-  cap: string
+  cap_set: CapabilitySet
   space_id: string
   exp: number
   proofs: EncodedUcan[]
@@ -310,7 +359,8 @@ interface VectorChainNode {
 type ExpectedError =
   | 'ChainTooDeep'
   | 'Signature'
-  | 'CapabilityEscalation'
+  | 'DelegationMissing'
+  | 'DelegationNotDelegatable'
   | 'RootBindingMismatch'
   | 'RootNotSelfSigned'
   | 'ChainBroken'
@@ -323,7 +373,13 @@ interface Vector {
   nonce_hex: string
   root_did: string
   expected_audience: string
-  capability_needed: string
+  /**
+   * Bare cap name (`"read" | "write" | "invite" | "admin"`) the leaf token
+   * must satisfy. Rust runners consume this via `cap_from_str`, which
+   * still tolerates a `"space/"` prefix but the fixture now emits the
+   * unprefixed form.
+   */
+  capability_needed: Cap
   chain: VectorChainNode[]
   expected:
     | { ok: true; resolved_root_did: string }
@@ -342,7 +398,7 @@ function encodeChain(nodes: Array<{ spec: TokenSpec }>): VectorChainNode[] {
     return {
       iss: spec.key.did,
       aud: spec.audience,
-      cap: spec.cap,
+      cap_set: spec.capSet,
       space_id: spec.spaceId,
       exp: spec.exp,
       proofs: spec.prf,
@@ -360,7 +416,7 @@ function vRootOnlyValid(): Vector {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('root_only_valid.root'),
@@ -373,7 +429,7 @@ function vRootOnlyValid(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.root!.did,
-    capability_needed: 'space/admin',
+    capability_needed: 'admin',
     chain,
     expected: { ok: true, resolved_root_did: KEYS.root!.did },
   }
@@ -384,7 +440,7 @@ function vTwoHopValid(): Vector {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('two_hop.root'),
@@ -395,7 +451,7 @@ function vTwoHopValid(): Vector {
     key: KEYS.root!,
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('two_hop.leaf'),
@@ -408,7 +464,7 @@ function vTwoHopValid(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: true, resolved_root_did: KEYS.root!.did },
   }
@@ -419,7 +475,7 @@ function vThreeHopValid(): Vector {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('three_hop.root'),
@@ -430,7 +486,7 @@ function vThreeHopValid(): Vector {
     key: KEYS.root!,
     audience: KEYS.admin1!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('three_hop.mid'),
@@ -441,7 +497,7 @@ function vThreeHopValid(): Vector {
     key: KEYS.admin1!,
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('three_hop.leaf'),
@@ -454,22 +510,23 @@ function vThreeHopValid(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: true, resolved_root_did: KEYS.root!.did },
   }
 }
 
 function vFiveHopValidAtMax(): Vector {
-  // Chain shape: root(root→root, admin) → (root→admin1, admin) → (admin1→admin2, admin) →
-  //              (admin2→admin3, admin) → (admin3→member, write leaf).
-  // Manually construct so audiences line up correctly (root=self-signed, rest chain forward).
+  // Chain: root(self) → admin1 → admin2 → admin3 → member.
+  // All intermediate hops carry the full delegatable set; the leaf claims
+  // only `write` so the fixture exercises attenuation at each hop under
+  // the orthogonal model.
   const specs: TokenSpec[] = [
     {
       key: KEYS.root!,
       audience: KEYS.root!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('five_hop.h0'),
@@ -479,7 +536,7 @@ function vFiveHopValidAtMax(): Vector {
       key: KEYS.root!,
       audience: KEYS.admin1!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('five_hop.h1'),
@@ -489,7 +546,7 @@ function vFiveHopValidAtMax(): Vector {
       key: KEYS.admin1!,
       audience: KEYS.admin2!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('five_hop.h2'),
@@ -499,7 +556,7 @@ function vFiveHopValidAtMax(): Vector {
       key: KEYS.admin2!,
       audience: KEYS.admin3!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('five_hop.h3'),
@@ -509,7 +566,7 @@ function vFiveHopValidAtMax(): Vector {
       key: KEYS.admin3!,
       audience: KEYS.member!.did,
       spaceId: primarySpaceId,
-      cap: 'space/write',
+      capSet: only('write'),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('five_hop.h4'),
@@ -528,7 +585,7 @@ function vFiveHopValidAtMax(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: true, resolved_root_did: KEYS.root!.did },
   }
@@ -541,7 +598,7 @@ function vSixHopExceedsMax(): Vector {
       key: KEYS.root!,
       audience: KEYS.root!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('six_hop.h0'),
@@ -551,7 +608,7 @@ function vSixHopExceedsMax(): Vector {
       key: KEYS.root!,
       audience: KEYS.admin1!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('six_hop.h1'),
@@ -561,7 +618,7 @@ function vSixHopExceedsMax(): Vector {
       key: KEYS.admin1!,
       audience: KEYS.admin2!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('six_hop.h2'),
@@ -571,7 +628,7 @@ function vSixHopExceedsMax(): Vector {
       key: KEYS.admin2!,
       audience: KEYS.admin3!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('six_hop.h3'),
@@ -581,7 +638,7 @@ function vSixHopExceedsMax(): Vector {
       key: KEYS.admin3!,
       audience: KEYS.wrongIssuer!.did,
       spaceId: primarySpaceId,
-      cap: 'space/admin',
+      capSet: fullDelegatableSet(),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('six_hop.h4'),
@@ -591,7 +648,7 @@ function vSixHopExceedsMax(): Vector {
       key: KEYS.wrongIssuer!,
       audience: KEYS.member!.did,
       spaceId: primarySpaceId,
-      cap: 'space/write',
+      capSet: only('write'),
       exp: FAR_FUTURE_EXP,
       iat: IAT_ALL,
       nnc: ucanNnc('six_hop.h5'),
@@ -610,7 +667,7 @@ function vSixHopExceedsMax(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: false, error: 'ChainTooDeep' },
   }
@@ -626,10 +683,6 @@ function vTamperedLeafSignature(): Vector {
   const chain = base.chain.map((n, i) =>
     i === leafIdx ? { ...n, signed_token: tampered.token } : n,
   )
-  // Also patch the parent's outgoing proofs list to reference the tampered leaf?
-  // No — proofs point PARENT→CHILD only via child.prf = [parent], so the leaf's
-  // prf still references the intact parent. That's what we want: only the
-  // leaf sig is broken.
   return {
     name: 'tampered_leaf_signature',
     space_id: base.space_id,
@@ -653,7 +706,7 @@ function vTamperedMiddleSignature(): Vector {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('tampered_mid.root'),
@@ -664,7 +717,7 @@ function vTamperedMiddleSignature(): Vector {
     key: KEYS.root!,
     audience: KEYS.admin1!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('tampered_mid.mid'),
@@ -679,20 +732,18 @@ function vTamperedMiddleSignature(): Vector {
     key: KEYS.admin1!,
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('tampered_mid.leaf'),
     prf: [tampered.token],
   }
   const leafToken = makeToken(leaf)
-  // Mirror encodeChain's shape but stamp the tampered token into the middle
-  // node so the visible fixture aligns with what the leaf embeds.
   const chain: VectorChainNode[] = [
     {
       iss: root.key.did,
       aud: root.audience,
-      cap: root.cap,
+      cap_set: root.capSet,
       space_id: root.spaceId,
       exp: root.exp,
       proofs: [],
@@ -701,7 +752,7 @@ function vTamperedMiddleSignature(): Vector {
     {
       iss: mid.key.did,
       aud: mid.audience,
-      cap: mid.cap,
+      cap_set: mid.capSet,
       space_id: mid.spaceId,
       exp: mid.exp,
       proofs: [rootToken],
@@ -710,7 +761,7 @@ function vTamperedMiddleSignature(): Vector {
     {
       iss: leaf.key.did,
       aud: leaf.audience,
-      cap: leaf.cap,
+      cap_set: leaf.capSet,
       space_id: leaf.spaceId,
       exp: leaf.exp,
       proofs: [tampered.token],
@@ -723,24 +774,28 @@ function vTamperedMiddleSignature(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: false, error: 'Signature', tampered_signature_byte_offset: tampered.offset },
   }
 }
 
-function vCapabilityEscalation(): Vector {
-  // Chain: root(admin, self-signed) → mid(root→admin1, READ) → leaf(admin1→member, ADMIN).
-  // The leaf claims admin but its parent only grants read. The verifier
-  // must reject because attenuation is broken (not the signature).
+function vDelegationMissing(): Vector {
+  // Chain: root(full delegatable) → mid(write-only, delegatable=true) →
+  // leaf(claims admin).
+  // Semantic: mid never held `admin`, so leaf's claim to admin is
+  // orthogonally missing — parent does not hold this capability at all.
+  // Previously modelled as `CapabilityEscalation` under the hierarchical
+  // read < write < invite < admin lattice; the new orthogonal model
+  // classifies the failure as `DelegationMissing` (Missing arm).
   const root: TokenSpec = {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
-    nnc: ucanNnc('escalation.root'),
+    nnc: ucanNnc('delegation_missing.root'),
     prf: [],
   }
   const rootToken = makeToken(root)
@@ -748,10 +803,10 @@ function vCapabilityEscalation(): Vector {
     key: KEYS.root!,
     audience: KEYS.admin1!.did,
     spaceId: primarySpaceId,
-    cap: 'space/read',
+    capSet: only('write', true),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
-    nnc: ucanNnc('escalation.mid'),
+    nnc: ucanNnc('delegation_missing.mid'),
     prf: [rootToken],
   }
   const midToken = makeToken(mid)
@@ -759,22 +814,125 @@ function vCapabilityEscalation(): Vector {
     key: KEYS.admin1!,
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: only('admin'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
-    nnc: ucanNnc('escalation.leaf'),
+    nnc: ucanNnc('delegation_missing.leaf'),
     prf: [midToken],
   }
   const chain = encodeChain([{ spec: root }, { spec: mid }, { spec: leaf }])
   return {
-    name: 'capability_escalation_read_to_admin',
+    name: 'delegation_missing_admin_child_from_write_parent',
     space_id: primarySpaceId,
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/admin',
+    capability_needed: 'admin',
     chain,
-    expected: { ok: false, error: 'CapabilityEscalation' },
+    expected: { ok: false, error: 'DelegationMissing' },
+  }
+}
+
+function vDelegationNotDelegatable(): Vector {
+  // Chain: root(full delegatable) → mid(write, delegatable=false) →
+  // leaf(claims write).
+  // Semantic: mid may exercise `write` locally, but its non-delegatable
+  // flag forbids passing it further. Leaf's identical claim triggers the
+  // `DelegationNotDelegatable` arm.
+  const root: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.root!.did,
+    spaceId: primarySpaceId,
+    capSet: fullDelegatableSet(),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('delegation_not_delegatable.root'),
+    prf: [],
+  }
+  const rootToken = makeToken(root)
+  const mid: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.admin1!.did,
+    spaceId: primarySpaceId,
+    capSet: only('write', false),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('delegation_not_delegatable.mid'),
+    prf: [rootToken],
+  }
+  const midToken = makeToken(mid)
+  const leaf: TokenSpec = {
+    key: KEYS.admin1!,
+    audience: KEYS.member!.did,
+    spaceId: primarySpaceId,
+    capSet: only('write'),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('delegation_not_delegatable.leaf'),
+    prf: [midToken],
+  }
+  const chain = encodeChain([{ spec: root }, { spec: mid }, { spec: leaf }])
+  return {
+    name: 'delegation_not_delegatable_write_under_non_delegatable_parent',
+    space_id: primarySpaceId,
+    nonce_hex: NONCE_HEX.primary_space!,
+    root_did: KEYS.root!.did,
+    expected_audience: KEYS.member!.did,
+    capability_needed: 'write',
+    chain,
+    expected: { ok: false, error: 'DelegationNotDelegatable' },
+  }
+}
+
+function vOrthogonalMissingCap(): Vector {
+  // Chain: root(full delegatable) → mid(write only, delegatable=true) →
+  // leaf(claims read).
+  // Semantic: mid holds `write` but not `read`. The old hierarchical
+  // model would have accepted this because `write` implies `read`; the
+  // orthogonal model rejects because `read` is not present in the
+  // parent's set (`DelegationMissing`).
+  const root: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.root!.did,
+    spaceId: primarySpaceId,
+    capSet: fullDelegatableSet(),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('orthogonal_missing.root'),
+    prf: [],
+  }
+  const rootToken = makeToken(root)
+  const mid: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.admin1!.did,
+    spaceId: primarySpaceId,
+    capSet: only('write', true),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('orthogonal_missing.mid'),
+    prf: [rootToken],
+  }
+  const midToken = makeToken(mid)
+  const leaf: TokenSpec = {
+    key: KEYS.admin1!,
+    audience: KEYS.member!.did,
+    spaceId: primarySpaceId,
+    capSet: only('read'),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('orthogonal_missing.leaf'),
+    prf: [midToken],
+  }
+  const chain = encodeChain([{ spec: root }, { spec: mid }, { spec: leaf }])
+  return {
+    name: 'orthogonal_missing_cap_read_child_under_write_parent',
+    space_id: primarySpaceId,
+    nonce_hex: NONCE_HEX.primary_space!,
+    root_did: KEYS.root!.did,
+    expected_audience: KEYS.member!.did,
+    capability_needed: 'read',
+    chain,
+    expected: { ok: false, error: 'DelegationMissing' },
   }
 }
 
@@ -786,7 +944,7 @@ function vWrongRootDidBindingMismatch(): Vector {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: mismatchSpaceId, // NOTE: bound to otherRoot.did, not root.did
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('binding_mismatch.root'),
@@ -797,7 +955,7 @@ function vWrongRootDidBindingMismatch(): Vector {
     key: KEYS.root!,
     audience: KEYS.member!.did,
     spaceId: mismatchSpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('binding_mismatch.leaf'),
@@ -810,7 +968,7 @@ function vWrongRootDidBindingMismatch(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: false, error: 'RootBindingMismatch' },
   }
@@ -824,7 +982,7 @@ function vRootNotSelfSigned(): Vector {
     key: KEYS.root!,
     audience: KEYS.admin1!.did, // != root.did → not self-signed
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('not_self_signed.root'),
@@ -835,7 +993,7 @@ function vRootNotSelfSigned(): Vector {
     key: KEYS.admin1!,
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('not_self_signed.leaf'),
@@ -848,7 +1006,7 @@ function vRootNotSelfSigned(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: false, error: 'RootNotSelfSigned' },
   }
@@ -860,7 +1018,7 @@ function vChainBrokenAudMismatch(): Vector {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('chain_broken.root'),
@@ -871,7 +1029,7 @@ function vChainBrokenAudMismatch(): Vector {
     key: KEYS.root!,
     audience: KEYS.admin1!.did, // mid.aud = admin1
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('chain_broken.mid'),
@@ -882,7 +1040,7 @@ function vChainBrokenAudMismatch(): Vector {
     key: KEYS.wrongIssuer!, // leaf.iss = wrongIssuer, NOT admin1 → break
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('chain_broken.leaf'),
@@ -895,7 +1053,7 @@ function vChainBrokenAudMismatch(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: false, error: 'ChainBroken' },
   }
@@ -907,7 +1065,7 @@ function vExpiredLeaf(): Vector {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('expired_leaf.root'),
@@ -918,7 +1076,7 @@ function vExpiredLeaf(): Vector {
     key: KEYS.root!,
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: PAST_EXP,
     iat: PAST_IAT, // iat < exp so this trips the Expired branch, not iat>exp sanity
     nnc: ucanNnc('expired_leaf.leaf'),
@@ -931,7 +1089,7 @@ function vExpiredLeaf(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: false, error: 'Expired' },
   }
@@ -943,7 +1101,7 @@ function vExpiredRoot(): Vector {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: PAST_EXP,
     iat: PAST_IAT, // iat < exp so this trips the Expired branch, not iat>exp sanity
     nnc: ucanNnc('expired_root.root'),
@@ -954,7 +1112,7 @@ function vExpiredRoot(): Vector {
     key: KEYS.root!,
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('expired_root.leaf'),
@@ -967,21 +1125,21 @@ function vExpiredRoot(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: false, error: 'Expired' },
   }
 }
 
 function vWrongSpaceInDelegate(): Vector {
-  // root(space=X, admin) → mid(space=Y, admin) → leaf(space=X, write).
+  // root(space=X, full) → mid(space=Y, full) → leaf(space=X, write).
   // Mid delegates on the wrong space so the leaf's claim on X is not
   // covered by any parent proof.
   const root: TokenSpec = {
     key: KEYS.root!,
     audience: KEYS.root!.did,
     spaceId: primarySpaceId,
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('wrong_space.root'),
@@ -992,7 +1150,7 @@ function vWrongSpaceInDelegate(): Vector {
     key: KEYS.root!,
     audience: KEYS.admin1!.did,
     spaceId: otherSpaceId, // wrong space
-    cap: 'space/admin',
+    capSet: fullDelegatableSet(),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('wrong_space.mid'),
@@ -1003,7 +1161,7 @@ function vWrongSpaceInDelegate(): Vector {
     key: KEYS.admin1!,
     audience: KEYS.member!.did,
     spaceId: primarySpaceId,
-    cap: 'space/write',
+    capSet: only('write'),
     exp: FAR_FUTURE_EXP,
     iat: IAT_ALL,
     nnc: ucanNnc('wrong_space.leaf'),
@@ -1016,7 +1174,7 @@ function vWrongSpaceInDelegate(): Vector {
     nonce_hex: NONCE_HEX.primary_space!,
     root_did: KEYS.root!.did,
     expected_audience: KEYS.member!.did,
-    capability_needed: 'space/write',
+    capability_needed: 'write',
     chain,
     expected: { ok: false, error: 'WrongSpace' },
   }
@@ -1030,16 +1188,32 @@ function vWrongSpaceInDelegate(): Vector {
 const didToPubKey = new Map<string, Uint8Array>()
 for (const k of Object.values(KEYS)) didToPubKey.set(k.did, k.rawPub)
 
-const CAP_LEVEL: Record<SpaceCap, number> = {
-  'space/read': 1,
-  'space/write': 2,
-  'space/invite': 3,
-  'space/admin': 4,
-}
-
 function fail(msg: string): never {
   console.error(`Self-verification FAILED: ${msg}`)
   process.exit(1)
+}
+
+/** Serialised comparison of two CapabilitySet arrays. */
+function capSetEqual(a: CapabilitySet, b: CapabilitySet): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]!.cap !== b[i]!.cap) return false
+    if (a[i]!.delegatable !== b[i]!.delegatable) return false
+  }
+  return true
+}
+
+/** Does `parent` hold every cap `child` holds, each with delegatable=true? */
+function parentCanDelegateChild(
+  parent: CapabilitySet,
+  child: CapabilitySet,
+): { ok: true } | { ok: false; kind: 'Missing' | 'NotDelegatable'; cap: Cap } {
+  for (const c of child) {
+    const p = parent.find((e) => e.cap === c.cap)
+    if (!p) return { ok: false, kind: 'Missing', cap: c.cap }
+    if (!p.delegatable) return { ok: false, kind: 'NotDelegatable', cap: c.cap }
+  }
+  return { ok: true }
 }
 
 function selfVerify(vectors: Vector[]): void {
@@ -1064,15 +1238,17 @@ function selfVerify(vectors: Vector[]): void {
         fail(`${v.name}: chain[${i}] outer.exp ${outer.exp} != decoded.exp ${p.exp}`)
       }
       const resourceKey = spaceResource(outer.space_id)
-      const capKeys = Object.keys(p.cap)
+      const capKeys = Object.keys(p.capabilities)
       if (capKeys.length !== 1 || capKeys[0] !== resourceKey) {
         fail(
-          `${v.name}: chain[${i}] decoded.cap keys ${JSON.stringify(capKeys)} do not match [${resourceKey}] derived from outer.space_id`,
+          `${v.name}: chain[${i}] decoded.capabilities keys ${JSON.stringify(capKeys)} do not match [${resourceKey}] derived from outer.space_id`,
         )
       }
-      const decodedCap = p.cap[resourceKey]
-      if (outer.cap !== decodedCap) {
-        fail(`${v.name}: chain[${i}] outer.cap ${outer.cap} != decoded.cap[${resourceKey}] ${decodedCap}`)
+      const decodedSet = p.capabilities[resourceKey]!
+      if (!capSetEqual(outer.cap_set, decodedSet)) {
+        fail(
+          `${v.name}: chain[${i}] outer.cap_set ${JSON.stringify(outer.cap_set)} != decoded[${resourceKey}] ${JSON.stringify(decodedSet)}`,
+        )
       }
       if (outer.proofs.length !== p.prf.length) {
         fail(
@@ -1106,26 +1282,33 @@ function selfVerify(vectors: Vector[]): void {
           fail(`${v.name}: chain-edge broken at i=${i} but vector is ok=true`)
         }
       }
-      // Root must be self-signed.
+      // Root must be self-signed with Admin.
       if (decoded[0]!.iss !== decoded[0]!.aud) {
         fail(`${v.name}: root not self-signed but vector is ok=true`)
+      }
+      const rootResource = spaceResource(v.space_id)
+      const rootSet = decoded[0]!.capabilities[rootResource]
+      if (!rootSet || !rootSet.some((e) => e.cap === 'admin')) {
+        fail(`${v.name}: root does not hold admin but vector is ok=true`)
       }
       // space_id binding on root.
       const nonce = new Uint8Array(Buffer.from(v.nonce_hex, 'hex'))
       if (deriveSpaceId(decoded[0]!.iss, nonce) !== v.space_id) {
         fail(`${v.name}: space_id binding mismatch but vector is ok=true`)
       }
-      // Capability attenuation across the chain.
+      // Delegation attenuation across the chain (parent must hold every
+      // child cap with delegatable=true).
       for (let i = 1; i < v.chain.length; i++) {
-        const parentCapStr = decoded[i - 1]!.cap[spaceResource(v.space_id)]
-        const childCapStr = decoded[i]!.cap[spaceResource(v.space_id)]
-        if (!parentCapStr || !childCapStr) {
+        const parentSet = decoded[i - 1]!.capabilities[rootResource]
+        const childSet = decoded[i]!.capabilities[rootResource]
+        if (!parentSet || !childSet) {
           fail(`${v.name}: missing capability entry at i=${i}`)
         }
-        const parentLvl = CAP_LEVEL[parentCapStr as SpaceCap]
-        const childLvl = CAP_LEVEL[childCapStr as SpaceCap]
-        if (parentLvl < childLvl) {
-          fail(`${v.name}: parent cap ${parentCapStr} < child cap ${childCapStr}, but vector is ok=true`)
+        const check = parentCanDelegateChild(parentSet!, childSet!)
+        if (!check.ok) {
+          fail(
+            `${v.name}: attenuation broken at i=${i} (${check.kind} ${check.cap}), but vector is ok=true`,
+          )
         }
       }
       // No expiry in the past for any node.
@@ -1141,18 +1324,30 @@ function selfVerify(vectors: Vector[]): void {
         if (sigOk.every((ok) => ok)) fail(`${v.name}: expected Signature error but all sigs verify`)
       } else if (err === 'ChainTooDeep') {
         if (v.chain.length <= 5) fail(`${v.name}: chain length ${v.chain.length} not > 5`)
-      } else if (err === 'CapabilityEscalation') {
-        // Some child cap > parent cap.
-        let found = false
+      } else if (err === 'DelegationMissing' || err === 'DelegationNotDelegatable') {
+        // Walk pairwise from the leaf up: find the first hop where the
+        // parent cannot delegate the child's set. That hop's failure
+        // reason must match the declared error kind.
+        const resource = spaceResource(v.space_id)
+        let matched = false
         for (let i = 1; i < v.chain.length; i++) {
-          const parent = decoded[i - 1]!.cap[spaceResource(v.space_id)]
-          const child = decoded[i]!.cap[spaceResource(v.space_id)]
-          if (parent && child && CAP_LEVEL[parent as SpaceCap] < CAP_LEVEL[child as SpaceCap]) {
-            found = true
-            break
+          const parentSet = decoded[i - 1]!.capabilities[resource]
+          const childSet = decoded[i]!.capabilities[resource]
+          if (!parentSet || !childSet) {
+            fail(`${v.name}: hop ${i} missing capability entry`)
           }
+          const check = parentCanDelegateChild(parentSet!, childSet!)
+          if (check.ok) continue
+          const expectedKind = err === 'DelegationMissing' ? 'Missing' : 'NotDelegatable'
+          if (check.kind !== expectedKind) {
+            fail(
+              `${v.name}: first-offender hop kind ${check.kind}, expected ${expectedKind}`,
+            )
+          }
+          matched = true
+          break
         }
-        if (!found) fail(`${v.name}: expected escalation but no child cap exceeds parent`)
+        if (!matched) fail(`${v.name}: expected ${err} but no attenuation hop failed`)
       } else if (err === 'RootBindingMismatch') {
         const nonce = new Uint8Array(Buffer.from(v.nonce_hex, 'hex'))
         // The chain's root DID should NOT derive to v.space_id.
@@ -1178,7 +1373,7 @@ function selfVerify(vectors: Vector[]): void {
         if (!anyPast) fail(`${v.name}: expected expired but no exp is in the past`)
       } else if (err === 'WrongSpace') {
         const anyMismatch = decoded.some(
-          (p) => Object.keys(p.cap)[0] !== spaceResource(v.space_id),
+          (p) => Object.keys(p.capabilities)[0] !== spaceResource(v.space_id),
         )
         if (!anyMismatch) fail(`${v.name}: expected wrong-space but all nodes reference v.space_id`)
       } else {
@@ -1207,7 +1402,9 @@ function main(): void {
     vSixHopExceedsMax(),
     vTamperedLeafSignature(),
     vTamperedMiddleSignature(),
-    vCapabilityEscalation(),
+    vDelegationMissing(),
+    vDelegationNotDelegatable(),
+    vOrthogonalMissingCap(),
     vWrongRootDidBindingMismatch(),
     vRootNotSelfSigned(),
     vChainBrokenAudMismatch(),
@@ -1216,8 +1413,8 @@ function main(): void {
     vWrongSpaceInDelegate(),
   ]
 
-  if (vectors.length !== 14) {
-    fail(`expected 14 vectors, got ${vectors.length}`)
+  if (vectors.length !== 16) {
+    fail(`expected 16 vectors, got ${vectors.length}`)
   }
 
   selfVerify(vectors)
@@ -1227,6 +1424,8 @@ function main(): void {
       'Cross-language UCAN chain verification fixture. Consumed by both the',
       'TS UCAN library (`@haex-space/ucan`) and the Rust verifier',
       '(`walk_prf_chain`, Task 3).',
+      'W4 PR-3 wire form: payload field is `capabilities` (plural), value is',
+      'a CapabilitySet — a sorted array of `{cap, delegatable}` entries.',
       'chain[0] = root token (self-signed for OK vectors).',
       'chain[chain.length - 1] = leaf token.',
       'Each chain[i].signed_token is a complete encoded UCAN JWT.',

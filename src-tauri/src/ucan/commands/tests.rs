@@ -11,7 +11,7 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 use super::{verify_chain_batch_inner, VerifyChainRequest, VerifyChainResult, VerifyOutcome};
-use crate::ucan::capability_set::Cap;
+use crate::ucan::capability_set::{cap_from_str, Cap};
 use crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT;
 
 const MAX_CHAIN_DEPTH_FOR_TESTS: usize = 5;
@@ -68,16 +68,15 @@ fn find_vector(name: &str) -> Vector {
 }
 
 fn required_capability(v: &Vector) -> Cap {
-    // The fixture keeps the `space/*` wire vocabulary for backward-fixture
-    // compatibility (Task 7 regenerates it fully); this local mapping keeps
-    // the runner working under the new orthogonal Cap type in the interim.
-    match v.capability_needed.as_str() {
-        "space/read" => Cap::Read,
-        "space/write" => Cap::Write,
-        "space/invite" => Cap::Invite,
-        "space/admin" => Cap::Admin,
-        other => panic!("unknown capability_needed in vector: {other}"),
-    }
+    // Fixture emits bare cap names since Task 7's regeneration;
+    // `cap_from_str` also tolerates a legacy `"space/"` prefix as
+    // fixture-drift insurance.
+    cap_from_str(&v.capability_needed).unwrap_or_else(|_| {
+        panic!(
+            "unknown capability_needed in vector {}: {}",
+            v.name, v.capability_needed
+        )
+    })
 }
 
 /// Build a batch request from a fixture vector. Uses the last chain
