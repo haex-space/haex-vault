@@ -565,9 +565,7 @@ mod mls_manager_tests {
 
         let b_identity = TestIdentity::new();
         let (b, b_conn) = setup_mls_with_conn(&b_identity);
-        let b_kps = b
-            .generate_key_packages(1, &b_identity.signing_key)
-            .unwrap();
+        let b_kps = b.generate_key_packages(1, &b_identity.signing_key).unwrap();
         let bundle = a
             .add_member(SPACE, &b_kps[0].0, &b_identity.did, &b_kps[0].1)
             .unwrap();
@@ -586,8 +584,7 @@ mod mls_manager_tests {
             .unwrap()
             .unwrap();
 
-        let (commit, sig, _committer, _target) =
-            b.remove_member_unchecked(SPACE, a_leaf).unwrap();
+        let (commit, sig, _committer, _target) = b.remove_member_unchecked(SPACE, a_leaf).unwrap();
 
         let epoch_before = a.current_epoch(SPACE).unwrap();
         let err = a
@@ -625,9 +622,7 @@ mod mls_manager_tests {
         let b_identity = TestIdentity::new();
         let (b, b_conn) = setup_mls_with_conn(&b_identity);
         seed_own_signing_identity(&b_conn, &b_identity);
-        let b_kps = b
-            .generate_key_packages(2, &b_identity.signing_key)
-            .unwrap();
+        let b_kps = b.generate_key_packages(2, &b_identity.signing_key).unwrap();
 
         let bundle_src = a
             .add_member(SPACE_SRC, &b_kps[0].0, &b_identity.did, &b_kps[0].1)
@@ -650,8 +645,7 @@ mod mls_manager_tests {
             .find_member_index_by_did(SPACE_DST, &a_identity.did)
             .unwrap()
             .unwrap();
-        let (commit2, _sig2, _c2, _t2) =
-            b.remove_member_unchecked(SPACE_DST, a_leaf_dst).unwrap();
+        let (commit2, _sig2, _c2, _t2) = b.remove_member_unchecked(SPACE_DST, a_leaf_dst).unwrap();
 
         let presented = PresentedCapability {
             audience_did: b_identity.did.clone(),
