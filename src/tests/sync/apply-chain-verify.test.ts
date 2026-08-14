@@ -215,13 +215,19 @@ describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-r
     expect(result.rejected[0]!.reason).toBe('MissingResult')
   })
 
-  it('picks the highest-capability cached UCAN when multiple exist for a signer', async () => {
+  it('picks the cap-matching cached UCAN with the closest expires_at', async () => {
+    // W4 PR-3 semantic: filter cached UCANs to those whose decomposed
+    // `capability` column holds `space/<needed>`, then prefer the token
+    // closest to expiry (least-privilege intent — burn down the soonest
+    // token first, keep longer-lived ones in reserve). Under the
+    // orthogonal-cap model, holding `admin` no longer implies holding
+    // `write`, so only the write-capable row is eligible here.
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     mockDbWhere.mockResolvedValue([
-      { token: 'read-token', capability: 'space/read', expiresAt: 9999999999 },
-      { token: 'invite-token', capability: 'space/invite', expiresAt: 9999999999 },
-      { token: 'admin-token', capability: 'space/admin', expiresAt: 9999999999 },
-      { token: 'write-token', capability: 'space/write', expiresAt: 9999999999 },
+      { token: 'read-token',        capability: 'space/read',   expiresAt: 9999999999 },
+      { token: 'admin-token',       capability: 'space/admin',  expiresAt: 9999999999 },
+      { token: 'write-token-later', capability: 'space/write',  expiresAt: 2000000000 },
+      { token: 'write-token-soon',  capability: 'space/write',  expiresAt: 1000000000 },
     ])
     mockInvoke.mockResolvedValue([
       { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
@@ -233,10 +239,26 @@ describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-r
       'verify_ucan_chain_batch',
       expect.objectContaining({
         requests: expect.arrayContaining([
-          expect.objectContaining({ token: 'admin-token' }),
+          expect.objectContaining({ token: 'write-token-soon' }),
         ]),
       }),
     )
+  })
+
+  it('rejects with MissingLocalUcan when no cached UCAN holds the needed cap', async () => {
+    // Orthogonal semantic: an admin-only or read-only token no longer
+    // covers a write need. Row must be rejected exactly as if no token
+    // existed at all.
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    mockDbWhere.mockResolvedValue([
+      { token: 'admin-token', capability: 'space/admin', expiresAt: 9999999999 },
+      { token: 'read-token',  capability: 'space/read',  expiresAt: 9999999999 },
+    ])
+
+    const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(result.rejected[0]!.reason).toBe('MissingLocalUcan')
   })
 
   it('preserves input order in the verified array', async () => {

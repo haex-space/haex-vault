@@ -4,6 +4,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
+import { type SpaceCap } from '@haex-space/ucan'
 import { eq, and } from 'drizzle-orm'
 import type { ColumnChange } from '../../tableScanner'
 import { getTableSchemaAsync } from '../../tableScanner'
@@ -15,12 +16,6 @@ import { haexUcanTokens } from '~/database/schemas'
 import { requireDb } from '~/stores/vault'
 
 /**
- * Capability levels understood by the Rust chain-walker
- * (`src-tauri/src/ucan/verify.rs::CapabilityLevel`, `#[serde(rename_all = "snake_case")]`).
- */
-export type CapabilityLevel = 'read' | 'write' | 'invite' | 'admin'
-
-/**
  * A pulled change that failed verification. `reason` is a stable variant
  * name — either
  *
@@ -30,10 +25,10 @@ export type CapabilityLevel = 'read' | 'write' | 'invite' | 'admin'
  *     batch-layer-only `MalformedValueBytes` (base64 decode failure);
  *   - a `UcanVerifyError` variant surfaced by the Rust chain walker
  *     (`Signature`, `Expired`, `WrongSpace`, `ChainTooDeep`, `ChainBroken`,
- *     `CapabilityEscalation`, `RootNotSelfSigned`, `RootBindingMismatch`,
- *     `RootBindingMalformed`, `MalformedToken`, `AudienceMismatch`,
- *     `EmptyExpectedAudience`, `MissingCapability`, `InsufficientCapability`,
- *     `UnknownCapability`);
+ *     `DelegationMissing`, `DelegationNotDelegatable`, `RootNotSelfSigned`,
+ *     `RootBindingMismatch`, `RootBindingMalformed`, `MalformedToken`,
+ *     `AudienceMismatch`, `EmptyExpectedAudience`, `MissingCapability`,
+ *     `InsufficientCapability`, `UnknownCapability`);
  *   - a synthetic reason this TS layer contributes (`Unsigned`,
  *     `MissingLocalUcan`, `MissingResult`).
  */
@@ -52,7 +47,7 @@ interface VerifyChainRequest {
   token: string
   expectedSpaceId: string
   expectedAudience: string
-  capabilityNeeded: CapabilityLevel
+  capabilityNeeded: SpaceCap
   rowId: string
   tableName: string
 }
@@ -87,20 +82,19 @@ const isVerifyChainResult = (v: unknown): v is VerifyChainResult => {
 }
 
 /**
- * Ordinal rank for a stored capability string, used to pick the strongest
- * cached UCAN when a signer has multiple tokens for the same space. The
- * column stores full `space/*` names; unknown values rank 0 so future
- * capabilities do not silently outrank current ones.
+ * Bridge: does the DB row's decomposed `capability` column hold `needed`?
+ *
+ * The `haex_ucan_tokens.capability` column is a hierarchical string
+ * (`space/read`, `space/write`, ...). Task 8b will migrate the column to
+ * a serialized `SpaceCapabilitySet`, at which point this check becomes
+ * `holdsSpaceCap(deserialize(row.capability), needed)`. Until then, the
+ * string-equality bridge is correct — each row is one-cap-per-row.
+ *
+ * TODO(Task 8b): swap for `holdsSpaceCap` from `@haex-space/ucan` once
+ * `capability` is deserialized into a `SpaceCapabilitySet`.
  */
-const capabilityRank = (cap: string): number => {
-  switch (cap) {
-    case 'space/read': return 1
-    case 'space/write': return 2
-    case 'space/invite': return 3
-    case 'space/admin': return 4
-    default: return 0
-  }
-}
+const rowHoldsCap = (rowCapability: string, needed: SpaceCap): boolean =>
+  rowCapability === `space/${needed}`
 
 /**
  * Composite correlation key for a `ColumnChange`. Rust echoes this back
@@ -172,7 +166,7 @@ export const verifyPulledChangesAsync = async (
   changes: ColumnChange[],
   spaceId: string | undefined,
   currentIdentityDid: string,
-  capabilityNeeded: CapabilityLevel = 'write',
+  capabilityNeeded: SpaceCap = 'write',
 ): Promise<{ verified: ColumnChange[]; rejected: RejectedChange[] }> => {
   if (changes.length === 0) return { verified: [], rejected: [] }
 
@@ -222,17 +216,16 @@ export const verifyPulledChangesAsync = async (
           ),
         )
       // Multiple cached UCANs for a signer is legal (e.g. one per capability
-      // level). Pick the highest-capability token so a write-scoped change
-      // isn't rejected because a read-only token happened to be picked first
-      // (SQLite row order is otherwise arbitrary without an ORDER BY).
-      const best = rows.reduce<{ token: string; capability: string } | null>(
-        (acc, r) =>
-          !acc || capabilityRank(r.capability) > capabilityRank(acc.capability)
-            ? r
-            : acc,
-        null,
-      )
-      token = best?.token ?? null
+      // in the pre-Task-8b decomposed schema, or later, distinct sets with
+      // overlap). Pick any token whose capabilities include the one this
+      // pull needs; if several match, prefer the one closest to expiry
+      // (least-privilege intent: burn down the soonest-expiring valid
+      // token first, keep longer-lived ones in reserve).
+      const capable = rows.filter((r) => rowHoldsCap(r.capability, capabilityNeeded))
+      const chosen = capable.length === 0
+        ? null
+        : capable.sort((a, b) => a.expiresAt - b.expiresAt)[0]
+      token = chosen?.token ?? null
       tokenBySigner.set(signerDid, token)
     }
     if (!token) {

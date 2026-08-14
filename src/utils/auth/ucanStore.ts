@@ -3,7 +3,11 @@ import {
   createWebCryptoSigner,
   spaceResource,
   decodeUcan,
-  type Capability,
+  spaceCapabilitySet,
+  isSpaceCapValue,
+  ServerCapabilities,
+  type SpaceCap,
+  type SpaceCapabilitySet,
 } from '@haex-space/ucan'
 import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
 import { fetch } from '@tauri-apps/plugin-http'
@@ -44,7 +48,19 @@ export async function createRootUcanAsync(
     {
       issuer: did,
       audience: did,
-      capabilities: { [spaceResource(spaceId)]: 'space/admin' },
+      // Owner root UCAN grants the full orthogonal capability set. Under
+      // the orthogonal model (post W4 PR-3), holding `admin` does NOT
+      // imply the other caps — the owner must hold each cap explicitly to
+      // sign changes at its level. All entries are `delegatable: true` so
+      // the owner can hand out any subset to invitees.
+      capabilities: {
+        [spaceResource(spaceId)]: spaceCapabilitySet()
+          .read(true)
+          .write(true)
+          .invite(true)
+          .admin(true)
+          .build(),
+      },
       expiration: expiresAtUnixSeconds,
     },
     sign,
@@ -61,23 +77,35 @@ export async function createRootUcanAsync(
  * @param expiresAtUnixSeconds Absolute Unix timestamp in seconds (NOT a duration).
  *   Defaults to `NEVER_EXPIRES_UNIX_SECONDS`.
  */
+/**
+ * Build a single-cap SpaceCapabilitySet with `delegatable: true`. Used by
+ * `delegateUcanAsync` when a caller passes a bare `SpaceCap`. Explicit
+ * sets can still be passed directly.
+ */
+const capsFromSingle = (cap: SpaceCap): SpaceCapabilitySet =>
+  spaceCapabilitySet()[cap](true).build()
+
 export async function delegateUcanAsync(
   issuerDid: string,
   privateKeyBase64: string,
   audienceDid: string,
   spaceId: string,
-  capability: Capability,
+  capabilities: SpaceCap | SpaceCapabilitySet,
   parentUcan: string,
   expiresAtUnixSeconds: number = NEVER_EXPIRES_UNIX_SECONDS,
 ): Promise<string> {
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const sign = createWebCryptoSigner(privateKey)
 
+  const capSet = typeof capabilities === 'string'
+    ? capsFromSingle(capabilities)
+    : capabilities
+
   const token = await createUcan(
     {
       issuer: issuerDid,
       audience: audienceDid,
-      capabilities: { [spaceResource(spaceId)]: capability },
+      capabilities: { [spaceResource(spaceId)]: capSet },
       proofs: [parentUcan],
       expiration: expiresAtUnixSeconds,
     },
@@ -109,7 +137,10 @@ export async function createServerRelayUcanAsync(
     {
       issuer: issuerDid,
       audience: serverDid,
-      capabilities: { [spaceResource(spaceId)]: 'server/relay' },
+      // ServerCapability stays a bare string on the wire (Rust side keeps
+      // the `server/relay` shape); only space:* capabilities became sets
+      // in the W4 PR-3 wire migration.
+      capabilities: { [spaceResource(spaceId)]: ServerCapabilities.RELAY },
       proofs: [parentUcan],
       expiration: expiresAtUnixSeconds,
     },
@@ -190,22 +221,38 @@ export async function persistUcanAsync(
   const decoded = decodeUcan(token)
   const { iss, aud, exp, iat } = decoded.payload
 
-  // Extract capability from the token's capabilities map
-  const caps = decoded.payload.cap as Record<string, string>
-  const capability = Object.values(caps)[0] ?? 'space/admin'
+  // Under the orthogonal-capability wire form, `cap[<resource>]` is a
+  // SpaceCapabilitySet (array of {cap, delegatable}) for space:* resources,
+  // or a `server/relay` string for server:* resources. The current DB
+  // column is decomposed: one row per hierarchical `space/<cap>` string.
+  // Extract every space cap held for THIS space and write one row each.
+  // TODO(Task 8b): swap the whole decomposed layout for a serialized
+  // SpaceCapabilitySet in a single row.
+  const capsMap = decoded.payload.cap
+  const spaceValue = capsMap[spaceResource(spaceId)]
+  const capabilities: string[] = isSpaceCapValue(spaceValue)
+    ? spaceValue.map((e) => `space/${e.cap}`)
+    : typeof spaceValue === 'string'
+      ? [spaceValue]
+      : []
+  if (capabilities.length === 0) capabilities.push('space/admin')
 
-  // Delete existing token for this space, then insert new one
+  const issuedAt = iat ?? Math.floor(Date.now() / 1000)
+
+  // Delete existing tokens for this space, then insert one row per cap.
   await db.delete(haexUcanTokens).where(eq(haexUcanTokens.spaceId, spaceId))
-  await db.insert(haexUcanTokens).values({
-    id: crypto.randomUUID(),
-    spaceId,
-    token,
-    capability,
-    issuerDid: iss,
-    audienceDid: aud,
-    issuedAt: iat ?? Math.floor(Date.now() / 1000),
-    expiresAt: exp,
-  })
+  for (const capability of capabilities) {
+    await db.insert(haexUcanTokens).values({
+      id: crypto.randomUUID(),
+      spaceId,
+      token,
+      capability,
+      issuerDid: iss,
+      audienceDid: aud,
+      issuedAt,
+      expiresAt: exp,
+    })
+  }
 
   cacheUcan(spaceId, token)
 }

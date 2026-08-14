@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { save as showSaveDialog } from '@tauri-apps/plugin-dialog'
 import type { Ref } from 'vue'
+import { holdsSpaceCap } from '@haex-space/ucan'
 import {
   toS3Prefix,
   saveBase64WithDialog,
@@ -68,7 +69,10 @@ export function useFileMutations(deps: FileMutationsDeps) {
       currentPath.value,
       currentSpaceId.value ?? undefined,
     )
-    return cap === 'space/write' || cap === 'space/admin'
+    if (!cap) return false
+    // Orthogonal-capability check (W4 PR-3): admin no longer implies
+    // write, so callers must explicitly hold `write` or `admin`.
+    return holdsSpaceCap(cap, 'write') || holdsSpaceCap(cap, 'admin')
   })
 
   /**
