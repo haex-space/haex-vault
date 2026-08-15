@@ -154,7 +154,7 @@ pub fn cached_hash_chunked(path: &Path, size: u64, mtime_nanos: u128) -> io::Res
 /// Cache-aware BLAKE3 chunked hash over an arbitrary byte source.
 ///
 /// Used by the LocalProvider (file paths) and the Android Content URI scan
-/// (FileUri-backed `std::fs::File` from `tauri_plugin_android_fs`). The cache
+/// (FsUri-backed `std::fs::File` from `tauri_plugin_android_fs`). The cache
 /// key is a caller-chosen string (e.g. absolute path, or `content://` URI)
 /// plus `(size, mtime_nanos)` — the same invariants apply: same key + same
 /// size + same nanos ⇒ unchanged file.

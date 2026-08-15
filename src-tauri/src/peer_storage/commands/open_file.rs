@@ -15,17 +15,17 @@ pub fn open_file_with_system(
 ) -> Result<(), PeerStorageError> {
     #[cfg(target_os = "android")]
     {
-        use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+        use tauri_plugin_android_fs::{AndroidFsExt, FsUri};
 
         let api = app.android_fs();
         let uri = if path.starts_with('{') {
-            FileUri::from_json_str(path).map_err(|e| PeerStorageError::ProtocolError {
+            FsUri::from_json_str(path).map_err(|e| PeerStorageError::ProtocolError {
                 reason: format!("Invalid Content URI: {e:?}"),
             })?
         } else {
-            FileUri::from_path(path)
+            FsUri::from_path(path)
         };
-        api.file_opener()
+        api.opener()
             .open_file(&uri)
             .map_err(|e| PeerStorageError::ProtocolError {
                 reason: format!("Failed to open file: {e:?}"),
@@ -57,7 +57,7 @@ pub async fn open_file_system(app: tauri::AppHandle, path: String) -> Result<(),
 /// public Downloads folder via MediaStore so it becomes visible in the system
 /// file manager. The `sub_path` parameter places the file under a relative
 /// directory inside Downloads (e.g. `HaexVault/My Space`) — MediaStore creates
-/// the directory chain on demand. Returns the FileUri JSON string of the
+/// the directory chain on demand. Returns the FsUri JSON string of the
 /// public file on Android, or the original path string on other platforms.
 pub(super) fn move_to_public_downloads(
     #[allow(unused_variables)] app_handle: &tauri::AppHandle,
@@ -130,7 +130,7 @@ pub(super) fn move_to_public_downloads(
 /// triggers a fresh download.
 ///
 /// On desktop, `local_path` is a filesystem path. On Android, it is a
-/// JSON-encoded `FileUri` pointing at a MediaStore entry; we call
+/// JSON-encoded `FsUri` pointing at a MediaStore entry; we call
 /// `android_fs.get_len` which returns an error if the user has deleted
 /// the file via the system file manager.
 pub(super) fn verify_local_target_intact(
@@ -141,8 +141,8 @@ pub(super) fn verify_local_target_intact(
     #[cfg(target_os = "android")]
     {
         if local_path.starts_with('{') {
-            use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
-            let Ok(uri) = FileUri::from_json_str(local_path) else {
+            use tauri_plugin_android_fs::{AndroidFsExt, FsUri};
+            let Ok(uri) = FsUri::from_json_str(local_path) else {
                 return false;
             };
             return app_handle

@@ -7,7 +7,7 @@
 //! name are tracked independently.
 //!
 //! Local-only (`_no_sync`): `local_path` is a filesystem path on desktop
-//! and a JSON-encoded Android `FileUri` on Android, both inherently
+//! and a JSON-encoded Android `FsUri` on Android, both inherently
 //! per-device.
 
 use crate::database::{core, DbConnection};
