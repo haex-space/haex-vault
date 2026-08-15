@@ -226,7 +226,10 @@ export const verifyPulledChangesAsync = async (
       // the cap this pull needs; if several match, prefer the one closest
       // to expiry (least-privilege intent: burn down the soonest-expiring
       // valid token first, keep longer-lived ones in reserve).
-      const capable = rows.filter((r) => rowHoldsCap(r.capabilities, capabilityNeeded))
+      const now = Math.floor(Date.now() / 1000)
+      const capable = rows.filter((r) =>
+        r.expiresAt > now && rowHoldsCap(r.capabilities, capabilityNeeded),
+      )
       const chosen = capable.length === 0
         ? null
         : capable.sort((a, b) => a.expiresAt - b.expiresAt)[0]

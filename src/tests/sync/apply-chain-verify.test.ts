@@ -235,8 +235,8 @@ describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-r
     mockDbWhere.mockResolvedValue([
       { token: 'read-token',        capabilities: capsJson('read'),  expiresAt: 9999999999 },
       { token: 'admin-token',       capabilities: capsJson('admin'), expiresAt: 9999999999 },
-      { token: 'write-token-later', capabilities: capsJson('write'), expiresAt: 2000000000 },
-      { token: 'write-token-soon',  capabilities: capsJson('write'), expiresAt: 1000000000 },
+      { token: 'write-token-later', capabilities: capsJson('write'), expiresAt: 9999999998 },
+      { token: 'write-token-soon',  capabilities: capsJson('write'), expiresAt: 9999999997 },
     ])
     mockInvoke.mockResolvedValue([
       { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
@@ -249,6 +249,29 @@ describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-r
       expect.objectContaining({
         requests: expect.arrayContaining([
           expect.objectContaining({ token: 'write-token-soon' }),
+        ]),
+      }),
+    )
+  })
+
+  it('ignores an expired cap-matching cached UCAN', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    const now = Math.floor(Date.now() / 1000)
+    mockDbWhere.mockResolvedValue([
+      { token: 'expired-write-token', capabilities: capsJson('write'), expiresAt: now - 1 },
+      { token: 'valid-write-token', capabilities: capsJson('write'), expiresAt: now + 60 },
+    ])
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+    ])
+
+    await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'verify_ucan_chain_batch',
+      expect.objectContaining({
+        requests: expect.arrayContaining([
+          expect.objectContaining({ token: 'valid-write-token' }),
         ]),
       }),
     )

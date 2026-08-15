@@ -1321,7 +1321,7 @@ function selfVerify(vectors: Vector[]): void {
       } else if (err === 'ChainTooDeep') {
         if (v.chain.length <= 5) fail(`${v.name}: chain length ${v.chain.length} not > 5`)
       } else if (err === 'DelegationMissing' || err === 'DelegationNotDelegatable') {
-        // Walk pairwise from the leaf up: find the first hop where the
+        // Walk pairwise from root to leaf: find the first hop where the
         // parent cannot delegate the child's set. That hop's failure
         // reason must match the declared error kind.
         const resource = spaceResource(v.space_id)

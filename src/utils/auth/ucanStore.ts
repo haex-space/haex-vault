@@ -71,12 +71,20 @@ export async function createRootUcanAsync(
 }
 
 /**
- * Build a single-cap SpaceCapabilitySet with `delegatable: true`. Used by
- * `delegateUcanAsync` when a caller passes a bare `SpaceCap`. Explicit
- * sets can still be passed directly.
+ * Build the set for a single requested member capability. Read is the
+ * explicit baseline for a peer session (Announce), and is terminal just like
+ * Write; Invite/Admin remain delegatable. Explicit sets can still be passed
+ * directly.
  */
-const capsFromSingle = (cap: SpaceCap): SpaceCapabilitySet =>
-  spaceCapabilitySet()[cap](true).build()
+const capsFromSingle = (cap: SpaceCap): SpaceCapabilitySet => {
+  const builder = spaceCapabilitySet().read(false)
+  switch (cap) {
+    case 'read': return builder.build()
+    case 'write': return builder.write(false).build()
+    case 'invite': return builder.invite(true).build()
+    case 'admin': return builder.admin(true).build()
+  }
+}
 
 /**
  * Create a delegated UCAN with the parent as proof.

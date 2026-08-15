@@ -295,7 +295,7 @@ pub fn resolve_presented_committer_capability(
 }
 
 /// Returns `true` if `(space_id, audience_did)` holds **any** UCAN whose
-/// [`CapabilitySet`] contains [`Cap::Write`] or [`Cap::Admin`] — a member
+/// [`CapabilitySet`] contains [`Cap::Write`] — a member
 /// can hold several independent, orthogonal tokens at once (e.g. one row
 /// carrying `Read` + another carrying `Write` from the same claim, or a
 /// single row carrying multiple caps in its set), so this checks every held
@@ -325,7 +325,7 @@ pub fn has_write_capability(db: &DbConnection, space_id: &str, audience_did: &st
                 row.first()
                     .and_then(|v| v.as_str())
                     .and_then(parse_capabilities_column)
-                    .map(|set| set.can(Cap::Write) || set.can(Cap::Admin))
+                    .map(|set| set.can(Cap::Write))
                     .unwrap_or(false)
             })
         })
@@ -404,6 +404,12 @@ mod multi_capability_lookup_tests {
     #[test]
     fn has_write_capability_false_when_only_read_is_held() {
         let db = seed_db(&[("read", Cap::Read, 1000)]);
+        assert!(!has_write_capability(&db, SPACE_ID, AUDIENCE_DID));
+    }
+
+    #[test]
+    fn has_write_capability_false_when_only_admin_is_held() {
+        let db = seed_db(&[("admin", Cap::Admin, 1000)]);
         assert!(!has_write_capability(&db, SPACE_ID, AUDIENCE_DID));
     }
 

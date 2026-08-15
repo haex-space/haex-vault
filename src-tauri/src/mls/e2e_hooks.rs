@@ -88,7 +88,7 @@ pub(crate) fn classify_rejection(err: &str) -> TestCommitGateOutcome {
         TestCommitGateOutcome::RejectedCommitBind { reason }
     } else if err.contains("requires a committer capability proof")
         || err.contains("does not match the commit's committer")
-        || err.contains("membership removal requires Invite-or-higher")
+        || err.contains("membership removal requires Invite or Admin")
         || err.contains("has no resolvable committer DID")
     {
         TestCommitGateOutcome::RejectedCommitterCapability { reason }

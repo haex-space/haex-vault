@@ -27,32 +27,32 @@ const MAX_RESPONSE_META_SIZE: usize = 10 * 1024 * 1024;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Request {
-    /// List directory contents
+    /// List directory contents (requires an exact `space/read` capability).
     List { path: String, ucan_token: String },
-    /// Get file/directory metadata
+    /// Get file/directory metadata (requires an exact `space/read` capability).
     Stat { path: String, ucan_token: String },
-    /// Read a file (with optional byte range)
+    /// Read a file (with optional byte range; requires exact `space/read`).
     Read {
         path: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         range: Option<[u64; 2]>,
         ucan_token: String,
     },
-    /// Recursive file manifest for sync
+    /// Recursive file manifest for sync (requires exact `space/read`).
     Manifest { path: String, ucan_token: String },
-    /// Write a file. File data follows on the stream after this header.
+    /// Write a file. Requires exact `space/write`; file data follows the header.
     Write {
         path: String,
         size: u64,
         ucan_token: String,
     },
-    /// Delete a file
+    /// Delete a file (requires exact `space/write`).
     Delete {
         path: String,
         to_trash: bool,
         ucan_token: String,
     },
-    /// Create a directory (including parents)
+    /// Create a directory (including parents; requires exact `space/write`).
     CreateDirectory { path: String, ucan_token: String },
 }
 

@@ -38,11 +38,16 @@ pub async fn local_delivery_create_invite(
             // Frontend still emits `"space/<cap>"` (Task 8 removes the
             // prefix); `cap_from_str` strips the bridge on the fly.
             let cap = crate::ucan::cap_from_str(&capability).map_err(|e| e.to_string())?;
-            // D9: contact invites for admin-tier caps stay delegatable so
-            // the invitee can further delegate their own peer set;
-            // Write/Read invites are terminal grants. Encoded in
-            // `Cap::is_delegatable_by_default`.
-            let capability_set = CapabilitySet::singleton(cap, cap.is_delegatable_by_default());
+            // Every session needs Read to Announce and establish its peer
+            // storage connection. It is an explicit companion grant, not an
+            // implication of the requested capability. D9 keeps Read/Write
+            // terminal while Invite/Admin remain delegatable.
+            let capability_set = match cap {
+                Cap::Read => CapabilitySet::builder().read(false).build(),
+                Cap::Write => CapabilitySet::builder().read(false).write(false).build(),
+                Cap::Invite => CapabilitySet::builder().read(false).invite(true).build(),
+                Cap::Admin => CapabilitySet::builder().read(false).admin(true).build(),
+            };
             let ucan_token = super::super::ucan::create_delegated_ucan(
                 &admin.did,
                 &admin.private_key_base64,
@@ -148,7 +153,7 @@ pub(crate) struct PersistClaimedUcan<'a> {
 }
 
 /// Persist the UCAN rows that represent the delegation `inviter → claimant`
-/// for a freshly-claimed local invite — one row per granted capability.
+/// for a freshly-claimed local invite — one lookup row per granted capability.
 /// `issuer` is the inviter because the ucan_token is signed by them; storing
 /// the claimant there (as an earlier revision did) misrepresents the
 /// delegation chain.
@@ -178,19 +183,27 @@ pub(crate) fn persist_claimed_ucan(
     let mut new_ids = Vec::with_capacity(p.granted.len());
     for (capability, token) in p.granted {
         let ucan_id = uuid::Uuid::new_v4().to_string();
-        // Task 8b: `capabilities` is a JSON [`CapabilitySet`]. Each row is
-        // one delegation; the leader mints one UCAN per capability so the
-        // persisted set is a singleton mirroring the token's own set (D9:
-        // Admin/Invite delegatable, Write/Read terminal — encoded in
-        // `Cap::is_delegatable_by_default` so the stored `delegatable`
-        // matches what's carried inside the UCAN payload).
-        let cap = crate::ucan::cap_from_str(capability)
+        let claimed_cap = crate::ucan::cap_from_str(capability)
             .map_err(|e| format!("Unrecognized capability {capability}: {e}"))?;
-        let capability_set_json = serde_json::to_string(&CapabilitySet::singleton(
-            cap,
-            cap.is_delegatable_by_default(),
-        ))
-        .map_err(|e| format!("Failed to serialize CapabilitySet: {e}"))?;
+        // Index the exact set carried by this token. New multi-capability
+        // claims reuse a combined token for every lookup row, while rows
+        // from an earlier singleton-token claim must remain accurately
+        // described as well.
+        let parsed = crate::ucan::parse_ucan(token)
+            .map_err(|e| format!("Failed to parse claimed UCAN: {e}"))?;
+        let token_set = parsed.capabilities.get(p.space_id).ok_or_else(|| {
+            format!(
+                "Claimed UCAN contains no capability for space {}",
+                p.space_id
+            )
+        })?;
+        if !token_set.can(claimed_cap) {
+            return Err(format!(
+                "Claimed UCAN does not contain its advertised capability {capability}"
+            ));
+        }
+        let capability_set_json = serde_json::to_string(token_set)
+            .map_err(|e| format!("Failed to serialize CapabilitySet: {e}"))?;
         crate::database::core::execute_with_crdt(
             "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"

@@ -87,8 +87,8 @@ pub(in crate::peer_storage) async fn handle_stream(
         return Ok(());
     }
 
-    // ── Layer 1.5: narrow allowed_spaces to the intersection with the
-    // UCAN's claimed spaces. The connection-accept gate is intentionally
+    // ── Layer 1.5: narrow allowed_spaces to readable, fully validated UCAN
+    // spaces. The connection-accept gate is intentionally
     // coarse ("known peer = accepted"), so this is the first check that
     // ties the request to the peer's UCAN presentation:
     //
@@ -99,18 +99,33 @@ pub(in crate::peer_storage) async fn handle_stream(
     //   allowed = {A, B} and a UCAN for {A} from leaking share names in
     //   B via the root listing — handle_list would otherwise return
     //   everything in allowed_spaces.
-    let effective_spaces: HashSet<String> = parsed_ucan
-        .capabilities
-        .keys()
-        .filter(|space_id| allowed_spaces.contains(*space_id))
-        .cloned()
-        .collect();
+    let mut effective_spaces = HashSet::new();
+    for (space_id, capabilities) in &parsed_ucan.capabilities {
+        if !allowed_spaces.contains(space_id) || !capabilities.can(crate::ucan::Cap::Read) {
+            continue;
+        }
+
+        // A root listing has no target-space path and therefore does not
+        // reach the Layer-2 check below. Validate each readable candidate
+        // here before it can contribute a share root to that listing.
+        if crate::ucan::validate_token(
+            ucan_token_str,
+            space_id,
+            verified_remote_did,
+            crate::ucan::Cap::Read,
+            max_ucan_chain_depth,
+        )
+        .is_ok()
+        {
+            effective_spaces.insert(space_id.clone());
+        }
+    }
     if effective_spaces.is_empty() {
         eprintln!(
-            "[PeerStorage] Access denied: peer holds a UCAN for spaces it is not registered in"
+            "[PeerStorage] Access denied: peer holds no readable, valid UCAN for a registered space"
         );
         let resp = Response::Error {
-            message: "Access denied: peer not registered in any of the UCAN's spaces".to_string(),
+            message: "Access denied: peer has no readable UCAN for a registered space".to_string(),
         };
         send_response_and_finish(&mut send, &resp).await.ok();
         return Ok(());

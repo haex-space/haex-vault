@@ -165,7 +165,10 @@ pub async fn handle_claim_invite(
                         }
                     }
                 };
-                let mut builder = CapabilitySet::builder();
+                // Read is the explicit baseline required to Announce and
+                // establish a peer session. It does not derive from another
+                // capability, so include it on every issued member token.
+                let mut builder = CapabilitySet::builder().read(false);
                 for capability in capabilities {
                     // Frontend + invite-token wire still emits `"space/<cap>"`
                     // strings (Task 8 removes the prefix); `cap_from_str`
