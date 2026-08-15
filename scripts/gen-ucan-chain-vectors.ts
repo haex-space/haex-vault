@@ -18,10 +18,9 @@
  *   `cap: { "space:<id>": "space/<name>" }`         (singular, hierarchical)
  * to
  *   `capabilities: { "space:<id>": [{cap, delegatable}, …] }`  (plural, orthogonal).
- * `CapabilitySet` and `CapEntry` are inlined here rather than imported from
- * `@haex-space/ucan` because the installed library (0.1.9) still emits the
- * legacy `Capabilities` type; this generator is the source-of-truth for
- * the new wire form until the library catches up.
+ * `SpaceCap`, `CapEntry`, and `SpaceCapabilitySet` come from
+ * `@haex-space/ucan` (0.2.0+). Aliased locally for shorter names in the
+ * generator body.
  */
 import {
   createHash,
@@ -41,7 +40,10 @@ import {
   base64urlEncode,
   publicKeyToDid,
   spaceResource,
+  type CapEntry,
   type EncodedUcan,
+  type SpaceCap as Cap,
+  type SpaceCapabilitySet as CapabilitySet,
 } from '@haex-space/ucan'
 
 // ---------------------------------------------------------------------------
@@ -173,19 +175,13 @@ function assertSpaceIdAgainstFixture(): void {
 // ---------------------------------------------------------------------------
 // Orthogonal capability set (W4 PR-3 wire form)
 //
-// Mirror of `src-tauri/src/ucan/capability_set.rs::{Cap, CapEntry, CapabilitySet}`.
 // Encoded on the wire as a JSON array of `{cap, delegatable}` entries, one
 // per held capability, sorted by cap discriminant (read < write < invite
-// < admin) with no duplicates.
+// < admin) with no duplicates. Mirrors
+// `src-tauri/src/ucan/capability_set.rs::{Cap, CapEntry, CapabilitySet}`.
+// Types come from `@haex-space/ucan` (aliased at the import above).
 // ---------------------------------------------------------------------------
-type Cap = 'read' | 'write' | 'invite' | 'admin'
 const CAP_ORDER: Record<Cap, number> = { read: 1, write: 2, invite: 3, admin: 4 }
-
-interface CapEntry {
-  cap: Cap
-  delegatable: boolean
-}
-type CapabilitySet = CapEntry[]
 
 /** Canonicalise a `CapEntry[]` to the wire form (sorted, no duplicates). */
 function capSet(entries: CapEntry[]): CapabilitySet {
