@@ -1242,3 +1242,127 @@ fn validate_token_rejects_write_only_leaf_when_read_needed() {
         "expected InsufficientCapability {{ required: Read }}, got {err:?}",
     );
 }
+
+// ---------------------------------------------------------------------------
+// W4 PR-3 Task 10 — attack matrix A4/A5/A6.
+//
+// These pin the remaining orthogonal-model corners not covered by Task 3:
+//  A4 — only Admin authorizes root-self-termination; a self-signed non-admin
+//       leaf is not a valid root.
+//  A5 — a self-signed root that carries Admin plus extra delegatable caps is
+//       accepted (the "extra caps beyond Admin" case).
+//  A6 — the CapabilitySet serde form rejects duplicate cap entries, and
+//       parse_ucan surfaces that as MalformedToken.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn walk_chain_rejects_root_without_admin_cap() {
+    // A self-signed leaf without Admin must not terminate the walk as a root.
+    // Under orthogonal semantics, only Admin authorizes root-self-termination.
+    // With Write instead of Admin, `is_self_signed_admin_root` is false, the
+    // leaf has no proofs to walk into, so the walker returns
+    // `RootNotSelfSigned`.
+    let signing_key = random_signing_key();
+    let did = did_from_verifying_key(&signing_key.verifying_key());
+    let space_id = deterministic_space_id_for(&signing_key);
+    let now = unix_secs_from(SystemTime::now());
+
+    let payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": did,
+        "aud": did,
+        "exp": now + 3600,
+        "iat": now,
+        "nnc": "no-admin-root",
+        "capabilities": {
+            format!("space:{space_id}"): [
+                { "cap": "write", "delegatable": true },
+            ]
+        },
+        "prf": []
+    });
+    let token = sign_ucan_payload(&signing_key, &payload);
+
+    // Ask for Cap::Write so the capability floor in `validate_token` is
+    // satisfied and the walker is actually reached.
+    let err = validate_token(&token, &space_id, &did, Cap::Write, 5)
+        .expect_err("self-signed non-admin leaf must not be accepted as root");
+    assert!(
+        matches!(err, UcanVerifyError::RootNotSelfSigned),
+        "expected RootNotSelfSigned, got {err:?}",
+    );
+}
+
+#[test]
+fn validate_token_accepts_root_with_admin_plus_extra_caps() {
+    // A self-signed root that carries Admin alongside Read + Write (all
+    // delegatable) must be accepted. This fences the orthogonal root check
+    // against a bug where "root has caps beyond Admin" is rejected.
+    let signing_key = random_signing_key();
+    let did = did_from_verifying_key(&signing_key.verifying_key());
+    let space_id = deterministic_space_id_for(&signing_key);
+    let now = unix_secs_from(SystemTime::now());
+
+    let payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": did,
+        "aud": did,
+        "exp": now + 3600,
+        "iat": now,
+        "nnc": "admin-plus-extras",
+        "capabilities": {
+            format!("space:{space_id}"): [
+                { "cap": "read",  "delegatable": true },
+                { "cap": "write", "delegatable": true },
+                { "cap": "admin", "delegatable": true },
+            ]
+        },
+        "prf": []
+    });
+    let token = sign_ucan_payload(&signing_key, &payload);
+
+    let validated = validate_token(&token, &space_id, &did, Cap::Read, 5)
+        .expect("root with Admin plus extra caps must be accepted");
+
+    let set = validated
+        .capabilities
+        .get(&space_id)
+        .expect("space entry present on validated root");
+    assert!(set.can(Cap::Admin), "Admin cap must survive validation");
+    assert!(set.can(Cap::Write), "Write cap must survive validation");
+    assert!(set.can(Cap::Read), "Read cap must survive validation");
+}
+
+#[test]
+fn parse_ucan_rejects_duplicate_cap_in_payload() {
+    // The CapabilitySet serde deserializer rejects duplicate `cap` entries via
+    // `from_entries`. parse_ucan wraps that failure as MalformedToken so a
+    // forged token cannot smuggle a per-cap conflict past the parser.
+    let signing_key = random_signing_key();
+    let did = did_from_verifying_key(&signing_key.verifying_key());
+    let space_id = deterministic_space_id_for(&signing_key);
+    let now = unix_secs_from(SystemTime::now());
+
+    let payload = serde_json::json!({
+        "ucv": "1.0",
+        "iss": did,
+        "aud": did,
+        "exp": now + 3600,
+        "iat": now,
+        "nnc": "dup-cap",
+        "capabilities": {
+            format!("space:{space_id}"): [
+                { "cap": "write", "delegatable": true },
+                { "cap": "write", "delegatable": false }, // duplicate — rejected
+            ]
+        },
+        "prf": []
+    });
+    let token = sign_ucan_payload(&signing_key, &payload);
+
+    let err = parse_ucan(&token).expect_err("duplicate cap entry must be rejected");
+    assert!(
+        matches!(err, UcanVerifyError::MalformedToken(_)),
+        "expected MalformedToken, got {err:?}",
+    );
+}
