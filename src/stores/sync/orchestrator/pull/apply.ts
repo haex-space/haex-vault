@@ -25,10 +25,10 @@ import { requireDb } from '~/stores/vault'
  *     batch-layer-only `MalformedValueBytes` (base64 decode failure);
  *   - a `UcanVerifyError` variant surfaced by the Rust chain walker
  *     (`Signature`, `Expired`, `WrongSpace`, `ChainTooDeep`, `ChainBroken`,
- *     `DelegationMissing`, `DelegationNotDelegatable`, `RootNotSelfSigned`,
- *     `RootBindingMismatch`, `RootBindingMalformed`, `MalformedToken`,
- *     `AudienceMismatch`, `EmptyExpectedAudience`, `MissingCapability`,
- *     `InsufficientCapability`, `UnknownCapability`);
+ *     `DelegationMissing`, `DelegationNotDelegatable`, `RowCapAttenuation`,
+ *     `RootNotSelfSigned`, `RootBindingMismatch`, `RootBindingMalformed`,
+ *     `MalformedToken`, `AudienceMismatch`, `EmptyExpectedAudience`,
+ *     `MissingCapability`, `InsufficientCapability`, `UnknownCapability`);
  *   - a synthetic reason this TS layer contributes (`Unsigned`,
  *     `MissingLocalUcan`, `MissingResult`).
  */

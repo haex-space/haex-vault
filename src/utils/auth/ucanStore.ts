@@ -71,13 +71,6 @@ export async function createRootUcanAsync(
 }
 
 /**
- * Create a delegated UCAN with the parent as proof.
- * Used when inviting members to a space.
- *
- * @param expiresAtUnixSeconds Absolute Unix timestamp in seconds (NOT a duration).
- *   Defaults to `NEVER_EXPIRES_UNIX_SECONDS`.
- */
-/**
  * Build a single-cap SpaceCapabilitySet with `delegatable: true`. Used by
  * `delegateUcanAsync` when a caller passes a bare `SpaceCap`. Explicit
  * sets can still be passed directly.
@@ -85,6 +78,13 @@ export async function createRootUcanAsync(
 const capsFromSingle = (cap: SpaceCap): SpaceCapabilitySet =>
   spaceCapabilitySet()[cap](true).build()
 
+/**
+ * Create a delegated UCAN with the parent as proof.
+ * Used when inviting members to a space.
+ *
+ * @param expiresAtUnixSeconds Absolute Unix timestamp in seconds (NOT a duration).
+ *   Defaults to `NEVER_EXPIRES_UNIX_SECONDS`.
+ */
 export async function delegateUcanAsync(
   issuerDid: string,
   privateKeyBase64: string,

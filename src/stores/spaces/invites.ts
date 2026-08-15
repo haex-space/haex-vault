@@ -28,8 +28,10 @@ const log = createLogger('SPACES:INVITES')
  * default cap for a bad input, and silently downgrading would issue a
  * signed delegation UCAN carrying a cap the caller never asked for.
  *
- * TODO(Task 9): once the UI drops the hierarchical string entirely and
- * passes `SpaceCap` end-to-end, this helper can go.
+ * TODO: `useSpaceInviteCreation.ts` and the invite-creation UI still hand
+ * capabilities in as `string` (see `InviteCreationPayload.capabilities:
+ * string[]`). Once those callers narrow to `SpaceCap` / `SpaceCap[]`
+ * end-to-end, this helper can go — filed as a follow-up in the W4 plan.
  */
 const capabilityToSpaceCap = (raw: string): SpaceCap => {
   const tail = raw.startsWith('space/') ? raw.slice('space/'.length) : raw
