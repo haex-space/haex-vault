@@ -10,6 +10,7 @@ fn connected_peer_carries_validated_ucan() {
         issuer: "did:key:zIssuer".into(),
         audience: "did:key:zPeer".into(),
         capabilities,
+        row_capabilities: HashMap::new(),
         expires_at: 9999999999,
         root_did: "did:key:zRoot".into(),
     };

@@ -280,11 +280,38 @@ pub(crate) async fn handle_delivery_request(
             space_id,
             message,
             message_type,
+            committer_ucan,
+            committer_commit_bind_sig,
         } => {
             let did = verified_did.to_string();
+            // Plan §5.8 wire fields: forwarded straight to the buffer.
+            // The receive-side gate (`mls::authorization`) checks them at
+            // decrypt time; the leader here is just a relay. `committer_ucan`
+            // is a UCAN JWT string on the wire (its dot-separated segments
+            // are already base64url — no outer base64 wrap), so it passes
+            // through as `&str`; only `committer_commit_bind_sig` is a raw
+            // ed25519 signature carried as base64 and needs a decode.
+            let sig_bytes: Option<Vec<u8>> =
+                match committer_commit_bind_sig.as_deref().map(base64_decode) {
+                    Some(Ok(b)) => Some(b),
+                    Some(Err(e)) => {
+                        return Response::Error {
+                            message: format!("Invalid base64 in committer_commit_bind_sig: {e}"),
+                        };
+                    }
+                    None => None,
+                };
             match base64_decode(&message) {
                 Ok(blob) => {
-                    match buffer::store_message(&state.db, &space_id, &did, &message_type, &blob) {
+                    match buffer::store_message(
+                        &state.db,
+                        &space_id,
+                        &did,
+                        &message_type,
+                        &blob,
+                        committer_ucan.as_deref(),
+                        sig_bytes.as_deref(),
+                    ) {
                         Ok(id) => {
                             // Track pending ACKs for commits
                             if message_type == "commit" {
@@ -321,15 +348,20 @@ pub(crate) async fn handle_delivery_request(
                 Ok(msgs) => {
                     let entries: Vec<MlsMessageEntry> = msgs
                         .into_iter()
-                        .map(
-                            |(id, sender_did, msg_type, blob, created_at)| MlsMessageEntry {
-                                id,
-                                sender_did,
-                                message_type: msg_type,
-                                message: base64_encode(&blob),
-                                created_at,
-                            },
-                        )
+                        .map(|m| MlsMessageEntry {
+                            id: m.id,
+                            sender_did: m.sender_did,
+                            message_type: m.message_type,
+                            message: base64_encode(&m.message_blob),
+                            // UCAN is a JWT string in both the DB TEXT column
+                            // and on the wire — no byte re-encoding needed.
+                            committer_ucan: m.committer_ucan,
+                            committer_commit_bind_sig: m
+                                .committer_commit_bind_sig
+                                .as_deref()
+                                .map(base64_encode),
+                            created_at: m.created_at,
+                        })
                         .collect();
                     Response::Messages { messages: entries }
                 }
@@ -738,10 +770,15 @@ pub(crate) async fn handle_delivery_request(
             // at the old epoch permanently and every subsequent RequestRejoin
             // hands out a GroupInfo for the stale epoch, causing the peer to
             // loop: rejoin → new epoch-N message stored → can't process → rejoin…
+            // External commits are self-remove/self-add rejoins per Phase 3
+            // (`self_removal` derived from the update-path leaf key), always
+            // exempt from the committer-capability gate — no proof to carry.
             if let Err(e) = crate::mls::blocking::process_message(
                 state.db.0.clone(),
                 space_id.clone(),
                 commit_blob.clone(),
+                None,
+                None,
             )
             .await
             {
@@ -753,8 +790,20 @@ pub(crate) async fn handle_delivery_request(
                 // be for a newer epoch the leader hasn't reached yet.
             }
 
-            // Store the external commit as a regular MLS message
-            match buffer::store_message(&state.db, &space_id, &peer_did, "commit", &commit_blob) {
+            // Store the external commit as a regular MLS message.
+            // External commits are self-remove/self-add rejoins per Phase 3
+            // (`self_removal` derived from the update-path leaf key); the
+            // receive-side capability gate always exempts them, so no
+            // committer UCAN or bind-sig is carried here.
+            match buffer::store_message(
+                &state.db,
+                &space_id,
+                &peer_did,
+                "commit",
+                &commit_blob,
+                None,
+                None,
+            ) {
                 Ok(msg_id) => {
                     // Track pending ACKs from all space members
                     let expected_dids =

@@ -148,6 +148,7 @@ pub(crate) fn ucan_verify_error_variant_name(e: &UcanVerifyError) -> &'static st
         UcanVerifyError::ChainTooDeep(_) => "ChainTooDeep",
         UcanVerifyError::ChainBroken => "ChainBroken",
         UcanVerifyError::CapabilityEscalation => "CapabilityEscalation",
+        UcanVerifyError::RowCapAttenuation { .. } => "RowCapAttenuation",
         UcanVerifyError::RootNotSelfSigned => "RootNotSelfSigned",
         UcanVerifyError::RootBindingMismatch => "RootBindingMismatch",
         UcanVerifyError::RootBindingMalformed => "RootBindingMalformed",

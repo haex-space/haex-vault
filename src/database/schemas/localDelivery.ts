@@ -17,6 +17,16 @@ export const haexLocalDeliveryMessages = sqliteTable(
     senderDid: text(tableNames.haex.local_delivery_messages.columns.senderDid).notNull(),
     messageType: text(tableNames.haex.local_delivery_messages.columns.messageType).notNull(),
     messageBlob: blob(tableNames.haex.local_delivery_messages.columns.messageBlob, { mode: 'buffer' }).notNull(),
+    // Phase-3 receive-side capability plumbing (plan §5.8).
+    // Present iff the message is a membership-changing MLS commit whose
+    // committer holds Invite-or-higher. Receivers verify the UCAN chain,
+    // the audience_did against the MLS credential, and the bind-sig against
+    // sha256("haex-mls-commit-bind-v1" || sha256(message_blob)).
+    // Absent otherwise (application messages, key rotations, self-leaves,
+    // leader-rekey-after-self-leave where all removed targets are already
+    // gone from haex_space_members). See mls/authorization.rs.
+    committerUcan: text(tableNames.haex.local_delivery_messages.columns.committerUcan),
+    committerCommitBindSig: blob(tableNames.haex.local_delivery_messages.columns.committerCommitBindSig, { mode: 'buffer' }),
     createdAt: text(tableNames.haex.local_delivery_messages.columns.createdAt).default(sql`(CURRENT_TIMESTAMP)`),
   },
   (table) => [

@@ -11,9 +11,10 @@ edition = "2021"
 default = []
 # Enables test-only Tauri commands used by haex-e2e-tests companion specs
 # to construct multi-peer adversarial scenarios (forged shared-space delete
-# signals, cross-space suppression attacks) that a legit peer cannot emit
-# through the normal UI/sync path. NEVER enable in binaries shipped to end
-# users — the commands bypass wire-side authorization by design.
+# signals, cross-space suppression attacks, MLS committer-capability attack
+# commits — mls::e2e_hooks) that a legit peer cannot emit through the normal
+# UI/sync path. NEVER enable in binaries shipped to end users — the commands
+# bypass wire-side authorization by design.
 e2e-hooks = []
 # Embeds a W3C WebDriver automation server (tauri-plugin-webdriver) for
 # macOS E2E builds only. tauri-driver has no WKWebView support, so macOS

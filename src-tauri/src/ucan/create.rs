@@ -3,6 +3,7 @@
 //! Produces tokens compatible with the TypeScript `@haex-space/ucan` library:
 //! `base64url(header).base64url(payload).base64url(ed25519_signature)`
 
+use crate::ucan::row_capability::RowCapability;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::{Signer, SigningKey};
 use serde::Serialize;
@@ -28,12 +29,18 @@ const HEADER: UcanHeader = UcanHeader {
 };
 
 /// UCAN payload matching the TypeScript `UcanPayload` interface.
+///
+/// `row_cap` is skipped when empty so tokens without row-level capabilities
+/// remain byte-identical to pre-C.5 tokens on the wire — a puller that does
+/// not consume the field sees the exact same JSON it saw before.
 #[derive(Serialize)]
 struct UcanPayload {
     ucv: &'static str,
     iss: String,
     aud: String,
     cap: HashMap<String, String>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    row_cap: HashMap<String, Vec<RowCapability>>,
     exp: u64,
     iat: u64,
     prf: Vec<String>,
@@ -71,12 +78,24 @@ pub enum UcanCreateError {
 ///
 /// The token format is `base64url(header).base64url(payload).base64url(signature)`
 /// and is byte-compatible with tokens produced by `@haex-space/ucan` in TypeScript.
+///
+/// `row_capabilities` is the optional C.5 envelope: a `space_id →
+/// Vec<RowCapability>` map that lands in the payload's `row_cap` claim. Pass
+/// `None` (or an empty map) for tokens that only grant space-level
+/// capabilities — the `row_cap` key is omitted from the payload in that case
+/// so pre-C.5 puller tokens remain byte-identical on the wire.
+///
+/// Keys in `row_capabilities` are **bare** `space_id` strings (no `space:`
+/// prefix). This function prefixes them at emit time, symmetric to how
+/// `parse_ucan` strips the prefix on ingest.
+#[allow(clippy::too_many_arguments)]
 pub fn create_delegated_ucan(
     issuer_did: &str,
     issuer_private_key_base64: &str,
     audience_did: &str,
     space_id: &str,
     capability: &str,
+    row_capabilities: Option<HashMap<String, Vec<RowCapability>>>,
     parent_ucan: Option<&str>,
     expires_in_seconds: u64,
 ) -> Result<String, UcanCreateError> {
@@ -88,6 +107,14 @@ pub fn create_delegated_ucan(
     let mut cap = HashMap::new();
     cap.insert(format!("space:{}", space_id), capability.to_string());
 
+    let row_cap = row_capabilities
+        .map(|map| {
+            map.into_iter()
+                .map(|(id, caps)| (format!("space:{}", id), caps))
+                .collect::<HashMap<_, _>>()
+        })
+        .unwrap_or_default();
+
     let prf = match parent_ucan {
         Some(token) => vec![token.to_string()],
         None => vec![],
@@ -98,6 +125,7 @@ pub fn create_delegated_ucan(
         iss: issuer_did.to_string(),
         aud: audience_did.to_string(),
         cap,
+        row_cap,
         exp: now + expires_in_seconds,
         iat: now,
         prf,
@@ -195,6 +223,7 @@ mod tests {
             "did:key:z6MkAudience",
             "test-space",
             "space/write",
+            None,
             Some("parent.token"),
             3600,
         )
@@ -212,6 +241,7 @@ mod tests {
             "did:key:z6MkAudience",
             "test-space",
             "space/write",
+            None,
             None,
             3600,
         )
@@ -245,6 +275,136 @@ mod tests {
     #[test]
     fn unix_secs_from_now_succeeds() {
         assert!(unix_secs_from(SystemTime::now()).is_ok());
+    }
+
+    // ------------------------------------------------------------------
+    // C.5: row_capabilities envelope
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn token_carries_row_cap_when_supplied() {
+        use crate::ucan::predicate::{Predicate, PrimitiveValue};
+        use crate::ucan::row_capability::RowCapability;
+
+        let (_key, b64) = test_pkcs8_key();
+        let mut row_caps: HashMap<String, Vec<RowCapability>> = HashMap::new();
+        row_caps.insert(
+            "test-space".to_string(),
+            vec![
+                RowCapability::RowInsert {
+                    matches: Predicate::Eq {
+                        col: "cat".into(),
+                        eq: PrimitiveValue::String("work".into()),
+                    },
+                },
+                RowCapability::RowDelete {
+                    matches: Predicate::StartsWith {
+                        col: "path".into(),
+                        starts_with: "/tmp/".into(),
+                    },
+                },
+            ],
+        );
+
+        let token = create_delegated_ucan(
+            "did:key:z6MkIssuer",
+            &b64,
+            "did:key:z6MkAudience",
+            "test-space",
+            "space/write",
+            Some(row_caps.clone()),
+            None,
+            3600,
+        )
+        .unwrap();
+
+        let parts: Vec<&str> = token.split('.').collect();
+        let payload: serde_json::Value =
+            serde_json::from_slice(&BASE64URL.decode(parts[1]).unwrap()).unwrap();
+
+        // Wire key is `row_cap`, keyed by `space:<id>` (symmetry with `cap`).
+        let row_cap = payload
+            .get("row_cap")
+            .expect("row_cap must be present on the wire");
+        let entry = row_cap
+            .get("space:test-space")
+            .expect("row_cap must key by space:<id>");
+        let arr = entry.as_array().expect("row_cap entry is an array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["op"], "row_insert");
+        assert_eq!(arr[0]["where"]["col"], "cat");
+        assert_eq!(arr[1]["op"], "row_delete");
+    }
+
+    #[test]
+    fn token_omits_row_cap_when_none_supplied() {
+        // Backwards-compat with today's tokens: no row_caps → no `row_cap`
+        // key at all (not an empty object). Verifiers that don't consume
+        // the field must see a payload identical in shape to pre-C.5.
+        let (_key, b64) = test_pkcs8_key();
+        let token = create_delegated_ucan(
+            "did:key:z6MkIssuer",
+            &b64,
+            "did:key:z6MkAudience",
+            "test-space",
+            "space/write",
+            None,
+            None,
+            3600,
+        )
+        .unwrap();
+        let parts: Vec<&str> = token.split('.').collect();
+        let payload: serde_json::Value =
+            serde_json::from_slice(&BASE64URL.decode(parts[1]).unwrap()).unwrap();
+        assert!(
+            payload.get("row_cap").is_none(),
+            "row_cap key must be absent when caller passes None (got {:?})",
+            payload.get("row_cap")
+        );
+    }
+
+    #[test]
+    fn create_then_parse_row_caps_roundtrip() {
+        // End-to-end: create emits `row_cap`, parse_ucan reads it into
+        // `ParsedUcan.row_capabilities`, values equal what we passed in.
+        use crate::ucan::parse_ucan;
+        use crate::ucan::predicate::{Predicate, PrimitiveValue};
+        use crate::ucan::row_capability::RowCapability;
+
+        let (key, b64) = test_pkcs8_key();
+        let issuer_did = {
+            let mut bytes = Vec::with_capacity(34);
+            bytes.extend_from_slice(&[0xed, 0x01]);
+            bytes.extend_from_slice(key.verifying_key().as_bytes());
+            format!("did:key:z{}", bs58::encode(bytes).into_string())
+        };
+
+        let expected = vec![RowCapability::RowUpdate {
+            matches: Predicate::In {
+                col: "status".into(),
+                values: vec![
+                    PrimitiveValue::String("open".into()),
+                    PrimitiveValue::String("in_progress".into()),
+                ],
+            },
+        }];
+        let mut row_caps = HashMap::new();
+        row_caps.insert("s1".to_string(), expected.clone());
+
+        let token = create_delegated_ucan(
+            &issuer_did,
+            &b64,
+            &issuer_did,
+            "s1",
+            "space/write",
+            Some(row_caps),
+            None,
+            3600,
+        )
+        .unwrap();
+
+        let parsed = parse_ucan(&token).unwrap();
+        assert_eq!(parsed.row_capabilities.get("s1"), Some(&expected));
     }
 
     #[test]

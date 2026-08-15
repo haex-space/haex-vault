@@ -97,11 +97,22 @@ pub async fn local_delivery_start(
 
 /// Broadcast an MLS commit via the local leader buffer.
 /// Called by frontend after mls_remove_member (or other commit-producing operations).
+///
+/// `committer_ucan` and `committer_commit_bind_sig` carry the plan-§5.8
+/// receive-side capability proof. TS callers pass them through from the
+/// `MlsCommitBundle` returned by `mls_remove_member`; both are optional
+/// so callers that do not produce them (e.g. leader-rekey-after-self-leave
+/// where the target-gone exemption applies) may omit them. `committer_ucan`
+/// is a UCAN JWT string, not a byte blob — the type enforces UTF-8 so
+/// malformed input is rejected at the IPC boundary rather than silently
+/// mangled into replacement characters mid-pipeline.
 #[tauri::command]
 pub async fn local_delivery_broadcast_commit(
     state: State<'_, AppState>,
     space_id: String,
     commit: Vec<u8>,
+    committer_ucan: Option<String>,
+    committer_commit_bind_sig: Option<Vec<u8>>,
 ) -> Result<(), String> {
     let leader_state = super::peers::get_leader_state(&state, &space_id).await?;
 
@@ -112,6 +123,8 @@ pub async fn local_delivery_broadcast_commit(
         "leader",
         "commit",
         &commit,
+        committer_ucan.as_deref(),
+        committer_commit_bind_sig.as_deref(),
     )
     .map_err(|e| format!("Failed to store commit: {e}"))?;
 

@@ -170,6 +170,7 @@ pub async fn handle_claim_invite(
                         &did,
                         &space_id,
                         capability,
+                        None,
                         Some(&admin.root_ucan),
                         super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
                     ) {
@@ -239,14 +240,26 @@ pub async fn handle_claim_invite(
 
     // 7. Store and broadcast commit to existing members
     if !bundle.commit.is_empty() {
-        let msg_id =
-            match buffer::store_message(&state.db, &space_id, &did, "commit", &bundle.commit) {
-                Ok(id) => id,
-                Err(e) => {
-                    eprintln!("[SpaceDelivery] Failed to store commit: {e}");
-                    0
-                }
-            };
+        // Plan §5.0: Add commits do not carry a receive-side committer-
+        // capability proof — the KeyPackage PoP + Phase-1 addee-membership
+        // check bound them upstream (this is the ClaimInvite leader-relay
+        // path documented in `authorize_local_removal`'s "NOT applied to
+        // add_member" note).
+        let msg_id = match buffer::store_message(
+            &state.db,
+            &space_id,
+            &did,
+            "commit",
+            &bundle.commit,
+            None,
+            None,
+        ) {
+            Ok(id) => id,
+            Err(e) => {
+                eprintln!("[SpaceDelivery] Failed to store commit: {e}");
+                0
+            }
+        };
 
         // Track pending ACKs from all space members (not just connected peers)
         if msg_id > 0 {

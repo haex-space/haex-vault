@@ -30,6 +30,8 @@ fn space_id_of_returns_space_id_field_for_every_variant() {
             space_id: expected.into(),
             message: "msg".into(),
             message_type: "application".into(),
+            committer_ucan: None,
+            committer_commit_bind_sig: None,
         },
         Request::MlsFetchMessages {
             space_id: expected.into(),
@@ -158,6 +160,8 @@ fn required_capability_matches_documented_mapping() {
             space_id: space.into(),
             message: "msg".into(),
             message_type: "application".into(),
+            committer_ucan: None,
+            committer_commit_bind_sig: None,
         },
         Request::MlsSendWelcome {
             space_id: space.into(),
