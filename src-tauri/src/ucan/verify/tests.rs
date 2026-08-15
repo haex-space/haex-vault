@@ -62,6 +62,13 @@ fn random_signing_key() -> SigningKey {
     SigningKey::from_bytes(&seed)
 }
 
+/// Generate a fresh salt for test-only `derive_space_id` calls.
+fn random_space_id_salt() -> [u8; 16] {
+    let mut salt = [0u8; 16];
+    rand::fill(&mut salt);
+    salt
+}
+
 // ---------------------------------------------------------------------------
 // parse_ucan — structure + signature + expiry
 // ---------------------------------------------------------------------------
@@ -1116,7 +1123,7 @@ fn build_two_hop_with_cap_sets(
 
     let root_did = did_from_verifying_key(&root_key.verifying_key());
     let leaf_did = did_from_verifying_key(&leaf_key.verifying_key());
-    let space_id = derive_space_id(&root_did, &[0x33; 16]);
+    let space_id = derive_space_id(&root_did, &random_space_id_salt());
     let now = unix_secs_from(SystemTime::now());
 
     let root_payload = serde_json::json!({
@@ -1213,7 +1220,7 @@ fn validate_token_rejects_write_only_leaf_when_read_needed() {
     use crate::ucan::space_id::derive_space_id;
     let key = random_signing_key();
     let did = did_from_verifying_key(&key.verifying_key());
-    let space_id = derive_space_id(&did, &[0x44; 16]);
+    let space_id = derive_space_id(&did, &random_space_id_salt());
     let now = unix_secs_from(SystemTime::now());
 
     let payload = serde_json::json!({
