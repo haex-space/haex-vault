@@ -150,8 +150,10 @@ pub async fn handle_claim_invite(
         };
 
         // 3. Determine UCANs: use the pre-created one (contact invites,
-        //    always exactly one capability) or create one per capability
-        //    now (conference invites — UCANs are created at claim time).
+        //    always exactly one capability) or create one combined set for
+        //    conference invites. Announce caches exactly one token, so
+        //    independently-issued singleton tokens cannot represent a
+        //    Read + Write member for the rest of its session.
         match (pre_ucan, capabilities.as_slice()) {
             (Some(ucan), [single_capability]) => vec![(single_capability.clone(), ucan)],
             (_, capabilities) => {
@@ -163,7 +165,7 @@ pub async fn handle_claim_invite(
                         }
                     }
                 };
-                let mut issued = Vec::with_capacity(capabilities.len());
+                let mut builder = CapabilitySet::builder();
                 for capability in capabilities {
                     // Frontend + invite-token wire still emits `"space/<cap>"`
                     // strings (Task 8 removes the prefix); `cap_from_str`
@@ -182,27 +184,35 @@ pub async fn handle_claim_invite(
                     // `Cap::is_delegatable_by_default` — matching heuristics
                     // on both create sites keeps contact-invite and
                     // conference-invite tokens observationally identical.
-                    let capability_set =
-                        CapabilitySet::singleton(cap, cap.is_delegatable_by_default());
-                    match super::super::ucan::create_delegated_ucan(
-                        &admin.did,
-                        &admin.private_key_base64,
-                        &did,
-                        &space_id,
-                        capability_set,
-                        None,
-                        Some(&admin.root_ucan),
-                        super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
-                    ) {
-                        Ok(t) => issued.push((capability.clone(), t)),
-                        Err(e) => {
-                            return Response::Error {
-                                message: format!("Failed to create UCAN: {e}"),
-                            }
+                    builder = match cap {
+                        Cap::Read => builder.read(cap.is_delegatable_by_default()),
+                        Cap::Write => builder.write(cap.is_delegatable_by_default()),
+                        Cap::Invite => builder.invite(cap.is_delegatable_by_default()),
+                        Cap::Admin => builder.admin(cap.is_delegatable_by_default()),
+                    };
+                }
+                let token = match super::super::ucan::create_delegated_ucan(
+                    &admin.did,
+                    &admin.private_key_base64,
+                    &did,
+                    &space_id,
+                    builder.build(),
+                    None,
+                    Some(&admin.root_ucan),
+                    super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
+                ) {
+                    Ok(token) => token,
+                    Err(e) => {
+                        return Response::Error {
+                            message: format!("Failed to create UCAN: {e}"),
                         }
                     }
-                }
-                issued
+                };
+                capabilities
+                    .iter()
+                    .cloned()
+                    .map(|capability| (capability, token.clone()))
+                    .collect()
             }
         }
     };
