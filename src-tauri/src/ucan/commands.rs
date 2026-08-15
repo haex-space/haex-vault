@@ -36,7 +36,10 @@ pub struct VerifyChainRequest {
     pub expected_space_id: String,
     /// The recipient DID the token must be addressed to.
     pub expected_audience: String,
-    /// Minimum capability required for this row's operation (write, read, …).
+    /// Capability the row's operation requires (`write`, `read`, `invite`,
+    /// `admin`). Orthogonal: the token's
+    /// [`CapabilitySet`](crate::ucan::CapabilitySet) must literally hold
+    /// this exact `Cap` — no implicit lift from adjacent caps.
     pub capability_needed: Cap,
     /// Opaque row identifier, echoed back in the response.
     pub row_id: String,

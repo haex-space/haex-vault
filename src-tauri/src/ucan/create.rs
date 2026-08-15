@@ -87,8 +87,8 @@ pub enum UcanCreateError {
 /// `row_capabilities` is the optional C.5 envelope: a `space_id →
 /// Vec<RowCapability>` map that lands in the payload's `row_cap` claim. Pass
 /// `None` (or an empty map) for tokens that only grant space-level
-/// capabilities — the `row_cap` key is omitted from the payload in that case
-/// so pre-C.5 puller tokens remain byte-identical on the wire.
+/// capabilities — the `row_cap` key is then omitted from the payload, so
+/// puller tokens carry no `row_cap` claim at all.
 ///
 /// Keys in `row_capabilities` are **bare** `space_id` strings (no `space:`
 /// prefix). This function prefixes them at emit time, symmetric to how
