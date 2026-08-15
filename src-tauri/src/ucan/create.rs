@@ -31,7 +31,7 @@ const HEADER: UcanHeader = UcanHeader {
 
 /// UCAN payload matching the TypeScript `UcanPayload` interface.
 ///
-/// The `capabilities` claim carries per-space [`CapabilitySet`] values —
+/// The `cap` claim carries per-space [`CapabilitySet`] values —
 /// canonical form is a JSON array of `{"cap": ..., "delegatable": ...}`
 /// entries, keyed by `space:<id>` (symmetric to `row_cap`).
 ///
@@ -43,7 +43,7 @@ struct UcanPayload {
     ucv: &'static str,
     iss: String,
     aud: String,
-    capabilities: HashMap<String, CapabilitySet>,
+    cap: HashMap<String, CapabilitySet>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     row_cap: HashMap<String, Vec<RowCapability>>,
     exp: u64,
@@ -129,7 +129,7 @@ pub fn create_delegated_ucan(
         ucv: "1.0",
         iss: issuer_did.to_string(),
         aud: audience_did.to_string(),
-        capabilities: capabilities_map,
+        cap: capabilities_map,
         row_cap,
         exp: now + expires_in_seconds,
         iat: now,
@@ -258,10 +258,10 @@ mod tests {
 
         assert_eq!(payload["iss"], "did:key:z6MkIssuer");
         assert_eq!(payload["aud"], "did:key:z6MkAudience");
-        // Canonical wire form: `capabilities` (plural) claim, each space keyed
+        // Canonical wire form: `cap` claim, each space keyed
         // as `space:<id>`, value is the CapabilitySet array of
         // `{cap, delegatable}` entries.
-        let caps_entry = &payload["capabilities"]["space:test-space"];
+        let caps_entry = &payload["cap"]["space:test-space"];
         let arr = caps_entry
             .as_array()
             .expect("capabilities entry must be a JSON array");

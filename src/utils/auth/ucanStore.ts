@@ -230,15 +230,15 @@ export async function persistUcanAsync(
   // parsed set answers the same question as a `holdsSpaceCap` on the
   // decoded token.
   //
-  // Fallback: if the payload carries a non-SpaceCapabilitySet value for
-  // this space (e.g. only a server:* delegation), we default to a
-  // singleton `admin` set — matches the pre-8b fallback so an admin/root
-  // token still ends up persisted rather than dropped on the floor.
+  // A server-only token (or a token for another space) is not evidence of
+  // any space capability. Never fabricate a fallback set here: that would
+  // turn malformed input into an admin cache entry.
   const capsMap = decoded.payload.cap
   const spaceValue = capsMap[spaceResource(spaceId)]
-  const capabilitySet: SpaceCapabilitySet = isSpaceCapValue(spaceValue)
-    ? spaceValue
-    : spaceCapabilitySet().admin(false).build()
+  if (!isSpaceCapValue(spaceValue)) {
+    throw new Error(`UCAN does not grant a SpaceCapabilitySet for space ${spaceId}`)
+  }
+  const capabilitySet: SpaceCapabilitySet = spaceValue
 
   const issuedAt = iat ?? Math.floor(Date.now() / 1000)
 

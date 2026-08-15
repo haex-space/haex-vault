@@ -368,6 +368,7 @@ impl MlsManager {
                 &db,
                 space_id,
                 &committer_did,
+                &[crate::ucan::Cap::Invite, crate::ucan::Cap::Admin],
             )
             .map_err(|e| format!("Failed to load committer UCAN for space {space_id}: {e}"))?
             .ok_or_else(|| {

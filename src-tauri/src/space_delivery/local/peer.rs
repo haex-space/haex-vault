@@ -8,6 +8,7 @@ use super::error::DeliveryError;
 use super::protocol::{self, Request, Response};
 use super::quic_retry::READ_TIMEOUT_SECS;
 use super::ucan::load_active_ucan_for_audience;
+use crate::ucan::Cap;
 
 /// A connected peer session with the leader.
 ///
@@ -48,14 +49,12 @@ impl PeerSession {
         label: Option<&str>,
         db: &DbConnection,
     ) -> Result<Self, DeliveryError> {
-        let ucan_token =
-            load_active_ucan_for_audience(db, space_id, our_did)?.ok_or_else(|| {
-                DeliveryError::AccessDenied {
-                    reason: format!(
-                        "No active UCAN token for space {} audience {} — cannot connect",
-                        space_id, our_did
-                    ),
-                }
+        let ucan_token = load_active_ucan_for_audience(db, space_id, our_did, &[Cap::Read])?
+            .ok_or_else(|| DeliveryError::AccessDenied {
+                reason: format!(
+                    "No active UCAN token for space {} audience {} — cannot connect",
+                    space_id, our_did
+                ),
             })?;
 
         // Relay-URL fallback shared with the other QUIC entry points

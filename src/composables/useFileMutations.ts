@@ -58,7 +58,7 @@ export function useFileMutations(deps: FileMutationsDeps) {
    *
    *  - Local share: the share lives on this device, the OS enforces perms.
    *  - S3 backend: the user configured it; ACL enforcement is on the bucket.
-   *  - P2P peer: requires a cached UCAN with `space/write` or `space/admin`.
+   *  - P2P peer: requires a cached UCAN with explicit `space/write`.
    */
   const canWrite = computed(() => {
     const peer = selectedPeer.value
@@ -70,9 +70,8 @@ export function useFileMutations(deps: FileMutationsDeps) {
       currentSpaceId.value ?? undefined,
     )
     if (!cap) return false
-    // Orthogonal-capability check (W4 PR-3): admin no longer implies
-    // write, so callers must explicitly hold `write` or `admin`.
-    return holdsSpaceCap(cap, 'write') || holdsSpaceCap(cap, 'admin')
+    // Orthogonal-capability check: admin does not imply write.
+    return holdsSpaceCap(cap, 'write')
   })
 
   /**

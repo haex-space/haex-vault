@@ -74,7 +74,7 @@ pub(super) fn mint_delegated_ucan(
         "ucv": "1.0",
         "iss": root_did,
         "aud": root_did,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): root_caps
         },
         "exp": now + 3600,
@@ -87,7 +87,7 @@ pub(super) fn mint_delegated_ucan(
         "ucv": "1.0",
         "iss": root_did,
         "aud": audience,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): [
                 { "cap": cap, "delegatable": false }
             ]

@@ -37,7 +37,7 @@ fn make_test_token(
         "ucv": "1.0",
         "iss": issuer_did,
         "aud": "did:key:z6MkAudience",
-        "capabilities": { format!("space:{}", space_id): capability },
+        "cap": { format!("space:{}", space_id): capability },
         "exp": now + expires_in,
         "iat": now,
         "prf": [],
@@ -137,7 +137,7 @@ fn parse_ucan_populates_proofs_when_present() {
         "ucv": "1.0",
         "iss": issuer_did,
         "aud": "did:key:z6MkAudience",
-        "capabilities": {
+        "cap": {
             "space:s1": CapabilitySet::builder().read(true).build(),
         },
         "exp": now + 3600,
@@ -318,7 +318,7 @@ fn make_token_with_row_cap(
         "ucv": "1.0",
         "iss": issuer_did,
         "aud": "did:key:z6MkAudience",
-        "capabilities": { format!("space:{}", space_id): capability },
+        "cap": { format!("space:{}", space_id): capability },
         "row_cap": row_cap_json,
         "exp": now + expires_in,
         "iat": now,
@@ -472,7 +472,7 @@ fn make_self_signed_admin_root_with_row_cap(
         "ucv": "1.0",
         "iss": iss_did,
         "aud": iss_did,  // self-signed root
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): CapabilitySet::builder().admin(true).build(),
         },
         "row_cap": row_cap_json,
@@ -537,7 +537,7 @@ fn validate_token_yields_empty_row_capabilities_when_field_absent() {
         "ucv": "1.0",
         "iss": iss_did,
         "aud": iss_did,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): CapabilitySet::builder().admin(true).build(),
         },
         "exp": now + 3600,
@@ -630,7 +630,7 @@ fn build_two_hop_with_row_caps(
         "ucv": "1.0",
         "iss": root_did,
         "aud": root_did,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): CapabilitySet::builder().admin(true).build(),
         },
         "row_cap": root_row_cap,
@@ -656,7 +656,7 @@ fn build_two_hop_with_row_caps(
         "ucv": "1.0",
         "iss": root_did,
         "aud": leaf_did,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): CapabilitySet::builder().admin(true).build(),
         },
         "row_cap": leaf_row_cap,
@@ -888,7 +888,7 @@ fn build_n_hop_chain_with_uniform_row_caps(
         "ucv": "1.0",
         "iss": root_did,
         "aud": root_did,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): admin_delegatable,
         },
         "row_cap": row_cap,
@@ -918,7 +918,7 @@ fn build_n_hop_chain_with_uniform_row_caps(
             "ucv": "1.0",
             "iss": prev_iss,
             "aud": audience_did,
-            "capabilities": {
+            "cap": {
                 format!("space:{}", space_id): admin_delegatable,
             },
             "row_cap": row_cap,
@@ -1045,7 +1045,7 @@ fn parse_ucan_reads_capability_set_wire_form() {
         "exp": now + 3600,
         "iat": now,
         "nnc": "n1",
-        "capabilities": {
+        "cap": {
             format!("space:{space_id}"): [
                 {"cap": "read",  "delegatable": true},
                 {"cap": "write", "delegatable": false},
@@ -1081,7 +1081,7 @@ fn parse_ucan_rejects_legacy_string_capability_form() {
         "exp": now + 3600,
         "iat": now,
         "nnc": "n1",
-        "capabilities": {
+        "cap": {
             format!("space:{space_id}"): "space/write" // legacy string
         },
         "prf": []
@@ -1123,7 +1123,7 @@ fn build_two_hop_with_cap_sets(
         "ucv": "1.0",
         "iss": root_did,
         "aud": root_did,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): root_caps,
         },
         "exp": now + 3600,
@@ -1137,7 +1137,7 @@ fn build_two_hop_with_cap_sets(
         "ucv": "1.0",
         "iss": root_did,       // signed by root — chain-continuity: parent.aud == child.iss
         "aud": leaf_did,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): leaf_caps,
         },
         "exp": now + 3600,
@@ -1220,7 +1220,7 @@ fn validate_token_rejects_write_only_leaf_when_read_needed() {
         "ucv": "1.0",
         "iss": did,
         "aud": did,
-        "capabilities": {
+        "cap": {
             format!("space:{}", space_id): CapabilitySet::builder().write(true).build(),
         },
         "exp": now + 3600,
@@ -1274,7 +1274,7 @@ fn walk_chain_rejects_root_without_admin_cap() {
         "exp": now + 3600,
         "iat": now,
         "nnc": "no-admin-root",
-        "capabilities": {
+        "cap": {
             format!("space:{space_id}"): [
                 { "cap": "write", "delegatable": true },
             ]
@@ -1310,7 +1310,7 @@ fn validate_token_accepts_root_with_admin_plus_extra_caps() {
         "exp": now + 3600,
         "iat": now,
         "nnc": "admin-plus-extras",
-        "capabilities": {
+        "cap": {
             format!("space:{space_id}"): [
                 { "cap": "read",  "delegatable": true },
                 { "cap": "write", "delegatable": true },
@@ -1350,7 +1350,7 @@ fn parse_ucan_rejects_duplicate_cap_in_payload() {
         "exp": now + 3600,
         "iat": now,
         "nnc": "dup-cap",
-        "capabilities": {
+        "cap": {
             format!("space:{space_id}"): [
                 { "cap": "write", "delegatable": true },
                 { "cap": "write", "delegatable": false }, // duplicate — rejected

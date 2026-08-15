@@ -109,28 +109,14 @@ pub fn load_admin_identity(
     })
 }
 
-/// Load the highest-ranked, non-expired UCAN token held for `(space_id,
-/// audience_did)`. Returns `Ok(None)` if the vault has no token — callers
-/// should treat that as "not a member, cannot sync".
+/// Load a non-expired UCAN token held for `(space_id, audience_did)` that
+/// explicitly contains any capability in `required_caps`. Returns `Ok(None)`
+/// when no such token exists.
 ///
-/// A member can hold several independent capability grants at once (e.g.
-/// `Cap::Write` and `Cap::Invite` — orthogonal, neither implies the
-/// other); this is used where exactly one token must be presented for a
-/// whole connection (the Announce handshake caches one `ValidatedUcan` per
-/// peer, see `leader::auth`), so it picks whichever held token carries the
-/// highest [`Cap`] discriminant (`Admin > Invite > Write > Read`) inside its
-/// [`CapabilitySet`] — a reasonable proxy for "the token most likely to
-/// satisfy an arbitrary downstream check". Sets that hold no known caps are
-/// treated as [`Cap::Read`] to keep ordering total.
-///
-/// Post-Task-8b the DB stores a full [`CapabilitySet`] per row rather than a
-/// single hierarchical `space/<cap>` string; the picker now walks the parsed
-/// set for the highest-ranked cap it contains instead of parsing a bare
-/// column value. `ORDER BY issued_at DESC LIMIT 1` used to be the selection
-/// here, which broke as soon as a claim could mint more than one token:
-/// capabilities issued in the same claim share the same `issued_at` second,
-/// so the tie was resolved arbitrarily and could hand back a read-only
-/// token even when a write-capable one was also held.
+/// Capabilities are orthogonal. Selecting by an enum rank would let an
+/// unrelated Admin/Invite token crowd out the Read token required by
+/// `Announce`, or the Invite/Admin token needed for an MLS removal proof.
+/// Callers therefore state the acceptable capability set explicitly.
 ///
 /// Resolved fresh on every call: the authoritative source is the DB, not an
 /// in-memory cache, so a reconnect after expiry picks up a renewed token
@@ -139,13 +125,14 @@ pub fn load_active_ucan_for_audience(
     db: &DbConnection,
     space_id: &str,
     audience_did: &str,
+    required_caps: &[Cap],
 ) -> Result<Option<String>, DeliveryError> {
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
 
-    let sql = "SELECT capabilities, token FROM haex_ucan_tokens \
+    let sql = "SELECT capabilities, token, expires_at FROM haex_ucan_tokens \
                WHERE space_id = ?1 AND audience_did = ?2 AND expires_at > ?3"
         .to_string();
     let params = vec![
@@ -166,12 +153,13 @@ pub fn load_active_ucan_for_audience(
             let capabilities = row.first()?.as_str()?;
             let token = row.get(1)?.as_str()?.to_string();
             let set = parse_capabilities_column(capabilities)?;
-            // Rank = max Cap discriminant in the set. An empty set falls back
-            // to Read so it can never out-rank a Write/Admin token.
-            let rank = set.entries().map(|e| e.cap).max().unwrap_or(Cap::Read);
-            Some((rank, token))
+            if !required_caps.iter().any(|&cap| set.can(cap)) {
+                return None;
+            }
+            let expires_at = row.get(2)?.as_i64()?;
+            Some((expires_at, token))
         })
-        .max_by_key(|(rank, _)| *rank)
+        .min_by_key(|(expires_at, _)| *expires_at)
         .map(|(_, token)| token))
 }
 
@@ -263,18 +251,33 @@ pub fn resolve_presented_committer_capability(
     })
     .unwrap_or(crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT) as usize;
 
-    let validated =
-        match crate::ucan::validate_token(token, space_id, &peeked.aud, Cap::Read, max_chain_depth)
-        {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!(
-                    "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
+    let required_cap = match peeked.capabilities.get(space_id) {
+        Some(set) if set.can(Cap::Invite) => Cap::Invite,
+        Some(set) if set.can(Cap::Admin) => Cap::Admin,
+        _ => {
+            eprintln!(
+                "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
+                 token holds neither Invite nor Admin"
+            );
+            return None;
+        }
+    };
+    let validated = match crate::ucan::validate_token(
+        token,
+        space_id,
+        &peeked.aud,
+        required_cap,
+        max_chain_depth,
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!(
+                "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
                  validate_token failed ({e})"
-                );
-                return None;
-            }
-        };
+            );
+            return None;
+        }
+    };
     let capabilities = match validated.capabilities.get(space_id) {
         Some(set) => set.clone(),
         None => {
@@ -405,9 +408,14 @@ mod multi_capability_lookup_tests {
     }
 
     #[test]
-    fn load_active_ucan_prefers_write_token_over_tied_read_token() {
+    fn load_active_ucan_selects_a_token_with_the_required_capability() {
         let db = seed_db(&[("read", Cap::Read, 1000), ("write", Cap::Write, 1000)]);
-        let token = load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID)
+        let token = load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID, &[Cap::Read])
+            .unwrap()
+            .unwrap();
+        assert_eq!(token, "token-read");
+
+        let token = load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID, &[Cap::Write])
             .unwrap()
             .unwrap();
         assert_eq!(token, "token-write");
@@ -416,9 +424,11 @@ mod multi_capability_lookup_tests {
     #[test]
     fn load_active_ucan_returns_none_when_no_token_held() {
         let db = seed_db(&[]);
-        assert!(load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID)
-            .unwrap()
-            .is_none());
+        assert!(
+            load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID, &[Cap::Read])
+                .unwrap()
+                .is_none()
+        );
     }
 
     /// Regression for the CodeRabbit finding that `has_write_capability`'s

@@ -15,9 +15,9 @@
  * WARNING: seeds below are TEST_ONLY_NEVER_PROD. Never use in a live vault.
  *
  * W4 PR-3 (Task 7) note: the payload wire form migrated from
- *   `cap: { "space:<id>": "space/<name>" }`         (singular, hierarchical)
+ *   `cap: { "space:<id>": "space/<name>" }`         (hierarchical)
  * to
- *   `capabilities: { "space:<id>": [{cap, delegatable}, …] }`  (plural, orthogonal).
+ *   `cap: { "space:<id>": [{cap, delegatable}, …] }`  (orthogonal).
  * `SpaceCap`, `CapEntry`, and `SpaceCapabilitySet` come from
  * `@haex-space/ucan` (0.2.0+). Aliased locally for shorter names in the
  * generator body.
@@ -237,8 +237,8 @@ function makeToken(spec: TokenSpec): EncodedUcan {
     ucv: '1.0',
     iss: spec.key.did,
     aud: spec.audience,
-    // W4 PR-3: plural `capabilities`, value is a CapabilitySet array.
-    capabilities: { [spaceResource(spec.spaceId)]: spec.capSet },
+    // W4 PR-3: `cap` value is a CapabilitySet array.
+    cap: { [spaceResource(spec.spaceId)]: spec.capSet },
     exp: spec.exp,
     iat: spec.iat,
     prf: spec.prf,
@@ -294,7 +294,7 @@ interface DecodedPayload {
   ucv: string
   iss: string
   aud: string
-  capabilities: Record<string, CapabilitySet>
+  cap: Record<string, CapabilitySet>
   exp: number
   iat: number
   nnc: string
@@ -1234,13 +1234,13 @@ function selfVerify(vectors: Vector[]): void {
         fail(`${v.name}: chain[${i}] outer.exp ${outer.exp} != decoded.exp ${p.exp}`)
       }
       const resourceKey = spaceResource(outer.space_id)
-      const capKeys = Object.keys(p.capabilities)
+      const capKeys = Object.keys(p.cap)
       if (capKeys.length !== 1 || capKeys[0] !== resourceKey) {
         fail(
-          `${v.name}: chain[${i}] decoded.capabilities keys ${JSON.stringify(capKeys)} do not match [${resourceKey}] derived from outer.space_id`,
+          `${v.name}: chain[${i}] decoded.cap keys ${JSON.stringify(capKeys)} do not match [${resourceKey}] derived from outer.space_id`,
         )
       }
-      const decodedSet = p.capabilities[resourceKey]!
+      const decodedSet = p.cap[resourceKey]!
       if (!capSetEqual(outer.cap_set, decodedSet)) {
         fail(
           `${v.name}: chain[${i}] outer.cap_set ${JSON.stringify(outer.cap_set)} != decoded[${resourceKey}] ${JSON.stringify(decodedSet)}`,
@@ -1283,7 +1283,7 @@ function selfVerify(vectors: Vector[]): void {
         fail(`${v.name}: root not self-signed but vector is ok=true`)
       }
       const rootResource = spaceResource(v.space_id)
-      const rootSet = decoded[0]!.capabilities[rootResource]
+      const rootSet = decoded[0]!.cap[rootResource]
       if (!rootSet || !rootSet.some((e) => e.cap === 'admin')) {
         fail(`${v.name}: root does not hold admin but vector is ok=true`)
       }
@@ -1295,8 +1295,8 @@ function selfVerify(vectors: Vector[]): void {
       // Delegation attenuation across the chain (parent must hold every
       // child cap with delegatable=true).
       for (let i = 1; i < v.chain.length; i++) {
-        const parentSet = decoded[i - 1]!.capabilities[rootResource]
-        const childSet = decoded[i]!.capabilities[rootResource]
+        const parentSet = decoded[i - 1]!.cap[rootResource]
+        const childSet = decoded[i]!.cap[rootResource]
         if (!parentSet || !childSet) {
           fail(`${v.name}: missing capability entry at i=${i}`)
         }
@@ -1327,8 +1327,8 @@ function selfVerify(vectors: Vector[]): void {
         const resource = spaceResource(v.space_id)
         let matched = false
         for (let i = 1; i < v.chain.length; i++) {
-          const parentSet = decoded[i - 1]!.capabilities[resource]
-          const childSet = decoded[i]!.capabilities[resource]
+          const parentSet = decoded[i - 1]!.cap[resource]
+          const childSet = decoded[i]!.cap[resource]
           if (!parentSet || !childSet) {
             fail(`${v.name}: hop ${i} missing capability entry`)
           }
@@ -1369,7 +1369,7 @@ function selfVerify(vectors: Vector[]): void {
         if (!anyPast) fail(`${v.name}: expected expired but no exp is in the past`)
       } else if (err === 'WrongSpace') {
         const anyMismatch = decoded.some(
-          (p) => Object.keys(p.capabilities)[0] !== spaceResource(v.space_id),
+          (p) => Object.keys(p.cap)[0] !== spaceResource(v.space_id),
         )
         if (!anyMismatch) fail(`${v.name}: expected wrong-space but all nodes reference v.space_id`)
       } else {
@@ -1420,7 +1420,7 @@ function main(): void {
       'Cross-language UCAN chain verification fixture. Consumed by both the',
       'TS UCAN library (`@haex-space/ucan`) and the Rust verifier',
       '(`walk_prf_chain`, Task 3).',
-      'W4 PR-3 wire form: payload field is `capabilities` (plural), value is',
+      'W4 PR-3 wire form: payload field is `cap`, value is',
       'a CapabilitySet — a sorted array of `{cap, delegatable}` entries.',
       'chain[0] = root token (self-signed for OK vectors).',
       'chain[chain.length - 1] = leaf token.',

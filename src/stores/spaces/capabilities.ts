@@ -35,8 +35,8 @@ export async function getCapabilitiesForSpace(db: DB, spaceId: string, myDids: s
   return Array.from(out)
 }
 
-/** Check if the current user has a specific capability (or space/admin) for a space */
+/** Check if the current user explicitly holds a specific capability for a space. */
 export async function hasCapability(db: DB, spaceId: string, capability: string, myDids: string[]): Promise<boolean> {
   const capabilities = await getCapabilitiesForSpace(db, spaceId, myDids)
-  return capabilities.includes(capability) || capabilities.includes('space/admin')
+  return capabilities.includes(capability)
 }

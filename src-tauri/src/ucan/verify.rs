@@ -60,7 +60,7 @@ pub struct ParsedUcan {
     pub aud: String,
     pub exp: u64,
     pub iat: u64,
-    /// `space_id → CapabilitySet` from the `capabilities` claim. Every entry
+    /// `space_id → CapabilitySet` from the `cap` claim. Every entry
     /// has prefix `space:<id>` stripped so the map key is the raw `space_id`.
     pub capabilities: HashMap<String, CapabilitySet>,
     /// `space_id → row-cap list` from the optional `row_cap` claim (C.5
@@ -81,7 +81,7 @@ pub struct ParsedUcan {
 pub struct ValidatedUcan {
     pub issuer: String,
     pub audience: String,
-    /// `space_id → CapabilitySet` from the `capabilities` claim. Every entry
+    /// `space_id → CapabilitySet` from the `cap` claim. Every entry
     /// has prefix `space:<id>` stripped so the map key is the raw `space_id`.
     /// Multi-space UCANs are permitted at parse time, but [`validate_token`]
     /// only chain-verifies against a single `expected_space_id`.
@@ -222,11 +222,11 @@ pub fn parse_ucan(token: &str) -> Result<ParsedUcan, UcanVerifyError> {
         return Err(UcanVerifyError::Expired);
     }
 
-    // Parse capabilities: { "space:<id>": [ {"cap":"read","delegatable":true}, ... ], ... }
+    // Parse cap: { "space:<id>": [ {"cap":"read","delegatable":true}, ... ], ... }
     let audience = payload["aud"].as_str().unwrap_or_default().to_string();
-    let cap_obj = payload["capabilities"]
+    let cap_obj = payload["cap"]
         .as_object()
-        .ok_or_else(|| UcanVerifyError::MalformedToken("missing capabilities object".into()))?;
+        .ok_or_else(|| UcanVerifyError::MalformedToken("missing cap object".into()))?;
 
     let mut capabilities: HashMap<String, CapabilitySet> = HashMap::new();
     for (resource, capability_value) in cap_obj {
