@@ -12,21 +12,6 @@ use super::super::invite_tokens;
 use super::super::protocol::{Request, Response};
 use super::super::types::{ClaimInviteResult, LocalInviteInfo};
 
-/// Lift a single [`Cap`] + `delegatable` bit into a [`CapabilitySet`] for
-/// [`create_delegated_ucan`]. The invite-token and claim-invite paths still
-/// mint one UCAN per capability (each row in `haex_ucan_tokens` grants a
-/// single cap), so every issued token embeds a set of exactly one entry.
-fn build_singleton_capset(cap: Cap, delegatable: bool) -> CapabilitySet {
-    let builder = CapabilitySet::builder();
-    match cap {
-        Cap::Read => builder.read(delegatable),
-        Cap::Write => builder.write(delegatable),
-        Cap::Invite => builder.invite(delegatable),
-        Cap::Admin => builder.admin(delegatable),
-    }
-    .build()
-}
-
 /// Create a local invite token (admin-side, requires leader mode).
 ///
 /// If `target_did` is provided, creates a contact invite (1:1, pre-created UCAN).
@@ -55,9 +40,9 @@ pub async fn local_delivery_create_invite(
             let cap = crate::ucan::cap_from_str(&capability).map_err(|e| e.to_string())?;
             // D9: contact invites for admin-tier caps stay delegatable so
             // the invitee can further delegate their own peer set;
-            // Write/Read invites are terminal grants.
-            let delegatable = matches!(cap, crate::ucan::Cap::Admin | crate::ucan::Cap::Invite);
-            let capability_set = build_singleton_capset(cap, delegatable);
+            // Write/Read invites are terminal grants. Encoded in
+            // `Cap::is_delegatable_by_default`.
+            let capability_set = CapabilitySet::singleton(cap, cap.is_delegatable_by_default());
             let ucan_token = super::super::ucan::create_delegated_ucan(
                 &admin.did,
                 &admin.private_key_base64,
@@ -196,14 +181,16 @@ pub(crate) fn persist_claimed_ucan(
         // Task 8b: `capabilities` is a JSON [`CapabilitySet`]. Each row is
         // one delegation; the leader mints one UCAN per capability so the
         // persisted set is a singleton mirroring the token's own set (D9:
-        // Admin/Invite delegatable, Write/Read terminal — same policy as
-        // `build_singleton_capset` above so the stored `delegatable`
+        // Admin/Invite delegatable, Write/Read terminal — encoded in
+        // `Cap::is_delegatable_by_default` so the stored `delegatable`
         // matches what's carried inside the UCAN payload).
         let cap = crate::ucan::cap_from_str(capability)
             .map_err(|e| format!("Unrecognized capability {capability}: {e}"))?;
-        let delegatable = matches!(cap, Cap::Admin | Cap::Invite);
-        let capability_set_json = serde_json::to_string(&build_singleton_capset(cap, delegatable))
-            .map_err(|e| format!("Failed to serialize CapabilitySet: {e}"))?;
+        let capability_set_json = serde_json::to_string(&CapabilitySet::singleton(
+            cap,
+            cap.is_delegatable_by_default(),
+        ))
+        .map_err(|e| format!("Failed to serialize CapabilitySet: {e}"))?;
         crate::database::core::execute_with_crdt(
             "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"

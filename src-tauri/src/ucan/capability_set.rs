@@ -1,14 +1,8 @@
-//! Orthogonal capability set for UCAN payloads.
+//! Orthogonal per-capability set for UCAN payloads.
 //!
-//! Replaces the hierarchical [`crate::ucan::verify::CapabilityLevel`] with a
-//! per-capability set where each of `Read`, `Write`, `Invite`, `Admin` is
-//! individually held or not held, and independently carries a `delegatable`
-//! flag. See W4 Phase C in
-//! `docs/plans/2026-07-31-shared-space-authorization-impl.md`.
-//!
-//! **Coexistence:** during PR-1 of Phase C, this type lives alongside
-//! `CapabilityLevel`. Wire integration (payload changes) lands in a later PR
-//! together with Phase D (grants + transport).
+//! Each of `Read`, `Write`, `Invite`, `Admin` is independently held or not,
+//! and each held capability independently carries a `delegatable` flag. See
+//! W4 Phase C in `docs/plans/2026-07-31-shared-space-authorization-impl.md`.
 //!
 //! **Canonical serde form:** a JSON array of `{"cap": ..., "delegatable": ...}`
 //! entries, sorted by [`Cap`] discriminant, no duplicates. Reading is lenient
@@ -17,10 +11,9 @@
 
 use serde::{Deserialize, Serialize};
 
-/// The four orthogonal space capabilities. Discriminants match the historical
-/// [`crate::ucan::verify::CapabilityLevel`] numeric order so that a future
-/// migration from the hierarchical to the orthogonal representation can map
-/// cleanly.
+/// The four orthogonal space capabilities. Discriminant order matters for
+/// canonical serde ordering — [`CapabilitySet`] entries are sorted ascending
+/// by `Cap as u8`.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Cap {
@@ -28,6 +21,22 @@ pub enum Cap {
     Write = 2,
     Invite = 3,
     Admin = 4,
+}
+
+impl Cap {
+    /// Default `delegatable` bit used when issuing a fresh grant for this
+    /// capability from an invite-token / claim-invite path. Admin-tier caps
+    /// (`Admin`, `Invite`) stay delegatable so the invitee can further
+    /// delegate their own peer set; `Write` and `Read` are terminal grants.
+    ///
+    /// Encodes the D9 heuristic shared by
+    /// [`crate::space_delivery::local::commands::invites`] and
+    /// [`crate::space_delivery::local::leader::claim`] — matching bits on
+    /// both create-sites keeps contact-invite and conference-invite tokens
+    /// observationally identical.
+    pub fn is_delegatable_by_default(self) -> bool {
+        matches!(self, Cap::Admin | Cap::Invite)
+    }
 }
 
 /// A single capability grant: which capability, and whether the holder may
@@ -55,9 +64,36 @@ impl CapabilitySet {
         CapabilitySetBuilder::default()
     }
 
+    /// Construct a set with exactly one capability entry — the shape emitted
+    /// by every invite-token and claim-invite path today (one UCAN per stored
+    /// capability, one row per grant in `haex_ucan_tokens`).
+    pub fn singleton(cap: Cap, delegatable: bool) -> Self {
+        let builder = Self::builder();
+        match cap {
+            Cap::Read => builder.read(delegatable),
+            Cap::Write => builder.write(delegatable),
+            Cap::Invite => builder.invite(delegatable),
+            Cap::Admin => builder.admin(delegatable),
+        }
+        .build()
+    }
+
     /// True if this set holds `cap`.
     pub fn can(&self, cap: Cap) -> bool {
         self.entries.iter().any(|e| e.cap == cap)
+    }
+
+    /// True if this set can perform an action that either the given `cap` or
+    /// [`Cap::Admin`] authorizes. Encodes the ambient "Admin acts as X" rule
+    /// used at membership-change and committer-validation gates in
+    /// [`crate::mls::authorization`].
+    ///
+    /// Under orthogonal capabilities a token carrying only [`Cap::Admin`]
+    /// does NOT implicitly grant [`Cap::Invite`], so a raw `can(Invite)`
+    /// alone would reject a pure-Admin holder at gates that want either
+    /// bit. This method makes that acceptance explicit.
+    pub fn can_or_admin(&self, cap: Cap) -> bool {
+        self.can(cap) || self.can(Cap::Admin)
     }
 
     /// True if this set holds `cap` AND that entry is marked `delegatable`.
@@ -141,8 +177,8 @@ impl std::error::Error for DelegationError {}
 /// (`delegatable=false`), is rejected.
 ///
 /// Note: this function only checks *this hop*. The full UCAN chain walker
-/// applies it pairwise along the `prf` chain — that integration lands with
-/// C.5.
+/// applies it pairwise along the `prf` chain in
+/// [`crate::ucan::verify::walk_prf_chain`].
 pub fn enforce_delegatable(
     parent: &CapabilitySet,
     child: &CapabilitySet,

@@ -235,3 +235,68 @@ fn cap_from_str_rejects_unknown_names() {
     assert!(cap_from_str("READ").is_err()); // case-sensitive
     assert!(cap_from_str("space/READ").is_err());
 }
+
+// ---------------------------------------------------------------------------
+// `Cap::is_delegatable_by_default` — D9 heuristic
+// ---------------------------------------------------------------------------
+
+#[test]
+fn is_delegatable_by_default_admin_and_invite_true() {
+    assert!(Cap::Admin.is_delegatable_by_default());
+    assert!(Cap::Invite.is_delegatable_by_default());
+}
+
+#[test]
+fn is_delegatable_by_default_write_and_read_false() {
+    assert!(!Cap::Write.is_delegatable_by_default());
+    assert!(!Cap::Read.is_delegatable_by_default());
+}
+
+// ---------------------------------------------------------------------------
+// `CapabilitySet::can_or_admin` — Admin acts as X gate helper
+// ---------------------------------------------------------------------------
+
+#[test]
+fn admin_only_can_or_admin_invite() {
+    let set = CapabilitySet::builder().admin(false).build();
+    assert!(set.can_or_admin(Cap::Invite));
+}
+
+#[test]
+fn write_only_can_or_admin_invite_false() {
+    let set = CapabilitySet::builder().write(false).build();
+    assert!(!set.can_or_admin(Cap::Invite));
+}
+
+#[test]
+fn invite_only_can_or_admin_invite() {
+    let set = CapabilitySet::builder().invite(false).build();
+    assert!(set.can_or_admin(Cap::Invite));
+}
+
+#[test]
+fn empty_set_can_or_admin_invite_false() {
+    let set = CapabilitySet::default();
+    assert!(!set.can_or_admin(Cap::Invite));
+}
+
+// ---------------------------------------------------------------------------
+// `CapabilitySet::singleton` — single-cap grants
+// ---------------------------------------------------------------------------
+
+#[test]
+fn singleton_admin_delegatable() {
+    let set = CapabilitySet::singleton(Cap::Admin, true);
+    assert!(set.can(Cap::Admin));
+    assert!(set.is_delegatable(Cap::Admin));
+    // Only one entry.
+    assert_eq!(set.entries().count(), 1);
+}
+
+#[test]
+fn singleton_read_not_delegatable() {
+    let set = CapabilitySet::singleton(Cap::Read, false);
+    assert!(set.can(Cap::Read));
+    assert!(!set.is_delegatable(Cap::Read));
+    assert_eq!(set.entries().count(), 1);
+}

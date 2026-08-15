@@ -14,21 +14,6 @@ use crate::critical::CriticalFailureCode;
 use crate::ucan::{cap_from_str, Cap, CapabilitySet};
 use serde_json::Value as JsonValue;
 
-/// Lift a single [`Cap`] + `delegatable` bit into a [`CapabilitySet`] for
-/// [`create_delegated_ucan`]. Claim-invite mints one UCAN per stored
-/// capability (each row in `haex_ucan_tokens` grants a single cap), so
-/// every issued token embeds a set of exactly one entry.
-fn build_singleton_capset(cap: Cap, delegatable: bool) -> CapabilitySet {
-    let builder = CapabilitySet::builder();
-    match cap {
-        Cap::Read => builder.read(delegatable),
-        Cap::Write => builder.write(delegatable),
-        Cap::Invite => builder.invite(delegatable),
-        Cap::Admin => builder.admin(delegatable),
-    }
-    .build()
-}
-
 // ============================================================================
 // ClaimInvite handler
 // ============================================================================
@@ -193,13 +178,12 @@ pub async fn handle_claim_invite(
                     };
                     // D9: admin-tier grants (Admin, Invite) stay delegatable
                     // so the claimant can further delegate their own peer
-                    // set; Write/Read are terminal. Mirrors the choice in
-                    // `space_delivery::local::commands::invites` — matching
-                    // heuristics on both create sites keeps
-                    // contact-invite and conference-invite tokens
-                    // observationally identical.
-                    let delegatable = matches!(cap, Cap::Admin | Cap::Invite);
-                    let capability_set = build_singleton_capset(cap, delegatable);
+                    // set; Write/Read are terminal. Encoded in
+                    // `Cap::is_delegatable_by_default` — matching heuristics
+                    // on both create sites keeps contact-invite and
+                    // conference-invite tokens observationally identical.
+                    let capability_set =
+                        CapabilitySet::singleton(cap, cap.is_delegatable_by_default());
                     match super::super::ucan::create_delegated_ucan(
                         &admin.did,
                         &admin.private_key_base64,
@@ -686,9 +670,11 @@ fn persist_admin_ucan(
                 continue;
             }
         };
-        let delegatable = matches!(cap, Cap::Admin | Cap::Invite);
-        let capability_set_json = serde_json::to_string(&build_singleton_capset(cap, delegatable))
-            .expect("CapabilitySet serialization is infallible");
+        let capability_set_json = serde_json::to_string(&CapabilitySet::singleton(
+            cap,
+            cap.is_delegatable_by_default(),
+        ))
+        .expect("CapabilitySet serialization is infallible");
         let sql = "INSERT OR IGNORE INTO haex_ucan_tokens \
             (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"

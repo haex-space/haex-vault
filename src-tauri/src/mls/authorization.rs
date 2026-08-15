@@ -582,8 +582,9 @@ pub struct PresentedCapability {
 ///
 /// Otherwise `presented` must be `Some`, its `audience_did` must equal the
 /// commit's MLS-authenticated `CommitFacts::committer_did`, and its
-/// [`CapabilitySet`] must hold [`Cap::Invite`] or [`Cap::Admin`]. The caller
-/// has already verified the UCAN chain and the separate commit-bind
+/// [`CapabilitySet`] must satisfy [`CapabilitySet::can_or_admin`] for
+/// [`Cap::Invite`] (holds Invite, or holds Admin acting as Invite). The
+/// caller has already verified the UCAN chain and the separate commit-bind
 /// signature over this exact commit's bytes before constructing
 /// `presented` — this function trusts both.
 pub(crate) fn authorize_committer_capability(
@@ -647,14 +648,12 @@ pub(crate) fn authorize_committer_capability(
         ));
     }
 
-    // Semantic preservation across the CapabilityLevel → CapabilitySet
-    // migration (W4 PR-3): the old `.allows(&Invite)` lattice check accepted
-    // both Invite and Admin as "Invite-or-higher". Under orthogonal caps a
-    // token carrying only `Cap::Admin` no longer implicitly grants
-    // `Cap::Invite`, so we accept either explicitly. Any future
-    // Cap::ManageMembers (plan §5.7) would be added here rather than by
-    // reintroducing a lattice.
-    if !(presented.capabilities.can(Cap::Invite) || presented.capabilities.can(Cap::Admin)) {
+    // Ambient "Admin acts as Invite" gate: under orthogonal capabilities a
+    // token carrying only `Cap::Admin` does NOT implicitly grant
+    // `Cap::Invite`, so we accept either explicitly via
+    // `CapabilitySet::can_or_admin`. Any future `Cap::ManageMembers`
+    // (plan §5.7) would be added there rather than by reintroducing a lattice.
+    if !presented.capabilities.can_or_admin(Cap::Invite) {
         return Err(format!(
             "Rejecting MLS commit for space {space_id}: committer {committer_did} presented \
              {:?} but membership removal requires Invite or Admin",
@@ -685,10 +684,10 @@ fn with_authz_conn<T>(
 /// or [`Cap::Admin`] in `space_id`. `operation` names the gated action for
 /// the rejection message ("MLS commit" / "local MLS remove").
 ///
-/// Preserves the pre-orthogonal "Invite-or-higher" behavior by accepting
-/// either cap explicitly — Admin does NOT implicitly grant Invite under
-/// [`CapabilitySet`], so a raw `.can(Cap::Invite)` alone would reject a
-/// pure-Admin holder. See [`authorize_committer_capability`] for the
+/// Uses [`CapabilitySet::can_or_admin`] to encode the ambient
+/// "Admin acts as Invite" rule — under orthogonal caps, Admin does NOT
+/// implicitly grant Invite, so a raw `.can(Cap::Invite)` alone would reject
+/// a pure-Admin holder. See [`authorize_committer_capability`] for the
 /// matching remote-side check.
 fn require_invite_or_higher(
     conn: &Connection,
@@ -697,7 +696,7 @@ fn require_invite_or_higher(
     operation: &str,
 ) -> Result<(), String> {
     match committer_capability(conn, space_id, did)? {
-        Some(set) if set.can(Cap::Invite) || set.can(Cap::Admin) => Ok(()),
+        Some(set) if set.can_or_admin(Cap::Invite) => Ok(()),
         Some(set) => Err(format!(
             "Rejecting {operation} for space {space_id}: committer {did} holds {set:?} but \
              membership changes require Invite or Admin"
@@ -759,11 +758,23 @@ fn committer_capability(
     let mut saw_any = false;
     for row in rows {
         let capabilities_str = row.map_err(|e| format!("Failed to read capability row: {e}"))?;
-        let Ok(set) = serde_json::from_str::<CapabilitySet>(&capabilities_str) else {
-            // Skip malformed rows silently — belt-and-braces alongside the
-            // Task-8b migration that drops legacy rows; a stray, un-parseable
-            // row must not fail-open the gate for the whole audience.
-            continue;
+        let set = match serde_json::from_str::<CapabilitySet>(&capabilities_str) {
+            Ok(set) => set,
+            Err(err) => {
+                // Skip malformed rows to keep the gate fail-closed on this
+                // token (rather than fail-open on the whole audience), but
+                // surface the drift via tracing so schema regressions in
+                // `haex_ucan_tokens.capabilities` surface early instead of
+                // silently degrading committer authorization.
+                tracing::warn!(
+                    space_id = %space_id,
+                    did = %did,
+                    error = %err,
+                    "Skipping unparseable haex_ucan_tokens.capabilities row \
+                     in committer_capability lookup"
+                );
+                continue;
+            }
         };
         for entry in set.entries() {
             saw_any = true;
