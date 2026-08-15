@@ -45,66 +45,6 @@ const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
 const MAX_DID_KEY_LEN_BYTES: usize = 128;
 
 // ---------------------------------------------------------------------------
-// Capability levels
-// ---------------------------------------------------------------------------
-
-/// Capability levels in ascending order of privilege.
-/// Matches the hierarchy in @haex-space/ucan: read < write < invite < admin.
-///
-/// `serde` derives use `snake_case` variant names so the TS side of the
-/// `verify_ucan_chain_batch` IPC command can pass plain lowercase strings
-/// (`"read"`, `"write"`, `"invite"`, `"admin"`) that mirror the JS-side
-/// `CapabilityLevel` type. The underlying `space/*` capability strings
-/// (`"space/read"`, …) parsed by [`Self::from_capability_string`] belong
-/// to the UCAN payload wire format and are intentionally kept distinct
-/// from the IPC vocabulary.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum CapabilityLevel {
-    Read = 1,
-    Write = 2,
-    Invite = 3,
-    Admin = 4,
-}
-
-impl CapabilityLevel {
-    pub fn from_capability_string(capability: &str) -> Option<Self> {
-        match capability {
-            "space/read" => Some(Self::Read),
-            "space/write" => Some(Self::Write),
-            "space/invite" => Some(Self::Invite),
-            "space/admin" => Some(Self::Admin),
-            _ => None,
-        }
-    }
-
-    /// Strict-subset lattice for capability attenuation:
-    /// `Admin > Invite > Write > Read`.
-    ///
-    /// Returns `true` iff `self` grants at least what `requested` needs — i.e.
-    /// a parent token holding `self` may delegate a child token requesting
-    /// `requested`. Used by the chain walker to enforce that a child's
-    /// capability is ≤ its parent's along a `prf` UCAN chain.
-    ///
-    /// The match is written out explicitly (rather than delegating to `Ord`)
-    /// so that adding an orthogonal capability later — one that must only
-    /// allow itself — forces this arm to be updated by hand rather than being
-    /// silently ordered by discriminant.
-    pub fn allows(&self, requested: &CapabilityLevel) -> bool {
-        use CapabilityLevel::*;
-        match (self, requested) {
-            (Admin, Admin | Invite | Write | Read) => true,
-            (Invite, Invite | Write | Read) => true,
-            (Write, Write | Read) => true,
-            (Read, Read) => true,
-            _ => false,
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Parsed & validated payloads
 // ---------------------------------------------------------------------------
 
@@ -134,8 +74,9 @@ pub struct ParsedUcan {
 }
 
 /// UCAN that has passed the full pipeline for one target space: signature,
-/// expiry, audience, capability floor, prf chain walk to a self-signed root,
-/// and `space_id`-binding to that root DID.
+/// expiry, audience, required capability held in the leaf's [`CapabilitySet`],
+/// prf chain walk to a self-signed root with per-hop attenuation, and
+/// `space_id`-binding to that root DID.
 #[derive(Debug, Clone)]
 pub struct ValidatedUcan {
     pub issuer: String,

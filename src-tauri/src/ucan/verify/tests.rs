@@ -189,8 +189,7 @@ fn require_write_with_only_read_fails() {
 #[test]
 fn require_read_with_only_write_fails() {
     // Orthogonal semantics: holding Write does NOT satisfy a required Read.
-    // In the pre-migration hierarchical world, Write "allowed" Read via
-    // CapabilityLevel::allows(); that silent lift is gone by design.
+    // Each capability is independent — Write does not silently grant Read.
     let validated = dummy_validated_ucan(CapabilitySet::builder().write(true).build(), "space-123");
     assert!(matches!(
         require_capability(&validated, "space-123", Cap::Read),
@@ -230,97 +229,6 @@ fn public_key_from_did_rejects_oversized_input() {
         matches!(&result, Err(UcanVerifyError::MalformedToken(msg)) if msg.contains("too long")),
         "expected MalformedToken with 'too long', got {result:?}"
     );
-}
-
-// ---------------------------------------------------------------------------
-// CapabilityLevel ordering + lattice
-// ---------------------------------------------------------------------------
-
-#[test]
-fn capability_ordering() {
-    assert!(CapabilityLevel::Admin > CapabilityLevel::Invite);
-    assert!(CapabilityLevel::Invite > CapabilityLevel::Write);
-    assert!(CapabilityLevel::Write > CapabilityLevel::Read);
-}
-
-#[test]
-fn allows_admin_allows_admin() {
-    assert!(CapabilityLevel::Admin.allows(&CapabilityLevel::Admin));
-}
-
-#[test]
-fn allows_admin_allows_invite() {
-    assert!(CapabilityLevel::Admin.allows(&CapabilityLevel::Invite));
-}
-
-#[test]
-fn allows_admin_allows_write() {
-    assert!(CapabilityLevel::Admin.allows(&CapabilityLevel::Write));
-}
-
-#[test]
-fn allows_admin_allows_read() {
-    assert!(CapabilityLevel::Admin.allows(&CapabilityLevel::Read));
-}
-
-#[test]
-fn allows_invite_allows_invite() {
-    assert!(CapabilityLevel::Invite.allows(&CapabilityLevel::Invite));
-}
-
-#[test]
-fn allows_invite_allows_write() {
-    assert!(CapabilityLevel::Invite.allows(&CapabilityLevel::Write));
-}
-
-#[test]
-fn allows_invite_allows_read() {
-    assert!(CapabilityLevel::Invite.allows(&CapabilityLevel::Read));
-}
-
-#[test]
-fn allows_invite_does_not_allow_admin() {
-    assert!(!CapabilityLevel::Invite.allows(&CapabilityLevel::Admin));
-}
-
-#[test]
-fn allows_write_allows_write() {
-    assert!(CapabilityLevel::Write.allows(&CapabilityLevel::Write));
-}
-
-#[test]
-fn allows_write_allows_read() {
-    assert!(CapabilityLevel::Write.allows(&CapabilityLevel::Read));
-}
-
-#[test]
-fn allows_write_does_not_allow_invite() {
-    assert!(!CapabilityLevel::Write.allows(&CapabilityLevel::Invite));
-}
-
-#[test]
-fn allows_write_does_not_allow_admin() {
-    assert!(!CapabilityLevel::Write.allows(&CapabilityLevel::Admin));
-}
-
-#[test]
-fn allows_read_allows_read() {
-    assert!(CapabilityLevel::Read.allows(&CapabilityLevel::Read));
-}
-
-#[test]
-fn allows_read_does_not_allow_write() {
-    assert!(!CapabilityLevel::Read.allows(&CapabilityLevel::Write));
-}
-
-#[test]
-fn allows_read_does_not_allow_invite() {
-    assert!(!CapabilityLevel::Read.allows(&CapabilityLevel::Invite));
-}
-
-#[test]
-fn allows_read_does_not_allow_admin() {
-    assert!(!CapabilityLevel::Read.allows(&CapabilityLevel::Admin));
 }
 
 // ---------------------------------------------------------------------------
@@ -682,10 +590,11 @@ fn parse_ucan_ignores_row_cap_entries_without_space_prefix() {
 // walk_prf_chain — row-cap attenuation (Task 3)
 // ---------------------------------------------------------------------------
 //
-// The chain walker already enforces CapabilityLevel attenuation
-// (parent_cap.allows(child_cap)). This block extends that discipline to
-// row-caps: every row-cap the child claims must appear structurally in the
-// parent's row-cap set for the same space. See UcanVerifyError::RowCapAttenuation.
+// The chain walker already enforces CapabilitySet attenuation
+// (child ⊆ parent, plus per-capability delegatable-flag monotonicity via
+// `enforce_delegatable`). This block extends that discipline to row-caps:
+// every row-cap the child claims must appear structurally in the parent's
+// row-cap set for the same space. See UcanVerifyError::RowCapAttenuation.
 //
 // MVP semantics (documented in walk_prf_chain):
 //  - Exact structural equality on (variant, predicate). No Predicate P1 ⊑ P2
@@ -1093,12 +1002,11 @@ fn walk_chain_rejects_six_hop_row_cap_chain_beyond_max_depth() {
 }
 
 // ---------------------------------------------------------------------------
-// W4 PR-3 Task 1 — RED tests for the CapabilitySet wire form.
+// CapabilitySet wire form — parse contract.
 //
-// These tests are intentionally red against the current hierarchical
-// `CapabilityLevel` parser. They pin the target contract for Task 2, which
-// will migrate `parse_ucan` to read `HashMap<String, CapabilitySet>` from the
-// canonical per-space array form and reject the legacy string form.
+// Pins that `parse_ucan` reads the `capabilities` claim as
+// `HashMap<String, CapabilitySet>` from the canonical per-space array form
+// and rejects legacy string-shape capability claims.
 // ---------------------------------------------------------------------------
 
 fn unix_secs_from(t: SystemTime) -> u64 {

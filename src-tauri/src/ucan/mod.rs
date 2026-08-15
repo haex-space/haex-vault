@@ -26,6 +26,5 @@ pub use create::{create_delegated_ucan, signing_key_from_pkcs8_base64, UcanCreat
 pub use space_id::VerifyError as SpaceIdVerifyError;
 pub use verify::{
     did_key_from_public_key, parse_ucan, public_key_from_did, require_audience, require_capability,
-    require_not_expired, validate_token, CapabilityLevel, ParsedUcan, UcanVerifyError,
-    ValidatedUcan,
+    require_not_expired, validate_token, ParsedUcan, UcanVerifyError, ValidatedUcan,
 };
