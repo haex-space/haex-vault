@@ -84,7 +84,7 @@ pub enum Request {
         /// dot-separated segments are already base64url and safe as JSON
         /// text, so no outer base64 wrap is applied on the wire. Present
         /// iff the message is a Remove-bearing commit whose committer holds
-        /// `Invite`-or-higher AND the target is still an active member on
+        /// `Invite` or `Admin` AND the target is still an active member on
         /// the sender's view; absent for application messages, key
         /// rotations, self-leaves, and leader-rekey-after-self-leave
         /// commits (where every removed leaf's DID is already gone from
@@ -149,8 +149,9 @@ pub enum Request {
     },
 
     // -- CRDT Sync --
-    /// Push CRDT changes to the leader.
-    /// Requires UCAN with `space/write` capability for the target space.
+    /// Push CRDT changes to the leader. The connection gate requires exact
+    /// `space/read`; the inbound sync authorization refines non-membership
+    /// payloads to exact `space/write`.
     SyncPush {
         space_id: String,
         /// JSON-serialized CRDT changes (same format as server push)
@@ -160,7 +161,7 @@ pub enum Request {
         ucan_token: Option<String>,
     },
     /// Pull CRDT changes from the leader.
-    /// Requires UCAN with `space/read` capability (or higher) for the target space.
+    /// Requires an exact `space/read` capability for the target space.
     SyncPull {
         space_id: String,
         after_timestamp: Option<String>,
@@ -184,7 +185,7 @@ pub enum Request {
 
     // -- Identity --
     /// Announce identity to the leader (sent on connect).
-    /// Requires UCAN with `space/read` capability (or higher) for the target space —
+    /// Requires an exact `space/read` capability for the target space —
     /// the announce populates `haex_space_devices` which is space-scoped sync state.
     ///
     /// The peer's DID is no longer carried on the wire — it is established
