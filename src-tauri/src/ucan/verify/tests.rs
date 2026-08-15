@@ -64,9 +64,7 @@ fn random_signing_key() -> SigningKey {
 
 /// Generate a fresh salt for test-only `derive_space_id` calls.
 fn random_space_id_salt() -> [u8; 16] {
-    let mut salt = [0u8; 16];
-    rand::fill(&mut salt);
-    salt
+    rand::random()
 }
 
 // ---------------------------------------------------------------------------
