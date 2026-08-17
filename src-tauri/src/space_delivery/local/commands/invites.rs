@@ -180,15 +180,21 @@ pub(crate) fn persist_claimed_ucan(
         .unwrap_or_default()
         .as_secs() as i64;
 
-    let mut new_ids = Vec::with_capacity(p.granted.len());
+    // Callers may fan one combined token out into one wire tuple per granted
+    // capability (see `Response::InviteClaimed` / `load_existing_claim`) —
+    // that shape predates Task 8b, when each row held a single decomposed
+    // `space/<cap>` string. Post-8b the `capabilities` column stores the
+    // FULL `CapabilitySet` carried by the token, so inserting one row per
+    // wire tuple would just persist N identical rows for the same token
+    // (bug caught by 06-data-consistency.ts "re-invite ... leaves one UCAN
+    // capability set"). Dedupe on `token`: insert exactly one row per unique
+    // token, but still verify every advertised capability is actually in
+    // that token's set so a malformed wire response can't sneak in.
+    let mut new_ids = Vec::new();
+    let mut seen_tokens: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for (capability, token) in p.granted {
-        let ucan_id = uuid::Uuid::new_v4().to_string();
         let claimed_cap = crate::ucan::cap_from_str(capability)
             .map_err(|e| format!("Unrecognized capability {capability}: {e}"))?;
-        // Index the exact set carried by this token. New multi-capability
-        // claims reuse a combined token for every lookup row, while rows
-        // from an earlier singleton-token claim must remain accurately
-        // described as well.
         let parsed = crate::ucan::parse_ucan(token)
             .map_err(|e| format!("Failed to parse claimed UCAN: {e}"))?;
         let token_set = parsed.capabilities.get(p.space_id).ok_or_else(|| {
@@ -202,6 +208,10 @@ pub(crate) fn persist_claimed_ucan(
                 "Claimed UCAN does not contain its advertised capability {capability}"
             ));
         }
+        if !seen_tokens.insert(token.as_str()) {
+            continue;
+        }
+        let ucan_id = uuid::Uuid::new_v4().to_string();
         let capability_set_json = serde_json::to_string(token_set)
             .map_err(|e| format!("Failed to serialize CapabilitySet: {e}"))?;
         crate::database::core::execute_with_crdt(
