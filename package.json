@@ -84,8 +84,8 @@
   "devDependencies": {
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/hugeicons": "^1.2.32",
-    "@iconify-json/lucide": "^1.2.121",
-    "@iconify/json": "^2.2.510",
+    "@iconify-json/lucide": "^1.2.123",
+    "@iconify/json": "^2.2.516",
     "@iconify/tailwind4": "^1.2.3",
     "@libsql/client": "^0.17.4",
     "@oxc-minify/binding-linux-x64-gnu": "^0.144.0",
