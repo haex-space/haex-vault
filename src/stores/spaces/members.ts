@@ -1,6 +1,7 @@
 import { eq, and, inArray } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
+import { isSpaceCapValue, type SpaceCap } from '@haex-space/ucan'
 import {
   haexIdentities,
   haexSpaceDevices,
@@ -303,7 +304,16 @@ export async function removeSpaceMember(db: DB, spaceId: string, memberDid: stri
   log.info(`Removed member ${memberDid.slice(0, 20)}... from space ${spaceId} (MLS + UCAN revoked + DB)`)
 }
 
-/** One-time migration: populate haex_space_members from existing haex_ucan_tokens */
+/** One-time migration: populate haex_space_members from existing haex_ucan_tokens.
+ *
+ * Task 8b: `token.capabilities` is a JSON-serialized `SpaceCapabilitySet`
+ * (array of `{cap, delegatable}`). This walks the parsed set entries and
+ * picks the highest-ranked cap per `(spaceId, audienceDid)` — a token
+ * carrying `{write, read}` contributes `write` here, matching what
+ * `haex_space_members.role` (a display-only column) is meant to show.
+ * A malformed JSON row is skipped so a single bad row cannot abort the
+ * whole migration.
+ */
 export async function migrateExistingMembers(
   db: DB,
   identities: Array<{ id: string; did: string }>,
@@ -311,16 +321,31 @@ export async function migrateExistingMembers(
   const allTokens = await db.select().from(haexUcanTokens)
   if (allTokens.length === 0) return
 
-  // Group by (spaceId, audienceDid) — pick highest capability
-  const memberMap = new Map<string, { spaceId: string; did: string; capability: string }>()
-  const roleOrder = ['admin', 'invite', 'write', 'read']
+  // Rank low-index = higher precedence, matching the pre-8b `roleOrder`
+  // semantics so the same token set yields the same display role.
+  const roleOrder: readonly SpaceCap[] = ['admin', 'invite', 'write', 'read']
+  const rankOf = (r: SpaceCap): number => roleOrder.indexOf(r)
+
+  const memberMap = new Map<string, { spaceId: string; did: string; role: SpaceCap }>()
 
   for (const token of allTokens) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(token.capabilities)
+    } catch {
+      continue
+    }
+    if (!isSpaceCapValue(parsed)) continue
+    // Highest-ranked cap held by THIS token.
+    let best: SpaceCap | null = null
+    for (const entry of parsed) {
+      if (best === null || rankOf(entry.cap) < rankOf(best)) best = entry.cap
+    }
+    if (best === null) continue
     const key = `${token.spaceId}:${token.audienceDid}`
     const existing = memberMap.get(key)
-    const tokenRole = token.capability.replace('space/', '')
-    if (!existing || roleOrder.indexOf(tokenRole) < roleOrder.indexOf(existing.capability)) {
-      memberMap.set(key, { spaceId: token.spaceId, did: token.audienceDid, capability: tokenRole })
+    if (!existing || rankOf(best) < rankOf(existing.role)) {
+      memberMap.set(key, { spaceId: token.spaceId, did: token.audienceDid, role: best })
     }
   }
 
@@ -332,7 +357,7 @@ export async function migrateExistingMembers(
       await db.insert(haexSpaceMembers).values({
         spaceId: member.spaceId,
         identityId: knownIdentity.id,
-        role: member.capability,
+        role: member.role,
         joinedAt: new Date().toISOString(),
       }).onConflictDoNothing()
     } catch (error) {

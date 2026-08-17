@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { save as showSaveDialog } from '@tauri-apps/plugin-dialog'
 import type { Ref } from 'vue'
+import { holdsSpaceCap } from '@haex-space/ucan'
 import {
   toS3Prefix,
   saveBase64WithDialog,
@@ -57,7 +58,7 @@ export function useFileMutations(deps: FileMutationsDeps) {
    *
    *  - Local share: the share lives on this device, the OS enforces perms.
    *  - S3 backend: the user configured it; ACL enforcement is on the bucket.
-   *  - P2P peer: requires a cached UCAN with `space/write` or `space/admin`.
+   *  - P2P peer: requires a cached UCAN with explicit `space/write`.
    */
   const canWrite = computed(() => {
     const peer = selectedPeer.value
@@ -68,7 +69,9 @@ export function useFileMutations(deps: FileMutationsDeps) {
       currentPath.value,
       currentSpaceId.value ?? undefined,
     )
-    return cap === 'space/write' || cap === 'space/admin'
+    if (!cap) return false
+    // Orthogonal-capability check: admin does not imply write.
+    return holdsSpaceCap(cap, 'write')
   })
 
   /**

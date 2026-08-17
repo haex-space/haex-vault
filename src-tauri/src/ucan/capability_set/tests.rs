@@ -1,4 +1,4 @@
-use super::{enforce_delegatable, Cap, CapEntry, CapabilitySet, DelegationError};
+use super::{cap_from_str, enforce_delegatable, Cap, CapEntry, CapabilitySet, DelegationError};
 
 #[test]
 fn capability_set_is_orthogonal() {
@@ -207,4 +207,96 @@ fn cap_holder_may_exercise_even_without_delegatability() {
     let set = CapabilitySet::builder().invite(false).build();
     assert!(set.can(Cap::Invite));
     assert!(!set.is_delegatable(Cap::Invite));
+}
+
+#[test]
+fn cap_from_str_accepts_bare_names() {
+    assert_eq!(cap_from_str("read"), Ok(Cap::Read));
+    assert_eq!(cap_from_str("write"), Ok(Cap::Write));
+    assert_eq!(cap_from_str("invite"), Ok(Cap::Invite));
+    assert_eq!(cap_from_str("admin"), Ok(Cap::Admin));
+}
+
+#[test]
+fn cap_from_str_accepts_space_prefixed_bridge() {
+    // Pre-Task-8 frontend still emits the "space/" prefix; the helper
+    // strips it so backend code can migrate ahead of the wire.
+    assert_eq!(cap_from_str("space/read"), Ok(Cap::Read));
+    assert_eq!(cap_from_str("space/write"), Ok(Cap::Write));
+    assert_eq!(cap_from_str("space/invite"), Ok(Cap::Invite));
+    assert_eq!(cap_from_str("space/admin"), Ok(Cap::Admin));
+}
+
+#[test]
+fn cap_from_str_rejects_unknown_names() {
+    assert!(cap_from_str("").is_err());
+    assert!(cap_from_str("space/").is_err());
+    assert!(cap_from_str("owner").is_err());
+    assert!(cap_from_str("READ").is_err()); // case-sensitive
+    assert!(cap_from_str("space/READ").is_err());
+}
+
+// ---------------------------------------------------------------------------
+// `Cap::is_delegatable_by_default` — D9 heuristic
+// ---------------------------------------------------------------------------
+
+#[test]
+fn is_delegatable_by_default_admin_and_invite_true() {
+    assert!(Cap::Admin.is_delegatable_by_default());
+    assert!(Cap::Invite.is_delegatable_by_default());
+}
+
+#[test]
+fn is_delegatable_by_default_write_and_read_false() {
+    assert!(!Cap::Write.is_delegatable_by_default());
+    assert!(!Cap::Read.is_delegatable_by_default());
+}
+
+// ---------------------------------------------------------------------------
+// `CapabilitySet::can_or_admin` — Admin acts as X gate helper
+// ---------------------------------------------------------------------------
+
+#[test]
+fn admin_only_can_or_admin_invite() {
+    let set = CapabilitySet::builder().admin(false).build();
+    assert!(set.can_or_admin(Cap::Invite));
+}
+
+#[test]
+fn write_only_can_or_admin_invite_false() {
+    let set = CapabilitySet::builder().write(false).build();
+    assert!(!set.can_or_admin(Cap::Invite));
+}
+
+#[test]
+fn invite_only_can_or_admin_invite() {
+    let set = CapabilitySet::builder().invite(false).build();
+    assert!(set.can_or_admin(Cap::Invite));
+}
+
+#[test]
+fn empty_set_can_or_admin_invite_false() {
+    let set = CapabilitySet::default();
+    assert!(!set.can_or_admin(Cap::Invite));
+}
+
+// ---------------------------------------------------------------------------
+// `CapabilitySet::singleton` — single-cap grants
+// ---------------------------------------------------------------------------
+
+#[test]
+fn singleton_admin_delegatable() {
+    let set = CapabilitySet::singleton(Cap::Admin, true);
+    assert!(set.can(Cap::Admin));
+    assert!(set.is_delegatable(Cap::Admin));
+    // Only one entry.
+    assert_eq!(set.entries().count(), 1);
+}
+
+#[test]
+fn singleton_read_not_delegatable() {
+    let set = CapabilitySet::singleton(Cap::Read, false);
+    assert!(set.can(Cap::Read));
+    assert!(!set.is_delegatable(Cap::Read));
+    assert_eq!(set.entries().count(), 1);
 }

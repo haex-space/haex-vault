@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 use super::helpers::{assert_single_audit_row, authorize_default, empty_db, make_peer};
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::types::ConnectedPeer;
-use crate::ucan::{CapabilityLevel, ValidatedUcan};
+use crate::ucan::{CapabilitySet, ValidatedUcan};
 
 #[tokio::test]
 async fn rejects_request_with_expired_cached_ucan() {
@@ -24,7 +24,10 @@ async fn rejects_request_with_expired_cached_ucan() {
     let expired_ucan = ValidatedUcan {
         issuer: "did:key:zIssuer".to_string(),
         audience: "did:key:zPeer".to_string(),
-        capabilities: HashMap::from([("SPACE".to_string(), CapabilityLevel::Write)]),
+        capabilities: HashMap::from([(
+            "SPACE".to_string(),
+            CapabilitySet::builder().write(false).build(),
+        )]),
         row_capabilities: HashMap::new(),
         expires_at: 0,
         root_did: "did:key:zRoot".to_string(),

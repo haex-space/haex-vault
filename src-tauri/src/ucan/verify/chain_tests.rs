@@ -12,6 +12,7 @@
 //! regressions in the public API.
 
 use super::*;
+use crate::ucan::capability_set::{cap_from_str, Cap};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -68,11 +69,15 @@ fn find_vector(name: &str) -> Vector {
         .unwrap_or_else(|| panic!("fixture vector {name} missing"))
 }
 
-fn required_capability(v: &Vector) -> CapabilityLevel {
-    CapabilityLevel::from_capability_string(&v.capability_needed).unwrap_or_else(|| {
+fn required_capability(v: &Vector) -> Cap {
+    // Fixture emits bare cap names (`"read"`, `"write"`, `"invite"`,
+    // `"admin"`) since Task 7's regeneration; `cap_from_str` also
+    // tolerates a legacy `"space/"` prefix so a partial regen never
+    // silently drops these vectors.
+    cap_from_str(&v.capability_needed).unwrap_or_else(|_| {
         panic!(
-            "unknown capability_needed in vector: {}",
-            v.capability_needed
+            "unknown capability_needed in vector {}: {}",
+            v.name, v.capability_needed
         )
     })
 }
@@ -155,7 +160,8 @@ fn variant_name(e: &UcanVerifyError) -> &'static str {
         UcanVerifyError::UnknownCapability(_) => "UnknownCapability",
         UcanVerifyError::ChainTooDeep(_) => "ChainTooDeep",
         UcanVerifyError::ChainBroken => "ChainBroken",
-        UcanVerifyError::CapabilityEscalation => "CapabilityEscalation",
+        UcanVerifyError::DelegationMissing { .. } => "DelegationMissing",
+        UcanVerifyError::DelegationNotDelegatable { .. } => "DelegationNotDelegatable",
         UcanVerifyError::RowCapAttenuation { .. } => "RowCapAttenuation",
         UcanVerifyError::RootNotSelfSigned => "RootNotSelfSigned",
         UcanVerifyError::RootBindingMismatch => "RootBindingMismatch",
@@ -226,12 +232,34 @@ fn tampered_middle_signature() {
 }
 
 // ---------------------------------------------------------------------------
-// Attenuation invariants
+// Attenuation invariants (orthogonal delegation)
 // ---------------------------------------------------------------------------
 
+/// Parent holds only `write`; leaf claims `admin`. Under the orthogonal
+/// model this is `DelegationMissing` (the previous hierarchical model
+/// classified the same shape as `CapabilityEscalation`).
 #[test]
-fn capability_escalation_read_to_admin() {
-    let v = find_vector("capability_escalation_read_to_admin");
+fn delegation_missing_admin_child_from_write_parent() {
+    let v = find_vector("delegation_missing_admin_child_from_write_parent");
+    let r = run(&v);
+    assert_matches_expected(&v, r);
+}
+
+/// Parent holds `write` but with `delegatable=false`; leaf claims `write`.
+/// `DelegationNotDelegatable` — parent may exercise the cap, not pass it on.
+#[test]
+fn delegation_not_delegatable_write_under_non_delegatable_parent() {
+    let v = find_vector("delegation_not_delegatable_write_under_non_delegatable_parent");
+    let r = run(&v);
+    assert_matches_expected(&v, r);
+}
+
+/// Parent holds `write`, leaf claims `read`. Orthogonally the two are
+/// unrelated so `read` is Missing — the hierarchical model would have
+/// accepted this as `write ⊇ read`.
+#[test]
+fn orthogonal_missing_cap_read_child_under_write_parent() {
+    let v = find_vector("orthogonal_missing_cap_read_child_under_write_parent");
     let r = run(&v);
     assert_matches_expected(&v, r);
 }

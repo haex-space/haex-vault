@@ -31,7 +31,7 @@ use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
-use crate::ucan::{CapabilityLevel, ValidatedUcan};
+use crate::ucan::{Cap, CapabilitySet, ValidatedUcan};
 
 /// In-memory DB with the minimum schemas `is_active_space_member` reads:
 /// `haex_identities` + `haex_space_members`, plus the CRDT bookkeeping
@@ -251,12 +251,34 @@ pub(crate) fn insert_member(
     .expect("seed membership");
 }
 
-/// Build a `ValidatedUcan` with a single capability entry. Mirrors the
-/// helper in `inbound_sync_tests` — kept in sync deliberately because
-/// the AuthGate consumes the same shape produced by `validate_token`.
-pub(crate) fn make_ucan(audience: &str, space_id: &str, level: CapabilityLevel) -> ValidatedUcan {
+/// Build a `ValidatedUcan` with a single held [`Cap`] entry (non-delegatable
+/// by default — these fixtures are consumed by receive-side gates that only
+/// look at `.can(cap)`). Mirrors the helper in `inbound_sync_tests` — kept
+/// in sync deliberately because the AuthGate consumes the same shape
+/// produced by `validate_token`.
+pub(crate) fn make_ucan(audience: &str, space_id: &str, cap: Cap) -> ValidatedUcan {
+    let set = match cap {
+        Cap::Read => CapabilitySet::builder().read(false),
+        Cap::Write => CapabilitySet::builder().write(false),
+        Cap::Invite => CapabilitySet::builder().invite(false),
+        Cap::Admin => CapabilitySet::builder().admin(false),
+    }
+    .build();
+    make_ucan_with_set(audience, space_id, set)
+}
+
+/// Build a `ValidatedUcan` whose leaf carries the supplied [`CapabilitySet`]
+/// for `space_id`. The single-cap [`make_ucan`] delegates here — this
+/// variant exists for tests that need to seed multi-cap sets (e.g. a member
+/// holding both `Read` and `Write`, or an admin holding `Invite` +
+/// `Admin`).
+pub(crate) fn make_ucan_with_set(
+    audience: &str,
+    space_id: &str,
+    capabilities_for_space: CapabilitySet,
+) -> ValidatedUcan {
     let mut capabilities = HashMap::new();
-    capabilities.insert(space_id.to_string(), level);
+    capabilities.insert(space_id.to_string(), capabilities_for_space);
     ValidatedUcan {
         issuer: "did:key:zIssuer".to_string(),
         audience: audience.to_string(),

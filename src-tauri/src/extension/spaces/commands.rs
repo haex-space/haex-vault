@@ -475,14 +475,19 @@ pub async fn extension_space_list(
     .await;
     prompt_on_err(&app_handle, perm_result)?;
 
+    // Task 8b: `haex_ucan_tokens.capabilities` is a JSON [`CapabilitySet`]
+    // per row, so a SQL `GROUP_CONCAT(DISTINCT ...)` can no longer produce
+    // a comma-list of bare cap names (it would concatenate JSON arrays into
+    // a malformed string). Query one row per matched token and aggregate
+    // caps in Rust below; ORDER BY s.id keeps the group-by fold in linear
+    // time without a hashmap.
     let rows = core::select_with_crdt(
-        "SELECT s.id, s.name, s.origin_url, s.created_at, \
-                GROUP_CONCAT(DISTINCT t.capability) as capabilities \
+        "SELECT s.id, s.name, s.origin_url, s.created_at, t.capabilities \
          FROM haex_spaces s \
          LEFT JOIN haex_ucan_tokens t ON t.space_id = s.id \
            AND (t.audience_did IN (SELECT did FROM haex_identities WHERE private_key IS NOT NULL) \
                 OR t.issuer_did IN (SELECT did FROM haex_identities WHERE private_key IS NOT NULL)) \
-         GROUP BY s.id"
+         ORDER BY s.id"
             .to_string(),
         vec![],
         &state.db,
@@ -493,24 +498,48 @@ pub async fn extension_space_list(
         },
     })?;
 
-    let spaces: Vec<DecryptedSpace> = rows
-        .iter()
-        .map(|row| {
-            let caps_str = get_string(row, 4);
-            let capabilities = if caps_str.is_empty() {
-                vec![]
-            } else {
-                caps_str.split(',').map(|s| s.to_string()).collect()
-            };
-            DecryptedSpace {
-                id: get_string(row, 0),
+    let mut spaces: Vec<DecryptedSpace> = Vec::new();
+    let mut by_id: std::collections::HashMap<String, std::collections::BTreeSet<String>> =
+        std::collections::HashMap::new();
+    for row in &rows {
+        let id = get_string(row, 0);
+        // Insert-once per space id in row iteration order.
+        if !by_id.contains_key(&id) {
+            spaces.push(DecryptedSpace {
+                id: id.clone(),
                 name: get_string(row, 1),
                 origin_url: get_string(row, 2),
                 created_at: get_string(row, 3),
-                capabilities,
+                capabilities: Vec::new(),
+            });
+            by_id.insert(id.clone(), std::collections::BTreeSet::new());
+        }
+        let caps_json = get_string(row, 4);
+        if caps_json.is_empty() {
+            continue;
+        }
+        if let Ok(set) = serde_json::from_str::<crate::ucan::CapabilitySet>(&caps_json) {
+            let acc = by_id.get_mut(&id).expect("space id inserted just above");
+            for entry in set.entries() {
+                // `space/<cap>` is the wire form the frontend still
+                // consumes (`extension_space_list` shape). Task 8 kept the
+                // prefixed strings on the read-side even after the write
+                // side started emitting bare caps.
+                let name = match entry.cap {
+                    crate::ucan::Cap::Read => "space/read",
+                    crate::ucan::Cap::Write => "space/write",
+                    crate::ucan::Cap::Invite => "space/invite",
+                    crate::ucan::Cap::Admin => "space/admin",
+                };
+                acc.insert(name.to_string());
             }
-        })
-        .collect();
+        }
+    }
+    for space in &mut spaces {
+        if let Some(acc) = by_id.remove(&space.id) {
+            space.capabilities = acc.into_iter().collect();
+        }
+    }
 
     Ok(spaces)
 }

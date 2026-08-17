@@ -10,7 +10,7 @@ use crate::space_delivery::local::test_support::{
     insert_identity, insert_member, make_ucan, setup_membership_db,
 };
 use crate::space_delivery::local::types::ConnectedPeer;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::Cap;
 
 #[tokio::test]
 async fn rejects_missing_capability_for_requested_space() {
@@ -30,7 +30,7 @@ async fn rejects_missing_capability_for_requested_space() {
         make_peer(
             "endpoint-id",
             "did:key:zPeer",
-            make_ucan("did:key:zPeer", "OTHER-SPACE", CapabilityLevel::Read),
+            make_ucan("did:key:zPeer", "OTHER-SPACE", Cap::Read),
         ),
     );
     let peers = RwLock::new(peers_map);
@@ -83,7 +83,7 @@ async fn accepts_read_member_sync_push_at_gate_level() {
         make_peer(
             "endpoint-id",
             "did:key:zReadMember",
-            make_ucan("did:key:zReadMember", "SPACE", CapabilityLevel::Read),
+            make_ucan("did:key:zReadMember", "SPACE", Cap::Read),
         ),
     );
     let peers = RwLock::new(peers_map);
@@ -139,7 +139,7 @@ async fn accepts_read_member_mls_upload_key_packages_at_gate_level() {
         make_peer(
             "endpoint-id",
             "did:key:zReadMember",
-            make_ucan("did:key:zReadMember", "SPACE", CapabilityLevel::Read),
+            make_ucan("did:key:zReadMember", "SPACE", Cap::Read),
         ),
     );
     let peers = RwLock::new(peers_map);
@@ -188,7 +188,7 @@ async fn accepts_read_member_mls_ack_commit_at_gate_level() {
         make_peer(
             "endpoint-id",
             "did:key:zReadMember",
-            make_ucan("did:key:zReadMember", "SPACE", CapabilityLevel::Read),
+            make_ucan("did:key:zReadMember", "SPACE", Cap::Read),
         ),
     );
     let peers = RwLock::new(peers_map);
@@ -237,7 +237,7 @@ async fn accepts_read_member_mls_send_message_at_gate_level() {
         make_peer(
             "endpoint-id",
             "did:key:zReadMember",
-            make_ucan("did:key:zReadMember", "SPACE", CapabilityLevel::Read),
+            make_ucan("did:key:zReadMember", "SPACE", Cap::Read),
         ),
     );
     let peers = RwLock::new(peers_map);
@@ -292,7 +292,7 @@ async fn accepts_read_member_mls_send_welcome_at_gate_level() {
         make_peer(
             "endpoint-id",
             "did:key:zReadMember",
-            make_ucan("did:key:zReadMember", "SPACE", CapabilityLevel::Read),
+            make_ucan("did:key:zReadMember", "SPACE", Cap::Read),
         ),
     );
     let peers = RwLock::new(peers_map);

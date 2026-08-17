@@ -326,7 +326,13 @@ export const haexUcanTokens = sqliteTable(
       .notNull()
       .references(() => haexSpaces.id, { onDelete: 'cascade' }),
     token: text(tableNames.haex.ucan_tokens.columns.token).notNull(),
-    capability: text(tableNames.haex.ucan_tokens.columns.capability).notNull(),
+    // Serialized `SpaceCapabilitySet` JSON — a canonical-sorted array of
+    // `{cap, delegatable}` entries. One row per persisted UCAN; a row's set
+    // matches the set embedded in the token, so a `holdsSpaceCap` check on
+    // the parsed set matches what the token actually grants. Renamed from
+    // `capability` and reshaped from a hierarchical `space/<cap>` string in
+    // migration `0018_haex_ucan_tokens_capabilities.sql` (W4 PR-3 Task 8b).
+    capabilities: text(tableNames.haex.ucan_tokens.columns.capabilities).notNull(),
     issuerDid: text(tableNames.haex.ucan_tokens.columns.issuerDid).notNull(),
     audienceDid: text(tableNames.haex.ucan_tokens.columns.audienceDid).notNull(),
     issuedAt: integer(tableNames.haex.ucan_tokens.columns.issuedAt).notNull(),

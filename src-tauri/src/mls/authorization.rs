@@ -31,7 +31,7 @@
 //! extension on every Add proposal (see [`verify_pops`]).
 //!
 //! Phase-3 additionally requires the committer to hold
-//! `CapabilityLevel::Invite`-or-higher before a membership-changing commit
+//! [`Cap::Invite`] or [`Cap::Admin`] before a membership-changing commit
 //! may merge, with a self-leave exemption (see
 //! [`authorize_committer_capability`]). This is the interim rule from §5.7
 //! of the plan; a dedicated orthogonal `Cap::ManageMembers` is deferred to
@@ -85,7 +85,7 @@ use openmls::group::{MlsGroup, StagedCommit};
 use openmls::messages::proposals::{Proposal, ProposalType};
 use rusqlite::Connection;
 
-use crate::ucan::CapabilityLevel;
+use crate::ucan::{Cap, CapabilitySet};
 
 /// One entry per Add proposal in the commit.
 #[derive(Debug, Clone)]
@@ -529,16 +529,20 @@ pub(crate) fn verify_pops(space_id: &str, facts: &CommitFacts) -> Result<(), Str
 pub struct PresentedCapability {
     /// `aud` of the outermost presented UCAN token.
     pub audience_did: String,
-    /// That token's capability level for this space.
-    pub level: CapabilityLevel,
+    /// The [`CapabilitySet`] the presented token carries for this space —
+    /// the orthogonal set of `(Cap, delegatable)` grants attached to the
+    /// leaf. The receive-gate consults it via
+    /// [`CapabilitySet::can`] (Invite / Admin) rather than a hierarchical
+    /// "level" check.
+    pub capabilities: CapabilitySet,
 }
 
 /// Phase-3 check, restricted to **Remove** proposals (plan §5.0 — see the
 /// module header for why Adds are excluded): removing an ACTIVE member
-/// requires the committer to hold `CapabilityLevel::Invite`-or-higher. This
+/// requires the committer to hold [`Cap::Invite`] or [`Cap::Admin`]. This
 /// is the interim rule from §5.7 of the plan — no dedicated
-/// `Cap::ManageMembers`, just the existing hierarchical lattice
-/// (`Admin > Invite > Write > Read`).
+/// `Cap::ManageMembers`, just the two membership-changing caps under the
+/// orthogonal [`CapabilitySet`] model.
 ///
 /// Exemptions:
 /// - No Remove at all (an Add-only commit, key rotation, PSK, ordinary
@@ -577,10 +581,12 @@ pub struct PresentedCapability {
 ///   window is filed in the plan's outstanding e2e-spec matrix.
 ///
 /// Otherwise `presented` must be `Some`, its `audience_did` must equal the
-/// commit's MLS-authenticated `CommitFacts::committer_did`, and its `level`
-/// must satisfy `allows(Invite)`. The caller has already verified the UCAN
-/// chain and the separate commit-bind signature over this exact commit's
-/// bytes before constructing `presented` — this function trusts both.
+/// commit's MLS-authenticated `CommitFacts::committer_did`, and its
+/// [`CapabilitySet`] must satisfy [`CapabilitySet::can_or_admin`] for
+/// [`Cap::Invite`] (holds Invite, or holds Admin acting as Invite). The
+/// caller has already verified the UCAN chain and the separate commit-bind
+/// signature over this exact commit's bytes before constructing
+/// `presented` — this function trusts both.
 pub(crate) fn authorize_committer_capability(
     conn: &Arc<Mutex<Option<Connection>>>,
     space_id: &str,
@@ -642,11 +648,16 @@ pub(crate) fn authorize_committer_capability(
         ));
     }
 
-    if !presented.level.allows(&CapabilityLevel::Invite) {
+    // Ambient "Admin acts as Invite" gate: under orthogonal capabilities a
+    // token carrying only `Cap::Admin` does NOT implicitly grant
+    // `Cap::Invite`, so we accept either explicitly via
+    // `CapabilitySet::can_or_admin`. Any future `Cap::ManageMembers`
+    // (plan §5.7) would be added there rather than by reintroducing a lattice.
+    if !presented.capabilities.can_or_admin(Cap::Invite) {
         return Err(format!(
             "Rejecting MLS commit for space {space_id}: committer {committer_did} presented \
-             {:?} but membership removal requires Invite-or-higher",
-            presented.level
+             {:?} but membership removal requires Invite or Admin",
+            presented.capabilities
         ));
     }
 
@@ -669,10 +680,15 @@ fn with_authz_conn<T>(
     f(conn_ref)
 }
 
-/// Shared decision of both capability gates: `did` must hold
-/// `CapabilityLevel::Invite`-or-higher in `space_id`. `operation` names the
-/// gated action for the rejection message ("MLS commit" / "local MLS
-/// remove").
+/// Shared decision of both capability gates: `did` must hold [`Cap::Invite`]
+/// or [`Cap::Admin`] in `space_id`. `operation` names the gated action for
+/// the rejection message ("MLS commit" / "local MLS remove").
+///
+/// Uses [`CapabilitySet::can_or_admin`] to encode the ambient
+/// "Admin acts as Invite" rule — under orthogonal caps, Admin does NOT
+/// implicitly grant Invite, so a raw `.can(Cap::Invite)` alone would reject
+/// a pure-Admin holder. See [`authorize_committer_capability`] for the
+/// matching remote-side check.
 fn require_invite_or_higher(
     conn: &Connection,
     space_id: &str,
@@ -680,10 +696,10 @@ fn require_invite_or_higher(
     operation: &str,
 ) -> Result<(), String> {
     match committer_capability(conn, space_id, did)? {
-        Some(level) if level.allows(&CapabilityLevel::Invite) => Ok(()),
-        Some(level) => Err(format!(
-            "Rejecting {operation} for space {space_id}: committer {did} holds {level:?} but \
-             membership changes require Invite-or-higher"
+        Some(set) if set.can_or_admin(Cap::Invite) => Ok(()),
+        Some(set) => Err(format!(
+            "Rejecting {operation} for space {space_id}: committer {did} holds {set:?} but \
+             membership changes require Invite or Admin"
         )),
         None => Err(format!(
             "Rejecting {operation} for space {space_id}: committer {did} holds no capability \
@@ -692,17 +708,26 @@ fn require_invite_or_higher(
     }
 }
 
-/// Highest-ranked, non-expired `CapabilityLevel` held by `did` in
-/// `space_id`, or `None` if none. Mirrors
+/// Aggregate, non-expired [`CapabilitySet`] held by `did` in `space_id`, or
+/// `None` if none. Mirrors
 /// `crate::space_delivery::local::ucan::load_active_ucan_for_audience`'s
-/// query shape (same table, same `expires_at` filter) but returns the
-/// parsed level directly since the caller only needs the rank, not the
-/// token string.
+/// query shape (same table, same `expires_at` filter) but returns a
+/// [`CapabilitySet`] union across every non-expired token stored for the
+/// (space, did) pair — under orthogonal capabilities a member can hold
+/// independent `Read` + `Invite` grants as two separate rows, and both
+/// must count toward "does this member hold Invite".
+///
+/// **Delegatable flag.** Under Task 8b the `capabilities` column carries a
+/// JSON [`CapabilitySet`] per row (may be a singleton or multi-cap). Rows
+/// are merged into one aggregate set for the gate — delegatable bits from
+/// individual entries are collapsed to `false` on merge: the gate reads
+/// only [`CapabilitySet::can`], never [`CapabilitySet::is_delegatable`],
+/// so the bit is unobservable and defaulting-to-false is fail-closed.
 fn committer_capability(
     conn: &Connection,
     space_id: &str,
     did: &str,
-) -> Result<Option<CapabilityLevel>, String> {
+) -> Result<Option<CapabilitySet>, String> {
     // Fail closed on a broken clock rather than defaulting to 0: a `now_secs`
     // of 0 would make `expires_at > 0` true for essentially every stored
     // token, i.e. treat everything as unexpired. `load_active_ucan_for_audience`
@@ -718,7 +743,7 @@ fn committer_capability(
 
     let mut stmt = conn
         .prepare(
-            "SELECT capability FROM haex_ucan_tokens \
+            "SELECT capabilities FROM haex_ucan_tokens \
              WHERE space_id = ?1 AND audience_did = ?2 AND expires_at > ?3",
         )
         .map_err(|e| format!("Failed to prepare capability lookup: {e}"))?;
@@ -729,25 +754,42 @@ fn committer_capability(
         })
         .map_err(|e| format!("Capability lookup failed for space={space_id} did={did}: {e}"))?;
 
-    // Ranked via the hand-written `allows` lattice, NOT the derived `Ord`:
-    // `CapabilityLevel::allows` is deliberately spelled out arm-by-arm so a
-    // future orthogonal capability (one that must only allow itself) cannot
-    // be silently ordered by discriminant. Using `>=` here would reintroduce
-    // exactly that.
-    let mut best: Option<CapabilityLevel> = None;
+    let mut builder = CapabilitySet::builder();
+    let mut saw_any = false;
     for row in rows {
-        let capability_str = row.map_err(|e| format!("Failed to read capability row: {e}"))?;
-        if let Some(level) = CapabilityLevel::from_capability_string(&capability_str) {
-            best = Some(match best {
-                Some(current) if current.allows(&level) => current,
-                _ => level,
-            });
+        let capabilities_str = row.map_err(|e| format!("Failed to read capability row: {e}"))?;
+        let set = match serde_json::from_str::<CapabilitySet>(&capabilities_str) {
+            Ok(set) => set,
+            Err(err) => {
+                // Skip malformed rows to keep the gate fail-closed on this
+                // token (rather than fail-open on the whole audience), but
+                // surface the drift via tracing so schema regressions in
+                // `haex_ucan_tokens.capabilities` surface early instead of
+                // silently degrading committer authorization.
+                tracing::warn!(
+                    space_id = %space_id,
+                    did = %did,
+                    error = %err,
+                    "Skipping unparseable haex_ucan_tokens.capabilities row \
+                     in committer_capability lookup"
+                );
+                continue;
+            }
+        };
+        for entry in set.entries() {
+            saw_any = true;
+            builder = match entry.cap {
+                Cap::Read => builder.read(false),
+                Cap::Write => builder.write(false),
+                Cap::Invite => builder.invite(false),
+                Cap::Admin => builder.admin(false),
+            };
         }
     }
-    Ok(best)
+    Ok(if saw_any { Some(builder.build()) } else { None })
 }
 
-/// Require the LOCAL committer to hold `CapabilityLevel::Invite`-or-higher
+/// Require the LOCAL committer to hold [`Cap::Invite`] or [`Cap::Admin`]
 /// before locally originating a Remove of an ACTIVE member. Mirrors
 /// [`authorize_committer_capability`]'s gate, but for commits **we create**
 /// (`MlsManager::remove_member`) rather than commits we receive: those never

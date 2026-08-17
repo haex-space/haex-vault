@@ -5,8 +5,8 @@ use super::super::protocol::Response;
 use crate::database::core::with_connection;
 use crate::database::DbConnection;
 use crate::ucan::{
-    read_max_ucan_chain_depth, require_audience, require_capability, validate_token,
-    CapabilityLevel, ValidatedUcan, MAX_UCAN_CHAIN_DEPTH_DEFAULT,
+    read_max_ucan_chain_depth, require_audience, require_capability, validate_token, Cap,
+    ValidatedUcan, MAX_UCAN_CHAIN_DEPTH_DEFAULT,
 };
 
 /// Validate a UCAN token carried in a space-delivery request and return a
@@ -30,7 +30,7 @@ pub(super) fn require_valid_ucan(
     ucan_token: &str,
     space_id: &str,
     expected_audience: &str,
-    capability_needed: CapabilityLevel,
+    capability_needed: Cap,
     op: &str,
     db: &DbConnection,
 ) -> Result<ValidatedUcan, Response> {
@@ -82,7 +82,7 @@ pub(super) fn require_valid_ucan(
 pub(super) fn require_ucan_capability(
     validated: &ValidatedUcan,
     space_id: &str,
-    required: CapabilityLevel,
+    required: Cap,
     peer_did: &str,
     op: &str,
     db: &crate::database::DbConnection,

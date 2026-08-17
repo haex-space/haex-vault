@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
+import { spaceCapabilitySet, type SpaceCap } from '@haex-space/ucan'
 import type { ColumnChange } from '~/stores/sync/tableScanner'
 import {
   verifyPulledChangesAsync,
@@ -7,6 +8,14 @@ import {
   surfaceRejectedBatch,
   type RejectedChange,
 } from '~/stores/sync/orchestrator/pull/apply'
+
+/**
+ * Task 8b: `haex_ucan_tokens.capabilities` is a JSON-serialized
+ * `SpaceCapabilitySet`. Build the singleton wire form the writer produces
+ * so the mock rows match what the apply-side deserializer expects.
+ */
+const capsJson = (cap: SpaceCap): string =>
+  JSON.stringify(spaceCapabilitySet()[cap](false).build())
 
 // Mock BEFORE importing apply.ts. Vitest hoists vi.mock() automatically.
 vi.mock('@tauri-apps/api/core', () => ({
@@ -72,7 +81,7 @@ describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-r
     vi.clearAllMocks()
     // Default: every signer has one cached UCAN token in haex_ucan_tokens.
     mockDbWhere.mockResolvedValue([
-      { token: 'ucan-token-stub', capability: 'space/write', expiresAt: 9999999999 },
+      { token: 'ucan-token-stub', capabilities: capsJson('write'), expiresAt: 9999999999 },
     ])
   })
 
@@ -215,13 +224,19 @@ describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-r
     expect(result.rejected[0]!.reason).toBe('MissingResult')
   })
 
-  it('picks the highest-capability cached UCAN when multiple exist for a signer', async () => {
+  it('picks the cap-matching cached UCAN with the closest expires_at', async () => {
+    // W4 PR-3 semantic (Task 8b): filter cached UCANs to those whose
+    // deserialized `capabilities` `SpaceCapabilitySet` holds `needed`, then
+    // prefer the token closest to expiry (least-privilege intent — burn
+    // down the soonest token first, keep longer-lived ones in reserve).
+    // Under the orthogonal-cap model, holding `admin` no longer implies
+    // holding `write`, so only the write-capable row is eligible here.
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
     mockDbWhere.mockResolvedValue([
-      { token: 'read-token', capability: 'space/read', expiresAt: 9999999999 },
-      { token: 'invite-token', capability: 'space/invite', expiresAt: 9999999999 },
-      { token: 'admin-token', capability: 'space/admin', expiresAt: 9999999999 },
-      { token: 'write-token', capability: 'space/write', expiresAt: 9999999999 },
+      { token: 'read-token',        capabilities: capsJson('read'),  expiresAt: 9999999999 },
+      { token: 'admin-token',       capabilities: capsJson('admin'), expiresAt: 9999999999 },
+      { token: 'write-token-later', capabilities: capsJson('write'), expiresAt: 9999999998 },
+      { token: 'write-token-soon',  capabilities: capsJson('write'), expiresAt: 9999999997 },
     ])
     mockInvoke.mockResolvedValue([
       { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
@@ -233,10 +248,49 @@ describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-r
       'verify_ucan_chain_batch',
       expect.objectContaining({
         requests: expect.arrayContaining([
-          expect.objectContaining({ token: 'admin-token' }),
+          expect.objectContaining({ token: 'write-token-soon' }),
         ]),
       }),
     )
+  })
+
+  it('ignores an expired cap-matching cached UCAN', async () => {
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    const now = Math.floor(Date.now() / 1000)
+    mockDbWhere.mockResolvedValue([
+      { token: 'expired-write-token', capabilities: capsJson('write'), expiresAt: now - 1 },
+      { token: 'valid-write-token', capabilities: capsJson('write'), expiresAt: now + 60 },
+    ])
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+    ])
+
+    await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'verify_ucan_chain_batch',
+      expect.objectContaining({
+        requests: expect.arrayContaining([
+          expect.objectContaining({ token: 'valid-write-token' }),
+        ]),
+      }),
+    )
+  })
+
+  it('rejects with MissingLocalUcan when no cached UCAN holds the needed cap', async () => {
+    // Orthogonal semantic: an admin-only or read-only token no longer
+    // covers a write need. Row must be rejected exactly as if no token
+    // existed at all.
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    mockDbWhere.mockResolvedValue([
+      { token: 'admin-token', capabilities: capsJson('admin'), expiresAt: 9999999999 },
+      { token: 'read-token',  capabilities: capsJson('read'),  expiresAt: 9999999999 },
+    ])
+
+    const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(result.rejected[0]!.reason).toBe('MissingLocalUcan')
   })
 
   it('preserves input order in the verified array', async () => {

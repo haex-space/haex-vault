@@ -1,6 +1,10 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { Ref } from 'vue'
-import { decodeUcan, type Capability } from '@haex-space/ucan'
+import {
+  decodeUcan,
+  isSpaceCapValue,
+  type SpaceCapabilitySet,
+} from '@haex-space/ucan'
 import { createLogger } from '@/stores/logging'
 import type { FileEntry } from '~/../src-tauri/bindings/FileEntry'
 import type { SelectHaexPeerShares, SelectHaexSpaceDevices } from '~/database/schemas'
@@ -83,17 +87,25 @@ export const createPeersModule = (ctx: PeersContext) => {
     return { ucanToken, relayUrl: device?.relayUrl ?? null }
   }
 
+  /**
+   * Return the SpaceCapabilitySet held by the local cached UCAN for the
+   * peer's space, or `null` when no UCAN is available or the token is
+   * server-scoped (not space-scoped). Callers use `holdsSpaceCap` to
+   * check specific caps — the orthogonal model rules out the previous
+   * "highest string wins" shortcut.
+   */
   const getCapabilityForPeer = (
     remoteNodeId: string,
     path: string,
     spaceIdHint?: string,
-  ): Capability | null => {
+  ): SpaceCapabilitySet | null => {
     const { ucanToken } = resolveRequestContext(remoteNodeId, path, spaceIdHint)
     if (!ucanToken) return null
     try {
       const decoded = decodeUcan(ucanToken)
-      const caps = decoded.payload.cap as Record<string, Capability>
-      return Object.values(caps)[0] ?? null
+      const capsMap = decoded.payload.cap
+      const firstSpaceValue = Object.values(capsMap).find(isSpaceCapValue)
+      return firstSpaceValue ?? null
     } catch {
       return null
     }

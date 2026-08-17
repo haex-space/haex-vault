@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::database::core::MAX_CRDT_TRANSACTION_BYTES;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::Cap;
 
 /// ALPN protocol identifier for space delivery.
 ///
@@ -84,7 +84,7 @@ pub enum Request {
         /// dot-separated segments are already base64url and safe as JSON
         /// text, so no outer base64 wrap is applied on the wire. Present
         /// iff the message is a Remove-bearing commit whose committer holds
-        /// `Invite`-or-higher AND the target is still an active member on
+        /// `Invite` or `Admin` AND the target is still an active member on
         /// the sender's view; absent for application messages, key
         /// rotations, self-leaves, and leader-rekey-after-self-leave
         /// commits (where every removed leaf's DID is already gone from
@@ -149,8 +149,9 @@ pub enum Request {
     },
 
     // -- CRDT Sync --
-    /// Push CRDT changes to the leader.
-    /// Requires UCAN with `space/write` capability for the target space.
+    /// Push CRDT changes to the leader. The connection gate requires exact
+    /// `space/read`; the inbound sync authorization refines non-membership
+    /// payloads to exact `space/write`.
     SyncPush {
         space_id: String,
         /// JSON-serialized CRDT changes (same format as server push)
@@ -160,7 +161,7 @@ pub enum Request {
         ucan_token: Option<String>,
     },
     /// Pull CRDT changes from the leader.
-    /// Requires UCAN with `space/read` capability (or higher) for the target space.
+    /// Requires an exact `space/read` capability for the target space.
     SyncPull {
         space_id: String,
         after_timestamp: Option<String>,
@@ -184,7 +185,7 @@ pub enum Request {
 
     // -- Identity --
     /// Announce identity to the leader (sent on connect).
-    /// Requires UCAN with `space/read` capability (or higher) for the target space —
+    /// Requires an exact `space/read` capability for the target space —
     /// the announce populates `haex_space_devices` which is space-scoped sync state.
     ///
     /// The peer's DID is no longer carried on the wire — it is established
@@ -289,14 +290,14 @@ impl Request {
         }
     }
 
-    /// Returns the minimum `CapabilityLevel` required to dispatch this
-    /// request, or `None` if it bypasses the AuthGate.
+    /// Returns the [`Cap`] required to dispatch this request, or `None` if
+    /// it bypasses the AuthGate.
     ///
-    /// For `Some(level)`, the level is a **minimum floor**: the gate (see
-    /// `auth_gate::authorize_request`, arriving in Phase 3 of the
-    /// unified-authgate refactor) permits any capability `>= level` via
-    /// `require_capability`. So a `Write` member always satisfies a `Read`
-    /// floor.
+    /// For `Some(cap)`, the returned cap is the **specific capability the
+    /// gate demands** — post W4 PR-3 the caps are orthogonal, so the gate's
+    /// `require_capability` call checks `held.can(cap)` literally. A member
+    /// with `Write` alone does **not** satisfy a `Read` gate; issuers must
+    /// grant both caps if they want both operations enabled.
     ///
     /// - `Announce` bypasses because it bootstraps the membership cache the
     ///   gate would query — gating it against itself is circular.
@@ -307,7 +308,7 @@ impl Request {
     ///
     /// `RequestRejoin` and `SubmitExternalCommit` are deliberately classified
     /// as `Read` to mirror the existing inline UCAN checks in
-    /// `leader.rs::dispatch_request` (search for `CapabilityLevel::Read` in
+    /// `leader.rs::dispatch_request` (search for `Cap::Read` in
     /// the `RequestRejoin` / `SubmitExternalCommit` arms). This refactor must
     /// not change behaviour — a read-only member that has fallen out of MLS
     /// epoch can rejoin today, and must keep being able to rejoin after the
@@ -356,7 +357,7 @@ impl Request {
     ///   here is layered defense, but it is the wrong layer — it makes
     ///   "read-only space member" mean "second-class MLS member", which
     ///   does not exist in the protocol.
-    pub fn required_capability(&self) -> Option<CapabilityLevel> {
+    pub fn required_capability(&self) -> Option<Cap> {
         match self {
             Request::MlsFetchKeyPackage { .. }
             | Request::MlsFetchMessages { .. }
@@ -370,7 +371,7 @@ impl Request {
             | Request::SyncPullColumns { .. }
             | Request::SyncPush { .. }
             | Request::RequestRejoin { .. }
-            | Request::SubmitExternalCommit { .. } => Some(CapabilityLevel::Read),
+            | Request::SubmitExternalCommit { .. } => Some(Cap::Read),
 
             Request::Announce { .. } | Request::ClaimInvite { .. } | Request::PushInvite { .. } => {
                 None

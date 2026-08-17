@@ -436,10 +436,7 @@ const ownerLabel = computed(() => {
 
 const isAdmin = computed(() => capabilities.value.includes('space/admin'))
 const canInvite = computed(() => capabilities.value.includes('space/invite'))
-const canWrite = computed(() =>
-  capabilities.value.includes('space/admin')
-  || capabilities.value.includes('space/write'),
-)
+const canWrite = computed(() => capabilities.value.includes('space/write'))
 
 // Count of owner-side S3 backends. Drives the disabled state of the "Share
 // S3 Bucket" menu entry: only users who have configured a cloud storage in

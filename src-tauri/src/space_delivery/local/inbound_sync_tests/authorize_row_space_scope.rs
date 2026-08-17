@@ -6,7 +6,7 @@ use crate::space_delivery::local::inbound_sync::{
     authorize_inbound_sync_push, InboundSyncPushOutcome,
 };
 use crate::space_delivery::local::test_support::{insert_identity, insert_member, make_ucan};
-use crate::ucan::CapabilityLevel;
+use crate::ucan::Cap;
 
 use super::helpers::{change, expect_rejected, insert_share, setup_authz_db};
 
@@ -25,7 +25,7 @@ fn authz_cross_space_row_mutation_via_missing_space_id_blocked() {
     insert_member(&db, "mem-mallory-B", "space-B", "id-mallory", "write");
     insert_share(&db, "share-bob", "space-B", "endpoint-bob", "Bob's docs");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Write);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Write);
     let changes = vec![change(
         "haex_peer_shares",
         "share-bob",
@@ -57,7 +57,7 @@ fn authz_insert_without_space_id_column_rejected() {
     insert_identity(&db, "id-alice", "did:key:zAlice");
     insert_member(&db, "mem-alice", "space-A", "id-alice", "write");
 
-    let ucan = make_ucan("did:key:zAlice", "space-A", CapabilityLevel::Write);
+    let ucan = make_ucan("did:key:zAlice", "space-A", Cap::Write);
     let changes = vec![
         change(
             "haex_peer_shares",
@@ -105,7 +105,7 @@ fn authz_authored_by_did_forge_attempt_is_rewritten() {
     insert_identity(&db, "id-bob", "did:key:zBob");
     insert_member(&db, "mem-mallory", "space-A", "id-mallory", "write");
 
-    let ucan = make_ucan("did:key:zMallory", "space-A", CapabilityLevel::Write);
+    let ucan = make_ucan("did:key:zMallory", "space-A", Cap::Write);
     let changes = vec![
         change(
             "haex_peer_shares",

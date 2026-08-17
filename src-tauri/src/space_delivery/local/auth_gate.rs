@@ -111,7 +111,7 @@ pub async fn authorize_request(
 ) -> Result<Option<ValidatedUcan>, Response> {
     // 1. Bypass — requests that bootstrap the gate's own preconditions.
     let required = match request.required_capability() {
-        Some(level) => level,
+        Some(cap) => cap,
         None => return Ok(None),
     };
 

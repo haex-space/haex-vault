@@ -161,9 +161,9 @@ pub(super) fn test_ucan_token(label: &str) -> String {
 ///
 /// Builds the two-hop UCAN chain required by Phase 2 `walk_prf_chain`:
 ///
-/// - Root: `iss = aud = SHARED_ROOT_DID`, `cap = space/admin` for each
-///   `test_space_id(label)`, `prf = []` — the self-signed Space-Root the
-///   walker terminates on.
+/// - Root: `iss = aud = SHARED_ROOT_DID`, `capabilities = [{cap:"admin",delegatable:true}]`
+///   for each `test_space_id(label)`, `prf = []` — the self-signed Space-Root
+///   the walker terminates on.
 /// - Leaf: `iss = SHARED_ROOT_DID`, `aud = SHARED_TEST_KEY.did` (the
 ///   client), same capabilities, `prf = [root_token]` — the delegated grant
 ///   the server actually receives.
@@ -192,17 +192,23 @@ pub(super) fn test_ucan_token_for(labels: &[&str]) -> String {
         .unwrap()
         .as_secs();
 
-    // `cap` covers every requested label; the same map is reused in the
-    // root grant and the leaf delegation so the leaf never exceeds the
-    // root's rights (a hard requirement of the Phase 2 walker).
-    let cap: serde_json::Map<String, serde_json::Value> = labels
+    // CapabilitySet in canonical serde form: array of {cap, delegatable}
+    // entries per space. Same map reused for root + leaf so the leaf never
+    // exceeds the root's rights (a hard requirement of the Phase 2 walker).
+    // Grants every capability the peer_storage handlers might floor-check on
+    // (read/write/invite/admin), sorted by discriminant, all delegatable — the
+    // orthogonal model does not lift `Admin` to imply `Read`/`Write`, so a
+    // single-cap test root would fail every handler that floor-checks a
+    // different cap.
+    let full_set = serde_json::json!([
+        { "cap": "read",   "delegatable": true },
+        { "cap": "write",  "delegatable": true },
+        { "cap": "invite", "delegatable": true },
+        { "cap": "admin",  "delegatable": true },
+    ]);
+    let capabilities: serde_json::Map<String, serde_json::Value> = labels
         .iter()
-        .map(|label| {
-            (
-                format!("space:{}", test_space_id(label)),
-                serde_json::Value::String("space/admin".into()),
-            )
-        })
+        .map(|label| (format!("space:{}", test_space_id(label)), full_set.clone()))
         .collect();
 
     let header = serde_json::json!({"alg": "EdDSA", "typ": "JWT"});
@@ -213,7 +219,7 @@ pub(super) fn test_ucan_token_for(labels: &[&str]) -> String {
         "ucv": "1.0",
         "iss": root_did,
         "aud": root_did,
-        "cap": cap,
+        "cap": capabilities,
         "exp": now + 86400,
         "iat": now,
         "prf": [],
@@ -228,7 +234,7 @@ pub(super) fn test_ucan_token_for(labels: &[&str]) -> String {
         "ucv": "1.0",
         "iss": root_did,
         "aud": client_did,
-        "cap": cap,
+        "cap": capabilities,
         "exp": now + 86400,
         "iat": now,
         "prf": [root_token],

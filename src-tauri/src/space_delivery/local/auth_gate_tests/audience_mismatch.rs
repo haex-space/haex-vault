@@ -6,7 +6,7 @@ use super::helpers::{assert_single_audit_row, authorize_default, empty_db, make_
 use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::test_support::make_ucan;
 use crate::space_delivery::local::types::ConnectedPeer;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::Cap;
 
 #[tokio::test]
 async fn rejects_audience_mismatch() {
@@ -21,7 +21,7 @@ async fn rejects_audience_mismatch() {
         make_peer(
             "endpoint-id",
             "did:key:zPeer",
-            make_ucan("did:key:zSomeoneElse", "SPACE", CapabilityLevel::Write),
+            make_ucan("did:key:zSomeoneElse", "SPACE", Cap::Write),
         ),
     );
     let peers = RwLock::new(peers_map);

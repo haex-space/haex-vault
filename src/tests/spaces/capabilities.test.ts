@@ -4,7 +4,7 @@
  * Covers:
  * - SpaceWithType has no `role` property
  * - getCapabilitiesForSpaceAsync returns capabilities from UCAN tokens
- * - hasCapabilityAsync treats space/admin as wildcard
+ * - hasCapabilityAsync requires an explicitly-held capability
  * - rowToSpace maps DB rows without role
  */
 
@@ -52,7 +52,7 @@ describe('Capability lookup logic', () => {
   }
 
   const hasCapability = (capabilities: string[], capability: string): boolean => {
-    return capabilities.includes(capability) || capabilities.includes('space/admin')
+    return capabilities.includes(capability)
   }
 
   const tokens = [
@@ -88,10 +88,10 @@ describe('Capability lookup logic', () => {
       expect(hasCapability(['space/read', 'space/write'], 'space/read')).toBe(true)
     })
 
-    it('returns true if space/admin is present (wildcard)', () => {
-      expect(hasCapability(['space/admin'], 'space/read')).toBe(true)
-      expect(hasCapability(['space/admin'], 'space/write')).toBe(true)
-      expect(hasCapability(['space/admin'], 'space/invite')).toBe(true)
+    it('does not treat space/admin as a wildcard', () => {
+      expect(hasCapability(['space/admin'], 'space/read')).toBe(false)
+      expect(hasCapability(['space/admin'], 'space/write')).toBe(false)
+      expect(hasCapability(['space/admin'], 'space/invite')).toBe(false)
     })
 
     it('returns false if capability is missing and no admin', () => {

@@ -11,7 +11,7 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 use super::{verify_chain_batch_inner, VerifyChainRequest, VerifyChainResult, VerifyOutcome};
-use crate::ucan::verify::CapabilityLevel;
+use crate::ucan::capability_set::{cap_from_str, Cap};
 use crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT;
 
 const MAX_CHAIN_DEPTH_FOR_TESTS: usize = 5;
@@ -67,11 +67,14 @@ fn find_vector(name: &str) -> Vector {
         .unwrap_or_else(|| panic!("fixture vector {name} missing"))
 }
 
-fn required_capability(v: &Vector) -> CapabilityLevel {
-    CapabilityLevel::from_capability_string(&v.capability_needed).unwrap_or_else(|| {
+fn required_capability(v: &Vector) -> Cap {
+    // Fixture emits bare cap names since Task 7's regeneration;
+    // `cap_from_str` also tolerates a legacy `"space/"` prefix as
+    // fixture-drift insurance.
+    cap_from_str(&v.capability_needed).unwrap_or_else(|_| {
         panic!(
-            "unknown capability_needed in vector: {}",
-            v.capability_needed
+            "unknown capability_needed in vector {}: {}",
+            v.name, v.capability_needed
         )
     })
 }

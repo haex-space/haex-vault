@@ -1,7 +1,7 @@
 //! Tests for `Request` metadata helpers used by the unified AuthGate.
 
 use super::Request;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::Cap;
 
 /// Build one instance of every `Request` variant with its `space_id` set to
 /// `expected`, then assert `space_id_of` returns exactly that.
@@ -124,7 +124,7 @@ fn required_capability_matches_documented_mapping() {
 
     // Read-level operations. RequestRejoin + SubmitExternalCommit live here
     // (not under Write) because the inline UCAN checks they replace in
-    // `leader.rs` enforce `CapabilityLevel::Read` — this refactor must not
+    // `leader.rs` enforce `Cap::Read` — this refactor must not
     // tighten the floor. SyncPush lives here because per-batch Write
     // refinement happens in `inbound_sync::authorize_inbound_sync_push`,
     // not at the gate; the gate only enforces "must be a member to push
@@ -201,7 +201,7 @@ fn required_capability_matches_documented_mapping() {
     for req in &read_variants {
         assert_eq!(
             req.required_capability(),
-            Some(CapabilityLevel::Read),
+            Some(Cap::Read),
             "expected Read for {req:?}",
         );
     }
@@ -213,7 +213,7 @@ fn required_capability_matches_documented_mapping() {
     for req in &write_variants {
         assert_eq!(
             req.required_capability(),
-            Some(CapabilityLevel::Write),
+            Some(Cap::Write),
             "expected Write for {req:?}",
         );
     }
@@ -399,7 +399,7 @@ fn sync_pull_columns_metadata_and_roundtrip() {
     );
     assert_eq!(
         req.required_capability(),
-        Some(CapabilityLevel::Read),
+        Some(Cap::Read),
         "SyncPullColumns must floor at Read",
     );
     assert_eq!(req.op_name(), "SyncPullColumns");

@@ -39,8 +39,8 @@ importers:
         specifier: ^0.1.6
         version: 0.1.6(vue@3.5.41(typescript@6.0.3))
       '@haex-space/ucan':
-        specifier: ^0.1.9
-        version: 0.1.9
+        specifier: ^0.2.0
+        version: 0.2.0
       '@haex-space/vault-sdk':
         specifier: ^3.7.0
         version: 3.7.0(@libsql/client@0.17.4)(@nuxt/kit@4.5.0(magic-string@0.30.21)(magicast@0.5.4)(oxc-parser@0.141.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.1.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@8.2.1(@types/node@26.1.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))(vue@3.5.41(typescript@6.0.3))
@@ -1064,8 +1064,8 @@ packages:
       vue:
         optional: true
 
-  '@haex-space/ucan@0.1.9':
-    resolution: {integrity: sha512-HUrV7YOteFMBNtNI9DUv7yNUL+tztkg2xvwxU6EMw8dMCTwH8bYeMmspxjlOY7H03gMtTrJkqf3rOxbaHYQ9Rw==}
+  '@haex-space/ucan@0.2.0':
+    resolution: {integrity: sha512-xCY/4jDy9XVm4ndrhFtZfMg4Q9NdgpCPZv9IHPG3LDTwWQMqU7tuN4EjVoutsOpeHrAYk0PszvqiPW79jr2U1w==}
 
   '@haex-space/vault-sdk@3.7.0':
     resolution: {integrity: sha512-m63zqhNggPn0cG8qyjD+9LwDsVdceUuaLZawpS48OQSTFyRDoMWA7SN20X9VhNaqvym8L6C2bnVNco9OYTGiiQ==}
@@ -8523,7 +8523,7 @@ snapshots:
     optionalDependencies:
       vue: 3.5.41(typescript@6.0.3)
 
-  '@haex-space/ucan@0.1.9': {}
+  '@haex-space/ucan@0.2.0': {}
 
   '@haex-space/vault-sdk@3.7.0(@libsql/client@0.17.4)(@nuxt/kit@4.5.0(magic-string@0.30.21)(magicast@0.5.4)(oxc-parser@0.141.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.1.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))))(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.5.0)(vite@8.2.1(@types/node@26.1.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.12)(yaml@2.9.0))(vue@3.5.41(typescript@6.0.3))':
     dependencies:

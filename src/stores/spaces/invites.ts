@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { invoke } from '@tauri-apps/api/core'
-import type { Capability } from '@haex-space/ucan'
+import type { SpaceCap } from '@haex-space/ucan'
 import { didKeyToPublicKeyAsync } from '@haex-space/vault-sdk'
 import { haexSpaces, haexSpaceDevices, haexInviteTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
@@ -20,6 +20,26 @@ import { useDeviceStore } from '@/stores/vault/device'
 type DB = SqliteRemoteDatabase<typeof schema>
 
 const log = createLogger('SPACES:INVITES')
+
+/**
+ * Strip the `space/` hierarchical prefix that older UI paths still carry
+ * around and validate the tail against the orthogonal `SpaceCap` set.
+ * Throws on unknown values — under the orthogonal model there is no safe
+ * default cap for a bad input, and silently downgrading would issue a
+ * signed delegation UCAN carrying a cap the caller never asked for.
+ *
+ * TODO: `useSpaceInviteCreation.ts` and the invite-creation UI still hand
+ * capabilities in as `string` (see `InviteCreationPayload.capabilities:
+ * string[]`). Once those callers narrow to `SpaceCap` / `SpaceCap[]`
+ * end-to-end, this helper can go — filed as a follow-up in the W4 plan.
+ */
+const capabilityToSpaceCap = (raw: string): SpaceCap => {
+  const tail = raw.startsWith('space/') ? raw.slice('space/'.length) : raw
+  if (tail === 'read' || tail === 'write' || tail === 'invite' || tail === 'admin') {
+    return tail
+  }
+  throw new Error(`invites.capabilityToSpaceCap: unknown capability "${raw}"`)
+}
 
 /** Fetch with UCAN authorization for space-scoped operations */
 function fetchWithSpaceUcanAuth(url: string, spaceId: string, options?: RequestInit) {
@@ -57,7 +77,7 @@ export async function inviteMember(
     identity.privateKey,
     inviteeDid,
     spaceId,
-    capability as Capability,
+    capabilityToSpaceCap(capability),
     parentUcan,
   )
 
@@ -224,7 +244,7 @@ export async function finalizeInvite(
         identity.privateKey,
         inviteeDid,
         spaceId,
-        capability as Capability,
+        capabilityToSpaceCap(capability),
         parentUcan,
       )
       await fetchWithSpaceUcanAuth(

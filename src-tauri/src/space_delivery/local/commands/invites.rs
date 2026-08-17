@@ -5,6 +5,7 @@ use tauri::State;
 
 use crate::critical::CriticalFailureCode;
 use crate::database::DbConnection;
+use crate::ucan::{Cap, CapabilitySet};
 use crate::AppState;
 
 use super::super::invite_tokens;
@@ -34,12 +35,25 @@ pub async fn local_delivery_create_invite(
             let admin =
                 super::super::ucan::load_admin_identity(&leader_state.db, &leader_state.space_id)
                     .map_err(|e| e.to_string())?;
+            // Frontend still emits `"space/<cap>"` (Task 8 removes the
+            // prefix); `cap_from_str` strips the bridge on the fly.
+            let cap = crate::ucan::cap_from_str(&capability).map_err(|e| e.to_string())?;
+            // Every session needs Read to Announce and establish its peer
+            // storage connection. It is an explicit companion grant, not an
+            // implication of the requested capability. D9 keeps Read/Write
+            // terminal while Invite/Admin remain delegatable.
+            let capability_set = match cap {
+                Cap::Read => CapabilitySet::builder().read(false).build(),
+                Cap::Write => CapabilitySet::builder().read(false).write(false).build(),
+                Cap::Invite => CapabilitySet::builder().read(false).invite(true).build(),
+                Cap::Admin => CapabilitySet::builder().read(false).admin(true).build(),
+            };
             let ucan_token = super::super::ucan::create_delegated_ucan(
                 &admin.did,
                 &admin.private_key_base64,
                 &did,
                 &leader_state.space_id,
-                &capability,
+                capability_set,
                 None,
                 Some(&admin.root_ucan),
                 super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
@@ -139,7 +153,7 @@ pub(crate) struct PersistClaimedUcan<'a> {
 }
 
 /// Persist the UCAN rows that represent the delegation `inviter → claimant`
-/// for a freshly-claimed local invite — one row per granted capability.
+/// for a freshly-claimed local invite — one lookup row per granted capability.
 /// `issuer` is the inviter because the ucan_token is signed by them; storing
 /// the claimant there (as an earlier revision did) misrepresents the
 /// delegation chain.
@@ -166,11 +180,42 @@ pub(crate) fn persist_claimed_ucan(
         .unwrap_or_default()
         .as_secs() as i64;
 
-    let mut new_ids = Vec::with_capacity(p.granted.len());
+    // Callers may fan one combined token out into one wire tuple per granted
+    // capability (see `Response::InviteClaimed` / `load_existing_claim`) —
+    // that shape predates Task 8b, when each row held a single decomposed
+    // `space/<cap>` string. Post-8b the `capabilities` column stores the
+    // FULL `CapabilitySet` carried by the token, so inserting one row per
+    // wire tuple would just persist N identical rows for the same token
+    // (bug caught by 06-data-consistency.ts "re-invite ... leaves one UCAN
+    // capability set"). Dedupe on `token`: insert exactly one row per unique
+    // token, but still verify every advertised capability is actually in
+    // that token's set so a malformed wire response can't sneak in.
+    let mut new_ids = Vec::new();
+    let mut seen_tokens: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for (capability, token) in p.granted {
+        let claimed_cap = crate::ucan::cap_from_str(capability)
+            .map_err(|e| format!("Unrecognized capability {capability}: {e}"))?;
+        let parsed = crate::ucan::parse_ucan(token)
+            .map_err(|e| format!("Failed to parse claimed UCAN: {e}"))?;
+        let token_set = parsed.capabilities.get(p.space_id).ok_or_else(|| {
+            format!(
+                "Claimed UCAN contains no capability for space {}",
+                p.space_id
+            )
+        })?;
+        if !token_set.can(claimed_cap) {
+            return Err(format!(
+                "Claimed UCAN does not contain its advertised capability {capability}"
+            ));
+        }
+        if !seen_tokens.insert(token.as_str()) {
+            continue;
+        }
         let ucan_id = uuid::Uuid::new_v4().to_string();
+        let capability_set_json = serde_json::to_string(token_set)
+            .map_err(|e| format!("Failed to serialize CapabilitySet: {e}"))?;
         crate::database::core::execute_with_crdt(
-            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+            "INSERT INTO haex_ucan_tokens (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
                 .to_string(),
             vec![
@@ -178,7 +223,7 @@ pub(crate) fn persist_claimed_ucan(
                 serde_json::Value::String(p.space_id.to_string()),
                 serde_json::Value::String(p.inviter_did.to_string()),
                 serde_json::Value::String(p.claimant_did.to_string()),
-                serde_json::Value::String(capability.clone()),
+                serde_json::Value::String(capability_set_json),
                 serde_json::Value::String(token.clone()),
                 serde_json::Value::Number(serde_json::Number::from(now_secs)),
                 serde_json::Value::Number(serde_json::Number::from(

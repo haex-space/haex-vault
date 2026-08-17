@@ -4,10 +4,20 @@
 
 use crate::database::DbConnection;
 use crate::space_delivery::local::error::DeliveryError;
-use crate::ucan::CapabilityLevel;
+use crate::ucan::{Cap, CapabilitySet};
 
 // Re-export from shared module so existing callers keep working
 pub use crate::ucan::create_delegated_ucan;
+
+/// Deserialize a `haex_ucan_tokens.capabilities` column value into a
+/// [`CapabilitySet`]. Returns `None` for a malformed / non-array value —
+/// callers treat that as "no held caps for this row", which is the
+/// fail-closed default for authorization lookups. Introduced in Task 8b
+/// alongside the column-rename migration so every reader speaks the
+/// same shape.
+fn parse_capabilities_column(value: &str) -> Option<CapabilitySet> {
+    serde_json::from_str::<CapabilitySet>(value).ok()
+}
 
 /// UCAN expiry used for all member tokens we mint in this codebase. The
 /// active-membership check in `is_active_space_member` is the real access
@@ -25,17 +35,19 @@ pub struct AdminIdentity {
 
 /// Load the admin identity for a space from the database.
 ///
-/// Finds the identity that issued the root UCAN (`space/admin` capability) for
-/// this space and returns its DID, private key, and the root token string.
+/// Finds the identity that issued a UCAN carrying [`Cap::Admin`] for this
+/// space and returns its DID, private key, and the root token string. Under
+/// the Task-8b [`CapabilitySet`] column layout there is no single-cap column
+/// to filter on, so this fetches candidate rows and inspects the parsed
+/// [`CapabilitySet`] in Rust — the row whose set holds `Cap::Admin` wins.
 pub fn load_admin_identity(
     db: &DbConnection,
     space_id: &str,
 ) -> Result<AdminIdentity, DeliveryError> {
-    // 1. Find the root UCAN token for this space (capability = 'space/admin')
-    let ucan_sql = "SELECT issuer_did, token \
+    // 1. Find the root UCAN token for this space (holds Cap::Admin).
+    let ucan_sql = "SELECT issuer_did, token, capabilities \
                      FROM haex_ucan_tokens \
-                     WHERE space_id = ?1 AND capability = 'space/admin' \
-                     LIMIT 1"
+                     WHERE space_id = ?1"
         .to_string();
     let ucan_params = vec![serde_json::Value::String(space_id.to_string())];
 
@@ -46,25 +58,22 @@ pub fn load_admin_identity(
             }
         })?;
 
-    let ucan_row = ucan_rows.first().ok_or_else(|| DeliveryError::Database {
-        reason: format!("No admin UCAN found for space {}", space_id),
-    })?;
-
-    let issuer_did = ucan_row
-        .first()
-        .and_then(|v| v.as_str())
+    let (issuer_did, root_ucan) = ucan_rows
+        .iter()
+        .find_map(|row| {
+            let issuer = row.first()?.as_str()?;
+            let token = row.get(1)?.as_str()?;
+            let caps_json = row.get(2)?.as_str()?;
+            let set = parse_capabilities_column(caps_json)?;
+            if set.can(Cap::Admin) {
+                Some((issuer.to_string(), token.to_string()))
+            } else {
+                None
+            }
+        })
         .ok_or_else(|| DeliveryError::Database {
-            reason: "Missing issuer_did in UCAN row".to_string(),
-        })?
-        .to_string();
-
-    let root_ucan = ucan_row
-        .get(1)
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| DeliveryError::Database {
-            reason: "Missing token in UCAN row".to_string(),
-        })?
-        .to_string();
+            reason: format!("No admin UCAN found for space {}", space_id),
+        })?;
 
     // 2. Look up the identity by DID to get the private key
     let identity_sql = "SELECT private_key \
@@ -100,22 +109,14 @@ pub fn load_admin_identity(
     })
 }
 
-/// Load the highest-ranked, non-expired UCAN token held for `(space_id,
-/// audience_did)`. Returns `Ok(None)` if the vault has no token — callers
-/// should treat that as "not a member, cannot sync".
+/// Load a non-expired UCAN token held for `(space_id, audience_did)` that
+/// explicitly contains any capability in `required_caps`. Returns `Ok(None)`
+/// when no such token exists.
 ///
-/// A member can hold several independent capability grants at once (e.g.
-/// `space/write` and `space/invite` — orthogonal, neither implies the
-/// other); this is used where exactly one token must be presented for a
-/// whole connection (the Announce handshake caches one `ValidatedUcan` per
-/// peer, see `leader::auth`), so it picks whichever held token ranks
-/// highest under the current [`CapabilityLevel`] lattice — that one
-/// satisfies every `require_capability` check the others would.
-/// `ORDER BY issued_at DESC LIMIT 1` used to be the selection here, which
-/// broke as soon as a claim could mint more than one token: capabilities
-/// issued in the same claim share the same `issued_at` second, so the tie
-/// was resolved arbitrarily and could hand back a `space/read` token even
-/// when a `space/write` one was also held.
+/// Capabilities are orthogonal. Selecting by an enum rank would let an
+/// unrelated Admin/Invite token crowd out the Read token required by
+/// `Announce`, or the Invite/Admin token needed for an MLS removal proof.
+/// Callers therefore state the acceptable capability set explicitly.
 ///
 /// Resolved fresh on every call: the authoritative source is the DB, not an
 /// in-memory cache, so a reconnect after expiry picks up a renewed token
@@ -124,13 +125,14 @@ pub fn load_active_ucan_for_audience(
     db: &DbConnection,
     space_id: &str,
     audience_did: &str,
+    required_caps: &[Cap],
 ) -> Result<Option<String>, DeliveryError> {
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
 
-    let sql = "SELECT capability, token FROM haex_ucan_tokens \
+    let sql = "SELECT capabilities, token, expires_at FROM haex_ucan_tokens \
                WHERE space_id = ?1 AND audience_did = ?2 AND expires_at > ?3"
         .to_string();
     let params = vec![
@@ -148,13 +150,16 @@ pub fn load_active_ucan_for_audience(
     Ok(rows
         .iter()
         .filter_map(|row| {
-            let capability = row.first()?.as_str()?;
+            let capabilities = row.first()?.as_str()?;
             let token = row.get(1)?.as_str()?.to_string();
-            let rank = CapabilityLevel::from_capability_string(capability)
-                .unwrap_or(CapabilityLevel::Read);
-            Some((rank, token))
+            let set = parse_capabilities_column(capabilities)?;
+            if !required_caps.iter().any(|&cap| set.can(cap)) {
+                return None;
+            }
+            let expires_at = row.get(2)?.as_i64()?;
+            Some((expires_at, token))
         })
-        .max_by_key(|(rank, _)| *rank)
+        .min_by_key(|(expires_at, _)| *expires_at)
         .map(|(_, token)| token))
 }
 
@@ -246,11 +251,22 @@ pub fn resolve_presented_committer_capability(
     })
     .unwrap_or(crate::ucan::MAX_UCAN_CHAIN_DEPTH_DEFAULT) as usize;
 
+    let required_cap = match peeked.capabilities.get(space_id) {
+        Some(set) if set.can(Cap::Invite) => Cap::Invite,
+        Some(set) if set.can(Cap::Admin) => Cap::Admin,
+        _ => {
+            eprintln!(
+                "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
+                 token holds neither Invite nor Admin"
+            );
+            return None;
+        }
+    };
     let validated = match crate::ucan::validate_token(
         token,
         space_id,
         &peeked.aud,
-        CapabilityLevel::Read,
+        required_cap,
         max_chain_depth,
     ) {
         Ok(v) => v,
@@ -262,8 +278,8 @@ pub fn resolve_presented_committer_capability(
             return None;
         }
     };
-    let level = match validated.capabilities.get(space_id) {
-        Some(l) => *l,
+    let capabilities = match validated.capabilities.get(space_id) {
+        Some(set) => set.clone(),
         None => {
             eprintln!(
                 "[mls::committer-capability] rejecting presented UCAN for space {space_id}: \
@@ -274,16 +290,17 @@ pub fn resolve_presented_committer_capability(
     };
     Some(crate::mls::authorization::PresentedCapability {
         audience_did: validated.audience,
-        level,
+        capabilities,
     })
 }
 
-/// Returns `true` if `(space_id, audience_did)` holds **any** UCAN granting
-/// write-level capability (`space/write` or `space/admin`) — a member can
-/// hold several independent, orthogonal tokens at once (e.g. `space/read`
-/// and `space/write` both, from one invite), so this checks every held
-/// token rather than inspecting a single arbitrarily-picked row. Returns
-/// `false` if no such token is found among any held.
+/// Returns `true` if `(space_id, audience_did)` holds **any** UCAN whose
+/// [`CapabilitySet`] contains [`Cap::Write`] — a member
+/// can hold several independent, orthogonal tokens at once (e.g. one row
+/// carrying `Read` + another carrying `Write` from the same claim, or a
+/// single row carrying multiple caps in its set), so this checks every held
+/// row rather than inspecting one arbitrarily-picked row. Returns `false`
+/// if no such token is found among any held.
 ///
 /// Used by the push phase to decide whether to include `haex_peer_shares` in
 /// the outgoing batch. Read-only members must never attempt to push that table:
@@ -294,9 +311,8 @@ pub fn has_write_capability(db: &DbConnection, space_id: &str, audience_did: &st
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    let sql = "SELECT 1 FROM haex_ucan_tokens \
-               WHERE space_id = ?1 AND audience_did = ?2 \
-               AND capability IN ('space/write', 'space/admin') AND expires_at > ?3 LIMIT 1"
+    let sql = "SELECT capabilities FROM haex_ucan_tokens \
+               WHERE space_id = ?1 AND audience_did = ?2 AND expires_at > ?3"
         .to_string();
     let params = vec![
         serde_json::Value::String(space_id.to_string()),
@@ -304,7 +320,15 @@ pub fn has_write_capability(db: &DbConnection, space_id: &str, audience_did: &st
         serde_json::Value::Number(now_secs.into()),
     ];
     crate::database::core::select_with_crdt(sql, params, db)
-        .map(|rows| !rows.is_empty())
+        .map(|rows| {
+            rows.iter().any(|row| {
+                row.first()
+                    .and_then(|v| v.as_str())
+                    .and_then(parse_capabilities_column)
+                    .map(|set| set.can(Cap::Write))
+                    .unwrap_or(false)
+            })
+        })
         .unwrap_or(false)
 }
 
@@ -320,20 +344,36 @@ mod multi_capability_lookup_tests {
 
     use super::{has_write_capability, load_active_ucan_for_audience};
     use crate::database::DbConnection;
+    use crate::ucan::{Cap, CapabilitySet};
     use rusqlite::Connection;
     use std::sync::{Arc, Mutex};
 
     const SPACE_ID: &str = "space-1";
     const AUDIENCE_DID: &str = "did:key:member";
 
-    fn seed_db(rows: &[(&str, &str, i64)]) -> DbConnection {
+    /// Serialize a singleton [`CapabilitySet`] holding `cap` with
+    /// `delegatable=false` — matches the shape leader/claim paths persist
+    /// under the Task-8b layout.
+    fn singleton_json(cap: Cap) -> String {
+        let builder = CapabilitySet::builder();
+        let set = match cap {
+            Cap::Read => builder.read(false),
+            Cap::Write => builder.write(false),
+            Cap::Invite => builder.invite(false),
+            Cap::Admin => builder.admin(false),
+        }
+        .build();
+        serde_json::to_string(&set).unwrap()
+    }
+
+    fn seed_db(rows: &[(&str, Cap, i64)]) -> DbConnection {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
             "CREATE TABLE haex_ucan_tokens (
                 id TEXT PRIMARY KEY,
                 space_id TEXT NOT NULL,
                 token TEXT NOT NULL,
-                capability TEXT NOT NULL,
+                capabilities TEXT NOT NULL,
                 issuer_did TEXT NOT NULL,
                 audience_did TEXT NOT NULL,
                 issued_at INTEGER NOT NULL,
@@ -341,12 +381,12 @@ mod multi_capability_lookup_tests {
             );",
         )
         .unwrap();
-        for (id, capability, issued_at) in rows {
+        for (id, cap, issued_at) in rows {
             conn.execute(
                 "INSERT INTO haex_ucan_tokens \
-                 (id, space_id, token, capability, issuer_did, audience_did, issued_at, expires_at) \
+                 (id, space_id, token, capabilities, issuer_did, audience_did, issued_at, expires_at) \
                  VALUES (?1, ?2, ?3, ?4, 'did:key:admin', ?5, ?6, 9999999999)",
-                rusqlite::params![id, SPACE_ID, format!("token-{id}"), capability, AUDIENCE_DID, issued_at],
+                rusqlite::params![id, SPACE_ID, format!("token-{id}"), singleton_json(*cap), AUDIENCE_DID, issued_at],
             )
             .unwrap();
         }
@@ -357,20 +397,31 @@ mod multi_capability_lookup_tests {
     fn has_write_capability_finds_write_row_even_when_read_row_ties_on_issued_at() {
         // Same issued_at second — reproduces the exact tie from a single
         // claim issuing multiple UCANs together.
-        let db = seed_db(&[("read", "space/read", 1000), ("write", "space/write", 1000)]);
+        let db = seed_db(&[("read", Cap::Read, 1000), ("write", Cap::Write, 1000)]);
         assert!(has_write_capability(&db, SPACE_ID, AUDIENCE_DID));
     }
 
     #[test]
     fn has_write_capability_false_when_only_read_is_held() {
-        let db = seed_db(&[("read", "space/read", 1000)]);
+        let db = seed_db(&[("read", Cap::Read, 1000)]);
         assert!(!has_write_capability(&db, SPACE_ID, AUDIENCE_DID));
     }
 
     #[test]
-    fn load_active_ucan_prefers_write_token_over_tied_read_token() {
-        let db = seed_db(&[("read", "space/read", 1000), ("write", "space/write", 1000)]);
-        let token = load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID)
+    fn has_write_capability_false_when_only_admin_is_held() {
+        let db = seed_db(&[("admin", Cap::Admin, 1000)]);
+        assert!(!has_write_capability(&db, SPACE_ID, AUDIENCE_DID));
+    }
+
+    #[test]
+    fn load_active_ucan_selects_a_token_with_the_required_capability() {
+        let db = seed_db(&[("read", Cap::Read, 1000), ("write", Cap::Write, 1000)]);
+        let token = load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID, &[Cap::Read])
+            .unwrap()
+            .unwrap();
+        assert_eq!(token, "token-read");
+
+        let token = load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID, &[Cap::Write])
             .unwrap()
             .unwrap();
         assert_eq!(token, "token-write");
@@ -379,15 +430,17 @@ mod multi_capability_lookup_tests {
     #[test]
     fn load_active_ucan_returns_none_when_no_token_held() {
         let db = seed_db(&[]);
-        assert!(load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID)
-            .unwrap()
-            .is_none());
+        assert!(
+            load_active_ucan_for_audience(&db, SPACE_ID, AUDIENCE_DID, &[Cap::Read])
+                .unwrap()
+                .is_none()
+        );
     }
 
     /// Regression for the CodeRabbit finding that `has_write_capability`'s
     /// query had no `expires_at` filter, unlike its sibling
     /// `load_active_ucan_for_audience` just above it — an expired
-    /// `space/write` row would still make this return `true`.
+    /// write-capable row would still make this return `true`.
     #[test]
     fn has_write_capability_ignores_expired_write_row() {
         let conn = Connection::open_in_memory().unwrap();
@@ -396,7 +449,7 @@ mod multi_capability_lookup_tests {
                 id TEXT PRIMARY KEY,
                 space_id TEXT NOT NULL,
                 token TEXT NOT NULL,
-                capability TEXT NOT NULL,
+                capabilities TEXT NOT NULL,
                 issuer_did TEXT NOT NULL,
                 audience_did TEXT NOT NULL,
                 issued_at INTEGER NOT NULL,
@@ -406,9 +459,9 @@ mod multi_capability_lookup_tests {
         .unwrap();
         conn.execute(
             "INSERT INTO haex_ucan_tokens \
-             (id, space_id, token, capability, issuer_did, audience_did, issued_at, expires_at) \
-             VALUES ('write', ?1, 'token-write', 'space/write', 'did:key:admin', ?2, 1000, 1001)",
-            rusqlite::params![SPACE_ID, AUDIENCE_DID],
+             (id, space_id, token, capabilities, issuer_did, audience_did, issued_at, expires_at) \
+             VALUES ('write', ?1, 'token-write', ?2, 'did:key:admin', ?3, 1000, 1001)",
+            rusqlite::params![SPACE_ID, singleton_json(Cap::Write), AUDIENCE_DID],
         )
         .unwrap();
         let db = DbConnection(Arc::new(Mutex::new(Some(conn))));

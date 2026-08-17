@@ -3,7 +3,11 @@ import {
   createWebCryptoSigner,
   spaceResource,
   decodeUcan,
-  type Capability,
+  spaceCapabilitySet,
+  isSpaceCapValue,
+  ServerCapabilities,
+  type SpaceCap,
+  type SpaceCapabilitySet,
 } from '@haex-space/ucan'
 import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
 import { fetch } from '@tauri-apps/plugin-http'
@@ -44,7 +48,19 @@ export async function createRootUcanAsync(
     {
       issuer: did,
       audience: did,
-      capabilities: { [spaceResource(spaceId)]: 'space/admin' },
+      // Owner root UCAN grants the full orthogonal capability set. Under
+      // the orthogonal model (post W4 PR-3), holding `admin` does NOT
+      // imply the other caps — the owner must hold each cap explicitly to
+      // sign changes at its level. All entries are `delegatable: true` so
+      // the owner can hand out any subset to invitees.
+      capabilities: {
+        [spaceResource(spaceId)]: spaceCapabilitySet()
+          .read(true)
+          .write(true)
+          .invite(true)
+          .admin(true)
+          .build(),
+      },
       expiration: expiresAtUnixSeconds,
     },
     sign,
@@ -52,6 +68,22 @@ export async function createRootUcanAsync(
 
   cacheUcan(spaceId, token)
   return token
+}
+
+/**
+ * Build the set for a single requested member capability. Read is the
+ * explicit baseline for a peer session (Announce), and is terminal just like
+ * Write; Invite/Admin remain delegatable. Explicit sets can still be passed
+ * directly.
+ */
+const capsFromSingle = (cap: SpaceCap): SpaceCapabilitySet => {
+  const builder = spaceCapabilitySet().read(false)
+  switch (cap) {
+    case 'read': return builder.build()
+    case 'write': return builder.write(false).build()
+    case 'invite': return builder.invite(true).build()
+    case 'admin': return builder.admin(true).build()
+  }
 }
 
 /**
@@ -66,18 +98,22 @@ export async function delegateUcanAsync(
   privateKeyBase64: string,
   audienceDid: string,
   spaceId: string,
-  capability: Capability,
+  capabilities: SpaceCap | SpaceCapabilitySet,
   parentUcan: string,
   expiresAtUnixSeconds: number = NEVER_EXPIRES_UNIX_SECONDS,
 ): Promise<string> {
   const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
   const sign = createWebCryptoSigner(privateKey)
 
+  const capSet = typeof capabilities === 'string'
+    ? capsFromSingle(capabilities)
+    : capabilities
+
   const token = await createUcan(
     {
       issuer: issuerDid,
       audience: audienceDid,
-      capabilities: { [spaceResource(spaceId)]: capability },
+      capabilities: { [spaceResource(spaceId)]: capSet },
       proofs: [parentUcan],
       expiration: expiresAtUnixSeconds,
     },
@@ -109,7 +145,10 @@ export async function createServerRelayUcanAsync(
     {
       issuer: issuerDid,
       audience: serverDid,
-      capabilities: { [spaceResource(spaceId)]: 'server/relay' },
+      // ServerCapability stays a bare string on the wire (Rust side keeps
+      // the `server/relay` shape); only space:* capabilities became sets
+      // in the W4 PR-3 wire migration.
+      capabilities: { [spaceResource(spaceId)]: ServerCapabilities.RELAY },
       proofs: [parentUcan],
       expiration: expiresAtUnixSeconds,
     },
@@ -190,20 +229,38 @@ export async function persistUcanAsync(
   const decoded = decodeUcan(token)
   const { iss, aud, exp, iat } = decoded.payload
 
-  // Extract capability from the token's capabilities map
-  const caps = decoded.payload.cap as Record<string, string>
-  const capability = Object.values(caps)[0] ?? 'space/admin'
+  // Task 8b: `haex_ucan_tokens.capabilities` (renamed from `capability`)
+  // stores a serialized `SpaceCapabilitySet` — a JSON array of
+  // `{cap, delegatable}` entries — mirroring the wire form Tasks 2/4 landed
+  // on for the UCAN payload's `cap` map value. One row per delegation
+  // (not per cap): the row's `capabilities` matches exactly the set the
+  // UCAN itself carries, so a downstream `holdsSpaceCap` check on the
+  // parsed set answers the same question as a `holdsSpaceCap` on the
+  // decoded token.
+  //
+  // A server-only token (or a token for another space) is not evidence of
+  // any space capability. Never fabricate a fallback set here: that would
+  // turn malformed input into an admin cache entry.
+  const capsMap = decoded.payload.cap
+  const spaceValue = capsMap[spaceResource(spaceId)]
+  if (!isSpaceCapValue(spaceValue)) {
+    throw new Error(`UCAN does not grant a SpaceCapabilitySet for space ${spaceId}`)
+  }
+  const capabilitySet: SpaceCapabilitySet = spaceValue
 
-  // Delete existing token for this space, then insert new one
+  const issuedAt = iat ?? Math.floor(Date.now() / 1000)
+
+  // Delete existing tokens for this space, then insert ONE row per token
+  // carrying the full serialized set — no more one-row-per-cap fan-out.
   await db.delete(haexUcanTokens).where(eq(haexUcanTokens.spaceId, spaceId))
   await db.insert(haexUcanTokens).values({
     id: crypto.randomUUID(),
     spaceId,
     token,
-    capability,
+    capabilities: JSON.stringify(capabilitySet),
     issuerDid: iss,
     audienceDid: aud,
-    issuedAt: iat ?? Math.floor(Date.now() / 1000),
+    issuedAt,
     expiresAt: exp,
   })
 

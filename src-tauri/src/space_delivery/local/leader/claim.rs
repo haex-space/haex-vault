@@ -11,6 +11,7 @@ use super::notify::notify_all_mls;
 use super::util::{base64_decode, base64_encode};
 use super::LeaderState;
 use crate::critical::CriticalFailureCode;
+use crate::ucan::{cap_from_str, Cap, CapabilitySet};
 use serde_json::Value as JsonValue;
 
 // ============================================================================
@@ -149,8 +150,10 @@ pub async fn handle_claim_invite(
         };
 
         // 3. Determine UCANs: use the pre-created one (contact invites,
-        //    always exactly one capability) or create one per capability
-        //    now (conference invites — UCANs are created at claim time).
+        //    always exactly one capability) or create one combined set for
+        //    conference invites. Announce caches exactly one token, so
+        //    independently-issued singleton tokens cannot represent a
+        //    Read + Write member for the rest of its session.
         match (pre_ucan, capabilities.as_slice()) {
             (Some(ucan), [single_capability]) => vec![(single_capability.clone(), ucan)],
             (_, capabilities) => {
@@ -162,27 +165,57 @@ pub async fn handle_claim_invite(
                         }
                     }
                 };
-                let mut issued = Vec::with_capacity(capabilities.len());
+                // Read is the explicit baseline required to Announce and
+                // establish a peer session. It does not derive from another
+                // capability, so include it on every issued member token.
+                let mut builder = CapabilitySet::builder().read(false);
                 for capability in capabilities {
-                    match super::super::ucan::create_delegated_ucan(
-                        &admin.did,
-                        &admin.private_key_base64,
-                        &did,
-                        &space_id,
-                        capability,
-                        None,
-                        Some(&admin.root_ucan),
-                        super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
-                    ) {
-                        Ok(t) => issued.push((capability.clone(), t)),
+                    // Frontend + invite-token wire still emits `"space/<cap>"`
+                    // strings (Task 8 removes the prefix); `cap_from_str`
+                    // strips the bridge on the fly.
+                    let cap = match cap_from_str(capability) {
+                        Ok(c) => c,
                         Err(e) => {
                             return Response::Error {
-                                message: format!("Failed to create UCAN: {e}"),
+                                message: format!("Unrecognized capability {capability}: {e}"),
                             }
                         }
-                    }
+                    };
+                    // D9: admin-tier grants (Admin, Invite) stay delegatable
+                    // so the claimant can further delegate their own peer
+                    // set; Write/Read are terminal. Encoded in
+                    // `Cap::is_delegatable_by_default` — matching heuristics
+                    // on both create sites keeps contact-invite and
+                    // conference-invite tokens observationally identical.
+                    builder = match cap {
+                        Cap::Read => builder.read(cap.is_delegatable_by_default()),
+                        Cap::Write => builder.write(cap.is_delegatable_by_default()),
+                        Cap::Invite => builder.invite(cap.is_delegatable_by_default()),
+                        Cap::Admin => builder.admin(cap.is_delegatable_by_default()),
+                    };
                 }
-                issued
+                let token = match super::super::ucan::create_delegated_ucan(
+                    &admin.did,
+                    &admin.private_key_base64,
+                    &did,
+                    &space_id,
+                    builder.build(),
+                    None,
+                    Some(&admin.root_ucan),
+                    super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
+                ) {
+                    Ok(token) => token,
+                    Err(e) => {
+                        return Response::Error {
+                            message: format!("Failed to create UCAN: {e}"),
+                        }
+                    }
+                };
+                capabilities
+                    .iter()
+                    .cloned()
+                    .map(|capability| (capability, token.clone()))
+                    .collect()
             }
         }
     };
@@ -462,13 +495,19 @@ pub async fn handle_claim_invite(
 /// capability — so the idempotency path can re-serve exactly the same
 /// values a previous successful claim produced. Capabilities are
 /// orthogonal grants, so a prior claim may have issued several.
+///
+/// Under the Task-8b column layout each row's `capabilities` is a JSON
+/// [`CapabilitySet`]. This flattens back to one `("space/<cap>", token)`
+/// entry per set-entry so the retry path reconstructs the pre-8b response
+/// shape (`Vec<ClaimedCapabilityUcan>`) verbatim — one output pair per cap
+/// held by each stored UCAN.
 fn load_existing_claim(
     db: &crate::database::DbConnection,
     space_id: &str,
     claimer_did: &str,
 ) -> Option<Vec<(String, String)>> {
     let rows = crate::database::core::select_with_crdt(
-        "SELECT capability, token FROM haex_ucan_tokens \
+        "SELECT capabilities, token FROM haex_ucan_tokens \
          WHERE space_id = ?1 AND audience_did = ?2"
             .to_string(),
         vec![
@@ -481,10 +520,17 @@ fn load_existing_claim(
 
     let granted: Vec<(String, String)> = rows
         .iter()
-        .filter_map(|row| {
-            let capability = row.first()?.as_str()?.to_string();
-            let ucan = row.get(1)?.as_str()?.to_string();
-            Some((capability, ucan))
+        .flat_map(|row| {
+            let capabilities = row.first().and_then(|v| v.as_str()).unwrap_or("");
+            let ucan = row.get(1).and_then(|v| v.as_str()).unwrap_or("");
+            let set: CapabilitySet = match serde_json::from_str(capabilities) {
+                Ok(s) => s,
+                Err(_) => return Vec::new().into_iter(),
+            };
+            set.entries()
+                .map(|e| (format!("space/{}", cap_wire_name(e.cap)), ucan.to_string()))
+                .collect::<Vec<_>>()
+                .into_iter()
         })
         .collect();
 
@@ -495,26 +541,52 @@ fn load_existing_claim(
     }
 }
 
-/// Returns `true` if `haex_ucan_tokens` already has a row for this exact
-/// `(space_id, audience_did, capability)` triple.
+/// Wire-name for a [`Cap`] — matches [`cap_from_str`]'s accepted lowercase
+/// tokens so a `("space/<name>", token)` pair round-trips through
+/// [`load_existing_claim`] into the same [`Cap`] the leader originally
+/// minted.
+fn cap_wire_name(cap: Cap) -> &'static str {
+    match cap {
+        Cap::Read => "read",
+        Cap::Write => "write",
+        Cap::Invite => "invite",
+        Cap::Admin => "admin",
+    }
+}
+
+/// Returns `true` if `haex_ucan_tokens` already has a row whose parsed
+/// [`CapabilitySet`] contains `capability` for this `(space_id,
+/// audience_did)` pair — under the Task-8b column layout, the check is a
+/// set-membership predicate on the parsed JSON rather than a bare-string
+/// equality on the pre-8b `capability` column.
 fn admin_ucan_row_exists(
     db: &crate::database::DbConnection,
     space_id: &str,
     audience_did: &str,
     capability: &str,
 ) -> bool {
+    let Ok(needed) = cap_from_str(capability) else {
+        return false;
+    };
     crate::database::core::select_with_crdt(
-        "SELECT 1 FROM haex_ucan_tokens \
-         WHERE space_id = ?1 AND audience_did = ?2 AND capability = ?3 LIMIT 1"
+        "SELECT capabilities FROM haex_ucan_tokens \
+         WHERE space_id = ?1 AND audience_did = ?2"
             .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
             serde_json::Value::String(audience_did.to_string()),
-            serde_json::Value::String(capability.to_string()),
         ],
         db,
     )
-    .map(|rows| !rows.is_empty())
+    .map(|rows| {
+        rows.iter().any(|row| {
+            row.first()
+                .and_then(|v| v.as_str())
+                .and_then(|s| serde_json::from_str::<CapabilitySet>(s).ok())
+                .map(|set| set.can(needed))
+                .unwrap_or(false)
+        })
+    })
     .unwrap_or(false)
 }
 
@@ -596,8 +668,28 @@ fn persist_admin_ucan(
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
+        // Task 8b: the `capabilities` column stores a JSON [`CapabilitySet`],
+        // not a bare cap string. Each row is one delegation UCAN — the
+        // claim-loop above still mints one UCAN per cap, so the persisted
+        // set is always a singleton here. Mirror the leader-side
+        // `delegatable` policy (Admin/Invite delegatable, Write/Read
+        // terminal) so the stored set matches what the token carries.
+        let cap = match cap_from_str(capability) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!(
+                    "[SpaceDelivery] persist_admin_ucan: unrecognized capability {capability}: {e}"
+                );
+                continue;
+            }
+        };
+        let capability_set_json = serde_json::to_string(&CapabilitySet::singleton(
+            cap,
+            cap.is_delegatable_by_default(),
+        ))
+        .expect("CapabilitySet serialization is infallible");
         let sql = "INSERT OR IGNORE INTO haex_ucan_tokens \
-            (id, space_id, issuer_did, audience_did, capability, token, issued_at, expires_at) \
+            (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
             .to_string();
         let params = vec![
@@ -605,7 +697,7 @@ fn persist_admin_ucan(
             JsonValue::String(space_id.to_string()),
             JsonValue::String(admin.did.clone()),
             JsonValue::String(audience_did.to_string()),
-            JsonValue::String(capability.to_string()),
+            JsonValue::String(capability_set_json),
             JsonValue::String(ucan_token.to_string()),
             JsonValue::Number(serde_json::Number::from(now_secs)),
             JsonValue::Number(serde_json::Number::from(

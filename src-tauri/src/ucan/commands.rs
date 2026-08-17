@@ -18,8 +18,9 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::database::core::with_connection;
+use crate::ucan::capability_set::Cap;
 use crate::ucan::config::read_max_ucan_chain_depth;
-use crate::ucan::verify::{validate_token, CapabilityLevel, UcanVerifyError};
+use crate::ucan::verify::{validate_token, UcanVerifyError};
 use crate::AppState;
 
 /// One item in the batch: a token plus the parameters the verifier needs
@@ -35,8 +36,11 @@ pub struct VerifyChainRequest {
     pub expected_space_id: String,
     /// The recipient DID the token must be addressed to.
     pub expected_audience: String,
-    /// Minimum capability required for this row's operation (write, read, …).
-    pub capability_needed: CapabilityLevel,
+    /// Capability the row's operation requires (`write`, `read`, `invite`,
+    /// `admin`). Orthogonal: the token's
+    /// [`CapabilitySet`](crate::ucan::CapabilitySet) must literally hold
+    /// this exact `Cap` — no implicit lift from adjacent caps.
+    pub capability_needed: Cap,
     /// Opaque row identifier, echoed back in the response.
     pub row_id: String,
     /// Table the row came from, echoed back in the response. Included so
@@ -147,7 +151,8 @@ pub(crate) fn ucan_verify_error_variant_name(e: &UcanVerifyError) -> &'static st
         UcanVerifyError::UnknownCapability(_) => "UnknownCapability",
         UcanVerifyError::ChainTooDeep(_) => "ChainTooDeep",
         UcanVerifyError::ChainBroken => "ChainBroken",
-        UcanVerifyError::CapabilityEscalation => "CapabilityEscalation",
+        UcanVerifyError::DelegationMissing { .. } => "DelegationMissing",
+        UcanVerifyError::DelegationNotDelegatable { .. } => "DelegationNotDelegatable",
         UcanVerifyError::RowCapAttenuation { .. } => "RowCapAttenuation",
         UcanVerifyError::RootNotSelfSigned => "RootNotSelfSigned",
         UcanVerifyError::RootBindingMismatch => "RootBindingMismatch",
