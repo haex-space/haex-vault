@@ -11,6 +11,13 @@ renamed to match this codebase's actual components, plus two invariants
 five-question threat-model template is applied to three real boundaries
 below.
 
+**Note:** `docs/plans/verbesserungsvorschläge.md` is a local planning
+artifact, gitignored (`docs/plans/*`) and not present in this repository —
+it will not resolve as a link for anyone browsing the repo or an external
+auditor. It is cited here only for provenance (which internal proposal this
+list and template were adapted from); every claim in this file is otherwise
+self-contained and verified directly against the code cited alongside it.
+
 This file is a reference for future work (in particular CRDT adversarial
 testing) — update it whenever an invariant's enforcement mechanism changes,
 a regression test is added, or a gap is closed.
