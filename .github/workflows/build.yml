@@ -410,20 +410,24 @@ jobs:
     # macOS ~15-22 min normally but the aarch64 leg also does a second,
     # CSP-patched build for the e2e artifact (see "Build E2E binary with
     # Tailscale CSP (macOS)" below) which pushed one run to the full 30
-    # min and got cancelled mid cache-save, Windows ~27 min on a cold
-    # cache plus ~2 min for cache save — the extra headroom on Windows/
-    # macOS prevents the cache-save step from being killed by the
-    # timeout, which would leave the cache unpopulated and trap us in a
-    # loop of cold-compile runs. Linux hit the same class of problem once
-    # too, not from a slow build but a slow apt-get against the Azure
-    # Ubuntu mirror (~15 min for a handful of dev packages) eating most of
-    # the 30 min budget before the real build even started — same fix,
-    # same headroom as macOS. Windows also does a second, CSP-patched
-    # build for the e2e artifact (see "Build E2E binary with Tailscale
-    # CSP (Windows)" below); on a cold cache the two builds together hit
-    # the 45 min cap mid-compile and got cancelled, so it needs the same
-    # kind of headroom macOS already has for its aarch64 leg.
-    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 60 || 35 }}
+    # min and got cancelled mid cache-save; a later run hit the 35-min
+    # cap mid second-build for the same reason (PR #799), so the macOS
+    # timeout is now bumped to 50 min to give the aarch64 leg the same
+    # kind of two-build headroom Windows already has. Windows ~27 min on
+    # a cold cache plus ~2 min for cache save — the extra headroom on
+    # Windows/macOS prevents the cache-save step from being killed by
+    # the timeout, which would leave the cache unpopulated and trap us
+    # in a loop of cold-compile runs. Linux hit the same class of
+    # problem once too, not from a slow build but a slow apt-get against
+    # the Azure Ubuntu mirror (~15 min for a handful of dev packages)
+    # eating most of the 30 min budget before the real build even
+    # started — same fix, same headroom as macOS. Windows also does a
+    # second, CSP-patched build for the e2e artifact (see "Build E2E
+    # binary with Tailscale CSP (Windows)" below); on a cold cache the
+    # two builds together hit the 45 min cap mid-compile and got
+    # cancelled, so it needs the same kind of headroom macOS already has
+    # for its aarch64 leg.
+    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 60 || (matrix.platform == 'macos-latest' && 50 || 35) }}
     strategy:
       fail-fast: false
       matrix:
