@@ -2073,4 +2073,421 @@ mod tests {
             "unsigned shared-space change must be dropped: sig enforcement stays on for non-owner spaces"
         );
     }
+
+    // -----------------------------------------------------------------------
+    // Adversarial apply-pipeline hardening (security review follow-up).
+    //
+    // Findings, verified directly against this file's logic:
+    //
+    //  - CRDT conflict-resolution rule: per-COLUMN Hybrid-Logical-Clock
+    //    last-write-wins with a STRICT greater-than gate (`hlc_is_newer`,
+    //    `crdt::hlc`). Equal or older claimed HLCs never overwrite — this is
+    //    NOT "last received wins": a stale/replayed op received after a
+    //    newer one has already landed is silently dropped, not blindly
+    //    applied. See `apply_v10_then_receiving_stale_v7_does_not_roll_back`.
+    //
+    //  - Forged HLC handling: REJECT, not "accept but reorder". A signed
+    //    column change's Ed25519 preimage includes the claimed
+    //    `hlc_timestamp` bytes (`verify_change_sig` -> `build_preimage`), so
+    //    an attacker who takes a validly-signed change and swaps only the
+    //    wire `hlc_timestamp` (e.g. to force a false LWW win) invalidates
+    //    the signature. See `apply_rejects_change_with_forged_hlc_timestamp`.
+    // -----------------------------------------------------------------------
+
+    /// Scenario 1a: replaying an identical, unsigned change set (INSERT +
+    /// follow-up UPDATE-shaped re-delivery) must be a no-op the second time —
+    /// same value, same per-column HLCs, no duplicate row. Simulates a
+    /// network/server re-sending an already-accepted push.
+    #[test]
+    fn apply_is_idempotent_when_identical_unsigned_change_set_is_applied_twice() {
+        let db = setup_db();
+        let changes = || {
+            vec![
+                change(r#"{"id":"dev-idem"}"#, "space_id", "s1", "5/aaa"),
+                change(r#"{"id":"dev-idem"}"#, "avatar", "first.png", "5/aaa"),
+            ]
+        };
+
+        apply_remote_changes_to_db(&db, changes(), None, None).expect("first apply must succeed");
+        let read_state = |db: &DbConnection| -> (String, String, String) {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row(
+                "SELECT avatar, haex_column_hlcs, haex_hlc FROM devices WHERE id = 'dev-idem'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap()
+        };
+        let after_first = read_state(&db);
+
+        // Replay: the exact same wire batch delivered a second time.
+        apply_remote_changes_to_db(&db, changes(), None, None)
+            .expect("replay of an already-applied batch must not error");
+        let after_replay = read_state(&db);
+
+        assert_eq!(
+            after_first, after_replay,
+            "replaying an identical change set must not change avatar/column-HLCs/row-HLC"
+        );
+        assert_eq!(
+            row_count(&db, "id = 'dev-idem'"),
+            1,
+            "replay must not create a duplicate row"
+        );
+    }
+
+    /// Scenario 1b: replaying an identical, validly-signed change must also
+    /// be idempotent at the signature-verification layer — in particular it
+    /// must not seed a second `haex_identities` stub for the same author DID
+    /// (ties I2/I7 together: authenticity + replay resistance).
+    #[test]
+    fn apply_is_idempotent_when_signed_change_is_replayed() {
+        let db = setup_db_with_identities();
+
+        let seed: [u8; 32] = rand::random();
+        let signing_key = SigningKey::from_bytes(&seed);
+        let did = did_key_from_public_key(&signing_key.verifying_key());
+        let space_id = "s1"; // seeded on the row in setup
+        let new_avatar = "replayed.png";
+        let hlc = "20/xxx";
+
+        let value_bytes_vec =
+            value_bytes::to_canonical_bytes(&SqlValue::Text(new_avatar.to_string()));
+        let sig = sign_column(
+            &signing_key,
+            space_id.as_bytes(),
+            b"devices",
+            br#"{"id":"dev-1"}"#,
+            b"avatar",
+            hlc.as_bytes(),
+            did.as_bytes(),
+            &value_bytes_vec,
+        );
+        let make_change = || RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::String(new_avatar.to_string()),
+            sig: Some(ColumnSig {
+                author_did: did.clone(),
+                sig: BASE64.encode(sig.to_bytes()),
+                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
+            }),
+        };
+
+        apply_remote_changes_to_db(&db, vec![make_change()], None, None)
+            .expect("first apply of a validly-signed change must succeed");
+        // Replay: the identical signed wire message delivered a second time
+        // — e.g. a malicious or buggy server re-sending an already-accepted
+        // push.
+        apply_remote_changes_to_db(&db, vec![make_change()], None, None)
+            .expect("replay of an already-verified signed change must not error");
+
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(avatar, new_avatar);
+
+        let stub_count: i64 = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM haex_identities WHERE did = ?",
+                [&did],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            stub_count, 1,
+            "replaying an already-verified signed change must not duplicate the identity stub"
+        );
+    }
+
+    /// Scenario 2: a change carrying a genuinely valid Ed25519 signature
+    /// (Alice really signed this exact preimage) but whose wire envelope
+    /// claims a DIFFERENT author DID (Bob's) must be rejected. The attacker
+    /// does not hold Bob's private key — they are attempting to relabel an
+    /// honestly-signed operation as someone else's. `author_did` is itself
+    /// part of the signed preimage (`build_preimage`) and also selects which
+    /// public key verification uses, so this fails on both counts.
+    #[test]
+    fn apply_rejects_change_with_forged_author_did() {
+        let db = setup_db_with_identities();
+
+        let alice_seed: [u8; 32] = rand::random();
+        let alice_key = SigningKey::from_bytes(&alice_seed);
+        let alice_did = did_key_from_public_key(&alice_key.verifying_key());
+
+        // Bob is an unrelated identity the attacker wants to frame — the
+        // attacker never touches bob's private key.
+        let bob_seed: [u8; 32] = rand::random();
+        let bob_key = SigningKey::from_bytes(&bob_seed);
+        let bob_did = did_key_from_public_key(&bob_key.verifying_key());
+
+        let space_id = "s1"; // seeded on the row in setup
+        let hlc = "20/xxx";
+        let new_avatar = "framed.png";
+        let value_bytes_vec =
+            value_bytes::to_canonical_bytes(&SqlValue::Text(new_avatar.to_string()));
+        // Alice signs honestly, over her own DID — a completely legitimate
+        // signature for a completely legitimate change.
+        let sig = sign_column(
+            &alice_key,
+            space_id.as_bytes(),
+            b"devices",
+            br#"{"id":"dev-1"}"#,
+            b"avatar",
+            hlc.as_bytes(),
+            alice_did.as_bytes(),
+            &value_bytes_vec,
+        );
+
+        // Attacker relabels the wire envelope's author_did to Bob's,
+        // keeping Alice's genuine signature bytes untouched.
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::String(new_avatar.to_string()),
+            sig: Some(ColumnSig {
+                author_did: bob_did.clone(),
+                sig: BASE64.encode(sig.to_bytes()),
+                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
+            }),
+        };
+
+        apply_remote_changes_to_db(&db, vec![change], None, None)
+            .expect("apply must succeed — rejection is row-scoped, not fatal");
+
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            avatar, "old.png",
+            "author-forged change must be dropped, existing value preserved"
+        );
+
+        let stub_count: i64 = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM haex_identities WHERE did IN (?, ?)",
+                [&alice_did, &bob_did],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            stub_count, 0,
+            "a rejected forged-author change must not seed either identity"
+        );
+    }
+
+    /// Scenario 5: a change carrying a valid signature for HLC `H`, but
+    /// whose wire envelope claims a different (here: far-future, LWW-
+    /// winning) HLC `H'`. Finding: this codebase's answer is REJECT, not
+    /// "accept but order correctly" — `hlc_timestamp` bytes are part of the
+    /// signed preimage (`verify_change_sig` -> `build_preimage`), so
+    /// swapping the claimed HLC without re-signing invalidates the
+    /// signature and the change is dropped before it can win any LWW race.
+    #[test]
+    fn apply_rejects_change_with_forged_hlc_timestamp() {
+        let db = setup_db_with_identities();
+
+        let seed: [u8; 32] = rand::random();
+        let signing_key = SigningKey::from_bytes(&seed);
+        let did = did_key_from_public_key(&signing_key.verifying_key());
+        let space_id = "s1"; // seeded on the row in setup
+        let signed_hlc = "20/xxx"; // what was actually signed
+        let claimed_hlc = "999999/xxx"; // forged: far future, would win any LWW race
+        let new_avatar = "forged-time.png";
+
+        let value_bytes_vec =
+            value_bytes::to_canonical_bytes(&SqlValue::Text(new_avatar.to_string()));
+        let sig = sign_column(
+            &signing_key,
+            space_id.as_bytes(),
+            b"devices",
+            br#"{"id":"dev-1"}"#,
+            b"avatar",
+            signed_hlc.as_bytes(),
+            did.as_bytes(),
+            &value_bytes_vec,
+        );
+
+        // Attacker takes the legitimately-signed change and swaps ONLY the
+        // claimed hlc_timestamp on the wire, hoping the inflated HLC wins
+        // the per-column LWW race without needing a fresh signature.
+        let change = RemoteColumnChange {
+            table_name: "devices".to_string(),
+            row_pks: r#"{"id":"dev-1"}"#.to_string(),
+            column_name: "avatar".to_string(),
+            hlc_timestamp: claimed_hlc.to_string(),
+            decrypted_value: JsonValue::String(new_avatar.to_string()),
+            sig: Some(ColumnSig {
+                author_did: did.clone(),
+                sig: BASE64.encode(sig.to_bytes()),
+                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
+            }),
+        };
+
+        apply_remote_changes_to_db(&db, vec![change], None, None)
+            .expect("apply must succeed — rejection is row-scoped, not fatal");
+
+        let avatar: String = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            avatar, "old.png",
+            "a claimed HLC that does not match what was actually signed must be rejected \
+             (hlc_timestamp is part of the signed preimage) — the codebase's handling of a \
+             forged HLC is REJECT, not accept-and-reorder"
+        );
+    }
+
+    /// Scenario 4: two SEPARATE apply() calls on the same column — a newer
+    /// value (HLC 10) followed by a stale one (HLC 7) arriving afterwards
+    /// (out-of-order delivery, or a lagging/malicious server replaying an
+    /// old push). The actual CRDT rule is per-column HLC last-write-wins
+    /// with a strict greater-than gate, NOT "last received wins": the stale
+    /// op must lose even though it is the one most recently delivered.
+    #[test]
+    fn apply_v10_then_receiving_stale_v7_does_not_roll_back() {
+        let db = setup_db();
+        {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.execute(
+                "INSERT INTO devices (id, space_id, avatar, haex_hlc, haex_column_hlcs) \
+                 VALUES ('dev-1', 's1', 'seed.png', '0/aaa', '{}')",
+                [],
+            )
+            .unwrap();
+        }
+
+        apply_remote_changes_to_db(
+            &db,
+            vec![change(r#"{"id":"dev-1"}"#, "avatar", "v10", "10/aaa")],
+            None,
+            None,
+        )
+        .expect("v10 must apply");
+
+        // Stale v7 delivered AFTER v10 was already applied and committed.
+        apply_remote_changes_to_db(
+            &db,
+            vec![change(r#"{"id":"dev-1"}"#, "avatar", "v7", "7/aaa")],
+            None,
+            None,
+        )
+        .expect("stale delivery must not error — rejection is silent/row-scoped");
+
+        let (avatar, row_hlc): (String, String) = {
+            let guard = db.0.lock().unwrap();
+            let conn = guard.as_ref().unwrap();
+            conn.query_row(
+                "SELECT avatar, haex_hlc FROM devices WHERE id = 'dev-1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            avatar, "v10",
+            "a stale (older-HLC) op received after a newer one must not roll back the value"
+        );
+        assert_eq!(
+            row_hlc, "10/aaa",
+            "row HLC must not regress from a stale delivery"
+        );
+    }
+
+    /// Scenario 3: a fixed set of 3 independent column-updates to the SAME
+    /// field, delivered via 3 separate apply() calls in every one of the
+    /// 3! = 6 possible orders (simulating out-of-order network delivery).
+    /// Every ordering must converge to the same final state — the
+    /// highest-HLC write wins regardless of delivery order, never
+    /// "whichever happened to arrive last physically".
+    #[test]
+    fn apply_converges_to_same_state_regardless_of_delivery_order() {
+        // (value, hlc) triples — deliberately NOT HLC-sorted in this list.
+        let op_specs = [("v10", "10/aaa"), ("v30", "30/aaa"), ("v20", "20/aaa")];
+        let orderings: [[usize; 3]; 6] = [
+            [0, 1, 2],
+            [0, 2, 1],
+            [1, 0, 2],
+            [1, 2, 0],
+            [2, 0, 1],
+            [2, 1, 0],
+        ];
+
+        let mut results: Vec<(String, String, String)> = Vec::new();
+        for order in orderings {
+            let db = setup_db();
+            {
+                let guard = db.0.lock().unwrap();
+                let conn = guard.as_ref().unwrap();
+                conn.execute(
+                    "INSERT INTO devices (id, space_id, avatar, haex_hlc, haex_column_hlcs) \
+                     VALUES ('dev-1', 's1', 'seed.png', '0/aaa', '{}')",
+                    [],
+                )
+                .unwrap();
+            }
+            for i in order {
+                let (val, hlc) = op_specs[i];
+                apply_remote_changes_to_db(
+                    &db,
+                    vec![change(r#"{"id":"dev-1"}"#, "avatar", val, hlc)],
+                    None,
+                    None,
+                )
+                .expect("each individual delivery must succeed");
+            }
+            let state: (String, String, String) = {
+                let guard = db.0.lock().unwrap();
+                let conn = guard.as_ref().unwrap();
+                conn.query_row(
+                    "SELECT avatar, haex_column_hlcs, haex_hlc FROM devices WHERE id = 'dev-1'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .unwrap()
+            };
+            results.push(state);
+        }
+
+        let baseline = results[0].clone();
+        assert_eq!(
+            baseline.0, "v30",
+            "the highest-HLC write (30/aaa) must win regardless of delivery order"
+        );
+        for (i, r) in results.iter().enumerate() {
+            assert_eq!(
+                r, &baseline,
+                "delivery order {:?} produced a different final state than order {:?} — \
+                 the CRDT merge must be commutative",
+                orderings[i], orderings[0]
+            );
+        }
+    }
 }
