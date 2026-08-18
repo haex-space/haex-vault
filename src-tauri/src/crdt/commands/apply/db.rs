@@ -1770,7 +1770,7 @@ mod tests {
         space_change.column_name = "space_id".to_string();
 
         apply_remote_changes_to_db(&db, vec![space_change, avatar_change], None, None)
-            .expect("apply must succeed — rejection is row-scoped, not fatal");
+            .expect("apply must succeed — rejection is column-scoped, not fatal");
 
         assert_eq!(
             read_avatar(&db),
@@ -2058,7 +2058,7 @@ mod tests {
         };
 
         apply_remote_changes_to_db_scoped(&db, vec![change], None, None, Some(shared_space))
-            .expect("apply must succeed — rejection is row-scoped, not fatal");
+            .expect("apply must succeed — rejection is column-scoped, not fatal");
 
         let avatar: String = {
             let guard = db.0.lock().unwrap();
@@ -2213,7 +2213,7 @@ mod tests {
         change.sig.as_mut().unwrap().author_did = bob_did.clone();
 
         apply_remote_changes_to_db(&db, vec![change], None, None)
-            .expect("apply must succeed — rejection is row-scoped, not fatal");
+            .expect("apply must succeed — rejection is column-scoped, not fatal");
 
         assert_eq!(
             read_avatar(&db),
@@ -2262,7 +2262,7 @@ mod tests {
         change.hlc_timestamp = claimed_hlc.to_string();
 
         apply_remote_changes_to_db(&db, vec![change], None, None)
-            .expect("apply must succeed — rejection is row-scoped, not fatal");
+            .expect("apply must succeed — rejection is column-scoped, not fatal");
 
         assert_eq!(
             read_avatar(&db),

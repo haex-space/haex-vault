@@ -44,10 +44,14 @@ crypto implementation itself.
 
 ---
 
-### I2 – Operation Authenticity
+### I2 – Signed-Change Authorship
 
-**Guarantee:** Only an authorized device/identity can create a valid change
-for its own identity.
+**Guarantee:** Only the holder of the private key for an `author_did` can
+produce a valid signed change under that DID. A signature verified by
+`verify_column_sig` proves *signer authenticity* — it does **not** prove
+the signer is an authorized member of the space that the change targets.
+Space membership, capability, row-scope, and ownership are enforced by a
+separate gate; see the note below.
 
 **Enforced by:** Per-column Ed25519 signatures binding `space_id +
 table_name + row_pks + column_name + hlc_timestamp + author_did +
@@ -58,13 +62,23 @@ owner's own devices remains unsigned and instead relies on device/session
 authentication under the owner's own account — that layer was not
 re-verified in this pass.
 
+**Space authorization is a separate check.** Inbound shared-space pushes
+are gated by `authorize_inbound_sync_push`
+(`src-tauri/src/space_delivery/local/inbound_sync/mod.rs:119`), which
+performs `is_active_space_member`, `require_capability`,
+`enforce_row_space_scope`, and `filter_ownership_violations` **before**
+`apply_remote_changes_to_db_scoped` runs. That is the layer that decides
+whether a signed-and-authentic change is *authorized* to touch the target
+space and row; `verify_column_sig` on its own does not.
+
 **Forged/manipulated HLC timestamps: REJECT.** Because `hlc_timestamp` is
 part of the signed Ed25519 preimage (`column_sig/preimage.rs::build_preimage`),
 tampering with the HLC on a signed change invalidates the signature and the
 apply pipeline rejects the change outright — the design does *not*
-accept-and-reorder a change with a forged HLC. Rejection is row-scoped and
-has no side effects (no identity-stub row is created for the forged
-`author_did`).
+accept-and-reorder a change with a forged HLC. Rejection is **column-scoped**
+(the invalid-sig branch continues the column loop, so sibling columns in
+the same row batch can still apply) and has no side effects (no
+identity-stub row is created for the forged `author_did`).
 
 **Regression test:** yes — `src-tauri/src/crdt/column_sig/verify_tests.rs`
 (signature primitive), plus apply-pipeline-layer regression guards added
@@ -105,13 +119,13 @@ is only through the typed password API.
 `PermissionManager::check_passwords_permission`
 (`src-tauri/src/passwords/commands/mod.rs`) — a dedicated permission
 resource type, separate from generic DB permissions. Raw SQL access to
-`haex_passwords_*` is not auto-allowed and is excluded from wildcard (`*`)
-grants (`is_system_table`). The module's own comment states access is
-"forbidden by policy" — note this is a strong convention backed by the
-wildcard exclusion, not an absolute code-level impossibility: a manifest
-could in principle request an exact-name grant for a `haex_passwords_*`
-table and have it owner-approved via the permission-prompt UI (not audited
-in this pass).
+any `haex_*` table (including `haex_passwords_*`) is denied absolutely
+at the pattern-match layer: `matches_target`
+(`src-tauri/src/extension/permissions/checker.rs:203-207`) short-circuits
+to `false` for any `haex_*` or `sqlite_*` table before checking the
+target pattern, so the system-table exclusion covers wildcard (`*`),
+prefix (`prefix__*`), **and** exact-name grants alike — there is no
+loophole via an exact-name grant.
 
 **Regression test:** not identified in this pass.
 
