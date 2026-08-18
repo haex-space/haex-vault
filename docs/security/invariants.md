@@ -58,7 +58,20 @@ owner's own devices remains unsigned and instead relies on device/session
 authentication under the owner's own account — that layer was not
 re-verified in this pass.
 
-**Regression test:** yes — `src-tauri/src/crdt/column_sig/verify_tests.rs`.
+**Forged/manipulated HLC timestamps: REJECT.** Because `hlc_timestamp` is
+part of the signed Ed25519 preimage (`column_sig/preimage.rs::build_preimage`),
+tampering with the HLC on a signed change invalidates the signature and the
+apply pipeline rejects the change outright — the design does *not*
+accept-and-reorder a change with a forged HLC. Rejection is row-scoped and
+has no side effects (no identity-stub row is created for the forged
+`author_did`).
+
+**Regression test:** yes — `src-tauri/src/crdt/column_sig/verify_tests.rs`
+(signature primitive), plus apply-pipeline-layer regression guards added
+alongside this doc: `apply_rejects_change_with_forged_author_did` and
+`apply_rejects_change_with_forged_hlc_timestamp` in
+`src-tauri/src/crdt/commands/apply/db.rs` (both assert full-pipeline
+rejection and the side-effect-free-fail property).
 
 ---
 
@@ -155,7 +168,12 @@ whose delete-signal has already been pruned
 
 **Regression test:** yes —
 `shared_space_delete_log_apply_preserves_resurrection_bug_free` and related
-tests in `delete_propagation.rs`.
+tests in `delete_propagation.rs`, plus apply-pipeline-layer guards added
+alongside this doc:
+`apply_is_idempotent_when_identical_unsigned_change_set_is_applied_twice`,
+`apply_is_idempotent_when_signed_change_is_replayed`, and
+`apply_v10_then_receiving_stale_v7_does_not_roll_back` in
+`src-tauri/src/crdt/commands/apply/db.rs`.
 
 ---
 
@@ -175,7 +193,14 @@ registered for that space
 
 **Regression test:** yes — `test_is_space_scoped_table_whitelist`
 (`src-tauri/src/crdt/scanner_tests.rs:328`) plus the delete-propagation
-fail-closed/register-gate tests.
+fail-closed/register-gate tests. The apply-pipeline-layer replay/idempotence
+tests added alongside this doc
+(`apply_is_idempotent_when_identical_unsigned_change_set_is_applied_twice`,
+`apply_is_idempotent_when_signed_change_is_replayed`,
+`apply_v10_then_receiving_stale_v7_does_not_roll_back` in
+`src-tauri/src/crdt/commands/apply/db.rs`) double as
+"malformed/adversarial remote op → no unauthorized local state" guards for
+this invariant.
 
 ---
 
