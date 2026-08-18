@@ -2152,30 +2152,7 @@ mod tests {
         let new_avatar = "replayed.png";
         let hlc = "20/xxx";
 
-        let value_bytes_vec =
-            value_bytes::to_canonical_bytes(&SqlValue::Text(new_avatar.to_string()));
-        let sig = sign_column(
-            &signing_key,
-            space_id.as_bytes(),
-            b"devices",
-            br#"{"id":"dev-1"}"#,
-            b"avatar",
-            hlc.as_bytes(),
-            did.as_bytes(),
-            &value_bytes_vec,
-        );
-        let make_change = || RemoteColumnChange {
-            table_name: "devices".to_string(),
-            row_pks: r#"{"id":"dev-1"}"#.to_string(),
-            column_name: "avatar".to_string(),
-            hlc_timestamp: hlc.to_string(),
-            decrypted_value: JsonValue::String(new_avatar.to_string()),
-            sig: Some(ColumnSig {
-                author_did: did.clone(),
-                sig: BASE64.encode(sig.to_bytes()),
-                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
-            }),
-        };
+        let make_change = || signed_avatar_change(&signing_key, space_id, new_avatar, hlc);
 
         apply_remote_changes_to_db(&db, vec![make_change()], None, None)
             .expect("first apply of a validly-signed change must succeed");
@@ -2185,15 +2162,7 @@ mod tests {
         apply_remote_changes_to_db(&db, vec![make_change()], None, None)
             .expect("replay of an already-verified signed change must not error");
 
-        let avatar: String = {
-            let guard = db.0.lock().unwrap();
-            let conn = guard.as_ref().unwrap();
-            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
-                r.get(0)
-            })
-            .unwrap()
-        };
-        assert_eq!(avatar, new_avatar);
+        assert_eq!(read_avatar(&db), new_avatar);
 
         let stub_count: i64 = {
             let guard = db.0.lock().unwrap();
@@ -2235,49 +2204,20 @@ mod tests {
         let space_id = "s1"; // seeded on the row in setup
         let hlc = "20/xxx";
         let new_avatar = "framed.png";
-        let value_bytes_vec =
-            value_bytes::to_canonical_bytes(&SqlValue::Text(new_avatar.to_string()));
+
         // Alice signs honestly, over her own DID — a completely legitimate
         // signature for a completely legitimate change.
-        let sig = sign_column(
-            &alice_key,
-            space_id.as_bytes(),
-            b"devices",
-            br#"{"id":"dev-1"}"#,
-            b"avatar",
-            hlc.as_bytes(),
-            alice_did.as_bytes(),
-            &value_bytes_vec,
-        );
-
+        let mut change = signed_avatar_change(&alice_key, space_id, new_avatar, hlc);
         // Attacker relabels the wire envelope's author_did to Bob's,
         // keeping Alice's genuine signature bytes untouched.
-        let change = RemoteColumnChange {
-            table_name: "devices".to_string(),
-            row_pks: r#"{"id":"dev-1"}"#.to_string(),
-            column_name: "avatar".to_string(),
-            hlc_timestamp: hlc.to_string(),
-            decrypted_value: JsonValue::String(new_avatar.to_string()),
-            sig: Some(ColumnSig {
-                author_did: bob_did.clone(),
-                sig: BASE64.encode(sig.to_bytes()),
-                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
-            }),
-        };
+        change.sig.as_mut().unwrap().author_did = bob_did.clone();
 
         apply_remote_changes_to_db(&db, vec![change], None, None)
             .expect("apply must succeed — rejection is row-scoped, not fatal");
 
-        let avatar: String = {
-            let guard = db.0.lock().unwrap();
-            let conn = guard.as_ref().unwrap();
-            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
-                r.get(0)
-            })
-            .unwrap()
-        };
         assert_eq!(
-            avatar, "old.png",
+            read_avatar(&db),
+            "old.png",
             "author-forged change must be dropped, existing value preserved"
         );
 
@@ -2310,54 +2250,23 @@ mod tests {
 
         let seed: [u8; 32] = rand::random();
         let signing_key = SigningKey::from_bytes(&seed);
-        let did = did_key_from_public_key(&signing_key.verifying_key());
         let space_id = "s1"; // seeded on the row in setup
         let signed_hlc = "20/xxx"; // what was actually signed
         let claimed_hlc = "999999/xxx"; // forged: far future, would win any LWW race
         let new_avatar = "forged-time.png";
 
-        let value_bytes_vec =
-            value_bytes::to_canonical_bytes(&SqlValue::Text(new_avatar.to_string()));
-        let sig = sign_column(
-            &signing_key,
-            space_id.as_bytes(),
-            b"devices",
-            br#"{"id":"dev-1"}"#,
-            b"avatar",
-            signed_hlc.as_bytes(),
-            did.as_bytes(),
-            &value_bytes_vec,
-        );
-
-        // Attacker takes the legitimately-signed change and swaps ONLY the
+        // Attacker takes a legitimately-signed change and swaps ONLY the
         // claimed hlc_timestamp on the wire, hoping the inflated HLC wins
         // the per-column LWW race without needing a fresh signature.
-        let change = RemoteColumnChange {
-            table_name: "devices".to_string(),
-            row_pks: r#"{"id":"dev-1"}"#.to_string(),
-            column_name: "avatar".to_string(),
-            hlc_timestamp: claimed_hlc.to_string(),
-            decrypted_value: JsonValue::String(new_avatar.to_string()),
-            sig: Some(ColumnSig {
-                author_did: did.clone(),
-                sig: BASE64.encode(sig.to_bytes()),
-                storage_class: crate::crdt::column_sig::value_bytes::StorageClass::Text,
-            }),
-        };
+        let mut change = signed_avatar_change(&signing_key, space_id, new_avatar, signed_hlc);
+        change.hlc_timestamp = claimed_hlc.to_string();
 
         apply_remote_changes_to_db(&db, vec![change], None, None)
             .expect("apply must succeed — rejection is row-scoped, not fatal");
 
-        let avatar: String = {
-            let guard = db.0.lock().unwrap();
-            let conn = guard.as_ref().unwrap();
-            conn.query_row("SELECT avatar FROM devices WHERE id = 'dev-1'", [], |r| {
-                r.get(0)
-            })
-            .unwrap()
-        };
         assert_eq!(
-            avatar, "old.png",
+            read_avatar(&db),
+            "old.png",
             "a claimed HLC that does not match what was actually signed must be rejected \
              (hlc_timestamp is part of the signed preimage) — the codebase's handling of a \
              forged HLC is REJECT, not accept-and-reorder"
