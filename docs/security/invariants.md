@@ -399,11 +399,16 @@ verified mitigation for a *first* connection.
 **What cryptographic property prevents the attack?** Partial only.
 AES-256-GCM with ephemeral X25519 DH gives confidentiality and forward
 secrecy for a session's *content* once a shared secret is derived. But
-server-side authorization is keyed purely on the `client_id` string:
-`SQL_IS_CLIENT_KNOWN` and `SQL_IS_AUTHORIZED` both resolve as
-`WHERE client_id = ?1` (`src-tauri/src/external_bridge/authorization.rs:100-108`),
-with no check that the connecting process's public key matches the public
-key recorded at authorization time.
+server-side authorization keys off the `client_id` string, not off any bound
+key material: `SQL_IS_CLIENT_KNOWN` resolves as bare `WHERE client_id = ?1`,
+while `SQL_IS_AUTHORIZED` (`src-tauri/src/external_bridge/authorization.rs:100-103`)
+adds `AND extension_id = ?2` and `SQL_IS_CLIENT_AUTHORIZED_FOR_EXTENSION`
+(`authorization.rs:225-231`) joins on the target extension's `public_key`/`name`
+as well — but in both cases that extra condition narrows *which extension* the
+client may reach, not *whether the connecting process is who it claims to
+be*. None of these queries check that the connecting process's own public
+key matches the public key recorded for that `client_id` at authorization
+time.
 
 **What can they still do? (KNOWN GAP — write this down honestly, do not
 mark it solved)**
