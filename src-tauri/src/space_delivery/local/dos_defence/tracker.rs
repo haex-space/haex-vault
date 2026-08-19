@@ -34,6 +34,14 @@ pub enum L1AcceptOutcome {
     RejectedPerSource(usize),
 }
 
+/// Outcome of `try_record_single` (L5 per-handler rate limit). The
+/// `usize` is the count observed in the bucket at decision time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SingleAcceptOutcome {
+    Accepted,
+    Rejected(usize),
+}
+
 impl RejectRateTracker {
     pub fn new(window: Duration) -> Self {
         Self {
@@ -119,6 +127,26 @@ impl RejectRateTracker {
             .or_default()
             .push_back(when);
         L1AcceptOutcome::Accepted
+    }
+
+    /// Atomic check-and-record for a single-key rate limit (L5 per-handler).
+    /// Prunes + counts under the same mutex acquisition that records the
+    /// event, so two concurrent requests cannot both observe count < limit
+    /// and then both record — same rationale as `try_record_l1_accept`.
+    pub fn try_record_single(&self, key: &str, limit: usize, when: Instant) -> SingleAcceptOutcome {
+        let cutoff = when.checked_sub(self.window);
+        let mut buckets = self
+            .buckets
+            .lock()
+            .expect("RejectRateTracker mutex poisoned");
+
+        let count = prune_and_count(&mut buckets, key, cutoff);
+        if count >= limit {
+            return SingleAcceptOutcome::Rejected(count);
+        }
+
+        buckets.entry(key.to_string()).or_default().push_back(when);
+        SingleAcceptOutcome::Accepted
     }
 
     pub fn distinct_keys_count(&self, now: Instant) -> usize {

@@ -3,6 +3,9 @@
 use time::OffsetDateTime;
 
 use super::super::buffer;
+use super::super::dos_defence::handler_rate_gate::{
+    check_and_record as l5_check, HandlerRateOutcome,
+};
 use super::super::error::DeliveryError;
 use super::super::protocol::{self, MlsMessageEntry, Notification, Request, Response};
 use super::super::push_invite;
@@ -77,6 +80,39 @@ pub(crate) async fn handle_delivery_request(
         Ok(maybe) => maybe,
         Err(response) => return response,
     };
+
+    // L5: per-DID per-handler rate limit. Runs after AuthGate so we
+    // have a `verified_did`. Cheap or session-lifecycle variants
+    // (Announce, ClaimInvite, PushInvite, MlsAckCommit, …) are absent
+    // from `HandlerRateLimits::limit_for_op` and pass through as
+    // `NoLimit` — the tracker is only touched for the six expensive
+    // handlers enumerated in `HandlerRateLimits`.
+    match l5_check(
+        &state.reject_tracker,
+        &state.dos_config.l5_handler_limits,
+        request.op_name(),
+        verified_did,
+        std::time::Instant::now(),
+    ) {
+        HandlerRateOutcome::Accepted | HandlerRateOutcome::NoLimit => {}
+        HandlerRateOutcome::Rejected { limit, observed } => {
+            let op = request.op_name();
+            let msg = format!(
+                "rate_limited: handler {op} exceeded per-DID cap (limit={limit}, observed={observed})",
+            );
+            crate::logging::log_to_db(
+                state.log_sink.as_ref(),
+                "warn",
+                op,
+                &format!(
+                    "l5 rate-limit did={} limit={limit} observed={observed}",
+                    &verified_did[..24.min(verified_did.len())],
+                ),
+                None,
+            );
+            return Response::Error { message: msg };
+        }
+    }
 
     match request {
         Request::Announce {

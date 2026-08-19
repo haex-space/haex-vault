@@ -24,6 +24,59 @@ pub enum EscalationPolicy {
     Off,
 }
 
+/// Per-DID per-request-type rate limits for the L5 "valid-but-evil" layer.
+///
+/// L5 protects against authenticated peers that hammer expensive handlers
+/// (SyncPull scanning big spaces, SyncPush with column-sig-verify pressure,
+/// MLS fetch handlers with amplifying responses). Cheap handlers like
+/// `Announce` / `MlsAckCommit` / `MlsKeyPackageCount` are once-per-session
+/// or trivially cheap and are not rate-limited here (L4 already covers
+/// per-DID reject-amplification).
+///
+/// Limits are in units of "allowed events per L5 window per verified DID".
+/// The L5 window is [`DosDefenceConfig::l5_window`] (default 1 second),
+/// so `sync_pull = 5` reads as "at most 5 SyncPull requests per DID per
+/// second". `limit_for_op` returns `None` for handlers not enumerated
+/// here — the L5 gate then treats them as `NoLimit`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HandlerRateLimits {
+    pub sync_pull: u32,
+    pub sync_push: u32,
+    pub mls_fetch_messages: u32,
+    pub mls_fetch_welcomes: u32,
+    pub mls_send_message: u32,
+    pub submit_external_commit: u32,
+}
+
+impl HandlerRateLimits {
+    pub const fn defaults() -> Self {
+        Self {
+            sync_pull: 5,
+            sync_push: 10,
+            mls_fetch_messages: 20,
+            mls_fetch_welcomes: 20,
+            mls_send_message: 30,
+            submit_external_commit: 5,
+        }
+    }
+
+    /// Look up the per-DID per-window limit for an [`super::super::protocol::Request`]
+    /// variant's [`super::super::protocol::Request::op_name`]. Returns
+    /// `None` for handlers not covered by the L5 layer (cheap, one-shot,
+    /// or session-lifecycle requests).
+    pub fn limit_for_op(&self, op_name: &str) -> Option<u32> {
+        match op_name {
+            "SyncPull" => Some(self.sync_pull),
+            "SyncPush" => Some(self.sync_push),
+            "MlsFetchMessages" => Some(self.mls_fetch_messages),
+            "MlsFetchWelcomes" => Some(self.mls_fetch_welcomes),
+            "MlsSendMessage" => Some(self.mls_send_message),
+            "SubmitExternalCommit" => Some(self.submit_external_commit),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DosDefenceConfig {
     pub l1_global_rate_per_sec: u32,
@@ -35,6 +88,12 @@ pub struct DosDefenceConfig {
     pub ddos_distinct_sources_threshold: u32,
     pub ddos_escalation_policy: EscalationPolicy,
     pub ddos_auto_expiry: Duration,
+    /// L5 per-handler per-DID rate limits.
+    pub l5_handler_limits: HandlerRateLimits,
+    /// Sliding window for L5 rate accounting. Kept small (1 s) so a burst
+    /// beyond the limit is rejected quickly and a well-behaved client
+    /// recovers within one window.
+    pub l5_window: Duration,
 }
 
 impl DosDefenceConfig {
@@ -49,6 +108,8 @@ impl DosDefenceConfig {
             ddos_distinct_sources_threshold: 10,
             ddos_escalation_policy: EscalationPolicy::ContactsOnly,
             ddos_auto_expiry: Duration::from_secs(1800),
+            l5_handler_limits: HandlerRateLimits::defaults(),
+            l5_window: Duration::from_secs(1),
         }
     }
 
@@ -103,6 +164,24 @@ impl DosDefenceConfig {
                     }
                 }
                 KEY_DDOS_AUTO_EXPIRY_SECS => assign_duration_secs(&mut cfg.ddos_auto_expiry, value),
+                KEY_L5_SYNC_PULL_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.sync_pull, value)
+                }
+                KEY_L5_SYNC_PUSH_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.sync_push, value)
+                }
+                KEY_L5_MLS_FETCH_MESSAGES_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.mls_fetch_messages, value)
+                }
+                KEY_L5_MLS_FETCH_WELCOMES_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.mls_fetch_welcomes, value)
+                }
+                KEY_L5_MLS_SEND_MESSAGE_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.mls_send_message, value)
+                }
+                KEY_L5_SUBMIT_EXTERNAL_COMMIT_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.submit_external_commit, value)
+                }
                 _ => {}
             }
         }
@@ -119,6 +198,16 @@ pub const KEY_L4_SAMPLE_THRESHOLD_PER_SEC: &str = "dosDefence.l4.sampleThreshold
 pub const KEY_DDOS_DISTINCT_SOURCES_THRESHOLD: &str = "dosDefence.ddos.distinctSourcesThreshold";
 pub const KEY_DDOS_ESCALATION_POLICY: &str = "dosDefence.ddos.escalationPolicy";
 pub const KEY_DDOS_AUTO_EXPIRY_SECS: &str = "dosDefence.ddos.autoExpirySecs";
+pub const KEY_L5_SYNC_PULL_PER_DID_PER_SEC: &str = "dosDefence.l5.syncPull.perDidPerSec";
+pub const KEY_L5_SYNC_PUSH_PER_DID_PER_SEC: &str = "dosDefence.l5.syncPush.perDidPerSec";
+pub const KEY_L5_MLS_FETCH_MESSAGES_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.mlsFetchMessages.perDidPerSec";
+pub const KEY_L5_MLS_FETCH_WELCOMES_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.mlsFetchWelcomes.perDidPerSec";
+pub const KEY_L5_MLS_SEND_MESSAGE_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.mlsSendMessage.perDidPerSec";
+pub const KEY_L5_SUBMIT_EXTERNAL_COMMIT_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.submitExternalCommit.perDidPerSec";
 
 fn assign_u32(target: &mut u32, raw: &str) {
     if let Ok(n) = raw.parse() {
