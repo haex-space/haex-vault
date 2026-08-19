@@ -341,6 +341,146 @@ fn test_is_space_scoped_table_whitelist() {
     assert!(!is_space_scoped_table("some_extension_table"));
 }
 
+/// Doppel-Buchführungs-Test (ADR 0003).
+///
+/// **Sicherheits-Kontext:** `SPACE_SCOPED_CRDT_TABLES` (siehe
+/// `crdt/scanner.rs:37-55`) entscheidet, welche `haex_*`-Tabelle Inhalt an
+/// dritte Space-Member kreuzen darf. Ein versehentlich hinzugefügter Eintrag
+/// verletzt Invariante I8 (Sync Safety) und I12 (Vault-Scoped-Table
+/// Confinement) in `docs/security/invariants.md` — vault-privater Inhalt
+/// flösse an dritte Peers.
+///
+/// Der Test spiegelt die Runtime-Konstante gegen eine im Test explizit
+/// aufgeführte Erwartungs-Liste **mit Begründungs-Kommentar pro Eintrag**.
+/// Wenn eine intendierte Änderung an der Runtime-Konstante nötig ist, muss
+/// hier gleichzeitig die Erwartungs-Liste angepasst UND der Kommentar zur
+/// Sicherheits-Rationale ergänzt werden. Diff auf beiden Seiten ist damit
+/// review-sichtbar und Reviewer-erzwungen bewusst.
+///
+/// **Nicht** ersetzen durch `use super::SPACE_SCOPED_CRDT_TABLES` — die
+/// wörtliche Duplikation IST der Enforcement-Mechanismus.
+#[test]
+fn space_scoped_crdt_tables_matches_documented_expectation() {
+    // Wörtlich aufgezählte Erwartung — jede Änderung erfordert bewussten Edit
+    // hier UND in `crdt/scanner.rs`. Reihenfolge muss deterministisch sein
+    // (Slice-Vergleich, nicht Set-Vergleich), damit die Fehlermeldung bei
+    // Diff präzise anzeigt, welcher Eintrag wo eingefügt oder entfernt wurde.
+    const EXPECTED: &[&str] = &[
+        // 5 Infrastruktur-Tabellen (ADR 0002 §0 Terminologie, Bootstrap-Klasse).
+        "haex_space_devices", // Device-Registrierung eines Members im Space.
+        "haex_space_members", // Membership-Roster.
+        "haex_peer_shares",   // Vom Device angebotene Share-Endpunkte.
+        "haex_mls_sync_keys", // MLS KeyPackages (damit andere an uns encrypten).
+        "haex_device_mls_enrollments", // MLS-Enrollment-Artefakte.
+        // Share-Register selbst (ADR 0002 §0, 6. Bootstrap-Tabelle).
+        "haex_shared_space_sync", // Unshare = Register-DELETE; Members brauchen das Signal.
+        // Delete-Propagation (ADR 0002 §6.5, Phase 3.a).
+        "haex_shared_space_deleted_rows", // Per-Space Delete-Log (Hard-Delete + Unshare).
+        "haex_space_compaction_anchors",  // Anti-Resurrection-Anchor.
+    ];
+
+    let actual: &[&str] = SPACE_SCOPED_CRDT_TABLES;
+    assert_eq!(
+        actual, EXPECTED,
+        "\n\nSPACE_SCOPED_CRDT_TABLES ist in scanner.rs geändert worden, aber die \
+         im Test dokumentierte Erwartungs-Liste nicht.\n\n\
+         Wenn die Änderung beabsichtigt ist:\n\
+         1. Passe EXPECTED in `space_scoped_crdt_tables_matches_documented_expectation` an,\n\
+         2. Ergänze pro Eintrag einen Begründungs-Kommentar mit Sicherheits-Rationale,\n\
+         3. Referenziere die ADR (0003 oder Folge-ADR), die den neuen Eintrag rechtfertigt.\n\n\
+         Wenn die Änderung unbeabsichtigt ist: reverte den Edit in `crdt/scanner.rs`.\n\
+         Hintergrund: docs/adr/0003-explicit-sync-policy.md § Entscheidung Punkt 3.\n\n"
+    );
+}
+
+/// Doppel-Buchführungs-Test (ADR 0003) für `MEMBERSHIP_SYSTEM_TABLES`.
+///
+/// **Sicherheits-Kontext:** `MEMBERSHIP_SYSTEM_TABLES` (`crdt/scanner.rs:73-78`)
+/// ist die Untermenge von `SPACE_SCOPED_CRDT_TABLES`, die auch ein
+/// **read-only Member** pushen darf, weil die Zeilen seine eigene Existenz
+/// im Space beschreiben. Ein versehentlich hinzugefügter Eintrag würde einem
+/// read-only Member erlauben, User-Content zu publizieren — Bruch der
+/// Read-Only-Semantik.
+///
+/// Wie bei `space_scoped_crdt_tables_matches_documented_expectation`:
+/// wörtliche Duplikation ist der Enforcement-Mechanismus, kein `use`-Import.
+#[test]
+fn membership_system_tables_matches_documented_expectation() {
+    const EXPECTED: &[&str] = &[
+        // Membership-Roster + eigene Device-Registrierung sind Read-only-erlaubt.
+        "haex_space_devices",
+        "haex_space_members",
+        // MLS KeyPackages + Enrollment: read-only Member muss diese pushen,
+        // damit andere ihm encrypten und ihn in die MLS-Gruppe committen können.
+        "haex_mls_sync_keys",
+        "haex_device_mls_enrollments",
+        // haex_peer_shares fehlt bewusst: read-only Member darf keine
+        // Share-Endpunkte publizieren (echter User-Content).
+        // haex_shared_space_sync / _deleted_rows / _compaction_anchors:
+        // Register + Delete-Log = Write-Aktionen, kein Read-only-Recht.
+    ];
+
+    let actual: &[&str] = MEMBERSHIP_SYSTEM_TABLES;
+    assert_eq!(
+        actual, EXPECTED,
+        "\n\nMEMBERSHIP_SYSTEM_TABLES ist in scanner.rs geändert worden, aber die \
+         im Test dokumentierte Erwartungs-Liste nicht.\n\n\
+         Sicherheits-Konsequenz einer stillen Änderung: ein read-only Member \
+         könnte die neu-hinzugefügte Tabelle beschreiben und damit die \
+         Read-Only-Semantik brechen.\n\n\
+         Wenn beabsichtigt: EXPECTED anpassen + Begründungs-Kommentar + \
+         ADR-Referenz. Wenn nicht: reverte in `crdt/scanner.rs`.\n\
+         Hintergrund: docs/adr/0003-explicit-sync-policy.md § Entscheidung Punkt 3.\n\n"
+    );
+}
+
+/// Schema-Präsenz-Check (ADR 0003).
+///
+/// Jeder Eintrag in `SPACE_SCOPED_CRDT_TABLES` und `MEMBERSHIP_SYSTEM_TABLES`
+/// muss einer generierten Table-Name-Konstante in `crate::table_names`
+/// entsprechen. Fängt zwei Drift-Klassen:
+/// 1. Whitelist zeigt auf eine Tabelle, die im Schema-Generator umbenannt oder
+///    entfernt wurde → still-defekter Sync-Path, statt lauter Test-Fail.
+/// 2. Ein neuer Whitelist-Eintrag wurde als String-Literal statt via Konstante
+///    hinzugefügt → hilft, den Table-Name-Konstanten-Chokepoint zu erzwingen.
+#[test]
+fn whitelisted_tables_exist_as_generated_constants() {
+    use crate::table_names::*;
+
+    // Alle im Schema-Generator registrierten Table-Name-Konstanten für die
+    // beiden Whitelists. Wenn hier ein Eintrag fehlt, weil er unter anderem
+    // Konstanten-Namen generiert wurde: passe im Test die verwendeten Namen
+    // an, ergänze keine neue Konstante ad-hoc — siehe
+    // `src-tauri/generator/table_names.rs`.
+    let known: &[&str] = &[
+        TABLE_SPACE_DEVICES,
+        TABLE_SPACE_MEMBERS,
+        TABLE_PEER_SHARES,
+        TABLE_MLS_SYNC_KEYS,
+        TABLE_DEVICE_MLS_ENROLLMENTS,
+        TABLE_SHARED_SPACE_SYNC,
+        TABLE_SHARED_SPACE_DELETED_ROWS,
+        TABLE_SPACE_COMPACTION_ANCHORS,
+    ];
+
+    for t in SPACE_SCOPED_CRDT_TABLES {
+        assert!(
+            known.contains(t),
+            "SPACE_SCOPED_CRDT_TABLES enthält {t:?}, aber diese Tabelle ist in \
+             `crate::table_names` nicht als Konstante registriert. Entweder wurde \
+             die Tabelle im Schema-Generator umbenannt/entfernt, oder der \
+             Whitelist-Eintrag wurde als String-Literal hinzugefügt statt via \
+             Konstante. Prüfe `src-tauri/generator/table_names.rs`."
+        );
+    }
+    for t in MEMBERSHIP_SYSTEM_TABLES {
+        assert!(
+            known.contains(t),
+            "MEMBERSHIP_SYSTEM_TABLES enthält {t:?} — selbe Diagnose wie oben."
+        );
+    }
+}
+
 #[test]
 fn test_membership_system_tables_are_subset_of_space_scoped() {
     for t in MEMBERSHIP_SYSTEM_TABLES {
