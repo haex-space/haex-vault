@@ -4,9 +4,11 @@
 - **Date:** 2026-08-18
 - **Deciders:** Martin Drechsel
 
-Schließt die Enforcement-Lücke aus `docs/security/invariants.md` §I8 (Sync Safety) für die Grenze
-zwischen owner-privatem CRDT-Sync und Shared-Space-Sync. Enforcement-Mechanik für Phase 3 des
-Security-Hardening-Plans; Impl-Details in
+Spezifiziert die Enforcement-Mechanik für die Grenze zwischen owner-privatem CRDT-Sync und
+Shared-Space-Sync (Lücke aus `docs/security/invariants.md` §I8 Sync Safety). Diese ADR legt
+die Entscheidung fest; die konkreten Tests werden in Phase 3b des Security-Hardening-Plans
+implementiert. Bis dahin bleibt die Enforcement-Lücke offen — Reviewer-Aufmerksamkeit ist
+weiterhin die einzige Barriere. Impl-Details in
 `docs/plans/2026-08-18-security-hardening-phase3b-implementation.md`.
 
 ---
@@ -102,8 +104,11 @@ strukturell zu erzwingen.
    Enum-Kategorien, keine Migration in eine externe Konfig-Datei. Rust bleibt Source of Truth per
    [CONTEXT.md](../../CONTEXT.md) "Shared-Space-Whitelist"-Eintrag.
 
-3. **Neu: Doppel-Buchführungs-Snapshot-Tests in `src-tauri/src/crdt/scanner_tests.rs`.**
-   Der Enforcement-Mechanismus.
+3. **Neu (geplant, Impl in Phase 3b): Doppel-Buchführungs-Snapshot-Tests in
+   `src-tauri/src/crdt/scanner_tests.rs`.** Der geplante Enforcement-Mechanismus. Bis zum
+   Merge der Phase-3b-Implementierung greift keiner dieser Tests, und der ursprüngliche
+   Fehler-Pfad (siehe "Beobachtete Lücke") ist unverändert nur durch Review-Aufmerksamkeit
+   gedeckt.
 
    - **Test 1 — `SPACE_SCOPED_CRDT_TABLES`-Snapshot.** Eine im Test-Modul separat notierte
      Expected-Liste (kein `use` aus scanner.rs — vollständige, wörtliche Duplikation) mit
@@ -117,10 +122,16 @@ strukturell zu erzwingen.
      eigene Sicherheits-Konsequenzen (read-only Member push-Rechte, siehe
      `crdt/scanner.rs:73-78`) und braucht die eigene Buchführung.
 
-   - **Test 3 — Schema-Präsenz-Check.** Für jede in beiden Snapshot-Listen genannte Tabelle
-     wird geprüft, dass die Tabelle im aktuellen Migrations-Schema existiert
-     (`get_table_schema`). Verhindert stillen Drift, wenn eine Tabelle gedroppt oder umbenannt
-     wird — der Test failt, statt dass die Whitelist auf eine tote Tabelle zeigt.
+   - **Test 3 — Schema-Präsenz-Check über `table_names::TABLE_*`.** Für jeden Eintrag der
+     beiden Expected-Listen (Test 1 + Test 2) MUSS eine explizite Zuordnung zur kanonischen
+     Konstante aus dem generierten `table_names`-Modul (`src-tauri/generator/table_names.rs`
+     → `crate::table_names::TABLE_*`) im Test-Modul stehen. Der Test prüft:
+     (a) für jeden Snapshot-Eintrag existiert eine `TABLE_*`-Konstante mit exakt diesem
+     String-Wert (fängt Rename/Drift zwischen Snapshot und Schema-Generator),
+     (b) für jeden Snapshot-Eintrag existiert die Tabelle im aktuellen Migrations-Schema
+     (`get_table_schema`). Fehlt die Mapping-Zeile im Test-Modul, oder driftet der
+     Konstanten-Wert vom Snapshot-String, failt der Test. Verhindert, dass Snapshot- und
+     Schema-Namensliste als zwei unabhängige Quellen auseinanderlaufen können.
 
    Der Kern-Effekt: jede beabsichtigte Änderung an einer Sicherheits-Whitelist erfordert eine
    bewusste, Review-sichtbare Änderung an einer **zweiten** Stelle, an der jeder Eintrag mit
@@ -134,8 +145,10 @@ strukturell zu erzwingen.
 ### Positiv
 
 - Der real existierende Fehler-Pfad (Core-Dev fügt versehentlich `haex_*`-Tabelle zu
-  `SPACE_SCOPED_CRDT_TABLES` hinzu → I8/I12-Bruch) wird von einem `cargo test crdt::`-Lauf gefangen.
-  Die Barriere ist explizit, nicht mehr Reviewer-Restwissen.
+  `SPACE_SCOPED_CRDT_TABLES` hinzu → I8/I12-Bruch) wird nach Merge der Phase-3b-Tests von
+  einem `cargo test crdt::`-Lauf gefangen. Die Barriere wird dann explizit, nicht mehr
+  Reviewer-Restwissen. Bis dahin bleibt die Barriere Reviewer-Aufmerksamkeit — diese ADR
+  legt nur die Entscheidung fest, nicht bereits ihre Ausführung.
 - Doppel-Buchführung zwingt bei intendierter Änderung zu einem strukturierten Sicherheits-Kommentar
   im Test, der in jeder PR-Diff sichtbar ist.
 - Minimaler Code-Impact: nur ein neues Test-Modul, keine Änderung an `CrdtTransformer`,
