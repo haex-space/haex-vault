@@ -17,6 +17,7 @@ import { useRealtime, type RealtimeEvent } from '@/composables/useRealtime'
 import { useMlsDelivery } from '@/composables/useMlsDelivery'
 import { orchestratorLog as log, type BackendSyncState } from './types'
 import { pullFromBackendAsync } from './pull/cursor'
+import { inviteNeedsUcan, type ListedInvite } from './invite-finalize'
 
 /** Debounce timers per backend */
 const pullDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -204,21 +205,13 @@ export const subscribeToBackendAsync = async (
             ucan,
           )
           if (response.ok) {
-            const data = await response.json() as {
-              invites?: Array<{
-                id: string
-                status: string
-                ucan?: string
-                capability?: string
-                inviteeDid: string
-              }>
-            }
+            const data = await response.json() as { invites?: ListedInvite[] }
             const accepted = (data.invites ?? []).filter(i => i.status === 'accepted')
             const spacesStore = useSpacesStore()
             for (const invite of accepted) {
               try {
                 // For token invites without UCAN: pass inviteId + capability so finalize creates one
-                const needsUcan = !invite.ucan
+                const needsUcan = inviteNeedsUcan(invite)
                 await spacesStore.finalizeInviteAsync(
                   backend.homeServerUrl,
                   event.spaceId,
