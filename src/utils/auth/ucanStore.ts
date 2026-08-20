@@ -71,18 +71,36 @@ export async function createRootUcanAsync(
 }
 
 /**
- * Build the set for a single requested member capability. Read is the
- * explicit baseline for a peer session (Announce), and is terminal just like
- * Write; Invite/Admin remain delegatable. Explicit sets can still be passed
- * directly.
+ * Build the set for a single requested member capability — the role presets.
+ * Read is the baseline on every preset. Explicit sets can still be passed
+ * directly to `delegateUcanAsync`.
+ *
+ * Invariant: if a set contains `invite`, every other cap in it is
+ * `delegatable: true`, except `admin`. `enforceDelegatable` reports the first
+ * offender in SPACE_CAP_ORDER, so an inviter whose own `read` were
+ * non-delegatable would trip on `read` and never reach `invite` — the
+ * capability would grant nothing at all. Holding `admin` non-delegatable is
+ * what reserves minting admins to the space root, so a delegated admin may
+ * hand out read/write/invite but cannot create further admins.
+ *
+ * Reader and writer keep `read(false)`: neither carries `invite`, so neither
+ * can reach a delegation boundary, and least privilege is the honest default.
+ *
+ * Builder footgun: the boolean is `delegatable`, and calling the method at all
+ * GRANTS the cap. To withhold a cap, omit the call entirely.
+ *
+ * Exported for tests, which pin this table entry by entry.
  */
-const capsFromSingle = (cap: SpaceCap): SpaceCapabilitySet => {
-  const builder = spaceCapabilitySet().read(false)
+export const capsFromSingle = (cap: SpaceCap): SpaceCapabilitySet => {
   switch (cap) {
-    case 'read': return builder.build()
-    case 'write': return builder.write(false).build()
-    case 'invite': return builder.invite(true).build()
-    case 'admin': return builder.admin(true).build()
+    case 'read':
+      return spaceCapabilitySet().read(false).build()
+    case 'write':
+      return spaceCapabilitySet().read(false).write(false).build()
+    case 'invite':
+      return spaceCapabilitySet().read(true).invite(true).build()
+    case 'admin':
+      return spaceCapabilitySet().read(true).write(true).invite(true).admin(false).build()
   }
 }
 
