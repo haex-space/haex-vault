@@ -262,6 +262,24 @@ function rolePreset(cap: Cap): CapabilitySet {
   }
 }
 
+/**
+ * A cap entry with `delegatable` deliberately OMITTED — the wire shape a
+ * lenient reader would silently default to `false`.
+ *
+ * Not a valid `CapEntry`, hence the cast: the whole point of the vector this
+ * feeds (`cap_entry_missing_delegatable_in_leaf`) is that a reader must reject
+ * the payload rather than infer the bit. Rust's `CapEntry` carries no
+ * `#[serde(default)]` on `delegatable`, so it rejects.
+ *
+ * `@haex-space/ucan` 0.2.0 — the pinned version — does NOT yet reject this
+ * shape (`isSpaceCapValue` there is just `Array.isArray`); the hardened
+ * validator is still unmerged upstream. This vector is what will catch it if
+ * that asymmetry is ever resolved in the wrong direction.
+ */
+function missingDelegatableSet(cap: Cap): CapabilitySet {
+  return [{ cap } as unknown as CapEntry]
+}
+
 // ---------------------------------------------------------------------------
 // UCAN construction (deterministic: caller supplies iat/exp/nonce explicitly).
 //
@@ -416,6 +434,7 @@ type ExpectedError =
   | 'ChainBroken'
   | 'Expired'
   | 'WrongSpace'
+  | 'MalformedToken'
 
 interface Vector {
   name: string
@@ -1351,6 +1370,54 @@ function vD2PresetChainOwnerAdminWriter(): Vector {
   }
 }
 
+function vCapEntryMissingDelegatableInLeaf(): Vector {
+  // root(self, full delegatable) → leaf(aud=member, [{"cap":"read"}]).
+  //
+  // The leaf's single cap entry omits `delegatable`. EVERYTHING ELSE about
+  // this chain is valid: signatures verify, the root is self-signed and
+  // space-bound, the chain edge holds, nothing is expired, and the claimed
+  // `read` is covered by the parent's delegatable `read`. The only defect is
+  // the wire shape.
+  //
+  // That isolation is the point. A reader that defaults the absent bit to
+  // `false` accepts this chain outright (`ok: true`); a reader that requires
+  // the bit rejects it as `MalformedToken`. So this vector fails loudly the
+  // moment either language goes lenient — which is exactly the cross-language
+  // divergence that no test previously covered.
+  const root: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.root!.did,
+    spaceId: primarySpaceId,
+    capSet: fullDelegatableSet(),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('missing_delegatable.root'),
+    prf: [],
+  }
+  const rootToken = makeToken(root)
+  const leaf: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.member!.did,
+    spaceId: primarySpaceId,
+    capSet: missingDelegatableSet('read'),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('missing_delegatable.leaf'),
+    prf: [rootToken],
+  }
+  const chain = encodeChain([{ spec: root }, { spec: leaf }])
+  return {
+    name: 'cap_entry_missing_delegatable_in_leaf',
+    space_id: primarySpaceId,
+    nonce_hex: NONCE_HEX.primary_space!,
+    root_did: KEYS.root!.did,
+    expected_audience: KEYS.member!.did,
+    capability_needed: 'read',
+    chain,
+    expected: { ok: false, error: 'MalformedToken' },
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Self-verification
 // ---------------------------------------------------------------------------
@@ -1547,6 +1614,30 @@ function selfVerify(vectors: Vector[]): void {
           (p) => Object.keys(p.cap)[0] !== spaceResource(v.space_id),
         )
         if (!anyMismatch) fail(`${v.name}: expected wrong-space but all nodes reference v.space_id`)
+      } else if (err === 'MalformedToken') {
+        // The wire defect must be real: some node must carry a cap entry
+        // whose `delegatable` is not a boolean. Both languages are required
+        // to reject rather than infer the bit.
+        const anyMalformed = decoded.some((p) =>
+          Object.values(p.cap).some((set) =>
+            (set as readonly Partial<CapEntry>[]).some(
+              (e) => typeof e.delegatable !== 'boolean',
+            ),
+          ),
+        )
+        if (!anyMalformed) {
+          fail(`${v.name}: expected MalformedToken but every cap entry is well-formed`)
+        }
+        // Signatures must still verify. If a MalformedToken vector also had a
+        // broken signature the verifier could reject it for the wrong reason
+        // and the shape defect would go untested.
+        for (let i = 0; i < sigOk.length; i++) {
+          if (!sigOk[i]) {
+            fail(
+              `${v.name}: node ${i} signature failed — a MalformedToken vector must isolate the shape defect`,
+            )
+          }
+        }
       } else {
         fail(`${v.name}: unknown expected error ${err}`)
       }
@@ -1587,10 +1678,12 @@ function main(): void {
     vOrthogonalAdminOnlyParentCannotDelegate('write'),
     vOrthogonalAdminOnlyParentCannotDelegate('read'),
     vD2PresetChainOwnerAdminWriter(),
+    // Wire-shape vector: `delegatable` absent on a leaf cap entry.
+    vCapEntryMissingDelegatableInLeaf(),
   ]
 
-  if (vectors.length !== 19) {
-    fail(`expected 19 vectors, got ${vectors.length}`)
+  if (vectors.length !== 20) {
+    fail(`expected 20 vectors, got ${vectors.length}`)
   }
 
   selfVerify(vectors)

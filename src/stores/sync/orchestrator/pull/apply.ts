@@ -4,7 +4,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { decryptCrdtData } from '@haex-space/vault-sdk'
-import { holdsSpaceCap, type SpaceCap, type SpaceCapabilitySet } from '@haex-space/ucan'
+import { holdsSpaceCap, isSpaceCapValue, type SpaceCap } from '@haex-space/ucan'
 import { eq, and } from 'drizzle-orm'
 import type { ColumnChange } from '../../tableScanner'
 import { getTableSchemaAsync } from '../../tableScanner'
@@ -87,15 +87,36 @@ const isVerifyChainResult = (v: unknown): v is VerifyChainResult => {
  * Post Task-8b the column is a JSON-serialized `SpaceCapabilitySet`
  * (canonical-sorted array of `{cap, delegatable}` entries), so the check
  * parses once and delegates to `holdsSpaceCap` — the same primitive the
- * capability library uses everywhere else. Malformed rows (should not
- * happen — migration `0018` drops legacy rows and the writer serializes
- * canonical form) fail-close to "does not hold": the row simply doesn't
- * count toward the audience's held tokens for this pull.
+ * capability library uses everywhere else.
+ *
+ * The parsed value is routed through `isSpaceCapValue` before
+ * `holdsSpaceCap` sees it. `JSON.parse` returns `any`, so without that
+ * guard the shape was only *asserted*, never checked — and a row whose
+ * shape the sibling call sites reject (`stores/spaces/capabilities.ts`,
+ * `stores/spaces/members.ts`, `utils/auth/ucanStore.ts` all gate on
+ * `isSpaceCapValue`) could still have its token selected here.
+ *
+ * Skip-on-malformed (not throw) is deliberate: this whole function is the
+ * per-row rejection path — a poisoned row must not abort the page (see
+ * `verifyPulledChangesAsync`). A malformed row contributes nothing to the
+ * candidate token list, so the change is rejected downstream with
+ * `MissingLocalUcan`: logged, counted, and surfaced in the pull toast, not
+ * silently dropped. Throwing instead would let one bad *local cache* row
+ * wedge every subsequent pull for the space.
+ *
+ * The `catch` stays as the last line of defence, and is load-bearing: in
+ * `@haex-space/ucan` 0.2.0 `isSpaceCapValue` is only `Array.isArray`, so it
+ * waves `[null]` through and `holdsSpaceCap` then throws on `null.cap`.
+ * Keeping the whole body inside the try turns that into `false` instead of an
+ * exception escaping the pull loop. Entry-shape rejection (missing
+ * `delegatable`, unknown cap name) arrives once the dependency is bumped to a
+ * version whose validator checks entries.
  */
 const rowHoldsCap = (rowCapabilities: string, needed: SpaceCap): boolean => {
   try {
-    const set = JSON.parse(rowCapabilities) as SpaceCapabilitySet
-    return holdsSpaceCap(set, needed)
+    const parsed: unknown = JSON.parse(rowCapabilities)
+    if (!isSpaceCapValue(parsed)) return false
+    return holdsSpaceCap(parsed, needed)
   } catch {
     return false
   }

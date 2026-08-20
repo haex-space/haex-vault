@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
-import { spaceCapabilitySet, type SpaceCap } from '@haex-space/ucan'
+import {
+  holdsSpaceCap,
+  isSpaceCapValue,
+  spaceCapabilitySet,
+  type SpaceCap,
+} from '@haex-space/ucan'
 import type { ColumnChange } from '~/stores/sync/tableScanner'
 import {
   verifyPulledChangesAsync,
@@ -292,6 +297,118 @@ describe('verifyPulledChangesAsync — sig-presence + UCAN chain (Phase 1 post-r
     expect(mockInvoke).not.toHaveBeenCalled()
     expect(result.rejected[0]!.reason).toBe('MissingLocalUcan')
   })
+
+  // -------------------------------------------------------------------------
+  // Malformed local-cache rows must never grant.
+  //
+  // `rowHoldsCap` used to cast the parsed `capabilities` column straight to
+  // `SpaceCapabilitySet` without running `isSpaceCapValue`, so it could hand
+  // Rust a token off a row shape that every sibling call site rejects. These
+  // tests pin the fail-closed posture: a malformed row contributes no
+  // candidate token, the change is rejected with `MissingLocalUcan`, and the
+  // page is NOT aborted.
+  // -------------------------------------------------------------------------
+
+  /** Shapes `isSpaceCapValue` must reject regardless of library version. */
+  const malformedRowShapes: ReadonlyArray<[label: string, raw: string]> = [
+    ['object instead of array', '{"cap":"write","delegatable":false}'],
+    ['bare cap string (pre-8b legacy)', '"space/write"'],
+    ['null', 'null'],
+    ['number', '42'],
+    ['unparseable JSON', 'not-json-at-all'],
+    ['array of nulls', '[null]'],
+    ['array of bare strings', '["write"]'],
+  ]
+
+  it.each(malformedRowShapes)(
+    'malformed capabilities row (%s) never grants — rejects with MissingLocalUcan',
+    async (_label, raw) => {
+      const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+      mockDbWhere.mockResolvedValue([
+        { token: 'malformed-row-token', capabilities: raw, expiresAt: 9999999999 },
+      ])
+
+      const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+      // The token was never offered to Rust, and the row did not sneak
+      // through as verified.
+      expect(mockInvoke).not.toHaveBeenCalled()
+      expect(result.verified).toHaveLength(0)
+      expect(result.rejected).toHaveLength(1)
+      expect(result.rejected[0]!.reason).toBe('MissingLocalUcan')
+    },
+  )
+
+  it('a malformed row is skipped, not fatal — a sibling well-formed row still wins', async () => {
+    // Posture check: skip (like `stores/spaces/capabilities.ts` and
+    // `stores/spaces/members.ts`), not throw (like `utils/auth/ucanStore.ts`).
+    // One poisoned local-cache row must not wedge the page.
+    const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+    mockDbWhere.mockResolvedValue([
+      { token: 'malformed-token', capabilities: '{"cap":"write"}', expiresAt: 9999999998 },
+      { token: 'valid-write-token', capabilities: capsJson('write'), expiresAt: 9999999999 },
+    ])
+    mockInvoke.mockResolvedValue([
+      { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+    ])
+
+    const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+    // Note the malformed row has the *closer* expiry, so a missing guard
+    // would have preferred it under the least-privilege sort.
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'verify_ucan_chain_batch',
+      expect.objectContaining({
+        requests: expect.arrayContaining([
+          expect.objectContaining({ token: 'valid-write-token' }),
+        ]),
+      }),
+    )
+    expect(result.verified).toHaveLength(1)
+    expect(result.rejected).toHaveLength(0)
+  })
+
+  it.each([
+    ['entry missing delegatable', '[{"cap":"write"}]'],
+    ['entry with non-boolean delegatable', '[{"cap":"write","delegatable":1}]'],
+    ['entry with unknown cap name', '[{"cap":"owner","delegatable":true}]'],
+    ['well-formed write entry', '[{"cap":"write","delegatable":false}]'],
+  ])(
+    'token selection agrees with isSpaceCapValue + holdsSpaceCap (%s)',
+    async (_label, raw) => {
+      // Version-independent contract: `rowHoldsCap`'s answer must be exactly
+      // `isSpaceCapValue(parsed) && holdsSpaceCap(parsed, needed)`. Deriving
+      // the expectation from the library rather than hardcoding it means this
+      // test tightens automatically as `@haex-space/ucan` hardens its wire
+      // guard — no silent divergence window while the dependency catches up.
+      const parsed: unknown = JSON.parse(raw)
+      const shouldGrant = isSpaceCapValue(parsed) && holdsSpaceCap(parsed, 'write')
+
+      const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
+      mockDbWhere.mockResolvedValue([
+        { token: 'candidate-token', capabilities: raw, expiresAt: 9999999999 },
+      ])
+      mockInvoke.mockResolvedValue([
+        { rowId: rowKey(r1), tableName: r1.tableName, outcome: { kind: 'ok', rootDid: 'x' } },
+      ])
+
+      const result = await verifyPulledChangesAsync([r1], 'space-123', 'did:key:zme', 'write')
+
+      if (shouldGrant) {
+        expect(mockInvoke).toHaveBeenCalledWith(
+          'verify_ucan_chain_batch',
+          expect.objectContaining({
+            requests: expect.arrayContaining([
+              expect.objectContaining({ token: 'candidate-token' }),
+            ]),
+          }),
+        )
+      } else {
+        expect(mockInvoke).not.toHaveBeenCalled()
+        expect(result.rejected[0]!.reason).toBe('MissingLocalUcan')
+      }
+    },
+  )
 
   it('preserves input order in the verified array', async () => {
     const r1 = change('{"id":"r1"}', 'did:key:zauthor1')
