@@ -481,6 +481,87 @@ fn whitelisted_tables_exist_as_generated_constants() {
     }
 }
 
+/// Schema-Präsenz-Check Teil (b) (ADR 0003 § Entscheidung Punkt 3).
+///
+/// Teil (a) (`whitelisted_tables_exist_as_generated_constants`) prüft die
+/// Snapshot-Strings gegen `crate::table_names`. Diese Konstanten werden aus
+/// `src/database/tableNames.json` generiert (`src-tauri/generator/table_names.rs`)
+/// — einer **handgepflegten** Registry, NICHT aus den Migrationen. Beide Quellen
+/// können also auseinanderlaufen: eine Migration darf eine Tabelle droppen oder
+/// umbenennen, während der `tableNames.json`-Eintrag stehen bleibt. Genau das
+/// ist die "still-defekter Sync-Path"-Drift-Klasse, die (b) fangen soll.
+///
+/// Deshalb wird hier das echte Migrations-Schema aufgebaut: Journal lesen, alle
+/// Drizzle-Migrationen in Journal-Reihenfolge auf eine In-Memory-DB anwenden
+/// (Split auf `--> statement-breakpoint`, wie der Produktions-Runner), dann pro
+/// Whitelist-Eintrag `get_table_schema` abfragen.
+///
+/// Die manuellen Migrationen (`database/migrations-manual`) werden bewusst
+/// **nicht** angewendet: sie enthalten nur Trigger, legen keine Tabellen an, und
+/// referenzieren die CRDT-Meta-Spalten, die der Produktions-Runner via
+/// `CrdtTransformer` injiziert — dieser rohe Replay tut das nicht.
+#[test]
+fn whitelisted_tables_exist_in_the_migration_schema() {
+    use crate::crdt::trigger::get_table_schema;
+    use std::path::PathBuf;
+
+    let mig_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("database/migrations");
+    let journal_raw = std::fs::read_to_string(mig_dir.join("meta/_journal.json"))
+        .expect("drizzle migration journal must exist");
+    let journal: serde_json::Value =
+        serde_json::from_str(&journal_raw).expect("migration journal must be valid JSON");
+    let mut entries: Vec<(u64, String)> = journal["entries"]
+        .as_array()
+        .expect("journal.entries must be an array")
+        .iter()
+        .map(|e| {
+            (
+                e["idx"].as_u64().expect("journal entry needs idx"),
+                e["tag"]
+                    .as_str()
+                    .expect("journal entry needs tag")
+                    .to_string(),
+            )
+        })
+        .collect();
+    entries.sort_by_key(|(idx, _)| *idx);
+    assert!(
+        !entries.is_empty(),
+        "migration journal must list at least one migration"
+    );
+
+    let conn = Connection::open_in_memory().unwrap();
+    for (_, tag) in &entries {
+        let sql = std::fs::read_to_string(mig_dir.join(format!("{tag}.sql")))
+            .unwrap_or_else(|e| panic!("migration {tag} listed in the journal is unreadable: {e}"));
+        for stmt in sql.split("--> statement-breakpoint") {
+            let stmt = stmt.trim();
+            if stmt.is_empty() {
+                continue;
+            }
+            conn.execute_batch(stmt)
+                .unwrap_or_else(|e| panic!("migration {tag} failed to apply: {e}\nSQL:\n{stmt}"));
+        }
+    }
+
+    for table in SPACE_SCOPED_CRDT_TABLES
+        .iter()
+        .chain(MEMBERSHIP_SYSTEM_TABLES)
+    {
+        let columns = get_table_schema(&conn, table)
+            .unwrap_or_else(|e| panic!("PRAGMA table_info failed for {table}: {e}"));
+        assert!(
+            !columns.is_empty(),
+            "Sync-Whitelist enthält {table:?}, aber nach dem vollständigen \
+             Migrations-Replay existiert diese Tabelle nicht. Entweder hat eine \
+             Migration sie gedroppt/umbenannt, ohne die Whitelist in \
+             `crdt/scanner.rs` nachzuziehen (still-defekter Sync-Path), oder der \
+             Whitelist-Eintrag ist ein Tippfehler. Hintergrund: \
+             docs/adr/0003-explicit-sync-policy.md § Entscheidung Punkt 3 (b)."
+        );
+    }
+}
+
 #[test]
 fn test_membership_system_tables_are_subset_of_space_scoped() {
     for t in MEMBERSHIP_SYSTEM_TABLES {
