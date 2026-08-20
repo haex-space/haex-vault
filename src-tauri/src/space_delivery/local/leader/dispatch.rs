@@ -4,7 +4,7 @@ use time::OffsetDateTime;
 
 use super::super::buffer;
 use super::super::dos_defence::handler_rate_gate::{
-    check_and_record as l5_check, HandlerRateOutcome,
+    check_and_record as l5_check, should_log_reject as l5_should_log, HandlerRateOutcome,
 };
 use super::super::error::DeliveryError;
 use super::super::protocol::{self, MlsMessageEntry, Notification, Request, Response};
@@ -82,34 +82,48 @@ pub(crate) async fn handle_delivery_request(
     };
 
     // L5: per-DID per-handler rate limit. Runs after AuthGate so we
-    // have a `verified_did`. Cheap or session-lifecycle variants
-    // (Announce, ClaimInvite, PushInvite, MlsAckCommit, …) are absent
-    // from `HandlerRateLimits::limit_for_op` and pass through as
-    // `NoLimit` — the tracker is only touched for the six expensive
-    // handlers enumerated in `HandlerRateLimits`.
+    // have a `verified_did`. Default-deny: every variant is capped except
+    // the session-establishment set in `HandlerRateLimits::EXEMPT_OPS`
+    // (Announce, ClaimInvite, PushInvite, MlsAckCommit,
+    // MlsKeyPackageCount, SyncPullColumns), which passes through as
+    // `NoLimit` without touching the tracker.
+    let l5_now = std::time::Instant::now();
     match l5_check(
         &state.reject_tracker,
         &state.dos_config.l5_handler_limits,
         request.op_name(),
         verified_did,
-        std::time::Instant::now(),
+        l5_now,
     ) {
         HandlerRateOutcome::Accepted | HandlerRateOutcome::NoLimit => {}
         HandlerRateOutcome::Rejected { limit, observed } => {
             let op = request.op_name();
+            // The peer learns that it was rate-limited, not what the cap is:
+            // handing back `limit`/`observed` would let a flooder tune itself
+            // to sit permanently just under the gate. The numbers go to the
+            // Owner-local audit row below instead.
             let msg = format!(
-                "rate_limited: handler {op} exceeded per-DID cap (limit={limit}, observed={observed})",
+                "{} handler {op} exceeded per-DID cap",
+                protocol::RATE_LIMITED_PREFIX
             );
-            crate::logging::log_to_db(
-                state.log_sink.as_ref(),
-                "warn",
-                op,
-                &format!(
-                    "l5 rate-limit did={} limit={limit} observed={observed}",
-                    &verified_did[..24.min(verified_did.len())],
-                ),
-                None,
-            );
+            // Sampled: one audit row per (DID, handler) per window. An
+            // unsampled write here would make the gate a log-write amplifier
+            // against the Owner's own vault under a sustained flood.
+            if l5_should_log(&state.reject_tracker, op, verified_did, l5_now) {
+                crate::logging::log_to_db(
+                    state.log_sink.as_ref(),
+                    "warn",
+                    op,
+                    &format!(
+                        "l5 rate-limit did={} limit={limit} observed={observed}",
+                        crate::logging::log_truncate(
+                            verified_did,
+                            crate::logging::LOG_TRUNCATE_DEFAULT
+                        ),
+                    ),
+                    None,
+                );
+            }
             return Response::Error { message: msg };
         }
     }

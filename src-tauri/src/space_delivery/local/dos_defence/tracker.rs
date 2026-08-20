@@ -20,6 +20,22 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+/// Bucket count above which an insert also sweeps the whole map.
+///
+/// Buckets self-clean only when their own key is touched again
+/// (`prune_and_count` / `count_within_window` evict on empty), so a key that
+/// sees one event and never returns — an L5 `l5:{did}:{op}` bucket from a peer
+/// that issued one request and disconnected, and there are two such keys per
+/// handler once `l5log:` is counted — would linger for the whole leader
+/// session. `distinct_keys_count` does sweep, but production only calls it on
+/// the endpoint's L1 accept-tracker, never on the Leader instance the L4/L5
+/// keys live on.
+///
+/// This is a memory bound, not a security parameter: the sweep is O(keys) and
+/// amortized, since it can only run again after enough *fresh* keys have been
+/// inserted to cross the threshold once more.
+const SWEEP_THRESHOLD: usize = 1024;
+
 pub struct RejectRateTracker {
     window: Duration,
     buckets: Mutex<HashMap<String, VecDeque<Instant>>>,
@@ -56,6 +72,7 @@ impl RejectRateTracker {
             .lock()
             .expect("RejectRateTracker mutex poisoned");
         buckets.entry(key.to_string()).or_default().push_back(when);
+        sweep_if_large(&mut buckets, when.checked_sub(self.window));
     }
 
     pub fn count_within_window(&self, key: &str, now: Instant) -> usize {
@@ -126,6 +143,7 @@ impl RejectRateTracker {
             .entry(source_key.to_string())
             .or_default()
             .push_back(when);
+        sweep_if_large(&mut buckets, cutoff);
         L1AcceptOutcome::Accepted
     }
 
@@ -146,6 +164,7 @@ impl RejectRateTracker {
         }
 
         buckets.entry(key.to_string()).or_default().push_back(when);
+        sweep_if_large(&mut buckets, cutoff);
         SingleAcceptOutcome::Accepted
     }
 
@@ -171,6 +190,19 @@ impl RejectRateTracker {
             .expect("RejectRateTracker mutex poisoned")
             .len()
     }
+}
+
+/// Drop every bucket whose entries have all expired, once the map has grown
+/// past [`SWEEP_THRESHOLD`]. Called from the record paths because a key that
+/// is never touched again is exactly the one no per-key prune can reach.
+fn sweep_if_large(buckets: &mut HashMap<String, VecDeque<Instant>>, cutoff: Option<Instant>) {
+    if buckets.len() <= SWEEP_THRESHOLD {
+        return;
+    }
+    buckets.retain(|_, entries| {
+        prune_expired(entries, cutoff);
+        !entries.is_empty()
+    });
 }
 
 fn prune_expired(entries: &mut VecDeque<Instant>, cutoff: Option<Instant>) {

@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 use super::config::HandlerRateLimits;
-use super::handler_rate_gate::{check_and_record, HandlerRateOutcome};
+use super::handler_rate_gate::{check_and_record, should_log_reject, HandlerRateOutcome};
 use super::tracker::RejectRateTracker;
 
 fn tracker() -> RejectRateTracker {
@@ -44,7 +44,7 @@ fn accepts_while_under_limit_and_rejects_at_boundary() {
         );
     }
 
-    // The `limit`-th request must be rejected.
+    // The request after the `limit`-th must be rejected.
     let rejected = check_and_record(&tracker, &limits, "SyncPull", DID, now);
     match rejected {
         HandlerRateOutcome::Rejected { limit, observed } => {
@@ -160,4 +160,50 @@ fn bucket_prunes_after_window_and_recovers() {
         check_and_record(&tracker, &limits, "SyncPull", DID, t_after),
         HandlerRateOutcome::Accepted,
     );
+}
+
+#[test]
+fn reject_logging_is_sampled_to_once_per_window() {
+    let tracker = tracker();
+    let t0 = Instant::now();
+
+    // First reject in the window writes an audit row; every further reject
+    // of the same (DID, handler) is suppressed. Without this the gate is a
+    // log-write amplifier against the Owner's own vault.
+    assert!(should_log_reject(&tracker, "SyncPull", DID, t0));
+    for _ in 0..50 {
+        assert!(!should_log_reject(&tracker, "SyncPull", DID, t0));
+    }
+
+    // A different handler and a different DID each get their own budget —
+    // one flooder must not silence diagnostics for anyone else.
+    assert!(should_log_reject(&tracker, "SyncPush", DID, t0));
+    assert!(should_log_reject(&tracker, "SyncPull", "did:key:other", t0));
+
+    // Once the window has slid the next reject is logged again.
+    assert!(should_log_reject(
+        &tracker,
+        "SyncPull",
+        DID,
+        t0 + Duration::from_secs(2)
+    ));
+}
+
+#[test]
+fn log_sampling_does_not_consume_the_enforcement_budget() {
+    let tracker = tracker();
+    let limits = HandlerRateLimits::defaults();
+    let now = Instant::now();
+
+    // `l5log:` is a separate namespace from `l5:`, so asking whether to log
+    // must not eat into the handler's request allowance.
+    for _ in 0..10 {
+        let _ = should_log_reject(&tracker, "SyncPull", DID, now);
+    }
+    for _ in 0..limits.sync_pull {
+        assert_eq!(
+            check_and_record(&tracker, &limits, "SyncPull", DID, now),
+            HandlerRateOutcome::Accepted,
+        );
+    }
 }

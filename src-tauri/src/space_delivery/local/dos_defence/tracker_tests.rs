@@ -243,3 +243,56 @@ fn distinct_keys_count_evicts_expired_keys_from_storage() {
         "the fully-expired key must be evicted"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Amortized sweep — buckets from keys never touched again
+// ---------------------------------------------------------------------------
+
+#[test]
+fn stale_buckets_are_swept_once_the_map_grows_past_the_threshold() {
+    // Each key is recorded exactly once and never revisited, which is the
+    // shape no per-key prune can reach: an L5 `l5:{did}:{op}` bucket from a
+    // peer that issued one request and disconnected. Without the sweep the map
+    // would keep every one of them for the leader session's lifetime.
+    let tracker = RejectRateTracker::new(Duration::from_secs(1));
+    let t0 = Instant::now();
+
+    for i in 0..1200 {
+        tracker.record(&format!("l5:did-{i}:SyncPull"), t0);
+    }
+    // Still inside the window: nothing has expired, so the sweep must not
+    // discard live counters.
+    assert_eq!(tracker.bucket_count(), 1200);
+
+    // Cross the threshold again with keys stamped after the window slid. The
+    // 1200 originals are now expired and get dropped; only the fresh ones stay.
+    let t1 = t0 + Duration::from_secs(5);
+    for i in 0..1100 {
+        tracker.record(&format!("l5:fresh-{i}:SyncPull"), t1);
+    }
+    assert!(
+        tracker.bucket_count() <= 1100,
+        "expired buckets must be swept, got {}",
+        tracker.bucket_count()
+    );
+    // The fresh keys are still counted.
+    assert_eq!(tracker.count_within_window("l5:fresh-0:SyncPull", t1), 1);
+}
+
+#[test]
+fn sweep_leaves_the_map_alone_below_the_threshold() {
+    // The common case: a handful of members. No O(keys) work, and expired
+    // buckets are still evicted lazily by the per-key prune paths.
+    let tracker = RejectRateTracker::new(Duration::from_secs(1));
+    let t0 = Instant::now();
+    for i in 0..10 {
+        tracker.record(&format!("l5:did-{i}:SyncPull"), t0);
+    }
+    assert_eq!(tracker.bucket_count(), 10);
+    // Lazy eviction still works for a key that IS touched again.
+    assert_eq!(
+        tracker.count_within_window("l5:did-0:SyncPull", t0 + Duration::from_secs(5)),
+        0
+    );
+    assert_eq!(tracker.bucket_count(), 9);
+}
