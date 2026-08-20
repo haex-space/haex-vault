@@ -165,41 +165,33 @@ pub async fn handle_claim_invite(
                         }
                     }
                 };
-                // Read is the explicit baseline required to Announce and
-                // establish a peer session. It does not derive from another
-                // capability, so include it on every issued member token.
-                let mut builder = CapabilitySet::builder().read(false);
+                let mut requested: Vec<Cap> = Vec::with_capacity(capabilities.len());
                 for capability in capabilities {
                     // Frontend + invite-token wire still emits `"space/<cap>"`
                     // strings (Task 8 removes the prefix); `cap_from_str`
                     // strips the bridge on the fly.
-                    let cap = match cap_from_str(capability) {
-                        Ok(c) => c,
+                    match cap_from_str(capability) {
+                        Ok(c) => requested.push(c),
                         Err(e) => {
                             return Response::Error {
                                 message: format!("Unrecognized capability {capability}: {e}"),
                             }
                         }
-                    };
-                    // D9: admin-tier grants (Admin, Invite) stay delegatable
-                    // so the claimant can further delegate their own peer
-                    // set; Write/Read are terminal. Encoded in
-                    // `Cap::is_delegatable_by_default` — matching heuristics
-                    // on both create sites keeps contact-invite and
-                    // conference-invite tokens observationally identical.
-                    builder = match cap {
-                        Cap::Read => builder.read(cap.is_delegatable_by_default()),
-                        Cap::Write => builder.write(cap.is_delegatable_by_default()),
-                        Cap::Invite => builder.invite(cap.is_delegatable_by_default()),
-                        Cap::Admin => builder.admin(cap.is_delegatable_by_default()),
-                    };
+                    }
                 }
+                // D2 role presets are the single source of truth for the
+                // `delegatable` bits — see `CapabilitySet::role_preset`.
+                // A conference invite may name several capabilities, so the
+                // granted set is the union of their presets; Read is on
+                // every row, which keeps the Announce baseline every peer
+                // session needs.
+                let capability_set = CapabilitySet::role_preset_union(requested);
                 let token = match super::super::ucan::create_delegated_ucan(
                     &admin.did,
                     &admin.private_key_base64,
                     &did,
                     &space_id,
-                    builder.build(),
+                    capability_set,
                     None,
                     Some(&admin.root_ucan),
                     super::super::ucan::MEMBER_UCAN_EXPIRES_IN_SECONDS,
@@ -669,11 +661,13 @@ fn persist_admin_ucan(
             .unwrap_or_default()
             .as_secs() as i64;
         // Task 8b: the `capabilities` column stores a JSON [`CapabilitySet`],
-        // not a bare cap string. Each row is one delegation UCAN — the
-        // claim-loop above still mints one UCAN per cap, so the persisted
-        // set is always a singleton here. Mirror the leader-side
-        // `delegatable` policy (Admin/Invite delegatable, Write/Read
-        // terminal) so the stored set matches what the token carries.
+        // not a bare cap string. Each row records the grant for one
+        // capability, so the persisted set is that capability's D2 role
+        // preset — the same table the minting loop above builds from.
+        // NOTE: a conference invite naming several capabilities mints ONE
+        // token carrying `role_preset_union` of them all, so each per-cap
+        // row here is a projection of that token rather than a copy of it.
+        // Pre-existing behaviour; the wire-authoritative set is the token.
         let cap = match cap_from_str(capability) {
             Ok(c) => c,
             Err(e) => {
@@ -683,11 +677,8 @@ fn persist_admin_ucan(
                 continue;
             }
         };
-        let capability_set_json = serde_json::to_string(&CapabilitySet::singleton(
-            cap,
-            cap.is_delegatable_by_default(),
-        ))
-        .expect("CapabilitySet serialization is infallible");
+        let capability_set_json = serde_json::to_string(&CapabilitySet::role_preset(cap))
+            .expect("CapabilitySet serialization is infallible");
         let sql = "INSERT OR IGNORE INTO haex_ucan_tokens \
             (id, space_id, issuer_did, audience_did, capabilities, token, issued_at, expires_at) \
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"

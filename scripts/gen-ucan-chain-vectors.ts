@@ -209,6 +209,60 @@ function only(cap: Cap, delegatable = false): CapabilitySet {
 }
 
 // ---------------------------------------------------------------------------
+// D2 role presets
+//
+// !!! MUST STAY IDENTICAL WITH `capsFromSingle` in
+// `src/utils/auth/ucanStore.ts` (TS mint side) and
+// `CapabilitySet::role_preset` in `src-tauri/src/ucan/capability_set.rs`
+// (Rust mint side). Like the `deriveSpaceId` copy above, this third mirror
+// is duplicated on purpose so the generator can run standalone outside the
+// Nuxt TS context — `@haex-space/ucan` does not export the table.
+//
+// The `d2_preset_chain_owner_admin_writer` vector below is what keeps the
+// three copies from drifting: it mints a real chain from these rows and the
+// Rust verifier has to accept it.
+//
+// | role    | read   | write | invite | admin |
+// |---------|--------|-------|--------|-------|
+// | reader  | false  | —     | —      | —     |
+// | writer  | false  | false | —      | —     |
+// | inviter | true   | —     | true   | —     |
+// | admin   | true   | true  | true   | false |
+//
+// Invariant: if a set contains `invite`, every other cap in it is
+// `delegatable: true`, except `admin`. Attenuation reports the first
+// offender in cap order, so an inviter whose own `read` were
+// non-delegatable would trip on `read` and could grant nothing at all.
+// `admin` stays non-delegatable so only the space root mints admins.
+//
+// The fifth (`owner`) row — all four caps, every one delegatable — is
+// `fullDelegatableSet()` above.
+// ---------------------------------------------------------------------------
+function rolePreset(cap: Cap): CapabilitySet {
+  switch (cap) {
+    case 'read':
+      return capSet([{ cap: 'read', delegatable: false }])
+    case 'write':
+      return capSet([
+        { cap: 'read', delegatable: false },
+        { cap: 'write', delegatable: false },
+      ])
+    case 'invite':
+      return capSet([
+        { cap: 'read', delegatable: true },
+        { cap: 'invite', delegatable: true },
+      ])
+    case 'admin':
+      return capSet([
+        { cap: 'read', delegatable: true },
+        { cap: 'write', delegatable: true },
+        { cap: 'invite', delegatable: true },
+        { cap: 'admin', delegatable: false },
+      ])
+  }
+}
+
+// ---------------------------------------------------------------------------
 // UCAN construction (deterministic: caller supplies iat/exp/nonce explicitly).
 //
 // We build the payload manually rather than call `createUcan` because that
@@ -1176,6 +1230,127 @@ function vWrongSpaceInDelegate(): Vector {
   }
 }
 
+/**
+ * Chain: root(owner, all delegatable) → mid(admin ONLY, delegatable=true) →
+ * leaf(claims `cap`).
+ *
+ * Closes a blind spot the other 16 vectors leave open: in every existing
+ * rejecting vector the narrowed parent holds `write`, so a regression that
+ * made `admin` imply `read`/`write`/`invite` would keep all 16 green while
+ * the escalation shipped. Here the parent holds NOTHING but `admin`, so any
+ * such implication turns these two vectors from `DelegationMissing` into
+ * `ok` and the Rust suite goes red.
+ *
+ * Note this is deliberately a bare `only('admin', true)` parent, NOT the D2
+ * admin preset — the admin preset carries read/write/invite explicitly and
+ * would legitimately cover the child.
+ */
+function vOrthogonalAdminOnlyParentCannotDelegate(cap: 'read' | 'write'): Vector {
+  const label = `admin_only_parent.${cap}`
+  const root: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.root!.did,
+    spaceId: primarySpaceId,
+    capSet: fullDelegatableSet(),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc(`${label}.root`),
+    prf: [],
+  }
+  const rootToken = makeToken(root)
+  const mid: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.admin1!.did,
+    spaceId: primarySpaceId,
+    capSet: only('admin', true),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc(`${label}.mid`),
+    prf: [rootToken],
+  }
+  const midToken = makeToken(mid)
+  const leaf: TokenSpec = {
+    key: KEYS.admin1!,
+    audience: KEYS.member!.did,
+    spaceId: primarySpaceId,
+    capSet: only(cap),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc(`${label}.leaf`),
+    prf: [midToken],
+  }
+  const chain = encodeChain([{ spec: root }, { spec: mid }, { spec: leaf }])
+  return {
+    name: `orthogonal_admin_only_parent_cannot_delegate_${cap}`,
+    space_id: primarySpaceId,
+    nonce_hex: NONCE_HEX.primary_space!,
+    root_did: KEYS.root!.did,
+    expected_audience: KEYS.member!.did,
+    capability_needed: cap,
+    chain,
+    expected: { ok: false, error: 'DelegationMissing' },
+  }
+}
+
+/**
+ * Chain: root(`owner` preset) → mid(`admin` preset) → leaf(`writer` preset).
+ *
+ * The positive counterpart to the two vectors above, and the one that keeps
+ * the three copies of the D2 table (TS `capsFromSingle`, Rust
+ * `CapabilitySet::role_preset`, `rolePreset` in this file) from drifting:
+ * every set in the chain comes straight out of a preset, so if any copy
+ * changes a `delegatable` bit the chain stops attenuating and the Rust
+ * verifier rejects a vector marked `ok`.
+ *
+ * It also pins the delegated-admin semantics end to end: an admin minted
+ * from the preset really can hand out a writer.
+ */
+function vD2PresetChainOwnerAdminWriter(): Vector {
+  const root: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.root!.did,
+    spaceId: primarySpaceId,
+    capSet: fullDelegatableSet(), // the `owner` row
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('d2_preset_chain.root'),
+    prf: [],
+  }
+  const rootToken = makeToken(root)
+  const mid: TokenSpec = {
+    key: KEYS.root!,
+    audience: KEYS.admin1!.did,
+    spaceId: primarySpaceId,
+    capSet: rolePreset('admin'),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('d2_preset_chain.mid'),
+    prf: [rootToken],
+  }
+  const midToken = makeToken(mid)
+  const leaf: TokenSpec = {
+    key: KEYS.admin1!,
+    audience: KEYS.member!.did,
+    spaceId: primarySpaceId,
+    capSet: rolePreset('write'),
+    exp: FAR_FUTURE_EXP,
+    iat: IAT_ALL,
+    nnc: ucanNnc('d2_preset_chain.leaf'),
+    prf: [midToken],
+  }
+  const chain = encodeChain([{ spec: root }, { spec: mid }, { spec: leaf }])
+  return {
+    name: 'd2_preset_chain_owner_admin_writer',
+    space_id: primarySpaceId,
+    nonce_hex: NONCE_HEX.primary_space!,
+    root_did: KEYS.root!.did,
+    expected_audience: KEYS.member!.did,
+    capability_needed: 'write',
+    chain,
+    expected: { ok: true, resolved_root_did: KEYS.root!.did },
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Self-verification
 // ---------------------------------------------------------------------------
@@ -1407,10 +1582,15 @@ function main(): void {
     vExpiredLeaf(),
     vExpiredRoot(),
     vWrongSpaceInDelegate(),
+    // Admin-only-parent blind spot + the D2 preset pin. Appended at the end
+    // so the 16 vectors above stay byte-identical across a regen.
+    vOrthogonalAdminOnlyParentCannotDelegate('write'),
+    vOrthogonalAdminOnlyParentCannotDelegate('read'),
+    vD2PresetChainOwnerAdminWriter(),
   ]
 
-  if (vectors.length !== 16) {
-    fail(`expected 16 vectors, got ${vectors.length}`)
+  if (vectors.length !== 19) {
+    fail(`expected 19 vectors, got ${vectors.length}`)
   }
 
   selfVerify(vectors)

@@ -23,22 +23,6 @@ pub enum Cap {
     Admin = 4,
 }
 
-impl Cap {
-    /// Default `delegatable` bit used when issuing a fresh grant for this
-    /// capability from an invite-token / claim-invite path. Admin-tier caps
-    /// (`Admin`, `Invite`) stay delegatable so the invitee can further
-    /// delegate their own peer set; `Write` and `Read` are terminal grants.
-    ///
-    /// Encodes the D9 heuristic shared by
-    /// [`crate::space_delivery::local::commands::invites`] and
-    /// [`crate::space_delivery::local::leader::claim`] — matching bits on
-    /// both create-sites keeps contact-invite and conference-invite tokens
-    /// observationally identical.
-    pub fn is_delegatable_by_default(self) -> bool {
-        matches!(self, Cap::Admin | Cap::Invite)
-    }
-}
-
 /// A single capability grant: which capability, and whether the holder may
 /// delegate it to a child token.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -76,6 +60,121 @@ impl CapabilitySet {
             Cap::Admin => builder.admin(delegatable),
         }
         .build()
+    }
+
+    /// The **role preset** for a requested member capability (D2) — the
+    /// exact set every delegation path hands out.
+    ///
+    /// | requested | `Read`     | `Write`    | `Invite`  | `Admin`   |
+    /// |-----------|------------|------------|-----------|-----------|
+    /// | `Read`    | `false`    | —          | —         | —         |
+    /// | `Write`   | `false`    | `false`    | —         | —         |
+    /// | `Invite`  | **`true`** | —          | `true`    | —         |
+    /// | `Admin`   | `true`     | `true`     | `true`    | **`false`** |
+    ///
+    /// A `—` means the capability is not held at all; every other cell is
+    /// that entry's `delegatable` bit. [`Self::owner_root`] is the fifth
+    /// (`owner`) row of the same table.
+    ///
+    /// Mirrors the TypeScript `capsFromSingle` in
+    /// `src/utils/auth/ucanStore.ts`. The two tables MUST stay identical:
+    /// a token minted on one side is attenuation-checked on the other, and
+    /// the cross-language fixture
+    /// `src-tauri/tests/fixtures/ucan_chain_vectors.json` pins them against
+    /// each other.
+    ///
+    /// # Invariant
+    ///
+    /// **If a set contains [`Cap::Invite`], every other cap in that set is
+    /// `delegatable: true` — except [`Cap::Admin`].**
+    ///
+    /// [`enforce_delegatable`] reports the *first* offender in [`Cap`]
+    /// discriminant order (`Read`, `Write`, `Invite`, `Admin`). An inviter
+    /// whose own `Read` were non-delegatable would therefore trip on `Read`
+    /// before `Invite` is ever considered: the invite capability would be
+    /// **inert** and its holder could grant nothing at all. `Admin` is the
+    /// deliberate exception — holding it non-delegatably is exactly what
+    /// reserves minting further admins to the space root, so a delegated
+    /// admin may hand out reader/writer/inviter presets but can never create
+    /// another admin.
+    ///
+    /// The `Read` and `Write` rows deliberately keep `Read` at
+    /// `delegatable: false`, and must NOT be "fixed" to `true` for symmetry
+    /// with the rows below them: neither preset carries `Invite`, so neither
+    /// can ever reach a delegation boundary where the bit would be read, and
+    /// least privilege is the honest default there.
+    ///
+    /// "An admin has all rights" lives here — the `Admin` request expands to
+    /// all four caps at mint time — and never in [`Self::can`], which stays
+    /// exact-match. There is no rank, hierarchy or implication between caps.
+    ///
+    /// **Builder footgun:** the [`CapabilitySetBuilder`] boolean is
+    /// `delegatable`, and calling a method at all *grants* the cap.
+    /// Withholding a cap means omitting the call, not passing `false`.
+    pub fn role_preset(cap: Cap) -> Self {
+        match cap {
+            Cap::Read => Self::builder().read(false).build(),
+            Cap::Write => Self::builder().read(false).write(false).build(),
+            Cap::Invite => Self::builder().read(true).invite(true).build(),
+            Cap::Admin => Self::builder()
+                .read(true)
+                .write(true)
+                .invite(true)
+                .admin(false)
+                .build(),
+        }
+    }
+
+    /// Union of the [`Self::role_preset`] rows for every requested
+    /// capability — the set granted by an invite that names more than one
+    /// (`haex_space_invites.capabilities` is a JSON array; see
+    /// [`crate::space_delivery::local::leader::claim`]).
+    ///
+    /// `delegatable` bits are OR-ed per cap, then the invariant documented
+    /// on [`Self::role_preset`] is re-applied: once the union holds
+    /// [`Cap::Invite`], every non-[`Cap::Admin`] entry becomes delegatable,
+    /// otherwise the added caps would be inert for delegation. Without the
+    /// second step a `{Write, Invite}` invite would produce
+    /// `read(true) write(false) invite(true)` and its holder could hand out
+    /// a reader but not a writer.
+    ///
+    /// [`Cap::Read`] appears on every preset row, so the session baseline
+    /// every peer needs in order to Announce is preserved by construction
+    /// for any non-empty input.
+    pub fn role_preset_union(caps: impl IntoIterator<Item = Cap>) -> Self {
+        let mut merged: Vec<CapEntry> = Vec::new();
+        for cap in caps {
+            for entry in Self::role_preset(cap).entries() {
+                match merged.iter_mut().find(|e| e.cap == entry.cap) {
+                    Some(existing) => existing.delegatable |= entry.delegatable,
+                    None => merged.push(entry.clone()),
+                }
+            }
+        }
+        if merged.iter().any(|e| e.cap == Cap::Invite) {
+            for entry in merged.iter_mut().filter(|e| e.cap != Cap::Admin) {
+                entry.delegatable = true;
+            }
+        }
+        Self::from_entries(merged).expect("role presets are deduplicated on merge")
+    }
+
+    /// The `owner` row of the [`Self::role_preset`] table: all four caps,
+    /// every one delegatable. This is the only set that may delegate
+    /// [`Cap::Admin`], which is what makes "only the space root mints
+    /// admins" true.
+    ///
+    /// Roots are minted in TypeScript (`createRootUcanAsync`); the backend
+    /// only ever *loads* an existing root out of `haex_ucan_tokens`. The
+    /// mirror lives here so the Rust side pins the complete five-row table
+    /// rather than four fifths of it.
+    pub fn owner_root() -> Self {
+        Self::builder()
+            .read(true)
+            .write(true)
+            .invite(true)
+            .admin(true)
+            .build()
     }
 
     /// True if this set holds `cap`.
