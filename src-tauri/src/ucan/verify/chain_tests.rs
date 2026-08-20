@@ -264,6 +264,45 @@ fn orthogonal_missing_cap_read_child_under_write_parent() {
     assert_matches_expected(&v, r);
 }
 
+/// Parent holds **only** `admin` (delegatable); leaf claims `write`.
+///
+/// Every other rejecting vector narrows the parent to `write`, so a
+/// regression that let `admin` imply the other three caps would leave them
+/// all green. This one and its `read` sibling are the vectors that bite:
+/// under such an implication both flip from `DelegationMissing` to `Ok`.
+#[test]
+fn orthogonal_admin_only_parent_cannot_delegate_write() {
+    let v = find_vector("orthogonal_admin_only_parent_cannot_delegate_write");
+    let r = run(&v);
+    assert_matches_expected(&v, r);
+}
+
+/// Parent holds **only** `admin` (delegatable); leaf claims `read`. Sibling
+/// of the `write` vector above — `admin` implies nothing, not even `read`.
+#[test]
+fn orthogonal_admin_only_parent_cannot_delegate_read() {
+    let v = find_vector("orthogonal_admin_only_parent_cannot_delegate_read");
+    let r = run(&v);
+    assert_matches_expected(&v, r);
+}
+
+/// The D2 role presets, end to end across the language boundary:
+/// `owner` root → `admin` preset → `writer` preset, all `Ok`.
+///
+/// Every set in this chain is generated from a preset row, so if the
+/// TypeScript table (`capsFromSingle` / `rolePreset` in
+/// `scripts/gen-ucan-chain-vectors.ts`) and the Rust mirror
+/// ([`crate::ucan::capability_set::CapabilitySet::role_preset`]) ever
+/// disagree on a `delegatable` bit, the chain stops attenuating and this
+/// test fails. It also pins that a *delegated* admin really can hand out a
+/// writer — the bug the old `read(false) admin(true)` set caused.
+#[test]
+fn d2_preset_chain_owner_admin_writer() {
+    let v = find_vector("d2_preset_chain_owner_admin_writer");
+    let r = run(&v);
+    assert_matches_expected(&v, r);
+}
+
 // ---------------------------------------------------------------------------
 // Root-binding invariants
 // ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ use tauri::State;
 
 use crate::critical::CriticalFailureCode;
 use crate::database::DbConnection;
-use crate::ucan::{Cap, CapabilitySet};
+use crate::ucan::CapabilitySet;
 use crate::AppState;
 
 use super::super::invite_tokens;
@@ -38,16 +38,12 @@ pub async fn local_delivery_create_invite(
             // Frontend still emits `"space/<cap>"` (Task 8 removes the
             // prefix); `cap_from_str` strips the bridge on the fly.
             let cap = crate::ucan::cap_from_str(&capability).map_err(|e| e.to_string())?;
-            // Every session needs Read to Announce and establish its peer
-            // storage connection. It is an explicit companion grant, not an
-            // implication of the requested capability. D9 keeps Read/Write
-            // terminal while Invite/Admin remain delegatable.
-            let capability_set = match cap {
-                Cap::Read => CapabilitySet::builder().read(false).build(),
-                Cap::Write => CapabilitySet::builder().read(false).write(false).build(),
-                Cap::Invite => CapabilitySet::builder().read(false).invite(true).build(),
-                Cap::Admin => CapabilitySet::builder().read(false).admin(true).build(),
-            };
+            // D2 role preset. Read is on every row because every session
+            // needs it to Announce and establish its peer storage
+            // connection — an explicit companion grant, not an implication
+            // of the requested capability. The `delegatable` bits live in
+            // `CapabilitySet::role_preset` only; do not re-derive them here.
+            let capability_set = CapabilitySet::role_preset(cap);
             let ucan_token = super::super::ucan::create_delegated_ucan(
                 &admin.did,
                 &admin.private_key_base64,

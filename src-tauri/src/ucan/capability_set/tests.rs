@@ -237,22 +237,6 @@ fn cap_from_str_rejects_unknown_names() {
 }
 
 // ---------------------------------------------------------------------------
-// `Cap::is_delegatable_by_default` — D9 heuristic
-// ---------------------------------------------------------------------------
-
-#[test]
-fn is_delegatable_by_default_admin_and_invite_true() {
-    assert!(Cap::Admin.is_delegatable_by_default());
-    assert!(Cap::Invite.is_delegatable_by_default());
-}
-
-#[test]
-fn is_delegatable_by_default_write_and_read_false() {
-    assert!(!Cap::Write.is_delegatable_by_default());
-    assert!(!Cap::Read.is_delegatable_by_default());
-}
-
-// ---------------------------------------------------------------------------
 // `CapabilitySet::can_or_admin` — Admin acts as X gate helper
 // ---------------------------------------------------------------------------
 
@@ -299,4 +283,249 @@ fn singleton_read_not_delegatable() {
     assert!(set.can(Cap::Read));
     assert!(!set.is_delegatable(Cap::Read));
     assert_eq!(set.entries().count(), 1);
+}
+
+// ---------------------------------------------------------------------------
+// `CapabilitySet::role_preset` / `owner_root` — the D2 role table
+//
+// Pinned entry-by-entry (cap, delegatable bit AND canonical order) so a
+// silent edit to one bit fails here rather than at a peer's attenuation
+// check. Mirror of `src/tests/spaces/capability-presets.test.ts`.
+//
+// Two regressions are locked down:
+//
+// - the inviter preset used to be `read(false) invite(true)`, which made
+//   `invite` inert: `enforce_delegatable` reports the first offender in
+//   Cap-discriminant order, so the holder tripped on `read` and could grant
+//   nothing at all.
+// - the admin preset used to be `read(false) admin(true)` — wrong on both
+//   bits. The delegatable `admin` permitted admin proliferation, and the
+//   missing write/invite stripped what an admin needs in order to hand
+//   anything out.
+// ---------------------------------------------------------------------------
+
+fn entries_of(set: &CapabilitySet) -> Vec<CapEntry> {
+    set.entries().cloned().collect()
+}
+
+fn entry(cap: Cap, delegatable: bool) -> CapEntry {
+    CapEntry { cap, delegatable }
+}
+
+#[test]
+fn role_preset_reader_holds_only_a_non_delegatable_read() {
+    assert_eq!(
+        entries_of(&CapabilitySet::role_preset(Cap::Read)),
+        vec![entry(Cap::Read, false)]
+    );
+}
+
+#[test]
+fn role_preset_writer_holds_read_and_write_neither_delegatable() {
+    assert_eq!(
+        entries_of(&CapabilitySet::role_preset(Cap::Write)),
+        vec![entry(Cap::Read, false), entry(Cap::Write, false)]
+    );
+}
+
+#[test]
+fn role_preset_inviter_may_delegate_read_and_invite() {
+    // `read` MUST be delegatable here — otherwise `invite` is unreachable.
+    assert_eq!(
+        entries_of(&CapabilitySet::role_preset(Cap::Invite)),
+        vec![entry(Cap::Read, true), entry(Cap::Invite, true)]
+    );
+}
+
+#[test]
+fn role_preset_admin_may_delegate_read_write_invite_but_not_admin() {
+    assert_eq!(
+        entries_of(&CapabilitySet::role_preset(Cap::Admin)),
+        vec![
+            entry(Cap::Read, true),
+            entry(Cap::Write, true),
+            entry(Cap::Invite, true),
+            entry(Cap::Admin, false),
+        ]
+    );
+}
+
+#[test]
+fn owner_root_holds_all_four_caps_every_one_delegatable() {
+    assert_eq!(
+        entries_of(&CapabilitySet::owner_root()),
+        vec![
+            entry(Cap::Read, true),
+            entry(Cap::Write, true),
+            entry(Cap::Invite, true),
+            entry(Cap::Admin, true),
+        ]
+    );
+}
+
+#[test]
+fn role_presets_satisfy_the_invite_delegatability_invariant() {
+    // If a set contains `invite`, every other cap in it is delegatable —
+    // except `admin`, whose non-delegatability reserves admin-minting to
+    // the space root.
+    for cap in [Cap::Read, Cap::Write, Cap::Invite, Cap::Admin] {
+        let set = CapabilitySet::role_preset(cap);
+        if !set.can(Cap::Invite) {
+            continue;
+        }
+        for e in set.entries() {
+            if e.cap == Cap::Admin {
+                assert!(
+                    !e.delegatable,
+                    "preset {cap:?} must not carry a delegatable admin"
+                );
+            } else {
+                assert!(
+                    e.delegatable,
+                    "preset {cap:?} holds invite, so {:?} must be delegatable",
+                    e.cap
+                );
+            }
+        }
+    }
+}
+
+// --- Behaviour through `enforce_delegatable` -------------------------------
+
+#[test]
+fn inviter_preset_can_delegate_a_reader_preset() {
+    // The regression test for the inert-invite bug.
+    assert!(enforce_delegatable(
+        &CapabilitySet::role_preset(Cap::Invite),
+        &CapabilitySet::role_preset(Cap::Read),
+    )
+    .is_ok());
+}
+
+#[test]
+fn inviter_preset_cannot_delegate_a_writer_preset() {
+    let err = enforce_delegatable(
+        &CapabilitySet::role_preset(Cap::Invite),
+        &CapabilitySet::role_preset(Cap::Write),
+    )
+    .unwrap_err();
+    assert_eq!(err, DelegationError::Missing(Cap::Write));
+}
+
+#[test]
+fn admin_preset_can_delegate_reader_writer_and_inviter_presets() {
+    let admin = CapabilitySet::role_preset(Cap::Admin);
+    for target in [Cap::Read, Cap::Write, Cap::Invite] {
+        assert!(
+            enforce_delegatable(&admin, &CapabilitySet::role_preset(target)).is_ok(),
+            "admin preset must be able to delegate the {target:?} preset"
+        );
+    }
+}
+
+#[test]
+fn admin_preset_cannot_mint_another_admin() {
+    let err = enforce_delegatable(
+        &CapabilitySet::role_preset(Cap::Admin),
+        &CapabilitySet::role_preset(Cap::Admin),
+    )
+    .unwrap_err();
+    assert_eq!(err, DelegationError::NotDelegatable(Cap::Admin));
+}
+
+#[test]
+fn owner_root_can_delegate_every_preset_admin_included() {
+    let owner = CapabilitySet::owner_root();
+    for target in [Cap::Read, Cap::Write, Cap::Invite, Cap::Admin] {
+        assert!(
+            enforce_delegatable(&owner, &CapabilitySet::role_preset(target)).is_ok(),
+            "owner root must be able to delegate the {target:?} preset"
+        );
+    }
+}
+
+#[test]
+fn reader_and_writer_presets_can_delegate_nothing() {
+    // Neither carries `invite`, so neither should ever reach a grant
+    // boundary — which is why their `read` bit is deliberately false.
+    for holder in [Cap::Read, Cap::Write] {
+        for target in [Cap::Read, Cap::Write, Cap::Invite, Cap::Admin] {
+            assert!(
+                enforce_delegatable(
+                    &CapabilitySet::role_preset(holder),
+                    &CapabilitySet::role_preset(target),
+                )
+                .is_err(),
+                "{holder:?} preset must not be able to delegate the {target:?} preset"
+            );
+        }
+    }
+}
+
+// --- `role_preset_union` --------------------------------------------------
+
+#[test]
+fn role_preset_union_of_a_single_cap_is_that_preset() {
+    for cap in [Cap::Read, Cap::Write, Cap::Invite, Cap::Admin] {
+        assert_eq!(
+            CapabilitySet::role_preset_union([cap]),
+            CapabilitySet::role_preset(cap),
+            "union of a single {cap:?} must equal its preset"
+        );
+    }
+}
+
+#[test]
+fn role_preset_union_read_and_write_is_the_writer_preset() {
+    assert_eq!(
+        entries_of(&CapabilitySet::role_preset_union([Cap::Read, Cap::Write])),
+        vec![entry(Cap::Read, false), entry(Cap::Write, false)]
+    );
+}
+
+#[test]
+fn role_preset_union_write_and_invite_makes_write_delegatable() {
+    // OR-ing the bits alone would leave `write` non-delegatable, so the
+    // holder could hand out a reader but not a writer. The invariant makes
+    // the whole non-admin set delegatable once `invite` is present.
+    assert_eq!(
+        entries_of(&CapabilitySet::role_preset_union([Cap::Write, Cap::Invite])),
+        vec![
+            entry(Cap::Read, true),
+            entry(Cap::Write, true),
+            entry(Cap::Invite, true),
+        ]
+    );
+    assert!(enforce_delegatable(
+        &CapabilitySet::role_preset_union([Cap::Write, Cap::Invite]),
+        &CapabilitySet::role_preset(Cap::Write),
+    )
+    .is_ok());
+}
+
+#[test]
+fn role_preset_union_never_yields_a_delegatable_admin() {
+    let set = CapabilitySet::role_preset_union([Cap::Admin, Cap::Write, Cap::Invite]);
+    assert_eq!(
+        entries_of(&set),
+        entries_of(&CapabilitySet::role_preset(Cap::Admin))
+    );
+    assert!(!set.is_delegatable(Cap::Admin));
+}
+
+#[test]
+fn role_preset_union_is_order_independent_and_idempotent() {
+    let a = CapabilitySet::role_preset_union([Cap::Invite, Cap::Write, Cap::Write]);
+    let b = CapabilitySet::role_preset_union([Cap::Write, Cap::Invite]);
+    assert_eq!(a, b);
+}
+
+#[test]
+fn role_preset_union_of_nothing_is_empty() {
+    // `parse_capabilities` never yields an empty list (it defaults to
+    // `["space/read"]`), so this only pins the degenerate shape.
+    assert_eq!(
+        CapabilitySet::role_preset_union(std::iter::empty()),
+        CapabilitySet::default()
+    );
 }
