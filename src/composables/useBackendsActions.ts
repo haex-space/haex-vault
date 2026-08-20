@@ -217,7 +217,12 @@ export const useBackendsActions = () => {
 
           if (identityResult?.privateKey) {
             const identity = { privateKey: identityResult.privateKey, did: identityResult.did }
-            // Delete all spaces where user is admin (server validates role)
+            // Delete every space this identity OWNS on that server. The route
+            // is owner-scoped, not role-scoped: it used to authorize off the
+            // cached space_members.capability column, which a member could
+            // write, so administering a space was enough to destroy someone
+            // else's. It also requires DID-Auth — a UCAN proves only who
+            // issued it, not who presented it — hence fetchWithDidAuth here.
             // TODO: add `DeleteAdminSpaces = "delete-admin-spaces"` to DidAuthAction in @haex-space/ucan
             try {
               await fetchWithDidAuth(
