@@ -121,11 +121,36 @@ fn deserialize_normalizes_out_of_order_input() {
 }
 
 #[test]
-fn cap_entry_delegatable_defaults_to_false_when_absent() {
-    let json = r#"[{"cap":"invite"}]"#;
-    let set: CapabilitySet = serde_json::from_str(json).unwrap();
-    assert!(set.can(Cap::Invite));
-    assert!(!set.is_delegatable(Cap::Invite));
+fn deserialize_rejects_cap_entry_missing_delegatable() {
+    // `delegatable` is required — it must never silently default. An absent
+    // flag cannot be distinguished from a producer that dropped it while
+    // meaning `true`, so the only safe reading is a hard reject. The
+    // end-to-end wire contract is pinned by the
+    // `cap_entry_missing_delegatable_in_leaf` fixture vector.
+    let json = r#"[{"cap":"read"}]"#;
+    let result: Result<CapabilitySet, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "cap entry without `delegatable` must be rejected, got {result:?}"
+    );
+
+    // Same for every other cap — the requirement is not read-specific.
+    for cap in ["write", "invite", "admin"] {
+        let json = format!(r#"[{{"cap":"{cap}"}}]"#);
+        let result: Result<CapabilitySet, _> = serde_json::from_str(&json);
+        assert!(
+            result.is_err(),
+            "cap entry {cap:?} without `delegatable` must be rejected"
+        );
+    }
+
+    // Non-boolean `delegatable` is rejected too (no coercion from 1/"true").
+    let json = r#"[{"cap":"read","delegatable":1}]"#;
+    let result: Result<CapabilitySet, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "non-boolean `delegatable` must be rejected"
+    );
 }
 
 #[test]

@@ -360,3 +360,24 @@ fn wrong_space_in_delegate() {
     let r = run(&v);
     assert_matches_expected(&v, r);
 }
+
+// ---------------------------------------------------------------------------
+// Wire-shape invariants (cross-language `CapEntry` contract)
+// ---------------------------------------------------------------------------
+
+/// Leaf cap entry omits `delegatable`; everything else about the chain is
+/// valid. `CapEntry::delegatable` carries no `#[serde(default)]`, so the
+/// payload is rejected as `MalformedToken` rather than read as
+/// `delegatable: false`.
+///
+/// This is the vector that pins the wire contract. Nothing else exercised the
+/// absent-`delegatable` payload, so a lenient reader could silently accept a
+/// shape the other language rejects. Restore `#[serde(default)]` on
+/// `delegatable` and this test flips to `Ok` and fails — as does the
+/// out-of-crate driver in `src-tauri/tests/ucan_chain_vectors.rs`.
+#[test]
+fn cap_entry_missing_delegatable_in_leaf() {
+    let v = find_vector("cap_entry_missing_delegatable_in_leaf");
+    let r = run(&v);
+    assert_matches_expected(&v, r);
+}

@@ -25,11 +25,32 @@ pub enum Cap {
 
 /// A single capability grant: which capability, and whether the holder may
 /// delegate it to a child token.
+///
+/// **Both fields are required on the wire.** `delegatable` deliberately
+/// carries no `#[serde(default)]`: a security-relevant bit must never
+/// silently default. An absent flag is indistinguishable from a producer
+/// that meant `false` and a producer that dropped the field while meaning
+/// `true`, so the only safe reading is to reject the payload — the same
+/// fail-closed posture `deny_unknown_fields` encodes for the opposite
+/// direction (unknown constraints must not be silently dropped).
+///
+/// The cross-language contract is pinned by the fixture vector
+/// `cap_entry_missing_delegatable_in_leaf` in
+/// `src-tauri/tests/fixtures/ucan_chain_vectors.json`, so the strict reading
+/// cannot regress unnoticed.
+///
+/// Note on the TypeScript side: `isSpaceCapValue` in `@haex-space/ucan`
+/// **0.2.0** (the version pinned in `package.json`) only checks
+/// `Array.isArray`, so it still accepts an entry with no `delegatable`. The
+/// hardened validator that also requires the boolean lives on that library's
+/// unmerged role-presets branch. Rust going strict first is deliberate — the
+/// token verifier is the authority — but the two readers are not yet
+/// symmetric, and the fixture vector above is what will surface it if the
+/// dependency bump ever regresses.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CapEntry {
     pub cap: Cap,
-    #[serde(default)]
     pub delegatable: bool,
 }
 
