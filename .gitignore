@@ -25,10 +25,11 @@ dist-ssr
 .nuxt
 src-tauri/target
 nogit*
-.claude
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 .output
 target
-CLAUDE.md
 
 # Tauri Android generated files
 src-tauri/gen/android/
