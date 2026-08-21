@@ -216,6 +216,15 @@ tests added alongside this doc
 "malformed/adversarial remote op → no unauthorized local state" guards for
 this invariant.
 
+**Enforcement design anchor:** see
+[ADR 0003 — Explicit Sync Policy](../adr/0003-explicit-sync-policy.md) for
+the design decision that keeps `SPACE_SCOPED_CRDT_TABLES` as a hardcoded
+Rust list (rather than a policy registry or comment-driven marker) and
+adds Doppel-Buchführungs-Snapshot-Tests forcing every intended whitelist
+change through a second, review-visible edit with per-entry security
+rationale. That mechanism narrows the "silent addition" drift shape this
+invariant is exposed to.
+
 ---
 
 ### I9 – Lock State
@@ -321,6 +330,15 @@ registered for that space (`is_space_scoped_table`, checked in
 to non-space-scoped. `haex_logs` itself is not named in that specific
 assertion, but is covered by the same default-deny mechanism (absence from
 the whitelist means `is_space_scoped_table` returns `false`).
+
+**Enforcement design anchor:** see
+[ADR 0003 — Explicit Sync Policy](../adr/0003-explicit-sync-policy.md).
+The Doppel-Buchführungs-Snapshot-Tests it specifies mirror the
+`SPACE_SCOPED_CRDT_TABLES` and `MEMBERSHIP_SYSTEM_TABLES` constants
+against per-test expected lists with per-entry security rationale, so a
+silent addition of a private `haex_*` table (which would break this
+invariant) fails the test suite with a review-visible message rather
+than shipping quietly.
 
 ---
 
