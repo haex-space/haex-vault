@@ -25,7 +25,9 @@ dist-ssr
 .nuxt
 src-tauri/target
 nogit*
-.claude
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 .output
 target
 CLAUDE.md
