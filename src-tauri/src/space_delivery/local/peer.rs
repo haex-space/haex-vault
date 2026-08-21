@@ -7,6 +7,31 @@ use crate::database::DbConnection;
 use super::error::DeliveryError;
 use super::protocol::{self, Request, Response};
 use super::quic_retry::READ_TIMEOUT_SECS;
+
+/// How long to wait before re-sending a request the leader rate-limited.
+///
+/// Slightly longer than the L5 accounting window (1 s, set where the
+/// Leader's `RejectRateTracker` is constructed in
+/// `space_delivery::local::commands::lifecycle`) so the peer's bucket has
+/// certainly slid past the rejected burst rather than landing on the edge.
+pub(super) const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_millis(1100);
+
+/// Attempts spent waiting out a rate limit before the error is propagated.
+/// Bounds the added latency at ~3.3 s, which is still well under the
+/// reconnect backoff a propagated error would trigger.
+pub(super) const RATE_LIMIT_MAX_RETRIES: u32 = 3;
+
+/// Whether a leader response is the L5 rate-limit marker rather than a real
+/// failure. Split out from `PeerSession::request` so the wire contract with
+/// `leader::dispatch` can be unit-tested without a live QUIC pair — the two
+/// sides agree only through [`protocol::RATE_LIMITED_PREFIX`], and a silent
+/// drift there turns a retryable pause back into a session teardown.
+pub(super) fn is_rate_limited(resp: &Response) -> bool {
+    matches!(
+        resp,
+        Response::Error { message } if message.starts_with(protocol::RATE_LIMITED_PREFIX)
+    )
+}
 use super::ucan::load_active_ucan_for_audience;
 use crate::ucan::Cap;
 
@@ -183,7 +208,45 @@ impl PeerSession {
     }
 
     /// Send a request and read the response.
+    /// Send one request and await its response, retrying while the leader
+    /// answers with the L5 rate-limit marker.
+    ///
+    /// The sync loops issue their requests back-to-back with no pacing:
+    /// `run_pull_phase` pages until `has_more` is false and `run_push_phase`
+    /// pushes every HLC chunk in a row, both propagating errors with `?`. A
+    /// rate-limit reply surfacing as `DeliveryError::ProtocolError` therefore
+    /// aborts the whole cycle and drops the session into the driver's
+    /// reconnect backoff (5-60 s) — so a first join large enough to need more
+    /// than `l5_handler_limits.sync_pull` pages would progress only a handful
+    /// of pages per reconnect. Pausing for one window and re-sending is what
+    /// keeps the gate a *rate* limit for honest clients while still costing an
+    /// attacker its whole budget.
+    ///
+    /// Re-sending is safe because the gate rejects *before* the handler runs
+    /// (see `leader::dispatch::handle_delivery_request`), so the retried
+    /// request was never executed. Rejection also records nothing, so once the
+    /// window slides the peer's bucket is empty and the retry passes.
+    ///
+    /// Bounded on purpose: after [`RATE_LIMIT_MAX_RETRIES`] the error is
+    /// propagated as before, so a leader that answers `rate_limited:` forever
+    /// cannot stall a peer indefinitely.
     async fn request(&self, req: Request) -> Result<Response, DeliveryError> {
+        for _ in 0..RATE_LIMIT_MAX_RETRIES {
+            let resp = self.request_once(&req).await?;
+            if !is_rate_limited(&resp) {
+                return Ok(resp);
+            }
+            eprintln!(
+                "[SpaceDelivery] {} rate-limited by leader, retrying in {}ms",
+                req.op_name(),
+                RATE_LIMIT_RETRY_DELAY.as_millis(),
+            );
+            tokio::time::sleep(RATE_LIMIT_RETRY_DELAY).await;
+        }
+        self.request_once(&req).await
+    }
+
+    async fn request_once(&self, req: &Request) -> Result<Response, DeliveryError> {
         let (mut send, mut recv) =
             self.conn
                 .open_bi()
@@ -192,7 +255,7 @@ impl PeerSession {
                     reason: e.to_string(),
                 })?;
 
-        let bytes = protocol::encode(&req).map_err(|e| DeliveryError::ProtocolError {
+        let bytes = protocol::encode(req).map_err(|e| DeliveryError::ProtocolError {
             reason: e.to_string(),
         })?;
 

@@ -19,6 +19,22 @@ use crate::ucan::Cap;
 /// the binary-compat boundary in bisect to this single commit.
 pub const ALPN: &[u8] = b"haex-delivery/2";
 
+/// Prefix the leader puts on a [`Response::Error`] message when the L5
+/// per-handler rate gate rejected the request (`dos_defence::handler_rate_gate`).
+///
+/// It is a wire contract, not a log string: the peer matches on it in
+/// `PeerSession::request` to tell "slow down, retry shortly" apart from a
+/// genuine protocol failure. Without that distinction a rate-limit reply
+/// propagates as a fatal `DeliveryError::ProtocolError`, tears the sync
+/// session down, and the driver reconnects with 5-60 s backoff — so a
+/// well-behaved client paging a large space would make ~`limit` requests per
+/// reconnect instead of pausing for one window.
+///
+/// The message deliberately carries no `limit`/`observed` numbers (a flooder
+/// would tune itself to sit just under the cap); those go to the Owner-local
+/// audit row only.
+pub const RATE_LIMITED_PREFIX: &str = "rate_limited:";
+
 /// Maximum size of a single QUIC wire frame (request or response).
 ///
 /// A paginated `SyncPull` page packs whole transaction-HLC groups up to

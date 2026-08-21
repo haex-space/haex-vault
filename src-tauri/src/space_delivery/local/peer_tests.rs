@@ -21,16 +21,19 @@ mod read_timeout_tests {
         // would still pass if the timeout appeared elsewhere in peer.rs while
         // `request` itself lost its bound. Same scoping pattern as the
         // `connect_owner_skips_ucan_load_and_announce` test below.
+        // Scoped to `request_once`, which is where the wire round-trip (and
+        // therefore the timeout) lives; `request` is the retry wrapper around
+        // it and must not be mistaken for the same body.
         let request_fn = source
-            .split_once("async fn request")
+            .split_once("async fn request_once")
             .map(|(_, rest)| rest)
             .and_then(|rest| rest.split_once("\n    /// "))
             .map(|(body, _)| body)
-            .expect("PeerSession::request must exist in peer.rs");
+            .expect("PeerSession::request_once must exist in peer.rs");
 
         assert!(
             request_fn.contains("tokio::time::timeout"),
-            "PeerSession::request must wrap protocol::read_response in \
+            "PeerSession::request_once must wrap protocol::read_response in \
              tokio::time::timeout; otherwise a degraded QUIC path blocks \
              read for ~150s until the connection's idle timer fires"
         );
@@ -140,6 +143,102 @@ mod owner_mode_tests {
             owner_fn.contains("complete_client_did_auth"),
             "connect_owner MUST still run DID-auth — it is the whole security \
              model for the owner mesh"
+        );
+    }
+}
+
+mod rate_limit_retry_tests {
+    //! A leader that rate-limits (L5) must slow the peer down, not tear the
+    //! session down.
+    //!
+    //! `run_pull_phase` pages and `run_push_phase` chunks back-to-back with no
+    //! pacing, both propagating with `?`. Before the retry, a `rate_limited:`
+    //! reply became a fatal `ProtocolError`, aborted the sync cycle and sent
+    //! the driver into its 5-60 s reconnect backoff — so a first join needing
+    //! more pages than `l5_handler_limits.sync_pull` advanced only a handful
+    //! of pages per reconnect.
+
+    use crate::space_delivery::local::peer::is_rate_limited;
+    use crate::space_delivery::local::protocol::{Response, RATE_LIMITED_PREFIX};
+
+    /// The exact message `leader::dispatch` builds on an L5 reject. Kept as a
+    /// literal so a change to either side's format has to be made twice.
+    fn leader_reject_message(op: &str) -> String {
+        format!("{RATE_LIMITED_PREFIX} handler {op} exceeded per-DID cap")
+    }
+
+    #[test]
+    fn recognises_the_leaders_rate_limit_message() {
+        for op in ["SyncPull", "SyncPush", "MlsFetchMessages", "RequestRejoin"] {
+            let resp = Response::Error {
+                message: leader_reject_message(op),
+            };
+            assert!(
+                is_rate_limited(&resp),
+                "the {op} rate-limit reply must be recognised as retryable"
+            );
+        }
+    }
+
+    #[test]
+    fn leader_message_format_matches_the_dispatcher_source() {
+        // The two sides only agree through `RATE_LIMITED_PREFIX`; this pins
+        // that the dispatcher really emits it, so the fixture above is not
+        // testing itself.
+        let dispatch = include_str!("leader/dispatch.rs");
+        assert!(
+            dispatch.contains("protocol::RATE_LIMITED_PREFIX"),
+            "leader::dispatch must build its L5 reject message from \
+             protocol::RATE_LIMITED_PREFIX, not a bare literal"
+        );
+    }
+
+    #[test]
+    fn real_failures_are_not_retried() {
+        // Anything that is not the marker must propagate immediately —
+        // retrying an AccessDenied or a malformed-request error would just
+        // add latency to a failure that cannot resolve itself.
+        for message in [
+            "Access denied: not a member",
+            "Unrecognized capability space/bogus",
+            "SyncPullColumns is not served on the space path",
+            // Near-misses: the prefix must be matched at the start.
+            "handler SyncPull exceeded per-DID cap",
+            "warning rate_limited: handler SyncPull exceeded per-DID cap",
+        ] {
+            let resp = Response::Error {
+                message: message.to_string(),
+            };
+            assert!(
+                !is_rate_limited(&resp),
+                "{message:?} must not be treated as a rate limit"
+            );
+        }
+    }
+
+    #[test]
+    fn non_error_responses_are_never_retried() {
+        assert!(!is_rate_limited(&Response::Ok));
+        assert!(!is_rate_limited(&Response::SyncChanges {
+            changes: serde_json::Value::Array(vec![]),
+            has_more: false,
+        }));
+    }
+
+    #[test]
+    fn retry_delay_outlasts_the_l5_window() {
+        // The bucket must have slid past the rejected burst before the retry
+        // lands, otherwise the retry is rejected too and the bound is spent
+        // for nothing. The L5 window is the shared tracker's 1 s, set in
+        // `commands::lifecycle`.
+        use crate::space_delivery::local::peer::{RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_RETRY_DELAY};
+        assert!(
+            RATE_LIMIT_RETRY_DELAY > std::time::Duration::from_secs(1),
+            "retry delay must exceed the 1 s L5 window"
+        );
+        assert!(
+            RATE_LIMIT_MAX_RETRIES >= 1,
+            "a zero retry budget restores the teardown behaviour"
         );
     }
 }

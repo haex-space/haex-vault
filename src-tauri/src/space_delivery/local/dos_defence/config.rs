@@ -24,6 +24,120 @@ pub enum EscalationPolicy {
     Off,
 }
 
+/// Per-DID per-request-type rate limits for the L5 "valid-but-evil" layer.
+///
+/// L5 protects against authenticated peers that hammer expensive handlers
+/// (SyncPull scanning big spaces, SyncPush with column-sig-verify pressure,
+/// MLS fetch handlers with amplifying responses). Only the
+/// session-establishment handlers in [`Self::EXEMPT_OPS`] are uncapped
+/// (L1 covers pre-membership flooding, and L4 covers per-DID
+/// reject-amplification).
+///
+/// Limits are in units of "allowed events per L5 window per verified DID".
+/// The window is the one the shared [`super::tracker::RejectRateTracker`]
+/// was constructed with — 1 second, see
+/// `commands::lifecycle::local_delivery_start` — so `sync_pull = 5` reads
+/// as "at most 5 SyncPull requests per DID per second". There is
+/// deliberately no separate L5 window knob: a second window would need a
+/// second tracker instance, and the counters would then disagree with the
+/// per-second unit these fields are named for. Handlers without a field of
+/// their own fall back to [`Self::default_per_op`]; see
+/// [`Self::limit_for_op`] for why the fallback is a cap and not `None`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HandlerRateLimits {
+    pub sync_pull: u32,
+    pub sync_push: u32,
+    pub mls_fetch_messages: u32,
+    pub mls_fetch_welcomes: u32,
+    pub mls_send_message: u32,
+    pub submit_external_commit: u32,
+    /// `MlsFetchKeyPackage` *consumes* a KeyPackage
+    /// (`buffer::consume_key_package`) for an attacker-chosen `target_did`,
+    /// so an unlimited peer can drain a victim's pool and make it impossible
+    /// for anyone to MLS-add that victim. Destructive, hence its own row.
+    pub mls_fetch_key_package: u32,
+    /// `RequestRejoin` exports the full GroupInfo including the ratchet tree
+    /// (`mls::blocking::get_group_info`) — the most expensive response the
+    /// leader can be made to produce. Rejoin is rare, so the cap is low.
+    pub request_rejoin: u32,
+    /// Cap applied to every handler with no row of its own — see
+    /// [`Self::limit_for_op`]. Default-deny: a handler added later is
+    /// rate-limited from the first commit instead of silently becoming an
+    /// unbounded per-DID vector.
+    pub default_per_op: u32,
+}
+
+impl HandlerRateLimits {
+    pub const fn defaults() -> Self {
+        Self {
+            sync_pull: 5,
+            sync_push: 10,
+            mls_fetch_messages: 20,
+            mls_fetch_welcomes: 20,
+            mls_send_message: 30,
+            submit_external_commit: 5,
+            mls_fetch_key_package: 10,
+            request_rejoin: 2,
+            default_per_op: 10,
+        }
+    }
+
+    /// Look up the per-DID per-window limit for an [`super::super::protocol::Request`]
+    /// variant's [`super::super::protocol::Request::op_name`].
+    ///
+    /// **Default-deny.** Only the session-establishment handlers listed in
+    /// [`Self::EXEMPT_OPS`] return `None`; everything else is capped, falling
+    /// back to [`Self::default_per_op`] when it has no row of its own. An
+    /// earlier revision inverted this — handlers absent from the match were
+    /// unlimited — which left `MlsFetchKeyPackage` (drains a victim's
+    /// KeyPackage pool), `MlsUploadKeyPackages` (unbounded blob inserts per
+    /// request), `MlsSendWelcome` (stores a blob for an arbitrary recipient)
+    /// and `RequestRejoin` (full ratchet-tree export) as exactly the
+    /// unbounded per-DID vectors this layer exists to close, while the
+    /// docstring claimed the unlisted set was "cheap, one-shot, or
+    /// session-lifecycle".
+    ///
+    /// Buckets are keyed per `(DID, op_name)` in
+    /// [`super::handler_rate_gate::check_and_record`], so handlers sharing
+    /// `default_per_op` still get independent budgets — the shared value is
+    /// the number, not the counter.
+    pub fn limit_for_op(&self, op_name: &str) -> Option<u32> {
+        match op_name {
+            "SyncPull" => Some(self.sync_pull),
+            "SyncPush" => Some(self.sync_push),
+            "MlsFetchMessages" => Some(self.mls_fetch_messages),
+            "MlsFetchWelcomes" => Some(self.mls_fetch_welcomes),
+            "MlsSendMessage" => Some(self.mls_send_message),
+            "SubmitExternalCommit" => Some(self.submit_external_commit),
+            "MlsFetchKeyPackage" => Some(self.mls_fetch_key_package),
+            "RequestRejoin" => Some(self.request_rejoin),
+            op if Self::EXEMPT_OPS.contains(&op) => None,
+            _ => Some(self.default_per_op),
+        }
+    }
+
+    /// Handlers deliberately left uncapped.
+    ///
+    /// These are the session-establishment path: capping them would rate-limit
+    /// *joining*, and they are the AuthGate's bypass variants (`Announce`,
+    /// `ClaimInvite`, `PushInvite`) plus the two trivially-cheap
+    /// acknowledgement/count reads. Pre-membership flooding of this set is
+    /// L1's job (per-source accept rate on the endpoint), not L5's — L5 keys
+    /// on a `verified_did`, which the bypass arms have only because the QUIC
+    /// DID-auth ran, not because the peer is a member yet.
+    ///
+    /// `SyncPullColumns` is here because the space path answers it with an
+    /// immediate `Response::Error` and never touches the database.
+    pub const EXEMPT_OPS: &'static [&'static str] = &[
+        "Announce",
+        "ClaimInvite",
+        "PushInvite",
+        "MlsAckCommit",
+        "MlsKeyPackageCount",
+        "SyncPullColumns",
+    ];
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DosDefenceConfig {
     pub l1_global_rate_per_sec: u32,
@@ -35,6 +149,9 @@ pub struct DosDefenceConfig {
     pub ddos_distinct_sources_threshold: u32,
     pub ddos_escalation_policy: EscalationPolicy,
     pub ddos_auto_expiry: Duration,
+    /// L5 per-handler per-DID rate limits. The accounting window is the
+    /// shared tracker's (1 s) — see [`HandlerRateLimits`].
+    pub l5_handler_limits: HandlerRateLimits,
 }
 
 impl DosDefenceConfig {
@@ -49,6 +166,7 @@ impl DosDefenceConfig {
             ddos_distinct_sources_threshold: 10,
             ddos_escalation_policy: EscalationPolicy::ContactsOnly,
             ddos_auto_expiry: Duration::from_secs(1800),
+            l5_handler_limits: HandlerRateLimits::defaults(),
         }
     }
 
@@ -103,6 +221,33 @@ impl DosDefenceConfig {
                     }
                 }
                 KEY_DDOS_AUTO_EXPIRY_SECS => assign_duration_secs(&mut cfg.ddos_auto_expiry, value),
+                KEY_L5_SYNC_PULL_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.sync_pull, value)
+                }
+                KEY_L5_SYNC_PUSH_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.sync_push, value)
+                }
+                KEY_L5_MLS_FETCH_MESSAGES_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.mls_fetch_messages, value)
+                }
+                KEY_L5_MLS_FETCH_WELCOMES_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.mls_fetch_welcomes, value)
+                }
+                KEY_L5_MLS_SEND_MESSAGE_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.mls_send_message, value)
+                }
+                KEY_L5_SUBMIT_EXTERNAL_COMMIT_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.submit_external_commit, value)
+                }
+                KEY_L5_MLS_FETCH_KEY_PACKAGE_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.mls_fetch_key_package, value)
+                }
+                KEY_L5_REQUEST_REJOIN_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.request_rejoin, value)
+                }
+                KEY_L5_DEFAULT_PER_DID_PER_SEC => {
+                    assign_u32(&mut cfg.l5_handler_limits.default_per_op, value)
+                }
                 _ => {}
             }
         }
@@ -119,6 +264,20 @@ pub const KEY_L4_SAMPLE_THRESHOLD_PER_SEC: &str = "dosDefence.l4.sampleThreshold
 pub const KEY_DDOS_DISTINCT_SOURCES_THRESHOLD: &str = "dosDefence.ddos.distinctSourcesThreshold";
 pub const KEY_DDOS_ESCALATION_POLICY: &str = "dosDefence.ddos.escalationPolicy";
 pub const KEY_DDOS_AUTO_EXPIRY_SECS: &str = "dosDefence.ddos.autoExpirySecs";
+pub const KEY_L5_SYNC_PULL_PER_DID_PER_SEC: &str = "dosDefence.l5.syncPull.perDidPerSec";
+pub const KEY_L5_SYNC_PUSH_PER_DID_PER_SEC: &str = "dosDefence.l5.syncPush.perDidPerSec";
+pub const KEY_L5_MLS_FETCH_MESSAGES_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.mlsFetchMessages.perDidPerSec";
+pub const KEY_L5_MLS_FETCH_WELCOMES_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.mlsFetchWelcomes.perDidPerSec";
+pub const KEY_L5_MLS_SEND_MESSAGE_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.mlsSendMessage.perDidPerSec";
+pub const KEY_L5_SUBMIT_EXTERNAL_COMMIT_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.submitExternalCommit.perDidPerSec";
+pub const KEY_L5_MLS_FETCH_KEY_PACKAGE_PER_DID_PER_SEC: &str =
+    "dosDefence.l5.mlsFetchKeyPackage.perDidPerSec";
+pub const KEY_L5_REQUEST_REJOIN_PER_DID_PER_SEC: &str = "dosDefence.l5.requestRejoin.perDidPerSec";
+pub const KEY_L5_DEFAULT_PER_DID_PER_SEC: &str = "dosDefence.l5.default.perDidPerSec";
 
 fn assign_u32(target: &mut u32, raw: &str) {
     if let Ok(n) = raw.parse() {

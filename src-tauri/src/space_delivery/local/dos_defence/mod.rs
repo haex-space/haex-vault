@@ -9,6 +9,7 @@ pub mod config;
 pub mod contacts;
 pub mod decision;
 pub mod flood_mode;
+pub mod handler_rate_gate;
 pub mod notifier;
 pub mod state;
 pub mod tracker;
@@ -21,6 +22,8 @@ mod contacts_tests;
 mod decision_tests;
 #[cfg(test)]
 mod flood_mode_tests;
+#[cfg(test)]
+mod handler_rate_gate_tests;
 #[cfg(test)]
 mod notifier_tests;
 #[cfg(test)]
