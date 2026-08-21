@@ -30,7 +30,6 @@ nogit*
 !.claude/hooks/
 .output
 target
-CLAUDE.md
 
 # Tauri Android generated files
 src-tauri/gen/android/
