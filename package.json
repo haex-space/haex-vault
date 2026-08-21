@@ -37,7 +37,7 @@
     "@dicebear/styles": "^10.4.0",
     "@haex-space/federation-sdk": "0.2.2",
     "@haex-space/marketplace-sdk": "^0.1.6",
-    "@haex-space/ucan": "^0.2.0",
+    "@haex-space/ucan": "^0.3.0",
     "@haex-space/vault-sdk": "^3.7.0",
     "@nuxt/eslint": "1.17.0",
     "@nuxt/fonts": "0.14.0",
