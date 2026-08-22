@@ -421,12 +421,15 @@ export const useIdentityStore = defineStore('identityStore', () => {
     // 3. Delete the identity (claims cascade via FK)
     await db.delete(haexIdentities).where(eq(haexIdentities.id, identityId))
 
-    // Drop the imported CryptoKey so a re-created identity with the same DID
-    // does not inherit a stale key from this session's cache.
-    invalidateIdentityKey(identity.did)
-
     log.info(`Deleted identity ${identity.did.slice(0, 20)}... (${adminSpaces.length} admin spaces deleted, ${memberSpaces.length} member spaces cleaned)`)
     await loadIdentitiesAsync()
+
+    // Drop the imported CryptoKey so a re-created identity with the same DID
+    // does not inherit a stale key from this session's cache. Runs after the
+    // in-memory refresh so any `resolvePrivateKey` racing the deletion sees
+    // the identity gone from `identities.value` first, and its epoch guard
+    // rejects a `.set` that would otherwise resurrect the key.
+    invalidateIdentityKey(identity.did)
   }
 
   const getIdentityByIdAsync = async (id: string): Promise<SelectHaexIdentities | undefined> => {

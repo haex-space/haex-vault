@@ -30,6 +30,16 @@ import { useIdentityStore } from '@/stores/identity'
  */
 const identityKeyCache = new Map<string, CryptoKey>()
 
+// Epoch counters guard the `await importUserPrivateKeyAsync(...)` window in
+// `resolvePrivateKey` against concurrent invalidations. `clearIdentityKeyCache`
+// bumps the global epoch (vault-lock); `invalidateIdentityKey` bumps the
+// per-DID epoch (identity deletion). Without these, an import that started
+// before the invalidation could `.set(did, key)` after it and resurrect a key
+// that must no longer be usable — including for a re-created identity with
+// the same DID.
+let cacheEpoch = 0
+const didEpoch = new Map<string, number>()
+
 /**
  * Resolve `did` to its unlocked WebCrypto Ed25519 CryptoKey via the identity
  * store. Cached per DID for the vault-open session.
@@ -38,6 +48,10 @@ const identityKeyCache = new Map<string, CryptoKey>()
  * with a foreign DID have already made a logic mistake upstream (holding a
  * UCAN whose `aud` this vault cannot sign for), so a hard error is preferred
  * over a silent 401 at the server.
+ *
+ * Also throws if the vault locks or the identity is invalidated while the
+ * import is in flight; the freshly imported key is dropped instead of being
+ * written back into a cleared cache.
  */
 export async function resolvePrivateKey(did: string): Promise<CryptoKey> {
   const cached = identityKeyCache.get(did)
@@ -48,7 +62,17 @@ export async function resolvePrivateKey(did: string): Promise<CryptoKey> {
   if (!identity) {
     throw new Error(`resolvePrivateKey: no unlocked own-identity for ${did}`)
   }
+  const cacheEpochSnapshot = cacheEpoch
+  const didEpochSnapshot = didEpoch.get(did) ?? 0
   const key = await importUserPrivateKeyAsync(identity.privateKey!)
+
+  if (cacheEpoch !== cacheEpochSnapshot) {
+    throw new Error(`resolvePrivateKey: vault locked during import for ${did}`)
+  }
+  if ((didEpoch.get(did) ?? 0) !== didEpochSnapshot) {
+    throw new Error(`resolvePrivateKey: identity invalidated during import for ${did}`)
+  }
+
   identityKeyCache.set(did, key)
   return key
 }
@@ -58,6 +82,7 @@ export async function resolvePrivateKey(did: string): Promise<CryptoKey> {
  * vault-lock so a subsequent unlock re-imports fresh keys.
  */
 export function clearIdentityKeyCache(): void {
+  cacheEpoch++
   identityKeyCache.clear()
 }
 
@@ -67,6 +92,7 @@ export function clearIdentityKeyCache(): void {
  * stale imported key.
  */
 export function invalidateIdentityKey(did: string): void {
+  didEpoch.set(did, (didEpoch.get(did) ?? 0) + 1)
   identityKeyCache.delete(did)
 }
 

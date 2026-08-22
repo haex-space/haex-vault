@@ -122,4 +122,46 @@ describe('resolvePrivateKey', () => {
 
     expect(importSpy).toHaveBeenCalledTimes(3)
   })
+
+  // Race guard: an import that started before a `clearIdentityKeyCache()` /
+  // `invalidateIdentityKey(did)` must NOT write the freshly imported key back
+  // into a cleared cache. Otherwise a locked vault or a deleted identity
+  // would resurrect a usable key for the remainder of the process lifetime.
+  it('rejects the import when clearIdentityKeyCache runs during the await', async () => {
+    seed([{ did: OWN_DID, privateKey: OWN_PRIVATE_KEY }])
+
+    let release: (key: CryptoKey) => void = () => { /* set below */ }
+    importSpy.mockImplementationOnce(
+      () => new Promise<CryptoKey>((resolve) => {
+        release = resolve
+      }),
+    )
+
+    const pending = resolvePrivateKey(OWN_DID)
+    clearIdentityKeyCache()
+    release({ pk: 'late' } as unknown as CryptoKey)
+
+    await expect(pending).rejects.toThrow(/vault locked during import/i)
+
+    // A follow-up resolve must re-import (cache stayed empty).
+    await resolvePrivateKey(OWN_DID)
+    expect(importSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects the import when invalidateIdentityKey runs during the await', async () => {
+    seed([{ did: OWN_DID, privateKey: OWN_PRIVATE_KEY }])
+
+    let release: (key: CryptoKey) => void = () => { /* set below */ }
+    importSpy.mockImplementationOnce(
+      () => new Promise<CryptoKey>((resolve) => {
+        release = resolve
+      }),
+    )
+
+    const pending = resolvePrivateKey(OWN_DID)
+    invalidateIdentityKey(OWN_DID)
+    release({ pk: 'late' } as unknown as CryptoKey)
+
+    await expect(pending).rejects.toThrow(/identity invalidated during import/i)
+  })
 })
