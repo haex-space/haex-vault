@@ -10,7 +10,6 @@ import {
   type SpaceCapabilitySet,
 } from '@haex-space/ucan'
 import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
-import { fetch } from '@tauri-apps/plugin-http'
 import { eq, gt } from 'drizzle-orm'
 import { haexUcanTokens } from '~/database/schemas'
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
@@ -197,24 +196,6 @@ export function getUcanForSpaceAsync(spaceId: string): string | null {
   }
 
   return token
-}
-
-/**
- * Fetch wrapper that adds UCAN authorization header.
- */
-export async function fetchWithUcanAuth(
-  url: string,
-  spaceId: string,
-  ucanToken: string,
-  options?: RequestInit,
-): Promise<Response> {
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...options?.headers,
-      Authorization: `UCAN ${ucanToken}`,
-    },
-  })
 }
 
 /**

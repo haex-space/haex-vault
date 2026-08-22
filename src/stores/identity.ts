@@ -28,6 +28,7 @@ import {
 import { SpaceType } from '~/database/constants'
 import { createLogger } from '@/stores/logging'
 import { requireDb } from '~/stores/vault'
+import { clearIdentityKeyCache, invalidateIdentityKey } from '@/utils/auth/ucanFetcher'
 
 export interface ExportedIdentity {
   did: string
@@ -420,6 +421,10 @@ export const useIdentityStore = defineStore('identityStore', () => {
     // 3. Delete the identity (claims cascade via FK)
     await db.delete(haexIdentities).where(eq(haexIdentities.id, identityId))
 
+    // Drop the imported CryptoKey so a re-created identity with the same DID
+    // does not inherit a stale key from this session's cache.
+    invalidateIdentityKey(identity.did)
+
     log.info(`Deleted identity ${identity.did.slice(0, 20)}... (${adminSpaces.length} admin spaces deleted, ${memberSpaces.length} member spaces cleaned)`)
     await loadIdentitiesAsync()
   }
@@ -722,6 +727,10 @@ export const useIdentityStore = defineStore('identityStore', () => {
     identities.value = []
     claimsByIdentity.value = {}
     _identityPasswords.clear()
+    // Vault-lock reaches here via `resetAllVaultStores`. Drop every imported
+    // CryptoKey so the next unlock re-imports fresh — a resident key from the
+    // previous session outliving a lock would defeat the point of locking.
+    clearIdentityKeyCache()
   }
 
   return {

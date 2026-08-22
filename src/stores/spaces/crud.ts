@@ -7,7 +7,8 @@ import {
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { createRootUcanAsync, persistUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createRootUcanAsync, persistUcanAsync, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createVaultUcanFetcher } from '@/utils/auth/ucanFetcher'
 import { deriveSpaceIdAsync, verifySpaceIdBindingAsync } from '@/utils/auth/spaceId'
 import { throwIfNotOk } from '@/utils/fetch'
 import { SpaceType, SpaceStatus } from '~/database/constants'
@@ -19,11 +20,18 @@ type DB = SqliteRemoteDatabase<typeof schema>
 
 const log = createLogger('SPACES:CRUD')
 
-/** Fetch with UCAN authorization for space-scoped operations */
+const ucanFetcher = createVaultUcanFetcher()
+
+/**
+ * Fetch a UCAN-authed route for a given space. Threads the cached UCAN
+ * token into the vault-level fetcher, which decodes its audience and signs
+ * the accompanying `X-UCAN-PoP` header. Throws when no UCAN is cached for
+ * the space — reaching this path without one is a caller bug.
+ */
 function fetchWithSpaceUcanAuth(url: string, spaceId: string, options?: RequestInit) {
   const ucan = getUcanForSpaceAsync(spaceId)
   if (!ucan) throw new Error(`No UCAN token available for space ${spaceId}`)
-  return fetchWithUcanAuth(url, spaceId, ucan, {
+  return ucanFetcher(url, ucan, {
     ...options,
     headers: {
       ...options?.headers,
