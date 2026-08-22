@@ -198,10 +198,10 @@ export const subscribeToBackendAsync = async (
         const { getUcanForSpaceAsync } = await import('@/utils/auth/ucanStore')
         const ucan = getUcanForSpaceAsync(event.spaceId)
         if (ucan) {
-          const { fetchWithUcanAuth } = await import('@/utils/auth/ucanStore')
-          const response = await fetchWithUcanAuth(
+          const { createVaultUcanFetcher } = await import('@/utils/auth/ucanFetcher')
+          const ucanFetcher = createVaultUcanFetcher()
+          const response = await ucanFetcher(
             `${backend.homeServerUrl}/spaces/${event.spaceId}/invites`,
-            event.spaceId,
             ucan,
           )
           if (response.ok) {

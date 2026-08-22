@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import { fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createVaultUcanFetcher } from '@/utils/auth/ucanFetcher'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { DidAuthAction } from '@haex-space/ucan'
 import { createLogger } from '@/stores/logging'
@@ -42,6 +43,8 @@ function requireUcan(spaceId: string): string {
  * - UCAN from ucanStore (for space-scoped operations)
  * - DID-Auth via AuthContext (for invite accept/decline)
  */
+const ucanFetcher = createVaultUcanFetcher()
+
 export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthContext) {
   const baseUrl = `${originUrl}/spaces/${spaceId}`
 
@@ -66,9 +69,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       pops: packages.map((p) => toBase64(new Uint8Array(p.pop))),
     })
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/key-packages`,
-      spaceId,
       ucan,
       {
         method: 'POST',
@@ -89,9 +91,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
   async function fetchKeyPackageAsync(targetDid: string): Promise<{ keyPackage: Uint8Array; pop: Uint8Array; includeHistory: boolean }> {
     const ucan = requireUcan(spaceId)
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/key-packages/${encodeURIComponent(targetDid)}`,
-      spaceId,
       ucan,
     )
 
@@ -127,9 +128,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       groupInfo: groupInfo ? toBase64(groupInfo) : undefined,
     })
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/messages`,
-      spaceId,
       ucan,
       {
         method: 'POST',
@@ -150,9 +150,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
   async function fetchMessagesAsync(afterId: number = 0, limit: number = 100): Promise<MlsMessage[]> {
     const ucan = requireUcan(spaceId)
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/messages?after=${afterId}&limit=${limit}`,
-      spaceId,
       ucan,
     )
 
@@ -177,9 +176,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       payload: toBase64(welcome),
     })
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/welcome`,
-      spaceId,
       ucan,
       {
         method: 'POST',
@@ -199,9 +197,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
   async function fetchWelcomesAsync(): Promise<{ id: number; payload: Uint8Array }[]> {
     const ucan = requireUcan(spaceId)
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/welcome`,
-      spaceId,
       ucan,
     )
 
@@ -214,9 +211,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
   async function ackWelcomeAsync(welcomeId: number): Promise<void> {
     const ucan = requireUcan(spaceId)
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/welcome/${welcomeId}`,
-      spaceId,
       ucan,
       { method: 'DELETE' },
     )
@@ -271,9 +267,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
   async function requestRejoinAsync(): Promise<Uint8Array> {
     const ucan = requireUcan(spaceId)
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/rejoin`,
-      spaceId,
       ucan,
       { method: 'POST' },
     )
@@ -295,9 +290,8 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       commit: toBase64(commit),
     })
 
-    const response = await fetchWithUcanAuth(
+    const response = await ucanFetcher(
       `${baseUrl}/mls/external-commit`,
-      spaceId,
       ucan,
       {
         method: 'POST',

@@ -6,7 +6,8 @@ import { haexSpaces, haexSpaceDevices, haexInviteTokens } from '~/database/schem
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy'
 import type { schema } from '~/database'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { delegateUcanAsync, fetchWithUcanAuth, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { delegateUcanAsync, getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createVaultUcanFetcher } from '@/utils/auth/ucanFetcher'
 import { throwIfNotOk } from '@/utils/fetch'
 import { SpaceType, SpaceStatus } from '~/database/constants'
 import type { SpaceType as SpaceTypeValue } from '~/database/constants'
@@ -41,11 +42,13 @@ const capabilityToSpaceCap = (raw: string): SpaceCap => {
   throw new Error(`invites.capabilityToSpaceCap: unknown capability "${raw}"`)
 }
 
+const ucanFetcher = createVaultUcanFetcher()
+
 /** Fetch with UCAN authorization for space-scoped operations */
 function fetchWithSpaceUcanAuth(url: string, spaceId: string, options?: RequestInit) {
   const ucan = getUcanForSpaceAsync(spaceId)
   if (!ucan) throw new Error(`No UCAN token available for space ${spaceId}`)
-  return fetchWithUcanAuth(url, spaceId, ucan, {
+  return ucanFetcher(url, ucan, {
     ...options,
     headers: {
       ...options?.headers,

@@ -7,6 +7,7 @@ import { encryptCrdtData, decryptCrdtData } from '@haex-space/vault-sdk'
 import { fetch } from '@tauri-apps/plugin-http'
 import { createDidAuthHeader } from '@/utils/auth/didAuth'
 import { getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
+import { createVaultUcanFetcher } from '@/utils/auth/ucanFetcher'
 import { getVaultKeyCache } from './vaultKey'
 import {
   engineLog as log,
@@ -15,21 +16,40 @@ import {
   type PullChangesResponse,
 } from './types'
 
-/** Build auth headers: UCAN for shared spaces, DID-Auth for personal vault */
-const buildAuthHeaderAsync = async (
+const ucanFetcher = createVaultUcanFetcher()
+
+/**
+ * Dispatch a JSON-body sync request. For shared spaces the request is routed
+ * through the UCAN + `X-UCAN-PoP` fetcher (server rejects UCAN traffic
+ * without a matching PoP). For the personal vault DID-Auth is signed inline.
+ * Throws when no auth is available — reaching this path unauthenticated is
+ * always a caller bug.
+ */
+const sendSyncRequestAsync = async (
+  url: string,
+  body: string,
   spaceId: string,
   privateKey?: string,
   did?: string,
-): Promise<Record<string, string>> => {
-  // Try UCAN first (shared spaces)
+): Promise<Response> => {
   const ucan = getUcanForSpaceAsync(spaceId)
   if (ucan) {
-    return { Authorization: `UCAN ${ucan}` }
+    return ucanFetcher(url, ucan, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
   }
-  // Fall back to DID-Auth (personal vault)
   if (privateKey && did) {
-    const header = await createDidAuthHeader(privateKey, did, 'sync')
-    return { Authorization: header }
+    const header = await createDidAuthHeader(privateKey, did, 'sync', body)
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: header,
+      },
+      body,
+    })
   }
   throw new Error('No authentication available: no UCAN token for space and no DID credentials provided')
 }
@@ -53,9 +73,6 @@ export const pushChangesAsync = async (
 
   const vaultKey = cached.vaultKey
 
-  // Build auth headers (UCAN for shared spaces, DID-Auth for personal vault)
-  const authHeaders = await buildAuthHeaderAsync(spaceId, privateKey, did)
-
   // Encrypt each change entry (exclude deviceId - it's sent separately)
   const encryptedChanges: SyncChangeData[] = []
   for (const change of changes) {
@@ -74,18 +91,14 @@ export const pushChangesAsync = async (
     })
   }
 
-  // Send to server
-  const response = await fetch(`${homeServerUrl}/sync/push`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-    },
-    body: JSON.stringify({
-      spaceId,
-      changes: encryptedChanges,
-    }),
-  })
+  const body = JSON.stringify({ spaceId, changes: encryptedChanges })
+  const response = await sendSyncRequestAsync(
+    `${homeServerUrl}/sync/push`,
+    body,
+    spaceId,
+    privateKey,
+    did,
+  )
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
@@ -116,23 +129,19 @@ export const pullChangesAsync = async (
 
   const vaultKey = cached.vaultKey
 
-  // Build auth headers (UCAN for shared spaces, DID-Auth for personal vault)
-  const authHeaders = await buildAuthHeaderAsync(spaceId, privateKey, did)
-
-  // Fetch from server
-  const response = await fetch(`${homeServerUrl}/sync/pull`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-    },
-    body: JSON.stringify({
-      spaceId,
-      excludeDeviceId,
-      afterCreatedAt,
-      limit: limit ?? 100,
-    }),
+  const body = JSON.stringify({
+    spaceId,
+    excludeDeviceId,
+    afterCreatedAt,
+    limit: limit ?? 100,
   })
+  const response = await sendSyncRequestAsync(
+    `${homeServerUrl}/sync/pull`,
+    body,
+    spaceId,
+    privateKey,
+    did,
+  )
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
