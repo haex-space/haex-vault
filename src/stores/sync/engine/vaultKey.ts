@@ -85,7 +85,7 @@ export const uploadVaultKeyAsync = async (
     vaultNameNonce: sealedName.nonce,
     vaultNameSalt: sealedName.salt,
   })
-  const response = await fetchWithDidAuth(`${homeServerUrl}/sync/vault-key`, privateKey, did, 'vault-key', {
+  const response = await fetchWithDidAuth(`${homeServerUrl}/sync/vault-key`, privateKey, did, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,
@@ -122,9 +122,13 @@ export const getVaultKeyFromServerAsync = async (
   }
 
   // Fetch from server with DID-Auth
-  const authHeader = await createDidAuthHeader(privateKey, did, 'get-vault-key')
+  const vaultKeyUrl = `${homeServerUrl}/sync/vault-key/${spaceId}`
+  const authHeader = await createDidAuthHeader(privateKey, did, {
+    method: 'GET',
+    url: vaultKeyUrl,
+  })
   const response = await fetchWithNetworkErrorHandlingAsync(
-    `${homeServerUrl}/sync/vault-key/${spaceId}`,
+    vaultKeyUrl,
     { method: 'GET', headers: { Authorization: authHeader } },
   )
 
@@ -173,9 +177,13 @@ export const fetchSyncKeyFromServerAsync = async (
   privateKey: string,
   did: string,
 ): Promise<Uint8Array> => {
-  const authHeader = await createDidAuthHeader(privateKey, did, 'get-vault-key')
+  const vaultKeyUrl = `${homeServerUrl}/sync/vault-key/${spaceId}`
+  const authHeader = await createDidAuthHeader(privateKey, did, {
+    method: 'GET',
+    url: vaultKeyUrl,
+  })
   const response = await fetchWithNetworkErrorHandlingAsync(
-    `${homeServerUrl}/sync/vault-key/${spaceId}`,
+    vaultKeyUrl,
     {
       method: 'GET',
       headers: { Authorization: authHeader },
@@ -246,7 +254,7 @@ export const reEncryptVaultKeyAsync = async (
       vaultKeySalt: encryptedVaultKeyData.salt,
       vaultKeyNonce: encryptedVaultKeyData.vaultKeyNonce,
     })
-    const response = await fetchWithDidAuth(`${homeServerUrl}/sync/vault-key/${spaceId}`, privateKey, did, 'update-vault-key', {
+    const response = await fetchWithDidAuth(`${homeServerUrl}/sync/vault-key/${spaceId}`, privateKey, did, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body,

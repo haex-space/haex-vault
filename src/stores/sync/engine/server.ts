@@ -3,7 +3,6 @@
  * Handles server-side operations like health check, vault deletion, vault name updates
  */
 
-import { DidAuthAction } from '@haex-space/ucan'
 import { fetch } from '@tauri-apps/plugin-http'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { encryptVaultNameAsync } from '@/utils/crypto/vaultName'
@@ -36,7 +35,6 @@ export const deleteRemoteVaultAsync = async (
     `${homeServerUrl}/sync/vault/${spaceId}`,
     privateKey,
     did,
-    DidAuthAction.VaultDelete,
     { method: 'DELETE' },
   )
 
@@ -64,7 +62,6 @@ export const deleteAllVaultDataAsync = async (
     `${homeServerUrl}/sync/vaults`,
     privateKey,
     did,
-    DidAuthAction.VaultDeleteAll,
     { method: 'DELETE' },
   )
 
@@ -104,7 +101,6 @@ export const updateVaultNameOnServerAsync = async (
     `${homeServerUrl}/sync/vault-key/${spaceId}`,
     privateKey,
     did,
-    DidAuthAction.VaultKeyUpdate,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

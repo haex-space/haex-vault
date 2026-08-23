@@ -293,7 +293,11 @@ export const pullPendingColumnsAsync = async (
             federation: { spaceId, serverDid: federation.originServerDid, relayDid: federation.serverDid },
             body: requestBody,
           })
-        : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPullColumns, requestBody)
+        : await createDidAuthHeader(identity.privateKey, identity.did, {
+            method: 'POST',
+            url: `${homeServerUrl}/sync/pull-columns`,
+            body: requestBody,
+          })
 
       const response = await fetch(`${homeServerUrl}/sync/pull-columns`, {
         method: 'POST',

@@ -140,7 +140,6 @@ export async function createOnlineSpace(
     `${originUrl}/spaces`,
     identity.privateKey,
     identity.did,
-    'create-space',
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },
   )
 
@@ -243,7 +242,6 @@ export async function migrateSpaceServer(
       `${newServerUrl}/spaces`,
       identity.privateKey,
       identity.did,
-      'create-space',
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },
     )
 
@@ -259,7 +257,7 @@ export async function listSpaces(
   originUrl: string,
   persistSpaceAsync: (space: SpaceWithType) => Promise<void>,
 ): Promise<SpaceWithType[]> {
-  const response = await fetchWithDidAuth(`${originUrl}/spaces`, identity.privateKey, identity.did, 'list-spaces')
+  const response = await fetchWithDidAuth(`${originUrl}/spaces`, identity.privateKey, identity.did)
   await throwIfNotOk(response, 'list spaces')
   const rawSpaces = await response.json() as Array<{ id: string; encryptedName?: string; createdAt: string }>
 
@@ -291,7 +289,6 @@ export async function leaveSpace(
     `${originUrl}/spaces/${spaceId}/members/${encodeURIComponent(identity.publicKey)}`,
     identity.privateKey,
     identity.did,
-    'leave-space',
     { method: 'DELETE' },
   )
 

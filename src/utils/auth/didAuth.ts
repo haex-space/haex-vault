@@ -1,11 +1,11 @@
 import { importUserPrivateKeyAsync } from '@haex-space/vault-sdk'
+import { createSignedAuthHeader } from '@haex-space/ucan'
 import {
   createFederatedAuthHeader,
   type FederatedAuthParams,
   type CreateFederatedAuthOptions,
 } from '@haex-space/federation-sdk'
 import { fetch } from '@tauri-apps/plugin-http'
-import { toBase64Url } from '~/utils/encoding'
 
 export type { FederatedAuthParams }
 
@@ -17,46 +17,48 @@ export type { FederatedAuthParams }
  * - Seen `jti` values MUST be tracked and rejected to prevent replay attacks
  * - `jti` tracking can use a TTL cache matching the token's max lifetime (exp + skew)
  */
+export interface DidAuthRequest {
+  method: string
+  url: string
+  body?: string
+}
+
+function requestTarget(url: string): { path: string; rawQuery: string } {
+  const parsed = new URL(url, 'https://did-auth.invalid')
+  return { path: parsed.pathname, rawQuery: parsed.search.slice(1) }
+}
+
 export async function createDidAuthHeader(
   privateKeyBase64: string,
   did: string,
-  action: string,
-  body?: string,
+  request: DidAuthRequest,
 ): Promise<string> {
-  const bodyHash = toBase64Url(
-    new Uint8Array(
-      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body ?? '')),
-    ),
-  )
-
-  const payload = JSON.stringify({
+  const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
+  const { path, rawQuery } = requestTarget(request.url)
+  const headerValue = await createSignedAuthHeader({
+    privateKey,
     did,
-    action,
-    timestamp: Date.now(),
-    exp: Date.now() + 60_000,
-    jti: crypto.randomUUID(),
-    bodyHash,
+    method: request.method,
+    path,
+    rawQuery,
+    body: request.body ?? '',
   })
 
-  const payloadBytes = new TextEncoder().encode(payload)
-  const base64urlPayload = toBase64Url(payloadBytes)
-
-  const privateKey = await importUserPrivateKeyAsync(privateKeyBase64)
-  const signatureBuffer = await crypto.subtle.sign(
-    'Ed25519',
-    privateKey,
-    new TextEncoder().encode(base64urlPayload),
-  )
-  const base64urlSignature = toBase64Url(new Uint8Array(signatureBuffer))
-
-  return `DID ${base64urlPayload}.${base64urlSignature}`
+  return `DID ${headerValue}`
 }
 
 export async function createDidAuthToken(
   privateKeyBase64: string,
   did: string,
 ): Promise<string> {
-  const header = await createDidAuthHeader(privateKeyBase64, did, 'ws-connect')
+  const header = await createDidAuthHeader(
+    privateKeyBase64,
+    did,
+    {
+      method: 'GET',
+      url: '/ws',
+    },
+  )
   return header.slice(4)
 }
 
@@ -64,11 +66,14 @@ export async function fetchWithDidAuth(
   url: string,
   privateKeyBase64: string,
   did: string,
-  action: string,
   options?: RequestInit,
 ): Promise<Response> {
   const body = typeof options?.body === 'string' ? options.body : undefined
-  const header = await createDidAuthHeader(privateKeyBase64, did, action, body)
+  const header = await createDidAuthHeader(privateKeyBase64, did, {
+    method: options?.method ?? 'GET',
+    url,
+    body,
+  })
 
   return fetch(url, {
     ...options,
@@ -97,8 +102,16 @@ export interface FetchWithFederatedDidAuthOptions {
 export async function fetchWithFederatedDidAuth(
   options: FetchWithFederatedDidAuthOptions,
 ): Promise<Response> {
-  const { url, privateKeyBase64, did, action, federation, options: fetchOptions } = options
-  const body = typeof fetchOptions?.body === 'string' ? fetchOptions.body : undefined
+  const {
+    url,
+    privateKeyBase64,
+    did,
+    action,
+    federation,
+    options: fetchOptions,
+  } = options
+  const body =
+    typeof fetchOptions?.body === 'string' ? fetchOptions.body : undefined
   const queryString = new URL(url).search.slice(1)
 
   const header = await createFederatedAuthHeader({

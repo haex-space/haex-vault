@@ -2,7 +2,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { getUcanForSpaceAsync } from '@/utils/auth/ucanStore'
 import { createVaultUcanFetcher } from '@/utils/auth/ucanFetcher'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
-import { DidAuthAction } from '@haex-space/ucan'
 import { createLogger } from '@/stores/logging'
 import { toBase64, fromBase64 } from '~/utils/encoding'
 import { throwIfNotOk, safeJson } from '~/utils/fetch'
@@ -243,7 +242,6 @@ export function useMlsDelivery(originUrl: string, spaceId: string, auth: AuthCon
       `${baseUrl}/invites/${inviteId}/accept`,
       auth.privateKey,
       auth.did,
-      DidAuthAction.AcceptInvite,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

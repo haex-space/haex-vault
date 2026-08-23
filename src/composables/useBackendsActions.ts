@@ -1,4 +1,3 @@
-import { DidAuthAction } from '@haex-space/ucan'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { decryptVaultNameAsync } from '@/utils/crypto/vaultName'
 import type { SelectHaexSyncBackends } from '~/database/schemas'
@@ -65,7 +64,6 @@ export const useBackendsActions = () => {
         `${backend.homeServerUrl}/sync/vaults`,
         identity.privateKey,
         identity.did,
-        DidAuthAction.VaultList,
       )
 
       if (!response.ok) {
@@ -223,13 +221,11 @@ export const useBackendsActions = () => {
             // write, so administering a space was enough to destroy someone
             // else's. It also requires DID-Auth — a UCAN proves only who
             // issued it, not who presented it — hence fetchWithDidAuth here.
-            // TODO: add `DeleteAdminSpaces = "delete-admin-spaces"` to DidAuthAction in @haex-space/ucan
             try {
               await fetchWithDidAuth(
                 `${backend.homeServerUrl}/spaces/my-admin-spaces`,
                 identity.privateKey,
                 identity.did,
-                'delete-admin-spaces',
                 { method: 'DELETE' },
               )
             } catch (e) {

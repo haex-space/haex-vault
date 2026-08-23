@@ -438,7 +438,11 @@ export const pushChangesToServerAsync = async (
         },
         body: requestBody,
       })
-    : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPush, requestBody)
+    : await createDidAuthHeader(identity.privateKey, identity.did, {
+        method: 'POST',
+        url,
+        body: requestBody,
+      })
 
   const response = await fetch(url, {
     method: 'POST',

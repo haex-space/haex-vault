@@ -97,7 +97,6 @@ import {
   decryptVaultKey,
 } from '@haex-space/vault-sdk'
 import { decryptVaultNameAsync } from '@/utils/crypto/vaultName'
-import { DidAuthAction } from '@haex-space/ucan'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import type { StepperItem } from '@nuxt/ui'
 import { createConnectWizardSchema } from './connectWizardSchema'
@@ -240,7 +239,6 @@ const loadVaultsAsync = async () => {
       `${wizard.credentials.value.originUrl}/sync/vaults`,
       wizard.decryptedPrivateKey.value,
       wizard.recoveredKeyData.value.did,
-      DidAuthAction.VaultList,
     )
 
     if (!response.ok) {
@@ -371,7 +369,6 @@ const tryDIDPasswordAsVaultPasswordAsync = async (spaceId: string) => {
       `${wizard.credentials.value.originUrl}/sync/vault-key/${spaceId}`,
       wizard.decryptedPrivateKey.value,
       wizard.recoveredKeyData.value.did,
-      DidAuthAction.VaultKeyGet,
     )
 
     if (!response.ok) return
