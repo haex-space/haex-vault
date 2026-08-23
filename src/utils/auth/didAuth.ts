@@ -28,6 +28,14 @@ function requestTarget(url: string): { path: string; rawQuery: string } {
   return { path: parsed.pathname, rawQuery: parsed.search.slice(1) }
 }
 
+function signedRequestBody(body: RequestInit['body']): string {
+  if (body == null) return ''
+  if (typeof body !== 'string') {
+    throw new TypeError('DID-authenticated requests require string bodies')
+  }
+  return body
+}
+
 export async function createDidAuthHeader(
   privateKeyBase64: string,
   did: string,
@@ -68,7 +76,7 @@ export async function fetchWithDidAuth(
   did: string,
   options?: RequestInit,
 ): Promise<Response> {
-  const body = typeof options?.body === 'string' ? options.body : undefined
+  const body = signedRequestBody(options?.body)
   const header = await createDidAuthHeader(privateKeyBase64, did, {
     method: options?.method ?? 'GET',
     url,
