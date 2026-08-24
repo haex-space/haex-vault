@@ -27,8 +27,8 @@ importers:
         specifier: ^0.2.8
         version: 0.2.8
       '@dicebear/core':
-        specifier: ^10.5.0
-        version: 10.5.0
+        specifier: ^10.6.1
+        version: 10.6.1
       '@dicebear/styles':
         specifier: ^10.4.0
         version: 10.4.0
@@ -607,8 +607,8 @@ packages:
       '@devframes/hub':
         optional: true
 
-  '@dicebear/core@10.5.0':
-    resolution: {integrity: sha512-FaBohsNT+/8z2C2jowlzNVbx4B+x6wVLK4HeQT35bJTV4LeV6xXl4zyPvxCm4HvG6PoN+100hNBbnj7Bumo18Q==}
+  '@dicebear/core@10.6.1':
+    resolution: {integrity: sha512-AMhre1Hj83y3KTyhdOQeU0Dc81pw3rMCvm7tKBz+pE+N3nOusRDcQBfRsf67w+GYBI/dHq7eeezzDQHUjoC5XA==}
     engines: {node: '>=22.0.0'}
 
   '@dicebear/styles@10.4.0':
@@ -8197,7 +8197,7 @@ snapshots:
       '@devframes/hub': 0.7.16(devframe@0.7.16(cac@7.0.0)(srvx@0.11.22)(typescript@6.0.3))
     optional: true
 
-  '@dicebear/core@10.5.0': {}
+  '@dicebear/core@10.6.1': {}
 
   '@dicebear/styles@10.4.0': {}
 
