@@ -30,8 +30,8 @@ importers:
         specifier: ^10.6.1
         version: 10.6.1
       '@dicebear/styles':
-        specifier: ^10.4.0
-        version: 10.4.0
+        specifier: ^10.5.0
+        version: 10.5.0
       '@haex-space/federation-sdk':
         specifier: 0.2.2
         version: 0.2.2
@@ -611,8 +611,8 @@ packages:
     resolution: {integrity: sha512-AMhre1Hj83y3KTyhdOQeU0Dc81pw3rMCvm7tKBz+pE+N3nOusRDcQBfRsf67w+GYBI/dHq7eeezzDQHUjoC5XA==}
     engines: {node: '>=22.0.0'}
 
-  '@dicebear/styles@10.4.0':
-    resolution: {integrity: sha512-Bx3HLdbUqAXhu6JqU9YaQoQwN+3g3l8uHmlOw2aI07cOtfoH1Z/Nlfok1r7zzdujJvvTBTPJSH568/bzns4MoQ==}
+  '@dicebear/styles@10.5.0':
+    resolution: {integrity: sha512-CV5rBIe/wECQua/jct3oJCN7aNNMb7H1TUFQr5x0DWMI+82KZDeLOgw50OzEjDIW0qGHfwvfz9tRh61ZEyardA==}
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
@@ -8202,7 +8202,7 @@ snapshots:
 
   '@dicebear/core@10.6.1': {}
 
-  '@dicebear/styles@10.4.0': {}
+  '@dicebear/styles@10.5.0': {}
 
   '@drizzle-team/brocli@0.10.2': {}
 
