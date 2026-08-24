@@ -3,7 +3,6 @@
  */
 
 import { fetch } from '@tauri-apps/plugin-http'
-import { DidAuthAction } from '@haex-space/ucan'
 import type { ColumnChange } from '../../tableScanner'
 import { hlcIsNewer } from '@/utils/hlc'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
@@ -55,17 +54,23 @@ const fetchPullPageAsync = async (options: FetchPullPageOptions): Promise<PullPa
   if (cursorRowPks) params.set('afterRowPks', cursorRowPks)
 
   const queryString = params.toString()
+  const url = `${homeServerUrl}/sync/pull?${queryString}`
   const authHeader = federation
     ? await createFederatedDidAuthHeader({
         did: identity.did,
         privateKeyBase64: identity.privateKey,
-        action: DidAuthAction.SyncPull,
         federation: { spaceId, serverDid: federation.originServerDid, relayDid: federation.serverDid },
-        queryString,
+        method: 'GET',
+        path: '/sync/pull',
+        rawQuery: queryString,
+        body: '',
       })
-    : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPull)
+    : await createDidAuthHeader(identity.privateKey, identity.did, {
+        method: 'GET',
+        url,
+      })
 
-  const response = await fetch(`${homeServerUrl}/sync/pull?${queryString}`, {
+  const response = await fetch(url, {
     method: 'GET',
     headers: { Authorization: authHeader },
   })

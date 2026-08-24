@@ -41,7 +41,11 @@ const sendSyncRequestAsync = async (
     })
   }
   if (privateKey && did) {
-    const header = await createDidAuthHeader(privateKey, did, 'sync', body)
+    const header = await createDidAuthHeader(privateKey, did, {
+      method: 'POST',
+      url,
+      body,
+    })
     return fetch(url, {
       method: 'POST',
       headers: {

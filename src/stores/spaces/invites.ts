@@ -173,7 +173,6 @@ export async function claimInviteToken(
     `${originUrl}/spaces/${spaceId}/invite-tokens/${tokenId}/claim`,
     identity.privateKey,
     identity.did,
-    'accept-invite',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

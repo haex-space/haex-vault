@@ -19,7 +19,6 @@ import {
   isRegisterShareableTable,
 } from '../sharedSpaceScope'
 import { hlcIsNewer } from '@/utils/hlc'
-import { DidAuthAction } from '@haex-space/ucan'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, syncMutex } from './types'
 import type { MlsEpochKey } from '@bindings/MlsEpochKey'
@@ -430,15 +429,21 @@ export const pushChangesToServerAsync = async (
     ? await createFederatedDidAuthHeader({
         did: identity.did,
         privateKeyBase64: identity.privateKey,
-        action: DidAuthAction.SyncPush,
         federation: {
           spaceId,
           serverDid: backend.originServerDid,
           relayDid: backend.homeServerDid,
         },
+        method: 'POST',
+        path: '/sync/push',
+        rawQuery: '',
         body: requestBody,
       })
-    : await createDidAuthHeader(identity.privateKey, identity.did, DidAuthAction.SyncPush, requestBody)
+    : await createDidAuthHeader(identity.privateKey, identity.did, {
+        method: 'POST',
+        url,
+        body: requestBody,
+      })
 
   const response = await fetch(url, {
     method: 'POST',

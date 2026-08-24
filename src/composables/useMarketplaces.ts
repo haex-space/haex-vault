@@ -52,7 +52,7 @@ export function buildAuthedFetch(
         )
       }
       return (input, init) =>
-        fetchWithDidAuth(input, didContext.privateKey, didContext.did, 'marketplace:list', init)
+        fetchWithDidAuth(input, didContext.privateKey, didContext.did, init)
 
     default: // 'none'
       return (input, init) => tauriFetch(input, init) as unknown as Promise<Response>

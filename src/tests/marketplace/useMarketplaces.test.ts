@@ -93,7 +93,7 @@ describe('buildAuthedFetch', () => {
     expect(callHeaders.Authorization).toBe(`Basic ${btoa('user:pass')}`)
   })
 
-  it('did: delegates to fetchWithDidAuth with marketplace:list action', async () => {
+  it('did: delegates to the actionless DID-Auth wrapper', async () => {
     const fetcher = buildAuthedFetch(
       mockRow({ authType: 'did', authIdentityId: 'identity-1' }),
       { did: 'did:key:test', privateKey: 'privkey-b64' },
@@ -104,7 +104,6 @@ describe('buildAuthedFetch', () => {
       'https://example.com/extensions',
       'privkey-b64',
       'did:key:test',
-      'marketplace:list',
       expect.objectContaining({ method: 'GET' }),
     )
     expect(mockTauriFetch).not.toHaveBeenCalled()

@@ -1,7 +1,6 @@
 import {
   encryptPrivateKeyAsync,
 } from '@haex-space/vault-sdk'
-import { DidAuthAction } from '@haex-space/ucan'
 import { fetchWithDidAuth } from '@/utils/auth/didAuth'
 import { throwIfNotOk } from '~/utils/fetch'
 
@@ -48,7 +47,6 @@ export const useUpdateIdentityPassword = () => {
             `${backend.homeServerUrl}/identity-auth/update-recovery`,
             identity.privateKey,
             identity.did,
-            DidAuthAction.UpdateRecovery,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

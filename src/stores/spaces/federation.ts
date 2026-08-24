@@ -61,7 +61,6 @@ export async function setupFederationForSpace(
     `${relayServerUrl}/federation/setup`,
     identity.privateKey,
     identity.did,
-    'federation-setup',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

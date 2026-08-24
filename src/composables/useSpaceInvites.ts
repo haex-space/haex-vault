@@ -197,7 +197,6 @@ export function useSpaceInvites() {
           `${originUrl}/spaces/${invite.spaceId}/invites/${invite.tokenId}/decline`,
           identity.privateKey,
           identity.did,
-          'decline-invite',
           { method: 'POST', headers: { 'Content-Type': 'application/json' } },
         )
       } catch {
