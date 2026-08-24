@@ -5,7 +5,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
 import { fetch } from '@tauri-apps/plugin-http'
-import { DidAuthAction } from '@haex-space/ucan'
 import type { ColumnChange } from '../../tableScanner'
 import { createDidAuthHeader, createFederatedDidAuthHeader } from '@/utils/auth/didAuth'
 import { orchestratorLog as log, type BackendSyncState, syncMutex } from '../types'
@@ -289,8 +288,10 @@ export const pullPendingColumnsAsync = async (
         ? await createFederatedDidAuthHeader({
             did: identity.did,
             privateKeyBase64: identity.privateKey,
-            action: DidAuthAction.SyncPullColumns,
             federation: { spaceId, serverDid: federation.originServerDid, relayDid: federation.serverDid },
+            method: 'POST',
+            path: '/sync/pull-columns',
+            rawQuery: '',
             body: requestBody,
           })
         : await createDidAuthHeader(identity.privateKey, identity.did, {

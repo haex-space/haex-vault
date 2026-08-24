@@ -102,7 +102,6 @@ export interface FetchWithFederatedDidAuthOptions {
   url: string
   privateKeyBase64: string
   did: string
-  action: string
   federation: FederatedAuthParams
   options?: RequestInit
 }
@@ -114,21 +113,20 @@ export async function fetchWithFederatedDidAuth(
     url,
     privateKeyBase64,
     did,
-    action,
     federation,
     options: fetchOptions,
   } = options
-  const body =
-    typeof fetchOptions?.body === 'string' ? fetchOptions.body : undefined
-  const queryString = new URL(url).search.slice(1)
+  const body = signedRequestBody(fetchOptions?.body)
+  const { path, rawQuery } = requestTarget(url)
 
   const header = await createFederatedAuthHeader({
     did,
     privateKeyBase64,
-    action,
     federation,
+    method: fetchOptions?.method ?? 'GET',
+    path,
+    rawQuery,
     body,
-    queryString,
   })
 
   return fetch(url, {
