@@ -33,6 +33,7 @@
 
 pub mod chunk;
 pub mod envelope;
+pub mod key_resolver;
 
 #[cfg(test)]
 mod tests;
@@ -42,3 +43,4 @@ pub use chunk::{
     CHUNK_CIPHERTEXT_SIZE, CHUNK_PLAINTEXT_SIZE, TAG_SIZE,
 };
 pub use envelope::{EnvelopeHeader, ENVELOPE_VERSION, HEADER_SIZE, MAGIC, NONCE_SIZE};
+pub use key_resolver::{resolve_key, resolve_latest, KeyError, KEY_LEN};

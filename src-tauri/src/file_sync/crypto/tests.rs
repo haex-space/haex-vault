@@ -350,3 +350,194 @@ fn size_arithmetic_is_bijective_across_wide_range() {
         );
     }
 }
+
+// ── Key resolver (Round B) ──────────────────────────────────────────
+
+mod key_resolver {
+    use std::sync::{Arc, Mutex};
+
+    use base64::Engine;
+    use rusqlite::{params, Connection};
+    use uuid::Uuid;
+
+    use super::super::key_resolver::{resolve_key, resolve_latest, KeyError, KEY_LEN};
+    use crate::database::DbConnection;
+
+    // Tests hit the DB directly through rusqlite — they exercise the key
+    // resolver's SELECT + cache, not the CRDT execute pipeline. Using
+    // `core::execute` here would drag in the CRDT dirty-tracking machinery
+    // and require a much larger schema (haex_crdt_configs_no_sync et al.)
+    // than what this module actually queries.
+    fn setup_db() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        conn.execute_batch(
+            "CREATE TABLE haex_mls_sync_keys (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                epoch INTEGER NOT NULL,
+                key_data TEXT NOT NULL,
+                authored_by_did TEXT
+            );",
+        )
+        .expect("create haex_mls_sync_keys");
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    fn with_conn<R>(db: &DbConnection, f: impl FnOnce(&Connection) -> R) -> R {
+        let guard = db.0.lock().expect("db lock");
+        let conn = guard.as_ref().expect("db open");
+        f(conn)
+    }
+
+    fn seed_key_row(db: &DbConnection, space_id: &str, epoch: u64, key_data_b64: &str) {
+        with_conn(db, |conn| {
+            conn.execute(
+                "INSERT INTO haex_mls_sync_keys (id, space_id, epoch, key_data) \
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    Uuid::new_v4().to_string(),
+                    space_id,
+                    epoch as i64,
+                    key_data_b64
+                ],
+            )
+            .expect("insert key row");
+        });
+    }
+
+    fn seed_key(db: &DbConnection, space_id: &str, epoch: u64, key: &[u8; KEY_LEN]) {
+        let b64 = base64::engine::general_purpose::STANDARD.encode(key);
+        seed_key_row(db, space_id, epoch, &b64);
+    }
+
+    fn delete_key(db: &DbConnection, space_id: &str, epoch: u64) {
+        with_conn(db, |conn| {
+            conn.execute(
+                "DELETE FROM haex_mls_sync_keys WHERE space_id = ?1 AND epoch = ?2",
+                params![space_id, epoch as i64],
+            )
+            .expect("delete key row");
+        });
+    }
+
+    // Fresh key material and a fresh space_id per test — CodeQL flags literal
+    // keys as hard-coded credentials (see CLAUDE.md `Test- & CI-Konventionen`)
+    // and fresh IDs isolate the process-wide KEY_CACHE across tests.
+    fn random_key() -> [u8; KEY_LEN] {
+        let mut k = [0u8; KEY_LEN];
+        rand::fill(&mut k);
+        k
+    }
+
+    fn fresh_space_id() -> String {
+        Uuid::new_v4().to_string()
+    }
+
+    #[test]
+    fn resolve_key_returns_stored_key() {
+        let db = setup_db();
+        let space = fresh_space_id();
+        let key = random_key();
+        seed_key(&db, &space, 3, &key);
+        let got = resolve_key(&space, 3, &db).expect("resolve");
+        assert_eq!(got, key);
+    }
+
+    #[test]
+    fn resolve_key_unknown_epoch_errors_cleanly() {
+        // Confidentiality guarantee: never fall back to a different epoch.
+        // A row exists for epoch 5, but asking for epoch 7 must surface a
+        // clean EpochNotFound — not a silently-substituted key.
+        let db = setup_db();
+        let space = fresh_space_id();
+        seed_key(&db, &space, 5, &random_key());
+        let err = resolve_key(&space, 7, &db).unwrap_err();
+        assert!(
+            matches!(&err, KeyError::EpochNotFound { epoch: 7, space_id } if space_id == &space),
+            "unexpected: {err}",
+        );
+    }
+
+    #[test]
+    fn resolve_key_unknown_space_errors_cleanly() {
+        let db = setup_db();
+        let space = fresh_space_id();
+        // Seed on a different space so the table isn't empty and we know the
+        // WHERE clause is doing the filtering, not "table has no rows".
+        seed_key(&db, &fresh_space_id(), 1, &random_key());
+        let err = resolve_key(&space, 1, &db).unwrap_err();
+        assert!(
+            matches!(err, KeyError::EpochNotFound { .. }),
+            "unexpected: {err}",
+        );
+    }
+
+    #[test]
+    fn resolve_latest_returns_highest_epoch() {
+        let db = setup_db();
+        let space = fresh_space_id();
+        let key1 = random_key();
+        let key3 = random_key();
+        let key5 = random_key();
+        // Insert out of order to catch a naive "last INSERT wins" bug.
+        seed_key(&db, &space, 1, &key1);
+        seed_key(&db, &space, 5, &key5);
+        seed_key(&db, &space, 3, &key3);
+        let (epoch, key) = resolve_latest(&space, &db).expect("latest");
+        assert_eq!(epoch, 5);
+        assert_eq!(key, key5);
+    }
+
+    #[test]
+    fn resolve_latest_no_rows_errors_cleanly() {
+        let db = setup_db();
+        let space = fresh_space_id();
+        let err = resolve_latest(&space, &db).unwrap_err();
+        assert!(
+            matches!(&err, KeyError::NoEpochsForSpace { space_id } if space_id == &space),
+            "unexpected: {err}",
+        );
+    }
+
+    #[test]
+    fn resolve_key_caches_after_first_lookup() {
+        // Cache-hit verify: after a successful lookup, delete the DB row and
+        // ask again. The cached value must still be served — otherwise the
+        // second call would surface EpochNotFound.
+        //
+        // The fresh UUID space_id isolates this test's cache entry from every
+        // other test's, so no explicit KEY_CACHE reset is needed.
+        let db = setup_db();
+        let space = fresh_space_id();
+        let key = random_key();
+        seed_key(&db, &space, 42, &key);
+        let first = resolve_key(&space, 42, &db).expect("first");
+        assert_eq!(first, key);
+        delete_key(&db, &space, 42);
+        let second = resolve_key(&space, 42, &db).expect("cached second");
+        assert_eq!(second, key);
+    }
+
+    #[test]
+    fn resolve_key_rejects_wrong_length_blob() {
+        let db = setup_db();
+        let space = fresh_space_id();
+        // 16 bytes = 128 bits, not the 256 bits XChaCha20Poly1305 needs.
+        let short = base64::engine::general_purpose::STANDARD.encode([0u8; 16]);
+        seed_key_row(&db, &space, 1, &short);
+        let err = resolve_key(&space, 1, &db).unwrap_err();
+        assert!(
+            matches!(err, KeyError::InvalidKeyLength { len: 16, .. }),
+            "unexpected: {err}",
+        );
+    }
+
+    #[test]
+    fn resolve_key_rejects_invalid_base64() {
+        let db = setup_db();
+        let space = fresh_space_id();
+        seed_key_row(&db, &space, 1, "not!valid!base64!!!");
+        let err = resolve_key(&space, 1, &db).unwrap_err();
+        assert!(matches!(err, KeyError::Decode { .. }), "unexpected: {err}");
+    }
+}
