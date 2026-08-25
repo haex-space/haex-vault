@@ -271,18 +271,67 @@ Apply daher **decrypt → verify → merge** (§4b). Retentionsregel für die Ve
 signierten Klartext-`value_bytes` werden **nicht** persistiert; verifiziert wird transient
 nach dem Entschlüsseln, bevor gemergt wird.
 
-- **CRDT-Payload:** `value` mit dem **Space-Epoch-Key sealen** beim Push, öffnen beim
-  Apply. Leader/Relay sehen nur Ciphertext.
+- **CRDT-Payload (server-vermittelt, Modus b):** `value` mit dem **Space-Epoch-Key
+  sealen** beim Push, öffnen beim Apply. Der Sync-Server als Relay sieht nur Ciphertext.
+  ✅ **SHIPPED.** `push.ts` wählt den Key (`mls_export_epoch_key` für Shared Spaces,
+  Vault-Key für den eigenen Vault), `tableScanner.ts` sealt jeden Spaltenwert, auf dem
+  Wire liegen nur `encryptedValue` + `nonce` + `epoch`. Der Empfänger holt in `apply.ts`
+  den Key zur mitgereisten `epoch` und entschlüsselt vor dem Verify (§4b).
+- **CRDT-Payload (P2P, Modus c):** Content bleibt **Klartext**; die Vertraulichkeit
+  hängt an der QUIC-Transportverschlüsselung (`crdt/scanner.rs`,
+  `LocalColumnChange.value`). Anders als der Sync-Server ist die Gegenstelle hier ein
+  Space-Member, das den Epoch-Key ohnehin besitzt — eine Content-Verschlüsselung mit
+  genau diesem Key würde gegen sie nichts schützen. **Offen und nicht entschieden:** der
+  P2P-Leader relayed Changes zwischen Peers; ob er dabei ausschließlich Content sieht,
+  für den er selbst Leseberechtigung hat, ist im Zusammenspiel mit den per-Ressource-
+  Zugriffsarten (§4d) nicht nachgewiesen. Erst wenn dort eine Lücke belegt ist, wird
+  P2P-Content-Verschlüsselung sinnvoll — und dann **nicht** mit dem Epoch-Key.
 - **Multi-Space:** eine Row in mehreren Spaces → an **jede** Space-Gruppe separat
   verschlüsseln.
-- **Dateien:** File-Content ebenfalls mit Epoch-Key verschlüsseln (eigener Pfad im
-  `file_sync`-Engine; heute Klartext).
+- **Dateien (Cloud-Ziele):** File-Content mit dem Epoch-Key verschlüsseln, im
+  `file_sync`-Engine am `cloud_provider`-Pfad. Der Storage-Betreiber ist ein Dritter
+  ohne Key; heute liegt dort alles im Klartext. Verbindliche Form:
+  - **Opake Object-Keys.** Der Objektname ist eine Zufalls-ID, nicht der relative Pfad.
+    Andernfalls lernt der Betreiber Dateinamen und Ordnerstruktur — die bei einem Vault
+    regelmäßig so sensibel sind wie der Inhalt selbst.
+  - **Metadata-Sidecar.** Name, Größe, Typ, mtime und Klartext-Hash liegen in einem
+    kleinen Begleitobjekt `<key>.m`, verschlüsselt wie der Content. Member listen einen
+    Bucket, indem sie nur die Sidecars laden — nicht die Inhalte. Die Zuordnung
+    Pfad→Object-Key wird lokal in `haex_sync_state_no_sync` gecached; ein frisches Gerät
+    baut den Cache einmalig aus den Sidecars auf.
+  - **Selbsttragender Bucket.** Bucket + Epoch-Keys genügen für ein vollständiges
+    Restore inklusive Dateinamen. Die Metadaten liegen deshalb bewusst **nicht** nur in
+    einer CRDT-Tabelle: ein Backup, das ohne zweites synchronisiertes Artefakt nicht
+    wiederherstellbar ist, wäre kein Backup.
+  - **Envelope.** Jedes Objekt beginnt mit Magic + Version + `epoch` + File-Nonce,
+    danach Chunks mit je eigenem AEAD-Tag (Chunk-Nonce aus File-Nonce + Chunk-Index).
+    Selbstbeschreibend, damit der Leser den Key ohne Backend-Metadaten wählen kann;
+    chunk-weise, damit Resume und Range-Download erhalten bleiben.
+  - **Verbleibender Leak (akzeptiert):** Objektanzahl, Objektgrößen und
+    Änderungsfrequenz. Größen zu verschleiern bräuchte Padding — eigener Scope.
+- **Dateien (P2P-Ziele):** bleiben **Klartext**. `PeerProvider` öffnet einen direkten
+  QUIC-Stream zum Endpoint des Empfängers und autorisiert jeden Request per UCAN; ein
+  Leader ist am Datei-Transfer nicht beteiligt, und das `relay_url` ist der
+  iroh-NAT-Traversal-Relay, der QUIC nicht terminiert. Empfänger ist also genau der,
+  der die Datei bekommen soll, und er darf sie lesen — Verschlüsselung mit einem Key,
+  den er selbst hält, schützt gegen niemanden.
 - **Key-Rotation:** Membership-Änderung → neue Epoch; entfernte Member verlieren
   Lesezugriff auf **neue** Epochs. Sie behalten die alten Epoch-Keys und können
   damit weiterhin **historischen** Ciphertext entschlüsseln (siehe Invariante §2,
   "forward-scoped"). Rückwirkende Vertraulichkeit bräuchte eine Re-Encryption des
   retinierten Contents unter der neuen Epoch — **out of scope** dieser Phase
   (Folge-Arbeit, §8).
+- **Historische Epochs für neue Member — bewusste Abweichung von MLS.**
+  `haex_mls_sync_keys` hält **eine Zeile pro Epoch** (`space_id, epoch, key_data`) und
+  ist CRDT-gesynct; Leser holen den Key zur Epoch, die am Ciphertext steht. Folge: ein
+  **neu beitretendes** Member erhält über den Tabellen-Sync auch die Keys der Epochs
+  **vor** seinem Beitritt und kann damit den bestehenden Space-Inhalt lesen. MLS selbst
+  würde das verhindern — ein Joiner bekommt dort keine historischen Group-Secrets. Die
+  Abweichung ist **gewollt**: ein Member, das einem Space beitritt, soll dessen
+  vorhandene Daten und Dateien sehen, sonst wäre geteilter Content für Nachzügler
+  wertlos. Konsequenz, die dabei in Kauf genommen wird: Leserechte sind nicht auf den
+  Zeitraum der Mitgliedschaft eingrenzbar. Wer das braucht, bräuchte pro Epoch eine
+  Zugriffsentscheidung statt eines gesyncten Key-Sets — nicht Teil dieses ADR.
 - **Consent-Nuance (Relay):** B kann A's Daten nur in einen neuen Space relayen, wenn B
   entschlüsseln *und* für die neue Gruppe neu verschlüsseln kann. A hat dem neuen Space
   nicht zwingend zugestimmt — reine Vertraulichkeits-/Zustimmungsfrage dieser Phase.
@@ -477,7 +526,13 @@ Sync, damit Extension-Daten nie ungeschützt fließen).
   Register-Check-Gate, Retention + Anchor-Advance im Leader. Design-Details in §6.5
   (revidiert 2026-07-29). Impl-Plan liegt lokal unter
   `docs/plans/2026-07-29-shared-space-delete-propagation.md`.
-- **Phase 4 — Vertraulichkeit (4e):** CRDT-Payload-Verschlüsselung, dann File-Content.
+- **Phase 4 — Vertraulichkeit (4e).** Reihenfolge **korrigiert 2026-08-25** (vorher:
+  "CRDT-Payload-Verschlüsselung, dann File-Content"): die CRDT-Payload-Verschlüsselung
+  gegen den server-vermittelten Relay ist bereits mit Phase 1 gelandet (§4e), und der
+  P2P-Pfad braucht sie nicht, weil die Gegenstelle den Epoch-Key ohnehin hält. Es
+  verbleibt daher **nur der Datei-Pfad, und dort nur die Cloud-Ziele**: Content-
+  Verschlüsselung mit dem Epoch-Key, opake Object-Keys, Metadata-Sidecars und
+  Chunk-Envelope gemäß §4e. P2P-Datei-Transfer bleibt Klartext (Begründung in §4e).
 
 Jede Phase ist für sich testbar und liefert Wert.
 

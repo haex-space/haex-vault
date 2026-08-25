@@ -21,9 +21,18 @@ Design decisions live in `docs/adr/`; this file is a glossary only.
 - **Compaction-Anchor** — `haex_space_compaction_anchors` pro Space (synced, max-wins-merge, Leader-only advance); Owner-Domain analog mit einem globalen Anchor in `haex_vault_settings`. Verhindert Zombie-Wiederauferstehung nach Retention-Pruning.
 - **Register-Check** — Autorisierungs-Gate beim Apply eines Delete-Log-Eintrags: Positive Register-Evidenz für `(target_table, target_row_pks, target_space_id)` in `haex_shared_space_sync` MUSS vorliegen, damit die Business-Row gelöscht wird. Fehlt der Register-Eintrag lokal, ist der Signal-Apply ein No-op — sowohl bei "row shared in another space" (Forgery-Schutz) als auch bei "Race mit local unshare" (Unshare hält die Business-Row per §6.5). Register-Cleanup läuft nur nach positive Gate.
 
+## Datei-Vertraulichkeit (Cloud)
+
+- **Epoch-Key** — Pro Space und Epoch aus dem MLS-Group-State abgeleiteter symmetrischer Content-Key. Persistiert pro Epoch in `haex_mls_sync_keys` (CRDT-gesynct), abrufbar per `(space_id, epoch)`. Rotiert bei Membership-Änderung; alte Epochs bleiben abrufbar, damit historischer Ciphertext lesbar bleibt.
+- **File-Envelope** — Selbstbeschreibendes Rahmenformat eines verschlüsselten Cloud-Objekts: Header (Magic, Version, `epoch`, File-Nonce) gefolgt von Chunks mit je eigenem AEAD-Tag. Der Header nennt die Epoch, damit der Leser den passenden Key wählen kann, ohne Backend-Metadaten zu brauchen.
+- **Content-Objekt** — Cloud-Objekt mit dem verschlüsselten Dateiinhalt, adressiert über einen opaken Object-Key.
+- **Metadata-Sidecar** — Kleines Begleitobjekt (`<key>.m`) zum Content-Objekt, gleiches Envelope-Format, enthält Dateiname, Größe, Typ, mtime und Klartext-Hash. Erlaubt Member das Auflisten eines Buckets ohne Download der Inhalte.
+- **Opaker Object-Key** — Zufällige ID als Cloud-Objektname. Trägt keine Pfad-Information; die Zuordnung Pfad→ID lebt im Metadata-Sidecar und wird lokal in `haex_sync_state_no_sync` gecached. Der Storage-Betreiber lernt dadurch weder Dateinamen noch Ordnerstruktur.
+
 ## Space-Rollen
 
 - **Space-Infrastruktur-Tabellen** — Die 5 Tabellen in `SPACE_SCOPED_CRDT_TABLES` (`haex_space_devices`, `haex_space_members`, `haex_peer_shares`, `haex_mls_sync_keys`, `haex_device_mls_enrollments`). Bootstrap-scope, NICHT gleichzusetzen mit "Core" (= alle `haex_*` Tables) oder mit dem Register.
 - **Leader (Space-Kontext)** — In Modus (c) der elected P2P-Coordinator; in (b) der Sync-Server; in (d) die eigene Server-Instanz. Rolle: Compaction-Anchor advance, Push-Reject-Enforcement bei HLC unter Anchor, Peer-Cursor-Tracking.
 - **Owner** — Vault-Besitzer. Kann mehrere eigene Geräte haben, die sich untereinander vollständig vertrauen (Modus a + P2P Owner-Own).
-- **Member (Space-Kontext)** — DID mit UCAN-Delegation innerhalb eines Spaces. Capability-Lattice: `Read < Write < Invite < Admin`. **Write == Delete** (kein separates Delete-Cap — Write-Member kann durch Overwrite ohnehin inhaltlich löschen).
+- **Member (Space-Kontext)** — DID mit UCAN-Delegation innerhalb eines Spaces. **Write == Delete** (kein separates Delete-Cap — Write-Member kann durch Overwrite ohnehin inhaltlich löschen).
+- **Capability / CapabilitySet** — `Cap` (`Read`, `Write`, `Invite`, `Admin`) ist **orthogonal**, keine Rangfolge und keine Implikation: ein Member kann `Write` ohne `Read` halten. Ein `CapabilitySet` ist die Menge der gehaltenen Caps, jeder Eintrag mit eigenem `delegatable`-Flag (ob er weiterdelegiert werden darf). Definition: `src-tauri/src/ucan/capability_set.rs`. Das frühere `CapabilityLevel`-Lattice ist entfernt.
