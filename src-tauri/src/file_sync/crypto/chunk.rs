@@ -36,25 +36,11 @@
 
 use chacha20poly1305::{
     aead::{Aead, KeyInit},
-    Key, XChaCha20Poly1305, XNonce,
+    XChaCha20Poly1305, XNonce,
 };
 
 use crate::file_sync::crypto::envelope::{HEADER_SIZE, NONCE_SIZE};
 use crate::file_sync::hashing::CHUNK_HASH_SIZE;
-
-/// `Key::from_slice` and `XNonce::from_slice` in `chacha20poly1305 = "0.11"`
-/// are marked deprecated in favour of `TryFrom`, but the replacement path
-/// forces a fallible construction for values we've already sized correctly at
-/// the type level. Localising the `allow` here keeps the fallout narrow.
-#[allow(deprecated)]
-fn xkey(key: &[u8; 32]) -> &Key {
-    Key::from_slice(key)
-}
-
-#[allow(deprecated)]
-fn xnonce(bytes: &[u8; NONCE_SIZE]) -> &XNonce {
-    XNonce::from_slice(bytes)
-}
 
 /// Plaintext bytes per full chunk (1 MiB), aligned with
 /// [`crate::file_sync::hashing::CHUNK_HASH_SIZE`] so encrypted-file BLAKE3
@@ -117,11 +103,10 @@ pub fn seal_chunk(
             got: plaintext.len(),
         });
     }
-    let cipher = XChaCha20Poly1305::new(xkey(key));
-    let nonce_bytes = chunk_nonce(file_nonce, chunk_index);
-    let nonce = xnonce(&nonce_bytes);
+    let cipher = new_cipher(key)?;
+    let nonce = XNonce::from(chunk_nonce(file_nonce, chunk_index));
     cipher
-        .encrypt(nonce, plaintext)
+        .encrypt(&nonce, plaintext)
         .map_err(|_| CryptoError::SealFailed)
 }
 
@@ -138,12 +123,19 @@ pub fn open_chunk(
             got: ciphertext.len(),
         });
     }
-    let cipher = XChaCha20Poly1305::new(xkey(key));
-    let nonce_bytes = chunk_nonce(file_nonce, chunk_index);
-    let nonce = xnonce(&nonce_bytes);
+    let cipher = new_cipher(key)?;
+    let nonce = XNonce::from(chunk_nonce(file_nonce, chunk_index));
     cipher
-        .decrypt(nonce, ciphertext)
+        .decrypt(&nonce, ciphertext)
         .map_err(|_| CryptoError::OpenFailed)
+}
+
+fn new_cipher(key: &[u8; 32]) -> Result<XChaCha20Poly1305, CryptoError> {
+    // `new_from_slice` is the non-deprecated `KeyInit` entry point. The
+    // length is fixed at the call site (`&[u8; 32]`), so the runtime length
+    // check inside is dead code — we still surface a clean error rather than
+    // relying on that.
+    XChaCha20Poly1305::new_from_slice(key).map_err(|_| CryptoError::SealFailed)
 }
 
 /// Number of chunks a plaintext of the given length is split into. Zero-length
