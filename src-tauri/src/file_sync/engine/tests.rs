@@ -60,7 +60,8 @@ fn test_db_with_sync_state() -> DbConnection {
             modified_at INTEGER NOT NULL,
             synced_at TEXT NOT NULL,
             deleted INTEGER DEFAULT 0 NOT NULL,
-            hash TEXT
+            hash TEXT,
+            object_key TEXT
         );
         CREATE UNIQUE INDEX haex_sync_state_rule_path_unique
             ON haex_sync_state_no_sync (rule_id, relative_path);",
@@ -266,5 +267,75 @@ async fn manifest_mismatch_clears_partial_sidecar() {
     assert!(
         !partial_path.exists(),
         "engine should have cleared the partial bytes after manifest mismatch"
+    );
+}
+
+// ---------------------------------------------------------------------
+// Round D: upsert_sync_state must preserve object_key across REPLACE.
+// If this test fails, every encrypted-cloud sync will lose the
+// relative_path -> object_key cache on the second cycle and re-download
+// every sidecar via bootstrap. See the pitfall note in
+// crypto/object_key.rs.
+// ---------------------------------------------------------------------
+
+#[test]
+fn upsert_sync_state_preserves_object_key_across_replace() {
+    use super::state::{load_sync_state, upsert_sync_state};
+    use crate::file_sync::crypto::object_key::set_object_key;
+
+    let db = test_db_with_sync_state();
+    let rule = "rule-r";
+
+    // 1. Simulate what the encrypting provider does on write: mint an
+    //    object key row *before* the transfer completes.
+    set_object_key(&db, rule, "a.txt", "o/keeper").expect("set object key");
+
+    // 2. Simulate what execute.rs then does after the transfer:
+    //    upsert_sync_state with size/mtime/hash — no object_key argument.
+    upsert_sync_state(&db, rule, "a.txt", 42, 1_700_000_000, Some("abc123")).expect("upsert");
+
+    // 3. object_key must survive the INSERT OR REPLACE (this is the whole
+    //    point of the COALESCE subquery in upsert_sync_state — without
+    //    it, the object_key column reverts to NULL).
+    let entries = load_sync_state(&db, rule).expect("load");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].relative_path, "a.txt");
+    assert_eq!(entries[0].file_size, 42);
+    assert_eq!(entries[0].hash.as_deref(), Some("abc123"));
+    assert_eq!(
+        entries[0].object_key.as_deref(),
+        Some("o/keeper"),
+        "REPLACE nulled out object_key — the COALESCE preservation is broken",
+    );
+
+    // 4. And a subsequent upsert (same relative_path, different size)
+    //    must still preserve it — the whole reason the fix uses a
+    //    subquery instead of a caller-side parameter.
+    upsert_sync_state(&db, rule, "a.txt", 43, 1_700_000_001, Some("def456"))
+        .expect("second upsert");
+    let entries = load_sync_state(&db, rule).expect("load2");
+    assert_eq!(entries[0].file_size, 43);
+    assert_eq!(
+        entries[0].object_key.as_deref(),
+        Some("o/keeper"),
+        "second REPLACE nulled out object_key",
+    );
+}
+
+#[test]
+fn upsert_sync_state_leaves_object_key_null_when_never_set() {
+    use super::state::{load_sync_state, upsert_sync_state};
+
+    let db = test_db_with_sync_state();
+    let rule = "rule-r";
+    // Non-cloud sync path: no set_object_key call, just execute.rs's
+    // ordinary post-transfer upsert. object_key must remain NULL —
+    // absence of a cached key is not the same as a legitimate mint.
+    upsert_sync_state(&db, rule, "peer.bin", 10, 1, Some("x")).expect("upsert");
+    let entries = load_sync_state(&db, rule).expect("load");
+    assert_eq!(entries.len(), 1);
+    assert!(
+        entries[0].object_key.is_none(),
+        "non-cloud path must not fabricate an object_key",
     );
 }

@@ -203,6 +203,99 @@ async fn recover_sidecar(
     Ok(payload)
 }
 
+/// Look up the opaque object key a `(rule_id, relative_path)` pair is
+/// synced under. Returns `None` if the row does not exist (fresh file) or
+/// carries a NULL `object_key` (pre-Round-C row). The provider decorator
+/// calls this to decide whether to reuse an existing key or mint a fresh
+/// one on write — reusing keeps the storage-side history append-only, so
+/// a random re-mint on every write would orphan the previous object.
+pub fn lookup_object_key(
+    db: &DbConnection,
+    rule_id: &str,
+    relative_path: &str,
+) -> Result<Option<String>, ObjectKeyError> {
+    let rows = crate::database::core::select(
+        "SELECT object_key FROM haex_sync_state_no_sync \
+         WHERE rule_id = ?1 AND relative_path = ?2 LIMIT 1"
+            .to_string(),
+        vec![
+            JsonValue::String(rule_id.to_string()),
+            JsonValue::String(relative_path.to_string()),
+        ],
+        db,
+    )
+    .map_err(|e| ObjectKeyError::Database(e.to_string()))?;
+    Ok(rows
+        .into_iter()
+        .next()
+        .and_then(|row| row.into_iter().next())
+        .and_then(|v| v.as_str().map(str::to_string)))
+}
+
+/// Persist a freshly minted object key for `(rule_id, relative_path)`
+/// without disturbing `file_size`, `modified_at`, `synced_at`, `deleted`,
+/// or `hash` on an existing row. Called by the provider decorator right
+/// after [`generate_object_key`], before the content upload — the
+/// subsequent [`crate::file_sync::engine::state::upsert_sync_state`] call
+/// then finds the row already carrying the object key and preserves it
+/// via its COALESCE subquery.
+///
+/// The `INSERT ... ON CONFLICT DO UPDATE` upsert is deliberate here over
+/// `INSERT OR REPLACE`: REPLACE would DELETE the existing row (nulling
+/// the just-preserved `hash` on a churn cycle) and re-insert, which is
+/// exactly the shape of the Round C pitfall that motivated the COALESCE
+/// fix in `upsert_sync_state`. UPSERT touches only the named columns.
+pub fn set_object_key(
+    db: &DbConnection,
+    rule_id: &str,
+    relative_path: &str,
+    object_key: &str,
+) -> Result<(), ObjectKeyError> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = unix_now().to_string();
+    let sql = "INSERT INTO haex_sync_state_no_sync \
+        (id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, object_key) \
+        VALUES (?1, ?2, ?3, 0, 0, ?4, 0, ?5) \
+        ON CONFLICT (rule_id, relative_path) \
+        DO UPDATE SET object_key = excluded.object_key"
+        .to_string();
+    let params = vec![
+        JsonValue::String(id),
+        JsonValue::String(rule_id.to_string()),
+        JsonValue::String(relative_path.to_string()),
+        JsonValue::String(now),
+        JsonValue::String(object_key.to_string()),
+    ];
+    crate::database::core::execute(sql, params, db)
+        .map_err(|e| ObjectKeyError::Database(e.to_string()))?;
+    Ok(())
+}
+
+/// Mark the row for `(rule_id, relative_path)` deleted. Companion to
+/// [`crate::file_sync::engine::state::mark_deleted`] but exposed here so
+/// the provider decorator can call it without depending on
+/// `engine::state`, keeping the crypto module free of an
+/// `engine -> crypto -> engine` cycle. Semantically identical to
+/// `mark_deleted`.
+pub fn mark_object_deleted(
+    db: &DbConnection,
+    rule_id: &str,
+    relative_path: &str,
+) -> Result<(), ObjectKeyError> {
+    let now = unix_now().to_string();
+    let sql = "UPDATE haex_sync_state_no_sync SET deleted = 1, synced_at = ?1 \
+        WHERE rule_id = ?2 AND relative_path = ?3"
+        .to_string();
+    let params = vec![
+        JsonValue::String(now),
+        JsonValue::String(rule_id.to_string()),
+        JsonValue::String(relative_path.to_string()),
+    ];
+    crate::database::core::execute(sql, params, db)
+        .map_err(|e| ObjectKeyError::Database(e.to_string()))?;
+    Ok(())
+}
+
 /// `pub(super)` (not private) so `crypto::tests::object_key` — a sibling of
 /// this module, not a descendant — can exercise the cache lookup directly in
 /// tests, matching `key_resolver::derive_file_key`'s visibility rationale.
