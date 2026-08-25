@@ -1758,6 +1758,12 @@ mod provider {
         // Placeholder branch — Rust holds no vault key today, so calling
         // any content path with `VaultKey` must surface a clear error
         // rather than deadlock or panic.
+        //
+        // Use `write_file` here, not `read_file`: `read_file` calls
+        // `object_key_for_read` first and fails with `MissingObjectKey`
+        // before touching key resolution, which masks the VaultKey path.
+        // `write_file` calls `seal_key()` up front, so `OwnVaultNotWired`
+        // is the actual error surfaced.
         let db = setup_db();
         let inner = Arc::new(FakeProvider::default());
         let dec = EncryptingSyncProvider::new(
@@ -1766,11 +1772,13 @@ mod provider {
             "rule".to_string(),
             DbConnection(db.0.clone()),
         );
-        let err = dec.read_file("anything").await.expect_err("must fail");
+        let err = dec
+            .write_file("anything", b"payload")
+            .await
+            .expect_err("must fail");
         assert!(
-            format!("{err}").contains("own-vault")
-                || matches!(err, SyncProviderError::Other { .. }),
-            "unexpected: {err}",
+            format!("{err}").contains("own-vault"),
+            "expected the own-vault not-wired error, got: {err}",
         );
     }
 }

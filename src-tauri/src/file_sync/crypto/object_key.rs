@@ -321,6 +321,13 @@ pub(super) fn object_key_known(
 /// bootstrap. Companion to `engine::state::upsert_sync_state` — see the
 /// module-level Round D pitfall note. `pub(super)` for the same
 /// cross-sibling test-access reason as [`object_key_known`].
+///
+/// UPSERT (`INSERT ... ON CONFLICT DO UPDATE`) instead of `INSERT OR
+/// REPLACE`: REPLACE would DELETE the existing row and reinsert with a
+/// fresh id, so any column not named in VALUES silently reverts to its
+/// default — exactly the shape of the Round C pitfall the COALESCE fix
+/// in `upsert_sync_state` was written for. UPSERT touches only the
+/// named columns, preserving the row's stable id.
 pub(super) fn upsert_bootstrap_entry(
     db: &DbConnection,
     rule_id: &str,
@@ -332,9 +339,16 @@ pub(super) fn upsert_bootstrap_entry(
 ) -> Result<(), String> {
     let now = unix_now().to_string();
     let id = uuid::Uuid::new_v4().to_string();
-    let sql = "INSERT OR REPLACE INTO haex_sync_state_no_sync \
+    let sql = "INSERT INTO haex_sync_state_no_sync \
         (id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, hash, object_key) \
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8)"
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8) \
+        ON CONFLICT (rule_id, relative_path) DO UPDATE SET \
+            file_size = excluded.file_size, \
+            modified_at = excluded.modified_at, \
+            synced_at = excluded.synced_at, \
+            deleted = 0, \
+            hash = excluded.hash, \
+            object_key = excluded.object_key"
         .to_string();
     let params = vec![
         JsonValue::String(id),

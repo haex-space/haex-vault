@@ -59,8 +59,8 @@ use super::content::{open_bytes, open_stream, seal_bytes, seal_stream, StreamCry
 use super::envelope::{EnvelopeHeader, NONCE_SIZE};
 use super::key_resolver::{resolve_key, resolve_latest, KeyError};
 use super::object_key::{
-    generate_object_key, lookup_object_key, mark_object_deleted, set_object_key, sidecar_key_for,
-    ObjectKeyError, SIDECAR_SUFFIX,
+    generate_object_key, lookup_object_key, mark_object_deleted, object_key_known, set_object_key,
+    sidecar_key_for, upsert_bootstrap_entry, ObjectKeyError, SIDECAR_SUFFIX,
 };
 use super::sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};
 
@@ -181,8 +181,12 @@ impl EncryptingSyncProvider {
     /// without a re-download.
     ///
     /// Per-object failures (a corrupt or undecryptable sidecar) never
-    /// abort the run: they land in the returned tuple so a single bad
-    /// object cannot brick recovery of the rest of the library.
+    /// abort the run: each is logged via `eprintln!` (matching the rest
+    /// of `file_sync`'s logging convention) and skipped so a single
+    /// bad object cannot brick recovery of the rest of the library.
+    /// Returns `Ok(())` on completion regardless of per-object
+    /// outcomes; the outer `Result` covers only manifest-listing and
+    /// DB-lookup failures that block the whole pass.
     async fn bootstrap(&self) -> Result<(), ProviderCryptoError> {
         let manifest = self.inner.manifest().await?;
         let mut content_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -202,15 +206,21 @@ impl EncryptingSyncProvider {
             }
         }
         for object_key in content_keys.intersection(&sidecar_owners) {
-            if lookup_object_key_by_key(&self.db, &self.rule_id, object_key)? {
+            if object_key_known(&self.db, &self.rule_id, object_key)
+                .map_err(ProviderCryptoError::Engine)?
+            {
                 continue;
             }
             let sidecar_key = sidecar_key_for(object_key);
-            if let Err(_e) = self.recover_and_store(&sidecar_key, object_key).await {
+            if let Err(e) = self.recover_and_store(&sidecar_key, object_key).await {
                 // Per-object failure: log-and-continue is the plan's
                 // "Fehlerisolation" policy. The decorator surface has no
                 // notion of a report today; if we need one later, thread
                 // it through here.
+                eprintln!(
+                    "[EncryptingSyncProvider] bootstrap: failed to recover sidecar {sidecar_key} (rule {}): {e}",
+                    self.rule_id,
+                );
                 continue;
             }
         }
@@ -228,7 +238,7 @@ impl EncryptingSyncProvider {
             .epoch;
         let key = self.open_key(epoch)?;
         let (_, payload) = open_sidecar(&key, &bytes)?;
-        upsert_full_row(
+        upsert_bootstrap_entry(
             &self.db,
             &self.rule_id,
             &payload.relative_path,
@@ -236,20 +246,32 @@ impl EncryptingSyncProvider {
             payload.size,
             payload.modified_at,
             &payload.blake3,
-        )?;
+        )
+        .map_err(ProviderCryptoError::Engine)?;
         Ok(())
     }
 
-    async fn get_or_mint_object_key(
+    /// Resolve the object key for `relative_path`, minting a fresh one
+    /// if none exists yet — but do **not** persist a fresh key here.
+    /// The caller commits the mapping via `set_object_key` only after
+    /// both content and sidecar uploads succeed.
+    ///
+    /// Deferring the write closes the phantom-manifest-entry hole: a
+    /// row inserted here before the upload finishes would carry
+    /// `deleted=0`, `object_key=<fresh>`, `size=0`, `modified_at=0`, and
+    /// `manifest()`'s `!deleted && object_key.is_some()` filter would
+    /// emit it as a real FileState. On the download-direction diff
+    /// that turns into a scheduled fetch of an object the bucket never
+    /// received. Returns `(object_key, is_fresh)` so the caller knows
+    /// whether persistence is still owed after successful uploads.
+    async fn resolve_or_mint_object_key(
         &self,
         relative_path: &str,
-    ) -> Result<String, ProviderCryptoError> {
+    ) -> Result<(String, bool), ProviderCryptoError> {
         if let Some(existing) = lookup_object_key(&self.db, &self.rule_id, relative_path)? {
-            return Ok(existing);
+            return Ok((existing, false));
         }
-        let fresh = generate_object_key();
-        set_object_key(&self.db, &self.rule_id, relative_path, &fresh)?;
-        Ok(fresh)
+        Ok((generate_object_key(), true))
     }
 
     fn object_key_for_read(&self, relative_path: &str) -> Result<String, ProviderCryptoError> {
@@ -273,65 +295,6 @@ impl EncryptingSyncProvider {
             .await?;
         Ok(())
     }
-}
-
-fn lookup_object_key_by_key(
-    db: &DbConnection,
-    rule_id: &str,
-    object_key: &str,
-) -> Result<bool, ProviderCryptoError> {
-    let rows = crate::database::core::select(
-        "SELECT 1 FROM haex_sync_state_no_sync WHERE rule_id = ?1 AND object_key = ?2 LIMIT 1"
-            .to_string(),
-        vec![
-            serde_json::Value::String(rule_id.to_string()),
-            serde_json::Value::String(object_key.to_string()),
-        ],
-        db,
-    )
-    .map_err(|e| ProviderCryptoError::Engine(e.to_string()))?;
-    Ok(!rows.is_empty())
-}
-
-fn upsert_full_row(
-    db: &DbConnection,
-    rule_id: &str,
-    relative_path: &str,
-    object_key: &str,
-    file_size: u64,
-    modified_at: u64,
-    blake3_hash: &str,
-) -> Result<(), ProviderCryptoError> {
-    let id = uuid::Uuid::new_v4().to_string();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        .to_string();
-    let sql = "INSERT INTO haex_sync_state_no_sync \
-        (id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, hash, object_key) \
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8) \
-        ON CONFLICT (rule_id, relative_path) DO UPDATE SET \
-            file_size = excluded.file_size, \
-            modified_at = excluded.modified_at, \
-            synced_at = excluded.synced_at, \
-            deleted = 0, \
-            hash = excluded.hash, \
-            object_key = excluded.object_key"
-        .to_string();
-    let params = vec![
-        serde_json::Value::String(id),
-        serde_json::Value::String(rule_id.to_string()),
-        serde_json::Value::String(relative_path.to_string()),
-        serde_json::Value::Number(serde_json::Number::from(file_size)),
-        serde_json::Value::Number(serde_json::Number::from(modified_at)),
-        serde_json::Value::String(now),
-        serde_json::Value::String(blake3_hash.to_string()),
-        serde_json::Value::String(object_key.to_string()),
-    ];
-    crate::database::core::execute(sql, params, db)
-        .map_err(|e| ProviderCryptoError::Engine(e.to_string()))?;
-    Ok(())
 }
 
 #[async_trait]
@@ -401,24 +364,29 @@ impl SyncProvider for EncryptingSyncProvider {
             .object_key_for_read(relative_path)
             .map_err(SyncProviderError::from)?;
 
+        // Make sure `output_path`'s parent exists before staging beside
+        // it — the tmp lands there so it shares a filesystem with the
+        // real destination, avoiding tmpfs blow-ups when `/tmp` is
+        // RAM-backed.
+        if let Some(parent) = output_path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(SyncProviderError::Io)?;
+        }
+
         // Stage the ciphertext to a tempfile via the inner provider so
         // its streaming + resume machinery does the network work; then
         // stream-decrypt into `output_path` chunkwise. The ciphertext
         // tempfile is roughly file-size on disk (never in RAM), and the
         // per-chunk plaintext buffer inside `open_stream` is bounded to
         // one `CHUNK_PLAINTEXT_SIZE` block.
-        let ct_tmp = tempfile::NamedTempFile::new().map_err(SyncProviderError::Io)?;
+        let ct_tmp = staging_tempfile(output_path).map_err(SyncProviderError::Io)?;
         let ct_path = ct_tmp.path().to_path_buf();
         let ct_info = self
             .inner
             .read_file_to_path(&object_key, &ct_path, None, on_progress)
             .await?;
 
-        if let Some(parent) = output_path.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(SyncProviderError::Io)?;
-        }
         let mut reader = tokio::io::BufReader::new(
             tokio::fs::File::open(&ct_path)
                 .await
@@ -461,8 +429,8 @@ impl SyncProvider for EncryptingSyncProvider {
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
         let (epoch, key) = self.seal_key().map_err(SyncProviderError::from)?;
-        let object_key = self
-            .get_or_mint_object_key(relative_path)
+        let (object_key, is_fresh) = self
+            .resolve_or_mint_object_key(relative_path)
             .await
             .map_err(SyncProviderError::from)?;
 
@@ -483,6 +451,17 @@ impl SyncProvider for EncryptingSyncProvider {
         self.write_sidecar(&object_key, &payload, &key, epoch)
             .await
             .map_err(SyncProviderError::from)?;
+
+        // Both uploads succeeded — safe to publish the mapping now.
+        // See `resolve_or_mint_object_key` for the deferred-persistence
+        // rationale (phantom manifest entries on failed uploads).
+        if is_fresh {
+            set_object_key(&self.db, &self.rule_id, relative_path, &object_key).map_err(|e| {
+                SyncProviderError::Other {
+                    reason: e.to_string(),
+                }
+            })?;
+        }
         Ok(())
     }
 
@@ -493,8 +472,8 @@ impl SyncProvider for EncryptingSyncProvider {
     ) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
         let (epoch, key) = self.seal_key().map_err(SyncProviderError::from)?;
-        let object_key = self
-            .get_or_mint_object_key(relative_path)
+        let (object_key, is_fresh) = self
+            .resolve_or_mint_object_key(relative_path)
             .await
             .map_err(SyncProviderError::from)?;
 
@@ -503,7 +482,11 @@ impl SyncProvider for EncryptingSyncProvider {
             .map_err(SyncProviderError::Io)?;
         let plaintext_len = meta.len();
 
-        let ct_tmp = tempfile::NamedTempFile::new().map_err(SyncProviderError::Io)?;
+        // Stage the ciphertext beside the source file so the tmp file
+        // lands on the same filesystem — `/tmp` is `tmpfs` on many Linux
+        // hosts, and the module doc promises multi-gigabyte ciphertext
+        // never lives in RAM.
+        let ct_tmp = staging_tempfile(source_path).map_err(SyncProviderError::Io)?;
         {
             let mut src = tokio::io::BufReader::new(
                 tokio::fs::File::open(source_path)
@@ -546,6 +529,15 @@ impl SyncProvider for EncryptingSyncProvider {
         self.write_sidecar(&object_key, &payload, &key, epoch)
             .await
             .map_err(SyncProviderError::from)?;
+
+        // Both uploads succeeded — safe to publish the mapping now.
+        if is_fresh {
+            set_object_key(&self.db, &self.rule_id, relative_path, &object_key).map_err(|e| {
+                SyncProviderError::Other {
+                    reason: e.to_string(),
+                }
+            })?;
+        }
         Ok(())
     }
 
@@ -634,6 +626,20 @@ impl EncryptingSyncProvider {
         Ok(EnvelopeHeader::parse(&hdr)
             .map_err(ProviderCryptoError::Crypto)?
             .epoch)
+    }
+}
+
+/// Create a `NamedTempFile` beside `target` so it shares a filesystem
+/// with the intended destination. `/tmp` on many Linux distributions
+/// is `tmpfs` (RAM-backed); the module doc promises multi-gigabyte
+/// ciphertext never lives in RAM, so staging a large file there would
+/// break that guarantee. Falls back to the OS temp dir only if
+/// `target` has no parent — an unrooted target implies a small write
+/// (say, in tests) where the fallback is harmless.
+fn staging_tempfile(target: &Path) -> std::io::Result<tempfile::NamedTempFile> {
+    match target.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => tempfile::NamedTempFile::new_in(dir),
+        _ => tempfile::NamedTempFile::new(),
     }
 }
 
