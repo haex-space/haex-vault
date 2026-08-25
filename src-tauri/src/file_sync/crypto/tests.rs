@@ -15,21 +15,19 @@ use super::{
     envelope::{is_envelope, EnvelopeHeader, ENVELOPE_VERSION, HEADER_SIZE, MAGIC, NONCE_SIZE},
 };
 
-fn fixed_key() -> [u8; 32] {
-    // Values are irrelevant for AEAD correctness; only that the same key is
-    // used on both seal and open in a given test.
+// Random per-test helpers. CodeQL flags literal seeds/nonces in test code as
+// hard-coded credentials even when the material is only used inside the
+// process (see CLAUDE.md `Test- & CI-Konventionen`), so every test draws
+// fresh bytes from the OS RNG.
+fn random_key() -> [u8; 32] {
     let mut k = [0u8; 32];
-    for (i, b) in k.iter_mut().enumerate() {
-        *b = (i as u8).wrapping_mul(7);
-    }
+    rand::fill(&mut k);
     k
 }
 
-fn fixed_nonce() -> [u8; NONCE_SIZE] {
+fn random_nonce() -> [u8; NONCE_SIZE] {
     let mut n = [0u8; NONCE_SIZE];
-    for (i, b) in n.iter_mut().enumerate() {
-        *b = ((i as u8).wrapping_add(3)).wrapping_mul(11);
-    }
+    rand::fill(&mut n);
     n
 }
 
@@ -37,7 +35,7 @@ fn fixed_nonce() -> [u8; NONCE_SIZE] {
 
 #[test]
 fn header_roundtrip_preserves_all_fields() {
-    let hdr = EnvelopeHeader::new(0xdead_beef_cafe_babe, fixed_nonce());
+    let hdr = EnvelopeHeader::new(0xdead_beef_cafe_babe, random_nonce());
     let bytes = hdr.to_bytes();
     assert_eq!(bytes.len(), HEADER_SIZE);
     assert_eq!(bytes[..4], MAGIC);
@@ -47,7 +45,7 @@ fn header_roundtrip_preserves_all_fields() {
 
 #[test]
 fn header_write_leaves_trailing_bytes_untouched() {
-    let hdr = EnvelopeHeader::new(1, fixed_nonce());
+    let hdr = EnvelopeHeader::new(1, random_nonce());
     let mut buf = vec![0xAAu8; HEADER_SIZE + 8];
     hdr.write(&mut buf).unwrap();
     assert!(buf[HEADER_SIZE..].iter().all(|b| *b == 0xAA));
@@ -64,7 +62,7 @@ fn header_rejects_short_input() {
 
 #[test]
 fn header_rejects_bad_magic() {
-    let hdr = EnvelopeHeader::new(1, fixed_nonce());
+    let hdr = EnvelopeHeader::new(1, random_nonce());
     let mut bytes = hdr.to_bytes();
     bytes[0] ^= 0xFF;
     assert!(matches!(
@@ -77,7 +75,7 @@ fn header_rejects_bad_magic() {
 fn header_rejects_unknown_version() {
     // Version is the only migration hook; a future writer MUST bump it, and a
     // current reader MUST refuse to touch a future-versioned object.
-    let hdr = EnvelopeHeader::new(1, fixed_nonce());
+    let hdr = EnvelopeHeader::new(1, random_nonce());
     let mut bytes = hdr.to_bytes();
     bytes[4] = ENVELOPE_VERSION.wrapping_add(1);
     assert!(matches!(
@@ -94,7 +92,7 @@ fn header_rejects_unknown_version() {
 
 #[test]
 fn header_write_fails_on_undersized_buffer() {
-    let hdr = EnvelopeHeader::new(1, fixed_nonce());
+    let hdr = EnvelopeHeader::new(1, random_nonce());
     let mut too_small = vec![0u8; HEADER_SIZE - 1];
     assert!(matches!(
         hdr.write(&mut too_small),
@@ -115,7 +113,7 @@ fn is_envelope_detects_magic() {
 
 #[test]
 fn chunk_nonces_are_distinct_across_indices() {
-    let fnonce = fixed_nonce();
+    let fnonce = random_nonce();
     let n0 = chunk_nonce(&fnonce, 0);
     let n1 = chunk_nonce(&fnonce, 1);
     let n_max = chunk_nonce(&fnonce, u64::MAX);
@@ -130,8 +128,8 @@ fn chunk_nonces_are_distinct_across_indices() {
 // ── seal / open roundtrip ───────────────────────────────────────────
 
 fn assert_roundtrip(size: usize) {
-    let key = fixed_key();
-    let fnonce = fixed_nonce();
+    let key = random_key();
+    let fnonce = random_nonce();
     let plain: Vec<u8> = (0..size).map(|i| (i as u8).wrapping_mul(31)).collect();
     let ct = seal_chunk(&key, &fnonce, 0, &plain).expect("seal");
     assert_eq!(ct.len(), plain.len() + TAG_SIZE);
@@ -165,8 +163,8 @@ fn roundtrip_full_chunk() {
 
 #[test]
 fn tampering_a_single_byte_fails_open() {
-    let key = fixed_key();
-    let fnonce = fixed_nonce();
+    let key = random_key();
+    let fnonce = random_nonce();
     let plain = b"payload that must survive a bit-flip attempt";
     let mut ct = seal_chunk(&key, &fnonce, 0, plain).unwrap();
     // Flip a bit somewhere in the ciphertext body (not the tag suffix — we
@@ -180,8 +178,8 @@ fn tampering_a_single_byte_fails_open() {
 
 #[test]
 fn tampering_the_tag_fails_open() {
-    let key = fixed_key();
-    let fnonce = fixed_nonce();
+    let key = random_key();
+    let fnonce = random_nonce();
     let plain = b"payload";
     let mut ct = seal_chunk(&key, &fnonce, 0, plain).unwrap();
     let last = ct.len() - 1;
@@ -196,8 +194,8 @@ fn tampering_the_tag_fails_open() {
 fn wrong_chunk_index_fails_open() {
     // Chunk-index binding via nonce derivation: swapping indices at open time
     // is indistinguishable from ciphertext corruption.
-    let key = fixed_key();
-    let fnonce = fixed_nonce();
+    let key = random_key();
+    let fnonce = random_nonce();
     let ct = seal_chunk(&key, &fnonce, 0, b"payload").unwrap();
     assert!(matches!(
         open_chunk(&key, &fnonce, 1, &ct),
@@ -207,10 +205,10 @@ fn wrong_chunk_index_fails_open() {
 
 #[test]
 fn wrong_key_fails_open() {
-    let key = fixed_key();
-    let mut bad_key = fixed_key();
+    let key = random_key();
+    let mut bad_key = random_key();
     bad_key[0] ^= 0x01;
-    let fnonce = fixed_nonce();
+    let fnonce = random_nonce();
     let ct = seal_chunk(&key, &fnonce, 0, b"payload").unwrap();
     assert!(matches!(
         open_chunk(&bad_key, &fnonce, 0, &ct),
@@ -220,8 +218,8 @@ fn wrong_key_fails_open() {
 
 #[test]
 fn seal_rejects_oversized_chunk() {
-    let key = fixed_key();
-    let fnonce = fixed_nonce();
+    let key = random_key();
+    let fnonce = random_nonce();
     let too_big = vec![0u8; CHUNK_PLAINTEXT_SIZE + 1];
     assert!(matches!(
         seal_chunk(&key, &fnonce, 0, &too_big),
@@ -231,8 +229,8 @@ fn seal_rejects_oversized_chunk() {
 
 #[test]
 fn open_rejects_ciphertext_shorter_than_tag() {
-    let key = fixed_key();
-    let fnonce = fixed_nonce();
+    let key = random_key();
+    let fnonce = random_nonce();
     let too_short = vec![0u8; TAG_SIZE - 1];
     assert!(matches!(
         open_chunk(&key, &fnonce, 0, &too_short),
@@ -267,7 +265,7 @@ fn ciphertext_len_matches_seal_for_one_byte() {
     let expected = HEADER_SIZE as u64 + 1 + TAG_SIZE as u64;
     assert_eq!(ciphertext_len(1), expected);
     // And the primitive agrees: one 1-byte chunk gives (plaintext + tag) bytes.
-    let ct = seal_chunk(&fixed_key(), &fixed_nonce(), 0, &[0xAB]).unwrap();
+    let ct = seal_chunk(&random_key(), &random_nonce(), 0, &[0xAB]).unwrap();
     assert_eq!(HEADER_SIZE as u64 + ct.len() as u64, expected);
 }
 
