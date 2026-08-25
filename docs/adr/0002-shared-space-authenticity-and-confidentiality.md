@@ -290,7 +290,10 @@ nach dem Entschlüsseln, bevor gemergt wird.
   verschlüsseln.
 - **Dateien (Cloud-Ziele):** File-Content mit dem Epoch-Key verschlüsseln, im
   `file_sync`-Engine am `cloud_provider`-Pfad. Der Storage-Betreiber ist ein Dritter
-  ohne Key; heute liegt dort alles im Klartext. Verbindliche Form:
+  ohne Key; heute liegt dort alles im Klartext.
+  🟡 **Rust-Primitiven + Decorator gelandet (Round A–D, PRs #827/#828/#829/#830,
+  Stand 2026-08-25); Production-Wiring in `commands.rs::create_provider`
+  und Legacy-Migration folgen als eigene PRs.** Verbindliche Form:
   - **Opake Object-Keys.** Der Objektname ist eine Zufalls-ID, nicht der relative Pfad.
     Andernfalls lernt der Betreiber Dateinamen und Ordnerstruktur — die bei einem Vault
     regelmäßig so sensibel sind wie der Inhalt selbst.
@@ -533,6 +536,13 @@ Sync, damit Extension-Daten nie ungeschützt fließen).
   verbleibt daher **nur der Datei-Pfad, und dort nur die Cloud-Ziele**: Content-
   Verschlüsselung mit dem Epoch-Key, opake Object-Keys, Metadata-Sidecars und
   Chunk-Envelope gemäß §4e. P2P-Datei-Transfer bleibt Klartext (Begründung in §4e).
+  🟡 **Runden A–D landing (PRs #827/#828/#829/#830, 2026-08-25):** Envelope +
+  Chunk-AEAD, Shared-Space-Key-Resolver, Sidecar + Object-Key-Mapping,
+  `EncryptingSyncProvider`-Decorator und die beiden Fallstrick-Fixes (Klartextgröße
+  im Manifest, `object_key`-Preservation im Upsert) sind gelandet. **Offen:**
+  Provider-Wiring in `commands.rs::create_provider`, VaultKey-Transport
+  TS→Rust (own-vault-Pfad), Legacy-Klartext-Migration (Runde E), E2E-Attack-Spec
+  in `haex-e2e-tests` (Runde F). Plan-Doc `docs/plans/2026-08-25-phase4-file-content-encryption.md`.
 
 Jede Phase ist für sich testbar und liefert Wert.
 
