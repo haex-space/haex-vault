@@ -380,7 +380,14 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
         }
     }
 
-    // 4. Release the per-vault advisory lock so another instance (or a
+    // 4. Drop cached file-content keys. The cache is process-wide but the
+    //    keys belong to the vault being closed, so leaving them resident
+    //    would both outlive the lock and let a subsequently mounted vault
+    //    resolve a shared space's key without touching its own DB.
+    crate::file_sync::crypto::clear_key_cache();
+    println!("[CLOSE_DB] File-content key cache cleared");
+
+    // 5. Release the per-vault advisory lock so another instance (or a
     //    subsequent `open_encrypted_database` in this process) can mount
     //    the same vault again. Dropping the `VaultLock` releases flock.
     release_vault_lock(&state);
