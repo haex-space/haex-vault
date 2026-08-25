@@ -58,10 +58,14 @@
 
 ## Codebase-Fragen & Recherche
 
-- **Bei Codebase-Fragen zuerst `graphify query "<frage>"`** wenn `graphify-out/graph.json` existiert. Auch `graphify path`/`graphify explain`. Deutlich billiger als grep + Read.
+- **Bei Codebase-Fragen zuerst graphify** wenn `graphify-out/graph.json` existiert — deutlich billiger als grep + Read. Aber die Werkzeuge sind NICHT gleichwertig:
+  - **`graphify explain "<Symbol>"` und `graphify path "<A>" "<B>"` sind die verlässlichen** — der Graph besteht aus AST-extrahierten Code-Symbolen, also funktionieren echte Typ-/Funktionsnamen (`CloudProvider`, `MlsManager`, `FileState`).
+  - **`graphify query "<Prosa-Frage>"` führt in die Irre.** Die Start-Node-Suche matcht auf Token-Ebene, nicht semantisch: eine Frage nach dem MLS-Epoch-Key landete auf dem `epoch`-Feld im `rpm`-Block von `tauri.conf.json`. Bei konzeptuellen Fragen ("wo fehlt X", "wie hängt Y zusammen") liefert query nichts Brauchbares — dann gezielt grepen.
+  - **SQL-Tabellennamen sind keine Nodes** (`haex_mls_sync_keys` & Co. stehen als String im Code). Für Tabellen immer grep, nie graphify.
 - **`graphify-out/wiki/index.md` für breite Navigation** statt raw source browsing.
 - **`graphify-out/GRAPH_REPORT.md` nur für Architektur-Reviews** oder wenn query/path/explain nicht reichen.
-- **Nach Code-Änderungen: `graphify update .`** (AST-only, no API cost).
+- **Nach Code-Änderungen: `graphify update .`** (AST-only, no API cost). Hat ein Commit netto Code entfernt, blockt der Shrink-Guard (`refusing to overwrite`, #479) — dann `graphify update --force`, nachdem verifiziert ist, dass das Schrumpfen zur Änderung passt.
+- **Kanten liegen in `graph.json` unter `links`**, nicht unter `edges` — ein Check auf `edges` meldet fälschlich 0.
 - **`claude -p` für graphify-Subsessions braucht Permission-Flags**, sonst hängt Sub-Session auf Bash-Approval.
 
 ## Zusammenarbeit & Kommunikation
