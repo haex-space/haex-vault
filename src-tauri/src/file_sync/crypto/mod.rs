@@ -1,9 +1,11 @@
 //! File-content envelope + chunk-level AEAD for Phase 4 (cloud file sync).
 //!
-//! **Scope:** primitives only — no I/O, no key resolution, no provider glue.
-//! Higher rounds (see `docs/plans/2026-08-25-phase4-file-content-encryption.md`)
-//! layer key lookup (Round B), sidecar/object-key mapping (Round C), and
-//! provider wiring (Round D) on top of these primitives.
+//! **Scope:** the AEAD primitives ([`chunk`], [`envelope`]) plus shared-space
+//! key resolution ([`key_resolver`], Round B). The primitives themselves do no
+//! I/O; `key_resolver` reads `haex_mls_sync_keys` and therefore needs a live
+//! [`DbConnection`](crate::database::DbConnection). Higher rounds (see
+//! `docs/plans/2026-08-25-phase4-file-content-encryption.md`) layer
+//! sidecar/object-key mapping (Round C) and provider wiring (Round D) on top.
 //!
 //! ## Envelope layout on disk
 //!
@@ -43,4 +45,4 @@ pub use chunk::{
     CHUNK_CIPHERTEXT_SIZE, CHUNK_PLAINTEXT_SIZE, TAG_SIZE,
 };
 pub use envelope::{EnvelopeHeader, ENVELOPE_VERSION, HEADER_SIZE, MAGIC, NONCE_SIZE};
-pub use key_resolver::{resolve_key, resolve_latest, KeyError, KEY_LEN};
+pub use key_resolver::{clear_key_cache, resolve_key, resolve_latest, KeyError, KEY_LEN};

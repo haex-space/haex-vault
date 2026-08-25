@@ -360,7 +360,9 @@ mod key_resolver {
     use rusqlite::{params, Connection};
     use uuid::Uuid;
 
-    use super::super::key_resolver::{resolve_key, resolve_latest, KeyError, KEY_LEN};
+    use super::super::key_resolver::{
+        clear_key_cache, derive_file_key, resolve_key, resolve_latest, KeyError, KEY_LEN,
+    };
     use crate::database::DbConnection;
 
     // Tests hit the DB directly through rusqlite — they exercise the key
@@ -433,14 +435,36 @@ mod key_resolver {
         Uuid::new_v4().to_string()
     }
 
+    // KEY_CACHE is process-wide and `clear_key_cache` wipes every entry, so a
+    // test that relies on its entry surviving must not run while another test
+    // clears the cache. A fresh space_id isolates the *key*, not the flush.
+    static CACHE_TESTS: Mutex<()> = Mutex::new(());
+
+    fn lock_cache_tests() -> std::sync::MutexGuard<'static, ()> {
+        CACHE_TESTS.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     #[test]
-    fn resolve_key_returns_stored_key() {
+    fn resolve_key_returns_domain_separated_key() {
+        // The resolver hands out BLAKE3(FILE_KEY_CONTEXT, sync_key), never the
+        // stored bytes — those are the CRDT sync-payload key (push.ts /
+        // pull/apply.ts) and must not double as the file-content AEAD key.
         let db = setup_db();
         let space = fresh_space_id();
-        let key = random_key();
-        seed_key(&db, &space, 3, &key);
+        let sync_key = random_key();
+        seed_key(&db, &space, 3, &sync_key);
         let got = resolve_key(&space, 3, &db).expect("resolve");
-        assert_eq!(got, key);
+        assert_eq!(got, derive_file_key(&sync_key));
+        assert_ne!(got, sync_key, "file key must not equal the sync key");
+    }
+
+    #[test]
+    fn derive_file_key_is_injective_over_distinct_sync_keys() {
+        let a = random_key();
+        let mut b = a;
+        b[0] ^= 0x01;
+        assert_ne!(derive_file_key(&a), derive_file_key(&b));
+        assert_eq!(derive_file_key(&a), derive_file_key(&a));
     }
 
     #[test]
@@ -473,28 +497,84 @@ mod key_resolver {
     }
 
     #[test]
-    fn resolve_latest_returns_highest_epoch() {
+    fn resolve_latest_never_picks_the_db_max_epoch() {
+        // Attack shape: `haex_mls_sync_keys` is a membership-system table, so
+        // any member holding only Cap::Read can push a row for this space and
+        // `owner_column_for` applies no per-row ownership check. If the seal
+        // path picked `ORDER BY epoch DESC LIMIT 1`, one row with an absurd
+        // epoch would pin every future seal to an attacker-chosen key.
+        //
+        // The epoch must come from the local MLS group instead. There is no
+        // group here, so the resolver has to refuse — not hand back epoch
+        // 4611686018427387904.
         let db = setup_db();
         let space = fresh_space_id();
-        let key1 = random_key();
-        let key3 = random_key();
-        let key5 = random_key();
-        // Insert out of order to catch a naive "last INSERT wins" bug.
-        seed_key(&db, &space, 1, &key1);
-        seed_key(&db, &space, 5, &key5);
-        seed_key(&db, &space, 3, &key3);
-        let (epoch, key) = resolve_latest(&space, &db).expect("latest");
-        assert_eq!(epoch, 5);
-        assert_eq!(key, key5);
+        seed_key(&db, &space, 1, &random_key());
+        seed_key(&db, &space, 4_611_686_018_427_387_904, &random_key());
+        let err = resolve_latest(&space, &db).unwrap_err();
+        assert!(
+            matches!(&err, KeyError::MlsEpochUnavailable { space_id, .. } if space_id == &space),
+            "seal path must not read the epoch from the DB, got: {err}",
+        );
     }
 
     #[test]
-    fn resolve_latest_no_rows_errors_cleanly() {
+    fn resolve_latest_without_local_group_errors_cleanly() {
         let db = setup_db();
         let space = fresh_space_id();
         let err = resolve_latest(&space, &db).unwrap_err();
         assert!(
-            matches!(&err, KeyError::NoEpochsForSpace { space_id } if space_id == &space),
+            matches!(&err, KeyError::MlsEpochUnavailable { space_id, .. } if space_id == &space),
+            "unexpected: {err}",
+        );
+    }
+
+    #[test]
+    fn resolve_key_rejects_conflicting_rows() {
+        // No UNIQUE(space_id, epoch) exists and each device mints its own row
+        // `id`, so a forged second row for an epoch replicates alongside the
+        // honest one. Picking whichever the scan reaches first would be a coin
+        // flip between the real key and the attacker's.
+        let db = setup_db();
+        let space = fresh_space_id();
+        seed_key(&db, &space, 9, &random_key());
+        seed_key(&db, &space, 9, &random_key());
+        let err = resolve_key(&space, 9, &db).unwrap_err();
+        assert!(
+            matches!(&err, KeyError::AmbiguousKey { epoch: 9, count: 2, space_id } if space_id == &space),
+            "unexpected: {err}",
+        );
+    }
+
+    #[test]
+    fn resolve_key_accepts_identical_duplicate_rows() {
+        // Two members exporting the same epoch before either has seen the
+        // other's row is normal — both derive the same exporter output, so the
+        // duplicate is benign and must not be treated as a conflict.
+        let db = setup_db();
+        let space = fresh_space_id();
+        let sync_key = random_key();
+        seed_key(&db, &space, 9, &sync_key);
+        seed_key(&db, &space, 9, &sync_key);
+        let got = resolve_key(&space, 9, &db).expect("benign duplicate");
+        assert_eq!(got, derive_file_key(&sync_key));
+    }
+
+    #[test]
+    fn clear_key_cache_forces_a_db_reread() {
+        // Vault close drops the cache (see database::create::close_database),
+        // so a key whose row is gone must no longer resolve afterwards.
+        let _guard = lock_cache_tests();
+        let db = setup_db();
+        let space = fresh_space_id();
+        let key = random_key();
+        seed_key(&db, &space, 11, &key);
+        resolve_key(&space, 11, &db).expect("first");
+        delete_key(&db, &space, 11);
+        clear_key_cache();
+        let err = resolve_key(&space, 11, &db).unwrap_err();
+        assert!(
+            matches!(err, KeyError::EpochNotFound { epoch: 11, .. }),
             "unexpected: {err}",
         );
     }
@@ -505,17 +585,23 @@ mod key_resolver {
         // ask again. The cached value must still be served — otherwise the
         // second call would surface EpochNotFound.
         //
+        // This is deliberately *not* a revocation boundary: deleting the row
+        // does not evict the key. `clear_key_cache` is the eviction hook, and
+        // vault close is the only caller — see
+        // `clear_key_cache_forces_a_db_reread`.
+        //
         // The fresh UUID space_id isolates this test's cache entry from every
         // other test's, so no explicit KEY_CACHE reset is needed.
+        let _guard = lock_cache_tests();
         let db = setup_db();
         let space = fresh_space_id();
         let key = random_key();
         seed_key(&db, &space, 42, &key);
         let first = resolve_key(&space, 42, &db).expect("first");
-        assert_eq!(first, key);
+        assert_eq!(first, derive_file_key(&key));
         delete_key(&db, &space, 42);
         let second = resolve_key(&space, 42, &db).expect("cached second");
-        assert_eq!(second, key);
+        assert_eq!(second, first);
     }
 
     #[test]
