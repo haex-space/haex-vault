@@ -1,11 +1,16 @@
 //! File-content envelope + chunk-level AEAD for Phase 4 (cloud file sync).
 //!
-//! **Scope:** the AEAD primitives ([`chunk`], [`envelope`]) plus shared-space
-//! key resolution ([`key_resolver`], Round B). The primitives themselves do no
-//! I/O; `key_resolver` reads `haex_mls_sync_keys` and therefore needs a live
-//! [`DbConnection`](crate::database::DbConnection). Higher rounds (see
-//! `docs/plans/2026-08-25-phase4-file-content-encryption.md`) layer
-//! sidecar/object-key mapping (Round C) and provider wiring (Round D) on top.
+//! **Scope:** the AEAD primitives ([`chunk`], [`envelope`]), shared-space
+//! key resolution ([`key_resolver`], Round B), and the metadata
+//! sidecar/object-key mapping ([`sidecar`], [`object_key`], Round C). The
+//! chunk/envelope primitives do no I/O; `key_resolver` and `object_key` read
+//! and write via a live [`DbConnection`](crate::database::DbConnection), and
+//! `object_key::bootstrap_object_key_cache` additionally talks to a
+//! [`StorageBackend`](crate::remote_storage::backend::StorageBackend) to
+//! list/download sidecars. Provider wiring (Round D — see
+//! `docs/plans/2026-08-25-phase4-file-content-encryption.md`) layers the
+//! actual `SyncProvider` decorator on top; nothing in this module touches
+//! `cloud_provider.rs`.
 //!
 //! ## Envelope layout on disk
 //!
@@ -36,6 +41,8 @@
 pub mod chunk;
 pub mod envelope;
 pub mod key_resolver;
+pub mod object_key;
+pub mod sidecar;
 
 #[cfg(test)]
 mod tests;
@@ -46,3 +53,8 @@ pub use chunk::{
 };
 pub use envelope::{EnvelopeHeader, ENVELOPE_VERSION, HEADER_SIZE, MAGIC, NONCE_SIZE};
 pub use key_resolver::{clear_key_cache, resolve_key, resolve_latest, KeyError, KEY_LEN};
+pub use object_key::{
+    bootstrap_object_key_cache, generate_object_key, sidecar_key_for, BootstrapReport,
+    ObjectKeyError, SIDECAR_SUFFIX,
+};
+pub use sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};

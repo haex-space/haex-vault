@@ -627,3 +627,517 @@ mod key_resolver {
         assert!(matches!(err, KeyError::Decode { .. }), "unexpected: {err}");
     }
 }
+
+// ── Sidecar payload (Round C) ───────────────────────────────────────
+
+mod sidecar {
+    use super::super::chunk::{CryptoError, CHUNK_PLAINTEXT_SIZE};
+    use super::super::envelope::NONCE_SIZE;
+    use super::super::sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};
+
+    fn random_key() -> [u8; 32] {
+        let mut k = [0u8; 32];
+        rand::fill(&mut k);
+        k
+    }
+
+    fn random_nonce() -> [u8; NONCE_SIZE] {
+        let mut n = [0u8; NONCE_SIZE];
+        rand::fill(&mut n);
+        n
+    }
+
+    fn sample_payload() -> SidecarPayload {
+        SidecarPayload {
+            relative_path: "docs/report.pdf".to_string(),
+            size: 123_456,
+            modified_at: 1_700_000_000,
+            content_type: Some("application/pdf".to_string()),
+            blake3: "a".repeat(64),
+        }
+    }
+
+    #[test]
+    fn seal_open_roundtrip_preserves_payload() {
+        let key = random_key();
+        let ct = seal_sidecar(&key, 7, random_nonce(), &sample_payload()).expect("seal");
+        let (header, payload) = open_sidecar(&key, &ct).expect("open");
+        assert_eq!(header.epoch, 7);
+        assert_eq!(payload, sample_payload());
+    }
+
+    #[test]
+    fn seal_is_deterministic_for_same_inputs() {
+        // Struct field order (not a HashMap) drives serde_json output, so two
+        // seals of the same payload/key/nonce/epoch must produce identical
+        // bytes — this is what lets the AEAD step be a pure function of its
+        // inputs.
+        let key = random_key();
+        let nonce = random_nonce();
+        let a = seal_sidecar(&key, 3, nonce, &sample_payload()).unwrap();
+        let b = seal_sidecar(&key, 3, nonce, &sample_payload()).unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn open_rejects_wrong_key() {
+        let key = random_key();
+        let mut wrong_key = random_key();
+        wrong_key[0] ^= 0x01;
+        let ct = seal_sidecar(&key, 1, random_nonce(), &sample_payload()).unwrap();
+        assert!(matches!(
+            open_sidecar(&wrong_key, &ct),
+            Err(SidecarError::Crypto(CryptoError::OpenFailed))
+        ));
+    }
+
+    #[test]
+    fn open_rejects_tampered_ciphertext() {
+        let key = random_key();
+        let mut ct = seal_sidecar(&key, 1, random_nonce(), &sample_payload()).unwrap();
+        let last = ct.len() - 1;
+        ct[last] ^= 0x80;
+        assert!(matches!(
+            open_sidecar(&key, &ct),
+            Err(SidecarError::Crypto(CryptoError::OpenFailed))
+        ));
+    }
+
+    #[test]
+    fn open_rejects_non_envelope_bytes() {
+        let key = random_key();
+        // Must be >= HEADER_SIZE (37 bytes) so parsing reaches the magic
+        // check instead of short-circuiting on length first.
+        let not_an_envelope = vec![0u8; 40];
+        assert!(matches!(
+            open_sidecar(&key, &not_an_envelope),
+            Err(SidecarError::Crypto(CryptoError::BadMagic))
+        ));
+    }
+
+    #[test]
+    fn open_rejects_too_short_bytes() {
+        let key = random_key();
+        assert!(matches!(
+            open_sidecar(&key, b"short"),
+            Err(SidecarError::Crypto(CryptoError::HeaderTooShort))
+        ));
+    }
+
+    #[test]
+    fn seal_spans_multiple_chunks_for_oversized_payload() {
+        // Sidecars are always small in practice, but the primitive stays
+        // honest for a payload that happens to straddle a chunk boundary —
+        // e.g. an unusually long content_type or relative_path.
+        let key = random_key();
+        let mut payload = sample_payload();
+        payload.relative_path = "x".repeat(CHUNK_PLAINTEXT_SIZE + 1000);
+        let ct = seal_sidecar(&key, 1, random_nonce(), &payload).unwrap();
+        let (_, opened) = open_sidecar(&key, &ct).unwrap();
+        assert_eq!(opened, payload);
+    }
+}
+
+// ── Object-key cache + bootstrap (Round C) ──────────────────────────
+
+mod object_key {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex as StdMutex};
+
+    use async_trait::async_trait;
+    use base64::Engine;
+    use rusqlite::{params, Connection};
+    use uuid::Uuid;
+
+    use super::super::key_resolver::derive_file_key;
+    use super::super::object_key::{
+        bootstrap_object_key_cache, generate_object_key, object_key_known, sidecar_key_for,
+        upsert_bootstrap_entry,
+    };
+    use super::super::sidecar::SidecarPayload;
+    use crate::database::DbConnection;
+    use crate::remote_storage::backend::StorageBackend;
+    use crate::remote_storage::error::StorageError;
+    use crate::remote_storage::types::StorageObjectInfo;
+
+    fn random_key() -> [u8; 32] {
+        let mut k = [0u8; 32];
+        rand::fill(&mut k);
+        k
+    }
+
+    fn random_nonce() -> [u8; super::super::envelope::NONCE_SIZE] {
+        let mut n = [0u8; super::super::envelope::NONCE_SIZE];
+        rand::fill(&mut n);
+        n
+    }
+
+    // ── In-memory DB matching engine::state's test schema, plus
+    //    haex_mls_sync_keys for the key resolver and the object_key column
+    //    this module's migration adds. ────────────────────────────────────
+    fn setup_db() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("in-memory DB");
+        conn.execute_batch(
+            "CREATE TABLE haex_crdt_configs_no_sync (
+                key TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                value TEXT NOT NULL
+            );
+            CREATE TABLE haex_crdt_dirty_tables_no_sync (
+                table_name TEXT PRIMARY KEY,
+                last_modified TEXT
+            );
+            CREATE TABLE haex_sync_state_no_sync (
+                id TEXT PRIMARY KEY NOT NULL,
+                rule_id TEXT NOT NULL,
+                relative_path TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                modified_at INTEGER NOT NULL,
+                synced_at TEXT NOT NULL,
+                deleted INTEGER DEFAULT 0 NOT NULL,
+                hash TEXT,
+                object_key TEXT
+            );
+            CREATE UNIQUE INDEX haex_sync_state_rule_path_unique
+                ON haex_sync_state_no_sync (rule_id, relative_path);
+            CREATE TABLE haex_mls_sync_keys (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                epoch INTEGER NOT NULL,
+                key_data TEXT NOT NULL,
+                authored_by_did TEXT
+            );",
+        )
+        .expect("schema setup");
+        DbConnection(Arc::new(StdMutex::new(Some(conn))))
+    }
+
+    fn seed_mls_key(db: &DbConnection, space_id: &str, epoch: u64, key: &[u8; 32]) {
+        let guard = db.0.lock().expect("db lock");
+        let conn = guard.as_ref().expect("db open");
+        conn.execute(
+            "INSERT INTO haex_mls_sync_keys (id, space_id, epoch, key_data) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                Uuid::new_v4().to_string(),
+                space_id,
+                epoch as i64,
+                base64::engine::general_purpose::STANDARD.encode(key)
+            ],
+        )
+        .expect("seed mls key");
+    }
+
+    // ── Fake backend: in-memory key -> bytes map, only `list`/`download`
+    //    are exercised by bootstrap. ─────────────────────────────────────
+    struct FakeBackend {
+        objects: HashMap<String, Vec<u8>>,
+    }
+
+    impl FakeBackend {
+        fn new() -> Self {
+            Self {
+                objects: HashMap::new(),
+            }
+        }
+
+        fn put(&mut self, key: &str, bytes: Vec<u8>) {
+            self.objects.insert(key.to_string(), bytes);
+        }
+    }
+
+    #[async_trait]
+    impl StorageBackend for FakeBackend {
+        fn backend_type(&self) -> &'static str {
+            "fake"
+        }
+
+        async fn test_connection(&self) -> Result<(), StorageError> {
+            Ok(())
+        }
+
+        async fn upload(&self, _key: &str, _data: &[u8]) -> Result<(), StorageError> {
+            unimplemented!("bootstrap never uploads")
+        }
+
+        async fn download(&self, key: &str) -> Result<Vec<u8>, StorageError> {
+            self.objects
+                .get(key)
+                .cloned()
+                .ok_or_else(|| StorageError::ObjectNotFound {
+                    key: key.to_string(),
+                })
+        }
+
+        async fn delete(&self, _key: &str) -> Result<(), StorageError> {
+            unimplemented!("bootstrap never deletes")
+        }
+
+        async fn exists(&self, key: &str) -> Result<bool, StorageError> {
+            Ok(self.objects.contains_key(key))
+        }
+
+        async fn list(&self, prefix: Option<&str>) -> Result<Vec<StorageObjectInfo>, StorageError> {
+            let prefix = prefix.unwrap_or("");
+            Ok(self
+                .objects
+                .keys()
+                .filter(|k| k.starts_with(prefix))
+                .map(|k| StorageObjectInfo {
+                    key: k.clone(),
+                    size: self.objects[k].len() as u64,
+                    last_modified: None,
+                })
+                .collect())
+        }
+        // list_dir / upload_from_path / download_to_path: default impls
+        // suffice — bootstrap only ever calls `list` and `download`, and the
+        // defaults route through those two (or the `unimplemented!` stubs
+        // above) anyway, so there's no need to override them here.
+    }
+
+    fn seal_and_put(
+        backend: &mut FakeBackend,
+        key: &str,
+        sync_key: &[u8; 32],
+        epoch: u64,
+        payload: &SidecarPayload,
+    ) {
+        // Seal under the *derived* file-content key, matching what
+        // `resolve_key` (production code) actually hands back — sealing
+        // under the raw sync key would make every bootstrap decrypt fail,
+        // since `recover_sidecar` opens with the derived key. See the
+        // module-level "Key separation" doc on `key_resolver`.
+        let aead_key = derive_file_key(sync_key);
+        let ct = super::super::sidecar::seal_sidecar(&aead_key, epoch, random_nonce(), payload)
+            .expect("seal sidecar");
+        backend.put(&sidecar_key_for(key), ct);
+        // Content object itself is opaque to bootstrap — any bytes suffice.
+        backend.put(key, vec![0u8; 8]);
+    }
+
+    #[test]
+    fn generate_object_key_has_expected_shape() {
+        let key = generate_object_key();
+        assert!(key.starts_with("o/"));
+        assert_eq!(key.len(), 2 + 32, "prefix + 32 hex chars for 128 bits");
+        assert!(key[2..].chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn generate_object_key_is_random() {
+        let a = generate_object_key();
+        let b = generate_object_key();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn sidecar_key_for_appends_suffix() {
+        assert_eq!(sidecar_key_for("o/abc"), "o/abc.m");
+    }
+
+    #[tokio::test]
+    async fn bootstrap_recovers_paired_objects() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 5, &sync_key);
+
+        let mut backend = FakeBackend::new();
+        let object_key = "o/deadbeef";
+        seal_and_put(
+            &mut backend,
+            object_key,
+            &sync_key,
+            5,
+            &SidecarPayload {
+                relative_path: "notes/todo.md".to_string(),
+                size: 42,
+                modified_at: 1_700_000_000,
+                content_type: Some("text/markdown".to_string()),
+                blake3: "b".repeat(64),
+            },
+        );
+
+        let report = bootstrap_object_key_cache(&backend, "", &space, &rule_id, &db)
+            .await
+            .expect("bootstrap");
+
+        assert_eq!(report.recovered, 1);
+        assert_eq!(report.already_known, 0);
+        assert!(report.orphan_content.is_empty());
+        assert!(report.orphan_sidecar.is_empty());
+        assert!(report.failed_sidecars.is_empty());
+        assert!(object_key_known(&db, &rule_id, object_key).unwrap());
+    }
+
+    #[tokio::test]
+    async fn bootstrap_skips_already_known_object_keys() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+
+        let mut backend = FakeBackend::new();
+        let object_key = "o/already";
+        seal_and_put(
+            &mut backend,
+            object_key,
+            &sync_key,
+            1,
+            &SidecarPayload {
+                relative_path: "a.txt".to_string(),
+                size: 1,
+                modified_at: 1,
+                content_type: None,
+                blake3: "c".repeat(64),
+            },
+        );
+
+        // Pre-seed the cache so bootstrap must not re-download the sidecar.
+        upsert_bootstrap_entry(&db, &rule_id, "a.txt", object_key, 1, 1, &"c".repeat(64)).unwrap();
+
+        let report = bootstrap_object_key_cache(&backend, "", &space, &rule_id, &db)
+            .await
+            .expect("bootstrap");
+
+        assert_eq!(report.recovered, 0);
+        assert_eq!(report.already_known, 1);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_reports_orphan_content_without_deleting() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+
+        let mut backend = FakeBackend::new();
+        backend.put("o/lonely", vec![1, 2, 3]);
+
+        let report = bootstrap_object_key_cache(&backend, "", &space, &rule_id, &db)
+            .await
+            .expect("bootstrap");
+
+        assert_eq!(report.orphan_content, vec!["o/lonely".to_string()]);
+        assert_eq!(report.recovered, 0);
+        // Defined action for orphan content is deferred to Round D — the
+        // object must still be present, bootstrap never deletes.
+        assert!(backend.objects.contains_key("o/lonely"));
+    }
+
+    #[tokio::test]
+    async fn bootstrap_reports_orphan_sidecar_and_ignores_it() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+
+        let mut backend = FakeBackend::new();
+        let ct = super::super::sidecar::seal_sidecar(
+            &derive_file_key(&sync_key),
+            1,
+            random_nonce(),
+            &SidecarPayload {
+                relative_path: "orphaned.txt".to_string(),
+                size: 0,
+                modified_at: 0,
+                content_type: None,
+                blake3: "d".repeat(64),
+            },
+        )
+        .unwrap();
+        backend.put("o/nomatch.m", ct);
+
+        let report = bootstrap_object_key_cache(&backend, "", &space, &rule_id, &db)
+            .await
+            .expect("bootstrap");
+
+        assert_eq!(report.orphan_sidecar, vec!["o/nomatch.m".to_string()]);
+        assert_eq!(report.recovered, 0);
+        assert_eq!(report.already_known, 0);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_records_failure_without_aborting_other_entries() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let good_key_material = random_key();
+        // Seed epoch 1 only — the second sidecar is sealed under epoch 9,
+        // which has no row, so recovery must fail for it specifically.
+        seed_mls_key(&db, &space, 1, &good_key_material);
+
+        let mut backend = FakeBackend::new();
+        seal_and_put(
+            &mut backend,
+            "o/good",
+            &good_key_material,
+            1,
+            &SidecarPayload {
+                relative_path: "good.txt".to_string(),
+                size: 5,
+                modified_at: 5,
+                content_type: None,
+                blake3: "e".repeat(64),
+            },
+        );
+        seal_and_put(
+            &mut backend,
+            "o/bad",
+            &random_key(),
+            9,
+            &SidecarPayload {
+                relative_path: "bad.txt".to_string(),
+                size: 5,
+                modified_at: 5,
+                content_type: None,
+                blake3: "f".repeat(64),
+            },
+        );
+
+        let report = bootstrap_object_key_cache(&backend, "", &space, &rule_id, &db)
+            .await
+            .expect("bootstrap must not abort on a single bad sidecar");
+
+        assert_eq!(report.recovered, 1, "the good sidecar still recovers");
+        assert_eq!(report.failed_sidecars.len(), 1);
+        assert_eq!(report.failed_sidecars[0].0, "o/bad.m");
+        assert!(object_key_known(&db, &rule_id, "o/good").unwrap());
+        assert!(!object_key_known(&db, &rule_id, "o/bad").unwrap());
+    }
+
+    #[tokio::test]
+    async fn bootstrap_scopes_list_by_prefix() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+
+        let mut backend = FakeBackend::new();
+        seal_and_put(
+            &mut backend,
+            "rule-a/o/one",
+            &sync_key,
+            1,
+            &SidecarPayload {
+                relative_path: "one.txt".to_string(),
+                size: 1,
+                modified_at: 1,
+                content_type: None,
+                blake3: "1".repeat(64),
+            },
+        );
+        // Object under an unrelated prefix must not be visited at all.
+        backend.put("rule-b/o/other", vec![9, 9, 9]);
+
+        let report = bootstrap_object_key_cache(&backend, "rule-a/", &space, &rule_id, &db)
+            .await
+            .expect("bootstrap");
+
+        assert_eq!(report.recovered, 1);
+        assert!(report.orphan_content.is_empty());
+    }
+}
