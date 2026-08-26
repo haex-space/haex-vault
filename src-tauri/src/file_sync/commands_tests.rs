@@ -22,13 +22,27 @@ fn setup_db() -> DbConnection {
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
             space_id TEXT NOT NULL
+        );
+        CREATE TABLE haex_s3_backends (
+            id TEXT PRIMARY KEY,
+            origin_type TEXT NOT NULL DEFAULT 'owned'
         );",
     )
     .expect("schema setup");
     DbConnection(Arc::new(StdMutex::new(Some(conn))))
 }
 
-fn seed_share(db: &DbConnection, backend_id: &str, space_id: &str) {
+fn seed_backend(db: &DbConnection, backend_id: &str, origin_type: &str) {
+    let guard = db.0.lock().expect("db lock");
+    let conn = guard.as_ref().expect("db open");
+    conn.execute(
+        "INSERT INTO haex_s3_backends (id, origin_type) VALUES (?1, ?2)",
+        params![backend_id, origin_type],
+    )
+    .expect("seed backend row");
+}
+
+fn seed_share_mapping(db: &DbConnection, backend_id: &str, space_id: &str) {
     let guard = db.0.lock().expect("db lock");
     let conn = guard.as_ref().expect("db open");
     let row_pks = serde_json::to_string(&vec![backend_id]).expect("serialize row_pks");
@@ -38,6 +52,14 @@ fn seed_share(db: &DbConnection, backend_id: &str, space_id: &str) {
         params![Uuid::new_v4().to_string(), row_pks, space_id],
     )
     .expect("seed share row");
+}
+
+/// Full shared-backend seed: the `haex_shared_space_sync` mapping *and* the
+/// `haex_s3_backends` row carrying `origin_type = 'shared_from_space'`. The
+/// production lookup requires both — a mapping alone doesn't prove provenance.
+fn seed_share(db: &DbConnection, backend_id: &str, space_id: &str) {
+    seed_backend(db, backend_id, "shared_from_space");
+    seed_share_mapping(db, backend_id, space_id);
 }
 
 // Fresh UUIDs per test — no literal ids, and isolates each case's rows from
@@ -93,5 +115,44 @@ fn shared_backend_without_space_id_is_rejected() {
     seed_share(&db, &backend_id, &bound_space);
     let err = verify_cloud_space_binding(&backend_id, None, &db)
         .expect_err("missing spaceId against a shared backend must be rejected");
+    assert!(matches!(err, FileSyncCommandError::InvalidConfig(_)));
+}
+
+/// A stale `haex_shared_space_sync` mapping pointing at an owned backend
+/// must not be treated as a space binding — only `origin_type =
+/// 'shared_from_space'` counts as authoritative provenance. So the backend
+/// still looks owner-only and a `spaceId` against it is rejected.
+#[test]
+fn owned_backend_with_stale_mapping_is_treated_as_unshared() {
+    let db = setup_db();
+    let backend_id = fresh_id();
+    let stale_space = fresh_id();
+    seed_backend(&db, &backend_id, "owned");
+    seed_share_mapping(&db, &backend_id, &stale_space);
+
+    assert!(
+        verify_cloud_space_binding(&backend_id, None, &db).is_ok(),
+        "owned backend + stale mapping must still allow spaceId-less rules"
+    );
+    let err = verify_cloud_space_binding(&backend_id, Some(&stale_space), &db)
+        .expect_err("owned backend must reject any spaceId, even one from a stale mapping");
+    assert!(matches!(err, FileSyncCommandError::InvalidConfig(_)));
+}
+
+/// Two distinct `haex_shared_space_sync` rows binding the same shared backend
+/// to different spaces is an inconsistent state — the lookup must refuse to
+/// pick one silently.
+#[test]
+fn shared_backend_bound_to_multiple_spaces_is_rejected() {
+    let db = setup_db();
+    let backend_id = fresh_id();
+    let space_a = fresh_id();
+    let space_b = fresh_id();
+    seed_backend(&db, &backend_id, "shared_from_space");
+    seed_share_mapping(&db, &backend_id, &space_a);
+    seed_share_mapping(&db, &backend_id, &space_b);
+
+    let err = verify_cloud_space_binding(&backend_id, Some(&space_a), &db)
+        .expect_err("multi-space binding must be rejected outright");
     assert!(matches!(err, FileSyncCommandError::InvalidConfig(_)));
 }
