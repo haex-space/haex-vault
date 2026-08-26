@@ -28,23 +28,33 @@
 //!
 //! ## Key source
 //!
-//! [`FileKeySource::SpaceEpoch`] is the only variant wired today —
-//! shared-space content is sealed with a domain-separated derivative of
-//! the current MLS epoch's `haex_mls_sync_keys` row, resolved via
-//! [`key_resolver::resolve_latest`] on write and
-//! [`key_resolver::resolve_key`] on read. The `VaultKey` variant is a
-//! placeholder for the own-vault (personal) sync path: Rust does not
-//! hold a vault key today (it lives in TypeScript's `vaultKeyCache` and
-//! never crosses the Tauri boundary), so wiring that source needs a new
-//! `AppState` slot + Tauri command from TS on vault open/create. That
-//! design is deferred to a follow-up PR — see the Round D section of the
-//! phase 4 plan.
+//! Two variants are wired:
+//!
+//! - [`FileKeySource::SpaceEpoch`] — shared-space content, sealed with a
+//!   domain-separated derivative of the current MLS epoch's
+//!   `haex_mls_sync_keys` row. Resolved via [`key_resolver::resolve_latest`]
+//!   on write and [`key_resolver::resolve_key`] on read.
+//! - [`FileKeySource::VaultKey`] — own-vault (personal) content, sealed
+//!   with a per-vault key derived once from the default identity's
+//!   Ed25519 seed and cached in [`AppState::vault_key`]
+//!   (`Arc<Mutex<Option<Zeroizing<[u8; 32]>>>>`). The provider reads it
+//!   just-in-time from the slot on each seal/open, so it holds no copy
+//!   at rest. The key has no rotation concept — epoch is fixed to `0`
+//!   on write and ignored on read.
+//!
+//! The two variants land in disjoint key spaces (their IKMs and HKDF
+//! salts never overlap), so a mistyped rule that mixes them still fails
+//! at AEAD-tag verification instead of silently opening under the wrong
+//! key.
+//!
+//! [`AppState::vault_key`]: crate::AppState::vault_key
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use tokio::io::AsyncWriteExt;
+use zeroize::Zeroizing;
 
 use crate::database::DbConnection;
 
@@ -65,10 +75,6 @@ use super::object_key::{
 use super::sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};
 
 /// Which key material the decorator uses to seal file content.
-///
-/// Only `SpaceEpoch` is wired in Round D; `VaultKey` is a placeholder for
-/// the own-vault (personal) sync path, whose transport from TS to Rust is
-/// deferred to a follow-up (see module docs).
 #[derive(Debug, Clone)]
 pub enum FileKeySource {
     /// Shared-space MLS epoch key — the current epoch is looked up per
@@ -78,14 +84,17 @@ pub enum FileKeySource {
         /// The space this rule syncs content for.
         space_id: String,
     },
-    /// Own-vault (personal) key. Not usable yet — the vault key lives in
-    /// TypeScript today and Rust has no handle for it. Kept as a compile-
-    /// time reminder that the key-source axis is intentional; every match
-    /// on `FileKeySource` today must handle the reachable-but-unwired
-    /// case explicitly.
-    #[doc(hidden)]
+    /// Own-vault (personal) key, derived from the default-identity
+    /// Ed25519 seed via HKDF and cached in `AppState::vault_key`. The
+    /// key is stable per vault (no rotation concept), so writes use a
+    /// synthetic `epoch = 0` and reads ignore the envelope epoch.
     VaultKey,
 }
+
+/// Just-in-time handle to the own-vault key slot. Cloned from
+/// `AppState::vault_key` at provider-construction time so the decorator
+/// picks up any later population without needing to be rebuilt.
+type VaultKeySlot = Arc<Mutex<Option<Zeroizing<[u8; 32]>>>>;
 
 /// Errors surfaced by the encrypting provider. Wraps the underlying
 /// provider/DB/crypto errors so the caller sees exactly which layer
@@ -110,7 +119,7 @@ pub enum ProviderCryptoError {
     Engine(String),
     #[error("no object_key cached for relative_path {path} — bootstrap missing?")]
     MissingObjectKey { path: String },
-    #[error("own-vault key source not wired: vault key transport is a follow-up")]
+    #[error("vault not open — cannot access own-vault encryption key")]
     OwnVaultNotWired,
 }
 
@@ -127,7 +136,17 @@ pub struct EncryptingSyncProvider {
     key_source: FileKeySource,
     rule_id: String,
     db: DbConnection,
+    /// Handle to the own-vault key slot. Only consulted for the
+    /// `VaultKey` variant — a shared-space rule can pass a slot that
+    /// is never populated and it never blocks the seal path.
+    vault_key_slot: VaultKeySlot,
 }
+
+/// Synthetic epoch stamped into `VaultKey`-sealed envelopes. The own-
+/// vault key has no rotation concept, so the value carried on the wire
+/// is a fixed sentinel — the open path ignores it and reads the key
+/// straight from the slot.
+const VAULT_KEY_EPOCH: u64 = 0;
 
 impl EncryptingSyncProvider {
     /// Wrap an inner provider with envelope + sidecar encryption. The
@@ -135,35 +154,64 @@ impl EncryptingSyncProvider {
     /// an opaque object key (`o/<hex>` or `o/<hex>.m`) — production
     /// `CloudProvider` does exactly that; other providers likely do not
     /// and are not supported.
+    ///
+    /// `vault_key_slot` is the `AppState::vault_key` handle (or a clone
+    /// of it). Passing an unpopulated slot for a `SpaceEpoch` rule is
+    /// fine — the slot is only consulted for `VaultKey`.
     pub fn new(
         inner: Arc<dyn SyncProvider>,
         key_source: FileKeySource,
         rule_id: impl Into<String>,
         db: DbConnection,
+        vault_key_slot: VaultKeySlot,
     ) -> Self {
         Self {
             inner,
             key_source,
             rule_id: rule_id.into(),
             db,
+            vault_key_slot,
         }
     }
 
-    fn space_id(&self) -> Result<&str, ProviderCryptoError> {
+    /// Read the own-vault key from the slot into a fresh `Zeroizing`
+    /// buffer, then release the mutex. Callers get a scoped copy that
+    /// scrubs on drop; the provider never keeps a copy at rest.
+    fn load_vault_key(&self) -> Result<Zeroizing<[u8; 32]>, ProviderCryptoError> {
+        let guard = self
+            .vault_key_slot
+            .lock()
+            .map_err(|_| ProviderCryptoError::OwnVaultNotWired)?;
+        let key_ref = guard
+            .as_ref()
+            .ok_or(ProviderCryptoError::OwnVaultNotWired)?;
+        let mut copy = Zeroizing::new([0u8; 32]);
+        copy.copy_from_slice(key_ref.as_ref());
+        Ok(copy)
+    }
+
+    fn seal_key(&self) -> Result<(u64, Zeroizing<[u8; 32]>), ProviderCryptoError> {
         match &self.key_source {
-            FileKeySource::SpaceEpoch { space_id } => Ok(space_id.as_str()),
-            FileKeySource::VaultKey => Err(ProviderCryptoError::OwnVaultNotWired),
+            FileKeySource::SpaceEpoch { space_id } => {
+                let (epoch, key) = resolve_latest(space_id.as_str(), &self.db)?;
+                Ok((epoch, Zeroizing::new(key)))
+            }
+            FileKeySource::VaultKey => Ok((VAULT_KEY_EPOCH, self.load_vault_key()?)),
         }
     }
 
-    fn seal_key(&self) -> Result<(u64, [u8; 32]), ProviderCryptoError> {
-        let space = self.space_id()?;
-        Ok(resolve_latest(space, &self.db)?)
-    }
-
-    fn open_key(&self, epoch: u64) -> Result<[u8; 32], ProviderCryptoError> {
-        let space = self.space_id()?;
-        Ok(resolve_key(space, epoch, &self.db)?)
+    fn open_key(&self, epoch: u64) -> Result<Zeroizing<[u8; 32]>, ProviderCryptoError> {
+        match &self.key_source {
+            FileKeySource::SpaceEpoch { space_id } => {
+                let key = resolve_key(space_id.as_str(), epoch, &self.db)?;
+                Ok(Zeroizing::new(key))
+            }
+            FileKeySource::VaultKey => {
+                // Envelope epoch is informational for VaultKey — no
+                // rotation, no lookup. Load the current slot value.
+                self.load_vault_key()
+            }
+        }
     }
 
     fn random_nonce() -> [u8; NONCE_SIZE] {

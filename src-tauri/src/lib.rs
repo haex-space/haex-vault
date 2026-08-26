@@ -168,6 +168,28 @@ pub struct AppState {
     pub mail_poll_manager: tokio::sync::Mutex<MailPollManager>,
     /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
     pub auth_token: Arc<Mutex<Option<String>>>,
+    /// Own-vault file-encryption key for own-vault cloud sync. Populated
+    /// Rust-side at vault open by deriving a 32-byte AEAD key with
+    /// `HKDF-Expand` over the vault's default-identity DID private key
+    /// (domain-separated with `"haex-file-encryption-v1"`); cleared in
+    /// `close_database`. Never crosses the TS boundary — file encryption
+    /// is Rust-only, TS never touches raw key material.
+    ///
+    /// The default DID is the natural key source here: it's guaranteed
+    /// to exist for every vault (cannot be deleted), it's already loaded
+    /// at open time for sync-server auth, and every device holding this
+    /// vault has the same DID via CRDT sync — so cloud objects encrypted
+    /// on one device decrypt on any other device with the same vault.
+    ///
+    /// Wrapped in `Zeroizing` so the byte buffer is scrubbed on drop:
+    /// project-wide default going forward — every place that handles
+    /// symmetric key material should follow the same hygiene.
+    ///
+    /// Not yet consumed by `EncryptingSyncProvider` (Round D's
+    /// `FileKeySource::VaultKey` still surfaces `OwnVaultNotWired`). This
+    /// slot is the transport layer for a future PR that extends provider
+    /// encryption to the own-vault cloud path.
+    pub vault_key: Arc<Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
     /// PTY manager for shell/terminal sessions
     pub pty_manager: extension::shell::pty::PtyManager,
     /// Active local sync loops (space_id -> handle)
@@ -400,6 +422,7 @@ pub fn run() {
             sync_manager: tokio::sync::Mutex::new(SyncManager::new()),
             mail_poll_manager: tokio::sync::Mutex::new(MailPollManager::new()),
             auth_token: Arc::new(Mutex::new(None)),
+            vault_key: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
             owner_sync_loops: tokio::sync::Mutex::new(HashMap::new()),

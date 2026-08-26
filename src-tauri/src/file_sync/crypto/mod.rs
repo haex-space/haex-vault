@@ -46,6 +46,7 @@ pub mod key_resolver;
 pub mod object_key;
 pub mod provider;
 pub mod sidecar;
+pub mod vault_key_derivation;
 
 #[cfg(test)]
 mod tests;
@@ -63,3 +64,4 @@ pub use object_key::{
 };
 pub use provider::{EncryptingSyncProvider, FileKeySource, ProviderCryptoError};
 pub use sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};
+pub use vault_key_derivation::{derive_vault_file_key, VAULT_FILE_KEY_LEN};

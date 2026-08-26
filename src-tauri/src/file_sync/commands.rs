@@ -13,7 +13,10 @@ use crate::AppState;
 
 use std::sync::Arc;
 
+use crate::database::DbConnection;
+
 use super::cloud_provider::CloudProvider;
+use super::crypto::provider::{EncryptingSyncProvider, FileKeySource};
 use super::engine::{execute_sync, run_sync_loop, SyncEngineError};
 use super::local_provider::LocalProvider;
 use super::peer_provider::PeerProvider;
@@ -278,6 +281,7 @@ async fn create_provider(
     config: &serde_json::Value,
     state: &AppState,
     is_target: bool,
+    rule_id: &str,
 ) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
     match provider_type {
         "local" => {
@@ -391,12 +395,65 @@ async fn create_provider(
             }
 
             let provider = CloudProvider::new(backend, prefix);
-            Ok(Arc::new(provider))
+            let inner: Arc<dyn SyncProvider> = Arc::new(provider);
+            Ok(wrap_cloud_with_encryption_if_configured(
+                inner,
+                config,
+                rule_id,
+                DbConnection(state.db.0.clone()),
+                state.vault_key.clone(),
+            ))
         }
         _ => Err(FileSyncCommandError::InvalidConfig(format!(
             "Unknown provider type: {provider_type}"
         ))),
     }
+}
+
+/// Wrap a built cloud provider in [`EncryptingSyncProvider`] — always.
+/// The `FileKeySource` variant is chosen from the rule config:
+///
+/// - **Shared-space cloud rules** (`spaceId` set and non-empty):
+///   `FileKeySource::SpaceEpoch` — content sealed under the current MLS
+///   epoch, resolved from `haex_mls_sync_keys`.
+/// - **Own-vault cloud rules** (`spaceId` absent or empty):
+///   `FileKeySource::VaultKey` — content sealed under the per-vault key
+///   derived from the default identity's Ed25519 seed and cached in
+///   `AppState::vault_key`.
+///
+/// `vault_key_slot` is passed through unconditionally so both branches
+/// hold a live handle; the `SpaceEpoch` branch never reads from it. If
+/// the slot is empty when a `VaultKey` rule first syncs, the decorator
+/// surfaces `ProviderCryptoError::OwnVaultNotWired` on the first
+/// seal/open — the operator sees a clear error, not silent corruption.
+///
+/// Extracted from `create_provider` so the wrapping decision can be
+/// unit-tested without a full `AppState`. Kept `pub(crate)` so the tests
+/// in [`crate::file_sync::crypto::tests`] can call it directly.
+pub(crate) fn wrap_cloud_with_encryption_if_configured(
+    inner: Arc<dyn SyncProvider>,
+    config: &serde_json::Value,
+    rule_id: &str,
+    db: DbConnection,
+    vault_key_slot: std::sync::Arc<std::sync::Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
+) -> Arc<dyn SyncProvider> {
+    let space_id = config
+        .get("spaceId")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+    let key_source = match space_id {
+        Some(space_id) => FileKeySource::SpaceEpoch {
+            space_id: space_id.to_string(),
+        },
+        None => FileKeySource::VaultKey,
+    };
+    Arc::new(EncryptingSyncProvider::new(
+        inner,
+        key_source,
+        rule_id,
+        db,
+        vault_key_slot,
+    ))
 }
 
 /// Parse a direction string into `SyncDirection`.
@@ -457,10 +514,10 @@ pub async fn file_sync_start_rule(
         await_sync_handle(&rule_id, handle).await;
     }
 
-    let source = create_provider(&source_type, &source_config, &state, false)
+    let source = create_provider(&source_type, &source_config, &state, false, &rule_id)
         .await
         .inspect_err(|e| eprintln!("[FileSync] Failed to create source provider: {e}"))?;
-    let target = create_provider(&target_type, &target_config, &state, true)
+    let target = create_provider(&target_type, &target_config, &state, true, &rule_id)
         .await
         .inspect_err(|e| eprintln!("[FileSync] Failed to create target provider: {e}"))?;
 
@@ -564,8 +621,8 @@ pub async fn file_sync_trigger_now(
     let dir = parse_direction(&direction)?;
     let del = parse_delete_mode(&delete_mode)?;
 
-    let source = create_provider(&source_type, &source_config, &state, false).await?;
-    let target = create_provider(&target_type, &target_config, &state, true).await?;
+    let source = create_provider(&source_type, &source_config, &state, false, &rule_id).await?;
+    let target = create_provider(&target_type, &target_config, &state, true, &rule_id).await?;
 
     let result = execute_sync(
         source,

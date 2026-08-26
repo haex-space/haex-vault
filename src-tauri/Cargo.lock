@@ -2965,6 +2965,7 @@ dependencies = [
  "uuid",
  "webkit2gtk",
  "x25519-dalek 3.0.0",
+ "zeroize",
  "zip",
 ]
 
