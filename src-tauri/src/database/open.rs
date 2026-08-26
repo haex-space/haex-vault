@@ -1,5 +1,5 @@
 use super::create::{acquire_vault_lock_or_error, close_database, open_critical_sink};
-use super::identity_default::ensure_default_identity;
+use super::identity_default::{ensure_default_identity, populate_vault_key_slot};
 use super::*;
 
 use crate::database::core::with_connection;
@@ -92,6 +92,12 @@ pub fn open_encrypted_database(
         // seeding step in create_encrypted_database (idempotent — no-op
         // when one already exists).
         ensure_default_identity(&state)?;
+        // Derive the own-vault file-encryption key from the default
+        // identity and cache it in `AppState::vault_key`. Symmetric with
+        // the create path — every mounted vault carries the same slot
+        // state, so `EncryptingSyncProvider::VaultKey` behaviour is
+        // independent of how the vault was mounted.
+        populate_vault_key_slot(&state)?;
         // Warm the column-signature signing-key cache. Non-fatal — a
         // vault without owned space memberships (e.g. viewer-only device)
         // is a valid state, and any missed entry is recoverable via

@@ -1,4 +1,4 @@
-use super::identity_default::ensure_default_identity;
+use super::identity_default::{ensure_default_identity, populate_vault_key_slot};
 use super::open::initialize_session_post_migration;
 use super::*;
 
@@ -214,6 +214,12 @@ fn create_encrypted_database_inner(
     println!("[CREATE_DB] Step 6: Seeding default identity...");
     ensure_default_identity(state)?;
     println!("[CREATE_DB] ✅ default identity ensured");
+
+    // Step 6b: Derive the own-vault file-encryption key from the just-
+    // seeded identity and cache it in `AppState::vault_key`. Runs here
+    // (not lazily) so `EncryptingSyncProvider::VaultKey` never sees an
+    // empty slot on a freshly-created vault.
+    populate_vault_key_slot(state)?;
 
     // Step 7: Warm the column-signature signing-key cache. A brand-new
     // vault has no owned space memberships yet (returns 0), but the

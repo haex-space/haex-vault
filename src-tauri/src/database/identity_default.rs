@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::database::error::DatabaseError;
+use crate::file_sync::crypto::derive_vault_file_key;
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use ed25519_dalek::SigningKey;
@@ -110,4 +111,87 @@ pub(super) fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(),
         &did[..30.min(did.len())]
     );
     Ok(())
+}
+
+/// Derive the own-vault file-encryption key from the default identity's
+/// Ed25519 seed and install it into `AppState::vault_key`. Called from
+/// both the `create_encrypted_database` and `open_encrypted_database`
+/// paths, immediately after `ensure_default_identity` so a seeded row is
+/// guaranteed to exist. Idempotent: overwrites whatever was in the slot.
+///
+/// Hard failure modes (a vault without a default identity, or with a
+/// malformed private_key) surface as `DatabaseError::DatabaseError` — a
+/// vault in either state is broken elsewhere and papering over it here
+/// would only defer the diagnosis.
+pub(super) fn populate_vault_key_slot(state: &State<'_, AppState>) -> Result<(), DatabaseError> {
+    // Pick the seeded own-identity deterministically. The `ensure_`
+    // helper never inserts more than one, but the schema does not
+    // forbid additional 'own' rows (a user could create secondary
+    // identities via the UI); ordering by `created_at, id` keeps the
+    // choice stable and matches "the one seeded first" — the same
+    // identity every device that opens this vault will pick.
+    let rows = core::select_with_crdt(
+        "SELECT private_key FROM haex_identities \
+         WHERE source = 'own' AND private_key IS NOT NULL \
+         ORDER BY created_at ASC, id ASC LIMIT 1"
+            .to_string(),
+        vec![],
+        &state.db,
+    )?;
+    let row = rows.first().ok_or_else(|| DatabaseError::DatabaseError {
+        reason: "vault has no default own identity — file-encryption key cannot be derived"
+            .to_string(),
+    })?;
+    let private_key_b64 =
+        row.first()
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DatabaseError::DatabaseError {
+                reason: "default identity row is missing a private_key value".to_string(),
+            })?;
+
+    let seed = decode_ed25519_seed(private_key_b64)?;
+    let derived = derive_vault_file_key(&seed);
+
+    let mut slot = state
+        .vault_key
+        .lock()
+        .map_err(|e| DatabaseError::LockError {
+            reason: format!("vault_key slot poisoned: {e}"),
+        })?;
+    *slot = Some(derived);
+    println!("[IDENTITY] ✅ vault file-encryption key derived and cached");
+    Ok(())
+}
+
+/// Recover the 32-byte Ed25519 seed from a Base64-encoded PKCS8 private
+/// key produced by [`generate_default_identity_material`]. The 16-byte
+/// PKCS8 wrapper is verified byte-for-byte so a subtly malformed row
+/// (wrong OID, truncated wrapper) surfaces here instead of feeding a
+/// silently-wrong IKM into HKDF.
+fn decode_ed25519_seed(private_key_b64: &str) -> Result<[u8; 32], DatabaseError> {
+    let bytes = BASE64
+        .decode(private_key_b64)
+        .map_err(|e| DatabaseError::DatabaseError {
+            reason: format!("default identity private_key is not valid base64: {e}"),
+        })?;
+    if bytes.len() != DEFAULT_IDENTITY_ED25519_PKCS8_PREFIX.len() + 32 {
+        return Err(DatabaseError::DatabaseError {
+            reason: format!(
+                "default identity private_key has unexpected length {} (want {})",
+                bytes.len(),
+                DEFAULT_IDENTITY_ED25519_PKCS8_PREFIX.len() + 32
+            ),
+        });
+    }
+    if bytes[..DEFAULT_IDENTITY_ED25519_PKCS8_PREFIX.len()] != DEFAULT_IDENTITY_ED25519_PKCS8_PREFIX
+    {
+        return Err(DatabaseError::DatabaseError {
+            reason:
+                "default identity private_key does not carry the expected PKCS8 Ed25519 wrapper"
+                    .to_string(),
+        });
+    }
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&bytes[DEFAULT_IDENTITY_ED25519_PKCS8_PREFIX.len()..]);
+    Ok(seed)
 }
