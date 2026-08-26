@@ -1,11 +1,17 @@
 //! File-content envelope + chunk-level AEAD for Phase 4 (cloud file sync).
 //!
-//! **Scope:** the AEAD primitives ([`chunk`], [`envelope`]) plus shared-space
-//! key resolution ([`key_resolver`], Round B). The primitives themselves do no
-//! I/O; `key_resolver` reads `haex_mls_sync_keys` and therefore needs a live
-//! [`DbConnection`](crate::database::DbConnection). Higher rounds (see
-//! `docs/plans/2026-08-25-phase4-file-content-encryption.md`) layer
-//! sidecar/object-key mapping (Round C) and provider wiring (Round D) on top.
+//! **Scope:** the AEAD primitives ([`chunk`], [`envelope`]), shared-space
+//! key resolution ([`key_resolver`], Round B), the metadata
+//! sidecar/object-key mapping ([`sidecar`], [`object_key`], Round C), and
+//! file-content sealing plus the `SyncProvider` decorator ([`content`],
+//! [`provider`], Round D). The chunk/envelope primitives do no I/O;
+//! `key_resolver` and `object_key` read and write via a live
+//! [`DbConnection`](crate::database::DbConnection), and
+//! `object_key::bootstrap_object_key_cache` additionally talks to a
+//! [`StorageBackend`](crate::remote_storage::backend::StorageBackend) to
+//! list/download sidecars. [`provider::EncryptingSyncProvider`] wraps an
+//! existing `SyncProvider`; nothing in this module touches
+//! `cloud_provider.rs` directly.
 //!
 //! ## Envelope layout on disk
 //!
@@ -34,8 +40,12 @@
 //! which is why the plan calls for it explicitly.
 
 pub mod chunk;
+pub mod content;
 pub mod envelope;
 pub mod key_resolver;
+pub mod object_key;
+pub mod provider;
+pub mod sidecar;
 
 #[cfg(test)]
 mod tests;
@@ -44,5 +54,12 @@ pub use chunk::{
     ciphertext_len, num_chunks, open_chunk, plaintext_len, seal_chunk, CryptoError,
     CHUNK_CIPHERTEXT_SIZE, CHUNK_PLAINTEXT_SIZE, TAG_SIZE,
 };
+pub use content::{open_bytes, open_stream, seal_bytes, seal_stream, StreamCryptoError};
 pub use envelope::{EnvelopeHeader, ENVELOPE_VERSION, HEADER_SIZE, MAGIC, NONCE_SIZE};
 pub use key_resolver::{clear_key_cache, resolve_key, resolve_latest, KeyError, KEY_LEN};
+pub use object_key::{
+    bootstrap_object_key_cache, generate_object_key, lookup_object_key, mark_object_deleted,
+    set_object_key, sidecar_key_for, BootstrapReport, ObjectKeyError, SIDECAR_SUFFIX,
+};
+pub use provider::{EncryptingSyncProvider, FileKeySource, ProviderCryptoError};
+pub use sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};

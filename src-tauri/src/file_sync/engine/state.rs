@@ -33,6 +33,11 @@ pub struct SyncStateEntry {
     /// receiver's mtime drift after `tokio::fs::copy` would force the diff
     /// engine to fall back to the size+mtime heuristic and re-fire transfers.
     pub hash: Option<String>,
+    /// Opaque object key on the cloud backend (Phase 4, Round C). Present
+    /// only for encrypted-cloud sync rules; `None` for peer / local sync
+    /// and for cloud rules that have not yet run through the encrypting
+    /// provider's write path or a `bootstrap_object_key_cache` pass.
+    pub object_key: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -44,7 +49,7 @@ pub fn load_sync_state(
     db: &DbConnection,
     rule_id: &str,
 ) -> Result<Vec<SyncStateEntry>, SyncEngineError> {
-    let sql = "SELECT id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, hash FROM haex_sync_state_no_sync WHERE rule_id = ?1".to_string();
+    let sql = "SELECT id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, hash, object_key FROM haex_sync_state_no_sync WHERE rule_id = ?1".to_string();
     let params = vec![JsonValue::String(rule_id.to_string())];
 
     let rows = crate::database::core::select(sql, params, db)
@@ -81,6 +86,7 @@ pub fn load_sync_state(
                 .map(|v| v != 0)
                 .unwrap_or(false),
             hash: row.get(7).and_then(|v| v.as_str()).map(|s| s.to_string()),
+            object_key: row.get(8).and_then(|v| v.as_str()).map(|s| s.to_string()),
         })
         .collect();
 
@@ -92,6 +98,19 @@ pub fn load_sync_state(
 /// Uses INSERT OR REPLACE on the unique `(rule_id, relative_path)` index.
 /// `hash` is the sender's SHA-256 — pass `None` only when the source did not
 /// provide one (legacy peer or hashing disabled).
+///
+/// **`object_key` preservation (Phase 4, Round D).** `object_key` is
+/// populated by the encrypting cloud provider decorator when a file is
+/// first written or by `bootstrap_object_key_cache` when a fresh device
+/// recovers the local `relative_path -> object_key` map from bucket
+/// sidecars. `INSERT OR REPLACE` deletes and reinserts the whole row on
+/// conflict, so an ordinary upsert here would silently null out
+/// `object_key` and force the next bootstrap to re-download every sidecar.
+/// The subquery in the VALUES list reads the pre-conflict row's
+/// `object_key` (SQLite evaluates VALUES *before* firing the
+/// delete-then-insert of REPLACE), so callers that do not know the
+/// `object_key` — every non-encrypting caller — leave the cached value
+/// untouched.
 pub fn upsert_sync_state(
     db: &DbConnection,
     rule_id: &str,
@@ -103,9 +122,7 @@ pub fn upsert_sync_state(
     let now = unix_now().to_string();
     let id = uuid::Uuid::new_v4().to_string();
 
-    // Use INSERT OR REPLACE — the unique index on (rule_id, relative_path) ensures
-    // an existing row is replaced rather than duplicated.
-    let sql = "INSERT OR REPLACE INTO haex_sync_state_no_sync (id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)".to_string();
+    let sql = "INSERT OR REPLACE INTO haex_sync_state_no_sync (id, rule_id, relative_path, file_size, modified_at, synced_at, deleted, hash, object_key) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, (SELECT object_key FROM haex_sync_state_no_sync WHERE rule_id = ?2 AND relative_path = ?3))".to_string();
     let params = vec![
         JsonValue::String(id),
         JsonValue::String(rule_id.to_string()),

@@ -546,7 +546,8 @@
         "modifiedAt": "modified_at",
         "syncedAt": "synced_at",
         "deleted": "deleted",
-        "hash": "hash"
+        "hash": "hash",
+        "objectKey": "object_key"
       }
     },
     "passwords_item_details": {

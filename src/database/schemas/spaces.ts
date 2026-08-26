@@ -439,9 +439,13 @@ export const haexSyncState = sqliteTable(
     syncedAt: text(tableNames.haex.sync_state.columns.syncedAt).notNull(),
     deleted: integer(tableNames.haex.sync_state.columns.deleted, { mode: 'boolean' }).notNull().default(false),
     hash: text(tableNames.haex.sync_state.columns.hash),
+    // Opaque cloud object key (Phase 4 Round C). Null for rows from non-cloud
+    // targets and for rows written before this column existed.
+    objectKey: text(tableNames.haex.sync_state.columns.objectKey),
   },
   (table) => [
     uniqueIndex('haex_sync_state_rule_path_unique').on(table.ruleId, table.relativePath),
+    index('haex_sync_state_object_key_idx').on(table.objectKey),
   ],
 )
 export type InsertHaexSyncState = typeof haexSyncState.$inferInsert
