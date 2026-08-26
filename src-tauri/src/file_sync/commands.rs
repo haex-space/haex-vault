@@ -188,6 +188,85 @@ pub struct SyncRuleStatus {
 // Provider factory
 // ---------------------------------------------------------------------------
 
+/// Look up which space (if any) a `haex_s3_backends` row is bound to via a
+/// cross-user share. Mirrors the join `find_existing_share` in
+/// `remote_storage::share_command` uses (`haex_shared_space_sync.row_pks[0]`
+/// holds the backend id for `table_name = 'haex_s3_backends'` rows) plus the
+/// authoritative provenance predicate `origin_type = 'shared_from_space'` on
+/// the backend row itself — a mapping alone is not proof of a cross-user
+/// share.
+///
+/// The schema does not prevent multiple `haex_shared_space_sync` rows from
+/// pointing at the same backend, so the query counts distinct space bindings
+/// and treats more than one as a hard error rather than silently picking one.
+fn shared_backend_space_id(
+    backend_id: &str,
+    db: &crate::database::DbConnection,
+) -> Result<Option<String>, FileSyncCommandError> {
+    let sql = format!(
+        "SELECT DISTINCT m.{col_space} \
+         FROM {table_map} m \
+         INNER JOIN {table_backends} b \
+           ON b.{col_backend_id} = json_extract(m.{col_pks}, '$[0]') \
+          AND b.{col_backend_origin} = 'shared_from_space' \
+         WHERE m.{col_table} = ?1 \
+           AND json_extract(m.{col_pks}, '$[0]') = ?2 \
+         LIMIT 2",
+        col_space = crate::table_names::COL_SHARED_SPACE_SYNC_SPACE_ID,
+        table_map = crate::table_names::TABLE_SHARED_SPACE_SYNC,
+        table_backends = crate::table_names::TABLE_S3_BACKENDS,
+        col_backend_id = crate::table_names::COL_S3_BACKENDS_ID,
+        col_backend_origin = crate::table_names::COL_S3_BACKENDS_ORIGIN_TYPE,
+        col_table = crate::table_names::COL_SHARED_SPACE_SYNC_TABLE_NAME,
+        col_pks = crate::table_names::COL_SHARED_SPACE_SYNC_ROW_PKS,
+    );
+    let rows = crate::database::core::select_with_crdt(
+        sql,
+        vec![
+            serde_json::Value::String(crate::table_names::TABLE_S3_BACKENDS.to_string()),
+            serde_json::Value::String(backend_id.to_string()),
+        ],
+        db,
+    )
+    .map_err(|e| FileSyncCommandError::ProviderError(format!("space-binding lookup: {e}")))?;
+
+    if rows.len() > 1 {
+        return Err(FileSyncCommandError::InvalidConfig(format!(
+            "backend {backend_id} is bound to multiple spaces via haex_shared_space_sync — refusing to pick one"
+        )));
+    }
+    Ok(rows
+        .first()
+        .map(|row| crate::database::row::get_string(row, 0)))
+}
+
+/// Enforce that a cloud sync-rule's `spaceId` matches the space (if any)
+/// the target backend is actually shared for.
+///
+/// A backend shared into a space (`origin_type = 'shared_from_space'`) is
+/// bound to exactly the space that shared it. A sync rule pointing at that
+/// backend but carrying a different (or absent) `spaceId` would seal its
+/// files under the wrong epoch key. An owner-only backend (no share) has no
+/// space binding at all — personal buckets aren't space-scoped, so a
+/// `spaceId` set against one is rejected too rather than silently accepted.
+fn verify_cloud_space_binding(
+    backend_id: &str,
+    config_space_id: Option<&str>,
+    db: &crate::database::DbConnection,
+) -> Result<(), FileSyncCommandError> {
+    let bound_space_id = shared_backend_space_id(backend_id, db)?;
+    match (bound_space_id.as_deref(), config_space_id) {
+        (None, None) => Ok(()),
+        (Some(bound), Some(cfg)) if bound == cfg => Ok(()),
+        (None, Some(cfg)) => Err(FileSyncCommandError::InvalidConfig(format!(
+            "backend {backend_id} is not shared for any space, but sync-rule spaceId is '{cfg}'"
+        ))),
+        (Some(bound), cfg) => Err(FileSyncCommandError::InvalidConfig(format!(
+            "backend {backend_id} is shared for space '{bound}', but sync-rule spaceId is {cfg:?}"
+        ))),
+    }
+}
+
 /// Create a SyncProvider from type string and config JSON.
 ///
 /// `is_target` controls whether missing containers (e.g. S3 buckets) get
@@ -268,6 +347,20 @@ async fn create_provider(
                         "cloud provider requires 'backendId'".into(),
                     )
                 })?;
+            // Distinguish "absent" from "present but wrong type": a non-string
+            // spaceId (e.g. a number) silently mapping to None would let a
+            // caller pass `{ "spaceId": 42 }` against an owner-only backend
+            // as if no spaceId were set — reject that up front.
+            let space_id = match config.get("spaceId") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(value) => Some(value.as_str().ok_or_else(|| {
+                    FileSyncCommandError::InvalidConfig(
+                        "cloud provider 'spaceId' must be a string".into(),
+                    )
+                })?),
+            };
+            verify_cloud_space_binding(backend_id, space_id, &state.db)?;
+
             let prefix = config
                 .get("prefix")
                 .and_then(|v| v.as_str())
@@ -653,3 +746,7 @@ pub async fn file_sync_clear_log(
     .map_err(|e| FileSyncCommandError::Internal(e.to_string()))?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "commands_tests.rs"]
+mod commands_tests;
