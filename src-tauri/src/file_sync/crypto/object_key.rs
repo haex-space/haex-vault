@@ -21,18 +21,18 @@
 //! upsert) and [`upsert_bootstrap_entry`] here are companions, not
 //! duplicates — see the pitfall note on [`bootstrap_object_key_cache`].
 //!
-//! ## Round D pitfall: `upsert_sync_state` does not carry `object_key`
+//! ## How `object_key` survives `upsert_sync_state`
 //!
-//! `engine::state::upsert_sync_state` does `INSERT OR REPLACE` over the full
-//! row without an `object_key` column in its statement. On SQLite that
-//! means a regular sync-execute upsert *after* bootstrap has populated
-//! `object_key` for a row will silently null it out again — REPLACE deletes
-//! and reinserts the whole row, so unlisted columns revert to their
-//! default. Round D's provider wiring must either extend
-//! `upsert_sync_state` to accept and persist `object_key`, or upsert through
-//! this module's helpers instead. Not fixed here because it requires
-//! touching `engine::execute.rs` call sites, which is explicitly out of
-//! scope for Round C.
+//! `engine::state::upsert_sync_state` still uses `INSERT OR REPLACE` and
+//! takes no `object_key` argument — every non-encrypting caller is oblivious
+//! to it. Preservation is done by the statement itself: the `VALUES` list
+//! carries a correlated subquery that reads the pre-conflict row's
+//! `object_key` (`SELECT object_key FROM haex_sync_state_no_sync WHERE
+//! rule_id = ?2 AND relative_path = ?3`). SQLite evaluates that subquery
+//! *before* firing REPLACE's delete-then-insert, so the value survives the
+//! row's rewrite. See `engine::state::upsert_sync_state` for the shipped
+//! SQL and `engine::tests::upsert_sync_state_preserves_object_key_across_replace`
+//! for the regression test.
 
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -238,13 +238,13 @@ pub fn lookup_object_key(
 /// after [`generate_object_key`], before the content upload — the
 /// subsequent [`crate::file_sync::engine::state::upsert_sync_state`] call
 /// then finds the row already carrying the object key and preserves it
-/// via its COALESCE subquery.
+/// via its preserving `SELECT object_key` subquery in the VALUES list.
 ///
 /// The `INSERT ... ON CONFLICT DO UPDATE` upsert is deliberate here over
 /// `INSERT OR REPLACE`: REPLACE would DELETE the existing row (nulling
 /// the just-preserved `hash` on a churn cycle) and re-insert, which is
-/// exactly the shape of the Round C pitfall that motivated the COALESCE
-/// fix in `upsert_sync_state`. UPSERT touches only the named columns.
+/// exactly the shape of the pitfall that motivated the preserving
+/// subquery in `upsert_sync_state`. UPSERT touches only the named columns.
 pub fn set_object_key(
     db: &DbConnection,
     rule_id: &str,
@@ -319,15 +319,16 @@ pub(super) fn object_key_known(
 
 /// Insert or update the sync-state row recovered from a sidecar during
 /// bootstrap. Companion to `engine::state::upsert_sync_state` — see the
-/// module-level Round D pitfall note. `pub(super)` for the same
-/// cross-sibling test-access reason as [`object_key_known`].
+/// module-level note on how `object_key` survives that call.
+/// `pub(super)` for the same cross-sibling test-access reason as
+/// [`object_key_known`].
 ///
 /// UPSERT (`INSERT ... ON CONFLICT DO UPDATE`) instead of `INSERT OR
 /// REPLACE`: REPLACE would DELETE the existing row and reinsert with a
 /// fresh id, so any column not named in VALUES silently reverts to its
-/// default — exactly the shape of the Round C pitfall the COALESCE fix
-/// in `upsert_sync_state` was written for. UPSERT touches only the
-/// named columns, preserving the row's stable id.
+/// default — the same failure mode the preserving subquery in
+/// `upsert_sync_state` guards against. UPSERT touches only the named
+/// columns, preserving the row's stable id.
 pub(super) fn upsert_bootstrap_entry(
     db: &DbConnection,
     rule_id: &str,

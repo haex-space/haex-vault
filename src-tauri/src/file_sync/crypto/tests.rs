@@ -1721,6 +1721,78 @@ mod provider {
     }
 
     #[tokio::test]
+    async fn read_file_to_path_leaves_destination_unchanged_on_tampered_ciphertext() {
+        // Regression for the staging-before-rename fix: a mid-stream AEAD
+        // failure on a tampered ciphertext must not overwrite the local
+        // file with partial plaintext. Pre-seed a sentinel at the target
+        // and assert it survives verbatim after the decrypt error.
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+
+        let inner = Arc::new(FakeProvider::default());
+        // Multi-chunk plaintext so the tamper lands inside the body,
+        // past the header — the first chunk decrypts fine, the tampered
+        // one triggers the tag failure.
+        let plaintext: Vec<u8> = (0..(super::super::chunk::CHUNK_PLAINTEXT_SIZE + 4096))
+            .map(|i| (i as u8).wrapping_mul(7))
+            .collect();
+        let object_key = seed_paired_object(&inner, &sync_key, 1, "big.bin", &plaintext).await;
+
+        // Tamper with a byte deep in the ciphertext body — past the
+        // 37-byte header and past the first chunk's tag, so at least
+        // one chunk decrypts before the failure.
+        {
+            let mut objects = inner.objects.lock().unwrap();
+            let ct = objects.get_mut(&object_key).expect("content present");
+            let tamper_at = super::super::envelope::HEADER_SIZE
+                + super::super::chunk::CHUNK_CIPHERTEXT_SIZE
+                + 128;
+            assert!(tamper_at < ct.len(), "tamper index inside ciphertext");
+            ct[tamper_at] ^= 0xAA;
+        }
+
+        let dec = EncryptingSyncProvider::new(
+            inner,
+            FileKeySource::SpaceEpoch { space_id: space },
+            rule_id,
+            DbConnection(db.0.clone()),
+        );
+        dec.manifest().await.expect("bootstrap");
+
+        let tmp_dir = tempfile::tempdir().expect("tempdir");
+        let out_path = tmp_dir.path().join("out.bin");
+        // Pre-existing sentinel — the atomic-swap fix must leave it
+        // untouched on decrypt failure.
+        let sentinel = b"do-not-overwrite-me";
+        tokio::fs::write(&out_path, sentinel)
+            .await
+            .expect("seed sentinel");
+
+        let progress: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
+        let err = dec
+            .read_file_to_path("big.bin", &out_path, None, progress)
+            .await
+            .expect_err("tampered ciphertext must fail");
+        // Surface the error so a regression that swallows it fails loudly.
+        assert!(
+            matches!(
+                err,
+                SyncProviderError::Other { .. } | SyncProviderError::Io(_)
+            ),
+            "unexpected error variant: {err:?}"
+        );
+
+        let after = tokio::fs::read(&out_path).await.expect("read sentinel");
+        assert_eq!(
+            after, sentinel,
+            "destination was overwritten with partial plaintext — staging is broken",
+        );
+    }
+
+    #[tokio::test]
     async fn delete_removes_both_content_and_sidecar() {
         let db = setup_db();
         let space = Uuid::new_v4().to_string();

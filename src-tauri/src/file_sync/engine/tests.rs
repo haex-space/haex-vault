@@ -295,8 +295,9 @@ fn upsert_sync_state_preserves_object_key_across_replace() {
     upsert_sync_state(&db, rule, "a.txt", 42, 1_700_000_000, Some("abc123")).expect("upsert");
 
     // 3. object_key must survive the INSERT OR REPLACE (this is the whole
-    //    point of the COALESCE subquery in upsert_sync_state — without
-    //    it, the object_key column reverts to NULL).
+    //    point of the preserving `SELECT object_key` subquery in
+    //    upsert_sync_state — without it, the object_key column reverts to
+    //    NULL).
     let entries = load_sync_state(&db, rule).expect("load");
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].relative_path, "a.txt");
@@ -305,7 +306,7 @@ fn upsert_sync_state_preserves_object_key_across_replace() {
     assert_eq!(
         entries[0].object_key.as_deref(),
         Some("o/keeper"),
-        "REPLACE nulled out object_key — the COALESCE preservation is broken",
+        "REPLACE nulled out object_key — the preserving-subquery guard is broken",
     );
 
     // 4. And a subsequent upsert (same relative_path, different size)

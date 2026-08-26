@@ -1,16 +1,17 @@
 //! File-content envelope + chunk-level AEAD for Phase 4 (cloud file sync).
 //!
 //! **Scope:** the AEAD primitives ([`chunk`], [`envelope`]), shared-space
-//! key resolution ([`key_resolver`], Round B), and the metadata
-//! sidecar/object-key mapping ([`sidecar`], [`object_key`], Round C). The
-//! chunk/envelope primitives do no I/O; `key_resolver` and `object_key` read
-//! and write via a live [`DbConnection`](crate::database::DbConnection), and
+//! key resolution ([`key_resolver`], Round B), the metadata
+//! sidecar/object-key mapping ([`sidecar`], [`object_key`], Round C), and
+//! file-content sealing plus the `SyncProvider` decorator ([`content`],
+//! [`provider`], Round D). The chunk/envelope primitives do no I/O;
+//! `key_resolver` and `object_key` read and write via a live
+//! [`DbConnection`](crate::database::DbConnection), and
 //! `object_key::bootstrap_object_key_cache` additionally talks to a
 //! [`StorageBackend`](crate::remote_storage::backend::StorageBackend) to
-//! list/download sidecars. Provider wiring (Round D — see
-//! `docs/plans/2026-08-25-phase4-file-content-encryption.md`) layers the
-//! actual `SyncProvider` decorator on top; nothing in this module touches
-//! `cloud_provider.rs`.
+//! list/download sidecars. [`provider::EncryptingSyncProvider`] wraps an
+//! existing `SyncProvider`; nothing in this module touches
+//! `cloud_provider.rs` directly.
 //!
 //! ## Envelope layout on disk
 //!

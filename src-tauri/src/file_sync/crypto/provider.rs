@@ -392,22 +392,39 @@ impl SyncProvider for EncryptingSyncProvider {
                 .await
                 .map_err(SyncProviderError::Io)?,
         );
-        let mut writer = tokio::io::BufWriter::new(
-            tokio::fs::File::create(output_path)
+        // Stage plaintext into a tempfile beside `output_path` and rename
+        // it into place only after decryption + flush succeed. A mid-stream
+        // AEAD tag failure or a truncated ciphertext must not leave a
+        // partial plaintext at the final destination — the tempfile's
+        // Drop deletes it on any early return.
+        let pt_tmp = staging_tempfile(output_path).map_err(SyncProviderError::Io)?;
+        let pt_path = pt_tmp.path().to_path_buf();
+        {
+            let mut writer = tokio::io::BufWriter::new(
+                tokio::fs::File::create(&pt_path)
+                    .await
+                    .map_err(SyncProviderError::Io)?,
+            );
+            let epoch = self
+                .peek_header_epoch(&ct_path)
                 .await
-                .map_err(SyncProviderError::Io)?,
-        );
-        let epoch = self
-            .peek_header_epoch(&ct_path)
-            .await
-            .map_err(SyncProviderError::from)?;
-        let key = self.open_key(epoch).map_err(SyncProviderError::from)?;
-        open_stream(&key, ct_info.bytes, &mut reader, &mut writer)
-            .await
-            .map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?;
-        writer.flush().await.map_err(SyncProviderError::Io)?;
+                .map_err(SyncProviderError::from)?;
+            let key = self.open_key(epoch).map_err(SyncProviderError::from)?;
+            open_stream(&key, ct_info.bytes, &mut reader, &mut writer)
+                .await
+                .map_err(|e| SyncProviderError::Other {
+                    reason: e.to_string(),
+                })?;
+            writer.flush().await.map_err(SyncProviderError::Io)?;
+        }
+        // Atomic swap: on the same filesystem this is a rename(2). Only
+        // reached when decryption + flush succeeded, so the destination
+        // never observes partial plaintext.
+        pt_tmp.persist(output_path).map_err(|e| {
+            SyncProviderError::Io(std::io::Error::other(format!(
+                "persist decrypted tempfile: {e}"
+            )))
+        })?;
 
         // Plaintext size is not returned by open_stream directly; the
         // caller cares about the byte count for progress accounting.
