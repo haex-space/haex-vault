@@ -90,7 +90,10 @@ rand = "0.10"
 # Byte-buffer scrubbing on drop. Used for `AppState::vault_key` transport
 # slot — a 32-byte own-vault key held in memory only for the vault's open
 # lifetime, cleared on close. `Zeroizing<[u8; 32]>` wipes the buffer when
-# it drops (crash, panic, or normal `close_database`).
+# `Drop` runs — normal `close_database` and unwinding panics. Forced
+# termination (`panic = "abort"`, SIGKILL, OOM, hardware fault) skips
+# destructors and cannot guarantee scrubbing; treat this as defence in
+# depth, not a total-lifecycle guarantee.
 zeroize = "1.8"
 # FileSync dependencies
 chacha20poly1305 = "0.11"
