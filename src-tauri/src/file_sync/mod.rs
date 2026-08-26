@@ -5,6 +5,7 @@
 
 pub mod cloud_provider;
 pub mod commands;
+pub mod crypto;
 pub mod diff;
 pub mod engine;
 pub mod hashing;
