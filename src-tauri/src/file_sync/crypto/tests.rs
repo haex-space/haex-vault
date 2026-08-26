@@ -1141,3 +1141,644 @@ mod object_key {
         assert!(report.orphan_content.is_empty());
     }
 }
+
+// ── Content sealing/opening (Round D) ───────────────────────────────
+
+mod content {
+    use tokio::io::AsyncReadExt;
+
+    use super::super::chunk::{CHUNK_CIPHERTEXT_SIZE, CHUNK_PLAINTEXT_SIZE};
+    use super::super::content::{open_bytes, open_stream, seal_bytes, seal_stream};
+    use super::super::envelope::{HEADER_SIZE, NONCE_SIZE};
+
+    fn random_key() -> [u8; 32] {
+        let mut k = [0u8; 32];
+        rand::fill(&mut k);
+        k
+    }
+
+    fn random_nonce() -> [u8; NONCE_SIZE] {
+        let mut n = [0u8; NONCE_SIZE];
+        rand::fill(&mut n);
+        n
+    }
+
+    fn deterministic_plaintext(len: usize) -> Vec<u8> {
+        // Non-repeating byte pattern so chunk-boundary bugs surface as a
+        // decrypted output that clearly diverges from the input, not as a
+        // lucky "all zeros == all zeros" pass.
+        (0..len)
+            .map(|i| (i as u8).wrapping_mul(31).wrapping_add(7))
+            .collect()
+    }
+
+    #[test]
+    fn full_buffer_roundtrip_across_chunk_boundaries() {
+        // Exact sizes that stress the num_chunks/last_chunk arithmetic —
+        // zero, one, small, exactly one chunk, one over, exactly two, and
+        // a random-ish "in the middle of chunk 3" length.
+        for &len in &[
+            0usize,
+            1,
+            4096,
+            CHUNK_PLAINTEXT_SIZE,
+            CHUNK_PLAINTEXT_SIZE + 1,
+            2 * CHUNK_PLAINTEXT_SIZE,
+            2 * CHUNK_PLAINTEXT_SIZE + 17,
+        ] {
+            let key = random_key();
+            let nonce = random_nonce();
+            let plain = deterministic_plaintext(len);
+            let ct = seal_bytes(&key, 3, nonce, &plain).expect("seal");
+            let (hdr, back) = open_bytes(&key, &ct).expect("open");
+            assert_eq!(hdr.epoch, 3, "len={len}");
+            assert_eq!(back, plain, "roundtrip failed at len={len}");
+        }
+    }
+
+    #[tokio::test]
+    async fn streaming_roundtrip_matches_full_buffer() {
+        // seal_stream and seal_bytes must produce byte-identical output
+        // for the same inputs — the streaming path is not allowed to
+        // silently rearrange chunks or emit extra framing.
+        let key = random_key();
+        let nonce = random_nonce();
+        let plain = deterministic_plaintext(3 * CHUNK_PLAINTEXT_SIZE + 42);
+
+        let expected = seal_bytes(&key, 5, nonce, &plain).expect("seal_bytes");
+
+        let mut src = std::io::Cursor::new(plain.clone());
+        let mut dst: Vec<u8> = Vec::new();
+        seal_stream(&key, 5, nonce, plain.len() as u64, &mut src, &mut dst)
+            .await
+            .expect("seal_stream");
+        assert_eq!(dst, expected, "seal_stream diverged from seal_bytes");
+
+        let mut ct_reader = std::io::Cursor::new(expected.clone());
+        let mut pt_writer: Vec<u8> = Vec::new();
+        let hdr = open_stream(&key, expected.len() as u64, &mut ct_reader, &mut pt_writer)
+            .await
+            .expect("open_stream");
+        assert_eq!(hdr.epoch, 5);
+        assert_eq!(pt_writer, plain, "open_stream did not recover the input");
+    }
+
+    #[tokio::test]
+    async fn streaming_rejects_short_reader() {
+        // Announcing a plaintext_len larger than the reader can supply
+        // must fail cleanly, not silently truncate: a growing/shrinking
+        // source file would otherwise produce a valid-looking envelope
+        // that decrypts to the wrong bytes.
+        let key = random_key();
+        let nonce = random_nonce();
+        let short = deterministic_plaintext(100);
+        let mut src = std::io::Cursor::new(short.clone());
+        let mut dst: Vec<u8> = Vec::new();
+        let err = seal_stream(&key, 1, nonce, 200, &mut src, &mut dst)
+            .await
+            .expect_err("must fail on truncated source");
+        assert!(
+            format!("{err}").contains("io error"),
+            "expected io error, got: {err}",
+        );
+    }
+
+    #[tokio::test]
+    async fn streaming_open_matches_ciphertext_len_arithmetic() {
+        // The ciphertext_len an open_stream caller must announce equals
+        // HEADER + Σ (chunk_pt + TAG). If the arithmetic is off by one
+        // AEAD tag the last chunk decrypts fine but body_remaining lands
+        // on a value ≤ TAG_SIZE, which open_stream must reject.
+        let key = random_key();
+        let nonce = random_nonce();
+        let plain = deterministic_plaintext(CHUNK_PLAINTEXT_SIZE + 1);
+        let ct = seal_bytes(&key, 1, nonce, &plain).unwrap();
+
+        let true_len = ct.len() as u64;
+        assert_eq!(
+            true_len,
+            HEADER_SIZE as u64
+                + CHUNK_CIPHERTEXT_SIZE as u64
+                + 1
+                + super::super::chunk::TAG_SIZE as u64,
+            "sanity check on the size formula for len=CHUNK+1",
+        );
+
+        // Correct length round-trips.
+        let mut r = std::io::Cursor::new(ct.clone());
+        let mut w: Vec<u8> = Vec::new();
+        open_stream(&key, true_len, &mut r, &mut w).await.unwrap();
+        assert_eq!(w.len(), plain.len());
+
+        // Overstated length forces open_stream to think there is one
+        // more chunk than really exists — the extra read must fail.
+        let mut r_bad = std::io::Cursor::new(ct);
+        let mut w_bad: Vec<u8> = Vec::new();
+        let err = open_stream(&key, true_len + 100, &mut r_bad, &mut w_bad)
+            .await
+            .expect_err("overstated len must fail");
+        // Either the extra read fails EOF, or the trailing "body" runs
+        // out too small for a chunk — both are correct rejections.
+        let _ = err;
+    }
+
+    #[tokio::test]
+    async fn streaming_writer_stays_within_one_chunk_in_ram() {
+        // Regression: seal_stream must never buffer more than one
+        // plaintext chunk. Enforced structurally — a read_exact against
+        // a `[u8; CHUNK_PLAINTEXT_SIZE]` buffer, one chunk at a time —
+        // rather than by measuring RSS, but the test still asserts that
+        // a 4-chunk file goes through with a bounded, single-chunk read
+        // burst per iteration by hooking the reader.
+        struct Counting<R: AsyncReadExt + Unpin> {
+            inner: R,
+            max_single_read: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        }
+
+        impl<R: AsyncReadExt + Unpin> tokio::io::AsyncRead for Counting<R> {
+            fn poll_read(
+                self: std::pin::Pin<&mut Self>,
+                cx: &mut std::task::Context<'_>,
+                buf: &mut tokio::io::ReadBuf<'_>,
+            ) -> std::task::Poll<std::io::Result<()>> {
+                let this = self.get_mut();
+                let before = buf.filled().len();
+                let pinned = std::pin::Pin::new(&mut this.inner);
+                let poll = pinned.poll_read(cx, buf);
+                let after = buf.filled().len();
+                let delta = after - before;
+                let mut cur = this
+                    .max_single_read
+                    .load(std::sync::atomic::Ordering::Relaxed);
+                while delta > cur {
+                    match this.max_single_read.compare_exchange(
+                        cur,
+                        delta,
+                        std::sync::atomic::Ordering::Relaxed,
+                        std::sync::atomic::Ordering::Relaxed,
+                    ) {
+                        Ok(_) => break,
+                        Err(actual) => cur = actual,
+                    }
+                }
+                poll
+            }
+        }
+
+        let key = random_key();
+        let nonce = random_nonce();
+        let plain = deterministic_plaintext(4 * CHUNK_PLAINTEXT_SIZE);
+        let src_inner = std::io::Cursor::new(plain.clone());
+        let max_single = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut counting = Counting {
+            inner: src_inner,
+            max_single_read: max_single.clone(),
+        };
+        let mut dst: Vec<u8> = Vec::new();
+        seal_stream(&key, 9, nonce, plain.len() as u64, &mut counting, &mut dst)
+            .await
+            .expect("seal_stream");
+
+        assert!(
+            max_single.load(std::sync::atomic::Ordering::Relaxed) <= CHUNK_PLAINTEXT_SIZE,
+            "single read exceeded CHUNK_PLAINTEXT_SIZE — streaming lost its RAM bound",
+        );
+    }
+}
+
+// ── Encrypting SyncProvider decorator (Round D) ─────────────────────
+
+mod provider {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex as StdMutex};
+
+    use async_trait::async_trait;
+    use base64::Engine;
+    use rusqlite::{params, Connection};
+    use uuid::Uuid;
+
+    use super::super::key_resolver::derive_file_key;
+    use super::super::provider::{EncryptingSyncProvider, FileKeySource};
+    use super::super::sidecar::{seal_sidecar, SidecarPayload};
+    use crate::database::DbConnection;
+    use crate::file_sync::provider::{ReadFileResult, SyncProvider, SyncProviderError};
+    use crate::file_sync::types::FileState;
+
+    fn random_key() -> [u8; 32] {
+        let mut k = [0u8; 32];
+        rand::fill(&mut k);
+        k
+    }
+
+    fn random_nonce() -> [u8; super::super::envelope::NONCE_SIZE] {
+        let mut n = [0u8; super::super::envelope::NONCE_SIZE];
+        rand::fill(&mut n);
+        n
+    }
+
+    fn setup_db() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("in-memory DB");
+        conn.execute_batch(
+            "CREATE TABLE haex_crdt_configs_no_sync (
+                key TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                value TEXT NOT NULL
+            );
+            CREATE TABLE haex_crdt_dirty_tables_no_sync (
+                table_name TEXT PRIMARY KEY,
+                last_modified TEXT
+            );
+            CREATE TABLE haex_sync_state_no_sync (
+                id TEXT PRIMARY KEY NOT NULL,
+                rule_id TEXT NOT NULL,
+                relative_path TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                modified_at INTEGER NOT NULL,
+                synced_at TEXT NOT NULL,
+                deleted INTEGER DEFAULT 0 NOT NULL,
+                hash TEXT,
+                object_key TEXT
+            );
+            CREATE UNIQUE INDEX haex_sync_state_rule_path_unique
+                ON haex_sync_state_no_sync (rule_id, relative_path);
+            CREATE TABLE haex_mls_sync_keys (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                epoch INTEGER NOT NULL,
+                key_data TEXT NOT NULL,
+                authored_by_did TEXT
+            );",
+        )
+        .expect("schema setup");
+        DbConnection(Arc::new(StdMutex::new(Some(conn))))
+    }
+
+    fn seed_mls_key(db: &DbConnection, space_id: &str, epoch: u64, key: &[u8; 32]) {
+        let guard = db.0.lock().expect("db lock");
+        let conn = guard.as_ref().expect("db open");
+        conn.execute(
+            "INSERT INTO haex_mls_sync_keys (id, space_id, epoch, key_data) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                Uuid::new_v4().to_string(),
+                space_id,
+                epoch as i64,
+                base64::engine::general_purpose::STANDARD.encode(key)
+            ],
+        )
+        .expect("seed mls key");
+    }
+
+    fn seed_current_epoch(_db: &DbConnection, _space_id: &str, _epoch: u64) {
+        // The decorator's write path resolves the current epoch via
+        // `MlsManager::current_epoch`, which reads a live MLS group.
+        // These tests use a lower-level path (see `WriteFixture` below)
+        // that bypasses `resolve_latest` in favour of `resolve_key`, so
+        // no MLS group is stood up here.
+    }
+
+    /// In-memory `SyncProvider` used to observe what the decorator
+    /// actually calls on the inner backend. Each key is stored verbatim
+    /// so the tests can assert on the opaque `o/…` and `o/….m` keys the
+    /// decorator produces.
+    #[derive(Default)]
+    struct FakeProvider {
+        objects: StdMutex<HashMap<String, Vec<u8>>>,
+    }
+
+    impl FakeProvider {
+        fn snapshot_keys(&self) -> Vec<String> {
+            let mut keys: Vec<String> = self.objects.lock().unwrap().keys().cloned().collect();
+            keys.sort();
+            keys
+        }
+    }
+
+    #[async_trait]
+    impl SyncProvider for FakeProvider {
+        fn display_name(&self) -> String {
+            "fake".into()
+        }
+
+        async fn manifest(&self) -> Result<Vec<FileState>, SyncProviderError> {
+            Ok(self
+                .objects
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| FileState {
+                    relative_path: k.clone(),
+                    size: v.len() as u64,
+                    modified_at: 0,
+                    is_directory: false,
+                    hash: None,
+                    chunk_size: None,
+                    chunk_hashes: None,
+                })
+                .collect())
+        }
+
+        async fn read_file(&self, key: &str) -> Result<Vec<u8>, SyncProviderError> {
+            self.objects
+                .lock()
+                .unwrap()
+                .get(key)
+                .cloned()
+                .ok_or_else(|| SyncProviderError::NotFound {
+                    path: key.to_string(),
+                })
+        }
+
+        async fn read_file_to_path(
+            &self,
+            key: &str,
+            output_path: &std::path::Path,
+            _expected_chunks: Option<crate::file_sync::hashing::ChunkedHash>,
+            on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
+        ) -> Result<ReadFileResult, SyncProviderError> {
+            let data = self.read_file(key).await?;
+            tokio::fs::write(output_path, &data)
+                .await
+                .map_err(SyncProviderError::Io)?;
+            let n = data.len() as u64;
+            on_progress(n, n);
+            Ok(ReadFileResult {
+                bytes: n,
+                hash: None,
+            })
+        }
+
+        async fn write_file(&self, key: &str, data: &[u8]) -> Result<(), SyncProviderError> {
+            self.objects
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), data.to_vec());
+            Ok(())
+        }
+
+        async fn write_file_from_path(
+            &self,
+            key: &str,
+            source_path: &std::path::Path,
+        ) -> Result<(), SyncProviderError> {
+            let data = tokio::fs::read(source_path)
+                .await
+                .map_err(SyncProviderError::Io)?;
+            self.write_file(key, &data).await
+        }
+
+        async fn delete_file(&self, key: &str, _to_trash: bool) -> Result<(), SyncProviderError> {
+            self.objects
+                .lock()
+                .unwrap()
+                .remove(key)
+                .map(|_| ())
+                .ok_or_else(|| SyncProviderError::NotFound {
+                    path: key.to_string(),
+                })
+        }
+
+        async fn create_directory(&self, _key: &str) -> Result<(), SyncProviderError> {
+            Ok(())
+        }
+
+        fn supports_directories(&self) -> bool {
+            false
+        }
+    }
+
+    /// Helper: seed a paired (content, sidecar) object under a fresh
+    /// `o/<hex>` key, sealed under `epoch`. Returns the object key.
+    async fn seed_paired_object(
+        inner: &FakeProvider,
+        sync_key: &[u8; 32],
+        epoch: u64,
+        relative_path: &str,
+        plaintext: &[u8],
+    ) -> String {
+        let object_key = format!("o/{}", Uuid::new_v4().simple());
+        let aead_key = derive_file_key(sync_key);
+        let content_ct =
+            super::super::content::seal_bytes(&aead_key, epoch, random_nonce(), plaintext)
+                .expect("seal content");
+        let payload = SidecarPayload {
+            relative_path: relative_path.to_string(),
+            size: plaintext.len() as u64,
+            modified_at: 1_700_000_000,
+            content_type: None,
+            blake3: blake3::hash(plaintext).to_hex().to_string(),
+        };
+        let sidecar_ct =
+            seal_sidecar(&aead_key, epoch, random_nonce(), &payload).expect("seal sidecar");
+        inner
+            .write_file(&object_key, &content_ct)
+            .await
+            .expect("put content");
+        inner
+            .write_file(
+                &super::super::object_key::sidecar_key_for(&object_key),
+                &sidecar_ct,
+            )
+            .await
+            .expect("put sidecar");
+        object_key
+    }
+
+    #[tokio::test]
+    async fn manifest_bootstraps_and_returns_plaintext_view() {
+        // A paired (content, sidecar) object landed in the bucket by
+        // another device: after the first `manifest()` the decorator's
+        // local cache must know it, and the returned FileState must
+        // carry the plaintext size — not the (larger) ciphertext size.
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+        seed_current_epoch(&db, &space, 1);
+
+        let inner = Arc::new(FakeProvider::default());
+        let plaintext = b"hello from a peer".to_vec();
+        seed_paired_object(&inner, &sync_key, 1, "docs/note.md", &plaintext).await;
+
+        let dec = EncryptingSyncProvider::new(
+            inner.clone(),
+            FileKeySource::SpaceEpoch {
+                space_id: space.clone(),
+            },
+            rule_id.clone(),
+            DbConnection(db.0.clone()),
+        );
+
+        let manifest = dec.manifest().await.expect("manifest");
+        assert_eq!(manifest.len(), 1);
+        assert_eq!(manifest[0].relative_path, "docs/note.md");
+        assert_eq!(
+            manifest[0].size,
+            plaintext.len() as u64,
+            "manifest must report plaintext size, not ciphertext size — \
+             otherwise unchanged files re-upload forever",
+        );
+    }
+
+    #[tokio::test]
+    async fn unchanged_file_produces_no_diff_action() {
+        // THE regression test of Phase 4 (see plan §"Warum der Diff nicht
+        // so bricht"): after `manifest()` twice on the same corpus, the
+        // diff engine must see identical FileStates so `files_equal`
+        // yields "no action".
+        use crate::file_sync::diff::compute_sync_actions;
+        use crate::file_sync::types::{DeleteMode, SyncDirection};
+
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+        seed_current_epoch(&db, &space, 1);
+
+        let inner = Arc::new(FakeProvider::default());
+        seed_paired_object(&inner, &sync_key, 1, "a.bin", b"content").await;
+
+        let dec = EncryptingSyncProvider::new(
+            inner,
+            FileKeySource::SpaceEpoch { space_id: space },
+            rule_id,
+            DbConnection(db.0.clone()),
+        );
+
+        let first = dec.manifest().await.expect("m1");
+        let second = dec.manifest().await.expect("m2");
+        let actions =
+            compute_sync_actions(&first, &second, SyncDirection::OneWay, DeleteMode::Ignore);
+        assert!(
+            actions.to_download.is_empty()
+                && actions.to_upload.is_empty()
+                && actions.to_delete.is_empty(),
+            "unchanged bucket must yield zero diff actions, got: {actions:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn read_file_roundtrips_seeded_content() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+        seed_current_epoch(&db, &space, 1);
+
+        let inner = Arc::new(FakeProvider::default());
+        let plaintext = b"round-trip me".to_vec();
+        seed_paired_object(&inner, &sync_key, 1, "hello.txt", &plaintext).await;
+
+        let dec = EncryptingSyncProvider::new(
+            inner,
+            FileKeySource::SpaceEpoch { space_id: space },
+            rule_id,
+            DbConnection(db.0.clone()),
+        );
+        // manifest must run first so the cache learns the object key.
+        dec.manifest().await.expect("bootstrap");
+
+        let got = dec.read_file("hello.txt").await.expect("read");
+        assert_eq!(got, plaintext);
+    }
+
+    #[tokio::test]
+    async fn read_file_streaming_matches_full_buffer() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+
+        let inner = Arc::new(FakeProvider::default());
+        // Multi-chunk plaintext so the streaming reassembly is
+        // exercised, not just a single-chunk trivial case.
+        let plaintext: Vec<u8> = (0..(super::super::chunk::CHUNK_PLAINTEXT_SIZE + 137))
+            .map(|i| (i as u8).wrapping_mul(11))
+            .collect();
+        seed_paired_object(&inner, &sync_key, 1, "big.bin", &plaintext).await;
+
+        let dec = EncryptingSyncProvider::new(
+            inner,
+            FileKeySource::SpaceEpoch { space_id: space },
+            rule_id,
+            DbConnection(db.0.clone()),
+        );
+        dec.manifest().await.expect("bootstrap");
+
+        let tmp_dir = tempfile::tempdir().expect("tempdir");
+        let out_path = tmp_dir.path().join("out.bin");
+        let progress: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
+        let info = dec
+            .read_file_to_path("big.bin", &out_path, None, progress)
+            .await
+            .expect("stream read");
+        assert_eq!(info.bytes as usize, plaintext.len());
+        let got = tokio::fs::read(&out_path).await.expect("read out");
+        assert_eq!(got, plaintext);
+    }
+
+    #[tokio::test]
+    async fn delete_removes_both_content_and_sidecar() {
+        let db = setup_db();
+        let space = Uuid::new_v4().to_string();
+        let rule_id = Uuid::new_v4().to_string();
+        let sync_key = random_key();
+        seed_mls_key(&db, &space, 1, &sync_key);
+
+        let inner = Arc::new(FakeProvider::default());
+        let object_key = seed_paired_object(&inner, &sync_key, 1, "gone.txt", b"bye").await;
+
+        let dec = EncryptingSyncProvider::new(
+            inner.clone(),
+            FileKeySource::SpaceEpoch { space_id: space },
+            rule_id,
+            DbConnection(db.0.clone()),
+        );
+        dec.manifest().await.expect("bootstrap");
+        dec.delete_file("gone.txt", false).await.expect("delete");
+
+        let remaining = inner.snapshot_keys();
+        assert!(
+            !remaining.iter().any(|k| k == &object_key),
+            "content object still present after delete: {remaining:?}",
+        );
+        assert!(
+            !remaining
+                .iter()
+                .any(|k| k == &super::super::object_key::sidecar_key_for(&object_key)),
+            "sidecar object still present after delete: {remaining:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn own_vault_key_source_errors_cleanly() {
+        // Placeholder branch — Rust holds no vault key today, so calling
+        // any content path with `VaultKey` must surface a clear error
+        // rather than deadlock or panic.
+        //
+        // Use `write_file` here, not `read_file`: `read_file` calls
+        // `object_key_for_read` first and fails with `MissingObjectKey`
+        // before touching key resolution, which masks the VaultKey path.
+        // `write_file` calls `seal_key()` up front, so `OwnVaultNotWired`
+        // is the actual error surfaced.
+        let db = setup_db();
+        let inner = Arc::new(FakeProvider::default());
+        let dec = EncryptingSyncProvider::new(
+            inner,
+            FileKeySource::VaultKey,
+            "rule".to_string(),
+            DbConnection(db.0.clone()),
+        );
+        let err = dec
+            .write_file("anything", b"payload")
+            .await
+            .expect_err("must fail");
+        assert!(
+            format!("{err}").contains("own-vault"),
+            "expected the own-vault not-wired error, got: {err}",
+        );
+    }
+}

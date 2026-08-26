@@ -39,9 +39,11 @@
 //! which is why the plan calls for it explicitly.
 
 pub mod chunk;
+pub mod content;
 pub mod envelope;
 pub mod key_resolver;
 pub mod object_key;
+pub mod provider;
 pub mod sidecar;
 
 #[cfg(test)]
@@ -51,10 +53,12 @@ pub use chunk::{
     ciphertext_len, num_chunks, open_chunk, plaintext_len, seal_chunk, CryptoError,
     CHUNK_CIPHERTEXT_SIZE, CHUNK_PLAINTEXT_SIZE, TAG_SIZE,
 };
+pub use content::{open_bytes, open_stream, seal_bytes, seal_stream, StreamCryptoError};
 pub use envelope::{EnvelopeHeader, ENVELOPE_VERSION, HEADER_SIZE, MAGIC, NONCE_SIZE};
 pub use key_resolver::{clear_key_cache, resolve_key, resolve_latest, KeyError, KEY_LEN};
 pub use object_key::{
-    bootstrap_object_key_cache, generate_object_key, sidecar_key_for, BootstrapReport,
-    ObjectKeyError, SIDECAR_SUFFIX,
+    bootstrap_object_key_cache, generate_object_key, lookup_object_key, mark_object_deleted,
+    set_object_key, sidecar_key_for, BootstrapReport, ObjectKeyError, SIDECAR_SUFFIX,
 };
+pub use provider::{EncryptingSyncProvider, FileKeySource, ProviderCryptoError};
 pub use sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};

@@ -23,11 +23,15 @@ Design decisions live in `docs/adr/`; this file is a glossary only.
 
 ## Datei-Vertraulichkeit (Cloud)
 
+Status: Rust-Primitiven + Decorator gelandet (Phase 4 Runden A–D, PRs #827/#828/#829/#830, Stand 2026-08-25). Offen: Provider-Wiring in `commands.rs::create_provider`, VaultKey-Transport TS→Rust für den own-vault-Pfad, Legacy-Klartext-Migration (Runde E), E2E-Attack-Spec (Runde F).
+
 - **Epoch-Key** — Pro Space und Epoch aus dem MLS-Group-State abgeleiteter symmetrischer Content-Key. Persistiert pro Epoch in `haex_mls_sync_keys` (CRDT-gesynct), abrufbar per `(space_id, epoch)`. Rotiert bei Membership-Änderung; alte Epochs bleiben abrufbar, damit historischer Ciphertext lesbar bleibt.
-- **File-Envelope** — Selbstbeschreibendes Rahmenformat eines verschlüsselten Cloud-Objekts: Header (Magic, Version, `epoch`, File-Nonce) gefolgt von Chunks mit je eigenem AEAD-Tag. Der Header nennt die Epoch, damit der Leser den passenden Key wählen kann, ohne Backend-Metadaten zu brauchen.
+- **File-Envelope** — Selbstbeschreibendes Rahmenformat eines verschlüsselten Cloud-Objekts: Header (Magic `HXFE`, Version, `epoch`, File-Nonce) gefolgt von Chunks mit je eigenem AEAD-Tag. Der Header nennt die Epoch, damit der Leser den passenden Key wählen kann, ohne Backend-Metadaten zu brauchen. Implementierung: `src-tauri/src/file_sync/crypto/{envelope,chunk,content}.rs`.
 - **Content-Objekt** — Cloud-Objekt mit dem verschlüsselten Dateiinhalt, adressiert über einen opaken Object-Key.
-- **Metadata-Sidecar** — Kleines Begleitobjekt (`<key>.m`) zum Content-Objekt, gleiches Envelope-Format, enthält Dateiname, Größe, Typ, mtime und Klartext-Hash. Erlaubt Member das Auflisten eines Buckets ohne Download der Inhalte.
-- **Opaker Object-Key** — Zufällige ID als Cloud-Objektname. Trägt keine Pfad-Information; die Zuordnung Pfad→ID lebt im Metadata-Sidecar und wird lokal in `haex_sync_state_no_sync` gecached. Der Storage-Betreiber lernt dadurch weder Dateinamen noch Ordnerstruktur.
+- **Metadata-Sidecar** — Kleines Begleitobjekt (`<key>.m`) zum Content-Objekt, gleiches Envelope-Format, enthält Dateiname, Größe, Typ, mtime und Klartext-Hash. Erlaubt Member das Auflisten eines Buckets ohne Download der Inhalte. Implementierung: `src-tauri/src/file_sync/crypto/sidecar.rs`.
+- **Opaker Object-Key** — Zufällige ID als Cloud-Objektname (`o/<32-hex>`). Trägt keine Pfad-Information; die Zuordnung Pfad→ID lebt im Metadata-Sidecar und wird lokal in `haex_sync_state_no_sync.object_key` gecached (Migration 0019). Der Storage-Betreiber lernt dadurch weder Dateinamen noch Ordnerstruktur. Implementierung: `src-tauri/src/file_sync/crypto/object_key.rs`.
+- **Encrypting Sync Provider** — `SyncProvider`-Decorator, der einen inneren Provider (in Produktion `CloudProvider`) mit Envelope + Sidecar wrappt: `manifest()` meldet Klartextgrößen aus dem lokalen Cache (kein Ciphertext-Größen-Leak in den Diff), `write_file*` sealt Content + Sidecar unter einem frisch geminteten oder wiederverwendeten Object-Key, `read_file*` unsealt streamend, `delete_file` löscht beide Objekte. Bootstrap beim ersten `manifest()`-Aufruf rekonstruiert den lokalen Object-Key-Cache aus den Sidecars des Buckets. Implementierung: `src-tauri/src/file_sync/crypto/provider.rs`. Wird noch nicht in `create_provider` verkabelt (Follow-up).
+- **Key-Source (`FileKeySource`)** — Achse, aus der der Decorator den Content-Key wählt: `SpaceEpoch { space_id }` (gewired) resolved den aktuellen Epoch-Key beim Sealen und den historischen Epoch-Key beim Öffnen. `VaultKey` (Placeholder) ist der own-vault-Pfad — Rust hat heute keinen `vault_key`-Handle (lebt in TS `vaultKeyCache`), Transport TS→Rust ist eigener Follow-up-PR.
 
 ## Space-Rollen
 
