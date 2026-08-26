@@ -318,6 +318,18 @@ pub fn close_database(state: State<'_, AppState>) -> Result<(), DatabaseError> {
         }
     }
 
+    // 1c. Scrub the own-vault key slot. Held here (not just cleared by
+    //     the TS `vault_key_clear` command) so a hard shutdown path still
+    //     wipes the key. `unwrap_or_else(into_inner)` matches the sink
+    //     drops above — this is a defensive slot clear, not a place to
+    //     surface poisoning.
+    {
+        let mut key_guard = state.vault_key.lock().unwrap_or_else(|p| p.into_inner());
+        if key_guard.take().is_some() {
+            println!("[CLOSE_DB] Vault key slot cleared");
+        }
+    }
+
     // 2. Close the main database connection.
     {
         let mut db_guard = state.db.0.lock().map_err(|e| DatabaseError::LockError {

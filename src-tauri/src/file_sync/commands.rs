@@ -13,7 +13,10 @@ use crate::AppState;
 
 use std::sync::Arc;
 
+use crate::database::DbConnection;
+
 use super::cloud_provider::CloudProvider;
+use super::crypto::provider::{EncryptingSyncProvider, FileKeySource};
 use super::engine::{execute_sync, run_sync_loop, SyncEngineError};
 use super::local_provider::LocalProvider;
 use super::peer_provider::PeerProvider;
@@ -199,6 +202,7 @@ async fn create_provider(
     config: &serde_json::Value,
     state: &AppState,
     is_target: bool,
+    rule_id: &str,
 ) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
     match provider_type {
         "local" => {
@@ -298,11 +302,58 @@ async fn create_provider(
             }
 
             let provider = CloudProvider::new(backend, prefix);
-            Ok(Arc::new(provider))
+            let inner: Arc<dyn SyncProvider> = Arc::new(provider);
+            Ok(wrap_cloud_with_encryption_if_configured(
+                inner,
+                config,
+                rule_id,
+                DbConnection(state.db.0.clone()),
+            ))
         }
         _ => Err(FileSyncCommandError::InvalidConfig(format!(
             "Unknown provider type: {provider_type}"
         ))),
+    }
+}
+
+/// Wrap a built cloud provider in [`EncryptingSyncProvider`] when the
+/// rule config carries a non-empty `spaceId`; otherwise return the inner
+/// provider unchanged.
+///
+/// Extracted from `create_provider` so the wrapping decision can be
+/// unit-tested without a full `AppState`. The behaviour is the whole
+/// Round-E policy contract:
+///
+/// - **Shared-space cloud rules** (`spaceId` set): security-by-default,
+///   sealed under the current MLS epoch via `FileKeySource::SpaceEpoch`.
+/// - **Own-vault cloud rules** (`spaceId` absent/empty): unwrapped
+///   today. Their key transport (`AppState::vault_key`) is landed by
+///   this PR but the decorator's `FileKeySource::VaultKey` variant still
+///   errors, so wrapping would break sync until the follow-up wires
+///   consumption.
+///
+/// Kept `pub(crate)` so the tests in
+/// [`crate::file_sync::crypto::tests`] can call it directly.
+pub(crate) fn wrap_cloud_with_encryption_if_configured(
+    inner: Arc<dyn SyncProvider>,
+    config: &serde_json::Value,
+    rule_id: &str,
+    db: DbConnection,
+) -> Arc<dyn SyncProvider> {
+    let space_id = config
+        .get("spaceId")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+    match space_id {
+        Some(space_id) => Arc::new(EncryptingSyncProvider::new(
+            inner,
+            FileKeySource::SpaceEpoch {
+                space_id: space_id.to_string(),
+            },
+            rule_id,
+            db,
+        )),
+        None => inner,
     }
 }
 
@@ -364,10 +415,10 @@ pub async fn file_sync_start_rule(
         await_sync_handle(&rule_id, handle).await;
     }
 
-    let source = create_provider(&source_type, &source_config, &state, false)
+    let source = create_provider(&source_type, &source_config, &state, false, &rule_id)
         .await
         .inspect_err(|e| eprintln!("[FileSync] Failed to create source provider: {e}"))?;
-    let target = create_provider(&target_type, &target_config, &state, true)
+    let target = create_provider(&target_type, &target_config, &state, true, &rule_id)
         .await
         .inspect_err(|e| eprintln!("[FileSync] Failed to create target provider: {e}"))?;
 
@@ -471,8 +522,8 @@ pub async fn file_sync_trigger_now(
     let dir = parse_direction(&direction)?;
     let del = parse_delete_mode(&delete_mode)?;
 
-    let source = create_provider(&source_type, &source_config, &state, false).await?;
-    let target = create_provider(&target_type, &target_config, &state, true).await?;
+    let source = create_provider(&source_type, &source_config, &state, false, &rule_id).await?;
+    let target = create_provider(&target_type, &target_config, &state, true, &rule_id).await?;
 
     let result = execute_sync(
         source,

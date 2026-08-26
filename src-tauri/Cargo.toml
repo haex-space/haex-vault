@@ -87,6 +87,11 @@ x25519-dalek = { version = "3.0", features = ["static_secrets"] }
 aes-gcm = "0.11"
 hkdf = "0.12"
 rand = "0.10"
+# Byte-buffer scrubbing on drop. Used for `AppState::vault_key` transport
+# slot — a 32-byte own-vault key held in memory only for the vault's open
+# lifetime, cleared on close. `Zeroizing<[u8; 32]>` wipes the buffer when
+# it drops (crash, panic, or normal `close_database`).
+zeroize = "1.8"
 # FileSync dependencies
 chacha20poly1305 = "0.11"
 async-trait = "0.1"

@@ -30,6 +30,7 @@ mod remote_storage;
 mod shortcuts;
 pub mod space_delivery;
 pub mod ucan;
+pub mod vault_key;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;
 
@@ -168,6 +169,16 @@ pub struct AppState {
     pub mail_poll_manager: tokio::sync::Mutex<MailPollManager>,
     /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
     pub auth_token: Arc<Mutex<Option<String>>>,
+    /// Own-vault key held for own-vault cloud sync encryption. Set by
+    /// TypeScript on vault open/create via the `vault_key_set` command,
+    /// cleared on vault lock via `vault_key_clear`. Wrapped in
+    /// `Zeroizing` so the byte buffer is scrubbed on drop.
+    ///
+    /// Not yet consumed by `EncryptingSyncProvider` (Round D's
+    /// `FileKeySource::VaultKey` still surfaces `OwnVaultNotWired`). This
+    /// slot is the transport layer for a future PR that will extend
+    /// provider encryption to the own-vault cloud path.
+    pub vault_key: Arc<Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
     /// PTY manager for shell/terminal sessions
     pub pty_manager: extension::shell::pty::PtyManager,
     /// Active local sync loops (space_id -> handle)
@@ -400,6 +411,7 @@ pub fn run() {
             sync_manager: tokio::sync::Mutex::new(SyncManager::new()),
             mail_poll_manager: tokio::sync::Mutex::new(MailPollManager::new()),
             auth_token: Arc::new(Mutex::new(None)),
+            vault_key: Arc::new(Mutex::new(None)),
             pty_manager: extension::shell::pty::PtyManager::new(),
             local_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
             owner_sync_loops: tokio::sync::Mutex::new(HashMap::new()),
@@ -564,6 +576,8 @@ pub fn run() {
             extension::spaces::commands::extension_space_list,
             extension::spaces::commands::extension_space_get_members,
             extension::spaces::commands::set_auth_token,
+            vault_key::vault_key_set,
+            vault_key::vault_key_clear,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,
             extension::mail::commands::extension_mail_list_mailboxes,

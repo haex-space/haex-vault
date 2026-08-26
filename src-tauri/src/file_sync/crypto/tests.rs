@@ -1825,6 +1825,74 @@ mod provider {
         );
     }
 
+    // ── Round E: create_provider auto-decorate policy ────────────────
+
+    #[test]
+    fn wrap_helper_wraps_cloud_when_spaceid_present() {
+        let db = setup_db();
+        let inner = Arc::new(FakeProvider::default()) as Arc<dyn SyncProvider>;
+        let config = serde_json::json!({
+            "backendId": "backend-x",
+            "spaceId": Uuid::new_v4().to_string(),
+        });
+        let wrapped = crate::file_sync::commands::wrap_cloud_with_encryption_if_configured(
+            inner.clone(),
+            &config,
+            "rule-1",
+            DbConnection(db.0.clone()),
+        );
+        // The decorator's `display_name` prefix is the observable
+        // marker of a successful wrap — its `crypto:` prefix wraps the
+        // inner name. Comparing against the fake's `"fake"` proves
+        // both the wrap AND the passthrough.
+        assert_eq!(
+            wrapped.display_name(),
+            "crypto:fake",
+            "wrap must have produced an EncryptingSyncProvider",
+        );
+    }
+
+    #[test]
+    fn wrap_helper_passes_through_when_spaceid_absent() {
+        let db = setup_db();
+        let inner = Arc::new(FakeProvider::default()) as Arc<dyn SyncProvider>;
+        let config = serde_json::json!({
+            "backendId": "backend-x",
+            // No spaceId — own-vault cloud rule.
+        });
+        let unwrapped = crate::file_sync::commands::wrap_cloud_with_encryption_if_configured(
+            inner.clone(),
+            &config,
+            "rule-1",
+            DbConnection(db.0.clone()),
+        );
+        assert_eq!(
+            unwrapped.display_name(),
+            "fake",
+            "own-vault cloud rules must stay unwrapped until VaultKey lands",
+        );
+    }
+
+    #[test]
+    fn wrap_helper_treats_empty_spaceid_as_absent() {
+        // An empty-string `spaceId` is a UI/migration artifact — must
+        // not select the shared-space path since there is no space to
+        // resolve keys against.
+        let db = setup_db();
+        let inner = Arc::new(FakeProvider::default()) as Arc<dyn SyncProvider>;
+        let config = serde_json::json!({
+            "backendId": "backend-x",
+            "spaceId": "",
+        });
+        let unwrapped = crate::file_sync::commands::wrap_cloud_with_encryption_if_configured(
+            inner.clone(),
+            &config,
+            "rule-1",
+            DbConnection(db.0.clone()),
+        );
+        assert_eq!(unwrapped.display_name(), "fake");
+    }
+
     #[tokio::test]
     async fn own_vault_key_source_errors_cleanly() {
         // Placeholder branch — Rust holds no vault key today, so calling
