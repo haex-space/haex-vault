@@ -30,7 +30,6 @@ mod remote_storage;
 mod shortcuts;
 pub mod space_delivery;
 pub mod ucan;
-pub mod vault_key;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod window;
 
@@ -169,15 +168,27 @@ pub struct AppState {
     pub mail_poll_manager: tokio::sync::Mutex<MailPollManager>,
     /// Supabase JWT auth token, synced from frontend for Rust HTTP calls.
     pub auth_token: Arc<Mutex<Option<String>>>,
-    /// Own-vault key held for own-vault cloud sync encryption. Set by
-    /// TypeScript on vault open/create via the `vault_key_set` command,
-    /// cleared on vault lock via `vault_key_clear`. Wrapped in
-    /// `Zeroizing` so the byte buffer is scrubbed on drop.
+    /// Own-vault file-encryption key for own-vault cloud sync. Populated
+    /// Rust-side at vault open by deriving a 32-byte AEAD key with
+    /// `HKDF-Expand` over the vault's default-identity DID private key
+    /// (domain-separated with `"haex-file-encryption-v1"`); cleared in
+    /// `close_database`. Never crosses the TS boundary — file encryption
+    /// is Rust-only, TS never touches raw key material.
+    ///
+    /// The default DID is the natural key source here: it's guaranteed
+    /// to exist for every vault (cannot be deleted), it's already loaded
+    /// at open time for sync-server auth, and every device holding this
+    /// vault has the same DID via CRDT sync — so cloud objects encrypted
+    /// on one device decrypt on any other device with the same vault.
+    ///
+    /// Wrapped in `Zeroizing` so the byte buffer is scrubbed on drop:
+    /// project-wide default going forward — every place that handles
+    /// symmetric key material should follow the same hygiene.
     ///
     /// Not yet consumed by `EncryptingSyncProvider` (Round D's
     /// `FileKeySource::VaultKey` still surfaces `OwnVaultNotWired`). This
-    /// slot is the transport layer for a future PR that will extend
-    /// provider encryption to the own-vault cloud path.
+    /// slot is the transport layer for a future PR that extends provider
+    /// encryption to the own-vault cloud path.
     pub vault_key: Arc<Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
     /// PTY manager for shell/terminal sessions
     pub pty_manager: extension::shell::pty::PtyManager,
@@ -576,8 +587,6 @@ pub fn run() {
             extension::spaces::commands::extension_space_list,
             extension::spaces::commands::extension_space_get_members,
             extension::spaces::commands::set_auth_token,
-            vault_key::vault_key_set,
-            vault_key::vault_key_clear,
             extension::web::commands::extension_web_fetch,
             extension::web::commands::extension_web_open,
             extension::mail::commands::extension_mail_list_mailboxes,
