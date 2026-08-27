@@ -60,6 +60,13 @@ pub const CONTENT_KEY_PREFIX: &str = "content/o/";
 /// content object the owner holds under their vault_key.
 pub const OWN_SIDECAR_PREFIX: &str = "own/";
 
+/// Bucket-root prefix stem for space-scoped sidecars. The full prefix
+/// for a specific space is `space-<space_id>/`; see
+/// [`space_sidecar_prefix`]. One grant-carrier per space × content
+/// object, sealed under the space's MLS epoch key so only current
+/// members can unwrap the enclosed DEK.
+pub const SPACE_SIDECAR_PREFIX_STEM: &str = "space-";
+
 /// Random bytes backing a fresh object key (128 bits).
 const OBJECT_KEY_RANDOM_BYTES: usize = 16;
 
@@ -97,6 +104,27 @@ pub fn own_sidecar_key_for(content_key: &str) -> String {
         .strip_prefix(CONTENT_KEY_PREFIX)
         .unwrap_or(content_key);
     format!("{OWN_SIDECAR_PREFIX}{hex}{SIDECAR_SUFFIX}")
+}
+
+/// Space-scoped sidecar key for a canonical content object key.
+/// `space_sidecar_key_for("s1", "content/o/<hex>") == "space-s1/<hex>.m"`.
+///
+/// Same hex-shared-with-content-key convention as [`own_sidecar_key_for`]
+/// — the grant scope lives in the path prefix, the physical content
+/// object stays one file for the same DEK across every scope that
+/// wraps it.
+pub fn space_sidecar_key_for(space_id: &str, content_key: &str) -> String {
+    let hex = content_key
+        .strip_prefix(CONTENT_KEY_PREFIX)
+        .unwrap_or(content_key);
+    format!("{SPACE_SIDECAR_PREFIX_STEM}{space_id}/{hex}{SIDECAR_SUFFIX}")
+}
+
+/// Bucket-prefix stem the space-scoped provider bootstraps against —
+/// `space-<space_id>/`. Kept as a helper rather than inline `format!`
+/// so callers (bootstrap + tests) share one canonical spelling.
+pub fn space_sidecar_prefix(space_id: &str) -> String {
+    format!("{SPACE_SIDECAR_PREFIX_STEM}{space_id}/")
 }
 
 /// Errors from the object-key cache and bootstrap path.

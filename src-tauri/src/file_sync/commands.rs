@@ -17,6 +17,7 @@ use crate::database::DbConnection;
 
 use super::cloud_provider::CloudProvider;
 use super::crypto::provider::EncryptingSyncProvider;
+use super::crypto::space_provider::SpaceContentSyncProvider;
 use super::engine::{execute_sync, run_sync_loop, SyncEngineError};
 use super::local_provider::LocalProvider;
 use super::peer_provider::PeerProvider;
@@ -396,13 +397,13 @@ async fn create_provider(
 
             let provider = CloudProvider::new(backend, prefix);
             let inner: Arc<dyn SyncProvider> = Arc::new(provider);
-            Ok(wrap_cloud_with_encryption_if_configured(
+            wrap_cloud_with_encryption_if_configured(
                 inner,
                 config,
                 rule_id,
                 DbConnection(state.db.0.clone()),
                 state.vault_key.clone(),
-            ))
+            )
         }
         _ => Err(FileSyncCommandError::InvalidConfig(format!(
             "Unknown provider type: {provider_type}"
@@ -410,36 +411,59 @@ async fn create_provider(
     }
 }
 
-/// Wrap a built cloud provider in [`EncryptingSyncProvider`] — always.
+/// Wrap a built cloud provider in an encrypting decorator.
 ///
-/// Round F2 collapses the two prior key-source variants into the uniform
-/// DEK/KEK model on the own-vault path: the KEK is the `vault_key` slot
-/// value, wrapping a per-object DEK carried inside each sidecar. If the
-/// slot is empty when the first seal/open happens, the decorator
-/// surfaces `ProviderCryptoError::OwnVaultNotWired` — the operator sees
-/// a clear error, not silent corruption.
+/// The `config.spaceId` field routes between the two grant scopes:
 ///
-/// The `config` argument is currently unused — the shared-space cloud
-/// path (`spaceId`) is intentionally broken between Round F2b and F3.
-/// Round F3 introduces a space-scoped sibling decorator and this helper
-/// will resume choosing between the two based on `config.spaceId`.
+/// - **Absent / null / empty string** → own-vault path via
+///   [`EncryptingSyncProvider`]. KEK is the `vault_key` slot value,
+///   wrapping a per-object DEK carried inside each `own/<hex>.m`
+///   sidecar. An empty slot at first seal/open surfaces
+///   `ProviderCryptoError::OwnVaultNotWired` — clear error, not silent
+///   corruption.
+/// - **Non-empty string** → space-scoped path via
+///   [`SpaceContentSyncProvider`]. KEK is the current MLS epoch key for
+///   the space, wrapping the same per-object DEK inside a
+///   `space-<space_id>/<hex>.m` sidecar. Content object bytes live at
+///   the same `content/o/<hex>` path either way, so a file shared into
+///   N spaces is still one physical object.
+///
+/// A `spaceId` field of the wrong JSON shape (a non-string) is rejected
+/// rather than silently falling through to own-vault — that fallthrough
+/// would ship an unshared object under a rule the caller believed was
+/// space-scoped.
 ///
 /// Extracted from `create_provider` so the wrapping decision can be
 /// unit-tested without a full `AppState`. Kept `pub(crate)` so the tests
 /// in [`crate::file_sync::crypto::tests`] can call it directly.
 pub(crate) fn wrap_cloud_with_encryption_if_configured(
     inner: Arc<dyn SyncProvider>,
-    _config: &serde_json::Value,
+    config: &serde_json::Value,
     rule_id: &str,
     db: DbConnection,
     vault_key_slot: std::sync::Arc<std::sync::Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
-) -> Arc<dyn SyncProvider> {
-    Arc::new(EncryptingSyncProvider::new(
-        inner,
-        rule_id,
-        db,
-        vault_key_slot,
-    ))
+) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
+    match config.get("spaceId") {
+        None | Some(serde_json::Value::Null) => Ok(Arc::new(EncryptingSyncProvider::new(
+            inner,
+            rule_id,
+            db,
+            vault_key_slot,
+        ))),
+        Some(serde_json::Value::String(s)) if s.is_empty() => Ok(Arc::new(
+            EncryptingSyncProvider::new(inner, rule_id, db, vault_key_slot),
+        )),
+        Some(serde_json::Value::String(space_id)) => Ok(Arc::new(SpaceContentSyncProvider::new(
+            inner,
+            rule_id,
+            db,
+            space_id.clone(),
+            Arc::new(crate::file_sync::crypto::MlsSpaceKeyResolver),
+        ))),
+        Some(other) => Err(FileSyncCommandError::InvalidConfig(format!(
+            "spaceId must be a string, got {other}"
+        ))),
+    }
 }
 
 /// Parse a direction string into `SyncDirection`.
