@@ -1903,6 +1903,7 @@ mod provider {
         use uuid::Uuid;
 
         use super::super::super::super::commands::wrap_cloud_with_encryption_if_configured;
+        use super::super::super::sidecar::open_sidecar;
         use super::{random_key, setup_db, slot_with, FakeProvider};
         use crate::database::DbConnection;
 
@@ -1937,32 +1938,42 @@ mod provider {
         /// The wrap helper must observably read the vault-key from the
         /// caller-supplied slot — not from a hard-coded default,
         /// environment lookup, or dropped-on-the-floor sentinel. Two
-        /// wrapped providers built with *different* slots seal the same
-        /// plaintext under different KEKs, so their inner backends must
-        /// end up with disjoint ciphertext bytes even when handed the
-        /// same relative_path. If the slot were being ignored, both
-        /// providers would use the same key and their content
-        /// ciphertexts would collide byte-for-byte.
+        /// wrapped providers built with the **same** `rule_id` but
+        /// **different** vault-key slots must each seal their sidecar
+        /// under the slot's KEK: every `own/*.m` opens under its
+        /// matching vault_key and refuses under the other.
+        ///
+        /// Comparing content ciphertexts would not prove this — each
+        /// write draws a fresh random content-nonce, so two writes
+        /// always produce disjoint ciphertexts regardless of the key.
+        /// Sidecar-open discrimination is the actual invariant: if the
+        /// slot were dropped and both providers sealed under the same
+        /// default, either key would open either sidecar.
         #[tokio::test]
         async fn wrap_helper_threads_vault_key_from_slot() {
             let db_a = setup_db();
             let db_b = setup_db();
-            let slot_a = slot_with(random_key());
-            let slot_b = slot_with(random_key());
+            let key_a = random_key();
+            let key_b = random_key();
+            let slot_a = slot_with(key_a);
+            let slot_b = slot_with(key_b);
             let inner_a = Arc::new(FakeProvider::default());
             let inner_b = Arc::new(FakeProvider::default());
+            // Same rule_id on both sides so any key-derivation path that
+            // depends on rule_id can't confound the slot check.
+            let rule_id = Uuid::new_v4().to_string();
 
             let wrapped_a = wrap_cloud_with_encryption_if_configured(
                 inner_a.clone() as Arc<dyn crate::file_sync::provider::SyncProvider>,
                 &serde_json::json!({}),
-                &Uuid::new_v4().to_string(),
+                &rule_id,
                 DbConnection(db_a.0.clone()),
                 slot_a,
             );
             let wrapped_b = wrap_cloud_with_encryption_if_configured(
                 inner_b.clone() as Arc<dyn crate::file_sync::provider::SyncProvider>,
                 &serde_json::json!({}),
-                &Uuid::new_v4().to_string(),
+                &rule_id,
                 DbConnection(db_b.0.clone()),
                 slot_b,
             );
@@ -1977,25 +1988,33 @@ mod provider {
                 .await
                 .expect("write b");
 
-            let ct_a: Vec<Vec<u8>> = inner_a
+            let sidecar_a = inner_a
                 .snapshot_keys()
                 .into_iter()
-                .filter(|k| k.starts_with("content/o/") && !k.ends_with(".m"))
-                .filter_map(|k| inner_a.get(&k))
-                .collect();
-            let ct_b: Vec<Vec<u8>> = inner_b
+                .find(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .and_then(|k| inner_a.get(&k))
+                .expect("expected one own/*.m sidecar in bucket a");
+            let sidecar_b = inner_b
                 .snapshot_keys()
                 .into_iter()
-                .filter(|k| k.starts_with("content/o/") && !k.ends_with(".m"))
-                .filter_map(|k| inner_b.get(&k))
-                .collect();
+                .find(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .and_then(|k| inner_b.get(&k))
+                .expect("expected one own/*.m sidecar in bucket b");
 
-            assert_eq!(ct_a.len(), 1, "expected one content object in bucket a");
-            assert_eq!(ct_b.len(), 1, "expected one content object in bucket b");
-            assert_ne!(
-                ct_a[0], ct_b[0],
-                "different vault_key slots must yield different content ciphertexts — \
-                 collision here means the wrap helper is dropping the slot"
+            // Each sidecar opens under its matching slot's vault_key —
+            // proves the slot was consulted at seal time.
+            open_sidecar(&key_a, &sidecar_a).expect("sidecar_a must open under key_a");
+            open_sidecar(&key_b, &sidecar_b).expect("sidecar_b must open under key_b");
+            // And refuses under the other slot's vault_key — proves the
+            // slot was *the* seal input, not a shared default that both
+            // keys would open.
+            assert!(
+                open_sidecar(&key_b, &sidecar_a).is_err(),
+                "sidecar_a must NOT open under key_b — the wrap helper is dropping the slot",
+            );
+            assert!(
+                open_sidecar(&key_a, &sidecar_b).is_err(),
+                "sidecar_b must NOT open under key_a — the wrap helper is dropping the slot",
             );
         }
 
