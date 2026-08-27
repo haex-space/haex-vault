@@ -41,7 +41,6 @@
 - **e2e-Test-Rig lokal**: `cargo tauri build --no-bundle` + `docker cp` ins container-basiertes Rig; `CI=true` Pflicht.
 - **`haex-e2e-tests` spricht KEIN QUIC direkt** — kein Wire-Harness; nur observable Properties über die App-Oberfläche.
 - **Docker-E2E ist host-load-sensitiv**: vor jeder Bug-Diagnose zuerst `uptime`/`free -h` — createLocalSpaceViaUI racet unter Last.
-- **macOS/Windows E2E: bei rotem Native-Leg NIE `rerun --failed`** — kann Backend-Queue-Starvation triggern. Neu pushen.
 - **Security/Sync/Auth/CRDT-Features brauchen e2e-Attack-Specs** im `haex-e2e-tests`-Repo, nicht nur Unit-Tests.
 
 ## Rust-Patterns
