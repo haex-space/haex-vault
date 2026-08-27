@@ -185,10 +185,11 @@ pub struct AppState {
     /// project-wide default going forward — every place that handles
     /// symmetric key material should follow the same hygiene.
     ///
-    /// Not yet consumed by `EncryptingSyncProvider` (Round D's
-    /// `FileKeySource::VaultKey` still surfaces `OwnVaultNotWired`). This
-    /// slot is the transport layer for a future PR that extends provider
-    /// encryption to the own-vault cloud path.
+    /// Consumed by `EncryptingSyncProvider` on every seal/open — the
+    /// KEK that wraps each per-object DEK on the own-vault cloud path
+    /// (Round F2). An empty slot surfaces `OwnVaultNotWired` on the
+    /// first seal or open, giving the operator a clear error rather
+    /// than silent corruption.
     pub vault_key: Arc<Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
     /// PTY manager for shell/terminal sessions
     pub pty_manager: extension::shell::pty::PtyManager,

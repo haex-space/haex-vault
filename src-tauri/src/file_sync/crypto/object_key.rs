@@ -48,18 +48,23 @@ use super::key_resolver::{resolve_key, KeyError};
 use super::sidecar::{open_sidecar, SidecarError, SidecarPayload};
 
 /// Suffix marking a bucket object as a metadata sidecar rather than file
-/// content. `sidecar_key_for("o/…") == "o/….m"`.
+/// content. Applies to all grant scopes (`own/*.m`, `space-<id>/*.m`).
 pub const SIDECAR_SUFFIX: &str = ".m";
 
-/// Bucket-root prefix for opaque content object keys. Keeps bucket roots
-/// flat and visually distinct from any future non-file_sync object under
-/// the same prefix.
-const OBJECT_KEY_PREFIX: &str = "o/";
+/// Bucket-root prefix for opaque content object keys. Round F2 flattens
+/// content into a single grant-agnostic prefix so a shared file lives as
+/// one physical object regardless of how many spaces it is granted into.
+pub const CONTENT_KEY_PREFIX: &str = "content/o/";
+
+/// Bucket-root prefix for own-vault sidecars — one grant-carrier per
+/// content object the owner holds under their vault_key.
+pub const OWN_SIDECAR_PREFIX: &str = "own/";
 
 /// Random bytes backing a fresh object key (128 bits).
 const OBJECT_KEY_RANDOM_BYTES: usize = 16;
 
-/// Mint a fresh opaque object key: `o/` + 32 lowercase hex chars.
+/// Mint a fresh opaque content object key: `content/o/` + 32 lowercase
+/// hex chars.
 ///
 /// Deliberately not base32 despite the plan's original sketch — hex needs no
 /// new dependency (`hex` is already in `Cargo.toml`) and is equally opaque;
@@ -68,12 +73,30 @@ const OBJECT_KEY_RANDOM_BYTES: usize = 16;
 pub fn generate_object_key() -> String {
     let mut bytes = [0u8; OBJECT_KEY_RANDOM_BYTES];
     rand::fill(&mut bytes);
-    format!("{OBJECT_KEY_PREFIX}{}", hex::encode(bytes))
+    format!("{CONTENT_KEY_PREFIX}{}", hex::encode(bytes))
 }
 
-/// The sidecar object key for a given content object key.
+/// Legacy sidecar-key helper — appends `.m` to whatever object key it is
+/// handed. Retained so the Round C bootstrap tests continue to compile
+/// alongside the Round F2 own-vault path; new call sites should use
+/// [`own_sidecar_key_for`] (or the space-scoped variant in a later round)
+/// so the sidecar prefix carries the grant scope.
 pub fn sidecar_key_for(object_key: &str) -> String {
     format!("{object_key}{SIDECAR_SUFFIX}")
+}
+
+/// Own-vault sidecar key for a canonical content object key.
+/// `own_sidecar_key_for("content/o/<hex>") == "own/<hex>.m"`.
+///
+/// The sidecar filename shares its hex part with the content object so a
+/// grant-holder (own device today, space member in a later round) can
+/// reconstruct the content GET path from the sidecar filename alone —
+/// no need to serialise the full content key inside every grant scope.
+pub fn own_sidecar_key_for(content_key: &str) -> String {
+    let hex = content_key
+        .strip_prefix(CONTENT_KEY_PREFIX)
+        .unwrap_or(content_key);
+    format!("{OWN_SIDECAR_PREFIX}{hex}{SIDECAR_SUFFIX}")
 }
 
 /// Errors from the object-key cache and bootstrap path.
