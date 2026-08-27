@@ -245,27 +245,57 @@ impl EncryptingSyncProvider {
         Ok(())
     }
 
-    /// Resolve the content object key for `relative_path`, minting a
-    /// fresh one if none exists yet — but do **not** persist a fresh key
-    /// here. The caller commits the mapping via `set_object_key` only
-    /// after both content and sidecar uploads succeed.
+    /// Resolve `(content_key, dek, is_fresh)` for a write: reuse the
+    /// existing DEK on rewrite, mint fresh on first upload.
     ///
-    /// Deferring the write closes the phantom-manifest-entry hole: a row
-    /// inserted here before the upload finishes would carry `deleted=0`,
-    /// `object_key=<fresh>`, `size=0`, `modified_at=0`, and `manifest()`'s
-    /// `!deleted && object_key.is_some()` filter would emit it as a real
-    /// FileState. On the download-direction diff that turns into a
-    /// scheduled fetch of an object the bucket never received. Returns
-    /// `(content_key, is_fresh)` so the caller knows whether persistence
-    /// is still owed after successful uploads.
-    async fn resolve_or_mint_content_key(
+    /// Reuse matters twice. First, sharing (Round F3+) wraps a single
+    /// per-object DEK per grantee; a fresh DEK on every write would
+    /// invalidate every space-scoped sidecar the previous DEK backed.
+    /// Second, atomicity: content and sidecar are two S3 PUTs, not one
+    /// transaction. Rewrite ordering is content-first then sidecar;
+    /// with a fresh DEK, a crash between the two leaves new content
+    /// under new DEK next to old sidecar carrying the old wrapped DEK,
+    /// and every subsequent `read_file` fails the AEAD tag. Reusing the
+    /// existing DEK means the surviving old sidecar unwraps to the
+    /// same key that seals the new content — read succeeds, only the
+    /// plaintext-metadata fields (`size`, `modified_at`, `blake3`) lag
+    /// until the next successful write.
+    ///
+    /// Fresh keys are deliberately not persisted here — the caller
+    /// commits the mapping via `set_object_key` only after both content
+    /// and sidecar uploads succeed. Otherwise a row inserted before the
+    /// upload finishes would carry `deleted=0`, `object_key=<fresh>`,
+    /// `size=0`, `modified_at=0`, and `manifest()`'s
+    /// `!deleted && object_key.is_some()` filter would emit it as a
+    /// real FileState — the download-direction diff would then schedule
+    /// a fetch of an object the bucket never received.
+    async fn resolve_or_mint_content_key_and_dek(
         &self,
         relative_path: &str,
-    ) -> Result<(String, bool), ProviderCryptoError> {
+        vault_key: &[u8; 32],
+    ) -> Result<(String, Zeroizing<[u8; DEK_LEN]>, bool), ProviderCryptoError> {
         if let Some(existing) = lookup_object_key(&self.db, &self.rule_id, relative_path)? {
-            return Ok((existing, false));
+            let dek = self.load_existing_dek(&existing, vault_key).await?;
+            return Ok((existing, dek, false));
         }
-        Ok((generate_object_key(), true))
+        Ok((generate_object_key(), Self::random_dek(), true))
+    }
+
+    /// Fetch the existing own-vault sidecar for `content_key` and
+    /// return the DEK it wraps. Called on the rewrite path — see
+    /// `resolve_or_mint_content_key_and_dek` for why the DEK is
+    /// reused across writes.
+    async fn load_existing_dek(
+        &self,
+        content_key: &str,
+        vault_key: &[u8; 32],
+    ) -> Result<Zeroizing<[u8; DEK_LEN]>, ProviderCryptoError> {
+        let sidecar_bytes = self
+            .inner
+            .read_file(&own_sidecar_key_for(content_key))
+            .await?;
+        let (_, payload) = open_sidecar(vault_key, &sidecar_bytes)?;
+        Ok(unwrap_dek(vault_key, &payload.wrapped_dek)?)
     }
 
     fn content_key_for_read(&self, relative_path: &str) -> Result<String, ProviderCryptoError> {
@@ -461,9 +491,8 @@ impl SyncProvider for EncryptingSyncProvider {
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
         let vault_key = self.load_vault_key().map_err(SyncProviderError::from)?;
-        let dek = Self::random_dek();
-        let (content_key, is_fresh) = self
-            .resolve_or_mint_content_key(relative_path)
+        let (content_key, dek, is_fresh) = self
+            .resolve_or_mint_content_key_and_dek(relative_path, &vault_key)
             .await
             .map_err(SyncProviderError::from)?;
 
@@ -491,8 +520,9 @@ impl SyncProvider for EncryptingSyncProvider {
             .map_err(SyncProviderError::from)?;
 
         // Both uploads succeeded — safe to publish the mapping now.
-        // See `resolve_or_mint_content_key` for the deferred-persistence
-        // rationale (phantom manifest entries on failed uploads).
+        // See `resolve_or_mint_content_key_and_dek` for the deferred-
+        // persistence rationale (phantom manifest entries on failed
+        // uploads).
         if is_fresh {
             set_object_key(&self.db, &self.rule_id, relative_path, &content_key).map_err(|e| {
                 SyncProviderError::Other {
@@ -510,9 +540,8 @@ impl SyncProvider for EncryptingSyncProvider {
     ) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
         let vault_key = self.load_vault_key().map_err(SyncProviderError::from)?;
-        let dek = Self::random_dek();
-        let (content_key, is_fresh) = self
-            .resolve_or_mint_content_key(relative_path)
+        let (content_key, dek, is_fresh) = self
+            .resolve_or_mint_content_key_and_dek(relative_path, &vault_key)
             .await
             .map_err(SyncProviderError::from)?;
 

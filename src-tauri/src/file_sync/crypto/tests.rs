@@ -1486,6 +1486,14 @@ mod provider {
         fn get(&self, key: &str) -> Option<Vec<u8>> {
             self.objects.lock().unwrap().get(key).cloned()
         }
+
+        /// Force `key` to hold `bytes`, bypassing the SyncProvider trait —
+        /// used by the rewrite-atomicity test to restore an earlier
+        /// sidecar and simulate a crash between the content and sidecar
+        /// PUTs on a rewrite.
+        fn put(&self, key: &str, bytes: Vec<u8>) {
+            self.objects.lock().unwrap().insert(key.to_string(), bytes);
+        }
     }
 
     #[async_trait]
@@ -1829,6 +1837,53 @@ mod provider {
                 msg.contains("no object_key cached"),
                 "wrong-key read must fail, got: {err}",
             );
+        }
+
+        /// A rewrite crash between the content PUT and the sidecar PUT
+        /// must leave the file readable. The DEK is per-content-object,
+        /// not per-write: the resolve helper unwraps it from the
+        /// existing sidecar on rewrite so the surviving old sidecar's
+        /// `wrapped_dek` still opens the new content. A regression here
+        /// would ship the F2b behaviour CodeRabbit flagged on PR #836 —
+        /// a fresh DEK on every write, which after a mid-flight crash
+        /// permanently fails `read_file` (old wrapped_dek → old DEK →
+        /// AEAD tag failure against the new-DEK content). Simulated by
+        /// snapshotting the sidecar bytes after the first successful
+        /// write, letting the second write succeed fully, then rolling
+        /// the sidecar object back to its pre-second-write bytes.
+        #[tokio::test]
+        async fn rewrite_crash_between_content_and_sidecar_stays_readable() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let vault_key = random_key();
+            let inner = Arc::new(FakeProvider::default());
+            let dec = EncryptingSyncProvider::new(
+                inner.clone(),
+                rule_id,
+                DbConnection(db.0.clone()),
+                slot_with(vault_key),
+            );
+
+            dec.write_file("a.bin", b"v1").await.expect("write v1");
+            let sidecar_key = inner
+                .snapshot_keys()
+                .into_iter()
+                .find(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .expect("sidecar produced");
+            let old_sidecar_bytes = inner.get(&sidecar_key).expect("sidecar bytes");
+
+            // Rewrite succeeds end-to-end, then roll the sidecar back
+            // to its pre-rewrite state to model the "content uploaded
+            // but sidecar upload failed" window.
+            dec.write_file("a.bin", b"v2-longer-payload")
+                .await
+                .expect("write v2");
+            inner.put(&sidecar_key, old_sidecar_bytes);
+
+            let got = dec.read_file("a.bin").await.expect(
+                "surviving old sidecar must still open new content (DEK reused on rewrite)",
+            );
+            assert_eq!(got, b"v2-longer-payload".to_vec());
         }
     }
 }
