@@ -18,6 +18,7 @@ pub mod queries;
 pub mod revoke_command;
 pub mod share_access_flags;
 pub mod share_command;
+pub mod shared_access;
 pub mod streaming;
 pub mod types;
 

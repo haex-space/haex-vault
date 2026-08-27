@@ -52,6 +52,18 @@ pub const SPACE_SCOPED_CRDT_TABLES: &[&str] = &[
     // hlc < anchor are rejected so a stale peer cannot re-introduce a row
     // whose delete-signal has been pruned.
     "haex_space_compaction_anchors",
+    // Phase 4 Round F1: cross-space file-sharing grant registry. Each row
+    // records "content object X is shared with space Y" — space-scoped by
+    // its `space_id` column so a Space Alpha member's device never
+    // receives a grant row for Space Beta. Space members see grants as
+    // soon as the owner's CRDT push arrives, without a bucket LIST.
+    "haex_file_grants",
+    // Phase 4 Round F1: per-space, per-member scoped-S3-credential
+    // distribution. Payload is AEAD-sealed under the space's current MLS
+    // epoch key so only members can extract it; scoping by `space_id`
+    // keeps a member of one space from ever seeing another space's
+    // credentials on the wire.
+    "haex_s3_shared_access",
 ];
 
 /// Subset of [`SPACE_SCOPED_CRDT_TABLES`] that every member — including

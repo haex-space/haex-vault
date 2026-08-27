@@ -42,6 +42,7 @@
 pub mod chunk;
 pub mod content;
 pub mod envelope;
+pub mod grants;
 pub mod key_resolver;
 pub mod object_key;
 pub mod provider;

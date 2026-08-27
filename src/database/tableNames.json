@@ -906,6 +906,30 @@
         "createdAt": "created_at",
         "updatedAt": "updated_at"
       }
+    },
+    "file_grants": {
+      "name": "haex_file_grants",
+      "columns": {
+        "id": "id",
+        "contentKey": "content_key",
+        "spaceId": "space_id",
+        "sidecarKey": "sidecar_key",
+        "epoch": "epoch",
+        "createdAt": "created_at"
+      }
+    },
+    "s3_shared_access": {
+      "name": "haex_s3_shared_access",
+      "columns": {
+        "id": "id",
+        "spaceId": "space_id",
+        "backendId": "backend_id",
+        "memberDid": "member_did",
+        "encryptedCred": "encrypted_cred",
+        "epoch": "epoch",
+        "expiresAt": "expires_at",
+        "createdAt": "created_at"
+      }
     }
   }
 }
