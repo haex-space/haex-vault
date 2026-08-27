@@ -649,6 +649,8 @@ mod sidecar {
 
     fn sample_payload() -> SidecarPayload {
         SidecarPayload {
+            content_key: "content/o/0123456789abcdef0123456789abcdef".to_string(),
+            wrapped_dek: vec![0u8; 32],
             relative_path: "docs/report.pdf".to_string(),
             size: 123_456,
             modified_at: 1_700_000_000,
@@ -736,6 +738,24 @@ mod sidecar {
         let (_, opened) = open_sidecar(&key, &ct).unwrap();
         assert_eq!(opened, payload);
     }
+
+    /// Round F2: sidecar now carries a `content_key` pointer (`content/o/<hex>`)
+    /// and a `wrapped_dek` blob (DEK sealed under the grant's KEK). Round-trip
+    /// through seal/open must preserve both bytewise — a wrong byte on either
+    /// would make the reader either fetch the wrong content object or fail to
+    /// unwrap the DEK, both of which are silent-corruption paths this test
+    /// pins shut.
+    #[test]
+    fn seal_open_roundtrip_preserves_content_key_and_wrapped_dek() {
+        let key = random_key();
+        let mut payload = sample_payload();
+        payload.content_key = "content/o/deadbeef".to_string();
+        payload.wrapped_dek = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88];
+        let ct = seal_sidecar(&key, 42, random_nonce(), &payload).expect("seal");
+        let (_, opened) = open_sidecar(&key, &ct).expect("open");
+        assert_eq!(opened.content_key, payload.content_key);
+        assert_eq!(opened.wrapped_dek, payload.wrapped_dek);
+    }
 }
 
 // ── Object-key cache + bootstrap (Round C) ──────────────────────────
@@ -751,8 +771,8 @@ mod object_key {
 
     use super::super::key_resolver::derive_file_key;
     use super::super::object_key::{
-        bootstrap_object_key_cache, generate_object_key, object_key_known, sidecar_key_for,
-        upsert_bootstrap_entry,
+        bootstrap_object_key_cache, generate_object_key, object_key_known, own_sidecar_key_for,
+        sidecar_key_for, upsert_bootstrap_entry,
     };
     use super::super::sidecar::SidecarPayload;
     use crate::database::DbConnection;
@@ -916,11 +936,19 @@ mod object_key {
     }
 
     #[test]
-    fn generate_object_key_has_expected_shape() {
+    fn generate_object_key_uses_content_prefix() {
+        // Round F2: content lives under `content/o/<hex32>` — bucket-flat,
+        // grant-agnostic. Sidecar-per-grant layers on top (`own/*.m`,
+        // `space-<id>/*.m`) point back to this canonical location.
         let key = generate_object_key();
-        assert!(key.starts_with("o/"));
-        assert_eq!(key.len(), 2 + 32, "prefix + 32 hex chars for 128 bits");
-        assert!(key[2..].chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(key.starts_with("content/o/"), "got: {key}");
+        assert_eq!(
+            key.len(),
+            "content/o/".len() + 32,
+            "prefix + 32 hex chars for 128 bits"
+        );
+        let hex_part = &key["content/o/".len()..];
+        assert!(hex_part.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
     #[test]
@@ -932,7 +960,26 @@ mod object_key {
 
     #[test]
     fn sidecar_key_for_appends_suffix() {
+        // Legacy helper — still used by the Round C bootstrap tests that
+        // will be retired in Round F2's provider rewrite. Kept green so
+        // the bootstrap harness continues to compile alongside the new
+        // own-vault sidecar path.
         assert_eq!(sidecar_key_for("o/abc"), "o/abc.m");
+    }
+
+    #[test]
+    fn own_sidecar_key_for_wraps_content_hex_only() {
+        // Round F2 own-vault sidecar path: `own/<hex32>.m`. Input is the
+        // canonical content object key (`content/o/<hex>`); output uses
+        // just the trailing hex so `space-<id>/<hex>.m` sidecars for the
+        // same object share the filename part — a member decrypting a
+        // space sidecar reconstructs the same GET path the owner used.
+        let content_key = "content/o/deadbeef1234567890abcdef1234567890";
+        let expected_hex = "deadbeef1234567890abcdef1234567890";
+        assert_eq!(
+            own_sidecar_key_for(content_key),
+            format!("own/{expected_hex}.m")
+        );
     }
 
     #[tokio::test]
@@ -951,6 +998,8 @@ mod object_key {
             &sync_key,
             5,
             &SidecarPayload {
+                content_key: String::new(),
+                wrapped_dek: Vec::new(),
                 relative_path: "notes/todo.md".to_string(),
                 size: 42,
                 modified_at: 1_700_000_000,
@@ -987,6 +1036,8 @@ mod object_key {
             &sync_key,
             1,
             &SidecarPayload {
+                content_key: String::new(),
+                wrapped_dek: Vec::new(),
                 relative_path: "a.txt".to_string(),
                 size: 1,
                 modified_at: 1,
@@ -1040,6 +1091,8 @@ mod object_key {
             1,
             random_nonce(),
             &SidecarPayload {
+                content_key: String::new(),
+                wrapped_dek: Vec::new(),
                 relative_path: "orphaned.txt".to_string(),
                 size: 0,
                 modified_at: 0,
@@ -1076,6 +1129,8 @@ mod object_key {
             &good_key_material,
             1,
             &SidecarPayload {
+                content_key: String::new(),
+                wrapped_dek: Vec::new(),
                 relative_path: "good.txt".to_string(),
                 size: 5,
                 modified_at: 5,
@@ -1089,6 +1144,8 @@ mod object_key {
             &random_key(),
             9,
             &SidecarPayload {
+                content_key: String::new(),
+                wrapped_dek: Vec::new(),
                 relative_path: "bad.txt".to_string(),
                 size: 5,
                 modified_at: 5,
@@ -1123,6 +1180,8 @@ mod object_key {
             &sync_key,
             1,
             &SidecarPayload {
+                content_key: String::new(),
+                wrapped_dek: Vec::new(),
                 relative_path: "one.txt".to_string(),
                 size: 1,
                 modified_at: 1,
@@ -1573,6 +1632,8 @@ mod provider {
             super::super::content::seal_bytes(&aead_key, epoch, random_nonce(), plaintext)
                 .expect("seal content");
         let payload = SidecarPayload {
+            content_key: String::new(),
+            wrapped_dek: Vec::new(),
             relative_path: relative_path.to_string(),
             size: plaintext.len() as u64,
             modified_at: 1_700_000_000,
@@ -2087,5 +2148,76 @@ mod vault_key_derivation {
         // Same-IKM determinism as a control — the negative assertion
         // above is only meaningful if the positive one holds.
         assert_eq!(*derive_vault_file_key(&a), *derive_vault_file_key(&a));
+    }
+}
+
+// ── DEK wrap/unwrap (Round F2) ──────────────────────────────────────
+
+mod dek_wrap {
+    use super::super::chunk::CryptoError;
+    use super::super::dek_wrap::{unwrap_dek, wrap_dek, DekWrapError, WRAPPED_DEK_LEN};
+
+    fn random_key() -> [u8; 32] {
+        let mut k = [0u8; 32];
+        rand::fill(&mut k);
+        k
+    }
+
+    #[test]
+    fn wrap_unwrap_roundtrip_preserves_dek() {
+        let kek = random_key();
+        let dek = random_key();
+        let wrapped = wrap_dek(&kek, &dek).expect("wrap");
+        assert_eq!(wrapped.len(), WRAPPED_DEK_LEN);
+        let unwrapped = unwrap_dek(&kek, &wrapped).expect("unwrap");
+        assert_eq!(*unwrapped, dek);
+    }
+
+    #[test]
+    fn wrap_is_non_deterministic() {
+        // Two wraps of the same DEK under the same KEK must not collide —
+        // a fixed-nonce wrapper would let the S3 operator link two grants
+        // to the same DEK by ciphertext equality, defeating the point.
+        let kek = random_key();
+        let dek = random_key();
+        let a = wrap_dek(&kek, &dek).unwrap();
+        let b = wrap_dek(&kek, &dek).unwrap();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn unwrap_rejects_wrong_kek() {
+        let kek = random_key();
+        let mut wrong_kek = kek;
+        wrong_kek[0] ^= 0x01;
+        let dek = random_key();
+        let wrapped = wrap_dek(&kek, &dek).unwrap();
+        assert!(matches!(
+            unwrap_dek(&wrong_kek, &wrapped),
+            Err(DekWrapError::Crypto(CryptoError::OpenFailed))
+        ));
+    }
+
+    #[test]
+    fn unwrap_rejects_tampered_wrapper() {
+        let kek = random_key();
+        let dek = random_key();
+        let mut wrapped = wrap_dek(&kek, &dek).unwrap();
+        let last = wrapped.len() - 1;
+        wrapped[last] ^= 0x80;
+        assert!(matches!(
+            unwrap_dek(&kek, &wrapped),
+            Err(DekWrapError::Crypto(CryptoError::OpenFailed))
+        ));
+    }
+
+    #[test]
+    fn unwrap_rejects_short_input() {
+        let kek = random_key();
+        let too_short = vec![0u8; WRAPPED_DEK_LEN - 1];
+        assert!(matches!(
+            unwrap_dek(&kek, &too_short),
+            Err(DekWrapError::MalformedWrapper { .. })
+        ));
     }
 }

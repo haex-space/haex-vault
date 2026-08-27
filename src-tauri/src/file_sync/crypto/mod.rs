@@ -41,6 +41,7 @@
 
 pub mod chunk;
 pub mod content;
+pub mod dek_wrap;
 pub mod envelope;
 pub mod grants;
 pub mod key_resolver;
