@@ -1405,21 +1405,17 @@ mod content {
     }
 }
 
-// ── Encrypting SyncProvider decorator (Round D) ─────────────────────
+// ── Encrypting SyncProvider decorator (Round F2 — own-vault path) ───
 
 mod provider {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex as StdMutex};
 
     use async_trait::async_trait;
-    use base64::Engine;
-    use rusqlite::{params, Connection};
-    use uuid::Uuid;
+    use rusqlite::Connection;
     use zeroize::Zeroizing;
 
-    use super::super::key_resolver::derive_file_key;
-    use super::super::provider::{EncryptingSyncProvider, FileKeySource};
-    use super::super::sidecar::{seal_sidecar, SidecarPayload};
+    use super::super::provider::EncryptingSyncProvider;
     use crate::database::DbConnection;
     use crate::file_sync::provider::{ReadFileResult, SyncProvider, SyncProviderError};
     use crate::file_sync::types::FileState;
@@ -1430,19 +1426,13 @@ mod provider {
         k
     }
 
-    fn random_nonce() -> [u8; super::super::envelope::NONCE_SIZE] {
-        let mut n = [0u8; super::super::envelope::NONCE_SIZE];
-        rand::fill(&mut n);
-        n
-    }
-
-    /// Fresh unpopulated vault-key slot for the SpaceEpoch tests below —
-    /// they never touch it, but the constructor now requires one.
+    /// Fresh unpopulated vault-key slot for tests that intentionally
+    /// leave the vault unwired — the constructor always requires a slot.
     fn empty_slot() -> Arc<StdMutex<Option<Zeroizing<[u8; 32]>>>> {
         Arc::new(StdMutex::new(None))
     }
 
-    /// Vault-key slot pre-populated with `key`, for VaultKey-path tests.
+    /// Vault-key slot pre-populated with `key`.
     fn slot_with(key: [u8; 32]) -> Arc<StdMutex<Option<Zeroizing<[u8; 32]>>>> {
         Arc::new(StdMutex::new(Some(Zeroizing::new(key))))
     }
@@ -1471,46 +1461,16 @@ mod provider {
                 object_key TEXT
             );
             CREATE UNIQUE INDEX haex_sync_state_rule_path_unique
-                ON haex_sync_state_no_sync (rule_id, relative_path);
-            CREATE TABLE haex_mls_sync_keys (
-                id TEXT PRIMARY KEY,
-                space_id TEXT NOT NULL,
-                epoch INTEGER NOT NULL,
-                key_data TEXT NOT NULL,
-                authored_by_did TEXT
-            );",
+                ON haex_sync_state_no_sync (rule_id, relative_path);",
         )
         .expect("schema setup");
         DbConnection(Arc::new(StdMutex::new(Some(conn))))
     }
 
-    fn seed_mls_key(db: &DbConnection, space_id: &str, epoch: u64, key: &[u8; 32]) {
-        let guard = db.0.lock().expect("db lock");
-        let conn = guard.as_ref().expect("db open");
-        conn.execute(
-            "INSERT INTO haex_mls_sync_keys (id, space_id, epoch, key_data) VALUES (?1, ?2, ?3, ?4)",
-            params![
-                Uuid::new_v4().to_string(),
-                space_id,
-                epoch as i64,
-                base64::engine::general_purpose::STANDARD.encode(key)
-            ],
-        )
-        .expect("seed mls key");
-    }
-
-    fn seed_current_epoch(_db: &DbConnection, _space_id: &str, _epoch: u64) {
-        // The decorator's write path resolves the current epoch via
-        // `MlsManager::current_epoch`, which reads a live MLS group.
-        // These tests use a lower-level path (see `WriteFixture` below)
-        // that bypasses `resolve_latest` in favour of `resolve_key`, so
-        // no MLS group is stood up here.
-    }
-
     /// In-memory `SyncProvider` used to observe what the decorator
     /// actually calls on the inner backend. Each key is stored verbatim
-    /// so the tests can assert on the opaque `o/…` and `o/….m` keys the
-    /// decorator produces.
+    /// so the tests can assert on the opaque `content/o/…` and
+    /// `own/…m` keys the decorator produces.
     #[derive(Default)]
     struct FakeProvider {
         objects: StdMutex<HashMap<String, Vec<u8>>>,
@@ -1521,6 +1481,10 @@ mod provider {
             let mut keys: Vec<String> = self.objects.lock().unwrap().keys().cloned().collect();
             keys.sort();
             keys
+        }
+
+        fn get(&self, key: &str) -> Option<Vec<u8>> {
+            self.objects.lock().unwrap().get(key).cloned()
         }
     }
 
@@ -1617,474 +1581,255 @@ mod provider {
         }
     }
 
-    /// Helper: seed a paired (content, sidecar) object under a fresh
-    /// `o/<hex>` key, sealed under `epoch`. Returns the object key.
-    async fn seed_paired_object(
-        inner: &FakeProvider,
-        sync_key: &[u8; 32],
-        epoch: u64,
-        relative_path: &str,
-        plaintext: &[u8],
-    ) -> String {
-        let object_key = format!("o/{}", Uuid::new_v4().simple());
-        let aead_key = derive_file_key(sync_key);
-        let content_ct =
-            super::super::content::seal_bytes(&aead_key, epoch, random_nonce(), plaintext)
-                .expect("seal content");
-        let payload = SidecarPayload {
-            content_key: String::new(),
-            wrapped_dek: Vec::new(),
-            relative_path: relative_path.to_string(),
-            size: plaintext.len() as u64,
-            modified_at: 1_700_000_000,
-            content_type: None,
-            blake3: blake3::hash(plaintext).to_hex().to_string(),
-        };
-        let sidecar_ct =
-            seal_sidecar(&aead_key, epoch, random_nonce(), &payload).expect("seal sidecar");
-        inner
-            .write_file(&object_key, &content_ct)
-            .await
-            .expect("put content");
-        inner
-            .write_file(
-                &super::super::object_key::sidecar_key_for(&object_key),
-                &sidecar_ct,
-            )
-            .await
-            .expect("put sidecar");
-        object_key
-    }
+    mod own_vault {
+        use super::*;
+        use uuid::Uuid;
 
-    #[tokio::test]
-    async fn manifest_bootstraps_and_returns_plaintext_view() {
-        // A paired (content, sidecar) object landed in the bucket by
-        // another device: after the first `manifest()` the decorator's
-        // local cache must know it, and the returned FileState must
-        // carry the plaintext size — not the (larger) ciphertext size.
-        let db = setup_db();
-        let space = Uuid::new_v4().to_string();
-        let rule_id = Uuid::new_v4().to_string();
-        let sync_key = random_key();
-        seed_mls_key(&db, &space, 1, &sync_key);
-        seed_current_epoch(&db, &space, 1);
+        use super::super::super::dek_wrap::{unwrap_dek, DEK_LEN};
+        use super::super::super::sidecar::open_sidecar;
 
-        let inner = Arc::new(FakeProvider::default());
-        let plaintext = b"hello from a peer".to_vec();
-        seed_paired_object(&inner, &sync_key, 1, "docs/note.md", &plaintext).await;
+        /// Populate the slot, write plaintext through the decorator, then
+        /// read it back and assert byte-equality. The tracer bullet for
+        /// the whole own-vault DEK/KEK path — every subsequent test in
+        /// this module refines one facet of what this test exercises.
+        #[tokio::test]
+        async fn own_vault_write_read_roundtrip() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let slot = slot_with(random_key());
+            let inner = Arc::new(FakeProvider::default());
+            let dec = EncryptingSyncProvider::new(
+                inner,
+                rule_id,
+                DbConnection(db.0.clone()),
+                Arc::clone(&slot),
+            );
 
-        let dec = EncryptingSyncProvider::new(
-            inner.clone(),
-            FileKeySource::SpaceEpoch {
-                space_id: space.clone(),
-            },
-            rule_id.clone(),
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-
-        let manifest = dec.manifest().await.expect("manifest");
-        assert_eq!(manifest.len(), 1);
-        assert_eq!(manifest[0].relative_path, "docs/note.md");
-        assert_eq!(
-            manifest[0].size,
-            plaintext.len() as u64,
-            "manifest must report plaintext size, not ciphertext size — \
-             otherwise unchanged files re-upload forever",
-        );
-    }
-
-    #[tokio::test]
-    async fn unchanged_file_produces_no_diff_action() {
-        // THE regression test of Phase 4 (see plan §"Warum der Diff nicht
-        // so bricht"): after `manifest()` twice on the same corpus, the
-        // diff engine must see identical FileStates so `files_equal`
-        // yields "no action".
-        use crate::file_sync::diff::compute_sync_actions;
-        use crate::file_sync::types::{DeleteMode, SyncDirection};
-
-        let db = setup_db();
-        let space = Uuid::new_v4().to_string();
-        let rule_id = Uuid::new_v4().to_string();
-        let sync_key = random_key();
-        seed_mls_key(&db, &space, 1, &sync_key);
-        seed_current_epoch(&db, &space, 1);
-
-        let inner = Arc::new(FakeProvider::default());
-        seed_paired_object(&inner, &sync_key, 1, "a.bin", b"content").await;
-
-        let dec = EncryptingSyncProvider::new(
-            inner,
-            FileKeySource::SpaceEpoch { space_id: space },
-            rule_id,
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-
-        let first = dec.manifest().await.expect("m1");
-        let second = dec.manifest().await.expect("m2");
-        let actions =
-            compute_sync_actions(&first, &second, SyncDirection::OneWay, DeleteMode::Ignore);
-        assert!(
-            actions.to_download.is_empty()
-                && actions.to_upload.is_empty()
-                && actions.to_delete.is_empty(),
-            "unchanged bucket must yield zero diff actions, got: {actions:?}",
-        );
-    }
-
-    #[tokio::test]
-    async fn read_file_roundtrips_seeded_content() {
-        let db = setup_db();
-        let space = Uuid::new_v4().to_string();
-        let rule_id = Uuid::new_v4().to_string();
-        let sync_key = random_key();
-        seed_mls_key(&db, &space, 1, &sync_key);
-        seed_current_epoch(&db, &space, 1);
-
-        let inner = Arc::new(FakeProvider::default());
-        let plaintext = b"round-trip me".to_vec();
-        seed_paired_object(&inner, &sync_key, 1, "hello.txt", &plaintext).await;
-
-        let dec = EncryptingSyncProvider::new(
-            inner,
-            FileKeySource::SpaceEpoch { space_id: space },
-            rule_id,
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-        // manifest must run first so the cache learns the object key.
-        dec.manifest().await.expect("bootstrap");
-
-        let got = dec.read_file("hello.txt").await.expect("read");
-        assert_eq!(got, plaintext);
-    }
-
-    #[tokio::test]
-    async fn read_file_streaming_matches_full_buffer() {
-        let db = setup_db();
-        let space = Uuid::new_v4().to_string();
-        let rule_id = Uuid::new_v4().to_string();
-        let sync_key = random_key();
-        seed_mls_key(&db, &space, 1, &sync_key);
-
-        let inner = Arc::new(FakeProvider::default());
-        // Multi-chunk plaintext so the streaming reassembly is
-        // exercised, not just a single-chunk trivial case.
-        let plaintext: Vec<u8> = (0..(super::super::chunk::CHUNK_PLAINTEXT_SIZE + 137))
-            .map(|i| (i as u8).wrapping_mul(11))
-            .collect();
-        seed_paired_object(&inner, &sync_key, 1, "big.bin", &plaintext).await;
-
-        let dec = EncryptingSyncProvider::new(
-            inner,
-            FileKeySource::SpaceEpoch { space_id: space },
-            rule_id,
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-        dec.manifest().await.expect("bootstrap");
-
-        let tmp_dir = tempfile::tempdir().expect("tempdir");
-        let out_path = tmp_dir.path().join("out.bin");
-        let progress: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
-        let info = dec
-            .read_file_to_path("big.bin", &out_path, None, progress)
-            .await
-            .expect("stream read");
-        assert_eq!(info.bytes as usize, plaintext.len());
-        let got = tokio::fs::read(&out_path).await.expect("read out");
-        assert_eq!(got, plaintext);
-    }
-
-    #[tokio::test]
-    async fn read_file_to_path_leaves_destination_unchanged_on_tampered_ciphertext() {
-        // Regression for the staging-before-rename fix: a mid-stream AEAD
-        // failure on a tampered ciphertext must not overwrite the local
-        // file with partial plaintext. Pre-seed a sentinel at the target
-        // and assert it survives verbatim after the decrypt error.
-        let db = setup_db();
-        let space = Uuid::new_v4().to_string();
-        let rule_id = Uuid::new_v4().to_string();
-        let sync_key = random_key();
-        seed_mls_key(&db, &space, 1, &sync_key);
-
-        let inner = Arc::new(FakeProvider::default());
-        // Multi-chunk plaintext so the tamper lands inside the body,
-        // past the header — the first chunk decrypts fine, the tampered
-        // one triggers the tag failure.
-        let plaintext: Vec<u8> = (0..(super::super::chunk::CHUNK_PLAINTEXT_SIZE + 4096))
-            .map(|i| (i as u8).wrapping_mul(7))
-            .collect();
-        let object_key = seed_paired_object(&inner, &sync_key, 1, "big.bin", &plaintext).await;
-
-        // Tamper with a byte deep in the ciphertext body — past the
-        // 37-byte header and past the first chunk's tag, so at least
-        // one chunk decrypts before the failure.
-        {
-            let mut objects = inner.objects.lock().unwrap();
-            let ct = objects.get_mut(&object_key).expect("content present");
-            let tamper_at = super::super::envelope::HEADER_SIZE
-                + super::super::chunk::CHUNK_CIPHERTEXT_SIZE
-                + 128;
-            assert!(tamper_at < ct.len(), "tamper index inside ciphertext");
-            ct[tamper_at] ^= 0xAA;
+            let plaintext = b"round-trip me under the vault key".to_vec();
+            dec.write_file("hello.txt", &plaintext)
+                .await
+                .expect("write");
+            let got = dec.read_file("hello.txt").await.expect("read");
+            assert_eq!(got, plaintext);
         }
 
-        let dec = EncryptingSyncProvider::new(
-            inner,
-            FileKeySource::SpaceEpoch { space_id: space },
-            rule_id,
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-        dec.manifest().await.expect("bootstrap");
+        /// A single logical file must land as **one** `content/o/<hex>`
+        /// object and **one** `own/<hex>.m` sidecar — nothing else. The
+        /// Round-C legacy layout wrote `o/<hex>` + `o/<hex>.m`; if the
+        /// decorator regressed to that shape a sync from a fresh device
+        /// would ignore both objects because the prefix filter no longer
+        /// matches.
+        #[tokio::test]
+        async fn own_vault_writes_content_and_own_sidecar_pair() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let slot = slot_with(random_key());
+            let inner = Arc::new(FakeProvider::default());
+            let dec = EncryptingSyncProvider::new(
+                inner.clone(),
+                rule_id,
+                DbConnection(db.0.clone()),
+                Arc::clone(&slot),
+            );
 
-        let tmp_dir = tempfile::tempdir().expect("tempdir");
-        let out_path = tmp_dir.path().join("out.bin");
-        // Pre-existing sentinel — the atomic-swap fix must leave it
-        // untouched on decrypt failure.
-        let sentinel = b"do-not-overwrite-me";
-        tokio::fs::write(&out_path, sentinel)
-            .await
-            .expect("seed sentinel");
+            dec.write_file("a.bin", b"payload").await.expect("write");
 
-        let progress: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
-        let err = dec
-            .read_file_to_path("big.bin", &out_path, None, progress)
-            .await
-            .expect_err("tampered ciphertext must fail");
-        // Surface the error so a regression that swallows it fails loudly.
-        assert!(
-            matches!(
-                err,
-                SyncProviderError::Other { .. } | SyncProviderError::Io(_)
-            ),
-            "unexpected error variant: {err:?}"
-        );
-
-        let after = tokio::fs::read(&out_path).await.expect("read sentinel");
-        assert_eq!(
-            after, sentinel,
-            "destination was overwritten with partial plaintext — staging is broken",
-        );
-    }
-
-    #[tokio::test]
-    async fn delete_removes_both_content_and_sidecar() {
-        let db = setup_db();
-        let space = Uuid::new_v4().to_string();
-        let rule_id = Uuid::new_v4().to_string();
-        let sync_key = random_key();
-        seed_mls_key(&db, &space, 1, &sync_key);
-
-        let inner = Arc::new(FakeProvider::default());
-        let object_key = seed_paired_object(&inner, &sync_key, 1, "gone.txt", b"bye").await;
-
-        let dec = EncryptingSyncProvider::new(
-            inner.clone(),
-            FileKeySource::SpaceEpoch { space_id: space },
-            rule_id,
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-        dec.manifest().await.expect("bootstrap");
-        dec.delete_file("gone.txt", false).await.expect("delete");
-
-        let remaining = inner.snapshot_keys();
-        assert!(
-            !remaining.iter().any(|k| k == &object_key),
-            "content object still present after delete: {remaining:?}",
-        );
-        assert!(
-            !remaining
+            let keys = inner.snapshot_keys();
+            let content: Vec<&String> = keys
                 .iter()
-                .any(|k| k == &super::super::object_key::sidecar_key_for(&object_key)),
-            "sidecar object still present after delete: {remaining:?}",
-        );
-    }
+                .filter(|k| k.starts_with("content/o/") && !k.ends_with(".m"))
+                .collect();
+            let own_sidecars: Vec<&String> = keys
+                .iter()
+                .filter(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .collect();
+            assert_eq!(
+                content.len(),
+                1,
+                "expected exactly one content/o/* object, got keys={keys:?}"
+            );
+            assert_eq!(
+                own_sidecars.len(),
+                1,
+                "expected exactly one own/*.m sidecar, got keys={keys:?}"
+            );
+            assert_eq!(
+                keys.len(),
+                2,
+                "no other objects should be produced, got keys={keys:?}"
+            );
+        }
 
-    // ── Round E: create_provider auto-decorate policy ────────────────
+        /// Peel the sidecar open under the vault key and assert its
+        /// `content_key` matches where the content bytes actually live,
+        /// and its `wrapped_dek` unwraps to exactly `DEK_LEN` bytes. A
+        /// mismatched `content_key` would make the reader fetch the
+        /// wrong object; a malformed `wrapped_dek` would let the reader
+        /// open the sidecar but fail to decrypt content — both silent-
+        /// corruption paths this test pins shut.
+        #[tokio::test]
+        async fn own_vault_sidecar_payload_carries_content_key_and_wrapped_dek() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let vault_key = random_key();
+            let slot = slot_with(vault_key);
+            let inner = Arc::new(FakeProvider::default());
+            let dec = EncryptingSyncProvider::new(
+                inner.clone(),
+                rule_id,
+                DbConnection(db.0.clone()),
+                Arc::clone(&slot),
+            );
 
-    #[test]
-    fn wrap_helper_wraps_cloud_when_spaceid_present() {
-        let db = setup_db();
-        let inner = Arc::new(FakeProvider::default()) as Arc<dyn SyncProvider>;
-        let config = serde_json::json!({
-            "backendId": "backend-x",
-            "spaceId": Uuid::new_v4().to_string(),
-        });
-        let wrapped = crate::file_sync::commands::wrap_cloud_with_encryption_if_configured(
-            inner.clone(),
-            &config,
-            "rule-1",
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-        // The decorator's `display_name` prefix is the observable
-        // marker of a successful wrap — its `crypto:` prefix wraps the
-        // inner name. Comparing against the fake's `"fake"` proves
-        // both the wrap AND the passthrough.
-        assert_eq!(
-            wrapped.display_name(),
-            "crypto:fake",
-            "wrap must have produced an EncryptingSyncProvider",
-        );
-    }
+            dec.write_file("a.bin", b"payload").await.expect("write");
 
-    #[test]
-    fn wrap_helper_wraps_own_vault_when_spaceid_absent() {
-        // Round E follow-up contract: an own-vault cloud rule (no
-        // spaceId) now wraps too, using `FileKeySource::VaultKey`. The
-        // decorator's `crypto:` display-name prefix is the observable
-        // marker; the actual seal path is exercised by the roundtrip
-        // tests below.
-        let db = setup_db();
-        let inner = Arc::new(FakeProvider::default()) as Arc<dyn SyncProvider>;
-        let config = serde_json::json!({
-            "backendId": "backend-x",
-        });
-        let wrapped = crate::file_sync::commands::wrap_cloud_with_encryption_if_configured(
-            inner.clone(),
-            &config,
-            "rule-1",
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-        assert_eq!(
-            wrapped.display_name(),
-            "crypto:fake",
-            "own-vault cloud rules must wrap with FileKeySource::VaultKey",
-        );
-    }
+            let keys = inner.snapshot_keys();
+            let sidecar_key = keys
+                .iter()
+                .find(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .expect("sidecar produced");
+            let content_key_on_disk = keys
+                .iter()
+                .find(|k| k.starts_with("content/o/") && !k.ends_with(".m"))
+                .expect("content produced");
 
-    #[test]
-    fn wrap_helper_treats_empty_spaceid_as_own_vault() {
-        // An empty-string `spaceId` is a UI/migration artifact — must
-        // not select the shared-space path since there is no space to
-        // resolve keys against. Falls through to the own-vault branch.
-        let db = setup_db();
-        let inner = Arc::new(FakeProvider::default()) as Arc<dyn SyncProvider>;
-        let config = serde_json::json!({
-            "backendId": "backend-x",
-            "spaceId": "",
-        });
-        let wrapped = crate::file_sync::commands::wrap_cloud_with_encryption_if_configured(
-            inner.clone(),
-            &config,
-            "rule-1",
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-        assert_eq!(wrapped.display_name(), "crypto:fake");
-    }
+            let raw = inner.get(sidecar_key).expect("sidecar bytes");
+            let (_, payload) = open_sidecar(&vault_key, &raw).expect("open sidecar");
+            assert_eq!(
+                &payload.content_key, content_key_on_disk,
+                "sidecar.content_key must point at the actual content object",
+            );
+            let dek = unwrap_dek(&vault_key, &payload.wrapped_dek).expect("unwrap dek");
+            assert_eq!(dek.len(), DEK_LEN, "unwrapped DEK must be exactly 32 bytes",);
+        }
 
-    #[tokio::test]
-    async fn vault_key_empty_slot_errors() {
-        // With no key populated in the slot, the VaultKey seal path
-        // must surface a clear error rather than deadlock, panic, or
-        // silently seal with zero-bytes. Use `write_file` (not
-        // `read_file`) so `seal_key()` is the first thing touched;
-        // `read_file` short-circuits on `MissingObjectKey` before the
-        // key path is exercised.
-        let db = setup_db();
-        let inner = Arc::new(FakeProvider::default());
-        let dec = EncryptingSyncProvider::new(
-            inner,
-            FileKeySource::VaultKey,
-            "rule".to_string(),
-            DbConnection(db.0.clone()),
-            empty_slot(),
-        );
-        let err = dec
-            .write_file("anything", b"payload")
-            .await
-            .expect_err("must fail");
-        let msg = format!("{err}");
-        assert!(
-            msg.contains("vault not open") || msg.contains("own-vault"),
-            "expected the vault-not-open / own-vault error, got: {err}",
-        );
-    }
+        /// Fresh-device recovery: another instance wrote a paired
+        /// (content, own-sidecar) pair to the bucket, this device knows
+        /// nothing about it. After `manifest()` the local sync-state
+        /// cache must carry the `relative_path -> content_key` row so
+        /// downstream `read_file` can find the object.
+        #[tokio::test]
+        async fn own_vault_bootstrap_recovers_relative_path() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let vault_key = random_key();
+            // Two decorators sharing the SAME inner FakeProvider — writer
+            // publishes into the "bucket", reader discovers via bootstrap.
+            let inner = Arc::new(FakeProvider::default());
+            let writer = EncryptingSyncProvider::new(
+                inner.clone(),
+                rule_id.clone(),
+                DbConnection(db.0.clone()),
+                slot_with(vault_key),
+            );
+            writer
+                .write_file("docs/note.md", b"hello from a peer")
+                .await
+                .expect("writer publish");
 
-    #[tokio::test]
-    async fn vault_key_seal_open_roundtrip() {
-        // Round E wiring: a VaultKey rule must seal + open its own
-        // ciphertext back to the exact plaintext, without any epoch
-        // resolution. Uses a randomly-generated slot key so no literal
-        // key material lands in the test source.
-        let db = setup_db();
-        let rule_id = Uuid::new_v4().to_string();
-        let slot = slot_with(random_key());
+            // Reader starts with a fresh DB — the same bucket contents,
+            // no cached mapping. Bootstrap must find the object.
+            let reader_db = setup_db();
+            let reader = EncryptingSyncProvider::new(
+                inner.clone(),
+                rule_id,
+                DbConnection(reader_db.0.clone()),
+                slot_with(vault_key),
+            );
 
-        let inner = Arc::new(FakeProvider::default());
-        let dec = EncryptingSyncProvider::new(
-            inner.clone(),
-            FileKeySource::VaultKey,
-            rule_id.clone(),
-            DbConnection(db.0.clone()),
-            Arc::clone(&slot),
-        );
+            let manifest = reader.manifest().await.expect("bootstrap");
+            let recovered = manifest
+                .iter()
+                .find(|f| f.relative_path == "docs/note.md")
+                .expect("bootstrap should surface the peer-written file");
+            assert_eq!(
+                recovered.size,
+                b"hello from a peer".len() as u64,
+                "bootstrap must recover plaintext size, not ciphertext size",
+            );
 
-        let plaintext = b"own-vault roundtrip".to_vec();
-        dec.write_file("hello.txt", &plaintext)
-            .await
-            .expect("write");
-        // manifest() populates the object-key cache from the (freshly
-        // uploaded) content + sidecar pair, so read_file can resolve
-        // "hello.txt" back to its opaque object key.
-        dec.manifest().await.expect("bootstrap");
-        let got = dec.read_file("hello.txt").await.expect("read");
-        assert_eq!(got, plaintext);
-    }
+            // And the freshly-cached mapping lets `read_file` succeed.
+            let got = reader.read_file("docs/note.md").await.expect("read");
+            assert_eq!(got, b"hello from a peer".to_vec());
+        }
 
-    #[tokio::test]
-    async fn vault_key_deterministic_across_instances() {
-        // Multi-device same-vault semantics: two `EncryptingSyncProvider`
-        // instances sharing the same slot content must interop — a seal
-        // from A opens on B. This mirrors the production invariant that
-        // any device holding the same vault derives the same file key.
-        let db_a = setup_db();
-        let db_b = setup_db();
-        let rule_id = Uuid::new_v4().to_string();
-        let vault_key = random_key();
+        /// Reading a `relative_path` the local cache has never seen must
+        /// fail with the missing-object-key error — not fall through to
+        /// the inner provider with an empty key or crash. Regression pin
+        /// for the "bootstrap must run before read" invariant.
+        #[tokio::test]
+        async fn read_before_bootstrap_fails_with_missing_object_key() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let inner = Arc::new(FakeProvider::default());
+            let dec = EncryptingSyncProvider::new(
+                inner,
+                rule_id,
+                DbConnection(db.0.clone()),
+                slot_with(random_key()),
+            );
 
-        // Distinct slot handles carrying identical key material,
-        // matching the "same key derived independently on two devices"
-        // production case.
-        let slot_a = slot_with(vault_key);
-        let slot_b = slot_with(vault_key);
+            let err = dec
+                .read_file("never-written.txt")
+                .await
+                .expect_err("no cached object_key — must fail");
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("no object_key cached"),
+                "expected MissingObjectKey, got: {err}",
+            );
+        }
 
-        // Both providers wrap the same in-memory fake so a write by A
-        // is observable by B — the fake stands in for the cloud bucket
-        // both devices share.
-        let inner = Arc::new(FakeProvider::default());
-        let dec_a = EncryptingSyncProvider::new(
-            inner.clone(),
-            FileKeySource::VaultKey,
-            rule_id.clone(),
-            DbConnection(db_a.0.clone()),
-            slot_a,
-        );
-        let dec_b = EncryptingSyncProvider::new(
-            inner.clone(),
-            FileKeySource::VaultKey,
-            rule_id.clone(),
-            DbConnection(db_b.0.clone()),
-            slot_b,
-        );
+        /// A second device holding the WRONG vault key must fail to
+        /// open the sidecar — AEAD tag verification is the only wall
+        /// stopping content leaking to an unauthorized peer. Any other
+        /// error shape (or a successful open) is a security regression.
+        #[tokio::test]
+        async fn wrong_vault_key_fails_open() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let inner = Arc::new(FakeProvider::default());
+            let writer = EncryptingSyncProvider::new(
+                inner.clone(),
+                rule_id.clone(),
+                DbConnection(db.0.clone()),
+                slot_with(random_key()),
+            );
+            writer
+                .write_file("secret.txt", b"top secret")
+                .await
+                .expect("writer publish");
 
-        let plaintext = b"cross-device roundtrip".to_vec();
-        dec_a
-            .write_file("shared.txt", &plaintext)
-            .await
-            .expect("a write");
-        // B has never seen this object — its bootstrap must recover
-        // the object-key mapping from the sidecar under the same
-        // vault key.
-        dec_b.manifest().await.expect("b bootstrap");
-        let got = dec_b.read_file("shared.txt").await.expect("b read");
-        assert_eq!(got, plaintext);
+            // Fresh DB + fresh (wrong) vault key on the reader side. The
+            // sidecar exists but is sealed under the writer's key, so
+            // bootstrap must not accept it and read must fail.
+            let reader_db = setup_db();
+            let reader = EncryptingSyncProvider::new(
+                inner,
+                rule_id,
+                DbConnection(reader_db.0.clone()),
+                slot_with(random_key()),
+            );
+
+            // Bootstrap swallows per-object failures (log-and-continue),
+            // so `manifest()` returns Ok with no recovered rows — then
+            // read_file surfaces MissingObjectKey since the sidecar was
+            // never accepted into the cache.
+            let manifest = reader.manifest().await.expect("bootstrap Ok");
+            assert!(
+                manifest.is_empty(),
+                "wrong-key bootstrap must not accept sidecars, got: {manifest:?}",
+            );
+            let err = reader
+                .read_file("secret.txt")
+                .await
+                .expect_err("wrong key must reject");
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("no object_key cached"),
+                "wrong-key read must fail, got: {err}",
+            );
+        }
     }
 }
 

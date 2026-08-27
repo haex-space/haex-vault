@@ -16,7 +16,7 @@ use std::sync::Arc;
 use crate::database::DbConnection;
 
 use super::cloud_provider::CloudProvider;
-use super::crypto::provider::{EncryptingSyncProvider, FileKeySource};
+use super::crypto::provider::EncryptingSyncProvider;
 use super::engine::{execute_sync, run_sync_loop, SyncEngineError};
 use super::local_provider::LocalProvider;
 use super::peer_provider::PeerProvider;
@@ -411,45 +411,31 @@ async fn create_provider(
 }
 
 /// Wrap a built cloud provider in [`EncryptingSyncProvider`] — always.
-/// The `FileKeySource` variant is chosen from the rule config:
 ///
-/// - **Shared-space cloud rules** (`spaceId` set and non-empty):
-///   `FileKeySource::SpaceEpoch` — content sealed under the current MLS
-///   epoch, resolved from `haex_mls_sync_keys`.
-/// - **Own-vault cloud rules** (`spaceId` absent or empty):
-///   `FileKeySource::VaultKey` — content sealed under the per-vault key
-///   derived from the default identity's Ed25519 seed and cached in
-///   `AppState::vault_key`.
+/// Round F2 collapses the two prior key-source variants into the uniform
+/// DEK/KEK model on the own-vault path: the KEK is the `vault_key` slot
+/// value, wrapping a per-object DEK carried inside each sidecar. If the
+/// slot is empty when the first seal/open happens, the decorator
+/// surfaces `ProviderCryptoError::OwnVaultNotWired` — the operator sees
+/// a clear error, not silent corruption.
 ///
-/// `vault_key_slot` is passed through unconditionally so both branches
-/// hold a live handle; the `SpaceEpoch` branch never reads from it. If
-/// the slot is empty when a `VaultKey` rule first syncs, the decorator
-/// surfaces `ProviderCryptoError::OwnVaultNotWired` on the first
-/// seal/open — the operator sees a clear error, not silent corruption.
+/// The `config` argument is currently unused — the shared-space cloud
+/// path (`spaceId`) is intentionally broken between Round F2b and F3.
+/// Round F3 introduces a space-scoped sibling decorator and this helper
+/// will resume choosing between the two based on `config.spaceId`.
 ///
 /// Extracted from `create_provider` so the wrapping decision can be
 /// unit-tested without a full `AppState`. Kept `pub(crate)` so the tests
 /// in [`crate::file_sync::crypto::tests`] can call it directly.
 pub(crate) fn wrap_cloud_with_encryption_if_configured(
     inner: Arc<dyn SyncProvider>,
-    config: &serde_json::Value,
+    _config: &serde_json::Value,
     rule_id: &str,
     db: DbConnection,
     vault_key_slot: std::sync::Arc<std::sync::Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
 ) -> Arc<dyn SyncProvider> {
-    let space_id = config
-        .get("spaceId")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty());
-    let key_source = match space_id {
-        Some(space_id) => FileKeySource::SpaceEpoch {
-            space_id: space_id.to_string(),
-        },
-        None => FileKeySource::VaultKey,
-    };
     Arc::new(EncryptingSyncProvider::new(
         inner,
-        key_source,
         rule_id,
         db,
         vault_key_slot,

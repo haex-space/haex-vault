@@ -62,8 +62,9 @@ pub use envelope::{EnvelopeHeader, ENVELOPE_VERSION, HEADER_SIZE, MAGIC, NONCE_S
 pub use key_resolver::{clear_key_cache, resolve_key, resolve_latest, KeyError, KEY_LEN};
 pub use object_key::{
     bootstrap_object_key_cache, generate_object_key, lookup_object_key, mark_object_deleted,
-    set_object_key, sidecar_key_for, BootstrapReport, ObjectKeyError, SIDECAR_SUFFIX,
+    own_sidecar_key_for, set_object_key, sidecar_key_for, BootstrapReport, ObjectKeyError,
+    CONTENT_KEY_PREFIX, OWN_SIDECAR_PREFIX, SIDECAR_SUFFIX,
 };
-pub use provider::{EncryptingSyncProvider, FileKeySource, ProviderCryptoError};
+pub use provider::{EncryptingSyncProvider, ProviderCryptoError};
 pub use sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};
 pub use vault_key_derivation::{derive_vault_file_key, VAULT_FILE_KEY_LEN};

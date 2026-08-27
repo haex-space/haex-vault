@@ -1,51 +1,52 @@
-//! Round D — encrypting `SyncProvider` decorator.
+//! Round F2 — encrypting `SyncProvider` decorator (own-vault path).
 //!
 //! Wraps an inner `SyncProvider` (in production always a
 //! [`CloudProvider`](crate::file_sync::cloud_provider::CloudProvider)) and
 //! presents the same trait to the sync engine while transparently:
 //!
 //! - Discovering the local `relative_path -> object_key` mapping on first
-//!   `manifest()` for a rule (the plan's "Bootstrap einhängen") by
-//!   listing the bucket via the inner provider and decrypting each
-//!   sidecar not already cached in `haex_sync_state_no_sync`.
+//!   `manifest()` for a rule by listing `own/*.m` sidecars in the bucket
+//!   and decrypting each one not already cached in
+//!   `haex_sync_state_no_sync`.
 //! - Answering `manifest()` from that local cache with **plaintext**
-//!   sizes and modification times (the Fallstrick 2 fix — reporting
-//!   ciphertext sizes here would turn every unchanged file into a silent
-//!   re-upload).
-//! - Sealing a fresh file into an envelope + AEAD chunks and a sidecar
-//!   record before uploading, using an opaque `o/<random-hex>` key so the
-//!   storage operator learns neither the filename nor the directory
-//!   layout.
-//! - Reusing an existing object key on rewrite — a fresh mint per change
-//!   would orphan the previous object under the same relative_path.
+//!   sizes and modification times — reporting ciphertext sizes here would
+//!   turn every unchanged file into a silent re-upload.
+//! - Sealing a fresh file into an envelope + AEAD chunks under a
+//!   per-object DEK, sealing the sidecar under the vault key, and
+//!   uploading both under opaque keys so the storage operator learns
+//!   neither filename nor directory layout.
+//! - Reusing an existing content object key on rewrite — a fresh mint per
+//!   change would orphan the previous object under the same relative_path.
 //! - Streaming through disk on the `read_file_to_path` /
 //!   `write_file_from_path` paths so a multi-gigabyte plaintext or
 //!   ciphertext never lives in RAM.
 //!
-//! The `CloudProvider` layer stays dumb: opaque object keys are just
-//! relative paths from its perspective, and prefixing is its concern
-//! alone. This module never touches `cloud_provider.rs` directly.
+//! The `CloudProvider` layer stays dumb: opaque keys are just relative
+//! paths from its perspective, and prefixing is its concern alone. This
+//! module never touches `cloud_provider.rs` directly.
 //!
-//! ## Key source
+//! ## Key model — uniform DEK/KEK split
 //!
-//! Two variants are wired:
+//! Every object gets a fresh per-write **DEK** (Data Encryption Key)
+//! that seals the file content bytes. The DEK is then wrapped under the
+//! grant's **KEK** (Key Encryption Key) and carried inside the sidecar.
+//! For the own-vault path the KEK is the `vault_key` slot value —
+//! derived once from the default identity's Ed25519 seed and cached in
+//! [`AppState::vault_key`] (`Arc<Mutex<Option<Zeroizing<[u8; 32]>>>>`).
+//! The provider reads it just-in-time from the slot on each seal/open,
+//! so it holds no copy at rest.
 //!
-//! - [`FileKeySource::SpaceEpoch`] — shared-space content, sealed with a
-//!   domain-separated derivative of the current MLS epoch's
-//!   `haex_mls_sync_keys` row. Resolved via [`key_resolver::resolve_latest`]
-//!   on write and [`key_resolver::resolve_key`] on read.
-//! - [`FileKeySource::VaultKey`] — own-vault (personal) content, sealed
-//!   with a per-vault key derived once from the default identity's
-//!   Ed25519 seed and cached in [`AppState::vault_key`]
-//!   (`Arc<Mutex<Option<Zeroizing<[u8; 32]>>>>`). The provider reads it
-//!   just-in-time from the slot on each seal/open, so it holds no copy
-//!   at rest. The key has no rotation concept — epoch is fixed to `0`
-//!   on write and ignored on read.
+//! Round F3 adds a space-scoped sibling that wraps the same DEK under
+//! an MLS-derived KEK per grant — the content object is shared
+//! bit-for-bit, only the sidecars differ. The DEK/KEK boundary in this
+//! module is what makes that layering possible without duplicating file
+//! bytes.
 //!
-//! The two variants land in disjoint key spaces (their IKMs and HKDF
-//! salts never overlap), so a mistyped rule that mixes them still fails
-//! at AEAD-tag verification instead of silently opening under the wrong
-//! key.
+//! ## Envelope epochs on own-vault objects
+//!
+//! Own-vault content and sidecars carry a synthetic envelope `epoch`
+//! of `0` on the wire — the vault key has no rotation concept. Readers
+//! ignore the value and load the key straight from the slot.
 //!
 //! [`AppState::vault_key`]: crate::AppState::vault_key
 
@@ -66,30 +67,14 @@ use super::super::provider::{
 use super::super::types::FileState;
 use super::chunk::CHUNK_PLAINTEXT_SIZE;
 use super::content::{open_bytes, open_stream, seal_bytes, seal_stream, StreamCryptoError};
-use super::envelope::{EnvelopeHeader, NONCE_SIZE};
-use super::key_resolver::{resolve_key, resolve_latest, KeyError};
+use super::dek_wrap::{unwrap_dek, wrap_dek, DekWrapError, DEK_LEN};
+use super::envelope::NONCE_SIZE;
 use super::object_key::{
-    generate_object_key, lookup_object_key, mark_object_deleted, object_key_known, set_object_key,
-    sidecar_key_for, upsert_bootstrap_entry, ObjectKeyError, SIDECAR_SUFFIX,
+    generate_object_key, lookup_object_key, mark_object_deleted, object_key_known,
+    own_sidecar_key_for, set_object_key, upsert_bootstrap_entry, ObjectKeyError,
+    OWN_SIDECAR_PREFIX, SIDECAR_SUFFIX,
 };
 use super::sidecar::{open_sidecar, seal_sidecar, SidecarError, SidecarPayload};
-
-/// Which key material the decorator uses to seal file content.
-#[derive(Debug, Clone)]
-pub enum FileKeySource {
-    /// Shared-space MLS epoch key — the current epoch is looked up per
-    /// write via `key_resolver::resolve_latest`, and per read via
-    /// `key_resolver::resolve_key` with the sealed envelope's epoch.
-    SpaceEpoch {
-        /// The space this rule syncs content for.
-        space_id: String,
-    },
-    /// Own-vault (personal) key, derived from the default-identity
-    /// Ed25519 seed via HKDF and cached in `AppState::vault_key`. The
-    /// key is stable per vault (no rotation concept), so writes use a
-    /// synthetic `epoch = 0` and reads ignore the envelope epoch.
-    VaultKey,
-}
 
 /// Just-in-time handle to the own-vault key slot. Cloned from
 /// `AppState::vault_key` at provider-construction time so the decorator
@@ -104,8 +89,6 @@ pub enum ProviderCryptoError {
     #[error(transparent)]
     Provider(#[from] SyncProviderError),
     #[error(transparent)]
-    Key(#[from] KeyError),
-    #[error(transparent)]
     Sidecar(#[from] SidecarError),
     #[error(transparent)]
     Crypto(#[from] super::chunk::CryptoError),
@@ -113,6 +96,8 @@ pub enum ProviderCryptoError {
     Stream(#[from] StreamCryptoError),
     #[error(transparent)]
     ObjectKey(#[from] ObjectKeyError),
+    #[error(transparent)]
+    DekWrap(#[from] DekWrapError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("engine error: {0}")]
@@ -133,50 +118,46 @@ impl From<ProviderCryptoError> for SyncProviderError {
 
 pub struct EncryptingSyncProvider {
     inner: Arc<dyn SyncProvider>,
-    key_source: FileKeySource,
     rule_id: String,
     db: DbConnection,
-    /// Handle to the own-vault key slot. Only consulted for the
-    /// `VaultKey` variant — a shared-space rule can pass a slot that
-    /// is never populated and it never blocks the seal path.
+    /// Handle to the own-vault key slot. Read just-in-time on each seal /
+    /// open — the provider never keeps a copy at rest.
     vault_key_slot: VaultKeySlot,
 }
 
-/// Synthetic epoch stamped into `VaultKey`-sealed envelopes. The own-
-/// vault key has no rotation concept, so the value carried on the wire
-/// is a fixed sentinel — the open path ignores it and reads the key
-/// straight from the slot.
+/// Synthetic epoch stamped into own-vault envelopes. The vault key has
+/// no rotation concept, so the value carried on the wire is a fixed
+/// sentinel; readers ignore it and load the key from the slot.
 const VAULT_KEY_EPOCH: u64 = 0;
 
 impl EncryptingSyncProvider {
-    /// Wrap an inner provider with envelope + sidecar encryption. The
-    /// inner provider is expected to treat its `relative_path` argument as
-    /// an opaque object key (`o/<hex>` or `o/<hex>.m`) — production
-    /// `CloudProvider` does exactly that; other providers likely do not
-    /// and are not supported.
+    /// Wrap an inner provider with envelope + sidecar encryption for the
+    /// own-vault path. The inner provider is expected to treat its
+    /// `relative_path` argument as an opaque key (`content/o/<hex>` or
+    /// `own/<hex>.m`) — production `CloudProvider` does exactly that;
+    /// other providers likely do not and are not supported.
     ///
     /// `vault_key_slot` is the `AppState::vault_key` handle (or a clone
-    /// of it). Passing an unpopulated slot for a `SpaceEpoch` rule is
-    /// fine — the slot is only consulted for `VaultKey`.
+    /// of it). If the slot is empty when the first seal or open happens
+    /// the decorator surfaces `OwnVaultNotWired` — the operator sees a
+    /// clear error, not silent corruption.
     pub fn new(
         inner: Arc<dyn SyncProvider>,
-        key_source: FileKeySource,
         rule_id: impl Into<String>,
         db: DbConnection,
         vault_key_slot: VaultKeySlot,
     ) -> Self {
         Self {
             inner,
-            key_source,
             rule_id: rule_id.into(),
             db,
             vault_key_slot,
         }
     }
 
-    /// Read the own-vault key from the slot into a fresh `Zeroizing`
-    /// buffer, then release the mutex. Callers get a scoped copy that
-    /// scrubs on drop; the provider never keeps a copy at rest.
+    /// Read the vault key from the slot into a fresh `Zeroizing` buffer,
+    /// then release the mutex. Callers get a scoped copy that scrubs on
+    /// drop; the provider never keeps a copy at rest.
     fn load_vault_key(&self) -> Result<Zeroizing<[u8; 32]>, ProviderCryptoError> {
         let guard = self
             .vault_key_slot
@@ -190,83 +171,50 @@ impl EncryptingSyncProvider {
         Ok(copy)
     }
 
-    fn seal_key(&self) -> Result<(u64, Zeroizing<[u8; 32]>), ProviderCryptoError> {
-        match &self.key_source {
-            FileKeySource::SpaceEpoch { space_id } => {
-                let (epoch, key) = resolve_latest(space_id.as_str(), &self.db)?;
-                Ok((epoch, Zeroizing::new(key)))
-            }
-            FileKeySource::VaultKey => Ok((VAULT_KEY_EPOCH, self.load_vault_key()?)),
-        }
-    }
-
-    fn open_key(&self, epoch: u64) -> Result<Zeroizing<[u8; 32]>, ProviderCryptoError> {
-        match &self.key_source {
-            FileKeySource::SpaceEpoch { space_id } => {
-                let key = resolve_key(space_id.as_str(), epoch, &self.db)?;
-                Ok(Zeroizing::new(key))
-            }
-            FileKeySource::VaultKey => {
-                // Envelope epoch is informational for VaultKey — no
-                // rotation, no lookup. Load the current slot value.
-                self.load_vault_key()
-            }
-        }
-    }
-
     fn random_nonce() -> [u8; NONCE_SIZE] {
         let mut n = [0u8; NONCE_SIZE];
         rand::fill(&mut n);
         n
     }
 
+    fn random_dek() -> Zeroizing<[u8; DEK_LEN]> {
+        let mut dek = Zeroizing::new([0u8; DEK_LEN]);
+        rand::fill(dek.as_mut());
+        dek
+    }
+
     /// Bootstrap the object-key cache from the remote bucket contents.
     ///
-    /// Mirrors [`super::object_key::bootstrap_object_key_cache`] but
-    /// consumes `SyncProvider` primitives instead of `StorageBackend` so
-    /// the decorator does not need to hold a second handle to the same
-    /// backend. Idempotent — already-cached object keys are skipped
-    /// without a re-download.
+    /// Scans `own/*.m` sidecars via the inner provider's manifest and
+    /// upserts one row per newly discovered content object. Idempotent —
+    /// already-cached content keys are skipped without a re-download.
     ///
     /// Per-object failures (a corrupt or undecryptable sidecar) never
-    /// abort the run: each is logged via `eprintln!` (matching the rest
-    /// of `file_sync`'s logging convention) and skipped so a single
-    /// bad object cannot brick recovery of the rest of the library.
-    /// Returns `Ok(())` on completion regardless of per-object
-    /// outcomes; the outer `Result` covers only manifest-listing and
-    /// DB-lookup failures that block the whole pass.
+    /// abort the run: each is logged via `eprintln!` and skipped so a
+    /// single bad sidecar cannot brick recovery of the rest of the
+    /// library. Returns `Ok(())` on completion regardless of per-object
+    /// outcomes; the outer `Result` covers only manifest-listing failures
+    /// that block the whole pass.
     async fn bootstrap(&self) -> Result<(), ProviderCryptoError> {
         let manifest = self.inner.manifest().await?;
-        let mut content_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let mut sidecar_owners: std::collections::HashSet<String> =
-            std::collections::HashSet::new();
         for entry in &manifest {
             if entry.is_directory {
                 continue;
             }
-            match entry.relative_path.strip_suffix(SIDECAR_SUFFIX) {
-                Some(owner) => {
-                    sidecar_owners.insert(owner.to_string());
-                }
-                None => {
-                    content_keys.insert(entry.relative_path.clone());
-                }
-            }
-        }
-        for object_key in content_keys.intersection(&sidecar_owners) {
-            if object_key_known(&self.db, &self.rule_id, object_key)
-                .map_err(ProviderCryptoError::Engine)?
-            {
+            let Some(rest) = entry.relative_path.strip_prefix(OWN_SIDECAR_PREFIX) else {
+                continue;
+            };
+            if !rest.ends_with(SIDECAR_SUFFIX) {
                 continue;
             }
-            let sidecar_key = sidecar_key_for(object_key);
-            if let Err(e) = self.recover_and_store(&sidecar_key, object_key).await {
+            if let Err(e) = self.recover_and_store(&entry.relative_path).await {
                 // Per-object failure: log-and-continue is the plan's
                 // "Fehlerisolation" policy. The decorator surface has no
                 // notion of a report today; if we need one later, thread
                 // it through here.
                 eprintln!(
-                    "[EncryptingSyncProvider] bootstrap: failed to recover sidecar {sidecar_key} (rule {}): {e}",
+                    "[EncryptingSyncProvider] bootstrap: failed to recover sidecar {} (rule {}): {e}",
+                    entry.relative_path,
                     self.rule_id,
                 );
                 continue;
@@ -275,22 +223,20 @@ impl EncryptingSyncProvider {
         Ok(())
     }
 
-    async fn recover_and_store(
-        &self,
-        sidecar_key: &str,
-        object_key: &str,
-    ) -> Result<(), ProviderCryptoError> {
+    async fn recover_and_store(&self, sidecar_key: &str) -> Result<(), ProviderCryptoError> {
         let bytes = self.inner.read_file(sidecar_key).await?;
-        let epoch = EnvelopeHeader::parse(&bytes)
-            .map_err(ProviderCryptoError::Crypto)?
-            .epoch;
-        let key = self.open_key(epoch)?;
+        let key = self.load_vault_key()?;
         let (_, payload) = open_sidecar(&key, &bytes)?;
+        if object_key_known(&self.db, &self.rule_id, &payload.content_key)
+            .map_err(ProviderCryptoError::Engine)?
+        {
+            return Ok(());
+        }
         upsert_bootstrap_entry(
             &self.db,
             &self.rule_id,
             &payload.relative_path,
-            object_key,
+            &payload.content_key,
             payload.size,
             payload.modified_at,
             &payload.blake3,
@@ -299,20 +245,20 @@ impl EncryptingSyncProvider {
         Ok(())
     }
 
-    /// Resolve the object key for `relative_path`, minting a fresh one
-    /// if none exists yet — but do **not** persist a fresh key here.
-    /// The caller commits the mapping via `set_object_key` only after
-    /// both content and sidecar uploads succeed.
+    /// Resolve the content object key for `relative_path`, minting a
+    /// fresh one if none exists yet — but do **not** persist a fresh key
+    /// here. The caller commits the mapping via `set_object_key` only
+    /// after both content and sidecar uploads succeed.
     ///
-    /// Deferring the write closes the phantom-manifest-entry hole: a
-    /// row inserted here before the upload finishes would carry
-    /// `deleted=0`, `object_key=<fresh>`, `size=0`, `modified_at=0`, and
-    /// `manifest()`'s `!deleted && object_key.is_some()` filter would
-    /// emit it as a real FileState. On the download-direction diff
-    /// that turns into a scheduled fetch of an object the bucket never
-    /// received. Returns `(object_key, is_fresh)` so the caller knows
-    /// whether persistence is still owed after successful uploads.
-    async fn resolve_or_mint_object_key(
+    /// Deferring the write closes the phantom-manifest-entry hole: a row
+    /// inserted here before the upload finishes would carry `deleted=0`,
+    /// `object_key=<fresh>`, `size=0`, `modified_at=0`, and `manifest()`'s
+    /// `!deleted && object_key.is_some()` filter would emit it as a real
+    /// FileState. On the download-direction diff that turns into a
+    /// scheduled fetch of an object the bucket never received. Returns
+    /// `(content_key, is_fresh)` so the caller knows whether persistence
+    /// is still owed after successful uploads.
+    async fn resolve_or_mint_content_key(
         &self,
         relative_path: &str,
     ) -> Result<(String, bool), ProviderCryptoError> {
@@ -322,7 +268,7 @@ impl EncryptingSyncProvider {
         Ok((generate_object_key(), true))
     }
 
-    fn object_key_for_read(&self, relative_path: &str) -> Result<String, ProviderCryptoError> {
+    fn content_key_for_read(&self, relative_path: &str) -> Result<String, ProviderCryptoError> {
         lookup_object_key(&self.db, &self.rule_id, relative_path)?.ok_or_else(|| {
             ProviderCryptoError::MissingObjectKey {
                 path: relative_path.to_string(),
@@ -330,16 +276,15 @@ impl EncryptingSyncProvider {
         })
     }
 
-    async fn write_sidecar(
+    async fn write_own_sidecar(
         &self,
-        object_key: &str,
+        content_key: &str,
         payload: &SidecarPayload,
-        seal_key: &[u8; 32],
-        seal_epoch: u64,
+        vault_key: &[u8; 32],
     ) -> Result<(), ProviderCryptoError> {
-        let bytes = seal_sidecar(seal_key, seal_epoch, Self::random_nonce(), payload)?;
+        let bytes = seal_sidecar(vault_key, VAULT_KEY_EPOCH, Self::random_nonce(), payload)?;
         self.inner
-            .write_file(&sidecar_key_for(object_key), &bytes)
+            .write_file(&own_sidecar_key_for(content_key), &bytes)
             .await?;
         Ok(())
     }
@@ -383,18 +328,30 @@ impl SyncProvider for EncryptingSyncProvider {
 
     async fn read_file(&self, relative_path: &str) -> Result<Vec<u8>, SyncProviderError> {
         validate_relative_path(relative_path)?;
-        let object_key = self
-            .object_key_for_read(relative_path)
+        let content_key = self
+            .content_key_for_read(relative_path)
             .map_err(SyncProviderError::from)?;
-        let ciphertext = self.inner.read_file(&object_key).await?;
-        let epoch = EnvelopeHeader::parse(&ciphertext)
-            .map_err(|e| SyncProviderError::Other {
+        let vault_key = self.load_vault_key().map_err(SyncProviderError::from)?;
+
+        // Sidecar-first: it holds the wrapped DEK that seals the content
+        // bytes. Fetching content first would leave us with ciphertext
+        // and no key.
+        let sidecar_bytes = self
+            .inner
+            .read_file(&own_sidecar_key_for(&content_key))
+            .await?;
+        let (_, payload) =
+            open_sidecar(&vault_key, &sidecar_bytes).map_err(|e| SyncProviderError::Other {
                 reason: e.to_string(),
-            })?
-            .epoch;
-        let key = self.open_key(epoch).map_err(SyncProviderError::from)?;
+            })?;
+        let dek =
+            unwrap_dek(&vault_key, &payload.wrapped_dek).map_err(|e| SyncProviderError::Other {
+                reason: e.to_string(),
+            })?;
+
+        let ciphertext = self.inner.read_file(&payload.content_key).await?;
         let (_, plaintext) =
-            open_bytes(&key, &ciphertext).map_err(|e| SyncProviderError::Other {
+            open_bytes(&dek, &ciphertext).map_err(|e| SyncProviderError::Other {
                 reason: e.to_string(),
             })?;
         Ok(plaintext)
@@ -408,9 +365,24 @@ impl SyncProvider for EncryptingSyncProvider {
         on_progress: Arc<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Result<ReadFileResult, SyncProviderError> {
         validate_relative_path(relative_path)?;
-        let object_key = self
-            .object_key_for_read(relative_path)
+        let content_key = self
+            .content_key_for_read(relative_path)
             .map_err(SyncProviderError::from)?;
+        let vault_key = self.load_vault_key().map_err(SyncProviderError::from)?;
+
+        // Sidecar first, in RAM — it is always small.
+        let sidecar_bytes = self
+            .inner
+            .read_file(&own_sidecar_key_for(&content_key))
+            .await?;
+        let (_, payload) =
+            open_sidecar(&vault_key, &sidecar_bytes).map_err(|e| SyncProviderError::Other {
+                reason: e.to_string(),
+            })?;
+        let dek =
+            unwrap_dek(&vault_key, &payload.wrapped_dek).map_err(|e| SyncProviderError::Other {
+                reason: e.to_string(),
+            })?;
 
         // Make sure `output_path`'s parent exists before staging beside
         // it — the tmp lands there so it shares a filesystem with the
@@ -432,7 +404,7 @@ impl SyncProvider for EncryptingSyncProvider {
         let ct_path = ct_tmp.path().to_path_buf();
         let ct_info = self
             .inner
-            .read_file_to_path(&object_key, &ct_path, None, on_progress)
+            .read_file_to_path(&payload.content_key, &ct_path, None, on_progress)
             .await?;
 
         let mut reader = tokio::io::BufReader::new(
@@ -453,12 +425,7 @@ impl SyncProvider for EncryptingSyncProvider {
                     .await
                     .map_err(SyncProviderError::Io)?,
             );
-            let epoch = self
-                .peek_header_epoch(&ct_path)
-                .await
-                .map_err(SyncProviderError::from)?;
-            let key = self.open_key(epoch).map_err(SyncProviderError::from)?;
-            open_stream(&key, ct_info.bytes, &mut reader, &mut writer)
+            open_stream(&dek, ct_info.bytes, &mut reader, &mut writer)
                 .await
                 .map_err(|e| SyncProviderError::Other {
                     reason: e.to_string(),
@@ -493,41 +460,41 @@ impl SyncProvider for EncryptingSyncProvider {
 
     async fn write_file(&self, relative_path: &str, data: &[u8]) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
-        let (epoch, key) = self.seal_key().map_err(SyncProviderError::from)?;
-        let (object_key, is_fresh) = self
-            .resolve_or_mint_object_key(relative_path)
+        let vault_key = self.load_vault_key().map_err(SyncProviderError::from)?;
+        let dek = Self::random_dek();
+        let (content_key, is_fresh) = self
+            .resolve_or_mint_content_key(relative_path)
             .await
             .map_err(SyncProviderError::from)?;
 
-        let ct = seal_bytes(&key, epoch, Self::random_nonce(), data).map_err(|e| {
+        let ct = seal_bytes(&dek, VAULT_KEY_EPOCH, Self::random_nonce(), data).map_err(|e| {
             SyncProviderError::Other {
                 reason: e.to_string(),
             }
         })?;
-        self.inner.write_file(&object_key, &ct).await?;
+        self.inner.write_file(&content_key, &ct).await?;
 
+        let wrapped_dek = wrap_dek(&vault_key, &dek).map_err(|e| SyncProviderError::Other {
+            reason: e.to_string(),
+        })?;
         let payload = SidecarPayload {
-            // Step 4 (provider refactor) will populate these with the
-            // per-object DEK wrap payload. Round C/D providers seal the
-            // content directly under the epoch key, so no wrapped_dek
-            // exists on this write path yet.
-            content_key: String::new(),
-            wrapped_dek: Vec::new(),
+            content_key: content_key.clone(),
+            wrapped_dek,
             relative_path: relative_path.to_string(),
             size: data.len() as u64,
             modified_at: unix_now(),
             content_type: None,
             blake3: blake3::hash(data).to_hex().to_string(),
         };
-        self.write_sidecar(&object_key, &payload, &key, epoch)
+        self.write_own_sidecar(&content_key, &payload, &vault_key)
             .await
             .map_err(SyncProviderError::from)?;
 
         // Both uploads succeeded — safe to publish the mapping now.
-        // See `resolve_or_mint_object_key` for the deferred-persistence
+        // See `resolve_or_mint_content_key` for the deferred-persistence
         // rationale (phantom manifest entries on failed uploads).
         if is_fresh {
-            set_object_key(&self.db, &self.rule_id, relative_path, &object_key).map_err(|e| {
+            set_object_key(&self.db, &self.rule_id, relative_path, &content_key).map_err(|e| {
                 SyncProviderError::Other {
                     reason: e.to_string(),
                 }
@@ -542,9 +509,10 @@ impl SyncProvider for EncryptingSyncProvider {
         source_path: &Path,
     ) -> Result<(), SyncProviderError> {
         validate_relative_path(relative_path)?;
-        let (epoch, key) = self.seal_key().map_err(SyncProviderError::from)?;
-        let (object_key, is_fresh) = self
-            .resolve_or_mint_object_key(relative_path)
+        let vault_key = self.load_vault_key().map_err(SyncProviderError::from)?;
+        let dek = Self::random_dek();
+        let (content_key, is_fresh) = self
+            .resolve_or_mint_content_key(relative_path)
             .await
             .map_err(SyncProviderError::from)?;
 
@@ -570,8 +538,8 @@ impl SyncProvider for EncryptingSyncProvider {
                     .map_err(SyncProviderError::Io)?,
             );
             seal_stream(
-                &key,
-                epoch,
+                &dek,
+                VAULT_KEY_EPOCH,
                 Self::random_nonce(),
                 plaintext_len,
                 &mut src,
@@ -584,30 +552,31 @@ impl SyncProvider for EncryptingSyncProvider {
             dst.flush().await.map_err(SyncProviderError::Io)?;
         }
         self.inner
-            .write_file_from_path(&object_key, ct_tmp.path())
+            .write_file_from_path(&content_key, ct_tmp.path())
             .await?;
 
         let hash = hash_file_blake3(source_path)
             .await
             .map_err(SyncProviderError::Io)?;
+        let wrapped_dek = wrap_dek(&vault_key, &dek).map_err(|e| SyncProviderError::Other {
+            reason: e.to_string(),
+        })?;
         let payload = SidecarPayload {
-            // Step 4 (provider refactor) will populate these with the
-            // per-object DEK wrap payload; see write_file above.
-            content_key: String::new(),
-            wrapped_dek: Vec::new(),
+            content_key: content_key.clone(),
+            wrapped_dek,
             relative_path: relative_path.to_string(),
             size: plaintext_len,
             modified_at: meta_mtime_secs(&meta),
             content_type: None,
             blake3: hash,
         };
-        self.write_sidecar(&object_key, &payload, &key, epoch)
+        self.write_own_sidecar(&content_key, &payload, &vault_key)
             .await
             .map_err(SyncProviderError::from)?;
 
         // Both uploads succeeded — safe to publish the mapping now.
         if is_fresh {
-            set_object_key(&self.db, &self.rule_id, relative_path, &object_key).map_err(|e| {
+            set_object_key(&self.db, &self.rule_id, relative_path, &content_key).map_err(|e| {
                 SyncProviderError::Other {
                     reason: e.to_string(),
                 }
@@ -624,24 +593,24 @@ impl SyncProvider for EncryptingSyncProvider {
         validate_relative_path(relative_path)?;
         // Two objects, one logical file — delete both. Order: sidecar
         // first, then content. If a crash lands between the two, the
-        // orphan-content pass on the next bootstrap surfaces the leftover
-        // (Round C behaviour); orphan sidecars would just be logged and
-        // ignored, so the surviving-sidecar failure mode is the noisier
-        // one. Delete-in-place ignores `to_trash` — S3 has no trash, and
+        // orphan-content pass on the next bootstrap surfaces the leftover;
+        // orphan sidecars would just be logged and ignored, so the
+        // surviving-sidecar failure mode is the noisier one. Delete-in-
+        // place ignores `to_trash` — S3 has no trash, and
         // `CloudProvider::supports_trash()` returns false.
-        if let Some(object_key) = lookup_object_key(&self.db, &self.rule_id, relative_path)
+        if let Some(content_key) = lookup_object_key(&self.db, &self.rule_id, relative_path)
             .map_err(|e| SyncProviderError::Other {
                 reason: e.to_string(),
             })?
         {
-            let sidecar = sidecar_key_for(&object_key);
+            let sidecar = own_sidecar_key_for(&content_key);
             // Ignore "not found" on the sidecar side — an already-missing
             // sidecar means a previous half-crashed delete, not a bug.
             match self.inner.delete_file(&sidecar, false).await {
                 Ok(()) | Err(SyncProviderError::NotFound { .. }) => {}
                 Err(e) => return Err(e),
             }
-            match self.inner.delete_file(&object_key, false).await {
+            match self.inner.delete_file(&content_key, false).await {
                 Ok(()) | Err(SyncProviderError::NotFound { .. }) => {}
                 Err(e) => return Err(e),
             }
@@ -686,21 +655,6 @@ impl SyncProvider for EncryptingSyncProvider {
     async fn prime_hash_after_write(&self, _file: &FileState) {
         // Hash is the plaintext BLAKE3, computed at write time from the
         // source bytes — nothing to prime for a receiver-side seed here.
-    }
-}
-
-impl EncryptingSyncProvider {
-    /// Read just the 37-byte header of a ciphertext file to learn its
-    /// epoch — cheap enough to do twice (here plus inside `open_stream`)
-    /// and lets us resolve the AEAD key before the streaming pass starts.
-    async fn peek_header_epoch(&self, path: &Path) -> Result<u64, ProviderCryptoError> {
-        use tokio::io::AsyncReadExt as _;
-        let mut f = tokio::fs::File::open(path).await?;
-        let mut hdr = [0u8; super::envelope::HEADER_SIZE];
-        f.read_exact(&mut hdr).await?;
-        Ok(EnvelopeHeader::parse(&hdr)
-            .map_err(ProviderCryptoError::Crypto)?
-            .epoch)
     }
 }
 
