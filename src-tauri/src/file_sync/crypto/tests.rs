@@ -1886,6 +1886,159 @@ mod provider {
             assert_eq!(got, b"v2-longer-payload".to_vec());
         }
     }
+
+    /// Round F2c — wire-up seam.
+    ///
+    /// `crate::file_sync::commands::wrap_cloud_with_encryption_if_configured`
+    /// is the sole non-test call site that instantiates
+    /// [`EncryptingSyncProvider`]. F2b already routes it through the new
+    /// own-vault DEK/KEK path, but F2b's own tests exercise the
+    /// decorator by calling `::new` directly — a wire-up bug that
+    /// dropped the `vault_key` slot on the floor inside the wrap helper
+    /// would slip past them. These tests pin the seam: the wrapped
+    /// provider must observably use the caller-supplied slot.
+    mod wrap_helper {
+        use std::sync::Arc;
+
+        use uuid::Uuid;
+
+        use super::super::super::super::commands::wrap_cloud_with_encryption_if_configured;
+        use super::{random_key, setup_db, slot_with, FakeProvider};
+        use crate::database::DbConnection;
+
+        /// Bytes round-trip through the wrap helper, end-to-end. Tracer
+        /// bullet for the wire-up: constructs the exact provider stack
+        /// `create_provider` builds in production and verifies bytes
+        /// survive a write → read cycle.
+        #[tokio::test]
+        async fn wrap_helper_roundtrips_own_vault_bytes() {
+            let db = setup_db();
+            let slot = slot_with(random_key());
+            let inner: Arc<dyn crate::file_sync::provider::SyncProvider> =
+                Arc::new(FakeProvider::default());
+
+            let wrapped = wrap_cloud_with_encryption_if_configured(
+                inner,
+                &serde_json::json!({}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db.0.clone()),
+                slot,
+            );
+
+            let plaintext = b"wire-up smoke".to_vec();
+            wrapped
+                .write_file("note.txt", &plaintext)
+                .await
+                .expect("write");
+            let got = wrapped.read_file("note.txt").await.expect("read");
+            assert_eq!(got, plaintext);
+        }
+
+        /// The wrap helper must observably read the vault-key from the
+        /// caller-supplied slot — not from a hard-coded default,
+        /// environment lookup, or dropped-on-the-floor sentinel. Two
+        /// wrapped providers built with *different* slots seal the same
+        /// plaintext under different KEKs, so their inner backends must
+        /// end up with disjoint ciphertext bytes even when handed the
+        /// same relative_path. If the slot were being ignored, both
+        /// providers would use the same key and their content
+        /// ciphertexts would collide byte-for-byte.
+        #[tokio::test]
+        async fn wrap_helper_threads_vault_key_from_slot() {
+            let db_a = setup_db();
+            let db_b = setup_db();
+            let slot_a = slot_with(random_key());
+            let slot_b = slot_with(random_key());
+            let inner_a = Arc::new(FakeProvider::default());
+            let inner_b = Arc::new(FakeProvider::default());
+
+            let wrapped_a = wrap_cloud_with_encryption_if_configured(
+                inner_a.clone() as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db_a.0.clone()),
+                slot_a,
+            );
+            let wrapped_b = wrap_cloud_with_encryption_if_configured(
+                inner_b.clone() as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db_b.0.clone()),
+                slot_b,
+            );
+
+            let plaintext = b"same bytes both sides".to_vec();
+            wrapped_a
+                .write_file("f.bin", &plaintext)
+                .await
+                .expect("write a");
+            wrapped_b
+                .write_file("f.bin", &plaintext)
+                .await
+                .expect("write b");
+
+            let ct_a: Vec<Vec<u8>> = inner_a
+                .snapshot_keys()
+                .into_iter()
+                .filter(|k| k.starts_with("content/o/") && !k.ends_with(".m"))
+                .filter_map(|k| inner_a.get(&k))
+                .collect();
+            let ct_b: Vec<Vec<u8>> = inner_b
+                .snapshot_keys()
+                .into_iter()
+                .filter(|k| k.starts_with("content/o/") && !k.ends_with(".m"))
+                .filter_map(|k| inner_b.get(&k))
+                .collect();
+
+            assert_eq!(ct_a.len(), 1, "expected one content object in bucket a");
+            assert_eq!(ct_b.len(), 1, "expected one content object in bucket b");
+            assert_ne!(
+                ct_a[0], ct_b[0],
+                "different vault_key slots must yield different content ciphertexts — \
+                 collision here means the wrap helper is dropping the slot"
+            );
+        }
+
+        /// Round F2b intentionally ignores `config.spaceId` — the
+        /// shared-space cloud path is broken until F3 restores it via a
+        /// ScopedProvider sibling. This test pins that current no-op so
+        /// F3's rewrite of the wrap helper trips a compile-or-test error
+        /// on purpose, forcing an intentional update of the seam
+        /// instead of a silent behavior change.
+        #[tokio::test]
+        async fn wrap_helper_ignores_spaceid_pending_f3() {
+            let db = setup_db();
+            let slot = slot_with(random_key());
+            let inner = Arc::new(FakeProvider::default());
+            let inner_ref = inner.clone();
+
+            let wrapped = wrap_cloud_with_encryption_if_configured(
+                inner as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({"spaceId": "space-until-f3"}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db.0.clone()),
+                slot,
+            );
+
+            wrapped
+                .write_file("g.bin", b"hi")
+                .await
+                .expect("write must succeed on own-vault fallback");
+
+            // Own-vault behavior: exactly one `content/o/*` + one
+            // `own/*.m`, never a `space-<id>/*`. When F3 wires the
+            // space-scoped decorator, this assertion breaks — that is
+            // the intended forcing function.
+            let keys = inner_ref.snapshot_keys();
+            let own = keys.iter().filter(|k| k.starts_with("own/")).count();
+            let space = keys.iter().filter(|k| k.starts_with("space-")).count();
+            assert_eq!(own, 1, "F2b writes an own-vault sidecar, got {keys:?}");
+            assert_eq!(
+                space, 0,
+                "F2b must not write a space-scoped sidecar yet, got {keys:?}"
+            );
+        }
+    }
 }
 
 // ── Vault-key HKDF derivation (Round E) ─────────────────────────────
