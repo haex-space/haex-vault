@@ -377,6 +377,18 @@ fn space_scoped_crdt_tables_matches_documented_expectation() {
         // Delete-Propagation (ADR 0002 §6.5, Phase 3.a).
         "haex_shared_space_deleted_rows", // Per-Space Delete-Log (Hard-Delete + Unshare).
         "haex_space_compaction_anchors",  // Anti-Resurrection-Anchor.
+        // Phase 4 Round F1 (Plan: docs/plans/2026-08-27-phase4-sharing-content-addressable-iam.md).
+        // Grant-Registry für Cross-Space-File-Sharing: eine Row =
+        // "content_key X ist mit space_id Y geteilt". Members lernen
+        // Grants via Space-CRDT-Push statt Bucket-LIST, cross-space-
+        // Isolation über die `space_id`-Spalte.
+        "haex_file_grants",
+        // Phase 4 Round F1: per-space, per-member Scoped-S3-Credential-
+        // Verteilung. `encrypted_cred` ist AEAD-gesealed unter dem
+        // aktuellen MLS-Epoch-Key des Space; nur Members können es
+        // extrahieren. Space-Scoping über `space_id` verhindert, dass
+        // Cross-Space-Credentials auf der Wire liegen.
+        "haex_s3_shared_access",
     ];
 
     let actual: &[&str] = SPACE_SCOPED_CRDT_TABLES;
@@ -461,6 +473,8 @@ fn whitelisted_tables_exist_as_generated_constants() {
         TABLE_SHARED_SPACE_SYNC,
         TABLE_SHARED_SPACE_DELETED_ROWS,
         TABLE_SPACE_COMPACTION_ANCHORS,
+        TABLE_FILE_GRANTS,
+        TABLE_S3_SHARED_ACCESS,
     ];
 
     for t in SPACE_SCOPED_CRDT_TABLES {
