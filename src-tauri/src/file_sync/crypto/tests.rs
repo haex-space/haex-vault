@@ -1886,6 +1886,178 @@ mod provider {
             assert_eq!(got, b"v2-longer-payload".to_vec());
         }
     }
+
+    /// Round F2c — wire-up seam.
+    ///
+    /// `crate::file_sync::commands::wrap_cloud_with_encryption_if_configured`
+    /// is the sole non-test call site that instantiates
+    /// [`EncryptingSyncProvider`]. F2b already routes it through the new
+    /// own-vault DEK/KEK path, but F2b's own tests exercise the
+    /// decorator by calling `::new` directly — a wire-up bug that
+    /// dropped the `vault_key` slot on the floor inside the wrap helper
+    /// would slip past them. These tests pin the seam: the wrapped
+    /// provider must observably use the caller-supplied slot.
+    mod wrap_helper {
+        use std::sync::Arc;
+
+        use uuid::Uuid;
+
+        use super::super::super::super::commands::wrap_cloud_with_encryption_if_configured;
+        use super::super::super::sidecar::open_sidecar;
+        use super::{random_key, setup_db, slot_with, FakeProvider};
+        use crate::database::DbConnection;
+
+        /// Bytes round-trip through the wrap helper, end-to-end. Tracer
+        /// bullet for the wire-up: constructs the exact provider stack
+        /// `create_provider` builds in production and verifies bytes
+        /// survive a write → read cycle.
+        #[tokio::test]
+        async fn wrap_helper_roundtrips_own_vault_bytes() {
+            let db = setup_db();
+            let slot = slot_with(random_key());
+            let inner: Arc<dyn crate::file_sync::provider::SyncProvider> =
+                Arc::new(FakeProvider::default());
+
+            let wrapped = wrap_cloud_with_encryption_if_configured(
+                inner,
+                &serde_json::json!({}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db.0.clone()),
+                slot,
+            );
+
+            let plaintext = b"wire-up smoke".to_vec();
+            wrapped
+                .write_file("note.txt", &plaintext)
+                .await
+                .expect("write");
+            let got = wrapped.read_file("note.txt").await.expect("read");
+            assert_eq!(got, plaintext);
+        }
+
+        /// The wrap helper must observably read the vault-key from the
+        /// caller-supplied slot — not from a hard-coded default,
+        /// environment lookup, or dropped-on-the-floor sentinel. Two
+        /// wrapped providers built with the **same** `rule_id` but
+        /// **different** vault-key slots must each seal their sidecar
+        /// under the slot's KEK: every `own/*.m` opens under its
+        /// matching vault_key and refuses under the other.
+        ///
+        /// Comparing content ciphertexts would not prove this — each
+        /// write draws a fresh random content-nonce, so two writes
+        /// always produce disjoint ciphertexts regardless of the key.
+        /// Sidecar-open discrimination is the actual invariant: if the
+        /// slot were dropped and both providers sealed under the same
+        /// default, either key would open either sidecar.
+        #[tokio::test]
+        async fn wrap_helper_threads_vault_key_from_slot() {
+            let db_a = setup_db();
+            let db_b = setup_db();
+            let key_a = random_key();
+            let key_b = random_key();
+            let slot_a = slot_with(key_a);
+            let slot_b = slot_with(key_b);
+            let inner_a = Arc::new(FakeProvider::default());
+            let inner_b = Arc::new(FakeProvider::default());
+            // Same rule_id on both sides so any key-derivation path that
+            // depends on rule_id can't confound the slot check.
+            let rule_id = Uuid::new_v4().to_string();
+
+            let wrapped_a = wrap_cloud_with_encryption_if_configured(
+                inner_a.clone() as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({}),
+                &rule_id,
+                DbConnection(db_a.0.clone()),
+                slot_a,
+            );
+            let wrapped_b = wrap_cloud_with_encryption_if_configured(
+                inner_b.clone() as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({}),
+                &rule_id,
+                DbConnection(db_b.0.clone()),
+                slot_b,
+            );
+
+            let plaintext = b"same bytes both sides".to_vec();
+            wrapped_a
+                .write_file("f.bin", &plaintext)
+                .await
+                .expect("write a");
+            wrapped_b
+                .write_file("f.bin", &plaintext)
+                .await
+                .expect("write b");
+
+            let sidecar_a = inner_a
+                .snapshot_keys()
+                .into_iter()
+                .find(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .and_then(|k| inner_a.get(&k))
+                .expect("expected one own/*.m sidecar in bucket a");
+            let sidecar_b = inner_b
+                .snapshot_keys()
+                .into_iter()
+                .find(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .and_then(|k| inner_b.get(&k))
+                .expect("expected one own/*.m sidecar in bucket b");
+
+            // Each sidecar opens under its matching slot's vault_key —
+            // proves the slot was consulted at seal time.
+            open_sidecar(&key_a, &sidecar_a).expect("sidecar_a must open under key_a");
+            open_sidecar(&key_b, &sidecar_b).expect("sidecar_b must open under key_b");
+            // And refuses under the other slot's vault_key — proves the
+            // slot was *the* seal input, not a shared default that both
+            // keys would open.
+            assert!(
+                open_sidecar(&key_b, &sidecar_a).is_err(),
+                "sidecar_a must NOT open under key_b — the wrap helper is dropping the slot",
+            );
+            assert!(
+                open_sidecar(&key_a, &sidecar_b).is_err(),
+                "sidecar_b must NOT open under key_a — the wrap helper is dropping the slot",
+            );
+        }
+
+        /// Round F2b intentionally ignores `config.spaceId` — the
+        /// shared-space cloud path is broken until F3 restores it via a
+        /// ScopedProvider sibling. This test pins that current no-op so
+        /// F3's rewrite of the wrap helper trips a compile-or-test error
+        /// on purpose, forcing an intentional update of the seam
+        /// instead of a silent behavior change.
+        #[tokio::test]
+        async fn wrap_helper_ignores_spaceid_pending_f3() {
+            let db = setup_db();
+            let slot = slot_with(random_key());
+            let inner = Arc::new(FakeProvider::default());
+            let inner_ref = inner.clone();
+
+            let wrapped = wrap_cloud_with_encryption_if_configured(
+                inner as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({"spaceId": "space-until-f3"}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db.0.clone()),
+                slot,
+            );
+
+            wrapped
+                .write_file("g.bin", b"hi")
+                .await
+                .expect("write must succeed on own-vault fallback");
+
+            // Own-vault behavior: exactly one `content/o/*` + one
+            // `own/*.m`, never a `space-<id>/*`. When F3 wires the
+            // space-scoped decorator, this assertion breaks — that is
+            // the intended forcing function.
+            let keys = inner_ref.snapshot_keys();
+            let own = keys.iter().filter(|k| k.starts_with("own/")).count();
+            let space = keys.iter().filter(|k| k.starts_with("space-")).count();
+            assert_eq!(own, 1, "F2b writes an own-vault sidecar, got {keys:?}");
+            assert_eq!(
+                space, 0,
+                "F2b must not write a space-scoped sidecar yet, got {keys:?}"
+            );
+        }
+    }
 }
 
 // ── Vault-key HKDF derivation (Round E) ─────────────────────────────
