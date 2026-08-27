@@ -33,8 +33,6 @@ CREATE TABLE `haex_file_grants` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_file_grants_content_space_uniq` ON `haex_file_grants` (`content_key`, `space_id`);
 --> statement-breakpoint
-CREATE INDEX `haex_file_grants_content_idx` ON `haex_file_grants` (`content_key`);
---> statement-breakpoint
 CREATE INDEX `haex_file_grants_space_idx` ON `haex_file_grants` (`space_id`);
 --> statement-breakpoint
 CREATE TABLE `haex_s3_shared_access` (
@@ -49,7 +47,5 @@ CREATE TABLE `haex_s3_shared_access` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_s3_shared_access_space_backend_did_uniq` ON `haex_s3_shared_access` (`space_id`, `backend_id`, `member_did`);
---> statement-breakpoint
-CREATE INDEX `haex_s3_shared_access_space_idx` ON `haex_s3_shared_access` (`space_id`);
 --> statement-breakpoint
 CREATE INDEX `haex_s3_shared_access_member_idx` ON `haex_s3_shared_access` (`member_did`);

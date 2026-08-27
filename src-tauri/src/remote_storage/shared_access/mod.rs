@@ -44,7 +44,7 @@ pub struct SharedAccessRow {
     pub member_did: String,
     /// AEAD-sealed `ScopedCred`. Base64 in-column, opaque bytes at rest.
     pub encrypted_cred: String,
-    pub epoch: i64,
+    pub epoch: u64,
     pub expires_at: Option<String>,
     pub created_at: String,
 }
@@ -211,8 +211,8 @@ fn row_to_shared_access(row: Vec<JsonValue>) -> Result<SharedAccessRow, SharedAc
         backend_id: take_string(&row[2], "backend_id")?,
         member_did: take_string(&row[3], "member_did")?,
         encrypted_cred: take_string(&row[4], "encrypted_cred")?,
-        epoch: row[5].as_i64().ok_or_else(|| SharedAccessError::RowShape {
-            reason: "epoch column is not an integer".into(),
+        epoch: row[5].as_u64().ok_or_else(|| SharedAccessError::RowShape {
+            reason: "epoch column is not a non-negative integer".into(),
         })?,
         expires_at: match &row[6] {
             JsonValue::Null => None,

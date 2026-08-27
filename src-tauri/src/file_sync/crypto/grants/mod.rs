@@ -41,7 +41,7 @@ pub struct FileGrantRow {
     pub content_key: String,
     pub space_id: String,
     pub sidecar_key: String,
-    pub epoch: i64,
+    pub epoch: u64,
     pub created_at: String,
 }
 
@@ -55,10 +55,11 @@ pub enum GrantError {
     RowShape { reason: String },
 }
 
-/// Insert a grant row. Idempotent via the UNIQUE(content_key, space_id)
-/// index: a repeated insert for the same (content_key, space_id) will be
-/// rejected by SQLite, which surfaces here as a `DatabaseError`. Callers
-/// wanting upsert semantics should use [`upsert_grant`] instead.
+/// Insert a grant row. The UNIQUE(content_key, space_id) index enforces
+/// at most one row per (content_key, space_id): a repeated insert for
+/// the same pair errors (surfaced here as a `DatabaseError`) rather than
+/// being a no-op. Callers wanting idempotent upsert semantics should use
+/// [`upsert_grant`] instead.
 ///
 /// `id` is expected to be a freshly-generated UUID — Round F2 mints one
 /// per share command, but this helper takes it explicitly so callers can
@@ -216,8 +217,8 @@ fn row_to_grant(row: Vec<JsonValue>) -> Result<FileGrantRow, GrantError> {
         content_key: take_string(&row[1], "content_key")?,
         space_id: take_string(&row[2], "space_id")?,
         sidecar_key: take_string(&row[3], "sidecar_key")?,
-        epoch: row[4].as_i64().ok_or_else(|| GrantError::RowShape {
-            reason: "epoch column is not an integer".into(),
+        epoch: row[4].as_u64().ok_or_else(|| GrantError::RowShape {
+            reason: "epoch column is not a non-negative integer".into(),
         })?,
         created_at: take_string(&row[5], "created_at")?,
     })

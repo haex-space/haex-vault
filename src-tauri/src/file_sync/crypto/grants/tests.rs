@@ -65,3 +65,20 @@ fn non_integer_epoch_rejected() {
     let err = row_to_grant(row).expect_err("non-integer epoch must be rejected");
     assert!(format!("{err}").contains("epoch"), "got: {err}");
 }
+
+/// A negative epoch is rejected at the row boundary — the upsert helper
+/// takes `u64`, so a persisted or CRDT-provided `-1` must not decode as
+/// a valid epoch and slip through.
+#[test]
+fn negative_epoch_rejected() {
+    let row = vec![
+        json!("grant-1"),
+        json!("content"),
+        json!("space"),
+        json!("sidecar"),
+        json!(-1_i64),
+        json!("ts"),
+    ];
+    let err = row_to_grant(row).expect_err("negative epoch must be rejected");
+    assert!(format!("{err}").contains("epoch"), "got: {err}");
+}

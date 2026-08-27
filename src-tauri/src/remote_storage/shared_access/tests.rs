@@ -98,6 +98,25 @@ fn non_integer_epoch_rejected() {
     assert!(format!("{err}").contains("epoch"), "got: {err}");
 }
 
+/// A negative epoch is rejected at the row boundary — the upsert helper
+/// takes `u64`, so a persisted or CRDT-provided `-1` must not decode as
+/// a valid epoch and slip through.
+#[test]
+fn negative_epoch_rejected() {
+    let row = vec![
+        json!("id"),
+        json!("space"),
+        json!("backend"),
+        json!("did"),
+        json!("<sealed>"),
+        json!(-1_i64),
+        JsonValue::Null,
+        json!("2026-08-27T00:00:00Z"),
+    ];
+    let err = row_to_shared_access(row).expect_err("negative epoch must be rejected");
+    assert!(format!("{err}").contains("epoch"), "got: {err}");
+}
+
 /// A malformed (non-string, non-null) `expires_at` value is rejected —
 /// SQL NULL or a string are the only valid states.
 #[test]
