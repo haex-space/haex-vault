@@ -507,6 +507,12 @@ impl SyncProvider for EncryptingSyncProvider {
         self.inner.write_file(&object_key, &ct).await?;
 
         let payload = SidecarPayload {
+            // Step 4 (provider refactor) will populate these with the
+            // per-object DEK wrap payload. Round C/D providers seal the
+            // content directly under the epoch key, so no wrapped_dek
+            // exists on this write path yet.
+            content_key: String::new(),
+            wrapped_dek: Vec::new(),
             relative_path: relative_path.to_string(),
             size: data.len() as u64,
             modified_at: unix_now(),
@@ -585,6 +591,10 @@ impl SyncProvider for EncryptingSyncProvider {
             .await
             .map_err(SyncProviderError::Io)?;
         let payload = SidecarPayload {
+            // Step 4 (provider refactor) will populate these with the
+            // per-object DEK wrap payload; see write_file above.
+            content_key: String::new(),
+            wrapped_dek: Vec::new(),
             relative_path: relative_path.to_string(),
             size: plaintext_len,
             modified_at: meta_mtime_secs(&meta),

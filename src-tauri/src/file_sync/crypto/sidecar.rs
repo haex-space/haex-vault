@@ -32,6 +32,14 @@ use super::envelope::{EnvelopeHeader, HEADER_SIZE, NONCE_SIZE};
 /// pitfall, which is exactly this failure shape for a different field).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SidecarPayload {
+    /// Opaque object key that holds the encrypted content bytes — e.g.
+    /// `content/o/<hex32>`. Sidecar readers use it to construct the GET
+    /// path after unwrapping the DEK.
+    pub content_key: String,
+    /// AEAD-sealed 32-byte DEK. The seal-key is the grant's KEK
+    /// (own-vault vault_key for `own/*` sidecars, MLS epoch key for
+    /// `space-<id>/*` sidecars). See `crypto::dek_wrap`.
+    pub wrapped_dek: Vec<u8>,
     pub relative_path: String,
     pub size: u64,
     pub modified_at: u64,
