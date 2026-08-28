@@ -121,6 +121,50 @@ pub fn upsert_shared_access(
     Ok(())
 }
 
+/// Owner-side helper: seal a plaintext [`ScopedCred`] under `epoch_key`
+/// and upsert it into `haex_s3_shared_access` in one call.
+///
+/// The `epoch` argument threads into BOTH the sealed envelope header
+/// (via [`crypto::seal_scoped_cred`]) AND the row's `epoch` column so
+/// callers cannot get them out of sync — a mismatch would surface only
+/// as an opaque AEAD-tag failure at [`crypto::open_scoped_cred`] time
+/// on the receiver side. Task 4's owner-side wire-up in
+/// `share_storage_backend_core` is the sole intended caller: it holds
+/// one `epoch` value from the MLS layer and hands it here in one shot,
+/// rather than sealing and upserting separately.
+///
+/// Callers therefore never touch the base64 ciphertext directly —
+/// `upsert_shared_access` (F1) stays the primitive for tests and any
+/// path that already holds a sealed blob.
+#[allow(clippy::too_many_arguments)]
+pub fn upsert_sealed_scoped_cred(
+    db: &DbConnection,
+    hlc: &MutexGuard<HlcService>,
+    column_sig_key_cache: &SpaceKeyCache,
+    id: &str,
+    space_id: &str,
+    backend_id: &str,
+    member_did: &str,
+    cred: &crate::remote_storage::iam_adapter::ScopedCred,
+    epoch: u64,
+    epoch_key: &[u8; 32],
+    expires_at: Option<&str>,
+) -> Result<(), SharedAccessError> {
+    let sealed = crypto::seal_scoped_cred(cred, epoch_key, epoch)?;
+    upsert_shared_access(
+        db,
+        hlc,
+        column_sig_key_cache,
+        id,
+        space_id,
+        backend_id,
+        member_did,
+        &sealed,
+        epoch,
+        expires_at,
+    )
+}
+
 /// Delete a shared-access row for `(space_id, backend_id, member_did)`.
 /// Used on member kick — combined with an IAM-provider-side rotation,
 /// this is the full-stack revocation step.
