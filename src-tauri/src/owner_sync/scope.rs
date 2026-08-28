@@ -43,10 +43,15 @@ pub fn resolve_vault_owner_did(conn: &Connection) -> rusqlite::Result<Option<Str
 ///
 /// The schema's `UNIQUE (space_id, identity_id)` index guarantees at most
 /// one row per (space, identity) pair, but nothing forbids two DIFFERENT
-/// local identities from joining the same space. If that happens the
-/// earliest-created identity wins (deterministic across devices) and a
-/// warning is logged — a vault should only ever have one local identity
-/// per space in practice.
+/// local identities from joining the same space. Two-rows tie-break:
+/// `ORDER BY created_at ASC, id ASC`. Deterministic WITHIN a single
+/// vault-view (given the same set of local identities), but NOT
+/// necessarily identical across devices — a second local identity
+/// created on device A may not exist on device B, and `created_at` is a
+/// local wall-clock timestamp at insert. If the vault has more than one
+/// local identity joined to the same space, this is a pathological
+/// configuration; the resolver emits `tracing::warn!` and picks the
+/// earliest to keep the system moving.
 pub fn resolve_local_member_did_for_space(
     conn: &Connection,
     space_id: &str,
