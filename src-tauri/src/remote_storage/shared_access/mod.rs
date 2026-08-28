@@ -125,17 +125,28 @@ pub fn upsert_shared_access(
 /// and upsert it into `haex_s3_shared_access` in one call.
 ///
 /// The `epoch` argument threads into BOTH the sealed envelope header
-/// (via [`crypto::seal_scoped_cred`]) AND the row's `epoch` column so
-/// callers cannot get them out of sync — a mismatch would surface only
-/// as an opaque AEAD-tag failure at [`crypto::open_scoped_cred`] time
-/// on the receiver side. Task 4's owner-side wire-up in
-/// `share_storage_backend_core` is the sole intended caller: it holds
-/// one `epoch` value from the MLS layer and hands it here in one shot,
-/// rather than sealing and upserting separately.
+/// (via [`crypto::seal_scoped_cred`]) AND the row's `epoch` column, so
+/// callers cannot desynchronise the two by hand. The row column is
+/// authoritative for key lookup on open — the envelope-header epoch is
+/// written for audit and forward-compat and is discarded by
+/// [`crypto::open_scoped_cred`]. The real failure mode this helper
+/// guards against is one caller invoking
+/// `upsert_shared_access(..., epoch=X)` while separately calling
+/// `seal_scoped_cred(..., epoch=Y)`: with both epochs threaded from a
+/// single argument, they cannot drift.
 ///
-/// Callers therefore never touch the base64 ciphertext directly —
-/// `upsert_shared_access` (F1) stays the primitive for tests and any
-/// path that already holds a sealed blob.
+/// Task 4's owner-side wire-up in `share_storage_backend_core` is the
+/// sole intended caller: it holds one `epoch` value from the MLS layer
+/// and hands it here in one shot, rather than sealing and upserting
+/// separately. Callers therefore never touch the base64 ciphertext
+/// directly — `upsert_shared_access` (F1) stays the primitive for
+/// tests and any path that already holds a sealed blob.
+///
+/// Caller responsibility that this helper does NOT cover: pair the
+/// `epoch_key` with the correct `epoch` int. Passing an epoch-42 key
+/// with `epoch: 43` produces a row the receiver cannot open — it will
+/// resolve the epoch-43 key from `haex_mls_sync_keys` and fail the
+/// AEAD-tag check on the sealed envelope.
 #[allow(clippy::too_many_arguments)]
 pub fn upsert_sealed_scoped_cred(
     db: &DbConnection,

@@ -281,11 +281,28 @@ fn upsert_sealed_scoped_cred_persists_row_with_ciphertext_and_matching_epoch() {
 
     // Independent round-trip: the row must open under the same key that
     // produced it, proving the seal really used `epoch_key` (not a stale
-    // derivation) and the envelope's epoch header matches the AEAD tag.
+    // derivation).
     let opened = open_scoped_cred(&row.encrypted_cred, &epoch_key).expect("open");
     assert_eq!(opened.access_key_id, cred.access_key_id);
     assert_eq!(opened.secret_access_key, cred.secret_access_key);
     assert_eq!(opened.iam_user_name, cred.iam_user_name);
+
+    // Envelope-header epoch invariant: `open_scoped_cred` deliberately
+    // discards the header (the row column is authoritative for key
+    // lookup on open), so a buggy helper that forwarded `epoch` to the
+    // row column while hardcoding `0` inside `seal_scoped_cred` would
+    // pass the round-trip above. Parse the header directly so a
+    // seal-side drift surfaces here rather than at some future audit.
+    use crate::file_sync::crypto::content::open_bytes;
+    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+    let sealed_bytes = B64
+        .decode(row.encrypted_cred.as_bytes())
+        .expect("base64 decode");
+    let (header, _plaintext) = open_bytes(&epoch_key, &sealed_bytes).expect("open_bytes");
+    assert_eq!(
+        header.epoch, epoch,
+        "seal path must use the same epoch that lands in the row column"
+    );
 }
 
 /// CRDT-enabled in-memory DB bootstrap for `haex_s3_shared_access`.
