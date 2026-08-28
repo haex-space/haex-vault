@@ -13,4 +13,5 @@ pub mod local_provider;
 pub mod peer_provider;
 pub mod provider;
 pub mod scoped_provider;
+pub use scoped_provider::ScopedProvider;
 pub mod types;

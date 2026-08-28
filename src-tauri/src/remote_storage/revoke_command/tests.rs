@@ -643,6 +643,55 @@ async fn iam_not_found_is_idempotent_db_still_cleaned() {
     assert!(!mapping_exists_for_shared(&db, &seeded.shared_id));
 }
 
+/// A prior revoke attempt may already have deleted the mapping before the
+/// child-backend DELETE failed. Retrying must still remove the sealed
+/// shared-access fanout by the backend's immutable UUID; otherwise those
+/// credential rows continue to CRDT-sync after the backend disappears.
+#[tokio::test]
+async fn retry_without_mapping_still_deletes_shared_access_rows() {
+    let (db, hlc, parent_id) = setup_revoke_db();
+    let seeded = seed_share(&db, &hlc, &parent_id, false, true);
+
+    {
+        let guard = db.0.lock().expect("db lock");
+        let conn = guard.as_ref().expect("db open");
+        let row_pks = serde_json::to_string(&vec![seeded.shared_id.clone()]).unwrap();
+        conn.execute(
+            "DELETE FROM haex_shared_space_sync \
+             WHERE table_name = 'haex_s3_backends' AND row_pks = ?1",
+            rusqlite::params![row_pks],
+        )
+        .expect("simulate mapping already deleted by prior attempt");
+    }
+    assert_eq!(
+        shared_access_count(&db, &seeded.space_id, &seeded.shared_id),
+        2,
+        "precondition: sealed fanout still exists"
+    );
+
+    let adapter = Arc::new(MockIamAdapter::new(Err(IamAdapterError::NotFound)));
+    let factory = MockIamAdapterFactory { adapter };
+
+    revoke_storage_share_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        RevokeStorageShareArgs {
+            shared_backend_id: seeded.shared_id.clone(),
+        },
+        &factory,
+    )
+    .await
+    .expect("retry must clean DB even when mapping and IAM user are gone");
+
+    assert_eq!(
+        shared_access_count(&db, &seeded.space_id, &seeded.shared_id),
+        0,
+        "retry must not leave CRDT-synced credential rows"
+    );
+    assert!(!shared_backend_exists(&db, &seeded.shared_id));
+}
+
 // ---------------------------------------------------------------------------
 // F3b regression: revoke succeeds when the child config lacks accessKeyId
 // ---------------------------------------------------------------------------

@@ -8,7 +8,12 @@
 //! the callers.
 
 use super::*;
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde_json::json;
+
+use crate::file_sync::crypto::content::open_bytes;
+use crate::remote_storage::iam_adapter::ScopedCred;
+use crate::remote_storage::shared_access::crypto::{open_scoped_cred, seal_scoped_cred};
 
 /// A well-formed row round-trips through `row_to_shared_access`.
 #[test]
@@ -146,9 +151,6 @@ fn non_string_non_null_expires_at_rejected() {
 
 #[test]
 fn seal_open_roundtrip_returns_original_scoped_cred() {
-    use crate::remote_storage::iam_adapter::ScopedCred;
-    use crate::remote_storage::shared_access::crypto::{open_scoped_cred, seal_scoped_cred};
-
     let cred = ScopedCred {
         access_key_id: "AKIAEXAMPLE".into(),
         secret_access_key: "s3cret".into(),
@@ -166,9 +168,6 @@ fn seal_open_roundtrip_returns_original_scoped_cred() {
 
 #[test]
 fn open_scoped_cred_rejects_wrong_key() {
-    use crate::remote_storage::iam_adapter::ScopedCred;
-    use crate::remote_storage::shared_access::crypto::{open_scoped_cred, seal_scoped_cred};
-
     let cred = ScopedCred {
         access_key_id: "AKIAEXAMPLE".into(),
         secret_access_key: "s3cret".into(),
@@ -184,9 +183,6 @@ fn open_scoped_cred_rejects_wrong_key() {
 
 #[test]
 fn seal_scoped_cred_produces_distinct_ciphertexts_on_reseal() {
-    use crate::remote_storage::iam_adapter::ScopedCred;
-    use crate::remote_storage::shared_access::crypto::seal_scoped_cred;
-
     let cred = ScopedCred {
         access_key_id: "AKIAEXAMPLE".into(),
         secret_access_key: "s3cret".into(),
@@ -205,9 +201,6 @@ fn seal_scoped_cred_produces_distinct_ciphertexts_on_reseal() {
 /// and this assertion set to be updated alongside.
 #[test]
 fn scoped_cred_wire_roundtrip_covers_every_field() {
-    use crate::remote_storage::iam_adapter::ScopedCred;
-    use crate::remote_storage::shared_access::crypto::{open_scoped_cred, seal_scoped_cred};
-
     let cred = ScopedCred {
         access_key_id: "AKIAROUNDTRIP".into(),
         secret_access_key: "s3cret-roundtrip".into(),
@@ -241,10 +234,6 @@ fn scoped_cred_wire_roundtrip_covers_every_field() {
 /// header.
 #[test]
 fn upsert_sealed_scoped_cred_persists_row_with_ciphertext_and_matching_epoch() {
-    use crate::remote_storage::iam_adapter::ScopedCred;
-    use crate::remote_storage::shared_access::crypto::open_scoped_cred;
-    use crate::remote_storage::shared_access::{find_shared_access, upsert_sealed_scoped_cred};
-
     let (db, hlc, key_cache) = crdt_bootstrap::setup_test_db();
     let hlc_mutex = std::sync::Mutex::new(hlc);
     let hlc_guard = hlc_mutex.lock().unwrap();
@@ -293,8 +282,6 @@ fn upsert_sealed_scoped_cred_persists_row_with_ciphertext_and_matching_epoch() {
     // row column while hardcoding `0` inside `seal_scoped_cred` would
     // pass the round-trip above. Parse the header directly so a
     // seal-side drift surfaces here rather than at some future audit.
-    use crate::file_sync::crypto::content::open_bytes;
-    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
     let sealed_bytes = B64
         .decode(row.encrypted_cred.as_bytes())
         .expect("base64 decode");

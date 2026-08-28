@@ -11,7 +11,7 @@
 //! definite about "inner must not be invoked" — anything the stub records
 //! provably came from the decorator's call.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -88,6 +88,11 @@ impl SyncProvider for StubProvider {
     async fn create_directory(&self, relative_path: &str) -> Result<(), SyncProviderError> {
         self.record("create_directory", relative_path);
         Ok(())
+    }
+
+    fn local_target_path(&self, relative_path: &str) -> Option<PathBuf> {
+        self.record("local_target_path", relative_path);
+        Some(PathBuf::from("/tmp").join(relative_path))
     }
 }
 
@@ -372,4 +377,28 @@ async fn write_file_from_path_rejects_dotdot_escape() {
         .expect_err("must reject");
     assert!(matches!(err, SyncProviderError::PathTraversal { .. }));
     assert!(inner.calls().is_empty());
+}
+
+#[test]
+fn local_target_path_rejects_dotdot_escape_before_delegating() {
+    let inner = Arc::new(StubProvider::new());
+    let scoped = ScopedProvider::new(inner.clone(), "space-A/");
+
+    assert!(scoped.local_target_path("../leak.bin").is_none());
+    assert!(inner.calls().is_empty(), "inner must not be invoked");
+}
+
+#[test]
+fn local_target_path_delegates_safe_path() {
+    let inner = Arc::new(StubProvider::new());
+    let scoped = ScopedProvider::new(inner.clone(), "space-A/");
+
+    assert_eq!(
+        scoped.local_target_path("safe/file.bin"),
+        Some(PathBuf::from("/tmp/safe/file.bin"))
+    );
+    assert_eq!(
+        inner.calls(),
+        vec![("local_target_path".to_string(), "safe/file.bin".to_string())]
+    );
 }

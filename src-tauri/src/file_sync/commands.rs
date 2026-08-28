@@ -15,7 +15,6 @@ use std::sync::Arc;
 
 use crate::database::DbConnection;
 
-use super::cloud_provider::CloudProvider;
 use super::crypto::provider::EncryptingSyncProvider;
 use super::crypto::space_provider::SpaceContentSyncProvider;
 use super::engine::{execute_sync, run_sync_loop, SyncEngineError};
@@ -23,6 +22,10 @@ use super::local_provider::LocalProvider;
 use super::peer_provider::PeerProvider;
 use super::provider::SyncProvider;
 use super::types::{DeleteMode, SyncDirection, SyncResult};
+
+mod cloud_assembly;
+pub(crate) use cloud_assembly::assemble_cloud_provider;
+use cloud_assembly::space_id_from_config;
 
 // ---------------------------------------------------------------------------
 // SyncManager
@@ -371,200 +374,6 @@ async fn create_provider(
         _ => Err(FileSyncCommandError::InvalidConfig(format!(
             "Unknown provider type: {provider_type}"
         ))),
-    }
-}
-
-/// Build the full cloud-provider stack for one sync rule.
-///
-/// Extracted from `create_provider` so the space-scoped wiring is
-/// unit-testable without a full `AppState`. Consumes only the two `AppState`
-/// fields the cloud arm actually needs — the DB connection and the
-/// own-vault `vault_key` slot — so tests can plumb both by hand.
-///
-/// Layering (Phase 4 Round F3b, locked):
-///
-/// `ScopedProvider(SpaceContentSyncProvider(CloudProvider))`
-///
-/// Rationale for outermost `ScopedProvider`: F3a's `SpaceContentSyncProvider`
-/// translates user-facing paths through the encryption pipeline; if the LIST
-/// guard sat *inside* it, cross-scope keys the decorator surfaces up would
-/// slip past the guard. Wrapping the guard outside the encryption decorator
-/// strips them at the observable boundary.
-///
-/// Owner-only rules (no `spaceId`) skip the `ScopedProvider` wrap and hit
-/// [`wrap_cloud_with_encryption_if_configured`]'s own-vault branch, matching
-/// the F2 shape unchanged.
-/// Extract a normalized `spaceId` from a sync-rule config.
-///
-/// - **Absent, `null`, empty string** → `Ok(None)` (owner-only rule).
-/// - **Non-empty string** → `Ok(Some(&str))`.
-/// - **Any other JSON shape** → `Err(InvalidConfig)`. Distinguishing "absent"
-///   from "present but wrong type" prevents a caller from passing
-///   `{ "spaceId": 42 }` against an owner-only backend as if no spaceId were
-///   set — a mistake that would silently mint owner credentials against a
-///   rule the caller believed was space-scoped.
-///
-/// Shared by [`assemble_cloud_provider`],
-/// [`wrap_cloud_with_encryption_if_configured`], and
-/// [`wrap_cloud_with_scoped_provider_if_configured`] so the "empty string ==
-/// None" normalization is enforced in exactly one place.
-fn space_id_from_config(config: &serde_json::Value) -> Result<Option<&str>, FileSyncCommandError> {
-    match config.get("spaceId") {
-        None | Some(serde_json::Value::Null) => Ok(None),
-        Some(serde_json::Value::String(s)) if s.is_empty() => Ok(None),
-        Some(serde_json::Value::String(s)) => Ok(Some(s.as_str())),
-        Some(other) => Err(FileSyncCommandError::InvalidConfig(format!(
-            "spaceId must be a string, got {other}"
-        ))),
-    }
-}
-
-pub(crate) async fn assemble_cloud_provider(
-    config: &serde_json::Value,
-    rule_id: &str,
-    is_target: bool,
-    db: DbConnection,
-    vault_key_slot: std::sync::Arc<std::sync::Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
-) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
-    let backend_id = config
-        .get("backendId")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            FileSyncCommandError::InvalidConfig("cloud provider requires 'backendId'".into())
-        })?;
-    let space_id = space_id_from_config(config)?;
-    verify_cloud_space_binding(backend_id, space_id, &db)?;
-
-    let prefix = config
-        .get("prefix")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let bucket_override = config
-        .get("bucket")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty());
-
-    // Shared-backend path (spaceId present): unseal the current viewer's
-    // per-member `ScopedCred` for this (space, backend) and thread it into
-    // the backend factory so the backend never sees the owner's admin
-    // creds. Owner-only path skips the lookup entirely — the config row
-    // still carries the owner's credentials in that case.
-    let scoped_cred_override = match space_id {
-        None => None,
-        Some(sid) => Some(load_scoped_cred_for_shared_backend(&db, sid, backend_id)?),
-    };
-
-    let backend = crate::remote_storage::commands::get_backend_instance_from_db_with_overrides(
-        &db,
-        backend_id,
-        bucket_override,
-        scoped_cred_override.as_ref(),
-    )
-    .await
-    .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
-
-    // Auto-create the bucket only when this provider is the sync target —
-    // a missing *source* bucket is almost always a typo or stale config
-    // and should surface as an error instead.
-    if is_target {
-        backend
-            .ensure_container()
-            .await
-            .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
-    }
-
-    let cloud = CloudProvider::new(backend, prefix.clone());
-    let inner: Arc<dyn SyncProvider> = Arc::new(cloud);
-    let encrypting =
-        wrap_cloud_with_encryption_if_configured(inner, config, rule_id, db, vault_key_slot)?;
-    wrap_cloud_with_scoped_provider_if_configured(encrypting, config, prefix)
-}
-
-/// Load and unseal the current viewer's `ScopedCred` for a
-/// `(space_id, backend_id)` pair.
-///
-/// The viewer DID is resolved via
-/// [`crate::owner_sync::scope::resolve_local_member_did_for_space`] — the
-/// LOCAL identity that joined `space_id`. Per CLAUDE.md, a user can join a
-/// shared space with an identity distinct from the vault owner's, so using
-/// `resolve_vault_owner_did` here would silently miss non-vault-owner
-/// memberships (Task 4's fanout writes the `haex_s3_shared_access` row
-/// keyed by the identity that actually joined, not the vault owner).
-///
-/// Failure modes:
-/// - No local identity joined the space → `InvalidConfig` (setup bug: this
-///   vault is not a member of the space it claims to sync).
-/// - No `haex_s3_shared_access` row for the resolved DID → `NotShared` —
-///   semantically distinct from a config error: this viewer's capability
-///   has been revoked (or was never granted), and the UI should surface a
-///   share-revoked / re-enrollment prompt.
-///
-/// Kept `pub(crate)` so the wire-up seam is testable from
-/// [`crate::file_sync::commands_tests`] without a full `AppState`.
-pub(crate) fn load_scoped_cred_for_shared_backend(
-    db: &DbConnection,
-    space_id: &str,
-    backend_id: &str,
-) -> Result<crate::remote_storage::iam_adapter::ScopedCred, FileSyncCommandError> {
-    let member_did = crate::database::core::with_connection(db, |conn| {
-        crate::owner_sync::scope::resolve_local_member_did_for_space(conn, space_id).map_err(|e| {
-            crate::database::error::DatabaseError::QueryError {
-                reason: e.to_string(),
-            }
-        })
-    })
-    .map_err(|e| FileSyncCommandError::ProviderError(format!("resolve viewer DID: {e}")))?
-    .ok_or_else(|| {
-        FileSyncCommandError::InvalidConfig(format!(
-            "cannot load shared-backend credentials: this vault has no local identity \
-             joined to space={space_id}"
-        ))
-    })?;
-
-    let row = crate::remote_storage::shared_access::find_shared_access(
-        db,
-        space_id,
-        backend_id,
-        &member_did,
-    )
-    .map_err(|e| FileSyncCommandError::ProviderError(format!("shared-access lookup: {e}")))?
-    .ok_or_else(|| FileSyncCommandError::NotShared {
-        space_id: space_id.to_string(),
-        backend_id: backend_id.to_string(),
-        member_did: member_did.clone(),
-    })?;
-
-    let epoch_key = crate::file_sync::crypto::key_resolver::resolve_key(space_id, row.epoch, db)
-        .map_err(|e| {
-            FileSyncCommandError::ProviderError(format!(
-                "resolve epoch key (space={space_id} epoch={}): {e}",
-                row.epoch
-            ))
-        })?;
-
-    crate::remote_storage::shared_access::crypto::open_scoped_cred(&row.encrypted_cred, &epoch_key)
-        .map_err(|e| FileSyncCommandError::ProviderError(format!("unseal ScopedCred: {e}")))
-}
-
-/// Install the outermost `ScopedProvider` LIST guard around an
-/// already-encryption-wrapped cloud provider when `config.spaceId` names a
-/// space. Owner-only rules (absent / null / empty spaceId) pass through
-/// unchanged — the F3a scope-cache treatment stays sufficient there.
-///
-/// The wrap decision mirrors [`wrap_cloud_with_encryption_if_configured`] to
-/// keep the two seams observably in lockstep — same config, same fallthrough
-/// branches. See `assemble_cloud_provider` for the layering rationale.
-pub(crate) fn wrap_cloud_with_scoped_provider_if_configured(
-    inner: Arc<dyn SyncProvider>,
-    config: &serde_json::Value,
-    prefix: String,
-) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
-    match space_id_from_config(config)? {
-        Some(_) => Ok(Arc::new(
-            crate::file_sync::scoped_provider::ScopedProvider::new(inner, prefix),
-        )),
-        None => Ok(inner),
     }
 }
 

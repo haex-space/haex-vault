@@ -1,6 +1,9 @@
+use std::sync::{Arc, Mutex};
+
 use rusqlite::Connection;
 use uuid::Uuid;
 
+use crate::database::DbConnection;
 use crate::owner_sync::scope::{
     classify_peer, owner_route_decision, resolve_local_member_did_for_space,
     resolve_owner_device_endpoints, resolve_vault_owner_did, resolve_vault_space_id, PeerClass,
@@ -290,18 +293,17 @@ fn owner_route_decision_case_mismatch_is_false() {
 // resolve_local_member_did_for_space — per-space local-identity lookup.
 //
 // Predicate is `source='own' AND private_key IS NOT NULL` on
-// `haex_identities`, joined via `haex_space_members`. Two-rows
-// tie-break: `ORDER BY created_at ASC, id ASC` (earliest-created wins,
-// id ASC on collision). Zero rows → Ok(None).
+// `haex_identities`, joined via `haex_space_members`. Zero rows →
+// Ok(None); multiple qualifying local identities → error, because the
+// resolver must never choose a DID implicitly.
 // ------------------------------------------------------------------
 
-/// Minimal schema for the resolver: `haex_identities` (with the
-/// `created_at` column the tie-break orders on) plus
+/// Minimal schema for the resolver: `haex_identities` plus
 /// `haex_space_members`. Columns mirror the production Drizzle schema
 /// (`src/database/schemas/identity.ts`,
 /// `src/database/schemas/space_members.ts`) for the fields the query
 /// touches; purely cosmetic columns are omitted.
-fn setup_members_db() -> Connection {
+fn setup_members_db() -> DbConnection {
     let conn = Connection::open_in_memory().expect("in-memory DB");
     conn.execute_batch(
         "CREATE TABLE haex_identities (
@@ -320,17 +322,19 @@ fn setup_members_db() -> Connection {
         );",
     )
     .expect("create tables");
-    conn
+    DbConnection(Arc::new(Mutex::new(Some(conn))))
 }
 
 fn insert_identity(
-    conn: &Connection,
+    db: &DbConnection,
     id: &str,
     did: &str,
     source: &str,
     private_key: Option<&str>,
     created_at: &str,
 ) {
+    let guard = db.0.lock().expect("db lock");
+    let conn = guard.as_ref().expect("db open");
     conn.execute(
         "INSERT INTO haex_identities (id, did, name, source, private_key, created_at) \
          VALUES (?1, ?2, 'Person', ?3, ?4, ?5)",
@@ -339,7 +343,9 @@ fn insert_identity(
     .unwrap();
 }
 
-fn insert_membership(conn: &Connection, space_id: &str, identity_id: &str) {
+fn insert_membership(db: &DbConnection, space_id: &str, identity_id: &str) {
+    let guard = db.0.lock().expect("db lock");
+    let conn = guard.as_ref().expect("db open");
     conn.execute(
         "INSERT INTO haex_space_members (id, space_id, identity_id) VALUES (?1, ?2, ?3)",
         rusqlite::params![Uuid::new_v4().to_string(), space_id, identity_id],
@@ -372,48 +378,10 @@ fn resolve_local_member_did_for_space_returns_none_when_no_local_identity_is_mem
     assert!(resolved.is_none(), "no local identity → None");
 }
 
-/// Two local identities joined to the same space → the one with the
-/// earlier `created_at` wins. Fixture uses unambiguous, wall-clock
-/// timestamps and no id collisions so the ordering is decided by the
-/// first ORDER BY key, not the id fallback.
+/// Two local identities joined to the same space are ambiguous. The caller
+/// must obtain an explicitly selected DID instead of silently choosing one.
 #[test]
-fn resolve_local_member_did_for_space_tie_breaks_by_created_at() {
-    let conn = setup_members_db();
-    let space_id = Uuid::new_v4().to_string();
-
-    let id_earlier = "id-A".to_string();
-    let did_earlier = "did:key:zEarliest".to_string();
-    let id_later = "id-B".to_string();
-    let did_later = "did:key:zLater".to_string();
-
-    // Insert LATER first to prove ordering is not insertion-order.
-    insert_identity(
-        &conn,
-        &id_later,
-        &did_later,
-        "own",
-        Some("privkey-B"),
-        "2020-01-02",
-    );
-    insert_identity(
-        &conn,
-        &id_earlier,
-        &did_earlier,
-        "own",
-        Some("privkey-A"),
-        "2020-01-01",
-    );
-    insert_membership(&conn, &space_id, &id_later);
-    insert_membership(&conn, &space_id, &id_earlier);
-
-    let resolved = resolve_local_member_did_for_space(&conn, &space_id).expect("query ok");
-    assert_eq!(resolved.as_deref(), Some("did:key:zEarliest"));
-}
-
-/// When two rows share `created_at`, the tie falls through to
-/// `id ASC`. "id-A" < "id-B" lexicographically, so `did_a` must win.
-#[test]
-fn resolve_local_member_did_for_space_tie_breaks_by_id_on_created_at_collision() {
+fn resolve_local_member_did_for_space_rejects_ambiguous_local_identities() {
     let conn = setup_members_db();
     let space_id = Uuid::new_v4().to_string();
 
@@ -422,12 +390,12 @@ fn resolve_local_member_did_for_space_tie_breaks_by_id_on_created_at_collision()
     let id_b = "id-B".to_string();
     let did_b = "did:key:zBeta".to_string();
 
-    // Same created_at on both rows → id ASC decides.
-    insert_identity(&conn, &id_b, &did_b, "own", Some("privkey-B"), "2020-01-01");
+    insert_identity(&conn, &id_b, &did_b, "own", Some("privkey-B"), "2020-01-02");
     insert_identity(&conn, &id_a, &did_a, "own", Some("privkey-A"), "2020-01-01");
     insert_membership(&conn, &space_id, &id_b);
     insert_membership(&conn, &space_id, &id_a);
 
-    let resolved = resolve_local_member_did_for_space(&conn, &space_id).expect("query ok");
-    assert_eq!(resolved.as_deref(), Some("did:key:zAlpha"));
+    let err = resolve_local_member_did_for_space(&conn, &space_id)
+        .expect_err("ambiguous membership must require explicit DID selection");
+    assert!(err.to_string().contains("ambiguous local membership"));
 }

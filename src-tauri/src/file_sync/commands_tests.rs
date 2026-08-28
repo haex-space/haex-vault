@@ -36,6 +36,7 @@ use crate::file_sync::commands::{verify_cloud_space_binding, FileSyncCommandErro
 mod assemble_cloud_provider_tests {
     use std::sync::{Arc, Mutex as StdMutex};
 
+    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
     use rusqlite::{params, Connection};
     use uuid::Uuid;
     use zeroize::Zeroizing;
@@ -164,7 +165,6 @@ mod assemble_cloud_provider_tests {
     /// Store the base64-encoded epoch key at `(space_id, epoch)` — the
     /// shape `resolve_key` decodes.
     fn seed_mls_key(db: &DbConnection, space_id: &str, epoch: u64, key: &[u8; 32]) {
-        use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
         let key_b64 = B64.encode(key);
         let guard = db.0.lock().expect("db lock");
         let conn = guard.as_ref().expect("db open");

@@ -260,6 +260,9 @@ impl SyncProvider for ScopedProvider {
     }
 
     fn local_target_path(&self, relative_path: &str) -> Option<PathBuf> {
+        if self.check(relative_path).is_err() {
+            return None;
+        }
         self.inner.local_target_path(relative_path)
     }
 }

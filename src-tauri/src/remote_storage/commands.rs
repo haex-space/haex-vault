@@ -21,6 +21,9 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde_json::Value as JsonValue;
 use tauri::State;
 
+mod backend_resolver;
+pub use backend_resolver::get_backend_instance_from_db_with_overrides;
+
 // ============================================================================
 // Backend Management Commands
 // ============================================================================
@@ -709,113 +712,6 @@ pub async fn remote_storage_upload_from_path(
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/// Short debug label for the top-level shape of a `serde_json::Value`.
-/// Used in error messages that reject a wrong-shape config without leaking
-/// the value itself.
-fn json_value_shape(value: &JsonValue) -> &'static str {
-    match value {
-        JsonValue::Null => "null",
-        JsonValue::Bool(_) => "bool",
-        JsonValue::Number(_) => "number",
-        JsonValue::String(_) => "string",
-        JsonValue::Array(_) => "array",
-        JsonValue::Object(_) => "object",
-    }
-}
-
-/// Get a backend instance by ID, using a `DbConnection` directly, with an
-/// optional per-rule bucket override that is not persisted back to the
-/// backend's stored config. Used by file-sync rules that point at a different
-/// bucket than the backend's default while sharing credentials/endpoint/region.
-///
-/// `scoped_cred_override` — when `Some`, the caller has already unsealed a
-/// per-member `ScopedCred` for a shared backend (Phase 4 Round F3b). The
-/// `accessKeyId` / `secretAccessKey` in the stored config are then replaced
-/// with the scoped credential's values before the backend is built, so the
-/// backend never sees the owner's admin credentials. Owner-only rules pass
-/// `None` and continue to use whatever the config row carries.
-pub async fn get_backend_instance_from_db_with_overrides(
-    db: &crate::database::DbConnection,
-    backend_id: &str,
-    bucket_override: Option<&str>,
-    scoped_cred_override: Option<&crate::remote_storage::iam_adapter::ScopedCred>,
-) -> Result<Box<dyn super::backend::StorageBackend>, StorageError> {
-    let rows = core::select_with_crdt(
-        SQL_GET_BACKEND_CONFIG.clone(),
-        vec![JsonValue::String(backend_id.to_string())],
-        db,
-    )
-    .map_err(|e| StorageError::DatabaseError {
-        reason: e.to_string(),
-    })?;
-
-    if rows.is_empty() {
-        return Err(StorageError::BackendNotFound {
-            id: backend_id.to_string(),
-        });
-    }
-
-    let row = &rows[0];
-    let backend_type = get_string(row, 0);
-    if backend_type.is_empty() {
-        return Err(StorageError::Internal {
-            reason: "Missing backend type".to_string(),
-        });
-    }
-
-    let config_str = get_string(row, 1);
-    if config_str.is_empty() {
-        return Err(StorageError::Internal {
-            reason: "Missing backend config".to_string(),
-        });
-    }
-
-    let mut config: serde_json::Value =
-        serde_json::from_str(&config_str).map_err(|e| StorageError::InvalidConfig {
-            reason: format!("Failed to parse config: {}", e),
-        })?;
-
-    if let Some(bucket) = bucket_override {
-        if !bucket.is_empty() {
-            if let Some(obj) = config.as_object_mut() {
-                obj.insert("bucket".to_string(), JsonValue::String(bucket.to_string()));
-            }
-        }
-    }
-
-    if let Some(cred) = scoped_cred_override {
-        // A backend config MUST be a JSON object — a stored `null`, string,
-        // number, or array would silently swallow the ScopedCred override
-        // and let the factory fall through to whatever credentials
-        // `config` happens to serialize into (typically none, then the
-        // factory would fail deeper with a much less legible error).
-        // Surface the wrong-shape config here.
-        let config_shape = json_value_shape(&config);
-        let obj = config
-            .as_object_mut()
-            .ok_or_else(|| StorageError::InvalidConfig {
-                reason: format!(
-                    "backend {backend_id} config must be a JSON object to accept a ScopedCred \
-                     override, got {config_shape}"
-                ),
-            })?;
-        // Field names must match the `#[serde(rename_all = "camelCase")]`
-        // shape of `types::S3Config`. Task 4 stripped these from the
-        // stored config for shared backends, so an override is now the
-        // only way a shared-backend factory call sees credentials.
-        obj.insert(
-            "accessKeyId".to_string(),
-            JsonValue::String(cred.access_key_id.clone()),
-        );
-        obj.insert(
-            "secretAccessKey".to_string(),
-            JsonValue::String(cred.secret_access_key.clone()),
-        );
-    }
-
-    create_backend(&backend_type, &config).await
-}
 
 /// Get a backend instance by ID (from Tauri State)
 async fn get_backend_instance(

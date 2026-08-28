@@ -2,6 +2,11 @@
 
 use rusqlite::{Connection, OptionalExtension};
 
+use crate::database::core::select_with_crdt;
+use crate::database::error::DatabaseError;
+use crate::database::row::get_string;
+use crate::database::DbConnection;
+
 /// The `haex_spaces.type` value identifying the local vault space.
 /// Mirrors `SpaceType.VAULT` in `src/database/constants.ts`.
 const VAULT_SPACE_TYPE: &str = "vault";
@@ -42,44 +47,36 @@ pub fn resolve_vault_owner_did(conn: &Connection) -> rusqlite::Result<Option<Str
 /// - `Err` — SQL failure.
 ///
 /// The schema's `UNIQUE (space_id, identity_id)` index guarantees at most
-/// one row per (space, identity) pair, but nothing forbids two DIFFERENT
-/// local identities from joining the same space. Two-rows tie-break:
-/// `ORDER BY created_at ASC, id ASC`. Deterministic WITHIN a single
-/// vault-view (given the same set of local identities), but NOT
-/// necessarily identical across devices — a second local identity
-/// created on device A may not exist on device B, and `created_at` is a
-/// local wall-clock timestamp at insert. If the vault has more than one
-/// local identity joined to the same space, this is a pathological
-/// configuration; the resolver emits `tracing::warn!` and picks the
-/// earliest to keep the system moving.
+/// one row per (space, identity) pair, but nothing forbids two different
+/// local identities from joining the same space. That ambiguity is an error:
+/// choosing one implicitly would violate the repository's explicit-DID
+/// selection rule and could load another identity's credential row.
 pub fn resolve_local_member_did_for_space(
-    conn: &Connection,
+    db: &DbConnection,
     space_id: &str,
-) -> rusqlite::Result<Option<String>> {
-    let mut stmt = conn.prepare(
+) -> Result<Option<String>, DatabaseError> {
+    let rows = select_with_crdt(
         "SELECT DISTINCT i.did \
          FROM haex_identities i \
          JOIN haex_space_members m ON m.identity_id = i.id \
          WHERE m.space_id = ?1 \
            AND i.source = 'own' \
            AND i.private_key IS NOT NULL \
-         ORDER BY i.created_at ASC, i.id ASC \
-         LIMIT 2",
+         ORDER BY i.id ASC \
+         LIMIT 2"
+            .to_string(),
+        vec![serde_json::Value::String(space_id.to_string())],
+        db,
     )?;
-    let dids: Vec<String> = stmt
-        .query_map([space_id], |row| row.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let dids: Vec<String> = rows.iter().map(|row| get_string(row, 0)).collect();
     match dids.len() {
         0 => Ok(None),
         1 => Ok(dids.into_iter().next()),
-        _ => {
-            tracing::warn!(
-                space_id = %space_id,
-                "ambiguous local membership: multiple local identities joined this space; \
-                 picking earliest-created deterministically"
-            );
-            Ok(dids.into_iter().next())
-        }
+        _ => Err(DatabaseError::QueryError {
+            reason: format!(
+                "ambiguous local membership: multiple local identities joined space {space_id}"
+            ),
+        }),
     }
 }
 
