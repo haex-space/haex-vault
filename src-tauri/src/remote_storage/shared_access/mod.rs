@@ -32,6 +32,8 @@ use crate::table_names::{
 use serde_json::Value as JsonValue;
 use std::sync::MutexGuard;
 
+pub mod crypto;
+
 #[cfg(test)]
 mod tests;
 
@@ -56,6 +58,10 @@ pub enum SharedAccessError {
     Db(#[from] DatabaseError),
     #[error("row shape mismatch: {reason}")]
     RowShape { reason: String },
+    #[error("crypto: {reason}")]
+    Crypto { reason: String },
+    #[error("codec: {reason}")]
+    Codec { reason: String },
 }
 
 /// Insert or overwrite a shared-access row for `(space_id, backend_id,
