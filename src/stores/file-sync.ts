@@ -77,6 +77,36 @@ interface SyncProgress {
 const log = createLogger('FILE_SYNC')
 
 /**
+ * Returns whether a rule edit changes a cloud location or encryption scope.
+ *
+ * Object keys are local cache entries for a particular encrypted cloud
+ * namespace. Reusing them after changing any part of that namespace would
+ * make the provider look for a sidecar in the new location even though it was
+ * written in the old one.
+ */
+export function cloudStorageScopeChanged(
+  currentType: string,
+  currentConfig: unknown,
+  nextType: string,
+  nextConfig: unknown,
+): boolean {
+  const scopeFor = (providerType: string, config: unknown) => {
+    if (providerType !== 'cloud') return null
+    const values = config && typeof config === 'object' && !Array.isArray(config)
+      ? config as Record<string, unknown>
+      : {}
+    return JSON.stringify({
+      backendId: values.backendId ?? null,
+      bucket: values.bucket ?? null,
+      prefix: values.prefix ?? null,
+      spaceId: values.spaceId ?? null,
+    })
+  }
+
+  return scopeFor(currentType, currentConfig) !== scopeFor(nextType, nextConfig)
+}
+
+/**
  * Pull the most useful line out of a wrapped backend error.
  * Backend errors look like:
  *   "Provider error: Provider error: Internal error: S3 list failed: Got HTTP 404 with content '<?xml...'"
@@ -343,6 +373,28 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
 
   const updateRuleAsync = async (id: string, updates: Partial<typeof haexSyncRules.$inferInsert>) => {
     const db = requireDb()
+    const [current] = await db
+      .select()
+      .from(haexSyncRules)
+      .where(eq(haexSyncRules.id, id))
+      .limit(1)
+
+    if (current && (
+      cloudStorageScopeChanged(
+        current.sourceType,
+        current.sourceConfig,
+        updates.sourceType ?? current.sourceType,
+        updates.sourceConfig ?? current.sourceConfig,
+      )
+      || cloudStorageScopeChanged(
+        current.targetType,
+        current.targetConfig,
+        updates.targetType ?? current.targetType,
+        updates.targetConfig ?? current.targetConfig,
+      )
+    )) {
+      await db.delete(haexSyncState).where(eq(haexSyncState.ruleId, id))
+    }
     await db.update(haexSyncRules).set(updates).where(eq(haexSyncRules.id, id))
     await loadRulesAsync()
   }
