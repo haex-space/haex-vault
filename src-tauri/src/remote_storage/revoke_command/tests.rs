@@ -168,6 +168,19 @@ fn setup_revoke_db() -> (DbConnection, HlcService, String) {
             created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
+        CREATE TABLE haex_s3_shared_access (
+            id TEXT PRIMARY KEY NOT NULL,
+            space_id TEXT NOT NULL,
+            backend_id TEXT NOT NULL,
+            member_did TEXT NOT NULL,
+            encrypted_cred TEXT NOT NULL,
+            epoch INTEGER NOT NULL,
+            expires_at TEXT,
+            created_at TEXT DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+        );
+        CREATE UNIQUE INDEX haex_s3_shared_access_space_backend_did_uniq
+            ON haex_s3_shared_access (space_id, backend_id, member_did);
+
         CREATE TABLE haex_passwords_item_details (
             id TEXT PRIMARY KEY NOT NULL,
             title TEXT,
@@ -204,6 +217,7 @@ fn setup_revoke_db() -> (DbConnection, HlcService, String) {
         for table in [
             "haex_s3_backends",
             "haex_shared_space_sync",
+            "haex_s3_shared_access",
             "haex_passwords_item_details",
             "haex_passwords_item_key_values",
         ] {
@@ -313,6 +327,28 @@ fn seed_share(
             rusqlite::params![&mapping_id, "haex_s3_backends", &row_pks, &space_id],
         )
         .expect("seed shared mapping");
+
+        // Simulate Round F3b's per-member ScopedCred fanout: two space
+        // members → two `haex_s3_shared_access` rows keyed by
+        // `(space_id, backend_id, member_did)`. The revoke DELETE must
+        // drop both — anything less leaks sealed ScopedCred rows that
+        // keep CRDT-syncing to every current and future member.
+        for member_did in ["did:key:member1", "did:key:member2"] {
+            let sa_id = rand_string("sa");
+            conn.execute(
+                "INSERT INTO haex_s3_shared_access
+                 (id, space_id, backend_id, member_did, encrypted_cred, epoch)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 1)",
+                rusqlite::params![
+                    &sa_id,
+                    &space_id,
+                    &shared_id,
+                    member_did,
+                    "sealed-cred-placeholder",
+                ],
+            )
+            .expect("seed shared_access fanout row");
+        }
     }
 
     if !skip_admin_cred {
@@ -362,6 +398,18 @@ fn mapping_exists_for_shared(db: &DbConnection, shared_id: &str) -> bool {
     count > 0
 }
 
+fn shared_access_count(db: &DbConnection, space_id: &str, backend_id: &str) -> i64 {
+    let guard = db.0.lock().unwrap();
+    let conn = guard.as_ref().unwrap();
+    conn.query_row(
+        "SELECT COUNT(*) FROM haex_s3_shared_access \
+         WHERE space_id = ?1 AND backend_id = ?2",
+        rusqlite::params![space_id, backend_id],
+        |row| row.get(0),
+    )
+    .expect("count shared_access rows")
+}
+
 // ---------------------------------------------------------------------------
 // Happy path
 // ---------------------------------------------------------------------------
@@ -374,6 +422,15 @@ async fn happy_path_deletes_iam_user_and_both_db_rows() {
     let factory = MockIamAdapterFactory {
         adapter: adapter.clone(),
     };
+
+    // Pre-assert: the per-member fanout was actually seeded, so the
+    // post-revoke count == 0 assertion below is meaningful (rather than
+    // vacuous). Two members → two rows.
+    assert_eq!(
+        shared_access_count(&db, &seeded.space_id, &seeded.shared_id),
+        2,
+        "seed must have written the per-member shared_access fanout"
+    );
 
     revoke_storage_share_core(
         &db,
@@ -401,7 +458,14 @@ async fn happy_path_deletes_iam_user_and_both_db_rows() {
     );
     drop(deletes);
 
-    // Both DB rows gone.
+    // All three row sets gone: the sealed shared_access fanout, the
+    // sync mapping, and the child s3_backends row itself.
+    assert_eq!(
+        shared_access_count(&db, &seeded.space_id, &seeded.shared_id),
+        0,
+        "haex_s3_shared_access rows must be deleted on revoke — otherwise \
+         sealed ScopedCred rows keep CRDT-syncing to every space member"
+    );
     assert!(
         !shared_backend_exists(&db, &seeded.shared_id),
         "shared s3_backends row must be deleted"
@@ -416,9 +480,6 @@ async fn happy_path_deletes_iam_user_and_both_db_rows() {
         shared_backend_exists(&db, &parent_id),
         "parent (owned) row must not be touched"
     );
-
-    // The space_id is unused by any other assertion — silence the unused warning.
-    let _ = seeded.space_id;
 }
 
 // ---------------------------------------------------------------------------
@@ -698,9 +759,13 @@ async fn iam_other_error_prevents_db_deletion() {
 
 #[tokio::test]
 async fn db_delete_failure_after_iam_success_surfaces_error() {
-    // Drop the mapping table to force the first DELETE (mapping) to fail
-    // AFTER the IAM adapter has already succeeded. The command must surface
-    // a DatabaseError; the s3_backends row remains untouched.
+    // Drop the mapping table to force the DB-cleanup phase to fail AFTER
+    // the IAM adapter has already succeeded. The command must surface a
+    // DatabaseError; the s3_backends row remains untouched. The concrete
+    // failing statement is now the `resolve_bound_space_id` SELECT (which
+    // reads the mapping to key the `haex_s3_shared_access` DELETE), not
+    // the mapping DELETE itself — either way the halt happens before the
+    // s3_backends DELETE, which is what this test cares about.
     let (db, hlc, parent_id) = setup_revoke_db();
     let seeded = seed_share(&db, &hlc, &parent_id, false, false);
 
@@ -726,7 +791,7 @@ async fn db_delete_failure_after_iam_success_surfaces_error() {
         &factory,
     )
     .await
-    .expect_err("mapping DELETE against missing table must fail");
+    .expect_err("DB-cleanup phase against missing mapping table must fail");
 
     assert!(
         matches!(err, StorageError::DatabaseError { .. }),
@@ -736,8 +801,9 @@ async fn db_delete_failure_after_iam_success_surfaces_error() {
     // IAM adapter WAS called.
     assert_eq!(adapter.delete_calls.lock().unwrap().len(), 1);
 
-    // s3_backends row is still around — mapping DELETE failed before we
-    // reached the s3_backends DELETE, so the shared row is intact.
+    // s3_backends row is still around — the DB-cleanup phase failed at
+    // its first statement (either the shared_access space-id resolve or
+    // the mapping DELETE), so we never reached the s3_backends DELETE.
     assert!(
         shared_backend_exists(&db, &seeded.shared_id),
         "s3_backends row must remain when mapping delete fails first"

@@ -43,7 +43,8 @@ use crate::remote_storage::share_command::{
     provider_flavor_from, DefaultIamAdapterFactory, IamAdapterFactory,
 };
 use crate::table_names::{
-    COL_S3_BACKENDS_CONFIG, COL_S3_BACKENDS_ID, TABLE_S3_BACKENDS, TABLE_SHARED_SPACE_SYNC,
+    COL_S3_BACKENDS_CONFIG, COL_S3_BACKENDS_ID, TABLE_S3_BACKENDS, TABLE_S3_SHARED_ACCESS,
+    TABLE_SHARED_SPACE_SYNC,
 };
 use crate::AppState;
 
@@ -170,8 +171,51 @@ fn assert_parent_exists(
     Ok(())
 }
 
-/// Hard-delete both the mapping row and the s3_backends row. Mapping first —
-/// see `docs/plans/2026-07-04-s3-bucket-sharing-via-spaces-design.md` §6:
+/// Resolve the `space_id` a shared child backend is bound to via its
+/// `haex_shared_space_sync` mapping row. Used by [`delete_share_rows`] to
+/// key the `haex_s3_shared_access` cleanup DELETE.
+///
+/// Returns `None` when no mapping row is present — either the row is
+/// already gone (retry after partial revoke) or was never written. In
+/// either case the shared_access DELETE is skipped: without a space_id
+/// we cannot mirror the rollback pattern, and a `backend_id`-only DELETE
+/// would drop rows for the wrong space if a UUID collision ever slipped
+/// past the PK guard.
+fn resolve_bound_space_id(
+    db: &crate::database::DbConnection,
+    shared_backend_id: &str,
+) -> Result<Option<String>, StorageError> {
+    let sql = format!(
+        "SELECT space_id FROM {TABLE_SHARED_SPACE_SYNC} \
+         WHERE table_name = ?1 AND json_extract(row_pks, '$[0]') = ?2 \
+         LIMIT 1"
+    );
+    let rows = select_with_crdt(
+        sql,
+        vec![
+            serde_json::Value::String(TABLE_S3_BACKENDS.to_string()),
+            serde_json::Value::String(shared_backend_id.to_string()),
+        ],
+        db,
+    )
+    .map_err(|e| StorageError::DatabaseError {
+        reason: format!("resolve bound space_id for shared row: {e}"),
+    })?;
+    Ok(rows.first().map(|row| get_string(row, 0)))
+}
+
+/// Hard-delete the shared_access fanout, the mapping row, and the
+/// s3_backends row. Order mirrors `share_command::rollback_child_backend_and_iam`:
+/// shared_access → mapping → child backend.
+///
+/// **shared_access first**: Round F3b's share flow writes one
+/// `haex_s3_shared_access` row per space member. If revoke does not delete
+/// them, the rows continue to sync via `SPACE_SCOPED_CRDT_TABLES` to every
+/// current and future member — a persistent leak of sealed ScopedCred rows
+/// referencing a child backend that no longer exists.
+///
+/// **Mapping before backend** — see
+/// `docs/plans/2026-07-04-s3-bucket-sharing-via-spaces-design.md` §6:
 ///
 /// - If the mapping DELETE succeeds and the s3_backends DELETE then fails,
 ///   the mapping is orphaned pointing at a still-live row. Subsequent revoke
@@ -183,21 +227,46 @@ fn assert_parent_exists(
 ///   check would incorrectly report "already shared".
 ///
 /// Each `execute_with_crdt` opens its own SQLite tx, so we can't wrap the
-/// pair in a single atomic transaction. That's the same limitation E1's
-/// `persist_shared_backend` operates under.
+/// three DELETEs in a single atomic transaction. That's the same limitation
+/// E1's `persist_shared_backend` operates under.
 fn delete_share_rows(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     shared_backend_id: &str,
+    space_id: Option<&str>,
 ) -> Result<(), StorageError> {
     let hlc_local = std::sync::Mutex::new(hlc_service.clone());
     let hlc_guard = hlc_local.lock().map_err(|e| StorageError::Internal {
         reason: format!("hlc local mutex poisoned: {e}"),
     })?;
 
-    // Delete the mapping first (see doc-comment above). `row_pks` is a JSON
-    // array with the shared-backend id at index 0.
+    // 1. shared_access rows first — see doc-comment above. Skipped when the
+    //    mapping is already gone (space_id unknown); the rows would then be
+    //    unreachable through the vault UI, and a follow-up revoke that finds
+    //    the mapping present again would clear them.
+    if let Some(sid) = space_id {
+        let delete_shared_access = format!(
+            "DELETE FROM {TABLE_S3_SHARED_ACCESS} \
+             WHERE space_id = ?1 AND backend_id = ?2"
+        );
+        execute_with_crdt(
+            delete_shared_access,
+            vec![
+                serde_json::Value::String(sid.to_string()),
+                serde_json::Value::String(shared_backend_id.to_string()),
+            ],
+            db,
+            &hlc_guard,
+            key_cache,
+        )
+        .map_err(|e| StorageError::DatabaseError {
+            reason: format!("delete haex_s3_shared_access: {e}"),
+        })?;
+    }
+
+    // 2. Delete the mapping. `row_pks` is a JSON array with the
+    //    shared-backend id at index 0.
     let delete_mapping = format!(
         "DELETE FROM {TABLE_SHARED_SPACE_SYNC} \
          WHERE table_name = ?1 \
@@ -346,8 +415,21 @@ pub(crate) async fn revoke_storage_share_core(
         }
     }
 
-    // 6. DB cleanup: mapping first, then s3_backends row.
-    delete_share_rows(db, hlc_service, key_cache, &args.shared_backend_id)?;
+    // 6. Resolve the space_id via the mapping row BEFORE deleting anything,
+    //    so `delete_share_rows` can clear the sealed shared_access fanout
+    //    Task 4 wrote per member. Skipping this step would leave those rows
+    //    CRDT-syncing to every current and future member of the space forever
+    //    (see `delete_share_rows` doc-comment).
+    let bound_space_id = resolve_bound_space_id(db, &args.shared_backend_id)?;
+
+    // 7. DB cleanup: shared_access → mapping → s3_backends row.
+    delete_share_rows(
+        db,
+        hlc_service,
+        key_cache,
+        &args.shared_backend_id,
+        bound_space_id.as_deref(),
+    )?;
 
     Ok(())
 }
