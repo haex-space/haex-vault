@@ -2,6 +2,23 @@
 //! stack against a caller (or a buggy inner provider) touching keys outside
 //! a configured scope prefix.
 //!
+//! ## Scope vs guard — what this decorator does and does NOT enforce
+//!
+//! Per-space GET-no-LIST isolation is enforced by the ScopedCred / IAM
+//! policy at the *transport* layer (the `CloudProvider` built from the
+//! space's scoped credential). This decorator does NOT enforce that
+//! scoping — a caller with a broader credential could still reach other
+//! spaces if it bypassed this stack. What this decorator DOES do is sit
+//! *above* the encryption + transport layers as a defensive
+//! path-traversal guard: any relative path that is absolute, contains a
+//! `..` segment, or embeds a `\0` byte is rejected before the inner
+//! provider is invoked. Its `prefix` field is retained purely for error
+//! messages and log context — this decorator does NOT prepend `prefix`
+//! to keys and does NOT reject keys merely because they lack the prefix.
+//! Empty and bare-`.` paths are forwarded to the inner unchanged; the
+//! inner is responsible for rejecting them if they are invalid business
+//! inputs.
+//!
 //! ## Placement in the F3b provider stack
 //!
 //! ```text
@@ -111,14 +128,21 @@ impl ScopedProvider {
     }
 }
 
-/// True if `p` is an absolute path (starts with `/` or `\`) or contains
-/// `..` as a path segment (split on either `/` or `\` so a Windows-style
-/// escape like `foo\..\bar` is caught the same as `foo/../bar`).
+/// True if `p` is an absolute path (starts with `/` or `\`), contains a
+/// `\0` byte anywhere (C-style APIs down the stack would null-truncate
+/// the key, so `foo\0../bar` must not be split-and-scanned into `foo\0..`
+/// and then accepted), or contains `..` as a path segment (split on
+/// either `/` or `\` so a Windows-style escape like `foo\..\bar` is
+/// caught the same as `foo/../bar`).
 ///
 /// This is deliberately more restrictive than a check that only looks
 /// at the leading segment: `foo/../../bar` normalises to `../bar`, so a
-/// pure prefix check on the raw string would let it through.
+/// pure prefix check on the raw string would let it through. The
+/// null-byte reject mirrors `crate::filesystem::path_validation::reject_path_traversal`.
 fn is_path_escape(p: &str) -> bool {
+    if p.contains('\0') {
+        return true;
+    }
     if p.starts_with('/') || p.starts_with('\\') {
         return true;
     }
@@ -139,13 +163,21 @@ impl SyncProvider for ScopedProvider {
     async fn manifest(&self) -> Result<Vec<FileState>, SyncProviderError> {
         let mut entries = self.inner.manifest().await?;
         let before = entries.len();
-        entries.retain(|e| !is_path_escape(&e.relative_path));
+        let mut first_stripped: Option<String> = None;
+        entries.retain(|e| {
+            let ok = !is_path_escape(&e.relative_path);
+            if !ok && first_stripped.is_none() {
+                first_stripped = Some(e.relative_path.clone());
+            }
+            ok
+        });
         let filtered = before - entries.len();
         if filtered > 0 {
             tracing::warn!(
                 filtered,
                 prefix = %self.prefix,
                 inner = %self.inner.display_name(),
+                first_stripped = ?first_stripped,
                 "inner provider returned cross-scope entries; stripping"
             );
         }

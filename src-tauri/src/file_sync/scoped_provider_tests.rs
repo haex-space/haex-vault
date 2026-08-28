@@ -11,10 +11,12 @@
 //! definite about "inner must not be invoked" — anything the stub records
 //! provably came from the decorator's call.
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
+use crate::file_sync::hashing::ChunkedHash;
 use crate::file_sync::provider::{SyncProvider, SyncProviderError};
 use crate::file_sync::scoped_provider::ScopedProvider;
 use crate::file_sync::types::FileState;
@@ -270,12 +272,104 @@ async fn safe_dotdot_inside_filename_is_accepted() {
     assert_eq!(inner.calls().len(), 1);
 }
 
-#[test]
-fn empty_prefix_is_accepted() {
+#[tokio::test]
+async fn empty_prefix_still_rejects_path_escape_and_accepts_safe_path() {
     // Owner-only path may pass an empty prefix — the guard still works
-    // (path-escape check is prefix-independent) but nothing gets rejected
-    // for merely being outside a scope.
+    // (path-escape check is prefix-independent). Replaces an earlier
+    // tautology that only asserted `display_name()` — a regression that
+    // short-circuited `check()` on empty-prefix would have passed that.
     let inner = Arc::new(StubProvider::new());
-    let scoped = ScopedProvider::new(inner, "");
-    assert_eq!(scoped.display_name(), "scoped(stub)");
+    let scoped = ScopedProvider::new(inner.clone(), "");
+    // Path escape still rejected even with empty prefix.
+    let err = scoped
+        .read_file("../evil")
+        .await
+        .expect_err("empty-prefix must still reject escapes");
+    assert!(matches!(err, SyncProviderError::PathTraversal { .. }));
+    assert!(inner.calls().is_empty());
+    // Safe path still forwarded.
+    let _ = scoped.read_file("foo.txt").await;
+    let calls = inner.calls();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].0, "read_file");
+    assert_eq!(calls[0].1, "foo.txt");
+}
+
+#[tokio::test]
+async fn read_file_rejects_null_byte_in_path() {
+    // C-style APIs down the stack null-truncate on `\0`, so `foo\0bar`
+    // could otherwise collapse to `foo`. Guard must reject before delegate.
+    // The path is deliberately free of `..` segments so this test isolates
+    // the null-byte reject — a removal of the `\0` guard MUST fail this,
+    // even though the segment-split scan still catches `foo\0../bar`.
+    let inner = Arc::new(StubProvider::new());
+    let scoped = ScopedProvider::new(inner.clone(), "space-A/");
+    let err = scoped.read_file("foo\0bar").await.expect_err("must reject");
+    assert!(matches!(err, SyncProviderError::PathTraversal { .. }));
+    assert!(inner.calls().is_empty(), "inner must not be invoked");
+}
+
+#[test]
+fn new_normalizes_prefix_by_appending_slash() {
+    // Pins the `if raw.is_empty() || raw.ends_with('/') { raw } else { format!("{raw}/") }`
+    // branch — a flipped condition would land silently otherwise. Accesses
+    // the private `prefix` field via the child-module visibility path.
+    let inner = Arc::new(StubProvider::new());
+
+    let empty = ScopedProvider::new(inner.clone(), "");
+    assert_eq!(empty.prefix, "", "empty prefix must stay empty");
+
+    let with_slash = ScopedProvider::new(inner.clone(), "space-A/");
+    assert_eq!(
+        with_slash.prefix, "space-A/",
+        "trailing-slash prefix must stay unchanged"
+    );
+
+    let no_slash = ScopedProvider::new(inner.clone(), "space-A");
+    assert_eq!(
+        no_slash.prefix, "space-A/",
+        "prefix without trailing slash must have one appended"
+    );
+}
+
+#[tokio::test]
+async fn read_file_with_progress_rejects_dotdot_escape() {
+    let inner = Arc::new(StubProvider::new());
+    let scoped = ScopedProvider::new(inner.clone(), "space-A/");
+    let noop: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
+    let err = scoped
+        .read_file_with_progress("../leak.bin", noop)
+        .await
+        .expect_err("must reject");
+    assert!(matches!(err, SyncProviderError::PathTraversal { .. }));
+    assert!(inner.calls().is_empty());
+}
+
+#[tokio::test]
+async fn read_file_to_path_rejects_dotdot_escape() {
+    let inner = Arc::new(StubProvider::new());
+    let scoped = ScopedProvider::new(inner.clone(), "space-A/");
+    let target = tempfile::NamedTempFile::new().unwrap();
+    let noop: Arc<dyn Fn(u64, u64) + Send + Sync> = Arc::new(|_, _| {});
+    let expected: Option<ChunkedHash> = None;
+    let err = scoped
+        .read_file_to_path("../leak.bin", target.path(), expected, noop)
+        .await
+        .expect_err("must reject");
+    assert!(matches!(err, SyncProviderError::PathTraversal { .. }));
+    assert!(inner.calls().is_empty());
+}
+
+#[tokio::test]
+async fn write_file_from_path_rejects_dotdot_escape() {
+    let inner = Arc::new(StubProvider::new());
+    let scoped = ScopedProvider::new(inner.clone(), "space-A/");
+    // Source path never gets read — the guard rejects before delegate.
+    let src = Path::new("/nonexistent/source.bin");
+    let err = scoped
+        .write_file_from_path("../leak.bin", src)
+        .await
+        .expect_err("must reject");
+    assert!(matches!(err, SyncProviderError::PathTraversal { .. }));
+    assert!(inner.calls().is_empty());
 }
