@@ -38,21 +38,36 @@ struct ScopedCredWire {
 }
 
 impl From<&ScopedCred> for ScopedCredWire {
-    fn from(c: &ScopedCred) -> Self {
+    fn from(cred: &ScopedCred) -> Self {
+        // Destructure exhaustively so any added field on `ScopedCred` is a
+        // compile error, forcing the person adding it to update the wire
+        // schema deliberately (rather than silently dropping the field
+        // into the seal→open blackhole).
+        let ScopedCred {
+            access_key_id,
+            secret_access_key,
+            iam_user_name,
+        } = cred;
         Self {
-            access_key_id: c.access_key_id.clone(),
-            secret_access_key: c.secret_access_key.clone(),
-            iam_user_name: c.iam_user_name.clone(),
+            access_key_id: access_key_id.clone(),
+            secret_access_key: secret_access_key.clone(),
+            iam_user_name: iam_user_name.clone(),
         }
     }
 }
 
 impl From<ScopedCredWire> for ScopedCred {
-    fn from(w: ScopedCredWire) -> Self {
+    fn from(wire: ScopedCredWire) -> Self {
+        // Exhaustive destructure — same drift-guard as the sealing side.
+        let ScopedCredWire {
+            access_key_id,
+            secret_access_key,
+            iam_user_name,
+        } = wire;
         Self {
-            access_key_id: w.access_key_id,
-            secret_access_key: w.secret_access_key,
-            iam_user_name: w.iam_user_name,
+            access_key_id,
+            secret_access_key,
+            iam_user_name,
         }
     }
 }
@@ -61,6 +76,18 @@ impl From<ScopedCredWire> for ScopedCred {
 /// with a fresh random per-call file nonce, and base64-encode the
 /// ciphertext so it fits the TEXT `encrypted_cred` column of
 /// `haex_s3_shared_access`.
+///
+/// Sealing generates a fresh random `file_nonce` internally.
+///
+/// This diverges from `file_sync::crypto::content::seal_bytes`, which
+/// takes the nonce as a parameter. That convention exists because
+/// content chunks share a file-level nonce thread; per-row credential
+/// seals have no such thread. Every call is an independent seal against
+/// a fresh nonce — surfacing the nonce as a parameter would let a caller
+/// reuse it under the same key (a catastrophic AEAD failure) with no
+/// testing gain (round-trip tests open the sealed blob back rather than
+/// pinning its bytes). Matches the same-shape `dek_wrap` KEK-wrap
+/// precedent.
 pub fn seal_scoped_cred(
     cred: &ScopedCred,
     key: &[u8; 32],

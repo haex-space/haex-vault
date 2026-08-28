@@ -154,7 +154,7 @@ fn seal_open_roundtrip_returns_original_scoped_cred() {
         secret_access_key: "s3cret".into(),
         iam_user_name: "scoped-user".into(),
     };
-    let key = [7u8; 32];
+    let key: [u8; 32] = rand::random();
 
     let sealed = seal_scoped_cred(&cred, &key, 1).expect("seal");
     let opened = open_scoped_cred(&sealed, &key).expect("open");
@@ -174,8 +174,11 @@ fn open_scoped_cred_rejects_wrong_key() {
         secret_access_key: "s3cret".into(),
         iam_user_name: "scoped-user".into(),
     };
-    let sealed = seal_scoped_cred(&cred, &[1u8; 32], 1).expect("seal");
-    let err = open_scoped_cred(&sealed, &[2u8; 32]).unwrap_err();
+    // Two independently drawn random keys — collision-safe at 32 bytes.
+    let seal_key: [u8; 32] = rand::random();
+    let wrong_key: [u8; 32] = rand::random();
+    let sealed = seal_scoped_cred(&cred, &seal_key, 1).expect("seal");
+    let err = open_scoped_cred(&sealed, &wrong_key).unwrap_err();
     assert!(matches!(err, super::SharedAccessError::Crypto { .. }));
 }
 
@@ -189,7 +192,39 @@ fn seal_scoped_cred_produces_distinct_ciphertexts_on_reseal() {
         secret_access_key: "s3cret".into(),
         iam_user_name: "scoped-user".into(),
     };
-    let a = seal_scoped_cred(&cred, &[3u8; 32], 1).unwrap();
-    let b = seal_scoped_cred(&cred, &[3u8; 32], 1).unwrap();
+    let key: [u8; 32] = rand::random();
+    let a = seal_scoped_cred(&cred, &key, 1).unwrap();
+    let b = seal_scoped_cred(&cred, &key, 1).unwrap();
     assert_ne!(a, b, "nonces must be random; ciphertexts must differ");
+}
+
+/// Drift guard: constructs a [`ScopedCred`] via exhaustive struct-init
+/// (no `..Default::default()`) and asserts round-trip via exhaustive
+/// destructure on the opened value. If a field is added to `ScopedCred`,
+/// this test fails to compile — forcing the wire mirror in `crypto.rs`
+/// and this assertion set to be updated alongside.
+#[test]
+fn scoped_cred_wire_roundtrip_covers_every_field() {
+    use crate::remote_storage::iam_adapter::ScopedCred;
+    use crate::remote_storage::shared_access::crypto::{open_scoped_cred, seal_scoped_cred};
+
+    let cred = ScopedCred {
+        access_key_id: "AKIAROUNDTRIP".into(),
+        secret_access_key: "s3cret-roundtrip".into(),
+        iam_user_name: "roundtrip-user".into(),
+    };
+    let key: [u8; 32] = rand::random();
+    let sealed = seal_scoped_cred(&cred, &key, 42).expect("seal");
+    let opened = open_scoped_cred(&sealed, &key).expect("open");
+
+    // Exhaustive destructure — a new field failing to round-trip surfaces
+    // here rather than in an eq-derive.
+    let ScopedCred {
+        access_key_id,
+        secret_access_key,
+        iam_user_name,
+    } = opened;
+    assert_eq!(access_key_id, cred.access_key_id);
+    assert_eq!(secret_access_key, cred.secret_access_key);
+    assert_eq!(iam_user_name, cred.iam_user_name);
 }
