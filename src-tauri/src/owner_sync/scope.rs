@@ -24,6 +24,60 @@ pub fn resolve_vault_owner_did(conn: &Connection) -> rusqlite::Result<Option<Str
     .optional()
 }
 
+/// Resolve the DID of the LOCAL identity that joined `space_id`.
+///
+/// LOCAL identity = a row in `haex_identities` with `source = 'own'` AND a
+/// non-null `private_key` (this vault holds the signing key). Per CLAUDE.md
+/// ("DID-Auswahl beim Space-Beitritt ist immer explizit — niemals auto-default
+/// auf eine bestehende DID"), a user can join a shared space with an identity
+/// distinct from the vault owner's, so callers that need to name the viewer
+/// for per-member ScopedCred lookups MUST use this resolver — NOT
+/// [`resolve_vault_owner_did`], which returns the DID that owns the local
+/// vault space and would silently miss non-vault-owner memberships.
+///
+/// Returns:
+/// - `Ok(Some(did))` — the single local DID that joined the space.
+/// - `Ok(None)` — this vault has no local identity mapped as a member of
+///   `space_id`.
+/// - `Err` — SQL failure.
+///
+/// The schema's `UNIQUE (space_id, identity_id)` index guarantees at most
+/// one row per (space, identity) pair, but nothing forbids two DIFFERENT
+/// local identities from joining the same space. If that happens the
+/// earliest-created identity wins (deterministic across devices) and a
+/// warning is logged — a vault should only ever have one local identity
+/// per space in practice.
+pub fn resolve_local_member_did_for_space(
+    conn: &Connection,
+    space_id: &str,
+) -> rusqlite::Result<Option<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT i.did \
+         FROM haex_identities i \
+         JOIN haex_space_members m ON m.identity_id = i.id \
+         WHERE m.space_id = ?1 \
+           AND i.source = 'own' \
+           AND i.private_key IS NOT NULL \
+         ORDER BY i.created_at ASC, i.id ASC \
+         LIMIT 2",
+    )?;
+    let dids: Vec<String> = stmt
+        .query_map([space_id], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    match dids.len() {
+        0 => Ok(None),
+        1 => Ok(dids.into_iter().next()),
+        _ => {
+            tracing::warn!(
+                space_id = %space_id,
+                "ambiguous local membership: multiple local identities joined this space; \
+                 picking earliest-created deterministically"
+            );
+            Ok(dids.into_iter().next())
+        }
+    }
+}
+
 /// Enumerate the iroh `endpoint_id`s of the owner's OTHER devices.
 ///
 /// Selects every `haex_devices` row owned by `owner_did` except the one whose

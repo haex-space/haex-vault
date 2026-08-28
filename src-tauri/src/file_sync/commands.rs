@@ -165,6 +165,21 @@ pub enum FileSyncCommandError {
     NotRunning(String),
     #[error("Internal error: {0}")]
     Internal(String),
+    /// No `haex_s3_shared_access` row for this viewer against
+    /// `(space_id, backend_id)`. Semantically distinct from
+    /// [`Self::InvalidConfig`]: this viewer's capability to sync the space
+    /// via that backend has been revoked (or was never granted), and the UI
+    /// should surface a share-revoked / re-enrollment prompt rather than a
+    /// generic config-invalid message. The `member_did` field carries the
+    /// DID the lookup targeted so callers can log it out-of-band; the
+    /// display message deliberately elides it to keep viewer DIDs out of
+    /// user-facing error text.
+    #[error("no active share for space={space_id} backend={backend_id}")]
+    NotShared {
+        space_id: String,
+        backend_id: String,
+        member_did: String,
+    },
 }
 
 impl serde::Serialize for FileSyncCommandError {
@@ -379,6 +394,31 @@ async fn create_provider(
 /// Owner-only rules (no `spaceId`) skip the `ScopedProvider` wrap and hit
 /// [`wrap_cloud_with_encryption_if_configured`]'s own-vault branch, matching
 /// the F2 shape unchanged.
+/// Extract a normalized `spaceId` from a sync-rule config.
+///
+/// - **Absent, `null`, empty string** → `Ok(None)` (owner-only rule).
+/// - **Non-empty string** → `Ok(Some(&str))`.
+/// - **Any other JSON shape** → `Err(InvalidConfig)`. Distinguishing "absent"
+///   from "present but wrong type" prevents a caller from passing
+///   `{ "spaceId": 42 }` against an owner-only backend as if no spaceId were
+///   set — a mistake that would silently mint owner credentials against a
+///   rule the caller believed was space-scoped.
+///
+/// Shared by [`assemble_cloud_provider`],
+/// [`wrap_cloud_with_encryption_if_configured`], and
+/// [`wrap_cloud_with_scoped_provider_if_configured`] so the "empty string ==
+/// None" normalization is enforced in exactly one place.
+fn space_id_from_config(config: &serde_json::Value) -> Result<Option<&str>, FileSyncCommandError> {
+    match config.get("spaceId") {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(s)) if s.is_empty() => Ok(None),
+        Some(serde_json::Value::String(s)) => Ok(Some(s.as_str())),
+        Some(other) => Err(FileSyncCommandError::InvalidConfig(format!(
+            "spaceId must be a string, got {other}"
+        ))),
+    }
+}
+
 pub(crate) async fn assemble_cloud_provider(
     config: &serde_json::Value,
     rule_id: &str,
@@ -392,17 +432,7 @@ pub(crate) async fn assemble_cloud_provider(
         .ok_or_else(|| {
             FileSyncCommandError::InvalidConfig("cloud provider requires 'backendId'".into())
         })?;
-    // Distinguish "absent" from "present but wrong type": a non-string
-    // spaceId (e.g. a number) silently mapping to None would let a
-    // caller pass `{ "spaceId": 42 }` against an owner-only backend
-    // as if no spaceId were set — reject that up front.
-    let space_id = match config.get("spaceId") {
-        None | Some(serde_json::Value::Null) => None,
-        Some(serde_json::Value::String(s)) if s.is_empty() => None,
-        Some(value) => Some(value.as_str().ok_or_else(|| {
-            FileSyncCommandError::InvalidConfig("cloud provider 'spaceId' must be a string".into())
-        })?),
-    };
+    let space_id = space_id_from_config(config)?;
     verify_cloud_space_binding(backend_id, space_id, &db)?;
 
     let prefix = config
@@ -448,20 +478,27 @@ pub(crate) async fn assemble_cloud_provider(
     let inner: Arc<dyn SyncProvider> = Arc::new(cloud);
     let encrypting =
         wrap_cloud_with_encryption_if_configured(inner, config, rule_id, db, vault_key_slot)?;
-    Ok(wrap_cloud_with_scoped_provider_if_configured(
-        encrypting, config, prefix,
-    ))
+    wrap_cloud_with_scoped_provider_if_configured(encrypting, config, prefix)
 }
 
-/// Load and unseal the current vault owner's `ScopedCred` for a
-/// `(space_id, backend_id)` pair. Errors when no row exists — that means
-/// this member either was never provisioned for the shared backend or has
-/// been revoked, and either case should surface as a clear error rather
-/// than a silent fall-through.
+/// Load and unseal the current viewer's `ScopedCred` for a
+/// `(space_id, backend_id)` pair.
 ///
-/// The viewer DID is `resolve_vault_owner_did` — the identity that owns the
-/// local vault, i.e. the DID under which Task 4's fanout wrote a row when
-/// this vault joined the space.
+/// The viewer DID is resolved via
+/// [`crate::owner_sync::scope::resolve_local_member_did_for_space`] — the
+/// LOCAL identity that joined `space_id`. Per CLAUDE.md, a user can join a
+/// shared space with an identity distinct from the vault owner's, so using
+/// `resolve_vault_owner_did` here would silently miss non-vault-owner
+/// memberships (Task 4's fanout writes the `haex_s3_shared_access` row
+/// keyed by the identity that actually joined, not the vault owner).
+///
+/// Failure modes:
+/// - No local identity joined the space → `InvalidConfig` (setup bug: this
+///   vault is not a member of the space it claims to sync).
+/// - No `haex_s3_shared_access` row for the resolved DID → `NotShared` —
+///   semantically distinct from a config error: this viewer's capability
+///   has been revoked (or was never granted), and the UI should surface a
+///   share-revoked / re-enrollment prompt.
 ///
 /// Kept `pub(crate)` so the wire-up seam is testable from
 /// [`crate::file_sync::commands_tests`] without a full `AppState`.
@@ -470,8 +507,8 @@ pub(crate) fn load_scoped_cred_for_shared_backend(
     space_id: &str,
     backend_id: &str,
 ) -> Result<crate::remote_storage::iam_adapter::ScopedCred, FileSyncCommandError> {
-    let owner_did = crate::database::core::with_connection(db, |conn| {
-        crate::owner_sync::scope::resolve_vault_owner_did(conn).map_err(|e| {
+    let member_did = crate::database::core::with_connection(db, |conn| {
+        crate::owner_sync::scope::resolve_local_member_did_for_space(conn, space_id).map_err(|e| {
             crate::database::error::DatabaseError::QueryError {
                 reason: e.to_string(),
             }
@@ -479,23 +516,23 @@ pub(crate) fn load_scoped_cred_for_shared_backend(
     })
     .map_err(|e| FileSyncCommandError::ProviderError(format!("resolve viewer DID: {e}")))?
     .ok_or_else(|| {
-        FileSyncCommandError::InvalidConfig(
-            "cannot load shared-backend credentials: no vault owner DID resolvable".into(),
-        )
+        FileSyncCommandError::InvalidConfig(format!(
+            "cannot load shared-backend credentials: this vault has no local identity \
+             joined to space={space_id}"
+        ))
     })?;
 
     let row = crate::remote_storage::shared_access::find_shared_access(
         db,
         space_id,
         backend_id,
-        &owner_did,
+        &member_did,
     )
     .map_err(|e| FileSyncCommandError::ProviderError(format!("shared-access lookup: {e}")))?
-    .ok_or_else(|| {
-        FileSyncCommandError::InvalidConfig(format!(
-            "no haex_s3_shared_access row for space={space_id} backend={backend_id} member={owner_did} — \
-             this member is not (or is no longer) provisioned for the shared backend"
-        ))
+    .ok_or_else(|| FileSyncCommandError::NotShared {
+        space_id: space_id.to_string(),
+        backend_id: backend_id.to_string(),
+        member_did: member_did.clone(),
     })?;
 
     let epoch_key = crate::file_sync::crypto::key_resolver::resolve_key(space_id, row.epoch, db)
@@ -522,12 +559,12 @@ pub(crate) fn wrap_cloud_with_scoped_provider_if_configured(
     inner: Arc<dyn SyncProvider>,
     config: &serde_json::Value,
     prefix: String,
-) -> Arc<dyn SyncProvider> {
-    match config.get("spaceId") {
-        Some(serde_json::Value::String(space_id)) if !space_id.is_empty() => Arc::new(
+) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
+    match space_id_from_config(config)? {
+        Some(_) => Ok(Arc::new(
             crate::file_sync::scoped_provider::ScopedProvider::new(inner, prefix),
-        ),
-        _ => inner,
+        )),
+        None => Ok(inner),
     }
 }
 
@@ -563,25 +600,19 @@ pub(crate) fn wrap_cloud_with_encryption_if_configured(
     db: DbConnection,
     vault_key_slot: std::sync::Arc<std::sync::Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
 ) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
-    match config.get("spaceId") {
-        None | Some(serde_json::Value::Null) => Ok(Arc::new(EncryptingSyncProvider::new(
+    match space_id_from_config(config)? {
+        None => Ok(Arc::new(EncryptingSyncProvider::new(
             inner,
             rule_id,
             db,
             vault_key_slot,
         ))),
-        Some(serde_json::Value::String(s)) if s.is_empty() => Ok(Arc::new(
-            EncryptingSyncProvider::new(inner, rule_id, db, vault_key_slot),
-        )),
-        Some(serde_json::Value::String(space_id)) => Ok(Arc::new(SpaceContentSyncProvider::new(
+        Some(space_id) => Ok(Arc::new(SpaceContentSyncProvider::new(
             inner,
             rule_id,
             db,
-            space_id.clone(),
+            space_id.to_string(),
             Arc::new(crate::file_sync::crypto::MlsSpaceKeyResolver),
-        ))),
-        Some(other) => Err(FileSyncCommandError::InvalidConfig(format!(
-            "spaceId must be a string, got {other}"
         ))),
     }
 }

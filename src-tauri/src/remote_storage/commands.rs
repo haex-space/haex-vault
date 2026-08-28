@@ -710,6 +710,20 @@ pub async fn remote_storage_upload_from_path(
 // Helper Functions
 // ============================================================================
 
+/// Short debug label for the top-level shape of a `serde_json::Value`.
+/// Used in error messages that reject a wrong-shape config without leaking
+/// the value itself.
+fn json_value_shape(value: &JsonValue) -> &'static str {
+    match value {
+        JsonValue::Null => "null",
+        JsonValue::Bool(_) => "bool",
+        JsonValue::Number(_) => "number",
+        JsonValue::String(_) => "string",
+        JsonValue::Array(_) => "array",
+        JsonValue::Object(_) => "object",
+    }
+}
+
 /// Get a backend instance by ID, using a `DbConnection` directly, with an
 /// optional per-rule bucket override that is not persisted back to the
 /// backend's stored config. Used by file-sync rules that point at a different
@@ -771,20 +785,33 @@ pub async fn get_backend_instance_from_db_with_overrides(
     }
 
     if let Some(cred) = scoped_cred_override {
-        if let Some(obj) = config.as_object_mut() {
-            // Field names must match the `#[serde(rename_all = "camelCase")]`
-            // shape of `types::S3Config`. Task 4 stripped these from the
-            // stored config for shared backends, so an override is now the
-            // only way a shared-backend factory call sees credentials.
-            obj.insert(
-                "accessKeyId".to_string(),
-                JsonValue::String(cred.access_key_id.clone()),
-            );
-            obj.insert(
-                "secretAccessKey".to_string(),
-                JsonValue::String(cred.secret_access_key.clone()),
-            );
-        }
+        // A backend config MUST be a JSON object — a stored `null`, string,
+        // number, or array would silently swallow the ScopedCred override
+        // and let the factory fall through to whatever credentials
+        // `config` happens to serialize into (typically none, then the
+        // factory would fail deeper with a much less legible error).
+        // Surface the wrong-shape config here.
+        let config_shape = json_value_shape(&config);
+        let obj = config
+            .as_object_mut()
+            .ok_or_else(|| StorageError::InvalidConfig {
+                reason: format!(
+                    "backend {backend_id} config must be a JSON object to accept a ScopedCred \
+                     override, got {config_shape}"
+                ),
+            })?;
+        // Field names must match the `#[serde(rename_all = "camelCase")]`
+        // shape of `types::S3Config`. Task 4 stripped these from the
+        // stored config for shared backends, so an override is now the
+        // only way a shared-backend factory call sees credentials.
+        obj.insert(
+            "accessKeyId".to_string(),
+            JsonValue::String(cred.access_key_id.clone()),
+        );
+        obj.insert(
+            "secretAccessKey".to_string(),
+            JsonValue::String(cred.secret_access_key.clone()),
+        );
     }
 
     create_backend(&backend_type, &config).await

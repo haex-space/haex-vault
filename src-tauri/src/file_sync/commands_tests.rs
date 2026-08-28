@@ -62,7 +62,8 @@ mod assemble_cloud_provider_tests {
     /// reads: the space-binding chokepoint (`verify_cloud_space_binding`),
     /// the backend config store (`get_backend_instance_from_db_with_overrides`),
     /// the shared-access rows and MLS epoch keys the space-scoped path
-    /// looks up, and the vault-owner-DID lookup that names the viewer.
+    /// looks up, and the local-member-DID lookup that names the viewer
+    /// (`haex_identities` joined with `haex_space_members`).
     ///
     /// No CRDT triggers are installed — the seam only *reads*, and
     /// `select_with_crdt` is a thin wrapper over `SELECT` with no
@@ -110,7 +111,13 @@ mod assemble_cloud_provider_tests {
                 did TEXT NOT NULL,
                 name TEXT,
                 source TEXT,
-                private_key TEXT
+                private_key TEXT,
+                created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            );
+            CREATE TABLE haex_space_members (
+                id TEXT PRIMARY KEY,
+                space_id TEXT NOT NULL,
+                identity_id TEXT NOT NULL
             );",
         )
         .expect("schema setup");
@@ -169,14 +176,23 @@ mod assemble_cloud_provider_tests {
         .expect("seed mls key");
     }
 
-    /// Seed a vault-owner identity + `haex_spaces` row of `type='vault'`,
-    /// so `resolve_vault_owner_did` returns `member_did`.
-    fn seed_vault_owner(db: &DbConnection, member_did: &str) {
+    /// Seed a vault-owner identity + `haex_spaces` row of `type='vault'`
+    /// (the vault-space anchor `resolve_vault_owner_did` reads). Marks the
+    /// identity as LOCAL (`source='own'` + non-null `private_key`) so it
+    /// can double as a local space member if the caller then wires it
+    /// through [`seed_space_membership`].
+    ///
+    /// Returns the internal identity `id` so a caller can bind the same
+    /// identity into `haex_space_members` (owner-joins-a-space case) or
+    /// use it as the deliberately-different vault-owner in the regression
+    /// test where a SECOND local identity joins the space instead.
+    fn seed_vault_owner(db: &DbConnection, member_did: &str) -> String {
         let identity_id = Uuid::new_v4().to_string();
         let guard = db.0.lock().expect("db lock");
         let conn = guard.as_ref().expect("db open");
         conn.execute(
-            "INSERT INTO haex_identities (id, did, name) VALUES (?1, ?2, 'vault owner')",
+            "INSERT INTO haex_identities (id, did, name, source, private_key) \
+             VALUES (?1, ?2, 'vault owner', 'own', 'STUB_LOCAL_PRIVATE_KEY')",
             params![identity_id, member_did],
         )
         .expect("seed identity");
@@ -185,6 +201,43 @@ mod assemble_cloud_provider_tests {
             params![Uuid::new_v4().to_string(), identity_id],
         )
         .expect("seed vault space");
+        identity_id
+    }
+
+    /// Insert a `haex_identities` row for a LOCAL identity (`source='own'`
+    /// with a non-null `private_key`) that has NOT been named as the
+    /// vault-space owner. Used by the regression test where the DID that
+    /// joined a shared space is deliberately DIFFERENT from the vault
+    /// owner's DID.
+    ///
+    /// Returns the internal identity `id` so the caller can bind it into
+    /// [`seed_space_membership`].
+    fn seed_extra_local_identity(db: &DbConnection, did: &str) -> String {
+        let identity_id = Uuid::new_v4().to_string();
+        let guard = db.0.lock().expect("db lock");
+        let conn = guard.as_ref().expect("db open");
+        conn.execute(
+            "INSERT INTO haex_identities (id, did, name, source, private_key) \
+             VALUES (?1, ?2, 'alt local identity', 'own', 'STUB_LOCAL_PRIVATE_KEY')",
+            params![identity_id, did],
+        )
+        .expect("seed extra local identity");
+        identity_id
+    }
+
+    /// Insert a `haex_space_members` row mapping `identity_id` into
+    /// `space_id`. The chokepoint `resolve_local_member_did_for_space`
+    /// consults this join to name the viewer DID for the ScopedCred
+    /// lookup — a test that forgets to seed this row will trip the
+    /// "no local identity joined the space" error.
+    fn seed_space_membership(db: &DbConnection, space_id: &str, identity_id: &str) {
+        let guard = db.0.lock().expect("db lock");
+        let conn = guard.as_ref().expect("db open");
+        conn.execute(
+            "INSERT INTO haex_space_members (id, space_id, identity_id) VALUES (?1, ?2, ?3)",
+            params![Uuid::new_v4().to_string(), space_id, identity_id],
+        )
+        .expect("seed space membership");
     }
 
     /// Seal a fresh `ScopedCred` under the epoch key and insert the
@@ -241,11 +294,17 @@ mod assemble_cloud_provider_tests {
         seed_backend_config(&db, &backend_id, "shared_from_space");
         seed_share_mapping(&db, &backend_id, &space_id);
         seed_mls_key(&db, &space_id, epoch, &sync_key);
-        seed_vault_owner(&db, member_did);
-        // The seal path must use the same file-key that `resolve_key` will
-        // return on the open side — i.e. the domain-separated derivative
-        // of the stored sync_key, not the sync_key itself. Ask the
-        // resolver directly rather than duplicating its derivation.
+        // Vault owner IS the local identity that joined the space — the
+        // simplest topology, and the one every single-identity vault
+        // inhabits in practice. The regression test below covers the
+        // TWO-identity case where the joined DID differs from the
+        // vault-owner DID.
+        let owner_identity_id = seed_vault_owner(&db, member_did);
+        seed_space_membership(&db, &space_id, &owner_identity_id);
+        // Seal via `resolve_key` (production also opens via `resolve_key`),
+        // so the two sides stay in lock-step by construction. The
+        // crypto-scheme invariant itself is owned by
+        // `shared_access/tests.rs` — this test only verifies wire-up.
         let epoch_key = crate::file_sync::crypto::key_resolver::resolve_key(&space_id, epoch, &db)
             .expect("resolve epoch key for test seal");
         seed_shared_access_row(&db, &space_id, &backend_id, member_did, epoch, &epoch_key);
@@ -272,11 +331,78 @@ mod assemble_cloud_provider_tests {
         );
     }
 
+    /// Regression guard for the two-identity case that motivated switching
+    /// from `resolve_vault_owner_did` to
+    /// `resolve_local_member_did_for_space`: a vault whose owner identity
+    /// is `did:key:zVaultOwner`, but the user joined `space-A` with a
+    /// SECOND local identity `did:key:zAltMember`. Task 4's fanout wrote
+    /// the `haex_s3_shared_access` row keyed by `zAltMember` (the identity
+    /// that actually joined), NOT by `zVaultOwner`. Under the pre-fix
+    /// code path this test would fail with a "no shared_access row"
+    /// error because the lookup targeted the wrong DID.
+    #[tokio::test]
+    async fn assemble_cloud_with_space_uses_local_member_did_not_vault_owner_did() {
+        let db = setup_full_db();
+        let space_id = format!("space-{}", Uuid::new_v4().simple());
+        let backend_id = format!("backend-{}", Uuid::new_v4().simple());
+        let vault_owner_did = "did:key:zVaultOwner";
+        let alt_member_did = "did:key:zAltMember";
+        let epoch: u64 = 11;
+
+        seed_backend_config(&db, &backend_id, "shared_from_space");
+        seed_share_mapping(&db, &backend_id, &space_id);
+        seed_mls_key(&db, &space_id, epoch, &random_epoch_key());
+        // Vault-owner identity is NOT joined to space-A.
+        let _ = seed_vault_owner(&db, vault_owner_did);
+        // A second LOCAL identity is the one that joined the space.
+        let alt_identity_id = seed_extra_local_identity(&db, alt_member_did);
+        seed_space_membership(&db, &space_id, &alt_identity_id);
+
+        let epoch_key = crate::file_sync::crypto::key_resolver::resolve_key(&space_id, epoch, &db)
+            .expect("resolve epoch key for test seal");
+        // Row keyed by the JOINED DID (`zAltMember`), not the vault-owner
+        // DID (`zVaultOwner`). Under the buggy code path this row would
+        // never be found because the lookup targeted `zVaultOwner`.
+        seed_shared_access_row(
+            &db,
+            &space_id,
+            &backend_id,
+            alt_member_did,
+            epoch,
+            &epoch_key,
+        );
+
+        let cfg = serde_json::json!({
+            "backendId": backend_id,
+            "spaceId": space_id,
+            "prefix": format!("space-{}/", space_id),
+        });
+        let provider = assemble_cloud_provider(
+            &cfg,
+            "rule-scoped-alt-member",
+            /* is_target */ false,
+            DbConnection(db.0.clone()),
+            slot_with(random_epoch_key()),
+        )
+        .await
+        .expect(
+            "assemble_cloud_provider must succeed when the shared_access row is keyed by the \
+             LOCAL member DID (which differs from the vault-owner DID)",
+        );
+
+        let name = provider.display_name();
+        assert!(
+            name.starts_with("scoped("),
+            "outermost decorator must be ScopedProvider — got display_name={name:?}"
+        );
+    }
+
     /// Space-scoped rule against a shared backend but no
     /// `haex_s3_shared_access` row for the current viewer (revoked, or
-    /// never provisioned) must fail with a clear error — silently falling
-    /// back to the stored owner credentials would ship writes under the
-    /// wrong identity.
+    /// never provisioned) must surface as the semantically-distinct
+    /// [`FileSyncCommandError::NotShared`] variant — the UI needs a
+    /// share-revoked / re-enrollment prompt, not a generic
+    /// config-invalid message.
     #[tokio::test]
     async fn assemble_cloud_without_shared_access_row_errors() {
         let db = setup_full_db();
@@ -289,7 +415,8 @@ mod assemble_cloud_provider_tests {
         seed_backend_config(&db, &backend_id, "shared_from_space");
         seed_share_mapping(&db, &backend_id, &space_id);
         seed_mls_key(&db, &space_id, epoch, &random_epoch_key());
-        seed_vault_owner(&db, member_did);
+        let owner_identity_id = seed_vault_owner(&db, member_did);
+        seed_space_membership(&db, &space_id, &owner_identity_id);
         // Deliberately do NOT insert the haex_s3_shared_access row.
 
         let cfg = serde_json::json!({
@@ -312,22 +439,14 @@ mod assemble_cloud_provider_tests {
             Err(e) => e,
         };
 
-        // Match on the specific variant + message shape — a
-        // ProviderError for a bucket-list timeout would also match
-        // `InvalidConfig(_) | ProviderError(_)` and hide the actual bug.
-        match err {
-            FileSyncCommandError::InvalidConfig(msg) => {
-                assert!(
-                    msg.contains("haex_s3_shared_access"),
-                    "error must call out the missing shared_access row, got: {msg}"
-                );
-                assert!(
-                    msg.contains(member_did),
-                    "error must name the viewer DID that had no row, got: {msg}"
-                );
-            }
-            other => panic!("expected InvalidConfig naming haex_s3_shared_access, got {other:?}"),
-        }
+        // Match on the specific variant. Substring assertions on the
+        // display message would couple the test to prose that may (and
+        // will) be reworded; the variant identity is the load-bearing
+        // contract the UI matches on.
+        assert!(
+            matches!(err, FileSyncCommandError::NotShared { .. }),
+            "expected FileSyncCommandError::NotShared, got {err:?}"
+        );
     }
 
     /// Owner-only rule (no `spaceId`) must NOT install `ScopedProvider`.
