@@ -40,8 +40,10 @@ use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 struct MockIamAdapter {
     probe_result: Mutex<Result<bool, IamAdapterError>>,
     create_result: Mutex<Result<ScopedCred, IamAdapterError>>,
-    /// (user_name, access_key_id) tuples of every `delete_scoped_user` call.
-    delete_calls: Arc<Mutex<Vec<(String, String)>>>,
+    /// `user_name`s of every `delete_scoped_user` call. Round F3b's trait
+    /// change: revoke no longer knows the access-key id — the adapter
+    /// enumerates internally — so the mock records only the user name.
+    delete_calls: Arc<Mutex<Vec<String>>>,
     /// (user_name, policy_json_length) tuples of every `create_scoped_user`
     /// call — the JSON body itself is small but we only need a shape probe.
     create_calls: Arc<Mutex<Vec<(String, usize)>>>,
@@ -82,15 +84,11 @@ impl IamAdapter for MockIamAdapter {
         )
     }
 
-    async fn delete_scoped_user(
-        &self,
-        user_name: &str,
-        access_key_id: &str,
-    ) -> Result<(), IamAdapterError> {
+    async fn delete_scoped_user(&self, user_name: &str) -> Result<(), IamAdapterError> {
         self.delete_calls
             .lock()
             .unwrap()
-            .push((user_name.to_string(), access_key_id.to_string()));
+            .push(user_name.to_string());
         Ok(())
     }
 
@@ -146,6 +144,25 @@ fn rand_epoch_resolver() -> MockEpochResolver {
     MockEpochResolver {
         epoch: rand::random::<u32>() as u64, // non-zero-ish; u32 keeps the number readable in logs
         epoch_key: rand::random(),
+    }
+}
+
+/// Always fails with [`KeyError::MlsEpochUnavailable`]. Used by the
+/// fanout-failure rollback test — a resolver error is the widest surface
+/// for exercising `rollback_child_backend_and_iam`, since it aborts the
+/// fanout before any shared_access row is written.
+struct FailingEpochResolver;
+
+impl EpochResolver for FailingEpochResolver {
+    fn resolve_latest(
+        &self,
+        _db: &DbConnection,
+        space_id: &str,
+    ) -> Result<(u64, [u8; 32]), KeyError> {
+        Err(KeyError::MlsEpochUnavailable {
+            space_id: space_id.to_string(),
+            reason: "test-injected failure".to_string(),
+        })
     }
 }
 
@@ -763,15 +780,26 @@ async fn db_failure_after_iam_success_calls_delete_scoped_user() {
     );
 
     // Now: the adapter must have received exactly one delete call, targeting
-    // the same user_name + access_key_id it just handed out.
+    // a user_name matching the "haex-share-" prefix minted by
+    // `share_storage_backend_core`. Round F3b: the trait's
+    // `delete_scoped_user` takes only the user_name and enumerates access
+    // keys internally, so the mock only records the user_name.
+    //
+    // Note: the mock's `create_scoped_user` returns a pre-scripted
+    // `ScopedCred` whose `iam_user_name` differs from the vault-generated
+    // `user_name` — the delete argument is the vault's own value, so we
+    // assert the shape, not string-equality with `scoped.iam_user_name`.
     let deletes = adapter.delete_calls.lock().unwrap();
     assert_eq!(
         deletes.len(),
         1,
         "adapter.delete_scoped_user must be called once on DB failure"
     );
-    assert_eq!(deletes[0].1, scoped.access_key_id);
-    assert!(deletes[0].0.starts_with("haex-share-"));
+    assert!(
+        deletes[0].starts_with("haex-share-"),
+        "delete arg must be the vault-minted user_name, got {}",
+        deletes[0]
+    );
 
     // Orphan invariant: the s3_backends row for this parent must have been
     // cleaned up when the mapping insert failed. Only the seeded owner row
@@ -972,6 +1000,118 @@ async fn share_storage_backend_writes_sealed_scoped_cred_to_shared_access_and_om
     assert!(
         child_config.get("bucket").is_some() || child_config.get("endpoint").is_some(),
         "at least one structural field must still be present in child config"
+    );
+}
+
+#[tokio::test]
+async fn fanout_failure_rolls_back_child_backend_iam_and_shared_access() {
+    // I1: `write_shared_access_fanout` is the widest side-effect surface
+    // opened in Round F3b Task 4. If it fails, `rollback_child_backend_and_iam`
+    // must tear down all four artefacts:
+    //   - the provider-side IAM user
+    //   - the child `haex_s3_backends` row
+    //   - the `haex_shared_space_sync` mapping row
+    //   - any `haex_s3_shared_access` rows already written for that child
+    //
+    // We inject a `FailingEpochResolver` — the fanout aborts at the very
+    // first step (before writing any shared_access row), which exercises
+    // the widest rollback path (all downstream artefacts are already
+    // committed and must be undone).
+    let (db, hlc, storage_id, space_id) = setup_share_db();
+    let scoped = make_scoped_cred();
+    let adapter = Arc::new(MockIamAdapter::new(Ok(true), Ok(scoped.clone())));
+    let factory = MockIamAdapterFactory {
+        adapter: adapter.clone(),
+    };
+    let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
+
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &FailingEpochResolver,
+    )
+    .await
+    .expect_err("fanout must fail");
+    // The resolver error bubbles up as `Internal` (write_shared_access_fanout
+    // maps `KeyError` into that variant).
+    assert!(
+        matches!(err, StorageError::Internal { .. }),
+        "expected StorageError::Internal from failed epoch resolution, got {err:?}"
+    );
+
+    // Assertion 1: IAM `delete_scoped_user` was recorded exactly once — the
+    // rollback fired. The delete arg is the vault-minted user_name (a
+    // "haex-share-<uuid>" string), not `scoped.iam_user_name` (the mock's
+    // pre-scripted return value the vault code never uses as its own
+    // user_name).
+    let deletes = adapter.delete_calls.lock().unwrap();
+    assert_eq!(
+        deletes.len(),
+        1,
+        "IAM delete_scoped_user must be called once on fanout rollback, got {deletes:?}"
+    );
+    assert!(
+        deletes[0].starts_with("haex-share-"),
+        "rollback delete arg must be the vault-minted user_name, got {}",
+        deletes[0]
+    );
+    drop(deletes);
+
+    // Assertion 2: no child `haex_s3_backends` row remains for this parent.
+    let child_count: i64 = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM haex_s3_backends \
+             WHERE parent_backend_id = ?1 AND origin_type = 'shared_from_space'",
+            [&storage_id],
+            |row| row.get(0),
+        )
+        .expect("count child backend rows")
+    };
+    assert_eq!(
+        child_count, 0,
+        "child haex_s3_backends row must be rolled back"
+    );
+
+    // Assertion 3: no `haex_s3_shared_access` row remains for this space
+    // (the fanout failed on epoch resolution before writing any row; the
+    // rollback DELETE is still valid — it must be a no-op that leaves the
+    // table empty).
+    let sa_count: i64 = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM haex_s3_shared_access WHERE space_id = ?1",
+            [&space_id],
+            |row| row.get(0),
+        )
+        .expect("count shared_access rows")
+    };
+    assert_eq!(
+        sa_count, 0,
+        "no haex_s3_shared_access rows must survive fanout rollback"
+    );
+
+    // Assertion 4: no `haex_shared_space_sync` mapping row remains for this
+    // space + parent tuple.
+    let map_count: i64 = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM haex_shared_space_sync \
+             WHERE space_id = ?1 AND table_name = 'haex_s3_backends'",
+            [&space_id],
+            |row| row.get(0),
+        )
+        .expect("count mapping rows")
+    };
+    assert_eq!(
+        map_count, 0,
+        "haex_shared_space_sync mapping row must be rolled back"
     );
 }
 

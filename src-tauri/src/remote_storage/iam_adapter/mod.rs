@@ -93,14 +93,18 @@ pub trait IamAdapter: Send + Sync {
         policy: &IamPolicy,
     ) -> Result<ScopedCred, IamAdapterError>;
 
-    /// Revoke a previously-issued scoped user. Idempotent: a missing
-    /// access-key, policy, or user is treated as success (the underlying
-    /// `NoSuchEntity` response is swallowed).
-    async fn delete_scoped_user(
-        &self,
-        user_name: &str,
-        access_key_id: &str,
-    ) -> Result<(), IamAdapterError>;
+    /// Revoke a previously-issued scoped user by name — enumerates and
+    /// deletes every access-key attached to the user, then deletes the
+    /// inline policy and the user itself.
+    ///
+    /// Idempotent: a missing access-key, policy, or user is treated as
+    /// success (`NoSuchEntity` at any step is swallowed).
+    ///
+    /// Round F3b removed cred material from the child backend row's config
+    /// JSON, so callers no longer know the access-key id upfront — the
+    /// adapter discovers it from the provider. This is why the signature
+    /// takes only `user_name`.
+    async fn delete_scoped_user(&self, user_name: &str) -> Result<(), IamAdapterError>;
 
     /// Cheap probe to check whether the admin cred has enough IAM
     /// permission to run the share workflow. Used by the pre-share

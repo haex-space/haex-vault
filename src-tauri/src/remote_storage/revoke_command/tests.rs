@@ -42,10 +42,14 @@ use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 /// `probe_iam_capability`, but we still implement them (returning `NotFound`)
 /// so the trait bound is satisfied. If a test unexpectedly hits either it
 /// gets a distinct error variant rather than a panic.
+///
+/// Round F3b: `delete_scoped_user` now takes only `user_name` — the real
+/// adapter discovers access-key ids via `ListAccessKeys` before deleting
+/// them. The mock records only `user_name`.
 struct MockIamAdapter {
     delete_result: Mutex<Result<(), IamAdapterError>>,
-    /// (user_name, access_key_id) tuples of every `delete_scoped_user` call.
-    delete_calls: Arc<Mutex<Vec<(String, String)>>>,
+    /// Every `user_name` passed to `delete_scoped_user`.
+    delete_calls: Arc<Mutex<Vec<String>>>,
 }
 
 impl MockIamAdapter {
@@ -70,15 +74,11 @@ impl IamAdapter for MockIamAdapter {
         ))
     }
 
-    async fn delete_scoped_user(
-        &self,
-        user_name: &str,
-        access_key_id: &str,
-    ) -> Result<(), IamAdapterError> {
+    async fn delete_scoped_user(&self, user_name: &str) -> Result<(), IamAdapterError> {
         self.delete_calls
             .lock()
             .unwrap()
-            .push((user_name.to_string(), access_key_id.to_string()));
+            .push(user_name.to_string());
         // Replace the slot with `NotFound` so a caller that erroneously
         // re-invokes the mock sees a distinct signal rather than the same
         // scripted result twice.
@@ -241,6 +241,7 @@ fn setup_revoke_db() -> (DbConnection, HlcService, String) {
 struct SeededShare {
     shared_id: String,
     iam_user_name: String,
+    #[allow(dead_code)]
     access_key_id: String,
     space_id: String,
 }
@@ -248,11 +249,18 @@ struct SeededShare {
 /// Insert one `shared_from_space` row + its mapping. Also stores an
 /// `IamAdminCred` for the parent (so revoke's cred load succeeds) unless
 /// `skip_admin_cred` is true.
+///
+/// `omit_access_key_id_in_config` mirrors the Round F3b post-cutover shape:
+/// the child backend config no longer carries cred material. Existing tests
+/// (that pre-date the cutover) still pass `false` — the presence of the
+/// field in the config JSON is irrelevant to the new revoke flow, which
+/// discovers keys via the IAM adapter.
 fn seed_share(
     db: &DbConnection,
     hlc: &HlcService,
     parent_id: &str,
     skip_admin_cred: bool,
+    omit_access_key_id_in_config: bool,
 ) -> SeededShare {
     let shared_id = rand_string("shared");
     let space_id = rand_string("space");
@@ -260,16 +268,28 @@ fn seed_share(
     let access_key_id = rand_string("ASIA");
     let mapping_id = rand_string("map");
 
-    let shared_config = serde_json::json!({
-        "endpoint": "https://s3.example.com",
-        "bucket": "my-bucket",
-        "region": "us-east-1",
-        "pathStyle": true,
-        "accessKeyId": access_key_id.clone(),
-        "secretAccessKey": "scoped-secret",
-        "iamUserName": iam_user_name.clone(),
-    })
-    .to_string();
+    let shared_config = if omit_access_key_id_in_config {
+        // Post-F3b shape: structural fields + iamUserName only, no cred.
+        serde_json::json!({
+            "endpoint": "https://s3.example.com",
+            "bucket": "my-bucket",
+            "region": "us-east-1",
+            "pathStyle": true,
+            "iamUserName": iam_user_name.clone(),
+        })
+        .to_string()
+    } else {
+        serde_json::json!({
+            "endpoint": "https://s3.example.com",
+            "bucket": "my-bucket",
+            "region": "us-east-1",
+            "pathStyle": true,
+            "accessKeyId": access_key_id.clone(),
+            "secretAccessKey": "scoped-secret",
+            "iamUserName": iam_user_name.clone(),
+        })
+        .to_string()
+    };
 
     let row_pks = serde_json::to_string(&vec![shared_id.clone()]).expect("row_pks json");
 
@@ -349,7 +369,7 @@ fn mapping_exists_for_shared(db: &DbConnection, shared_id: &str) -> bool {
 #[tokio::test]
 async fn happy_path_deletes_iam_user_and_both_db_rows() {
     let (db, hlc, parent_id) = setup_revoke_db();
-    let seeded = seed_share(&db, &hlc, &parent_id, false);
+    let seeded = seed_share(&db, &hlc, &parent_id, false, false);
     let adapter = Arc::new(MockIamAdapter::new(Ok(())));
     let factory = MockIamAdapterFactory {
         adapter: adapter.clone(),
@@ -367,16 +387,17 @@ async fn happy_path_deletes_iam_user_and_both_db_rows() {
     .await
     .expect("revoke should succeed");
 
-    // Adapter received exactly one delete call with matching args.
+    // Adapter received exactly one delete call with the correct IAM user.
+    // Round F3b: the trait's `delete_scoped_user` takes only `user_name` —
+    // the aws_compat impl enumerates access-key ids internally at revoke
+    // time. The stored `seeded.access_key_id` is no longer part of the
+    // vault→adapter interface; the fixture keeps it for historical shape
+    // but the assertion moves to `iam_user_name`.
     let deletes = adapter.delete_calls.lock().unwrap();
     assert_eq!(deletes.len(), 1, "adapter.delete_scoped_user called once");
     assert_eq!(
-        deletes[0].0, seeded.iam_user_name,
+        deletes[0], seeded.iam_user_name,
         "must delete the right IAM user"
-    );
-    assert_eq!(
-        deletes[0].1, seeded.access_key_id,
-        "must delete the right access key"
     );
     drop(deletes);
 
@@ -479,7 +500,7 @@ async fn not_a_share_row_when_passed_owned_backend_id() {
 #[tokio::test]
 async fn iam_admin_cred_missing_when_no_cred_stored() {
     let (db, hlc, parent_id) = setup_revoke_db();
-    let seeded = seed_share(&db, &hlc, &parent_id, true); // skip_admin_cred
+    let seeded = seed_share(&db, &hlc, &parent_id, true, false); // skip_admin_cred
     let adapter = Arc::new(MockIamAdapter::new(Ok(())));
     let factory = MockIamAdapterFactory {
         adapter: adapter.clone(),
@@ -531,7 +552,7 @@ async fn iam_not_found_is_idempotent_db_still_cleaned() {
     // The IAM user may already be gone (user did manual cleanup at provider,
     // or a prior partial revoke fired). Revoke should complete + clean DB.
     let (db, hlc, parent_id) = setup_revoke_db();
-    let seeded = seed_share(&db, &hlc, &parent_id, false);
+    let seeded = seed_share(&db, &hlc, &parent_id, false, false);
     let adapter = Arc::new(MockIamAdapter::new(Err(IamAdapterError::NotFound)));
     let factory = MockIamAdapterFactory {
         adapter: adapter.clone(),
@@ -562,6 +583,61 @@ async fn iam_not_found_is_idempotent_db_still_cleaned() {
 }
 
 // ---------------------------------------------------------------------------
+// F3b regression: revoke succeeds when the child config lacks accessKeyId
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn revoke_succeeds_when_config_missing_access_key_id() {
+    // C1: Round F3b's `share_storage_backend_core` strips cred fields
+    // (accessKeyId / secretAccessKey / sessionToken) out of the child
+    // backend row's config JSON. `revoke_storage_share_core` must NOT
+    // read those fields — it only needs `iamUserName` from the config,
+    // and the trait's `delete_scoped_user` enumerates access keys at
+    // the provider on its own.
+    //
+    // Regression cover: a share row written under F3b (no accessKeyId in
+    // the config) must revoke cleanly.
+    let (db, hlc, parent_id) = setup_revoke_db();
+    let seeded = seed_share(&db, &hlc, &parent_id, false, true);
+    let adapter = Arc::new(MockIamAdapter::new(Ok(())));
+    let factory = MockIamAdapterFactory {
+        adapter: adapter.clone(),
+    };
+
+    revoke_storage_share_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        RevokeStorageShareArgs {
+            shared_backend_id: seeded.shared_id.clone(),
+        },
+        &factory,
+    )
+    .await
+    .expect("revoke must succeed even when accessKeyId is absent from config");
+
+    // Adapter called once, with the seeded iam_user_name.
+    let deletes = adapter.delete_calls.lock().unwrap();
+    assert_eq!(
+        deletes.len(),
+        1,
+        "adapter.delete_scoped_user must be called once even without config accessKeyId"
+    );
+    assert_eq!(deletes[0], seeded.iam_user_name);
+    drop(deletes);
+
+    // Both DB rows gone.
+    assert!(
+        !shared_backend_exists(&db, &seeded.shared_id),
+        "shared s3_backends row must be deleted"
+    );
+    assert!(
+        !mapping_exists_for_shared(&db, &seeded.shared_id),
+        "haex_shared_space_sync mapping must be deleted"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // IAM error path leaves DB alone
 // ---------------------------------------------------------------------------
 
@@ -571,7 +647,7 @@ async fn iam_other_error_prevents_db_deletion() {
     // NOT touch the DB — a subsequent retry needs to find the same rows to
     // re-drive the flow.
     let (db, hlc, parent_id) = setup_revoke_db();
-    let seeded = seed_share(&db, &hlc, &parent_id, false);
+    let seeded = seed_share(&db, &hlc, &parent_id, false, false);
     let adapter = Arc::new(MockIamAdapter::new(Err(IamAdapterError::Network(
         "transient boom".to_string(),
     ))));
@@ -626,7 +702,7 @@ async fn db_delete_failure_after_iam_success_surfaces_error() {
     // AFTER the IAM adapter has already succeeded. The command must surface
     // a DatabaseError; the s3_backends row remains untouched.
     let (db, hlc, parent_id) = setup_revoke_db();
-    let seeded = seed_share(&db, &hlc, &parent_id, false);
+    let seeded = seed_share(&db, &hlc, &parent_id, false, false);
 
     {
         let guard = db.0.lock().unwrap();
@@ -728,7 +804,7 @@ async fn parent_with_non_owned_origin_still_permits_revoke() {
     // check must let the revoke proceed rather than raise a misleading
     // ParentBackendMissing.
     let (db, hlc, parent_id) = setup_revoke_db();
-    let seeded = seed_share(&db, &hlc, &parent_id, false);
+    let seeded = seed_share(&db, &hlc, &parent_id, false, false);
 
     // Corrupt the parent's origin_type.
     {
@@ -770,7 +846,7 @@ async fn parent_absent_still_returns_parent_backend_missing() {
     // existence check. If the parent row is truly absent, the flow still has
     // to bail with ParentBackendMissing before touching IAM.
     let (db, hlc, parent_id) = setup_revoke_db();
-    let seeded = seed_share(&db, &hlc, &parent_id, false);
+    let seeded = seed_share(&db, &hlc, &parent_id, false, false);
 
     // Delete the parent row directly (bypass CRDT path — we want the row
     // gone from the base table for the existence-check target).

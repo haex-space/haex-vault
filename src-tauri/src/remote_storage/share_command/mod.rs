@@ -455,6 +455,14 @@ pub(crate) async fn share_storage_backend_core(
     // Idempotency: if a shared-backend row + mapping already exist for this
     // (parent, space, prefix, flags) tuple, return it unchanged. Guards
     // against double-clicks provisioning a second IAM user (real AWS $).
+    //
+    // Idempotent short-circuit invariant: this returns the existing
+    // `SharedStorageBackend` WITHOUT re-running `write_shared_access_fanout`.
+    // It assumes the `haex_s3_shared_access` rows minted at initial share are
+    // still present. A housekeeping delete or an interrupted rollback that
+    // removed them will NOT be repaired here — receivers will see the child
+    // row but cannot resolve creds. Repair must go through a dedicated flow
+    // (F5's rewrap orchestration).
     if let Some(existing) = find_existing_share(
         db,
         &args.storage_id,
@@ -573,10 +581,7 @@ pub(crate) async fn share_storage_backend_core(
         // Best-effort rollback so we don't leave an orphan behind. Any
         // failure is logged; the DB error is what we surface, because
         // that's the actionable one.
-        if let Err(rollback_err) = adapter
-            .delete_scoped_user(&user_name, &scoped_cred.access_key_id)
-            .await
-        {
+        if let Err(rollback_err) = adapter.delete_scoped_user(&user_name).await {
             tracing::warn!(
                 user_name = %user_name,
                 db_error = %db_err,
@@ -617,7 +622,6 @@ pub(crate) async fn share_storage_backend_core(
             &new_row_id,
             &args.space_id,
             &user_name,
-            &scoped_cred.access_key_id,
         )
         .await;
         return Err(err);
@@ -836,6 +840,15 @@ fn persist_shared_backend(
 /// (`rollback_child_backend_and_iam`) tears the child backend row +
 /// already-written shared_access rows + the provider-side IAM user back
 /// out again so the DB stays consistent.
+///
+/// **Epoch race:** the epoch is resolved ONCE at the start of the fanout
+/// and threaded into every row. If a concurrent MLS commit rotates the
+/// epoch mid-fanout, some rows will carry an epoch that is no longer
+/// current. Receivers depend on `haex_mls_sync_keys` history to open
+/// under the old epoch — see [`key_resolver::resolve_key`], which looks
+/// up the row's stamped epoch exactly and refuses silent fallback. F5's
+/// revocation orchestration must preserve that history guarantee, or a
+/// mid-fanout rotate becomes a silent decrypt-failure for those rows.
 fn write_shared_access_fanout(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
@@ -892,6 +905,11 @@ fn write_shared_access_fanout(
 /// SQL `DISTINCT` — a single identity mapped twice would otherwise write
 /// two shared_access rows against the same UNIQUE (space, backend, did)
 /// index, and the second upsert would just overwrite the first.
+///
+/// Empty DIDs are filtered out: `get_string` returns `""` on NULL or
+/// non-string cells, and a `haex_identities` row with a NULL `did` would
+/// otherwise silently mint a shared_access row with `member_did=""` that
+/// no receiver could ever match.
 fn load_space_member_dids(
     db: &crate::database::DbConnection,
     space_id: &str,
@@ -909,7 +927,11 @@ fn load_space_member_dids(
     .map_err(|e| StorageError::DatabaseError {
         reason: format!("load member dids for space {space_id}: {e}"),
     })?;
-    Ok(rows.into_iter().map(|r| get_string(&r, 0)).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| get_string(&r, 0))
+        .filter(|s| !s.is_empty())
+        .collect())
 }
 
 /// Best-effort rollback after the shared-access fanout fails: delete any
@@ -926,7 +948,6 @@ async fn rollback_child_backend_and_iam(
     child_backend_id: &str,
     space_id: &str,
     iam_user_name: &str,
-    iam_access_key_id: &str,
 ) {
     // Scope the hlc_guard tightly so its `std::sync::MutexGuard` — which is
     // NOT `Send` — does not live across the `await` below (the compiler
@@ -1013,10 +1034,7 @@ async fn rollback_child_backend_and_iam(
     //    is the same class as the existing persist-failure rollback:
     //    logged, swallowed, the user is potentially orphaned on the
     //    provider (real AWS $) but the DB is now consistent.
-    if let Err(e) = adapter
-        .delete_scoped_user(iam_user_name, iam_access_key_id)
-        .await
-    {
+    if let Err(e) = adapter.delete_scoped_user(iam_user_name).await {
         tracing::warn!(
             user_name = %iam_user_name,
             error = %e,

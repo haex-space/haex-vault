@@ -530,12 +530,13 @@ impl IamAdapter for AwsCompatIamAdapter {
         }
     }
 
-    async fn delete_scoped_user(
-        &self,
-        user_name: &str,
-        access_key_id: &str,
-    ) -> Result<(), IamAdapterError> {
-        self.try_cleanup_user(user_name, Some(access_key_id)).await
+    async fn delete_scoped_user(&self, user_name: &str) -> Result<(), IamAdapterError> {
+        // `None` tells `try_cleanup_user` to discover the access-key ids
+        // via `ListAccessKeys` and delete each one before removing the
+        // inline policy + user. Since Round F3b the vault no longer stores
+        // the access-key id in the child backend row's config JSON, so the
+        // adapter is the only place that knows which keys to tear down.
+        self.try_cleanup_user(user_name, None).await
     }
 
     async fn probe_iam_capability(&self) -> Result<bool, IamAdapterError> {

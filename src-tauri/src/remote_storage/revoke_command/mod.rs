@@ -13,10 +13,14 @@
 //! # Order of operations
 //!
 //! 1. Load the shared row + verify `origin_type = 'shared_from_space'`.
-//! 2. Extract `iamUserName` + `accessKeyId` from the row's config JSON.
+//! 2. Extract `iamUserName` from the row's config JSON — the access-key id
+//!    is discovered from the provider at revoke time (Round F3b sanitised
+//!    cred material out of the config).
 //! 3. Load the parent backend row (data-integrity check).
 //! 4. Load the [`crate::remote_storage::iam_admin_creds::IamAdminCred`] for the parent id.
-//! 5. Delete the scoped IAM user at the provider (idempotent: `NotFound` ok).
+//! 5. Delete the scoped IAM user at the provider — the adapter enumerates
+//!    and deletes every attached access-key before removing the inline
+//!    policy + user. Idempotent: `NotFound` is treated as success.
 //! 6. Delete the mapping row, then the s3_backends row.
 //!
 //! **IAM-first ordering is deliberate**: if the IAM delete fails with
@@ -63,11 +67,15 @@ pub struct RevokeStorageShareArgs {
 // ---------------------------------------------------------------------------
 
 /// Minimal projection of the shared row required by the revoke flow.
+///
+/// Since Round F3b, the child backend row's config JSON carries only
+/// structural fields plus `iamUserName` — the scoped access-key id is
+/// discovered from the IAM provider at revoke time via
+/// [`IamAdapter::list_access_key_ids`].
 #[derive(Debug)]
 struct SharedRow {
     parent_backend_id: String,
     iam_user_name: String,
-    access_key_id: String,
 }
 
 fn load_shared_row(
@@ -124,18 +132,9 @@ fn load_shared_row(
         })?
         .to_string();
 
-    let access_key_id = config
-        .get("accessKeyId")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| StorageError::InvalidConfig {
-            reason: "shared backend config missing 'accessKeyId' field".to_string(),
-        })?
-        .to_string();
-
     Ok(SharedRow {
         parent_backend_id,
         iam_user_name,
-        access_key_id,
     })
 }
 
@@ -319,15 +318,19 @@ pub(crate) async fn revoke_storage_share_core(
                 reason: e.to_string(),
             })?;
 
-    // 5. Provider-side delete. `NotFound` is idempotent — the user may
-    //    already be gone (manual cleanup, prior partial revoke, or the
-    //    adapter's own best-effort inner delete swallowed the outer
-    //    NoSuchEntity). Everything else halts the flow before we touch the
-    //    DB, so a retry can find the same rows.
-    match adapter
-        .delete_scoped_user(&shared.iam_user_name, &shared.access_key_id)
-        .await
-    {
+    // 5. Provider-side delete. Round F3b stripped the access-key id out of
+    //    the child config's JSON, so the adapter is the only place that
+    //    knows which keys the scoped user still has. `delete_scoped_user`
+    //    now takes only the user_name — the adapter enumerates via
+    //    `list_access_key_ids` internally and deletes each attached key
+    //    before removing the inline policy + user.
+    //
+    //    `NotFound` is idempotent — the user may already be gone (manual
+    //    cleanup, prior partial revoke, or the adapter's own best-effort
+    //    inner delete swallowed the outer NoSuchEntity). Everything else
+    //    halts the flow before we touch the DB, so a retry can find the
+    //    same rows.
+    match adapter.delete_scoped_user(&shared.iam_user_name).await {
         Ok(()) => {}
         Err(IamAdapterError::NotFound) => {
             tracing::info!(
