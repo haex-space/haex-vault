@@ -233,6 +233,16 @@ impl SpaceContentSyncProvider {
         &self,
         content_key: &str,
     ) -> Result<Zeroizing<[u8; DEK_LEN]>, ProviderCryptoError> {
+        Ok(self.open_space_sidecar(content_key).await?.1)
+    }
+
+    /// Open a space sidecar and its wrapped DEK. The envelope epoch selects
+    /// the key that seals the sidecar bytes; `wrapped_dek_epoch` selects the
+    /// key that wraps the DEK, which may differ after a future rewrap.
+    async fn open_space_sidecar(
+        &self,
+        content_key: &str,
+    ) -> Result<(SidecarPayload, Zeroizing<[u8; DEK_LEN]>), ProviderCryptoError> {
         let sidecar_key = space_sidecar_key_for(&self.space_id, content_key);
         let bytes = self.inner.read_file(&sidecar_key).await?;
         let envelope_epoch = EnvelopeHeader::parse(&bytes)
@@ -249,7 +259,8 @@ impl SpaceContentSyncProvider {
             self.resolver
                 .resolve_key(&self.space_id, dek_epoch, &self.db)?
         };
-        Ok(unwrap_dek(&dek_kek, &payload.wrapped_dek)?)
+        let dek = unwrap_dek(&dek_kek, &payload.wrapped_dek)?;
+        Ok((payload, dek))
     }
 
     fn content_key_for_read(&self, relative_path: &str) -> Result<String, ProviderCryptoError> {
@@ -309,39 +320,10 @@ impl SyncProvider for SpaceContentSyncProvider {
             .content_key_for_read(relative_path)
             .map_err(SyncProviderError::from)?;
 
-        let sidecar_key = space_sidecar_key_for(&self.space_id, &content_key);
-        let sidecar_bytes = self.inner.read_file(&sidecar_key).await?;
-
-        let envelope_epoch = EnvelopeHeader::parse(&sidecar_bytes)
-            .map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?
-            .epoch;
-        let envelope_kek = self
-            .resolver
-            .resolve_key(&self.space_id, envelope_epoch, &self.db)
-            .map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?;
-        let (_, payload) =
-            open_sidecar(&envelope_kek, &sidecar_bytes).map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?;
-
-        let dek_epoch = payload.wrapped_dek_epoch.unwrap_or(envelope_epoch);
-        let dek_kek = if dek_epoch == envelope_epoch {
-            envelope_kek
-        } else {
-            self.resolver
-                .resolve_key(&self.space_id, dek_epoch, &self.db)
-                .map_err(|e| SyncProviderError::Other {
-                    reason: e.to_string(),
-                })?
-        };
-        let dek =
-            unwrap_dek(&dek_kek, &payload.wrapped_dek).map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?;
+        let (payload, dek) = self
+            .open_space_sidecar(&content_key)
+            .await
+            .map_err(SyncProviderError::from)?;
 
         let ciphertext = self.inner.read_file(&payload.content_key).await?;
         let (_, plaintext) =
@@ -363,37 +345,10 @@ impl SyncProvider for SpaceContentSyncProvider {
             .content_key_for_read(relative_path)
             .map_err(SyncProviderError::from)?;
 
-        let sidecar_key = space_sidecar_key_for(&self.space_id, &content_key);
-        let sidecar_bytes = self.inner.read_file(&sidecar_key).await?;
-        let envelope_epoch = EnvelopeHeader::parse(&sidecar_bytes)
-            .map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?
-            .epoch;
-        let envelope_kek = self
-            .resolver
-            .resolve_key(&self.space_id, envelope_epoch, &self.db)
-            .map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?;
-        let (_, payload) =
-            open_sidecar(&envelope_kek, &sidecar_bytes).map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?;
-        let dek_epoch = payload.wrapped_dek_epoch.unwrap_or(envelope_epoch);
-        let dek_kek = if dek_epoch == envelope_epoch {
-            envelope_kek
-        } else {
-            self.resolver
-                .resolve_key(&self.space_id, dek_epoch, &self.db)
-                .map_err(|e| SyncProviderError::Other {
-                    reason: e.to_string(),
-                })?
-        };
-        let dek =
-            unwrap_dek(&dek_kek, &payload.wrapped_dek).map_err(|e| SyncProviderError::Other {
-                reason: e.to_string(),
-            })?;
+        let (payload, dek) = self
+            .open_space_sidecar(&content_key)
+            .await
+            .map_err(SyncProviderError::from)?;
 
         if let Some(parent) = output_path.parent() {
             tokio::fs::create_dir_all(parent)
