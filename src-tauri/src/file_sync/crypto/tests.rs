@@ -651,6 +651,7 @@ mod sidecar {
         SidecarPayload {
             content_key: "content/o/0123456789abcdef0123456789abcdef".to_string(),
             wrapped_dek: vec![0u8; 32],
+            wrapped_dek_epoch: None,
             relative_path: "docs/report.pdf".to_string(),
             size: 123_456,
             modified_at: 1_700_000_000,
@@ -1000,6 +1001,7 @@ mod object_key {
             &SidecarPayload {
                 content_key: String::new(),
                 wrapped_dek: Vec::new(),
+                wrapped_dek_epoch: None,
                 relative_path: "notes/todo.md".to_string(),
                 size: 42,
                 modified_at: 1_700_000_000,
@@ -1038,6 +1040,7 @@ mod object_key {
             &SidecarPayload {
                 content_key: String::new(),
                 wrapped_dek: Vec::new(),
+                wrapped_dek_epoch: None,
                 relative_path: "a.txt".to_string(),
                 size: 1,
                 modified_at: 1,
@@ -1093,6 +1096,7 @@ mod object_key {
             &SidecarPayload {
                 content_key: String::new(),
                 wrapped_dek: Vec::new(),
+                wrapped_dek_epoch: None,
                 relative_path: "orphaned.txt".to_string(),
                 size: 0,
                 modified_at: 0,
@@ -1131,6 +1135,7 @@ mod object_key {
             &SidecarPayload {
                 content_key: String::new(),
                 wrapped_dek: Vec::new(),
+                wrapped_dek_epoch: None,
                 relative_path: "good.txt".to_string(),
                 size: 5,
                 modified_at: 5,
@@ -1146,6 +1151,7 @@ mod object_key {
             &SidecarPayload {
                 content_key: String::new(),
                 wrapped_dek: Vec::new(),
+                wrapped_dek_epoch: None,
                 relative_path: "bad.txt".to_string(),
                 size: 5,
                 modified_at: 5,
@@ -1182,6 +1188,7 @@ mod object_key {
             &SidecarPayload {
                 content_key: String::new(),
                 wrapped_dek: Vec::new(),
+                wrapped_dek_epoch: None,
                 relative_path: "one.txt".to_string(),
                 size: 1,
                 modified_at: 1,
@@ -1884,6 +1891,574 @@ mod provider {
                 "surviving old sidecar must still open new content (DEK reused on rewrite)",
             );
             assert_eq!(got, b"v2-longer-payload".to_vec());
+        }
+    }
+
+    /// Round F2c — wire-up seam.
+    ///
+    /// `crate::file_sync::commands::wrap_cloud_with_encryption_if_configured`
+    /// is the sole non-test call site that instantiates
+    /// [`EncryptingSyncProvider`]. F2b already routes it through the new
+    /// own-vault DEK/KEK path, but F2b's own tests exercise the
+    /// decorator by calling `::new` directly — a wire-up bug that
+    /// dropped the `vault_key` slot on the floor inside the wrap helper
+    /// would slip past them. These tests pin the seam: the wrapped
+    /// provider must observably use the caller-supplied slot.
+    mod wrap_helper {
+        use std::sync::Arc;
+
+        use uuid::Uuid;
+
+        use super::super::super::super::commands::wrap_cloud_with_encryption_if_configured;
+        use super::super::super::sidecar::open_sidecar;
+        use super::{random_key, setup_db, slot_with, FakeProvider};
+        use crate::database::DbConnection;
+
+        /// Bytes round-trip through the wrap helper, end-to-end. Tracer
+        /// bullet for the wire-up: constructs the exact provider stack
+        /// `create_provider` builds in production and verifies bytes
+        /// survive a write → read cycle.
+        #[tokio::test]
+        async fn wrap_helper_roundtrips_own_vault_bytes() {
+            let db = setup_db();
+            let slot = slot_with(random_key());
+            let inner: Arc<dyn crate::file_sync::provider::SyncProvider> =
+                Arc::new(FakeProvider::default());
+
+            let wrapped = wrap_cloud_with_encryption_if_configured(
+                inner,
+                &serde_json::json!({}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db.0.clone()),
+                slot,
+            )
+            .expect("wrap helper");
+
+            let plaintext = b"wire-up smoke".to_vec();
+            wrapped
+                .write_file("note.txt", &plaintext)
+                .await
+                .expect("write");
+            let got = wrapped.read_file("note.txt").await.expect("read");
+            assert_eq!(got, plaintext);
+        }
+
+        /// The wrap helper must observably read the vault-key from the
+        /// caller-supplied slot — not from a hard-coded default,
+        /// environment lookup, or dropped-on-the-floor sentinel. Two
+        /// wrapped providers built with the **same** `rule_id` but
+        /// **different** vault-key slots must each seal their sidecar
+        /// under the slot's KEK: every `own/*.m` opens under its
+        /// matching vault_key and refuses under the other.
+        ///
+        /// Comparing content ciphertexts would not prove this — each
+        /// write draws a fresh random content-nonce, so two writes
+        /// always produce disjoint ciphertexts regardless of the key.
+        /// Sidecar-open discrimination is the actual invariant: if the
+        /// slot were dropped and both providers sealed under the same
+        /// default, either key would open either sidecar.
+        #[tokio::test]
+        async fn wrap_helper_threads_vault_key_from_slot() {
+            let db_a = setup_db();
+            let db_b = setup_db();
+            let key_a = random_key();
+            let key_b = random_key();
+            let slot_a = slot_with(key_a);
+            let slot_b = slot_with(key_b);
+            let inner_a = Arc::new(FakeProvider::default());
+            let inner_b = Arc::new(FakeProvider::default());
+            // Same rule_id on both sides so any key-derivation path that
+            // depends on rule_id can't confound the slot check.
+            let rule_id = Uuid::new_v4().to_string();
+
+            let wrapped_a = wrap_cloud_with_encryption_if_configured(
+                inner_a.clone() as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({}),
+                &rule_id,
+                DbConnection(db_a.0.clone()),
+                slot_a,
+            )
+            .expect("wrap helper a");
+            let wrapped_b = wrap_cloud_with_encryption_if_configured(
+                inner_b.clone() as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({}),
+                &rule_id,
+                DbConnection(db_b.0.clone()),
+                slot_b,
+            )
+            .expect("wrap helper b");
+
+            let plaintext = b"same bytes both sides".to_vec();
+            wrapped_a
+                .write_file("f.bin", &plaintext)
+                .await
+                .expect("write a");
+            wrapped_b
+                .write_file("f.bin", &plaintext)
+                .await
+                .expect("write b");
+
+            let sidecar_a = inner_a
+                .snapshot_keys()
+                .into_iter()
+                .find(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .and_then(|k| inner_a.get(&k))
+                .expect("expected one own/*.m sidecar in bucket a");
+            let sidecar_b = inner_b
+                .snapshot_keys()
+                .into_iter()
+                .find(|k| k.starts_with("own/") && k.ends_with(".m"))
+                .and_then(|k| inner_b.get(&k))
+                .expect("expected one own/*.m sidecar in bucket b");
+
+            // Each sidecar opens under its matching slot's vault_key —
+            // proves the slot was consulted at seal time.
+            open_sidecar(&key_a, &sidecar_a).expect("sidecar_a must open under key_a");
+            open_sidecar(&key_b, &sidecar_b).expect("sidecar_b must open under key_b");
+            // And refuses under the other slot's vault_key — proves the
+            // slot was *the* seal input, not a shared default that both
+            // keys would open.
+            assert!(
+                open_sidecar(&key_b, &sidecar_a).is_err(),
+                "sidecar_a must NOT open under key_b — the wrap helper is dropping the slot",
+            );
+            assert!(
+                open_sidecar(&key_a, &sidecar_b).is_err(),
+                "sidecar_b must NOT open under key_a — the wrap helper is dropping the slot",
+            );
+        }
+
+        /// Absent `spaceId` still falls back to the own-vault provider —
+        /// this is the F2b path unchanged, kept as a regression pin so
+        /// adding the space-scoped branch does not silently break it.
+        #[tokio::test]
+        async fn wrap_helper_without_space_id_writes_own_vault_sidecar() {
+            let db = setup_db();
+            let slot = slot_with(random_key());
+            let inner = Arc::new(FakeProvider::default());
+            let inner_ref = inner.clone();
+
+            let wrapped = wrap_cloud_with_encryption_if_configured(
+                inner as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db.0.clone()),
+                slot,
+            )
+            .expect("wrap helper");
+
+            wrapped.write_file("g.bin", b"hi").await.expect("write");
+
+            let keys = inner_ref.snapshot_keys();
+            let own = keys.iter().filter(|k| k.starts_with("own/")).count();
+            let space = keys.iter().filter(|k| k.starts_with("space-")).count();
+            assert_eq!(own, 1, "own-vault sidecar expected, got {keys:?}");
+            assert_eq!(space, 0, "no space sidecar without spaceId, got {keys:?}");
+        }
+
+        /// Empty-string `spaceId` treats as absent — same own-vault
+        /// fallback. Frontends that leave the field on the DTO but blank
+        /// it out for own-vault rules should not accidentally end up on
+        /// the space-scoped path.
+        #[tokio::test]
+        async fn wrap_helper_empty_space_id_still_own_vault() {
+            let db = setup_db();
+            let slot = slot_with(random_key());
+            let inner = Arc::new(FakeProvider::default());
+            let inner_ref = inner.clone();
+
+            let wrapped = wrap_cloud_with_encryption_if_configured(
+                inner as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({"spaceId": ""}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db.0.clone()),
+                slot,
+            )
+            .expect("wrap helper");
+
+            wrapped.write_file("g.bin", b"hi").await.expect("write");
+            let keys = inner_ref.snapshot_keys();
+            assert!(
+                keys.iter().any(|k| k.starts_with("own/")),
+                "empty spaceId must fall back to own-vault, got {keys:?}"
+            );
+            assert!(
+                keys.iter().all(|k| !k.starts_with("space-")),
+                "empty spaceId must not build a space provider, got {keys:?}"
+            );
+        }
+
+        /// Wrong-shape `spaceId` (number instead of string) must error —
+        /// silently falling through to own-vault would ship an unshared
+        /// object under a rule the caller believed was space-scoped, and
+        /// silently building the space provider from a non-string would
+        /// mask a frontend serialization bug.
+        #[test]
+        fn wrap_helper_rejects_non_string_space_id() {
+            let db = setup_db();
+            let slot = slot_with(random_key());
+            let inner = Arc::new(FakeProvider::default());
+
+            // `Arc<dyn SyncProvider>` is not `Debug`, so `expect_err` on
+            // the Ok arm won't compile — match by hand instead.
+            let result = wrap_cloud_with_encryption_if_configured(
+                inner as Arc<dyn crate::file_sync::provider::SyncProvider>,
+                &serde_json::json!({"spaceId": 42}),
+                &Uuid::new_v4().to_string(),
+                DbConnection(db.0.clone()),
+                slot,
+            );
+            let err = match result {
+                Ok(_) => panic!("non-string spaceId must be rejected"),
+                Err(e) => e,
+            };
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("spaceId"),
+                "error must call out spaceId, got: {err}",
+            );
+        }
+    }
+
+    mod space_content {
+        use super::*;
+        use std::collections::HashMap;
+        use std::sync::Mutex as StdMutex;
+        use uuid::Uuid;
+
+        use super::super::super::key_resolver::KeyError;
+        use super::super::super::space_provider::{SpaceContentSyncProvider, SpaceKeyResolver};
+        use crate::database::DbConnection;
+
+        /// In-test resolver: a fixed set of `(epoch → key)` rows plus one
+        /// "current" epoch. Standing in for the MLS group state so the
+        /// provider's write path — which normally goes through
+        /// `resolve_latest` and asks MLS for the current epoch — stays
+        /// exercisable inside a plain SQLite test harness. Reads still
+        /// exercise the `epoch → key` lookup via `resolve_key`.
+        struct FixedResolver {
+            latest_epoch: u64,
+            keys: StdMutex<HashMap<u64, [u8; 32]>>,
+        }
+
+        impl FixedResolver {
+            fn new(epoch: u64, key: [u8; 32]) -> Self {
+                let mut m = HashMap::new();
+                m.insert(epoch, key);
+                Self {
+                    latest_epoch: epoch,
+                    keys: StdMutex::new(m),
+                }
+            }
+        }
+
+        impl SpaceKeyResolver for FixedResolver {
+            fn resolve_latest(
+                &self,
+                space_id: &str,
+                _db: &DbConnection,
+            ) -> Result<(u64, [u8; 32]), KeyError> {
+                let keys = self.keys.lock().unwrap();
+                let key = keys.get(&self.latest_epoch).copied().ok_or_else(|| {
+                    KeyError::EpochNotFound {
+                        space_id: space_id.to_string(),
+                        epoch: self.latest_epoch,
+                    }
+                })?;
+                Ok((self.latest_epoch, key))
+            }
+
+            fn resolve_key(
+                &self,
+                space_id: &str,
+                epoch: u64,
+                _db: &DbConnection,
+            ) -> Result<[u8; 32], KeyError> {
+                self.keys.lock().unwrap().get(&epoch).copied().ok_or({
+                    KeyError::EpochNotFound {
+                        space_id: space_id.to_string(),
+                        epoch,
+                    }
+                })
+            }
+        }
+
+        /// Tracer bullet for the whole space-scoped DEK/KEK path: bytes
+        /// written through the space provider survive a read cycle
+        /// through the same provider. Every subsequent test refines one
+        /// facet of what this covers.
+        #[tokio::test]
+        async fn space_content_write_read_roundtrip() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let space_id = "space-alpha".to_string();
+            let epoch_key = random_key();
+            let inner = Arc::new(FakeProvider::default());
+            let dec = SpaceContentSyncProvider::new(
+                inner,
+                rule_id,
+                DbConnection(db.0.clone()),
+                space_id,
+                Arc::new(FixedResolver::new(7, epoch_key)),
+            );
+
+            let plaintext = b"round-trip me under the MLS epoch key".to_vec();
+            dec.write_file("hello.txt", &plaintext)
+                .await
+                .expect("write");
+            let got = dec.read_file("hello.txt").await.expect("read");
+            assert_eq!(got, plaintext);
+        }
+
+        /// A single logical file must land as **one** `content/o/<hex>`
+        /// and **one** `space-<space_id>/<hex>.m` — nothing else. A
+        /// regression duplicating content would break the multi-space
+        /// share property; an own-vault sidecar under a space rule would
+        /// mean the wrap helper picked the wrong branch.
+        #[tokio::test]
+        async fn space_content_writes_content_and_space_sidecar_pair() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let space_id = "space-alpha";
+            let inner = Arc::new(FakeProvider::default());
+            let dec = SpaceContentSyncProvider::new(
+                inner.clone(),
+                rule_id,
+                DbConnection(db.0.clone()),
+                space_id.to_string(),
+                Arc::new(FixedResolver::new(1, random_key())),
+            );
+
+            dec.write_file("a.bin", b"payload").await.expect("write");
+
+            let keys = inner.snapshot_keys();
+            let content: Vec<&String> = keys
+                .iter()
+                .filter(|k| k.starts_with("content/o/") && !k.ends_with(".m"))
+                .collect();
+            let space_prefix = format!("space-{space_id}/");
+            let space_sidecars: Vec<&String> = keys
+                .iter()
+                .filter(|k| k.starts_with(&space_prefix) && k.ends_with(".m"))
+                .collect();
+            assert_eq!(content.len(), 1, "expected one content/o/*, keys={keys:?}");
+            assert_eq!(
+                space_sidecars.len(),
+                1,
+                "expected one space-<id>/*.m, keys={keys:?}",
+            );
+            assert_eq!(keys.len(), 2, "no other objects expected, keys={keys:?}");
+            assert!(
+                keys.iter().all(|k| !k.starts_with("own/")),
+                "space provider must not emit own/*.m, keys={keys:?}"
+            );
+        }
+
+        /// Rewrite through the space provider must reuse the existing
+        /// per-object DEK: the sidecar's `wrapped_dek` after the second
+        /// write unwraps to the same 32 bytes as after the first. If
+        /// the provider minted a fresh DEK on rewrite instead, a crash
+        /// between the content PUT and the sidecar PUT would leave the
+        /// old sidecar wrapping a DEK that no longer decrypts the new
+        /// content — the same failure mode CodeRabbit flagged on the
+        /// F2b own-vault path (PR #836).
+        ///
+        /// Cross-grant sharing (`own` → `space`) is F4's `share_file`
+        /// command — a dedicated command that reads the DEK out of the
+        /// own-vault sidecar and rewraps under the space's epoch key
+        /// without touching the content object. F3a's provider only
+        /// covers the same-scope rewrite path.
+        #[tokio::test]
+        async fn space_content_rewrite_reuses_dek_via_existing_space_sidecar() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let space_id = "space-alpha".to_string();
+            let epoch_key = random_key();
+            let inner = Arc::new(FakeProvider::default());
+            let dec = SpaceContentSyncProvider::new(
+                inner.clone(),
+                rule_id,
+                DbConnection(db.0.clone()),
+                space_id.clone(),
+                Arc::new(FixedResolver::new(1, epoch_key)),
+            );
+
+            dec.write_file("a.bin", b"v1").await.expect("write v1");
+            let space_prefix = format!("space-{space_id}/");
+            let sidecar_key = inner
+                .snapshot_keys()
+                .into_iter()
+                .find(|k| k.starts_with(&space_prefix) && k.ends_with(".m"))
+                .expect("space sidecar produced");
+            let bytes_v1 = inner.get(&sidecar_key).expect("v1 sidecar bytes");
+            let (_, payload_v1) = super::super::super::sidecar::open_sidecar(&epoch_key, &bytes_v1)
+                .expect("open v1 sidecar");
+            let dek_v1 =
+                super::super::super::dek_wrap::unwrap_dek(&epoch_key, &payload_v1.wrapped_dek)
+                    .expect("unwrap v1 dek");
+
+            dec.write_file("a.bin", b"v2-longer-payload")
+                .await
+                .expect("write v2");
+            let bytes_v2 = inner.get(&sidecar_key).expect("v2 sidecar bytes");
+            let (_, payload_v2) = super::super::super::sidecar::open_sidecar(&epoch_key, &bytes_v2)
+                .expect("open v2 sidecar");
+            let dek_v2 =
+                super::super::super::dek_wrap::unwrap_dek(&epoch_key, &payload_v2.wrapped_dek)
+                    .expect("unwrap v2 dek");
+            assert_eq!(
+                *dek_v1, *dek_v2,
+                "rewrite must reuse the per-object DEK — mint-fresh would strand the old sidecar",
+            );
+
+            // Same content object key across both writes.
+            assert_eq!(payload_v1.content_key, payload_v2.content_key);
+
+            // Exactly one content object survives.
+            let keys = inner.snapshot_keys();
+            let content: Vec<&String> = keys
+                .iter()
+                .filter(|k| k.starts_with("content/o/") && !k.ends_with(".m"))
+                .collect();
+            assert_eq!(
+                content.len(),
+                1,
+                "same content object across both writes, keys={keys:?}"
+            );
+        }
+
+        /// Fresh-device recovery: peer wrote a (content, space-sidecar)
+        /// pair to the bucket; this device has no cache. After
+        /// `manifest()` the local cache must carry the `relative_path →
+        /// content_key` row so `read_file` succeeds.
+        #[tokio::test]
+        async fn space_content_bootstrap_recovers_relative_path() {
+            let space_id = "space-alpha".to_string();
+            let epoch_key = random_key();
+            let inner = Arc::new(FakeProvider::default());
+            let rule_id = Uuid::new_v4().to_string();
+
+            let writer_db = setup_db();
+            let writer = SpaceContentSyncProvider::new(
+                inner.clone(),
+                rule_id.clone(),
+                DbConnection(writer_db.0.clone()),
+                space_id.clone(),
+                Arc::new(FixedResolver::new(5, epoch_key)),
+            );
+            writer
+                .write_file("docs/note.md", b"hello from a peer")
+                .await
+                .expect("writer publish");
+
+            let reader_db = setup_db();
+            let reader = SpaceContentSyncProvider::new(
+                inner.clone(),
+                rule_id,
+                DbConnection(reader_db.0.clone()),
+                space_id,
+                Arc::new(FixedResolver::new(5, epoch_key)),
+            );
+
+            let manifest = reader.manifest().await.expect("bootstrap");
+            let recovered = manifest
+                .iter()
+                .find(|f| f.relative_path == "docs/note.md")
+                .expect("bootstrap should surface peer-written file");
+            assert_eq!(
+                recovered.size,
+                b"hello from a peer".len() as u64,
+                "bootstrap must recover plaintext size",
+            );
+
+            let got = reader.read_file("docs/note.md").await.expect("read");
+            assert_eq!(got, b"hello from a peer".to_vec());
+        }
+
+        /// Wrong epoch key must fail to open the sidecar — the AEAD tag
+        /// is the only wall stopping a kicked member from decrypting
+        /// content whose sidecar bytes they still see in the bucket.
+        #[tokio::test]
+        async fn wrong_epoch_key_fails_open() {
+            let space_id = "space-alpha".to_string();
+            let inner = Arc::new(FakeProvider::default());
+            let rule_id = Uuid::new_v4().to_string();
+
+            let writer_db = setup_db();
+            let writer = SpaceContentSyncProvider::new(
+                inner.clone(),
+                rule_id.clone(),
+                DbConnection(writer_db.0.clone()),
+                space_id.clone(),
+                Arc::new(FixedResolver::new(3, random_key())),
+            );
+            writer
+                .write_file("secret.txt", b"top secret")
+                .await
+                .expect("writer publish");
+
+            let reader_db = setup_db();
+            let reader = SpaceContentSyncProvider::new(
+                inner,
+                rule_id,
+                DbConnection(reader_db.0.clone()),
+                space_id,
+                // Wrong key at the same epoch → AEAD tag fail on open.
+                Arc::new(FixedResolver::new(3, random_key())),
+            );
+
+            let manifest = reader.manifest().await.expect("bootstrap Ok");
+            assert!(
+                manifest.is_empty(),
+                "wrong-key bootstrap must not accept sidecars, got: {manifest:?}",
+            );
+            let err = reader
+                .read_file("secret.txt")
+                .await
+                .expect_err("wrong key must reject");
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("no object_key cached"),
+                "wrong-key read must fail via missing cache, got: {err}",
+            );
+        }
+
+        /// Sidecar must carry `wrapped_dek_epoch: Some(epoch)` on the
+        /// space path — the field Round F5's revocation-driven rewrap
+        /// will use to change the envelope epoch without disturbing
+        /// which key wraps the DEK. Pin the initial equality invariant.
+        #[tokio::test]
+        async fn space_sidecar_carries_wrapped_dek_epoch() {
+            let db = setup_db();
+            let rule_id = Uuid::new_v4().to_string();
+            let space_id = "space-alpha".to_string();
+            let epoch_key = random_key();
+            let inner = Arc::new(FakeProvider::default());
+            let dec = SpaceContentSyncProvider::new(
+                inner.clone(),
+                rule_id,
+                DbConnection(db.0.clone()),
+                space_id.clone(),
+                Arc::new(FixedResolver::new(9, epoch_key)),
+            );
+
+            dec.write_file("a.bin", b"payload").await.expect("write");
+
+            let space_prefix = format!("space-{space_id}/");
+            let keys = inner.snapshot_keys();
+            let sidecar_key = keys
+                .iter()
+                .find(|k| k.starts_with(&space_prefix) && k.ends_with(".m"))
+                .expect("space sidecar produced");
+            let bytes = inner.get(sidecar_key).expect("sidecar bytes");
+            let (header, payload) = super::super::super::sidecar::open_sidecar(&epoch_key, &bytes)
+                .expect("open sidecar");
+            assert_eq!(header.epoch, 9, "envelope epoch stamped from resolver");
+            assert_eq!(
+                payload.wrapped_dek_epoch,
+                Some(9),
+                "wrapped_dek_epoch must match seal epoch on fresh write",
+            );
         }
     }
 }

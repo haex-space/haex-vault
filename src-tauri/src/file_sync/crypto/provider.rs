@@ -69,6 +69,7 @@ use super::chunk::CHUNK_PLAINTEXT_SIZE;
 use super::content::{open_bytes, open_stream, seal_bytes, seal_stream, StreamCryptoError};
 use super::dek_wrap::{unwrap_dek, wrap_dek, DekWrapError, DEK_LEN};
 use super::envelope::NONCE_SIZE;
+use super::key_resolver::KeyError;
 use super::object_key::{
     generate_object_key, lookup_object_key, mark_object_deleted, object_key_known,
     own_sidecar_key_for, set_object_key, upsert_bootstrap_entry, ObjectKeyError,
@@ -98,6 +99,8 @@ pub enum ProviderCryptoError {
     ObjectKey(#[from] ObjectKeyError),
     #[error(transparent)]
     DekWrap(#[from] DekWrapError),
+    #[error(transparent)]
+    KeyResolver(#[from] KeyError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("engine error: {0}")]
@@ -509,6 +512,7 @@ impl SyncProvider for EncryptingSyncProvider {
         let payload = SidecarPayload {
             content_key: content_key.clone(),
             wrapped_dek,
+            wrapped_dek_epoch: None,
             relative_path: relative_path.to_string(),
             size: data.len() as u64,
             modified_at: unix_now(),
@@ -593,6 +597,7 @@ impl SyncProvider for EncryptingSyncProvider {
         let payload = SidecarPayload {
             content_key: content_key.clone(),
             wrapped_dek,
+            wrapped_dek_epoch: None,
             relative_path: relative_path.to_string(),
             size: plaintext_len,
             modified_at: meta_mtime_secs(&meta),
@@ -694,21 +699,21 @@ impl SyncProvider for EncryptingSyncProvider {
 /// break that guarantee. Falls back to the OS temp dir only if
 /// `target` has no parent — an unrooted target implies a small write
 /// (say, in tests) where the fallback is harmless.
-fn staging_tempfile(target: &Path) -> std::io::Result<tempfile::NamedTempFile> {
+pub(super) fn staging_tempfile(target: &Path) -> std::io::Result<tempfile::NamedTempFile> {
     match target.parent() {
         Some(dir) if !dir.as_os_str().is_empty() => tempfile::NamedTempFile::new_in(dir),
         _ => tempfile::NamedTempFile::new(),
     }
 }
 
-fn unix_now() -> u64 {
+pub(super) fn unix_now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
 }
 
-fn meta_mtime_secs(meta: &std::fs::Metadata) -> u64 {
+pub(super) fn meta_mtime_secs(meta: &std::fs::Metadata) -> u64 {
     meta.modified()
         .ok()
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
@@ -716,7 +721,7 @@ fn meta_mtime_secs(meta: &std::fs::Metadata) -> u64 {
         .unwrap_or_else(unix_now)
 }
 
-async fn hash_file_blake3(path: &Path) -> Result<String, std::io::Error> {
+pub(super) async fn hash_file_blake3(path: &Path) -> Result<String, std::io::Error> {
     use tokio::io::AsyncReadExt as _;
     let mut hasher = blake3::Hasher::new();
     let mut f = tokio::fs::File::open(path).await?;

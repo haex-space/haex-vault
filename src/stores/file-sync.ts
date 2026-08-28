@@ -77,6 +77,36 @@ interface SyncProgress {
 const log = createLogger('FILE_SYNC')
 
 /**
+ * Returns whether a rule edit changes a cloud location or encryption scope.
+ *
+ * Object keys are local cache entries for a particular encrypted cloud
+ * namespace. Reusing them after changing any part of that namespace would
+ * make the provider look for a sidecar in the new location even though it was
+ * written in the old one.
+ */
+export function cloudStorageScopeChanged(
+  currentType: string,
+  currentConfig: unknown,
+  nextType: string,
+  nextConfig: unknown,
+): boolean {
+  const scopeFor = (providerType: string, config: unknown) => {
+    if (providerType !== 'cloud') return null
+    const values = config && typeof config === 'object' && !Array.isArray(config)
+      ? config as Record<string, unknown>
+      : {}
+    return JSON.stringify({
+      backendId: values.backendId ?? null,
+      bucket: values.bucket ?? null,
+      prefix: values.prefix ?? null,
+      spaceId: values.spaceId ?? null,
+    })
+  }
+
+  return scopeFor(currentType, currentConfig) !== scopeFor(nextType, nextConfig)
+}
+
+/**
  * Pull the most useful line out of a wrapped backend error.
  * Backend errors look like:
  *   "Provider error: Provider error: Internal error: S3 list failed: Got HTTP 404 with content '<?xml...'"
@@ -343,8 +373,41 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
 
   const updateRuleAsync = async (id: string, updates: Partial<typeof haexSyncRules.$inferInsert>) => {
     const db = requireDb()
+    const [current] = await db
+      .select()
+      .from(haexSyncRules)
+      .where(eq(haexSyncRules.id, id))
+      .limit(1)
+
+    const scopeChanged = current && (
+      cloudStorageScopeChanged(
+        current.sourceType,
+        current.sourceConfig,
+        updates.sourceType ?? current.sourceType,
+        updates.sourceConfig ?? current.sourceConfig,
+      )
+      || cloudStorageScopeChanged(
+        current.targetType,
+        current.targetConfig,
+        updates.targetType ?? current.targetType,
+        updates.targetConfig ?? current.targetConfig,
+      )
+    )
+
+    if (scopeChanged) {
+      // The running loop owns provider instances built with the old scope.
+      // Awaiting its shutdown before deleting state prevents it from putting
+      // an old-namespace object key back into the cache mid-update.
+      try { await invoke('file_sync_stop_rule', { ruleId: id }) } catch { /* not running */ }
+      await db.delete(haexSyncState).where(eq(haexSyncState.ruleId, id))
+    }
     await db.update(haexSyncRules).set(updates).where(eq(haexSyncRules.id, id))
     await loadRulesAsync()
+
+    if (scopeChanged) {
+      const updated = syncRules.value.find(rule => rule.id === id)
+      if (updated?.enabled) await startRuleAsync(updated)
+    }
   }
 
   const deleteRuleAsync = async (id: string) => {
@@ -426,21 +489,27 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
 
   // Stop and re-start a rule so it picks up the latest config from DB
   // (e.g. after a referenced storage backend was updated).
-  const restartRuleAsync = async (rule: SelectHaexSyncRules) => {
+  const restartRuleAsync = async (
+    rule: SelectHaexSyncRules,
+    invalidateObjectKeys = false,
+  ): Promise<boolean> => {
     try { await invoke('file_sync_stop_rule', { ruleId: rule.id }) } catch { /* not running */ }
-    if (rule.enabled) await startRuleAsync(rule)
+    if (invalidateObjectKeys) {
+      const db = requireDb()
+      await db.delete(haexSyncState).where(eq(haexSyncState.ruleId, rule.id))
+    }
+    if (!rule.enabled) return false
+    await startRuleAsync(rule)
+    return true
   }
 
-  // Restart every enabled rule that references the given storage backend id
-  // in its source or target config. Used after editing a cloud backend so
-  // running sync loops pick up the new credentials/region/endpoint.
-  // Returns the count of rules that were actually restarted — disabled rules
-  // and rules whose restart threw are excluded so the UI toast reflects
-  // reality.
+  // Restart every rule that references the given storage backend id in its
+  // source or target config. A backend edit can move a rule to another
+  // namespace, so clear its cached object keys only after its old provider
+  // has stopped. Returns the count of enabled rules that were restarted.
   const restartRulesUsingBackendAsync = async (backendId: string): Promise<number> => {
     await loadRulesAsync()
     const affected = syncRules.value.filter((rule) => {
-      if (!rule.enabled) return false
       const src = rule.sourceConfig as Record<string, unknown> | null
       const tgt = rule.targetConfig as Record<string, unknown> | null
       return (
@@ -451,8 +520,7 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     let restarted = 0
     for (const rule of affected) {
       try {
-        await restartRuleAsync(rule)
-        restarted += 1
+        if (await restartRuleAsync(rule, true)) restarted += 1
       } catch (error) {
         log.warn(`Failed to restart rule ${rule.id} after backend update:`, error)
       }

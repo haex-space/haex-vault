@@ -40,6 +40,23 @@ pub struct SidecarPayload {
     /// (own-vault vault_key for `own/*` sidecars, MLS epoch key for
     /// `space-<id>/*` sidecars). See `crypto::dek_wrap`.
     pub wrapped_dek: Vec<u8>,
+    /// Epoch of the KEK that wraps `wrapped_dek`. `None` on own-vault
+    /// sidecars (the vault key has no rotation concept — see
+    /// `provider::VAULT_KEY_EPOCH`); `Some(epoch)` on space-scoped
+    /// sidecars so the reader knows which MLS epoch key to unwrap under.
+    ///
+    /// Split from the enclosing envelope's epoch on purpose: after a
+    /// Round F5 revocation-driven rewrap the envelope carries the new
+    /// epoch (the sidecar bytes are resealed) while the DEK stays the
+    /// same and `wrapped_dek_epoch` rotates alongside. Keeping the two
+    /// fields distinct lets a rewrap change one without touching the
+    /// other's on-wire meaning.
+    ///
+    /// `Option` for on-wire backward-compat between own-vault and
+    /// space-scoped payloads: pre-F3a `own/*.m` sidecars serialised
+    /// without the field and still deserialise to `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrapped_dek_epoch: Option<u64>,
     pub relative_path: String,
     pub size: u64,
     pub modified_at: u64,
