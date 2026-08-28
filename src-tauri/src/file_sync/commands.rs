@@ -344,70 +344,190 @@ async fn create_provider(
             Ok(Arc::new(provider))
         }
         "cloud" => {
-            let backend_id = config
-                .get("backendId")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    FileSyncCommandError::InvalidConfig(
-                        "cloud provider requires 'backendId'".into(),
-                    )
-                })?;
-            // Distinguish "absent" from "present but wrong type": a non-string
-            // spaceId (e.g. a number) silently mapping to None would let a
-            // caller pass `{ "spaceId": 42 }` against an owner-only backend
-            // as if no spaceId were set — reject that up front.
-            let space_id = match config.get("spaceId") {
-                None | Some(serde_json::Value::Null) => None,
-                Some(value) => Some(value.as_str().ok_or_else(|| {
-                    FileSyncCommandError::InvalidConfig(
-                        "cloud provider 'spaceId' must be a string".into(),
-                    )
-                })?),
-            };
-            verify_cloud_space_binding(backend_id, space_id, &state.db)?;
-
-            let prefix = config
-                .get("prefix")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let bucket_override = config
-                .get("bucket")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty());
-
-            let backend =
-                crate::remote_storage::commands::get_backend_instance_from_db_with_overrides(
-                    &state.db,
-                    backend_id,
-                    bucket_override,
-                )
-                .await
-                .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
-
-            // Auto-create the bucket only when this provider is the sync
-            // target — a missing *source* bucket is almost always a typo or
-            // stale config and should surface as an error instead.
-            if is_target {
-                backend
-                    .ensure_container()
-                    .await
-                    .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
-            }
-
-            let provider = CloudProvider::new(backend, prefix);
-            let inner: Arc<dyn SyncProvider> = Arc::new(provider);
-            wrap_cloud_with_encryption_if_configured(
-                inner,
+            assemble_cloud_provider(
                 config,
                 rule_id,
+                is_target,
                 DbConnection(state.db.0.clone()),
                 state.vault_key.clone(),
             )
+            .await
         }
         _ => Err(FileSyncCommandError::InvalidConfig(format!(
             "Unknown provider type: {provider_type}"
         ))),
+    }
+}
+
+/// Build the full cloud-provider stack for one sync rule.
+///
+/// Extracted from `create_provider` so the space-scoped wiring is
+/// unit-testable without a full `AppState`. Consumes only the two `AppState`
+/// fields the cloud arm actually needs — the DB connection and the
+/// own-vault `vault_key` slot — so tests can plumb both by hand.
+///
+/// Layering (Phase 4 Round F3b, locked):
+///
+/// `ScopedProvider(SpaceContentSyncProvider(CloudProvider))`
+///
+/// Rationale for outermost `ScopedProvider`: F3a's `SpaceContentSyncProvider`
+/// translates user-facing paths through the encryption pipeline; if the LIST
+/// guard sat *inside* it, cross-scope keys the decorator surfaces up would
+/// slip past the guard. Wrapping the guard outside the encryption decorator
+/// strips them at the observable boundary.
+///
+/// Owner-only rules (no `spaceId`) skip the `ScopedProvider` wrap and hit
+/// [`wrap_cloud_with_encryption_if_configured`]'s own-vault branch, matching
+/// the F2 shape unchanged.
+pub(crate) async fn assemble_cloud_provider(
+    config: &serde_json::Value,
+    rule_id: &str,
+    is_target: bool,
+    db: DbConnection,
+    vault_key_slot: std::sync::Arc<std::sync::Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
+) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
+    let backend_id = config
+        .get("backendId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            FileSyncCommandError::InvalidConfig("cloud provider requires 'backendId'".into())
+        })?;
+    // Distinguish "absent" from "present but wrong type": a non-string
+    // spaceId (e.g. a number) silently mapping to None would let a
+    // caller pass `{ "spaceId": 42 }` against an owner-only backend
+    // as if no spaceId were set — reject that up front.
+    let space_id = match config.get("spaceId") {
+        None | Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(s)) if s.is_empty() => None,
+        Some(value) => Some(value.as_str().ok_or_else(|| {
+            FileSyncCommandError::InvalidConfig("cloud provider 'spaceId' must be a string".into())
+        })?),
+    };
+    verify_cloud_space_binding(backend_id, space_id, &db)?;
+
+    let prefix = config
+        .get("prefix")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let bucket_override = config
+        .get("bucket")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+
+    // Shared-backend path (spaceId present): unseal the current viewer's
+    // per-member `ScopedCred` for this (space, backend) and thread it into
+    // the backend factory so the backend never sees the owner's admin
+    // creds. Owner-only path skips the lookup entirely — the config row
+    // still carries the owner's credentials in that case.
+    let scoped_cred_override = match space_id {
+        None => None,
+        Some(sid) => Some(load_scoped_cred_for_shared_backend(&db, sid, backend_id)?),
+    };
+
+    let backend = crate::remote_storage::commands::get_backend_instance_from_db_with_overrides(
+        &db,
+        backend_id,
+        bucket_override,
+        scoped_cred_override.as_ref(),
+    )
+    .await
+    .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
+
+    // Auto-create the bucket only when this provider is the sync target —
+    // a missing *source* bucket is almost always a typo or stale config
+    // and should surface as an error instead.
+    if is_target {
+        backend
+            .ensure_container()
+            .await
+            .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
+    }
+
+    let cloud = CloudProvider::new(backend, prefix.clone());
+    let inner: Arc<dyn SyncProvider> = Arc::new(cloud);
+    let encrypting =
+        wrap_cloud_with_encryption_if_configured(inner, config, rule_id, db, vault_key_slot)?;
+    Ok(wrap_cloud_with_scoped_provider_if_configured(
+        encrypting, config, prefix,
+    ))
+}
+
+/// Load and unseal the current vault owner's `ScopedCred` for a
+/// `(space_id, backend_id)` pair. Errors when no row exists — that means
+/// this member either was never provisioned for the shared backend or has
+/// been revoked, and either case should surface as a clear error rather
+/// than a silent fall-through.
+///
+/// The viewer DID is `resolve_vault_owner_did` — the identity that owns the
+/// local vault, i.e. the DID under which Task 4's fanout wrote a row when
+/// this vault joined the space.
+///
+/// Kept `pub(crate)` so the wire-up seam is testable from
+/// [`crate::file_sync::commands_tests`] without a full `AppState`.
+pub(crate) fn load_scoped_cred_for_shared_backend(
+    db: &DbConnection,
+    space_id: &str,
+    backend_id: &str,
+) -> Result<crate::remote_storage::iam_adapter::ScopedCred, FileSyncCommandError> {
+    let owner_did = crate::database::core::with_connection(db, |conn| {
+        crate::owner_sync::scope::resolve_vault_owner_did(conn).map_err(|e| {
+            crate::database::error::DatabaseError::QueryError {
+                reason: e.to_string(),
+            }
+        })
+    })
+    .map_err(|e| FileSyncCommandError::ProviderError(format!("resolve viewer DID: {e}")))?
+    .ok_or_else(|| {
+        FileSyncCommandError::InvalidConfig(
+            "cannot load shared-backend credentials: no vault owner DID resolvable".into(),
+        )
+    })?;
+
+    let row = crate::remote_storage::shared_access::find_shared_access(
+        db,
+        space_id,
+        backend_id,
+        &owner_did,
+    )
+    .map_err(|e| FileSyncCommandError::ProviderError(format!("shared-access lookup: {e}")))?
+    .ok_or_else(|| {
+        FileSyncCommandError::InvalidConfig(format!(
+            "no haex_s3_shared_access row for space={space_id} backend={backend_id} member={owner_did} — \
+             this member is not (or is no longer) provisioned for the shared backend"
+        ))
+    })?;
+
+    let epoch_key = crate::file_sync::crypto::key_resolver::resolve_key(space_id, row.epoch, db)
+        .map_err(|e| {
+            FileSyncCommandError::ProviderError(format!(
+                "resolve epoch key (space={space_id} epoch={}): {e}",
+                row.epoch
+            ))
+        })?;
+
+    crate::remote_storage::shared_access::crypto::open_scoped_cred(&row.encrypted_cred, &epoch_key)
+        .map_err(|e| FileSyncCommandError::ProviderError(format!("unseal ScopedCred: {e}")))
+}
+
+/// Install the outermost `ScopedProvider` LIST guard around an
+/// already-encryption-wrapped cloud provider when `config.spaceId` names a
+/// space. Owner-only rules (absent / null / empty spaceId) pass through
+/// unchanged — the F3a scope-cache treatment stays sufficient there.
+///
+/// The wrap decision mirrors [`wrap_cloud_with_encryption_if_configured`] to
+/// keep the two seams observably in lockstep — same config, same fallthrough
+/// branches. See `assemble_cloud_provider` for the layering rationale.
+pub(crate) fn wrap_cloud_with_scoped_provider_if_configured(
+    inner: Arc<dyn SyncProvider>,
+    config: &serde_json::Value,
+    prefix: String,
+) -> Arc<dyn SyncProvider> {
+    match config.get("spaceId") {
+        Some(serde_json::Value::String(space_id)) if !space_id.is_empty() => Arc::new(
+            crate::file_sync::scoped_provider::ScopedProvider::new(inner, prefix),
+        ),
+        _ => inner,
     }
 }
 

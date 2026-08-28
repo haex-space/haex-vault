@@ -714,10 +714,18 @@ pub async fn remote_storage_upload_from_path(
 /// optional per-rule bucket override that is not persisted back to the
 /// backend's stored config. Used by file-sync rules that point at a different
 /// bucket than the backend's default while sharing credentials/endpoint/region.
+///
+/// `scoped_cred_override` — when `Some`, the caller has already unsealed a
+/// per-member `ScopedCred` for a shared backend (Phase 4 Round F3b). The
+/// `accessKeyId` / `secretAccessKey` in the stored config are then replaced
+/// with the scoped credential's values before the backend is built, so the
+/// backend never sees the owner's admin credentials. Owner-only rules pass
+/// `None` and continue to use whatever the config row carries.
 pub async fn get_backend_instance_from_db_with_overrides(
     db: &crate::database::DbConnection,
     backend_id: &str,
     bucket_override: Option<&str>,
+    scoped_cred_override: Option<&crate::remote_storage::iam_adapter::ScopedCred>,
 ) -> Result<Box<dyn super::backend::StorageBackend>, StorageError> {
     let rows = core::select_with_crdt(
         SQL_GET_BACKEND_CONFIG.clone(),
@@ -759,6 +767,23 @@ pub async fn get_backend_instance_from_db_with_overrides(
             if let Some(obj) = config.as_object_mut() {
                 obj.insert("bucket".to_string(), JsonValue::String(bucket.to_string()));
             }
+        }
+    }
+
+    if let Some(cred) = scoped_cred_override {
+        if let Some(obj) = config.as_object_mut() {
+            // Field names must match the `#[serde(rename_all = "camelCase")]`
+            // shape of `types::S3Config`. Task 4 stripped these from the
+            // stored config for shared backends, so an override is now the
+            // only way a shared-backend factory call sees credentials.
+            obj.insert(
+                "accessKeyId".to_string(),
+                JsonValue::String(cred.access_key_id.clone()),
+            );
+            obj.insert(
+                "secretAccessKey".to_string(),
+                JsonValue::String(cred.secret_access_key.clone()),
+            );
         }
     }
 
