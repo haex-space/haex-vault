@@ -32,6 +32,8 @@ use crate::table_names::{
 use serde_json::Value as JsonValue;
 use std::sync::MutexGuard;
 
+pub mod crypto;
+
 #[cfg(test)]
 mod tests;
 
@@ -56,6 +58,10 @@ pub enum SharedAccessError {
     Db(#[from] DatabaseError),
     #[error("row shape mismatch: {reason}")]
     RowShape { reason: String },
+    #[error("crypto: {reason}")]
+    Crypto { reason: String },
+    #[error("codec: {reason}")]
+    Codec { reason: String },
 }
 
 /// Insert or overwrite a shared-access row for `(space_id, backend_id,
@@ -113,6 +119,61 @@ pub fn upsert_shared_access(
         column_sig_key_cache,
     )?;
     Ok(())
+}
+
+/// Owner-side helper: seal a plaintext [`ScopedCred`] under `epoch_key`
+/// and upsert it into `haex_s3_shared_access` in one call.
+///
+/// The `epoch` argument threads into BOTH the sealed envelope header
+/// (via [`crypto::seal_scoped_cred`]) AND the row's `epoch` column, so
+/// callers cannot desynchronise the two by hand. The row column is
+/// authoritative for key lookup on open — the envelope-header epoch is
+/// written for audit and forward-compat and is discarded by
+/// [`crypto::open_scoped_cred`]. The real failure mode this helper
+/// guards against is one caller invoking
+/// `upsert_shared_access(..., epoch=X)` while separately calling
+/// `seal_scoped_cred(..., epoch=Y)`: with both epochs threaded from a
+/// single argument, they cannot drift.
+///
+/// Task 4's owner-side wire-up in `share_storage_backend_core` is the
+/// sole intended caller: it holds one `epoch` value from the MLS layer
+/// and hands it here in one shot, rather than sealing and upserting
+/// separately. Callers therefore never touch the base64 ciphertext
+/// directly — `upsert_shared_access` (F1) stays the primitive for
+/// tests and any path that already holds a sealed blob.
+///
+/// Caller responsibility that this helper does NOT cover: pair the
+/// `epoch_key` with the correct `epoch` int. Passing an epoch-42 key
+/// with `epoch: 43` produces a row the receiver cannot open — it will
+/// resolve the epoch-43 key from `haex_mls_sync_keys` and fail the
+/// AEAD-tag check on the sealed envelope.
+#[allow(clippy::too_many_arguments)]
+pub fn upsert_sealed_scoped_cred(
+    db: &DbConnection,
+    hlc: &MutexGuard<HlcService>,
+    column_sig_key_cache: &SpaceKeyCache,
+    id: &str,
+    space_id: &str,
+    backend_id: &str,
+    member_did: &str,
+    cred: &crate::remote_storage::iam_adapter::ScopedCred,
+    epoch: u64,
+    epoch_key: &[u8; 32],
+    expires_at: Option<&str>,
+) -> Result<(), SharedAccessError> {
+    let sealed = crypto::seal_scoped_cred(cred, epoch_key, epoch)?;
+    upsert_shared_access(
+        db,
+        hlc,
+        column_sig_key_cache,
+        id,
+        space_id,
+        backend_id,
+        member_did,
+        &sealed,
+        epoch,
+        expires_at,
+    )
 }
 
 /// Delete a shared-access row for `(space_id, backend_id, member_did)`.

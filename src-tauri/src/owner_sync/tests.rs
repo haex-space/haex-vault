@@ -1,9 +1,12 @@
+use std::sync::{Arc, Mutex};
+
 use rusqlite::Connection;
 use uuid::Uuid;
 
+use crate::database::DbConnection;
 use crate::owner_sync::scope::{
-    classify_peer, owner_route_decision, resolve_owner_device_endpoints, resolve_vault_owner_did,
-    resolve_vault_space_id, PeerClass,
+    classify_peer, owner_route_decision, resolve_local_member_did_for_space,
+    resolve_owner_device_endpoints, resolve_vault_owner_did, resolve_vault_space_id, PeerClass,
 };
 
 /// Create the minimal subset of `haex_identities` + `haex_spaces` the
@@ -284,4 +287,115 @@ fn owner_route_decision_case_mismatch_is_false() {
         "did:key:zABC",
         &vault_sid
     ));
+}
+
+// ------------------------------------------------------------------
+// resolve_local_member_did_for_space — per-space local-identity lookup.
+//
+// Predicate is `source='own' AND private_key IS NOT NULL` on
+// `haex_identities`, joined via `haex_space_members`. Zero rows →
+// Ok(None); multiple qualifying local identities → error, because the
+// resolver must never choose a DID implicitly.
+// ------------------------------------------------------------------
+
+/// Minimal schema for the resolver: `haex_identities` plus
+/// `haex_space_members`. Columns mirror the production Drizzle schema
+/// (`src/database/schemas/identity.ts`,
+/// `src/database/schemas/space_members.ts`) for the fields the query
+/// touches; purely cosmetic columns are omitted.
+fn setup_members_db() -> DbConnection {
+    let conn = Connection::open_in_memory().expect("in-memory DB");
+    conn.execute_batch(
+        "CREATE TABLE haex_identities (
+            id TEXT PRIMARY KEY NOT NULL,
+            did TEXT NOT NULL,
+            name TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'contact',
+            private_key TEXT,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE haex_space_members (
+            id TEXT PRIMARY KEY NOT NULL,
+            space_id TEXT NOT NULL,
+            identity_id TEXT NOT NULL,
+            UNIQUE (space_id, identity_id)
+        );",
+    )
+    .expect("create tables");
+    DbConnection(Arc::new(Mutex::new(Some(conn))))
+}
+
+fn insert_identity(
+    db: &DbConnection,
+    id: &str,
+    did: &str,
+    source: &str,
+    private_key: Option<&str>,
+    created_at: &str,
+) {
+    let guard = db.0.lock().expect("db lock");
+    let conn = guard.as_ref().expect("db open");
+    conn.execute(
+        "INSERT INTO haex_identities (id, did, name, source, private_key, created_at) \
+         VALUES (?1, ?2, 'Person', ?3, ?4, ?5)",
+        rusqlite::params![id, did, source, private_key, created_at],
+    )
+    .unwrap();
+}
+
+fn insert_membership(db: &DbConnection, space_id: &str, identity_id: &str) {
+    let guard = db.0.lock().expect("db lock");
+    let conn = guard.as_ref().expect("db open");
+    conn.execute(
+        "INSERT INTO haex_space_members (id, space_id, identity_id) VALUES (?1, ?2, ?3)",
+        rusqlite::params![Uuid::new_v4().to_string(), space_id, identity_id],
+    )
+    .unwrap();
+}
+
+/// A REMOTE identity (source='contact', private_key IS NULL) that is a
+/// member of the space must not qualify as a local member — the
+/// predicate `source='own' AND private_key IS NOT NULL` excludes it —
+/// so the resolver returns `None`, not a stale remote DID.
+#[test]
+fn resolve_local_member_did_for_space_returns_none_when_no_local_identity_is_member() {
+    let conn = setup_members_db();
+    let space_id = Uuid::new_v4().to_string();
+    let remote_id = Uuid::new_v4().to_string();
+    let remote_did = format!("did:key:{}", Uuid::new_v4());
+
+    insert_identity(
+        &conn,
+        &remote_id,
+        &remote_did,
+        "contact",
+        None,
+        "2020-01-01",
+    );
+    insert_membership(&conn, &space_id, &remote_id);
+
+    let resolved = resolve_local_member_did_for_space(&conn, &space_id).expect("query ok");
+    assert!(resolved.is_none(), "no local identity → None");
+}
+
+/// Two local identities joined to the same space are ambiguous. The caller
+/// must obtain an explicitly selected DID instead of silently choosing one.
+#[test]
+fn resolve_local_member_did_for_space_rejects_ambiguous_local_identities() {
+    let conn = setup_members_db();
+    let space_id = Uuid::new_v4().to_string();
+
+    let id_a = "id-A".to_string();
+    let did_a = "did:key:zAlpha".to_string();
+    let id_b = "id-B".to_string();
+    let did_b = "did:key:zBeta".to_string();
+
+    insert_identity(&conn, &id_b, &did_b, "own", Some("privkey-B"), "2020-01-02");
+    insert_identity(&conn, &id_a, &did_a, "own", Some("privkey-A"), "2020-01-01");
+    insert_membership(&conn, &space_id, &id_b);
+    insert_membership(&conn, &space_id, &id_a);
+
+    let err = resolve_local_member_did_for_space(&conn, &space_id)
+        .expect_err("ambiguous membership must require explicit DID selection");
+    assert!(err.to_string().contains("ambiguous local membership"));
 }

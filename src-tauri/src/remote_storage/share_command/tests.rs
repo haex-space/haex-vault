@@ -11,11 +11,12 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rusqlite::Connection;
 
 use super::{
-    share_storage_backend_core, IamAdapterFactory, IamAdminCredHint, ShareStorageBackendArgs,
-    SharedStorageBackend,
+    share_storage_backend_core, EpochResolver, IamAdapterFactory, IamAdminCredHint,
+    ShareStorageBackendArgs, SharedStorageBackend,
 };
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
 use crate::crdt::hlc::HlcService;
@@ -23,6 +24,7 @@ use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
+use crate::file_sync::crypto::key_resolver::KeyError;
 use crate::remote_storage::error::StorageError;
 use crate::remote_storage::iam_adapter::{IamAdapter, IamAdapterError, ProviderFlavor, ScopedCred};
 use crate::remote_storage::iam_policy::IamPolicy;
@@ -39,8 +41,10 @@ use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 struct MockIamAdapter {
     probe_result: Mutex<Result<bool, IamAdapterError>>,
     create_result: Mutex<Result<ScopedCred, IamAdapterError>>,
-    /// (user_name, access_key_id) tuples of every `delete_scoped_user` call.
-    delete_calls: Arc<Mutex<Vec<(String, String)>>>,
+    /// `user_name`s of every `delete_scoped_user` call. Round F3b's trait
+    /// change: revoke no longer knows the access-key id — the adapter
+    /// enumerates internally — so the mock records only the user name.
+    delete_calls: Arc<Mutex<Vec<String>>>,
     /// (user_name, policy_json_length) tuples of every `create_scoped_user`
     /// call — the JSON body itself is small but we only need a shape probe.
     create_calls: Arc<Mutex<Vec<(String, usize)>>>,
@@ -81,15 +85,11 @@ impl IamAdapter for MockIamAdapter {
         )
     }
 
-    async fn delete_scoped_user(
-        &self,
-        user_name: &str,
-        access_key_id: &str,
-    ) -> Result<(), IamAdapterError> {
+    async fn delete_scoped_user(&self, user_name: &str) -> Result<(), IamAdapterError> {
         self.delete_calls
             .lock()
             .unwrap()
-            .push((user_name.to_string(), access_key_id.to_string()));
+            .push(user_name.to_string());
         Ok(())
     }
 
@@ -115,6 +115,55 @@ impl IamAdapterFactory for MockIamAdapterFactory {
         _flavor: ProviderFlavor,
     ) -> Result<Arc<dyn IamAdapter>, IamAdapterError> {
         Ok(self.adapter.clone() as Arc<dyn IamAdapter>)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Mock epoch resolver
+// ---------------------------------------------------------------------------
+
+/// Hands out a fixed `(epoch, epoch_key)` pair so tests don't have to seed
+/// a real MLS group + `haex_mls_sync_keys` row. The key is a random 32-byte
+/// buffer generated per test (via `rand_epoch_resolver()`) so the sealed
+/// row's ciphertext is not deterministic across runs.
+struct MockEpochResolver {
+    epoch: u64,
+    epoch_key: [u8; 32],
+}
+
+impl EpochResolver for MockEpochResolver {
+    fn resolve_latest(
+        &self,
+        _db: &DbConnection,
+        _space_id: &str,
+    ) -> Result<(u64, [u8; 32]), KeyError> {
+        Ok((self.epoch, self.epoch_key))
+    }
+}
+
+fn rand_epoch_resolver() -> MockEpochResolver {
+    MockEpochResolver {
+        epoch: rand::random::<u32>() as u64, // non-zero-ish; u32 keeps the number readable in logs
+        epoch_key: rand::random(),
+    }
+}
+
+/// Always fails with [`KeyError::MlsEpochUnavailable`]. Used by the
+/// fanout-failure rollback test — a resolver error is the widest surface
+/// for exercising `rollback_child_backend_and_iam`, since it aborts the
+/// fanout before any shared_access row is written.
+struct FailingEpochResolver;
+
+impl EpochResolver for FailingEpochResolver {
+    fn resolve_latest(
+        &self,
+        _db: &DbConnection,
+        space_id: &str,
+    ) -> Result<(u64, [u8; 32]), KeyError> {
+        Err(KeyError::MlsEpochUnavailable {
+            space_id: space_id.to_string(),
+            reason: "test-injected failure".to_string(),
+        })
     }
 }
 
@@ -194,6 +243,19 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
+        CREATE TABLE haex_s3_shared_access (
+            id TEXT PRIMARY KEY NOT NULL,
+            space_id TEXT NOT NULL,
+            backend_id TEXT NOT NULL,
+            member_did TEXT NOT NULL,
+            encrypted_cred TEXT NOT NULL,
+            epoch INTEGER NOT NULL,
+            expires_at TEXT,
+            created_at TEXT DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+        );
+        CREATE UNIQUE INDEX haex_s3_shared_access_space_backend_did_uniq
+            ON haex_s3_shared_access (space_id, backend_id, member_did);
+
         CREATE TABLE haex_passwords_item_details (
             id TEXT PRIMARY KEY NOT NULL,
             title TEXT,
@@ -231,6 +293,7 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
         for table in [
             "haex_s3_backends",
             "haex_shared_space_sync",
+            "haex_s3_shared_access",
             "haex_spaces",
             "haex_passwords_item_details",
             "haex_passwords_item_key_values",
@@ -306,7 +369,6 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
 /// Deterministic PKCS8 Ed25519 blob for share-command tests (seeded random
 /// bytes; content is not asserted, only well-formedness for JIT reload).
 fn seeded_share_pkcs8_b64() -> String {
-    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
     let pkcs8_prefix: [u8; 16] = [
         0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04,
         0x20,
@@ -365,10 +427,16 @@ async fn happy_path_writes_row_and_mapping() {
 
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011); // LIST|GET
 
-    let result: SharedStorageBackend =
-        share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-            .await
-            .expect("share should succeed");
+    let result: SharedStorageBackend = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect("share should succeed");
 
     // Response shape reflects the mock output.
     assert_eq!(result.r#type, "s3");
@@ -405,15 +473,28 @@ async fn happy_path_writes_row_and_mapping() {
     assert_eq!(share_flags, 0b0011);
 
     let config: serde_json::Value = serde_json::from_str(&config_json).expect("config JSON parses");
-    assert_eq!(
-        config.get("accessKeyId").and_then(|v| v.as_str()),
-        Some(scoped.access_key_id.as_str()),
-        "config must carry the scoped access key, not the owner's"
-    );
+    // Phase 4 Round F3b cutover: cred fields never appear in the child
+    // config JSON any more — they live in `haex_s3_shared_access`. Assert
+    // both camelCase (frontend shape) and snake_case (defensive) are gone,
+    // in case the owner config carried either.
+    for field in [
+        "accessKeyId",
+        "secretAccessKey",
+        "sessionToken",
+        "access_key_id",
+        "secret_access_key",
+        "session_token",
+    ] {
+        assert!(
+            config.get(field).is_none(),
+            "child config must NOT carry cred field {field}, got {:?}",
+            config.get(field)
+        );
+    }
     assert_eq!(
         config.get("iamUserName").and_then(|v| v.as_str()),
         Some(scoped.iam_user_name.as_str()),
-        "config must carry the IAM user name for revoke"
+        "config must carry the IAM user name for revoke (not a cred)"
     );
     assert_eq!(
         config.get("bucket").and_then(|v| v.as_str()),
@@ -490,9 +571,16 @@ async fn iam_admin_cred_missing_when_no_hint_and_no_prior_cred() {
         iam_admin_cred_hint: None,
     };
 
-    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-        .await
-        .expect_err("must fail without a cred");
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect_err("must fail without a cred");
     match err {
         StorageError::IamAdminCredMissing { storage_id: id } => assert_eq!(id, storage_id),
         other => panic!("expected IamAdminCredMissing, got {other:?}"),
@@ -514,9 +602,16 @@ async fn iam_admin_cred_missing_cleared_by_hint() {
     let adapter_1 = Arc::new(MockIamAdapter::new(Ok(true), Ok(scoped_1.clone())));
     let factory_1 = MockIamAdapterFactory { adapter: adapter_1 };
     let args_1 = args_with_hint(&storage_id, &space_id, make_hint(), 0b0001);
-    let out_1 = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args_1, &factory_1)
-        .await
-        .expect("first share should succeed via hint");
+    let out_1 = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args_1,
+        &factory_1,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect("first share should succeed via hint");
     assert_eq!(out_1.iam_user_name, scoped_1.iam_user_name);
 
     // Run 2: without hint, different flags so dedupe skips. Must reuse the
@@ -532,9 +627,16 @@ async fn iam_admin_cred_missing_cleared_by_hint() {
         access_flags: 0b0011,
         iam_admin_cred_hint: None,
     };
-    let out_2 = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args_2, &factory_2)
-        .await
-        .expect("second share should succeed by reusing stored cred");
+    let out_2 = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args_2,
+        &factory_2,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect("second share should succeed by reusing stored cred");
     assert_eq!(out_2.iam_user_name, scoped_2.iam_user_name);
 }
 
@@ -550,9 +652,16 @@ async fn probe_access_denied_returns_iam_admin_insufficient() {
     };
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-        .await
-        .expect_err("must reject when probe denies");
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect_err("must reject when probe denies");
     assert!(matches!(err, StorageError::IamAdminInsufficient));
     // No user should be created — probe rejects before create runs.
     assert!(adapter.create_calls.lock().unwrap().is_empty());
@@ -568,9 +677,16 @@ async fn create_scoped_user_failure_writes_no_db_rows() {
     let factory = MockIamAdapterFactory { adapter };
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-        .await
-        .expect_err("must propagate adapter failure");
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect_err("must propagate adapter failure");
     match err {
         StorageError::IamOperationFailed { operation, reason } => {
             assert_eq!(
@@ -648,24 +764,42 @@ async fn db_failure_after_iam_success_calls_delete_scoped_user() {
     };
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-        .await
-        .expect_err("db insert must fail");
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect_err("db insert must fail");
     assert!(
         matches!(err, StorageError::DatabaseError { .. }),
         "expected DatabaseError, got {err:?}"
     );
 
     // Now: the adapter must have received exactly one delete call, targeting
-    // the same user_name + access_key_id it just handed out.
+    // a user_name matching the "haex-share-" prefix minted by
+    // `share_storage_backend_core`. Round F3b: the trait's
+    // `delete_scoped_user` takes only the user_name and enumerates access
+    // keys internally, so the mock only records the user_name.
+    //
+    // Note: the mock's `create_scoped_user` returns a pre-scripted
+    // `ScopedCred` whose `iam_user_name` differs from the vault-generated
+    // `user_name` — the delete argument is the vault's own value, so we
+    // assert the shape, not string-equality with `scoped.iam_user_name`.
     let deletes = adapter.delete_calls.lock().unwrap();
     assert_eq!(
         deletes.len(),
         1,
         "adapter.delete_scoped_user must be called once on DB failure"
     );
-    assert_eq!(deletes[0].1, scoped.access_key_id);
-    assert!(deletes[0].0.starts_with("haex-share-"));
+    assert!(
+        deletes[0].starts_with("haex-share-"),
+        "delete arg must be the vault-minted user_name, got {}",
+        deletes[0]
+    );
 
     // Orphan invariant: the s3_backends row for this parent must have been
     // cleaned up when the mapping insert failed. Only the seeded owner row
@@ -705,9 +839,16 @@ async fn share_returns_existing_when_called_twice_with_same_args() {
     };
 
     let args_1 = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
-    let out_1 = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args_1, &factory)
-        .await
-        .expect("first share should succeed");
+    let out_1 = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args_1,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect("first share should succeed");
 
     // Second call: identical scope, no hint (dedupe runs before the cred
     // load, so IamAdminCredMissing must not fire even without a hint).
@@ -719,9 +860,16 @@ async fn share_returns_existing_when_called_twice_with_same_args() {
         access_flags: 0b0011,
         iam_admin_cred_hint: None,
     };
-    let out_2 = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args_2, &factory)
-        .await
-        .expect("second share should short-circuit to the existing row");
+    let out_2 = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args_2,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect("second share should short-circuit to the existing row");
 
     // Same DB row surfaced twice — id and IAM user name must be identical.
     assert_eq!(out_1.id, out_2.id, "dedupe must return the same row id");
@@ -753,6 +901,220 @@ async fn share_returns_existing_when_called_twice_with_same_args() {
     assert_eq!(child_count, 1, "dedupe must not insert a second child row");
 }
 
+#[tokio::test]
+async fn share_storage_backend_writes_sealed_scoped_cred_to_shared_access_and_omits_cred_from_child_config(
+) {
+    // Phase 4 Round F3b Task 4: the ScopedCred no longer lives in the
+    // child backend's config JSON. It is sealed under the space's current
+    // MLS epoch key and written per-member into `haex_s3_shared_access`.
+    //
+    // Setup: the fixture seeds ONE member (the owner identity
+    // `did:key:zOwnForShareTests`), so exactly one shared_access row must
+    // materialise, keyed by the newly-inserted child backend id and the
+    // owner DID, with `row.epoch == mock_resolver.epoch`.
+    let (db, hlc, storage_id, space_id) = setup_share_db();
+    let scoped = make_scoped_cred();
+    let adapter = Arc::new(MockIamAdapter::new(Ok(true), Ok(scoped.clone())));
+    let factory = MockIamAdapterFactory { adapter };
+
+    // Pin the resolver so we can assert `row.epoch == injected epoch` and
+    // open the ciphertext under `injected epoch_key` — a mismatch here
+    // would mean the fanout desynchronised `epoch`/`epoch_key`.
+    let resolver = rand_epoch_resolver();
+    let expected_epoch = resolver.epoch;
+    let expected_epoch_key = resolver.epoch_key;
+
+    let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
+    let out =
+        share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory, &resolver)
+            .await
+            .expect("share should succeed");
+
+    // Assertion 1: the sealed row is present for the seeded owner DID +
+    // the newly-minted child backend id, and its epoch matches.
+    let row = crate::remote_storage::shared_access::find_shared_access(
+        &db,
+        &space_id,
+        &out.id,
+        "did:key:zOwnForShareTests",
+    )
+    .expect("find_shared_access must succeed")
+    .expect("shared_access row must exist for the owner member");
+    assert_eq!(
+        row.epoch, expected_epoch,
+        "row.epoch must match the injected MLS epoch"
+    );
+    assert_eq!(row.space_id, space_id);
+    assert_eq!(row.backend_id, out.id);
+    assert_eq!(row.member_did, "did:key:zOwnForShareTests");
+    assert!(
+        !row.encrypted_cred.is_empty(),
+        "encrypted_cred column must carry a sealed ciphertext"
+    );
+
+    // Assertion 2: opening under the injected epoch_key returns the exact
+    // ScopedCred the mock IAM adapter minted. This is the round-trip
+    // check that proves both `seal_scoped_cred(cred, epoch_key, epoch)`
+    // saw the correct plaintext AND the correct key.
+    let opened = crate::remote_storage::shared_access::crypto::open_scoped_cred(
+        &row.encrypted_cred,
+        &expected_epoch_key,
+    )
+    .expect("open must succeed under the injected epoch_key");
+    assert_eq!(opened.access_key_id, scoped.access_key_id);
+    assert_eq!(opened.secret_access_key, scoped.secret_access_key);
+    assert_eq!(opened.iam_user_name, scoped.iam_user_name);
+
+    // Assertion 3: the child haex_s3_backends row's config JSON does NOT
+    // carry any cred fields. Structural fields survive (endpoint, bucket,
+    // region, pathStyle), and `iamUserName` (not a cred) stays for
+    // revoke_share.
+    let child_config_json: String = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT config FROM haex_s3_backends WHERE id = ?1",
+            [&out.id],
+            |r| r.get::<_, String>(0),
+        )
+        .expect("child backend config must exist")
+    };
+    let child_config: serde_json::Value =
+        serde_json::from_str(&child_config_json).expect("child config JSON parses");
+    for field in [
+        "accessKeyId",
+        "secretAccessKey",
+        "sessionToken",
+        "access_key_id",
+        "secret_access_key",
+        "session_token",
+    ] {
+        assert!(
+            child_config.get(field).is_none(),
+            "cred field {field} must not appear in child config JSON, got {:?}",
+            child_config.get(field)
+        );
+    }
+    // Sanity: at least one structural field survived so we know the
+    // sanitisation did not accidentally empty the config.
+    assert!(
+        child_config.get("bucket").is_some() || child_config.get("endpoint").is_some(),
+        "at least one structural field must still be present in child config"
+    );
+}
+
+#[tokio::test]
+async fn fanout_failure_rolls_back_child_backend_iam_and_shared_access() {
+    // I1: `write_shared_access_fanout` is the widest side-effect surface
+    // opened in Round F3b Task 4. If it fails, `rollback_child_backend_and_iam`
+    // must tear down all four artefacts:
+    //   - the provider-side IAM user
+    //   - the child `haex_s3_backends` row
+    //   - the `haex_shared_space_sync` mapping row
+    //   - any `haex_s3_shared_access` rows already written for that child
+    //
+    // We inject a `FailingEpochResolver` — the fanout aborts at the very
+    // first step (before writing any shared_access row), which exercises
+    // the widest rollback path (all downstream artefacts are already
+    // committed and must be undone).
+    let (db, hlc, storage_id, space_id) = setup_share_db();
+    let scoped = make_scoped_cred();
+    let adapter = Arc::new(MockIamAdapter::new(Ok(true), Ok(scoped.clone())));
+    let factory = MockIamAdapterFactory {
+        adapter: adapter.clone(),
+    };
+    let args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
+
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &FailingEpochResolver,
+    )
+    .await
+    .expect_err("fanout must fail");
+    // The resolver error bubbles up as `Internal` (write_shared_access_fanout
+    // maps `KeyError` into that variant).
+    assert!(
+        matches!(err, StorageError::Internal { .. }),
+        "expected StorageError::Internal from failed epoch resolution, got {err:?}"
+    );
+
+    // Assertion 1: IAM `delete_scoped_user` was recorded exactly once — the
+    // rollback fired. The delete arg is the vault-minted user_name (a
+    // "haex-share-<uuid>" string), not `scoped.iam_user_name` (the mock's
+    // pre-scripted return value the vault code never uses as its own
+    // user_name).
+    let deletes = adapter.delete_calls.lock().unwrap();
+    assert_eq!(
+        deletes.len(),
+        1,
+        "IAM delete_scoped_user must be called once on fanout rollback, got {deletes:?}"
+    );
+    assert!(
+        deletes[0].starts_with("haex-share-"),
+        "rollback delete arg must be the vault-minted user_name, got {}",
+        deletes[0]
+    );
+    drop(deletes);
+
+    // Assertion 2: no child `haex_s3_backends` row remains for this parent.
+    let child_count: i64 = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM haex_s3_backends \
+             WHERE parent_backend_id = ?1 AND origin_type = 'shared_from_space'",
+            [&storage_id],
+            |row| row.get(0),
+        )
+        .expect("count child backend rows")
+    };
+    assert_eq!(
+        child_count, 0,
+        "child haex_s3_backends row must be rolled back"
+    );
+
+    // Assertion 3: no `haex_s3_shared_access` row remains for this space
+    // (the fanout failed on epoch resolution before writing any row; the
+    // rollback DELETE is still valid — it must be a no-op that leaves the
+    // table empty).
+    let sa_count: i64 = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM haex_s3_shared_access WHERE space_id = ?1",
+            [&space_id],
+            |row| row.get(0),
+        )
+        .expect("count shared_access rows")
+    };
+    assert_eq!(
+        sa_count, 0,
+        "no haex_s3_shared_access rows must survive fanout rollback"
+    );
+
+    // Assertion 4: no `haex_shared_space_sync` mapping row remains for this
+    // space + parent tuple.
+    let map_count: i64 = {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM haex_shared_space_sync \
+             WHERE space_id = ?1 AND table_name = 'haex_s3_backends'",
+            [&space_id],
+            |row| row.get(0),
+        )
+        .expect("count mapping rows")
+    };
+    assert_eq!(
+        map_count, 0,
+        "haex_shared_space_sync mapping row must be rolled back"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Argument validation
 // ---------------------------------------------------------------------------
@@ -769,9 +1131,16 @@ async fn access_flags_zero_is_invalid() {
     };
     let args = args_with_hint(&storage_id, &space_id, make_hint(), 0);
 
-    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-        .await
-        .expect_err("access_flags=0 must be rejected");
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect_err("access_flags=0 must be rejected");
     assert!(matches!(err, StorageError::InvalidArgs { .. }));
     assert!(adapter.create_calls.lock().unwrap().is_empty());
 }
@@ -792,9 +1161,16 @@ async fn prefix_with_iam_wildcard_characters_is_invalid() {
         let mut args = args_with_hint(&storage_id, &space_id, make_hint(), 0b0011);
         args.prefix = Some(bad_prefix.to_string());
 
-        let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-            .await
-            .expect_err("wildcard prefix must be rejected");
+        let err = share_storage_backend_core(
+            &db,
+            &hlc,
+            &SpaceKeyCache::new(),
+            args,
+            &factory,
+            &rand_epoch_resolver(),
+        )
+        .await
+        .expect_err("wildcard prefix must be rejected");
         assert!(
             matches!(err, StorageError::InvalidArgs { .. }),
             "prefix {bad_prefix:?} must yield InvalidArgs, got {err:?}"
@@ -822,9 +1198,16 @@ async fn object_key_present_returns_object_scope_not_yet_supported() {
         iam_admin_cred_hint: Some(make_hint()),
     };
 
-    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-        .await
-        .expect_err("object scope must be v1-rejected");
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect_err("object scope must be v1-rejected");
     assert!(matches!(err, StorageError::ObjectScopeNotYetSupported));
     assert!(adapter.create_calls.lock().unwrap().is_empty());
 }
@@ -841,9 +1224,16 @@ async fn storage_not_found_when_id_unknown() {
     let unknown_id = rand_string("no-such-storage");
     let args = args_with_hint(&unknown_id, &space_id, make_hint(), 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-        .await
-        .expect_err("unknown storage_id must fail");
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect_err("unknown storage_id must fail");
     match err {
         StorageError::StorageNotFound { storage_id: id } => assert_eq!(id, unknown_id),
         other => panic!("expected StorageNotFound, got {other:?}"),
@@ -870,9 +1260,16 @@ async fn minio_provider_rejected_in_hint() {
     };
     let args = args_with_hint(&storage_id, &space_id, minio_hint, 0b0001);
 
-    let err = share_storage_backend_core(&db, &hlc, &SpaceKeyCache::new(), args, &factory)
-        .await
-        .expect_err("MinIO must be rejected upfront");
+    let err = share_storage_backend_core(
+        &db,
+        &hlc,
+        &SpaceKeyCache::new(),
+        args,
+        &factory,
+        &rand_epoch_resolver(),
+    )
+    .await
+    .expect_err("MinIO must be rejected upfront");
     match err {
         StorageError::UnsupportedProvider { provider_type } => {
             assert!(

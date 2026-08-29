@@ -38,9 +38,10 @@ use crate::table_names::{
 };
 use crate::AppState;
 
-// ---------------------------------------------------------------------------
-// Request / response payloads (exchanged with the frontend)
-// ---------------------------------------------------------------------------
+mod epoch_resolver;
+mod shared_access_fanout;
+pub use epoch_resolver::{DefaultEpochResolver, EpochResolver};
+use shared_access_fanout::{rollback_child_backend_and_iam, write_shared_access_fanout};
 
 /// Frontend-provided IAM-admin credential. Only populated on a retry after
 /// the initial invocation returned `IamAdminCredMissing`; the vault stores it
@@ -88,10 +89,6 @@ pub struct SharedStorageBackend {
     /// revoke command can find the right user to tear down.
     pub iam_user_name: String,
 }
-
-// ---------------------------------------------------------------------------
-// Owner-side backend view + IAM adapter factory
-// ---------------------------------------------------------------------------
 
 /// Minimal view over the owner's `haex_s3_backends` row + its parsed JSON
 /// config. Held on the stack for the duration of the share flow.
@@ -153,10 +150,6 @@ pub(crate) fn provider_flavor_from(cred: &IamAdminCred) -> Result<ProviderFlavor
             provider_type: format!("{}: {e}", cred.provider_type.to_slug()),
         })
 }
-
-// ---------------------------------------------------------------------------
-// Argument validation
-// ---------------------------------------------------------------------------
 
 /// Post-validation view over the request: trimmed prefix/object_key strings
 /// live here so downstream code can use `&str` slices without re-trimming
@@ -386,19 +379,22 @@ pub async fn share_storage_backend(
         &state.column_sig_key_cache,
         args,
         &DefaultIamAdapterFactory,
+        &DefaultEpochResolver,
     )
     .await
 }
 
 /// Testable core form: takes the raw `db` + `hlc` so unit tests can call it
 /// without spinning up a full `AppState`. Also parameterises the adapter
-/// factory so tests can inject a mock without hitting AWS/Wasabi.
+/// factory + epoch resolver so tests can inject mocks without hitting
+/// AWS/Wasabi or seeding a real MLS group.
 pub(crate) async fn share_storage_backend_core(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     args: ShareStorageBackendArgs,
     factory: &dyn IamAdapterFactory,
+    epoch_resolver: &dyn EpochResolver,
 ) -> Result<SharedStorageBackend, StorageError> {
     // Serialise the whole share flow: the `find_existing_share` dedupe
     // check below only guards sequential repeats — two concurrent invokes
@@ -423,6 +419,14 @@ pub(crate) async fn share_storage_backend_core(
     // Idempotency: if a shared-backend row + mapping already exist for this
     // (parent, space, prefix, flags) tuple, return it unchanged. Guards
     // against double-clicks provisioning a second IAM user (real AWS $).
+    //
+    // Idempotent short-circuit invariant: this returns the existing
+    // `SharedStorageBackend` WITHOUT re-running `write_shared_access_fanout`.
+    // It assumes the `haex_s3_shared_access` rows minted at initial share are
+    // still present. A housekeeping delete or an interrupted rollback that
+    // removed them will NOT be repaired here — receivers will see the child
+    // row but cannot resolve creds. Repair must go through a dedicated flow
+    // (F5's rewrap orchestration).
     if let Some(existing) = find_existing_share(
         db,
         &args.storage_id,
@@ -485,17 +489,25 @@ pub(crate) async fn share_storage_backend_core(
 
     let mut new_config = owner.config.clone();
     if let serde_json::Value::Object(ref mut obj) = new_config {
-        // Strip any admin creds carried in the source row, replace with the
-        // scoped credential. `iamUserName` is stored here so revoke_share
-        // (future task) can find the user to delete.
-        obj.insert(
-            "accessKeyId".to_string(),
-            serde_json::Value::String(scoped_cred.access_key_id.clone()),
-        );
-        obj.insert(
-            "secretAccessKey".to_string(),
-            serde_json::Value::String(scoped_cred.secret_access_key.clone()),
-        );
+        // Phase 4 Round F3b: the scoped credential no longer lives in the
+        // child backend row's config JSON. It is sealed under the space's
+        // MLS epoch key and written to `haex_s3_shared_access` below;
+        // receiving members read it from there and hand the plaintext to
+        // the storage provider at request time. Strip any cred material
+        // the owner row may carry so the child row emits ONLY structural
+        // fields.
+        for field in [
+            "accessKeyId",
+            "secretAccessKey",
+            "sessionToken",
+            "access_key_id",
+            "secret_access_key",
+            "session_token",
+        ] {
+            obj.remove(field);
+        }
+        // `iamUserName` is not a cred — revoke_share (future task) needs
+        // it to find the IAM user to delete. Keep it in the child config.
         obj.insert(
             "iamUserName".to_string(),
             serde_json::Value::String(scoped_cred.iam_user_name.clone()),
@@ -533,10 +545,7 @@ pub(crate) async fn share_storage_backend_core(
         // Best-effort rollback so we don't leave an orphan behind. Any
         // failure is logged; the DB error is what we surface, because
         // that's the actionable one.
-        if let Err(rollback_err) = adapter
-            .delete_scoped_user(&user_name, &scoped_cred.access_key_id)
-            .await
-        {
+        if let Err(rollback_err) = adapter.delete_scoped_user(&user_name).await {
             tracing::warn!(
                 user_name = %user_name,
                 db_error = %db_err,
@@ -545,6 +554,41 @@ pub(crate) async fn share_storage_backend_core(
             );
         }
         return Err(db_err);
+    }
+
+    // Phase 4 Round F3b — hand the ScopedCred to receiving members via a
+    // sealed row in `haex_s3_shared_access`. The seal is symmetric under
+    // the space's MLS epoch key, so every current member unlocks with the
+    // same key (which they resolve from `haex_mls_sync_keys` on their
+    // side). We fan out one row per member so per-member revocation stays
+    // possible: the UNIQUE (space, backend, member) constraint would
+    // otherwise force one row shared across members.
+    //
+    // The seal + fanout runs AFTER persist_shared_backend because we need
+    // the child backend id (`new_row_id`) to key the rows. If any step
+    // here fails, we roll BOTH the shared_access fanout AND the child
+    // backend row back — an orphan child row without matching sealed
+    // creds would surface in the UI with no way for anyone to unlock it.
+    if let Err(err) = write_shared_access_fanout(
+        db,
+        hlc_service,
+        key_cache,
+        epoch_resolver,
+        &args.space_id,
+        &new_row_id,
+        &scoped_cred,
+    ) {
+        rollback_child_backend_and_iam(
+            db,
+            hlc_service,
+            key_cache,
+            adapter.as_ref(),
+            &new_row_id,
+            &args.space_id,
+            &user_name,
+        )
+        .await;
+        return Err(err);
     }
 
     Ok(SharedStorageBackend {

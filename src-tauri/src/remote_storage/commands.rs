@@ -21,6 +21,9 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde_json::Value as JsonValue;
 use tauri::State;
 
+mod backend_resolver;
+pub use backend_resolver::get_backend_instance_from_db_with_overrides;
+
 // ============================================================================
 // Backend Management Commands
 // ============================================================================
@@ -709,61 +712,6 @@ pub async fn remote_storage_upload_from_path(
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/// Get a backend instance by ID, using a `DbConnection` directly, with an
-/// optional per-rule bucket override that is not persisted back to the
-/// backend's stored config. Used by file-sync rules that point at a different
-/// bucket than the backend's default while sharing credentials/endpoint/region.
-pub async fn get_backend_instance_from_db_with_overrides(
-    db: &crate::database::DbConnection,
-    backend_id: &str,
-    bucket_override: Option<&str>,
-) -> Result<Box<dyn super::backend::StorageBackend>, StorageError> {
-    let rows = core::select_with_crdt(
-        SQL_GET_BACKEND_CONFIG.clone(),
-        vec![JsonValue::String(backend_id.to_string())],
-        db,
-    )
-    .map_err(|e| StorageError::DatabaseError {
-        reason: e.to_string(),
-    })?;
-
-    if rows.is_empty() {
-        return Err(StorageError::BackendNotFound {
-            id: backend_id.to_string(),
-        });
-    }
-
-    let row = &rows[0];
-    let backend_type = get_string(row, 0);
-    if backend_type.is_empty() {
-        return Err(StorageError::Internal {
-            reason: "Missing backend type".to_string(),
-        });
-    }
-
-    let config_str = get_string(row, 1);
-    if config_str.is_empty() {
-        return Err(StorageError::Internal {
-            reason: "Missing backend config".to_string(),
-        });
-    }
-
-    let mut config: serde_json::Value =
-        serde_json::from_str(&config_str).map_err(|e| StorageError::InvalidConfig {
-            reason: format!("Failed to parse config: {}", e),
-        })?;
-
-    if let Some(bucket) = bucket_override {
-        if !bucket.is_empty() {
-            if let Some(obj) = config.as_object_mut() {
-                obj.insert("bucket".to_string(), JsonValue::String(bucket.to_string()));
-            }
-        }
-    }
-
-    create_backend(&backend_type, &config).await
-}
 
 /// Get a backend instance by ID (from Tauri State)
 async fn get_backend_instance(

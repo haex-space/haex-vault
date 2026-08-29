@@ -2,6 +2,11 @@
 
 use rusqlite::{Connection, OptionalExtension};
 
+use crate::database::core::select_with_crdt;
+use crate::database::error::DatabaseError;
+use crate::database::row::get_string;
+use crate::database::DbConnection;
+
 /// The `haex_spaces.type` value identifying the local vault space.
 /// Mirrors `SpaceType.VAULT` in `src/database/constants.ts`.
 const VAULT_SPACE_TYPE: &str = "vault";
@@ -22,6 +27,57 @@ pub fn resolve_vault_owner_did(conn: &Connection) -> rusqlite::Result<Option<Str
         |row| row.get(0),
     )
     .optional()
+}
+
+/// Resolve the DID of the LOCAL identity that joined `space_id`.
+///
+/// LOCAL identity = a row in `haex_identities` with `source = 'own'` AND a
+/// non-null `private_key` (this vault holds the signing key). Per CLAUDE.md
+/// ("DID-Auswahl beim Space-Beitritt ist immer explizit — niemals auto-default
+/// auf eine bestehende DID"), a user can join a shared space with an identity
+/// distinct from the vault owner's, so callers that need to name the viewer
+/// for per-member ScopedCred lookups MUST use this resolver — NOT
+/// [`resolve_vault_owner_did`], which returns the DID that owns the local
+/// vault space and would silently miss non-vault-owner memberships.
+///
+/// Returns:
+/// - `Ok(Some(did))` — the single local DID that joined the space.
+/// - `Ok(None)` — this vault has no local identity mapped as a member of
+///   `space_id`.
+/// - `Err` — SQL failure.
+///
+/// The schema's `UNIQUE (space_id, identity_id)` index guarantees at most
+/// one row per (space, identity) pair, but nothing forbids two different
+/// local identities from joining the same space. That ambiguity is an error:
+/// choosing one implicitly would violate the repository's explicit-DID
+/// selection rule and could load another identity's credential row.
+pub fn resolve_local_member_did_for_space(
+    db: &DbConnection,
+    space_id: &str,
+) -> Result<Option<String>, DatabaseError> {
+    let rows = select_with_crdt(
+        "SELECT DISTINCT i.did \
+         FROM haex_identities i \
+         JOIN haex_space_members m ON m.identity_id = i.id \
+         WHERE m.space_id = ?1 \
+           AND i.source = 'own' \
+           AND i.private_key IS NOT NULL \
+         ORDER BY i.id ASC \
+         LIMIT 2"
+            .to_string(),
+        vec![serde_json::Value::String(space_id.to_string())],
+        db,
+    )?;
+    let dids: Vec<String> = rows.iter().map(|row| get_string(row, 0)).collect();
+    match dids.len() {
+        0 => Ok(None),
+        1 => Ok(dids.into_iter().next()),
+        _ => Err(DatabaseError::QueryError {
+            reason: format!(
+                "ambiguous local membership: multiple local identities joined space {space_id}"
+            ),
+        }),
+    }
 }
 
 /// Enumerate the iroh `endpoint_id`s of the owner's OTHER devices.

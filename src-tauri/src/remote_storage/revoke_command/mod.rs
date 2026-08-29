@@ -13,11 +13,15 @@
 //! # Order of operations
 //!
 //! 1. Load the shared row + verify `origin_type = 'shared_from_space'`.
-//! 2. Extract `iamUserName` + `accessKeyId` from the row's config JSON.
+//! 2. Extract `iamUserName` from the row's config JSON — the access-key id
+//!    is discovered from the provider at revoke time (Round F3b sanitised
+//!    cred material out of the config).
 //! 3. Load the parent backend row (data-integrity check).
 //! 4. Load the [`crate::remote_storage::iam_admin_creds::IamAdminCred`] for the parent id.
-//! 5. Delete the scoped IAM user at the provider (idempotent: `NotFound` ok).
-//! 6. Delete the mapping row, then the s3_backends row.
+//! 5. Delete the scoped IAM user at the provider — the adapter enumerates
+//!    and deletes every attached access-key before removing the inline
+//!    policy + user. Idempotent: `NotFound` is treated as success.
+//! 6. Delete shared-access rows, the mapping row, then the s3_backends row.
 //!
 //! **IAM-first ordering is deliberate**: if the IAM delete fails with
 //! anything other than `NotFound`, the DB rows are left intact so the user
@@ -39,7 +43,8 @@ use crate::remote_storage::share_command::{
     provider_flavor_from, DefaultIamAdapterFactory, IamAdapterFactory,
 };
 use crate::table_names::{
-    COL_S3_BACKENDS_CONFIG, COL_S3_BACKENDS_ID, TABLE_S3_BACKENDS, TABLE_SHARED_SPACE_SYNC,
+    COL_S3_BACKENDS_CONFIG, COL_S3_BACKENDS_ID, TABLE_S3_BACKENDS, TABLE_S3_SHARED_ACCESS,
+    TABLE_SHARED_SPACE_SYNC,
 };
 use crate::AppState;
 
@@ -63,11 +68,15 @@ pub struct RevokeStorageShareArgs {
 // ---------------------------------------------------------------------------
 
 /// Minimal projection of the shared row required by the revoke flow.
+///
+/// Since Round F3b, the child backend row's config JSON carries only
+/// structural fields plus `iamUserName` — the scoped access-key id is
+/// discovered from the IAM provider at revoke time via
+/// [`IamAdapter::list_access_key_ids`].
 #[derive(Debug)]
 struct SharedRow {
     parent_backend_id: String,
     iam_user_name: String,
-    access_key_id: String,
 }
 
 fn load_shared_row(
@@ -124,18 +133,9 @@ fn load_shared_row(
         })?
         .to_string();
 
-    let access_key_id = config
-        .get("accessKeyId")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| StorageError::InvalidConfig {
-            reason: "shared backend config missing 'accessKeyId' field".to_string(),
-        })?
-        .to_string();
-
     Ok(SharedRow {
         parent_backend_id,
         iam_user_name,
-        access_key_id,
     })
 }
 
@@ -171,8 +171,18 @@ fn assert_parent_exists(
     Ok(())
 }
 
-/// Hard-delete both the mapping row and the s3_backends row. Mapping first —
-/// see `docs/plans/2026-07-04-s3-bucket-sharing-via-spaces-design.md` §6:
+/// Hard-delete the shared_access fanout, the mapping row, and the
+/// s3_backends row. Order mirrors `share_command::rollback_child_backend_and_iam`:
+/// shared_access → mapping → child backend.
+///
+/// **shared_access first**: Round F3b's share flow writes one
+/// `haex_s3_shared_access` row per space member. If revoke does not delete
+/// them, the rows continue to sync via `SPACE_SCOPED_CRDT_TABLES` to every
+/// current and future member — a persistent leak of sealed ScopedCred rows
+/// referencing a child backend that no longer exists.
+///
+/// **Mapping before backend** — see
+/// `docs/plans/2026-07-04-s3-bucket-sharing-via-spaces-design.md` §6:
 ///
 /// - If the mapping DELETE succeeds and the s3_backends DELETE then fails,
 ///   the mapping is orphaned pointing at a still-live row. Subsequent revoke
@@ -184,8 +194,8 @@ fn assert_parent_exists(
 ///   check would incorrectly report "already shared".
 ///
 /// Each `execute_with_crdt` opens its own SQLite tx, so we can't wrap the
-/// pair in a single atomic transaction. That's the same limitation E1's
-/// `persist_shared_backend` operates under.
+/// three DELETEs in a single atomic transaction. That's the same limitation
+/// E1's `persist_shared_backend` operates under.
 fn delete_share_rows(
     db: &crate::database::DbConnection,
     hlc_service: &crate::crdt::hlc::HlcService,
@@ -197,8 +207,26 @@ fn delete_share_rows(
         reason: format!("hlc local mutex poisoned: {e}"),
     })?;
 
-    // Delete the mapping first (see doc-comment above). `row_pks` is a JSON
-    // array with the shared-backend id at index 0.
+    // 1. shared_access rows first — see doc-comment above. `backend_id`
+    //    names the child backend's immutable UUID primary key, so it is the
+    //    stable cleanup key even if a prior partial revoke already removed
+    //    the mapping row. Requiring the mapping's space_id here would make a
+    //    retry leak sealed credentials forever.
+    let delete_shared_access =
+        format!("DELETE FROM {TABLE_S3_SHARED_ACCESS} WHERE backend_id = ?1");
+    execute_with_crdt(
+        delete_shared_access,
+        vec![serde_json::Value::String(shared_backend_id.to_string())],
+        db,
+        &hlc_guard,
+        key_cache,
+    )
+    .map_err(|e| StorageError::DatabaseError {
+        reason: format!("delete haex_s3_shared_access: {e}"),
+    })?;
+
+    // 2. Delete the mapping. `row_pks` is a JSON array with the
+    //    shared-backend id at index 0.
     let delete_mapping = format!(
         "DELETE FROM {TABLE_SHARED_SPACE_SYNC} \
          WHERE table_name = ?1 \
@@ -319,15 +347,19 @@ pub(crate) async fn revoke_storage_share_core(
                 reason: e.to_string(),
             })?;
 
-    // 5. Provider-side delete. `NotFound` is idempotent — the user may
-    //    already be gone (manual cleanup, prior partial revoke, or the
-    //    adapter's own best-effort inner delete swallowed the outer
-    //    NoSuchEntity). Everything else halts the flow before we touch the
-    //    DB, so a retry can find the same rows.
-    match adapter
-        .delete_scoped_user(&shared.iam_user_name, &shared.access_key_id)
-        .await
-    {
+    // 5. Provider-side delete. Round F3b stripped the access-key id out of
+    //    the child config's JSON, so the adapter is the only place that
+    //    knows which keys the scoped user still has. `delete_scoped_user`
+    //    now takes only the user_name — the adapter enumerates via
+    //    `list_access_key_ids` internally and deletes each attached key
+    //    before removing the inline policy + user.
+    //
+    //    `NotFound` is idempotent — the user may already be gone (manual
+    //    cleanup, prior partial revoke, or the adapter's own best-effort
+    //    inner delete swallowed the outer NoSuchEntity). Everything else
+    //    halts the flow before we touch the DB, so a retry can find the
+    //    same rows.
+    match adapter.delete_scoped_user(&shared.iam_user_name).await {
         Ok(()) => {}
         Err(IamAdapterError::NotFound) => {
             tracing::info!(
@@ -343,7 +375,7 @@ pub(crate) async fn revoke_storage_share_core(
         }
     }
 
-    // 6. DB cleanup: mapping first, then s3_backends row.
+    // 6. DB cleanup: shared_access → mapping → s3_backends row.
     delete_share_rows(db, hlc_service, key_cache, &args.shared_backend_id)?;
 
     Ok(())

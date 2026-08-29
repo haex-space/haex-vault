@@ -15,7 +15,6 @@ use std::sync::Arc;
 
 use crate::database::DbConnection;
 
-use super::cloud_provider::CloudProvider;
 use super::crypto::provider::EncryptingSyncProvider;
 use super::crypto::space_provider::SpaceContentSyncProvider;
 use super::engine::{execute_sync, run_sync_loop, SyncEngineError};
@@ -23,6 +22,10 @@ use super::local_provider::LocalProvider;
 use super::peer_provider::PeerProvider;
 use super::provider::SyncProvider;
 use super::types::{DeleteMode, SyncDirection, SyncResult};
+
+mod cloud_assembly;
+pub(crate) use cloud_assembly::assemble_cloud_provider;
+use cloud_assembly::space_id_from_config;
 
 // ---------------------------------------------------------------------------
 // SyncManager
@@ -165,6 +168,21 @@ pub enum FileSyncCommandError {
     NotRunning(String),
     #[error("Internal error: {0}")]
     Internal(String),
+    /// No `haex_s3_shared_access` row for this viewer against
+    /// `(space_id, backend_id)`. Semantically distinct from
+    /// [`Self::InvalidConfig`]: this viewer's capability to sync the space
+    /// via that backend has been revoked (or was never granted), and the UI
+    /// should surface a share-revoked / re-enrollment prompt rather than a
+    /// generic config-invalid message. The `member_did` field carries the
+    /// DID the lookup targeted so callers can log it out-of-band; the
+    /// display message deliberately elides it to keep viewer DIDs out of
+    /// user-facing error text.
+    #[error("no active share for space={space_id} backend={backend_id}")]
+    NotShared {
+        space_id: String,
+        backend_id: String,
+        member_did: String,
+    },
 }
 
 impl serde::Serialize for FileSyncCommandError {
@@ -344,66 +362,14 @@ async fn create_provider(
             Ok(Arc::new(provider))
         }
         "cloud" => {
-            let backend_id = config
-                .get("backendId")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    FileSyncCommandError::InvalidConfig(
-                        "cloud provider requires 'backendId'".into(),
-                    )
-                })?;
-            // Distinguish "absent" from "present but wrong type": a non-string
-            // spaceId (e.g. a number) silently mapping to None would let a
-            // caller pass `{ "spaceId": 42 }` against an owner-only backend
-            // as if no spaceId were set — reject that up front.
-            let space_id = match config.get("spaceId") {
-                None | Some(serde_json::Value::Null) => None,
-                Some(value) => Some(value.as_str().ok_or_else(|| {
-                    FileSyncCommandError::InvalidConfig(
-                        "cloud provider 'spaceId' must be a string".into(),
-                    )
-                })?),
-            };
-            verify_cloud_space_binding(backend_id, space_id, &state.db)?;
-
-            let prefix = config
-                .get("prefix")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let bucket_override = config
-                .get("bucket")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty());
-
-            let backend =
-                crate::remote_storage::commands::get_backend_instance_from_db_with_overrides(
-                    &state.db,
-                    backend_id,
-                    bucket_override,
-                )
-                .await
-                .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
-
-            // Auto-create the bucket only when this provider is the sync
-            // target — a missing *source* bucket is almost always a typo or
-            // stale config and should surface as an error instead.
-            if is_target {
-                backend
-                    .ensure_container()
-                    .await
-                    .map_err(|e| FileSyncCommandError::ProviderError(e.to_string()))?;
-            }
-
-            let provider = CloudProvider::new(backend, prefix);
-            let inner: Arc<dyn SyncProvider> = Arc::new(provider);
-            wrap_cloud_with_encryption_if_configured(
-                inner,
+            assemble_cloud_provider(
                 config,
                 rule_id,
+                is_target,
                 DbConnection(state.db.0.clone()),
                 state.vault_key.clone(),
             )
+            .await
         }
         _ => Err(FileSyncCommandError::InvalidConfig(format!(
             "Unknown provider type: {provider_type}"
@@ -443,25 +409,19 @@ pub(crate) fn wrap_cloud_with_encryption_if_configured(
     db: DbConnection,
     vault_key_slot: std::sync::Arc<std::sync::Mutex<Option<zeroize::Zeroizing<[u8; 32]>>>>,
 ) -> Result<Arc<dyn SyncProvider>, FileSyncCommandError> {
-    match config.get("spaceId") {
-        None | Some(serde_json::Value::Null) => Ok(Arc::new(EncryptingSyncProvider::new(
+    match space_id_from_config(config)? {
+        None => Ok(Arc::new(EncryptingSyncProvider::new(
             inner,
             rule_id,
             db,
             vault_key_slot,
         ))),
-        Some(serde_json::Value::String(s)) if s.is_empty() => Ok(Arc::new(
-            EncryptingSyncProvider::new(inner, rule_id, db, vault_key_slot),
-        )),
-        Some(serde_json::Value::String(space_id)) => Ok(Arc::new(SpaceContentSyncProvider::new(
+        Some(space_id) => Ok(Arc::new(SpaceContentSyncProvider::new(
             inner,
             rule_id,
             db,
-            space_id.clone(),
+            space_id.to_string(),
             Arc::new(crate::file_sync::crypto::MlsSpaceKeyResolver),
-        ))),
-        Some(other) => Err(FileSyncCommandError::InvalidConfig(format!(
-            "spaceId must be a string, got {other}"
         ))),
     }
 }
