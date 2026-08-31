@@ -1,7 +1,7 @@
 name: Dependabot Auto-Merge
 
 # Two responsibilities:
-#  1. On PR open/update: enable GitHub auto-merge so the PR squashes itself
+#  1. On PR open/update: enable GitHub auto-merge so the PR merges itself
 #     once required checks pass.
 #  2. On Build completion: if the PR is BLOCKED while the latest Build was
 #     a success, look for stale required-check duplicates (a known GitHub
@@ -26,7 +26,9 @@ permissions:
 
 jobs:
   automerge:
-    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge
@@ -34,7 +36,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr merge "$PR_NUMBER" --squash --auto --repo "$REPO"
+        run: gh pr merge "$PR_NUMBER" --merge --auto --repo "$REPO"
 
   rebase-on-stale-block:
     # Build sometimes registers two `CI Success` check entries (one cancelled,

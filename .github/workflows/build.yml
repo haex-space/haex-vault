@@ -174,15 +174,28 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           EVENT: ${{ github.event_name }}
           UPDATE_TYPE: ${{ steps.dep-meta.outputs.update-type }}
+          DEPENDENCY_NAMES: ${{ steps.dep-meta.outputs.dependency-names }}
         run: |
           if [ "$PR_AUTHOR" = "dependabot[bot]" ] && [ "$EVENT" = "pull_request" ]; then
             echo "is_dependabot=true" >> "$GITHUB_OUTPUT"
-            # Skip E2E only when we have positive confirmation of patch/minor.
-            # Empty/unknown update-type → default to running E2E (strict).
+            # Skip E2E when it cannot provide a useful signal for a Dependabot
+            # update. Patch/minor updates are always pragmatic. GitHub Action
+            # updates are covered by the native Build jobs, while the
+            # external desktop E2E workflow cannot access Dependabot secrets
+            # needed for its Tailscale bridge.
             case "$UPDATE_TYPE" in
               version-update:semver-patch|version-update:semver-minor)
                 echo "skip_e2e=true" >> "$GITHUB_OUTPUT"
                 echo "Dependabot $UPDATE_TYPE — pragmatic gate (E2E skipped)"
+                ;;
+              version-update:semver-major)
+                if [[ "$DEPENDENCY_NAMES" == actions/* ]]; then
+                  echo "skip_e2e=true" >> "$GITHUB_OUTPUT"
+                  echo "Dependabot GitHub Action update ($DEPENDENCY_NAMES) — E2E skipped"
+                else
+                  echo "skip_e2e=false" >> "$GITHUB_OUTPUT"
+                  echo "Dependabot major update ($DEPENDENCY_NAMES) — strict E2E gate"
+                fi
                 ;;
               *)
                 echo "skip_e2e=false" >> "$GITHUB_OUTPUT"
@@ -756,7 +769,7 @@ jobs:
           run_install: false
 
       - name: Setup Java
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
