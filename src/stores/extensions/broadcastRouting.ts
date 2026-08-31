@@ -52,12 +52,26 @@ export interface BroadcastResult<TEntry> {
 /** Keep a broken or slow iframe from retaining an unbounded event backlog. */
 export const MAX_BUFFERED_MESSAGES = 256
 
+/** Control messages are never evicted; new ones are rejected at this bound. */
+export const MAX_BUFFERED_CONTROL_MESSAGES = 64
+
 export const bufferMessage = <TEntry extends { buffer: Array<Record<string, unknown>> }>(
   entry: TEntry,
   message: Record<string, unknown>,
 ): void => {
   if (entry.buffer.length >= MAX_BUFFERED_MESSAGES) entry.buffer.shift()
   entry.buffer.push(message)
+}
+
+export const queueControlMessage = <TEntry extends {
+  controlBuffer: Array<Record<string, unknown>>
+}>(
+  entry: TEntry,
+  message: Record<string, unknown>,
+): boolean => {
+  if (entry.controlBuffer.length >= MAX_BUFFERED_CONTROL_MESSAGES) return false
+  entry.controlBuffer.push(message)
+  return true
 }
 
 /**

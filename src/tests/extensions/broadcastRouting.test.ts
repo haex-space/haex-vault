@@ -18,7 +18,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   dispatchFileChangedBroadcast,
   dispatchShellEventBroadcast,
+  MAX_BUFFERED_CONTROL_MESSAGES,
   MAX_BUFFERED_MESSAGES,
+  queueControlMessage,
   type RoutableEntry,
   type RoutablePort,
 } from '~/stores/extensions/broadcastRouting'
@@ -254,6 +256,23 @@ describe('dispatchFileChangedBroadcast — pre-ready buffering', () => {
     expect(a.entry.buffer).toHaveLength(MAX_BUFFERED_MESSAGES)
     expect(a.entry.buffer[0]?.path).toBe('file-10')
     expect(a.entry.buffer.at(-1)?.path).toBe(`file-${messageCount - 1}`)
+  })
+})
+
+describe('queueControlMessage — pre-ready control delivery', () => {
+  it('does not evict existing control messages when the queue is full', () => {
+    const entry = { controlBuffer: [] as Array<Record<string, unknown>> }
+
+    for (let i = 0; i < MAX_BUFFERED_CONTROL_MESSAGES; i++) {
+      expect(queueControlMessage(entry, { requestId: `request-${i}` })).toBe(true)
+    }
+
+    expect(queueControlMessage(entry, { requestId: 'overflow' })).toBe(false)
+    expect(entry.controlBuffer).toHaveLength(MAX_BUFFERED_CONTROL_MESSAGES)
+    expect(entry.controlBuffer[0]?.requestId).toBe('request-0')
+    expect(entry.controlBuffer.at(-1)?.requestId).toBe(
+      `request-${MAX_BUFFERED_CONTROL_MESSAGES - 1}`,
+    )
   })
 })
 
