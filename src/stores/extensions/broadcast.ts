@@ -36,6 +36,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { IHaexSpaceExtension } from '~/types/haexspace'
 import { createLogger } from '~/stores/logging'
 import {
+  bufferMessage,
   dispatchFileChangedBroadcast,
   dispatchShellEventBroadcast,
 } from './broadcastRouting'
@@ -61,6 +62,7 @@ interface ExtensionIframeEntry {
   ready: boolean
   buffer: Array<Record<string, unknown>>
   destroyed: boolean
+  stopHandshake?: () => void
 }
 
 /** Public shape — omits the port internals from consumers of the store. */
@@ -102,6 +104,25 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     }
     iframeRegistry.set(iframe, entry)
 
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let handshakeTimeout: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      handshakeTimeout = null
+      if (entry.ready || entry.destroyed || iframeRegistry.get(iframe) !== entry) return
+      log.warn(`Iframe handshake timed out for ${extension.name} (windowId: ${windowId})`)
+      unregisterIframe(iframe)
+    }, 12_000)
+
+    entry.stopHandshake = () => {
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+      }
+      if (handshakeTimeout !== null) {
+        clearTimeout(handshakeTimeout)
+        handshakeTimeout = null
+      }
+    }
+
     // The SDK's PORT_INIT listener is registered inside sdk.init(), which runs
     // as an async Nuxt plugin — after the iframe's load event fires. Sending
     // PORT_INIT only on load races against that async startup, causing the SDK
@@ -109,12 +130,10 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     // 200 ms (each attempt creates a fresh MessageChannel) until PORT_READY is
     // acknowledged, mirroring the same "keep knocking until answered" pattern.
     iframe.addEventListener('load', () => {
-      let stopped = false
-      // Hard stop after 12 s so we don't retry forever on a broken extension.
-      setTimeout(() => { stopped = true }, 12_000)
+      if (entry.destroyed) return
 
       const attemptHandshake = () => {
-        if (entry.ready || entry.destroyed || stopped || !iframe.contentWindow) return
+        if (entry.ready || entry.destroyed || !iframe.contentWindow) return
 
         const ch = new MessageChannel()
         const prevPort = entry.port
@@ -140,7 +159,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           log.error(`Failed to send PORT_INIT to extension ${extension.name}:`, err)
         }
 
-        setTimeout(() => attemptHandshake(), 200)
+        retryTimer = setTimeout(() => attemptHandshake(), 200)
       }
 
       attemptHandshake()
@@ -157,6 +176,8 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     const entry = iframeRegistry.get(iframe)
     if (!entry) return
     entry.destroyed = true // stops any in-flight handshake retry loop
+    entry.stopHandshake?.()
+    entry.stopHandshake = undefined
     try {
       entry.port.close()
     }
@@ -185,6 +206,8 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     if (data?.type === HAEXSPACE_MESSAGE_TYPES.PORT_READY) {
       if (entry.ready) return // Ignore duplicate ACKs
       entry.ready = true
+      entry.stopHandshake?.()
+      entry.stopHandshake = undefined
       // Pin entry.port to the channel that won the handshake so that all
       // subsequent communication (broadcast sends, request responses) uses the
       // same port the SDK is listening on.
@@ -265,7 +288,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
 
     for (const entry of iframeRegistry.values()) {
       if (entry.ready) entry.port.postMessage(message)
-      else entry.buffer.push(message)
+      else bufferMessage(entry, message)
     }
 
     // Webview-mode extensions still use Tauri emit — unaffected by the port
@@ -306,7 +329,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
         timestamp: Date.now(),
       }
       if (entry.ready) entry.port.postMessage(message)
-      else entry.buffer.push(message)
+      else bufferMessage(entry, message)
     }
 
     if (isDesktop.value) {
@@ -358,7 +381,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
           timestamp: Date.now(),
         }
         if (entry.ready) entry.port.postMessage(message)
-        else entry.buffer.push(message)
+        else bufferMessage(entry, message)
         log.info(`Forwarded external request to: ${entry.extension.name}`)
         return
       }
@@ -397,7 +420,7 @@ export const useExtensionBroadcastStore = defineStore('extensionBroadcastStore',
     for (const entry of iframeRegistry.values()) {
       if (entry.extension.id !== payload.extensionId) continue
       if (entry.ready) entry.port.postMessage(message)
-      else entry.buffer.push(message)
+      else bufferMessage(entry, message)
     }
   }
 

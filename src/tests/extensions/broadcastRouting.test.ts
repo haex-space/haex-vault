@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   dispatchFileChangedBroadcast,
   dispatchShellEventBroadcast,
+  MAX_BUFFERED_MESSAGES,
   type RoutableEntry,
   type RoutablePort,
 } from '~/stores/extensions/broadcastRouting'
@@ -237,6 +238,22 @@ describe('dispatchFileChangedBroadcast — pre-ready buffering', () => {
 
     await flush()
     expect(a.remoteReceived.length).toBe(1)
+  })
+
+  it('bounds the pre-ready buffer and retains the newest messages', () => {
+    const a = track(makeEntry('ext-a', { ready: false }))
+    const messageCount = MAX_BUFFERED_MESSAGES + 10
+
+    for (let i = 0; i < messageCount; i++) {
+      dispatchFileChangedBroadcast(
+        { ruleId: 'r', changeType: 'modified', path: `file-${i}`, readerExtensionIds: ['ext-a'] },
+        entriesOf([a]),
+      )
+    }
+
+    expect(a.entry.buffer).toHaveLength(MAX_BUFFERED_MESSAGES)
+    expect(a.entry.buffer[0]?.path).toBe('file-10')
+    expect(a.entry.buffer.at(-1)?.path).toBe(`file-${messageCount - 1}`)
   })
 })
 

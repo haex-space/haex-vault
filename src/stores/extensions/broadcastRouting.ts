@@ -49,6 +49,17 @@ export interface BroadcastResult<TEntry> {
   message: Record<string, unknown> | null
 }
 
+/** Keep a broken or slow iframe from retaining an unbounded event backlog. */
+export const MAX_BUFFERED_MESSAGES = 256
+
+export const bufferMessage = <TEntry extends { buffer: Array<Record<string, unknown>> }>(
+  entry: TEntry,
+  message: Record<string, unknown>,
+): void => {
+  if (entry.buffer.length >= MAX_BUFFERED_MESSAGES) entry.buffer.shift()
+  entry.buffer.push(message)
+}
+
 /**
  * Dispatch a file-change event to the entries whose extension appears in
  * `readerExtensionIds`. The readers list is server-side computed against
@@ -56,7 +67,7 @@ export interface BroadcastResult<TEntry> {
  *
  * Delivery rule:
  *   - entry.ready === true  → `entry.port.postMessage(message)`
- *   - entry.ready === false → `entry.buffer.push(message)` (store will flush on ACK)
+ *   - entry.ready === false → buffer the message (store will flush on ACK)
  */
 export const dispatchFileChangedBroadcast = <TEntry extends RoutableEntry>(
   payload: FileChangedBroadcastInput,
@@ -138,7 +149,7 @@ const deliver = <TEntry extends RoutableEntry>(
     postedTo.push(entry)
   }
   else {
-    entry.buffer.push(message)
+    bufferMessage(entry, message)
     buffered.push(entry)
   }
 }
