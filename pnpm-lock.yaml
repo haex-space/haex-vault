@@ -153,7 +153,7 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
       swiper:
-        specifier: ^14.1.0
+        specifier: ^14.2.0
         version: 14.2.0
       tailwindcss:
         specifier: ^4.3.3
