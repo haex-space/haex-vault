@@ -27,7 +27,7 @@ importers:
         specifier: ^0.2.8
         version: 0.2.8
       '@dicebear/core':
-        specifier: ^10.6.1
+        specifier: ^10.7.0
         version: 10.7.0
       '@dicebear/styles':
         specifier: ^10.5.0
