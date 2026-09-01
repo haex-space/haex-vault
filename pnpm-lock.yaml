@@ -33,7 +33,7 @@ importers:
         specifier: ^10.5.0
         version: 10.6.0
       '@haex-space/federation-sdk':
-        specifier: ^0.3.5
+        specifier: ^0.3.7
         version: 0.3.7
       '@haex-space/marketplace-sdk':
         specifier: ^0.1.6
