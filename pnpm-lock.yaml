@@ -159,7 +159,7 @@ importers:
         specifier: ^4.3.3
         version: 4.3.3
       tldts:
-        specifier: ^7.4.10
+        specifier: ^7.4.11
         version: 7.4.11
       vue:
         specifier: ^3.5.42
