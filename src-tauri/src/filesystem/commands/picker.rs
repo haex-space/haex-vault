@@ -45,7 +45,7 @@ pub async fn filesystem_select_folder(
         use tauri_plugin_android_fs::AndroidFsExt;
 
         let api = app_handle.android_fs();
-        let picker = api.file_picker();
+        let picker = api.picker();
 
         let selected = picker.pick_dir(None, true).map_err(|e| FsError::IoError {
             reason: format!("Android folder picker error: {:?}", e),
@@ -143,7 +143,7 @@ pub async fn filesystem_select_file(
         use tauri_plugin_android_fs::AndroidFsExt;
 
         let api = app_handle.android_fs();
-        let picker = api.file_picker();
+        let picker = api.picker();
 
         // Convert extension filters to MIME types for Android
         let mime_types: Vec<String> = filters

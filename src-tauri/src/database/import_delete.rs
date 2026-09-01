@@ -99,11 +99,11 @@ fn import_vault_from_content_uri(
     source_uri_json: &str,
     vault_name: Option<String>,
 ) -> Result<String, DatabaseError> {
-    use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+    use tauri_plugin_android_fs::{AndroidFsExt, FsUri};
 
     let api = app_handle.android_fs();
 
-    let uri = FileUri::from_json_str(source_uri_json).map_err(|e| DatabaseError::IoError {
+    let uri = FsUri::from_json_str(source_uri_json).map_err(|e| DatabaseError::IoError {
         path: source_uri_json.to_string(),
         reason: format!("Invalid Content URI: {e:?}"),
     })?;

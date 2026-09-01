@@ -15,14 +15,14 @@ pub(super) fn resolve_content_uri_subpath(
     app_handle: &tauri::AppHandle,
     root_uri_json: &str,
     sub_path: &str,
-) -> Result<(tauri_plugin_android_fs::FileUri, bool), String> {
-    use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+) -> Result<(tauri_plugin_android_fs::FsUri, bool), String> {
+    use tauri_plugin_android_fs::{AndroidFsExt, FsUri};
 
     crate::filesystem::reject_path_traversal(sub_path)?;
 
     let api = app_handle.android_fs();
     let root =
-        FileUri::from_json_str(root_uri_json).map_err(|e| format!("Invalid Content URI: {e:?}"))?;
+        FsUri::from_json_str(root_uri_json).map_err(|e| format!("Invalid Content URI: {e:?}"))?;
 
     let segments: Vec<&str> = sub_path
         .trim_start_matches('/')
@@ -96,7 +96,7 @@ pub(super) fn scan_content_uri_recursive(
 #[cfg(target_os = "android")]
 fn hash_content_uri_file(
     app_handle: &tauri::AppHandle,
-    uri: &tauri_plugin_android_fs::FileUri,
+    uri: &tauri_plugin_android_fs::FsUri,
     size: u64,
     modified_nanos: u128,
 ) -> std::io::Result<crate::file_sync::hashing::ChunkedHash> {
@@ -117,7 +117,7 @@ fn hash_content_uri_file(
 #[cfg(target_os = "android")]
 fn collect_content_uri_entries(
     app_handle: &tauri::AppHandle,
-    dir_uri: &tauri_plugin_android_fs::FileUri,
+    dir_uri: &tauri_plugin_android_fs::FsUri,
     prefix: &str,
     entries: &mut Vec<crate::file_sync::types::FileState>,
 ) -> Result<(), String> {
@@ -573,7 +573,7 @@ pub(super) fn create_directory_content_uri(
     }
 
     let api = app_handle.android_fs();
-    let root = tauri_plugin_android_fs::FileUri::from_json_str(root_uri_json)
+    let root = tauri_plugin_android_fs::FsUri::from_json_str(root_uri_json)
         .map_err(|e| format!("Invalid Content URI: {e:?}"))?;
 
     api.create_dir_all(&root, trimmed)

@@ -585,7 +585,7 @@ pub async fn media_server_register_peer_stream(
 /// seek+read against the underlying fd in a `spawn_blocking` thread, so
 /// a multi-GiB media file never lands in RAM.
 ///
-/// `uri_json` is the resolved file's `FileUri` JSON blob (the same shape
+/// `uri_json` is the resolved file's `FsUri` JSON blob (the same shape
 /// the frontend already holds in `file.path` for Content URI shares).
 /// `name_hint` is the file's display name — used only to derive a MIME
 /// type from the extension.

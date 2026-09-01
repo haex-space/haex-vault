@@ -53,11 +53,10 @@ fn read_file_android(app_handle: &tauri::AppHandle, path_json: &str) -> Result<S
 
     let api = app_handle.android_fs();
 
-    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json).map_err(|e| {
-        FsError::IoError {
+    let uri =
+        tauri_plugin_android_fs::FsUri::from_json_str(path_json).map_err(|e| FsError::IoError {
             reason: format!("Invalid Content URI: {:?}", e),
-        }
-    })?;
+        })?;
 
     let bytes = api.read(&uri).map_err(|e| FsError::IoError {
         reason: format!("Failed to read Android file: {:?}", e),
@@ -171,11 +170,10 @@ fn read_dir_android(
     let api = app_handle.android_fs();
 
     // Parse the JSON Content URI
-    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json).map_err(|e| {
-        FsError::IoError {
+    let uri =
+        tauri_plugin_android_fs::FsUri::from_json_str(path_json).map_err(|e| FsError::IoError {
             reason: format!("Invalid Content URI: {:?}", e),
-        }
-    })?;
+        })?;
 
     let dir_entries = api.read_dir(&uri).map_err(|e| FsError::IoError {
         reason: format!("Failed to read Android directory: {:?}", e),
@@ -252,7 +250,7 @@ fn exists_android(app_handle: &tauri::AppHandle, path_json: &str) -> Result<bool
     use tauri_plugin_android_fs::AndroidFsExt;
 
     let api = app_handle.android_fs();
-    let uri = match tauri_plugin_android_fs::FileUri::from_json_str(path_json) {
+    let uri = match tauri_plugin_android_fs::FsUri::from_json_str(path_json) {
         Ok(u) => u,
         Err(_) => return Ok(false),
     };
@@ -318,11 +316,10 @@ fn stat_android(app_handle: &tauri::AppHandle, path_json: &str) -> Result<FileSt
     use tauri_plugin_android_fs::AndroidFsExt;
 
     let api = app_handle.android_fs();
-    let uri = tauri_plugin_android_fs::FileUri::from_json_str(path_json).map_err(|e| {
-        FsError::IoError {
+    let uri =
+        tauri_plugin_android_fs::FsUri::from_json_str(path_json).map_err(|e| FsError::IoError {
             reason: format!("Invalid Content URI: {:?}", e),
-        }
-    })?;
+        })?;
 
     let entry = api.get_info(&uri).map_err(|e| FsError::IoError {
         reason: format!("Failed to stat Android URI: {:?}", e),
@@ -357,10 +354,10 @@ pub async fn filesystem_get_file_name(
 ) -> Result<String, FsError> {
     #[cfg(target_os = "android")]
     if path.starts_with('{') {
-        use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+        use tauri_plugin_android_fs::{AndroidFsExt, FsUri};
 
         let api = app_handle.android_fs();
-        let uri = FileUri::from_json_str(&path).map_err(|e| FsError::IoError {
+        let uri = FsUri::from_json_str(&path).map_err(|e| FsError::IoError {
             reason: format!("Invalid Content URI: {:?}", e),
         })?;
         return api.get_name(&uri).map_err(|e| FsError::IoError {

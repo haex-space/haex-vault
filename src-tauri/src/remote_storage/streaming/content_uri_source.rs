@@ -18,8 +18,8 @@ use super::source::{ByteRange, StreamingError, StreamingSource};
 
 pub struct ContentUriStreamingSource {
     app_handle: AppHandle,
-    /// Full JSON-encoded `FileUri` (as produced by
-    /// `tauri_plugin_android_fs::FileUri::to_json_str`) — the resolved
+    /// Full JSON-encoded `FsUri` (as produced by
+    /// `tauri_plugin_android_fs::FsUri::to_json_str`) — the resolved
     /// file, not a tree root + sub-path. The frontend already has this
     /// blob via `file.path` for Content URI shares.
     uri_json: String,
@@ -50,9 +50,9 @@ impl StreamingSource for ContentUriStreamingSource {
         let app = self.app_handle.clone();
         let uri_json = self.uri_json.clone();
         let size = tokio::task::spawn_blocking(move || -> Result<u64, String> {
-            use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+            use tauri_plugin_android_fs::{AndroidFsExt, FsUri};
             let api = app.android_fs();
-            let uri = FileUri::from_json_str(&uri_json)
+            let uri = FsUri::from_json_str(&uri_json)
                 .map_err(|e| format!("invalid Content URI: {e:?}"))?;
             api.get_len(&uri)
                 .map_err(|e| format!("get_len failed: {e:?}"))
@@ -74,10 +74,10 @@ impl StreamingSource for ContentUriStreamingSource {
 
         tokio::task::spawn_blocking(move || -> Result<Vec<u8>, StreamingError> {
             use std::io::{Read, Seek, SeekFrom};
-            use tauri_plugin_android_fs::{AndroidFsExt, FileUri};
+            use tauri_plugin_android_fs::{AndroidFsExt, FsUri};
 
             let api = app.android_fs();
-            let uri = FileUri::from_json_str(&uri_json)
+            let uri = FsUri::from_json_str(&uri_json)
                 .map_err(|e| StreamingError::BadRequest(format!("invalid Content URI: {e:?}")))?;
 
             let mut file = api
