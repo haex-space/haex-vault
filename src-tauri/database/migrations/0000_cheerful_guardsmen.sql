@@ -278,6 +278,30 @@ CREATE TABLE `haex_peer_downloads_no_sync` (
 	PRIMARY KEY(`endpoint_id`, `remote_path`)
 );
 --> statement-breakpoint
+CREATE TABLE `haex_file_grants` (
+	`id` text PRIMARY KEY NOT NULL,
+	`content_key` text NOT NULL,
+	`space_id` text NOT NULL,
+	`sidecar_key` text NOT NULL,
+	`epoch` integer NOT NULL,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_file_grants_content_space_uniq` ON `haex_file_grants` (`content_key`,`space_id`);--> statement-breakpoint
+CREATE INDEX `haex_file_grants_space_idx` ON `haex_file_grants` (`space_id`);--> statement-breakpoint
+CREATE TABLE `haex_s3_shared_access` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`backend_id` text NOT NULL,
+	`member_did` text NOT NULL,
+	`encrypted_cred` text NOT NULL,
+	`epoch` integer NOT NULL,
+	`expires_at` text,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_s3_shared_access_space_backend_did_uniq` ON `haex_s3_shared_access` (`space_id`,`backend_id`,`member_did`);--> statement-breakpoint
+CREATE INDEX `haex_s3_shared_access_member_idx` ON `haex_s3_shared_access` (`member_did`);--> statement-breakpoint
 CREATE TABLE `haex_identities` (
 	`id` text PRIMARY KEY NOT NULL,
 	`did` text NOT NULL,
@@ -804,28 +828,4 @@ CREATE TABLE `haex_s3_backends` (
 	FOREIGN KEY (`parent_backend_id`) REFERENCES `haex_s3_backends`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_s3_backends_name_unique` ON `haex_s3_backends` (`name`);--> statement-breakpoint
-CREATE TABLE `haex_file_grants` (
-	`id` text PRIMARY KEY NOT NULL,
-	`content_key` text NOT NULL,
-	`space_id` text NOT NULL,
-	`sidecar_key` text NOT NULL,
-	`epoch` integer NOT NULL,
-	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `haex_file_grants_content_space_uniq` ON `haex_file_grants` (`content_key`, `space_id`);--> statement-breakpoint
-CREATE INDEX `haex_file_grants_space_idx` ON `haex_file_grants` (`space_id`);--> statement-breakpoint
-CREATE TABLE `haex_s3_shared_access` (
-	`id` text PRIMARY KEY NOT NULL,
-	`space_id` text NOT NULL,
-	`backend_id` text NOT NULL,
-	`member_did` text NOT NULL,
-	`encrypted_cred` text NOT NULL,
-	`epoch` integer NOT NULL,
-	`expires_at` text,
-	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `haex_s3_shared_access_space_backend_did_uniq` ON `haex_s3_shared_access` (`space_id`, `backend_id`, `member_did`);--> statement-breakpoint
-CREATE INDEX `haex_s3_shared_access_member_idx` ON `haex_s3_shared_access` (`member_did`);
+CREATE UNIQUE INDEX `haex_s3_backends_name_unique` ON `haex_s3_backends` (`name`);

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e3ccf46e-778f-4b22-b6c2-06f6759b58c6",
+  "id": "91b128bb-ab15-4e9b-8683-055afc188b67",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_bookmark_collections": {
@@ -1821,6 +1821,159 @@
           "name": "haex_peer_downloads_no_sync_endpoint_id_remote_path_pk"
         }
       },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "haex_file_grants": {
+      "name": "haex_file_grants",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content_key": {
+          "name": "content_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "space_id": {
+          "name": "space_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sidecar_key": {
+          "name": "sidecar_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "epoch": {
+          "name": "epoch",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at_no_trigger": {
+          "name": "created_at_no_trigger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {
+        "haex_file_grants_content_space_uniq": {
+          "name": "haex_file_grants_content_space_uniq",
+          "columns": [
+            "content_key",
+            "space_id"
+          ],
+          "isUnique": true
+        },
+        "haex_file_grants_space_idx": {
+          "name": "haex_file_grants_space_idx",
+          "columns": [
+            "space_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "haex_s3_shared_access": {
+      "name": "haex_s3_shared_access",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "space_id": {
+          "name": "space_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "backend_id": {
+          "name": "backend_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_did": {
+          "name": "member_did",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "encrypted_cred": {
+          "name": "encrypted_cred",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "epoch": {
+          "name": "epoch",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at_no_trigger": {
+          "name": "created_at_no_trigger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        }
+      },
+      "indexes": {
+        "haex_s3_shared_access_space_backend_did_uniq": {
+          "name": "haex_s3_shared_access_space_backend_did_uniq",
+          "columns": [
+            "space_id",
+            "backend_id",
+            "member_did"
+          ],
+          "isUnique": true
+        },
+        "haex_s3_shared_access_member_idx": {
+          "name": "haex_s3_shared_access_member_idx",
+          "columns": [
+            "member_did"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },

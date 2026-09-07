@@ -143,7 +143,7 @@ impl LogSink {
     /// the in-memory fixture.
     #[cfg(test)]
     const MIGRATION_SQL: &str =
-        include_str!("../../database/migrations/0000_ordinary_microchip.sql");
+        include_str!("../../database/migrations/0000_cheerful_guardsmen.sql");
 
     /// In-memory factory for tests. Applies the 0009 migration split
     /// on drizzle's `--> statement-breakpoint` marker (same split the
