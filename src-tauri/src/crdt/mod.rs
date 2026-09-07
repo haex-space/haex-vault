@@ -1,6 +1,6 @@
-pub mod cleanup;
 pub mod column_sig;
 pub mod commands;
+pub mod compaction_anchor;
 //pub mod query_transformer;
 pub mod registry_row_sig;
 pub mod scanner;

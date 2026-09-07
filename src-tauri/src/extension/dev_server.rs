@@ -423,7 +423,7 @@ pub fn remove_dev_extension(
     // early returns via `?` — so an error mid-transaction does not leave FK
     // checks off on the shared Connection for subsequent operations.
     db::core::with_connection(&state.db, |conn| {
-        crate::crdt::cleanup::with_fk_disabled(conn, |conn| {
+        haex_crdt::with_fk_disabled(conn, |conn| {
             let tx = conn.transaction().map_err(db::error::DatabaseError::from)?;
 
             let hlc_service = state.lock_or_fail(

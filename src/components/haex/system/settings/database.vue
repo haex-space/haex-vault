@@ -254,7 +254,7 @@
           <div class="text-sm mt-2">
             {{
               t('cleanup.tombstonesDeleted', {
-                count: lastCleanupResult.tombstonesDeleted,
+                count: lastCleanupResult.rowsDeleted,
               })
             }}
           </div>

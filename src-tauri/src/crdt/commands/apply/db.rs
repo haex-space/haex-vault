@@ -306,7 +306,7 @@ pub fn apply_remote_changes_to_db_scoped(
         // transaction, so the toggle must wrap the transaction.
         // See: https://sqlite.org/foreignkeys.html
         eprintln!("[SYNC RUST] Disabling foreign_keys BEFORE transaction");
-        let applied_hlc_timestamps = crate::crdt::cleanup::with_fk_disabled(conn, |conn| {
+        let applied_hlc_timestamps = haex_crdt::with_fk_disabled(conn, |conn| {
             // Start transaction - all changes in the batch are applied atomically
             eprintln!("[SYNC RUST] Starting transaction...");
             let tx = conn.transaction().map_err(DatabaseError::from)?;
