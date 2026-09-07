@@ -187,8 +187,8 @@ importers:
         specifier: ^0.17.4
         version: 0.17.4
       '@oxc-minify/binding-linux-x64-gnu':
-        specifier: ^0.146.0
-        version: 0.146.0
+        specifier: ^0.148.0
+        version: 0.148.0
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -1487,8 +1487,8 @@ packages:
     resolution: {integrity: sha512-20YXYOcc8cSh/pSpNgj+MHAn11qUbsFR1IBJh6qYtRPVhUUmgqJ1DyMu39MB+uEYYL/fsberL2ByMYrFaROslw==}
     engines: {node: '>=20.11.1'}
 
-  '@oxc-minify/binding-linux-x64-gnu@0.146.0':
-    resolution: {integrity: sha512-8kj3FUFZStZWnt5WGdDm/UjMOOSN6dI7aS5iojhxnPXN/1TOaJNS2EVRg3/PwMXUMv+ScR5kGNkJ/OxA/vHpjA==}
+  '@oxc-minify/binding-linux-x64-gnu@0.148.0':
+    resolution: {integrity: sha512-HY2jxBQcinCym9X6B9gyoalais7CjGMFU3+sSXfGZ1N0FgXGd0dfTIDeqtom1Z2+qU+277V5/nCxoev+DG2iDA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
@@ -8992,7 +8992,7 @@ snapshots:
       - vue
       - webpack
 
-  '@oxc-minify/binding-linux-x64-gnu@0.146.0': {}
+  '@oxc-minify/binding-linux-x64-gnu@0.148.0': {}
 
   '@oxc-parser/binding-android-arm-eabi@0.141.0':
     optional: true
