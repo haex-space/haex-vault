@@ -174,12 +174,13 @@ fn prune_shared_space_delete_log_time_based_advances_anchor_and_prunes() {
     .unwrap();
 
     let tx = conn.transaction().unwrap();
-    prune_shared_space_delete_log_and_advance_anchors(
+    let pruned = prune_shared_space_delete_log_and_advance_anchors(
         &tx,
         haex_crdt::RetentionPolicy::TimeBasedDays { days: 30 },
     )
     .unwrap();
     tx.commit().unwrap();
+    assert_eq!(pruned, 2, "old-1 and old-2 below cutoff");
 
     let anchor_hlc: Option<String> = conn
         .query_row(
@@ -225,9 +226,11 @@ fn prune_shared_space_delete_log_all_advances_anchor_per_space() {
     .unwrap();
 
     let tx = conn.transaction().unwrap();
-    prune_shared_space_delete_log_and_advance_anchors(&tx, haex_crdt::RetentionPolicy::All)
-        .unwrap();
+    let pruned =
+        prune_shared_space_delete_log_and_advance_anchors(&tx, haex_crdt::RetentionPolicy::All)
+            .unwrap();
     tx.commit().unwrap();
+    assert_eq!(pruned, 2, "x-1 and y-1 pruned, z-null stays (NULL HLC)");
 
     let x_anchor: String = conn
         .query_row(

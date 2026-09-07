@@ -181,7 +181,7 @@ pub fn advance_owner_delete_log_anchor(
 pub fn prune_shared_space_delete_log_and_advance_anchors(
     tx: &Transaction,
     policy: haex_crdt::RetentionPolicy,
-) -> Result<(), DatabaseError> {
+) -> Result<usize, DatabaseError> {
     match policy {
         haex_crdt::RetentionPolicy::All => {
             let mut per_space_stmt = tx.prepare(&format!(
@@ -196,17 +196,18 @@ pub fn prune_shared_space_delete_log_and_advance_anchors(
                 advance_shared_space_anchor(&*tx, space_id, hlc)?;
             }
 
-            tx.execute(
+            let rows_deleted = tx.execute(
                 &format!(
                     "DELETE FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
                      WHERE haex_hlc_no_trigger IS NOT NULL"
                 ),
                 [],
             )?;
+            Ok(rows_deleted)
         }
         haex_crdt::RetentionPolicy::TimeBasedDays { days } => {
             let Some(cutoff) = compute_cutoff_hlc_num_from_config(&*tx, days)? else {
-                return Ok(());
+                return Ok(0);
             };
 
             let mut per_space_stmt = tx.prepare(&format!(
@@ -223,7 +224,7 @@ pub fn prune_shared_space_delete_log_and_advance_anchors(
                 advance_shared_space_anchor(&*tx, space_id, hlc)?;
             }
 
-            tx.execute(
+            let rows_deleted = tx.execute(
                 &format!(
                     "DELETE FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
                      WHERE haex_hlc_no_trigger IS NOT NULL \
@@ -231,9 +232,9 @@ pub fn prune_shared_space_delete_log_and_advance_anchors(
                 ),
                 [cutoff],
             )?;
+            Ok(rows_deleted)
         }
     }
-    Ok(())
 }
 
 /// Collapse `(space_id, hlc)` rows into `space_id -> max_hlc`, comparing
@@ -278,7 +279,9 @@ fn compute_cutoff_hlc_num_from_config(
 ) -> Result<Option<i64>, DatabaseError> {
     let current_hlc_str: Option<String> = tx
         .query_row(
-            &format!("SELECT value FROM {TABLE_CRDT_CONFIGS} WHERE key = ?1 AND type = 'hlc'"),
+            &format!(
+                "SELECT value FROM \"{TABLE_CRDT_CONFIGS}\" WHERE key = ?1 AND type = 'hlc'"
+            ),
             ["hlc_timestamp"],
             |row| row.get(0),
         )

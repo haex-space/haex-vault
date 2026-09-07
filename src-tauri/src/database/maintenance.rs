@@ -6,27 +6,23 @@ use serde::Serialize;
 use tauri::State;
 use ts_rs::TS;
 
-/// Result of the delete-log cleanup operation. Thin vault-side mirror of
-/// `haex_crdt::CleanupResult` — the crate's type does not derive `ts-rs::TS`,
-/// so we redeclare the shape here to keep the frontend binding auto-generated.
+/// Result of the delete-log cleanup operation. Vault-side aggregate: the
+/// `rows_deleted` count sums the crate's owner-domain prune of
+/// `haex_deleted_rows` with the vault-owned prune of
+/// `haex_shared_space_deleted_rows` so the frontend reports the total across
+/// both logs. Shape mirrors `haex_crdt::CleanupResult` (the crate's type does
+/// not derive `ts-rs::TS`, so we redeclare it here to keep the binding
+/// auto-generated).
 #[derive(Debug, Serialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct CleanupResult {
-    /// Number of rows removed from `haex_deleted_rows`.
+    /// Total rows removed from the delete-log across `haex_deleted_rows`
+    /// (owner domain) and `haex_shared_space_deleted_rows` (per-space).
     pub rows_deleted: usize,
-    /// Max HLC of the entries that were pruned. `None` when the pass was a
-    /// no-op (no entries matched the policy).
+    /// Max HLC of the entries that were pruned from `haex_deleted_rows`
+    /// (the crate's owner-domain prune). `None` when that pass was a no-op.
     pub max_pruned_hlc: Option<String>,
-}
-
-impl From<haex_crdt::CleanupResult> for CleanupResult {
-    fn from(v: haex_crdt::CleanupResult) -> Self {
-        Self {
-            rows_deleted: v.rows_deleted,
-            max_pruned_hlc: v.max_pruned_hlc,
-        }
-    }
 }
 
 /// Snapshot of the CRDT layer's contents. Thin vault-side mirror of
@@ -77,7 +73,8 @@ pub fn crdt_cleanup_deleted_rows(
         }
     };
     core::with_connection(&state.db, |conn| {
-        let result = haex_crdt::cleanup_deleted_rows(conn, policy, |tx, owner_max_hlc| {
+        let mut shared_pruned: usize = 0;
+        let owner_result = haex_crdt::cleanup_deleted_rows(conn, policy, |tx, owner_max_hlc| {
             // Owner-domain anchor advances first (using the max HLC of
             // rows the crate is about to prune from haex_deleted_rows),
             // then the vault-only shared-space delete-log gets pruned +
@@ -87,12 +84,16 @@ pub fn crdt_cleanup_deleted_rows(
             if let Some(hlc) = owner_max_hlc {
                 crate::crdt::compaction_anchor::advance_owner_delete_log_anchor(&*tx, hlc)?;
             }
-            crate::crdt::compaction_anchor::prune_shared_space_delete_log_and_advance_anchors(
-                tx, policy,
-            )?;
+            shared_pruned =
+                crate::crdt::compaction_anchor::prune_shared_space_delete_log_and_advance_anchors(
+                    tx, policy,
+                )?;
             Ok(())
         })?;
-        Ok(CleanupResult::from(result))
+        Ok(CleanupResult {
+            rows_deleted: owner_result.rows_deleted + shared_pruned,
+            max_pruned_hlc: owner_result.max_pruned_hlc,
+        })
     })
 }
 
