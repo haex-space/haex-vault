@@ -11,8 +11,8 @@ use tauri::AppHandle;
 use super::invite_tokens::LocalInviteToken;
 use super::protocol::Notification;
 use super::types::ConnectedPeer;
-use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
+use haex_crdt::HlcService;
 
 mod auth;
 mod claim;

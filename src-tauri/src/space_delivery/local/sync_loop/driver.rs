@@ -224,7 +224,7 @@ async fn run_sync_loop(
     // (only the in-process leader path uses one — see leader.rs) yields None
     // and disables the filter, which is the correct fallback: that path does
     // not push back to itself anyway.
-    let our_node: Option<u128> = crate::crdt::hlc::device_uuid_to_hlc_node(&device_id);
+    let our_node: Option<u128> = haex_crdt::device_uuid_to_hlc_node(&device_id);
     if our_node.is_none() {
         log_sync(
             &app_handle,

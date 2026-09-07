@@ -48,7 +48,19 @@ pub fn generate_table_names() {
                     if let Ok(table) = serde_json::from_value::<TableDefinition>(crdt_value.clone())
                     {
                         let const_prefix = format!("CRDT_{}", to_screaming_snake_case(crdt_key));
-                        code.push_str(&generate_table_constants(&table, &const_prefix));
+                        // These three CRDT bookkeeping table names are re-exported
+                        // from `haex_crdt::table_names` at the top of `pub mod
+                        // table_names` in `lib.rs`. The generator keeps their
+                        // column constants but skips the TABLE_ const so
+                        // `haex_crdt` remains the single source of truth for
+                        // the table names themselves.
+                        let emit_table_const =
+                            !matches!(crdt_key.as_str(), "configs" | "dirty_tables" | "migrations");
+                        code.push_str(&generate_table_constants(
+                            &table,
+                            &const_prefix,
+                            emit_table_const,
+                        ));
                     }
                 }
             }
@@ -56,7 +68,7 @@ pub fn generate_table_names() {
             // Normale Tabelle (settings, extensions, notifications, workspaces, desktop_items, etc.)
             if let Ok(table) = serde_json::from_value::<TableDefinition>(value.clone()) {
                 let const_prefix = to_screaming_snake_case(key);
-                code.push_str(&generate_table_constants(&table, &const_prefix));
+                code.push_str(&generate_table_constants(&table, &const_prefix, true));
             }
         }
     }
@@ -94,15 +106,26 @@ fn to_screaming_snake_case(s: &str) -> String {
 }
 
 /// Generiert die Konstanten für eine Tabelle
-fn generate_table_constants(table: &TableDefinition, const_prefix: &str) -> String {
+fn generate_table_constants(
+    table: &TableDefinition,
+    const_prefix: &str,
+    emit_table_const: bool,
+) -> String {
     let mut code = String::new();
 
     // Tabellenname
     code.push_str(&format!("// --- Table: {} ---\n", table.name));
-    code.push_str(&format!(
-        "pub const TABLE_{}: &str = \"{}\";\n",
-        const_prefix, table.name
-    ));
+    if emit_table_const {
+        code.push_str(&format!(
+            "pub const TABLE_{}: &str = \"{}\";\n",
+            const_prefix, table.name
+        ));
+    } else {
+        code.push_str(&format!(
+            "// TABLE_{}: re-exported from haex_crdt::table_names in lib.rs\n",
+            const_prefix
+        ));
+    }
 
     // Spalten
     for (col_key, col_value) in &table.columns {

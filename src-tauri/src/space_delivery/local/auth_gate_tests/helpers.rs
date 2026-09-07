@@ -6,7 +6,6 @@ use rusqlite::{Connection, OpenFlags};
 use tokio::sync::RwLock;
 
 use super::super::authorize_request;
-use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
 use crate::logging::LogSink;
 use crate::space_delivery::local::dos_defence::config::DosDefenceConfig;
@@ -16,6 +15,7 @@ use crate::space_delivery::local::protocol::{Request, Response};
 use crate::space_delivery::local::test_support::init_logs_db_inner_with_uri;
 use crate::space_delivery::local::types::{ConnectedPeer, PeerClaim};
 use crate::ucan::ValidatedUcan;
+use haex_crdt::HlcService;
 
 /// Wrapper around [`authorize_request`] that injects a fresh DoS-defence
 /// tracker and the default config. Each test gets its own tracker, so

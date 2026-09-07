@@ -18,7 +18,6 @@
 //! is Round F2/F4.
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::hlc::HlcService;
 use crate::database::{
     core::{execute_with_crdt, select_with_crdt},
     error::DatabaseError,
@@ -28,6 +27,7 @@ use crate::table_names::{
     COL_FILE_GRANTS_CONTENT_KEY, COL_FILE_GRANTS_CREATED_AT, COL_FILE_GRANTS_EPOCH,
     COL_FILE_GRANTS_ID, COL_FILE_GRANTS_SIDECAR_KEY, COL_FILE_GRANTS_SPACE_ID, TABLE_FILE_GRANTS,
 };
+use haex_crdt::HlcService;
 use serde_json::Value as JsonValue;
 use std::sync::MutexGuard;
 

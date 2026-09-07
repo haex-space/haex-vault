@@ -20,7 +20,7 @@ pub(crate) fn group_by_transaction_hlc(
     }
 
     let mut ordered: Vec<(String, Vec<RemoteColumnChange>)> = groups.into_iter().collect();
-    ordered.sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.0, &b.0));
+    ordered.sort_by(|a, b| haex_crdt::compare_hlc_strings(&a.0, &b.0));
     ordered
 }
 
@@ -51,10 +51,10 @@ pub(crate) fn group_row_changes_in_hlc_order(
     }
     let mut entries: Vec<((String, String), Vec<RemoteColumnChange>)> = map.into_iter().collect();
     entries.sort_by(|a, b| {
-        let a_min = crate::crdt::hlc::hlc_min(a.1.iter().map(|c| c.hlc_timestamp.as_str()));
-        let b_min = crate::crdt::hlc::hlc_min(b.1.iter().map(|c| c.hlc_timestamp.as_str()));
+        let a_min = haex_crdt::hlc_min(a.1.iter().map(|c| c.hlc_timestamp.as_str()));
+        let b_min = haex_crdt::hlc_min(b.1.iter().map(|c| c.hlc_timestamp.as_str()));
         let primary = match (a_min, b_min) {
-            (Some(am), Some(bm)) => crate::crdt::hlc::compare_hlc_strings(am, bm),
+            (Some(am), Some(bm)) => haex_crdt::compare_hlc_strings(am, bm),
             (Some(_), None) => std::cmp::Ordering::Less,
             (None, Some(_)) => std::cmp::Ordering::Greater,
             (None, None) => std::cmp::Ordering::Equal,
@@ -270,13 +270,12 @@ mod tests {
         let baseline_min_hlcs: Vec<&str> = baseline
             .iter()
             .map(|(_, list)| {
-                crate::crdt::hlc::hlc_min(list.iter().map(|c| c.hlc_timestamp.as_str())).unwrap()
+                haex_crdt::hlc_min(list.iter().map(|c| c.hlc_timestamp.as_str())).unwrap()
             })
             .collect();
         for window in baseline_min_hlcs.windows(2) {
             assert!(
-                crate::crdt::hlc::compare_hlc_strings(window[0], window[1])
-                    != std::cmp::Ordering::Greater,
+                haex_crdt::compare_hlc_strings(window[0], window[1]) != std::cmp::Ordering::Greater,
                 "consecutive rows must be in non-decreasing HLC order"
             );
         }

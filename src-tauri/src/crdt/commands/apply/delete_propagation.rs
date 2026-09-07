@@ -177,8 +177,7 @@ pub(super) fn should_propagate_delete(delete_log_hlc: &str, target_row_hlc: Opti
         None => true,
         Some(target) => {
             // Honour the delete unless the target row is strictly newer.
-            crate::crdt::hlc::compare_hlc_strings(target, delete_log_hlc)
-                != std::cmp::Ordering::Greater
+            haex_crdt::compare_hlc_strings(target, delete_log_hlc) != std::cmp::Ordering::Greater
         }
     }
 }
@@ -187,7 +186,7 @@ pub(super) fn should_propagate_delete(delete_log_hlc: &str, target_row_hlc: Opti
 /// — i.e. the insert is NOT strictly newer, so applying it would resurrect a
 /// deleted row. Sibling of `should_propagate_delete` (delete wins on tie).
 pub(super) fn delete_shadows_insert(delete_hlc: &str, insert_hlc: &str) -> bool {
-    crate::crdt::hlc::compare_hlc_strings(insert_hlc, delete_hlc) != std::cmp::Ordering::Greater
+    haex_crdt::compare_hlc_strings(insert_hlc, delete_hlc) != std::cmp::Ordering::Greater
 }
 
 /// Whether an insert for `insert_pks` at `insert_hlc` must be suppressed because

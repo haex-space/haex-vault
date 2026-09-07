@@ -11,10 +11,10 @@ use tauri::{AppHandle, Emitter, Manager};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::crdt::hlc::HlcService;
 use crate::database::core;
 use crate::database::DbConnection;
 use crate::logging;
+use haex_crdt::HlcService;
 
 use super::protocol::Response;
 

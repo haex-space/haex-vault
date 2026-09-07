@@ -390,7 +390,7 @@ pub async fn share_storage_backend(
 /// AWS/Wasabi or seeding a real MLS group.
 pub(crate) async fn share_storage_backend_core(
     db: &crate::database::DbConnection,
-    hlc_service: &crate::crdt::hlc::HlcService,
+    hlc_service: &haex_crdt::HlcService,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     args: ShareStorageBackendArgs,
     factory: &dyn IamAdapterFactory,
@@ -605,7 +605,7 @@ pub(crate) async fn share_storage_backend_core(
 /// so the frontend can prompt the user.
 fn obtain_iam_admin_cred(
     db: &crate::database::DbConnection,
-    hlc_service: &crate::crdt::hlc::HlcService,
+    hlc_service: &haex_crdt::HlcService,
     args: &ShareStorageBackendArgs,
 ) -> Result<IamAdminCred, StorageError> {
     if let Some(hint) = args.iam_admin_cred_hint.as_ref() {
@@ -693,7 +693,7 @@ struct PersistArgs<'a> {
 /// returned unchanged.
 fn persist_shared_backend(
     db: &crate::database::DbConnection,
-    hlc_service: &crate::crdt::hlc::HlcService,
+    hlc_service: &haex_crdt::HlcService,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     args: PersistArgs<'_>,
 ) -> Result<(), StorageError> {

@@ -12,11 +12,11 @@ use std::collections::HashMap;
 
 use serde_json::Value as JsonValue;
 
-use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::scanner::{is_registered_for_space, is_space_scoped_table, LocalColumnChange};
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
+use haex_crdt::hlc_is_newer;
 
 use super::InboundSyncPushOutcome;
 

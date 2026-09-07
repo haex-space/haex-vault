@@ -11,12 +11,12 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-    use crate::crdt::hlc::HlcService;
     use crate::crdt::trigger::ensure_crdt_columns;
     use crate::database::connection_context::ConnectionContext;
     use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
     use crate::database::DbConnection;
     use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
+    use haex_crdt::HlcService;
 
     /// Create an in-memory DB with haex_spaces and haex_ucan_tokens tables,
     /// CRDT columns and triggers fully initialized — matching production schema.
@@ -24,7 +24,9 @@ mod tests {
         let conn = Connection::open_in_memory().expect("in-memory DB");
 
         // Register current_hlc() UDF + tx-HLC hooks so execute_with_crdt works.
-        let hlc = HlcService::new_for_testing("test-device-001");
+        let hlc = HlcService::new_with_uuid(
+            crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-001"),
+        );
         let ctx = ConnectionContext::new();
         register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
         install_tx_hlc_hooks(&conn, ctx).unwrap();

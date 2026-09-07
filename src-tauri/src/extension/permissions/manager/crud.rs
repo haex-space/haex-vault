@@ -169,7 +169,7 @@ impl PermissionManager {
     /// Löscht alle Permissions einer Extension innerhalb einer bestehenden Transaktion
     pub fn delete_permissions_in_transaction(
         tx: &rusqlite::Transaction,
-        hlc_service: &crate::crdt::hlc::HlcService,
+        hlc_service: &haex_crdt::HlcService,
         extension_id: &str,
     ) -> Result<(), DatabaseError> {
         let sql = format!("DELETE FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ?");

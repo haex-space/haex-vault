@@ -80,7 +80,7 @@ pub(super) fn filter_foreign_membership_rows(
                 );
             }
             if foreign_max_hlc.as_deref().map_or(true, |cur| {
-                crate::crdt::hlc::hlc_is_newer(&change.hlc_timestamp, cur)
+                haex_crdt::hlc_is_newer(&change.hlc_timestamp, cur)
             }) {
                 foreign_max_hlc = Some(change.hlc_timestamp);
             }

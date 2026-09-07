@@ -11,7 +11,7 @@ use super::EpochResolver;
 /// Seal the scoped credential once per current space member.
 pub(super) fn write_shared_access_fanout(
     db: &crate::database::DbConnection,
-    hlc_service: &crate::crdt::hlc::HlcService,
+    hlc_service: &haex_crdt::HlcService,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     epoch_resolver: &dyn EpochResolver,
     space_id: &str,
@@ -83,7 +83,7 @@ fn load_space_member_dids(
 /// Best-effort rollback after a shared-access fanout failure.
 pub(super) async fn rollback_child_backend_and_iam(
     db: &crate::database::DbConnection,
-    hlc_service: &crate::crdt::hlc::HlcService,
+    hlc_service: &haex_crdt::HlcService,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     adapter: &dyn IamAdapter,
     child_backend_id: &str,

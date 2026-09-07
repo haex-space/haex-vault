@@ -1,11 +1,11 @@
 // src-tauri/src/extension/database/executor.rs
 
 use super::planner::SqlExecutionPlanner;
-use crate::crdt::hlc::{HlcError, HlcService};
 use crate::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger::HLC_FUNCTION_NAME;
 use crate::database::core::{convert_value_ref_to_json, strip_main_schema_prefix};
 use crate::database::error::DatabaseError;
+use haex_crdt::{HlcError, HlcService};
 use rusqlite::{params_from_iter, ToSql, Transaction};
 use serde_json::Value as JsonValue;
 use std::collections::HashSet;

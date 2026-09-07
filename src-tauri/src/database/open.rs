@@ -138,8 +138,10 @@ pub(super) fn initialize_session_post_migration(
             "database::initialize_session_post_migration",
             serde_json::json!({}),
         )?;
+        let device_id_provider =
+            crate::haex_crdt_providers::HaexVaultDeviceIdProvider::from_instance_store(app_handle);
         hlc_guard
-            .initialize_in_place(conn, app_handle)
+            .initialize_in_place(conn, &device_id_provider)
             .map_err(|e| DatabaseError::ExecutionError {
                 sql: "HLC Initialization".to_string(),
                 reason: e.to_string(),
@@ -205,8 +207,10 @@ fn initialize_session(
             "database::initialize_session",
             serde_json::json!({}),
         )?;
+        let device_id_provider =
+            crate::haex_crdt_providers::HaexVaultDeviceIdProvider::from_instance_store(app_handle);
         hlc_guard
-            .initialize_in_place(&conn, app_handle)
+            .initialize_in_place(&conn, &device_id_provider)
             .map_err(|e| DatabaseError::ExecutionError {
                 sql: "HLC Initialization".to_string(),
                 reason: e.to_string(),

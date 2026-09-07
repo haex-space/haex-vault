@@ -70,7 +70,7 @@ pub fn execute_with_crdt(
     sql: String,
     params: Vec<JsonValue>,
     connection: &DbConnection,
-    hlc_service: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc_service: &std::sync::MutexGuard<haex_crdt::HlcService>,
     key_cache: &SpaceKeyCache,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
     // ADR 0001: reject an oversized single transaction before writing anything.

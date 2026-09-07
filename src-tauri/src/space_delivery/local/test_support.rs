@@ -26,12 +26,12 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::json;
 
-use crate::crdt::hlc::HlcService;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 use crate::ucan::{Cap, CapabilitySet, ValidatedUcan};
+use haex_crdt::HlcService;
 
 /// In-memory DB with the minimum schemas `is_active_space_member` reads:
 /// `haex_identities` + `haex_space_members`, plus the CRDT bookkeeping
@@ -169,7 +169,9 @@ pub(crate) fn init_logs_db_inner_with_uri() -> (Connection, HlcService, String) 
         | OpenFlags::SQLITE_OPEN_CREATE
         | OpenFlags::SQLITE_OPEN_URI;
     let conn = Connection::open_with_flags(&uri, flags).expect("open in-memory URI DB");
-    let hlc_service = HlcService::new_for_testing("test-device");
+    let hlc_service = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device"),
+    );
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc_service.clone(), ctx.clone()).expect("register hlc udf");
     install_tx_hlc_hooks(&conn, ctx).expect("install hlc hooks");

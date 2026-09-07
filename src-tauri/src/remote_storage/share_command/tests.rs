@@ -19,7 +19,6 @@ use super::{
     ShareStorageBackendArgs, SharedStorageBackend,
 };
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::hlc::HlcService;
 use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
@@ -30,6 +29,7 @@ use crate::remote_storage::iam_adapter::{IamAdapter, IamAdapterError, ProviderFl
 use crate::remote_storage::iam_policy::IamPolicy;
 use crate::remote_storage::provider::ProviderKind;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
+use haex_crdt::HlcService;
 
 // ---------------------------------------------------------------------------
 // Mock IAM adapter
@@ -184,7 +184,9 @@ fn rand_string(prefix: &str) -> String {
 /// Returns `(db, hlc, storage_id, space_id)`.
 fn setup_share_db() -> (DbConnection, HlcService, String, String) {
     let conn = Connection::open_in_memory().expect("open in-memory DB");
-    let hlc_service = HlcService::new_for_testing("test-device-share");
+    let hlc_service = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-share"),
+    );
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc_service.clone(), ctx.clone())
         .expect("register current_hlc UDF");

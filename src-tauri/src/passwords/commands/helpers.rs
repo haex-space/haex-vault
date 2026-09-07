@@ -259,7 +259,7 @@ pub(super) fn ensure_item_in_scope(
 pub(super) fn lock_hlc<'a>(
     state: &'a State<'_, AppState>,
     location: &'static str,
-) -> Result<std::sync::MutexGuard<'a, crate::crdt::hlc::HlcService>, ExtensionError> {
+) -> Result<std::sync::MutexGuard<'a, haex_crdt::HlcService>, ExtensionError> {
     state
         .lock_or_fail(
             &state.hlc,
@@ -272,7 +272,7 @@ pub(super) fn lock_hlc<'a>(
 
 pub(super) fn insert_item_row(
     state: &State<'_, AppState>,
-    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &std::sync::MutexGuard<haex_crdt::HlcService>,
     item_id: &str,
     input: &PasswordInput,
 ) -> Result<(), ExtensionError> {
@@ -305,7 +305,7 @@ pub(super) fn insert_item_row(
 
 pub(super) fn update_item_row(
     state: &State<'_, AppState>,
-    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &std::sync::MutexGuard<haex_crdt::HlcService>,
     item_id: &str,
     input: &PasswordInput,
 ) -> Result<(), ExtensionError> {
@@ -341,7 +341,7 @@ pub(super) fn update_item_row(
 /// Then link it to the item via `haex_passwords_item_tags`.
 pub(super) fn upsert_and_link_tags(
     state: &State<'_, AppState>,
-    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &std::sync::MutexGuard<haex_crdt::HlcService>,
     item_id: &str,
     tag_names: &[String],
 ) -> Result<(), ExtensionError> {
@@ -364,7 +364,7 @@ pub(super) fn upsert_and_link_tags(
 
 pub(super) fn upsert_tag(
     state: &State<'_, AppState>,
-    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &std::sync::MutexGuard<haex_crdt::HlcService>,
     name: &str,
 ) -> Result<String, ExtensionError> {
     let new_id = uuid::Uuid::new_v4().to_string();
@@ -400,7 +400,7 @@ pub(super) fn upsert_tag(
 
 pub(super) fn delete_item_tag_links(
     state: &State<'_, AppState>,
-    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &std::sync::MutexGuard<haex_crdt::HlcService>,
     item_id: &str,
 ) -> Result<(), ExtensionError> {
     execute_with_crdt(
@@ -416,7 +416,7 @@ pub(super) fn delete_item_tag_links(
 
 pub(super) fn insert_key_values(
     state: &State<'_, AppState>,
-    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &std::sync::MutexGuard<haex_crdt::HlcService>,
     item_id: &str,
     key_values: &[PasswordKeyValueInput],
 ) -> Result<(), ExtensionError> {
@@ -443,7 +443,7 @@ pub(super) fn insert_key_values(
 
 pub(super) fn delete_key_values(
     state: &State<'_, AppState>,
-    hlc: &std::sync::MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &std::sync::MutexGuard<haex_crdt::HlcService>,
     item_id: &str,
 ) -> Result<(), ExtensionError> {
     execute_with_crdt(

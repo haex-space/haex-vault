@@ -24,7 +24,6 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
-use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::{
     paginate_changes, scan_all_crdt_tables_for_owner, scan_single_column_for_owner,
     LocalColumnChange, PULL_PAGE_BUDGET,
@@ -33,6 +32,7 @@ use crate::critical::CriticalFailureCode;
 use crate::database::core::with_connection;
 use crate::database::init::discover_crdt_tables;
 use crate::database::DbConnection;
+use haex_crdt::HlcService;
 
 use super::protocol::{Request, Response, MAX_RESPONSE_SIZE};
 use super::sync_loop::local_to_remote_change;

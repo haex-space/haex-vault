@@ -11,9 +11,9 @@
 //! `hlc_timestamp < anchor` for the target space, so the peer knows to
 //! discard its stale outbound queue and refresh-pull.
 
-use crate::crdt::hlc::compare_hlc_strings;
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
+use haex_crdt::compare_hlc_strings;
 
 /// A rejection carrying enough context for the client to trigger a refresh
 /// pull for the affected space. The `anchor` is the minimum-valid HLC that

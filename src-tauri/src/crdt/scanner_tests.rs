@@ -791,7 +791,7 @@ fn scan_all_crdt_tables_for_owner_includes_vault_private_and_space_tables() {
     // sibling fn's global sort.
     for pair in changes.windows(2) {
         assert_ne!(
-            crate::crdt::hlc::compare_hlc_strings(&pair[0].hlc_timestamp, &pair[1].hlc_timestamp,),
+            haex_crdt::compare_hlc_strings(&pair[0].hlc_timestamp, &pair[1].hlc_timestamp,),
             std::cmp::Ordering::Greater,
             "owner scan result is not globally HLC-ordered"
         );
@@ -886,15 +886,15 @@ fn scan_single_column_for_owner_does_not_origin_filter() {
     let changes = scan_single_column_for_owner(&conn, "test_items", "name", "device-1").unwrap();
 
     // Sanity: the two rows genuinely carry different node-ids.
-    let mine = crate::crdt::hlc::parse_hlc_node_hex("aabbccdd").unwrap();
-    let theirs = crate::crdt::hlc::parse_hlc_node_hex("11223344").unwrap();
+    let mine = haex_crdt::parse_hlc_node_hex("aabbccdd").unwrap();
+    let theirs = haex_crdt::parse_hlc_node_hex("11223344").unwrap();
     assert_ne!(mine, theirs);
 
     // Both rows returned despite differing authoring nodes => no origin filter.
     assert_eq!(changes.len(), 2);
     let suffixes: std::collections::HashSet<Option<&str>> = changes
         .iter()
-        .map(|c| crate::crdt::hlc::hlc_node_id_suffix(&c.hlc_timestamp))
+        .map(|c| haex_crdt::hlc_node_id_suffix(&c.hlc_timestamp))
         .collect();
     assert!(suffixes.contains(&Some("aabbccdd")));
     assert!(suffixes.contains(&Some("11223344")));

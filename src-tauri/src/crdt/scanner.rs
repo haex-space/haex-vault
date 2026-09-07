@@ -5,7 +5,6 @@
 //! which provides transport encryption.
 
 use crate::crdt::commands::apply::ColumnSig;
-use crate::crdt::hlc::hlc_is_newer;
 use crate::crdt::trigger::{
     get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN, HLC_TIMESTAMP_COLUMN,
 };
@@ -14,6 +13,7 @@ use crate::database::core::{
 };
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
+use haex_crdt::hlc_is_newer;
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -472,7 +472,7 @@ fn emit_row_changes(
         // wrote ourselves. Rows applied from inbound sync carry the
         // remote peer's node-id and must not be pushed back.
         let passes_origin = match origin_node_filter {
-            Some(our_node) => crate::crdt::hlc::hlc_is_from_node(hlc_to_use, our_node),
+            Some(our_node) => haex_crdt::hlc_is_from_node(hlc_to_use, our_node),
             None => true,
         };
 
@@ -755,9 +755,8 @@ pub fn scan_space_scoped_tables_for_local_changes(
 
         // Global sort by transaction-HLC ascending so downstream chunking can
         // respect HLC-group boundaries without further grouping logic.
-        all_changes.sort_by(|a, b| {
-            crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp)
-        });
+        all_changes
+            .sort_by(|a, b| haex_crdt::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp));
 
         Ok(all_changes)
     })
@@ -835,8 +834,7 @@ pub(crate) fn scan_all_crdt_tables_for_owner(
 
     // Global sort by transaction-HLC ascending so downstream chunking can
     // respect HLC-group boundaries without further grouping logic.
-    all_changes
-        .sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp));
+    all_changes.sort_by(|a, b| haex_crdt::compare_hlc_strings(&a.hlc_timestamp, &b.hlc_timestamp));
 
     Ok(all_changes)
 }
@@ -967,7 +965,7 @@ pub(crate) fn paginate_changes(
             .push(change);
     }
     let mut ordered: Vec<(String, Vec<LocalColumnChange>)> = groups.into_iter().collect();
-    ordered.sort_by(|a, b| crate::crdt::hlc::compare_hlc_strings(&a.0, &b.0));
+    ordered.sort_by(|a, b| haex_crdt::compare_hlc_strings(&a.0, &b.0));
 
     let mut page: Vec<LocalColumnChange> = Vec::new();
     let mut running: usize = 0;

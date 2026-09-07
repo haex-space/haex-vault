@@ -79,7 +79,7 @@ pub async fn owner_sync_start(
     // Resolve the HLC device UUID — the same UUID embedded in every row's HLC
     // timestamp, so the push-scanner origin filter distinguishes locally-
     // authored rows from pulled rows and avoids ping-pong.
-    let device_id = crate::crdt::hlc::HlcService::get_or_create_device_id(&app)
+    let device_id = crate::haex_crdt_providers::device_id::get_or_create_device_id_from_store(&app)
         .map_err(|e| format!("Failed to read device UUID: {e}"))?;
 
     // 4+5. Resolve the full CRDT table list for the owner-vault scan and

@@ -19,11 +19,11 @@
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::SigningKey;
+use haex_crdt::HlcService;
 use haex_vault_lib::crdt::column_sig::key_cache::SpaceKeyCache;
 use haex_vault_lib::crdt::commands::apply::{
     apply_remote_changes_to_db_scoped, ColumnSig, RemoteColumnChange,
 };
-use haex_vault_lib::crdt::hlc::HlcService;
 use haex_vault_lib::crdt::trigger::{ensure_crdt_columns, setup_triggers_for_table};
 use haex_vault_lib::database::connection_context::ConnectionContext;
 use haex_vault_lib::database::core::{
@@ -75,7 +75,11 @@ struct Sender {
 fn setup_sender() -> Sender {
     let conn = Connection::open_in_memory().expect("in-memory sender DB");
 
-    let hlc = HlcService::new_for_testing("test-device-sender");
+    let hlc = HlcService::new_with_uuid(
+        haex_vault_lib::haex_crdt_providers::device_id::test_device_uuid_from_name(
+            "test-device-sender",
+        ),
+    );
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
     install_tx_hlc_hooks(&conn, ctx).unwrap();

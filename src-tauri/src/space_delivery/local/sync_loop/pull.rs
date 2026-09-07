@@ -10,9 +10,9 @@ use super::super::error::DeliveryError;
 use super::super::peer::PeerSession;
 use super::log_sync;
 use crate::crdt::commands::{group_by_transaction_hlc, RemoteColumnChange};
-use crate::crdt::hlc::{compare_hlc_strings, hlc_max};
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
+use haex_crdt::{compare_hlc_strings, hlc_max};
 
 /// Convert a `LocalColumnChange` to a `RemoteColumnChange` for the apply function.
 ///

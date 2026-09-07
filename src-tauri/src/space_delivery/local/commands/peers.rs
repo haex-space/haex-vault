@@ -77,7 +77,7 @@ pub async fn local_delivery_connect(
     // so the push-scanner origin filter can correctly distinguish locally-
     // authored rows from pulled rows. The iroh endpoint ID is a 256-bit hex
     // key (not a UUID) and cannot serve this role.
-    let device_id = crate::crdt::hlc::HlcService::get_or_create_device_id(&app)
+    let device_id = crate::haex_crdt_providers::device_id::get_or_create_device_id_from_store(&app)
         .map_err(|e| format!("Failed to read device UUID: {e}"))?;
 
     // 4. Start sync loop

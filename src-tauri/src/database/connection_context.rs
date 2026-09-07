@@ -1,6 +1,6 @@
 // src-tauri/src/database/connection_context.rs
 
-use crate::crdt::hlc::{HlcError, HlcService};
+use haex_crdt::{HlcError, HlcService};
 use std::sync::{Arc, Mutex};
 use uhlc::Timestamp;
 
@@ -93,7 +93,9 @@ mod tests {
         // Mirrors the production sequence: update_hook flips write_pending on
         // the first row change, after which every `current_or_new_tx_hlc`
         // call returns the same cached timestamp.
-        let hlc = HlcService::new_for_testing("test-device-1");
+        let hlc = HlcService::new_with_uuid(
+            crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-1"),
+        );
         let ctx = ConnectionContext::new();
 
         let first = ctx.current_or_new_tx_hlc(&hlc).expect("first hlc");
@@ -111,7 +113,11 @@ mod tests {
         // Without a write_pending signal, every call must draw a fresh
         // timestamp — otherwise a bare `SELECT current_hlc()` could dictate
         // the HLC of the next write transaction.
-        let hlc = HlcService::new_for_testing("test-device-readonly");
+        let hlc = HlcService::new_with_uuid(
+            crate::haex_crdt_providers::device_id::test_device_uuid_from_name(
+                "test-device-readonly",
+            ),
+        );
         let ctx = ConnectionContext::new();
 
         let a = ctx.current_or_new_tx_hlc(&hlc).expect("first hlc");
@@ -125,7 +131,9 @@ mod tests {
 
     #[test]
     fn reset_produces_fresh_timestamp() {
-        let hlc = HlcService::new_for_testing("test-device-2");
+        let hlc = HlcService::new_with_uuid(
+            crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-2"),
+        );
         let ctx = ConnectionContext::new();
 
         let first = ctx.current_or_new_tx_hlc(&hlc).expect("first hlc");

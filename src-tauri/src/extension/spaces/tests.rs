@@ -12,7 +12,6 @@ mod tests {
     use uuid::Uuid;
 
     use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-    use crate::crdt::hlc::HlcService;
     use crate::crdt::trigger::{
         ensure_crdt_columns, setup_triggers_for_table, DELETED_ROWS_TABLE, UUID_FUNCTION_NAME,
     };
@@ -31,6 +30,7 @@ mod tests {
     use crate::table_names::{
         TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_SHARED_SPACE_SYNC,
     };
+    use haex_crdt::HlcService;
 
     fn setup_test_db() -> (DbConnection, HlcService) {
         let conn = Connection::open_in_memory().expect("in-memory DB");
@@ -44,7 +44,9 @@ mod tests {
             |_ctx| Ok(Uuid::new_v4().to_string()),
         )
         .unwrap();
-        let hlc = HlcService::new_for_testing("test-device-002");
+        let hlc = HlcService::new_with_uuid(
+            crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-002"),
+        );
         let ctx = ConnectionContext::new();
         register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
         install_tx_hlc_hooks(&conn, ctx).unwrap();

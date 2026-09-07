@@ -4,7 +4,7 @@
 //! Test fixture (`setup_creds_db`) mirrors the shape of
 //! `space_delivery::local::test_support::init_logs_db_inner`:
 //! - in-memory SQLite
-//! - `HlcService::new_for_testing` + `current_hlc()` UDF + tx-HLC hooks
+//! - `HlcService::new_with_uuid` + `current_hlc()` UDF + tx-HLC hooks
 //! - CRDT bookkeeping tables (`haex_crdt_configs_no_sync`,
 //!   `haex_crdt_dirty_tables_no_sync`)
 //! - the two password-manager tables we touch, run through
@@ -22,19 +22,21 @@ use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 
 use super::{cred_title_for, delete_by_storage, load, store, IamAdminCred};
-use crate::crdt::hlc::HlcService;
 use crate::crdt::trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
 use crate::remote_storage::provider::ProviderKind;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
+use haex_crdt::HlcService;
 
 /// Build an in-memory DB seeded with just what the IAM-admin cred store
 /// needs to `store` / `load` / `delete_by_storage`.
 fn setup_creds_db() -> (DbConnection, HlcService) {
     let conn = Connection::open_in_memory().expect("open in-memory DB");
-    let hlc_service = HlcService::new_for_testing("test-device-iam-creds");
+    let hlc_service = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-iam-creds"),
+    );
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc_service.clone(), ctx.clone())
         .expect("register current_hlc UDF");

@@ -9,7 +9,6 @@ use super::super::push_cursor::save_last_push_hlc;
 use super::membership::filter_foreign_membership_rows;
 use super::{sqlite_datetime_now, SyncMode};
 use crate::crdt::commands::clear_dirty_table_inner;
-use crate::crdt::hlc::hlc_max;
 use crate::crdt::scanner::{
     scan_all_crdt_tables_for_owner, scan_membership_tables_for_local_changes,
     scan_space_scoped_tables_for_local_changes, LocalColumnChange,
@@ -17,6 +16,7 @@ use crate::crdt::scanner::{
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
+use haex_crdt::hlc_max;
 
 /// Soft cap for changes per QUIC push request. Mirrors the HTTP path's
 /// `PUSH_CHUNK_SOFT_LIMIT` — see `src/stores/sync/orchestrator/push.ts`.
@@ -246,7 +246,7 @@ pub(super) async fn run_push_phase(
     if let Some(skip_hlc) = foreign_max_hlc {
         if last_push_hlc
             .as_deref()
-            .map_or(true, |cur| crate::crdt::hlc::hlc_is_newer(&skip_hlc, cur))
+            .map_or(true, |cur| haex_crdt::hlc_is_newer(&skip_hlc, cur))
         {
             save_last_push_hlc(db, space_id, device_id, &skip_hlc);
             *last_push_hlc = Some(skip_hlc);

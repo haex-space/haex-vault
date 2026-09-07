@@ -167,7 +167,7 @@ pub(crate) struct PersistClaimedUcan<'a> {
 /// unaffected.
 pub(crate) fn persist_claimed_ucan(
     db: &DbConnection,
-    hlc_guard: &std::sync::MutexGuard<'_, crate::crdt::hlc::HlcService>,
+    hlc_guard: &std::sync::MutexGuard<'_, haex_crdt::HlcService>,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     p: PersistClaimedUcan<'_>,
 ) -> Result<(), String> {

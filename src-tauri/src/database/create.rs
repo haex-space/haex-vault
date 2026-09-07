@@ -2,9 +2,9 @@ use super::identity_default::{ensure_default_identity, populate_vault_key_slot};
 use super::open::initialize_session_post_migration;
 use super::*;
 
-use crate::crdt::hlc::HlcService;
 use crate::database::error::DatabaseError;
 use crate::AppState;
+use haex_crdt::HlcService;
 use rusqlite::Connection;
 use std::fs;
 use std::path::Path;

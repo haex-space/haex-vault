@@ -198,7 +198,7 @@ fn assert_parent_exists(
 /// E1's `persist_shared_backend` operates under.
 fn delete_share_rows(
     db: &crate::database::DbConnection,
-    hlc_service: &crate::crdt::hlc::HlcService,
+    hlc_service: &haex_crdt::HlcService,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     shared_backend_id: &str,
 ) -> Result<(), StorageError> {
@@ -311,7 +311,7 @@ pub async fn revoke_storage_share(
 /// See module doc-comment for the eight-step ordering.
 pub(crate) async fn revoke_storage_share_core(
     db: &crate::database::DbConnection,
-    hlc_service: &crate::crdt::hlc::HlcService,
+    hlc_service: &haex_crdt::HlcService,
     key_cache: &crate::crdt::column_sig::key_cache::SpaceKeyCache,
     args: RevokeStorageShareArgs,
     factory: &dyn IamAdapterFactory,

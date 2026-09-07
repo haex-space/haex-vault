@@ -11,8 +11,8 @@
 use rusqlite::Connection;
 use serde_json::Value as JsonValue;
 
-use super::hlc::device_uuid_to_hlc_node;
 use super::scanner::scan_table_for_local_changes_scoped;
+use haex_crdt::device_uuid_to_hlc_node;
 
 fn setup_scoped_db() -> Connection {
     let conn = Connection::open_in_memory().unwrap();

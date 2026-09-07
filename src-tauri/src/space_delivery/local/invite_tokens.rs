@@ -11,9 +11,9 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::hlc::HlcService;
 use crate::database::core;
 use crate::database::DbConnection;
+use haex_crdt::HlcService;
 
 use super::error::DeliveryError;
 

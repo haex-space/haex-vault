@@ -138,7 +138,7 @@ pub fn load(db: &DbConnection, storage_id: &str) -> Result<Option<IamAdminCred>,
 /// mirroring `execute_with_crdt`'s single-statement invariant.
 pub fn store(
     db: &DbConnection,
-    hlc: &MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &MutexGuard<haex_crdt::HlcService>,
     storage_id: &str,
     cred: &IamAdminCred,
 ) -> Result<(), DatabaseError> {
@@ -202,7 +202,7 @@ pub fn store(
 /// key-values orphaned (which would then fail on FK re-insert during retry).
 pub fn delete_by_storage(
     db: &DbConnection,
-    hlc: &MutexGuard<crate::crdt::hlc::HlcService>,
+    hlc: &MutexGuard<haex_crdt::HlcService>,
     storage_id: &str,
 ) -> Result<(), DatabaseError> {
     let title = cred_title_for(storage_id);

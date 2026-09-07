@@ -10,9 +10,9 @@ use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::crdt::hlc::HlcService;
 use crate::database::DbConnection;
 use crate::peer_storage::endpoint::{DeliveryConnectionHandler, OwnIdentity};
+use haex_crdt::HlcService;
 
 use super::error::DeliveryError;
 use super::leader::LeaderState;

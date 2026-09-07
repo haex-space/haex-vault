@@ -38,12 +38,12 @@ mod window;
 use crate::external_bridge::ExternalBridge;
 use crate::{
     crdt::column_sig::key_cache::SpaceKeyCache,
-    crdt::hlc::HlcService,
     database::{connection_context::ConnectionContext, DbConnection},
     extension::core::ExtensionManager,
     extension::mail::poll::MailPollManager,
     file_sync::commands::SyncManager,
 };
+use haex_crdt::HlcService;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use crate::extension::webview::ExtensionWebviewManager;
@@ -94,6 +94,16 @@ pub extern "system" fn Java_space_haex_vault_MainActivity_initializeNdkContext<'
 
 pub mod table_names {
     include!(concat!(env!("OUT_DIR"), "/tableNames.rs"));
+
+    // Single source of truth for CRDT bookkeeping table names lives in
+    // `haex_crdt::table_names`. The build script (`generator/table_names.rs`)
+    // deliberately skips emitting `TABLE_CRDT_CONFIGS`, `TABLE_CRDT_DIRTY_TABLES`
+    // and `TABLE_CRDT_MIGRATIONS`; those (and `TABLE_APP_MIGRATIONS`, which
+    // vault does not carry in `tableNames.json`) are re-exported below so
+    // existing call sites `use crate::table_names::TABLE_CRDT_*` keep working.
+    pub use haex_crdt::table_names::{
+        TABLE_APP_MIGRATIONS, TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES, TABLE_CRDT_MIGRATIONS,
+    };
 }
 
 pub mod event_names {

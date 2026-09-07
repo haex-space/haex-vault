@@ -3,13 +3,13 @@ use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 use serde_json::{json, Value as JsonValue};
 
-use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
 use crate::space_delivery::local::inbound_sync::InboundSyncPushOutcome;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
+use haex_crdt::HlcService;
 
 pub(super) fn make_change(
     table: &str,
@@ -68,7 +68,9 @@ pub(super) fn expect_rejected(outcome: InboundSyncPushOutcome) -> String {
 /// exercise the CRDT merge layer, only authorisation decisions.
 pub(super) fn setup_authz_db() -> DbConnection {
     let conn = Connection::open_in_memory().unwrap();
-    let hlc = HlcService::new_for_testing("test-device");
+    let hlc = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device"),
+    );
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc, ctx.clone()).unwrap();
     install_tx_hlc_hooks(&conn, ctx).unwrap();

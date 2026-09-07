@@ -27,10 +27,10 @@ pub use value::{convert_value_ref_to_json, ValueConverter};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crdt::hlc::HlcService;
     use crate::crdt::trigger::UUID_FUNCTION_NAME;
     use crate::database::connection_context::ConnectionContext;
     use crate::database::error::DatabaseError;
+    use haex_crdt::HlcService;
     use rusqlite::functions::FunctionFlags;
     use rusqlite::Connection;
     use serde_json::Value as JsonValue;
@@ -272,7 +272,9 @@ mod tests {
 
     fn setup_hlc_test_connection(device_id: &str) -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory connection");
-        let hlc = HlcService::new_for_testing(device_id);
+        let hlc = HlcService::new_with_uuid(
+            crate::haex_crdt_providers::device_id::test_device_uuid_from_name(device_id),
+        );
         let ctx = ConnectionContext::new();
         register_current_hlc_udf(&conn, hlc, ctx.clone()).expect("register current_hlc");
         install_tx_hlc_hooks(&conn, ctx).expect("install tx-hlc hooks");

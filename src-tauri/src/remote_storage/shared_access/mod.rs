@@ -17,7 +17,6 @@
 //! per-member-client-side unwrap is Round F3.
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::hlc::HlcService;
 use crate::database::{
     core::{execute_with_crdt, select_with_crdt},
     error::DatabaseError,
@@ -29,6 +28,7 @@ use crate::table_names::{
     COL_S3_SHARED_ACCESS_EXPIRES_AT, COL_S3_SHARED_ACCESS_ID, COL_S3_SHARED_ACCESS_MEMBER_DID,
     COL_S3_SHARED_ACCESS_SPACE_ID, TABLE_S3_SHARED_ACCESS,
 };
+use haex_crdt::HlcService;
 use serde_json::Value as JsonValue;
 use std::sync::MutexGuard;
 

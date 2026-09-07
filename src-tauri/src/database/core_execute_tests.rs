@@ -13,13 +13,13 @@ use std::sync::{Arc, Mutex};
 
 use super::values_by_pk_column;
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::hlc::HlcService;
 use crate::crdt::trigger::{ensure_crdt_columns, setup_triggers_for_table};
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 use crate::ucan::verify::did_key_from_public_key;
+use haex_crdt::HlcService;
 
 fn random_key() -> SigningKey {
     let seed: [u8; 32] = rand::random();
@@ -70,7 +70,9 @@ struct Fixture {
 fn setup_fixture() -> Fixture {
     let conn = Connection::open_in_memory().expect("in-memory DB");
 
-    let hlc = HlcService::new_for_testing("test-device-f1");
+    let hlc = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-f1"),
+    );
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
     install_tx_hlc_hooks(&conn, ctx).unwrap();
@@ -1242,7 +1244,9 @@ struct FixtureS3Backends {
 fn setup_fixture_s3_backends() -> FixtureS3Backends {
     let conn = Connection::open_in_memory().expect("in-memory DB");
 
-    let hlc = HlcService::new_for_testing("test-device-s3");
+    let hlc = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-s3"),
+    );
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
     install_tx_hlc_hooks(&conn, ctx).unwrap();

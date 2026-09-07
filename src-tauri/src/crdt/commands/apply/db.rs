@@ -1,5 +1,4 @@
 use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
-use crate::crdt::hlc::{hlc_is_newer, hlc_max, HlcError, HlcService};
 use crate::crdt::registry_row_sig::puller_verify::verify_incoming_registry_change;
 use crate::crdt::trigger;
 use crate::crdt::trigger::{
@@ -14,6 +13,7 @@ use crate::table_names::{
 };
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use haex_crdt::{hlc_is_newer, hlc_max, HlcError, HlcService};
 use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{OptionalExtension, Transaction};

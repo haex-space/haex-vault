@@ -13,7 +13,6 @@ use serde_json::Value as JsonValue;
 use std::sync::{Arc, Mutex};
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::hlc::HlcService;
 use crate::crdt::registry_row_sig::payload::RegistryRowSigPayload;
 use crate::crdt::registry_row_sig::verify::verify_registry_row;
 use crate::crdt::trigger::ensure_crdt_columns;
@@ -23,6 +22,7 @@ use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
 use crate::ucan::verify::did_key_from_public_key;
+use haex_crdt::HlcService;
 
 fn random_key() -> SigningKey {
     let seed: [u8; 32] = rand::random();
@@ -54,7 +54,9 @@ struct Fixture {
 fn setup_fixture() -> Fixture {
     let conn = Connection::open_in_memory().expect("in-memory DB");
 
-    let hlc = HlcService::new_for_testing("test-device-b3");
+    let hlc = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("test-device-b3"),
+    );
     let ctx = ConnectionContext::new();
     register_current_hlc_udf(&conn, hlc.clone(), ctx.clone()).unwrap();
     install_tx_hlc_hooks(&conn, ctx).unwrap();

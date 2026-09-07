@@ -283,7 +283,7 @@ pub fn cleanup_deleted_rows(
             per_space_maxes
                 .entry(space_id)
                 .and_modify(|cur| {
-                    if crate::crdt::hlc::hlc_is_newer(&hlc, cur) {
+                    if haex_crdt::hlc_is_newer(&hlc, cur) {
                         *cur = hlc.clone();
                     }
                 })
@@ -390,7 +390,7 @@ pub fn cleanup_deleted_rows(
             per_space_maxes
                 .entry(space_id)
                 .and_modify(|cur| {
-                    if crate::crdt::hlc::hlc_is_newer(&hlc, cur) {
+                    if haex_crdt::hlc_is_newer(&hlc, cur) {
                         *cur = hlc.clone();
                     }
                 })
@@ -552,7 +552,7 @@ pub fn advance_shared_space_anchor(
         .optional()?;
     let effective = match current.as_deref() {
         Some(cur) => {
-            if crate::crdt::hlc::hlc_is_newer(new_hlc, cur) {
+            if haex_crdt::hlc_is_newer(new_hlc, cur) {
                 new_hlc.to_string()
             } else {
                 return Ok(()); // no regression — nothing to write
@@ -610,7 +610,7 @@ pub fn advance_owner_delete_log_anchor(
         .optional()?;
     let effective = match current.as_deref() {
         Some(cur) => {
-            if crate::crdt::hlc::hlc_is_newer(new_hlc, cur) {
+            if haex_crdt::hlc_is_newer(new_hlc, cur) {
                 new_hlc.to_string()
             } else {
                 return Ok(());
@@ -818,7 +818,7 @@ mod anchor_tests {
             )
             .ok();
         assert!(
-            matches!(anchor_hlc.as_deref(), Some(v) if crate::crdt::hlc::compare_hlc_strings(v, "5/aabb") != std::cmp::Ordering::Less),
+            matches!(anchor_hlc.as_deref(), Some(v) if haex_crdt::compare_hlc_strings(v, "5/aabb") != std::cmp::Ordering::Less),
             "anchor must advance to at least max HLC of pruned entries, got {anchor_hlc:?}"
         );
     }

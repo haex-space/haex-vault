@@ -2,9 +2,9 @@
 //! SyncPullColumns).
 
 use crate::crdt::commands::apply_remote_changes_to_db_scoped;
-use crate::crdt::hlc::HlcService;
 use crate::crdt::scanner::LocalColumnChange;
 use crate::database::DbConnection;
+use haex_crdt::HlcService;
 
 use super::super::peer::PeerSession;
 use super::helpers::{
@@ -85,7 +85,9 @@ async fn owner_device_pulls_full_vault_over_real_quic() {
         .iter()
         .map(super::super::sync_loop::local_to_remote_change)
         .collect();
-    let hlc_b = HlcService::new_for_testing("device-b");
+    let hlc_b = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("device-b"),
+    );
     apply_remote_changes_to_db_scoped(
         &db_b,
         remote_changes,
@@ -188,7 +190,9 @@ async fn owner_sync_propagates_delete_after_initial_sync() {
         .iter()
         .map(super::super::sync_loop::local_to_remote_change)
         .collect();
-    let hlc_b = HlcService::new_for_testing("device-b");
+    let hlc_b = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("device-b"),
+    );
     apply_remote_changes_to_db_scoped(
         &db_b,
         remote_changes,
@@ -280,7 +284,9 @@ async fn owner_sync_propagates_update_after_initial_sync() {
         .iter()
         .map(super::super::sync_loop::local_to_remote_change)
         .collect();
-    let hlc_b = HlcService::new_for_testing("device-b");
+    let hlc_b = HlcService::new_with_uuid(
+        crate::haex_crdt_providers::device_id::test_device_uuid_from_name("device-b"),
+    );
     apply_remote_changes_to_db_scoped(
         &db_b,
         remote_changes,
