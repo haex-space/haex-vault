@@ -23,10 +23,7 @@
 //     anchor at most as strict as the surviving entries, never looser
 //     (ADR 0002 §6.5).
 
-use haex_crdt::table_names::TABLE_CRDT_CONFIGS;
 use rusqlite::{Connection, OptionalExtension, Transaction};
-use std::str::FromStr;
-use uhlc::Timestamp;
 
 use haex_crdt::db::error::DatabaseError;
 
@@ -205,8 +202,11 @@ pub fn prune_shared_space_delete_log_and_advance_anchors(
             )?;
             Ok(rows_deleted)
         }
-        haex_crdt::RetentionPolicy::TimeBasedDays { days } => {
-            let Some(cutoff) = compute_cutoff_hlc_num_from_config(&*tx, days)? else {
+        haex_crdt::RetentionPolicy::TimeBasedDays { .. } => {
+            // Reuse the crate's cutoff so shared-space DELETE stays in
+            // lockstep with the crate's owner-domain DELETE — one formula,
+            // one source of truth. See haex_crdt::compute_cutoff.
+            let Some(cutoff) = haex_crdt::compute_cutoff(&*tx, policy)? else {
                 return Ok(0);
             };
 
@@ -262,49 +262,9 @@ where
     Ok(per_space_maxes)
 }
 
-/// Read the current HLC from `haex_crdt_configs_no_sync` and reduce it by
-/// `days` to produce the SQLite-signed cutoff for time-based pruning.
-///
-/// Mirrors the crate's private `compute_cutoff` (see
-/// `haex_crdt::crdt::cleanup::compute_cutoff`) so the vault-side pass sees
-/// the same cutoff as the crate-side pass and both DELETEs stay in lockstep.
-///
-/// Returns `None` when no HLC is recorded yet (fresh vault) or when the
-/// cutoff would overflow `i64` — SQLite stores integers signed 64-bit, so an
-/// `as i64` cast on `u64 > i64::MAX` would wrap negative and silently skew
-/// the comparison.
-fn compute_cutoff_hlc_num_from_config(
-    tx: &Transaction,
-    days: u32,
-) -> Result<Option<i64>, DatabaseError> {
-    let current_hlc_str: Option<String> = tx
-        .query_row(
-            &format!(
-                "SELECT value FROM \"{TABLE_CRDT_CONFIGS}\" WHERE key = ?1 AND type = 'hlc'"
-            ),
-            ["hlc_timestamp"],
-            |row| row.get(0),
-        )
-        .optional()?;
-    let Some(current_hlc_str) = current_hlc_str else {
-        return Ok(None);
-    };
-
-    let current_timestamp =
-        Timestamp::from_str(&current_hlc_str).map_err(|e| DatabaseError::HlcError {
-            reason: format!(
-                "compaction_anchor: invalid HLC in config '{current_hlc_str}': {e:?}"
-            ),
-        })?;
-
-    let ns_per_day: u64 = 24 * 60 * 60 * 1_000_000_000;
-    let retention_ns = u64::from(days).saturating_mul(ns_per_day);
-    let cutoff = current_timestamp
-        .get_time()
-        .as_u64()
-        .saturating_sub(retention_ns);
-    Ok(i64::try_from(cutoff).ok())
-}
+// Cutoff computation lives in the crate (`haex_crdt::compute_cutoff`); this
+// module used to duplicate it, which risked silent drift if the crate ever
+// changed its formula. The single source of truth is now the crate.
 
 #[cfg(test)]
 #[path = "compaction_anchor_tests.rs"]

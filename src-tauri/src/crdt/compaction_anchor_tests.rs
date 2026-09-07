@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::crdt::trigger::{DELETED_ROWS_TABLE, SHARED_SPACE_DELETED_ROWS_TABLE};
+use haex_crdt::table_names::TABLE_CRDT_CONFIGS;
 use rusqlite::Connection;
 
 /// Test-only stub for the `current_hlc()` SQL UDF. Production wires this to
