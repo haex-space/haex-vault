@@ -17,6 +17,7 @@ mod extension;
 mod external_bridge;
 pub mod file_sync;
 mod filesystem;
+pub mod haex_crdt_providers;
 mod logging;
 pub mod mail;
 mod media_server;
