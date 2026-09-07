@@ -23,9 +23,14 @@ use haex_crdt::error::{Error as CrdtError, Result as CrdtResult};
 use haex_crdt::DeviceIdProvider;
 use uuid::Uuid;
 
-/// Resolver closure supplied by the caller. Called at most once; the
-/// resolved `Uuid` is cached for the lifetime of the provider so subsequent
-/// [`DeviceIdProvider::device_id`] calls do not re-run any I/O.
+/// Resolver closure supplied by the caller. Under contended first-call the
+/// resolver can run more than once (each racing thread resolves before the
+/// `OnceLock` slot is filled; the losing thread's value is discarded, the
+/// trait's stable-UUID contract still holds). After the first successful
+/// resolve, subsequent [`DeviceIdProvider::device_id`] calls hit the cache
+/// and do no I/O. Callers whose resolver has non-trivial I/O cost should
+/// serialise the first call themselves (e.g. by resolving once at startup
+/// before handing the provider to `Arc<dyn DeviceIdProvider>`).
 type Resolver = Box<dyn Fn() -> Result<Uuid, String> + Send + Sync>;
 
 pub struct HaexVaultDeviceIdProvider {
@@ -34,9 +39,9 @@ pub struct HaexVaultDeviceIdProvider {
 }
 
 impl HaexVaultDeviceIdProvider {
-    /// General constructor. The resolver runs at most once — subsequent
-    /// [`DeviceIdProvider::device_id`] calls return the cached value. Wire
-    /// this to `<app_data>/device_id` in Batch 5's `AppState` construction.
+    /// General constructor. See the [`Resolver`] doc for the first-call race
+    /// semantics. Wire this to `<app_data>/device_id` in Batch 5's `AppState`
+    /// construction.
     pub fn new<F>(resolver: F) -> Self
     where
         F: Fn() -> Result<Uuid, String> + Send + Sync + 'static,
