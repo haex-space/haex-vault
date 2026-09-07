@@ -17,11 +17,34 @@
 //!   constructor that seeds a deterministic UUID for round-trip tests
 //!   without touching the filesystem.
 
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use haex_crdt::error::{Error as CrdtError, Result as CrdtResult};
 use haex_crdt::DeviceIdProvider;
+use serde_json::json;
+use tauri::AppHandle;
+use tauri_plugin_store::StoreExt;
 use uuid::Uuid;
+
+/// Deterministic UUID derived from an arbitrary name string. Test-only.
+///
+/// Mirrors the (now removed / deprecated) `HlcService::new_for_testing`
+/// shim: hashes the input with BLAKE3 and truncates to 16 bytes to seed a
+/// [`Uuid`]. Same name always yields the same UUID, so callers can spin up
+/// multiple `HlcService::new_with_uuid(...)` handles across tests and know
+/// two tests using the same name produce identical HLC node ids.
+///
+/// NOT for production — production must resolve the device UUID from
+/// persistent state (see [`HaexVaultDeviceIdProvider::from_instance_store`]).
+#[doc(hidden)]
+pub fn test_device_uuid_from_name(name: &str) -> Uuid {
+    let hash = blake3::hash(name.as_bytes());
+    let bytes = hash.as_bytes();
+    let mut uuid_bytes = [0u8; 16];
+    uuid_bytes.copy_from_slice(&bytes[..16]);
+    Uuid::from_bytes(uuid_bytes)
+}
 
 /// Resolver closure supplied by the caller. Under contended first-call the
 /// resolver can run more than once (each racing thread resolves before the
@@ -61,6 +84,52 @@ impl HaexVaultDeviceIdProvider {
         bytes.copy_from_slice(&seed[..16]);
         let uuid = Uuid::from_bytes(bytes);
         Self::new(move || Ok(uuid))
+    }
+}
+
+/// Reads (or lazily creates) the persistent device UUID stored in the Tauri
+/// `instance.json` store under the `id` key. Extracted verbatim from the
+/// pre-extraction `HlcService::get_or_create_device_id` so call sites that
+/// need the raw String — outbound sync commands (`space_delivery::local::
+/// commands::{peers,owner_sync}`) — keep working while Batch 5 threads the
+/// [`DeviceIdProvider`] handle through `AppState`.
+///
+/// TODO(Batch 5): once every consumer takes a `&dyn DeviceIdProvider` this
+/// helper collapses back into a private detail of the provider adapter.
+pub fn get_or_create_device_id_from_store(app: &AppHandle) -> Result<String, String> {
+    let store_path = PathBuf::from("instance.json");
+    let store = app.store(store_path).map_err(|e| e.to_string())?;
+
+    if let Some(value) = store.get("id") {
+        if let Some(s) = value.as_str() {
+            if Uuid::parse_str(s).is_ok() {
+                return Ok(s.to_string());
+            }
+        }
+        // Value exists but is not a valid UUID string — fall through to
+        // regenerate, matching the pre-extraction behaviour.
+    }
+
+    let new_id = Uuid::new_v4().to_string();
+    store.set("id".to_string(), json!(new_id.clone()));
+    store.save().map_err(|e| e.to_string())?;
+    Ok(new_id)
+}
+
+/// Constructor that reads (or creates) the vault's device UUID from the
+/// Tauri `instance.json` store. Preserves the pre-extraction resolution
+/// semantics of `HlcService::get_or_create_device_id` so `initialize_in_place`
+/// at DB-open sees the same UUID that outbound sync commands do.
+///
+/// TODO(Batch 5): drop in favour of a single canonical resolver once
+/// `AppState` owns a `&dyn DeviceIdProvider`.
+impl HaexVaultDeviceIdProvider {
+    pub fn from_instance_store(app: &AppHandle) -> Self {
+        let app = app.clone();
+        Self::new(move || {
+            let id_str = get_or_create_device_id_from_store(&app)?;
+            Uuid::parse_str(&id_str).map_err(|e| format!("instance.json id not a UUID: {e}"))
+        })
     }
 }
 
