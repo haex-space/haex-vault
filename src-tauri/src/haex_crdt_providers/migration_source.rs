@@ -27,12 +27,10 @@
 //! covered here.
 
 use std::collections::BTreeMap;
-#[cfg(test)]
 use std::path::{Path, PathBuf};
 
 use haex_crdt::error::{Error as CrdtError, MigrationJournal, Result as CrdtResult};
 use haex_crdt::{MigrationName, MigrationSource};
-#[cfg(test)]
 use serde::Deserialize;
 
 /// In-memory index of every consumer-owned migration, keyed by
@@ -42,44 +40,50 @@ pub struct HaexVaultMigrationSource {
     migrations: BTreeMap<MigrationName, String>,
 }
 
-/// Drizzle-style journal entry. Test-only for now; Batch 5 will re-open
-/// this to production once the `AppHandle`-backed loader lands.
-#[cfg(test)]
+/// Drizzle-style journal entry. Public within the module — both the
+/// test constructor and the production `from_migrations_dir` share the
+/// parser.
 #[derive(Debug, Deserialize)]
 struct JournalEntry {
     idx: u32,
     tag: String,
 }
 
-#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct JournalFile {
     entries: Vec<JournalEntry>,
 }
 
 impl HaexVaultMigrationSource {
-    /// Test-only constructor. Reads the drizzle + manual migrations from
-    /// disk relative to `CARGO_MANIFEST_DIR` — no `AppHandle`, no Tauri
-    /// resource plumbing required.
+    /// Production constructor. Reads the drizzle + manual migrations from
+    /// a caller-supplied directory that must contain a `src-tauri`-style
+    /// layout: `<manifest_root>/database/migrations/meta/_journal.json`
+    /// (required) and `<manifest_root>/database/migrations-manual/_journal.json`
+    /// (optional).
     ///
-    /// This is named `from_embedded` for symmetry with the integration
-    /// plan's illustrative test; the migrations are read at unit-test
-    /// runtime, not literally compiled in. That difference is intentional:
-    /// embedding every SQL file via `include_str!` would require a
-    /// hard-coded list that will drift as new migrations land, whereas
-    /// reading from disk stays in lockstep with the shipped fixture.
+    /// Batch 5 wires this into `AppState` construction — for desktop the
+    /// path is resolved from `tauri::AppHandle::path_resolver()`, for
+    /// Android from the FS plugin's resource loader. Both flows land here
+    /// once the bytes are on disk. The `#[cfg(test)]` `from_embedded`
+    /// convenience below uses `CARGO_MANIFEST_DIR` so unit tests don't
+    /// need any `AppHandle`.
+    pub fn from_migrations_dir(manifest_root: PathBuf) -> CrdtResult<Self> {
+        Self::from_manifest_root(&manifest_root)
+    }
+
+    /// Test-only convenience. Resolves `CARGO_MANIFEST_DIR` and delegates
+    /// to the same parser production uses — so a green
+    /// `from_embedded()` test proves the shipped parser works against the
+    /// shipped fixture, not a test-only branch.
     #[cfg(test)]
     pub fn from_embedded() -> CrdtResult<Self> {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         Self::from_manifest_root(&root)
     }
 
-    /// Build from `<repo>/src-tauri/database/{migrations,migrations-manual}`.
-    /// Split out so both the test constructor and any future
-    /// `from_app_handle` variant can share the parser. Batch 5 will lift
-    /// the `#[cfg(test)]` guards on this helper stack when it adds the
-    /// production constructor.
-    #[cfg(test)]
+    /// Build from `<manifest_root>/database/{migrations,migrations-manual}`.
+    /// Shared by every constructor so the trait behaviour under test is
+    /// exactly what production runs.
     fn from_manifest_root(manifest_root: &Path) -> CrdtResult<Self> {
         let drizzle_dir = manifest_root.join("database").join("migrations");
         let manual_dir = manifest_root.join("database").join("migrations-manual");
@@ -109,7 +113,6 @@ impl HaexVaultMigrationSource {
     }
 }
 
-#[cfg(test)]
 fn read_journal(path: &Path) -> CrdtResult<Vec<String>> {
     let content = std::fs::read_to_string(path).map_err(|e| {
         CrdtError::Message(format!("read migration journal {}: {e}", path.display()))
@@ -121,7 +124,6 @@ fn read_journal(path: &Path) -> CrdtResult<Vec<String>> {
     Ok(journal.entries.into_iter().map(|e| e.tag).collect())
 }
 
-#[cfg(test)]
 fn read_sql_file(path: &Path) -> CrdtResult<String> {
     std::fs::read_to_string(path)
         .map_err(|e| CrdtError::Message(format!("read migration sql {}: {e}", path.display())))

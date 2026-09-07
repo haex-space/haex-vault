@@ -132,6 +132,23 @@ fn migration_source_load_migration_returns_sql_body() {
 }
 
 #[test]
+fn migration_source_from_migrations_dir_lists_shipped_migrations() {
+    // Proves the production constructor is usable, not just the
+    // `#[cfg(test)]` convenience. Batch 5 will pass a real
+    // `AppHandle`-resolved path here; the parser under the hood is the
+    // same one `from_embedded` already covers.
+    use std::path::PathBuf;
+
+    let manifest_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = HaexVaultMigrationSource::from_migrations_dir(manifest_root).unwrap();
+    let listed = source.list_migrations().unwrap();
+    assert!(
+        !listed.is_empty(),
+        "production constructor must expose the shipped migrations"
+    );
+}
+
+#[test]
 fn migration_source_load_missing_reports_consumer_owned_journal() {
     let source = HaexVaultMigrationSource::from_embedded().unwrap();
     let missing = "9999_definitely_not_shipped".into();
