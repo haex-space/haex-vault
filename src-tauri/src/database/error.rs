@@ -208,6 +208,117 @@ impl From<CrdtSetupError> for DatabaseError {
     }
 }
 
+/// Variant-preserving bridge from the `haex_crdt` crate's `DatabaseError` to
+/// the vault-local one. Every variant of `haex_crdt::db::error::DatabaseError`
+/// maps 1:1 to the corresponding variant here, so `?` across the crate
+/// boundary keeps full error fidelity — no lossy `Into<String>` collapse.
+impl From<haex_crdt::db::error::DatabaseError> for DatabaseError {
+    fn from(err: haex_crdt::db::error::DatabaseError) -> Self {
+        use haex_crdt::db::error::DatabaseError as CrateErr;
+        match err {
+            CrateErr::ParseError { reason, sql } => DatabaseError::ParseError { reason, sql },
+            CrateErr::ParameterMismatchError {
+                expected,
+                provided,
+                sql,
+            } => DatabaseError::ParameterMismatchError {
+                expected,
+                provided,
+                sql,
+            },
+            CrateErr::NoTableError { sql } => DatabaseError::NoTableError { sql },
+            CrateErr::StatementError { reason } => DatabaseError::StatementError { reason },
+            CrateErr::PrepareError { reason } => DatabaseError::PrepareError { reason },
+            CrateErr::DatabaseError { reason } => DatabaseError::DatabaseError { reason },
+            CrateErr::ExecutionError { sql, reason, table } => DatabaseError::ExecutionError {
+                sql,
+                reason,
+                table,
+            },
+            CrateErr::TransactionError { reason } => DatabaseError::TransactionError { reason },
+            CrateErr::UnsupportedStatement { reason, sql } => {
+                DatabaseError::UnsupportedStatement { reason, sql }
+            }
+            CrateErr::HlcError { reason } => DatabaseError::HlcError { reason },
+            CrateErr::LockError { reason } => DatabaseError::LockError { reason },
+            CrateErr::ConnectionError { reason } => DatabaseError::ConnectionError { reason },
+            CrateErr::SerializationError { reason } => {
+                DatabaseError::SerializationError { reason }
+            }
+            CrateErr::PermissionError {
+                extension_id,
+                operation,
+                resource,
+                reason,
+            } => DatabaseError::PermissionError {
+                extension_id,
+                operation,
+                resource,
+                reason,
+            },
+            CrateErr::QueryError { reason } => DatabaseError::QueryError { reason },
+            CrateErr::RowProcessingError { reason } => {
+                DatabaseError::RowProcessingError { reason }
+            }
+            CrateErr::MutexPoisoned { reason } => DatabaseError::MutexPoisoned { reason },
+            CrateErr::ConnectionFailed { path, reason } => {
+                DatabaseError::ConnectionFailed { path, reason }
+            }
+            CrateErr::PragmaError { pragma, reason } => {
+                DatabaseError::PragmaError { pragma, reason }
+            }
+            CrateErr::PathResolutionError { reason } => {
+                DatabaseError::PathResolutionError { reason }
+            }
+            CrateErr::IoError { path, reason } => DatabaseError::IoError { path, reason },
+            CrateErr::CrdtSetup(msg) => DatabaseError::CrdtSetup(msg),
+            CrateErr::MigrationError { reason } => DatabaseError::MigrationError { reason },
+            CrateErr::VaultAlreadyExists { vault_name } => {
+                DatabaseError::VaultAlreadyExists { vault_name }
+            }
+            CrateErr::VaultAlreadyOpenElsewhere { path, reason } => {
+                DatabaseError::VaultAlreadyOpenElsewhere { path, reason }
+            }
+            CrateErr::VaultAlreadyMountedInProcess {
+                existing_path,
+                requested_path,
+            } => DatabaseError::VaultAlreadyMountedInProcess {
+                existing_path,
+                requested_path,
+            },
+            CrateErr::ValidationError { reason } => DatabaseError::ValidationError { reason },
+            CrateErr::LimitExceeded { reason } => DatabaseError::LimitExceeded { reason },
+            CrateErr::TransactionTooLarge { bytes, limit } => {
+                DatabaseError::TransactionTooLarge { bytes, limit }
+            }
+            CrateErr::I1RegisterTargetsSystemTable { table } => {
+                DatabaseError::I1RegisterTargetsSystemTable { table }
+            }
+            CrateErr::I2ForeignShareInsert { space_id } => {
+                DatabaseError::I2ForeignShareInsert { space_id }
+            }
+            CrateErr::CrdtMetaColumnWriteForbidden { column } => {
+                DatabaseError::CrdtMetaColumnWriteForbidden { column }
+            }
+            CrateErr::RegistryRowForeignAuthoredByDid {
+                space_id,
+                claimed,
+                derived,
+            } => DatabaseError::RegistryRowForeignAuthoredByDid {
+                space_id,
+                claimed,
+                derived,
+            },
+            CrateErr::RegistryRowAuthoredByDidImmutable { table } => {
+                DatabaseError::RegistryRowAuthoredByDidImmutable { table }
+            }
+            CrateErr::RegistryRowSigColumnWriteForbidden { column } => {
+                DatabaseError::RegistryRowSigColumnWriteForbidden { column }
+            }
+        }
+    }
+}
+
 impl DatabaseError {
     /// Extract extension ID if this error is related to an extension
     pub fn extension_id(&self) -> Option<&str> {
