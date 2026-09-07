@@ -5,7 +5,6 @@ pub mod insert_transformer;
 //pub mod query_transformer;
 pub mod registry_row_sig;
 pub mod scanner;
-pub mod transformer;
 pub mod trigger;
 
 #[cfg(test)]

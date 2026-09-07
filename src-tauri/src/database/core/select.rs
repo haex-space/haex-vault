@@ -58,7 +58,7 @@ pub fn select_with_crdt(
     params: Vec<JsonValue>,
     connection: &DbConnection,
 ) -> Result<Vec<Vec<JsonValue>>, DatabaseError> {
-    use crate::crdt::transformer::CrdtTransformer;
+    use haex_crdt::crdt::transformer::CrdtTransformer;
 
     // Parse the SQL statement
     let statement = parse_single_statement(&sql)?;

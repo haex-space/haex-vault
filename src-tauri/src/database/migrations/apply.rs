@@ -4,7 +4,7 @@
 use super::load::load_bundled_migrations;
 use super::query::get_applied_migration_names;
 use super::MigrationInfo;
-use crate::crdt::transformer::CrdtTransformer;
+use haex_crdt::crdt::transformer::CrdtTransformer;
 use crate::database::core::{with_connection, DRIZZLE_STATEMENT_BREAKPOINT};
 use crate::database::error::DatabaseError;
 use crate::table_names::TABLE_CRDT_MIGRATIONS;

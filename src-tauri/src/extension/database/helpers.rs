@@ -7,7 +7,7 @@ use rusqlite::params_from_iter;
 use serde_json::Value as JsonValue;
 use sqlparser::ast::Statement;
 
-use crate::crdt::transformer::CrdtTransformer;
+use haex_crdt::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger;
 use crate::database::core::{
     parse_sql_statements, with_connection, ValueConverter, DRIZZLE_STATEMENT_BREAKPOINT,

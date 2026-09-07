@@ -1,7 +1,7 @@
 // src-tauri/src/extension/database/executor.rs
 
 use super::planner::SqlExecutionPlanner;
-use crate::crdt::transformer::CrdtTransformer;
+use haex_crdt::crdt::transformer::CrdtTransformer;
 use crate::crdt::trigger::HLC_FUNCTION_NAME;
 use crate::database::core::{convert_value_ref_to_json, strip_main_schema_prefix};
 use crate::database::error::DatabaseError;
