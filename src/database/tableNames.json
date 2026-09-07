@@ -1,17 +1,17 @@
 {
   "crdt": {
     "columns": {
-      "haexHlc": "haex_hlc",
-      "haexColumnHlcs": "haex_column_hlcs",
-      "haexColumnSigs": "haex_column_sigs"
+      "haexHlc": "haex_hlc_no_trigger",
+      "haexColumnHlcs": "haex_column_hlcs_no_trigger",
+      "haexColumnSigs": "haex_column_sigs_no_trigger"
     }
   },
   "sync_metadata": {
     "columns": {
-      "lastPushHlcTimestamp": "last_push_hlc_timestamp",
-      "lastPullServerTimestamp": "last_pull_server_timestamp",
-      "updatedAt": "updated_at",
-      "createdAt": "created_at"
+      "lastPushHlcTimestamp": "last_push_hlc_timestamp_no_trigger",
+      "lastPullServerTimestamp": "last_pull_server_timestamp_no_trigger",
+      "updatedAt": "updated_at_no_trigger",
+      "createdAt": "created_at_no_trigger"
     }
   },
   "haex": {
@@ -43,8 +43,8 @@
         "displayMode": "display_mode",
         "i18n": "i18n",
         "devPath": "dev_path",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "principal_permissions": {
@@ -57,8 +57,8 @@
         "target": "target",
         "constraints": "constraints",
         "status": "status",
-        "createdAt": "created_at",
-        "updateAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updateAt": "updated_at_no_trigger"
       }
     },
     "notifications": {
@@ -83,7 +83,7 @@
         "deviceId": "device_id",
         "name": "name",
         "position": "position",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "desktop_items": {
@@ -110,14 +110,14 @@
         "identityId": "identity_id",
         "enabled": "enabled",
         "priority": "priority",
-        "lastPushHlcTimestamp": "last_push_hlc_timestamp",
-        "lastPullServerTimestamp": "last_pull_server_timestamp",
+        "lastPushHlcTimestamp": "last_push_hlc_timestamp_no_trigger",
+        "lastPullServerTimestamp": "last_pull_server_timestamp_no_trigger",
         "pendingVaultKeyUpdate": "pending_vault_key_update",
         "type": "type",
         "homeServerDid": "home_server_did",
         "originServerDid": "origin_server_did",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "extension_migrations": {
@@ -162,8 +162,8 @@
         "maxResultRows": "max_result_rows",
         "maxConcurrentQueries": "max_concurrent_queries",
         "maxQuerySizeBytes": "max_query_size_bytes",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "s3_backends": {
@@ -178,7 +178,7 @@
         "originType": "origin_type",
         "sharePrefix": "share_prefix",
         "shareAccessFlags": "share_access_flags",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "shared_space_sync": {
@@ -196,7 +196,7 @@
         "categoryLabel": "category_label",
         "authoredByDid": "authored_by_did",
         "rowSig": "row_sig",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "identities": {
@@ -210,7 +210,7 @@
         "avatar": "avatar",
         "avatarOptions": "avatar_options",
         "notes": "notes",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "identity_claims": {
@@ -222,7 +222,7 @@
         "value": "value",
         "verifiedAt": "verified_at",
         "verifiedBy": "verified_by",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "spaces": {
@@ -234,7 +234,7 @@
         "name": "name",
         "ownerIdentityId": "owner_identity_id",
         "originUrl": "origin_url",
-        "createdAt": "created_at",
+        "createdAt": "created_at_no_trigger",
         "modifiedAt": "modified_at"
       }
     },
@@ -253,7 +253,7 @@
         "relayUrl": "relay_url",
         "leaderPriority": "leader_priority",
         "authoredByDid": "authored_by_did",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "space_members": {
@@ -277,7 +277,7 @@
         "name": "name",
         "localPath": "local_path",
         "authoredByDid": "authored_by_did",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "space_keys": {
@@ -311,7 +311,7 @@
         "audienceDid": "audience_did",
         "ucanToken": "ucan_token",
         "role": "role",
-        "createdAt": "created_at",
+        "createdAt": "created_at_no_trigger",
         "revokedAt": "revoked_at"
       }
     },
@@ -330,7 +330,7 @@
         "tokenId": "token_id",
         "spaceEndpoints": "space_endpoints",
         "status": "status",
-        "createdAt": "created_at",
+        "createdAt": "created_at_no_trigger",
         "respondedAt": "responded_at"
       }
     },
@@ -348,7 +348,7 @@
       "columns": {
         "id": "id",
         "policy": "policy",
-        "updatedAt": "updated_at"
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "invite_outbox": {
@@ -363,7 +363,7 @@
         "retryCount": "retry_count",
         "nextRetryAt": "next_retry_at",
         "expiresAt": "expires_at",
-        "createdAt": "created_at",
+        "createdAt": "created_at_no_trigger",
         "lastError": "last_error"
       }
     },
@@ -379,7 +379,7 @@
         "maxUses": "max_uses",
         "currentUses": "current_uses",
         "expiresAt": "expires_at",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "mls_sync_keys": {
@@ -441,7 +441,7 @@
         "messageBlob": "message_blob",
         "committerUcan": "committer_ucan",
         "committerCommitBindSig": "committer_commit_bind_sig",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "local_delivery_key_packages": {
@@ -452,7 +452,7 @@
         "targetDid": "target_did",
         "packageBlob": "package_blob",
         "popBlob": "pop_blob",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "local_delivery_welcomes": {
@@ -463,7 +463,7 @@
         "recipientDid": "recipient_did",
         "welcomeBlob": "welcome_blob",
         "consumed": "consumed",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "local_delivery_pending_commits": {
@@ -474,10 +474,9 @@
         "messageId": "message_id",
         "expectedDids": "expected_dids",
         "ackedDids": "acked_dids",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
-
     "dos_defence_state_no_sync": {
       "name": "haex_dos_defence_state_no_sync",
       "columns": {
@@ -485,7 +484,7 @@
         "floodMode": "flood_mode",
         "floodModeSource": "flood_mode_source",
         "ddosExpiresAt": "ddos_expires_at",
-        "updatedAt": "updated_at"
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "devices": {
@@ -500,10 +499,9 @@
         "platform": "platform",
         "avatar": "avatar",
         "avatarOptions": "avatar_options",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
-
     "logs": {
       "name": "haex_logs_no_sync",
       "columns": {
@@ -517,7 +515,6 @@
         "deviceId": "device_id"
       }
     },
-
     "sync_rules": {
       "name": "haex_sync_rules",
       "columns": {
@@ -533,7 +530,7 @@
         "syncIntervalSeconds": "sync_interval_seconds",
         "deleteMode": "delete_mode",
         "lastSyncedAt": "last_synced_at",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "sync_state": {
@@ -567,8 +564,8 @@
         "otpAlgorithm": "otp_algorithm",
         "expiresAt": "expires_at",
         "autofillAliases": "autofill_aliases",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "passwords_item_key_values": {
@@ -578,7 +575,7 @@
         "itemId": "item_id",
         "key": "key",
         "value": "value",
-        "updatedAt": "updated_at"
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "passwords_groups": {
@@ -591,8 +588,8 @@
         "sortOrder": "sort_order",
         "color": "color",
         "parentId": "parent_id",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "passwords_group_items": {
@@ -609,7 +606,7 @@
         "data": "data",
         "size": "size",
         "type": "type",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "passwords_item_binaries": {
@@ -627,7 +624,7 @@
         "id": "id",
         "itemId": "item_id",
         "snapshotData": "snapshot_data",
-        "createdAt": "created_at",
+        "createdAt": "created_at_no_trigger",
         "modifiedAt": "modified_at"
       }
     },
@@ -654,8 +651,8 @@
         "usePattern": "use_pattern",
         "pattern": "pattern",
         "isDefault": "is_default",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "passwords_tags": {
@@ -664,7 +661,7 @@
         "id": "id",
         "name": "name",
         "color": "color",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "passwords_item_tags": {
@@ -694,18 +691,17 @@
         "icon": "icon",
         "color": "color",
         "nickname": "nickname",
-        "createdAt": "created_at",
+        "createdAt": "created_at_no_trigger",
         "lastUsedAt": "last_used_at"
       }
     },
-
     "bookmark_collections": {
       "name": "haex_bookmark_collections",
       "columns": {
         "id": "id",
         "name": "name",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "bookmarks": {
@@ -719,8 +715,8 @@
         "title": "title",
         "url": "url",
         "position": "position",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "bookmark_devices": {
@@ -734,7 +730,6 @@
         "lastSeenAt": "last_seen_at"
       }
     },
-
     "crdt": {
       "changes": {
         "name": "haex_crdt_changes_no_sync",
@@ -746,7 +741,7 @@
           "hlcTimestamp": "hlc_timestamp",
           "syncState": "sync_state",
           "deviceId": "device_id",
-          "createdAt": "created_at"
+          "createdAt": "created_at_no_trigger"
         }
       },
       "snapshots": {
@@ -773,7 +768,7 @@
           "id": "id",
           "backendId": "backend_id",
           "lastPullCreatedAt": "last_pull_created_at",
-          "lastPushHlcTimestamp": "last_push_hlc_timestamp",
+          "lastPushHlcTimestamp": "last_push_hlc_timestamp_no_trigger",
           "lastSyncAt": "last_sync_at",
           "error": "error"
         }
@@ -867,8 +862,8 @@
         "authUsername": "auth_username",
         "authPassword": "auth_password",
         "authIdentityId": "auth_identity_id",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "critical_notifications_no_sync": {
@@ -903,8 +898,8 @@
         "publicKey": "public_key",
         "name": "name",
         "enabled": "enabled",
-        "createdAt": "created_at",
-        "updatedAt": "updated_at"
+        "createdAt": "created_at_no_trigger",
+        "updatedAt": "updated_at_no_trigger"
       }
     },
     "file_grants": {
@@ -915,7 +910,7 @@
         "spaceId": "space_id",
         "sidecarKey": "sidecar_key",
         "epoch": "epoch",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     },
     "s3_shared_access": {
@@ -928,7 +923,7 @@
         "encryptedCred": "encrypted_cred",
         "epoch": "epoch",
         "expiresAt": "expires_at",
-        "createdAt": "created_at"
+        "createdAt": "created_at_no_trigger"
       }
     }
   }

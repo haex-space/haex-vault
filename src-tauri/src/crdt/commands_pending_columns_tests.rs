@@ -5,7 +5,7 @@
 //! local schema (the local device is on an older schema), the apply path
 //! records the column in `haex_crdt_pending_columns` and skips it. It must
 //! NOT record an HLC for that never-applied column in the row's
-//! `haex_column_hlcs`: `haex_column_hlcs` is the per-column HLC of the last
+//! `haex_column_hlcs_no_trigger`: `haex_column_hlcs_no_trigger` is the per-column HLC of the last
 //! *applied* value. If a skipped column's original HLC `H` were persisted
 //! there, the post-migration recovery re-fetch — which carries the SAME
 //! original HLC `H` — would be gated out by the strict `hlc_is_newer(H, H)`
@@ -42,15 +42,15 @@ fn setup_db() -> DbConnection {
              id TEXT PRIMARY KEY,
              table_name TEXT NOT NULL,
              row_pks TEXT NOT NULL,
-             haex_hlc TEXT,
-             haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_trigger TEXT,
+             haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
          );
          CREATE TABLE devices (
              id TEXT PRIMARY KEY,
              name TEXT,
              nick TEXT,
-             haex_hlc TEXT,
-             haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_trigger TEXT,
+             haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
          );"
     ))
     .unwrap();
@@ -74,7 +74,7 @@ fn seed_row(db: &DbConnection, id: &str, name: &str, column_hlcs: &str, row_hlc:
     let guard = db.0.lock().unwrap();
     let conn = guard.as_ref().unwrap();
     conn.execute(
-        "INSERT INTO devices (id, name, haex_hlc, haex_column_hlcs) VALUES (?, ?, ?, ?)",
+        "INSERT INTO devices (id, name, haex_hlc_no_trigger, haex_column_hlcs_no_trigger) VALUES (?, ?, ?, ?)",
         params![id, name, row_hlc, column_hlcs],
     )
     .unwrap();
@@ -93,13 +93,13 @@ fn read_col(db: &DbConnection, id: &str, col: &str) -> Option<String> {
     .unwrap()
 }
 
-/// Parse the row's `haex_column_hlcs` JSON map.
+/// Parse the row's `haex_column_hlcs_no_trigger` JSON map.
 fn column_hlcs_map(db: &DbConnection, id: &str) -> serde_json::Map<String, JsonValue> {
     let guard = db.0.lock().unwrap();
     let conn = guard.as_ref().unwrap();
     let raw: String = conn
         .query_row(
-            "SELECT haex_column_hlcs FROM devices WHERE id = ?",
+            "SELECT haex_column_hlcs_no_trigger FROM devices WHERE id = ?",
             params![id],
             |r| r.get(0),
         )
@@ -111,7 +111,7 @@ fn row_hlc(db: &DbConnection, id: &str) -> Option<String> {
     let guard = db.0.lock().unwrap();
     let conn = guard.as_ref().unwrap();
     conn.query_row(
-        "SELECT haex_hlc FROM devices WHERE id = ?",
+        "SELECT haex_hlc_no_trigger FROM devices WHERE id = ?",
         params![id],
         |r| r.get::<_, Option<String>>(0),
     )
@@ -187,7 +187,7 @@ fn skip_does_not_record_column_hlc_for_missing_column() {
     let bio_val = format!("bio-{}", rand::random::<u32>());
 
     // Batch touches an EXISTING column `name` (newer HLC) and a MISSING
-    // column `bio`. The co-applied `name` forces the row's haex_column_hlcs
+    // column `bio`. The co-applied `name` forces the row's haex_column_hlcs_no_trigger
     // to be rewritten — which is exactly when the buggy code leaked `bio`'s
     // HLC into the persisted map.
     let changes = vec![
@@ -210,7 +210,7 @@ fn skip_does_not_record_column_hlc_for_missing_column() {
     assert!(
         !hlcs.contains_key("bio"),
         "skipped (never-applied) column must NOT have an HLC persisted in \
-         haex_column_hlcs, else post-migration recovery is gated out by the \
+         haex_column_hlcs_no_trigger, else post-migration recovery is gated out by the \
          strict hlc_is_newer check; got {hlcs:?}"
     );
 
@@ -340,7 +340,7 @@ fn existing_column_newer_hlc_applies_equal_or_older_does_not() {
         assert_eq!(
             row_hlc(&db, "dev-1").as_deref(),
             Some(HLC_NEW),
-            "row haex_hlc must advance to the applied change's HLC"
+            "row haex_hlc_no_trigger must advance to the applied change's HLC"
         );
     }
 

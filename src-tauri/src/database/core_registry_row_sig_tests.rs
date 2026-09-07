@@ -97,7 +97,7 @@ fn setup_fixture() -> Fixture {
             category_label TEXT,
             authored_by_did TEXT DEFAULT '' NOT NULL,
             row_sig TEXT DEFAULT '' NOT NULL,
-            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
          );",
     )
     .unwrap();
@@ -148,7 +148,7 @@ struct StoredRow {
     category_label: Option<String>,
     type_label: Option<String>,
     authored_by_did: String,
-    created_at: Option<String>,
+    created_at_no_trigger: Option<String>,
     row_sig: String,
 }
 
@@ -166,7 +166,7 @@ impl StoredRow {
             category_label: self.category_label.as_deref(),
             type_label: self.type_label.as_deref(),
             authored_by_did: &self.authored_by_did,
-            created_at: self.created_at.as_deref(),
+            created_at_no_trigger: self.created_at_no_trigger.as_deref(),
         }
     }
 }
@@ -176,7 +176,7 @@ fn load_row(db: &DbConnection, id: &str) -> StoredRow {
     let conn = guard.as_ref().unwrap();
     conn.query_row(
         "SELECT id, space_id, table_name, row_pks, extension_public_key, extension_name, \
-                category, type, category_label, type_label, authored_by_did, created_at, row_sig \
+                category, type, category_label, type_label, authored_by_did, created_at_no_trigger, row_sig \
          FROM haex_shared_space_sync WHERE id = ?1",
         [id],
         |r| {
@@ -192,7 +192,7 @@ fn load_row(db: &DbConnection, id: &str) -> StoredRow {
                 category_label: r.get(8)?,
                 type_label: r.get(9)?,
                 authored_by_did: r.get(10)?,
-                created_at: r.get(11)?,
+                created_at_no_trigger: r.get(11)?,
                 row_sig: r.get(12)?,
             })
         },
@@ -448,7 +448,7 @@ fn test_execute_with_crdt_does_not_resign_on_sync_meta_only_update() {
     // `test_execute_with_crdt_rejects_direct_row_sig_write`) — so there is
     // no legitimate `execute_with_crdt` call that touches only sync-meta
     // columns; `CrdtMetaColumnWriteForbidden` already rejects any caller
-    // write to haex_hlc/haex_column_hlcs/haex_column_sigs regardless of
+    // write to haex_hlc_no_trigger/haex_column_hlcs_no_trigger/haex_column_sigs_no_trigger regardless of
     // table. The realistic equivalent of "a CRDT-internal update touches
     // sync meta" is a raw connection write, exactly like the CRDT-apply
     // path (`apply_remote_changes_to_db_scoped`) uses when merging remote
@@ -464,7 +464,7 @@ fn test_execute_with_crdt_does_not_resign_on_sync_meta_only_update() {
         let guard = f.db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         conn.execute(
-            "UPDATE haex_shared_space_sync SET haex_hlc = 'fake-remote-hlc' WHERE id = 'row-5'",
+            "UPDATE haex_shared_space_sync SET haex_hlc_no_trigger = 'fake-remote-hlc' WHERE id = 'row-5'",
             [],
         )
         .unwrap();
@@ -774,11 +774,11 @@ fn test_execute_with_crdt_signs_registry_row_when_table_name_mixedcase() {
 }
 
 // ---------------------------------------------------------------------------
-// PR #741 finding 8: `created_at` is nullable in the DB schema (migration
-// 0000_jazzy_chat.sql declares `created_at text DEFAULT (CURRENT_TIMESTAMP)`
+// PR #741 finding 8: `created_at_no_trigger` is nullable in the DB schema (migration
+// 0000_jazzy_chat.sql declares `created_at_no_trigger text DEFAULT (CURRENT_TIMESTAMP)`
 // with no `NOT NULL`, unchanged by migration 0014) even though every current
 // write path lets the DB default populate it. Simulates a row whose
-// `created_at` is genuinely NULL and confirms a later payload-signed UPDATE
+// `created_at_no_trigger` is genuinely NULL and confirms a later payload-signed UPDATE
 // still succeeds instead of erroring out on the fetch.
 // ---------------------------------------------------------------------------
 
@@ -790,7 +790,7 @@ fn test_execute_with_crdt_resigns_row_with_null_created_at() {
         let guard = f.db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         conn.execute(
-            "UPDATE haex_shared_space_sync SET created_at = NULL WHERE id = 'row-null-created-at'",
+            "UPDATE haex_shared_space_sync SET created_at_no_trigger = NULL WHERE id = 'row-null-created-at'",
             [],
         )
         .unwrap();
@@ -808,17 +808,17 @@ fn test_execute_with_crdt_resigns_row_with_null_created_at() {
         &hlc_guard,
         &f.cache,
     )
-    .expect("update must succeed even with a NULL persisted created_at");
+    .expect("update must succeed even with a NULL persisted created_at_no_trigger");
     drop(hlc_guard);
 
     let row = load_row(&f.db, "row-null-created-at");
-    assert_eq!(row.created_at, None);
+    assert_eq!(row.created_at_no_trigger, None);
     assert_eq!(row.category.as_deref(), Some("leisure"));
 
     let sig_bytes = BASE64.decode(&row.row_sig).unwrap();
     let pk = f.cache.get("space_1").unwrap().verifying_key();
     assert!(
         verify_registry_row(&row.payload(), &sig_bytes, &pk).is_ok(),
-        "sig must verify against a payload with created_at = None"
+        "sig must verify against a payload with created_at_no_trigger = None"
     );
 }

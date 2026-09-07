@@ -233,7 +233,7 @@ export type SelectHaexSharedSpaceSync = typeof haexSharedSpaceSync.$inferSelect
 // Shared-Space Delete Log — per-space signal that a row was deleted or unshared.
 // Applied by other members to remove both the business row and the register
 // entry. See ADR 0002 §6.5 (revised 2026-07-29). CRDT-synced; CRDT-meta columns
-// (haex_hlc / haex_column_hlcs / haex_column_sigs) are injected by
+// (haex_hlc_no_trigger / haex_column_hlcs_no_trigger / haex_column_sigs_no_trigger) are injected by
 // CrdtTransformer at CREATE-TABLE time and by ensure_crdt_columns at retrofit.
 // ---------------------------------------------------------------------------
 

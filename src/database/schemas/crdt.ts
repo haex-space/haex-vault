@@ -22,7 +22,7 @@ export const deletedRowsTableName = tableNames.haex.deleted_rows
  * lives exclusively in this table, so UNIQUE indexes on main tables stay FK-
  * parent-eligible.
  *
- * CRDT columns (haex_hlc, haex_column_hlcs) are appended automatically by the
+ * CRDT columns (haex_hlc_no_trigger, haex_column_hlcs_no_trigger) are appended automatically by the
  * Rust CrdtTransformer, just like any other syncable table.
  */
 export const haexDeletedRows = sqliteTable(
@@ -38,7 +38,7 @@ export const haexDeletedRows = sqliteTable(
   (table) => [
     // Non-unique lookup index: the BEFORE-DELETE trigger does a plain INSERT
     // into this table, so repeated deletes of a re-inserted PK must be able
-    // to stack up (the Rust cleanup job drops old entries based on haex_hlc).
+    // to stack up (the Rust cleanup job drops old entries based on haex_hlc_no_trigger).
     index('haex_deleted_rows_table_row_pks_idx').on(
       table.tableName,
       table.rowPks,

@@ -36,7 +36,7 @@ fn well_formed_row_parses_all_columns() {
     assert_eq!(parsed.encrypted_cred, "<sealed-cred-base64>");
     assert_eq!(parsed.epoch, 42);
     assert_eq!(parsed.expires_at.as_deref(), Some("2026-08-27T00:00:00Z"));
-    assert_eq!(parsed.created_at, "2026-08-27T00:00:01Z");
+    assert_eq!(parsed.created_at_no_trigger, "2026-08-27T00:00:01Z");
 }
 
 /// A row with SQL NULL in `expires_at` decodes to `None` — this is the
@@ -356,8 +356,8 @@ mod crdt_bootstrap {
                 id TEXT PRIMARY KEY NOT NULL,
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
             )"
         ))
         .unwrap();
@@ -373,7 +373,7 @@ mod crdt_bootstrap {
                 encrypted_cred TEXT NOT NULL,
                 epoch INTEGER NOT NULL,
                 expires_at TEXT,
-                created_at TEXT DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+                created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP) NOT NULL
             )"
         ))
         .unwrap();
@@ -390,9 +390,9 @@ mod crdt_bootstrap {
                 space_id TEXT NOT NULL,
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
             )",
         )
         .unwrap();

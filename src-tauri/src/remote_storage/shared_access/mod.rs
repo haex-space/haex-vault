@@ -48,7 +48,7 @@ pub struct SharedAccessRow {
     pub encrypted_cred: String,
     pub epoch: u64,
     pub expires_at: Option<String>,
-    pub created_at: String,
+    pub created_at_no_trigger: String,
 }
 
 /// Errors surfaced from shared-access row operations.
@@ -287,7 +287,7 @@ fn row_to_shared_access(row: Vec<JsonValue>) -> Result<SharedAccessRow, SharedAc
                 )
             }
         },
-        created_at: take_string(&row[7], "created_at")?,
+        created_at_no_trigger: take_string(&row[7], "created_at_no_trigger")?,
     })
 }
 

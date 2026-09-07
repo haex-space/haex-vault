@@ -12,7 +12,7 @@ import { applyPageAsync, verifyPulledChangesAsync, logRejectedChanges, surfaceRe
 /**
  * Fetches ONE page of changes from the server. Stable pagination uses a
  * 3-cursor composite `(afterUpdatedAt, afterTableName, afterRowPks)` — same as
- * the server's `orderBy(asc(max(updated_at)), asc(tableName), asc(rowPks))`.
+ * the server's `orderBy(asc(max(updated_at_no_trigger)), asc(tableName), asc(rowPks))`.
  *
  * The caller drives the page loop (see `pullFromBackendAsync`); this function
  * is intentionally stateless so a failure inside the loop doesn't lose any

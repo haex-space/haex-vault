@@ -138,7 +138,7 @@ impl CriticalNotificationSink {
     /// depends on.
     #[cfg(test)]
     const BASELINE_MIGRATION_SQL: &str =
-        include_str!("../../database/migrations/0000_jazzy_chat.sql");
+        include_str!("../../database/migrations/0000_ordinary_microchip.sql");
 
     /// In-memory factory for tests. Executes the bundled baseline SQL
     /// against an in-memory DB so the fixture stays byte-for-byte

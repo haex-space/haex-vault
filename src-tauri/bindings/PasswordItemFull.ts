@@ -13,4 +13,4 @@ export type PasswordItemFull = { id: string, title: string | null, username: str
  * Maps canonical field names to autofill aliases for browser matching.
  * e.g. `{ "username": ["email", "login"], "password": ["pass"] }`
  */
-autofillAliases: { [key in string]: Array<string> } | null, tags: Array<string>, keyValues: Array<PasswordKeyValue>, expiresAt: string | null, createdAt: string | null, updatedAt: string | null, };
+autofillAliases: { [key in string]: Array<string> } | null, tags: Array<string>, keyValues: Array<PasswordKeyValue>, expiresAt: string | null, createdAtNoTrigger: string | null, updatedAtNoTrigger: string | null, };

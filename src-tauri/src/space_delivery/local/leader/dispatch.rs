@@ -410,7 +410,7 @@ pub(crate) async fn handle_delivery_request(
                                 .committer_commit_bind_sig
                                 .as_deref()
                                 .map(base64_encode),
-                            created_at: m.created_at,
+                            created_at_no_trigger: m.created_at_no_trigger,
                         })
                         .collect();
                     Response::Messages { messages: entries }

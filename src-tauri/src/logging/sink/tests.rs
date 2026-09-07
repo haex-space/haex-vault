@@ -44,7 +44,7 @@ fn in_memory_writes_and_reads_back() {
 #[test]
 fn table_has_no_crdt_columns() {
     // Load-bearing invariant of the whole plan: the log table must not
-    // gain `haex_hlc` / `haex_column_hlcs`, otherwise discover_crdt_tables
+    // gain `haex_hlc_no_trigger` / `haex_column_hlcs_no_trigger`, otherwise discover_crdt_tables
     // would pick it up and re-establish the feedback loop.
     let sink = LogSink::in_memory().expect("in_memory");
     let conn = sink.conn.lock().unwrap();
@@ -57,12 +57,12 @@ fn table_has_no_crdt_columns() {
         .filter_map(|r| r.ok())
         .collect();
     assert!(
-        !cols.iter().any(|c| c == "haex_hlc"),
-        "haex_hlc leaked into haex_logs_no_sync. Cols: {cols:?}"
+        !cols.iter().any(|c| c == "haex_hlc_no_trigger"),
+        "haex_hlc_no_trigger leaked into haex_logs_no_sync. Cols: {cols:?}"
     );
     assert!(
-        !cols.iter().any(|c| c == "haex_column_hlcs"),
-        "haex_column_hlcs leaked into haex_logs_no_sync. Cols: {cols:?}"
+        !cols.iter().any(|c| c == "haex_column_hlcs_no_trigger"),
+        "haex_column_hlcs_no_trigger leaked into haex_logs_no_sync. Cols: {cols:?}"
     );
 }
 

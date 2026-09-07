@@ -166,7 +166,7 @@ pub(super) fn create_conflict_entry(
 /// and the HLC of the row currently sitting in the target table (if any).
 ///
 /// CRDT semantics: a delete is just another timestamped operation. If the
-/// target row carries a `haex_hlc` strictly newer than the delete-log entry,
+/// target row carries a `haex_hlc_no_trigger` strictly newer than the delete-log entry,
 /// the row was inserted/updated *after* the delete and must be kept (a
 /// "resurrection"). Without this check, propagation unconditionally drops
 /// the row, breaking last-write-wins for the insert-after-delete case.
@@ -222,7 +222,7 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
     for id in delete_log_ids {
         let result = tx.query_row(
             &format!(
-                "SELECT table_name, row_pks, haex_hlc FROM \"{}\" WHERE id = ?1",
+                "SELECT table_name, row_pks, haex_hlc_no_trigger FROM \"{}\" WHERE id = ?1",
                 DELETED_ROWS_TABLE
             ),
             params![id],
@@ -311,10 +311,10 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
             .collect();
 
         // Resurrection check: if the target row was inserted/updated after
-        // this delete-log entry, the row's haex_hlc is strictly newer and
+        // this delete-log entry, the row's haex_hlc_no_trigger is strictly newer and
         // we must NOT propagate the delete.
         let select_hlc_sql = format!(
-            "SELECT haex_hlc FROM \"{}\" WHERE {}",
+            "SELECT haex_hlc_no_trigger FROM \"{}\" WHERE {}",
             target_table, where_clause
         );
         let target_row_hlc: Option<String> =
@@ -326,7 +326,7 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
         if !should_propagate_delete(&delete_hlc, target_row_hlc.as_deref()) {
             eprintln!(
                 "[SYNC RUST] Skipping delete-log {} for '{}': target row \
-                 has newer haex_hlc ({:?} > {}) — resurrected",
+                 has newer haex_hlc_no_trigger ({:?} > {}) — resurrected",
                 id, target_table, target_row_hlc, delete_hlc
             );
             continue;
@@ -359,9 +359,9 @@ pub(super) fn propagate_deleted_rows_to_target_tables(
 /// (`haex_shared_space_deleted_rows`, ADR 0002 §6.5).
 ///
 /// For each id in `delete_log_ids`, reads
-/// `(space_id, table_name, row_pks, haex_hlc)` from the delete-log and:
+/// `(space_id, table_name, row_pks, haex_hlc_no_trigger)` from the delete-log and:
 ///   1. DELETEs the target row from `table_name` with the standard
-///      resurrection check (haex_hlc > delete_hlc → skip).
+///      resurrection check (haex_hlc_no_trigger > delete_hlc → skip).
 ///   2. DELETEs the register entry
 ///      `(table_name, row_pks, space_id)` from `haex_shared_space_sync`.
 ///
@@ -391,7 +391,7 @@ pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
     for (i, id) in delete_log_ids.iter().enumerate() {
         let result = tx.query_row(
             &format!(
-                "SELECT space_id, table_name, row_pks, haex_hlc \
+                "SELECT space_id, table_name, row_pks, haex_hlc_no_trigger \
                  FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" WHERE id = ?1"
             ),
             params![id],
@@ -413,7 +413,7 @@ pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
         let delete_hlc = match delete_hlc_opt {
             Some(h) => h,
             None => {
-                eprintln!("[SYNC RUST] Skipping shared-space delete-log {id}: haex_hlc is NULL");
+                eprintln!("[SYNC RUST] Skipping shared-space delete-log {id}: haex_hlc_no_trigger is NULL");
                 continue;
             }
         };
@@ -477,7 +477,7 @@ pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
 
         // Resurrection check (same semantic as owner-domain path).
         let select_hlc_sql =
-            format!("SELECT haex_hlc FROM \"{target_table}\" WHERE {where_clause}");
+            format!("SELECT haex_hlc_no_trigger FROM \"{target_table}\" WHERE {where_clause}");
         let target_row_hlc: Option<String> =
             match tx.query_row(&select_hlc_sql, param_refs.as_slice(), |row| row.get(0)) {
                 Ok(hlc) => Some(hlc),
@@ -487,7 +487,7 @@ pub(super) fn propagate_shared_space_deleted_rows_to_target_tables(
         if !should_propagate_delete(&delete_hlc, target_row_hlc.as_deref()) {
             eprintln!(
                 "[SYNC RUST] Skipping shared-space delete-log {id} for '{target_table}': \
-                 target row has newer haex_hlc ({target_row_hlc:?} > {delete_hlc}) — resurrected"
+                 target row has newer haex_hlc_no_trigger ({target_row_hlc:?} > {delete_hlc}) — resurrected"
             );
             continue;
         }
@@ -861,9 +861,9 @@ mod tests {
              CREATE TABLE ext_notes_items (
                  id TEXT PRIMARY KEY NOT NULL,
                  body TEXT,
-                 haex_hlc TEXT,
-                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                 haex_hlc_no_trigger TEXT,
+                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
              );
 
              CREATE TABLE haex_shared_space_sync (
@@ -871,7 +871,7 @@ mod tests {
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
                  space_id TEXT NOT NULL,
-                 haex_hlc TEXT
+                 haex_hlc_no_trigger TEXT
              );
 
              CREATE TABLE haex_shared_space_deleted_rows (
@@ -879,7 +879,7 @@ mod tests {
                  space_id TEXT NOT NULL,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc TEXT
+                 haex_hlc_no_trigger TEXT
              );",
         )
         .unwrap();
@@ -891,13 +891,13 @@ mod tests {
         let conn = setup_shared_space_apply_fixture();
         // Seed: an extension row shared into SPACE_X.
         conn.execute(
-            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+            "INSERT INTO ext_notes_items (id, body, haex_hlc_no_trigger)
              VALUES ('note-1', 'hello', '1/abcd')",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc_no_trigger)
              VALUES ('reg-1', 'ext_notes_items', '{\"id\":\"note-1\"}', 'SPACE_X', '1/abcd')",
             [],
         )
@@ -905,7 +905,7 @@ mod tests {
 
         // Simulate a remote push of a delete-log row into haex_shared_space_deleted_rows.
         conn.execute(
-            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc_no_trigger)
              VALUES ('del-1', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-1\"}', '2/abcd')",
             [],
         )
@@ -947,19 +947,19 @@ mod tests {
         // propagate_deleted_rows_to_target_tables.
         let conn = setup_shared_space_apply_fixture();
         conn.execute(
-            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+            "INSERT INTO ext_notes_items (id, body, haex_hlc_no_trigger)
              VALUES ('note-2', 'newer', '99/abcd')",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc_no_trigger)
              VALUES ('reg-2', 'ext_notes_items', '{\"id\":\"note-2\"}', 'SPACE_X', '1/abcd')",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc_no_trigger)
              VALUES ('del-2', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-2\"}', '2/abcd')",
             [],
         )
@@ -980,7 +980,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             row_count, 1,
-            "resurrected row (newer haex_hlc than delete) must be kept"
+            "resurrected row (newer haex_hlc_no_trigger than delete) must be kept"
         );
     }
 
@@ -996,26 +996,26 @@ mod tests {
             "CREATE TABLE haex_calendar (
                  id TEXT PRIMARY KEY NOT NULL,
                  title TEXT,
-                 haex_hlc TEXT
+                 haex_hlc_no_trigger TEXT
              )",
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO haex_calendar (id, title, haex_hlc)
+            "INSERT INTO haex_calendar (id, title, haex_hlc_no_trigger)
              VALUES ('cal-1', 'Meeting', '1/abcd')",
             [],
         )
         .unwrap();
         // Row is registered in SPACE_Y — never in SPACE_X.
         conn.execute(
-            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc_no_trigger)
              VALUES ('reg-y', 'haex_calendar', '{\"id\":\"cal-1\"}', 'SPACE_Y', '1/abcd')",
             [],
         )
         .unwrap();
         // Attacker's forged delete-log for SPACE_X.
         conn.execute(
-            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc_no_trigger)
              VALUES ('del-forge', 'SPACE_X', 'haex_calendar', '{\"id\":\"cal-1\"}', '2/abcd')",
             [],
         )
@@ -1062,21 +1062,21 @@ mod tests {
         // the claimed space, the apply skips the business DELETE.
         let conn = setup_shared_space_apply_fixture();
         conn.execute(
-            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+            "INSERT INTO ext_notes_items (id, body, haex_hlc_no_trigger)
              VALUES ('note-race', 'raced', '1/abcd')",
             [],
         )
         .unwrap();
         // Local delete-log entry (the local unshare has already emitted).
         conn.execute(
-            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc_no_trigger)
              VALUES ('del-local', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-race\"}', '2/abcd')",
             [],
         )
         .unwrap();
         // Remote's redundant delete-log entry for the same (T, R, SPACE_X).
         conn.execute(
-            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc_no_trigger)
              VALUES ('del-remote', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-race\"}', '3/abcd')",
             [],
         )
@@ -1113,20 +1113,20 @@ mod tests {
         // ONE space's register. Other spaces' register entries survive.
         let conn = setup_shared_space_apply_fixture();
         conn.execute(
-            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+            "INSERT INTO ext_notes_items (id, body, haex_hlc_no_trigger)
              VALUES ('note-3', 'shared', '1/abcd')",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc_no_trigger)
              VALUES ('reg-x', 'ext_notes_items', '{\"id\":\"note-3\"}', 'SPACE_X', '1/abcd'),
                     ('reg-y', 'ext_notes_items', '{\"id\":\"note-3\"}', 'SPACE_Y', '1/abcd')",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc)
+            "INSERT INTO haex_shared_space_deleted_rows (id, space_id, table_name, row_pks, haex_hlc_no_trigger)
              VALUES ('del-3', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-3\"}', '2/abcd')",
             [],
         )

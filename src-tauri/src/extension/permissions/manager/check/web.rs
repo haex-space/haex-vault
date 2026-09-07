@@ -34,7 +34,7 @@ impl PermissionManager {
 
         // Load permissions from database (same for dev and production extensions)
         let sql = format!(
-            "SELECT id, principal_id, resource_type, action, target, constraints, status, haex_hlc FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ? AND resource_type = 'web'"
+            "SELECT id, principal_id, resource_type, action, target, constraints, status, haex_hlc_no_trigger FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ? AND resource_type = 'web'"
         );
         let params = vec![JsonValue::String(extension_id.to_string())];
 

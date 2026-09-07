@@ -99,7 +99,7 @@ mod tests {
             SELECT u.name, COUNT(p.id) as post_count
             FROM users u
             LEFT JOIN posts p ON u.id = p.user_id
-            WHERE u.created_at > (SELECT MIN(created_at) FROM sessions)
+            WHERE u.created_at_no_trigger > (SELECT MIN(created_at_no_trigger) FROM sessions)
             GROUP BY u.id
         "#;
         let tables = extract_table_names_from_sql(sql).unwrap();

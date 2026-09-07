@@ -57,9 +57,9 @@ pub struct HaexExtensions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dev_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 impl HaexExtensions {
@@ -80,8 +80,8 @@ impl HaexExtensions {
             display_mode: row.get(12)?,
             i18n: row.get(13)?,
             dev_path: row.get(14)?,
-            created_at: row.get(15)?,
-            updated_at: row.get(16)?,
+            created_at_no_trigger: row.get(15)?,
+            updated_at_no_trigger: row.get(16)?,
         })
     }
 }
@@ -101,9 +101,9 @@ pub struct HaexPrincipalPermissions {
     pub constraints: Option<String>,
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 impl HaexPrincipalPermissions {
@@ -116,8 +116,8 @@ impl HaexPrincipalPermissions {
             target: row.get(4)?,
             constraints: row.get(5)?,
             status: row.get(6)?,
-            created_at: row.get(7)?,
-            updated_at: row.get(8)?,
+            created_at_no_trigger: row.get(7)?,
+            updated_at_no_trigger: row.get(8)?,
         })
     }
 }
@@ -225,9 +225,9 @@ pub struct HaexExtensionLimits {
     pub max_concurrent_queries: i64,
     pub max_query_size_bytes: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 impl HaexExtensionLimits {
@@ -239,8 +239,8 @@ impl HaexExtensionLimits {
             max_result_rows: row.get(3)?,
             max_concurrent_queries: row.get(4)?,
             max_query_size_bytes: row.get(5)?,
-            created_at: row.get(6)?,
-            updated_at: row.get(7)?,
+            created_at_no_trigger: row.get(6)?,
+            updated_at_no_trigger: row.get(7)?,
         })
     }
 }
@@ -276,9 +276,9 @@ pub struct HaexPasswordsItemDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub autofill_aliases: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 impl HaexPasswordsItemDetails {
@@ -298,8 +298,8 @@ impl HaexPasswordsItemDetails {
             otp_algorithm: row.get(11)?,
             expires_at: row.get(12)?,
             autofill_aliases: row.get(13)?,
-            created_at: row.get(14)?,
-            updated_at: row.get(15)?,
+            created_at_no_trigger: row.get(14)?,
+            updated_at_no_trigger: row.get(15)?,
         })
     }
 }
@@ -314,7 +314,7 @@ pub struct HaexPasswordsItemKeyValues {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 impl HaexPasswordsItemKeyValues {
@@ -324,7 +324,7 @@ impl HaexPasswordsItemKeyValues {
             item_id: row.get(1)?,
             key: row.get(2)?,
             value: row.get(3)?,
-            updated_at: row.get(4)?,
+            updated_at_no_trigger: row.get(4)?,
         })
     }
 }
@@ -346,9 +346,9 @@ pub struct HaexPasswordsGroups {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 impl HaexPasswordsGroups {
@@ -361,8 +361,8 @@ impl HaexPasswordsGroups {
             sort_order: row.get(4)?,
             color: row.get(5)?,
             parent_id: row.get(6)?,
-            created_at: row.get(7)?,
-            updated_at: row.get(8)?,
+            created_at_no_trigger: row.get(7)?,
+            updated_at_no_trigger: row.get(8)?,
         })
     }
 }
@@ -394,7 +394,7 @@ pub struct HaexPasswordsBinaries {
     #[serde(rename = "type")]
     pub r#type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
 }
 
 impl HaexPasswordsBinaries {
@@ -404,7 +404,7 @@ impl HaexPasswordsBinaries {
             data: row.get(1)?,
             size: row.get(2)?,
             r#type: row.get(3)?,
-            created_at: row.get(4)?,
+            created_at_no_trigger: row.get(4)?,
         })
     }
 }
@@ -436,7 +436,7 @@ pub struct HaexPasswordsItemSnapshots {
     pub item_id: String,
     pub snapshot_data: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modified_at: Option<String>,
 }
@@ -447,7 +447,7 @@ impl HaexPasswordsItemSnapshots {
             id: row.get(0)?,
             item_id: row.get(1)?,
             snapshot_data: row.get(2)?,
-            created_at: row.get(3)?,
+            created_at_no_trigger: row.get(3)?,
             modified_at: row.get(4)?,
         })
     }
@@ -490,9 +490,9 @@ pub struct HaexPasswordsGeneratorPresets {
     pub pattern: Option<String>,
     pub is_default: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 impl HaexPasswordsGeneratorPresets {
@@ -509,8 +509,8 @@ impl HaexPasswordsGeneratorPresets {
             use_pattern: row.get(8)?,
             pattern: row.get(9)?,
             is_default: row.get(10)?,
-            created_at: row.get(11)?,
-            updated_at: row.get(12)?,
+            created_at_no_trigger: row.get(11)?,
+            updated_at_no_trigger: row.get(12)?,
         })
     }
 }
@@ -523,7 +523,7 @@ pub struct HaexPasswordsTags {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
 }
 
 impl HaexPasswordsTags {
@@ -532,7 +532,7 @@ impl HaexPasswordsTags {
             id: row.get(0)?,
             name: row.get(1)?,
             color: row.get(2)?,
-            created_at: row.get(3)?,
+            created_at_no_trigger: row.get(3)?,
         })
     }
 }
@@ -582,7 +582,7 @@ pub struct HaexPasswordsPasskeys {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_used_at: Option<String>,
 }
@@ -606,7 +606,7 @@ impl HaexPasswordsPasskeys {
             icon: row.get(13)?,
             color: row.get(14)?,
             nickname: row.get(15)?,
-            created_at: row.get(16)?,
+            created_at_no_trigger: row.get(16)?,
             last_used_at: row.get(17)?,
         })
     }
@@ -621,9 +621,9 @@ pub struct HaexPrincipals {
     pub name: String,
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 impl HaexPrincipals {
@@ -634,8 +634,9 @@ impl HaexPrincipals {
             public_key: row.get(2)?,
             name: row.get(3)?,
             enabled: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
+            created_at_no_trigger: row.get(5)?,
+            updated_at_no_trigger: row.get(6)?,
         })
     }
 }
+

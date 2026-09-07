@@ -305,7 +305,7 @@ fn get_tombstone_entries(
     limit: usize,
 ) -> Result<Vec<TombstoneEntry>, DatabaseError> {
     let query = format!(
-        "SELECT table_name, row_pks, haex_hlc FROM \"{}\" ORDER BY haex_hlc DESC LIMIT ?",
+        "SELECT table_name, row_pks, haex_hlc_no_trigger FROM \"{}\" ORDER BY haex_hlc_no_trigger DESC LIMIT ?",
         DELETED_ROWS_TABLE
     );
 

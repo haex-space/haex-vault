@@ -81,7 +81,7 @@ fn seed_shared_to_two_spaces() -> Fixture {
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
             space_id TEXT NOT NULL,
-            haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+            haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
          );",
     )
     .expect("create schema");
@@ -116,7 +116,7 @@ fn seed_shared_to_two_spaces() -> Fixture {
     // for each space under my own identity there).
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-            (id, table_name, row_pks, space_id, haex_column_sigs)
+            (id, table_name, row_pks, space_id, haex_column_sigs_no_trigger)
          VALUES (?1, ?2, ?3, ?4, ?5)",
         [
             "share-A",
@@ -129,7 +129,7 @@ fn seed_shared_to_two_spaces() -> Fixture {
     .unwrap();
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-            (id, table_name, row_pks, space_id, haex_column_sigs)
+            (id, table_name, row_pks, space_id, haex_column_sigs_no_trigger)
          VALUES (?1, ?2, ?3, ?4, ?5)",
         [
             "share-B",

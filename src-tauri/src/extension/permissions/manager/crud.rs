@@ -234,7 +234,7 @@ impl PermissionManager {
         principal: &Principal,
     ) -> Result<Vec<ExtensionPermission>, ExtensionError> {
         let sql = format!(
-            "SELECT id, principal_id, resource_type, action, target, constraints, status, haex_hlc FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ?"
+            "SELECT id, principal_id, resource_type, action, target, constraints, status, haex_hlc_no_trigger FROM {TABLE_PRINCIPAL_PERMISSIONS} WHERE principal_id = ?"
         );
         let params = vec![JsonValue::String(principal.id().to_string())];
 

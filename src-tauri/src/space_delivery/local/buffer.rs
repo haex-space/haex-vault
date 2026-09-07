@@ -53,7 +53,7 @@ pub struct FetchedMlsMessage {
     pub sender_did: String,
     pub message_type: String,
     pub message_blob: Vec<u8>,
-    pub created_at: String,
+    pub created_at_no_trigger: String,
     /// Raw UCAN JWT text as stored in the TEXT column. A UCAN's own
     /// dot-separated segments are already base64url, so this is exactly
     /// what the wire carries — no outer base64 wrap, no byte re-encoding.
@@ -121,7 +121,7 @@ pub fn fetch_messages(
 ) -> Result<Vec<FetchedMlsMessage>, DeliveryError> {
     let after = after_id.unwrap_or(0);
     let rows = core::select(
-        "SELECT id, sender_did, message_type, message_blob, created_at, \
+        "SELECT id, sender_did, message_type, message_blob, created_at_no_trigger, \
                 committer_ucan, committer_commit_bind_sig \
          FROM haex_local_delivery_messages_no_sync \
          WHERE space_id = ?1 AND id > ?2 \
@@ -152,7 +152,7 @@ pub fn fetch_messages(
         let blob = base64::engine::general_purpose::STANDARD
             .decode(blob_b64)
             .unwrap_or_default();
-        let created_at = row
+        let created_at_no_trigger = row
             .get(4)
             .and_then(|v| v.as_str())
             .unwrap_or_default()
@@ -169,7 +169,7 @@ pub fn fetch_messages(
             sender_did,
             message_type: msg_type,
             message_blob: blob,
-            created_at,
+            created_at_no_trigger,
             committer_ucan,
             committer_commit_bind_sig,
         });
@@ -213,7 +213,7 @@ pub fn consume_key_package(
     let rows = core::select(
         "SELECT id, package_blob, pop_blob FROM haex_local_delivery_key_packages_no_sync \
          WHERE space_id = ?1 AND target_did = ?2 \
-         ORDER BY created_at ASC LIMIT 1"
+         ORDER BY created_at_no_trigger ASC LIMIT 1"
             .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
@@ -278,7 +278,7 @@ pub fn count_key_packages_for_did(
 }
 
 /// Trim excess key packages for a DID, keeping only the newest `max_count`.
-/// Deletes oldest packages first (by created_at).
+/// Deletes oldest packages first (by created_at_no_trigger).
 pub fn trim_key_packages(
     db: &DbConnection,
     space_id: &str,
@@ -290,7 +290,7 @@ pub fn trim_key_packages(
          WHERE id IN ( \
              SELECT id FROM haex_local_delivery_key_packages_no_sync \
              WHERE space_id = ?1 AND target_did = ?2 \
-             ORDER BY created_at DESC \
+             ORDER BY created_at_no_trigger DESC \
              LIMIT -1 OFFSET ?3 \
          )"
         .to_string(),
@@ -337,7 +337,7 @@ pub fn fetch_welcomes(
     let rows = core::select(
         "SELECT id, welcome_blob FROM haex_local_delivery_welcomes_no_sync \
          WHERE space_id = ?1 AND recipient_did = ?2 AND consumed = 0 \
-         ORDER BY created_at ASC"
+         ORDER BY created_at_no_trigger ASC"
             .to_string(),
         vec![
             serde_json::Value::String(space_id.to_string()),
@@ -627,7 +627,7 @@ mod ack_commits_tests {
                 message_id INTEGER NOT NULL,
                 expected_dids TEXT NOT NULL DEFAULT '[]',
                 acked_dids TEXT NOT NULL DEFAULT '[]',
-                created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+                created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
             )",
         )
         .unwrap();

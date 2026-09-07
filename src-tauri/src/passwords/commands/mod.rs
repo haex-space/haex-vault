@@ -54,9 +54,9 @@ pub struct PasswordItemSummary {
     pub color: Option<String>,
     pub tags: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 /// List password items visible to the calling extension.
@@ -109,8 +109,8 @@ pub async fn extension_password_list(
                 url: non_empty(get_string(row, 3)),
                 icon: non_empty(get_string(row, 4)),
                 color: non_empty(get_string(row, 5)),
-                created_at: non_empty(get_string(row, 6)),
-                updated_at: non_empty(get_string(row, 7)),
+                created_at_no_trigger: non_empty(get_string(row, 6)),
+                updated_at_no_trigger: non_empty(get_string(row, 7)),
                 tags,
             }
         })
@@ -164,9 +164,9 @@ pub struct PasswordItemFull {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
+    pub created_at_no_trigger: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at_no_trigger: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -241,8 +241,8 @@ pub async fn extension_password_read(
         otp_algorithm: non_empty(get_string(row, 11)),
         autofill_aliases: get_autofill_aliases(row, 12),
         expires_at: non_empty(get_string(row, 13)),
-        created_at: non_empty(get_string(row, 14)),
-        updated_at: non_empty(get_string(row, 15)),
+        created_at_no_trigger: non_empty(get_string(row, 14)),
+        updated_at_no_trigger: non_empty(get_string(row, 15)),
         tags,
         key_values,
     })

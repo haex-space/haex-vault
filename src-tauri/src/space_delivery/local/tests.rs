@@ -53,7 +53,7 @@ mod tests {
                 status TEXT DEFAULT 'active' NOT NULL,
                 name TEXT NOT NULL,
                 origin_url TEXT,
-                created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
+                created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
                 modified_at TEXT DEFAULT (CURRENT_TIMESTAMP)
             )",
         )
@@ -300,7 +300,7 @@ mod tests {
         .unwrap();
 
         let rows = core::select_with_crdt(
-            "SELECT id, haex_hlc FROM haex_spaces WHERE id = ?1".to_string(),
+            "SELECT id, haex_hlc_no_trigger FROM haex_spaces WHERE id = ?1".to_string(),
             vec![serde_json::Value::String("space-hlc".to_string())],
             &db,
         )
@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(rows.len(), 1, "Should find the inserted space");
         assert!(
             !rows[0][1].is_null(),
-            "haex_hlc should be set by execute_with_crdt, got: {:?}",
+            "haex_hlc_no_trigger should be set by execute_with_crdt, got: {:?}",
             rows[0][1]
         );
     }

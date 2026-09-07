@@ -312,7 +312,7 @@ fn setup_members_db() -> DbConnection {
             name TEXT NOT NULL,
             source TEXT NOT NULL DEFAULT 'contact',
             private_key TEXT,
-            created_at TEXT NOT NULL
+            created_at_no_trigger TEXT NOT NULL
         );
         CREATE TABLE haex_space_members (
             id TEXT PRIMARY KEY NOT NULL,
@@ -331,14 +331,14 @@ fn insert_identity(
     did: &str,
     source: &str,
     private_key: Option<&str>,
-    created_at: &str,
+    created_at_no_trigger: &str,
 ) {
     let guard = db.0.lock().expect("db lock");
     let conn = guard.as_ref().expect("db open");
     conn.execute(
-        "INSERT INTO haex_identities (id, did, name, source, private_key, created_at) \
+        "INSERT INTO haex_identities (id, did, name, source, private_key, created_at_no_trigger) \
          VALUES (?1, ?2, 'Person', ?3, ?4, ?5)",
-        rusqlite::params![id, did, source, private_key, created_at],
+        rusqlite::params![id, did, source, private_key, created_at_no_trigger],
     )
     .unwrap();
 }

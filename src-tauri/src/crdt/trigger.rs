@@ -15,16 +15,16 @@ const INSERT_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_insert";
 const UPDATE_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_update";
 const DELETE_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_delete";
 
-pub const HLC_TIMESTAMP_COLUMN: &str = "haex_hlc";
-pub const COLUMN_HLCS_COLUMN: &str = "haex_column_hlcs";
+pub const HLC_TIMESTAMP_COLUMN: &str = "haex_hlc_no_trigger";
+pub const COLUMN_HLCS_COLUMN: &str = "haex_column_hlcs_no_trigger";
 /// Per-column author signatures (JSON `{ column_name -> base64 sig }`).
 ///
-/// Parallel to `haex_column_hlcs`: while `haex_column_hlcs` tracks the last
-/// HLC per column for LWW, `haex_column_sigs` tracks the signature over the
-/// authoritative preimage for the last write to that column. Shared-space
-/// receivers verify against this map before applying an incoming column
-/// change (Phase 1 of the shared-space authenticity design).
-pub const COLUMN_SIGS_COLUMN: &str = "haex_column_sigs";
+/// Parallel to `haex_column_hlcs_no_trigger`: while `haex_column_hlcs_no_trigger`
+/// tracks the last HLC per column for LWW, `haex_column_sigs_no_trigger` tracks
+/// the signature over the authoritative preimage for the last write to that
+/// column. Shared-space receivers verify against this map before applying an
+/// incoming column change (Phase 1 of the shared-space authenticity design).
+pub const COLUMN_SIGS_COLUMN: &str = "haex_column_sigs_no_trigger";
 
 /// Name der Delete-Log-Tabelle (Sync-Tabelle, daher ohne `_no_sync`-Suffix).
 /// Deletes werden hier als Event-Zeilen festgehalten; die Haupttabellen enthalten
@@ -84,10 +84,10 @@ const SHARED_SPACE_CASCADE_EXEMPT: &[&str] = &[
 ];
 
 // Sync metadata columns that should NOT be tracked (to prevent trigger loops)
-const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp";
-const LAST_PULL_SERVER_TIMESTAMP_COLUMN: &str = "last_pull_server_timestamp";
-const UPDATED_AT_COLUMN: &str = "updated_at";
-const CREATED_AT_COLUMN: &str = "created_at";
+const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp_no_trigger";
+const LAST_PULL_SERVER_TIMESTAMP_COLUMN: &str = "last_pull_server_timestamp_no_trigger";
+const UPDATED_AT_COLUMN: &str = "updated_at_no_trigger";
+const CREATED_AT_COLUMN: &str = "created_at_no_trigger";
 
 /// Name der custom UUID-Generierungs-Funktion (registriert in database::core::open_and_init_db)
 pub const UUID_FUNCTION_NAME: &str = "gen_uuid";
@@ -208,7 +208,7 @@ pub fn setup_triggers_for_table(
 
     // Calculate columns to track: all columns EXCEPT:
     // - PKs
-    // - CRDT columns (haex_hlc, haex_column_hlcs, haex_column_sigs)
+    // - CRDT columns (haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
     // - Sync metadata columns (to prevent trigger loops)
     let cols_to_track: Vec<String> = columns
         .iter()
@@ -414,7 +414,7 @@ fn generate_insert_trigger_sql(
 ) -> String {
     let trigger_name = INSERT_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
 
-    // Generate JSON object for haex_column_hlcs with all tracked columns
+    // Generate JSON object for haex_column_hlcs_no_trigger with all tracked columns
     let json_pairs: Vec<String> = cols_to_track
         .iter()
         .map(|col| format!("'{}', NEW.\"{}\"", col, HLC_TIMESTAMP_COLUMN))
@@ -444,7 +444,7 @@ fn generate_insert_trigger_sql(
                 AND (SELECT COALESCE(value, '1') FROM {TABLE_CRDT_CONFIGS} WHERE key = 'triggers_enabled') = '1'
             BEGIN
             UPDATE \"{table_name}\"
-            SET haex_column_hlcs = {json_object}
+            SET {COLUMN_HLCS_COLUMN} = {json_object}
             WHERE {pk_where};
 
             INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
@@ -460,7 +460,7 @@ fn drop_trigger_sql(trigger_name: String) -> String {
 
 /// Generates SQL for UPDATE trigger - updates column HLCs and marks table as dirty
 /// IMPORTANT: Only marks table as dirty if at least one TRACKED column changed.
-/// This prevents sync loops when only metadata columns (like last_push_hlc_timestamp) are updated.
+/// This prevents sync loops when only metadata columns (like last_push_hlc_timestamp_no_trigger) are updated.
 fn generate_update_trigger_sql(
     table_name: &str,
     cols_to_track: &[String],
@@ -486,7 +486,7 @@ fn generate_update_trigger_sql(
     for col in cols_to_track {
         update_statements.push(format!(
             "UPDATE \"{table_name}\"
-            SET haex_column_hlcs = json_set(haex_column_hlcs, '$.{col}', NEW.\"{HLC_TIMESTAMP_COLUMN}\")
+            SET {COLUMN_HLCS_COLUMN} = json_set({COLUMN_HLCS_COLUMN}, '$.{col}', NEW.\"{HLC_TIMESTAMP_COLUMN}\")
             WHERE {pk_where} AND NEW.\"{col}\" IS NOT OLD.\"{col}\";"
         ));
     }
@@ -741,7 +741,7 @@ pub fn ensure_crdt_columns(tx: &Transaction, table_name: &str) -> Result<bool, C
 
 /// Ensures that a table has all required CRDT columns AND triggers.
 /// This is a combined operation that:
-/// 1. Adds missing CRDT columns (haex_hlc, haex_column_hlcs)
+/// 1. Adds missing CRDT columns (haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
 /// 2. Sets up dirty-table triggers if missing
 ///
 /// Returns (columns_added, triggers_created) tuple.
@@ -970,9 +970,9 @@ mod tests {
                  id TEXT PRIMARY KEY NOT NULL,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc TEXT,
-                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                 haex_hlc_no_trigger TEXT,
+                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
              );",
         )
         .unwrap();
@@ -984,9 +984,9 @@ mod tests {
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
                  space_id TEXT NOT NULL,
-                 haex_hlc TEXT,
-                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                 haex_hlc_no_trigger TEXT,
+                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
              );",
         )
         .unwrap();
@@ -998,9 +998,9 @@ mod tests {
                  space_id TEXT NOT NULL,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc TEXT,
-                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                 haex_hlc_no_trigger TEXT,
+                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
              );",
         )
         .unwrap();
@@ -1018,7 +1018,7 @@ mod tests {
 
         // Seed a register row saying "table T row {id:R} shared into SPACE_X".
         conn.execute(
-            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc_no_trigger)
              VALUES ('reg-1', 'haex_peer_shares', '{\"id\":\"R\"}', 'SPACE_X', 'hlc-seed')",
             [],
         )
@@ -1071,7 +1071,7 @@ mod tests {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc_no_trigger)
              VALUES ('reg-1', 'haex_peer_shares', '{\"id\":\"R\"}', 'SPACE_X', 'hlc-seed')",
             [],
         )
@@ -1121,9 +1121,9 @@ mod tests {
                  id TEXT PRIMARY KEY NOT NULL,
                  space_id TEXT NOT NULL,
                  name TEXT NOT NULL,
-                 haex_hlc TEXT,
-                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                 haex_hlc_no_trigger TEXT,
+                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
              );",
         )
         .unwrap();
@@ -1134,9 +1134,9 @@ mod tests {
             "CREATE TABLE ext_notes_items (
                  id TEXT PRIMARY KEY NOT NULL,
                  body TEXT,
-                 haex_hlc TEXT,
-                 haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                 haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                 haex_hlc_no_trigger TEXT,
+                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
              );",
         )
         .unwrap();
@@ -1174,7 +1174,7 @@ mod tests {
         // OLD.space_id; DELETE emits exactly one delete-log signal.
         let conn = setup_business_delete_fixture();
         conn.execute(
-            "INSERT INTO haex_peer_shares (id, space_id, name, haex_hlc)
+            "INSERT INTO haex_peer_shares (id, space_id, name, haex_hlc_no_trigger)
              VALUES ('share-1', 'SPACE_X', 'Folder', 'hlc-seed')",
             [],
         )
@@ -1202,13 +1202,13 @@ mod tests {
         // the register-DELETE fanout (Task 4) then emits per-space signals.
         let conn = setup_business_delete_fixture();
         conn.execute(
-            "INSERT INTO ext_notes_items (id, body, haex_hlc)
+            "INSERT INTO ext_notes_items (id, body, haex_hlc_no_trigger)
              VALUES ('note-1', 'hello', 'hlc-seed')",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc)
+            "INSERT INTO haex_shared_space_sync (id, table_name, row_pks, space_id, haex_hlc_no_trigger)
              VALUES ('reg-x', 'ext_notes_items', '{\"id\":\"note-1\"}', 'SPACE_X', 'hlc-1'),
                     ('reg-y', 'ext_notes_items', '{\"id\":\"note-1\"}', 'SPACE_Y', 'hlc-2'),
                     ('reg-z', 'ext_notes_items', '{\"id\":\"note-1\"}', 'SPACE_Z', 'hlc-3')",
@@ -1254,7 +1254,7 @@ mod tests {
         // emit. If both fired we'd see two rows for the same delete.
         let conn = setup_business_delete_fixture();
         conn.execute(
-            "INSERT INTO haex_peer_shares (id, space_id, name, haex_hlc)
+            "INSERT INTO haex_peer_shares (id, space_id, name, haex_hlc_no_trigger)
              VALUES ('share-1', 'SPACE_X', 'Folder', 'hlc-seed')",
             [],
         )

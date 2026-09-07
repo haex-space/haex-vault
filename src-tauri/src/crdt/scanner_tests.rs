@@ -22,8 +22,8 @@ fn setup_test_db() -> Connection {
                 id TEXT PRIMARY KEY,
                 name TEXT,
                 value INTEGER,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -33,7 +33,7 @@ fn setup_test_db() -> Connection {
 fn insert_row(conn: &Connection, id: &str, name: &str, value: i64, hlc: &str) {
     let hlcs = format!("{{\"name\":\"{hlc}\",\"value\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, name, value, hlc, hlcs],
     )
@@ -107,18 +107,18 @@ fn test_scan_excludes_metadata_columns() {
         "CREATE TABLE with_meta (
                 id TEXT PRIMARY KEY,
                 data TEXT,
-                last_push_hlc_timestamp TEXT,
-                last_pull_server_timestamp TEXT,
-                updated_at TEXT,
-                created_at TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+                last_push_hlc_timestamp_no_trigger TEXT,
+                last_pull_server_timestamp_no_trigger TEXT,
+                updated_at_no_trigger TEXT,
+                created_at_no_trigger TEXT,
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
 
     conn.execute(
-        "INSERT INTO with_meta (id, data, haex_hlc, haex_column_hlcs)
+        "INSERT INTO with_meta (id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES ('r1', 'test', '2025-01-01T00:00:00.000Z-0001-d1',
                      '{\"data\":\"2025-01-01T00:00:00.000Z-0001-d1\"}')",
         [],
@@ -130,20 +130,20 @@ fn test_scan_excludes_metadata_columns() {
     let col_names: Vec<&str> = changes.iter().map(|c| c.column_name.as_str()).collect();
     // Only "data" should remain; all metadata/CRDT columns filtered out
     assert!(col_names.contains(&"data"));
-    assert!(!col_names.contains(&"last_push_hlc_timestamp"));
-    assert!(!col_names.contains(&"last_pull_server_timestamp"));
-    assert!(!col_names.contains(&"updated_at"));
-    assert!(!col_names.contains(&"created_at"));
-    assert!(!col_names.contains(&"haex_hlc"));
-    assert!(!col_names.contains(&"haex_column_hlcs"));
+    assert!(!col_names.contains(&"last_push_hlc_timestamp_no_trigger"));
+    assert!(!col_names.contains(&"last_pull_server_timestamp_no_trigger"));
+    assert!(!col_names.contains(&"updated_at_no_trigger"));
+    assert!(!col_names.contains(&"created_at_no_trigger"));
+    assert!(!col_names.contains(&"haex_hlc_no_trigger"));
+    assert!(!col_names.contains(&"haex_column_hlcs_no_trigger"));
 }
 
 #[test]
 fn test_scan_uses_row_hlc_as_fallback() {
     let conn = setup_test_db();
-    // Insert a row where haex_column_hlcs is empty — row-level HLC should be used
+    // Insert a row where haex_column_hlcs_no_trigger is empty — row-level HLC should be used
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES ('r1', 'test', 10, '2025-01-01T00:00:00.000Z-0001-d1', '{}')",
         [],
     )
@@ -167,7 +167,7 @@ fn test_scan_empty_column_hlc_falls_back_to_row_hlc() {
     // component of ""` flood) and could never converge (`"" > x` is false).
     let conn = setup_test_db();
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES ('r1', 'test', 10, '2025-01-01T00:00:00.000Z-0001-d1', '{\"name\":\"\",\"value\":\"\"}')",
         [],
     )
@@ -192,7 +192,7 @@ fn test_scan_skips_row_when_all_hlcs_empty() {
     // produced the empty-HLC log flood and a row that never synced.
     let conn = setup_test_db();
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES ('r1', 'test', 10, '', '{\"name\":\"\",\"value\":\"\"}')",
         [],
     )
@@ -209,8 +209,8 @@ fn test_scan_skips_row_when_all_hlcs_empty() {
 #[test]
 fn test_incremental_scan_admits_empty_row_hlc_with_valid_column_hlc() {
     // Regression: an incremental scan must not drop a corrupt/legacy row whose
-    // row-level HLC is empty (`haex_hlc = ''`) but which still carries a valid,
-    // newer per-column HLC. The SQL prefilter (`"haex_hlc" > after_hlc`) would
+    // row-level HLC is empty (`haex_hlc_no_trigger = ''`) but which still carries a valid,
+    // newer per-column HLC. The SQL prefilter (`"haex_hlc_no_trigger" > after_hlc`) would
     // otherwise reject such a row before the per-column fallback could emit the
     // valid change, so the column would only ever converge on a full scan.
     let conn = setup_test_db();
@@ -218,7 +218,7 @@ fn test_incremental_scan_admits_empty_row_hlc_with_valid_column_hlc() {
     // `value` stays at the old one.
     let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES ('r1', 'updated', 10, '', ?1)",
         [hlcs],
     )
@@ -245,7 +245,7 @@ fn test_column_level_hlc_filtering() {
     // Insert a row where 'name' has a newer HLC but 'value' has an older one
     let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES ('r1', 'updated', 10, '3000000000000000000/aabbccdd', ?1)",
         [hlcs],
     )
@@ -272,8 +272,8 @@ fn test_scan_composite_pk() {
                 group_id TEXT NOT NULL,
                 item_id TEXT NOT NULL,
                 data TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
                 PRIMARY KEY (group_id, item_id)
             );",
     )
@@ -281,7 +281,7 @@ fn test_scan_composite_pk() {
 
     let hlcs = r#"{"data":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
     conn.execute(
-        "INSERT INTO composite_pk (group_id, item_id, data, haex_hlc, haex_column_hlcs)
+        "INSERT INTO composite_pk (group_id, item_id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES ('g1', 'i1', 'hello', '2025-01-01T00:00:00.000Z-0001-d1', ?1)",
         [hlcs],
     )
@@ -303,7 +303,7 @@ fn test_scan_null_value() {
     let hlcs =
         r#"{"name":"2025-01-01T00:00:00.000Z-0001-d1","value":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc, haex_column_hlcs)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES ('r1', NULL, NULL, '2025-01-01T00:00:00.000Z-0001-d1', ?1)",
         [hlcs],
     )
@@ -606,9 +606,9 @@ fn setup_scoped_test_db() -> Connection {
                 id TEXT PRIMARY KEY,
                 space_id TEXT NOT NULL,
                 data TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -636,7 +636,7 @@ fn insert_scoped_row(conn: &Connection, id: &str, space_id: &str, data: &str, hl
     .to_string();
     conn.execute(
         "INSERT INTO scoped_items
-             (id, space_id, data, haex_hlc, haex_column_hlcs, haex_column_sigs)
+             (id, space_id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![id, space_id, data, hlc, hlcs, sigs],
     )
@@ -684,7 +684,7 @@ fn test_scoped_filter_returns_only_matching_space() {
     assert!(
         changes
             .iter()
-            .all(|change| change.column_name != "haex_column_sigs"),
+            .all(|change| change.column_name != "haex_column_sigs_no_trigger"),
         "signature metadata must never be emitted as user data"
     );
 
@@ -710,8 +710,8 @@ fn setup_vault_private_test_db() -> Connection {
         "CREATE TABLE haex_passwords (
                 id TEXT PRIMARY KEY,
                 secret TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -721,7 +721,7 @@ fn setup_vault_private_test_db() -> Connection {
 fn insert_private_row(conn: &Connection, id: &str, secret: &str, hlc: &str) {
     let hlcs = format!("{{\"secret\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO haex_passwords (id, secret, haex_hlc, haex_column_hlcs)
+        "INSERT INTO haex_passwords (id, secret, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![id, secret, hlc, hlcs],
     )
@@ -738,9 +738,9 @@ fn scan_all_crdt_tables_for_owner_includes_vault_private_and_space_tables() {
                 id TEXT PRIMARY KEY,
                 space_id TEXT NOT NULL,
                 data TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -1011,9 +1011,9 @@ fn setup_registry_scan_db() -> Connection {
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
                 space_id TEXT NOT NULL,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );
 
             CREATE TABLE haex_space_members (
@@ -1023,17 +1023,17 @@ fn setup_registry_scan_db() -> Connection {
                 role TEXT NOT NULL DEFAULT 'read',
                 authored_by_did TEXT,
                 joined_at TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );
 
             CREATE TABLE ext_notes_v1 (
                 id TEXT PRIMARY KEY,
                 body TEXT,
-                haex_hlc TEXT,
-                haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_trigger TEXT,
+                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -1061,7 +1061,7 @@ fn insert_ext_row(conn: &Connection, id: &str, body: &str, hlc: &str, sig_space_
         None => "{}".to_string(),
     };
     conn.execute(
-        "INSERT INTO ext_notes_v1 (id, body, haex_hlc, haex_column_hlcs, haex_column_sigs)
+        "INSERT INTO ext_notes_v1 (id, body, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, body, hlc, hlcs, sigs],
     )
@@ -1085,13 +1085,13 @@ fn insert_registry_entry(
     // scanner emits realistic `LocalColumnChange`s from the register
     // table itself (`haex_shared_space_sync` IS on the whitelist).
     // Without this, the register-row changes come out with
-    // `hlc_timestamp = "haex_hlc"` (a literal-string fallback), which
+    // `hlc_timestamp = "haex_hlc_no_trigger"` (a literal-string fallback), which
     // is confusing when debugging failures on the ext-table assertions.
     let hlc = "1000000000000000000/aabbccdd";
     let hlcs = format!("{{\"table_name\":\"{hlc}\",\"row_pks\":\"{hlc}\",\"space_id\":\"{hlc}\"}}");
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-             (id, table_name, row_pks, space_id, haex_hlc, haex_column_hlcs)
+             (id, table_name, row_pks, space_id, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![registry_row_id, table_name, row_pks, space_id, hlc, hlcs],
     )
@@ -1121,7 +1121,7 @@ fn insert_member_row(conn: &Connection, id: &str, space_id: &str, identity_id: &
     .to_string();
     conn.execute(
         "INSERT INTO haex_space_members
-             (id, space_id, identity_id, role, haex_hlc, haex_column_hlcs, haex_column_sigs)
+             (id, space_id, identity_id, role, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
              VALUES (?1, ?2, ?3, 'read', ?4, ?5, ?6)",
         rusqlite::params![id, space_id, identity_id, hlc, hlcs, sigs],
     )
@@ -1246,9 +1246,9 @@ fn registered_composite_pk_row_matches_schema_order_wire_form() {
             b TEXT NOT NULL,
             a TEXT NOT NULL,
             body TEXT,
-            haex_hlc TEXT,
-            haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-            haex_column_sigs TEXT NOT NULL DEFAULT '{}',
+            haex_hlc_no_trigger TEXT,
+            haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+            haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}',
             PRIMARY KEY (b, a)
         );",
     )
@@ -1267,7 +1267,7 @@ fn registered_composite_pk_row_matches_schema_order_wire_form() {
     })
     .to_string();
     conn.execute(
-        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc, haex_column_hlcs, haex_column_sigs)
+        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params!["yb", "xa", "hello", hlc, hlcs, sigs],
     )
@@ -1320,9 +1320,9 @@ fn registered_composite_pk_row_ignored_when_registry_key_order_differs() {
             b TEXT NOT NULL,
             a TEXT NOT NULL,
             body TEXT,
-            haex_hlc TEXT,
-            haex_column_hlcs TEXT NOT NULL DEFAULT '{}',
-            haex_column_sigs TEXT NOT NULL DEFAULT '{}',
+            haex_hlc_no_trigger TEXT,
+            haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+            haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}',
             PRIMARY KEY (b, a)
         );",
     )
@@ -1330,7 +1330,7 @@ fn registered_composite_pk_row_ignored_when_registry_key_order_differs() {
     let hlc = "1000000000000000000/aabbccdd";
     let hlcs = format!("{{\"body\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc, haex_column_hlcs)
+        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params!["yb", "xa", "hello", hlc, hlcs],
     )

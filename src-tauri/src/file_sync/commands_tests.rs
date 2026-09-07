@@ -94,7 +94,7 @@ mod assemble_cloud_provider_tests {
                 encrypted_cred TEXT NOT NULL,
                 epoch INTEGER NOT NULL,
                 expires_at TEXT,
-                created_at TEXT DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+                created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP) NOT NULL
             );
             CREATE TABLE haex_mls_sync_keys (
                 id TEXT PRIMARY KEY,
@@ -113,7 +113,7 @@ mod assemble_cloud_provider_tests {
                 name TEXT,
                 source TEXT,
                 private_key TEXT,
-                created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+                created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
             );
             CREATE TABLE haex_space_members (
                 id TEXT PRIMARY KEY,
@@ -265,7 +265,7 @@ mod assemble_cloud_provider_tests {
         let conn = guard.as_ref().expect("db open");
         conn.execute(
             "INSERT INTO haex_s3_shared_access \
-             (id, space_id, backend_id, member_did, encrypted_cred, epoch, created_at) \
+             (id, space_id, backend_id, member_did, encrypted_cred, epoch, created_at_no_trigger) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, '2026-08-28T00:00:00Z')",
             params![
                 Uuid::new_v4().to_string(),

@@ -101,7 +101,7 @@ pub fn clear_all_dirty_tables(state: State<'_, AppState>) -> Result<(), Database
     })
 }
 
-/// Gets all CRDT-enabled tables (tables with a `haex_hlc` column).
+/// Gets all CRDT-enabled tables (tables with a `haex_hlc_no_trigger` column).
 #[tauri::command]
 pub fn get_all_crdt_tables(state: State<'_, AppState>) -> Result<Vec<String>, DatabaseError> {
     use crate::database::init::discover_crdt_tables;

@@ -45,7 +45,7 @@ export interface ColumnChange {
   epoch?: number // MLS epoch that encrypted this change (absent = vaultKey encrypted)
   /**
    * Per-column authorship signature (Phase 1). Present when the source
-   * table stores `haex_column_sigs` AND the scanner had a `spaceId`
+   * table stores `haex_column_sigs_no_trigger` AND the scanner had a `spaceId`
    * (shared-space push path). Absent for personal-vault sync where no
    * space-scoped signature applies. See ADR 0002 §4b.
    *
@@ -57,7 +57,7 @@ export interface ColumnChange {
   sig?: ColumnSigWire
 }
 
-/** Legal shape of the per-row `haex_column_sigs` JSON payload:
+/** Legal shape of the per-row `haex_column_sigs_no_trigger` JSON payload:
  *   { column_name: { space_id: { authorDid, sig } } }
  */
 type ColumnSigsJson = Record<string, Record<string, ColumnSigWire>>
@@ -79,7 +79,7 @@ export async function getDirtyTablesAsync(): Promise<DirtyTable[]> {
 }
 
 /**
- * Gets all CRDT-enabled tables (tables with the `haex_hlc` tracking column).
+ * Gets all CRDT-enabled tables (tables with the `haex_hlc_no_trigger` tracking column).
  */
 export async function getAllCrdtTablesAsync(): Promise<string[]> {
   return await invoke('get_all_crdt_tables')
@@ -125,7 +125,7 @@ async function getTableColumnsAsync(tableName: string) {
     throw new Error(`Table ${tableName} has no primary key`)
   }
 
-  // `haex_column_sigs` is only present on the 6 tables migration 0012
+  // `haex_column_sigs_no_trigger` is only present on the 6 tables migration 0012
   // added it to (see ADR 0002 §Phase 1 Runde 5). For every other CRDT
   // table the SELECT would fail with "no such column", so we probe the
   // schema and only include the column when it actually exists.
@@ -192,7 +192,7 @@ async function processRowsToChangesAsync(
 
     // Parse column sigs. Absent on tables migration 0012 didn't touch —
     // scanner falls through to `sig: undefined` for those (personal
-    // vault, extension tables without haex_column_sigs). The JSON shape
+    // vault, extension tables without haex_column_sigs_no_trigger). The JSON shape
     // is `{ col_name: { space_id: { authorDid, sig } } }`; a corrupted
     // payload short-circuits to `{}` so one bad row can't wedge push.
     let columnSigs: ColumnSigsJson = {}
@@ -203,7 +203,7 @@ async function processRowsToChangesAsync(
           columnSigs = JSON.parse(sigsRaw) as ColumnSigsJson
         } catch (err) {
           log.warn(
-            `Failed to parse haex_column_sigs for ${tableName} row ${JSON.stringify(
+            `Failed to parse haex_column_sigs_no_trigger for ${tableName} row ${JSON.stringify(
               extractPrimaryKeys(row, pkColumns),
             )}; treating as unsigned:`,
             err,
@@ -229,8 +229,8 @@ async function processRowsToChangesAsync(
       const hlcToUse = columnHlc || rowHlc
 
       if (!hlcToUse) {
-        // This should never happen as every row must have haex_hlc
-        log.warn(`Column ${col.name} has no HLC and row has no haex_hlc, skipping`)
+        // This should never happen as every row must have haex_hlc_no_trigger
+        log.warn(`Column ${col.name} has no HLC and row has no haex_hlc_no_trigger, skipping`)
         continue
       }
 
@@ -416,9 +416,9 @@ export async function scanTableForSpaceChangesAsync(
           JOIN "haex_identities" i
             ON i."id" = m."identity_id" AND i."private_key" IS NOT NULL
           WHERE a."table_name" = ? AND a."space_id" = ?
-            AND json_extract(a."haex_column_sigs", ?) = i."did"
-            AND json_extract(a."haex_column_sigs", ?) = i."did"
-            AND json_extract(a."haex_column_sigs", ?) = i."did"
+            AND json_extract(a."haex_column_sigs_no_trigger", ?) = i."did"
+            AND json_extract(a."haex_column_sigs_no_trigger", ?) = i."did"
+            AND json_extract(a."haex_column_sigs_no_trigger", ?) = i."did"
           LIMIT 1`,
     params: [
       tableName,
@@ -459,9 +459,9 @@ export async function scanTableForSpaceChangesAsync(
     + `INNER JOIN "haex_space_members" m ON m."space_id" = a."space_id" `
     + `INNER JOIN "haex_identities" i `
     + `ON i."id" = m."identity_id" AND i."private_key" IS NOT NULL `
-    + `WHERE json_extract(a."haex_column_sigs", ?) = i."did" `
-    + `AND json_extract(a."haex_column_sigs", ?) = i."did" `
-    + `AND json_extract(a."haex_column_sigs", ?) = i."did" ${hlcFilter}`
+    + `WHERE json_extract(a."haex_column_sigs_no_trigger", ?) = i."did" `
+    + `AND json_extract(a."haex_column_sigs_no_trigger", ?) = i."did" `
+    + `AND json_extract(a."haex_column_sigs_no_trigger", ?) = i."did" ${hlcFilter}`
 
   const params: unknown[] = [
     tableName,

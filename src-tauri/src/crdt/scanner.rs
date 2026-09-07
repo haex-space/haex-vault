@@ -20,11 +20,18 @@ use serde_json::Value as JsonValue;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Sync metadata columns to exclude from scanning (not user data).
+///
+/// Post-D-4: all four now carry the `_no_trigger` suffix, so the trigger
+/// installer skips them at the trigger level too. Keeping the explicit list
+/// here belt-and-braces for scanner correctness even if someone declares a
+/// `_no_trigger` column intentionally (scanner is not identical semantics —
+/// it decides what to *ship*, not what fires triggers). Sync-metadata cols
+/// still cannot be shipped even when triggered.
 const EXCLUDED_SYNC_COLUMNS: &[&str] = &[
-    "last_push_hlc_timestamp",
-    "last_pull_server_timestamp",
-    "updated_at",
-    "created_at",
+    "last_push_hlc_timestamp_no_trigger",
+    "last_pull_server_timestamp_no_trigger",
+    "updated_at_no_trigger",
+    "created_at_no_trigger",
 ];
 
 /// Whitelist of CRDT tables that may be synchronised between peers of a
@@ -185,8 +192,8 @@ pub struct LocalColumnChange {
 ///
 /// Data columns exclude:
 /// - PK columns
-/// - CRDT metadata: `haex_hlc`, `haex_column_hlcs`, `haex_column_sigs`
-/// - Sync metadata: `last_push_hlc_timestamp`, `last_pull_server_timestamp`, `updated_at`, `created_at`
+/// - CRDT metadata: `haex_hlc_no_trigger`, `haex_column_hlcs_no_trigger`, `haex_column_sigs_no_trigger`
+/// - Sync metadata: `last_push_hlc_timestamp_no_trigger`, `last_pull_server_timestamp_no_trigger`, `updated_at_no_trigger`, `created_at_no_trigger`
 fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInfo>) {
     let pk_columns: Vec<&ColumnInfo> = schema.iter().filter(|c| c.is_pk).collect();
     let data_columns: Vec<&ColumnInfo> = schema
@@ -269,8 +276,8 @@ pub fn scan_table_for_local_changes_scoped(
     if let Some(hlc) = after_hlc {
         // Admit rows whose row-level HLC is absent (NULL) or empty in addition
         // to those strictly newer than the cursor. A corrupt/legacy row can
-        // carry `haex_hlc = ''` while still holding a valid per-column HLC in
-        // `haex_column_hlcs`; a bare `"haex_hlc" > ?` prefilter drops it before
+        // carry `haex_hlc_no_trigger = ''` while still holding a valid per-column HLC in
+        // `haex_column_hlcs_no_trigger`; a bare `"haex_hlc_no_trigger" > ?` prefilter drops it before
         // the per-column fallback below can emit that valid change, so the row
         // could only ever converge on a full scan. The per-column loop re-checks
         // each HLC against `after_hlc`, so widening here cannot leak stale
@@ -339,7 +346,7 @@ pub fn scan_table_for_local_changes_scoped(
 ///
 /// * `sig_space_id` is decoupled from the SQL `space_id` filter (extension
 ///   tables have no `space_id` column but still carry per-space sigs in
-///   `haex_column_sigs`), and
+///   `haex_column_sigs_no_trigger`), and
 /// * an optional `row_pks_filter` short-circuits emission for rows whose
 ///   canonical PK JSON is not on the registry-provided allow-list.
 ///
@@ -422,7 +429,7 @@ fn emit_row_changes(
         }
     }
 
-    // Parse haex_column_hlcs JSON
+    // Parse haex_column_hlcs_no_trigger JSON
     let column_hlcs: HashMap<String, String> = match row_map.get(COLUMN_HLCS_COLUMN) {
         Some(JsonValue::String(s)) => serde_json::from_str(s).unwrap_or_default(),
         _ => HashMap::new(),
@@ -434,7 +441,7 @@ fn emit_row_changes(
         .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
 
     // Row-level HLC as fallback. An empty string is treated as "absent":
-    // a corrupt/legacy row can carry `haex_hlc = ''` (e.g. inserted before
+    // a corrupt/legacy row can carry `haex_hlc_no_trigger = ''` (e.g. inserted before
     // the HLC trigger existed, or by an older build), and an empty HLC must
     // never be propagated as if it were a real timestamp.
     let row_hlc = match row_map.get(HLC_TIMESTAMP_COLUMN) {
@@ -512,7 +519,7 @@ fn emit_row_changes(
 /// `space_id` column on the target table: extension/content tables typically
 /// do not carry one, and the row-to-space mapping lives entirely in the
 /// registry. Per-column signatures are still extracted for `space_id` from
-/// `haex_column_sigs` (W1 → W2 contract: the receiver's registered-content
+/// `haex_column_sigs_no_trigger` (W1 → W2 contract: the receiver's registered-content
 /// gate rejects rows without a matching per-space sig).
 ///
 /// # Parameters
@@ -791,7 +798,7 @@ pub fn scan_membership_tables_for_local_changes(
 ///
 /// This exists solely for serverless P2P sync of the owner's own vault across
 /// the owner's own devices: that path replicates the *full* CRDT table set
-/// (all `haex_*` tables carrying a `haex_hlc` column, including vault-private
+/// (all `haex_*` tables carrying a `haex_hlc_no_trigger` column, including vault-private
 /// and extension tables), not just the space-scoped whitelist.
 ///
 /// # Security

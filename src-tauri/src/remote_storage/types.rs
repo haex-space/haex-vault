@@ -20,7 +20,7 @@ pub struct StorageBackendInfo {
     pub r#type: String,
     pub name: String,
     pub enabled: bool,
-    pub created_at: String,
+    pub created_at_no_trigger: String,
     /// Public config (without secrets like access keys)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<S3PublicConfig>,

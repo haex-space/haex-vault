@@ -1,3 +1,36 @@
+CREATE TABLE `haex_bookmark_collections` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
+);
+--> statement-breakpoint
+CREATE TABLE `haex_bookmark_devices` (
+	`id` text PRIMARY KEY NOT NULL,
+	`collection_id` text NOT NULL,
+	`replica_id` text NOT NULL,
+	`device_label` text NOT NULL,
+	`browser_family` text NOT NULL,
+	`last_seen_at` text DEFAULT (CURRENT_TIMESTAMP),
+	FOREIGN KEY (`collection_id`) REFERENCES `haex_bookmark_collections`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_bookmark_devices_collection_replica_unique` ON `haex_bookmark_devices` (`collection_id`,`replica_id`);--> statement-breakpoint
+CREATE TABLE `haex_bookmarks` (
+	`id` text PRIMARY KEY NOT NULL,
+	`collection_id` text NOT NULL,
+	`parent_id` text,
+	`root_kind` text,
+	`kind` text NOT NULL,
+	`title` text,
+	`url` text,
+	`position` integer NOT NULL,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	FOREIGN KEY (`collection_id`) REFERENCES `haex_bookmark_collections`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`parent_id`) REFERENCES `haex_bookmarks`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `haex_desktop_items_no_sync` (
 	`id` text PRIMARY KEY NOT NULL,
 	`workspace_id` text NOT NULL,
@@ -18,8 +51,8 @@ CREATE TABLE `haex_extension_limits` (
 	`max_result_rows` integer DEFAULT 10000 NOT NULL,
 	`max_concurrent_queries` integer DEFAULT 5 NOT NULL,
 	`max_query_size_bytes` integer DEFAULT 1048576 NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` integer,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` integer,
 	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -34,20 +67,6 @@ CREATE TABLE `haex_extension_migrations_no_sync` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_extension_migrations_extension_id_migration_name_unique` ON `haex_extension_migrations_no_sync` (`extension_id`,`migration_name`);--> statement-breakpoint
-CREATE TABLE `haex_extension_permissions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`extension_id` text NOT NULL,
-	`resource_type` text,
-	`action` text,
-	`target` text,
-	`constraints` text,
-	`status` text DEFAULT 'denied' NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` integer,
-	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `haex_extension_permissions_extension_id_resource_type_action_target_unique` ON `haex_extension_permissions` (`extension_id`,`resource_type`,`action`,`target`);--> statement-breakpoint
 CREATE TABLE `haex_extensions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`public_key` text NOT NULL,
@@ -64,8 +83,8 @@ CREATE TABLE `haex_extensions` (
 	`display_mode` text DEFAULT 'auto',
 	`i18n` text,
 	`dev_path` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` integer
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` integer
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_extensions_public_key_name_unique` ON `haex_extensions` (`public_key`,`name`);--> statement-breakpoint
@@ -77,6 +96,7 @@ CREATE TABLE `haex_external_authorized_clients_no_sync` (
 	`extension_id` text NOT NULL,
 	`authorized_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`last_seen` text,
+	`requested_permissions` text NOT NULL,
 	FOREIGN KEY (`extension_id`) REFERENCES `haex_extensions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -90,7 +110,7 @@ CREATE TABLE `haex_external_blocked_clients_no_sync` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_external_blocked_clients_client_id_unique` ON `haex_external_blocked_clients_no_sync` (`client_id`);--> statement-breakpoint
-CREATE TABLE `haex_logs` (
+CREATE TABLE `haex_logs_no_sync` (
 	`id` text PRIMARY KEY NOT NULL,
 	`timestamp` text NOT NULL,
 	`level` text NOT NULL,
@@ -115,17 +135,30 @@ CREATE TABLE `haex_notifications` (
 	`type` text NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE `haex_principal_permissions` (
+	`id` text PRIMARY KEY NOT NULL,
+	`principal_id` text NOT NULL,
+	`resource_type` text,
+	`action` text,
+	`target` text,
+	`constraints` text,
+	`status` text DEFAULT 'denied' NOT NULL,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` integer
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_principal_permissions_principal_id_resource_type_action_target_unique` ON `haex_principal_permissions` (`principal_id`,`resource_type`,`action`,`target`);--> statement-breakpoint
 CREATE TABLE `haex_principals` (
 	`id` text PRIMARY KEY NOT NULL,
 	`kind` text NOT NULL,
 	`public_key` text NOT NULL,
 	`name` text NOT NULL,
 	`enabled` integer DEFAULT true NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` integer
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` integer
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_principals_public_key_kind_unique` ON `haex_principals` (`public_key`,`kind`);--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_principals_public_key_kind_name_unique` ON `haex_principals` (`public_key`,`kind`,`name`);--> statement-breakpoint
 CREATE TABLE `haex_vault_settings` (
 	`id` text PRIMARY KEY NOT NULL,
 	`key` text NOT NULL,
@@ -186,7 +219,8 @@ CREATE UNIQUE INDEX `haex_crdt_migrations_no_sync_ext_name_unique` ON `haex_crdt
 CREATE TABLE `haex_crdt_pending_columns_no_sync` (
 	`table_name` text NOT NULL,
 	`column_name` text NOT NULL,
-	PRIMARY KEY(`table_name`, `column_name`)
+	`row_pks` text NOT NULL,
+	PRIMARY KEY(`table_name`, `column_name`, `row_pks`)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_deleted_rows` (
@@ -219,12 +253,21 @@ CREATE TABLE `haex_devices` (
 	`platform` text NOT NULL,
 	`avatar` text,
 	`avatar_options` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`owner_did`) REFERENCES `haex_identities`(`did`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_devices_device_id_unique` ON `haex_devices` (`device_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `haex_devices_endpoint_id_unique` ON `haex_devices` (`endpoint_id`);--> statement-breakpoint
+CREATE TABLE `haex_dos_defence_state_no_sync` (
+	`id` integer PRIMARY KEY NOT NULL,
+	`flood_mode` text DEFAULT 'quiet' NOT NULL,
+	`flood_mode_source` text,
+	`ddos_expires_at` text,
+	`updated_at_no_trigger` text NOT NULL,
+	CONSTRAINT "haex_dos_defence_state_singleton" CHECK("haex_dos_defence_state_no_sync"."id" = 1)
+);
+--> statement-breakpoint
 CREATE TABLE `haex_peer_downloads_no_sync` (
 	`endpoint_id` text NOT NULL,
 	`remote_path` text NOT NULL,
@@ -244,7 +287,7 @@ CREATE TABLE `haex_identities` (
 	`avatar` text,
 	`avatar_options` text,
 	`notes` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_identities_did_unique` ON `haex_identities` (`did`);--> statement-breakpoint
@@ -255,7 +298,7 @@ CREATE TABLE `haex_identity_claims` (
 	`value` text NOT NULL,
 	`verified_at` text,
 	`verified_by` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -277,14 +320,14 @@ CREATE TABLE `haex_invite_outbox` (
 	`retry_count` integer DEFAULT 0 NOT NULL,
 	`next_retry_at` text DEFAULT (CURRENT_TIMESTAMP),
 	`expires_at` text DEFAULT '',
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	`last_error` text
 );
 --> statement-breakpoint
 CREATE TABLE `haex_invite_policy` (
 	`id` text PRIMARY KEY NOT NULL,
 	`policy` text DEFAULT 'all' NOT NULL,
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`updated_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_invite_tokens` (
@@ -297,7 +340,7 @@ CREATE TABLE `haex_invite_tokens` (
 	`max_uses` integer DEFAULT 1 NOT NULL,
 	`current_uses` integer DEFAULT 0 NOT NULL,
 	`expires_at` text DEFAULT '',
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_pending_invites` (
@@ -316,7 +359,7 @@ CREATE TABLE `haex_pending_invites` (
 	`token_id` text,
 	`space_endpoints` text,
 	`status` text DEFAULT 'pending' NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	`responded_at` text
 );
 --> statement-breakpoint
@@ -325,7 +368,8 @@ CREATE TABLE `haex_local_delivery_key_packages_no_sync` (
 	`space_id` text NOT NULL,
 	`target_did` text NOT NULL,
 	`package_blob` blob NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`pop_blob` blob NOT NULL,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -336,7 +380,9 @@ CREATE TABLE `haex_local_delivery_messages_no_sync` (
 	`sender_did` text NOT NULL,
 	`message_type` text NOT NULL,
 	`message_blob` blob NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`committer_ucan` text,
+	`committer_commit_bind_sig` blob,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -347,7 +393,7 @@ CREATE TABLE `haex_local_delivery_pending_commits_no_sync` (
 	`message_id` integer NOT NULL,
 	`expected_dids` text DEFAULT '[]' NOT NULL,
 	`acked_dids` text DEFAULT '[]' NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -358,7 +404,7 @@ CREATE TABLE `haex_local_delivery_welcomes_no_sync` (
 	`recipient_did` text NOT NULL,
 	`welcome_blob` blob NOT NULL,
 	`consumed` integer DEFAULT 0,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -375,8 +421,8 @@ CREATE TABLE `haex_marketplaces` (
 	`auth_username` text,
 	`auth_password` text,
 	`auth_identity_id` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_mls_epoch_key_pairs_no_sync` (
@@ -401,7 +447,7 @@ CREATE TABLE `haex_mls_pending_welcomes_no_sync` (
 	`welcome_payload` text NOT NULL,
 	`source` text NOT NULL,
 	`source_id` text,
-	`created_at` text
+	`created_at_no_trigger` text
 );
 --> statement-breakpoint
 CREATE TABLE `haex_mls_values_no_sync` (
@@ -416,7 +462,7 @@ CREATE TABLE `haex_passwords_binaries` (
 	`data` text NOT NULL,
 	`size` integer NOT NULL,
 	`type` text DEFAULT 'attachment',
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_passwords_generator_presets` (
@@ -431,8 +477,8 @@ CREATE TABLE `haex_passwords_generator_presets` (
 	`use_pattern` integer DEFAULT false NOT NULL,
 	`pattern` text DEFAULT '',
 	`is_default` integer DEFAULT false NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_passwords_group_items` (
@@ -450,8 +496,8 @@ CREATE TABLE `haex_passwords_groups` (
 	`sort_order` integer,
 	`color` text,
 	`parent_id` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`parent_id`) REFERENCES `haex_passwords_groups`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -479,8 +525,8 @@ CREATE TABLE `haex_passwords_item_details` (
 	`otp_algorithm` text DEFAULT 'SHA1',
 	`expires_at` text,
 	`autofill_aliases` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE TABLE `haex_passwords_item_key_values` (
@@ -488,7 +534,7 @@ CREATE TABLE `haex_passwords_item_key_values` (
 	`item_id` text NOT NULL,
 	`key` text,
 	`value` text,
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`item_id`) REFERENCES `haex_passwords_item_details`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -496,7 +542,7 @@ CREATE TABLE `haex_passwords_item_snapshots` (
 	`id` text PRIMARY KEY NOT NULL,
 	`item_id` text NOT NULL,
 	`snapshot_data` text NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	`modified_at` text,
 	FOREIGN KEY (`item_id`) REFERENCES `haex_passwords_item_details`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -527,7 +573,7 @@ CREATE TABLE `haex_passwords_passkeys` (
 	`icon` text,
 	`color` text,
 	`nickname` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	`last_used_at` text,
 	FOREIGN KEY (`item_id`) REFERENCES `haex_passwords_item_details`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -546,7 +592,7 @@ CREATE TABLE `haex_passwords_tags` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`color` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP)
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_passwords_tags_name_unique` ON `haex_passwords_tags` (`name`);--> statement-breakpoint
@@ -555,6 +601,7 @@ CREATE TABLE `haex_device_mls_enrollments` (
 	`space_id` text NOT NULL,
 	`device_id` text NOT NULL,
 	`key_package` text NOT NULL,
+	`pop` text NOT NULL,
 	`welcome` text,
 	`status` text DEFAULT 'pending' NOT NULL,
 	`authored_by_did` text,
@@ -578,9 +625,16 @@ CREATE TABLE `haex_peer_shares` (
 	`name` text NOT NULL,
 	`local_path` text NOT NULL,
 	`authored_by_did` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`device_id`) REFERENCES `haex_devices`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `haex_shared_space_deleted_rows` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`table_name` text NOT NULL,
+	`row_pks` text NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `haex_shared_space_sync` (
@@ -590,16 +644,26 @@ CREATE TABLE `haex_shared_space_sync` (
 	`space_id` text NOT NULL,
 	`extension_public_key` text,
 	`extension_name` text,
-	`group_id` text,
+	`category` text,
 	`type` text,
-	`label` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`type_label` text,
+	`category_label` text,
+	`authored_by_did` text DEFAULT '' NOT NULL,
+	`row_sig` text DEFAULT '' NOT NULL,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`extension_public_key`,`extension_name`) REFERENCES `haex_extensions`(`public_key`,`name`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "haex_shared_space_sync_extension_pair" CHECK((extension_public_key IS NULL) = (extension_name IS NULL))
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_shared_space_sync_table_row_space_unique` ON `haex_shared_space_sync` (`table_name`,`row_pks`,`space_id`);--> statement-breakpoint
+CREATE INDEX `idx_haex_shared_space_sync_table_row` ON `haex_shared_space_sync` (`table_name`,`row_pks`);--> statement-breakpoint
+CREATE INDEX `haex_shared_space_sync_author_category_idx` ON `haex_shared_space_sync` (`authored_by_did`,`space_id`,`table_name`,`category`);--> statement-breakpoint
+CREATE TABLE `haex_space_compaction_anchors` (
+	`space_id` text PRIMARY KEY NOT NULL,
+	`min_valid_hlc` text DEFAULT '0' NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `haex_space_devices` (
 	`id` text PRIMARY KEY NOT NULL,
 	`space_id` text NOT NULL,
@@ -613,7 +677,7 @@ CREATE TABLE `haex_space_devices` (
 	`relay_url` text,
 	`leader_priority` integer DEFAULT 10,
 	`authored_by_did` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`identity_id`) REFERENCES `haex_identities`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`device_id`) REFERENCES `haex_devices`(`id`) ON UPDATE no action ON DELETE cascade
@@ -640,7 +704,7 @@ CREATE TABLE `haex_spaces` (
 	`name` text NOT NULL,
 	`owner_identity_id` text NOT NULL,
 	`origin_url` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	`modified_at` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`owner_identity_id`) REFERENCES `haex_identities`(`id`) ON UPDATE no action ON DELETE no action
 );
@@ -655,14 +719,14 @@ CREATE TABLE `haex_sync_backends` (
 	`identity_id` text NOT NULL,
 	`enabled` integer DEFAULT true NOT NULL,
 	`priority` integer DEFAULT 0 NOT NULL,
-	`last_push_hlc_timestamp` text,
-	`last_pull_server_timestamp` text,
+	`last_push_hlc_timestamp_no_trigger` text,
+	`last_pull_server_timestamp_no_trigger` text,
 	`pending_vault_key_update` integer DEFAULT false NOT NULL,
 	`type` text DEFAULT 'home' NOT NULL,
 	`home_server_did` text,
 	`origin_server_did` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
-	`updated_at` integer,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	`updated_at_no_trigger` integer,
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -680,7 +744,7 @@ CREATE TABLE `haex_sync_rules` (
 	`sync_interval_seconds` integer DEFAULT 300 NOT NULL,
 	`delete_mode` text DEFAULT 'trash' NOT NULL,
 	`last_synced_at` integer,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP),
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`device_id`) REFERENCES `haex_devices`(`id`) ON UPDATE no action ON DELETE no action
 );
@@ -693,15 +757,17 @@ CREATE TABLE `haex_sync_state_no_sync` (
 	`modified_at` integer NOT NULL,
 	`synced_at` text NOT NULL,
 	`deleted` integer DEFAULT false NOT NULL,
-	`hash` text
+	`hash` text,
+	`object_key` text
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `haex_sync_state_rule_path_unique` ON `haex_sync_state_no_sync` (`rule_id`,`relative_path`);--> statement-breakpoint
+CREATE INDEX `haex_sync_state_object_key_idx` ON `haex_sync_state_no_sync` (`object_key`);--> statement-breakpoint
 CREATE TABLE `haex_ucan_tokens` (
 	`id` text PRIMARY KEY NOT NULL,
 	`space_id` text NOT NULL,
 	`token` text NOT NULL,
-	`capability` text NOT NULL,
+	`capabilities` text NOT NULL,
 	`issuer_did` text NOT NULL,
 	`audience_did` text NOT NULL,
 	`issued_at` integer NOT NULL,
@@ -709,13 +775,57 @@ CREATE TABLE `haex_ucan_tokens` (
 	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `haex_storage_backends` (
+CREATE TABLE `haex_space_ucan_grants_no_sync` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`issuer_did` text NOT NULL,
+	`audience_did` text NOT NULL,
+	`ucan_token` text NOT NULL,
+	`role` text NOT NULL,
+	`created_at_no_trigger` text NOT NULL,
+	`revoked_at` text,
+	FOREIGN KEY (`space_id`) REFERENCES `haex_spaces`(`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "haex_space_ucan_grants_no_sync_role_check" CHECK(role IN ('issued','received'))
+);
+--> statement-breakpoint
+CREATE INDEX `haex_space_ucan_grants_active_lookup` ON `haex_space_ucan_grants_no_sync` (`space_id`,`audience_did`) WHERE "haex_space_ucan_grants_no_sync"."revoked_at" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_space_ucan_grants_active_uniq` ON `haex_space_ucan_grants_no_sync` (`space_id`,`issuer_did`,`audience_did`,`role`) WHERE "haex_space_ucan_grants_no_sync"."revoked_at" IS NULL;--> statement-breakpoint
+CREATE TABLE `haex_s3_backends` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text NOT NULL,
 	`name` text NOT NULL,
 	`config` text NOT NULL,
 	`enabled` integer DEFAULT true NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP)
+	`parent_backend_id` text,
+	`origin_type` text DEFAULT 'owned' NOT NULL,
+	`share_prefix` text,
+	`share_access_flags` integer,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP),
+	FOREIGN KEY (`parent_backend_id`) REFERENCES `haex_s3_backends`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `haex_storage_backends_name_unique` ON `haex_storage_backends` (`name`);
+CREATE UNIQUE INDEX `haex_s3_backends_name_unique` ON `haex_s3_backends` (`name`);--> statement-breakpoint
+CREATE TABLE `haex_file_grants` (
+	`id` text PRIMARY KEY NOT NULL,
+	`content_key` text NOT NULL,
+	`space_id` text NOT NULL,
+	`sidecar_key` text NOT NULL,
+	`epoch` integer NOT NULL,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_file_grants_content_space_uniq` ON `haex_file_grants` (`content_key`, `space_id`);--> statement-breakpoint
+CREATE INDEX `haex_file_grants_space_idx` ON `haex_file_grants` (`space_id`);--> statement-breakpoint
+CREATE TABLE `haex_s3_shared_access` (
+	`id` text PRIMARY KEY NOT NULL,
+	`space_id` text NOT NULL,
+	`backend_id` text NOT NULL,
+	`member_did` text NOT NULL,
+	`encrypted_cred` text NOT NULL,
+	`epoch` integer NOT NULL,
+	`expires_at` text,
+	`created_at_no_trigger` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `haex_s3_shared_access_space_backend_did_uniq` ON `haex_s3_shared_access` (`space_id`, `backend_id`, `member_did`);--> statement-breakpoint
+CREATE INDEX `haex_s3_shared_access_member_idx` ON `haex_s3_shared_access` (`member_did`);

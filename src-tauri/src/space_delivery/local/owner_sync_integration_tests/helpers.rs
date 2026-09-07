@@ -55,8 +55,8 @@ impl Identity {
 ///   table, but a faithful owner-vault DB has it, and seeding it both sides
 ///   keeps the fixture honest (matches the anti-flake "seed haex_devices both
 ///   sides" guidance).
-/// - `haex_passwords` — a CRDT table (`ensure_crdt_columns` adds `haex_hlc` /
-///   `haex_column_hlcs`). `discover_crdt_tables` picks it up via `haex_hlc`,
+/// - `haex_passwords` — a CRDT table (`ensure_crdt_columns` adds `haex_hlc_no_trigger` /
+///   `haex_column_hlcs_no_trigger`). `discover_crdt_tables` picks it up via `haex_hlc_no_trigger`,
 ///   and the apply path can write rows into it.
 ///
 /// `vault_space_id` and the owner identity id are unique per call.
@@ -91,13 +91,13 @@ pub(super) fn seed_vault_db(
             id TEXT PRIMARY KEY,
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
-            haex_hlc TEXT,
-            haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+            haex_hlc_no_trigger TEXT,
+            haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
          );",
     )
     .unwrap();
 
-    // Make haex_passwords a CRDT table (adds haex_hlc + haex_column_hlcs) so it
+    // Make haex_passwords a CRDT table (adds haex_hlc_no_trigger + haex_column_hlcs_no_trigger) so it
     // is discovered by `discover_crdt_tables` and writable by the apply path.
     {
         let tx = conn.unchecked_transaction().unwrap();
@@ -131,15 +131,15 @@ pub(super) fn seed_vault_db(
     DbConnection(Arc::new(Mutex::new(Some(conn))))
 }
 
-/// Insert a CRDT-tracked `haex_passwords` row, writing `haex_hlc` /
-/// `haex_column_hlcs` directly (the columns the scanner reads) at a fixed HLC
+/// Insert a CRDT-tracked `haex_passwords` row, writing `haex_hlc_no_trigger` /
+/// `haex_column_hlcs_no_trigger` directly (the columns the scanner reads) at a fixed HLC
 /// so the row is deterministically scannable.
 pub(super) fn insert_password(db: &DbConnection, id: &str, secret: &str, hlc: &str) {
     let hlcs = format!("{{\"secret\":\"{hlc}\"}}");
     let guard = db.0.lock().unwrap();
     let conn = guard.as_ref().unwrap();
     conn.execute(
-        "INSERT INTO haex_passwords (id, secret, haex_hlc, haex_column_hlcs)
+        "INSERT INTO haex_passwords (id, secret, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
              VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![id, secret, hlc, hlcs],
     )
@@ -181,7 +181,7 @@ pub(super) fn delete_password(db: &DbConnection, row_id: &str, delete_log_id: &s
     // transaction-HLC group on the receiver.
     let col_hlcs = format!("{{\"table_name\":\"{hlc}\",\"row_pks\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO haex_deleted_rows (id, table_name, row_pks, haex_hlc, haex_column_hlcs) \
+        "INSERT INTO haex_deleted_rows (id, table_name, row_pks, haex_hlc_no_trigger, haex_column_hlcs_no_trigger) \
          VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![delete_log_id, "haex_passwords", row_pks_json, hlc, col_hlcs],
     )
@@ -202,7 +202,7 @@ pub(super) fn update_password_secret(db: &DbConnection, row_id: &str, new_secret
     let conn = guard.as_ref().unwrap();
     let col_hlcs = format!("{{\"secret\":\"{hlc}\"}}");
     conn.execute(
-        "UPDATE haex_passwords SET secret = ?1, haex_hlc = ?2, haex_column_hlcs = ?3 \
+        "UPDATE haex_passwords SET secret = ?1, haex_hlc_no_trigger = ?2, haex_column_hlcs_no_trigger = ?3 \
          WHERE id = ?4",
         rusqlite::params![new_secret, hlc, col_hlcs, row_id],
     )

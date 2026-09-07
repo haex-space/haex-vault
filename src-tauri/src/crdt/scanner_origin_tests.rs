@@ -21,8 +21,8 @@ fn setup_scoped_db() -> Connection {
             id TEXT PRIMARY KEY,
             space_id TEXT NOT NULL,
             data TEXT,
-            haex_hlc TEXT,
-            haex_column_hlcs TEXT NOT NULL DEFAULT '{}'
+            haex_hlc_no_trigger TEXT,
+            haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
         );",
     )
     .unwrap();
@@ -32,7 +32,7 @@ fn setup_scoped_db() -> Connection {
 fn insert_row(conn: &Connection, id: &str, space_id: &str, data: &str, hlc: &str) {
     let hlcs = format!("{{\"space_id\":\"{hlc}\",\"data\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO scoped_items (id, space_id, data, haex_hlc, haex_column_hlcs)
+        "INSERT INTO scoped_items (id, space_id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
          VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, space_id, data, hlc, hlcs],
     )

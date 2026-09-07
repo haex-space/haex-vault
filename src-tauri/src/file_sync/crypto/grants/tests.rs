@@ -25,7 +25,7 @@ fn well_formed_row_parses_all_columns() {
     assert_eq!(parsed.space_id, "space-alpha");
     assert_eq!(parsed.sidecar_key, "space-alpha/deadbeef.m");
     assert_eq!(parsed.epoch, 7);
-    assert_eq!(parsed.created_at, "2026-08-27T00:00:00Z");
+    assert_eq!(parsed.created_at_no_trigger, "2026-08-27T00:00:00Z");
 }
 
 #[test]

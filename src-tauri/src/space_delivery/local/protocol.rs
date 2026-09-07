@@ -549,7 +549,7 @@ pub struct MlsMessageEntry {
     /// `Request::MlsSendMessage::committer_commit_bind_sig`.
     #[serde(default)]
     pub committer_commit_bind_sig: Option<String>,
-    pub created_at: String,
+    pub created_at_no_trigger: String,
 }
 
 /// An identity claim shared by a peer

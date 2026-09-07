@@ -61,20 +61,20 @@ impl InsertTransformer {
     /// Hard Delete: Kein ON CONFLICT mehr nötig - gelöschte Einträge sind wirklich weg
     ///
     /// LIMITATION / TODO: `ON CONFLICT ... DO UPDATE SET` wird NICHT unterstützt.
-    /// Diese Transformation hängt `haex_hlc` nur an die INSERT-Spalten/-Werte an,
+    /// Diese Transformation hängt `haex_hlc_no_trigger` nur an die INSERT-Spalten/-Werte an,
     /// aber nicht an die `DO UPDATE SET`-Assignments. Ein Upsert mit DO UPDATE
     /// erzeugt daher entweder ungültiges SQL oder eine Zeile mit veraltetem
     /// HLC-Timestamp (→ CRDT-Sync-Konflikte). Extensions müssen stattdessen
     /// `onConflictDoNothing()` + ein separates `UPDATE` verwenden (siehe z. B.
     /// stores/vault/settings.ts::setInitialSyncCompleteAsync im Host und
-    /// haex-mail persistEnvelopesAsync). Ein echter Fix müsste `haex_hlc` auch
+    /// haex-mail persistEnvelopesAsync). Ein echter Fix müsste `haex_hlc_no_trigger` auch
     /// in die DO-UPDATE-Assignments injizieren.
     pub fn transform_insert(
         &self,
         insert_stmt: &mut Insert,
         timestamp: &Timestamp,
     ) -> Result<(), DatabaseError> {
-        // Add haex_hlc column if not exists
+        // Add haex_hlc_no_trigger column if not exists
         let hlc_col_index =
             Self::find_or_add_column(&mut insert_stmt.columns, self.hlc_timestamp_column);
 

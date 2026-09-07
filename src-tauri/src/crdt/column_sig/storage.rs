@@ -1,6 +1,6 @@
-//! Storage helper for the `haex_column_sigs` JSON meta column.
+//! Storage helper for the `haex_column_sigs_no_trigger` JSON meta column.
 //!
-//! `haex_column_sigs` on each space-scoped table stores per-column,
+//! `haex_column_sigs_no_trigger` on each space-scoped table stores per-column,
 //! per-space Ed25519 signatures. The JSON shape is:
 //!
 //! ```json
@@ -59,7 +59,7 @@ pub struct SigRecord {
     pub storage_class: StorageClass,
 }
 
-/// Merges a signature into the `haex_column_sigs` JSON column of the row
+/// Merges a signature into the `haex_column_sigs_no_trigger` JSON column of the row
 /// identified by `row_pks_json` on `table_name`.
 ///
 /// - Preserves signatures for other columns and other `space_id`s on the
@@ -145,7 +145,7 @@ pub fn upsert_column_sigs(
 
     // Load current JSON, defaulting to '{}' if the row somehow holds NULL.
     let select_sql = format!(
-        "SELECT haex_column_sigs FROM \"{}\" WHERE {}",
+        "SELECT haex_column_sigs_no_trigger FROM \"{}\" WHERE {}",
         table_name, where_clause
     );
     let current_raw: String = {
@@ -167,7 +167,7 @@ pub fn upsert_column_sigs(
                 target: "column_sig",
                 table = table_name,
                 column = column_name,
-                "haex_column_sigs root is not a JSON object — resetting to empty map"
+                "haex_column_sigs_no_trigger root is not a JSON object — resetting to empty map"
             );
             Map::new()
         }
@@ -186,7 +186,7 @@ pub fn upsert_column_sigs(
                 target: "column_sig",
                 table = table_name,
                 column = column_name,
-                "haex_column_sigs[column] is not a JSON object — refusing to clobber; resetting to empty map"
+                "haex_column_sigs_no_trigger[column] is not a JSON object — refusing to clobber; resetting to empty map"
             );
             *other = Value::Object(Map::new());
             match other {
@@ -214,7 +214,7 @@ pub fn upsert_column_sigs(
     })?;
 
     let update_sql = format!(
-        "UPDATE \"{}\" SET haex_column_sigs = ? WHERE {}",
+        "UPDATE \"{}\" SET haex_column_sigs_no_trigger = ? WHERE {}",
         table_name, where_clause
     );
     let mut stmt = conn.prepare(&update_sql)?;

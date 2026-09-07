@@ -7,4 +7,4 @@
  * Full details require a separate `extension_password_read` call, which
  * allows the core to audit per-record reads.
  */
-export type PasswordItemSummary = { id: string, title: string | null, username: string | null, url: string | null, icon: string | null, color: string | null, tags: Array<string>, createdAt: string | null, updatedAt: string | null, };
+export type PasswordItemSummary = { id: string, title: string | null, username: string | null, url: string | null, icon: string | null, color: string | null, tags: Array<string>, createdAtNoTrigger: string | null, updatedAtNoTrigger: string | null, };

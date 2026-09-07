@@ -9,7 +9,7 @@ import {
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
 
-// Note: CRDT columns (haex_hlc, haex_column_hlcs) are added automatically by the
+// Note: CRDT columns (haex_hlc_no_trigger, haex_column_hlcs_no_trigger) are added automatically by the
 // Rust CrdtTransformer when CREATE TABLE is executed. DELETE on these tables is
 // logged to `haex_deleted_rows` via a BEFORE-DELETE trigger (no tombstone column).
 
@@ -90,8 +90,8 @@ export const haexPrincipalPermissions = sqliteTable(
     status: text({ enum: ['ask', 'granted', 'denied'] })
       .notNull()
       .default('denied'),
-    createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
-    updateAt: integer('updated_at', { mode: 'timestamp' }).$onUpdate(
+    createdAt: text('created_at_no_trigger').default(sql`(CURRENT_TIMESTAMP)`),
+    updateAt: integer('updated_at_no_trigger', { mode: 'timestamp' }).$onUpdate(
       () => new Date(),
     ),
   },

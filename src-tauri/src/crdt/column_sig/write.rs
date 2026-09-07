@@ -6,7 +6,7 @@
 //!
 //! The output is a `HashMap<space_id, SigRecord>` — one signature per owning
 //! space. `execute_with_crdt` folds each record into the row's
-//! `haex_column_sigs` JSON via the storage helper (Task E3).
+//! `haex_column_sigs_no_trigger` JSON via the storage helper (Task E3).
 //!
 //! DID derivation: the author DID for each space is derived from the
 //! `SigningKey.verifying_key()` we pulled from the cache. This means one DB
@@ -49,7 +49,7 @@ pub enum SignForSpacesError {
 /// local content merely because this vault is also a member of that space.
 ///
 /// Returns `HashMap<space_id, SigRecord>`. An empty map is a valid result
-/// (row is not in any owned space → caller writes `{}` into `haex_column_sigs`).
+/// (row is not in any owned space → caller writes `{}` into `haex_column_sigs_no_trigger`).
 #[allow(clippy::too_many_arguments)]
 pub fn sign_column_for_spaces(
     conn: &Connection,

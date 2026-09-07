@@ -3,7 +3,7 @@
 //! Since the delete-log refactor, the transformer no longer injects
 //! `haex_tombstone` columns or tombstone filters. These tests verify the
 //! remaining responsibilities:
-//! - CREATE TABLE gets `haex_hlc` + `haex_column_hlcs` added
+//! - CREATE TABLE gets `haex_hlc_no_trigger` + `haex_column_hlcs_no_trigger` added
 //! - CREATE UNIQUE INDEX stays untouched (no partial rewrite)
 //! - DELETE stays a DELETE
 //! - UPDATE gets the HLC timestamp assignment
@@ -48,8 +48,8 @@ fn test_delete_stays_delete() {
 fn test_update_adds_hlc_assignment() {
     let result = parse_and_transform_execute("UPDATE items SET name = 'foo' WHERE id = 'x'");
     assert!(
-        result.contains("haex_hlc"),
-        "UPDATE must add haex_hlc assignment. Got: {result}"
+        result.contains("haex_hlc_no_trigger"),
+        "UPDATE must add haex_hlc_no_trigger assignment. Got: {result}"
     );
     assert!(!result.contains("haex_tombstone"), "Got: {result}");
 }
@@ -57,8 +57,8 @@ fn test_update_adds_hlc_assignment() {
 #[test]
 fn test_create_table_adds_crdt_columns() {
     let result = parse_and_transform_execute("CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT)");
-    assert!(result.contains("haex_hlc"), "Got: {result}");
-    assert!(result.contains("haex_column_hlcs"), "Got: {result}");
+    assert!(result.contains("haex_hlc_no_trigger"), "Got: {result}");
+    assert!(result.contains("haex_column_hlcs_no_trigger"), "Got: {result}");
     assert!(
         !result.contains("haex_tombstone"),
         "haex_tombstone must not be added anymore. Got: {result}"
@@ -70,7 +70,7 @@ fn transform_ddl_injects_haex_column_sigs_on_space_scoped_tables() {
     // Phase 1 of the shared-space authenticity design: every CRDT-sync
     // (space-scoped) table must carry a per-column signature map so that
     // shared-space receivers can verify authorship before applying an
-    // incoming column change. Parallel to `haex_column_hlcs`, but with an
+    // incoming column change. Parallel to `haex_column_hlcs_no_trigger`, but with an
     // explicit `NOT NULL DEFAULT '{}'` so legacy INSERT statements (and
     // pre-existing rows after ALTER TABLE) still get a valid empty map.
     let transformer = CrdtTransformer::new();
@@ -79,16 +79,16 @@ fn transform_ddl_injects_haex_column_sigs_on_space_scoped_tables() {
         .expect("transform_ddl_statement must not error on well-formed CREATE TABLE");
 
     assert!(
-        out.contains("haex_column_sigs"),
-        "space-scoped CREATE TABLE must gain `haex_column_sigs`. Got: {out}"
+        out.contains("haex_column_sigs_no_trigger"),
+        "space-scoped CREATE TABLE must gain `haex_column_sigs_no_trigger`. Got: {out}"
     );
     assert!(
         out.contains("DEFAULT '{}'"),
-        "`haex_column_sigs` must default to an empty JSON object. Got: {out}"
+        "`haex_column_sigs_no_trigger` must default to an empty JSON object. Got: {out}"
     );
     // Sig column must not accidentally displace the HLC columns.
-    assert!(out.contains("haex_hlc"), "Got: {out}");
-    assert!(out.contains("haex_column_hlcs"), "Got: {out}");
+    assert!(out.contains("haex_hlc_no_trigger"), "Got: {out}");
+    assert!(out.contains("haex_column_hlcs_no_trigger"), "Got: {out}");
 }
 
 #[test]
@@ -102,8 +102,8 @@ fn transform_ddl_skips_haex_column_sigs_for_no_sync_tables() {
         .expect("transform_ddl_statement must not error on well-formed CREATE TABLE");
 
     assert!(
-        !out.contains("haex_column_sigs"),
-        "_no_sync tables must not gain `haex_column_sigs`. Got: {out}"
+        !out.contains("haex_column_sigs_no_trigger"),
+        "_no_sync tables must not gain `haex_column_sigs_no_trigger`. Got: {out}"
     );
 }
 
@@ -123,7 +123,7 @@ fn test_create_table_no_sync_skipped() {
         "CREATE TABLE my_cache_no_sync (id TEXT PRIMARY KEY, value TEXT)",
     );
     assert!(
-        !result.contains("haex_hlc"),
+        !result.contains("haex_hlc_no_trigger"),
         "_no_sync tables must not get CRDT columns. Got: {result}"
     );
 }
@@ -134,7 +134,7 @@ fn haex_logs_no_sync_is_not_a_crdt_sync_table() {
     // If this table were CRDT-synced, every log row would be pushed to the
     // owner's other devices, which would log the receipt and push it back —
     // the amplification loop that motivated the rename. discover_crdt_tables
-    // selects tables by presence of the `haex_hlc` column, so keeping that
+    // selects tables by presence of the `haex_hlc_no_trigger` column, so keeping that
     // column absent is the load-bearing invariant.
     let sql = "CREATE TABLE `haex_logs_no_sync` (\
         `id` text PRIMARY KEY NOT NULL,\
@@ -152,20 +152,20 @@ fn haex_logs_no_sync_is_not_a_crdt_sync_table() {
         .transform_ddl_statement(sql)
         .expect("transform_ddl_statement must not error on well-formed CREATE TABLE");
     assert!(
-        !result.contains("haex_hlc"),
-        "haex_logs_no_sync must not gain `haex_hlc` — that column is what discover_crdt_tables keys on. Got: {result}"
+        !result.contains("haex_hlc_no_trigger"),
+        "haex_logs_no_sync must not gain `haex_hlc_no_trigger` — that column is what discover_crdt_tables keys on. Got: {result}"
     );
     assert!(
-        !result.contains("haex_column_hlcs"),
-        "haex_logs_no_sync must not gain `haex_column_hlcs`. Got: {result}"
+        !result.contains("haex_column_hlcs_no_trigger"),
+        "haex_logs_no_sync must not gain `haex_column_hlcs_no_trigger`. Got: {result}"
     );
 }
 
 #[test]
 fn test_insert_into_sync_table_gets_hlc_column() {
     let result = parse_and_transform_execute("INSERT INTO items (id, name) VALUES ('a', 'b')");
-    // InsertTransformer adds haex_hlc as a literal column/value
-    assert!(result.contains("haex_hlc"), "Got: {result}");
+    // InsertTransformer adds haex_hlc_no_trigger as a literal column/value
+    assert!(result.contains("haex_hlc_no_trigger"), "Got: {result}");
 }
 
 #[test]

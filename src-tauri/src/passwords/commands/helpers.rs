@@ -46,7 +46,7 @@ pub(super) fn build_read_item_query(
 ) -> (String, Vec<JsonValue>) {
     const COLS: &str = "id, title, username, password, note, icon, color, url, \
                         otp_secret, otp_digits, otp_period, otp_algorithm, \
-                        autofill_aliases, expires_at, created_at, updated_at";
+                        autofill_aliases, expires_at, created_at_no_trigger, updated_at_no_trigger";
 
     match scope {
         PasswordsScope::All => (
@@ -130,7 +130,7 @@ pub(super) fn read_item_key_values(
 /// receives complete tag context (not just the matching tags).
 pub(super) fn build_list_query(scope: &PasswordsScope) -> (String, Vec<JsonValue>) {
     const COLS: &str = "i.id, i.title, i.username, i.url, i.icon, i.color, \
-                        i.created_at, i.updated_at, \
+                        i.created_at_no_trigger, i.updated_at_no_trigger, \
                         GROUP_CONCAT(DISTINCT t.name) as tag_names";
 
     match scope {
@@ -313,7 +313,7 @@ pub(super) fn update_item_row(
                title = ?2, username = ?3, password = ?4, note = ?5, icon = ?6, \
                color = ?7, url = ?8, otp_secret = ?9, otp_digits = ?10, \
                otp_period = ?11, otp_algorithm = ?12, autofill_aliases = ?13, \
-               expires_at = ?14, updated_at = CURRENT_TIMESTAMP \
+               expires_at = ?14, updated_at_no_trigger = CURRENT_TIMESTAMP \
                WHERE id = ?1"
         .to_string();
     let params = vec![

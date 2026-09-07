@@ -55,7 +55,7 @@ use haex_crdt::HlcService;
 /// `log_to_db` exercise the same constraints production code does.
 ///
 /// Mirrored from `haex_identities`: `id`, `did` (UNIQUE), `name` (NOT NULL),
-/// `source` (NOT NULL DEFAULT 'contact'), `private_key`, `created_at`.
+/// `source` (NOT NULL DEFAULT 'contact'), `private_key`, `created_at_no_trigger`.
 /// Deliberately omitted from `haex_identities`: `avatar`, `avatar_options`,
 /// `notes` — purely optional UI columns the membership-check SQL never
 /// touches.
@@ -89,7 +89,7 @@ pub(crate) fn setup_membership_db() -> (
             name TEXT NOT NULL,
             source TEXT NOT NULL DEFAULT 'contact',
             private_key TEXT,
-            created_at TEXT
+            created_at_no_trigger TEXT
         );
 
         CREATE TABLE haex_space_members (
@@ -138,7 +138,7 @@ pub(crate) fn setup_membership_db() -> (
 /// `haex_extensions` is dropped here — we never seed `haex_extensions`, and
 /// `log_to_db` always inserts NULL there.
 ///
-/// The table is created **without** CRDT columns (`haex_hlc`,
+/// The table is created **without** CRDT columns (`haex_hlc_no_trigger`,
 /// `haex_tombstone`, …), exactly like production: it is `_no_sync`, and log
 /// writes go through the [`crate::logging::LogSink`] (plain INSERTs), not
 /// `execute_with_crdt`. Adding CRDT columns here would diverge from

@@ -232,7 +232,7 @@ fn compute_cutoff_hlc_num(current_hlc_num: u64, retention_days: u32) -> Option<i
 }
 
 /// Cleans up old delete-log entries. Deletes rows from `haex_deleted_rows`
-/// whose `haex_hlc` is older than `retention_days`.
+/// whose `haex_hlc_no_trigger` is older than `retention_days`.
 ///
 /// `retention_days == 0` hard-deletes every delete-log entry.
 pub fn cleanup_deleted_rows(
@@ -255,10 +255,10 @@ pub fn cleanup_deleted_rows(
         let owner_max_hlc: Option<String> = conn
             .query_row(
                 &format!(
-                    "SELECT haex_hlc FROM \"{DELETED_ROWS_TABLE}\" \
-                     WHERE haex_hlc IS NOT NULL \
+                    "SELECT haex_hlc_no_trigger FROM \"{DELETED_ROWS_TABLE}\" \
+                     WHERE haex_hlc_no_trigger IS NOT NULL \
                      ORDER BY \
-                       CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) DESC \
+                       CAST(substr(haex_hlc_no_trigger, 1, instr(haex_hlc_no_trigger, '/') - 1) AS INTEGER) DESC \
                      LIMIT 1"
                 ),
                 [],
@@ -270,8 +270,8 @@ pub fn cleanup_deleted_rows(
         }
 
         let mut per_space_stmt = conn.prepare(&format!(
-            "SELECT space_id, haex_hlc FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
-             WHERE haex_hlc IS NOT NULL"
+            "SELECT space_id, haex_hlc_no_trigger FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
+             WHERE haex_hlc_no_trigger IS NOT NULL"
         ))?;
         let mut per_space_maxes: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
@@ -353,11 +353,11 @@ pub fn cleanup_deleted_rows(
         let owner_max_hlc: Option<String> = conn
             .query_row(
                 &format!(
-                    "SELECT haex_hlc FROM \"{DELETED_ROWS_TABLE}\" \
-                     WHERE haex_hlc IS NOT NULL \
-                       AND CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) < ?1 \
+                    "SELECT haex_hlc_no_trigger FROM \"{DELETED_ROWS_TABLE}\" \
+                     WHERE haex_hlc_no_trigger IS NOT NULL \
+                       AND CAST(substr(haex_hlc_no_trigger, 1, instr(haex_hlc_no_trigger, '/') - 1) AS INTEGER) < ?1 \
                      ORDER BY \
-                       CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) DESC \
+                       CAST(substr(haex_hlc_no_trigger, 1, instr(haex_hlc_no_trigger, '/') - 1) AS INTEGER) DESC \
                      LIMIT 1"
                 ),
                 [cutoff_hlc_num],
@@ -376,9 +376,9 @@ pub fn cleanup_deleted_rows(
         // pruned. Iterate spaces separately so each anchor advances by only
         // its own space's pruned max — not the global max.
         let mut per_space_stmt = conn.prepare(&format!(
-            "SELECT space_id, haex_hlc FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
-             WHERE haex_hlc IS NOT NULL \
-               AND CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) < ?1"
+            "SELECT space_id, haex_hlc_no_trigger FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
+             WHERE haex_hlc_no_trigger IS NOT NULL \
+               AND CAST(substr(haex_hlc_no_trigger, 1, instr(haex_hlc_no_trigger, '/') - 1) AS INTEGER) < ?1"
         ))?;
         let mut per_space_maxes: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
@@ -403,8 +403,8 @@ pub fn cleanup_deleted_rows(
 
         let delete_sql = format!(
             "DELETE FROM \"{}\"
-             WHERE haex_hlc IS NOT NULL
-             AND CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) < ?1",
+             WHERE haex_hlc_no_trigger IS NOT NULL
+             AND CAST(substr(haex_hlc_no_trigger, 1, instr(haex_hlc_no_trigger, '/') - 1) AS INTEGER) < ?1",
             DELETED_ROWS_TABLE
         );
         let owner_deleted = conn.execute(&delete_sql, [cutoff_hlc_num])?;
@@ -412,8 +412,8 @@ pub fn cleanup_deleted_rows(
         // Prune the per-space delete-log too. Symmetric to owner-domain.
         let shared_delete_sql = format!(
             "DELETE FROM \"{}\"
-             WHERE haex_hlc IS NOT NULL
-             AND CAST(substr(haex_hlc, 1, instr(haex_hlc, '/') - 1) AS INTEGER) < ?1",
+             WHERE haex_hlc_no_trigger IS NOT NULL
+             AND CAST(substr(haex_hlc_no_trigger, 1, instr(haex_hlc_no_trigger, '/') - 1) AS INTEGER) < ?1",
             SHARED_SPACE_DELETED_ROWS_TABLE
         );
         let shared_deleted = conn.execute(&shared_delete_sql, [cutoff_hlc_num])?;
@@ -460,7 +460,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
     let mut total_entries: i64 = 0;
     let mut crdt_table_count: i64 = 0;
 
-    // CRDT tables are identified by having the `haex_hlc` column (added by the
+    // CRDT tables are identified by having the `haex_hlc_no_trigger` column (added by the
     // CrdtTransformer at CREATE TABLE time). This excludes local-only tables
     // (`*_no_sync`), system tables (`sqlite_*`), and the delete-log table itself,
     // since that is counted separately below.
@@ -470,7 +470,7 @@ pub fn get_crdt_stats(conn: &Connection) -> Result<CrdtStats, rusqlite::Error> {
          AND m.name NOT LIKE 'sqlite_%' \
          AND m.name NOT LIKE '%_no_sync' \
          AND m.name != ?1 \
-         AND EXISTS (SELECT 1 FROM pragma_table_info(m.name) WHERE name = 'haex_hlc')",
+         AND EXISTS (SELECT 1 FROM pragma_table_info(m.name) WHERE name = 'haex_hlc_no_trigger')",
     )?;
 
     let table_names: Vec<String> = stmt
@@ -527,7 +527,7 @@ pub const OWNER_DELETE_LOG_ANCHOR_KEY: &str = "owner_delete_log_anchor";
 /// existing value and `new_hlc`. Idempotent, monotonic (never regresses).
 ///
 /// Writes to `haex_space_compaction_anchors` which is CRDT-synced; the
-/// AFTER-INSERT trigger populates haex_column_hlcs so other members converge
+/// AFTER-INSERT trigger populates haex_column_hlcs_no_trigger so other members converge
 /// on the advance via normal sync.
 pub fn advance_shared_space_anchor(
     conn: &Connection,
@@ -561,19 +561,19 @@ pub fn advance_shared_space_anchor(
         None => new_hlc.to_string(),
     };
 
-    // `min_valid_hlc` (the anti-resurrection watermark) and `haex_hlc`
+    // `min_valid_hlc` (the anti-resurrection watermark) and `haex_hlc_no_trigger`
     // (this CRDT row's own timestamp) are semantically distinct: the
     // former is the max HLC pruned from the delete-log for this space;
     // the latter is a fresh local HLC stamping *this* update to the
-    // anchor row. Stamp haex_hlc via the `current_hlc()` UDF so the row
+    // anchor row. Stamp haex_hlc_no_trigger via the `current_hlc()` UDF so the row
     // gets a real local HLC, and the CRDT AFTER-INSERT trigger populates
-    // haex_column_hlcs / haex_column_sigs on top.
+    // haex_column_hlcs_no_trigger / haex_column_sigs_no_trigger on top.
     conn.execute(
-        "INSERT INTO haex_space_compaction_anchors (space_id, min_valid_hlc, haex_hlc) \
+        "INSERT INTO haex_space_compaction_anchors (space_id, min_valid_hlc, haex_hlc_no_trigger) \
          VALUES (?1, ?2, current_hlc()) \
          ON CONFLICT(space_id) DO UPDATE SET \
              min_valid_hlc = excluded.min_valid_hlc, \
-             haex_hlc = current_hlc()",
+             haex_hlc_no_trigger = current_hlc()",
         rusqlite::params![space_id, &effective],
     )?;
     Ok(())
@@ -670,9 +670,9 @@ mod anchor_tests {
             "CREATE TABLE haex_space_compaction_anchors (
                  space_id TEXT PRIMARY KEY NOT NULL,
                  min_valid_hlc TEXT NOT NULL DEFAULT '0',
-                 haex_hlc TEXT,
-                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}',
-                 haex_column_sigs TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_trigger TEXT,
+                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}',
+                 haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
              );
              CREATE TABLE haex_vault_settings (
                  id TEXT PRIMARY KEY NOT NULL,
@@ -689,14 +689,14 @@ mod anchor_tests {
                  space_id TEXT NOT NULL,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc TEXT
+                 haex_hlc_no_trigger TEXT
              );
              CREATE TABLE {DELETED_ROWS_TABLE} (
                  id TEXT PRIMARY KEY NOT NULL,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc TEXT,
-                 haex_column_hlcs TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_trigger TEXT,
+                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
              );"
         ))
         .unwrap();
@@ -798,7 +798,7 @@ mod anchor_tests {
         conn.execute(
             &format!(
                 "INSERT INTO {SHARED_SPACE_DELETED_ROWS_TABLE} \
-                 (id, space_id, table_name, row_pks, haex_hlc) VALUES \
+                 (id, space_id, table_name, row_pks, haex_hlc_no_trigger) VALUES \
                  ('old-1', 'SPACE_X', 'ext_notes', '{{\"id\":\"a\"}}', '1/aabb'), \
                  ('old-2', 'SPACE_X', 'ext_notes', '{{\"id\":\"b\"}}', '5/aabb'), \
                  ('new-1', 'SPACE_X', 'ext_notes', '{{\"id\":\"c\"}}', '9223372036854775800/aabb')"
