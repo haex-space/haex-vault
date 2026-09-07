@@ -1,7 +1,6 @@
 pub mod cleanup;
 pub mod column_sig;
 pub mod commands;
-pub mod hlc;
 pub mod insert_transformer;
 //pub mod query_transformer;
 pub mod registry_row_sig;
@@ -9,8 +8,6 @@ pub mod scanner;
 pub mod transformer;
 pub mod trigger;
 
-#[cfg(test)]
-mod hlc_node_tests;
 #[cfg(test)]
 mod scanner_origin_tests;
 
