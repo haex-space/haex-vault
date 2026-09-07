@@ -77,6 +77,10 @@ rusqlite = { version = "0.40", features = [
   "functions",
   "hooks",
 ] }
+# CRDT/storage extraction target. Consuming as a local path dep during
+# integration; will flip to `git = "…", tag = "v0.1.0"` once the module
+# swap-out completes and tests are green.
+haex-crdt = { path = "../../haex-crdt", features = ["raw-connection"] }
 regex = "1.12"
 tokio-tungstenite = "0.30.0"
 futures-util = { version = "0.3", default-features = false, features = [
