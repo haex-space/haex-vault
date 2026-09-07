@@ -484,7 +484,7 @@ de:
   actions:
     title: Datenbankoptimierung
     forceDelete:
-      label: Alle Löschmarkierungen sofort entfernen
+      label: Alle gelöschten Einträge sofort entfernen
       description: 'Achtung: Geräte die noch nicht synchronisiert haben, könnten die gelöschten Einträge beim nächsten Sync wieder in diese Vault zurückschreiben.'
       button: Sofort löschen
   cleanup:
@@ -492,8 +492,8 @@ de:
     error: Bereinigung fehlgeschlagen
     deletedEntriesRemoved: '{count} gelöschte Einträge entfernt'
   forceDelete:
-    success: Alle Löschmarkierungen wurden entfernt
-    error: Fehler beim Löschen der Löschmarkierungen
+    success: Alle gelöschten Einträge wurden entfernt
+    error: Fehler beim Entfernen der gelöschten Einträge
   browser:
     rows: Einträge
     empty: Keine Einträge
@@ -531,7 +531,7 @@ en:
   actions:
     title: Database Optimization
     forceDelete:
-      label: Remove all deletion markers now
+      label: Remove all deleted entries now
       description: 'Warning: Devices that have not synced yet may push the deleted entries back into this vault on their next sync.'
       button: Delete now
   cleanup:
@@ -539,8 +539,8 @@ en:
     error: Cleanup failed
     deletedEntriesRemoved: '{count} deleted entries removed'
   forceDelete:
-    success: All deletion markers have been removed
-    error: Failed to delete deletion markers
+    success: All deleted entries have been removed
+    error: Failed to remove deleted entries
   browser:
     rows: rows
     empty: No entries
