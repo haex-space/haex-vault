@@ -24,7 +24,7 @@ mod tests {
             r#type: "s3".to_string(),
             name: "My S3 Bucket".to_string(),
             enabled: true,
-            created_at: "2024-01-01T00:00:00Z".to_string(),
+            created_at_no_trigger: "2024-01-01T00:00:00Z".to_string(),
             config: Some(S3PublicConfig {
                 endpoint: Some("https://s3.example.com".to_string()),
                 region: "us-west-2".to_string(),
@@ -52,7 +52,7 @@ mod tests {
             r#type: "s3".to_string(),
             name: "Empty Config Backend".to_string(),
             enabled: false,
-            created_at: "2024-01-01T00:00:00Z".to_string(),
+            created_at_no_trigger: "2024-01-01T00:00:00Z".to_string(),
             config: None,
             origin_type: None,
             share_access_flags: None,
@@ -72,7 +72,7 @@ mod tests {
             "type": "s3",
             "name": "Test Backend",
             "enabled": true,
-            "createdAt": "2024-01-01T00:00:00Z"
+            "createdAtNoTrigger": "2024-01-01T00:00:00Z"
         }"#;
 
         let info: StorageBackendInfo = serde_json::from_str(json_str).unwrap();

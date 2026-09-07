@@ -3,7 +3,7 @@
 // Integration tests for the column-signing side of `execute_with_crdt`
 // (Task F1 in the shared-space Phase 1 plan). Verifies that every INSERT/
 // UPDATE through the CRDT execute path lands with a fresh Ed25519 signature
-// under `haex_column_sigs` for every space the row is shared into.
+// under `haex_column_sigs_no_trigger` for every space the row is shared into.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use ed25519_dalek::SigningKey;
@@ -186,12 +186,12 @@ fn setup_fixture() -> Fixture {
     // minimum trusted routing metadata they would have received when written
     // through `execute_with_crdt` in production.
     conn.execute(
-        "UPDATE haex_shared_space_sync SET haex_column_sigs = ?1 WHERE id = 'share-A'",
+        "UPDATE haex_shared_space_sync SET haex_column_sigs_no_trigger = ?1 WHERE id = 'share-A'",
         [self_authored_register_routing_sigs("space_A", &did_a)],
     )
     .unwrap();
     conn.execute(
-        "UPDATE haex_shared_space_sync SET haex_column_sigs = ?1 WHERE id = 'share-B'",
+        "UPDATE haex_shared_space_sync SET haex_column_sigs_no_trigger = ?1 WHERE id = 'share-B'",
         [self_authored_register_routing_sigs("space_B", &did_b)],
     )
     .unwrap();
@@ -218,7 +218,7 @@ fn read_column_sigs_json(
     let conn = guard.as_ref().unwrap();
     let raw: String = conn
         .query_row(
-            &format!("SELECT haex_column_sigs FROM \"{table}\" WHERE id = ?1"),
+            &format!("SELECT haex_column_sigs_no_trigger FROM \"{table}\" WHERE id = ?1"),
             [id],
             |r| r.get(0),
         )
@@ -226,7 +226,7 @@ fn read_column_sigs_json(
     let v: JsonValue = serde_json::from_str(&raw).unwrap();
     match v {
         JsonValue::Object(m) => m,
-        other => panic!("haex_column_sigs is not a JSON object: {other:?}"),
+        other => panic!("haex_column_sigs_no_trigger is not a JSON object: {other:?}"),
     }
 }
 
@@ -317,7 +317,7 @@ fn execute_with_crdt_skips_signing_when_row_has_no_spaces() {
 /// Follow-up correction: the first fix for this finding (commit `930dd78e`)
 /// case-folded `schema_names` so the membership check passed, but then pushed
 /// the *lowercased* touched-name into `signable` — so the sig landed at
-/// `haex_column_sigs["mixedcase"]` with a preimage built over `b"mixedcase"`,
+/// `haex_column_sigs_no_trigger["mixedcase"]` with a preimage built over `b"mixedcase"`,
 /// while every consumer (F2, the Rust/TS registry scanners, the verifier) all
 /// read `col.name` from `PRAGMA table_info` and look up / reconstruct the
 /// preimage using the DDL-cased `"MixedCase"`. The column would have shipped
@@ -378,7 +378,7 @@ fn sign_written_rows_covers_mixedcase_ddl_columns() {
         let guard = f.db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         conn.query_row(
-            "SELECT haex_hlc FROM ext_calendar WHERE id = 'R'",
+            "SELECT haex_hlc_no_trigger FROM ext_calendar WHERE id = 'R'",
             [],
             |r| r.get(0),
         )
@@ -440,18 +440,18 @@ fn setup_fixture_f2() -> FixtureF2 {
         )
         .unwrap();
         // Install UPDATE triggers on ext_calendar so that seeding writes
-        // populate `haex_column_hlcs` per-column HLCs — F2 must be able to
+        // populate `haex_column_hlcs_no_trigger` per-column HLCs — F2 must be able to
         // read the ORIGINAL column HLC when it retro-signs.
         let tx = conn.unchecked_transaction().unwrap();
         setup_triggers_for_table(&tx, "ext_calendar", true).unwrap();
         tx.commit().unwrap();
         // The pre-seeded ext_calendar rows came in via raw SQL before the
-        // CRDT columns existed, so their `haex_column_hlcs` blob is NULL.
+        // CRDT columns existed, so their `haex_column_hlcs_no_trigger` blob is NULL.
         // `json_set(NULL, …)` yields NULL, which would defeat the seed UPDATE
         // that populates per-column HLCs. Initialise both meta columns to
         // empty JSON objects so triggers can extend them.
         conn.execute(
-            "UPDATE ext_calendar SET haex_column_hlcs = '{}', haex_column_sigs = '{}'",
+            "UPDATE ext_calendar SET haex_column_hlcs_no_trigger = '{}', haex_column_sigs_no_trigger = '{}'",
             [],
         )
         .unwrap();
@@ -472,8 +472,8 @@ fn setup_fixture_f2() -> FixtureF2 {
 }
 
 /// Force per-column HLCs onto `ext_calendar` row `SOLO` via a real
-/// `execute_with_crdt` UPDATE — that path populates `haex_hlc` and
-/// `haex_column_hlcs` the same way as a live vault would. F2 then reads
+/// `execute_with_crdt` UPDATE — that path populates `haex_hlc_no_trigger` and
+/// `haex_column_hlcs_no_trigger` the same way as a live vault would. F2 then reads
 /// those HLCs when it retro-signs the row for the new space.
 fn seed_solo_row_hlcs(f: &FixtureF2) {
     let hlc_mutex = Mutex::new(f.hlc.clone());
@@ -508,7 +508,7 @@ fn insert_into_share_register_signs_all_columns_of_referenced_row() {
         let guard = f.db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         conn.query_row(
-            "SELECT json_extract(haex_column_hlcs, '$.title') \
+            "SELECT json_extract(haex_column_hlcs_no_trigger, '$.title') \
              FROM ext_calendar WHERE id = 'SOLO'",
             [],
             |r| r.get(0),
@@ -517,7 +517,7 @@ fn insert_into_share_register_signs_all_columns_of_referenced_row() {
     };
     assert!(
         !title_hlc.is_empty(),
-        "seed step must populate haex_column_hlcs.title"
+        "seed step must populate haex_column_hlcs_no_trigger.title"
     );
 
     let hlc_mutex = Mutex::new(f.hlc);
@@ -562,7 +562,7 @@ fn insert_into_share_register_signs_all_columns_of_referenced_row() {
 /// (`sign_written_rows`, the generic per-write signer) and F2
 /// (`sign_share_insert_targets`, the cross-table retro-signer that runs when
 /// a share-register row is INSERTed) must land their signatures under the
-/// *same* `haex_column_sigs` JSON key for a mixed-case DDL column, since both
+/// *same* `haex_column_sigs_no_trigger` JSON key for a mixed-case DDL column, since both
 /// paths feed the same wire consumers (Rust/TS registry scanners, verifier).
 /// F2's own `signable_cols` (execute.rs:~542) has always read `c.name`
 /// straight from `PRAGMA table_info` with no case-folding at all, so it was
@@ -755,7 +755,7 @@ fn share_insert_reuses_historical_column_hlc_not_tx_hlc() {
         let guard = f.db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         conn.query_row(
-            "SELECT json_extract(haex_column_hlcs, '$.title') \
+            "SELECT json_extract(haex_column_hlcs_no_trigger, '$.title') \
              FROM ext_calendar WHERE id = 'SOLO'",
             [],
             |r| r.get(0),
@@ -868,7 +868,7 @@ fn execute_with_crdt_signs_columns_on_insert() {
         let conn = guard.as_ref().unwrap();
         conn.execute(
             "INSERT INTO haex_shared_space_sync \
-             (id, table_name, row_pks, space_id, haex_column_sigs) \
+             (id, table_name, row_pks, space_id, haex_column_sigs_no_trigger) \
              VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![
                 "share-NEW",
@@ -939,7 +939,7 @@ fn execute_with_crdt_insert_without_column_list_signs_all_columns() {
     let hlc_guard = hlc_mutex.lock().unwrap();
 
     // Only feed values for user columns — the CRDT transformer appends
-    // `haex_hlc` to the column list, so `VALUES (?1, ?2)` here binds
+    // `haex_hlc_no_trigger` to the column list, so `VALUES (?1, ?2)` here binds
     // `id` and `title`.
     let result = core::execute_with_crdt(
         "INSERT INTO ext_calendar VALUES (?1, ?2)".to_string(),
@@ -1027,7 +1027,7 @@ fn execute_with_crdt_signs_composite_pk_row() {
         // Share the (space_A_row, item_1) composite key into space_A.
         conn.execute(
             "INSERT INTO haex_shared_space_sync \
-             (id, table_name, row_pks, space_id, haex_column_sigs) \
+             (id, table_name, row_pks, space_id, haex_column_sigs_no_trigger) \
              VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![
                 "share-COMP",
@@ -1043,7 +1043,7 @@ fn execute_with_crdt_signs_composite_pk_row() {
         // Seed the composite row with raw SQL, so the CRDT columns are
         // set to empty JSON objects (mirroring the F2 fixture).
         conn.execute(
-            "INSERT INTO ext_composite (space_ref, item_id, label, haex_column_hlcs, haex_column_sigs) \
+            "INSERT INTO ext_composite (space_ref, item_id, label, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger) \
              VALUES (?1, ?2, ?3, '{}', '{}')",
             ["space_A_row", "item_1", "initial"],
         )
@@ -1072,7 +1072,7 @@ fn execute_with_crdt_signs_composite_pk_row() {
         let guard = f.db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         conn.query_row(
-            "SELECT haex_column_sigs FROM ext_composite \
+            "SELECT haex_column_sigs_no_trigger FROM ext_composite \
              WHERE space_ref = ?1 AND item_id = ?2",
             ["space_A_row", "item_1"],
             |r| r.get(0),
@@ -1082,7 +1082,7 @@ fn execute_with_crdt_signs_composite_pk_row() {
     let v: JsonValue = serde_json::from_str(&raw).unwrap();
     let m = match v {
         JsonValue::Object(m) => m,
-        other => panic!("haex_column_sigs is not a JSON object: {other:?}"),
+        other => panic!("haex_column_sigs_no_trigger is not a JSON object: {other:?}"),
     };
     let label = m
         .get("label")
@@ -1099,7 +1099,7 @@ fn execute_with_crdt_signs_composite_pk_row() {
 // F#2 (Runde-4 review) — reject caller-supplied writes to CRDT meta columns
 // ---------------------------------------------------------------------------
 
-/// F#2: a caller-supplied `haex_column_hlcs` assignment must be rejected.
+/// F#2: a caller-supplied `haex_column_hlcs_no_trigger` assignment must be rejected.
 /// Without the guard, a UPDATE that sets that column would feed a forged
 /// HLC into F2's sig preimage the next time the row is shared.
 #[test]
@@ -1109,7 +1109,7 @@ fn execute_with_crdt_rejects_user_supplied_haex_column_hlcs() {
     let hlc_guard = hlc_mutex.lock().unwrap();
 
     let result = core::execute_with_crdt(
-        "UPDATE ext_calendar SET haex_column_hlcs = ?1 WHERE id = ?2".to_string(),
+        "UPDATE ext_calendar SET haex_column_hlcs_no_trigger = ?1 WHERE id = ?2".to_string(),
         vec![
             JsonValue::String(r#"{"title":"9999-99-99T99:99:99.999999999Z/deadbeef"}"#.to_string()),
             JsonValue::String("R".to_string()),
@@ -1121,13 +1121,13 @@ fn execute_with_crdt_rejects_user_supplied_haex_column_hlcs() {
 
     match result {
         Err(crate::database::error::DatabaseError::CrdtMetaColumnWriteForbidden { column }) => {
-            assert_eq!(column, "haex_column_hlcs");
+            assert_eq!(column, "haex_column_hlcs_no_trigger");
         }
         other => panic!("expected CrdtMetaColumnWriteForbidden, got: {:?}", other),
     }
 }
 
-/// F#2: caller-supplied `haex_hlc` on INSERT must be rejected — even
+/// F#2: caller-supplied `haex_hlc_no_trigger` on INSERT must be rejected — even
 /// though the transformer would overwrite it, an INSERT that names it in
 /// the column list is a signal the caller is trying to bypass the CRDT
 /// layer.
@@ -1138,7 +1138,7 @@ fn execute_with_crdt_rejects_user_supplied_haex_hlc_on_insert() {
     let hlc_guard = hlc_mutex.lock().unwrap();
 
     let result = core::execute_with_crdt(
-        "INSERT INTO ext_calendar (id, title, haex_hlc) VALUES (?1, ?2, ?3)".to_string(),
+        "INSERT INTO ext_calendar (id, title, haex_hlc_no_trigger) VALUES (?1, ?2, ?3)".to_string(),
         vec![
             JsonValue::String("EVIL".to_string()),
             JsonValue::String("t".to_string()),
@@ -1151,7 +1151,7 @@ fn execute_with_crdt_rejects_user_supplied_haex_hlc_on_insert() {
 
     match result {
         Err(crate::database::error::DatabaseError::CrdtMetaColumnWriteForbidden { column }) => {
-            assert_eq!(column, "haex_hlc");
+            assert_eq!(column, "haex_hlc_no_trigger");
         }
         other => panic!("expected CrdtMetaColumnWriteForbidden, got: {:?}", other),
     }
@@ -1160,7 +1160,7 @@ fn execute_with_crdt_rejects_user_supplied_haex_hlc_on_insert() {
 /// Case-insensitivity regression (spec-review Critical finding): SQL column
 /// identifiers are case-insensitive, but `is_crdt_meta_column` matched the
 /// touched-column name with `==` against lowercase constants — an INSERT
-/// naming `HAEX_HLC` (any case) sailed through unnoticed. Fixed by
+/// naming `HAEX_HLC_NO_TRIGGER` (any case) sailed through unnoticed. Fixed by
 /// case-folding column identifiers once, in `extract_touched_for_signing`.
 #[test]
 fn execute_with_crdt_rejects_user_supplied_uppercase_haex_hlc_on_insert() {
@@ -1169,7 +1169,7 @@ fn execute_with_crdt_rejects_user_supplied_uppercase_haex_hlc_on_insert() {
     let hlc_guard = hlc_mutex.lock().unwrap();
 
     let result = core::execute_with_crdt(
-        "INSERT INTO ext_calendar (id, title, HAEX_HLC) VALUES (?1, ?2, ?3)".to_string(),
+        "INSERT INTO ext_calendar (id, title, HAEX_HLC_NO_TRIGGER) VALUES (?1, ?2, ?3)".to_string(),
         vec![
             JsonValue::String("EVIL2".to_string()),
             JsonValue::String("t".to_string()),
@@ -1183,18 +1183,18 @@ fn execute_with_crdt_rejects_user_supplied_uppercase_haex_hlc_on_insert() {
     match result {
         Err(crate::database::error::DatabaseError::CrdtMetaColumnWriteForbidden { column }) => {
             assert_eq!(
-                column, "haex_hlc",
+                column, "haex_hlc_no_trigger",
                 "column name is case-folded to lowercase"
             );
         }
         other => panic!(
-            "expected CrdtMetaColumnWriteForbidden for uppercase HAEX_HLC, got: {:?}",
+            "expected CrdtMetaColumnWriteForbidden for uppercase HAEX_HLC_NO_TRIGGER, got: {:?}",
             other
         ),
     }
 }
 
-/// F#2: `haex_column_sigs` is also managed by the sig layer — a caller
+/// F#2: `haex_column_sigs_no_trigger` is also managed by the sig layer — a caller
 /// setting it directly could plant a valid signature the sig layer
 /// doesn't recompute.
 #[test]
@@ -1204,7 +1204,7 @@ fn execute_with_crdt_rejects_user_supplied_haex_column_sigs() {
     let hlc_guard = hlc_mutex.lock().unwrap();
 
     let result = core::execute_with_crdt(
-        "UPDATE ext_calendar SET haex_column_sigs = ?1 WHERE id = ?2".to_string(),
+        "UPDATE ext_calendar SET haex_column_sigs_no_trigger = ?1 WHERE id = ?2".to_string(),
         vec![
             JsonValue::String("{}".to_string()),
             JsonValue::String("R".to_string()),
@@ -1216,7 +1216,7 @@ fn execute_with_crdt_rejects_user_supplied_haex_column_sigs() {
 
     match result {
         Err(crate::database::error::DatabaseError::CrdtMetaColumnWriteForbidden { column }) => {
-            assert_eq!(column, "haex_column_sigs");
+            assert_eq!(column, "haex_column_sigs_no_trigger");
         }
         other => panic!("expected CrdtMetaColumnWriteForbidden, got: {:?}", other),
     }
@@ -1287,7 +1287,7 @@ fn setup_fixture_s3_backends() -> FixtureS3Backends {
             category_label TEXT,
             authored_by_did TEXT DEFAULT '' NOT NULL,
             row_sig TEXT DEFAULT '' NOT NULL,
-            created_at TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
          );
          CREATE TABLE haex_s3_backends (
             id TEXT PRIMARY KEY NOT NULL,
@@ -1313,7 +1313,7 @@ fn setup_fixture_s3_backends() -> FixtureS3Backends {
         let tx = conn.unchecked_transaction().unwrap();
         ensure_crdt_columns(&tx, "haex_shared_space_sync").unwrap();
         ensure_crdt_columns(&tx, "haex_s3_backends").unwrap();
-        // F2 reads `haex_column_hlcs` for its per-column sig preimage HLC —
+        // F2 reads `haex_column_hlcs_no_trigger` for its per-column sig preimage HLC —
         // that blob is only kept current by the AFTER-UPDATE trigger
         // (mirrors `setup_fixture_f2`'s rationale for `ext_calendar`).
         setup_triggers_for_table(&tx, "haex_s3_backends", true).unwrap();
@@ -1321,7 +1321,7 @@ fn setup_fixture_s3_backends() -> FixtureS3Backends {
     }
 
     conn.execute(
-        "INSERT INTO haex_s3_backends (id, endpoint, haex_column_hlcs, haex_column_sigs) \
+        "INSERT INTO haex_s3_backends (id, endpoint, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger) \
          VALUES (?1, ?2, '{}', '{}')",
         ["backend-1", "https://s3.example.com"],
     )
