@@ -79,10 +79,10 @@ rusqlite = { version = "0.40", features = [
 ] }
 # CRDT/storage extraction target. Consuming as a local path dep during
 # integration; will flip to `git = "…", tag = "vX.Y.Z"` once the module
-# swap-out completes and tests are green. Currently points at the
-# `feat/v0.1.1-batch-2-unblocker` worktree (D-1 rename + HlcService shim
-# for pre-extraction test fixtures — see docs/plans/…-diff.md).
-haex-crdt = { path = "../../haex-crdt-v0.1.1", features = ["raw-connection", "test-shims"] }
+# swap-out completes and tests are green. Points at haex-crdt main
+# (v0.2.0 in Cargo.lock) — the earlier `feat/v0.1.1-batch-2-unblocker`
+# worktree was cleaned up after PR #15 landed on main.
+haex-crdt = { path = "../../haex-crdt", features = ["raw-connection", "test-shims"] }
 regex = "1.12"
 tokio-tungstenite = "0.30.0"
 futures-util = { version = "0.3", default-features = false, features = [
