@@ -107,7 +107,7 @@ pub(super) fn make_peer(
 ///
 /// (`select_with_crdt` is a no-op for `SELECT` statements in the
 /// delete-log model — see `crdt::transformer::transform_query` — so we
-/// do *not* get a hardened tombstone filter from this routing. The
+/// do *not* get an additional CRDT-side filter from this routing. The
 /// motivation is purely the schema-drift coverage above.)
 ///
 /// Ordering: `query_logs` returns newest first; today's assertions check

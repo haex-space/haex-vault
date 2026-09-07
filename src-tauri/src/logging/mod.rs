@@ -351,11 +351,11 @@ fn build_log_filter(query: &LogQueryParams) -> (String, Vec<serde_json::Value>, 
 /// Routed through `select_with_crdt` so any future SELECT-side CRDT
 /// transformation (e.g. once the delete-log gains a `WHERE NOT IN
 /// (deleted)` projection) is automatically applied. Today
-/// `transform_query` is a no-op for plain SELECTs — tombstone
-/// filtering happens at INSERT/UPDATE time via the delete-log, not at
-/// read time — so the routing buys nothing observable on its own; it
-/// just keeps this query on the same code path the rest of the
-/// codebase uses.
+/// `transform_query` is a no-op for plain SELECTs — deleted rows are
+/// absent from main tables (they live only in `haex_deleted_rows`) so
+/// no read-time projection is needed — the routing buys nothing
+/// observable on its own; it just keeps this query on the same code
+/// path the rest of the codebase uses.
 pub fn query_logs(
     connection: &crate::database::DbConnection,
     query: &LogQueryParams,
@@ -378,7 +378,7 @@ pub fn query_logs(
     params.push(JsonValue::Number(offset.into()));
 
     // Routed through select_with_crdt for SELECT-side codepath parity —
-    // see the module-level note above; no tombstone filter today.
+    // see the module-level note above; no read-time projection today.
     let rows = crate::database::core::select_with_crdt(sql, params, connection)?;
 
     fn json_to_opt_string(val: &JsonValue) -> Option<String> {
@@ -411,7 +411,8 @@ pub fn query_logs(
 }
 
 /// Count logs matching the same filters used by `query_logs` (limit/offset are ignored).
-/// Uses select_with_crdt so tombstoned rows are excluded.
+/// Uses select_with_crdt for codepath parity; deleted rows are absent from
+/// the main log table (they live only in `haex_deleted_rows`).
 pub fn count_logs(
     connection: &crate::database::DbConnection,
     query: &LogQueryParams,

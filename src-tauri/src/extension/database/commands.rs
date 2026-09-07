@@ -282,8 +282,9 @@ pub async fn extension_database_query(
             sql: sql.clone(),
         })?;
 
-        // Apply CRDT tombstone filter to SELECT queries
-        // This ensures tombstoned (soft-deleted) rows are filtered out
+        // Apply CRDT transforms to SELECT queries. Deleted rows live in
+        // `haex_deleted_rows` and are absent from main tables, so this is
+        // mostly a no-op today — kept uniform for future transforms.
         if let Statement::Query(ref mut query) = stmt_to_execute {
             let transformer = CrdtTransformer::new();
             transformer.transform_query(query);
@@ -550,9 +551,9 @@ pub fn apply_synced_extension_migrations(
     .ok();
 
     // CRDT-aware: the JOIN touches haex_extensions (a CRDT table), so we go
-    // through select_with_crdt to apply the tombstone filter automatically —
-    // a raw conn.prepare here would surface migrations from extensions the
-    // user has soft-deleted.
+    // through select_with_crdt for consistency with the rest of the read
+    // path. Deleted rows are absent from `haex_extensions` (they live in
+    // `haex_deleted_rows`), so no stale entries can leak in.
     let pending_rows = crate::database::core::select_with_crdt(
         SQL_GET_SYNCED_PENDING_MIGRATIONS.clone(),
         vec![],

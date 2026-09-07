@@ -357,14 +357,15 @@ export function useInviteOutbox() {
 
   /**
    * Clean up old responded invites via CRDT delete.
-   * Safe because haex_pending_invites rows have unique UUIDs — tombstones
-   * won't collide with any row on the sender's device.
-   * The CRDT purge mechanism handles tombstone cleanup.
+   * Safe because haex_pending_invites rows have unique UUIDs — the
+   * resulting delete-log entries won't collide with any row on the
+   * sender's device. The CRDT retention job prunes the delete-log
+   * itself after its retention window.
    *
    * Note: haex_spaces entries with status='declined' are NOT deleted here
    * because their primary key (space ID) matches the sender's active space.
-   * A CRDT tombstone for that ID would destroy the sender's space.
-   * These rows are tiny and filtered out by the UI.
+   * A delete-log entry for that ID would propagate and destroy the
+   * sender's space. These rows are tiny and filtered out by the UI.
    */
   const cleanupOldInvitesAsync = async () => {
     const db = getDb()

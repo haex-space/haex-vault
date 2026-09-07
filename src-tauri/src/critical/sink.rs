@@ -247,7 +247,7 @@ impl CriticalNotificationSink {
 
     /// Delete rows older than `retention_days`. Analogous to
     /// `logging::cleanup_logs` but plain SQL — `_no_sync` doesn't run
-    /// through `execute_with_crdt`, so no tombstones.
+    /// through `execute_with_crdt`, so no delete-log entries.
     pub fn cleanup(&self, retention_days: i64) -> Result<CleanupReport, SinkError> {
         // Compute the cutoff + format it outside the lock — same shrink-
         // critical-section discipline as emit().

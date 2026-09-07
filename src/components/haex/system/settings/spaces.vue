@@ -202,7 +202,8 @@ const spaceListEntries = computed((): SpaceListEntry[] => {
   const activeSpaceIds = new Set(activeSpaces.value.map((s) => s.id))
 
   // Pending invites first — construct space from invite metadata
-  // (no dummy entry in haex_spaces to avoid CRDT tombstone issues)
+  // (no dummy entry in haex_spaces to avoid a delete-log propagating
+  // a rejection/leave to peers)
   for (const invite of pendingInvites.value) {
     if (activeSpaceIds.has(invite.spaceId)) continue
     const space: SpaceWithType = {

@@ -89,13 +89,15 @@ pub async fn handle_claim_invite(
     //    only and deliberately never notifies this leader, so a departed
     //    DID's row here can be a stale leftover from a membership that has
     //    since ended rather than an unfinished attempt at the current one.
-    //    Requiring the DID to still be an *active* member (tombstoned by the
-    //    same background sync that eventually carries the leave's
-    //    `haex_space_members` delete to us) tells the two cases apart: a
-    //    true retry always finds the member still active (step 12 below
-    //    inserted it before this function could return), while a re-invite
-    //    after a leave finds it gone and is correctly treated as a fresh
-    //    claim instead of resurrecting the old grant.
+    //    Requiring the DID to still be an *active* member (the same
+    //    background sync eventually carries the leave's
+    //    `haex_space_members` delete to us; the BEFORE-DELETE trigger then
+    //    logs it into `haex_deleted_rows` and drops the row here) tells
+    //    the two cases apart: a true retry always finds the member still
+    //    active (step 12 below inserted it before this function could
+    //    return), while a re-invite after a leave finds it gone and is
+    //    correctly treated as a fresh claim instead of resurrecting the
+    //    old grant.
     let existing = load_existing_claim(&state.db, &space_id, &did);
     let is_retry = match &existing {
         None => false,

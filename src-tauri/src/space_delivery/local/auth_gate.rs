@@ -30,7 +30,7 @@
 //! 5. **Capability.** `crate::ucan::require_capability` — the UCAN grants
 //!    at least the minimum capability the request requires for its space.
 //! 6. **Active membership.** `super::ucan::is_active_space_member` —
-//!    revocation kill-switch: a tombstoned member's UCAN remains
+//!    revocation kill-switch: a removed member's UCAN remains
 //!    cryptographically valid, but every request still fails here.
 //!
 //! ## `None`-rejection invariant (T2 code-review follow-up)

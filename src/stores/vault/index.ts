@@ -482,7 +482,7 @@ export const useVaultStore = defineStore('vaultStore', () => {
     // Start leader mode for all local spaces (enables invite handling)
     await spacesStore.startLocalSpaceLeadersAsync()
 
-    // Drop tombstone-leaves whose 30-day push window has elapsed.
+    // Drop LEAVING-space entries whose 30-day push window has elapsed.
     // Non-fatal: it only deletes hidden zombie rows.
     spacesStore.cleanupCompletedLeavesAsync().catch((error) => {
       log.warn('Cleanup of completed LEAVING spaces failed:', error)
@@ -575,7 +575,8 @@ const getVaultIdAsync = async (
  * The Rust backend (sql_with_crdt) handles all SQL statement type detection
  * via AST parsing - no string matching needed here.
  *
- * - SELECT: Automatically filtered for tombstones
+ * - SELECT: Routed through select_with_crdt (deleted rows live in
+ *   `haex_deleted_rows` and never appear in main-table results)
  * - INSERT/UPDATE/DELETE: CRDT timestamps applied, RETURNING handled correctly
  */
 const drizzleCallback = (async (

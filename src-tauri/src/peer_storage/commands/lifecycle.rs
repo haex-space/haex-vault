@@ -60,7 +60,7 @@ pub async fn peer_storage_start(
     // during a live session is picked up on the next endpoint restart.
     // Read via raw rusqlite through `with_connection` — the depth cap is
     // security-critical and reads bypass `select_with_crdt` so a
-    // tombstoned/shadow row cannot silently weaken the verifier.
+    // deleted/shadow row cannot silently weaken the verifier.
     let max_ucan_chain_depth = crate::database::core::with_connection(&state.db, |conn| {
         Ok(crate::ucan::read_max_ucan_chain_depth(conn))
     })

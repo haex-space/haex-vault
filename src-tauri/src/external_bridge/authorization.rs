@@ -3,7 +3,8 @@
 //! Uses the haex_external_authorized_clients and haex_external_blocked_clients tables
 //! managed via Drizzle migrations.
 //! All SQL operations use CRDT-compatible execution via the core database functions.
-//! The CRDT functions automatically handle tombstone filtering.
+//! Deleted rows live in the delete-log (`haex_deleted_rows`), so plain
+//! reads via the CRDT execution path never see them.
 
 use crate::table_names::{
     // Authorized clients table and columns

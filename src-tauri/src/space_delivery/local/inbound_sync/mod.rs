@@ -19,8 +19,7 @@
 //!    KeyPackage rows while still blocking attempts to write user content
 //!    like `haex_peer_shares`.
 //! 2. **Membership gate.** The UCAN audience must still be an active
-//!    (non-tombstoned) member of the space — admin removal is the
-//!    revocation kill-switch.
+//!    member of the space — admin removal is the revocation kill-switch.
 //! 3. **Payload validation** (pure transform — see [`validate`]):
 //!    - **Table whitelist.** Only rows for tables in
 //!      [`crate::crdt::scanner::SPACE_SCOPED_CRDT_TABLES`] may cross the

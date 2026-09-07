@@ -15,8 +15,8 @@ import tableNames from '@/database/tableNames.json'
 // collection converge (canonical roots toolbar<->toolbar etc.), different
 // collections never mix. Convergence itself is handled by the vault's
 // automatic CRDT layer (see plans/001-add-bookmarks-table-and-bridge.md) —
-// these tables carry no manual CRDT columns and no soft-delete column;
-// hard-DELETE produces a tombstone via the existing BEFORE-DELETE trigger.
+// these tables carry no manual CRDT columns; the BEFORE-DELETE trigger
+// logs every hard-DELETE into `haex_deleted_rows` (delete-log).
 // ---------------------------------------------------------------------------
 
 export const haexBookmarkCollections = sqliteTable(

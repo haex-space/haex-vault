@@ -92,7 +92,7 @@ pub fn sql_execute_with_crdt(
 /// Unified SQL command with CRDT support
 ///
 /// This command automatically detects the SQL statement type using AST parsing:
-/// - SELECT: Executes with tombstone filtering (select_with_crdt)
+/// - SELECT: Executes through select_with_crdt (CRDT-aware read path)
 /// - INSERT/UPDATE/DELETE: Executes with CRDT timestamps (execute_with_crdt)
 ///   - If RETURNING clause is present, returns the result rows
 ///   - Otherwise returns empty array
@@ -112,7 +112,7 @@ pub fn sql_with_crdt(
     let statement = core::parse_single_statement(&sql)?;
 
     match statement {
-        // SELECT statements: use select_with_crdt (adds tombstone filter)
+        // SELECT statements: use select_with_crdt (CRDT-aware read path)
         Statement::Query(_) => core::select_with_crdt(sql, params, &state.db),
         // INSERT/UPDATE/DELETE: use execute_with_crdt (handles RETURNING via AST)
         Statement::Insert(_) | Statement::Update { .. } | Statement::Delete(_) => {

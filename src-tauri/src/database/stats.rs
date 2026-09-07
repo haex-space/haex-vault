@@ -21,10 +21,10 @@ pub struct TableStats {
     pub name: String,
     /// Total number of rows
     pub total_rows: i64,
-    /// Number of active (non-tombstoned) rows
+    /// Number of active (currently present) rows
     pub active_rows: i64,
-    /// Number of tombstoned (soft-deleted) rows
-    pub tombstone_rows: i64,
+    /// Number of delete-log entries targeting this table
+    pub delete_log_row_count: i64,
 }
 
 /// Statistics grouped by extension or system
@@ -42,15 +42,15 @@ pub struct ExtensionStats {
     pub total_rows: i64,
     /// Total active rows across all tables
     pub active_rows: i64,
-    /// Total tombstone rows across all tables
-    pub tombstone_rows: i64,
+    /// Total delete-log entries across all tables
+    pub delete_log_row_count: i64,
 }
 
-/// Tombstone entry for display
+/// Delete-log entry for display
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
-pub struct TombstoneEntry {
+pub struct DeleteLogEntry {
     /// Table name
     pub table_name: String,
     /// Primary key value(s) as JSON string
@@ -87,10 +87,10 @@ pub struct DatabaseInfo {
     pub pending_sync: Vec<PendingSyncInfo>,
     /// Total pending sync entries
     pub total_pending_sync: i64,
-    /// Tombstone entries (limited to most recent)
-    pub tombstones: Vec<TombstoneEntry>,
-    /// Total tombstone count across all tables
-    pub total_tombstones: i64,
+    /// Delete-log entries (limited to most recent)
+    pub delete_log_entries: Vec<DeleteLogEntry>,
+    /// Total delete-log rows across all tables
+    pub total_delete_log_rows: i64,
     /// Total entries across all CRDT tables
     pub total_entries: i64,
     /// Total active entries
@@ -217,9 +217,8 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
         .filter_map(Result::ok)
         .collect();
 
-    // Count delete-log entries per target table; tombstones are not in the main
-    // tables anymore.
-    let mut tombstone_counts: HashMap<String, i64> = HashMap::new();
+    // Count delete-log entries per target table.
+    let mut delete_log_counts: HashMap<String, i64> = HashMap::new();
     if let Ok(mut stmt) = conn.prepare(&format!(
         "SELECT table_name, COUNT(*) FROM \"{}\" GROUP BY table_name",
         DELETED_ROWS_TABLE
@@ -228,7 +227,7 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
             Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
         }) {
             for row in rows.filter_map(Result::ok) {
-                tombstone_counts.insert(row.0, row.1);
+                delete_log_counts.insert(row.0, row.1);
             }
         }
     }
@@ -242,12 +241,12 @@ fn get_table_statistics(conn: &Connection) -> Result<Vec<TableStats>, DatabaseEr
             )
             .unwrap_or(0);
 
-        let tombstone_rows = *tombstone_counts.get(&table_name).unwrap_or(&0);
+        let delete_log_row_count = *delete_log_counts.get(&table_name).unwrap_or(&0);
         stats.push(TableStats {
             name: table_name,
             total_rows,
             active_rows: total_rows,
-            tombstone_rows,
+            delete_log_row_count,
         });
     }
 
@@ -299,11 +298,11 @@ fn get_pending_sync(conn: &Connection) -> Result<Vec<PendingSyncInfo>, DatabaseE
 }
 
 /// Get the most recent delete-log entries.
-fn get_tombstone_entries(
+fn get_delete_log_entries(
     conn: &Connection,
     _table_stats: &[TableStats],
     limit: usize,
-) -> Result<Vec<TombstoneEntry>, DatabaseError> {
+) -> Result<Vec<DeleteLogEntry>, DatabaseError> {
     let query = format!(
         "SELECT table_name, row_pks, haex_hlc_no_trigger FROM \"{}\" ORDER BY haex_hlc_no_trigger DESC LIMIT ?",
         DELETED_ROWS_TABLE
@@ -316,7 +315,7 @@ fn get_tombstone_entries(
 
     let rows = stmt
         .query_map([limit as i64], |row| {
-            Ok(TombstoneEntry {
+            Ok(DeleteLogEntry {
                 table_name: row.get(0)?,
                 primary_key: row.get(1)?,
                 deleted_at: row.get(2)?,
@@ -357,7 +356,7 @@ pub fn get_database_info(state: State<'_, AppState>) -> Result<DatabaseInfo, Dat
                 tables: Vec::new(),
                 total_rows: 0,
                 active_rows: 0,
-                tombstone_rows: 0,
+                delete_log_row_count: 0,
             },
         );
 
@@ -376,13 +375,13 @@ pub fn get_database_info(state: State<'_, AppState>) -> Result<DatabaseInfo, Dat
                 tables: Vec::new(),
                 total_rows: 0,
                 active_rows: 0,
-                tombstone_rows: 0,
+                delete_log_row_count: 0,
             });
 
             ext_stats.tables.push(table.clone());
             ext_stats.total_rows += table.total_rows;
             ext_stats.active_rows += table.active_rows;
-            ext_stats.tombstone_rows += table.tombstone_rows;
+            ext_stats.delete_log_row_count += table.delete_log_row_count;
         }
 
         // Convert to sorted vec (system first, then alphabetically by name)
@@ -401,9 +400,10 @@ pub fn get_database_info(state: State<'_, AppState>) -> Result<DatabaseInfo, Dat
         let pending_sync = get_pending_sync(conn)?;
         let total_pending_sync: i64 = pending_sync.iter().map(|p| p.pending_rows).sum();
 
-        // Get tombstones (limit to 100)
-        let tombstones = get_tombstone_entries(conn, &table_stats, 100)?;
-        let total_tombstones: i64 = table_stats.iter().map(|t| t.tombstone_rows).sum();
+        // Get delete-log entries (limit to 100)
+        let delete_log_entries = get_delete_log_entries(conn, &table_stats, 100)?;
+        let total_delete_log_rows: i64 =
+            table_stats.iter().map(|t| t.delete_log_row_count).sum();
 
         // Calculate totals
         let total_entries: i64 = table_stats.iter().map(|t| t.total_rows).sum();
@@ -415,8 +415,8 @@ pub fn get_database_info(state: State<'_, AppState>) -> Result<DatabaseInfo, Dat
             extensions,
             pending_sync,
             total_pending_sync,
-            tombstones,
-            total_tombstones,
+            delete_log_entries,
+            total_delete_log_rows,
             total_entries,
             total_active,
         })

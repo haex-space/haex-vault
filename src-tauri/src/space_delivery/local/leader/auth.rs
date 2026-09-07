@@ -66,7 +66,7 @@ pub(super) fn require_valid_ucan(
 /// 2. **Capability (`require_capability`)** — the UCAN grants at least the
 ///    operation's minimum capability for `space_id`.
 /// 3. **Active membership (`is_active_space_member`)** — revocation
-///    kill-switch: when the admin tombstones a member, the UCAN remains
+///    kill-switch: when the admin removes a member, the UCAN remains
 ///    cryptographically valid but every request is rejected here.
 ///
 /// Returns an Error response on any failure.

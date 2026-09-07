@@ -202,48 +202,48 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
       .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.desktopIconSize))
   }
 
-  const DEFAULT_TOMBSTONE_RETENTION_DAYS = 30
+  const DEFAULT_DELETE_LOG_RETENTION_DAYS = 30
   const DEFAULT_EXTERNAL_BRIDGE_PORT = 19455
 
-  const getTombstoneRetentionDaysAsync = async (): Promise<number> => {
+  const getDeleteLogRetentionDaysAsync = async (): Promise<number> => {
     const db = requireDb()
     const retentionRow =
       await db.query.haexVaultSettings.findFirst({
-        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.deleteLogRetentionDays),
       })
 
     if (!retentionRow?.id) {
       // No entry exists, create one with default
       await db.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
-        key: VaultSettingsKeyEnum.tombstoneRetentionDays,
-        value: String(DEFAULT_TOMBSTONE_RETENTION_DAYS),
+        key: VaultSettingsKeyEnum.deleteLogRetentionDays,
+        value: String(DEFAULT_DELETE_LOG_RETENTION_DAYS),
       })
-      return DEFAULT_TOMBSTONE_RETENTION_DAYS
+      return DEFAULT_DELETE_LOG_RETENTION_DAYS
     }
 
-    return parseInt(retentionRow.value ?? String(DEFAULT_TOMBSTONE_RETENTION_DAYS), 10)
+    return parseInt(retentionRow.value ?? String(DEFAULT_DELETE_LOG_RETENTION_DAYS), 10)
   }
 
-  const updateTombstoneRetentionDaysAsync = async (days: number) => {
+  const updateDeleteLogRetentionDaysAsync = async (days: number) => {
     const db = requireDb()
     const clampedDays = Math.max(1, Math.min(365, days))
 
     // Check if entry exists
     const existingRow =
       await db.query.haexVaultSettings.findFirst({
-        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays),
+        where: eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.deleteLogRetentionDays),
       })
 
     if (existingRow?.id) {
       await db
         .update(schema.haexVaultSettings)
         .set({ value: String(clampedDays) })
-        .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.tombstoneRetentionDays))
+        .where(eq(schema.haexVaultSettings.key, VaultSettingsKeyEnum.deleteLogRetentionDays))
     } else {
       await db.insert(schema.haexVaultSettings).values({
         id: crypto.randomUUID(),
-        key: VaultSettingsKeyEnum.tombstoneRetentionDays,
+        key: VaultSettingsKeyEnum.deleteLogRetentionDays,
         value: String(clampedDays),
       })
     }
@@ -358,8 +358,8 @@ export const useVaultSettingsStore = defineStore('vaultSettingsStore', () => {
     updateVaultNameAsync,
     syncDesktopIconSizeAsync,
     updateDesktopIconSizeAsync,
-    getTombstoneRetentionDaysAsync,
-    updateTombstoneRetentionDaysAsync,
+    getDeleteLogRetentionDaysAsync,
+    updateDeleteLogRetentionDaysAsync,
     getExternalBridgePortAsync,
     updateExternalBridgePortAsync,
     DEFAULT_EXTERNAL_BRIDGE_PORT,

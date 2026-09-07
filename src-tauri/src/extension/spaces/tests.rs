@@ -2,7 +2,7 @@
 //!
 //! Verifies that assign/unassign/get operations on haex_shared_space_sync
 //! use execute_with_crdt / select_with_crdt so changes are synced and
-//! tombstoned rows are filtered.
+//! deleted rows are absent from the main table.
 
 #[cfg(test)]
 mod tests {

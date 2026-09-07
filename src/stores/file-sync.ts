@@ -227,9 +227,9 @@ export const useFileSyncStore = defineStore('fileSyncStore', () => {
     ruleLogs.value.get(ruleId) ?? []
 
   const clearRuleLog = async (ruleId: string) => {
-    // Optimistically clear in-memory; the persisted tombstone propagates in
-    // the background. Reload would otherwise show stale entries until the
-    // CRDT delete commits and a refresh happens.
+    // Optimistically clear in-memory; the persisted delete-log entry
+    // propagates in the background. Reload would otherwise show stale
+    // entries until the CRDT delete commits and a refresh happens.
     if (ruleLogs.value.delete(ruleId)) {
       ruleLogs.value = new Map(ruleLogs.value)
     }

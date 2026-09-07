@@ -194,8 +194,8 @@ pub fn store(
 /// The production schema (`haex_passwords_item_key_values.item_id`) declares
 /// `ON DELETE CASCADE`, but the CRDT delete-log layer needs both parent and
 /// child rows explicitly deleted so remote devices actually replay both
-/// tombstones. We therefore issue the key-values DELETE first, then the
-/// details DELETE.
+/// delete-log entries. We therefore issue the key-values DELETE first,
+/// then the details DELETE.
 ///
 /// **Atomicity:** both DELETEs run inside a single SQLite transaction. If the
 /// second DELETE fails, the first is rolled back so we do not leave the

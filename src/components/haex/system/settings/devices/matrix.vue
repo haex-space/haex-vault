@@ -217,8 +217,8 @@ const onToggle = async (device: DeviceRow, space: { id: string; name: string }) 
   togglingKey.value = key
   try {
     if (publishedKeys.value.has(key)) {
-      // Unpublish: DELETE the haex_space_devices row. CRDT tombstone
-      // propagates to the leader, which removes us from allowed_peers.
+      // Unpublish: DELETE the haex_space_devices row. The delete-log
+      // entry propagates to the leader, which removes us from allowed_peers.
       await db
         .delete(haexSpaceDevices)
         .where(and(

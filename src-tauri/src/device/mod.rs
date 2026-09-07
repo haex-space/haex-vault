@@ -109,7 +109,8 @@ pub struct DeviceResolution {
 /// `haex_space_devices_ensure_refs` trigger) are excluded by joining on
 /// `haex_identities.source = 'own'` so the reconciliation dialog only
 /// presents devices the user can actually reclaim.
-/// Goes through `select_with_crdt` so tombstoned rows are filtered out.
+/// Goes through `select_with_crdt`; deleted rows live in `haex_deleted_rows`
+/// and never appear here.
 fn list_known_devices(state: &State<'_, AppState>) -> Result<Vec<KnownDevice>, DeviceError> {
     let rows = core::select_with_crdt(
         "SELECT d.id, d.owner_did, d.device_id, d.endpoint_id, d.name, d.platform, \

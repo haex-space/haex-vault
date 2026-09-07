@@ -190,8 +190,9 @@ impl ExtensionManager {
         custom_permissions: &EditablePermissions,
         state: &State<'_, AppState>,
     ) -> Result<String, ExtensionError> {
-        // 1. Check if extension already exists (e.g., from sync) using select_with_crdt
-        // This automatically filters out tombstoned (soft-deleted) entries
+        // 1. Check if extension already exists (e.g., from sync) using select_with_crdt.
+        // Deleted rows live in the delete-log (`haex_deleted_rows`), so this
+        // SELECT sees only active extensions.
         let check_params = vec![
             JsonValue::String(manifest.public_key.clone()),
             JsonValue::String(manifest.name.clone()),
@@ -300,8 +301,9 @@ impl ExtensionManager {
                 new_extension_id
             };
 
-            // 2. Permissions: Delete existing permissions for this extension (if updating)
-            // Use CRDT-aware delete function to properly handle tombstones
+            // 2. Permissions: Delete existing permissions for this extension (if updating).
+            // Use the CRDT-aware delete function so the BEFORE-DELETE trigger
+            // writes each removal into `haex_deleted_rows` and it propagates.
             PermissionManager::delete_permissions_in_transaction(&tx, &hlc_service, &actual_id)?;
 
             // 3. Permissions: Recreate with correct extension_id

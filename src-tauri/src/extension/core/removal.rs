@@ -86,8 +86,9 @@ impl ExtensionManager {
                     eprintln!("DEBUG: Dropped tables: {:?}", dropped_tables);
                 }
 
-                // First disable the extension before deleting (tombstoning)
-                // This ensures the extension won't be loaded even if tombstone filter fails
+                // First disable the extension before deleting.
+                // Belt-and-braces: even if the delete somehow leaves the row
+                // visible, the loader still refuses to run a disabled entry.
                 eprintln!(
                     "DEBUG: Disabling extension before delete: id = {}",
                     extension.id
@@ -99,7 +100,7 @@ impl ExtensionManager {
                     rusqlite::params![false, &extension.id],
                 )?;
 
-                // Delete extension entry (will be transformed to tombstone)
+                // Delete extension entry (BEFORE-DELETE trigger logs it to `haex_deleted_rows`)
                 eprintln!(
                     "DEBUG: Executing DELETE for extension id = {}",
                     extension.id

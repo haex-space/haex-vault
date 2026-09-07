@@ -14,13 +14,12 @@ export const crdtTableNames = tableNames.haex.crdt
 export const deletedRowsTableName = tableNames.haex.deleted_rows
 
 /**
- * CRDT Delete Log (CRDT-synced). Tombstone events for every hard DELETE on a
- * syncable table. The Rust BEFORE-DELETE trigger appends a row here with the
- * target table name, the row's PK values (as JSON), and the transaction HLC.
+ * CRDT Delete Log (CRDT-synced). One row per hard DELETE on a syncable
+ * table. The Rust BEFORE-DELETE trigger appends a row here with the target
+ * table name, the row's PK values (as JSON), and the transaction HLC.
  *
- * Main tables no longer carry a `haex_tombstone` column — delete information
- * lives exclusively in this table, so UNIQUE indexes on main tables stay FK-
- * parent-eligible.
+ * Deletes live exclusively in this table — no soft-delete column on the
+ * main tables — so UNIQUE indexes on main tables stay FK-parent-eligible.
  *
  * CRDT columns (haex_hlc_no_trigger, haex_column_hlcs_no_trigger) are appended automatically by the
  * Rust CrdtTransformer, just like any other syncable table.

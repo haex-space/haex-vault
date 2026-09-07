@@ -11,7 +11,7 @@ export enum VaultSettingsKeyEnum {
   theme = 'theme',
   vaultName = 'vault_name',
   desktopIconSize = 'desktop_icon_size',
-  tombstoneRetentionDays = 'tombstone_retention_days',
+  deleteLogRetentionDays = 'delete_log_retention_days',
   externalBridgePort = 'external_bridge_port',
   initialSyncComplete = 'initial_sync_complete',
   gradientVariant = 'gradient_variant',

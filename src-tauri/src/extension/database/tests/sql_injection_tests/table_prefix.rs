@@ -100,7 +100,7 @@ fn test_system_table_detection_comprehensive() {
         "haex_principal_permissions",
         crate::table_names::TABLE_EXTENSION_MIGRATIONS,
         "haex_crdt_migrations",
-        "haex_crdt_tombstones",
+        "haex_deleted_rows",
         "haex_filesync_backends",
         "haex_filesync_spaces",
         "haex_filesync_files",

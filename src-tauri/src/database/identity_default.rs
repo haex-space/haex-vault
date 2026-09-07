@@ -67,8 +67,9 @@ fn generate_default_identity_material() -> (String, String) {
 /// Ensures the currently open vault has at least one own identity. Idempotent:
 /// becomes a no-op when a row with private_key IS NOT NULL already exists.
 pub(super) fn ensure_default_identity(state: &State<'_, AppState>) -> Result<(), DatabaseError> {
-    // CRDT-aware existence check: select_with_crdt strips tombstoned rows,
-    // so a previously-deleted default identity doesn't suppress re-seeding.
+    // CRDT-aware existence check: a previously-deleted default identity
+    // lives in `haex_deleted_rows`, not `haex_identities`, so this SELECT
+    // does not see it and re-seeding proceeds.
     let existing = core::select_with_crdt(
         "SELECT id FROM haex_identities WHERE private_key IS NOT NULL LIMIT 1".to_string(),
         vec![],

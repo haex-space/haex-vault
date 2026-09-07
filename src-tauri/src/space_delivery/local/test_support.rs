@@ -70,7 +70,7 @@ use haex_crdt::HlcService;
 /// and `haex_space_members` on top. Look at `init_logs_db_inner` for the
 /// `haex_logs_no_sync` column list and the `_no_sync` table-name convention.
 ///
-/// CRDT-helper columns (e.g. `haex_tombstone`, HLC timestamps) never appear
+/// CRDT-helper columns (HLC timestamps, per-column HLCs, …) never appear
 /// in any CREATE TABLE in this module: the sync tables get them from
 /// `core::execute` at write-time, and `haex_logs_no_sync` deliberately never
 /// gets them — it is local-only and written through the
@@ -139,10 +139,11 @@ pub(crate) fn setup_membership_db() -> (
 /// `log_to_db` always inserts NULL there.
 ///
 /// The table is created **without** CRDT columns (`haex_hlc_no_trigger`,
-/// `haex_tombstone`, …), exactly like production: it is `_no_sync`, and log
-/// writes go through the [`crate::logging::LogSink`] (plain INSERTs), not
-/// `execute_with_crdt`. Adding CRDT columns here would diverge from
-/// production and re-arm the very sync path the `_no_sync` rename removed.
+/// `haex_column_hlcs_no_trigger`, …), exactly like production: it is
+/// `_no_sync`, and log writes go through the [`crate::logging::LogSink`]
+/// (plain INSERTs), not `execute_with_crdt`. Adding CRDT columns here
+/// would diverge from production and re-arm the very sync path the
+/// `_no_sync` rename removed.
 pub(crate) fn init_logs_db_inner() -> (Connection, HlcService) {
     let (conn, hlc, _uri) = init_logs_db_inner_with_uri();
     (conn, hlc)

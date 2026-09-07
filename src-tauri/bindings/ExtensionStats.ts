@@ -26,6 +26,6 @@ totalRows: bigint,
  */
 activeRows: bigint, 
 /**
- * Total tombstone rows across all tables
+ * Total delete-log entries across all tables
  */
-tombstoneRows: bigint, };
+deleteLogRowCount: bigint, };

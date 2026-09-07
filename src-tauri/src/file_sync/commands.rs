@@ -719,8 +719,8 @@ pub async fn file_sync_get_log(
         )
     };
 
-    // select_with_crdt automatically filters tombstoned rows so a previous
-    // clear_log call stays cleared after a reload.
+    // Deleted rows live in `haex_deleted_rows` (BEFORE-DELETE trigger); a
+    // previous clear_log call therefore stays cleared after a reload.
     let rows = crate::database::core::select_with_crdt(sql, params, &state.db)
         .map_err(|e| FileSyncCommandError::Internal(e.to_string()))?;
 
@@ -746,10 +746,11 @@ pub async fn file_sync_get_log(
     Ok(result)
 }
 
-/// Soft-delete all sync log entries for a rule via CRDT.
+/// Delete all sync log entries for a rule via CRDT.
 ///
-/// Uses `execute_with_crdt` so the tombstone propagates across devices — a
-/// hard delete would re-sync from peers on the next pull.
+/// Uses `execute_with_crdt` so the BEFORE-DELETE trigger writes each row
+/// into `haex_deleted_rows` and the deletion propagates across devices — a
+/// raw DELETE would re-sync from peers on the next pull.
 #[tauri::command(rename_all = "camelCase")]
 pub async fn file_sync_clear_log(
     state: State<'_, AppState>,

@@ -41,8 +41,8 @@
               color="success"
             />
             <UiStatCard
-              :label="t('overview.tombstones')"
-              :value="dbInfo.totalTombstones"
+              :label="t('overview.deletedEntries')"
+              :value="dbInfo.totalDeleteLogRows"
               color="warning"
             />
           </div>
@@ -142,10 +142,10 @@
                     <span class="hidden @md:inline">{{ t('extensions.modified') }}</span>
                   </span>
                   <span
-                    v-if="item.tombstoneRows > 0"
+                    v-if="item.deleteLogRowCount > 0"
                     class="text-sm text-warning"
                   >
-                    {{ item.tombstoneRows.toLocaleString() }}
+                    {{ item.deleteLogRowCount.toLocaleString() }}
                     <span class="hidden @md:inline">{{ t('extensions.deleted') }}</span>
                   </span>
                 </div>
@@ -171,10 +171,10 @@
                       {{ table.modifiedRows }}
                     </span>
                     <span
-                      v-if="table.tombstoneRows > 0"
+                      v-if="table.deleteLogRowCount > 0"
                       class="text-warning"
                     >
-                      {{ table.tombstoneRows }}
+                      {{ table.deleteLogRowCount }}
                     </span>
                     <UIcon
                       name="i-lucide-chevron-right"
@@ -193,7 +193,7 @@
             {{ t('actions.title') }}
           </h3>
 
-          <!-- Tombstone Retention Setting -->
+          <!-- Delete-log retention setting -->
           <div
             class="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-3"
           >
@@ -218,7 +218,7 @@
             </div>
           </div>
 
-          <!-- Force delete all tombstones -->
+          <!-- Force clear delete-log -->
           <div
             class="flex flex-col @sm:flex-row @sm:items-center @sm:justify-between gap-3"
           >
@@ -232,7 +232,7 @@
             </div>
             <UButton
               :loading="isForceDeleting"
-              :disabled="isForceDeleting || !hasTombstones"
+              :disabled="isForceDeleting || !hasDeleteLogEntries"
               color="error"
               variant="soft"
               class="w-full @sm:w-28 shrink-0 justify-center"
@@ -253,7 +253,7 @@
           </div>
           <div class="text-sm mt-2">
             {{
-              t('cleanup.tombstonesDeleted', {
+              t('cleanup.deletedEntriesRemoved', {
                 count: lastCleanupResult.rowsDeleted,
               })
             }}
@@ -290,7 +290,7 @@ const statusFilterOptions = computed(() => [
   { label: t('filter.deleted'), value: 'deleted' as const },
 ])
 
-const hasTombstones = computed(() => (dbInfo.value?.totalTombstones ?? 0) > 0)
+const hasDeleteLogEntries = computed(() => (dbInfo.value?.totalDeleteLogRows ?? 0) > 0)
 
 const retentionOptions = [
   { label: '7', value: 7 },
@@ -346,13 +346,13 @@ const extensionItems = computed(() => {
       const filteredTables = tablesWithModified.filter((table) => {
         if (status === 'modified' && Number(table.modifiedRows) === 0)
           return false
-        if (status === 'deleted' && Number(table.tombstoneRows) === 0)
+        if (status === 'deleted' && Number(table.deleteLogRowCount) === 0)
           return false
         if (
           status === 'nonEmpty' &&
           Number(table.activeRows) === 0 &&
           Number(table.modifiedRows) === 0 &&
-          Number(table.tombstoneRows) === 0
+          Number(table.deleteLogRowCount) === 0
         )
           return false
         if (query && !extNameMatches) {
@@ -379,8 +379,8 @@ const extensionItems = computed(() => {
           (sum, t) => sum + Number(t.activeRows),
           0,
         ),
-        tombstoneRows: sortedTables.reduce(
-          (sum, t) => sum + Number(t.tombstoneRows),
+        deleteLogRowCount: sortedTables.reduce(
+          (sum, t) => sum + Number(t.deleteLogRowCount),
           0,
         ),
         modifiedRows,
@@ -403,7 +403,7 @@ const loadDatabaseInfoAsync = async () => {
     dbInfo.value = await invoke<DatabaseInfo>('get_database_info')
     // Load persisted retention days
     const persistedRetentionDays =
-      await vaultSettingsStore.getTombstoneRetentionDaysAsync()
+      await vaultSettingsStore.getDeleteLogRetentionDaysAsync()
     retentionDays.value = persistedRetentionDays
   } catch (error) {
     console.error('Failed to load database info:', error)
@@ -415,7 +415,7 @@ const loadDatabaseInfoAsync = async () => {
 
 watch(retentionDays, async (newValue) => {
   try {
-    await vaultSettingsStore.updateTombstoneRetentionDaysAsync(newValue)
+    await vaultSettingsStore.updateDeleteLogRetentionDaysAsync(newValue)
     add({ description: t('retention.saved'), color: 'success' })
   } catch (error) {
     console.error('Failed to save retention days:', error)
@@ -459,7 +459,7 @@ de:
     fileSize: Dateigröße
     totalEntries: Einträge insgesamt
     activeEntries: Aktive Einträge
-    tombstones: Gelöschte Einträge
+    deletedEntries: Gelöschte Einträge
   extensions:
     title: Einträge nach Erweiterung
     tables: Tabellen
@@ -490,7 +490,7 @@ de:
   cleanup:
     success: Bereinigung erfolgreich abgeschlossen
     error: Bereinigung fehlgeschlagen
-    tombstonesDeleted: '{count} Löschmarkierungen entfernt'
+    deletedEntriesRemoved: '{count} gelöschte Einträge entfernt'
   forceDelete:
     success: Alle Löschmarkierungen wurden entfernt
     error: Fehler beim Löschen der Löschmarkierungen
@@ -506,7 +506,7 @@ en:
     fileSize: File Size
     totalEntries: Total Entries
     activeEntries: Active Entries
-    tombstones: Deleted Entries
+    deletedEntries: Deleted Entries
   extensions:
     title: Entries by Extension
     tables: tables
@@ -537,7 +537,7 @@ en:
   cleanup:
     success: Cleanup completed successfully
     error: Cleanup failed
-    tombstonesDeleted: '{count} deletion markers removed'
+    deletedEntriesRemoved: '{count} deleted entries removed'
   forceDelete:
     success: All deletion markers have been removed
     error: Failed to delete deletion markers

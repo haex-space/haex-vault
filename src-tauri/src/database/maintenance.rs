@@ -96,7 +96,7 @@ pub fn crdt_cleanup_deleted_rows(
     })
 }
 
-/// Gets statistics about CRDT tables (total entries, tombstoned entries, etc.)
+/// Gets statistics about CRDT tables (total entries, delete-log rows, etc.)
 #[tauri::command]
 pub fn crdt_get_stats(state: State<'_, AppState>) -> Result<CrdtStats, DatabaseError> {
     core::with_connection(&state.db, |conn| {

@@ -22,9 +22,9 @@
 //! cap on someone else's device.
 //!
 //! Reads go **directly through rusqlite** (not `select_with_crdt`) so the
-//! verifier's depth cap is not exposed to CRDT-level tombstone or shadow
-//! semantics. This is a plain SELECT — `sql-must-use-crdt-helpers` applies
-//! to writes on synced tables, not reads.
+//! verifier's depth cap is not exposed to CRDT-level shadow semantics.
+//! This is a plain SELECT — `sql-must-use-crdt-helpers` applies to writes
+//! on synced tables, not reads.
 
 use rusqlite::Connection;
 

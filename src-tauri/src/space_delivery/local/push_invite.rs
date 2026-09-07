@@ -206,8 +206,9 @@ pub fn handle_push_invite(
 
     // 6. Create pending invite with embedded space metadata.
     //    No dummy space in haex_spaces — that table is CRDT-synced and shares
-    //    the same PK as the inviter's active space. Any delete/tombstone on a
-    //    dummy entry would propagate and destroy the inviter's real space.
+    //    the same PK as the inviter's active space. Any delete on a dummy
+    //    entry would propagate through the delete-log and destroy the
+    //    inviter's real space.
     let invite_id = Uuid::new_v4().to_string();
     let now = OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)

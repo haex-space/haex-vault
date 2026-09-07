@@ -30,7 +30,9 @@ async fn rejects_revoked_member() {
     // admin terminate a member's access without re-issuing keys.
     let (db, _hlc, log_sink) = setup_membership_db();
     // Seed an identity but deliberately NOT a haex_space_members row for
-    // this (space, identity) pair — equivalent to a tombstoned membership.
+    // this (space, identity) pair — equivalent to a removed member (the
+    // BEFORE-DELETE trigger would have logged the row into
+    // `haex_deleted_rows` and dropped it from `haex_space_members`).
     insert_identity(&db, "id-revoked", "did:key:zRevoked");
 
     let mut peers_map: HashMap<String, ConnectedPeer> = HashMap::new();

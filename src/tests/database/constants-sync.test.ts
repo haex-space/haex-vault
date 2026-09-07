@@ -34,8 +34,8 @@ describe('VaultSettings Constants Synchronization', () => {
       expect(VaultSettingsKeyEnum.desktopIconSize).toBe('desktop_icon_size')
     })
 
-    it('should have correct "tombstoneRetentionDays" value (snake_case)', () => {
-      expect(VaultSettingsKeyEnum.tombstoneRetentionDays).toBe('tombstone_retention_days')
+    it('should have correct "deleteLogRetentionDays" value (snake_case)', () => {
+      expect(VaultSettingsKeyEnum.deleteLogRetentionDays).toBe('delete_log_retention_days')
     })
 
     it('should have correct "externalBridgePort" value (snake_case)', () => {

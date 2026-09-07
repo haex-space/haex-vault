@@ -227,8 +227,9 @@ impl PermissionManager {
         })
         .map_err(ExtensionError::from)
     }
-    /// Lädt alle Permissions einer Extension
-    /// Uses select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
+    /// Lädt alle Permissions einer Extension.
+    /// Uses select_with_crdt so all CRDT transforms apply; deleted rows
+    /// live in `haex_deleted_rows` and never surface here.
     pub async fn get_permissions(
         app_state: &State<'_, AppState>,
         principal: &Principal,

@@ -163,20 +163,22 @@ pub fn load_active_ucan_for_audience(
         .map(|(_, token)| token))
 }
 
-/// Check that `audience_did` is an active (non-tombstoned) member of `space_id`.
+/// Check that `audience_did` is an active member of `space_id`.
 ///
 /// This is the **revocation mechanism**: when an admin removes a member
-/// (`db.delete(haex_space_members)` → CRDT tombstone) the member's UCAN
-/// remains cryptographically valid but this check rejects every sync
-/// request. The MLS commit simultaneously removes the member from the
-/// content-encryption epoch, so the two act as a coupled kill-switch.
+/// (`db.delete(haex_space_members)` → BEFORE-DELETE trigger logs the row
+/// into `haex_deleted_rows`) the member's UCAN remains cryptographically
+/// valid but this check rejects every sync request. The MLS commit
+/// simultaneously removes the member from the content-encryption epoch,
+/// so the two act as a coupled kill-switch.
 pub fn is_active_space_member(
     db: &DbConnection,
     space_id: &str,
     audience_did: &str,
 ) -> Result<bool, DeliveryError> {
-    // `select_with_crdt` adds `IFNULL(haex_tombstone, 0) != 1` to every
-    // referenced table automatically, so we don't spell out the filter.
+    // Deleted membership rows have been removed from `haex_space_members`
+    // by the BEFORE-DELETE trigger (they live only in `haex_deleted_rows`),
+    // so a plain SELECT here already sees only active members.
     let sql = "SELECT COUNT(*) FROM haex_space_members m \
                JOIN haex_identities i ON m.identity_id = i.id \
                WHERE m.space_id = ?1 AND i.did = ?2"

@@ -7,8 +7,7 @@
 //!
 //! The DB deletes go through the CRDT helpers, so the resulting
 //! `haex_deleted_rows` entries propagate to space members even if they are
-//! currently offline (see memory `delete-log-not-tombstones`). No tombstone
-//! column is used.
+//! currently offline (delete-log model, see ADR 0002).
 //!
 //! # Order of operations
 //!

@@ -37,8 +37,8 @@ fn files_equal(a: &FileState, b: &FileState) -> bool {
 ///
 /// `delete_mode` is NOT applied in two-way mode — files missing on one side
 /// are treated as "new" (downloaded/uploaded), not as "deleted on the other
-/// side". Deletion propagation requires sync state (tombstones), which is
-/// handled by the sync engine, not the diff engine.
+/// side". Deletion propagation requires sync state (the delete-log), which
+/// is handled by the sync engine, not the diff engine.
 ///
 /// # Duplicate paths
 ///

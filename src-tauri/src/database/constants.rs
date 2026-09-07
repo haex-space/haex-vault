@@ -11,7 +11,7 @@ pub mod vault_settings_key {
     pub const THEME: &str = "theme";
     pub const VAULT_NAME: &str = "vault_name";
     pub const DESKTOP_ICON_SIZE: &str = "desktop_icon_size";
-    pub const TOMBSTONE_RETENTION_DAYS: &str = "tombstone_retention_days";
+    pub const DELETE_LOG_RETENTION_DAYS: &str = "delete_log_retention_days";
     pub const EXTERNAL_BRIDGE_PORT: &str = "external_bridge_port";
     pub const INITIAL_SYNC_COMPLETE: &str = "initial_sync_complete";
     pub const TRIGGERS_INITIALIZED: &str = "triggers_initialized";
@@ -49,7 +49,7 @@ mod tests {
             "theme": vault_settings_key::THEME,
             "vaultName": vault_settings_key::VAULT_NAME,
             "desktopIconSize": vault_settings_key::DESKTOP_ICON_SIZE,
-            "tombstoneRetentionDays": vault_settings_key::TOMBSTONE_RETENTION_DAYS,
+            "deleteLogRetentionDays": vault_settings_key::DELETE_LOG_RETENTION_DAYS,
             "externalBridgePort": vault_settings_key::EXTERNAL_BRIDGE_PORT,
             "initialSyncComplete": vault_settings_key::INITIAL_SYNC_COMPLETE,
             "triggersInitialized": vault_settings_key::TRIGGERS_INITIALIZED,

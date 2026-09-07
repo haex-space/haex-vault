@@ -105,8 +105,9 @@ impl ExtensionManager {
             })?
             .clear();
 
-        // Load all data from database
-        // Use select_with_crdt to automatically filter out tombstoned (soft-deleted) entries
+        // Load all data from database.
+        // Use select_with_crdt so all normal CRDT transformations apply.
+        // Deleted extensions are absent (they live in `haex_deleted_rows`).
         // Load all extensions - dev_path determines if it's a dev extension
         eprintln!(
             "DEBUG: SQL Query (will be transformed by select_with_crdt): {}",

@@ -209,10 +209,11 @@ pub fn execute_sql_with_context(
         .pop()
         .expect("invariant: ast_vec.len() == 1 checked at the guard above");
 
-    // If this is a SELECT statement, apply tombstone filter and execute
+    // If this is a SELECT statement, apply CRDT transforms and execute
     if let Statement::Query(ref mut query) = statement {
-        // Apply CRDT tombstone filter to SELECT queries
-        // This ensures tombstoned (soft-deleted) rows are filtered out
+        // Apply CRDT transforms. Deleted rows are absent from main tables
+        // (they live only in `haex_deleted_rows`), so the transformer's
+        // work here is mostly a no-op for SELECT — kept for consistency.
         let transformer = CrdtTransformer::new();
         transformer.transform_query(query);
 

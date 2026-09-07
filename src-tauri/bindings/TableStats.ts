@@ -13,10 +13,10 @@ name: string,
  */
 totalRows: bigint, 
 /**
- * Number of active (non-tombstoned) rows
+ * Number of active (currently present) rows
  */
 activeRows: bigint, 
 /**
- * Number of tombstoned (soft-deleted) rows
+ * Number of delete-log entries targeting this table
  */
-tombstoneRows: bigint, };
+deleteLogRowCount: bigint, };
