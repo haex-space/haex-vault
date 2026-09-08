@@ -19,21 +19,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-/// Sync metadata columns to exclude from scanning (not user data).
-///
-/// Post-D-4: all four now carry the `_no_trigger` suffix, so the trigger
-/// installer skips them at the trigger level too. Keeping the explicit list
-/// here belt-and-braces for scanner correctness even if someone declares a
-/// `_no_trigger` column intentionally (scanner is not identical semantics —
-/// it decides what to *ship*, not what fires triggers). Sync-metadata cols
-/// still cannot be shipped even when triggered.
-const EXCLUDED_SYNC_COLUMNS: &[&str] = &[
-    "last_push_hlc_timestamp_no_sync",
-    "last_pull_server_timestamp_no_sync",
-    "updated_at_no_sync",
-    "created_at_no_sync",
-];
-
 /// Whitelist of CRDT tables that may be synchronised between peers of a
 /// shared space. Everything else (identities, sync backends, vault settings,
 /// pending invites, UCAN chains, extension tables …) is considered vault-
@@ -193,7 +178,10 @@ pub struct LocalColumnChange {
 /// Data columns exclude:
 /// - PK columns
 /// - CRDT metadata: `haex_hlc_no_trigger`, `haex_column_hlcs_no_trigger`, `haex_column_sigs_no_trigger`
-/// - Sync metadata: `last_push_hlc_timestamp_no_sync`, `last_pull_server_timestamp_no_sync`, `updated_at_no_sync`, `created_at_no_sync`
+/// - Any `*_no_sync` column: it is not part of CRDT sync, so it must never
+///   be shipped (and is not tracked either)
+///
+/// Mirrors `haex_crdt`'s own `partition_columns`.
 fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInfo>) {
     let pk_columns: Vec<&ColumnInfo> = schema.iter().filter(|c| c.is_pk).collect();
     let data_columns: Vec<&ColumnInfo> = schema
@@ -203,7 +191,7 @@ fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInf
                 && c.name != HLC_TIMESTAMP_COLUMN
                 && c.name != COLUMN_HLCS_COLUMN
                 && c.name != COLUMN_SIGS_COLUMN
-                && !EXCLUDED_SYNC_COLUMNS.contains(&c.name.as_str())
+                && !c.name.ends_with("_no_sync")
         })
         .collect();
     (pk_columns, data_columns)
