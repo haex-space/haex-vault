@@ -351,61 +351,6 @@ pub fn drop_triggers_for_table(
     Ok(())
 }
 
-/* pub fn recreate_triggers_for_table(
-    conn: &mut Connection,
-    table_name: &str,
-) -> Result<TriggerSetupResult, CrdtSetupError> {
-    // Starte eine einzige Transaktion für beide Operationen
-    let tx = conn.transaction()?;
-
-    // 1. Rufe die Drop-Funktion auf
-    drop_triggers_for_table(&tx, table_name)?;
-
-    // 2. Erstelle die Trigger neu (vereinfachte Logik ohne Drop)
-    // Wir rufen die `setup_triggers_for_table` Logik hier manuell nach,
-    // um die Transaktion weiterzuverwenden.
-    let columns = get_table_schema(&tx, table_name)?;
-
-    if columns.is_empty() {
-        tx.commit()?; // Wichtig: Transaktion beenden
-        return Ok(TriggerSetupResult::TableNotFound);
-    }
-    // ... (Validierungslogik wiederholen) ...
-    if !columns.iter().any(|c| c.name == TOMBSTONE_COLUMN) {
-        /* ... */
-        return Err(CrdtSetupError::TombstoneColumnMissing {
-            table_name: table_name.to_string(),
-            column_name: TOMBSTONE_COLUMN.to_string(),
-        });
-    }
-    let pks: Vec<String> = columns
-        .iter()
-        .filter(|c| c.is_pk)
-        .map(|c| c.name.clone())
-        .collect();
-    if pks.is_empty() {
-        /* ... */
-        return Err(CrdtSetupError::PrimaryKeyMissing {
-            table_name: table_name.to_string(),
-        });
-    }
-    let cols_to_track: Vec<String> = columns
-        .iter()
-        .filter(|c| !c.is_pk && c.name != TOMBSTONE_COLUMN && c.name != HLC_TIMESTAMP_COLUMN)
-        .map(|c| c.name.clone())
-        .collect();
-
-    let insert_trigger_sql = generate_insert_trigger_sql(table_name, &pks, &cols_to_track);
-    let update_trigger_sql = generate_update_trigger_sql(table_name, &pks, &cols_to_track);
-    let sql_batch = format!("{}\n{}", insert_trigger_sql, update_trigger_sql);
-    tx.execute_batch(&sql_batch)?;
-
-    // Beende die Transaktion
-    tx.commit()?;
-
-    Ok(TriggerSetupResult::Success)
-}
- */
 /// Generates SQL for INSERT trigger - populates column HLCs and marks table as dirty
 fn generate_insert_trigger_sql(
     table_name: &str,
