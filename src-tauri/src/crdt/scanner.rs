@@ -3,21 +3,22 @@
 //! This is the Rust equivalent of `src/stores/sync/tableScanner.ts` (`scanTableForChangesAsync`).
 //! It produces unencrypted column-level changes for local space sync over QUIC,
 //! which provides transport encryption.
+//!
+//! The generic row-emission, pagination and schema-partitioning logic lives in
+//! `haex_crdt`; this module is the shared-space layer composed on top of it:
+//! the whitelists, the `haex_shared_space_sync` register lookup, and the
+//! per-space signature resolution. `haex_crdt` is deliberately space-agnostic
+//! and stays that way.
 
 use crate::crdt::commands::apply::ColumnSig;
-use crate::crdt::trigger::{
-    get_table_schema, ColumnInfo, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN, HLC_TIMESTAMP_COLUMN,
-};
-use crate::database::core::{
-    convert_value_ref_to_json, with_connection, MAX_CRDT_TRANSACTION_BYTES,
-};
+use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
-use haex_crdt::hlc_is_newer;
+use haex_crdt::{get_table_schema, ColumnChange, Paginable, ScanFilters};
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 /// Whitelist of CRDT tables that may be synchronised between peers of a
 /// shared space. Everything else (identities, sync backends, vault settings,
@@ -117,7 +118,8 @@ pub fn is_space_scoped_table(table_name: &str) -> bool {
 /// reader `tableScanner.ts:446-449` (`json_object('pk1', t."pk1", 'pk2',
 /// t."pk2")`, iteration order = schema order). The Rust CRDT scanner
 /// builds its PK JSON via an explicit string builder iterating
-/// `pk_columns` in schema order — see `emit_row_changes`.
+/// `pk_columns` in schema order — see
+/// `haex_crdt::scan_table_for_local_changes`.
 ///
 /// Every writer of `haex_shared_space_sync.row_pks` must produce the same
 /// schema-declaration form, or a `HashSet::contains` filter on composite
@@ -173,38 +175,68 @@ pub struct LocalColumnChange {
     pub sig: Option<ColumnSig>,
 }
 
-/// Splits a table schema into PK columns and syncable data columns.
-///
-/// Data columns exclude:
-/// - PK columns
-/// - CRDT metadata: `haex_hlc_no_trigger`, `haex_column_hlcs_no_trigger`, `haex_column_sigs_no_trigger`
-/// - Any `*_no_sync` column: it is not part of CRDT sync, so it must never
-///   be shipped (and is not tracked either)
-///
-/// Mirrors `haex_crdt`'s own `partition_columns`.
-fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInfo>) {
-    let pk_columns: Vec<&ColumnInfo> = schema.iter().filter(|c| c.is_pk).collect();
-    let data_columns: Vec<&ColumnInfo> = schema
-        .iter()
-        .filter(|c| {
-            !c.is_pk
-                && c.name != HLC_TIMESTAMP_COLUMN
-                && c.name != COLUMN_HLCS_COLUMN
-                && c.name != COLUMN_SIGS_COLUMN
-                && !c.name.ends_with("_no_sync")
-        })
-        .collect();
-    (pk_columns, data_columns)
+impl Paginable for LocalColumnChange {
+    fn transaction_hlc(&self) -> &str {
+        &self.hlc_timestamp
+    }
 }
 
-/// Like `scan_table_for_local_changes` but with two additional predicates:
+/// Resolves a `haex_crdt` [`ColumnChange`] into vault's per-space
+/// [`LocalColumnChange`].
+///
+/// `ColumnChange::sig` is the **raw** entry from
+/// `haex_column_sigs_no_trigger` for that column — vault's whole
+/// `{space_id: sig}` object, undecoded, because the crate must not know
+/// about spaces. This is the only place that opens it.
+///
+/// `sig_space_id` is deliberately **decoupled** from the SQL `space_id`
+/// filter: extension/content tables carry per-space sigs in
+/// `haex_column_sigs_no_trigger` but have no `space_id` column of their own,
+/// so the registry-driven path resolves sigs for a space it never filtered
+/// on. Owner-vault paths pass `None` and get `sig: None` — that sync is
+/// unscoped and has no space to key a signature by.
+///
+/// A sig entry that fails to decode into [`ColumnSig`] is swallowed
+/// (`.ok()`) and travels as `None`, so one malformed sig cannot abort a
+/// scan; the receiver's registered-content gate rejects the change instead.
+fn to_local_change(change: ColumnChange, sig_space_id: Option<&str>) -> LocalColumnChange {
+    let sig = sig_space_id.and_then(|space_id| {
+        change
+            .sig
+            .as_ref()
+            .and_then(|by_space| by_space.get(space_id))
+            .cloned()
+            .and_then(|record| serde_json::from_value(record).ok())
+    });
+
+    LocalColumnChange {
+        table_name: change.table_name,
+        row_pks: change.row_pks,
+        column_name: change.column_name,
+        hlc_timestamp: change.hlc_timestamp,
+        value: change.value,
+        device_id: change.device_id,
+        sig,
+    }
+}
+
+/// Like `haex_crdt::scan_table_for_local_changes` but with two additional
+/// predicates:
 ///
 /// * `space_id_filter` — restricts the scan to rows where `space_id = ?`. Used
 ///   by the space-scoped sync path to prevent leaking rows from other spaces.
+///   It doubles as the sig-space: if a row survived the WHERE clause it is
+///   *this* space's row, so any sig forwarded must also be indexed by *this*
+///   space.
 /// * `origin_node_filter` — when `Some`, the scanner emits a column change only
 ///   if its HLC's node-id matches the given `u128`. This stops "ping-pong"
 ///   re-pushes: rows freshly pulled from a peer carry that peer's HLC node-id
 ///   and would otherwise be re-scanned and pushed back on the next cycle.
+///
+/// A `space_id_filter` on a table that has no `space_id` column yields zero
+/// rows rather than the whole table — `ScanFilters::column_eq` is fail-closed
+/// on an absent filter column, so a misconfigured filter cannot leak a
+/// vault-private table.
 pub fn scan_table_for_local_changes_scoped(
     conn: &Connection,
     table_name: &str,
@@ -213,290 +245,22 @@ pub fn scan_table_for_local_changes_scoped(
     space_id_filter: Option<&str>,
     origin_node_filter: Option<u128>,
 ) -> Result<Vec<LocalColumnChange>, DatabaseError> {
-    let schema = get_table_schema(conn, table_name).map_err(DatabaseError::from)?;
+    let changes = haex_crdt::scan_table_for_local_changes(
+        conn,
+        table_name,
+        after_hlc,
+        device_id,
+        ScanFilters {
+            origin_node: origin_node_filter,
+            row_pks: None,
+            column_eq: space_id_filter.map(|space_id| ("space_id", space_id)),
+        },
+    )?;
 
-    if schema.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let (pk_columns, data_columns) = partition_columns(&schema);
-
-    if pk_columns.is_empty() {
-        return Err(DatabaseError::ExecutionError {
-            sql: format!("PRAGMA table_info(\"{}\")", table_name),
-            reason: format!("Table '{}' has no primary key", table_name),
-            table: Some(table_name.to_string()),
-        });
-    }
-
-    // If the caller asked to filter by space_id but the table has no
-    // `space_id` column, treat that as "no matching rows" rather than
-    // silently returning the whole table.
-    let has_space_id_column = schema.iter().any(|c| c.name == "space_id");
-    if space_id_filter.is_some() && !has_space_id_column {
-        return Ok(Vec::new());
-    }
-
-    // Build column list: PKs + data columns + CRDT metadata
-    let mut select_columns: Vec<&str> = Vec::new();
-    for col in &pk_columns {
-        select_columns.push(&col.name);
-    }
-    for col in &data_columns {
-        select_columns.push(&col.name);
-    }
-    select_columns.push(HLC_TIMESTAMP_COLUMN);
-    select_columns.push(COLUMN_HLCS_COLUMN);
-    let has_column_sigs = schema.iter().any(|c| c.name == COLUMN_SIGS_COLUMN);
-    if has_column_sigs {
-        select_columns.push(COLUMN_SIGS_COLUMN);
-    }
-
-    let column_list: String = select_columns
-        .iter()
-        .map(|c| format!("\"{}\"", c))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let mut where_clauses: Vec<String> = Vec::new();
-    let mut params: Vec<String> = Vec::new();
-
-    if let Some(hlc) = after_hlc {
-        // Admit rows whose row-level HLC is absent (NULL) or empty in addition
-        // to those strictly newer than the cursor. A corrupt/legacy row can
-        // carry `haex_hlc_no_trigger = ''` while still holding a valid per-column HLC in
-        // `haex_column_hlcs_no_trigger`; a bare `"haex_hlc_no_trigger" > ?` prefilter drops it before
-        // the per-column fallback below can emit that valid change, so the row
-        // could only ever converge on a full scan. The per-column loop re-checks
-        // each HLC against `after_hlc`, so widening here cannot leak stale
-        // columns — rows with no usable HLC are still skipped.
-        where_clauses.push(format!(
-            "(\"{col}\" > ?{n} OR \"{col}\" IS NULL OR \"{col}\" = '')",
-            col = HLC_TIMESTAMP_COLUMN,
-            n = where_clauses.len() + 1
-        ));
-        params.push(hlc.to_string());
-    }
-    if let Some(space_id) = space_id_filter {
-        where_clauses.push(format!("\"space_id\" = ?{}", where_clauses.len() + 1));
-        params.push(space_id.to_string());
-    }
-
-    let query = if where_clauses.is_empty() {
-        format!("SELECT {} FROM \"{}\"", column_list, table_name)
-    } else {
-        format!(
-            "SELECT {} FROM \"{}\" WHERE {}",
-            column_list,
-            table_name,
-            where_clauses.join(" AND ")
-        )
-    };
-
-    let mut stmt = conn.prepare(&query).map_err(DatabaseError::from)?;
-
-    let param_refs: Vec<&dyn rusqlite::ToSql> =
-        params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-
-    let mut rows = stmt
-        .query(param_refs.as_slice())
-        .map_err(DatabaseError::from)?;
-
-    let mut changes: Vec<LocalColumnChange> = Vec::new();
-
-    while let Some(row) = rows.next().map_err(DatabaseError::from)? {
-        // The sig-space is the same as the `space_id` filter in this caller:
-        // if a row survived the WHERE clause it is *this* space's row, so any
-        // sig we forward must also be indexed by *this* space.
-        emit_row_changes(
-            row,
-            &select_columns,
-            &pk_columns,
-            &data_columns,
-            table_name,
-            after_hlc,
-            device_id,
-            space_id_filter,
-            origin_node_filter,
-            None,
-            &mut changes,
-        )?;
-    }
-
-    Ok(changes)
-}
-
-/// Per-row column-change emitter shared by both scan paths.
-///
-/// Extracted from `scan_table_for_local_changes_scoped` when the registry-
-/// driven pass (`scan_registered_table_rows_for_space`, Task 5) needed the
-/// same row → columns emission logic but with two differences:
-///
-/// * `sig_space_id` is decoupled from the SQL `space_id` filter (extension
-///   tables have no `space_id` column but still carry per-space sigs in
-///   `haex_column_sigs_no_trigger`), and
-/// * an optional `row_pks_filter` short-circuits emission for rows whose
-///   canonical PK JSON is not on the registry-provided allow-list.
-///
-/// Old callers pass `sig_space_id = space_id_filter` and
-/// `row_pks_filter = None` — semantics are preserved.
-#[allow(clippy::too_many_arguments)]
-fn emit_row_changes(
-    row: &rusqlite::Row<'_>,
-    select_columns: &[&str],
-    pk_columns: &[&ColumnInfo],
-    data_columns: &[&ColumnInfo],
-    table_name: &str,
-    after_hlc: Option<&str>,
-    device_id: &str,
-    sig_space_id: Option<&str>,
-    origin_node_filter: Option<u128>,
-    row_pks_filter: Option<&HashSet<&str>>,
-    out: &mut Vec<LocalColumnChange>,
-) -> Result<(), DatabaseError> {
-    // Read all column values into a name -> JsonValue map
-    let mut row_map: HashMap<&str, JsonValue> = HashMap::new();
-    for (i, col_name) in select_columns.iter().enumerate() {
-        let value_ref = row.get_ref(i).map_err(DatabaseError::from)?;
-        let json_val = convert_value_ref_to_json(value_ref)?;
-        row_map.insert(col_name, json_val);
-    }
-
-    // Build canonical PK JSON string in **schema-declaration order** — the
-    // writer wire form. `extension_space_assign` stores `row_pks` verbatim
-    // from the caller, and TS extensions produce PK JSON via
-    // `JSON.stringify({pk1: ..., pk2: ...})` where the object literal is
-    // built in schema-PK-declaration order. The TS reader
-    // (`tableScanner.ts:446-449`) mirrors that via
-    // `json_object('pk1', t."pk1", 'pk2', t."pk2")`, which also preserves
-    // schema order. This scanner must produce the same form, or a
-    // `HashSet::contains(pk_json)` filter on composite PKs with
-    // non-alphabetical schema order like `(b, a)` would miss the row and
-    // silently drop it.
-    //
-    // We cannot use `serde_json::Map<String, JsonValue>` here — without the
-    // `preserve_order` feature it is a `BTreeMap` and sorts keys
-    // alphabetically. Construct the JSON string explicitly instead, iterating
-    // `pk_columns` in the order returned by `get_table_schema` (schema-
-    // declaration order).
-    let mut pk_json = String::from("{");
-    let mut first = true;
-    for pk in pk_columns {
-        let val = row_map
-            .get(pk.name.as_str())
-            .cloned()
-            .unwrap_or(JsonValue::Null);
-        if !first {
-            pk_json.push(',');
-        }
-        first = false;
-        // Both key and value go through serde_json so escaping (quotes,
-        // backslashes, control chars, non-ASCII) matches what TS
-        // `JSON.stringify` produces.
-        let key_json = serde_json::to_string(&pk.name).map_err(|e| DatabaseError::QueryError {
-            reason: format!("serialize pk column name '{}': {e}", pk.name),
-        })?;
-        let val_json = serde_json::to_string(&val).map_err(|e| DatabaseError::QueryError {
-            reason: format!("serialize pk column value for '{}': {e}", pk.name),
-        })?;
-        pk_json.push_str(&key_json);
-        pk_json.push(':');
-        pk_json.push_str(&val_json);
-    }
-    pk_json.push('}');
-
-    // Registry-driven scan: skip rows whose PK JSON is not on the allow-list.
-    // The allow-list is derived from `haex_shared_space_sync.row_pks`, which
-    // uses the same canonical encoding, so a plain string membership check is
-    // sufficient. Applied here — before parsing the HLC/sig JSON blobs —
-    // so a table with many rows but few registered PKs pays deserialisation
-    // cost only for allow-listed rows.
-    if let Some(wanted) = row_pks_filter {
-        if !wanted.contains(pk_json.as_str()) {
-            return Ok(());
-        }
-    }
-
-    // Parse haex_column_hlcs_no_trigger JSON
-    let column_hlcs: HashMap<String, String> = match row_map.get(COLUMN_HLCS_COLUMN) {
-        Some(JsonValue::String(s)) => serde_json::from_str(s).unwrap_or_default(),
-        _ => HashMap::new(),
-    };
-    let column_sigs: JsonValue = row_map
-        .get(COLUMN_SIGS_COLUMN)
-        .and_then(JsonValue::as_str)
-        .and_then(|raw| serde_json::from_str(raw).ok())
-        .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
-
-    // Row-level HLC as fallback. An empty string is treated as "absent":
-    // a corrupt/legacy row can carry `haex_hlc_no_trigger = ''` (e.g. inserted before
-    // the HLC trigger existed, or by an older build), and an empty HLC must
-    // never be propagated as if it were a real timestamp.
-    let row_hlc = match row_map.get(HLC_TIMESTAMP_COLUMN) {
-        Some(JsonValue::String(s)) if !s.is_empty() => Some(s.as_str()),
-        _ => None,
-    };
-
-    // For each data column, emit a change if its HLC > after_hlc
-    for col in data_columns {
-        // Treat an empty per-column HLC as absent so it falls back to the
-        // row HLC; if both are empty/missing the column has no usable
-        // timestamp and is skipped. This stops empty-string HLCs (`""`)
-        // from ever being emitted as `hlc_timestamp`. Downstream, every
-        // apply ran `compare_hlc_strings("")` per such column — the source
-        // of the `[HLC] cannot parse time component of ""` log flood — and
-        // the row could never converge (`"" > anything` is always false),
-        // so it was re-scanned and re-sent on every full pull forever.
-        let col_hlc = column_hlcs
-            .get(&col.name)
-            .map(|s| s.as_str())
-            .filter(|s| !s.is_empty());
-
-        let hlc_to_use = match col_hlc.or(row_hlc) {
-            Some(h) => h,
-            None => continue, // no usable HLC — skip
-        };
-
-        // Check if this column's HLC is newer than after_hlc
-        let passes_hlc = match after_hlc {
-            Some(threshold) => hlc_is_newer(hlc_to_use, threshold),
-            None => true,
-        };
-
-        // If the caller asked for origin filtering, only emit columns we
-        // wrote ourselves. Rows applied from inbound sync carry the
-        // remote peer's node-id and must not be pushed back.
-        let passes_origin = match origin_node_filter {
-            Some(our_node) => haex_crdt::hlc_is_from_node(hlc_to_use, our_node),
-            None => true,
-        };
-
-        if passes_hlc && passes_origin {
-            let value = row_map
-                .get(col.name.as_str())
-                .cloned()
-                .unwrap_or(JsonValue::Null);
-            let sig = sig_space_id.and_then(|space_id| {
-                column_sigs
-                    .get(&col.name)
-                    .and_then(|by_space| by_space.get(space_id))
-                    .cloned()
-                    .and_then(|record| serde_json::from_value(record).ok())
-            });
-
-            out.push(LocalColumnChange {
-                table_name: table_name.to_string(),
-                row_pks: pk_json.clone(),
-                column_name: col.name.clone(),
-                hlc_timestamp: hlc_to_use.to_string(),
-                value,
-                device_id: device_id.to_string(),
-                sig,
-            });
-        }
-    }
-
-    Ok(())
+    Ok(changes
+        .into_iter()
+        .map(|change| to_local_change(change, space_id_filter))
+        .collect())
 }
 
 /// Scans an extension-owned table for rows whose canonical PK JSON is on the
@@ -510,21 +274,37 @@ fn emit_row_changes(
 /// `haex_column_sigs_no_trigger` (W1 → W2 contract: the receiver's registered-content
 /// gate rejects rows without a matching per-space sig).
 ///
+/// # Error policy: warn-and-skip on the register, propagate on the scan
+///
+/// `table_name` comes from `haex_shared_space_sync`, which is itself
+/// replicated content and therefore peer-influenced — treat it as untrusted.
+/// A malformed register entry (unsafe identifier, dropped/renamed target
+/// table, or a table with no primary key) must not abort the whole space
+/// push: pass 1 (control-plane) already produced changes, and other register
+/// entries for the same space must still be scanned. Those three cases are
+/// therefore decided by the cheap pre-checks below and skipped with a
+/// `warn!`.
+///
+/// Everything the scan itself reports is a genuine mid-scan failure and
+/// **propagates**. Do not widen the pre-check into a catch-and-warn around
+/// the scan call: that would turn a real I/O failure into "no changes",
+/// silently stalling a space's push instead of surfacing it.
+///
 /// # Parameters
 ///
 /// * `row_pks_set` — canonical PK JSON strings (`{"id":"row-1"}`, or
 ///   `{"col_b":"y","col_a":"x"}` for a composite PK declared `(col_b,
-///   col_a)`). Encoding must match what [`emit_row_changes`] produces via
+///   col_a)`). Encoding must match what `haex_crdt`'s scanner produces via
 ///   the explicit string builder iterating `pk_columns` in
-///   **schema-declaration order** (the order returned by
-///   `get_table_schema`). This matches the writer wire form: TS extensions
-///   emit `JSON.stringify({pk1: ..., pk2: ...})` on object literals built
-///   in schema-PK-declaration order, and `extension_space_assign` stores
+///   **schema-declaration order** (the order `get_table_schema` returns
+///   them). This matches the writer wire form: TS extensions emit
+///   `JSON.stringify({pk1: ..., pk2: ...})` on object literals built in
+///   schema-PK-declaration order, and `extension_space_assign` stores
 ///   `row_pks` verbatim. See `tableScanner.ts:446-449` for the TS reader's
 ///   `json_object` construction, which also preserves schema order. Every
 ///   register writer must therefore emit schema-declaration-order PK JSON,
 ///   or composite-PK rows with non-alphabetical schema order will silently
-///   be skipped by the `HashSet::contains` check in [`emit_row_changes`].
+///   be skipped by the crate's `ScanFilters::row_pks` membership check.
 /// * `after_hlc` — exclusive HLC lower bound, same semantics as
 ///   [`scan_table_for_local_changes_scoped`].
 /// * `origin_node` — ping-pong filter, same semantics as
@@ -542,14 +322,9 @@ fn scan_registered_table_rows_for_space(
         return Ok(Vec::new());
     }
 
-    // `table_name` comes from `haex_shared_space_sync`, which is itself
-    // replicated content and therefore peer-influenced — treat it as
-    // untrusted here. A malformed registry entry (unsafe identifier,
-    // dropped/renamed target table, or a table with no primary key) must
-    // not abort the whole space push: pass 1 (control-plane) already
-    // produced changes above, and other register entries for the same
-    // space must still be scanned. Skip with a `warn!` instead of
-    // propagating the error.
+    // Pre-checks for the skip decision — see the error policy above. Cheap
+    // (one PRAGMA), and deliberately separate from the scan so the scan's own
+    // errors stay propagating.
     let schema = match get_table_schema(conn, table_name) {
         Ok(s) if !s.is_empty() => s,
         Ok(_) => return Ok(Vec::new()),
@@ -565,9 +340,7 @@ fn scan_registered_table_rows_for_space(
         }
     };
 
-    let (pk_columns, data_columns) = partition_columns(&schema);
-
-    if pk_columns.is_empty() {
+    if !schema.iter().any(|c| c.is_pk) {
         tracing::warn!(
             target: "crdt::scanner",
             table = %table_name,
@@ -577,84 +350,29 @@ fn scan_registered_table_rows_for_space(
         return Ok(Vec::new());
     }
 
-    // Build column list: PKs + data columns + CRDT metadata.
-    let mut select_columns: Vec<&str> = Vec::new();
-    for col in &pk_columns {
-        select_columns.push(&col.name);
-    }
-    for col in &data_columns {
-        select_columns.push(&col.name);
-    }
-    select_columns.push(HLC_TIMESTAMP_COLUMN);
-    select_columns.push(COLUMN_HLCS_COLUMN);
-    let has_column_sigs = schema.iter().any(|c| c.name == COLUMN_SIGS_COLUMN);
-    if has_column_sigs {
-        select_columns.push(COLUMN_SIGS_COLUMN);
-    }
-
-    let column_list: String = select_columns
-        .iter()
-        .map(|c| format!("\"{}\"", c))
-        .collect::<Vec<_>>()
-        .join(", ");
-
     // Only the HLC threshold is pushed down to SQL — the PK allow-list is
-    // applied in-memory via `row_pks_filter`. Registry sizes are expected to
-    // be dozens–thousands per space, so an extra scan of the target table is
-    // cheaper than building a variadic PK-tuple WHERE clause. If perf
-    // measurements later say otherwise, switch to per-PK WHERE binding.
-    let mut where_clauses: Vec<String> = Vec::new();
-    let mut params: Vec<String> = Vec::new();
+    // applied in-memory by the crate's `row_pks` filter. Registry sizes are
+    // expected to be dozens–thousands per space, so an extra scan of the
+    // target table is cheaper than building a variadic PK-tuple WHERE clause.
+    let wanted: HashSet<String> = row_pks_set.iter().cloned().collect();
 
-    if let Some(hlc) = after_hlc {
-        where_clauses.push(format!(
-            "(\"{col}\" > ?{n} OR \"{col}\" IS NULL OR \"{col}\" = '')",
-            col = HLC_TIMESTAMP_COLUMN,
-            n = where_clauses.len() + 1
-        ));
-        params.push(hlc.to_string());
-    }
-
-    let query = if where_clauses.is_empty() {
-        format!("SELECT {} FROM \"{}\"", column_list, table_name)
-    } else {
-        format!(
-            "SELECT {} FROM \"{}\" WHERE {}",
-            column_list,
-            table_name,
-            where_clauses.join(" AND ")
-        )
-    };
-
-    let mut stmt = conn.prepare(&query).map_err(DatabaseError::from)?;
-    let param_refs: Vec<&dyn rusqlite::ToSql> =
-        params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-    let mut rows = stmt
-        .query(param_refs.as_slice())
-        .map_err(DatabaseError::from)?;
-
-    let wanted: HashSet<&str> = row_pks_set.iter().map(String::as_str).collect();
-
-    let mut changes: Vec<LocalColumnChange> = Vec::new();
-    while let Some(row) = rows.next().map_err(DatabaseError::from)? {
-        emit_row_changes(
-            row,
-            &select_columns,
-            &pk_columns,
-            &data_columns,
-            table_name,
-            after_hlc,
-            device_id,
-            Some(space_id),
+    let changes = haex_crdt::scan_table_for_local_changes(
+        conn,
+        table_name,
+        after_hlc,
+        device_id,
+        ScanFilters {
             origin_node,
-            Some(&wanted),
-            &mut changes,
-        )?;
-    }
+            row_pks: Some(&wanted),
+            column_eq: None,
+        },
+    )?;
 
-    Ok(changes)
+    Ok(changes
+        .into_iter()
+        .map(|change| to_local_change(change, Some(space_id)))
+        .collect())
 }
-
 /// Scans the whitelist of space-scoped CRDT tables for rows belonging to
 /// `space_id`. This is the authoritative scanner for peer-to-peer SyncPull:
 /// the caller guarantees that only these tables and only these rows cross
@@ -907,88 +625,6 @@ pub fn scan_single_column_for_owner(
 // would receive rows from every space the leader was in. It has been
 // removed. Use `scan_space_scoped_tables_for_local_changes` for peer sync.
 
-/// The serve-side per-page byte budget for a paginated `SyncPull`.
-///
-/// One transaction-HLC group is one source transaction, capped at
-/// [`MAX_CRDT_TRANSACTION_BYTES`] (ADR 0001) at `execute_with_crdt`. Setting the
-/// page budget equal to that cap means a single page always has room for the
-/// largest legal transaction (the ≥1 rule in [`paginate_changes`] guarantees
-/// even an at-cap group is emitted), so no transaction can ever be too big to
-/// page out. The wire frame cap (`protocol::WIRE_FRAME_MAX`) is sized above this
-/// to carry such a page plus envelope overhead.
-pub(crate) const PULL_PAGE_BUDGET: usize = MAX_CRDT_TRANSACTION_BYTES;
-
-/// Pack whole transaction-HLC groups into one page until adding the next group
-/// would exceed `page_budget`, returning `(page, has_more)`.
-///
-/// HLC == one source transaction, so all changes sharing an `hlc_timestamp`
-/// belong to one transaction and are never split across a page boundary. Groups
-/// are emitted in ascending HLC order (matching the scanner's global ordering
-/// and `group_by_transaction_hlc`), so the client can resume the next page at
-/// the MAX HLC of the page just received — the cursor stays HLC-only.
-///
-/// Packing rule: maintain a running serialized byte total. A group's size is
-/// `serde_json::to_vec(&group).map(|v| v.len()).unwrap_or(usize::MAX)` (an
-/// unmeasurable group counts as maximal, so it can only ever stand alone). Add
-/// the group iff `running + group_size <= page_budget`; otherwise STOP and defer
-/// this and every later group (`has_more = true`).
-///
-/// **≥1 rule:** if the page is still empty when the first group alone exceeds
-/// the budget, that group is included anyway (and `has_more = true` if later
-/// groups exist) — otherwise an at-or-over-budget transaction could never
-/// traverse the wire. Bounded above by `MAX_CRDT_TRANSACTION_BYTES`.
-///
-/// Pure and deterministic: no I/O.
-pub(crate) fn paginate_changes(
-    changes: Vec<LocalColumnChange>,
-    page_budget: usize,
-) -> (Vec<LocalColumnChange>, bool) {
-    if changes.is_empty() {
-        return (Vec::new(), false);
-    }
-
-    // Group by transaction-HLC in ascending order without splitting a group.
-    // The scanner already returns changes globally HLC-sorted, but callers may
-    // hand us any order, so group via a map and sort the keys — same contract as
-    // `group_by_transaction_hlc` (commands.rs), kept local to avoid a
-    // RemoteColumnChange round-trip.
-    let mut groups: HashMap<String, Vec<LocalColumnChange>> = HashMap::new();
-    for change in changes {
-        groups
-            .entry(change.hlc_timestamp.clone())
-            .or_default()
-            .push(change);
-    }
-    let mut ordered: Vec<(String, Vec<LocalColumnChange>)> = groups.into_iter().collect();
-    ordered.sort_by(|a, b| haex_crdt::compare_hlc_strings(&a.0, &b.0));
-
-    let mut page: Vec<LocalColumnChange> = Vec::new();
-    let mut running: usize = 0;
-    let mut has_more = false;
-
-    for (idx, (_hlc, group)) in ordered.into_iter().enumerate() {
-        let group_size = serde_json::to_vec(&group)
-            .map(|v| v.len())
-            .unwrap_or(usize::MAX);
-        let fits = running.saturating_add(group_size) <= page_budget;
-        // ≥1 rule: the very first group is always taken, even if oversized.
-        if fits || idx == 0 {
-            running = running.saturating_add(group_size);
-            page.extend(group);
-        } else {
-            // This group and every later group are deferred to the next page.
-            has_more = true;
-            break;
-        }
-    }
-
-    (page, has_more)
-}
-
 #[cfg(test)]
 #[path = "scanner_tests.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "scanner_pagination_tests.rs"]
-mod pagination_tests;

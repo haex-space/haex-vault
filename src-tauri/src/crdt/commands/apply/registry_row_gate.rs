@@ -292,7 +292,7 @@ pub(super) fn build_incoming_registry_change(
     //     changes are structurally born with the same HLC.
     //   - Wire side: `group_by_transaction_hlc` groups by HLC == one
     //     transaction, and both the sender's pagination
-    //     (`scanner::paginate_changes`) and the puller's page buffering
+    //     (`haex_crdt::paginate_changes`) and the puller's page buffering
     //     (`sync_loop::pull::split_complete_groups` /
     //     `apply_groups_advancing_cursor`) never apply or advance the
     //     cursor past a group until it is received whole — so same-HLC

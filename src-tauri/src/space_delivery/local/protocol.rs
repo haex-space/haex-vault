@@ -38,7 +38,7 @@ pub const RATE_LIMITED_PREFIX: &str = "rate_limited:";
 /// Maximum size of a single QUIC wire frame (request or response).
 ///
 /// A paginated `SyncPull` page packs whole transaction-HLC groups up to
-/// [`crate::crdt::scanner::PULL_PAGE_BUDGET`] (== [`MAX_CRDT_TRANSACTION_BYTES`],
+/// [`haex_crdt::PULL_PAGE_BUDGET`] (== [`MAX_CRDT_TRANSACTION_BYTES`],
 /// 100 MB — ADR 0001). The ≥1 rule in `paginate_changes` means a single page can
 /// be a lone at-cap transaction, so the frame must hold ~100 MB of change
 /// payload PLUS the JSON envelope per change (field keys `tableName`/`rowPks`/
