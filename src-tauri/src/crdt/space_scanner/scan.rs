@@ -32,6 +32,20 @@ use std::collections::{BTreeMap, HashSet};
 /// rows rather than the whole table — `ScanFilters::column_eq` is fail-closed
 /// on an absent filter column, so a misconfigured filter cannot leak a
 /// vault-private table.
+///
+/// # A table missing its CRDT metadata columns is an `Err`, deliberately
+///
+/// A table that carries neither `haex_hlc_no_trigger` nor
+/// `haex_column_hlcs_no_trigger` fails the scan instead of yielding zero
+/// rows. The pass-1 callers scan `SPACE_SCOPED_CRDT_TABLES` — the
+/// shared-space control plane: membership, devices, MLS keys, the register
+/// itself — so such a table is local schema damage, not a peer-supplied bad
+/// entry. Returning `Ok(vec![])` would ship zero rows from a structurally
+/// broken control-plane table and leave members with inconsistent
+/// membership state; aborting the push is the wider blast radius but the
+/// only one that surfaces the damage. The registry-driven path in
+/// `scan_registered_table_rows_for_space` deliberately does NOT widen its
+/// warn-and-skip to cover this case for the same reason.
 pub fn scan_table_for_local_changes_scoped(
     conn: &Connection,
     table_name: &str,

@@ -139,6 +139,44 @@ fn scan_all_crdt_tables_for_owner_includes_vault_private_and_space_tables() {
 }
 
 #[test]
+fn scan_all_crdt_tables_for_owner_strips_per_space_sigs() {
+    // `scoped_items` rows carry per-space signatures in
+    // `haex_column_sigs_no_trigger`. Owner-vault sync is unscoped — it has no
+    // space to key a signature by — so the mapper runs with
+    // `sig_space_id = None` and every change must ship unsigned. That is the
+    // property `LocalColumnChange::sig`'s doc comment claims; a sig leaking
+    // onto this path would change the owner-vault wire format and hand a
+    // receiver a signature it cannot scope.
+    let conn = setup_scoped_test_db();
+    insert_scoped_row(
+        &conn,
+        "r1",
+        "space-A",
+        "hello",
+        "2025-01-01T00:00:00.000Z-0001-d1",
+    );
+
+    let changes = scan_all_crdt_tables_for_owner(
+        &conn,
+        &["scoped_items".to_string()],
+        None,
+        "device-1",
+        None,
+    )
+    .unwrap();
+
+    assert!(
+        !changes.is_empty(),
+        "the fixture must produce changes for the sig assertion to be meaningful"
+    );
+    assert!(
+        changes.iter().all(|change| change.sig.is_none()),
+        "owner-vault sync must ship unsigned changes even when the row carries \
+         per-space sigs: {changes:?}"
+    );
+}
+
+#[test]
 fn scan_all_crdt_tables_for_owner_empty_table_list_returns_empty() {
     let conn = setup_vault_private_test_db();
     insert_private_row(&conn, "p1", "x", "1000000000000000000/aabbccdd");
