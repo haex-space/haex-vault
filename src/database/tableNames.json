@@ -1,9 +1,9 @@
 {
   "crdt": {
     "columns": {
-      "haexHlc": "haex_hlc_no_trigger",
-      "haexColumnHlcs": "haex_column_hlcs_no_trigger",
-      "haexColumnSigs": "haex_column_sigs_no_trigger"
+      "haexHlc": "haex_hlc_no_sync",
+      "haexColumnHlcs": "haex_column_hlcs_no_sync",
+      "haexColumnSigs": "haex_column_sigs_no_sync"
     }
   },
   "sync_metadata": {

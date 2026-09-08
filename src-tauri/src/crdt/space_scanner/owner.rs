@@ -14,7 +14,7 @@ use rusqlite::Connection;
 ///
 /// This exists solely for serverless P2P sync of the owner's own vault across
 /// the owner's own devices: that path replicates the *full* CRDT table set
-/// (all `haex_*` tables carrying a `haex_hlc_no_trigger` column, including vault-private
+/// (all `haex_*` tables carrying a `haex_hlc_no_sync` column, including vault-private
 /// and extension tables), not just the space-scoped whitelist.
 ///
 /// # Security

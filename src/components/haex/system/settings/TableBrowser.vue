@@ -244,7 +244,7 @@ const hasActiveFilters = computed(() =>
   Object.values(columnFilters.value).some(v => v !== ''),
 )
 
-const hlcColIndex = computed(() => columns.value.indexOf('haex_column_hlcs_no_trigger'))
+const hlcColIndex = computed(() => columns.value.indexOf('haex_column_hlcs_no_sync'))
 
 const isModified = (row: unknown[]) => {
   const idx = hlcColIndex.value

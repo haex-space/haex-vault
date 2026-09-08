@@ -45,7 +45,7 @@ pub const OWNER_DELETE_LOG_ANCHOR_KEY: &str = "owner_delete_log_anchor";
 /// existing value and `new_hlc`. Idempotent, monotonic (never regresses).
 ///
 /// Writes to `haex_space_compaction_anchors` which is CRDT-synced; the
-/// AFTER-INSERT trigger populates haex_column_hlcs_no_trigger so other members converge
+/// AFTER-INSERT trigger populates haex_column_hlcs_no_sync so other members converge
 /// on the advance via normal sync.
 pub fn advance_shared_space_anchor(
     conn: &Connection,
@@ -79,19 +79,19 @@ pub fn advance_shared_space_anchor(
         None => new_hlc.to_string(),
     };
 
-    // `min_valid_hlc` (the anti-resurrection watermark) and `haex_hlc_no_trigger`
+    // `min_valid_hlc` (the anti-resurrection watermark) and `haex_hlc_no_sync`
     // (this CRDT row's own timestamp) are semantically distinct: the
     // former is the max HLC pruned from the delete-log for this space;
     // the latter is a fresh local HLC stamping *this* update to the
-    // anchor row. Stamp haex_hlc_no_trigger via the `current_hlc()` UDF so the row
+    // anchor row. Stamp haex_hlc_no_sync via the `current_hlc()` UDF so the row
     // gets a real local HLC, and the CRDT AFTER-INSERT trigger populates
-    // haex_column_hlcs_no_trigger / haex_column_sigs_no_trigger on top.
+    // haex_column_hlcs_no_sync / haex_column_sigs_no_sync on top.
     conn.execute(
-        "INSERT INTO haex_space_compaction_anchors (space_id, min_valid_hlc, haex_hlc_no_trigger) \
+        "INSERT INTO haex_space_compaction_anchors (space_id, min_valid_hlc, haex_hlc_no_sync) \
          VALUES (?1, ?2, current_hlc()) \
          ON CONFLICT(space_id) DO UPDATE SET \
              min_valid_hlc = excluded.min_valid_hlc, \
-             haex_hlc_no_trigger = current_hlc()",
+             haex_hlc_no_sync = current_hlc()",
         rusqlite::params![space_id, &effective],
     )?;
     Ok(())
@@ -165,7 +165,7 @@ pub fn advance_owner_delete_log_anchor(
 /// everything commits atomically. Symmetric to what the crate does for
 /// `haex_deleted_rows`:
 ///
-/// * only rows with non-NULL `haex_hlc_no_trigger` are prunable — NULL-HLC
+/// * only rows with non-NULL `haex_hlc_no_sync` are prunable — NULL-HLC
 ///   entries stay because they can't be safely anchored (they're anomalies);
 /// * per-space anchor advances happen BEFORE that space's rows are deleted,
 ///   so a crash between advance and delete leaves the anchor at most as
@@ -182,8 +182,8 @@ pub fn prune_shared_space_delete_log_and_advance_anchors(
     match policy {
         haex_crdt::RetentionPolicy::All => {
             let mut per_space_stmt = tx.prepare(&format!(
-                "SELECT space_id, haex_hlc_no_trigger FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
-                 WHERE haex_hlc_no_trigger IS NOT NULL"
+                "SELECT space_id, haex_hlc_no_sync FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
+                 WHERE haex_hlc_no_sync IS NOT NULL"
             ))?;
             let per_space_maxes = collect_per_space_max(per_space_stmt.query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -196,7 +196,7 @@ pub fn prune_shared_space_delete_log_and_advance_anchors(
             let rows_deleted = tx.execute(
                 &format!(
                     "DELETE FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
-                     WHERE haex_hlc_no_trigger IS NOT NULL"
+                     WHERE haex_hlc_no_sync IS NOT NULL"
                 ),
                 [],
             )?;
@@ -211,9 +211,9 @@ pub fn prune_shared_space_delete_log_and_advance_anchors(
             };
 
             let mut per_space_stmt = tx.prepare(&format!(
-                "SELECT space_id, haex_hlc_no_trigger FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
-                 WHERE haex_hlc_no_trigger IS NOT NULL \
-                   AND CAST(substr(haex_hlc_no_trigger, 1, instr(haex_hlc_no_trigger, '/') - 1) AS INTEGER) < ?1"
+                "SELECT space_id, haex_hlc_no_sync FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
+                 WHERE haex_hlc_no_sync IS NOT NULL \
+                   AND CAST(substr(haex_hlc_no_sync, 1, instr(haex_hlc_no_sync, '/') - 1) AS INTEGER) < ?1"
             ))?;
             let per_space_maxes =
                 collect_per_space_max(per_space_stmt.query_map([cutoff], |row| {
@@ -227,8 +227,8 @@ pub fn prune_shared_space_delete_log_and_advance_anchors(
             let rows_deleted = tx.execute(
                 &format!(
                     "DELETE FROM \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
-                     WHERE haex_hlc_no_trigger IS NOT NULL \
-                       AND CAST(substr(haex_hlc_no_trigger, 1, instr(haex_hlc_no_trigger, '/') - 1) AS INTEGER) < ?1"
+                     WHERE haex_hlc_no_sync IS NOT NULL \
+                       AND CAST(substr(haex_hlc_no_sync, 1, instr(haex_hlc_no_sync, '/') - 1) AS INTEGER) < ?1"
                 ),
                 [cutoff],
             )?;

@@ -55,7 +55,7 @@ pub fn is_register_target_forbidden(table: &str) -> bool {
 
 /// Candidate mappings plus this vault's own member DID for the space.
 const SQL_SELECT_REGISTER_SPACES: &str = "\
-    SELECT r.space_id, r.haex_column_sigs_no_trigger, i.did \
+    SELECT r.space_id, r.haex_column_sigs_no_sync, i.did \
     FROM haex_shared_space_sync r \
     JOIN haex_space_members m ON m.space_id = r.space_id \
     JOIN haex_identities i ON i.id = m.identity_id AND i.private_key IS NOT NULL \

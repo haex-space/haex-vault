@@ -2,7 +2,7 @@
 //!
 //! Regression guard for docs/plans/2026-07-21-haex-logs-no-sync.md (Task 1.4):
 //! the security-load-bearing invariant is that `discover_crdt_tables` keys on
-//! the presence of a `haex_hlc_no_trigger` column, so a table created without CRDT
+//! the presence of a `haex_hlc_no_sync` column, so a table created without CRDT
 //! columns (like the `_no_sync` log table shipped in migration 0009) is never
 //! discovered and thus never pushed on the owner full-vault sync path.
 
@@ -28,8 +28,8 @@ const CREATE_HAEX_LOGS_NO_SYNC: &str = "CREATE TABLE haex_logs_no_sync (
 fn discover_crdt_tables_excludes_haex_logs_no_sync() {
     let conn = Connection::open_in_memory().expect("open in-memory db");
 
-    // A genuine CRDT-synced table (carries `haex_hlc_no_trigger`) as a positive control.
-    conn.execute_batch("CREATE TABLE haex_items (id TEXT PRIMARY KEY, name TEXT, haex_hlc_no_trigger TEXT);")
+    // A genuine CRDT-synced table (carries `haex_hlc_no_sync`) as a positive control.
+    conn.execute_batch("CREATE TABLE haex_items (id TEXT PRIMARY KEY, name TEXT, haex_hlc_no_sync TEXT);")
         .expect("create synced table");
 
     // The no-sync log table, created without CRDT columns like production.
@@ -40,18 +40,18 @@ fn discover_crdt_tables_excludes_haex_logs_no_sync() {
 
     assert!(
         tables.iter().any(|t| t == "haex_items"),
-        "positive control: a table with `haex_hlc_no_trigger` must be discovered, got {tables:?}"
+        "positive control: a table with `haex_hlc_no_sync` must be discovered, got {tables:?}"
     );
     assert!(
         !tables.iter().any(|t| t == "haex_logs_no_sync"),
-        "haex_logs_no_sync must NOT be discovered — it has no `haex_hlc_no_trigger` column and \
+        "haex_logs_no_sync must NOT be discovered — it has no `haex_hlc_no_sync` column and \
          must stay device-local (docs/plans/2026-07-21-haex-logs-no-sync.md). Got {tables:?}"
     );
 }
 
 #[test]
 fn haex_logs_no_sync_has_no_haex_hlc_column() {
-    // Task 1.4 Step 3: PRAGMA table_info over the production DDL has no `haex_hlc_no_trigger`.
+    // Task 1.4 Step 3: PRAGMA table_info over the production DDL has no `haex_hlc_no_sync`.
     let conn = Connection::open_in_memory().expect("open in-memory db");
     conn.execute_batch(CREATE_HAEX_LOGS_NO_SYNC)
         .expect("create haex_logs_no_sync");
@@ -66,8 +66,8 @@ fn haex_logs_no_sync_has_no_haex_hlc_column() {
         .expect("collect columns");
 
     assert!(
-        !columns.iter().any(|c| c == "haex_hlc_no_trigger"),
-        "haex_logs_no_sync must not carry `haex_hlc_no_trigger`; columns = {columns:?}"
+        !columns.iter().any(|c| c == "haex_hlc_no_sync"),
+        "haex_logs_no_sync must not carry `haex_hlc_no_sync`; columns = {columns:?}"
     );
     // Sanity: a base column is present, so the CREATE actually ran.
     assert!(

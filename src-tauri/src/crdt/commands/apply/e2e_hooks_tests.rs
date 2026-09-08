@@ -24,19 +24,19 @@ fn setup() -> DbConnection {
              space_id TEXT NOT NULL,\
              table_name TEXT NOT NULL,\
              row_pks TEXT NOT NULL,\
-             haex_hlc_no_trigger TEXT\
+             haex_hlc_no_sync TEXT\
          );\
          CREATE TABLE haex_shared_space_sync (\
              id TEXT PRIMARY KEY,\
              space_id TEXT NOT NULL,\
              table_name TEXT NOT NULL,\
              row_pks TEXT NOT NULL,\
-             haex_hlc_no_trigger TEXT\
+             haex_hlc_no_sync TEXT\
          );\
          CREATE TABLE e2e_test_items (\
              id TEXT PRIMARY KEY,\
              body TEXT,\
-             haex_hlc_no_trigger TEXT\
+             haex_hlc_no_sync TEXT\
          );",
     )
     .unwrap();
@@ -47,7 +47,7 @@ fn insert_business_row(db: &DbConnection, id: &str, body: &str, hlc: &str) {
     let guard = db.0.lock().unwrap();
     let conn = guard.as_ref().unwrap();
     conn.execute(
-        "INSERT INTO e2e_test_items (id, body, haex_hlc_no_trigger) VALUES (?, ?, ?)",
+        "INSERT INTO e2e_test_items (id, body, haex_hlc_no_sync) VALUES (?, ?, ?)",
         rusqlite::params![id, body, hlc],
     )
     .unwrap();
@@ -59,7 +59,7 @@ fn insert_register(db: &DbConnection, space_id: &str) {
     let register_id = format!("reg-{space_id}");
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, space_id, table_name, row_pks, haex_hlc_no_trigger) VALUES (?, ?, ?, ?, ?)",
+         (id, space_id, table_name, row_pks, haex_hlc_no_sync) VALUES (?, ?, ?, ?, ?)",
         rusqlite::params![register_id, space_id, TABLE, ROW_PKS_JSON, "1/aaa"],
     )
     .unwrap();

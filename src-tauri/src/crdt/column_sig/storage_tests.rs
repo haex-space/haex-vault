@@ -20,18 +20,18 @@ fn make_sig(did: &str) -> SigRecord {
     }
 }
 
-/// In-memory table with a single TEXT primary key + `haex_column_sigs_no_trigger` JSON meta.
+/// In-memory table with a single TEXT primary key + `haex_column_sigs_no_sync` JSON meta.
 fn seed_single_pk_row(initial_sigs: &str) -> Connection {
     let conn = Connection::open_in_memory().expect("open in-memory");
     conn.execute_batch(
         "CREATE TABLE tbl (
             id TEXT PRIMARY KEY NOT NULL,
-            haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+            haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
          );",
     )
     .expect("create schema");
     conn.execute(
-        "INSERT INTO tbl (id, haex_column_sigs_no_trigger) VALUES (?1, ?2)",
+        "INSERT INTO tbl (id, haex_column_sigs_no_sync) VALUES (?1, ?2)",
         ["pk1", initial_sigs],
     )
     .unwrap();
@@ -45,13 +45,13 @@ fn seed_composite_pk_row(initial_sigs: &str) -> Connection {
         "CREATE TABLE members (
             space_id TEXT NOT NULL,
             member_did TEXT NOT NULL,
-            haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}',
+            haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}',
             PRIMARY KEY (space_id, member_did)
          );",
     )
     .expect("create schema");
     conn.execute(
-        "INSERT INTO members (space_id, member_did, haex_column_sigs_no_trigger) VALUES (?1, ?2, ?3)",
+        "INSERT INTO members (space_id, member_did, haex_column_sigs_no_sync) VALUES (?1, ?2, ?3)",
         ["s1", "d1", initial_sigs],
     )
     .unwrap();
@@ -61,7 +61,7 @@ fn seed_composite_pk_row(initial_sigs: &str) -> Connection {
 fn read_sigs_single(conn: &Connection) -> Value {
     let raw: String = conn
         .query_row(
-            "SELECT haex_column_sigs_no_trigger FROM tbl WHERE id = ?1",
+            "SELECT haex_column_sigs_no_sync FROM tbl WHERE id = ?1",
             ["pk1"],
             |r| r.get(0),
         )
@@ -195,7 +195,7 @@ fn upsert_composite_pk_row() {
 
     let raw: String = conn
         .query_row(
-            "SELECT haex_column_sigs_no_trigger FROM members WHERE space_id = ?1 AND member_did = ?2",
+            "SELECT haex_column_sigs_no_sync FROM members WHERE space_id = ?1 AND member_did = ?2",
             ["s1", "d1"],
             |r| r.get(0),
         )

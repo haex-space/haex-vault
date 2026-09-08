@@ -3,7 +3,7 @@
 //! flow without a TS layer or Tauri IPC harness:
 //!
 //!   sender  execute_with_crdt(INSERT/UPDATE ...) → row lands with
-//!           `haex_column_sigs_no_trigger` populated (F1);
+//!           `haex_column_sigs_no_sync` populated (F1);
 //!   read back the row, build a `RemoteColumnChange` carrying the sig,
 //!   feed it to
 //!   receiver apply_remote_changes_to_db(...) on a FRESH in-memory DB;
@@ -150,11 +150,11 @@ fn setup_sender() -> Sender {
         tx.commit().unwrap();
     }
     // The pre-seeded 'R' row was inserted before CRDT columns existed, so
-    // its `haex_column_hlcs_no_trigger` is NULL. `json_set(NULL, …)` yields NULL and
+    // its `haex_column_hlcs_no_sync` is NULL. `json_set(NULL, …)` yields NULL and
     // the AFTER-UPDATE trigger would silently fail to extend it — matching
     // the F2 fixture's initialisation dance in core_execute_tests.rs.
     conn.execute(
-        "UPDATE ext_calendar SET haex_column_hlcs_no_trigger = '{}', haex_column_sigs_no_trigger = '{}'",
+        "UPDATE ext_calendar SET haex_column_hlcs_no_sync = '{}', haex_column_sigs_no_sync = '{}'",
         [],
     )
     .unwrap();
@@ -216,8 +216,8 @@ fn setup_receiver() -> DbConnection {
              id TEXT PRIMARY KEY,
              table_name TEXT NOT NULL,
              row_pks TEXT NOT NULL,
-             haex_hlc_no_trigger TEXT,
-             haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_sync TEXT,
+             haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
          );
          -- Same shape as the sender's `ext_calendar`. Extension tables carry
          -- NO inline `space_id`: membership lives in the share register
@@ -230,9 +230,9 @@ fn setup_receiver() -> DbConnection {
          CREATE TABLE ext_calendar (
              id TEXT PRIMARY KEY NOT NULL,
              title TEXT,
-             haex_hlc_no_trigger TEXT,
-             haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}',
-             haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_sync TEXT,
+             haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}',
+             haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{{}}'
          );",
         TABLE_CRDT_CONFIGS
     ))
@@ -240,7 +240,7 @@ fn setup_receiver() -> DbConnection {
     DbConnection(Arc::new(Mutex::new(Some(conn))))
 }
 
-/// Read the sender's `haex_column_sigs_no_trigger` JSON for a row and extract the sig
+/// Read the sender's `haex_column_sigs_no_sync` JSON for a row and extract the sig
 /// record for `(column, space_id)`. Panics with a helpful message on any
 /// shape mismatch so a regression in the sig-storage layer surfaces here.
 fn extract_sig(
@@ -254,16 +254,16 @@ fn extract_sig(
     let conn = guard.as_ref().unwrap();
     let raw: String = conn
         .query_row(
-            &format!("SELECT haex_column_sigs_no_trigger FROM \"{table}\" WHERE id = ?1"),
+            &format!("SELECT haex_column_sigs_no_sync FROM \"{table}\" WHERE id = ?1"),
             [row_id],
             |r| r.get(0),
         )
-        .unwrap_or_else(|e| panic!("read haex_column_sigs_no_trigger for {table}.{row_id}: {e}"));
+        .unwrap_or_else(|e| panic!("read haex_column_sigs_no_sync for {table}.{row_id}: {e}"));
     let parsed: JsonValue = serde_json::from_str(&raw)
-        .unwrap_or_else(|e| panic!("parse haex_column_sigs_no_trigger JSON: {e} raw={raw}"));
+        .unwrap_or_else(|e| panic!("parse haex_column_sigs_no_sync JSON: {e} raw={raw}"));
     let map = parsed
         .as_object()
-        .unwrap_or_else(|| panic!("haex_column_sigs_no_trigger is not a JSON object: {parsed:?}"));
+        .unwrap_or_else(|| panic!("haex_column_sigs_no_sync is not a JSON object: {parsed:?}"));
     let col_entry = map
         .get(column)
         .and_then(|v| v.as_object())
@@ -293,13 +293,13 @@ fn extract_sig(
 /// Read (column_hlc, row_hlc) from a sender row. Both are populated by the
 /// CRDT AFTER-UPDATE trigger; the column-level HLC is what F1 signs over,
 /// so the receiver must build its `RemoteColumnChange.hlc_timestamp` from
-/// that field, not from the row-level `haex_hlc_no_trigger`.
+/// that field, not from the row-level `haex_hlc_no_sync`.
 fn read_column_hlc(db: &DbConnection, table: &str, row_id: &str, column: &str) -> String {
     let guard = db.0.lock().unwrap();
     let conn = guard.as_ref().unwrap();
     let raw: String = conn
         .query_row(
-            &format!("SELECT haex_column_hlcs_no_trigger FROM \"{table}\" WHERE id = ?1"),
+            &format!("SELECT haex_column_hlcs_no_sync FROM \"{table}\" WHERE id = ?1"),
             [row_id],
             |r| r.get(0),
         )
@@ -309,7 +309,7 @@ fn read_column_hlc(db: &DbConnection, table: &str, row_id: &str, column: &str) -
         .as_object()
         .and_then(|m| m.get(column))
         .and_then(|v| v.as_str())
-        .unwrap_or_else(|| panic!("missing haex_column_hlcs_no_trigger[{column}], raw={raw}"))
+        .unwrap_or_else(|| panic!("missing haex_column_hlcs_no_sync[{column}], raw={raw}"))
         .to_string()
 }
 
@@ -420,7 +420,7 @@ fn roundtrip_write_then_apply_verifies_and_creates_identity_stub() {
     // receiver can relay the change without re-signing it.
     let receiver_sigs: String = conn
         .query_row(
-            "SELECT haex_column_sigs_no_trigger FROM ext_calendar WHERE id = 'R'",
+            "SELECT haex_column_sigs_no_sync FROM ext_calendar WHERE id = 'R'",
             [],
             |r| r.get(0),
         )

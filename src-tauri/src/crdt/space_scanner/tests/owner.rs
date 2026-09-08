@@ -52,7 +52,7 @@ fn test_scoped_filter_returns_only_matching_space() {
     assert!(
         changes
             .iter()
-            .all(|change| change.column_name != "haex_column_sigs_no_trigger"),
+            .all(|change| change.column_name != "haex_column_sigs_no_sync"),
         "signature metadata must never be emitted as user data"
     );
 
@@ -78,9 +78,9 @@ fn scan_all_crdt_tables_for_owner_includes_vault_private_and_space_tables() {
                 id TEXT PRIMARY KEY,
                 space_id TEXT NOT NULL,
                 data TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -141,7 +141,7 @@ fn scan_all_crdt_tables_for_owner_includes_vault_private_and_space_tables() {
 #[test]
 fn scan_all_crdt_tables_for_owner_strips_per_space_sigs() {
     // `scoped_items` rows carry per-space signatures in
-    // `haex_column_sigs_no_trigger`. Owner-vault sync is unscoped — it has no
+    // `haex_column_sigs_no_sync`. Owner-vault sync is unscoped — it has no
     // space to key a signature by — so the mapper runs with
     // `sig_space_id = None` and every change must ship unsigned. That is the
     // property `LocalColumnChange::sig`'s doc comment claims; a sig leaking

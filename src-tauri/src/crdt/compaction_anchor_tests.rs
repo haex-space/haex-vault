@@ -38,9 +38,9 @@ fn setup_anchor_db() -> Connection {
         "CREATE TABLE haex_space_compaction_anchors (
              space_id TEXT PRIMARY KEY NOT NULL,
              min_valid_hlc TEXT NOT NULL DEFAULT '0',
-             haex_hlc_no_trigger TEXT,
-             haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}',
-             haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_sync TEXT,
+             haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}',
+             haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{{}}'
          );
          CREATE TABLE haex_vault_settings (
              id TEXT PRIMARY KEY NOT NULL,
@@ -57,14 +57,14 @@ fn setup_anchor_db() -> Connection {
              space_id TEXT NOT NULL,
              table_name TEXT NOT NULL,
              row_pks TEXT NOT NULL,
-             haex_hlc_no_trigger TEXT
+             haex_hlc_no_sync TEXT
          );
          CREATE TABLE {DELETED_ROWS_TABLE} (
              id TEXT PRIMARY KEY NOT NULL,
              table_name TEXT NOT NULL,
              row_pks TEXT NOT NULL,
-             haex_hlc_no_trigger TEXT,
-             haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_sync TEXT,
+             haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
          );"
     ))
     .unwrap();
@@ -165,7 +165,7 @@ fn prune_shared_space_delete_log_time_based_advances_anchor_and_prunes() {
     conn.execute(
         &format!(
             "INSERT INTO {SHARED_SPACE_DELETED_ROWS_TABLE} \
-             (id, space_id, table_name, row_pks, haex_hlc_no_trigger) VALUES \
+             (id, space_id, table_name, row_pks, haex_hlc_no_sync) VALUES \
              ('old-1', 'SPACE_X', 'ext_notes', '{{\"id\":\"a\"}}', '1/aabb'), \
              ('old-2', 'SPACE_X', 'ext_notes', '{{\"id\":\"b\"}}', '5/aabb'), \
              ('new-1', 'SPACE_X', 'ext_notes', '{{\"id\":\"c\"}}', '9223372036854775800/aabb')"
@@ -217,7 +217,7 @@ fn prune_shared_space_delete_log_all_advances_anchor_per_space() {
     conn.execute(
         &format!(
             "INSERT INTO {SHARED_SPACE_DELETED_ROWS_TABLE} \
-             (id, space_id, table_name, row_pks, haex_hlc_no_trigger) VALUES \
+             (id, space_id, table_name, row_pks, haex_hlc_no_sync) VALUES \
              ('x-1', 'SPACE_X', 'ext_notes', '{{\"id\":\"a\"}}', '100/aabb'), \
              ('y-1', 'SPACE_Y', 'ext_notes', '{{\"id\":\"b\"}}', '200/ccdd'), \
              ('z-null', 'SPACE_Z', 'ext_notes', '{{\"id\":\"c\"}}', NULL)"

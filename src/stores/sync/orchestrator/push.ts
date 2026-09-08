@@ -181,9 +181,9 @@ export const pushToBackendAsync = async (
               JOIN "haex_identities" i
                 ON i."id" = m."identity_id" AND i."private_key" IS NOT NULL
               WHERE a."space_id" = ?
-                AND json_extract(a."haex_column_sigs_no_trigger", ?) = i."did"
-                AND json_extract(a."haex_column_sigs_no_trigger", ?) = i."did"
-                AND json_extract(a."haex_column_sigs_no_trigger", ?) = i."did"`,
+                AND json_extract(a."haex_column_sigs_no_sync", ?) = i."did"
+                AND json_extract(a."haex_column_sigs_no_sync", ?) = i."did"
+                AND json_extract(a."haex_column_sigs_no_sync", ?) = i."did"`,
         params: [
           backend.spaceId,
           `$.table_name.${backend.spaceId}.authorDid`,
@@ -389,7 +389,7 @@ export const pushChangesToServerAsync = async (
 
   // Resolve identity for the DID-auth header only. Per-change signing is
   // gone as of Phase 1 Runde 7 (ADR 0002 §4b): the pushed `sig` field is
-  // pulled straight out of `haex_column_sigs_no_trigger`, populated by Rust's
+  // pulled straight out of `haex_column_sigs_no_sync`, populated by Rust's
   // `execute_with_crdt` on the original author's device. TS never signs.
   const identityStore = useIdentityStore()
   const identity = await identityStore.getIdentityByIdAsync(backend.identityId)
@@ -398,7 +398,7 @@ export const pushChangesToServerAsync = async (
   }
 
   // Format changes for the server API. `sig` is already on the
-  // `ColumnChange` (populated by the scanner from `haex_column_sigs_no_trigger`).
+  // `ColumnChange` (populated by the scanner from `haex_column_sigs_no_sync`).
   // No `valueBytes` on the wire — that would leak plaintext to the sync
   // relay (ADR 0002 §2). The receiver decrypts and re-canonicalises
   // locally using the same encoder the signer used.

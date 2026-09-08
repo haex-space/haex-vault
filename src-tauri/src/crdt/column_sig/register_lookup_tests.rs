@@ -30,7 +30,7 @@ fn seed() -> Connection {
             table_name TEXT NOT NULL,
             row_pks TEXT NOT NULL,
             space_id TEXT NOT NULL,
-            haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+            haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
          );",
     )
     .expect("create schema");
@@ -63,7 +63,7 @@ fn seed() -> Connection {
     // own DID; B's carry a foreign member DID.
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, table_name, row_pks, space_id, haex_column_sigs_no_trigger)
+         (id, table_name, row_pks, space_id, haex_column_sigs_no_sync)
          VALUES (?1, ?2, ?3, ?4, ?5)",
         [
             "reg-a",
@@ -76,7 +76,7 @@ fn seed() -> Connection {
     .unwrap();
     conn.execute(
         "INSERT INTO haex_shared_space_sync \
-         (id, table_name, row_pks, space_id, haex_column_sigs_no_trigger)
+         (id, table_name, row_pks, space_id, haex_column_sigs_no_sync)
          VALUES (?1, ?2, ?3, ?4, ?5)",
         [
             "reg-b",

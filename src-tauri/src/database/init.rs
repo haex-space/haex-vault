@@ -26,11 +26,11 @@ use rusqlite::{params, Connection};
 ///      pattern as haex_deleted_rows).
 const TRIGGER_VERSION: i32 = 6;
 
-/// Scans the database for all sync-relevant tables (those that have a `haex_hlc_no_trigger` column).
+/// Scans the database for all sync-relevant tables (those that have a `haex_hlc_no_sync` column).
 /// `_no_sync` tables are excluded not by their name but because they are created
-/// without CRDT columns (no `haex_hlc_no_trigger`), so they never match this discovery query.
+/// without CRDT columns (no `haex_hlc_no_sync`), so they never match this discovery query.
 /// This invariant is security-load-bearing: the owner full-vault sync path ships
-/// every `haex_hlc_no_trigger` table, so any table that must stay device-local MUST be created
+/// every `haex_hlc_no_sync` table, so any table that must stay device-local MUST be created
 /// without CRDT columns (the `_no_sync` suffix is only a convention to signal that).
 pub fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseError> {
     let mut stmt = conn.prepare(
@@ -38,7 +38,7 @@ pub fn discover_crdt_tables(conn: &Connection) -> Result<Vec<String>, DatabaseEr
          FROM sqlite_master m
          JOIN pragma_table_info(m.name) p
          WHERE m.type = 'table'
-           AND p.name = 'haex_hlc_no_trigger'
+           AND p.name = 'haex_hlc_no_sync'
          GROUP BY m.name
          ORDER BY m.name",
     )?;
@@ -104,7 +104,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
         }
     };
 
-    // Discover all sync-relevant tables (those with haex_hlc_no_trigger)
+    // Discover all sync-relevant tables (those with haex_hlc_no_sync)
     let crdt_tables = discover_crdt_tables(&tx)?;
     eprintln!("INFO: Discovered {} CRDT tables", crdt_tables.len());
 
@@ -148,7 +148,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
 pub fn ensure_triggers_for_all_tables(conn: &mut Connection) -> Result<usize, DatabaseError> {
     let tx = conn.transaction()?;
 
-    // Discover all sync-relevant tables (those with haex_hlc_no_trigger)
+    // Discover all sync-relevant tables (those with haex_hlc_no_sync)
     let crdt_tables = discover_crdt_tables(&tx)?;
     let mut triggers_created = 0;
 

@@ -316,7 +316,7 @@ pub fn apply_remote_changes_to_db_scoped(
             // `expected_space_id` (the vault space id) but is intentionally
             // UNSIGNED on the write side: `sign_column_for_spaces` only signs
             // rows the register maps into a space, so owner-private rows have
-            // `haex_column_sigs_no_trigger = {}`. Peer legitimacy on that path is already
+            // `haex_column_sigs_no_sync = {}`. Peer legitimacy on that path is already
             // established by QUIC-level DID auth plus the peer's row in
             // `haex_space_devices`; per-column sig enforcement adds nothing on
             // top and would silently drop every unsigned owner-private change
@@ -401,11 +401,11 @@ pub fn apply_remote_changes_to_db_scoped(
                     HashMap::new();
                 let mut stmt = tx
                     .prepare(&format!(
-                        "SELECT table_name, row_pks, haex_hlc_no_trigger FROM \"{}\"",
+                        "SELECT table_name, row_pks, haex_hlc_no_sync FROM \"{}\"",
                         DELETED_ROWS_TABLE
                     ))
                     .map_err(DatabaseError::from)?;
-                // `haex_hlc_no_trigger` is added to `haex_deleted_rows` via a nullable
+                // `haex_hlc_no_sync` is added to `haex_deleted_rows` via a nullable
                 // ALTER (see `ensure_crdt_columns`), so a legacy or directly-
                 // inserted row could leave it NULL. Read it as `Option<String>`
                 // and skip NULL entries — a single bad row must not abort the
@@ -484,7 +484,7 @@ pub fn apply_remote_changes_to_db_scoped(
                     continue;
                 }
 
-                // Ensure table has CRDT columns (haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+                // Ensure table has CRDT columns (haex_hlc_no_sync, haex_column_hlcs_no_sync)
                 // This handles tables created in dev mode that don't have CRDT columns yet.
                 // When sync data arrives, we know it's from a production extension, so we need CRDT.
                 let has_core_crdt_columns =
@@ -567,7 +567,7 @@ pub fn apply_remote_changes_to_db_scoped(
 
                 // Check if row exists and get current HLCs
                 let check_sql = format!(
-                    "SELECT haex_column_hlcs_no_trigger, haex_hlc_no_trigger FROM \"{}\" WHERE {}",
+                    "SELECT haex_column_hlcs_no_sync, haex_hlc_no_sync FROM \"{}\" WHERE {}",
                     first_change.table_name, pk_where_clause
                 );
 
@@ -736,7 +736,7 @@ pub fn apply_remote_changes_to_db_scoped(
                         .map_err(DatabaseError::from)?;
 
                         // Deliberately do NOT record this column's HLC into
-                        // `haex_column_hlcs_no_trigger`. That map is the per-column HLC of
+                        // `haex_column_hlcs_no_sync`. That map is the per-column HLC of
                         // the last *applied* value; a skipped (never-applied)
                         // column must not appear there. If we recorded its HLC
                         // `H` here, the post-migration recovery re-pull — which
@@ -852,7 +852,7 @@ pub fn apply_remote_changes_to_db_scoped(
                     })?;
 
                     if row_exists {
-                        // Never regress the row-level haex_hlc_no_trigger: an incoming batch can legally be
+                        // Never regress the row-level haex_hlc_no_sync: an incoming batch can legally be
                         // older than the row's current HLC (column-level CRDT). The row HLC feeds
                         // the delete-resurrection comparison, so regressing it would let an older
                         // remote delete win against a newer local write.
@@ -867,7 +867,7 @@ pub fn apply_remote_changes_to_db_scoped(
                             .collect();
 
                         let update_sql = format!(
-                            "UPDATE \"{}\" SET {}, haex_column_hlcs_no_trigger = ?, haex_hlc_no_trigger = ? WHERE {}",
+                            "UPDATE \"{}\" SET {}, haex_column_hlcs_no_sync = ?, haex_hlc_no_sync = ? WHERE {}",
                             first_change.table_name,
                             set_clauses.join(", "),
                             pk_where_clause
@@ -1229,15 +1229,15 @@ mod tests {
                  id TEXT PRIMARY KEY,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc_no_trigger TEXT,
-                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
              );
              CREATE TABLE devices (
                  id TEXT PRIMARY KEY,
                  space_id TEXT NOT NULL,
                  avatar TEXT,
-                 haex_hlc_no_trigger TEXT,
-                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
              );"
         ))
         .unwrap();
@@ -1254,8 +1254,8 @@ mod tests {
                  id TEXT PRIMARY KEY,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc_no_trigger TEXT,
-                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
              );"
         ))
         .unwrap();
@@ -1426,20 +1426,20 @@ mod tests {
     }
 
     // Regression: applying an older remote change to column B must not regress
-    // the row's haex_hlc_no_trigger below the current value (set by a newer local change
-    // to column A). A regressed haex_hlc_no_trigger would let an older remote delete win
+    // the row's haex_hlc_no_sync below the current value (set by a newer local change
+    // to column A). A regressed haex_hlc_no_sync would let an older remote delete win
     // against the newer local write (delete_propagation.rs resurrection check).
     #[test]
     fn row_hlc_never_regresses_when_applying_older_changes() {
         let db = setup_db();
 
         // Seed an existing row: column A written at T=10, column B written at T=3,
-        // so the row's haex_hlc_no_trigger is T=10.
+        // so the row's haex_hlc_no_sync is T=10.
         {
             let guard = db.0.lock().unwrap();
             let conn = guard.as_ref().unwrap();
             conn.execute(
-                "INSERT INTO devices (id, space_id, avatar, haex_hlc_no_trigger, haex_column_hlcs_no_trigger) \
+                "INSERT INTO devices (id, space_id, avatar, haex_hlc_no_sync, haex_column_hlcs_no_sync) \
                  VALUES ('dev-1', 's1', 'old.png', '10/aaa', '{\"space_id\":\"10/aaa\",\"avatar\":\"3/aaa\"}')",
                 [],
             )
@@ -1448,7 +1448,7 @@ mod tests {
 
         // Apply a remote change to column B (avatar) with HLC T=5 — newer than
         // the column B's current HLC (T=3) so it applies, but older than the
-        // row's current haex_hlc_no_trigger (T=10).
+        // row's current haex_hlc_no_sync (T=10).
         let changes = vec![change(r#"{"id":"dev-1"}"#, "avatar", "new.png", "5/aaa")];
         let result = apply_remote_changes_to_db(&db, changes, None, None);
         assert!(result.is_ok(), "apply must succeed: {result:?}");
@@ -1458,7 +1458,7 @@ mod tests {
             let guard = db.0.lock().unwrap();
             let conn = guard.as_ref().unwrap();
             conn.query_row(
-                "SELECT avatar, haex_column_hlcs_no_trigger, haex_hlc_no_trigger FROM devices WHERE id = 'dev-1'",
+                "SELECT avatar, haex_column_hlcs_no_sync, haex_hlc_no_sync FROM devices WHERE id = 'dev-1'",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
@@ -1474,7 +1474,7 @@ mod tests {
         );
         assert_eq!(
             row_hlc, "10/aaa",
-            "row haex_hlc_no_trigger must not regress below T=10 after applying an older T=5 change"
+            "row haex_hlc_no_sync must not regress below T=10 after applying an older T=5 change"
         );
     }
 
@@ -1496,8 +1496,8 @@ mod tests {
                  id TEXT PRIMARY KEY,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc_no_trigger TEXT,
-                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
              );
              -- `name TEXT NOT NULL` without a default mirrors migration 0000
              -- and is load-bearing: a stub INSERT that omits it is silently
@@ -1515,10 +1515,10 @@ mod tests {
                  id TEXT PRIMARY KEY,
                  space_id TEXT NOT NULL,
                  avatar TEXT,
-                 haex_hlc_no_trigger TEXT,
-                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
              );
-             INSERT INTO devices (id, space_id, avatar, haex_hlc_no_trigger, haex_column_hlcs_no_trigger) \
+             INSERT INTO devices (id, space_id, avatar, haex_hlc_no_sync, haex_column_hlcs_no_sync) \
               VALUES ('dev-1', 's1', 'old.png', '10/aaa', '{{\"space_id\":\"10/aaa\",\"avatar\":\"3/aaa\"}}');"
         ))
         .unwrap();
@@ -1964,8 +1964,8 @@ mod tests {
                  id TEXT PRIMARY KEY,
                  table_name TEXT NOT NULL,
                  row_pks TEXT NOT NULL,
-                 haex_hlc_no_trigger TEXT,
-                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
              );
              CREATE TABLE haex_identities (
                  id TEXT PRIMARY KEY NOT NULL,
@@ -1983,12 +1983,12 @@ mod tests {
                  id TEXT PRIMARY KEY,
                  space_id TEXT NOT NULL,
                  avatar TEXT,
-                 haex_hlc_no_trigger TEXT,
-                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
              );
              INSERT INTO haex_identities (id, did, name) VALUES ('id-owner', 'did:key:zOwner', 'owner');
              INSERT INTO haex_spaces (id, type, owner_identity_id) VALUES ('{owner_space_id}', 'vault', 'id-owner');
-             INSERT INTO devices (id, space_id, avatar, haex_hlc_no_trigger, haex_column_hlcs_no_trigger) \
+             INSERT INTO devices (id, space_id, avatar, haex_hlc_no_sync, haex_column_hlcs_no_sync) \
               VALUES ('dev-1', '{owner_space_id}', 'old.png', '10/aaa', '{{\"space_id\":\"10/aaa\",\"avatar\":\"3/aaa\"}}');"
         ))
         .unwrap();
@@ -2113,7 +2113,7 @@ mod tests {
             let guard = db.0.lock().unwrap();
             let conn = guard.as_ref().unwrap();
             conn.query_row(
-                "SELECT avatar, haex_column_hlcs_no_trigger, haex_hlc_no_trigger FROM devices WHERE id = 'dev-idem'",
+                "SELECT avatar, haex_column_hlcs_no_sync, haex_hlc_no_sync FROM devices WHERE id = 'dev-idem'",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
@@ -2286,7 +2286,7 @@ mod tests {
             let guard = db.0.lock().unwrap();
             let conn = guard.as_ref().unwrap();
             conn.execute(
-                "INSERT INTO devices (id, space_id, avatar, haex_hlc_no_trigger, haex_column_hlcs_no_trigger) \
+                "INSERT INTO devices (id, space_id, avatar, haex_hlc_no_sync, haex_column_hlcs_no_sync) \
                  VALUES ('dev-1', 's1', 'seed.png', '0/aaa', '{}')",
                 [],
             )
@@ -2314,7 +2314,7 @@ mod tests {
             let guard = db.0.lock().unwrap();
             let conn = guard.as_ref().unwrap();
             conn.query_row(
-                "SELECT avatar, haex_hlc_no_trigger FROM devices WHERE id = 'dev-1'",
+                "SELECT avatar, haex_hlc_no_sync FROM devices WHERE id = 'dev-1'",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
@@ -2356,7 +2356,7 @@ mod tests {
                 let guard = db.0.lock().unwrap();
                 let conn = guard.as_ref().unwrap();
                 conn.execute(
-                    "INSERT INTO devices (id, space_id, avatar, haex_hlc_no_trigger, haex_column_hlcs_no_trigger) \
+                    "INSERT INTO devices (id, space_id, avatar, haex_hlc_no_sync, haex_column_hlcs_no_sync) \
                      VALUES ('dev-1', 's1', 'seed.png', '0/aaa', '{}')",
                     [],
                 )
@@ -2376,7 +2376,7 @@ mod tests {
                 let guard = db.0.lock().unwrap();
                 let conn = guard.as_ref().unwrap();
                 conn.query_row(
-                    "SELECT avatar, haex_column_hlcs_no_trigger, haex_hlc_no_trigger FROM devices WHERE id = 'dev-1'",
+                    "SELECT avatar, haex_column_hlcs_no_sync, haex_hlc_no_sync FROM devices WHERE id = 'dev-1'",
                     [],
                     |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
                 )

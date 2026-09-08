@@ -199,13 +199,13 @@ impl Paginable for LocalColumnChange {
 /// [`LocalColumnChange`].
 ///
 /// `ColumnChange::sig` is the **raw** entry from
-/// `haex_column_sigs_no_trigger` for that column — vault's whole
+/// `haex_column_sigs_no_sync` for that column — vault's whole
 /// `{space_id: sig}` object, undecoded, because the crate must not know
 /// about spaces. This is the only place that opens it.
 ///
 /// `sig_space_id` is deliberately **decoupled** from the SQL `space_id`
 /// filter: extension/content tables carry per-space sigs in
-/// `haex_column_sigs_no_trigger` but have no `space_id` column of their own,
+/// `haex_column_sigs_no_sync` but have no `space_id` column of their own,
 /// so the registry-driven path resolves sigs for a space it never filtered
 /// on. Owner-vault paths pass `None` and get `sig: None` — that sync is
 /// unscoped and has no space to key a signature by.

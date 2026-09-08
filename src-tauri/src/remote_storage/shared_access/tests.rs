@@ -356,8 +356,8 @@ mod crdt_bootstrap {
                 id TEXT PRIMARY KEY NOT NULL,
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
             )"
         ))
         .unwrap();
@@ -390,9 +390,9 @@ mod crdt_bootstrap {
                 space_id TEXT NOT NULL,
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             )",
         )
         .unwrap();

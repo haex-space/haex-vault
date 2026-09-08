@@ -35,8 +35,8 @@ use std::collections::{BTreeMap, HashSet};
 ///
 /// # A table missing its CRDT metadata columns is an `Err`, deliberately
 ///
-/// A table that carries neither `haex_hlc_no_trigger` nor
-/// `haex_column_hlcs_no_trigger` fails the scan instead of yielding zero
+/// A table that carries neither `haex_hlc_no_sync` nor
+/// `haex_column_hlcs_no_sync` fails the scan instead of yielding zero
 /// rows. The pass-1 callers scan `SPACE_SCOPED_CRDT_TABLES` — the
 /// shared-space control plane: membership, devices, MLS keys, the register
 /// itself — so such a table is local schema damage, not a peer-supplied bad
@@ -80,7 +80,7 @@ pub fn scan_table_for_local_changes_scoped(
 /// `space_id` column on the target table: extension/content tables typically
 /// do not carry one, and the row-to-space mapping lives entirely in the
 /// registry. Per-column signatures are still extracted for `space_id` from
-/// `haex_column_sigs_no_trigger` (W1 → W2 contract: the receiver's registered-content
+/// `haex_column_sigs_no_sync` (W1 → W2 contract: the receiver's registered-content
 /// gate rejects rows without a matching per-space sig).
 ///
 /// # Error policy: warn-and-skip on the register, propagate on the scan

@@ -64,7 +64,7 @@ fn write_payload_too_large(params: &[JsonValue], limit: usize) -> Option<usize> 
 ///
 /// Läuft nach dem Write die Column-Signing-Nachlese: für jede geschriebene
 /// Zeile werden alle nicht-Meta-Spalten mit den Space-Signing-Keys aus
-/// `key_cache` signiert und über `haex_column_sigs_no_trigger` persistiert.
+/// `key_cache` signiert und über `haex_column_sigs_no_sync` persistiert.
 /// Unterstützt RETURNING-Klausel: Falls vorhanden, werden die Ergebnis-Rows zurückgegeben.
 pub fn execute_with_crdt(
     sql: String,
@@ -88,8 +88,8 @@ pub fn execute_with_crdt(
 
     // F#2 (Runde-4 review, HLC-forgery guard): reject any caller-supplied
     // write to CRDT meta columns. The transformer would otherwise clobber
-    // `haex_hlc_no_trigger` silently, and — critically — a caller-supplied
-    // `haex_column_hlcs_no_trigger = '{"col":"9999-…"}'` would feed a forged HLC into
+    // `haex_hlc_no_sync` silently, and — critically — a caller-supplied
+    // `haex_column_hlcs_no_sync = '{"col":"9999-…"}'` would feed a forged HLC into
     // the sig-preimage on the next F2 pass, letting an attacker mint a
     // valid Ed25519 signature over an arbitrary HLC. Hard rejection is the
     // only safe choice — silent stripping is indistinguishable from success.
@@ -257,10 +257,10 @@ fn is_crdt_meta_column(col: &str) -> bool {
         || col.ends_with("__crdt_ts_source")
 }
 
-/// Post-write signing pass: for every row that carries `haex_hlc_no_trigger == tx_hlc`
+/// Post-write signing pass: for every row that carries `haex_hlc_no_sync == tx_hlc`
 /// on `table_name`, sign each touched non-meta column with every key from
 /// `key_cache` whose space owns the row, then persist the sig into
-/// `haex_column_sigs_no_trigger`.
+/// `haex_column_sigs_no_sync`.
 fn sign_written_rows(
     tx: &Transaction,
     key_cache: &SpaceKeyCache,
@@ -342,7 +342,7 @@ fn sign_written_rows(
     }
 
     // Read the transaction-scoped HLC — the transformer wrote it into
-    // haex_hlc_no_trigger on every row it just touched, so we use it as the WHERE key.
+    // haex_hlc_no_sync on every row it just touched, so we use it as the WHERE key.
     let tx_hlc: String = tx
         .query_row(&format!("SELECT {HLC_FUNCTION_NAME}()"), [], |r| r.get(0))
         .map_err(|e| DatabaseError::HlcError {
@@ -406,7 +406,7 @@ fn sign_written_rows(
 /// F2 — cross-table signing for freshly-inserted share-register rows.
 ///
 /// For every row inserted into `haex_shared_space_sync` during this tx
-/// (identified by matching `haex_hlc_no_trigger` against the tx HLC), do:
+/// (identified by matching `haex_hlc_no_sync` against the tx HLC), do:
 ///
 /// 1. **I1**: reject if `table_name` targets an unreviewed
 ///    Haex/SQLite/internal table (see
@@ -419,9 +419,9 @@ fn sign_written_rows(
 ///    into that space.
 /// 3. Load every non-meta column of the referenced row and sign it for
 ///    `space_id_new` using the local key. HLC per column comes from the row's
-///    stored `haex_column_hlcs_no_trigger[col]` — we sign columns AS THEY EXIST, with
+///    stored `haex_column_hlcs_no_sync[col]` — we sign columns AS THEY EXIST, with
 ///    their historical timestamps, not the tx HLC of the register INSERT.
-/// 4. Upsert each `(column, space_id_new)` sig into the row's `haex_column_sigs_no_trigger`.
+/// 4. Upsert each `(column, space_id_new)` sig into the row's `haex_column_sigs_no_sync`.
 ///
 /// Returns `Err(DatabaseError::I1…|I2…)` on violation — the caller's tx
 /// scope aborts and rolls back the register-row insert too.
@@ -429,7 +429,7 @@ fn sign_share_insert_targets(
     tx: &Transaction,
     key_cache: &SpaceKeyCache,
 ) -> Result<(), DatabaseError> {
-    // Guard: F2 needs the register carrying `haex_hlc_no_trigger` to identify the
+    // Guard: F2 needs the register carrying `haex_hlc_no_sync` to identify the
     // just-inserted rows. Older fixtures / pre-migration tests may lack it —
     // treat as a no-op with a warn (schema drift or unmigrated fixture).
     let register_schema = get_table_schema(tx, TABLE_SHARED_SPACE_SYNC).map_err(|e| {
@@ -445,7 +445,7 @@ fn sign_share_insert_targets(
             target: "column_sig",
             register = TABLE_SHARED_SPACE_SYNC,
             "F2 sig path skipped: share register is missing CRDT meta \
-             (`haex_hlc_no_trigger`) — schema drift or unmigrated fixture. \
+             (`haex_hlc_no_sync`) — schema drift or unmigrated fixture. \
              Register INSERTs will not produce cross-table column sigs \
              until the schema catches up."
         );
@@ -537,7 +537,7 @@ fn sign_share_insert_targets(
             continue;
         }
 
-        // SELECT all non-PK, non-CRDT-meta columns plus haex_column_hlcs_no_trigger for HLC lookup.
+        // SELECT all non-PK, non-CRDT-meta columns plus haex_column_hlcs_no_sync for HLC lookup.
         let signable_cols: Vec<&str> = schema
             .iter()
             .filter(|c| {
@@ -760,7 +760,7 @@ fn sign_registry_row_self(
         }
     }
     // TouchedColumns::AllColumns only reaches this point for an INSERT into a
-    // register table that (unusually) lacks `haex_column_sigs_no_trigger` — F1 already
+    // register table that (unusually) lacks `haex_column_sigs_no_sync` — F1 already
     // rejects it otherwise. INSERT always (re)signs regardless, so no
     // touched-column check is needed on that branch.
 

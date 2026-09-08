@@ -138,8 +138,8 @@ pub(crate) fn setup_membership_db() -> (
 /// `haex_extensions` is dropped here — we never seed `haex_extensions`, and
 /// `log_to_db` always inserts NULL there.
 ///
-/// The table is created **without** CRDT columns (`haex_hlc_no_trigger`,
-/// `haex_column_hlcs_no_trigger`, …), exactly like production: it is
+/// The table is created **without** CRDT columns (`haex_hlc_no_sync`,
+/// `haex_column_hlcs_no_sync`, …), exactly like production: it is
 /// `_no_sync`, and log writes go through the [`crate::logging::LogSink`]
 /// (plain INSERTs), not `execute_with_crdt`. Adding CRDT columns here
 /// would diverge from production and re-arm the very sync path the

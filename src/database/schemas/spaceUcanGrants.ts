@@ -7,7 +7,7 @@ import { haexSpaces } from './spaces'
 // Space UCAN Grants — local, non-CRDT-synced bilateral UCAN storage: tracks
 // both the grants this device issued to other space members and the grants
 // it received from them. `_no_sync`: never touched by CRDT machinery, no
-// haex_hlc_no_trigger / haex_column_hlcs_no_trigger / haex_column_sigs_no_trigger meta columns.
+// haex_hlc_no_sync / haex_column_hlcs_no_sync / haex_column_sigs_no_sync meta columns.
 // See also: haexUcanTokens (CRDT-synced, different purpose — cached
 // capability tokens for space operations, not bilateral grant bookkeeping).
 // ---------------------------------------------------------------------------

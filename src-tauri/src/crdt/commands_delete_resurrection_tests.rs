@@ -26,15 +26,15 @@ fn setup_db() -> DbConnection {
         "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
          CREATE TABLE {DELETED_ROWS_TABLE} (
              id TEXT PRIMARY KEY, table_name TEXT NOT NULL, row_pks TEXT NOT NULL,
-             haex_hlc_no_trigger TEXT, haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_sync TEXT, haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
          );
          CREATE TABLE items (
              id TEXT PRIMARY KEY, name TEXT,
-             haex_hlc_no_trigger TEXT, haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_sync TEXT, haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
          );
          CREATE TABLE pair (
              a TEXT NOT NULL, b TEXT NOT NULL, val TEXT,
-             haex_hlc_no_trigger TEXT, haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}',
+             haex_hlc_no_sync TEXT, haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}',
              PRIMARY KEY (a, b)
          );"
     ))
@@ -58,7 +58,7 @@ fn seed_delete_log(db: &DbConnection, table: &str, row_pks: &str, hlc: &str) {
     let conn = guard.as_ref().unwrap();
     conn.execute(
         &format!(
-            "INSERT INTO {DELETED_ROWS_TABLE} (id, table_name, row_pks, haex_hlc_no_trigger) VALUES (?, ?, ?, ?)"
+            "INSERT INTO {DELETED_ROWS_TABLE} (id, table_name, row_pks, haex_hlc_no_sync) VALUES (?, ?, ?, ?)"
         ),
         params![format!("del-{}", rand::random::<u32>()), table, row_pks, hlc],
     )

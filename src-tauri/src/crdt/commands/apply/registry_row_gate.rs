@@ -419,7 +419,7 @@ mod tests {
 
     /// Minimal schema for `build_incoming_registry_change` — just the
     /// registry columns this module reads directly. The CRDT bookkeeping
-    /// columns (`haex_hlc_no_trigger`, `haex_column_hlcs_no_trigger`, ...) the full apply pipeline
+    /// columns (`haex_hlc_no_sync`, `haex_column_hlcs_no_sync`, ...) the full apply pipeline
     /// needs live one level up in `db.rs` and are irrelevant to this
     /// function.
     fn setup_db() -> Connection {

@@ -79,7 +79,7 @@ fn sync_pull_columns_routes_to_pull_columns() {
 
 /// Build an in-memory `DbConnection` with two CRDT-shaped tables seeded with
 /// rows. Each table has `id` PK, data columns, and the CRDT metadata columns
-/// `haex_hlc_no_trigger` + `haex_column_hlcs_no_trigger`.
+/// `haex_hlc_no_sync` + `haex_column_hlcs_no_sync`.
 fn setup_two_table_db() -> DbConnection {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(
@@ -87,14 +87,14 @@ fn setup_two_table_db() -> DbConnection {
                 id TEXT PRIMARY KEY,
                 title TEXT,
                 body TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}'
             );
          CREATE TABLE tags (
                 id TEXT PRIMARY KEY,
                 label TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -131,7 +131,7 @@ fn setup_two_table_db() -> DbConnection {
 fn insert_note(conn: &Connection, id: &str, title: &str, body: &str, hlc: &str) {
     let hlcs = format!("{{\"title\":\"{hlc}\",\"body\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO notes (id, title, body, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO notes (id, title, body, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, title, body, hlc, hlcs],
     )
@@ -141,7 +141,7 @@ fn insert_note(conn: &Connection, id: &str, title: &str, body: &str, hlc: &str) 
 fn insert_tag(conn: &Connection, id: &str, label: &str, hlc: &str) {
     let hlcs = format!("{{\"label\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO tags (id, label, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO tags (id, label, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![id, label, hlc, hlcs],
     )

@@ -77,8 +77,8 @@ mod tests {
                 id TEXT PRIMARY KEY NOT NULL,
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
             )",
             DELETED_ROWS_TABLE
         ))
@@ -124,9 +124,9 @@ mod tests {
                 space_id TEXT NOT NULL,
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             )",
         )
         .unwrap();
@@ -232,7 +232,7 @@ mod tests {
 
         let rows = core::select_with_crdt(
             format!(
-                "SELECT id, haex_hlc_no_trigger, authored_by_did, row_sig FROM {} WHERE id = ?1",
+                "SELECT id, haex_hlc_no_sync, authored_by_did, row_sig FROM {} WHERE id = ?1",
                 TABLE_SHARED_SPACE_SYNC
             ),
             vec![serde_json::Value::String("assign-1".to_string())],
@@ -241,7 +241,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(rows.len(), 1);
-        assert!(!rows[0][1].is_null(), "haex_hlc_no_trigger must be set after assign");
+        assert!(!rows[0][1].is_null(), "haex_hlc_no_sync must be set after assign");
         assert!(
             !get_string(&rows[0], 2).is_empty(),
             "authored_by_did must be derived during registry-row signing"

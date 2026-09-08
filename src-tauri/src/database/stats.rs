@@ -304,7 +304,7 @@ fn get_delete_log_entries(
     limit: usize,
 ) -> Result<Vec<DeleteLogEntry>, DatabaseError> {
     let query = format!(
-        "SELECT table_name, row_pks, haex_hlc_no_trigger FROM \"{}\" ORDER BY haex_hlc_no_trigger DESC LIMIT ?",
+        "SELECT table_name, row_pks, haex_hlc_no_sync FROM \"{}\" ORDER BY haex_hlc_no_sync DESC LIMIT ?",
         DELETED_ROWS_TABLE
     );
 

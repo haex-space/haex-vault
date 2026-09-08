@@ -121,7 +121,7 @@ pub fn resolve_vault_space_id(conn: &Connection) -> rusqlite::Result<Option<Stri
 ///   two devices of the same identity is deliberately unsigned on the write
 ///   side ([`crate::crdt::column_sig::write::sign_column_for_spaces`] only
 ///   signs rows the register maps into a space; owner-private rows carry
-///   `haex_column_sigs_no_trigger = {}`). Peer legitimacy is already established by
+///   `haex_column_sigs_no_sync = {}`). Peer legitimacy is already established by
 ///   QUIC-level DID auth plus the peer's row in `haex_space_devices`, so
 ///   per-column sig enforcement adds nothing on top and would drop every
 ///   unsigned owner-private CRDT change on the receiver.

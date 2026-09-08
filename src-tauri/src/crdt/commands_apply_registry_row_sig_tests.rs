@@ -51,8 +51,8 @@ fn setup_registry_db() -> DbConnection {
              id TEXT PRIMARY KEY,
              table_name TEXT NOT NULL,
              row_pks TEXT NOT NULL,
-             haex_hlc_no_trigger TEXT,
-             haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{{}}'
+             haex_hlc_no_sync TEXT,
+             haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
          );
          CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
              table_name TEXT NOT NULL,

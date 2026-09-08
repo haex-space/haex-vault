@@ -448,7 +448,7 @@ fn test_execute_with_crdt_does_not_resign_on_sync_meta_only_update() {
     // `test_execute_with_crdt_rejects_direct_row_sig_write`) — so there is
     // no legitimate `execute_with_crdt` call that touches only sync-meta
     // columns; `CrdtMetaColumnWriteForbidden` already rejects any caller
-    // write to haex_hlc_no_trigger/haex_column_hlcs_no_trigger/haex_column_sigs_no_trigger regardless of
+    // write to haex_hlc_no_sync/haex_column_hlcs_no_sync/haex_column_sigs_no_sync regardless of
     // table. The realistic equivalent of "a CRDT-internal update touches
     // sync meta" is a raw connection write, exactly like the CRDT-apply
     // path (`apply_remote_changes_to_db_scoped`) uses when merging remote
@@ -464,7 +464,7 @@ fn test_execute_with_crdt_does_not_resign_on_sync_meta_only_update() {
         let guard = f.db.0.lock().unwrap();
         let conn = guard.as_ref().unwrap();
         conn.execute(
-            "UPDATE haex_shared_space_sync SET haex_hlc_no_trigger = 'fake-remote-hlc' WHERE id = 'row-5'",
+            "UPDATE haex_shared_space_sync SET haex_hlc_no_sync = 'fake-remote-hlc' WHERE id = 'row-5'",
             [],
         )
         .unwrap();

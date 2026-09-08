@@ -62,8 +62,8 @@ pub enum TestPropagationOutcome {
     /// The target space had no register entry, and no other space did either
     /// — treated as unshare-race. No changes.
     UnshareRace,
-    /// The business row's local `haex_hlc_no_trigger` was newer than the delete-log
-    /// entry's `haex_hlc_no_trigger`. Propagation short-circuits before the register
+    /// The business row's local `haex_hlc_no_sync` was newer than the delete-log
+    /// entry's `haex_hlc_no_sync`. Propagation short-circuits before the register
     /// gate. No changes.
     ResurrectionSuppressed,
     /// Fallback for a state transition the derivation logic does not
@@ -239,7 +239,7 @@ pub(crate) fn seed_shared_space_delete_log_entry_impl(
         tx.execute(
             &format!(
                 "INSERT INTO \"{SHARED_SPACE_DELETED_ROWS_TABLE}\" \
-                 (id, space_id, table_name, row_pks, haex_hlc_no_trigger) VALUES (?, ?, ?, ?, ?)"
+                 (id, space_id, table_name, row_pks, haex_hlc_no_sync) VALUES (?, ?, ?, ?, ?)"
             ),
             params![&delete_log_id, space_id, table_name, row_pks_json, hlc],
         )

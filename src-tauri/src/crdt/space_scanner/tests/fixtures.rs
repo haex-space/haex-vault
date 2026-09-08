@@ -29,8 +29,8 @@ pub(super) fn setup_test_db() -> Connection {
                 id TEXT PRIMARY KEY,
                 name TEXT,
                 value INTEGER,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -40,7 +40,7 @@ pub(super) fn setup_test_db() -> Connection {
 pub(super) fn insert_row(conn: &Connection, id: &str, name: &str, value: i64, hlc: &str) {
     let hlcs = format!("{{\"name\":\"{hlc}\",\"value\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, name, value, hlc, hlcs],
     )
@@ -56,9 +56,9 @@ pub(super) fn setup_scoped_test_db() -> Connection {
                 id TEXT PRIMARY KEY,
                 space_id TEXT NOT NULL,
                 data TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -92,7 +92,7 @@ pub(super) fn insert_scoped_row(
     .to_string();
     conn.execute(
         "INSERT INTO scoped_items
-             (id, space_id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
+             (id, space_id, data, haex_hlc_no_sync, haex_column_hlcs_no_sync, haex_column_sigs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![id, space_id, data, hlc, hlcs, sigs],
     )
@@ -109,8 +109,8 @@ pub(super) fn setup_vault_private_test_db() -> Connection {
         "CREATE TABLE haex_passwords (
                 id TEXT PRIMARY KEY,
                 secret TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -120,7 +120,7 @@ pub(super) fn setup_vault_private_test_db() -> Connection {
 pub(super) fn insert_private_row(conn: &Connection, id: &str, secret: &str, hlc: &str) {
     let hlcs = format!("{{\"secret\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO haex_passwords (id, secret, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO haex_passwords (id, secret, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![id, secret, hlc, hlcs],
     )
@@ -154,9 +154,9 @@ pub(super) fn setup_registry_scan_db() -> Connection {
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
                 space_id TEXT NOT NULL,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             );
 
             CREATE TABLE haex_space_members (
@@ -166,17 +166,17 @@ pub(super) fn setup_registry_scan_db() -> Connection {
                 role TEXT NOT NULL DEFAULT 'read',
                 authored_by_did TEXT,
                 joined_at TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             );
 
             CREATE TABLE ext_notes_v1 (
                 id TEXT PRIMARY KEY,
                 body TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -210,7 +210,7 @@ pub(super) fn insert_ext_row(
         None => "{}".to_string(),
     };
     conn.execute(
-        "INSERT INTO ext_notes_v1 (id, body, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
+        "INSERT INTO ext_notes_v1 (id, body, haex_hlc_no_sync, haex_column_hlcs_no_sync, haex_column_sigs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, body, hlc, hlcs, sigs],
     )
@@ -234,13 +234,13 @@ pub(super) fn insert_registry_entry(
     // scanner emits realistic `LocalColumnChange`s from the register
     // table itself (`haex_shared_space_sync` IS on the whitelist).
     // Without this, the register-row changes come out with
-    // `hlc_timestamp = "haex_hlc_no_trigger"` (a literal-string fallback), which
+    // `hlc_timestamp = "haex_hlc_no_sync"` (a literal-string fallback), which
     // is confusing when debugging failures on the ext-table assertions.
     let hlc = "1000000000000000000/aabbccdd";
     let hlcs = format!("{{\"table_name\":\"{hlc}\",\"row_pks\":\"{hlc}\",\"space_id\":\"{hlc}\"}}");
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-             (id, table_name, row_pks, space_id, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+             (id, table_name, row_pks, space_id, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![registry_row_id, table_name, row_pks, space_id, hlc, hlcs],
     )
@@ -276,7 +276,7 @@ pub(super) fn insert_member_row(
     .to_string();
     conn.execute(
         "INSERT INTO haex_space_members
-             (id, space_id, identity_id, role, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
+             (id, space_id, identity_id, role, haex_hlc_no_sync, haex_column_hlcs_no_sync, haex_column_sigs_no_sync)
              VALUES (?1, ?2, ?3, 'read', ?4, ?5, ?6)",
         rusqlite::params![id, space_id, identity_id, hlc, hlcs, sigs],
     )

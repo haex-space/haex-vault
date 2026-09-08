@@ -9,7 +9,7 @@ import {
 } from 'drizzle-orm/sqlite-core'
 import tableNames from '@/database/tableNames.json'
 
-// Note: CRDT columns (haex_hlc_no_trigger, haex_column_hlcs_no_trigger) are added automatically by the
+// Note: CRDT columns (haex_hlc_no_sync, haex_column_hlcs_no_sync) are added automatically by the
 // Rust CrdtTransformer when CREATE TABLE is executed. DELETE on these tables is
 // logged to `haex_deleted_rows` via a BEFORE-DELETE trigger (no tombstone column).
 

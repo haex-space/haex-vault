@@ -154,9 +154,9 @@ fn registered_composite_pk_row_matches_schema_order_wire_form() {
             b TEXT NOT NULL,
             a TEXT NOT NULL,
             body TEXT,
-            haex_hlc_no_trigger TEXT,
-            haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-            haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}',
+            haex_hlc_no_sync TEXT,
+            haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+            haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}',
             PRIMARY KEY (b, a)
         );",
     )
@@ -175,7 +175,7 @@ fn registered_composite_pk_row_matches_schema_order_wire_form() {
     })
     .to_string();
     conn.execute(
-        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
+        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc_no_sync, haex_column_hlcs_no_sync, haex_column_sigs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params!["yb", "xa", "hello", hlc, hlcs, sigs],
     )
@@ -228,9 +228,9 @@ fn registered_composite_pk_row_ignored_when_registry_key_order_differs() {
             b TEXT NOT NULL,
             a TEXT NOT NULL,
             body TEXT,
-            haex_hlc_no_trigger TEXT,
-            haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-            haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}',
+            haex_hlc_no_sync TEXT,
+            haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+            haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}',
             PRIMARY KEY (b, a)
         );",
     )
@@ -238,7 +238,7 @@ fn registered_composite_pk_row_ignored_when_registry_key_order_differs() {
     let hlc = "1000000000000000000/aabbccdd";
     let hlcs = format!("{{\"body\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO ext_composite_v1 (b, a, body, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params!["yb", "xa", "hello", hlc, hlcs],
     )

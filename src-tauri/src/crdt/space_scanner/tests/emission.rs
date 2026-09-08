@@ -76,14 +76,14 @@ fn test_scan_excludes_metadata_columns() {
                 last_pull_server_timestamp_no_sync TEXT,
                 updated_at_no_sync TEXT,
                 created_at_no_sync TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
 
     conn.execute(
-        "INSERT INTO with_meta (id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO with_meta (id, data, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES ('r1', 'test', '2025-01-01T00:00:00.000Z-0001-d1',
                      '{\"data\":\"2025-01-01T00:00:00.000Z-0001-d1\"}')",
         [],
@@ -99,16 +99,16 @@ fn test_scan_excludes_metadata_columns() {
     assert!(!col_names.contains(&"last_pull_server_timestamp_no_sync"));
     assert!(!col_names.contains(&"updated_at_no_sync"));
     assert!(!col_names.contains(&"created_at_no_sync"));
-    assert!(!col_names.contains(&"haex_hlc_no_trigger"));
-    assert!(!col_names.contains(&"haex_column_hlcs_no_trigger"));
+    assert!(!col_names.contains(&"haex_hlc_no_sync"));
+    assert!(!col_names.contains(&"haex_column_hlcs_no_sync"));
 }
 
 #[test]
 fn test_scan_uses_row_hlc_as_fallback() {
     let conn = setup_test_db();
-    // Insert a row where haex_column_hlcs_no_trigger is empty — row-level HLC should be used
+    // Insert a row where haex_column_hlcs_no_sync is empty — row-level HLC should be used
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES ('r1', 'test', 10, '2025-01-01T00:00:00.000Z-0001-d1', '{}')",
         [],
     )
@@ -132,7 +132,7 @@ fn test_scan_empty_column_hlc_falls_back_to_row_hlc() {
     // component of ""` flood) and could never converge (`"" > x` is false).
     let conn = setup_test_db();
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES ('r1', 'test', 10, '2025-01-01T00:00:00.000Z-0001-d1', '{\"name\":\"\",\"value\":\"\"}')",
         [],
     )
@@ -157,7 +157,7 @@ fn test_scan_skips_row_when_all_hlcs_empty() {
     // produced the empty-HLC log flood and a row that never synced.
     let conn = setup_test_db();
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES ('r1', 'test', 10, '', '{\"name\":\"\",\"value\":\"\"}')",
         [],
     )
@@ -174,8 +174,8 @@ fn test_scan_skips_row_when_all_hlcs_empty() {
 #[test]
 fn test_incremental_scan_admits_empty_row_hlc_with_valid_column_hlc() {
     // Regression: an incremental scan must not drop a corrupt/legacy row whose
-    // row-level HLC is empty (`haex_hlc_no_trigger = ''`) but which still carries a valid,
-    // newer per-column HLC. The SQL prefilter (`"haex_hlc_no_trigger" > after_hlc`) would
+    // row-level HLC is empty (`haex_hlc_no_sync = ''`) but which still carries a valid,
+    // newer per-column HLC. The SQL prefilter (`"haex_hlc_no_sync" > after_hlc`) would
     // otherwise reject such a row before the per-column fallback could emit the
     // valid change, so the column would only ever converge on a full scan.
     let conn = setup_test_db();
@@ -183,7 +183,7 @@ fn test_incremental_scan_admits_empty_row_hlc_with_valid_column_hlc() {
     // `value` stays at the old one.
     let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES ('r1', 'updated', 10, '', ?1)",
         [hlcs],
     )
@@ -210,7 +210,7 @@ fn test_column_level_hlc_filtering() {
     // Insert a row where 'name' has a newer HLC but 'value' has an older one
     let hlcs = r#"{"name":"3000000000000000000/aabbccdd","value":"1000000000000000000/aabbccdd"}"#;
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES ('r1', 'updated', 10, '3000000000000000000/aabbccdd', ?1)",
         [hlcs],
     )
@@ -237,8 +237,8 @@ fn test_scan_composite_pk() {
                 group_id TEXT NOT NULL,
                 item_id TEXT NOT NULL,
                 data TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
                 PRIMARY KEY (group_id, item_id)
             );",
     )
@@ -246,7 +246,7 @@ fn test_scan_composite_pk() {
 
     let hlcs = r#"{"data":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
     conn.execute(
-        "INSERT INTO composite_pk (group_id, item_id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO composite_pk (group_id, item_id, data, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES ('g1', 'i1', 'hello', '2025-01-01T00:00:00.000Z-0001-d1', ?1)",
         [hlcs],
     )
@@ -268,7 +268,7 @@ fn test_scan_null_value() {
     let hlcs =
         r#"{"name":"2025-01-01T00:00:00.000Z-0001-d1","value":"2025-01-01T00:00:00.000Z-0001-d1"}"#;
     conn.execute(
-        "INSERT INTO test_items (id, name, value, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO test_items (id, name, value, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES ('r1', NULL, NULL, '2025-01-01T00:00:00.000Z-0001-d1', ?1)",
         [hlcs],
     )

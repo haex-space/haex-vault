@@ -99,30 +99,30 @@ fn setup_owner_vs_space_db() -> Connection {
                 id TEXT PRIMARY KEY,
                 space_id TEXT NOT NULL,
                 data TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}'
             );
              CREATE TABLE haex_passwords (
                 id TEXT PRIMARY KEY,
                 secret TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}'
             );
              CREATE TABLE haex_shared_space_sync (
                 id TEXT PRIMARY KEY NOT NULL,
                 table_name TEXT NOT NULL,
                 row_pks TEXT NOT NULL,
                 space_id TEXT NOT NULL,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             );
              CREATE TABLE ext_notes_v1 (
                 id TEXT PRIMARY KEY,
                 body TEXT,
-                haex_hlc_no_trigger TEXT,
-                haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}',
-                haex_column_sigs_no_trigger TEXT NOT NULL DEFAULT '{}'
+                haex_hlc_no_sync TEXT,
+                haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
             );",
     )
     .unwrap();
@@ -147,7 +147,7 @@ fn insert_ext_note_row(conn: &Connection, id: &str, body: &str, hlc: &str, sig_s
     })
     .to_string();
     conn.execute(
-        "INSERT INTO ext_notes_v1 (id, body, haex_hlc_no_trigger, haex_column_hlcs_no_trigger, haex_column_sigs_no_trigger)
+        "INSERT INTO ext_notes_v1 (id, body, haex_hlc_no_sync, haex_column_hlcs_no_sync, haex_column_sigs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, body, hlc, hlcs, sigs],
     )
@@ -170,7 +170,7 @@ fn insert_shared_sync_entry(
     let hlcs = format!("{{\"table_name\":\"{hlc}\",\"row_pks\":\"{hlc}\",\"space_id\":\"{hlc}\"}}");
     conn.execute(
         "INSERT INTO haex_shared_space_sync
-             (id, table_name, row_pks, space_id, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+             (id, table_name, row_pks, space_id, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params![registry_row_id, table_name, row_pks, space_id, hlc, hlcs],
     )
@@ -180,7 +180,7 @@ fn insert_shared_sync_entry(
 fn insert_peer_share(conn: &Connection, id: &str, space_id: &str, data: &str, hlc: &str) {
     let hlcs = format!("{{\"space_id\":\"{hlc}\",\"data\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO haex_peer_shares (id, space_id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO haex_peer_shares (id, space_id, data, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, space_id, data, hlc, hlcs],
     )
@@ -190,7 +190,7 @@ fn insert_peer_share(conn: &Connection, id: &str, space_id: &str, data: &str, hl
 fn insert_password(conn: &Connection, id: &str, secret: &str, hlc: &str) {
     let hlcs = format!("{{\"secret\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO haex_passwords (id, secret, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO haex_passwords (id, secret, haex_hlc_no_sync, haex_column_hlcs_no_sync)
              VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![id, secret, hlc, hlcs],
     )

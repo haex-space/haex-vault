@@ -3,7 +3,7 @@
 //! inbound rows pulled from a peer carry that peer's HLC node-id and would
 //! otherwise be re-scanned and pushed back.
 //!
-//! The fixture table here deliberately omits `haex_column_sigs_no_trigger`,
+//! The fixture table here deliberately omits `haex_column_sigs_no_sync`,
 //! so these also cover the no-sig-column shape.
 
 use crate::crdt::space_scanner::scan_table_for_local_changes_scoped;
@@ -18,8 +18,8 @@ fn setup_scoped_db() -> Connection {
             id TEXT PRIMARY KEY,
             space_id TEXT NOT NULL,
             data TEXT,
-            haex_hlc_no_trigger TEXT,
-            haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
+            haex_hlc_no_sync TEXT,
+            haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}'
         );",
     )
     .unwrap();
@@ -29,7 +29,7 @@ fn setup_scoped_db() -> Connection {
 fn insert_row(conn: &Connection, id: &str, space_id: &str, data: &str, hlc: &str) {
     let hlcs = format!("{{\"space_id\":\"{hlc}\",\"data\":\"{hlc}\"}}");
     conn.execute(
-        "INSERT INTO scoped_items (id, space_id, data, haex_hlc_no_trigger, haex_column_hlcs_no_trigger)
+        "INSERT INTO scoped_items (id, space_id, data, haex_hlc_no_sync, haex_column_hlcs_no_sync)
          VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, space_id, data, hlc, hlcs],
     )

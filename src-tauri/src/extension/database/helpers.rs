@@ -353,7 +353,7 @@ pub fn execute_sql_with_context(
             serde_json::json!({}),
         )?;
 
-        // Note: CRDT transformation (adding haex_hlc_no_trigger) is handled by
+        // Note: CRDT transformation (adding haex_hlc_no_sync) is handled by
         // SqlExecutor::execute_internal_typed / query_internal_typed.
         // Do NOT transform here to avoid double transformation!
 
