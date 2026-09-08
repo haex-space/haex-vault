@@ -1,6 +1,7 @@
 mod conflicts;
 mod db;
 mod delete_propagation;
+mod finish;
 mod grouping;
 mod policy;
 mod registry_row_gate;
