@@ -11,11 +11,26 @@
 
 use std::collections::{HashMap, HashSet};
 
-use haex_crdt::{ApplyOutcome, ApplyPolicy, ColumnDecision, RemoteChanges, RowDecision, RowInput};
-use rusqlite::Transaction;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use haex_crdt::{
+    ApplyOutcome, ApplyPolicy, ColumnDecision, RemoteChanges, RowDecision, RowInput, RowWrite,
+    SignatureWrite,
+};
+use rusqlite::{params, Transaction};
 
+use super::registry_row_gate::{build_incoming_registry_change, RegistryRowChangeOutcome};
 use super::schema_recovery::{run_schema_auto_upgrade, write_pending_table_markers};
-use crate::crdt::column_sig::storage::SigRecord;
+use super::signatures::{ensure_identity_stub, resolve_row_space_id_for_sig, verify_change_sig};
+use super::types::{from_crate_change, RemoteColumnChange};
+use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
+use crate::crdt::registry_row_sig::puller_verify::verify_incoming_registry_change;
+use crate::crdt::shared_space_trigger::ColumnInfo;
+use crate::database::core::ValueConverter;
+use crate::table_names::{
+    COL_SHARED_SPACE_SYNC_ROW_SIG, TABLE_CRDT_PENDING_COLUMNS, TABLE_SHARED_SPACE_SYNC,
+};
+
+use super::super::helpers::build_pk_where_clause;
 
 /// Batch-scoped state computed once per [`haex_crdt::apply_remote_changes`]
 /// call and consulted from every hook.
@@ -89,17 +104,212 @@ impl ApplyPolicy for VaultApplyPolicy {
         Ok(())
     }
 
-    /// Placeholder — real admission/decoding logic lands in Task 3. Not yet
-    /// wired into any live call site (`apply_remote_changes_to_db_scoped`
-    /// still runs the old hand-rolled loop until Task 7's cutover), so this
-    /// body is never actually exercised yet.
-    fn prepare_row(&mut self, _tx: &Transaction<'_>, row: RowInput<'_>) -> haex_crdt::Result<RowDecision> {
-        Ok(RowDecision::Columns(
-            row.eligible_indices
-                .iter()
-                .map(|_| ColumnDecision::Skip)
-                .collect(),
-        ))
+    fn prepare_row(&mut self, tx: &Transaction<'_>, row: RowInput<'_>) -> haex_crdt::Result<RowDecision> {
+        // Reconstruct owned `RemoteColumnChange`s for the row's FULL change
+        // group (not just `eligible_indices`) so the existing, unmodified
+        // registry-gate and per-space-sig helpers — which all take
+        // `&RemoteColumnChange` and haven't changed shape — keep working
+        // verbatim. Built in the same order as `row.changes`, so an index
+        // into one is the same index into the other.
+        let full_row_changes: Vec<RemoteColumnChange> = row
+            .changes
+            .iter()
+            .map(|ic| from_crate_change(ic.change))
+            .collect();
+
+        // Stage 5b — row-level registry-row-sig gate for
+        // `haex_shared_space_sync`. Runs BEFORE the per-column sig gate
+        // below: a bad row_sig drops this row's ENTIRE change set
+        // atomically, unlike a per-column sig failure which only drops that
+        // one column. Skipped when the local schema predates the `row_sig`
+        // column — nothing to verify against.
+        if row.table_name.eq_ignore_ascii_case(TABLE_SHARED_SPACE_SYNC)
+            && row.schema.iter().any(|c| c.name == COL_SHARED_SPACE_SYNC_ROW_SIG)
+        {
+            let pk_columns: Vec<&ColumnInfo> = row.schema.iter().filter(|c| c.is_pk).collect();
+            let (pk_where_clause, pk_values_for_query) =
+                build_pk_where_clause(&pk_columns, row.row_pks);
+            let outcome = build_incoming_registry_change(
+                tx,
+                &pk_where_clause,
+                &pk_values_for_query,
+                row.row_pks,
+                &full_row_changes,
+            )
+            .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
+            match outcome {
+                RegistryRowChangeOutcome::NothingSignedTouched => {}
+                RegistryRowChangeOutcome::RowSigOnlyBatch {
+                    space_id,
+                    authored_by_did,
+                } => {
+                    eprintln!(
+                        "[SYNC RUST] Rejected registry row {} in '{}' (space_id='{}', authored_by_did='{}') — batch touched ONLY row_sig with no signed-payload column; a bare row_sig cannot be verified and would let a stale-but-valid signature overwrite the persisted one (possible replay)",
+                        row.row_pks_json, row.table_name, space_id, authored_by_did
+                    );
+                    return Ok(RowDecision::Skip);
+                }
+                RegistryRowChangeOutcome::MissingFreshRowSig(touched_signed_columns) => {
+                    eprintln!(
+                        "[SYNC RUST] Rejected registry row {} in '{}' — signed column(s) {:?} changed without a fresh row_sig in the same batch",
+                        row.row_pks_json, row.table_name, touched_signed_columns
+                    );
+                    tx.execute(
+                        &format!(
+                            "INSERT OR IGNORE INTO {} (table_name, column_name, row_pks) VALUES (?, ?, ?)",
+                            TABLE_CRDT_PENDING_COLUMNS
+                        ),
+                        params![row.table_name, COL_SHARED_SPACE_SYNC_ROW_SIG, row.row_pks_json],
+                    )
+                    .map_err(haex_crdt::Error::Sqlite)?;
+                    return Ok(RowDecision::Skip);
+                }
+                RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(null_columns) => {
+                    eprintln!(
+                        "[SYNC RUST] Rejected registry row {} in '{}' — required column(s) {:?} were explicitly set to null (never legitimate; dropping data in transit or forgery attempt)",
+                        row.row_pks_json, row.table_name, null_columns
+                    );
+                    return Ok(RowDecision::Skip);
+                }
+                RegistryRowChangeOutcome::Ready { change, persisted } => {
+                    if let Err(err) = verify_incoming_registry_change(&change, persisted.as_ref())
+                    {
+                        eprintln!(
+                            "[SYNC RUST] Rejected registry row {} in '{}' (claimed authored_by_did='{}') — {:?}",
+                            row.row_pks_json, row.table_name, change.authored_by_did, err
+                        );
+                        return Ok(RowDecision::Skip);
+                    }
+                }
+            }
+        }
+
+        // Precompute the trustworthy space anchor once per row — only
+        // needed when at least one change in the row carries a signature.
+        let row_space_id_for_sig: Option<String> = if full_row_changes.iter().any(|c| c.sig.is_some())
+        {
+            let pk_columns: Vec<&ColumnInfo> = row.schema.iter().filter(|c| c.is_pk).collect();
+            let (pk_where_clause, pk_values_for_query) =
+                build_pk_where_clause(&pk_columns, row.row_pks);
+            resolve_row_space_id_for_sig(
+                tx,
+                row.table_name,
+                &pk_where_clause,
+                &pk_values_for_query,
+                &full_row_changes,
+                row.schema,
+                self.expected_space_id.as_deref(),
+            )
+            .map_err(|e| haex_crdt::Error::Message(e.to_string()))?
+        } else {
+            None
+        };
+
+        let mut decisions = Vec::with_capacity(row.eligible_indices.len());
+        for &idx in row.eligible_indices {
+            let change = &full_row_changes[idx];
+            let input_index = row.changes[idx].input_index;
+
+            // Shared-space applies fail closed on missing signatures.
+            // `authored_by_did` is legacy leader-attributed metadata, not
+            // authoritative authorship; it remains the sole unsigned
+            // compatibility column until the schema drops it. Owner-space
+            // applies (`enforce_sigs == false`) skip this gate — signed
+            // changes still verify below regardless of the flag, so there
+            // is no downgrade path from signed to unsigned on that route.
+            if self.enforce_sigs && change.sig.is_none() && change.column_name != "authored_by_did"
+            {
+                eprintln!(
+                    "[SYNC RUST] Dropping unsigned shared-space change on {}.{}",
+                    row.table_name, change.column_name
+                );
+                decisions.push(ColumnDecision::Skip);
+                continue;
+            }
+
+            let value = match &change.sig {
+                Some(sig) => {
+                    match verify_change_sig(
+                        change,
+                        sig,
+                        row_space_id_for_sig.as_deref(),
+                        row.table_name,
+                        row.row_pks_json,
+                    ) {
+                        Ok(()) => {
+                            ensure_identity_stub(tx, &sig.author_did)
+                                .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
+                            let sql_value = sig
+                                .storage_class
+                                .restore(&change.decrypted_value)
+                                .map_err(haex_crdt::Error::Message)?;
+                            let sig_bytes_vec = BASE64.decode(&sig.sig).map_err(|e| {
+                                haex_crdt::Error::Message(format!(
+                                    "verified signature stopped decoding: {e}"
+                                ))
+                            })?;
+                            let sig_bytes: [u8; 64] = sig_bytes_vec.try_into().map_err(|_| {
+                                haex_crdt::Error::Message(
+                                    "verified signature has wrong length".to_string(),
+                                )
+                            })?;
+                            // `row_space_id_for_sig` must be `Some` here —
+                            // `verify_change_sig` errors on `None` (space_id
+                            // unavailable), so a successful verify implies it.
+                            if let Some(space_id) = row_space_id_for_sig.clone() {
+                                self.verified_sigs.insert(
+                                    input_index,
+                                    (
+                                        space_id,
+                                        SigRecord {
+                                            author_did: sig.author_did.clone(),
+                                            sig: sig_bytes,
+                                            storage_class: sig.storage_class,
+                                        },
+                                    ),
+                                );
+                            }
+                            sql_value
+                        }
+                        Err(reason) => {
+                            eprintln!(
+                                "[SYNC RUST] Dropping change with invalid sig on {}.{}: {}",
+                                row.table_name, change.column_name, reason
+                            );
+                            decisions.push(ColumnDecision::Skip);
+                            continue;
+                        }
+                    }
+                }
+                None => ValueConverter::json_to_rusqlite_value(&change.decrypted_value)
+                    .map_err(|e| haex_crdt::Error::Message(e.to_string()))?,
+            };
+
+            decisions.push(ColumnDecision::Accept {
+                value,
+                signature: SignatureWrite::Keep,
+            });
+        }
+        Ok(RowDecision::Columns(decisions))
+    }
+
+    fn after_row(&mut self, tx: &Transaction<'_>, written: RowWrite<'_>) -> haex_crdt::Result<()> {
+        // Only for columns that actually carried a verified signature this
+        // batch — `upsert_column_sigs` unchanged from before this cutover.
+        for col in written.columns {
+            if let Some((space_id, sig)) = self.verified_sigs.get(&col.input_index) {
+                upsert_column_sigs(
+                    tx,
+                    written.table_name,
+                    written.row_pks_json,
+                    &col.change.column_name,
+                    space_id,
+                    sig,
+                )
+                .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
+            }
+        }
+        Ok(())
     }
 
     fn before_commit(
