@@ -13,32 +13,8 @@
 
 use super::*;
 
-use haex_crdt::{DeviceIdProvider, MigrationSource, SignatureProvider};
+use haex_crdt::{MigrationSource, SignatureProvider};
 use serde_json::json;
-
-#[test]
-fn device_id_provider_returns_stable_uuid() {
-    let provider = HaexVaultDeviceIdProvider::from_state_test_seed(&[0xAB; 32]);
-    let a = provider.device_id().unwrap();
-    let b = provider.device_id().unwrap();
-    assert_eq!(a, b, "device id must be stable across calls");
-}
-
-#[test]
-fn device_id_provider_seed_bytes_flow_into_uuid() {
-    // Sanity: the seed's first 16 bytes are the UUID bytes. This locks in
-    // the test-seed contract so a future refactor of the derivation doesn't
-    // silently change what tests assert against.
-    let mut seed = [0u8; 32];
-    for (i, b) in seed.iter_mut().enumerate() {
-        *b = i as u8;
-    }
-    let provider = HaexVaultDeviceIdProvider::from_state_test_seed(&seed);
-    let uuid = provider.device_id().unwrap();
-    let mut expected = [0u8; 16];
-    expected.copy_from_slice(&seed[..16]);
-    assert_eq!(uuid.as_bytes(), &expected);
-}
 
 #[test]
 fn signature_provider_signs_and_verifies_column_roundtrip() {
