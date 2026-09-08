@@ -9,7 +9,7 @@ use super::super::push_cursor::save_last_push_hlc;
 use super::membership::filter_foreign_membership_rows;
 use super::{sqlite_datetime_now, SyncMode};
 use crate::crdt::commands::clear_dirty_table_inner;
-use crate::crdt::scanner::{
+use crate::crdt::space_scanner::{
     scan_all_crdt_tables_for_owner, scan_membership_tables_for_local_changes,
     scan_space_scoped_tables_for_local_changes, LocalColumnChange,
 };

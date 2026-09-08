@@ -4,7 +4,7 @@
 //!
 //! The attribution and column-level checks are pure transforms. The
 //! table-level scope check invokes one DB read via
-//! [`crate::crdt::scanner::is_registered_for_space`] — this module does not
+//! [`crate::crdt::space_scanner::is_registered_for_space`] — this module does not
 //! define the read itself, it consults `haex_shared_space_sync` through
 //! that shared helper (which Task 4's outbound scanner also uses).
 
@@ -12,7 +12,9 @@ use std::collections::HashMap;
 
 use serde_json::Value as JsonValue;
 
-use crate::crdt::scanner::{is_registered_for_space, is_space_scoped_table, LocalColumnChange};
+use crate::crdt::space_scanner::{
+    is_registered_for_space, is_space_scoped_table, LocalColumnChange,
+};
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
@@ -28,7 +30,7 @@ use super::InboundSyncPushOutcome;
 /// `space_id` via the membership check.
 ///
 /// A change is table-scope-accepted iff its table is on the static
-/// [`SPACE_SCOPED_CRDT_TABLES`][crate::crdt::scanner::SPACE_SCOPED_CRDT_TABLES]
+/// [`SPACE_SCOPED_CRDT_TABLES`][crate::crdt::space_scanner::SPACE_SCOPED_CRDT_TABLES]
 /// whitelist OR the `(table_name, row_pks, space_id)` triple is registered
 /// in `haex_shared_space_sync` (extension-owned content tables). The
 /// registry lookup fails CLOSED — a DB error on the lookup rejects the

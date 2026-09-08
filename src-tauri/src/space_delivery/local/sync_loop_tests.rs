@@ -70,7 +70,7 @@ use super::pending_columns::{
 };
 use super::push::collect_push_changes;
 use super::SyncMode;
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::database::DbConnection;
 use crate::table_names::TABLE_CRDT_PENDING_COLUMNS;
 use rusqlite::Connection;
@@ -91,7 +91,7 @@ use std::sync::{Arc, Mutex};
 /// same reason: the registry-driven push test (Task 7) populates it
 /// together with a matching registry row, while the older push-mode
 /// tests leave it untouched and therefore see nothing from it. Column
-/// shape mirrors `crdt::scanner_tests::setup_registry_scan_db`.
+/// shape mirrors `crdt::space_scanner::tests::fixtures::setup_registry_scan_db`.
 fn setup_owner_vs_space_db() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(
@@ -133,7 +133,7 @@ fn setup_owner_vs_space_db() -> Connection {
 /// `sig_space_id` (mirrors the shape `execute_with_crdt` produces at the
 /// W1 write path). Direct INSERT is fine here — the outbound scan only
 /// READS the row, so bypassing the CRDT triggers matches the Task-4
-/// scanner-test convention (`crdt::scanner_tests::insert_ext_row`).
+/// scanner-test convention (`crdt::space_scanner::tests::fixtures::insert_ext_row`).
 fn insert_ext_note_row(conn: &Connection, id: &str, body: &str, hlc: &str, sig_space_id: &str) {
     let hlcs = format!("{{\"body\":\"{hlc}\"}}");
     let sigs = serde_json::json!({
@@ -158,7 +158,7 @@ fn insert_ext_note_row(conn: &Connection, id: &str, body: &str, hlc: &str, sig_s
 /// `haex_shared_space_sync`. Direct INSERT (not `execute_with_crdt`) —
 /// the outbound scan only reads the register, so the register-fanout
 /// trigger is not on the tested path. Same trade-off as
-/// `crdt::scanner_tests::insert_registry_entry`.
+/// `crdt::space_scanner::tests::fixtures::insert_registry_entry`.
 fn insert_shared_sync_entry(
     conn: &Connection,
     registry_row_id: &str,

@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 use serde_json::{json, Value as JsonValue};
 
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;

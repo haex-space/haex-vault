@@ -8,7 +8,7 @@ use super::super::peer::PeerSession;
 use super::log_sync;
 use super::pull::local_to_remote_change;
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::crdt::trigger::get_table_schema;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;

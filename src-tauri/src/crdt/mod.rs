@@ -3,11 +3,8 @@ pub mod commands;
 pub mod compaction_anchor;
 //pub mod query_transformer;
 pub mod registry_row_sig;
-pub mod scanner;
+pub mod space_scanner;
 pub mod trigger;
-
-#[cfg(test)]
-mod scanner_origin_tests;
 
 use tauri::{AppHandle, Emitter};
 

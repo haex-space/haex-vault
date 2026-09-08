@@ -1,18 +1,15 @@
-//! Tests for the origin-node filter in [`super::scanner`] — the
-//! `origin_node_filter` parameter of [`scan_table_for_local_changes_scoped`]
-//! that prevents push ping-pong: inbound rows pulled from a peer carry that
-//! peer's HLC node-id and would otherwise be re-scanned and pushed back.
+//! Tests for the origin-node filter — the `origin_node_filter` parameter of
+//! `scan_table_for_local_changes_scoped` that prevents push ping-pong:
+//! inbound rows pulled from a peer carry that peer's HLC node-id and would
+//! otherwise be re-scanned and pushed back.
 //!
-//! Kept separate from the inline tests in `scanner.rs` per project
-//! convention (see `inbound_sync_tests.rs` for the same pattern).
+//! The fixture table here deliberately omits `haex_column_sigs_no_trigger`,
+//! so these also cover the no-sig-column shape.
 
-#![cfg(test)]
-
+use crate::crdt::space_scanner::scan_table_for_local_changes_scoped;
+use haex_crdt::device_uuid_to_hlc_node;
 use rusqlite::Connection;
 use serde_json::Value as JsonValue;
-
-use super::scanner::scan_table_for_local_changes_scoped;
-use haex_crdt::device_uuid_to_hlc_node;
 
 fn setup_scoped_db() -> Connection {
     let conn = Connection::open_in_memory().unwrap();

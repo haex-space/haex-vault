@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::Value as JsonValue;
 
-use crate::crdt::scanner::{is_membership_system_table, LocalColumnChange};
+use crate::crdt::space_scanner::{is_membership_system_table, LocalColumnChange};
 use crate::database::DbConnection;
 use crate::space_delivery::local::error::DeliveryError;
 

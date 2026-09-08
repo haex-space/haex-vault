@@ -19,7 +19,7 @@ use super::{
     affected_tables_from_changes, handle_owner_pull_columns, owner_request_action,
     sync_changes_within_limit, OwnerRequestAction,
 };
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::database::DbConnection;
 use crate::space_delivery::local::protocol::{Request, Response};
 
@@ -99,7 +99,7 @@ fn setup_two_table_db() -> DbConnection {
     )
     .unwrap();
 
-    // HLC strings: "<u64>/<node_hex>" (see scanner_tests.rs convention).
+    // HLC strings: "<u64>/<node_hex>" (see space_scanner::tests convention).
     insert_note(
         &conn,
         "n1",

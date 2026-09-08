@@ -16,7 +16,7 @@ use super::notify::{notify_all_mls, notify_others_sync};
 use super::util::{base64_decode, base64_encode};
 use super::LeaderState;
 use crate::crdt::commands::RemoteColumnChange;
-use crate::crdt::scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
+use crate::crdt::space_scanner::{scan_space_scoped_tables_for_local_changes, LocalColumnChange};
 use crate::critical::CriticalFailureCode;
 use crate::ucan::Cap;
 use haex_crdt::{paginate_changes, PULL_PAGE_BUDGET};

@@ -13,7 +13,7 @@
 //!
 //! 1. **Capability gate.** The minimum capability is determined from the
 //!    set of tables touched. Pushes that touch only the
-//!    [membership-system tables][`crate::crdt::scanner::MEMBERSHIP_SYSTEM_TABLES`]
+//!    [membership-system tables][`crate::crdt::space_scanner::MEMBERSHIP_SYSTEM_TABLES`]
 //!    require `Read`; any other table requires `Write`. This lets a
 //!    read-only member publish their own membership / device / MLS
 //!    KeyPackage rows while still blocking attempts to write user content
@@ -22,7 +22,7 @@
 //!    member of the space — admin removal is the revocation kill-switch.
 //! 3. **Payload validation** (pure transform — see [`validate`]):
 //!    - **Table whitelist.** Only rows for tables in
-//!      [`crate::crdt::scanner::SPACE_SCOPED_CRDT_TABLES`] may cross the
+//!      [`crate::crdt::space_scanner::SPACE_SCOPED_CRDT_TABLES`] may cross the
 //!      wire.
 //!    - **`space_id` column scope.** Any change that writes the
 //!      `space_id` column must set it to the request's `space_id`;
@@ -53,7 +53,7 @@ pub mod space_scope;
 mod util;
 pub mod validate;
 
-use crate::crdt::scanner::{is_membership_system_table, LocalColumnChange};
+use crate::crdt::space_scanner::{is_membership_system_table, LocalColumnChange};
 use crate::database::DbConnection;
 use crate::ucan::{require_capability, Cap, ValidatedUcan};
 
@@ -85,7 +85,7 @@ pub enum InboundSyncPushOutcome {
 /// no longer satisfies a Read gate, so issuers grant both when both
 /// operations are wanted.
 ///
-/// [membership-system tables]: crate::crdt::scanner::MEMBERSHIP_SYSTEM_TABLES
+/// [membership-system tables]: crate::crdt::space_scanner::MEMBERSHIP_SYSTEM_TABLES
 fn required_capability_for(changes: &[LocalColumnChange]) -> Cap {
     if changes
         .iter()

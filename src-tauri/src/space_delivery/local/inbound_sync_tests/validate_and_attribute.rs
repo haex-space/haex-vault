@@ -8,7 +8,7 @@
 
 use serde_json::json;
 
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::space_delivery::local::inbound_sync::validate_and_attribute;
 
 use super::helpers::{

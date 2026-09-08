@@ -23,7 +23,7 @@ use rusqlite::{params_from_iter, types::Value as SqlValue, Connection};
 use serde_json::Value as JsonValue;
 use tracing::error;
 
-use crate::crdt::scanner::is_space_scoped_table;
+use crate::crdt::space_scanner::is_space_scoped_table;
 use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
 
 /// System-table payloads that intentionally use the register rather than an
@@ -176,7 +176,7 @@ pub(crate) fn canonicalize_row_pks(row_pks_json: &str) -> rusqlite::Result<Strin
 
 /// Extract the space_id from an infra table's row itself.
 ///
-/// The five [`SPACE_SCOPED_CRDT_TABLES`](crate::crdt::scanner::SPACE_SCOPED_CRDT_TABLES)
+/// The five [`SPACE_SCOPED_CRDT_TABLES`](crate::crdt::space_scanner::SPACE_SCOPED_CRDT_TABLES)
 /// all carry a `space_id` column; the row is authoritative. Returns an empty
 /// vector when the row does not exist (a caller mid-insert may resolve before
 /// the row is materialised — signing zero spaces is the correct fallback).

@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::database::DbConnection;
 
 /// Separate `changes` into rows this device may push and rows it must skip.

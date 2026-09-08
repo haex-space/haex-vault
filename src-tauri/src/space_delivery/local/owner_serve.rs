@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::crdt::commands::{apply_remote_changes_to_db, RemoteColumnChange};
-use crate::crdt::scanner::{
+use crate::crdt::space_scanner::{
     scan_all_crdt_tables_for_owner, scan_single_column_for_owner, LocalColumnChange,
 };
 use crate::critical::CriticalFailureCode;

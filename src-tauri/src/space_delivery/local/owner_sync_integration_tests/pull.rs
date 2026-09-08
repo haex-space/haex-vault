@@ -2,7 +2,7 @@
 //! SyncPullColumns).
 
 use crate::crdt::commands::apply_remote_changes_to_db_scoped;
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::database::DbConnection;
 use haex_crdt::HlcService;
 

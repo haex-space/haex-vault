@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 use serde_json::Value as JsonValue;
 
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::database::DbConnection;
 
 use super::util::read_existing_column;

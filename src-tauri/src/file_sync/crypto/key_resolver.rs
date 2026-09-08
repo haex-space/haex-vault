@@ -38,7 +38,7 @@
 //!
 //! `haex_mls_sync_keys` is space-scoped, CRDT-replicated, and writable by any
 //! member holding only [`Cap::Read`](crate::ucan::Cap) — it is on
-//! [`MEMBERSHIP_SYSTEM_TABLES`](crate::crdt::scanner::MEMBERSHIP_SYSTEM_TABLES)
+//! [`MEMBERSHIP_SYSTEM_TABLES`](crate::crdt::space_scanner::MEMBERSHIP_SYSTEM_TABLES)
 //! and
 //! [`owner_column_for`](crate::space_delivery::local::inbound_sync) returns
 //! `None` for it, so there is no per-row ownership check. Picking the seal key

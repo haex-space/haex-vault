@@ -2,7 +2,7 @@
 //! a non-owner DID must never receive vault rows, neither via SyncPull nor via
 //! SyncPullColumns.
 
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::database::DbConnection;
 
 use super::super::peer::PeerSession;

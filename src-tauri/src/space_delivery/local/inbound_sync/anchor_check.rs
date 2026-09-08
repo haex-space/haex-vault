@@ -11,7 +11,7 @@
 //! `hlc_timestamp < anchor` for the target space, so the peer knows to
 //! discard its stale outbound queue and refresh-pull.
 
-use crate::crdt::scanner::LocalColumnChange;
+use crate::crdt::space_scanner::LocalColumnChange;
 use crate::database::DbConnection;
 use haex_crdt::compare_hlc_strings;
 
