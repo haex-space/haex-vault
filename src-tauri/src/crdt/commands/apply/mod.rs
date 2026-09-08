@@ -3,6 +3,7 @@ mod delete_propagation;
 mod grouping;
 mod policy;
 mod registry_row_gate;
+mod schema_recovery;
 mod types;
 
 #[cfg(feature = "e2e-hooks")]

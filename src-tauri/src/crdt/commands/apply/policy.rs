@@ -11,9 +11,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use haex_crdt::{ApplyPolicy, ColumnDecision, RemoteChanges, RowDecision, RowInput};
+use haex_crdt::{ApplyOutcome, ApplyPolicy, ColumnDecision, RemoteChanges, RowDecision, RowInput};
 use rusqlite::Transaction;
 
+use super::schema_recovery::{run_schema_auto_upgrade, write_pending_table_markers};
 use crate::crdt::column_sig::storage::SigRecord;
 
 /// Batch-scoped state computed once per [`haex_crdt::apply_remote_changes`]
@@ -67,7 +68,7 @@ impl ApplyPolicy for VaultApplyPolicy {
         Ok(())
     }
 
-    fn begin(&mut self, tx: &Transaction<'_>, _changes: &RemoteChanges) -> haex_crdt::Result<()> {
+    fn begin(&mut self, tx: &Transaction<'_>, changes: &RemoteChanges) -> haex_crdt::Result<()> {
         // Whether per-column signatures are required on this batch. Owner-
         // vault sync between two devices of the same identity carries an
         // `expected_space_id` (the vault space id) but is intentionally
@@ -81,6 +82,10 @@ impl ApplyPolicy for VaultApplyPolicy {
             Some(sid) => !crate::owner_sync::scope::is_owner_space(tx, sid)?,
             None => false,
         };
+
+        run_schema_auto_upgrade(tx, changes, &mut self.failed_upgrade_tables)
+            .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
+
         Ok(())
     }
 
@@ -95,5 +100,16 @@ impl ApplyPolicy for VaultApplyPolicy {
                 .map(|_| ColumnDecision::Skip)
                 .collect(),
         ))
+    }
+
+    fn before_commit(
+        &mut self,
+        tx: &Transaction<'_>,
+        changes: &RemoteChanges,
+        outcome: &ApplyOutcome,
+    ) -> haex_crdt::Result<()> {
+        write_pending_table_markers(tx, changes, outcome, &self.failed_upgrade_tables)
+            .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
+        Ok(())
     }
 }
