@@ -24,7 +24,7 @@ use haex_vault_lib::crdt::column_sig::key_cache::SpaceKeyCache;
 use haex_vault_lib::crdt::commands::apply::{
     apply_remote_changes_to_db_scoped, ColumnSig, RemoteColumnChange,
 };
-use haex_vault_lib::crdt::trigger::{ensure_crdt_columns, setup_triggers_for_table};
+use haex_vault_lib::crdt::trigger::{ensure_crdt_columns, install_crdt_with_shared_space};
 use haex_vault_lib::database::connection_context::ConnectionContext;
 use haex_vault_lib::database::core::{
     execute_with_crdt, install_tx_hlc_hooks, register_current_hlc_udf,
@@ -144,9 +144,9 @@ fn setup_sender() -> Sender {
     {
         let tx = conn.unchecked_transaction().unwrap();
         ensure_crdt_columns(&tx, "ext_calendar").unwrap();
-        setup_triggers_for_table(&tx, "ext_calendar", true).unwrap();
+        install_crdt_with_shared_space(&tx, "ext_calendar", true).unwrap();
         ensure_crdt_columns(&tx, "haex_shared_space_sync").unwrap();
-        setup_triggers_for_table(&tx, "haex_shared_space_sync", true).unwrap();
+        install_crdt_with_shared_space(&tx, "haex_shared_space_sync", true).unwrap();
         tx.commit().unwrap();
     }
     // The pre-seeded 'R' row was inserted before CRDT columns existed, so

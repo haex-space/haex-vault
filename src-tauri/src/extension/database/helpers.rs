@@ -334,7 +334,7 @@ pub fn execute_sql_with_context(
                     );
                     // Drop triggers BEFORE executing ALTER TABLE to avoid "no such column" errors
                     // This is safe even if triggers don't exist (DROP TRIGGER IF EXISTS)
-                    trigger::drop_triggers_for_table(&tx, &table_name_str)?;
+                    trigger::drop_crdt_with_shared_space(&tx, &table_name_str)?;
                     Some((table_name_str, true)) // Always recreate triggers
                 } else {
                     None
@@ -401,7 +401,7 @@ pub fn execute_sql_with_context(
                     "Table '{}' created by extension, setting up CRDT triggers...",
                     table_name_str
                 );
-                trigger::setup_triggers_for_table(&tx, &table_name_str, false)?;
+                trigger::install_crdt_with_shared_space(&tx, &table_name_str, false)?;
                 println!(
                     "Triggers for table '{}' successfully created.",
                     table_name_str
@@ -418,7 +418,7 @@ pub fn execute_sql_with_context(
                 table_name_str
             );
             // Recreate triggers with updated column list (recreate=false since we already dropped them)
-            trigger::setup_triggers_for_table(&tx, &table_name_str, false)?;
+            trigger::install_crdt_with_shared_space(&tx, &table_name_str, false)?;
             println!(
                 "[CRDT] Triggers for table '{}' recreated successfully.",
                 table_name_str

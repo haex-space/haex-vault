@@ -315,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Requires full trigger setup (setup_triggers_for_table) which needs table column introspection
+    #[ignore] // Requires full trigger setup (install_crdt_with_shared_space) which needs table column introspection
     fn test_space_insert_with_crdt_marks_dirty_table() {
         let (db, hlc) = setup_test_db();
         let hlc_mutex = Mutex::new(hlc);

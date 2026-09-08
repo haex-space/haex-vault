@@ -1,35 +1,33 @@
 // src-tauri/src/crdt/trigger.rs
 //
-// New approach: Instead of logging changes to haex_crdt_changes table,
-// we just mark tables as "dirty" in haex_crdt_dirty_tables.
-// Actual sync happens by scanning the dirty tables directly.
+// Vault's shared-space trigger layer, composed on top of `haex_crdt`'s
+// generic CRDT trigger installer.
+//
+// Per design decision D-3 the crate stays space-agnostic: it installs the
+// INSERT / UPDATE / BEFORE-DELETE triggers that maintain the per-column HLC
+// map, append delete events to `haex_deleted_rows`, and mark dirty tables.
+// Everything that knows about spaces — MLS group state, UCAN authorization,
+// the per-space delete-log — is vault's, and lives here.
+//
+// The composition is deliberately two-layered: `haex_crdt` owns its own DDL,
+// this module owns vault's. `install_crdt_with_shared_space` /
+// `drop_crdt_with_shared_space` are the entry points that stack them.
+//
+// The re-export block below is a transitional shim: ~30 call sites across the
+// app still `use crate::crdt::trigger::{...}` for the crate's generic surface.
+// A later batch flattens them to `haex_crdt` imports.
+
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
-use rusqlite::{Connection, Result as RusqliteResult, Row, Transaction};
-use serde::Serialize;
-use std::error::Error;
-use std::fmt::{self, Display, Formatter};
-use ts_rs::TS;
+use rusqlite::{Connection, Transaction};
 
-// Trigger names for dirty table tracking
-const INSERT_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_insert";
-const UPDATE_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_update";
-const DELETE_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_delete";
-
-pub const HLC_TIMESTAMP_COLUMN: &str = "haex_hlc_no_sync";
-pub const COLUMN_HLCS_COLUMN: &str = "haex_column_hlcs_no_sync";
-/// Per-column author signatures (JSON `{ column_name -> base64 sig }`).
-///
-/// Parallel to `haex_column_hlcs_no_sync`: while `haex_column_hlcs_no_sync`
-/// tracks the last HLC per column for LWW, `haex_column_sigs_no_sync` tracks
-/// the signature over the authoritative preimage for the last write to that
-/// column. Shared-space receivers verify against this map before applying an
-/// incoming column change (Phase 1 of the shared-space authenticity design).
-pub const COLUMN_SIGS_COLUMN: &str = "haex_column_sigs_no_sync";
-
-/// Name der Delete-Log-Tabelle (Sync-Tabelle, daher ohne `_no_sync`-Suffix).
-/// Deletes werden hier als Event-Zeilen festgehalten; die Haupttabellen enthalten
-/// keine Tombstone-Spalten mehr.
-pub const DELETED_ROWS_TABLE: &str = "haex_deleted_rows";
+pub use haex_crdt::crdt::columns::{
+    COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN, DELETED_ROWS_TABLE, HLC_FUNCTION_NAME,
+    HLC_TIMESTAMP_COLUMN, UUID_FUNCTION_NAME,
+};
+pub use haex_crdt::{
+    ensure_crdt_columns, get_table_schema, is_safe_identifier, ColumnInfo, CrdtSetupError,
+    TriggerSetupResult,
+};
 
 /// Name des Registers (`haex_shared_space_sync`) — die per-Space-Zuordnung
 /// business_row → space. DELETE auf dieser Tabelle fächert per Fanout-Trigger
@@ -60,6 +58,15 @@ const SHARED_SPACE_INFRA_EMIT_TRIGGER_TPL: &str = "z_shared_space_infra_emit_{TA
 const SHARED_SPACE_REGISTER_CASCADE_TRIGGER_TPL: &str =
     "z_shared_space_register_cascade_{TABLE_NAME}_delete";
 
+/// Mirror of `haex_crdt`'s private `DELETE_TRIGGER_TPL`. The crate does not
+/// export its trigger-name templates, and vault needs exactly one of them:
+/// the generic BEFORE-DELETE trigger on
+/// [`SHARED_SPACE_DELETED_ROWS_TABLE`] has to be suppressed after the crate
+/// installs it (see [`add_shared_space_fanout`]). A crate-side rename would
+/// make `install_on_shared_space_delete_log_suppresses_generic_delete_trigger`
+/// fail rather than pass silently.
+const CRATE_DELETE_TRIGGER_TPL: &str = "z_dirty_{TABLE_NAME}_delete";
+
 /// Space-scoped Infra-Tabellen (Task 5 Path A): Trigger direct-emit.
 /// Held in sync with `SPACE_SCOPED_CRDT_TABLES` minus the three infra-of-infra
 /// tables (register, delete-log, anchor). Also mirrors
@@ -83,177 +90,137 @@ const SHARED_SPACE_CASCADE_EXEMPT: &[&str] = &[
     "haex_deleted_rows",
 ];
 
-// Sync metadata columns that should NOT be tracked (to prevent trigger loops)
-const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp_no_sync";
-const LAST_PULL_SERVER_TIMESTAMP_COLUMN: &str = "last_pull_server_timestamp_no_sync";
-const UPDATED_AT_COLUMN: &str = "updated_at_no_sync";
-const CREATED_AT_COLUMN: &str = "created_at_no_sync";
-
-/// Name der custom UUID-Generierungs-Funktion (registriert in database::core::open_and_init_db)
-pub const UUID_FUNCTION_NAME: &str = "gen_uuid";
-
-/// Name der transaction-scoped HLC UDF (registriert in database::core::open_and_init_db).
-/// Gibt denselben Timestamp für alle Aufrufe innerhalb einer Transaktion zurück.
-pub const HLC_FUNCTION_NAME: &str = "current_hlc";
-
-#[derive(Debug)]
-pub enum CrdtSetupError {
-    /// Kapselt einen Fehler, der von der rusqlite-Bibliothek kommt.
-    DatabaseError(rusqlite::Error),
-    HlcColumnMissing {
-        table_name: String,
-        column_name: String,
-    },
-    /// Die Tabelle hat keinen Primärschlüssel, was eine CRDT-Voraussetzung ist.
-    PrimaryKeyMissing { table_name: String },
-}
-
-// Implementierung, damit unser Error-Typ schön formatiert werden kann.
-impl Display for CrdtSetupError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            CrdtSetupError::DatabaseError(e) => write!(f, "Database error: {e}"),
-            CrdtSetupError::HlcColumnMissing {
-                table_name,
-                column_name,
-            } => write!(
-                f,
-                "Table '{table_name}' is missing the required hlc column '{column_name}'"
-            ),
-            CrdtSetupError::PrimaryKeyMissing { table_name } => {
-                write!(f, "Table '{table_name}' has no primary key")
-            }
-        }
-    }
-}
-
-// Implementierung, damit unser Typ als "echter" Error erkannt wird.
-impl Error for CrdtSetupError {}
-
-// Wichtige Konvertierung: Erlaubt uns, den `?`-Operator auf Funktionen zu verwenden,
-// die `rusqlite::Error` zurückgeben. Der Fehler wird automatisch in unseren
-// `CrdtSetupError::DatabaseError` verpackt.
-impl From<rusqlite::Error> for CrdtSetupError {
-    fn from(err: rusqlite::Error) -> Self {
-        CrdtSetupError::DatabaseError(err)
-    }
-}
-
-#[derive(Debug, Serialize, TS)]
-#[ts(export)]
-pub enum TriggerSetupResult {
-    Success,
-    TableNotFound,
-}
-
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase")]
-pub struct ColumnInfo {
-    pub name: String,
-    #[serde(rename = "type")]
-    #[ts(rename = "type")]
-    pub column_type: String,
-    pub is_pk: bool,
-}
-
-impl ColumnInfo {
-    pub fn from_row(row: &Row) -> RusqliteResult<Self> {
-        Ok(ColumnInfo {
-            name: row.get("name")?,
-            column_type: row.get("type")?,
-            is_pk: row.get::<_, i64>("pk")? > 0,
-        })
-    }
-}
-
-pub fn is_safe_identifier(name: &str) -> bool {
-    // Allow alphanumeric characters, underscores, and hyphens (for extension names like "nuxt-app")
-    !name.is_empty()
-        && name
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-}
-
-/// Richtet CRDT-Trigger für eine einzelne Tabelle ein.
-pub fn setup_triggers_for_table(
+/// Installs the generic CRDT triggers via [`haex_crdt::setup_triggers_for_table`]
+/// and then layers vault's shared-space fan-out on top.
+///
+/// Each layer owns its own DDL (D-3): the crate installs INSERT / UPDATE /
+/// BEFORE-DELETE, this function adds the per-space delete-log fanout, the
+/// space-scoped infra direct-emit, and the register-cascade triggers.
+///
+/// `recreate` is forwarded to the crate (which drops its own three triggers
+/// first) and additionally drops vault's shared-space triggers, so a recreate
+/// leaves the DB in a fully clean state for both layers.
+pub fn install_crdt_with_shared_space(
     tx: &Transaction,
     table_name: &str,
     recreate: bool,
 ) -> Result<TriggerSetupResult, CrdtSetupError> {
-    let columns = get_table_schema(tx, table_name)?;
+    let result = haex_crdt::setup_triggers_for_table(tx, table_name, recreate)?;
 
-    if columns.is_empty() {
-        return Ok(TriggerSetupResult::TableNotFound);
+    if matches!(result, TriggerSetupResult::TableNotFound) {
+        return Ok(result);
     }
-
-    if !columns.iter().any(|c| c.name == HLC_TIMESTAMP_COLUMN) {
-        return Err(CrdtSetupError::HlcColumnMissing {
-            table_name: table_name.to_string(),
-            column_name: HLC_TIMESTAMP_COLUMN.to_string(),
-        });
-    }
-
-    let pks: Vec<String> = columns
-        .iter()
-        .filter(|c| c.is_pk)
-        .map(|c| c.name.clone())
-        .collect();
-
-    if pks.is_empty() {
-        return Err(CrdtSetupError::PrimaryKeyMissing {
-            table_name: table_name.to_string(),
-        });
-    }
-
-    // Calculate columns to track: all columns EXCEPT:
-    // - PKs
-    // - CRDT columns (haex_hlc_no_sync, haex_column_hlcs_no_sync, haex_column_sigs_no_sync)
-    // - Sync metadata columns (to prevent trigger loops)
-    let cols_to_track: Vec<String> = columns
-        .iter()
-        .filter(|c| {
-            !c.is_pk
-                && c.name != HLC_TIMESTAMP_COLUMN
-                && c.name != COLUMN_HLCS_COLUMN
-                && c.name != COLUMN_SIGS_COLUMN
-                && c.name != LAST_PUSH_HLC_COLUMN
-                && c.name != LAST_PULL_SERVER_TIMESTAMP_COLUMN
-                && c.name != UPDATED_AT_COLUMN
-                && c.name != CREATED_AT_COLUMN
-        })
-        .map(|c| c.name.clone())
-        .collect();
-
-    let insert_trigger_sql = generate_insert_trigger_sql(table_name, &cols_to_track, &pks);
-    let update_trigger_sql = generate_update_trigger_sql(table_name, &cols_to_track, &pks);
 
     if recreate {
-        drop_triggers_for_table(tx, table_name)?;
+        // The crate already dropped its own three; vault's shared-space
+        // triggers are re-created unconditionally below, so dropping them
+        // here (rather than before the crate call) is equivalent and keeps
+        // the crate's HLC/PK validation errors ahead of any DDL, exactly as
+        // the pre-composition implementation did.
+        drop_shared_space_triggers(tx, table_name)?;
     }
 
-    tx.execute_batch(&insert_trigger_sql)?;
-    tx.execute_batch(&update_trigger_sql)?;
+    let pks = primary_key_columns(tx, table_name)?;
+    add_shared_space_fanout(tx, table_name, &pks)?;
 
-    // Der BEFORE-DELETE-Trigger loggt gelöschte Rows nach haex_deleted_rows.
-    // Auf der Log-Tabelle selbst würde das Cleanup-DELETEs rekursiv ins Log
-    // zurückschreiben — also legen wir für sie keinen DELETE-Trigger an.
-    // Sie ist die einzige Tabelle mit dieser Ausnahme.
-    if table_name != DELETED_ROWS_TABLE && table_name != SHARED_SPACE_DELETED_ROWS_TABLE {
-        let delete_trigger_sql = generate_delete_trigger_sql(table_name, &pks);
-        tx.execute_batch(&delete_trigger_sql)?;
+    Ok(result)
+}
+
+/// Drops the generic CRDT triggers via [`haex_crdt::drop_triggers_for_table`]
+/// and then vault's shared-space triggers for `table_name`.
+///
+/// Both layers drop unconditionally with `IF EXISTS`, so this is safe for a
+/// table that never had the shared-space triggers installed.
+pub fn drop_crdt_with_shared_space(
+    tx: &Transaction,
+    table_name: &str,
+) -> Result<(), CrdtSetupError> {
+    // The crate validates `table_name` as a safe identifier and errors before
+    // emitting any SQL, which is what keeps `drop_shared_space_triggers`
+    // (which interpolates the name) safe to call afterwards.
+    haex_crdt::drop_triggers_for_table(tx, table_name)?;
+    drop_shared_space_triggers(tx, table_name)
+}
+
+/// Ensures `table_name` has the CRDT columns, the crate's generic triggers,
+/// and vault's shared-space fan-out. Returns `(columns_added, triggers_created)`.
+///
+/// **Probe semantics changed here on purpose.** Vault's pre-composition
+/// version decided "triggers already exist" from a single probe for
+/// `z_dirty_{table}_insert`. [`haex_crdt::ensure_crdt_columns_and_triggers`]
+/// probes *every* trigger name it installs (exempting the delete trigger on
+/// `haex_deleted_rows`), so a table that has the insert trigger but lost its
+/// update or delete trigger is now repaired instead of skipped. That is
+/// strictly more correct and is the behaviour we keep.
+///
+/// The shared-space layer is applied unconditionally rather than only when
+/// the crate reports it created triggers — every generator uses
+/// `CREATE TRIGGER IF NOT EXISTS`, so this is idempotent, and it closes the
+/// same gap on vault's own layer (previously an extension table that already
+/// had the insert trigger could never acquire its register-cascade trigger).
+///
+/// Note on [`SHARED_SPACE_DELETED_ROWS_TABLE`]: vault suppresses the crate's
+/// generic delete trigger on that table, so the crate's probe would always
+/// report it missing and re-run the install. Harmless (the install is
+/// idempotent and the suppression re-applies) and unreachable in practice —
+/// the only caller is `ensure_extension_tables_have_crdt`, which iterates
+/// extension-owned tables.
+pub fn ensure_crdt_columns_and_triggers(
+    tx: &Transaction,
+    table_name: &str,
+) -> Result<(bool, bool), CrdtSetupError> {
+    let (columns_added, triggers_created) =
+        haex_crdt::ensure_crdt_columns_and_triggers(tx, table_name)?;
+
+    // Empty PK list means the table does not exist (the crate errors on a
+    // table that exists without a primary key), so there is nothing to layer
+    // the shared-space triggers onto.
+    let pks = primary_key_columns(tx, table_name)?;
+    if !pks.is_empty() {
+        add_shared_space_fanout(tx, table_name, &pks)?;
+    }
+
+    Ok((columns_added, triggers_created))
+}
+
+/// Vault's shared-space DDL for `table_name`, layered on top of a completed
+/// [`haex_crdt::setup_triggers_for_table`].
+///
+/// Gate conditions and their evaluation order are carried over verbatim from
+/// the pre-composition implementation — they are load-bearing for cross-space
+/// data isolation.
+fn add_shared_space_fanout(
+    tx: &Transaction,
+    table_name: &str,
+    pks: &[String],
+) -> Result<(), CrdtSetupError> {
+    // The per-space delete-log must NOT carry the crate's generic
+    // BEFORE-DELETE trigger: retention pruning
+    // (`compaction_anchor::prune_shared_space_delete_log_and_advance_anchors`)
+    // hard-deletes from it with `triggers_enabled = '1'`, so the generic
+    // trigger would append one `haex_deleted_rows` event per pruned row and
+    // ship it on the owner-domain sync — which would then delete the peer's
+    // own per-space delete-log entries. Same rationale as the crate's
+    // `haex_deleted_rows` exemption; `haex_deleted_rows` is the only table
+    // the crate knows about, so vault suppresses its own log's trigger here
+    // (see `TRIGGER_VERSION` history v5/v6 in `database::init`).
+    if table_name == SHARED_SPACE_DELETED_ROWS_TABLE {
+        tx.execute_batch(&drop_trigger_sql(
+            &CRATE_DELETE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name),
+        ))?;
     }
 
     // Register-DELETE fanout: additionally emit a per-space delete-log signal
     // (ADR 0002 §6.5). Owner-domain sync continues to receive the standard
-    // `haex_deleted_rows` row from `generate_delete_trigger_sql` above; the
+    // `haex_deleted_rows` row from the crate's BEFORE-DELETE trigger; the
     // shared-space-domain gets its own signal here.
     //
     // Guard: only install the fanout when the target table exists (migration
     // 0013 creates it). Older test fixtures that hand-build `haex_shared_space_sync`
     // without the new table stay compatible — the fanout is a hard error path
     // otherwise (SQLITE cannot open a trigger whose target doesn't exist).
-    let delete_log_present = !get_table_schema(tx, SHARED_SPACE_DELETED_ROWS_TABLE)?.is_empty();
+    let delete_log_present =
+        !haex_crdt::get_table_schema(tx, SHARED_SPACE_DELETED_ROWS_TABLE)?.is_empty();
 
     if table_name == SHARED_SPACE_SYNC_TABLE && delete_log_present {
         let fanout_sql = generate_shared_space_sync_delete_fanout_trigger_sql();
@@ -264,7 +231,7 @@ pub fn setup_triggers_for_table(
     // These carry `space_id` inline and are register-denylisted, so a direct
     // BEFORE-DELETE emit is the only way to reach the per-space delete-log.
     if SPACE_SCOPED_INFRA_TABLES.contains(&table_name) && delete_log_present {
-        let sql = generate_shared_space_infra_emit_trigger_sql(table_name, &pks);
+        let sql = generate_shared_space_infra_emit_trigger_sql(table_name, pks);
         tx.execute_batch(&sql)?;
     }
 
@@ -277,230 +244,76 @@ pub fn setup_triggers_for_table(
     //
     // Guard: the target table (register) must exist. If it doesn't yet, the
     // caller is a legacy fixture — skip and stay compatible.
-    let register_present = !get_table_schema(tx, SHARED_SPACE_SYNC_TABLE)?.is_empty();
+    let register_present = !haex_crdt::get_table_schema(tx, SHARED_SPACE_SYNC_TABLE)?.is_empty();
     if register_present && !SHARED_SPACE_CASCADE_EXEMPT.contains(&table_name) {
-        let sql = generate_shared_space_register_cascade_trigger_sql(table_name, &pks);
+        let sql = generate_shared_space_register_cascade_trigger_sql(table_name, pks);
         tx.execute_batch(&sql)?;
     }
 
-    Ok(TriggerSetupResult::Success)
+    Ok(())
 }
 
-/// Holt das Schema für eine gegebene Tabelle.
-pub fn get_table_schema(conn: &Connection, table_name: &str) -> RusqliteResult<Vec<ColumnInfo>> {
-    if !is_safe_identifier(table_name) {
-        return Err(rusqlite::Error::InvalidParameterName(format!(
-            "Invalid or unsafe table name provided: {table_name}"
-        )));
-    }
-
-    let sql = format!("PRAGMA table_info(\"{table_name}\");");
-    let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map([], ColumnInfo::from_row)?;
-    rows.collect()
-}
-
-// get_foreign_key_columns() removed - not needed with hard deletes (no ON CONFLICT logic)
-
-pub fn drop_triggers_for_table(
-    tx: &Transaction, // Arbeitet direkt auf einer Transaktion
+/// Drops the shared-space triggers for `table_name`, mirroring the install
+/// gates in [`add_shared_space_fanout`]. Unconditional (`IF EXISTS`) — the
+/// `delete_log_present` / `register_present` probes are install-time only, so
+/// a drop always leaves a fully clean state.
+///
+/// Private: it interpolates `table_name` into SQL and relies on the caller
+/// having validated it (both call sites go through a `haex_crdt` entry point
+/// that rejects unsafe identifiers first).
+fn drop_shared_space_triggers(
+    tx: &Transaction,
     table_name: &str,
 ) -> Result<(), CrdtSetupError> {
-    if !is_safe_identifier(table_name) {
-        return Err(rusqlite::Error::InvalidParameterName(format!(
-            "Invalid or unsafe table name provided: {table_name}"
-        ))
-        .into());
-    }
-
-    let drop_insert_trigger_sql =
-        drop_trigger_sql(INSERT_TRIGGER_TPL.replace("{TABLE_NAME}", table_name));
-    let drop_update_trigger_sql =
-        drop_trigger_sql(UPDATE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name));
-    let drop_delete_trigger_sql =
-        drop_trigger_sql(DELETE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name));
-
-    let mut sql_batch =
-        format!("{drop_insert_trigger_sql}\n{drop_update_trigger_sql}\n{drop_delete_trigger_sql}");
+    let mut sql_batch = String::new();
 
     // Register-DELETE fanout trigger (Task 4) is scoped to
-    // `haex_shared_space_sync`; drop it alongside the standard triggers so a
-    // recreate leaves the DB in a fully clean state.
+    // `haex_shared_space_sync`.
     if table_name == SHARED_SPACE_SYNC_TABLE {
+        sql_batch.push_str(&drop_trigger_sql(SHARED_SPACE_DELETE_FANOUT_TRIGGER_TPL));
         sql_batch.push('\n');
-        sql_batch.push_str(&drop_trigger_sql(
-            SHARED_SPACE_DELETE_FANOUT_TRIGGER_TPL.to_string(),
-        ));
     }
 
     // Task 5 infra-emit and register-cascade triggers — parity with setup.
     if SPACE_SCOPED_INFRA_TABLES.contains(&table_name) {
-        sql_batch.push('\n');
         sql_batch.push_str(&drop_trigger_sql(
-            SHARED_SPACE_INFRA_EMIT_TRIGGER_TPL.replace("{TABLE_NAME}", table_name),
+            &SHARED_SPACE_INFRA_EMIT_TRIGGER_TPL.replace("{TABLE_NAME}", table_name),
         ));
+        sql_batch.push('\n');
     }
     if !SHARED_SPACE_CASCADE_EXEMPT.contains(&table_name) {
-        sql_batch.push('\n');
         sql_batch.push_str(&drop_trigger_sql(
-            SHARED_SPACE_REGISTER_CASCADE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name),
+            &SHARED_SPACE_REGISTER_CASCADE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name),
         ));
+        sql_batch.push('\n');
     }
 
-    tx.execute_batch(&sql_batch)?;
+    if !sql_batch.is_empty() {
+        tx.execute_batch(&sql_batch)?;
+    }
     Ok(())
 }
 
-/// Generates SQL for INSERT trigger - populates column HLCs and marks table as dirty
-fn generate_insert_trigger_sql(
+/// Primary-key column names of `table_name`, in schema-declaration order.
+/// Empty when the table does not exist.
+///
+/// The shared-space generators need the PK list; reading it back through
+/// [`haex_crdt::get_table_schema`] keeps it out of the crate's installer
+/// signature.
+fn primary_key_columns(
+    conn: &Connection,
     table_name: &str,
-    cols_to_track: &[String],
-    primary_key_columns: &[String],
-) -> String {
-    let trigger_name = INSERT_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
-
-    // Generate JSON object for haex_column_hlcs_no_sync with all tracked columns
-    let json_pairs: Vec<String> = cols_to_track
-        .iter()
-        .map(|col| format!("'{}', NEW.\"{}\"", col, HLC_TIMESTAMP_COLUMN))
-        .collect();
-    let json_object = if json_pairs.is_empty() {
-        "'{}'".to_string()
-    } else {
-        format!("json_object({})", json_pairs.join(", "))
-    };
-
-    // Use PK-based WHERE clause to support WITHOUT ROWID tables
-    let pk_where = if primary_key_columns.is_empty() {
-        "rowid = NEW.rowid".to_string()
-    } else {
-        primary_key_columns
-            .iter()
-            .map(|pk| format!("\"{}\" = NEW.\"{}\"", pk, pk))
-            .collect::<Vec<_>>()
-            .join(" AND ")
-    };
-
-    format!(
-        "CREATE TRIGGER IF NOT EXISTS \"{trigger_name}\"
-            AFTER INSERT ON \"{table_name}\"
-            FOR EACH ROW
-            WHEN NEW.{HLC_TIMESTAMP_COLUMN} IS NOT NULL
-                AND (SELECT COALESCE(value, '1') FROM {TABLE_CRDT_CONFIGS} WHERE key = 'triggers_enabled') = '1'
-            BEGIN
-            UPDATE \"{table_name}\"
-            SET {COLUMN_HLCS_COLUMN} = {json_object}
-            WHERE {pk_where};
-
-            INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
-            VALUES ('{table_name}', datetime('now'));
-            END;"
-    )
+) -> Result<Vec<String>, CrdtSetupError> {
+    Ok(haex_crdt::get_table_schema(conn, table_name)?
+        .into_iter()
+        .filter(|c| c.is_pk)
+        .map(|c| c.name)
+        .collect())
 }
 
 /// Generiert das SQL zum Löschen eines Triggers.
-fn drop_trigger_sql(trigger_name: String) -> String {
+fn drop_trigger_sql(trigger_name: &str) -> String {
     format!("DROP TRIGGER IF EXISTS \"{trigger_name}\";")
-}
-
-/// Generates SQL for UPDATE trigger - updates column HLCs and marks table as dirty
-/// IMPORTANT: Only marks table as dirty if at least one TRACKED column changed.
-/// This prevents sync loops when only metadata columns (like last_push_hlc_timestamp_no_sync) are updated.
-fn generate_update_trigger_sql(
-    table_name: &str,
-    cols_to_track: &[String],
-    primary_key_columns: &[String],
-) -> String {
-    let trigger_name = UPDATE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
-
-    // Use PK-based WHERE clause to support WITHOUT ROWID tables
-    let pk_where = if primary_key_columns.is_empty() {
-        "rowid = NEW.rowid".to_string()
-    } else {
-        primary_key_columns
-            .iter()
-            .map(|pk| format!("\"{}\" = NEW.\"{}\"", pk, pk))
-            .collect::<Vec<_>>()
-            .join(" AND ")
-    };
-
-    // Generate UPDATE statements for each changed column
-    // We check each column individually and update its HLC timestamp if it changed
-    let mut update_statements: Vec<String> = Vec::new();
-
-    for col in cols_to_track {
-        update_statements.push(format!(
-            "UPDATE \"{table_name}\"
-            SET {COLUMN_HLCS_COLUMN} = json_set({COLUMN_HLCS_COLUMN}, '$.{col}', NEW.\"{HLC_TIMESTAMP_COLUMN}\")
-            WHERE {pk_where} AND NEW.\"{col}\" IS NOT OLD.\"{col}\";"
-        ));
-    }
-
-    let all_updates = update_statements.join("\n            ");
-
-    // Generate condition: at least one tracked column must have changed
-    // This prevents marking the table as dirty when only sync metadata columns changed
-    let any_tracked_changed: String = if cols_to_track.is_empty() {
-        // No columns to track - never mark as dirty from updates
-        "0".to_string()
-    } else {
-        cols_to_track
-            .iter()
-            .map(|col| format!("NEW.\"{col}\" IS NOT OLD.\"{col}\""))
-            .collect::<Vec<_>>()
-            .join(" OR ")
-    };
-
-    format!(
-        "CREATE TRIGGER IF NOT EXISTS \"{trigger_name}\"
-            AFTER UPDATE ON \"{table_name}\"
-            FOR EACH ROW
-            WHEN NEW.{HLC_TIMESTAMP_COLUMN} IS NOT NULL
-                AND (SELECT COALESCE(value, '1') FROM {TABLE_CRDT_CONFIGS} WHERE key = 'triggers_enabled') = '1'
-            BEGIN
-            {all_updates}
-
-            -- Only mark as dirty if at least one tracked column changed
-            INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
-            SELECT '{table_name}', datetime('now')
-            WHERE ({any_tracked_changed});
-            END;"
-    )
-}
-
-/// Generates SQL for BEFORE-DELETE trigger.
-///
-/// Two things happen in one trigger:
-/// 1. A row is appended to `haex_deleted_rows` — with a fresh uuid as id, the
-///    table name, the deleted row's PKs as a JSON object, and the current
-///    transaction HLC. This is the sync-visible "delete event".
-/// 2. The table is marked dirty so the scanner picks up the haex_deleted_rows
-///    change on the next sync cycle.
-///
-/// Both are gated by `triggers_enabled` so the sync-receive path can bulk-delete
-/// without re-logging.
-fn generate_delete_trigger_sql(table_name: &str, pks: &[String]) -> String {
-    let trigger_name = DELETE_TRIGGER_TPL.replace("{TABLE_NAME}", table_name);
-
-    // Build JSON object for row_pks: json_object('pk1', OLD."pk1", ...)
-    let row_pks_json = pks
-        .iter()
-        .map(|name| format!("'{name}', OLD.\"{name}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    format!(
-        "CREATE TRIGGER IF NOT EXISTS \"{trigger_name}\"
-            BEFORE DELETE ON \"{table_name}\"
-            FOR EACH ROW
-            WHEN (SELECT COALESCE(value, '1') FROM {TABLE_CRDT_CONFIGS} WHERE key = 'triggers_enabled') = '1'
-            BEGIN
-            INSERT INTO {DELETED_ROWS_TABLE} (id, table_name, row_pks, {HLC_TIMESTAMP_COLUMN}, {COLUMN_HLCS_COLUMN})
-            VALUES ({UUID_FUNCTION_NAME}(), '{table_name}', json_object({row_pks_json}), {HLC_FUNCTION_NAME}(), '{{}}');
-            INSERT OR REPLACE INTO {TABLE_CRDT_DIRTY_TABLES} (table_name, last_modified)
-            VALUES ('{DELETED_ROWS_TABLE}', datetime('now'));
-            END;"
-    )
 }
 
 /// Task 5 Path A: Generates SQL for the direct-emit BEFORE-DELETE trigger
@@ -622,114 +435,6 @@ fn generate_shared_space_sync_delete_fanout_trigger_sql() -> String {
     )
 }
 
-/// Ensures that a table has all required CRDT columns.
-/// If columns are missing, they are added via ALTER TABLE.
-/// Returns true if any columns were added, false if all columns already existed.
-pub fn ensure_crdt_columns(tx: &Transaction, table_name: &str) -> Result<bool, CrdtSetupError> {
-    let columns = get_table_schema(tx, table_name)?;
-
-    if columns.is_empty() {
-        // Table doesn't exist - nothing to do
-        return Ok(false);
-    }
-
-    let has_hlc = columns.iter().any(|c| c.name == HLC_TIMESTAMP_COLUMN);
-    let has_column_hlcs = columns.iter().any(|c| c.name == COLUMN_HLCS_COLUMN);
-    let has_column_sigs = columns.iter().any(|c| c.name == COLUMN_SIGS_COLUMN);
-
-    let mut added_any = false;
-
-    if !has_hlc {
-        let sql = format!(
-            "ALTER TABLE \"{}\" ADD COLUMN \"{}\" TEXT",
-            table_name, HLC_TIMESTAMP_COLUMN
-        );
-        tx.execute(&sql, [])
-            .map_err(CrdtSetupError::DatabaseError)?;
-        println!(
-            "[CRDT] Added missing column '{}' to table '{}'",
-            HLC_TIMESTAMP_COLUMN, table_name
-        );
-        added_any = true;
-    }
-
-    if !has_column_hlcs {
-        let sql = format!(
-            "ALTER TABLE \"{}\" ADD COLUMN \"{}\" TEXT NOT NULL DEFAULT '{{}}'",
-            table_name, COLUMN_HLCS_COLUMN
-        );
-        tx.execute(&sql, [])
-            .map_err(CrdtSetupError::DatabaseError)?;
-        println!(
-            "[CRDT] Added missing column '{}' to table '{}'",
-            COLUMN_HLCS_COLUMN, table_name
-        );
-        added_any = true;
-    }
-
-    if !has_column_sigs {
-        let sql = format!(
-            "ALTER TABLE \"{}\" ADD COLUMN \"{}\" TEXT NOT NULL DEFAULT '{{}}'",
-            table_name, COLUMN_SIGS_COLUMN
-        );
-        tx.execute(&sql, [])
-            .map_err(CrdtSetupError::DatabaseError)?;
-        println!(
-            "[CRDT] Added missing column '{}' to table '{}'",
-            COLUMN_SIGS_COLUMN, table_name
-        );
-        added_any = true;
-    }
-
-    Ok(added_any)
-}
-
-/// Ensures that a table has all required CRDT columns AND triggers.
-/// This is a combined operation that:
-/// 1. Adds missing CRDT columns (haex_hlc_no_sync, haex_column_hlcs_no_sync)
-/// 2. Sets up dirty-table triggers if missing
-///
-/// Returns (columns_added, triggers_created) tuple.
-pub fn ensure_crdt_columns_and_triggers(
-    tx: &Transaction,
-    table_name: &str,
-) -> Result<(bool, bool), CrdtSetupError> {
-    // First, ensure CRDT columns exist
-    let columns_added = ensure_crdt_columns(tx, table_name)?;
-
-    // Now check if triggers already exist
-    let trigger_name = format!("z_dirty_{}_insert", table_name);
-    let has_trigger: bool = tx
-        .query_row(
-            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
-            [&trigger_name],
-            |row| row.get(0),
-        )
-        .unwrap_or(false);
-
-    let triggers_created = if !has_trigger {
-        // Setup triggers (this requires CRDT columns to exist)
-        match setup_triggers_for_table(tx, table_name, false) {
-            Ok(TriggerSetupResult::Success) => {
-                println!("[CRDT] Created triggers for table '{}'", table_name);
-                true
-            }
-            Ok(TriggerSetupResult::TableNotFound) => false,
-            Err(e) => {
-                eprintln!(
-                    "[CRDT] Failed to create triggers for '{}': {}",
-                    table_name, e
-                );
-                return Err(e);
-            }
-        }
-    } else {
-        false
-    };
-
-    Ok((columns_added, triggers_created))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -844,7 +549,7 @@ mod tests {
     // per-space signal in `haex_shared_space_deleted_rows` so other members
     // of the space converge on the removal (unshare or hard-delete). Owner-
     // domain sync continues to receive its signal via the standard
-    // `haex_deleted_rows` trigger installed by `setup_triggers_for_table`.
+    // `haex_deleted_rows` trigger installed by the crate's installer.
     //
     // Aus ADR 0002 §6.5 (revised 2026-07-29).
     // =====================================================================
@@ -951,10 +656,20 @@ mod tests {
         .unwrap();
 
         let tx = conn.unchecked_transaction().unwrap();
-        setup_triggers_for_table(&tx, "haex_shared_space_sync", false).expect("register triggers");
+        install_crdt_with_shared_space(&tx, "haex_shared_space_sync", false)
+            .expect("register triggers");
         tx.commit().unwrap();
 
         conn
+    }
+
+    fn trigger_exists(conn: &Connection, trigger_name: &str) -> bool {
+        conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+            [trigger_name],
+            |row| row.get(0),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -1087,8 +802,8 @@ mod tests {
         .unwrap();
 
         let tx = conn.unchecked_transaction().unwrap();
-        setup_triggers_for_table(&tx, "haex_peer_shares", false).expect("infra triggers");
-        setup_triggers_for_table(&tx, "ext_notes_items", false).expect("ext triggers");
+        install_crdt_with_shared_space(&tx, "haex_peer_shares", false).expect("infra triggers");
+        install_crdt_with_shared_space(&tx, "ext_notes_items", false).expect("ext triggers");
         tx.commit().unwrap();
 
         conn
@@ -1224,5 +939,162 @@ mod tests {
         // Should return false for non-existent table
         let result = ensure_crdt_columns(&tx, "nonexistent_table").unwrap();
         assert!(!result, "Should return false for non-existent table");
+    }
+
+    // =====================================================================
+    // Composition guards: the crate installs a generic BEFORE-DELETE trigger
+    // on every table but `haex_deleted_rows`. Vault's own per-space
+    // delete-log must not carry one either (TRIGGER_VERSION v6), so the
+    // shared-space layer suppresses it.
+    // =====================================================================
+
+    #[test]
+    fn install_on_shared_space_delete_log_suppresses_generic_delete_trigger() {
+        let conn = setup_register_delete_fixture();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        install_crdt_with_shared_space(&tx, SHARED_SPACE_DELETED_ROWS_TABLE, false)
+            .expect("delete-log triggers");
+        tx.commit().unwrap();
+
+        assert!(
+            !trigger_exists(&conn, "z_dirty_haex_shared_space_deleted_rows_delete"),
+            "the per-space delete-log must not carry the crate's generic \
+             BEFORE-DELETE trigger — retention pruning would re-log every \
+             pruned row into haex_deleted_rows"
+        );
+        // The INSERT/UPDATE triggers the crate installs are wanted.
+        assert!(trigger_exists(
+            &conn,
+            "z_dirty_haex_shared_space_deleted_rows_insert"
+        ));
+        assert!(trigger_exists(
+            &conn,
+            "z_dirty_haex_shared_space_deleted_rows_update"
+        ));
+    }
+
+    #[test]
+    fn pruning_the_shared_space_delete_log_does_not_append_to_owner_delete_log() {
+        // Behavioural half of the guard above: this models
+        // `compaction_anchor::prune_shared_space_delete_log_and_advance_anchors`,
+        // which hard-deletes with triggers_enabled = '1'.
+        let conn = setup_register_delete_fixture();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        install_crdt_with_shared_space(&tx, SHARED_SPACE_DELETED_ROWS_TABLE, false)
+            .expect("delete-log triggers");
+        tx.commit().unwrap();
+
+        conn.execute(
+            "INSERT INTO haex_shared_space_deleted_rows \
+             (id, space_id, table_name, row_pks, haex_hlc_no_sync) \
+             VALUES ('sig-1', 'SPACE_X', 'ext_notes_items', '{\"id\":\"note-1\"}', 'hlc-1')",
+            [],
+        )
+        .unwrap();
+        conn.execute("DELETE FROM haex_shared_space_deleted_rows", [])
+            .unwrap();
+
+        let owner_log_rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM haex_deleted_rows", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            owner_log_rows, 0,
+            "retention pruning of the per-space delete-log must not emit \
+             owner-domain delete events"
+        );
+    }
+
+    #[test]
+    fn drop_removes_both_the_generic_and_the_shared_space_triggers() {
+        // Parity guard for the drop wrapper: it must clear the crate's three
+        // and vault's shared-space triggers in one call.
+        let conn = setup_business_delete_fixture();
+
+        assert!(trigger_exists(&conn, "z_shared_space_delete_fanout"));
+        assert!(trigger_exists(
+            &conn,
+            "z_shared_space_infra_emit_haex_peer_shares_delete"
+        ));
+        assert!(trigger_exists(
+            &conn,
+            "z_shared_space_register_cascade_ext_notes_items_delete"
+        ));
+
+        let tx = conn.unchecked_transaction().unwrap();
+        drop_crdt_with_shared_space(&tx, "haex_shared_space_sync").unwrap();
+        drop_crdt_with_shared_space(&tx, "haex_peer_shares").unwrap();
+        drop_crdt_with_shared_space(&tx, "ext_notes_items").unwrap();
+        tx.commit().unwrap();
+
+        for name in [
+            "z_shared_space_delete_fanout",
+            "z_shared_space_infra_emit_haex_peer_shares_delete",
+            "z_shared_space_register_cascade_ext_notes_items_delete",
+            "z_dirty_haex_shared_space_sync_insert",
+            "z_dirty_haex_peer_shares_update",
+            "z_dirty_ext_notes_items_delete",
+        ] {
+            assert!(!trigger_exists(&conn, name), "{name} should be gone");
+        }
+    }
+
+    #[test]
+    fn ensure_layers_the_register_cascade_onto_a_table_that_already_has_generic_triggers() {
+        // The pre-composition `ensure_crdt_columns_and_triggers` short-
+        // circuited on a single `z_dirty_{table}_insert` probe, so a table
+        // that already had the generic triggers could never acquire its
+        // register-cascade trigger. The composed wrapper applies the
+        // shared-space layer unconditionally.
+        let conn = setup_register_delete_fixture();
+        conn.execute_batch(
+            "CREATE TABLE ext_notes_items (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 body TEXT,
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{}',
+                 haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{}'
+             );",
+        )
+        .unwrap();
+
+        // Install only the crate's generic layer, so the cascade trigger is
+        // absent while all three generic triggers are present.
+        let tx = conn.unchecked_transaction().unwrap();
+        haex_crdt::setup_triggers_for_table(&tx, "ext_notes_items", false).unwrap();
+        tx.commit().unwrap();
+        assert!(!trigger_exists(
+            &conn,
+            "z_shared_space_register_cascade_ext_notes_items_delete"
+        ));
+
+        let tx = conn.unchecked_transaction().unwrap();
+        let (columns_added, _) = ensure_crdt_columns_and_triggers(&tx, "ext_notes_items").unwrap();
+        tx.commit().unwrap();
+
+        assert!(!columns_added, "the fixture table already has all three");
+        assert!(
+            trigger_exists(&conn, "z_shared_space_register_cascade_ext_notes_items_delete"),
+            "ensure must layer the shared-space cascade on regardless of the \
+             generic triggers already being present"
+        );
+    }
+
+    #[test]
+    fn ensure_on_nonexistent_table_does_not_install_shared_space_triggers() {
+        let conn = setup_register_delete_fixture();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        let (columns_added, triggers_created) =
+            ensure_crdt_columns_and_triggers(&tx, "table_that_does_not_exist").unwrap();
+        tx.commit().unwrap();
+
+        assert!(!columns_added);
+        assert!(!triggers_created);
+        assert!(!trigger_exists(
+            &conn,
+            "z_shared_space_register_cascade_table_that_does_not_exist_delete"
+        ));
     }
 }

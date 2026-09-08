@@ -24,7 +24,11 @@ use rusqlite::{params, Connection};
 ///      haex_shared_space_deleted_rows itself is exempt from the generic
 ///      BEFORE-DELETE trigger (retention pruning must not recurse — same
 ///      pattern as haex_deleted_rows).
-const TRIGGER_VERSION: i32 = 6;
+/// - 7: generic trigger DDL now comes from `haex_crdt`, which changed two
+///      things: the UPDATE trigger is column-scoped (`AFTER UPDATE OF <cols>`)
+///      and the `triggers_enabled` guard COALESCEs outside the subquery, so a
+///      missing config row defaults to enabled instead of disabled.
+const TRIGGER_VERSION: i32 = 7;
 
 /// Scans the database for all sync-relevant tables (those that have a `haex_hlc_no_sync` column).
 /// `_no_sync` tables are excluded not by their name but because they are created
@@ -121,7 +125,7 @@ pub fn ensure_triggers_initialized(conn: &mut Connection) -> Result<bool, Databa
     for table_name in crdt_tables {
         eprintln!("  - Setting up triggers for: {table_name}");
         // Use recreate=true if we need to update existing triggers
-        trigger::setup_triggers_for_table(&tx, &table_name, needs_update)?;
+        trigger::install_crdt_with_shared_space(&tx, &table_name, needs_update)?;
     }
 
     // Store trigger version in haex_crdt_configs (local-only, not synced)
@@ -168,7 +172,7 @@ pub fn ensure_triggers_for_all_tables(conn: &mut Connection) -> Result<usize, Da
                 "[SYNC] Setting up missing CRDT triggers for table: {}",
                 table_name
             );
-            trigger::setup_triggers_for_table(&tx, table_name, false)?;
+            trigger::install_crdt_with_shared_space(&tx, table_name, false)?;
             triggers_created += 1;
         }
     }

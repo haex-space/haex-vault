@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use super::values_by_pk_column;
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-use crate::crdt::trigger::{ensure_crdt_columns, setup_triggers_for_table};
+use crate::crdt::trigger::{ensure_crdt_columns, install_crdt_with_shared_space};
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;
@@ -443,7 +443,7 @@ fn setup_fixture_f2() -> FixtureF2 {
         // populate `haex_column_hlcs_no_sync` per-column HLCs — F2 must be able to
         // read the ORIGINAL column HLC when it retro-signs.
         let tx = conn.unchecked_transaction().unwrap();
-        setup_triggers_for_table(&tx, "ext_calendar", true).unwrap();
+        install_crdt_with_shared_space(&tx, "ext_calendar", true).unwrap();
         tx.commit().unwrap();
         // The pre-seeded ext_calendar rows came in via raw SQL before the
         // CRDT columns existed, so their `haex_column_hlcs_no_sync` blob is NULL.
@@ -1316,7 +1316,7 @@ fn setup_fixture_s3_backends() -> FixtureS3Backends {
         // F2 reads `haex_column_hlcs_no_sync` for its per-column sig preimage HLC —
         // that blob is only kept current by the AFTER-UPDATE trigger
         // (mirrors `setup_fixture_f2`'s rationale for `ext_calendar`).
-        setup_triggers_for_table(&tx, "haex_s3_backends", true).unwrap();
+        install_crdt_with_shared_space(&tx, "haex_s3_backends", true).unwrap();
         tx.commit().unwrap();
     }
 

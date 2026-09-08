@@ -1,4 +1,3 @@
-use crate::crdt::trigger::{get_table_schema as get_table_schema_internal, ColumnInfo};
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::table_names::TABLE_CRDT_DIRTY_TABLES;
@@ -15,6 +14,39 @@ pub struct DirtyTable {
     pub last_modified: String,
 }
 
+// Frontend-facing DTO for one column of a table schema.
+//
+// Structurally identical to `haex_crdt::ColumnInfo`, which is what the whole
+// Rust side uses internally. This copy exists purely so ts-rs can generate
+// `bindings/ColumnInfo.ts` for `src/stores/sync/tableScanner.ts`: binding
+// generation is a consumer concern and `haex-crdt` must not take a `ts-rs`
+// dependency.
+//
+// Deliberately a plain `//` comment, not a doc comment: ts-rs copies doc
+// comments into the generated `.d.ts` as JSDoc, and this binding must stay
+// byte-identical to the one the pre-composition `crdt::trigger::ColumnInfo`
+// produced.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ColumnInfo {
+    pub name: String,
+    #[serde(rename = "type")]
+    #[ts(rename = "type")]
+    pub column_type: String,
+    pub is_pk: bool,
+}
+
+impl From<haex_crdt::ColumnInfo> for ColumnInfo {
+    fn from(column: haex_crdt::ColumnInfo) -> Self {
+        ColumnInfo {
+            name: column.name,
+            column_type: column.column_type,
+            is_pk: column.is_pk,
+        }
+    }
+}
+
 /// Gets table schema information (columns and their properties)
 #[tauri::command]
 pub fn get_table_schema(
@@ -22,7 +54,9 @@ pub fn get_table_schema(
     state: State<'_, AppState>,
 ) -> Result<Vec<ColumnInfo>, DatabaseError> {
     with_connection(&state.db, |conn| {
-        Ok(get_table_schema_internal(conn, &table_name).map_err(DatabaseError::from)?)
+        let columns =
+            haex_crdt::get_table_schema(conn, &table_name).map_err(DatabaseError::from)?;
+        Ok(columns.into_iter().map(ColumnInfo::from).collect())
     })
 }
 

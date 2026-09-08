@@ -508,7 +508,7 @@ pub fn apply_remote_changes_to_db_scoped(
                             if has_core_crdt_columns {
                                 Ok((columns_added, false))
                             } else {
-                                trigger::setup_triggers_for_table(
+                                trigger::install_crdt_with_shared_space(
                                     &tx,
                                     &first_change.table_name,
                                     true,

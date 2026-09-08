@@ -13,7 +13,7 @@ mod tests {
 
     use crate::crdt::column_sig::key_cache::SpaceKeyCache;
     use crate::crdt::trigger::{
-        ensure_crdt_columns, setup_triggers_for_table, DELETED_ROWS_TABLE, UUID_FUNCTION_NAME,
+        ensure_crdt_columns, install_crdt_with_shared_space, DELETED_ROWS_TABLE, UUID_FUNCTION_NAME,
     };
     use crate::database::connection_context::ConnectionContext;
     use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
@@ -150,7 +150,7 @@ mod tests {
         {
             let tx = conn.unchecked_transaction().unwrap();
             ensure_crdt_columns(&tx, TABLE_SHARED_SPACE_SYNC).unwrap();
-            setup_triggers_for_table(&tx, TABLE_SHARED_SPACE_SYNC, false).unwrap();
+            install_crdt_with_shared_space(&tx, TABLE_SHARED_SPACE_SYNC, false).unwrap();
             tx.commit().unwrap();
         }
 
@@ -305,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Requires full trigger setup (setup_triggers_for_table) which needs table column introspection
+    #[ignore] // Requires full trigger setup (install_crdt_with_shared_space) which needs table column introspection
     fn test_assign_marks_dirty_table() {
         let (db, hlc) = setup_test_db();
         let hlc_mutex = Mutex::new(hlc);

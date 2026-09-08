@@ -55,7 +55,7 @@ impl SqlExecutor {
     /// Returns: modified_schema_tables
     ///
     /// Note: This function does NOT automatically create CRDT triggers for CREATE TABLE.
-    /// The caller is responsible for setting up triggers using `trigger::setup_triggers_for_table`
+    /// The caller is responsible for setting up triggers using `trigger::install_crdt_with_shared_space`
     /// when needed (e.g., for production extensions but not for dev mode extensions).
     pub fn execute_internal_typed(
         tx: &Transaction,

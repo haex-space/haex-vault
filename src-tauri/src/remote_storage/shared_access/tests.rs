@@ -309,7 +309,7 @@ mod crdt_bootstrap {
 
     use crate::crdt::column_sig::key_cache::SpaceKeyCache;
     use crate::crdt::trigger::{
-        ensure_crdt_columns, setup_triggers_for_table, DELETED_ROWS_TABLE, UUID_FUNCTION_NAME,
+        ensure_crdt_columns, install_crdt_with_shared_space, DELETED_ROWS_TABLE, UUID_FUNCTION_NAME,
     };
     use crate::database::connection_context::ConnectionContext;
     use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
@@ -420,7 +420,7 @@ mod crdt_bootstrap {
         {
             let tx = conn.unchecked_transaction().unwrap();
             ensure_crdt_columns(&tx, TABLE_S3_SHARED_ACCESS).unwrap();
-            setup_triggers_for_table(&tx, TABLE_S3_SHARED_ACCESS, false).unwrap();
+            install_crdt_with_shared_space(&tx, TABLE_S3_SHARED_ACCESS, false).unwrap();
             tx.commit().unwrap();
         }
 
