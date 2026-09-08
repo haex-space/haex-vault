@@ -13,11 +13,12 @@ use std::collections::{HashMap, HashSet};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use haex_crdt::{
-    ApplyOutcome, ApplyPolicy, ColumnDecision, RemoteChanges, RowDecision, RowInput, RowWrite,
-    SignatureWrite,
+    ApplyOutcome, ApplyPolicy, ColumnDecision, ConstraintDecision, RemoteChanges, RowDecision,
+    RowInput, RowWrite, SignatureWrite,
 };
 use rusqlite::{params, Transaction};
 
+use super::conflicts::create_conflict_entry;
 use super::registry_row_gate::{build_incoming_registry_change, RegistryRowChangeOutcome};
 use super::schema_recovery::{run_schema_auto_upgrade, write_pending_table_markers};
 use super::signatures::{ensure_identity_stub, resolve_row_space_id_for_sig, verify_change_sig};
@@ -310,6 +311,65 @@ impl ApplyPolicy for VaultApplyPolicy {
             }
         }
         Ok(())
+    }
+
+    /// Only called for a genuine NOT NULL or UNIQUE INSERT failure, after
+    /// that INSERT's savepoint has already been rolled back (per the trait
+    /// doc). NOT NULL: a partial change set can never satisfy the NOT NULL
+    /// columns — self-heals on a later full re-pull. UNIQUE: record a
+    /// conflict entry from the attempted values before skipping the row.
+    fn on_insert_constraint(
+        &mut self,
+        tx: &Transaction<'_>,
+        attempted: RowWrite<'_>,
+        error: &rusqlite::Error,
+    ) -> haex_crdt::Result<ConstraintDecision> {
+        let is_not_null = matches!(
+            error,
+            rusqlite::Error::SqliteFailure(e, _)
+                if e.extended_code == rusqlite::ffi::SQLITE_CONSTRAINT_NOTNULL
+        );
+        if is_not_null {
+            eprintln!(
+                "[SYNC RUST] Skipping row in '{}' — partial change set cannot satisfy NOT NULL columns (incomplete sync data)",
+                attempted.table_name
+            );
+            return Ok(ConstraintDecision::SkipRow);
+        }
+
+        // UNIQUE (the only other kind the crate promises to call this hook
+        // for) — build the attempted row's data from its PKs plus every
+        // staged column, and record a conflict entry.
+        let error_msg = match error {
+            rusqlite::Error::SqliteFailure(_, msg) => {
+                msg.as_deref().unwrap_or("Unknown constraint violation")
+            }
+            _ => "Unknown constraint violation",
+        };
+        eprintln!("[SYNC RUST] UNIQUE constraint conflict - creating conflict entry");
+
+        let mut remote_row_data: serde_json::Map<String, serde_json::Value> =
+            serde_json::Map::new();
+        for (k, v) in attempted.row_pks {
+            remote_row_data.insert(k.clone(), v.clone());
+        }
+        for col in attempted.columns {
+            let json_value = ValueConverter::rusqlite_value_to_json(col.value);
+            remote_row_data.insert(col.change.column_name.clone(), json_value);
+        }
+
+        if let Err(e) = create_conflict_entry(
+            tx,
+            attempted.table_name,
+            error_msg,
+            &remote_row_data,
+            attempted.row_hlc,
+            attempted.schema,
+        ) {
+            eprintln!("[SYNC RUST] Failed to create conflict entry: {:?}", e);
+        }
+
+        Ok(ConstraintDecision::SkipRow)
     }
 
     fn before_commit(

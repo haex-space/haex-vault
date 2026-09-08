@@ -23,8 +23,9 @@ use std::collections::{HashMap, HashSet};
 use tauri::State;
 
 use super::super::helpers::{build_pk_where_clause, json_values_to_sql_params};
+use super::conflicts::create_conflict_entry;
 use super::delete_propagation::{
-    create_conflict_entry, insert_suppressed_by_deletes, propagate_deleted_rows_to_target_tables,
+    insert_suppressed_by_deletes, propagate_deleted_rows_to_target_tables,
     propagate_shared_space_deleted_rows_to_target_tables,
 };
 use super::grouping::{group_by_transaction_hlc, group_row_changes_in_hlc_order};

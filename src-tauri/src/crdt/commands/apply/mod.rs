@@ -1,3 +1,4 @@
+mod conflicts;
 mod db;
 mod delete_propagation;
 mod grouping;
