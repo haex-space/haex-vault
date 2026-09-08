@@ -19,7 +19,9 @@ use haex_crdt::{
 use rusqlite::{params, Transaction};
 
 use super::conflicts::create_conflict_entry;
-use super::finish::{propagate_shared_space_deletes, update_backend_cursor};
+use super::finish::{
+    propagate_shared_space_deletes, update_backend_cursor, write_pending_column_markers,
+};
 use super::registry_row_gate::{build_incoming_registry_change, RegistryRowChangeOutcome};
 use super::schema_recovery::{run_schema_auto_upgrade, write_pending_table_markers};
 use super::signatures::{ensure_identity_stub, resolve_row_space_id_for_sig, verify_change_sig};
@@ -380,6 +382,8 @@ impl ApplyPolicy for VaultApplyPolicy {
         outcome: &ApplyOutcome,
     ) -> haex_crdt::Result<()> {
         write_pending_table_markers(tx, changes, outcome, &self.failed_upgrade_tables)
+            .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
+        write_pending_column_markers(tx, changes, outcome)
             .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
 
         // Owner-domain delete-log propagation is the crate's job now,

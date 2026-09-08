@@ -10,6 +10,7 @@ use serde_json::Value as JsonValue;
 
 use crate::crdt::shared_space_trigger::SHARED_SPACE_DELETED_ROWS_TABLE;
 use crate::database::error::DatabaseError;
+use crate::table_names::TABLE_CRDT_PENDING_COLUMNS;
 
 use super::delete_propagation::propagate_shared_space_deleted_rows_to_target_tables;
 
@@ -70,6 +71,33 @@ pub(super) fn propagate_shared_space_deletes(
         return Ok(());
     }
     propagate_shared_space_deleted_rows_to_target_tables(tx, &ids)
+}
+
+/// Core-driven pending-column markers: a column genuinely unknown to the
+/// local schema (`SkipReason::UnknownColumn`) — a rolling upgrade where a
+/// newer peer's schema has extra columns this device hasn't migrated in
+/// yet. Registry-driven ones (missing fresh `row_sig`) are handled directly
+/// in `prepare_row`, at the point of decision, since that hook already has
+/// `&Transaction` right there — no need to defer those to `before_commit`.
+pub(super) fn write_pending_column_markers(
+    tx: &Transaction,
+    changes: &RemoteChanges,
+    outcome: &ApplyOutcome,
+) -> Result<(), DatabaseError> {
+    for skipped in &outcome.skipped {
+        if !matches!(skipped.reason, SkipReason::UnknownColumn) {
+            continue;
+        }
+        let change = &changes[skipped.input_index];
+        tx.execute(
+            &format!(
+                "INSERT OR IGNORE INTO {TABLE_CRDT_PENDING_COLUMNS} (table_name, column_name, row_pks) VALUES (?, ?, ?)"
+            ),
+            params![change.table_name, change.column_name, change.row_pks],
+        )
+        .map_err(DatabaseError::from)?;
+    }
+    Ok(())
 }
 
 /// Update the server-sync push-cursor watermark for `backend_info` — the
@@ -182,5 +210,67 @@ mod tests {
             ids.is_empty(),
             "the owner-domain delete-log is the crate's job now, not this collector's"
         );
+    }
+
+    fn setup_pending_columns_db() -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
+                 table_name TEXT NOT NULL,
+                 column_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 PRIMARY KEY(table_name, column_name, row_pks)
+             );"
+        ))
+        .unwrap();
+        conn
+    }
+
+    #[test]
+    fn write_pending_column_markers_records_unknown_column_skips() {
+        let mut conn = setup_pending_columns_db();
+        let changes = vec![change("devices", r#"{"id":"dev-1"}"#)];
+        let mut outcome = ApplyOutcome::default();
+        outcome.skipped.push(SkippedChange {
+            input_index: 0,
+            reason: SkipReason::UnknownColumn,
+        });
+        let tx = conn.transaction().unwrap();
+        write_pending_column_markers(&tx, &changes, &outcome).unwrap();
+        tx.commit().unwrap();
+
+        let count: i64 = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM {TABLE_CRDT_PENDING_COLUMNS} \
+                     WHERE table_name = 'devices' AND column_name = 'table_name' \
+                     AND row_pks = '{{\"id\":\"dev-1\"}}'"
+                ),
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn write_pending_column_markers_ignores_other_skip_reasons() {
+        let mut conn = setup_pending_columns_db();
+        let changes = vec![change("devices", r#"{"id":"dev-1"}"#)];
+        let mut outcome = ApplyOutcome::default();
+        outcome.skipped.push(SkippedChange {
+            input_index: 0,
+            reason: SkipReason::Stale,
+        });
+        let tx = conn.transaction().unwrap();
+        write_pending_column_markers(&tx, &changes, &outcome).unwrap();
+        tx.commit().unwrap();
+
+        let count: i64 = conn
+            .query_row(&format!("SELECT COUNT(*) FROM {TABLE_CRDT_PENDING_COLUMNS}"), [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 0, "only UnknownColumn skips get a pending marker");
     }
 }
