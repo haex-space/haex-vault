@@ -24,7 +24,7 @@ use haex_vault_lib::crdt::column_sig::key_cache::SpaceKeyCache;
 use haex_vault_lib::crdt::commands::apply::{
     apply_remote_changes_to_db_scoped, ColumnSig, RemoteColumnChange,
 };
-use haex_vault_lib::crdt::trigger::{ensure_crdt_columns, install_crdt_with_shared_space};
+use haex_vault_lib::crdt::shared_space_trigger::{ensure_crdt_columns, install_crdt_with_shared_space};
 use haex_vault_lib::database::connection_context::ConnectionContext;
 use haex_vault_lib::database::core::{
     execute_with_crdt, install_tx_hlc_hooks, register_current_hlc_udf,

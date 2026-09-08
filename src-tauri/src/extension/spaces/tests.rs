@@ -12,7 +12,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-    use crate::crdt::trigger::{
+    use crate::crdt::shared_space_trigger::{
         ensure_crdt_columns, install_crdt_with_shared_space, DELETED_ROWS_TABLE, UUID_FUNCTION_NAME,
     };
     use crate::database::connection_context::ConnectionContext;

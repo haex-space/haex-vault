@@ -4,7 +4,7 @@
 // NOTE: SqlExecutor is tightly coupled to infrastructure components:
 // - rusqlite::Transaction (requires active database)
 // - HlcService (requires CRDT timestamp generation)
-// - trigger::install_crdt_with_shared_space (requires schema modifications)
+// - shared_space_trigger::install_crdt_with_shared_space (requires schema modifications)
 //
 // Unit testing these functions would require extensive mocking infrastructure.
 // Instead, these are tested through:

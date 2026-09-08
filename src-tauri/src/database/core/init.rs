@@ -1,6 +1,6 @@
 // src-tauri/src/database/core/init.rs
 
-use crate::crdt::trigger::{HLC_FUNCTION_NAME, UUID_FUNCTION_NAME};
+use crate::crdt::shared_space_trigger::{HLC_FUNCTION_NAME, UUID_FUNCTION_NAME};
 use crate::database::connection_context::ConnectionContext;
 use crate::database::error::DatabaseError;
 use haex_crdt::HlcService;

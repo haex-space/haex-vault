@@ -1,6 +1,6 @@
 // src-tauri/src/database/error.rs
 
-use crate::crdt::trigger::CrdtSetupError;
+use crate::crdt::shared_space_trigger::CrdtSetupError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ts_rs::TS;

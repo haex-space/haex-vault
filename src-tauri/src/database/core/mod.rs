@@ -27,7 +27,7 @@ pub use value::{convert_value_ref_to_json, ValueConverter};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crdt::trigger::UUID_FUNCTION_NAME;
+    use crate::crdt::shared_space_trigger::UUID_FUNCTION_NAME;
     use crate::database::connection_context::ConnectionContext;
     use crate::database::error::DatabaseError;
     use haex_crdt::HlcService;

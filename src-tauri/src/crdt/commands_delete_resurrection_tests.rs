@@ -13,7 +13,7 @@
 //! Symmetric with `should_propagate_delete`: the delete wins on an HLC tie.
 
 use super::*;
-use crate::crdt::trigger::DELETED_ROWS_TABLE;
+use crate::crdt::shared_space_trigger::DELETED_ROWS_TABLE;
 use crate::database::DbConnection;
 use crate::table_names::TABLE_CRDT_CONFIGS;
 use rusqlite::params;

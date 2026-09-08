@@ -14,7 +14,7 @@
 //! for them so recovery applies the recovered value normally (`H > ""`).
 
 use super::*;
-use crate::crdt::trigger::DELETED_ROWS_TABLE;
+use crate::crdt::shared_space_trigger::DELETED_ROWS_TABLE;
 use crate::database::DbConnection;
 use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS};
 use rusqlite::params;

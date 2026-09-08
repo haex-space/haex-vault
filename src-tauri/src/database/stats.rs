@@ -1,6 +1,6 @@
 // src-tauri/src/database/stats.rs
 
-use crate::crdt::trigger::DELETED_ROWS_TABLE;
+use crate::crdt::shared_space_trigger::DELETED_ROWS_TABLE;
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::table_names::TABLE_CRDT_DIRTY_TABLES;

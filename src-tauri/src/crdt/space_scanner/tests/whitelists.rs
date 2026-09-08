@@ -199,7 +199,7 @@ fn whitelisted_tables_exist_as_generated_constants() {
 /// `CrdtTransformer` injiziert — dieser rohe Replay tut das nicht.
 #[test]
 fn whitelisted_tables_exist_in_the_migration_schema() {
-    use crate::crdt::trigger::get_table_schema;
+    use crate::crdt::shared_space_trigger::get_table_schema;
     use std::path::PathBuf;
 
     let mig_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("database/migrations");

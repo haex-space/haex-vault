@@ -15,7 +15,7 @@ use crate::crdt::column_sig::sign::sign_column;
 use crate::crdt::column_sig::value_bytes::{self, StorageClass};
 use crate::crdt::registry_row_sig::payload::RegistryRowSigPayload;
 use crate::crdt::registry_row_sig::sign::sign_registry_row;
-use crate::crdt::trigger::{ensure_crdt_columns, DELETED_ROWS_TABLE};
+use crate::crdt::shared_space_trigger::{ensure_crdt_columns, DELETED_ROWS_TABLE};
 use crate::database::DbConnection;
 use crate::table_names::{
     COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID, COL_SHARED_SPACE_SYNC_CATEGORY,

@@ -32,7 +32,7 @@
 //! [`AUTHOR_DID_KEY`]. Keep this key and the wire struct in lockstep.
 
 use crate::crdt::column_sig::value_bytes::StorageClass;
-use crate::crdt::trigger::{get_table_schema, is_safe_identifier};
+use crate::crdt::shared_space_trigger::{get_table_schema, is_safe_identifier};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rusqlite::{params_from_iter, types::ToSqlOutput, Connection, Error as RusqliteError, ToSql};
 use serde_json::{Map, Value};

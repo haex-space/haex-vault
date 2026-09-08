@@ -5,7 +5,7 @@
 // production stays under the 500-LoC per-file cap.
 
 use super::*;
-use crate::crdt::trigger::{DELETED_ROWS_TABLE, SHARED_SPACE_DELETED_ROWS_TABLE};
+use crate::crdt::shared_space_trigger::{DELETED_ROWS_TABLE, SHARED_SPACE_DELETED_ROWS_TABLE};
 use haex_crdt::table_names::TABLE_CRDT_CONFIGS;
 use rusqlite::Connection;
 

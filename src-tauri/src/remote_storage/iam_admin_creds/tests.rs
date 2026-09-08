@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 
 use super::{cred_title_for, delete_by_storage, load, store, IamAdminCred};
-use crate::crdt::trigger::ensure_crdt_columns;
+use crate::crdt::shared_space_trigger::ensure_crdt_columns;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::DbConnection;

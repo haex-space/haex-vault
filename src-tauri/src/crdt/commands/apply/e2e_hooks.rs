@@ -17,7 +17,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::grouping::build_pk_where_from_map;
-use crate::crdt::trigger::{SHARED_SPACE_DELETED_ROWS_TABLE, SHARED_SPACE_SYNC_TABLE};
+use crate::crdt::shared_space_trigger::{SHARED_SPACE_DELETED_ROWS_TABLE, SHARED_SPACE_SYNC_TABLE};
 use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;

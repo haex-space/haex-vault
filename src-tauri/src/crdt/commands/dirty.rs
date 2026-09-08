@@ -24,8 +24,7 @@ pub struct DirtyTable {
 //
 // Deliberately a plain `//` comment, not a doc comment: ts-rs copies doc
 // comments into the generated `.d.ts` as JSDoc, and this binding must stay
-// byte-identical to the one the pre-composition `crdt::trigger::ColumnInfo`
-// produced.
+// byte-identical to the one vault's own (now deleted) `ColumnInfo` produced.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]

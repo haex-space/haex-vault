@@ -1,4 +1,4 @@
-use crate::crdt::trigger::is_safe_identifier;
+use crate::crdt::shared_space_trigger::is_safe_identifier;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 

@@ -1,7 +1,9 @@
 use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
 use crate::crdt::registry_row_sig::puller_verify::verify_incoming_registry_change;
-use crate::crdt::trigger;
-use crate::crdt::trigger::{
+use crate::crdt::shared_space_trigger::{
+    ensure_crdt_columns, install_crdt_with_shared_space, TriggerSetupResult,
+};
+use crate::crdt::shared_space_trigger::{
     get_table_schema as get_table_schema_internal, is_safe_identifier, ColumnInfo,
     COLUMN_HLCS_COLUMN, DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN, SHARED_SPACE_DELETED_ROWS_TABLE,
 };
@@ -492,13 +494,13 @@ pub fn apply_remote_changes_to_db_scoped(
                         && schema.iter().any(|col| col.name == COLUMN_HLCS_COLUMN);
                 let has_column_sigs = schema
                     .iter()
-                    .any(|col| col.name == crate::crdt::trigger::COLUMN_SIGS_COLUMN);
+                    .any(|col| col.name == crate::crdt::shared_space_trigger::COLUMN_SIGS_COLUMN);
                 if !has_core_crdt_columns || !has_column_sigs {
                     eprintln!(
                     "[SYNC RUST] Table '{}' missing CRDT columns (created in dev mode?) - upgrading now",
                     first_change.table_name
                 );
-                    let upgrade = trigger::ensure_crdt_columns(&tx, &first_change.table_name)
+                    let upgrade = ensure_crdt_columns(&tx, &first_change.table_name)
                         .and_then(|columns_added| {
                             // Adding only the signature metadata column to an
                             // existing CRDT table does not require trigger
@@ -508,14 +510,14 @@ pub fn apply_remote_changes_to_db_scoped(
                             if has_core_crdt_columns {
                                 Ok((columns_added, false))
                             } else {
-                                trigger::install_crdt_with_shared_space(
+                                install_crdt_with_shared_space(
                                     &tx,
                                     &first_change.table_name,
                                     true,
                                 )
                                 .map(|result| {
                                     let triggers_created =
-                                        matches!(result, trigger::TriggerSetupResult::Success);
+                                        matches!(result, TriggerSetupResult::Success);
                                     (columns_added, triggers_created)
                                 })
                             }

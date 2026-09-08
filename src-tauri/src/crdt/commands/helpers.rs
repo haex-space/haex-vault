@@ -1,4 +1,4 @@
-use crate::crdt::trigger::ColumnInfo;
+use crate::crdt::shared_space_trigger::ColumnInfo;
 use crate::database::core::ValueConverter;
 use crate::database::error::DatabaseError;
 use rusqlite::types::Value as SqlValue;

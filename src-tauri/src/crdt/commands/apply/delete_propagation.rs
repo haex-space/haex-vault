@@ -1,4 +1,4 @@
-use crate::crdt::trigger::{
+use crate::crdt::shared_space_trigger::{
     get_table_schema, is_safe_identifier, ColumnInfo, DELETED_ROWS_TABLE,
     SHARED_SPACE_DELETED_ROWS_TABLE, SHARED_SPACE_SYNC_TABLE,
 };

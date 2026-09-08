@@ -11,7 +11,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::crdt::column_sig::key_cache::SpaceKeyCache;
-    use crate::crdt::trigger::ensure_crdt_columns;
+    use crate::crdt::shared_space_trigger::ensure_crdt_columns;
     use crate::database::connection_context::ConnectionContext;
     use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
     use crate::database::DbConnection;

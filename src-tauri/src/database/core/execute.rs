@@ -16,7 +16,7 @@ use crate::crdt::column_sig::value_bytes;
 use crate::crdt::column_sig::write::sign_column_for_spaces;
 use crate::crdt::registry_row_sig::payload::RegistryRowSigPayload;
 use crate::crdt::registry_row_sig::sign::sign_registry_row;
-use crate::crdt::trigger::{
+use crate::crdt::shared_space_trigger::{
     get_table_schema, is_safe_identifier, COLUMN_HLCS_COLUMN, COLUMN_SIGS_COLUMN,
     HLC_FUNCTION_NAME, HLC_TIMESTAMP_COLUMN,
 };
@@ -936,7 +936,7 @@ fn values_by_pk_column<'a>(
 /// columns — the caller treats that as a silent skip since register rows
 /// with malformed PK payloads should not silently sign the wrong row.
 fn build_pk_where(
-    schema: &[crate::crdt::trigger::ColumnInfo],
+    schema: &[crate::crdt::shared_space_trigger::ColumnInfo],
     row_pks_json: &str,
 ) -> Result<(String, Vec<RusqliteValue>), DatabaseError> {
     let pk_cols: Vec<&str> = schema

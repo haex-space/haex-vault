@@ -27,7 +27,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction};
 
 use haex_crdt::db::error::DatabaseError;
 
-use crate::crdt::trigger::SHARED_SPACE_DELETED_ROWS_TABLE;
+use crate::crdt::shared_space_trigger::SHARED_SPACE_DELETED_ROWS_TABLE;
 
 pub const OWNER_DELETE_LOG_ANCHOR_KEY: &str = "owner_delete_log_anchor";
 

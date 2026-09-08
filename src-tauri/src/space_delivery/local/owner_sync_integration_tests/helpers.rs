@@ -11,7 +11,7 @@ use iroh::address_lookup::memory::MemoryLookup;
 use iroh::endpoint::presets;
 use iroh::{Endpoint, EndpointAddr, RelayMode, SecretKey};
 
-use crate::crdt::trigger::ensure_crdt_columns;
+use crate::crdt::shared_space_trigger::ensure_crdt_columns;
 use crate::database::DbConnection;
 use crate::owner_sync::scope::{
     owner_route_decision, resolve_vault_owner_did, resolve_vault_space_id,
