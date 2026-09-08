@@ -1,6 +1,7 @@
 mod db;
 mod delete_propagation;
 mod grouping;
+mod policy;
 mod registry_row_gate;
 mod types;
 
