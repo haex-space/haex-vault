@@ -52,7 +52,7 @@ impl LimitsService {
     ) -> Result<ExtensionLimits, DatabaseError> {
         let result: Result<HaexExtensionLimits, _> = conn.query_row(
             "SELECT id, extension_id, query_timeout_ms, max_result_rows, \
-             max_concurrent_queries, max_query_size_bytes, created_at_no_trigger, updated_at_no_trigger \
+             max_concurrent_queries, max_query_size_bytes, created_at_no_sync, updated_at_no_sync \
              FROM haex_extension_limits \
              WHERE extension_id = ?",
             [extension_id],

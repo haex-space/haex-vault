@@ -39,7 +39,7 @@ pub struct LocalInviteToken {
     pub max_uses: u32,
     pub current_uses: u32,
     pub expires_at: OffsetDateTime,
-    pub created_at_no_trigger: OffsetDateTime,
+    pub created_at_no_sync: OffsetDateTime,
 }
 
 impl LocalInviteToken {
@@ -85,7 +85,7 @@ pub fn create_contact_invite_token(
         max_uses: 1,
         current_uses: 0,
         expires_at,
-        created_at_no_trigger: now,
+        created_at_no_sync: now,
     };
 
     // Persist to CRDT-synced DB
@@ -130,7 +130,7 @@ pub async fn create_conference_invite_token(
         max_uses,
         current_uses: 0,
         expires_at,
-        created_at_no_trigger: now,
+        created_at_no_sync: now,
     };
 
     // Persist to CRDT-synced DB
@@ -238,13 +238,13 @@ fn persist_invite_token(
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default();
     let created_str = token
-        .created_at_no_trigger
+        .created_at_no_sync
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default();
 
     core::execute_with_crdt(
         "INSERT OR REPLACE INTO haex_invite_tokens \
-         (id, space_id, target_did, capabilities, pre_created_ucan, include_history, max_uses, current_uses, expires_at, created_at_no_trigger) \
+         (id, space_id, target_did, capabilities, pre_created_ucan, include_history, max_uses, current_uses, expires_at, created_at_no_sync) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
             .to_string(),
         vec![
@@ -291,7 +291,7 @@ pub fn load_invite_tokens(
 ) -> Result<Vec<LocalInviteToken>, DeliveryError> {
     let rows = core::select_with_crdt(
         "SELECT id, space_id, target_did, capabilities, pre_created_ucan, include_history, \
-         max_uses, current_uses, expires_at, created_at_no_trigger \
+         max_uses, current_uses, expires_at, created_at_no_sync \
          FROM haex_invite_tokens WHERE space_id = ?1"
             .to_string(),
         vec![serde_json::Value::String(space_id.to_string())],
@@ -328,7 +328,7 @@ pub fn load_invite_tokens(
             &time::format_description::well_known::Rfc3339,
         )
         .unwrap_or_else(|_| OffsetDateTime::now_utc());
-        let created_at_no_trigger = time::OffsetDateTime::parse(
+        let created_at_no_sync = time::OffsetDateTime::parse(
             created_str,
             &time::format_description::well_known::Rfc3339,
         )
@@ -344,7 +344,7 @@ pub fn load_invite_tokens(
             max_uses,
             current_uses,
             expires_at,
-            created_at_no_trigger,
+            created_at_no_sync,
         });
     }
     Ok(tokens)
@@ -357,7 +357,7 @@ fn load_invite_token_by_id(
 ) -> Result<Option<LocalInviteToken>, DeliveryError> {
     let rows = core::select_with_crdt(
         "SELECT id, space_id, target_did, capabilities, pre_created_ucan, include_history, \
-         max_uses, current_uses, expires_at, created_at_no_trigger \
+         max_uses, current_uses, expires_at, created_at_no_sync \
          FROM haex_invite_tokens WHERE id = ?1"
             .to_string(),
         vec![serde_json::Value::String(token_id.to_string())],
@@ -395,7 +395,7 @@ fn load_invite_token_by_id(
     let expires_at =
         time::OffsetDateTime::parse(expires_str, &time::format_description::well_known::Rfc3339)
             .unwrap_or_else(|_| OffsetDateTime::now_utc());
-    let created_at_no_trigger =
+    let created_at_no_sync =
         time::OffsetDateTime::parse(created_str, &time::format_description::well_known::Rfc3339)
             .unwrap_or_else(|_| OffsetDateTime::now_utc());
 
@@ -409,7 +409,7 @@ fn load_invite_token_by_id(
         max_uses,
         current_uses,
         expires_at,
-        created_at_no_trigger,
+        created_at_no_sync,
     }))
 }
 

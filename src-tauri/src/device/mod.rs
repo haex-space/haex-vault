@@ -83,7 +83,7 @@ pub struct KnownDevice {
     pub platform: String,
     pub avatar: Option<String>,
     pub avatar_options: Option<String>,
-    pub created_at_no_trigger: Option<String>,
+    pub created_at_no_sync: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, TS)]
@@ -114,11 +114,11 @@ pub struct DeviceResolution {
 fn list_known_devices(state: &State<'_, AppState>) -> Result<Vec<KnownDevice>, DeviceError> {
     let rows = core::select_with_crdt(
         "SELECT d.id, d.owner_did, d.device_id, d.endpoint_id, d.name, d.platform, \
-                d.avatar, d.avatar_options, d.created_at_no_trigger \
+                d.avatar, d.avatar_options, d.created_at_no_sync \
          FROM haex_devices d \
          JOIN haex_identities i ON i.did = d.owner_did \
          WHERE i.source = 'own' \
-         ORDER BY d.created_at_no_trigger ASC"
+         ORDER BY d.created_at_no_sync ASC"
             .to_string(),
         vec![],
         &state.db,
@@ -142,7 +142,7 @@ fn list_known_devices(state: &State<'_, AppState>) -> Result<Vec<KnownDevice>, D
             platform: as_string(&row[5]).unwrap_or_default(),
             avatar: as_string(&row[6]),
             avatar_options: as_string(&row[7]),
-            created_at_no_trigger: as_string(&row[8]),
+            created_at_no_sync: as_string(&row[8]),
         });
     }
     Ok(out)

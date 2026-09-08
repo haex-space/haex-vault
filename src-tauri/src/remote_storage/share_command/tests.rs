@@ -215,7 +215,7 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             origin_type TEXT NOT NULL DEFAULT 'owned',
             share_prefix TEXT,
             share_access_flags INTEGER,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
         CREATE TABLE haex_spaces (
@@ -225,7 +225,7 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             name TEXT NOT NULL,
             owner_identity_id TEXT NOT NULL,
             origin_url TEXT,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
             modified_at TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
@@ -242,7 +242,7 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             category_label TEXT,
             authored_by_did TEXT DEFAULT '' NOT NULL,
             row_sig TEXT DEFAULT '' NOT NULL,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
         CREATE TABLE haex_s3_shared_access (
@@ -253,7 +253,7 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             encrypted_cred TEXT NOT NULL,
             epoch INTEGER NOT NULL,
             expires_at TEXT,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP) NOT NULL
         );
         CREATE UNIQUE INDEX haex_s3_shared_access_space_backend_did_uniq
             ON haex_s3_shared_access (space_id, backend_id, member_did);
@@ -273,8 +273,8 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             otp_algorithm TEXT DEFAULT 'SHA1',
             expires_at TEXT,
             autofill_aliases TEXT,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
-            updated_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
+            updated_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
         CREATE TABLE haex_passwords_item_key_values (
@@ -282,7 +282,7 @@ fn setup_share_db() -> (DbConnection, HlcService, String, String) {
             item_id TEXT NOT NULL,
             key TEXT,
             value TEXT,
-            updated_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
+            updated_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
             FOREIGN KEY (item_id) REFERENCES haex_passwords_item_details(id)
                 ON UPDATE NO ACTION ON DELETE CASCADE
         );",
@@ -748,7 +748,7 @@ async fn db_failure_after_iam_success_calls_delete_scoped_user() {
                  authored_by_did TEXT DEFAULT '' NOT NULL,
                  row_sig TEXT DEFAULT '' NOT NULL,
                  must_be_present TEXT NOT NULL,
-                 created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+                 created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
              );",
         )
         .expect("rebuild mapping table with breaking NOT NULL column");

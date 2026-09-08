@@ -81,7 +81,7 @@ pub async fn remote_storage_list_backends(
                 r#type: get_string(row, 1),
                 name: get_string(row, 2),
                 enabled: get_bool(row, 3),
-                created_at_no_trigger: get_string(row, 4),
+                created_at_no_sync: get_string(row, 4),
                 config: public_config,
                 origin_type,
                 share_access_flags,
@@ -197,7 +197,7 @@ pub async fn remote_storage_add_backend(
         r#type: get_string(row, 1),
         name: get_string(row, 2),
         enabled: get_bool(row, 3),
-        created_at_no_trigger: get_string(row, 4),
+        created_at_no_sync: get_string(row, 4),
         config: public_config,
         // Newly-added backends are owned by definition; the shared-from-space
         // path goes through `share_command::persist_shared_backend`, not here.
@@ -340,7 +340,7 @@ pub async fn remote_storage_update_backend(
         r#type: get_string(row, 1),
         name: get_string(row, 2),
         enabled: get_bool(row, 3),
-        created_at_no_trigger: get_string(row, 4),
+        created_at_no_sync: get_string(row, 4),
         config: public_config,
         // Update only lands on owned rows — shared rows are edited via the
         // owner's device. The share-provenance fields aren't in the RETURNING

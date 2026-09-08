@@ -107,10 +107,10 @@ fn test_scan_excludes_metadata_columns() {
         "CREATE TABLE with_meta (
                 id TEXT PRIMARY KEY,
                 data TEXT,
-                last_push_hlc_timestamp_no_trigger TEXT,
-                last_pull_server_timestamp_no_trigger TEXT,
-                updated_at_no_trigger TEXT,
-                created_at_no_trigger TEXT,
+                last_push_hlc_timestamp_no_sync TEXT,
+                last_pull_server_timestamp_no_sync TEXT,
+                updated_at_no_sync TEXT,
+                created_at_no_sync TEXT,
                 haex_hlc_no_trigger TEXT,
                 haex_column_hlcs_no_trigger TEXT NOT NULL DEFAULT '{}'
             );",
@@ -130,10 +130,10 @@ fn test_scan_excludes_metadata_columns() {
     let col_names: Vec<&str> = changes.iter().map(|c| c.column_name.as_str()).collect();
     // Only "data" should remain; all metadata/CRDT columns filtered out
     assert!(col_names.contains(&"data"));
-    assert!(!col_names.contains(&"last_push_hlc_timestamp_no_trigger"));
-    assert!(!col_names.contains(&"last_pull_server_timestamp_no_trigger"));
-    assert!(!col_names.contains(&"updated_at_no_trigger"));
-    assert!(!col_names.contains(&"created_at_no_trigger"));
+    assert!(!col_names.contains(&"last_push_hlc_timestamp_no_sync"));
+    assert!(!col_names.contains(&"last_pull_server_timestamp_no_sync"));
+    assert!(!col_names.contains(&"updated_at_no_sync"));
+    assert!(!col_names.contains(&"created_at_no_sync"));
     assert!(!col_names.contains(&"haex_hlc_no_trigger"));
     assert!(!col_names.contains(&"haex_column_hlcs_no_trigger"));
 }

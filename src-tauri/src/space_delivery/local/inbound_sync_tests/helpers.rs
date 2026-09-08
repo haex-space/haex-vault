@@ -100,7 +100,7 @@ pub(super) fn setup_authz_db() -> DbConnection {
             name TEXT NOT NULL,
             source TEXT NOT NULL DEFAULT 'contact',
             private_key TEXT,
-            created_at_no_trigger TEXT
+            created_at_no_sync TEXT
         );
 
         CREATE TABLE haex_spaces (

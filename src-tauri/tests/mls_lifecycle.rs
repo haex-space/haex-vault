@@ -68,7 +68,7 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             target_did TEXT NOT NULL,
             package_blob TEXT NOT NULL,
             pop_blob TEXT NOT NULL,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
             FOREIGN KEY (space_id) REFERENCES haex_spaces(id)
         );
         CREATE INDEX IF NOT EXISTS haex_local_delivery_key_packages_space_did_idx
@@ -81,7 +81,7 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             message_blob TEXT NOT NULL,
             committer_ucan TEXT,
             committer_commit_bind_sig BLOB,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
             FOREIGN KEY (space_id) REFERENCES haex_spaces(id)
         );
         CREATE INDEX IF NOT EXISTS haex_local_delivery_messages_space_idx
@@ -92,7 +92,7 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             message_id INTEGER NOT NULL,
             expected_dids TEXT DEFAULT '[]' NOT NULL,
             acked_dids TEXT DEFAULT '[]' NOT NULL,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
             FOREIGN KEY (space_id) REFERENCES haex_spaces(id)
         );
         CREATE TABLE IF NOT EXISTS haex_local_delivery_welcomes_no_sync (
@@ -101,7 +101,7 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             recipient_did TEXT NOT NULL,
             welcome_blob BLOB NOT NULL,
             consumed INTEGER DEFAULT 0,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
             FOREIGN KEY (space_id) REFERENCES haex_spaces(id)
         );
         INSERT OR IGNORE INTO haex_spaces (id) VALUES ('test-space-1');
@@ -143,7 +143,7 @@ fn setup_test_db() -> Arc<Mutex<Option<Connection>>> {
             name TEXT NOT NULL,
             source TEXT DEFAULT 'contact' NOT NULL,
             private_key TEXT,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
         CREATE TABLE IF NOT EXISTS haex_space_members (
             id TEXT PRIMARY KEY NOT NULL,

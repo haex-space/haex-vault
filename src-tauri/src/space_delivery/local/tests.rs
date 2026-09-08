@@ -53,7 +53,7 @@ mod tests {
                 status TEXT DEFAULT 'active' NOT NULL,
                 name TEXT NOT NULL,
                 origin_url TEXT,
-                created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
+                created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
                 modified_at TEXT DEFAULT (CURRENT_TIMESTAMP)
             )",
         )

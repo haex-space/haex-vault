@@ -6,4 +6,4 @@ export type KnownDevice = { id: string, ownerDid: string,
  * `haex_space_devices_ensure_refs` trigger) — those rows never carry the
  * file UUID because we don't own the physical device.
  */
-deviceId: string | null, endpointId: string, name: string, platform: string, avatar: string | null, avatarOptions: string | null, createdAtNoTrigger: string | null, };
+deviceId: string | null, endpointId: string, name: string, platform: string, avatar: string | null, avatarOptions: string | null, createdAtNoSync: string | null, };

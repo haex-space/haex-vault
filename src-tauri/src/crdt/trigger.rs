@@ -84,10 +84,10 @@ const SHARED_SPACE_CASCADE_EXEMPT: &[&str] = &[
 ];
 
 // Sync metadata columns that should NOT be tracked (to prevent trigger loops)
-const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp_no_trigger";
-const LAST_PULL_SERVER_TIMESTAMP_COLUMN: &str = "last_pull_server_timestamp_no_trigger";
-const UPDATED_AT_COLUMN: &str = "updated_at_no_trigger";
-const CREATED_AT_COLUMN: &str = "created_at_no_trigger";
+const LAST_PUSH_HLC_COLUMN: &str = "last_push_hlc_timestamp_no_sync";
+const LAST_PULL_SERVER_TIMESTAMP_COLUMN: &str = "last_pull_server_timestamp_no_sync";
+const UPDATED_AT_COLUMN: &str = "updated_at_no_sync";
+const CREATED_AT_COLUMN: &str = "created_at_no_sync";
 
 /// Name der custom UUID-Generierungs-Funktion (registriert in database::core::open_and_init_db)
 pub const UUID_FUNCTION_NAME: &str = "gen_uuid";
@@ -460,7 +460,7 @@ fn drop_trigger_sql(trigger_name: String) -> String {
 
 /// Generates SQL for UPDATE trigger - updates column HLCs and marks table as dirty
 /// IMPORTANT: Only marks table as dirty if at least one TRACKED column changed.
-/// This prevents sync loops when only metadata columns (like last_push_hlc_timestamp_no_trigger) are updated.
+/// This prevents sync loops when only metadata columns (like last_push_hlc_timestamp_no_sync) are updated.
 fn generate_update_trigger_sql(
     table_name: &str,
     cols_to_track: &[String],

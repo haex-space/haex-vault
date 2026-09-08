@@ -506,7 +506,7 @@ pub async fn local_delivery_claim_invite(
     let staging_id = uuid::Uuid::new_v4().to_string();
     let staging_db = DbConnection(state.db.0.clone());
     crate::database::core::execute(
-        "INSERT INTO haex_mls_pending_welcomes_no_sync (id, space_id, welcome_payload, source, created_at_no_trigger) \
+        "INSERT INTO haex_mls_pending_welcomes_no_sync (id, space_id, welcome_payload, source, created_at_no_sync) \
          VALUES (?1, ?2, ?3, 'quic', datetime('now'))".to_string(),
         vec![
             serde_json::Value::String(staging_id.clone()),

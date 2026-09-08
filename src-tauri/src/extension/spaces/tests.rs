@@ -108,7 +108,7 @@ mod tests {
                 category_label TEXT,
                 authored_by_did TEXT DEFAULT '' NOT NULL,
                 row_sig TEXT DEFAULT '' NOT NULL,
-                created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+                created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
             )",
             TABLE_SHARED_SPACE_SYNC
         ))

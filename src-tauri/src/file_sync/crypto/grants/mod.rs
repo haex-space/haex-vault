@@ -42,7 +42,7 @@ pub struct FileGrantRow {
     pub space_id: String,
     pub sidecar_key: String,
     pub epoch: u64,
-    pub created_at_no_trigger: String,
+    pub created_at_no_sync: String,
 }
 
 /// Errors surfaced from grant-row operations. Wraps `DatabaseError` so
@@ -220,7 +220,7 @@ fn row_to_grant(row: Vec<JsonValue>) -> Result<FileGrantRow, GrantError> {
         epoch: row[4].as_u64().ok_or_else(|| GrantError::RowShape {
             reason: "epoch column is not a non-negative integer".into(),
         })?,
-        created_at_no_trigger: take_string(&row[5], "created_at_no_trigger")?,
+        created_at_no_sync: take_string(&row[5], "created_at_no_sync")?,
     })
 }
 

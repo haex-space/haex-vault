@@ -225,7 +225,7 @@ pub fn handle_push_invite(
     let insert_result = core::execute_with_crdt(
         "INSERT OR IGNORE INTO haex_pending_invites \
          (id, space_id, space_name, space_type, origin_url, inviter_did, inviter_label, inviter_avatar, inviter_avatar_options, inviter_relay_url, \
-          capabilities, include_history, token_id, space_endpoints, status, created_at_no_trigger) \
+          capabilities, include_history, token_id, space_endpoints, status, created_at_no_sync) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 'pending', ?15) \
          RETURNING id"
             .to_string(),

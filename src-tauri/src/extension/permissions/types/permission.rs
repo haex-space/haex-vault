@@ -145,8 +145,8 @@ impl From<&ExtensionPermission> for crate::database::generated::HaexPrincipalPer
                 perm.raw_constraints.as_ref(),
             ),
             status: perm.status.as_str().to_string(),
-            created_at_no_trigger: None,
-            updated_at_no_trigger: None,
+            created_at_no_sync: None,
+            updated_at_no_sync: None,
         }
     }
 }

@@ -55,7 +55,7 @@ use haex_crdt::HlcService;
 /// `log_to_db` exercise the same constraints production code does.
 ///
 /// Mirrored from `haex_identities`: `id`, `did` (UNIQUE), `name` (NOT NULL),
-/// `source` (NOT NULL DEFAULT 'contact'), `private_key`, `created_at_no_trigger`.
+/// `source` (NOT NULL DEFAULT 'contact'), `private_key`, `created_at_no_sync`.
 /// Deliberately omitted from `haex_identities`: `avatar`, `avatar_options`,
 /// `notes` — purely optional UI columns the membership-check SQL never
 /// touches.
@@ -89,7 +89,7 @@ pub(crate) fn setup_membership_db() -> (
             name TEXT NOT NULL,
             source TEXT NOT NULL DEFAULT 'contact',
             private_key TEXT,
-            created_at_no_trigger TEXT
+            created_at_no_sync TEXT
         );
 
         CREATE TABLE haex_space_members (

@@ -28,10 +28,10 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// it decides what to *ship*, not what fires triggers). Sync-metadata cols
 /// still cannot be shipped even when triggered.
 const EXCLUDED_SYNC_COLUMNS: &[&str] = &[
-    "last_push_hlc_timestamp_no_trigger",
-    "last_pull_server_timestamp_no_trigger",
-    "updated_at_no_trigger",
-    "created_at_no_trigger",
+    "last_push_hlc_timestamp_no_sync",
+    "last_pull_server_timestamp_no_sync",
+    "updated_at_no_sync",
+    "created_at_no_sync",
 ];
 
 /// Whitelist of CRDT tables that may be synchronised between peers of a
@@ -193,7 +193,7 @@ pub struct LocalColumnChange {
 /// Data columns exclude:
 /// - PK columns
 /// - CRDT metadata: `haex_hlc_no_trigger`, `haex_column_hlcs_no_trigger`, `haex_column_sigs_no_trigger`
-/// - Sync metadata: `last_push_hlc_timestamp_no_trigger`, `last_pull_server_timestamp_no_trigger`, `updated_at_no_trigger`, `created_at_no_trigger`
+/// - Sync metadata: `last_push_hlc_timestamp_no_sync`, `last_pull_server_timestamp_no_sync`, `updated_at_no_sync`, `created_at_no_sync`
 fn partition_columns(schema: &[ColumnInfo]) -> (Vec<&ColumnInfo>, Vec<&ColumnInfo>) {
     let pk_columns: Vec<&ColumnInfo> = schema.iter().filter(|c| c.is_pk).collect();
     let data_columns: Vec<&ColumnInfo> = schema

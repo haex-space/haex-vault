@@ -8,7 +8,7 @@ export type StorageBackendInfo = { id: string,
 /**
  * Backend type (e.g., "s3")
  */
-type: string, name: string, enabled: boolean, createdAtNoTrigger: string, 
+type: string, name: string, enabled: boolean, createdAtNoSync: string, 
 /**
  * Public config (without secrets like access keys)
  */

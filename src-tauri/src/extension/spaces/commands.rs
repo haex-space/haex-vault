@@ -52,7 +52,7 @@ pub struct SpaceAssignmentRow {
     #[serde(rename = "type")]
     pub type_name: Option<String>,
     pub type_label: Option<String>,
-    pub created_at_no_trigger: Option<String>,
+    pub created_at_no_sync: Option<String>,
 }
 
 /// Verify the vault owns at least one active local identity that is an active
@@ -414,7 +414,7 @@ pub async fn extension_space_get_assignments(
             category: Some(get_string(row, 6)).filter(|s| !s.is_empty()),
             type_name: Some(get_string(row, 7)).filter(|s| !s.is_empty()),
             type_label: Some(get_string(row, 8)).filter(|s| !s.is_empty()),
-            created_at_no_trigger: Some(get_string(row, 9)).filter(|s| !s.is_empty()),
+            created_at_no_sync: Some(get_string(row, 9)).filter(|s| !s.is_empty()),
         })
         .collect();
 
@@ -449,7 +449,7 @@ pub struct DecryptedSpace {
     pub id: String,
     pub name: String,
     pub origin_url: String,
-    pub created_at_no_trigger: String,
+    pub created_at_no_sync: String,
     pub capabilities: Vec<String>,
 }
 
@@ -482,7 +482,7 @@ pub async fn extension_space_list(
     // caps in Rust below; ORDER BY s.id keeps the group-by fold in linear
     // time without a hashmap.
     let rows = core::select_with_crdt(
-        "SELECT s.id, s.name, s.origin_url, s.created_at_no_trigger, t.capabilities \
+        "SELECT s.id, s.name, s.origin_url, s.created_at_no_sync, t.capabilities \
          FROM haex_spaces s \
          LEFT JOIN haex_ucan_tokens t ON t.space_id = s.id \
            AND (t.audience_did IN (SELECT did FROM haex_identities WHERE private_key IS NOT NULL) \
@@ -509,7 +509,7 @@ pub async fn extension_space_list(
                 id: id.clone(),
                 name: get_string(row, 1),
                 origin_url: get_string(row, 2),
-                created_at_no_trigger: get_string(row, 3),
+                created_at_no_sync: get_string(row, 3),
                 capabilities: Vec::new(),
             });
             by_id.insert(id.clone(), std::collections::BTreeSet::new());

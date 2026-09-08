@@ -90,8 +90,8 @@ export const haexPrincipalPermissions = sqliteTable(
     status: text({ enum: ['ask', 'granted', 'denied'] })
       .notNull()
       .default('denied'),
-    createdAt: text('created_at_no_trigger').default(sql`(CURRENT_TIMESTAMP)`),
-    updateAt: integer('updated_at_no_trigger', { mode: 'timestamp' }).$onUpdate(
+    createdAt: text('created_at_no_sync').default(sql`(CURRENT_TIMESTAMP)`),
+    updateAt: integer('updated_at_no_sync', { mode: 'timestamp' }).$onUpdate(
       () => new Date(),
     ),
   },

@@ -782,7 +782,7 @@ fn sign_registry_row_self(
         category_label: Option<String>,
         type_label: Option<String>,
         authored_by_did: String,
-        created_at_no_trigger: Option<String>,
+        created_at_no_sync: Option<String>,
     }
 
     let rows: Vec<RegistryRow> = {
@@ -814,7 +814,7 @@ fn sign_registry_row_self(
                 category_label: row.get(8).map_err(DatabaseError::from)?,
                 type_label: row.get(9).map_err(DatabaseError::from)?,
                 authored_by_did: row.get(10).map_err(DatabaseError::from)?,
-                created_at_no_trigger: row.get(11).map_err(DatabaseError::from)?,
+                created_at_no_sync: row.get(11).map_err(DatabaseError::from)?,
             });
         }
         out
@@ -867,7 +867,7 @@ fn sign_registry_row_self(
             category_label: row.category_label.as_deref(),
             type_label: row.type_label.as_deref(),
             authored_by_did: &final_authored_by_did,
-            created_at_no_trigger: row.created_at_no_trigger.as_deref(),
+            created_at_no_sync: row.created_at_no_sync.as_deref(),
         };
         let signature = sign_registry_row(&payload, &signing_key);
         let sig_b64 = BASE64.encode(signature.to_bytes());

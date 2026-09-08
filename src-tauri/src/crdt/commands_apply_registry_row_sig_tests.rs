@@ -80,7 +80,7 @@ fn setup_registry_db() -> DbConnection {
             category_label TEXT,
             authored_by_did TEXT DEFAULT '' NOT NULL,
             row_sig TEXT DEFAULT '' NOT NULL,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
          );"
     ))
     .unwrap();
@@ -107,7 +107,7 @@ struct RegistryFields {
     category_label: Option<String>,
     type_label: Option<String>,
     authored_by_did: String,
-    created_at_no_trigger: String,
+    created_at_no_sync: String,
 }
 
 impl RegistryFields {
@@ -124,7 +124,7 @@ impl RegistryFields {
             category_label: Some("Work".to_string()),
             type_label: Some("Event".to_string()),
             authored_by_did: authored_by_did.to_string(),
-            created_at_no_trigger: "2026-07-31T00:00:00Z".to_string(),
+            created_at_no_sync: "2026-07-31T00:00:00Z".to_string(),
         }
     }
 
@@ -141,7 +141,7 @@ impl RegistryFields {
             category_label: self.category_label.as_deref(),
             type_label: self.type_label.as_deref(),
             authored_by_did: &self.authored_by_did,
-            created_at_no_trigger: Some(&self.created_at_no_trigger),
+            created_at_no_sync: Some(&self.created_at_no_sync),
         }
     }
 
@@ -193,7 +193,7 @@ impl RegistryFields {
             ),
             (
                 COL_SHARED_SPACE_SYNC_CREATED_AT,
-                JsonValue::String(self.created_at_no_trigger.clone()),
+                JsonValue::String(self.created_at_no_sync.clone()),
             ),
         ]
     }

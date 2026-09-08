@@ -1287,7 +1287,7 @@ fn setup_fixture_s3_backends() -> FixtureS3Backends {
             category_label TEXT,
             authored_by_did TEXT DEFAULT '' NOT NULL,
             row_sig TEXT DEFAULT '' NOT NULL,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
          );
          CREATE TABLE haex_s3_backends (
             id TEXT PRIMARY KEY NOT NULL,

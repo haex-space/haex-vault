@@ -128,13 +128,13 @@ pub(super) fn populate_vault_key_slot(state: &State<'_, AppState>) -> Result<(),
     // Pick the seeded own-identity deterministically. The `ensure_`
     // helper never inserts more than one, but the schema does not
     // forbid additional 'own' rows (a user could create secondary
-    // identities via the UI); ordering by `created_at_no_trigger, id` keeps the
+    // identities via the UI); ordering by `created_at_no_sync, id` keeps the
     // choice stable and matches "the one seeded first" — the same
     // identity every device that opens this vault will pick.
     let rows = core::select_with_crdt(
         "SELECT private_key FROM haex_identities \
          WHERE source = 'own' AND private_key IS NOT NULL \
-         ORDER BY created_at_no_trigger ASC, id ASC LIMIT 1"
+         ORDER BY created_at_no_sync ASC, id ASC LIMIT 1"
             .to_string(),
         vec![],
         &state.db,

@@ -257,7 +257,7 @@ fn seed_singleton(db: &DbConnection) -> Result<(), String> {
         .format(&Rfc3339)
         .map_err(|e| e.to_string())?;
     let sql = format!(
-        "INSERT INTO {TABLE} (id, flood_mode, flood_mode_source, ddos_expires_at, updated_at_no_trigger) \
+        "INSERT INTO {TABLE} (id, flood_mode, flood_mode_source, ddos_expires_at, updated_at_no_sync) \
          VALUES (1, 'quiet', NULL, NULL, ?1) \
          ON CONFLICT(id) DO NOTHING"
     );
@@ -270,13 +270,13 @@ fn persist_ddos(db: &DbConnection, _source_count: usize, expires_rfc: &str) -> R
         .format(&Rfc3339)
         .map_err(|e| e.to_string())?;
     let sql = format!(
-        "INSERT INTO {TABLE} (id, flood_mode, flood_mode_source, ddos_expires_at, updated_at_no_trigger) \
+        "INSERT INTO {TABLE} (id, flood_mode, flood_mode_source, ddos_expires_at, updated_at_no_sync) \
          VALUES (1, 'ddos', NULL, ?1, ?2) \
          ON CONFLICT(id) DO UPDATE SET \
             flood_mode = excluded.flood_mode, \
             flood_mode_source = excluded.flood_mode_source, \
             ddos_expires_at = excluded.ddos_expires_at, \
-            updated_at_no_trigger = excluded.updated_at_no_trigger"
+            updated_at_no_sync = excluded.updated_at_no_sync"
     );
     execute(
         sql,
@@ -295,13 +295,13 @@ fn persist_quiet(db: &DbConnection) -> Result<(), String> {
         .format(&Rfc3339)
         .map_err(|e| e.to_string())?;
     let sql = format!(
-        "INSERT INTO {TABLE} (id, flood_mode, flood_mode_source, ddos_expires_at, updated_at_no_trigger) \
+        "INSERT INTO {TABLE} (id, flood_mode, flood_mode_source, ddos_expires_at, updated_at_no_sync) \
          VALUES (1, 'quiet', NULL, NULL, ?1) \
          ON CONFLICT(id) DO UPDATE SET \
             flood_mode = excluded.flood_mode, \
             flood_mode_source = excluded.flood_mode_source, \
             ddos_expires_at = excluded.ddos_expires_at, \
-            updated_at_no_trigger = excluded.updated_at_no_trigger"
+            updated_at_no_sync = excluded.updated_at_no_sync"
     );
     execute(sql, vec![JsonValue::String(now)], db).map_err(|e| e.to_string())?;
     Ok(())

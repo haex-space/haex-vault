@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "91b128bb-ab15-4e9b-8683-055afc188b67",
+  "id": "4f0e36fe-2a62-4399-b094-d10507afd3d4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "haex_bookmark_collections": {
@@ -21,16 +21,16 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -179,16 +179,16 @@
           "notNull": true,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -371,16 +371,16 @@
           "autoincrement": false,
           "default": 1048576
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -595,16 +595,16 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -983,16 +983,16 @@
           "autoincrement": false,
           "default": "'denied'"
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -1055,16 +1055,16 @@
           "autoincrement": false,
           "default": true
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -1669,8 +1669,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1745,8 +1745,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1862,8 +1862,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1945,8 +1945,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -2037,8 +2037,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2105,8 +2105,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2251,8 +2251,8 @@
           "autoincrement": false,
           "default": "''"
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2291,8 +2291,8 @@
           "autoincrement": false,
           "default": "'all'"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2376,8 +2376,8 @@
           "autoincrement": false,
           "default": "''"
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2501,8 +2501,8 @@
           "autoincrement": false,
           "default": "'pending'"
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2561,8 +2561,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2651,8 +2651,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2728,8 +2728,8 @@
           "autoincrement": false,
           "default": "'[]'"
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2804,8 +2804,8 @@
           "autoincrement": false,
           "default": 0
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2926,16 +2926,16 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3081,8 +3081,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3166,8 +3166,8 @@
           "autoincrement": false,
           "default": "'attachment'"
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3270,16 +3270,16 @@
           "autoincrement": false,
           "default": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3396,16 +3396,16 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3602,16 +3602,16 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3656,8 +3656,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3709,8 +3709,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3930,8 +3930,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4063,8 +4063,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4278,8 +4278,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4447,8 +4447,8 @@
           "autoincrement": false,
           "default": "''"
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4637,8 +4637,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4846,8 +4846,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4951,15 +4951,15 @@
           "autoincrement": false,
           "default": 0
         },
-        "last_push_hlc_timestamp_no_trigger": {
-          "name": "last_push_hlc_timestamp_no_trigger",
+        "last_push_hlc_timestamp_no_sync": {
+          "name": "last_push_hlc_timestamp_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "last_pull_server_timestamp_no_trigger": {
-          "name": "last_pull_server_timestamp_no_trigger",
+        "last_pull_server_timestamp_no_sync": {
+          "name": "last_pull_server_timestamp_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4995,16 +4995,16 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
         },
-        "updated_at_no_trigger": {
-          "name": "updated_at_no_trigger",
+        "updated_at_no_sync": {
+          "name": "updated_at_no_sync",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -5130,8 +5130,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -5387,8 +5387,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -5516,8 +5516,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "created_at_no_trigger": {
-          "name": "created_at_no_trigger",
+        "created_at_no_sync": {
+          "name": "created_at_no_sync",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

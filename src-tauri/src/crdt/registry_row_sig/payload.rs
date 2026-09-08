@@ -50,14 +50,14 @@ pub struct RegistryRowSigPayload<'a> {
     pub category_label: Option<&'a str>,
     pub type_label: Option<&'a str>,
     pub authored_by_did: &'a str,
-    /// `None` iff the persisted `created_at_no_trigger` column is NULL. The DB schema
-    /// (`created_at_no_trigger text DEFAULT (CURRENT_TIMESTAMP)`, migration
+    /// `None` iff the persisted `created_at_no_sync` column is NULL. The DB schema
+    /// (`created_at_no_sync text DEFAULT (CURRENT_TIMESTAMP)`, migration
     /// `0000_jazzy_chat.sql`, unchanged by `0014_registry_authorization_schema.sql`)
     /// has no `NOT NULL` — every current write path lets the default
     /// populate it, but nothing prevents a genuinely-NULL persisted value
     /// (PR #741 finding 8). Optional so a NULL persisted value can be
     /// represented and re-signed instead of failing the row fetch.
-    pub created_at_no_trigger: Option<&'a str>,
+    pub created_at_no_sync: Option<&'a str>,
 }
 
 impl RegistryRowSigPayload<'_> {
@@ -69,9 +69,9 @@ impl RegistryRowSigPayload<'_> {
     ///
     /// Field order: id, space_id, table_name, row_pks, extension_public_key,
     /// extension_name, category, type, category_label, type_label,
-    /// authored_by_did, created_at_no_trigger. No field-name bytes are embedded — like
+    /// authored_by_did, created_at_no_sync. No field-name bytes are embedded — like
     /// `build_preimage`, field identity comes from fixed position, not from
-    /// an embedded label. `created_at_no_trigger` carries the same presence tag as the
+    /// an embedded label. `created_at_no_sync` carries the same presence tag as the
     /// other optional fields, even though it sits after `authored_by_did` in
     /// field order rather than alongside the other `Option` fields.
     pub fn canonical_encoding(&self) -> Vec<u8> {
@@ -98,7 +98,7 @@ impl RegistryRowSigPayload<'_> {
                 + optional_len(self.type_label)
                 + 4
                 + self.authored_by_did.len()
-                + optional_len(self.created_at_no_trigger),
+                + optional_len(self.created_at_no_sync),
         );
         push_field(&mut buf, DOMAIN_TAG.as_bytes());
         push_field(&mut buf, self.id.as_bytes());
@@ -112,7 +112,7 @@ impl RegistryRowSigPayload<'_> {
         push_optional_field(&mut buf, self.category_label);
         push_optional_field(&mut buf, self.type_label);
         push_field(&mut buf, self.authored_by_did.as_bytes());
-        push_optional_field(&mut buf, self.created_at_no_trigger);
+        push_optional_field(&mut buf, self.created_at_no_sync);
         buf
     }
 }

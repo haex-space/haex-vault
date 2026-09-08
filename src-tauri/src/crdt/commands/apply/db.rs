@@ -1131,11 +1131,11 @@ pub fn apply_remote_changes_to_db_scoped(
             // Only applicable for server sync (not local delivery)
             if let Some((backend_id, max_hlc)) = backend_info {
                 eprintln!(
-                    "[SYNC RUST] Updating last_push_hlc_timestamp_no_trigger to {}",
+                    "[SYNC RUST] Updating last_push_hlc_timestamp_no_sync to {}",
                     max_hlc
                 );
                 tx.execute(
-                    "UPDATE haex_sync_backends SET last_push_hlc_timestamp_no_trigger = ? WHERE id = ?",
+                    "UPDATE haex_sync_backends SET last_push_hlc_timestamp_no_sync = ? WHERE id = ?",
                     params![max_hlc, backend_id],
                 )
                 .map_err(DatabaseError::from)?;

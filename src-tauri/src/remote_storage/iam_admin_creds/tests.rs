@@ -74,8 +74,8 @@ fn setup_creds_db() -> (DbConnection, HlcService) {
             otp_algorithm TEXT DEFAULT 'SHA1',
             expires_at TEXT,
             autofill_aliases TEXT,
-            created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
-            updated_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
+            updated_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
         );
 
         CREATE TABLE haex_passwords_item_key_values (
@@ -83,7 +83,7 @@ fn setup_creds_db() -> (DbConnection, HlcService) {
             item_id TEXT NOT NULL,
             key TEXT,
             value TEXT,
-            updated_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP),
+            updated_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP),
             FOREIGN KEY (item_id) REFERENCES haex_passwords_item_details(id)
                 ON UPDATE NO ACTION ON DELETE CASCADE
         );",

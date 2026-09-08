@@ -68,10 +68,10 @@ const SIGNED_PAYLOAD_COLUMNS: &[&str] = &[
 /// for this field, not the stale persisted string. See
 /// `RegistryRowChangeOutcome::RequiredFieldExplicitlyNull`.
 ///
-/// `created_at_no_trigger` is deliberately absent from this list (PR #741 finding 8):
+/// `created_at_no_sync` is deliberately absent from this list (PR #741 finding 8):
 /// unlike the others, its DB column has no `NOT NULL` (migration
 /// `0000_jazzy_chat.sql`), so an explicit JSON `null` on the wire is a
-/// legitimate "signer's payload had `created_at_no_trigger` = `None`" state — it is fed
+/// legitimate "signer's payload had `created_at_no_sync` = `None`" state — it is fed
 /// through `opt_text()` like the other nullable payload fields.
 const REQUIRED_TEXT_COLUMNS: &[&str] = &[
     COL_SHARED_SPACE_SYNC_SPACE_ID,
@@ -149,7 +149,7 @@ struct PersistedRegistryRowFull {
     category_label: Option<String>,
     type_label: Option<String>,
     authored_by_did: String,
-    created_at_no_trigger: Option<String>,
+    created_at_no_sync: Option<String>,
     row_sig: String,
 }
 
@@ -188,7 +188,7 @@ fn fetch_persisted_registry_row_full(
             category_label: row.get(7)?,
             type_label: row.get(8)?,
             authored_by_did: row.get(9)?,
-            created_at_no_trigger: row.get(10)?,
+            created_at_no_sync: row.get(10)?,
             row_sig: row.get(11)?,
         })
     })
@@ -387,9 +387,9 @@ pub(super) fn build_incoming_registry_change(
             COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID,
             p.map_or("", |r| r.authored_by_did.as_str()),
         ),
-        created_at_no_trigger: opt_text(
+        created_at_no_sync: opt_text(
             COL_SHARED_SPACE_SYNC_CREATED_AT,
-            p.and_then(|r| r.created_at_no_trigger.as_deref()),
+            p.and_then(|r| r.created_at_no_sync.as_deref()),
         ),
         row_sig: text(
             COL_SHARED_SPACE_SYNC_ROW_SIG,
@@ -438,7 +438,7 @@ mod tests {
                 category_label TEXT,
                 authored_by_did TEXT DEFAULT '' NOT NULL,
                 row_sig TEXT DEFAULT '' NOT NULL,
-                created_at_no_trigger TEXT DEFAULT (CURRENT_TIMESTAMP)
+                created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
             );"
         ))
         .unwrap();
@@ -467,7 +467,7 @@ mod tests {
         conn.execute(
             &format!(
                 "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
-                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at_no_trigger) \
+                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at_no_sync) \
                  VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', \
                          'did:key:alice', 'original-sig', '2026-01-01T00:00:00Z')"
             ),
@@ -523,7 +523,7 @@ mod tests {
         conn.execute(
             &format!(
                 "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
-                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at_no_trigger) \
+                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at_no_sync) \
                  VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', \
                          'did:key:alice', 'original-sig', '2026-01-01T00:00:00Z')"
             ),
@@ -578,7 +578,7 @@ mod tests {
         conn.execute(
             &format!(
                 "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
-                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at_no_trigger) \
+                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at_no_sync) \
                  VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', \
                          'did:key:alice', 'original-sig', '2026-01-01T00:00:00Z')"
             ),
@@ -647,7 +647,7 @@ mod tests {
         conn.execute(
             &format!(
                 "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
-                 (id, table_name, row_pks, space_id, category, authored_by_did, row_sig, created_at_no_trigger) \
+                 (id, table_name, row_pks, space_id, category, authored_by_did, row_sig, created_at_no_sync) \
                  VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', '{category}', \
                          'did:key:alice', 'original-sig', '2026-01-01T00:00:00Z')"
             ),
@@ -847,17 +847,17 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // PR #741 finding 8: `created_at_no_trigger` is nullable in the DB schema (migration
+    // PR #741 finding 8: `created_at_no_sync` is nullable in the DB schema (migration
     // `0000_jazzy_chat.sql` has no `NOT NULL`, unchanged by `0014`) even
     // though every current write path lets the DB default populate it.
-    // Before this fix, `PersistedRegistryRowFull.created_at_no_trigger` was a plain
+    // Before this fix, `PersistedRegistryRowFull.created_at_no_sync` was a plain
     // `String`, so a genuinely-NULL persisted value made the fallback fetch
     // itself fail (`rusqlite`'s `String` `FromSql` rejects `NULL`) rather
     // than falling back to `None` like every other optional payload field.
     // -----------------------------------------------------------------------
 
-    /// A batch that does not touch `created_at_no_trigger` at all, on a row whose
-    /// persisted `created_at_no_trigger` is genuinely NULL, must fall back to `None`
+    /// A batch that does not touch `created_at_no_sync` at all, on a row whose
+    /// persisted `created_at_no_sync` is genuinely NULL, must fall back to `None`
     /// rather than erroring out the whole fetch.
     #[test]
     fn build_incoming_registry_change_falls_back_to_null_persisted_created_at() {
@@ -865,7 +865,7 @@ mod tests {
         conn.execute(
             &format!(
                 "INSERT INTO \"{TABLE_SHARED_SPACE_SYNC}\" \
-                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at_no_trigger) \
+                 (id, table_name, row_pks, space_id, authored_by_did, row_sig, created_at_no_sync) \
                  VALUES ('reg-1', 'ext_calendar_v1', '{{\"id\":\"evt-1\"}}', 'space-1', \
                          'did:key:alice', 'original-sig', NULL)"
             ),
@@ -892,14 +892,14 @@ mod tests {
 
         match outcome {
             RegistryRowChangeOutcome::Ready { change, .. } => {
-                assert_eq!(change.created_at_no_trigger, None);
+                assert_eq!(change.created_at_no_sync, None);
             }
             _ => panic!("expected Ready"),
         }
     }
 
-    /// `created_at_no_trigger` present on the wire with an explicit JSON `null` — a
-    /// legitimate "signer's payload had `created_at_no_trigger` = `None`" state now that
+    /// `created_at_no_sync` present on the wire with an explicit JSON `null` — a
+    /// legitimate "signer's payload had `created_at_no_sync` = `None`" state now that
     /// the column is nullable, not a `RequiredFieldExplicitlyNull` violation.
     #[test]
     fn build_incoming_registry_change_accepts_explicit_null_created_at() {
@@ -921,7 +921,7 @@ mod tests {
 
         match outcome {
             RegistryRowChangeOutcome::Ready { change, .. } => {
-                assert_eq!(change.created_at_no_trigger, None);
+                assert_eq!(change.created_at_no_sync, None);
             }
             _ => panic!("expected Ready"),
         }

@@ -63,6 +63,6 @@ export const haexMlsPendingWelcomesNoSync = sqliteTable(
     welcomePayload: text('welcome_payload').notNull(), // Base64-encoded
     source: text('source').notNull(), // 'quic' | 'server'
     sourceId: text('source_id'), // server welcome UUID for ACK
-    createdAt: text('created_at_no_trigger'),
+    createdAt: text('created_at_no_sync'),
   },
 )
