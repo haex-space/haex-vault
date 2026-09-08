@@ -37,7 +37,7 @@ use super::payload::RegistryRowSigPayload;
 use super::verify::{verify_registry_row, VerifyRegistryRowSigError};
 
 /// A `haex_shared_space_sync` registry row as it will exist after applying
-/// one incoming change — the same 12-field + `row_sig` shape
+/// one incoming change — the same 11-field + `row_sig` shape
 /// `sign_registry_row_self` (Task B.3) reads back after a local write.
 /// Building this from the puller's per-column change batch (merging touched
 /// columns with the row's persisted state) is Task B.5's job; this struct is
@@ -55,9 +55,6 @@ pub struct IncomingRegistryChange {
     pub category_label: Option<String>,
     pub type_label: Option<String>,
     pub authored_by_did: String,
-    /// `None` iff the reconstructed value (batch or persisted fallback) for
-    /// `created_at_no_sync` is NULL — see `RegistryRowSigPayload::created_at_no_sync`.
-    pub created_at_no_sync: Option<String>,
     /// Base64-encoded Ed25519 signature, or `""` for a pre-migration-0014
     /// row (the DB default). Always rejected here — see
     /// [`RegistryVerifyError::RowSigMissingOrEmpty`] — the graceful skip
@@ -161,7 +158,6 @@ pub fn verify_incoming_registry_change(
         category_label: change.category_label.as_deref(),
         type_label: change.type_label.as_deref(),
         authored_by_did: &change.authored_by_did,
-        created_at_no_sync: change.created_at_no_sync.as_deref(),
     };
 
     verify_registry_row(&payload, &sig_bytes, &pk).map_err(RegistryVerifyError::SignatureInvalid)

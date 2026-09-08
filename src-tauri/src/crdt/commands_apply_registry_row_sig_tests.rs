@@ -19,9 +19,9 @@ use crate::crdt::shared_space_trigger::{ensure_crdt_columns, DELETED_ROWS_TABLE}
 use crate::database::DbConnection;
 use crate::table_names::{
     COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID, COL_SHARED_SPACE_SYNC_CATEGORY,
-    COL_SHARED_SPACE_SYNC_CATEGORY_LABEL, COL_SHARED_SPACE_SYNC_CREATED_AT,
-    COL_SHARED_SPACE_SYNC_EXTENSION_NAME, COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
-    COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_ROW_SIG, COL_SHARED_SPACE_SYNC_SPACE_ID,
+    COL_SHARED_SPACE_SYNC_CATEGORY_LABEL, COL_SHARED_SPACE_SYNC_EXTENSION_NAME,
+    COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY, COL_SHARED_SPACE_SYNC_ROW_PKS,
+    COL_SHARED_SPACE_SYNC_ROW_SIG, COL_SHARED_SPACE_SYNC_SPACE_ID,
     COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE, COL_SHARED_SPACE_SYNC_TYPE_LABEL,
     TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS, TABLE_SHARED_SPACE_SYNC,
 };
@@ -107,7 +107,6 @@ struct RegistryFields {
     category_label: Option<String>,
     type_label: Option<String>,
     authored_by_did: String,
-    created_at_no_sync: String,
 }
 
 impl RegistryFields {
@@ -124,7 +123,6 @@ impl RegistryFields {
             category_label: Some("Work".to_string()),
             type_label: Some("Event".to_string()),
             authored_by_did: authored_by_did.to_string(),
-            created_at_no_sync: "2026-07-31T00:00:00Z".to_string(),
         }
     }
 
@@ -141,7 +139,6 @@ impl RegistryFields {
             category_label: self.category_label.as_deref(),
             type_label: self.type_label.as_deref(),
             authored_by_did: &self.authored_by_did,
-            created_at_no_sync: Some(&self.created_at_no_sync),
         }
     }
 
@@ -154,6 +151,10 @@ impl RegistryFields {
     /// `RemoteColumnChange` batch. `id` is deliberately absent: it is the
     /// row's own CRDT primary key and, like every PK elsewhere in this
     /// pipeline, is never carried as a column-level change.
+    /// `created_at_no_sync` is likewise absent: it is a `_no_sync` column
+    /// (local-only bookkeeping), so a real scanner never ships it — mirroring
+    /// that here keeps this simulated wire batch honest about what a real
+    /// peer would actually send.
     fn as_columns(&self) -> Vec<(&'static str, JsonValue)> {
         let opt = |v: &Option<String>| match v {
             Some(s) => JsonValue::String(s.clone()),
@@ -190,10 +191,6 @@ impl RegistryFields {
             (
                 COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID,
                 JsonValue::String(self.authored_by_did.clone()),
-            ),
-            (
-                COL_SHARED_SPACE_SYNC_CREATED_AT,
-                JsonValue::String(self.created_at_no_sync.clone()),
             ),
         ]
     }

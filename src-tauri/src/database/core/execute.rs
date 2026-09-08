@@ -29,11 +29,11 @@ use crate::database::DbConnection;
 use crate::extension::database::executor::SqlExecutor;
 use crate::table_names::{
     COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID, COL_SHARED_SPACE_SYNC_CATEGORY,
-    COL_SHARED_SPACE_SYNC_CATEGORY_LABEL, COL_SHARED_SPACE_SYNC_CREATED_AT,
-    COL_SHARED_SPACE_SYNC_EXTENSION_NAME, COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY,
-    COL_SHARED_SPACE_SYNC_ID, COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_ROW_SIG,
-    COL_SHARED_SPACE_SYNC_SPACE_ID, COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE,
-    COL_SHARED_SPACE_SYNC_TYPE_LABEL, TABLE_CRDT_CONFIGS, TABLE_SHARED_SPACE_SYNC,
+    COL_SHARED_SPACE_SYNC_CATEGORY_LABEL, COL_SHARED_SPACE_SYNC_EXTENSION_NAME,
+    COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY, COL_SHARED_SPACE_SYNC_ID,
+    COL_SHARED_SPACE_SYNC_ROW_PKS, COL_SHARED_SPACE_SYNC_ROW_SIG, COL_SHARED_SPACE_SYNC_SPACE_ID,
+    COL_SHARED_SPACE_SYNC_TABLE_NAME, COL_SHARED_SPACE_SYNC_TYPE, COL_SHARED_SPACE_SYNC_TYPE_LABEL,
+    TABLE_CRDT_CONFIGS, TABLE_SHARED_SPACE_SYNC,
 };
 use crate::ucan::verify::did_key_from_public_key;
 
@@ -641,10 +641,14 @@ fn sign_share_insert_targets(
     Ok(())
 }
 
-/// Column names of the 12 fields covered by a registry row's `row_sig`
+/// Column names of the 11 fields covered by a registry row's `row_sig`
 /// (Task B.3), in `RegistryRowSigPayload` field order minus
 /// `authored_by_did` — that one field alone is immutable post-creation, so
 /// it is checked separately from "does this write need a fresh signature".
+/// `created_at_no_sync` is deliberately absent: it is local-only bookkeeping
+/// (the `_no_sync` suffix), never part of the signed identity, and any
+/// direct caller write to it is already rejected upstream by
+/// `CrdtMetaColumnWriteForbidden` regardless of this list.
 ///
 /// Deliberately asymmetric with the puller-side
 /// `crdt::commands::apply::registry_row_gate::SIGNED_PAYLOAD_COLUMNS` (Task
@@ -664,7 +668,6 @@ const REGISTRY_ROW_SIGNED_COLUMNS: &[&str] = &[
     COL_SHARED_SPACE_SYNC_TYPE,
     COL_SHARED_SPACE_SYNC_CATEGORY_LABEL,
     COL_SHARED_SPACE_SYNC_TYPE_LABEL,
-    COL_SHARED_SPACE_SYNC_CREATED_AT,
 ];
 
 /// Task B.3 — sign-on-write for the share register's own rows.
@@ -782,7 +785,6 @@ fn sign_registry_row_self(
         category_label: Option<String>,
         type_label: Option<String>,
         authored_by_did: String,
-        created_at_no_sync: Option<String>,
     }
 
     let rows: Vec<RegistryRow> = {
@@ -792,8 +794,7 @@ fn sign_registry_row_self(
                     {COL_SHARED_SPACE_SYNC_EXTENSION_PUBLIC_KEY}, \
                     {COL_SHARED_SPACE_SYNC_EXTENSION_NAME}, {COL_SHARED_SPACE_SYNC_CATEGORY}, \
                     {COL_SHARED_SPACE_SYNC_TYPE}, {COL_SHARED_SPACE_SYNC_CATEGORY_LABEL}, \
-                    {COL_SHARED_SPACE_SYNC_TYPE_LABEL}, {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID}, \
-                    {COL_SHARED_SPACE_SYNC_CREATED_AT} \
+                    {COL_SHARED_SPACE_SYNC_TYPE_LABEL}, {COL_SHARED_SPACE_SYNC_AUTHORED_BY_DID} \
              FROM {TABLE_SHARED_SPACE_SYNC} WHERE \"{HLC_TIMESTAMP_COLUMN}\" = ?1"
         );
         let mut stmt = tx.prepare(&select_sql).map_err(DatabaseError::from)?;
@@ -814,7 +815,6 @@ fn sign_registry_row_self(
                 category_label: row.get(8).map_err(DatabaseError::from)?,
                 type_label: row.get(9).map_err(DatabaseError::from)?,
                 authored_by_did: row.get(10).map_err(DatabaseError::from)?,
-                created_at_no_sync: row.get(11).map_err(DatabaseError::from)?,
             });
         }
         out
@@ -867,7 +867,6 @@ fn sign_registry_row_self(
             category_label: row.category_label.as_deref(),
             type_label: row.type_label.as_deref(),
             authored_by_did: &final_authored_by_did,
-            created_at_no_sync: row.created_at_no_sync.as_deref(),
         };
         let signature = sign_registry_row(&payload, &signing_key);
         let sig_b64 = BASE64.encode(signature.to_bytes());

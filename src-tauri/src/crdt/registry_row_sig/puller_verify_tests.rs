@@ -39,7 +39,6 @@ struct SampleRow {
     category_label: Option<String>,
     type_label: Option<String>,
     authored_by_did: String,
-    created_at_no_sync: String,
 }
 
 impl SampleRow {
@@ -56,7 +55,6 @@ impl SampleRow {
             category_label: Some("Work Calendar".to_string()),
             type_label: Some("Termin".to_string()),
             authored_by_did: did.to_string(),
-            created_at_no_sync: "2026-07-31T00:00:00Z".to_string(),
         }
     }
 
@@ -73,7 +71,6 @@ impl SampleRow {
             category_label: self.category_label.as_deref(),
             type_label: self.type_label.as_deref(),
             authored_by_did: &self.authored_by_did,
-            created_at_no_sync: Some(&self.created_at_no_sync),
         }
     }
 
@@ -93,7 +90,6 @@ impl SampleRow {
             category_label: self.category_label.clone(),
             type_label: self.type_label.clone(),
             authored_by_did: self.authored_by_did.clone(),
-            created_at_no_sync: Some(self.created_at_no_sync.clone()),
             row_sig: BASE64.encode(sig.to_bytes()),
         }
     }

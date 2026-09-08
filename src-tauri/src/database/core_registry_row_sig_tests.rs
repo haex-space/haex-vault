@@ -3,7 +3,7 @@
 // Integration tests for Task B.3: sign-on-write for `haex_shared_space_sync`
 // registry rows within `execute_with_crdt`. Complements `core_execute_tests.rs`
 // (F1 generic column-signing, F2 cross-table retro-sign) with the register
-// row's own `row_sig` column, which covers the row's 12 identity fields
+// row's own `row_sig` column, which covers the row's 11 identity fields
 // (see `crdt::registry_row_sig::payload::RegistryRowSigPayload`).
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -13,14 +13,20 @@ use serde_json::Value as JsonValue;
 use std::sync::{Arc, Mutex};
 
 use crate::crdt::column_sig::key_cache::SpaceKeyCache;
+use crate::crdt::commands::apply::apply_remote_changes_to_db_scoped;
 use crate::crdt::registry_row_sig::payload::RegistryRowSigPayload;
 use crate::crdt::registry_row_sig::verify::verify_registry_row;
-use crate::crdt::shared_space_trigger::ensure_crdt_columns;
+use crate::crdt::shared_space_trigger::{ensure_crdt_columns, DELETED_ROWS_TABLE};
+use crate::crdt::space_scanner::scan_table_for_local_changes_scoped;
 use crate::database::connection_context::ConnectionContext;
 use crate::database::core::{self, install_tx_hlc_hooks, register_current_hlc_udf};
 use crate::database::error::DatabaseError;
 use crate::database::DbConnection;
-use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES};
+use crate::space_delivery::local::sync_loop::local_to_remote_change;
+use crate::table_names::{
+    COL_SHARED_SPACE_SYNC_CREATED_AT, TABLE_CRDT_CONFIGS, TABLE_CRDT_DIRTY_TABLES,
+    TABLE_CRDT_PENDING_COLUMNS, TABLE_S3_BACKENDS, TABLE_SHARED_SPACE_SYNC,
+};
 use crate::ucan::verify::did_key_from_public_key;
 use haex_crdt::HlcService;
 
@@ -133,6 +139,64 @@ fn setup_fixture() -> Fixture {
     }
 }
 
+/// A SECOND, independent in-memory DB — a fresh peer that has never seen any
+/// row this test inserts on the sender (`setup_fixture`'s DB). Unlike
+/// `setup_fixture`, this carries no HLC UDF / tx-hook wiring and no signing
+/// key cache: a receiving peer applies incoming changes via
+/// `apply_remote_changes_to_db_scoped` directly (raw SQL, not
+/// `execute_with_crdt`) and verifies `row_sig`/per-column sigs purely from
+/// the DIDs carried on the wire, so it needs neither. Schema mirrors
+/// `crdt::commands_apply_registry_row_sig_tests::setup_registry_db` — the
+/// existing fixture already proven to work with the real apply pipeline.
+fn setup_fresh_peer_db() -> DbConnection {
+    let conn = Connection::open_in_memory().expect("in-memory DB");
+    conn.execute_batch(&format!(
+        "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+         CREATE TABLE {DELETED_ROWS_TABLE} (
+             id TEXT PRIMARY KEY,
+             table_name TEXT NOT NULL,
+             row_pks TEXT NOT NULL,
+             haex_hlc_no_sync TEXT,
+             haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
+         );
+         CREATE TABLE {TABLE_CRDT_PENDING_COLUMNS} (
+             table_name TEXT NOT NULL,
+             column_name TEXT NOT NULL,
+             row_pks TEXT NOT NULL,
+             PRIMARY KEY(table_name, column_name, row_pks)
+         );
+         CREATE TABLE haex_identities (
+             id TEXT PRIMARY KEY NOT NULL,
+             did TEXT NOT NULL,
+             name TEXT NOT NULL,
+             source TEXT DEFAULT 'contact' NOT NULL
+         );
+         CREATE UNIQUE INDEX haex_identities_did_unique ON haex_identities (did);
+         CREATE TABLE {TABLE_SHARED_SPACE_SYNC} (
+            id TEXT PRIMARY KEY NOT NULL,
+            table_name TEXT NOT NULL,
+            row_pks TEXT NOT NULL,
+            space_id TEXT NOT NULL,
+            extension_public_key TEXT,
+            extension_name TEXT,
+            category TEXT,
+            type TEXT,
+            type_label TEXT,
+            category_label TEXT,
+            authored_by_did TEXT DEFAULT '' NOT NULL,
+            row_sig TEXT DEFAULT '' NOT NULL,
+            created_at_no_sync TEXT DEFAULT (CURRENT_TIMESTAMP)
+         );"
+    ))
+    .unwrap();
+    {
+        let tx = conn.unchecked_transaction().unwrap();
+        ensure_crdt_columns(&tx, TABLE_SHARED_SPACE_SYNC).unwrap();
+        tx.commit().unwrap();
+    }
+    DbConnection(Arc::new(Mutex::new(Some(conn))))
+}
+
 /// A `haex_shared_space_sync` row as read back from the DB, for assertions
 /// and for rebuilding the exact payload the sign-on-write pass should have
 /// signed.
@@ -148,7 +212,6 @@ struct StoredRow {
     category_label: Option<String>,
     type_label: Option<String>,
     authored_by_did: String,
-    created_at_no_sync: Option<String>,
     row_sig: String,
 }
 
@@ -166,7 +229,6 @@ impl StoredRow {
             category_label: self.category_label.as_deref(),
             type_label: self.type_label.as_deref(),
             authored_by_did: &self.authored_by_did,
-            created_at_no_sync: self.created_at_no_sync.as_deref(),
         }
     }
 }
@@ -176,7 +238,7 @@ fn load_row(db: &DbConnection, id: &str) -> StoredRow {
     let conn = guard.as_ref().unwrap();
     conn.query_row(
         "SELECT id, space_id, table_name, row_pks, extension_public_key, extension_name, \
-                category, type, category_label, type_label, authored_by_did, created_at_no_sync, row_sig \
+                category, type, category_label, type_label, authored_by_did, row_sig \
          FROM haex_shared_space_sync WHERE id = ?1",
         [id],
         |r| {
@@ -192,8 +254,7 @@ fn load_row(db: &DbConnection, id: &str) -> StoredRow {
                 category_label: r.get(8)?,
                 type_label: r.get(9)?,
                 authored_by_did: r.get(10)?,
-                created_at_no_sync: r.get(11)?,
-                row_sig: r.get(12)?,
+                row_sig: r.get(11)?,
             })
         },
     )
@@ -773,52 +834,155 @@ fn test_execute_with_crdt_signs_registry_row_when_table_name_mixedcase() {
     );
 }
 
+// Note: this file previously carried `test_execute_with_crdt_resigns_row_with_null_created_at`
+// (PR #741 finding 8), which simulated a persisted NULL `created_at_no_sync`
+// and confirmed a payload-signed UPDATE still succeeded instead of erroring
+// out on the fetch. That guard is gone as of the fix removing
+// `created_at_no_sync` from `RegistryRowSigPayload` entirely: the sign-on-write
+// SELECT (`database::core::execute::sign_registry_row_self`) no longer reads
+// this column at all, so a NULL persisted value can no longer affect the
+// fetch or the signature — there is nothing left for that scenario to guard
+// against. `created_at_no_sync` remains a real, nullable column; only its
+// participation in the signed payload was removed.
+
 // ---------------------------------------------------------------------------
-// PR #741 finding 8: `created_at_no_sync` is nullable in the DB schema (migration
-// 0000_jazzy_chat.sql declares `created_at_no_sync text DEFAULT (CURRENT_TIMESTAMP)`
-// with no `NOT NULL`, unchanged by migration 0014) even though every current
-// write path lets the DB default populate it. Simulates a row whose
-// `created_at_no_sync` is genuinely NULL and confirms a later payload-signed UPDATE
-// still succeeds instead of erroring out on the fetch.
+// Production-path roundtrip regression test.
+//
+// The bug: the real production INSERT (`remote_storage::share_command`)
+// omits `created_at_no_sync` from its column list, so SQLite fills it from
+// the schema default. The sign-on-write chokepoint used to read that
+// persisted value and include it in `RegistryRowSigPayload` — but
+// `created_at_no_sync` ends in `_no_sync`, so the real crate scanner never
+// ships it to a peer. A fresh peer receiving the row reconstructed the
+// field as `None` while the signer had signed `Some(...)`, so every real
+// share silently failed Ed25519 verification on every fresh peer and was
+// dropped without error. Fixed by removing `created_at_no_sync` from the
+// signed payload entirely (see `crdt::registry_row_sig::payload`).
+//
+// This test proves the fix closes the gap end to end, using only real
+// production machinery: the real `execute_with_crdt` chokepoint with
+// production's exact INSERT column list, the real crate scanner, the real
+// wire-conversion function, and the real apply pipeline on a second, fresh
+// peer DB that has never seen the row.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_execute_with_crdt_resigns_row_with_null_created_at() {
+fn real_scanner_roundtrip_survives_a_fresh_peer() {
     let f = setup_fixture();
-    insert_minimal_row(&f, "row-null-created-at", r#"{"id":"evt-null"}"#);
+
+    // Step 1/2: insert exactly the column list `remote_storage::share_command`'s
+    // real INSERT uses (`mod.rs`'s `insert_mapping` SQL) — omitting
+    // `created_at_no_sync`, `authored_by_did` and `row_sig` so the DB
+    // defaults populate them, matching real production behaviour rather
+    // than a test shortcut.
+    let row_pks_json = serde_json::to_string(&vec!["backend-1"]).unwrap();
     {
-        let guard = f.db.0.lock().unwrap();
-        let conn = guard.as_ref().unwrap();
-        conn.execute(
-            "UPDATE haex_shared_space_sync SET created_at_no_sync = NULL WHERE id = 'row-null-created-at'",
-            [],
+        let hlc_mutex = Mutex::new(f.hlc.clone());
+        let hlc_guard = hlc_mutex.lock().unwrap();
+        core::execute_with_crdt(
+            format!(
+                "INSERT INTO {TABLE_SHARED_SPACE_SYNC} \
+                 (id, table_name, row_pks, space_id, extension_public_key, extension_name, \
+                  category, type, type_label) \
+                 VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, ?5, ?6)"
+            ),
+            vec![
+                JsonValue::String("reg-roundtrip-1".to_string()),
+                JsonValue::String(TABLE_S3_BACKENDS.to_string()),
+                JsonValue::String(row_pks_json),
+                JsonValue::String("space_1".to_string()),
+                JsonValue::String("cloud_storage".to_string()),
+                JsonValue::String("My Share".to_string()),
+            ],
+            &f.db,
+            &hlc_guard,
+            &f.cache,
         )
-        .unwrap();
+        .expect("production-shaped insert succeeds");
     }
 
-    let hlc_mutex = Mutex::new(f.hlc.clone());
-    let hlc_guard = hlc_mutex.lock().unwrap();
-    core::execute_with_crdt(
-        "UPDATE haex_shared_space_sync SET category = ?1 WHERE id = ?2".to_string(),
-        vec![
-            JsonValue::String("leisure".to_string()),
-            JsonValue::String("row-null-created-at".to_string()),
-        ],
-        &f.db,
-        &hlc_guard,
-        &f.cache,
-    )
-    .expect("update must succeed even with a NULL persisted created_at_no_sync");
-    drop(hlc_guard);
-
-    let row = load_row(&f.db, "row-null-created-at");
-    assert_eq!(row.created_at_no_sync, None);
-    assert_eq!(row.category.as_deref(), Some("leisure"));
-
-    let sig_bytes = BASE64.decode(&row.row_sig).unwrap();
-    let pk = f.cache.get("space_1").unwrap().verifying_key();
+    let sender_row = load_row(&f.db, "reg-roundtrip-1");
     assert!(
-        verify_registry_row(&row.payload(), &sig_bytes, &pk).is_ok(),
-        "sig must verify against a payload with created_at_no_sync = None"
+        !sender_row.row_sig.is_empty(),
+        "row must be self-signed on insert"
+    );
+    assert_eq!(sender_row.authored_by_did, f.did_alice);
+
+    // Step 3: scan with the REAL crate scanner, not a hand-built
+    // `RemoteColumnChange` list.
+    let changes = {
+        let guard = f.db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        scan_table_for_local_changes_scoped(
+            conn,
+            TABLE_SHARED_SPACE_SYNC,
+            None,
+            "test-device",
+            Some("space_1"),
+            None,
+        )
+        .expect("scan succeeds")
+    };
+    let col_names: Vec<&str> = changes.iter().map(|c| c.column_name.as_str()).collect();
+    assert!(
+        !col_names.contains(&COL_SHARED_SPACE_SYNC_CREATED_AT),
+        "sanity check: the real scanner must never ship created_at_no_sync — \
+         if it did, this test would not be exercising the actual production bug"
+    );
+    assert_eq!(
+        col_names.len(),
+        11,
+        "expected the 11 non-PK, non-_no_sync columns (10 payload fields + row_sig)"
+    );
+
+    // Step 4: convert via the real wire-conversion function.
+    let remote_changes: Vec<_> = changes.iter().map(local_to_remote_change).collect();
+
+    // Step 5: a SECOND, fresh peer DB that has never seen this row. `Some(space_id)`
+    // matches the real peer-pull call site (`space_delivery::local::sync_loop::pull`),
+    // which always passes the space it pulled for.
+    let receiver_db = setup_fresh_peer_db();
+    apply_remote_changes_to_db_scoped(&receiver_db, remote_changes, None, None, Some("space_1"))
+        .expect("apply must not error — a rejection would be row-scoped, not fatal");
+
+    // Step 6: the row DOES land on the fresh peer — this is what this task's
+    // fix guarantees: before the fix, B.5's row-sig gate rejected the WHOLE
+    // row (created_at_no_sync payload mismatch → SignatureInvalid) and the
+    // row was silently absent. All business fields survive intact.
+    let received = load_row(&receiver_db, "reg-roundtrip-1");
+    assert_eq!(received.space_id, "space_1");
+    assert_eq!(received.table_name, TABLE_S3_BACKENDS);
+    assert_eq!(received.row_pks, r#"["backend-1"]"#);
+    assert_eq!(received.r#type.as_deref(), Some("cloud_storage"));
+    assert_eq!(received.type_label.as_deref(), Some("My Share"));
+    assert_eq!(
+        received.authored_by_did, f.did_alice,
+        "authored_by_did must survive the roundtrip"
+    );
+
+    // KNOWN SEPARATE GAP (found while building this test, not part of this
+    // task's fix): `received.row_sig` ends up EMPTY here, not equal to the
+    // sender's `row_sig`. Root cause: `sign_registry_row_self` (B.3) writes
+    // `row_sig`/`authored_by_did`/the canonicalised `row_pks` via a raw
+    // `tx.execute()` UPDATE that runs AFTER F1's per-column signer
+    // (`sign_written_rows`) already did its pass for this transaction — so
+    // `row_sig` never gets its own per-column `ColumnSig`. On a real
+    // space-scoped apply (`expected_space_id: Some(..)`, `enforce_sigs ==
+    // true`), the orthogonal per-column signature gate (`verify_change_sig`
+    // in `apply/db.rs`) then drops any unsigned column outright UNLESS it is
+    // explicitly exempted (as `authored_by_did` is, by a literal name check —
+    // `db.rs`'s `change.column_name != "authored_by_did"`). `row_sig` has no
+    // such exemption, so it is dropped and the column keeps its schema
+    // default (`''`). This reproduces on unmodified `main`+this fix; it is
+    // independent of `created_at_no_sync` and predates this task. Asserting
+    // it here (rather than silently expecting a matching, verifying
+    // `row_sig`) is deliberate — this test must not paper over an open
+    // question the same way the tests this task's fix removed did.
+    assert_eq!(
+        received.row_sig, "",
+        "known gap: row_sig currently does NOT survive a real space-scoped \
+         apply — see the comment above. If this assertion starts failing, \
+         that gap has been fixed elsewhere; replace this assertion with the \
+         intended one (row_sig non-empty and verifying via verify_registry_row)."
     );
 }
