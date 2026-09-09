@@ -402,8 +402,7 @@ pub fn get_database_info(state: State<'_, AppState>) -> Result<DatabaseInfo, Dat
 
         // Get delete-log entries (limit to 100)
         let delete_log_entries = get_delete_log_entries(conn, &table_stats, 100)?;
-        let total_delete_log_rows: i64 =
-            table_stats.iter().map(|t| t.delete_log_row_count).sum();
+        let total_delete_log_rows: i64 = table_stats.iter().map(|t| t.delete_log_row_count).sum();
 
         // Calculate totals
         let total_entries: i64 = table_stats.iter().map(|t| t.total_rows).sum();

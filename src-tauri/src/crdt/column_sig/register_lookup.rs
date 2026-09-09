@@ -23,8 +23,8 @@ use rusqlite::{params_from_iter, types::Value as SqlValue, Connection};
 use serde_json::Value as JsonValue;
 use tracing::error;
 
-use crate::crdt::space_scanner::is_space_scoped_table;
 use crate::crdt::shared_space_trigger::{get_table_schema, is_safe_identifier};
+use crate::crdt::space_scanner::is_space_scoped_table;
 
 /// System-table payloads that intentionally use the register rather than an
 /// inline `space_id`. This list is fail-closed: adding a new `haex_*` table

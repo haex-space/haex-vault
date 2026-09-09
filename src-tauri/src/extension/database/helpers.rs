@@ -7,7 +7,6 @@ use rusqlite::params_from_iter;
 use serde_json::Value as JsonValue;
 use sqlparser::ast::Statement;
 
-use haex_crdt::crdt::transformer::CrdtTransformer;
 use crate::crdt::shared_space_trigger::{
     drop_crdt_with_shared_space, ensure_crdt_columns, ensure_crdt_columns_and_triggers,
     install_crdt_with_shared_space,
@@ -19,6 +18,7 @@ use crate::database::error::DatabaseError;
 use crate::extension::database::executor::SqlExecutor;
 use crate::extension::error::ExtensionError;
 use crate::AppState;
+use haex_crdt::crdt::transformer::CrdtTransformer;
 
 /// Context for executing extension SQL statements.
 /// Used to pass extension info without requiring the extension to be in ExtensionManager.

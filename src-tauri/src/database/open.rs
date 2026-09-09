@@ -11,6 +11,7 @@ use crate::AppState;
 use constants::vault_settings_key;
 use std::path::Path;
 use tauri::{AppHandle, State};
+use uuid::Uuid;
 
 #[tauri::command]
 pub fn open_encrypted_database(
@@ -117,6 +118,16 @@ pub fn open_encrypted_database(
     Ok(format!("Vault '{vault_path}' opened successfully"))
 }
 
+/// Resolves this installation's persistent device UUID from the Tauri
+/// `instance.json` store, for `HlcService::initialize_in_place` (which now
+/// takes an already-resolved `Uuid` directly — see
+/// `crate::haex_crdt_providers::device_id`).
+fn resolve_device_uuid(app_handle: &AppHandle) -> Result<Uuid, String> {
+    let id_str =
+        crate::haex_crdt_providers::device_id::get_or_create_device_id_from_store(app_handle)?;
+    Uuid::parse_str(&id_str).map_err(|e| format!("instance.json id not a UUID: {e}"))
+}
+
 /// Initializes HLC and triggers AFTER migrations have been applied.
 /// Used by create_encrypted_database where the connection is already in AppState.
 pub(super) fn initialize_session_post_migration(
@@ -138,10 +149,14 @@ pub(super) fn initialize_session_post_migration(
             "database::initialize_session_post_migration",
             serde_json::json!({}),
         )?;
-        let device_id_provider =
-            crate::haex_crdt_providers::HaexVaultDeviceIdProvider::from_instance_store(app_handle);
+        let device_uuid =
+            resolve_device_uuid(app_handle).map_err(|e| DatabaseError::ExecutionError {
+                sql: "HLC Initialization".to_string(),
+                reason: e,
+                table: Some(TABLE_CRDT_CONFIGS.to_string()),
+            })?;
         hlc_guard
-            .initialize_in_place(conn, &device_id_provider)
+            .initialize_in_place(conn, device_uuid)
             .map_err(|e| DatabaseError::ExecutionError {
                 sql: "HLC Initialization".to_string(),
                 reason: e.to_string(),
@@ -207,10 +222,14 @@ fn initialize_session(
             "database::initialize_session",
             serde_json::json!({}),
         )?;
-        let device_id_provider =
-            crate::haex_crdt_providers::HaexVaultDeviceIdProvider::from_instance_store(app_handle);
+        let device_uuid =
+            resolve_device_uuid(app_handle).map_err(|e| DatabaseError::ExecutionError {
+                sql: "HLC Initialization".to_string(),
+                reason: e,
+                table: Some(TABLE_CRDT_CONFIGS.to_string()),
+            })?;
         hlc_guard
-            .initialize_in_place(&conn, &device_id_provider)
+            .initialize_in_place(&conn, device_uuid)
             .map_err(|e| DatabaseError::ExecutionError {
                 sql: "HLC Initialization".to_string(),
                 reason: e.to_string(),

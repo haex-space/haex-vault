@@ -230,11 +230,9 @@ impl From<haex_crdt::db::error::DatabaseError> for DatabaseError {
             CrateErr::StatementError { reason } => DatabaseError::StatementError { reason },
             CrateErr::PrepareError { reason } => DatabaseError::PrepareError { reason },
             CrateErr::DatabaseError { reason } => DatabaseError::DatabaseError { reason },
-            CrateErr::ExecutionError { sql, reason, table } => DatabaseError::ExecutionError {
-                sql,
-                reason,
-                table,
-            },
+            CrateErr::ExecutionError { sql, reason, table } => {
+                DatabaseError::ExecutionError { sql, reason, table }
+            }
             CrateErr::TransactionError { reason } => DatabaseError::TransactionError { reason },
             CrateErr::UnsupportedStatement { reason, sql } => {
                 DatabaseError::UnsupportedStatement { reason, sql }
@@ -242,9 +240,7 @@ impl From<haex_crdt::db::error::DatabaseError> for DatabaseError {
             CrateErr::HlcError { reason } => DatabaseError::HlcError { reason },
             CrateErr::LockError { reason } => DatabaseError::LockError { reason },
             CrateErr::ConnectionError { reason } => DatabaseError::ConnectionError { reason },
-            CrateErr::SerializationError { reason } => {
-                DatabaseError::SerializationError { reason }
-            }
+            CrateErr::SerializationError { reason } => DatabaseError::SerializationError { reason },
             CrateErr::PermissionError {
                 extension_id,
                 operation,
@@ -257,9 +253,7 @@ impl From<haex_crdt::db::error::DatabaseError> for DatabaseError {
                 reason,
             },
             CrateErr::QueryError { reason } => DatabaseError::QueryError { reason },
-            CrateErr::RowProcessingError { reason } => {
-                DatabaseError::RowProcessingError { reason }
-            }
+            CrateErr::RowProcessingError { reason } => DatabaseError::RowProcessingError { reason },
             CrateErr::MutexPoisoned { reason } => DatabaseError::MutexPoisoned { reason },
             CrateErr::ConnectionFailed { path, reason } => {
                 DatabaseError::ConnectionFailed { path, reason }
