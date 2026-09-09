@@ -241,7 +241,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(rows.len(), 1);
-        assert!(!rows[0][1].is_null(), "haex_hlc_no_sync must be set after assign");
+        assert!(
+            !rows[0][1].is_null(),
+            "haex_hlc_no_sync must be set after assign"
+        );
         assert!(
             !get_string(&rows[0], 2).is_empty(),
             "authored_by_did must be derived during registry-row signing"

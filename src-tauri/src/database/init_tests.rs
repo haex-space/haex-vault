@@ -29,8 +29,10 @@ fn discover_crdt_tables_excludes_haex_logs_no_sync() {
     let conn = Connection::open_in_memory().expect("open in-memory db");
 
     // A genuine CRDT-synced table (carries `haex_hlc_no_sync`) as a positive control.
-    conn.execute_batch("CREATE TABLE haex_items (id TEXT PRIMARY KEY, name TEXT, haex_hlc_no_sync TEXT);")
-        .expect("create synced table");
+    conn.execute_batch(
+        "CREATE TABLE haex_items (id TEXT PRIMARY KEY, name TEXT, haex_hlc_no_sync TEXT);",
+    )
+    .expect("create synced table");
 
     // The no-sync log table, created without CRDT columns like production.
     conn.execute_batch(CREATE_HAEX_LOGS_NO_SYNC)

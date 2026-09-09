@@ -10,11 +10,14 @@
 //! directly; there is no trait to implement any more.
 
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 
 use serde_json::json;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 use uuid::Uuid;
+
+static DEVICE_ID_STORE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 /// Deterministic UUID derived from an arbitrary name string. Test-only.
 ///
@@ -42,6 +45,10 @@ pub fn test_device_uuid_from_name(name: &str) -> Uuid {
 /// commands::{peers,owner_sync}`) — and `database::open`'s HLC init both
 /// resolve the same value.
 pub fn get_or_create_device_id_from_store(app: &AppHandle) -> Result<String, String> {
+    let _guard = DEVICE_ID_STORE_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .map_err(|_| "device ID store lock poisoned".to_string())?;
     let store_path = PathBuf::from("instance.json");
     let store = app.store(store_path).map_err(|e| e.to_string())?;
 

@@ -7,7 +7,6 @@
 //! - iframe: extension_id is resolved from public_key/name parameters
 //!           (verified by frontend via origin check)
 
-use haex_crdt::crdt::transformer::CrdtTransformer;
 use crate::database::core::{parse_sql_statements, with_connection, ValueConverter};
 use crate::database::error::DatabaseError;
 use crate::extension::database::executor::SqlExecutor;
@@ -25,6 +24,7 @@ use crate::extension::limits::LimitError;
 use crate::extension::permissions::validator::SqlPermissionValidator;
 use crate::extension::utils::resolve_extension_id;
 use crate::AppState;
+use haex_crdt::crdt::transformer::CrdtTransformer;
 
 use rusqlite::params_from_iter;
 use serde_json::Value as JsonValue;

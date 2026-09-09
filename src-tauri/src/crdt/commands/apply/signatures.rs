@@ -147,9 +147,13 @@ pub(super) fn verify_change_sig(
         return Err("signature exceeds the 64-byte Ed25519 wire size".to_string());
     }
     if sig.storage_class == crate::crdt::column_sig::value_bytes::StorageClass::Blob {
+        let max = crate::crdt::column_sig::limits::MAX_VALUE_BYTES_LEN;
         if let Some(encoded) = change.decrypted_value.as_str() {
-            let max = crate::crdt::column_sig::limits::MAX_VALUE_BYTES_LEN;
             if encoded.len() > max * 4 / 3 + 4 {
+                return Err("BLOB value exceeds the column-signature size limit".to_string());
+            }
+        } else if let Some(array) = change.decrypted_value.as_array() {
+            if array.len().saturating_add(1) > max {
                 return Err("BLOB value exceeds the column-signature size limit".to_string());
             }
         }
@@ -171,3 +175,7 @@ pub(super) fn verify_change_sig(
     )
     .map_err(|e| format!("verify_column_sig: {e:?}"))
 }
+
+#[cfg(test)]
+#[path = "signatures_tests.rs"]
+mod tests;

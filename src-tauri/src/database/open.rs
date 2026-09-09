@@ -123,9 +123,8 @@ pub fn open_encrypted_database(
 /// takes an already-resolved `Uuid` directly — see
 /// `crate::haex_crdt_providers::device_id`).
 fn resolve_device_uuid(app_handle: &AppHandle) -> Result<Uuid, String> {
-    let id_str = crate::haex_crdt_providers::device_id::get_or_create_device_id_from_store(
-        app_handle,
-    )?;
+    let id_str =
+        crate::haex_crdt_providers::device_id::get_or_create_device_id_from_store(app_handle)?;
     Uuid::parse_str(&id_str).map_err(|e| format!("instance.json id not a UUID: {e}"))
 }
 
@@ -150,13 +149,12 @@ pub(super) fn initialize_session_post_migration(
             "database::initialize_session_post_migration",
             serde_json::json!({}),
         )?;
-        let device_uuid = resolve_device_uuid(app_handle).map_err(|e| {
-            DatabaseError::ExecutionError {
+        let device_uuid =
+            resolve_device_uuid(app_handle).map_err(|e| DatabaseError::ExecutionError {
                 sql: "HLC Initialization".to_string(),
                 reason: e,
                 table: Some(TABLE_CRDT_CONFIGS.to_string()),
-            }
-        })?;
+            })?;
         hlc_guard
             .initialize_in_place(conn, device_uuid)
             .map_err(|e| DatabaseError::ExecutionError {
@@ -224,13 +222,12 @@ fn initialize_session(
             "database::initialize_session",
             serde_json::json!({}),
         )?;
-        let device_uuid = resolve_device_uuid(app_handle).map_err(|e| {
-            DatabaseError::ExecutionError {
+        let device_uuid =
+            resolve_device_uuid(app_handle).map_err(|e| DatabaseError::ExecutionError {
                 sql: "HLC Initialization".to_string(),
                 reason: e,
                 table: Some(TABLE_CRDT_CONFIGS.to_string()),
-            }
-        })?;
+            })?;
         hlc_guard
             .initialize_in_place(&conn, device_uuid)
             .map_err(|e| DatabaseError::ExecutionError {

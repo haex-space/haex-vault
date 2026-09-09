@@ -11,6 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 use crate::crdt::shared_space_trigger::{is_safe_identifier, ColumnInfo};
+use crate::database::core::ValueConverter;
 use crate::database::error::DatabaseError;
 use crate::table_names::TABLE_CRDT_CONFLICTS;
 
@@ -116,9 +117,11 @@ pub(super) fn create_conflict_entry(
                 tx.query_row(&query_sql, param_refs.as_slice(), |row| {
                     let mut local_pk = serde_json::Map::new();
                     for (i, pk_col) in pk_columns.iter().enumerate() {
-                        if let Ok(val) = row.get::<_, String>(i) {
-                            local_pk.insert(pk_col.name.clone(), JsonValue::String(val));
-                        }
+                        let val = row.get::<_, rusqlite::types::Value>(i)?;
+                        local_pk.insert(
+                            pk_col.name.clone(),
+                            ValueConverter::rusqlite_value_to_json(&val),
+                        );
                     }
                     Ok(serde_json::to_string(&local_pk).unwrap_or_else(|_| "{}".to_string()))
                 })
@@ -326,6 +329,86 @@ mod tests {
             JsonValue::String("local-id-1".to_string()),
             "local_row_id should contain the LOCAL row's id, got: {local_row_id}"
         );
+    }
+
+    #[test]
+    fn conflict_entry_preserves_integer_local_primary_key() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE t (
+                id INTEGER PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                key TEXT NOT NULL,
+                UNIQUE(device_id, key)
+             );
+             CREATE TABLE {TABLE_CRDT_CONFLICTS} (
+                id TEXT PRIMARY KEY,
+                table_name TEXT NOT NULL,
+                conflict_type TEXT NOT NULL,
+                local_row_id TEXT,
+                remote_row_id TEXT,
+                local_row_data TEXT,
+                remote_row_data TEXT,
+                local_timestamp TEXT,
+                remote_timestamp TEXT,
+                conflict_key TEXT,
+                detected_at TEXT,
+                resolved INTEGER
+             );"
+        ))
+        .unwrap();
+        conn.execute(
+            "INSERT INTO t (id, device_id, key) VALUES (42, 'dev-abc', 'mykey')",
+            [],
+        )
+        .unwrap();
+
+        let mut remote_row = serde_json::Map::new();
+        remote_row.insert("id".to_string(), JsonValue::Number(99.into()));
+        remote_row.insert(
+            "device_id".to_string(),
+            JsonValue::String("dev-abc".to_string()),
+        );
+        remote_row.insert("key".to_string(), JsonValue::String("mykey".to_string()));
+        let schema = vec![
+            ColumnInfo {
+                name: "id".to_string(),
+                column_type: "INTEGER".to_string(),
+                is_pk: true,
+            },
+            ColumnInfo {
+                name: "device_id".to_string(),
+                column_type: "TEXT".to_string(),
+                is_pk: false,
+            },
+            ColumnInfo {
+                name: "key".to_string(),
+                column_type: "TEXT".to_string(),
+                is_pk: false,
+            },
+        ];
+
+        let tx = conn.unchecked_transaction().unwrap();
+        create_conflict_entry(
+            &tx,
+            "t",
+            "UNIQUE constraint failed: t.device_id, t.key",
+            &remote_row,
+            "1/abc",
+            &schema,
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        let local_row_id: String = conn
+            .query_row(
+                &format!("SELECT local_row_id FROM {TABLE_CRDT_CONFLICTS} LIMIT 1"),
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&local_row_id).unwrap();
+        assert_eq!(parsed["id"], JsonValue::Number(42.into()));
     }
 
     #[test]
