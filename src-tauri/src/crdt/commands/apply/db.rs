@@ -1,39 +1,26 @@
-use crate::crdt::column_sig::storage::{upsert_column_sigs, SigRecord};
-use crate::crdt::registry_row_sig::puller_verify::verify_incoming_registry_change;
-use crate::crdt::shared_space_trigger::{
-    ensure_crdt_columns, install_crdt_with_shared_space, TriggerSetupResult,
-};
-use crate::crdt::shared_space_trigger::{
-    get_table_schema as get_table_schema_internal, is_safe_identifier, COLUMN_HLCS_COLUMN,
-    DELETED_ROWS_TABLE, HLC_TIMESTAMP_COLUMN, SHARED_SPACE_DELETED_ROWS_TABLE,
-};
-use crate::database::core::{with_connection, ValueConverter};
+use crate::database::core::with_connection;
 use crate::database::error::DatabaseError;
-use crate::table_names::{
-    COL_SHARED_SPACE_SYNC_ROW_SIG, TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_COLUMNS,
-    TABLE_CRDT_PENDING_TABLES, TABLE_SHARED_SPACE_SYNC,
-};
 use crate::AppState;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use haex_crdt::{hlc_is_newer, hlc_max, HlcError, HlcService};
-use rusqlite::params;
-use rusqlite::types::Value as SqlValue;
-use serde_json::Value as JsonValue;
-use std::collections::{HashMap, HashSet};
+use haex_crdt::{HlcError, HlcService};
 use tauri::State;
 
-use super::super::helpers::{build_pk_where_clause, json_values_to_sql_params};
-use super::conflicts::create_conflict_entry;
-use super::delete_propagation::{
-    insert_suppressed_by_deletes, propagate_deleted_rows_to_target_tables,
-    propagate_shared_space_deleted_rows_to_target_tables,
-};
-use super::grouping::{group_by_transaction_hlc, group_row_changes_in_hlc_order};
-use super::registry_row_gate::{build_incoming_registry_change, RegistryRowChangeOutcome};
-use super::signatures::{ensure_identity_stub, resolve_row_space_id_for_sig, verify_change_sig};
+use super::policy::VaultApplyPolicy;
+use super::types::{to_crate_change, RemoteColumnChange};
+
 #[cfg(test)]
 use super::types::ColumnSig;
-use super::types::RemoteColumnChange;
+#[cfg(test)]
+use crate::crdt::shared_space_trigger::{
+    DELETED_ROWS_TABLE, SHARED_SPACE_DELETED_ROWS_TABLE, SHARED_SPACE_SYNC_TABLE,
+};
+#[cfg(test)]
+use crate::table_names::{TABLE_CRDT_CONFIGS, TABLE_CRDT_PENDING_TABLES};
+#[cfg(test)]
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+#[cfg(test)]
+use rusqlite::types::Value as SqlValue;
+#[cfg(test)]
+use serde_json::Value as JsonValue;
 
 /// Applies remote changes in a single transaction, with HLC-ordered grouping.
 /// Note: lastPullServerTimestamp is now updated by the TypeScript layer after successful apply
@@ -115,939 +102,54 @@ pub fn apply_remote_changes_to_db_scoped(
         backend_info.map(|(id, _)| id).unwrap_or("local-delivery"),
     );
 
-    // Group changes by transaction-HLC and apply groups in ascending HLC order
-    // so cross-table transactions (e.g. parent + child insert) land together.
-    let grouped = group_by_transaction_hlc(changes);
-    let changes: Vec<RemoteColumnChange> = grouped
-        .into_iter()
-        .flat_map(|(_hlc, group)| group.into_iter())
-        .collect();
-
-    // Validate all table and column names from remote changes to prevent SQL injection
-    for change in &changes {
-        if !is_safe_identifier(&change.table_name) {
-            return Err(DatabaseError::ValidationError {
-                reason: format!(
-                    "Invalid table name '{}' in remote change",
-                    change.table_name
-                ),
-            });
-        }
-        if !is_safe_identifier(&change.column_name) {
-            return Err(DatabaseError::ValidationError {
-                reason: format!(
-                    "Invalid column name '{}' in table '{}'",
-                    change.column_name, change.table_name
-                ),
-            });
-        }
-    }
-    eprintln!("[SYNC RUST] Identifier validation passed");
+    // Identifier safety, HLC validity/drift and grouping are now entirely
+    // the crate's own preflight_batch + engine — vault's copies of that
+    // logic were fully redundant with it and are not ported.
+    let crate_changes: Vec<haex_crdt::ColumnChange> = changes.iter().map(to_crate_change).collect();
+    let mut policy = VaultApplyPolicy::new(expected_space_id, backend_info);
 
     with_connection(db, |conn| {
-        // Disable foreign key constraints for the duration of the apply
-        // pass, re-enabling unconditionally on every exit path (including
-        // mid-body errors). PRAGMA foreign_keys cannot be changed inside a
-        // transaction, so the toggle must wrap the transaction.
-        // See: https://sqlite.org/foreignkeys.html
-        eprintln!("[SYNC RUST] Disabling foreign_keys BEFORE transaction");
-        let applied_hlc_timestamps = haex_crdt::with_fk_disabled(conn, |conn| {
-            // Start transaction - all changes in the batch are applied atomically
-            eprintln!("[SYNC RUST] Starting transaction...");
-            let tx = conn.transaction().map_err(DatabaseError::from)?;
-
-            // Whether per-column signatures are required on this batch. Owner-
-            // vault sync between two devices of the same identity carries an
-            // `expected_space_id` (the vault space id) but is intentionally
-            // UNSIGNED on the write side: `sign_column_for_spaces` only signs
-            // rows the register maps into a space, so owner-private rows have
-            // `haex_column_sigs_no_sync = {}`. Peer legitimacy on that path is already
-            // established by QUIC-level DID auth plus the peer's row in
-            // `haex_space_devices`; per-column sig enforcement adds nothing on
-            // top and would silently drop every unsigned owner-private change
-            // on the receiver (deletes included, since `haex_deleted_rows` is a
-            // normal CRDT-synced table).
-            //
-            // Shared-space applies (non-owner space) keep the strict Phase-1
-            // gate: unsigned changes are dropped. When there is no vault space
-            // at all, `is_owner_space` returns false, so the safe default is
-            // "enforce" whenever an `expected_space_id` was given.
-            //
-            // Computed once per apply pass because `expected_space_id` is stable
-            // for the whole batch.
-            let enforce_sigs = match expected_space_id {
-                Some(sid) => !crate::owner_sync::scope::is_owner_space(&tx, sid)
-                    .map_err(DatabaseError::from)?,
-                None => false,
-            };
-
-            // Disable triggers temporarily to prevent marking tables as dirty
-            // when applying remote changes (we don't want to re-sync changes we just pulled)
-            eprintln!("[SYNC RUST] Disabling triggers for remote changes");
-            let disable_sql = format!(
-            "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '0')
-             ON CONFLICT(key) DO UPDATE SET value = '0'"
-        );
-            tx.execute(&disable_sql, []).map_err(DatabaseError::from)?;
-
-            // Collect side-data needed after the apply loop:
-            //   1. all HLC timestamps for advancing the local clock,
-            //   2. IDs of haex_deleted_rows entries arriving in this batch so
-            //      the corresponding DELETE on the target table can run after
-            //      the apply loop (triggers are still disabled then).
-            let mut all_hlc_timestamps: Vec<String> = Vec::with_capacity(changes.len());
-            let mut inbound_delete_log_ids: HashSet<String> = HashSet::new();
-            // Symmetric collector for Task 6: shared-space per-space delete-log
-            // entries applied via `propagate_shared_space_deleted_rows_to_target_tables`
-            // after the main apply loop, while triggers are still disabled.
-            let mut inbound_shared_space_delete_log_ids: HashSet<String> = HashSet::new();
-            for change in &changes {
-                all_hlc_timestamps.push(change.hlc_timestamp.clone());
-                let target_id_set: Option<&mut HashSet<String>> = match change.table_name.as_str() {
-                    n if n == DELETED_ROWS_TABLE => Some(&mut inbound_delete_log_ids),
-                    n if n == SHARED_SPACE_DELETED_ROWS_TABLE => {
-                        Some(&mut inbound_shared_space_delete_log_ids)
-                    }
-                    _ => None,
-                };
-                if let Some(set) = target_id_set {
-                    if let Ok(map) =
-                        serde_json::from_str::<serde_json::Map<String, JsonValue>>(&change.row_pks)
-                    {
-                        if let Some(JsonValue::String(id)) = map.get("id") {
-                            set.insert(id.clone());
-                        }
-                    }
-                }
+        // The crate's apply_remote_changes requires a real `&HlcService` to
+        // advance the local clock past whatever lands. A caller that passes
+        // `None` here deliberately wants NO real clock advanced (see this
+        // function's doc — the lock-poisoned fallback and certain internal/
+        // test callers rely on that). `HlcService::advance_past_remote` does
+        // no I/O of its own: it only mutates its own owned, in-memory
+        // `Mutex<Option<HLC>>`. A throwaway, already-initialized instance
+        // built here and dropped at the end of this call is therefore
+        // observably identical to "no clock advanced" — nothing persisted
+        // ever sees it.
+        let owned_hlc;
+        let hlc_ref: &HlcService = match hlc_service {
+            Some(hlc) => hlc,
+            None => {
+                owned_hlc = HlcService::new_with_uuid(uuid::Uuid::new_v4());
+                &owned_hlc
             }
+        };
 
-            // Group by (table, row) so all columns of one row are written
-            // together — and keep iteration ordered by the row's earliest
-            // HLC. Plain HashMap iteration would discard the careful HLC
-            // ordering that group_by_transaction_hlc just established.
-            let row_changes = group_row_changes_in_hlc_order(changes);
-
-            // Pre-loaded delete-log entries (parsed `row_pks` map + HLC) grouped
-            // by target `table_name`, for the row-absent insert branch below.
-            // Previous implementation loaded lazily per-table on first absent
-            // row, which scaled with `|haex_deleted_rows|` re-issued for every
-            // new table touched. Loading once collapses the whole apply pass to
-            // a single sweep. The transaction (`tx`) is the only writer to
-            // `haex_deleted_rows` in this pass, so the snapshot is consistent
-            // with what's on disk for the duration of one apply.
-            //
-            // Absent-table = empty slice (matches the lazy-load semantics:
-            // "no entries for that table" yielded `&[]`).
-            let shadowing_deletes_by_table: HashMap<
-                String,
-                Vec<(serde_json::Map<String, JsonValue>, String)>,
-            > = {
-                let mut map: HashMap<String, Vec<(serde_json::Map<String, JsonValue>, String)>> =
-                    HashMap::new();
-                let mut stmt = tx
-                    .prepare(&format!(
-                        "SELECT table_name, row_pks, haex_hlc_no_sync FROM \"{}\"",
-                        DELETED_ROWS_TABLE
-                    ))
-                    .map_err(DatabaseError::from)?;
-                // `haex_hlc_no_sync` is added to `haex_deleted_rows` via a nullable
-                // ALTER (see `ensure_crdt_columns`), so a legacy or directly-
-                // inserted row could leave it NULL. Read it as `Option<String>`
-                // and skip NULL entries — a single bad row must not abort the
-                // entire apply pass (would wedge the pull cursor permanently).
-                let mapped = stmt
-                    .query_map([], |row| {
-                        Ok((
-                            row.get::<_, String>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, Option<String>>(2)?,
-                        ))
-                    })
-                    .map_err(DatabaseError::from)?;
-                for r in mapped {
-                    let (table_name, pks_str, del_hlc) = r.map_err(DatabaseError::from)?;
-                    if let (Some(del_hlc), Ok(pks_map)) = (
-                        del_hlc,
-                        serde_json::from_str::<serde_json::Map<String, JsonValue>>(&pks_str),
-                    ) {
-                        map.entry(table_name).or_default().push((pks_map, del_hlc));
-                    }
-                }
-                // NOTE: The per-space delete log (haex_shared_space_deleted_rows)
-                // is intentionally NOT unioned here. A per-space signal is only
-                // authoritative in the context of ITS space's register — pouring
-                // it into the global shadow map lets a forged or unshare-only
-                // signal from space X suppress a legitimate insert scoped to
-                // space Y (the register-check gate in
-                // propagate_shared_space_deleted_rows_to_target_tables would
-                // reject the delete, but the shadow-map bypasses that gate).
-                //
-                // The remaining resurrection gap — an old insert arriving after
-                // a shared-space delete has been applied but before the
-                // compaction anchor has advanced — is accepted by design:
-                //   1. Register-check gate + per-space anchor already reject
-                //      the shared-space delete's own resurrection vector.
-                //   2. A resurrected business row without a register entry is
-                //      user-visible as an unregistered stray, not a security
-                //      breach.
-                //   3. Client-side refresh-pull on `BelowCompactionAnchor`
-                //      (follow-up ticket) closes the recovery window.
-                //
-                // If we ever need space-scoped shadowing here, the correct
-                // shape is a per-(table, row, space_id) map plus space-context
-                // at insert-check time — not a global union.
-                map
-            };
-
-            // Apply changes grouped by row
-            for ((_table_name, row_pks_str), row_change_list) in row_changes {
-                // Use the first change to get common data
-                let first_change = &row_change_list[0];
-
-                // Get table schema to identify PK columns
-                // If table doesn't exist (e.g., from a dev extension not installed here), skip it
-                let mut schema = get_table_schema_internal(&tx, &first_change.table_name)
-                    .map_err(DatabaseError::from)?;
-
-                if schema.is_empty() {
+        match haex_crdt::apply_remote_changes(conn, crate_changes, hlc_ref, &mut policy) {
+            Ok(_outcome) => Ok(()),
+            // The merge already committed; only the post-commit clock
+            // advance failed. Preserve today's distinction: a malformed
+            // max-HLC can't be fixed by retrying the same batch (log and
+            // continue), anything else fails the apply so the pull cursor
+            // doesn't advance and the (idempotent) batch is retried.
+            Err(haex_crdt::Error::PostCommitClockAdvance { source, .. }) => match source {
+                HlcError::Parse(_) => {
                     eprintln!(
-                    "[SYNC RUST] Skipping table '{}' - table does not exist (extension not installed?)",
-                    first_change.table_name
-                );
-                    // Record the skipped table so the server-path cursor can be
-                    // reset after the extension is installed (plan 010).
-                    // P2P self-heals via per-session re-pull from 0; this marker
-                    // exists only for the persisted server cursor (see plan 010).
-                    tx.execute(
-                        &format!(
-                            "INSERT OR IGNORE INTO {} (table_name) VALUES (?)",
-                            TABLE_CRDT_PENDING_TABLES
-                        ),
-                        params![&first_change.table_name],
-                    )
-                    .map_err(DatabaseError::from)?;
-                    continue;
-                }
-
-                // Ensure table has CRDT columns (haex_hlc_no_sync, haex_column_hlcs_no_sync)
-                // This handles tables created in dev mode that don't have CRDT columns yet.
-                // When sync data arrives, we know it's from a production extension, so we need CRDT.
-                let has_core_crdt_columns =
-                    schema.iter().any(|col| col.name == HLC_TIMESTAMP_COLUMN)
-                        && schema.iter().any(|col| col.name == COLUMN_HLCS_COLUMN);
-                let has_column_sigs = schema
-                    .iter()
-                    .any(|col| col.name == crate::crdt::shared_space_trigger::COLUMN_SIGS_COLUMN);
-                if !has_core_crdt_columns || !has_column_sigs {
-                    eprintln!(
-                    "[SYNC RUST] Table '{}' missing CRDT columns (created in dev mode?) - upgrading now",
-                    first_change.table_name
-                );
-                    let upgrade = ensure_crdt_columns(&tx, &first_change.table_name)
-                        .and_then(|columns_added| {
-                            // Adding only the signature metadata column to an
-                            // existing CRDT table does not require trigger
-                            // recreation. This also keeps minimal test/dev
-                            // schemas from acquiring triggers whose support
-                            // tables they intentionally omit.
-                            if has_core_crdt_columns {
-                                Ok((columns_added, false))
-                            } else {
-                                install_crdt_with_shared_space(
-                                    &tx,
-                                    &first_change.table_name,
-                                    true,
-                                )
-                                .map(|result| {
-                                    let triggers_created =
-                                        matches!(result, TriggerSetupResult::Success);
-                                    (columns_added, triggers_created)
-                                })
-                            }
-                        });
-                    match upgrade {
-                        Ok((columns_added, triggers_created)) => {
-                            eprintln!(
-                                "[SYNC RUST] Upgraded '{}': columns={}, triggers={}",
-                                first_change.table_name, columns_added, triggers_created
-                            );
-                            schema = get_table_schema_internal(&tx, &first_change.table_name)
-                                .map_err(DatabaseError::from)?;
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "[SYNC RUST] Failed to upgrade '{}': {} - skipping this table",
-                                first_change.table_name, e
-                            );
-                            // Record the skipped table so the server-path cursor can be
-                            // reset after the CRDT-column upgrade succeeds (plan 010).
-                            // P2P self-heals via per-session re-pull from 0; this marker
-                            // exists only for the persisted server cursor (see plan 010).
-                            tx.execute(
-                                &format!(
-                                    "INSERT OR IGNORE INTO {} (table_name) VALUES (?)",
-                                    TABLE_CRDT_PENDING_TABLES
-                                ),
-                                params![&first_change.table_name],
-                            )
-                            .map_err(DatabaseError::from)?;
-                            continue;
-                        }
-                    }
-                }
-
-                // Parse row PKs (same for all changes in this row)
-                let row_pks: serde_json::Map<String, JsonValue> =
-                    serde_json::from_str(&row_pks_str).map_err(|e| {
-                        DatabaseError::SerializationError {
-                            reason: format!("Failed to parse row PKs: {}", e),
-                        }
-                    })?;
-
-                let pk_columns: Vec<_> = schema.iter().filter(|col| col.is_pk).collect();
-
-                // Build WHERE clause for PKs, handling NULL values properly
-                let (pk_where_clause, pk_values_for_query) =
-                    build_pk_where_clause(&pk_columns, &row_pks);
-
-                // Check if row exists and get current HLCs
-                let check_sql = format!(
-                    "SELECT haex_column_hlcs_no_sync, haex_hlc_no_sync FROM \"{}\" WHERE {}",
-                    first_change.table_name, pk_where_clause
-                );
-
-                let current_hlcs: Option<(String, String)> = {
-                    let mut stmt = tx.prepare(&check_sql).map_err(DatabaseError::from)?;
-                    let params = json_values_to_sql_params(&pk_values_for_query)?;
-                    let params_refs: Vec<&dyn rusqlite::ToSql> =
-                        params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
-
-                    // Only `QueryReturnedNoRows` means "row absent" — any other
-                    // error (locking, schema mismatch, etc.) must surface so the
-                    // caller does not silently treat a transient failure as
-                    // "no existing row" and overwrite live state.
-                    match stmt.query_row(&*params_refs, |row| {
-                        let column_hlcs: String = row.get(0)?;
-                        let row_hlc: Option<String> = row.get(1)?;
-                        Ok((column_hlcs, row_hlc.unwrap_or_default()))
-                    }) {
-                        Ok(pair) => Some(pair),
-                        Err(rusqlite::Error::QueryReturnedNoRows) => None,
-                        Err(e) => return Err(DatabaseError::from(e)),
-                    }
-                };
-
-                // Track if row exists
-                let row_exists = current_hlcs.is_some();
-
-                // Parse current HLCs
-                let (current_row_hlc, mut column_hlcs): (
-                    String,
-                    serde_json::Map<String, JsonValue>,
-                ) = if let Some((hlcs_str, row_hlc)) = current_hlcs {
-                    (row_hlc, serde_json::from_str(&hlcs_str).unwrap_or_default())
-                } else {
-                    (String::new(), serde_json::Map::new())
-                };
-
-                // Build a set of existing column names for quick lookup
-                let existing_columns: std::collections::HashSet<&str> =
-                    schema.iter().map(|col| col.name.as_str()).collect();
-
-                // Stage 5b (Task B.5) — row-level registry-row-sig gate.
-                // Runs BEFORE the per-column sig gate below: a bad row_sig
-                // drops this row's ENTIRE change set atomically, unlike a
-                // per-column sig failure which only drops that one column.
-                // Stacks on top of (does not replace) the per-column gate —
-                // that one still runs afterwards for defense-in-depth.
-                //
-                // Case-insensitive per the B.3.1 pattern (Concern B).
-                // Skips gracefully — mirroring `sign_registry_row_self`'s own
-                // guard — when the local schema predates migration 0014
-                // (no `row_sig` column yet): nothing to verify against.
-                if first_change
-                    .table_name
-                    .eq_ignore_ascii_case(TABLE_SHARED_SPACE_SYNC)
-                    && existing_columns.contains(COL_SHARED_SPACE_SYNC_ROW_SIG)
-                {
-                    let outcome = build_incoming_registry_change(
-                        &tx,
-                        &pk_where_clause,
-                        &pk_values_for_query,
-                        &row_pks,
-                        &row_change_list,
-                    )?;
-                    match outcome {
-                        RegistryRowChangeOutcome::NothingSignedTouched => {}
-                        RegistryRowChangeOutcome::RowSigOnlyBatch {
-                            space_id,
-                            authored_by_did,
-                        } => {
-                            eprintln!(
-                                "[SYNC RUST] Rejected registry row {} in '{}' (space_id='{}', authored_by_did='{}') — batch touched ONLY row_sig with no signed-payload column; a bare row_sig cannot be verified and would let a stale-but-valid signature overwrite the persisted one (possible replay)",
-                                row_pks_str, first_change.table_name, space_id, authored_by_did
-                            );
-                            continue;
-                        }
-                        RegistryRowChangeOutcome::MissingFreshRowSig(touched_signed_columns) => {
-                            eprintln!(
-                                "[SYNC RUST] Rejected registry row {} in '{}' — signed column(s) {:?} changed without a fresh row_sig in the same batch",
-                                row_pks_str, first_change.table_name, touched_signed_columns
-                            );
-                            // Column-level CRDT can split a row across pull
-                            // windows. Record the missing row_sig so recovery
-                            // can reset the server cursor and re-pull it.
-                            tx.execute(
-                                &format!(
-                                    "INSERT OR IGNORE INTO {} (table_name, column_name, row_pks) VALUES (?, ?, ?)",
-                                    TABLE_CRDT_PENDING_COLUMNS
-                                ),
-                                params![
-                                    &first_change.table_name,
-                                    COL_SHARED_SPACE_SYNC_ROW_SIG,
-                                    &first_change.row_pks
-                                ],
-                            )
-                            .map_err(DatabaseError::from)?;
-                            continue;
-                        }
-                        RegistryRowChangeOutcome::RequiredFieldExplicitlyNull(null_columns) => {
-                            eprintln!(
-                                "[SYNC RUST] Rejected registry row {} in '{}' — required column(s) {:?} were explicitly set to null (never legitimate; dropping data in transit or forgery attempt)",
-                                row_pks_str, first_change.table_name, null_columns
-                            );
-                            continue;
-                        }
-                        RegistryRowChangeOutcome::Ready { change, persisted } => {
-                            if let Err(err) =
-                                verify_incoming_registry_change(&change, persisted.as_ref())
-                            {
-                                eprintln!(
-                                    "[SYNC RUST] Rejected registry row {} in '{}' (claimed authored_by_did='{}') — {:?}",
-                                    row_pks_str, first_change.table_name, change.authored_by_did, err
-                                );
-                                continue;
-                            }
-                        }
-                    }
-                }
-
-                // Precompute the trustworthy space anchor once per row.
-                let row_space_id_for_sig: Option<String> =
-                    if row_change_list.iter().any(|c| c.sig.is_some()) {
-                        resolve_row_space_id_for_sig(
-                            &tx,
-                            &first_change.table_name,
-                            &pk_where_clause,
-                            &pk_values_for_query,
-                            &row_change_list,
-                            &schema,
-                            expected_space_id,
-                        )?
-                    } else {
-                        None
-                    };
-
-                // Collect all column changes that are newer than current
-                // (column_name, exact SQLite value, hlc, verified sig to persist)
-                let mut columns_to_update: Vec<(String, SqlValue, String, Option<SigRecord>)> =
-                    Vec::new();
-                let mut max_hlc_for_row = first_change.hlc_timestamp.clone();
-
-                for change in &row_change_list {
-                    // Skip columns that don't exist in the local schema
-                    // This handles schema version differences between devices
-                    if !existing_columns.contains(change.column_name.as_str()) {
-                        eprintln!(
-                        "[SYNC RUST] Skipping unknown column '{}' in table '{}' - column not in local schema (older app version?)",
-                        change.column_name, first_change.table_name
+                        "[SYNC RUST] CRITICAL: HLC advance skipped (unparseable max HLC): {source:?}"
                     );
-
-                        // Track this row's owed column as pending. Row-aware: the marker
-                        // carries the owed row's PKs so P2P recovery can clear per
-                        // (table, column, row_pks) and a row-incomplete peer dump can't
-                        // drop a still-owed value (silent loss).
-                        tx.execute(
-                            &format!(
-                                "INSERT OR IGNORE INTO {} (table_name, column_name, row_pks) VALUES (?, ?, ?)",
-                                TABLE_CRDT_PENDING_COLUMNS
-                            ),
-                            params![
-                                &first_change.table_name,
-                                &change.column_name,
-                                &first_change.row_pks
-                            ],
-                        )
-                        .map_err(DatabaseError::from)?;
-
-                        // Deliberately do NOT record this column's HLC into
-                        // `haex_column_hlcs_no_sync`. That map is the per-column HLC of
-                        // the last *applied* value; a skipped (never-applied)
-                        // column must not appear there. If we recorded its HLC
-                        // `H` here, the post-migration recovery re-pull — which
-                        // carries the SAME original HLC `H` — would be gated out
-                        // by the strict `hlc_is_newer(H, H)` check (`H > H` is
-                        // false) and silently no-op. Leaving it absent means
-                        // recovery applies normally (`H > ""`). The
-                        // pending-columns table above is the tracker for skipped
-                        // columns; re-skipping on each subsequent pre-migration
-                        // sync is harmless (idempotent INSERT OR IGNORE).
-                        continue;
-                    }
-
-                    // Shared-space applies fail closed on missing signatures.
-                    // `authored_by_did` is legacy leader-attributed metadata,
-                    // not authoritative authorship; it remains the sole
-                    // unsigned compatibility column until the schema drops it.
-                    //
-                    // Owner-space applies (`enforce_sigs == false`) skip this
-                    // gate — see the `enforce_sigs` computation above. Signed
-                    // changes still verify below regardless of the flag, so
-                    // there is no downgrade path from signed to unsigned on
-                    // the owner-space route.
-                    if enforce_sigs
-                        && change.sig.is_none()
-                        && change.column_name != "authored_by_did"
-                    {
-                        eprintln!(
-                            "[SYNC RUST] Dropping unsigned shared-space change on {}.{}",
-                            first_change.table_name, change.column_name
-                        );
-                        continue;
-                    }
-
-                    let verified_sig = if let Some(sig) = &change.sig {
-                        match verify_change_sig(
-                            change,
-                            sig,
-                            row_space_id_for_sig.as_deref(),
-                            &first_change.table_name,
-                            &first_change.row_pks,
-                        ) {
-                            Ok(()) => {
-                                ensure_identity_stub(&tx, &sig.author_did)?;
-                                let bytes = BASE64.decode(&sig.sig).map_err(|e| {
-                                    DatabaseError::SerializationError {
-                                        reason: format!("verified signature stopped decoding: {e}"),
-                                    }
-                                })?;
-                                let sig_bytes: [u8; 64] = bytes.try_into().map_err(|_| {
-                                    DatabaseError::SerializationError {
-                                        reason: "verified signature has wrong length".to_string(),
-                                    }
-                                })?;
-                                Some(SigRecord {
-                                    author_did: sig.author_did.clone(),
-                                    sig: sig_bytes,
-                                    storage_class: sig.storage_class,
-                                })
-                            }
-                            Err(reason) => {
-                                eprintln!(
-                                    "[SYNC RUST] Dropping change with invalid sig on {}.{}: {}",
-                                    first_change.table_name, change.column_name, reason
-                                );
-                                continue;
-                            }
-                        }
-                    } else {
-                        None
-                    };
-
-                    let current_hlc = column_hlcs
-                        .get(&change.column_name)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-
-                    if hlc_is_newer(change.hlc_timestamp.as_str(), current_hlc) {
-                        let sql_value = match &change.sig {
-                            Some(sig) => sig
-                                .storage_class
-                                .restore(&change.decrypted_value)
-                                .map_err(|reason| DatabaseError::SerializationError { reason })?,
-                            None => {
-                                ValueConverter::json_to_rusqlite_value(&change.decrypted_value)?
-                            }
-                        };
-                        // Remote change is newer, include it
-                        column_hlcs.insert(
-                            change.column_name.clone(),
-                            JsonValue::String(change.hlc_timestamp.clone()),
-                        );
-                        columns_to_update.push((
-                            change.column_name.clone(),
-                            sql_value,
-                            change.hlc_timestamp.clone(),
-                            verified_sig,
-                        ));
-
-                        // Track max HLC for row timestamp
-                        if hlc_is_newer(&change.hlc_timestamp, &max_hlc_for_row) {
-                            max_hlc_for_row = change.hlc_timestamp.clone();
-                        }
-                    }
+                    Ok(())
                 }
-
-                // Only apply if there are columns to update
-                if !columns_to_update.is_empty() {
-                    let new_hlcs_json = serde_json::to_string(&column_hlcs).map_err(|e| {
-                        DatabaseError::SerializationError {
-                            reason: format!("Failed to serialize column HLCs: {}", e),
-                        }
-                    })?;
-
-                    if row_exists {
-                        // Never regress the row-level haex_hlc_no_sync: an incoming batch can legally be
-                        // older than the row's current HLC (column-level CRDT). The row HLC feeds
-                        // the delete-resurrection comparison, so regressing it would let an older
-                        // remote delete win against a newer local write.
-                        if hlc_is_newer(&current_row_hlc, &max_hlc_for_row) {
-                            max_hlc_for_row = current_row_hlc.clone();
-                        }
-
-                        // Row exists, update it with all changed columns
-                        let set_clauses: Vec<String> = columns_to_update
-                            .iter()
-                            .map(|(col_name, _, _, _)| format!("\"{}\" = ?", col_name))
-                            .collect();
-
-                        let update_sql = format!(
-                            "UPDATE \"{}\" SET {}, haex_column_hlcs_no_sync = ?, haex_hlc_no_sync = ? WHERE {}",
-                            first_change.table_name,
-                            set_clauses.join(", "),
-                            pk_where_clause
-                        );
-
-                        let mut params_vec: Vec<SqlValue> = Vec::new();
-
-                        // Add exact SQLite values reconstructed from the signed
-                        // storage class.
-                        for (_col_name, sql_value, _, _) in &columns_to_update {
-                            params_vec.push(sql_value.clone());
-                        }
-
-                        // Add HLCs and timestamp
-                        params_vec.push(SqlValue::Text(new_hlcs_json));
-                        params_vec.push(SqlValue::Text(max_hlc_for_row.clone()));
-
-                        // Add PK values for WHERE clause (only non-NULL values, NULL uses IS NULL)
-                        for sql_val in json_values_to_sql_params(&pk_values_for_query)? {
-                            params_vec.push(sql_val);
-                        }
-
-                        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec
-                            .iter()
-                            .map(|v| v as &dyn rusqlite::ToSql)
-                            .collect();
-
-                        tx.execute(&update_sql, &*params_refs)
-                            .map_err(DatabaseError::from)?;
-                    } else {
-                        // Delete-resurrection guard: a row absent locally must NOT be
-                        // (re)inserted if a delete-log entry for it carries an HLC
-                        // newer-or-equal to this insert. propagate_deleted_rows_to_target_tables
-                        // only revisits deletes arriving in the current batch, so a delete
-                        // stored in a prior batch (or before this row's table existed) would
-                        // otherwise be silently resurrected by a later, older-HLC insert. Match
-                        // on the parsed row_pks map so it is independent of key order /
-                        // serializer differences between the scanner (sorted) and the DELETE
-                        // trigger (PK-definition order).
-                        //
-                        // Look up the per-table shadowing-delete entries from the
-                        // apply-pass-wide pre-load above. Absent table = empty
-                        // slice (preserves the lazy-load semantics where a table
-                        // with no matching delete-log entries fell through to a
-                        // plain insert).
-                        let empty: Vec<(serde_json::Map<String, JsonValue>, String)> = Vec::new();
-                        let shadowing_deletes = shadowing_deletes_by_table
-                            .get(&first_change.table_name)
-                            .unwrap_or(&empty);
-                        if insert_suppressed_by_deletes(
-                            &row_pks,
-                            &max_hlc_for_row,
-                            shadowing_deletes,
-                        ) {
-                            eprintln!(
-                                "[SYNC RUST] Suppressing resurrection insert into '{}' for row {} — shadowed by a newer delete-log entry",
-                                first_change.table_name, row_pks_str
-                            );
-                            continue;
-                        }
-
-                        // Row doesn't exist, insert it with all changed columns + PKs
-                        let mut columns = Vec::new();
-                        let mut values: Vec<SqlValue> = Vec::new();
-
-                        // Add PKs first (use json_values_to_sql_params for consistent null handling)
-                        let pk_json_values: Vec<JsonValue> = pk_columns
-                            .iter()
-                            .filter_map(|col| row_pks.get(&col.name).cloned())
-                            .collect();
-                        let pk_sql_values = json_values_to_sql_params(&pk_json_values)?;
-                        for (col, sql_val) in pk_columns.iter().zip(pk_sql_values.into_iter()) {
-                            columns.push(col.name.clone());
-                            values.push(sql_val);
-                        }
-
-                        // Add changed columns with their exact SQLite classes.
-                        for (col_name, sql_value, _, _) in &columns_to_update {
-                            columns.push(col_name.clone());
-                            values.push(sql_value.clone());
-                        }
-
-                        // Add CRDT metadata
-                        columns.push(COLUMN_HLCS_COLUMN.to_string());
-                        columns.push(HLC_TIMESTAMP_COLUMN.to_string());
-                        values.push(SqlValue::Text(new_hlcs_json));
-                        values.push(SqlValue::Text(max_hlc_for_row.clone()));
-
-                        let placeholders = vec!["?"; columns.len()].join(", ");
-                        let quoted_columns: Vec<String> =
-                            columns.iter().map(|c| format!("\"{}\"", c)).collect();
-                        let insert_sql = format!(
-                            "INSERT INTO \"{}\" ({}) VALUES ({})",
-                            first_change.table_name,
-                            quoted_columns.join(", "),
-                            placeholders
-                        );
-
-                        let params_refs: Vec<&dyn rusqlite::ToSql> =
-                            values.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
-
-                        // Try to insert - if it fails with constraint, log detailed error
-                        match tx.execute(&insert_sql, &*params_refs) {
-                            Ok(_) => {} // Success - continue
-                            Err(rusqlite::Error::SqliteFailure(err, msg))
-                                if err.code == rusqlite::ErrorCode::ConstraintViolation =>
-                            {
-                                // Log the constraint violation details
-                                let error_msg =
-                                    msg.as_deref().unwrap_or("Unknown constraint violation");
-                                eprintln!(
-                                    "[SYNC RUST] Constraint violation for table {}: {}",
-                                    first_change.table_name, error_msg
-                                );
-                                eprintln!("[SYNC RUST] Failed INSERT SQL: {}", insert_sql);
-                                eprintln!("[SYNC RUST] Values: {:?}", values);
-
-                                // A NOT NULL violation on an *absent* row means
-                                // the change set carried only a subset of the
-                                // row's columns — a later column-level update
-                                // whose creation columns are below the pull
-                                // cursor, or a row that is itself partial on the
-                                // leader (column-level CRDT lets a row's columns
-                                // arrive out of order). A partial INSERT can never
-                                // satisfy the NOT NULL columns, so there is
-                                // nothing to insert here.
-                                //
-                                // Crucially, throwing wedges the entire sync loop:
-                                // the apply errors, the pull cursor never advances
-                                // (sync_loop only advances last_pull_timestamp on
-                                // success), and the same batch is re-pulled every
-                                // cycle forever. Skip the row instead — exactly
-                                // like the UNIQUE path below — so the rest of the
-                                // batch applies and the cursor moves on. It
-                                // self-heals when the remaining columns later
-                                // propagate: a full pull on loop restart delivers
-                                // all of the row's columns together and inserts it.
-                                if error_msg.contains("NOT NULL constraint failed") {
-                                    eprintln!(
-                                        "[SYNC RUST] Skipping row in '{}' — partial change set cannot satisfy NOT NULL columns (incomplete sync data). Received columns: {:?}",
-                                        first_change.table_name,
-                                        row_change_list
-                                            .iter()
-                                            .map(|c| &c.column_name)
-                                            .collect::<Vec<_>>()
-                                    );
-                                    continue; // Skip this row, keep applying the batch
-                                }
-
-                                // Check if it's a UNIQUE constraint violation
-                                if error_msg.contains("UNIQUE constraint failed") {
-                                    eprintln!("[SYNC RUST] UNIQUE constraint conflict - creating conflict entry");
-
-                                    // Build remote row data from all columns being inserted
-                                    let mut remote_row_data = serde_json::Map::new();
-                                    for (i, col_name) in columns.iter().enumerate() {
-                                        if let Some(sql_value) = values.get(i) {
-                                            let json_value =
-                                                ValueConverter::rusqlite_value_to_json(sql_value);
-                                            remote_row_data.insert(col_name.clone(), json_value);
-                                        }
-                                    }
-
-                                    // Create conflict entry
-                                    if let Err(e) = create_conflict_entry(
-                                        &tx,
-                                        &first_change.table_name,
-                                        error_msg,
-                                        &remote_row_data,
-                                        &max_hlc_for_row,
-                                        &schema,
-                                    ) {
-                                        eprintln!(
-                                            "[SYNC RUST] Failed to create conflict entry: {:?}",
-                                            e
-                                        );
-                                    }
-
-                                    continue; // Skip this row and continue with next
-                                }
-
-                                // For other constraints (CHECK, etc.), re-throw the error
-                                return Err(DatabaseError::from(rusqlite::Error::SqliteFailure(
-                                    err, msg,
-                                )));
-                            }
-                            Err(e) => {
-                                eprintln!(
-                                    "[SYNC RUST] INSERT failed for table {}: {:?}",
-                                    first_change.table_name, e
-                                );
-                                return Err(DatabaseError::from(e));
-                            }
-                        }
-                    }
-
-                    // A verified signature is CRDT metadata too. Persist it
-                    // only after the corresponding value write succeeded so a
-                    // receiver can relay the change without re-signing it.
-                    if let Some(space_id) = row_space_id_for_sig.as_deref() {
-                        for (column, _, _, sig) in &columns_to_update {
-                            if let Some(sig) = sig {
-                                upsert_column_sigs(
-                                    &tx,
-                                    &first_change.table_name,
-                                    &first_change.row_pks,
-                                    column,
-                                    space_id,
-                                    sig,
-                                )
-                                .map_err(DatabaseError::from)?;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Propagate delete-log entries received in this batch to their target tables.
-            // Triggers are still disabled, so the DELETEs won't re-log into haex_deleted_rows.
-            if !inbound_delete_log_ids.is_empty() {
-                eprintln!(
-                    "[SYNC RUST] Propagating {} delete-log entries to target tables",
-                    inbound_delete_log_ids.len()
-                );
-                propagate_deleted_rows_to_target_tables(&tx, &inbound_delete_log_ids)?;
-            }
-
-            // Task 6: propagate per-space delete-log entries. Each entry removes
-            // the register entry for (table, row, space), and removes the target
-            // row iff no other space still lists it. Triggers stay disabled so
-            // the Task 4/5 fanout/cascade doesn't re-emit.
-            //
-            // Interaction with the owner-space sig-enforce exemption above:
-            // owner-vault sync (`enforce_sigs == false`) can carry
-            // `haex_shared_space_deleted_rows` entries between the owner's own
-            // devices without per-column signatures. That's intentional —
-            // authorization of the actual DELETE does NOT rely on
-            // `enforce_sigs` here. `propagate_shared_space_deleted_rows_to_target_tables`
-            // reads the entry's own `space_id` and gates on the local
-            // `haex_shared_space_sync` register for that space (register-check),
-            // failing closed on DB errors. So on the owner-sync route the
-            // sig-enforcement being off just lets the delete-log entry LAND;
-            // whether to actually delete the business row is still decided by
-            // the receiver's register state (which owner-sync mirrors from the
-            // sender). Shared-space delivery (non-owner `expected_space_id`)
-            // keeps `enforce_sigs == true`, so unsigned per-space delete-log
-            // entries drop at the outer gate before ever reaching propagation.
-            if !inbound_shared_space_delete_log_ids.is_empty() {
-                eprintln!(
-                    "[SYNC RUST] Propagating {} shared-space delete-log entries",
-                    inbound_shared_space_delete_log_ids.len()
-                );
-                propagate_shared_space_deleted_rows_to_target_tables(
-                    &tx,
-                    &inbound_shared_space_delete_log_ids,
-                )?;
-            }
-
-            // Update lastPushHlcTimestamp for this backend to prevent re-pushing the data we just pulled
-            // Note: lastPullServerTimestamp is now updated by TypeScript using the server timestamp
-            // Only applicable for server sync (not local delivery)
-            if let Some((backend_id, max_hlc)) = backend_info {
-                eprintln!(
-                    "[SYNC RUST] Updating last_push_hlc_timestamp_no_sync to {}",
-                    max_hlc
-                );
-                tx.execute(
-                    "UPDATE haex_sync_backends SET last_push_hlc_timestamp_no_sync = ? WHERE id = ?",
-                    params![max_hlc, backend_id],
-                )
-                .map_err(DatabaseError::from)?;
-            }
-
-            // Re-enable triggers before committing
-            eprintln!("[SYNC RUST] Re-enabling triggers");
-            let enable_sql = format!(
-            "INSERT INTO {TABLE_CRDT_CONFIGS} (key, type, value) VALUES ('triggers_enabled', 'system', '1')
-             ON CONFLICT(key) DO UPDATE SET value = '1'"
-        );
-            tx.execute(&enable_sql, []).map_err(DatabaseError::from)?;
-
-            // Commit transaction (with FK constraints disabled)
-            eprintln!("[SYNC RUST] Committing transaction");
-            match tx.commit() {
-                Ok(_) => {
-                    eprintln!("[SYNC RUST] Transaction committed successfully");
-                }
-                Err(e) => {
-                    eprintln!("[SYNC RUST] Transaction commit failed: {:?}", e);
-                    return Err(DatabaseError::from(e));
-                }
-            }
-
-            Ok(all_hlc_timestamps)
-        })?;
-        // FK constraints are now re-enabled by with_fk_disabled (even if
-        // the closure above returned Err mid-body).
-
-        // Advance the local HLC clock past the highest received remote timestamp.
-        // This ensures future local operations generate timestamps > any remote HLC,
-        // so all columns of locally created rows are pushed (not filtered by lastPushHlcTimestamp).
-        if let Some(hlc) = hlc_service {
-            // Use backend_info max_hlc if available (server sync), otherwise
-            // compute from the changes themselves (local delivery).
-            let max_hlc_str = match backend_info {
-                Some((_, hlc_str)) if !hlc_str.is_empty() => hlc_str.to_string(),
-                _ => {
-                    let max = hlc_max(applied_hlc_timestamps.iter().map(|s| s.as_str()));
-                    max.unwrap_or_default().to_string()
-                }
-            };
-            // Runs after tx.commit() by design: a crash between commit and advance is
-            // healed by the idempotent re-apply of the same batch on the next cycle.
-            if let Err(e) = hlc.advance_past_remote(&max_hlc_str) {
-                match e {
-                    // A malformed max-HLC cannot be fixed by retrying the same batch —
-                    // log loudly and continue so the sync loop does not wedge.
-                    HlcError::Parse(_) => {
-                        eprintln!(
-                            "[SYNC RUST] CRITICAL: HLC advance skipped (unparseable max HLC): {e:?}"
-                        );
-                    }
-                    // NotInitialized / MutexPoisoned / other service-state errors:
-                    // fail the apply so the pull cursor does not advance and the batch
-                    // (idempotent) is retried after restart.
-                    other => {
-                        return Err(DatabaseError::DatabaseError {
-                            reason: format!("HLC advance failed after apply: {other:?}"),
-                        });
-                    }
-                }
-            }
+                other => Err(DatabaseError::DatabaseError {
+                    reason: format!("HLC advance failed after apply: {other:?}"),
+                }),
+            },
+            Err(other) => Err(DatabaseError::DatabaseError {
+                reason: other.to_string(),
+            }),
         }
-
-        Ok(())
     })
 }
 
@@ -1388,7 +490,7 @@ mod tests {
         let signing_key = SigningKey::from_bytes(&seed);
         let did = did_key_from_public_key(&signing_key.verifying_key());
         let space_id = "s1"; // seeded on the row in setup
-        let hlc = "20/xxx"; // > existing avatar HLC 3/aaa so it would apply if verified
+        let hlc = "20/abc"; // > existing avatar HLC 3/aaa so it would apply if verified
 
         // Sign a *different* value than the one the change actually carries,
         // so the recomputed preimage on the verifier side never matches.
@@ -1460,7 +562,7 @@ mod tests {
             table_name: "devices".to_string(),
             row_pks: r#"{"id":"dev-1"}"#.to_string(),
             column_name: "avatar".to_string(),
-            hlc_timestamp: "20/xxx".to_string(),
+            hlc_timestamp: "20/abc".to_string(),
             decrypted_value: JsonValue::String("unsigned.png".to_string()),
             sig: None,
         };
@@ -1492,7 +594,7 @@ mod tests {
         let did = did_key_from_public_key(&signing_key.verifying_key());
         let space_id = "s1"; // seeded on the row in setup
         let new_avatar = "verified.png";
-        let hlc = "20/xxx";
+        let hlc = "20/abc";
 
         let value_bytes_vec =
             value_bytes::to_canonical_bytes(&SqlValue::Text(new_avatar.to_string()));
@@ -1607,7 +709,7 @@ mod tests {
 
         let seed: [u8; 32] = rand::random();
         let attacker_key = SigningKey::from_bytes(&seed);
-        let hlc = "20/xxx";
+        let hlc = "20/abc";
 
         // Both changes are correctly signed — but for `s_evil`, not `s1`.
         let avatar_change = signed_avatar_change(&attacker_key, "s_evil", "pwned.png", hlc);
@@ -1633,9 +735,9 @@ mod tests {
 
         let seed: [u8; 32] = rand::random();
         let key = SigningKey::from_bytes(&seed);
-        let mut space_change = signed_avatar_change(&key, "s1", "s_evil", "20/xxx");
+        let mut space_change = signed_avatar_change(&key, "s1", "s_evil", "20/abc");
         space_change.column_name = "space_id".to_string();
-        let avatar_change = signed_avatar_change(&key, "s1", "accepted.png", "20/xxx");
+        let avatar_change = signed_avatar_change(&key, "s1", "accepted.png", "20/abc");
 
         apply_remote_changes_to_db(&db, vec![space_change, avatar_change], None, None)
             .expect("apply must succeed");
@@ -1653,9 +755,9 @@ mod tests {
 
         let seed: [u8; 32] = rand::random();
         let key = SigningKey::from_bytes(&seed);
-        let mut space_change = signed_avatar_change(&key, "s_new", "s_new", "20/xxx");
+        let mut space_change = signed_avatar_change(&key, "s_new", "s_new", "20/abc");
         space_change.column_name = "space_id".to_string();
-        let mut avatar_change = signed_avatar_change(&key, "s_new", "new-row.png", "20/xxx");
+        let mut avatar_change = signed_avatar_change(&key, "s_new", "new-row.png", "20/abc");
         avatar_change.row_pks = r#"{"id":"dev-2"}"#.to_string();
         space_change.row_pks = r#"{"id":"dev-2"}"#.to_string();
 
@@ -1688,7 +790,7 @@ mod tests {
         // both changes consistently before signing is irrelevant — the pks
         // are part of the preimage, so sign for dev-2 directly.
         let did = did_key_from_public_key(&key.verifying_key());
-        let hlc = "20/xxx";
+        let hlc = "20/abc";
         let mk = |column: &str, value: &str| {
             let vb = value_bytes::to_canonical_bytes(&SqlValue::Text(value.to_string()));
             let sig = sign_column(
@@ -1745,7 +847,7 @@ mod tests {
         let seed: [u8; 32] = rand::random();
         let key = SigningKey::from_bytes(&seed);
         let did = did_key_from_public_key(&key.verifying_key());
-        let hlc = "20/xxx";
+        let hlc = "20/abc";
         let mk = |column: &str, value: &str| {
             let vb = value_bytes::to_canonical_bytes(&SqlValue::Text(value.to_string()));
             let sig = sign_column(
@@ -1856,7 +958,7 @@ mod tests {
             table_name: "devices".to_string(),
             row_pks: r#"{"id":"dev-1"}"#.to_string(),
             column_name: "avatar".to_string(),
-            hlc_timestamp: "20/xxx".to_string(),
+            hlc_timestamp: "20/abc".to_string(),
             decrypted_value: JsonValue::String("unsigned-owner.png".to_string()),
             sig: None,
         };
@@ -1897,7 +999,7 @@ mod tests {
             table_name: "devices".to_string(),
             row_pks: r#"{"id":"dev-1"}"#.to_string(),
             column_name: "avatar".to_string(),
-            hlc_timestamp: "20/xxx".to_string(),
+            hlc_timestamp: "20/abc".to_string(),
             decrypted_value: JsonValue::String("dropped.png".to_string()),
             sig: None,
         };
@@ -1995,7 +1097,7 @@ mod tests {
         let did = did_key_from_public_key(&signing_key.verifying_key());
         let space_id = "s1"; // seeded on the row in setup
         let new_avatar = "replayed.png";
-        let hlc = "20/xxx";
+        let hlc = "20/abc";
 
         let make_change = || signed_avatar_change(&signing_key, space_id, new_avatar, hlc);
 
@@ -2047,7 +1149,7 @@ mod tests {
         let bob_did = did_key_from_public_key(&bob_key.verifying_key());
 
         let space_id = "s1"; // seeded on the row in setup
-        let hlc = "20/xxx";
+        let hlc = "20/abc";
         let new_avatar = "framed.png";
 
         // Alice signs honestly, over her own DID — a completely legitimate
@@ -2096,8 +1198,8 @@ mod tests {
         let seed: [u8; 32] = rand::random();
         let signing_key = SigningKey::from_bytes(&seed);
         let space_id = "s1"; // seeded on the row in setup
-        let signed_hlc = "20/xxx"; // what was actually signed
-        let claimed_hlc = "999999/xxx"; // forged: far future, would win any LWW race
+        let signed_hlc = "20/abc"; // what was actually signed
+        let claimed_hlc = "999999/abc"; // forged: far future, would win any LWW race
         let new_avatar = "forged-time.png";
 
         // Attacker takes a legitimately-signed change and swaps ONLY the
@@ -2243,5 +1345,153 @@ mod tests {
                 orderings[i], orderings[0]
             );
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Task 5 regression: a shared-space delete-log claim that this
+    // batch's own policy rejects must not propagate, but a replay of an
+    // already-admitted one that only lost LWW (Stale) still must —
+    // mirroring haex-crdt's own
+    // `rejected_delete_replay_does_not_delete_but_admitted_stale_replay_does`
+    // at vault's per-space layer.
+    // ------------------------------------------------------------------
+
+    fn setup_shared_space_delete_db() -> DbConnection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TABLE {TABLE_CRDT_CONFIGS} (key TEXT PRIMARY KEY, type TEXT, value TEXT);
+             CREATE TABLE {DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY, table_name TEXT NOT NULL, row_pks TEXT NOT NULL,
+                 haex_hlc_no_sync TEXT, haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
+             );
+             CREATE TABLE {SHARED_SPACE_DELETED_ROWS_TABLE} (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 space_id TEXT NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}'
+             );
+             CREATE TABLE {SHARED_SPACE_SYNC_TABLE} (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 table_name TEXT NOT NULL,
+                 row_pks TEXT NOT NULL,
+                 space_id TEXT NOT NULL,
+                 haex_hlc_no_sync TEXT
+             );
+             CREATE TABLE ext_items (
+                 id TEXT PRIMARY KEY NOT NULL,
+                 body TEXT,
+                 haex_hlc_no_sync TEXT,
+                 haex_column_hlcs_no_sync TEXT NOT NULL DEFAULT '{{}}',
+                 haex_column_sigs_no_sync TEXT NOT NULL DEFAULT '{{}}'
+             );"
+        ))
+        .unwrap();
+        DbConnection(Arc::new(Mutex::new(Some(conn))))
+    }
+
+    fn seed_shared_delete_scenario(
+        db: &DbConnection,
+        business_hlc: &str,
+        delete_log_hlc: &str,
+        delete_log_column_hlcs: &str,
+    ) {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.execute(
+            "INSERT INTO ext_items (id, body, haex_hlc_no_sync) VALUES ('item-1', 'kept', ?1)",
+            [business_hlc],
+        )
+        .unwrap();
+        conn.execute(
+            &format!(
+                "INSERT INTO {SHARED_SPACE_SYNC_TABLE} (id, table_name, row_pks, space_id, haex_hlc_no_sync) \
+                 VALUES ('reg-1', 'ext_items', '{{\"id\":\"item-1\"}}', 'space-x', '1/aaa')"
+            ),
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            &format!(
+                "INSERT INTO {SHARED_SPACE_DELETED_ROWS_TABLE} \
+                 (id, space_id, table_name, row_pks, haex_hlc_no_sync, haex_column_hlcs_no_sync) \
+                 VALUES ('del-1', 'space-x', 'ext_items', '{{\"id\":\"item-1\"}}', ?1, ?2)"
+            ),
+            rusqlite::params![delete_log_hlc, delete_log_column_hlcs],
+        )
+        .unwrap();
+    }
+
+    fn item_one_exists(db: &DbConnection) -> bool {
+        let guard = db.0.lock().unwrap();
+        let conn = guard.as_ref().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM ext_items WHERE id = 'item-1'",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .unwrap()
+            > 0
+    }
+
+    fn shared_delete_replay_change(hlc: &str) -> RemoteColumnChange {
+        RemoteColumnChange {
+            table_name: SHARED_SPACE_DELETED_ROWS_TABLE.to_string(),
+            row_pks: r#"{"id":"del-1"}"#.to_string(),
+            column_name: "table_name".to_string(),
+            hlc_timestamp: hlc.to_string(),
+            decrypted_value: JsonValue::String("ext_items".to_string()),
+            sig: None,
+        }
+    }
+
+    #[test]
+    fn shared_space_delete_replay_rejected_by_policy_does_not_propagate() {
+        let db = setup_shared_space_delete_db();
+        // Business row older than the delete-log entry, so propagation
+        // would otherwise proceed (no resurrection, register present).
+        seed_shared_delete_scenario(&db, "1/aaa", "2/bbb", r#"{"table_name":"2/bbb"}"#);
+
+        // Shared-space apply (expected_space_id = Some, no owner config in
+        // this fixture => enforce_sigs = true) with an UNSIGNED change: the
+        // policy drops it, so it must never reach the propagation set.
+        apply_remote_changes_to_db_scoped(
+            &db,
+            vec![shared_delete_replay_change("3/ccc")],
+            None,
+            None,
+            Some("space-x"),
+        )
+        .expect("apply must succeed — rejection is column-scoped, not fatal");
+
+        assert!(
+            item_one_exists(&db),
+            "a policy-rejected shared-space delete claim must not propagate"
+        );
+    }
+
+    #[test]
+    fn shared_space_delete_admitted_stale_replay_still_propagates() {
+        let db = setup_shared_space_delete_db();
+        seed_shared_delete_scenario(&db, "1/aaa", "2/bbb", r#"{"table_name":"2/bbb"}"#);
+
+        // Owner-mode apply (expected_space_id = None => enforce_sigs =
+        // false) replaying the SAME column at the SAME HLC already
+        // recorded: LWW rejects it as Stale, but an admitted replay must
+        // still propagate the already-recorded tombstone.
+        apply_remote_changes_to_db_scoped(
+            &db,
+            vec![shared_delete_replay_change("2/bbb")],
+            None,
+            None,
+            None,
+        )
+        .expect("apply must succeed");
+
+        assert!(
+            !item_one_exists(&db),
+            "a stale replay of an already-admitted shared-space delete must still propagate"
+        );
     }
 }

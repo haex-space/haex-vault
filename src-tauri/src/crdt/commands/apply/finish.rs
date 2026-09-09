@@ -44,8 +44,7 @@ pub(super) fn collect_inbound_shared_space_delete_log_ids(
 
     let mut ids: HashSet<String> = HashSet::new();
     for (input_index, change) in changes.iter().enumerate() {
-        if change.table_name != SHARED_SPACE_DELETED_ROWS_TABLE || rejected.contains(&input_index)
-        {
+        if change.table_name != SHARED_SPACE_DELETED_ROWS_TABLE || rejected.contains(&input_index) {
             continue;
         }
         if let Ok(map) = serde_json::from_str::<serde_json::Map<String, JsonValue>>(&change.row_pks)
@@ -141,10 +140,7 @@ mod tests {
 
     #[test]
     fn policy_rejected_shared_delete_is_excluded() {
-        let changes = vec![change(
-            SHARED_SPACE_DELETED_ROWS_TABLE,
-            r#"{"id":"del-1"}"#,
-        )];
+        let changes = vec![change(SHARED_SPACE_DELETED_ROWS_TABLE, r#"{"id":"del-1"}"#)];
         let mut outcome = ApplyOutcome::default();
         outcome.skipped.push(SkippedChange {
             input_index: 0,
@@ -159,10 +155,7 @@ mod tests {
 
     #[test]
     fn stale_replay_of_an_admitted_shared_delete_still_propagates() {
-        let changes = vec![change(
-            SHARED_SPACE_DELETED_ROWS_TABLE,
-            r#"{"id":"del-1"}"#,
-        )];
+        let changes = vec![change(SHARED_SPACE_DELETED_ROWS_TABLE, r#"{"id":"del-1"}"#)];
         let mut outcome = ApplyOutcome::default();
         outcome.skipped.push(SkippedChange {
             input_index: 0,
@@ -177,10 +170,7 @@ mod tests {
 
     #[test]
     fn superseded_in_batch_replay_still_propagates() {
-        let changes = vec![change(
-            SHARED_SPACE_DELETED_ROWS_TABLE,
-            r#"{"id":"del-1"}"#,
-        )];
+        let changes = vec![change(SHARED_SPACE_DELETED_ROWS_TABLE, r#"{"id":"del-1"}"#)];
         let mut outcome = ApplyOutcome::default();
         outcome.skipped.push(SkippedChange {
             input_index: 0,
@@ -192,10 +182,7 @@ mod tests {
 
     #[test]
     fn admitted_change_not_present_in_skipped_still_propagates() {
-        let changes = vec![change(
-            SHARED_SPACE_DELETED_ROWS_TABLE,
-            r#"{"id":"del-1"}"#,
-        )];
+        let changes = vec![change(SHARED_SPACE_DELETED_ROWS_TABLE, r#"{"id":"del-1"}"#)];
         let outcome = ApplyOutcome::default(); // nothing skipped: this change was applied
         let ids = collect_inbound_shared_space_delete_log_ids(&changes, &outcome);
         assert!(ids.contains("del-1"));
@@ -267,9 +254,11 @@ mod tests {
         tx.commit().unwrap();
 
         let count: i64 = conn
-            .query_row(&format!("SELECT COUNT(*) FROM {TABLE_CRDT_PENDING_COLUMNS}"), [], |r| {
-                r.get(0)
-            })
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {TABLE_CRDT_PENDING_COLUMNS}"),
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(count, 0, "only UnknownColumn skips get a pending marker");
     }

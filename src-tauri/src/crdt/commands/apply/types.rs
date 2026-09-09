@@ -43,6 +43,12 @@ pub struct RemoteColumnChange {
 /// signature verification in `prepare_row`. `device_id` has no wire
 /// equivalent on this DTO and is not treated as an authorization signal
 /// anywhere in the apply path — left empty.
+///
+/// A `ColumnSig` (two `String`s and a plain enum) cannot realistically fail
+/// to serialize, but a signed column falling back to `None` on a
+/// hypothetical failure — rather than panicking — is the fail-closed
+/// direction anyway: `enforce_sigs` drops an unsigned column, it never lets
+/// one through unverified.
 pub(super) fn to_crate_change(change: &RemoteColumnChange) -> haex_crdt::ColumnChange {
     haex_crdt::ColumnChange {
         table_name: change.table_name.clone(),
@@ -54,7 +60,7 @@ pub(super) fn to_crate_change(change: &RemoteColumnChange) -> haex_crdt::ColumnC
         sig: change
             .sig
             .as_ref()
-            .map(|s| serde_json::to_value(s).expect("ColumnSig always serializes to JSON")),
+            .and_then(|s| serde_json::to_value(s).ok()),
     }
 }
 

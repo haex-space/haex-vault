@@ -211,49 +211,10 @@ fn composite_pk_match_is_order_agnostic() {
     );
 }
 
-// Pure helper tests
-#[test]
-fn delete_shadows_insert_truth_table() {
-    assert!(
-        super::delete_shadows_insert(HLC_NEW, HLC_OLD),
-        "older insert is shadowed"
-    );
-    assert!(
-        super::delete_shadows_insert(HLC_NEW, HLC_NEW),
-        "equal: shadowed (delete wins)"
-    );
-    assert!(
-        !super::delete_shadows_insert(HLC_OLD, HLC_NEW),
-        "strictly newer insert is NOT shadowed"
-    );
-}
-
-#[test]
-fn insert_suppressed_by_deletes_matches_on_parsed_map() {
-    let insert_pks: serde_json::Map<String, JsonValue> =
-        serde_json::from_str(r#"{"a":"1","b":"2"}"#).unwrap();
-    let shadow = (
-        serde_json::from_str::<serde_json::Map<String, JsonValue>>(r#"{"b":"2","a":"1"}"#).unwrap(),
-        HLC_NEW.to_string(),
-    );
-    let other = (
-        serde_json::from_str::<serde_json::Map<String, JsonValue>>(r#"{"a":"9"}"#).unwrap(),
-        HLC_NEW.to_string(),
-    );
-    assert!(super::insert_suppressed_by_deletes(
-        &insert_pks,
-        HLC_OLD,
-        &[shadow.clone()]
-    ));
-    assert!(!super::insert_suppressed_by_deletes(
-        &insert_pks,
-        HLC_OLD,
-        &[other]
-    ));
-    // matching row but the insert is strictly newer → not suppressed
-    assert!(!super::insert_suppressed_by_deletes(
-        &insert_pks,
-        HLC_NEW,
-        &[(shadow.0.clone(), HLC_OLD.to_string())]
-    ));
-}
+// The pure `delete_shadows_insert`/`insert_suppressed_by_deletes` helpers
+// that used to live in `delete_propagation.rs` are gone: the owner-domain
+// insert-shadow check they backed is now the crate's own job
+// (`haex_crdt::crdt::apply::row::insert_shadowed`), which has its own test
+// coverage. The end-to-end behavioral tests above/below — which exercise
+// the exact same observable contract through `apply_remote_changes_to_db`
+// — are what remain load-bearing here.

@@ -108,7 +108,11 @@ impl ApplyPolicy for VaultApplyPolicy {
         Ok(())
     }
 
-    fn prepare_row(&mut self, tx: &Transaction<'_>, row: RowInput<'_>) -> haex_crdt::Result<RowDecision> {
+    fn prepare_row(
+        &mut self,
+        tx: &Transaction<'_>,
+        row: RowInput<'_>,
+    ) -> haex_crdt::Result<RowDecision> {
         // Reconstruct owned `RemoteColumnChange`s for the row's FULL change
         // group (not just `eligible_indices`) so the existing, unmodified
         // registry-gate and per-space-sig helpers — which all take
@@ -128,7 +132,10 @@ impl ApplyPolicy for VaultApplyPolicy {
         // one column. Skipped when the local schema predates the `row_sig`
         // column — nothing to verify against.
         if row.table_name.eq_ignore_ascii_case(TABLE_SHARED_SPACE_SYNC)
-            && row.schema.iter().any(|c| c.name == COL_SHARED_SPACE_SYNC_ROW_SIG)
+            && row
+                .schema
+                .iter()
+                .any(|c| c.name == COL_SHARED_SPACE_SYNC_ROW_SIG)
         {
             let pk_columns: Vec<&ColumnInfo> = row.schema.iter().filter(|c| c.is_pk).collect();
             let (pk_where_clause, pk_values_for_query) =
@@ -176,8 +183,7 @@ impl ApplyPolicy for VaultApplyPolicy {
                     return Ok(RowDecision::Skip);
                 }
                 RegistryRowChangeOutcome::Ready { change, persisted } => {
-                    if let Err(err) = verify_incoming_registry_change(&change, persisted.as_ref())
-                    {
+                    if let Err(err) = verify_incoming_registry_change(&change, persisted.as_ref()) {
                         eprintln!(
                             "[SYNC RUST] Rejected registry row {} in '{}' (claimed authored_by_did='{}') — {:?}",
                             row.row_pks_json, row.table_name, change.authored_by_did, err
@@ -190,24 +196,24 @@ impl ApplyPolicy for VaultApplyPolicy {
 
         // Precompute the trustworthy space anchor once per row — only
         // needed when at least one change in the row carries a signature.
-        let row_space_id_for_sig: Option<String> = if full_row_changes.iter().any(|c| c.sig.is_some())
-        {
-            let pk_columns: Vec<&ColumnInfo> = row.schema.iter().filter(|c| c.is_pk).collect();
-            let (pk_where_clause, pk_values_for_query) =
-                build_pk_where_clause(&pk_columns, row.row_pks);
-            resolve_row_space_id_for_sig(
-                tx,
-                row.table_name,
-                &pk_where_clause,
-                &pk_values_for_query,
-                &full_row_changes,
-                row.schema,
-                self.expected_space_id.as_deref(),
-            )
-            .map_err(|e| haex_crdt::Error::Message(e.to_string()))?
-        } else {
-            None
-        };
+        let row_space_id_for_sig: Option<String> =
+            if full_row_changes.iter().any(|c| c.sig.is_some()) {
+                let pk_columns: Vec<&ColumnInfo> = row.schema.iter().filter(|c| c.is_pk).collect();
+                let (pk_where_clause, pk_values_for_query) =
+                    build_pk_where_clause(&pk_columns, row.row_pks);
+                resolve_row_space_id_for_sig(
+                    tx,
+                    row.table_name,
+                    &pk_where_clause,
+                    &pk_values_for_query,
+                    &full_row_changes,
+                    row.schema,
+                    self.expected_space_id.as_deref(),
+                )
+                .map_err(|e| haex_crdt::Error::Message(e.to_string()))?
+            } else {
+                None
+            };
 
         let mut decisions = Vec::with_capacity(row.eligible_indices.len());
         for &idx in row.eligible_indices {
@@ -393,8 +399,13 @@ impl ApplyPolicy for VaultApplyPolicy {
         propagate_shared_space_deletes(tx, changes, outcome)
             .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
 
-        update_backend_cursor(tx, self.backend_info.as_ref().map(|(id, hlc)| (id.as_str(), hlc.as_str())))
-            .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
+        update_backend_cursor(
+            tx,
+            self.backend_info
+                .as_ref()
+                .map(|(id, hlc)| (id.as_str(), hlc.as_str())),
+        )
+        .map_err(|e| haex_crdt::Error::Message(e.to_string()))?;
 
         Ok(())
     }

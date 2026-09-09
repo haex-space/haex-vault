@@ -78,7 +78,9 @@ pub(super) fn run_schema_auto_upgrade(
                 );
             }
             Err(e) => {
-                eprintln!("[SYNC RUST] Failed to upgrade '{table_name}': {e} - skipping this table");
+                eprintln!(
+                    "[SYNC RUST] Failed to upgrade '{table_name}': {e} - skipping this table"
+                );
                 failed_upgrade_tables.insert(table_name.to_string());
             }
         }
