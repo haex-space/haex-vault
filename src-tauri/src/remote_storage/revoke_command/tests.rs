@@ -1007,17 +1007,16 @@ async fn parent_absent_still_returns_parent_backend_missing() {
 // I1a acceptance test: enforced ON DELETE CASCADE on parent_backend_id
 // ---------------------------------------------------------------------------
 //
-// The migration manual_0002_haex_s3_backends_cascade_fk.sql rebuilds
-// haex_s3_backends so the self-referential FK on parent_backend_id gets an
-// enforced `ON DELETE CASCADE`. This test builds a DB with the *post-migration*
-// schema (identical FK spec) and asserts that deleting the parent row
-// automatically deletes its `shared_from_space` children.
+// The drizzle-generated baseline migration `0000_jittery_human_fly.sql`
+// creates `haex_s3_backends` with an enforced `ON DELETE CASCADE` on the
+// self-referential FK `parent_backend_id`. This test builds a DB with the
+// *post-migration* schema (identical FK spec) and asserts that deleting the
+// parent row automatically deletes its `shared_from_space` children.
 //
 // We do NOT try to run the migration itself against the test fixture —
 // migration application is exercised at the database-level integration tier.
-// The FK constraint text here is byte-for-byte the same as in the migration
-// (see manual_0002_haex_s3_backends_cascade_fk.sql), so a passing test proves
-// SQLite enforces the CASCADE that the migration installs.
+// The FK constraint text here is the same as in the baseline migration, so a
+// passing test proves SQLite enforces the CASCADE the migration installs.
 
 #[test]
 fn parent_delete_cascades_to_shared_children_when_fk_is_enforced() {
@@ -1026,8 +1025,7 @@ fn parent_delete_cascades_to_shared_children_when_fk_is_enforced() {
         .expect("enable foreign keys");
 
     // Post-migration schema for haex_s3_backends — matches the CREATE TABLE
-    // in manual_0002_haex_s3_backends_cascade_fk.sql byte-for-byte on the
-    // parent_backend_id FK spec.
+    // in `0000_jittery_human_fly.sql` on the parent_backend_id FK spec.
     conn.execute_batch(
         "CREATE TABLE haex_s3_backends (
             id TEXT PRIMARY KEY NOT NULL,
