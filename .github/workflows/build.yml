@@ -442,7 +442,7 @@ jobs:
     # two builds together hit the 45 min cap mid-compile and got
     # cancelled, so it needs the same kind of headroom macOS already has
     # for its aarch64 leg.
-    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 60 || (matrix.platform == 'macos-latest' && 50 || (matrix.platform == 'ubuntu-22.04' && 50 || 35)) }}
+    timeout-minutes: ${{ matrix.platform == 'windows-latest' && 60 || (matrix.platform == 'macos-latest' && 50 || ((matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm') && 50 || 35)) }}
     strategy:
       fail-fast: false
       matrix:
