@@ -960,29 +960,35 @@ fn real_scanner_roundtrip_survives_a_fresh_peer() {
         "authored_by_did must survive the roundtrip"
     );
 
-    // KNOWN SEPARATE GAP (found while building this test, not part of this
-    // task's fix): `received.row_sig` ends up EMPTY here, not equal to the
-    // sender's `row_sig`. Root cause: `sign_registry_row_self` (B.3) writes
-    // `row_sig`/`authored_by_did`/the canonicalised `row_pks` via a raw
-    // `tx.execute()` UPDATE that runs AFTER F1's per-column signer
-    // (`sign_written_rows`) already did its pass for this transaction — so
-    // `row_sig` never gets its own per-column `ColumnSig`. On a real
-    // space-scoped apply (`expected_space_id: Some(..)`, `enforce_sigs ==
-    // true`), the orthogonal per-column signature gate (`verify_change_sig`
-    // in `apply/db.rs`) then drops any unsigned column outright UNLESS it is
-    // explicitly exempted (as `authored_by_did` is, by a literal name check —
-    // `db.rs`'s `change.column_name != "authored_by_did"`). `row_sig` has no
-    // such exemption, so it is dropped and the column keeps its schema
-    // default (`''`). This reproduces on unmodified `main`+this fix; it is
-    // independent of `created_at_no_sync` and predates this task. Asserting
-    // it here (rather than silently expecting a matching, verifying
-    // `row_sig`) is deliberate — this test must not paper over an open
-    // question the same way the tests this task's fix removed did.
-    assert_eq!(
-        received.row_sig, "",
-        "known gap: row_sig currently does NOT survive a real space-scoped \
-         apply — see the comment above. If this assertion starts failing, \
-         that gap has been fixed elsewhere; replace this assertion with the \
-         intended one (row_sig non-empty and verifying via verify_registry_row)."
+    // `row_sig` now survives the roundtrip: `sign_registry_row_self` writes
+    // a per-column signature for `row_sig` immediately after its raw
+    // UPDATE, so the scanner ships the `row_sig` column change with a
+    // valid signature and the receiver's per-column signature gate
+    // (`verify_change_sig` in `crdt/commands/apply/policy.rs`,
+    // `enforce_sigs` branch) accepts it instead of dropping it as
+    // unsigned. The receiver's persisted `row_sig` must additionally
+    // verify against the received payload — a matching-but-invalid
+    // signature would be a regression against the tamper-detection
+    // guarantee the column exists for in the first place.
+    assert!(
+        !received.row_sig.is_empty(),
+        "row_sig must survive a real space-scoped apply"
+    );
+    let received_sig_bytes = BASE64
+        .decode(&received.row_sig)
+        .expect("received row_sig is valid base64");
+    let sender_verifying_key = f
+        .cache
+        .get("space_1")
+        .expect("sender's space_1 signing key cached")
+        .verifying_key();
+    assert!(
+        verify_registry_row(
+            &received.payload(),
+            &received_sig_bytes,
+            &sender_verifying_key
+        )
+        .is_ok(),
+        "row_sig must verify against the received payload under the sender's space_1 key"
     );
 }

@@ -882,6 +882,65 @@ fn sign_registry_row_self(
             rusqlite::params![sig_b64, final_authored_by_did, canonical_row_pks, row.id],
         )
         .map_err(DatabaseError::from)?;
+
+        // Per-column signature for `row_sig`. F1 (`sign_written_rows`, line
+        // 118) already ran with the caller's `touched` set, which never
+        // includes `row_sig` (a caller supplying it is rejected above), so
+        // without this pass the scanner ships the `row_sig` column change
+        // with no signature. The receiver's per-column signature gate
+        // (`verify_change_sig` in `crdt/commands/apply/policy.rs`,
+        // `enforce_sigs` branch) then drops the unsigned `row_sig` change
+        // — the exemption at that gate covers only `authored_by_did` as
+        // legacy leader-attributed metadata — and the row lands on a
+        // fresh peer with `row_sig` at the schema default (`''`),
+        // defeating the tamper-detection column's entire purpose.
+        //
+        // `authored_by_did` and the canonicalised `row_pks` are also
+        // rewritten by the UPDATE above, but the receiver already accepts
+        // both: `authored_by_did` via the named exemption, `row_pks`
+        // because canonicalisation is idempotent for every real payload
+        // (JSON array or object of primitives), so F1's earlier sig over
+        // the pre-canonical value still verifies against the value
+        // shipped.
+        //
+        // Preimage `row_pks_json` here is the REGISTRY ROW's own PK JSON
+        // (`{"id": row.id}`) — the shape F1 uses for every other column
+        // of this row, and therefore what the receiver's
+        // `verify_change_sig` will rebuild against. NOT to be confused
+        // with `canonical_row_pks`, which is the content of the `row_pks`
+        // COLUMN (the target extension row's PKs).
+        let registry_row_pks_json = serde_json::to_string(&serde_json::json!({
+            COL_SHARED_SPACE_SYNC_ID: row.id,
+        }))
+        .map_err(|e| DatabaseError::SerializationError {
+            reason: format!("registry row_pks_json: {e}"),
+        })?;
+        let did = did_key_from_public_key(&signing_key.verifying_key());
+        let row_sig_value = RusqliteValue::Text(sig_b64.clone());
+        let value_bytes_vec = value_bytes::to_canonical_bytes(&row_sig_value);
+        let per_col_sig = sign_column(
+            &signing_key,
+            row.space_id.as_bytes(),
+            TABLE_SHARED_SPACE_SYNC.as_bytes(),
+            registry_row_pks_json.as_bytes(),
+            COL_SHARED_SPACE_SYNC_ROW_SIG.as_bytes(),
+            tx_hlc.as_bytes(),
+            did.as_bytes(),
+            &value_bytes_vec,
+        );
+        upsert_column_sigs(
+            &*tx,
+            TABLE_SHARED_SPACE_SYNC,
+            &registry_row_pks_json,
+            COL_SHARED_SPACE_SYNC_ROW_SIG,
+            &row.space_id,
+            &SigRecord {
+                author_did: did,
+                sig: per_col_sig.to_bytes(),
+                storage_class: value_bytes::StorageClass::of(&row_sig_value),
+            },
+        )
+        .map_err(DatabaseError::from)?;
     }
 
     Ok(())
