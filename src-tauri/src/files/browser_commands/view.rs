@@ -86,8 +86,7 @@ pub async fn files_open(
             .clone()
             .unwrap_or_else(|| "application/octet-stream".to_owned());
         let source: Option<Arc<dyn StreamingSource>> = match route(&storage, &path).await? {
-            // Video and audio from encrypted folders come with spec 048 US4.
-            Route::Encrypted(at) if matches!(kind, ViewerKind::Image | ViewerKind::Pdf) => {
+            Route::Encrypted(at) if streams(kind) => {
                 let (folder, version) = file_at(&storage, &at).await?;
                 let file = EncryptedFile::open(&storage, folder, &version).await?;
                 Some(Arc::new(EncryptedFileSource::new(file, mime)))
