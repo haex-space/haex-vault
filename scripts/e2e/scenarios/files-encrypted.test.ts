@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-
 import { deviceFiles } from '../lib/extension-files.ts'
 import { fileFixture } from '../lib/file-fixtures.ts'
 import {
@@ -22,6 +19,7 @@ import {
 } from '../lib/rustfs.ts'
 import { scenario, type ScenarioContext } from '../lib/scenario.ts'
 import { connectStorage, filesGo } from '../lib/storage-setup.ts'
+import { encryptedSystemAppFiles } from '../lib/system-app-files.ts'
 import { runAction } from '../lib/settings.ts'
 
 // Spec 048, quickstart §2 and §3 (T031, T035): an encrypted folder in a storage of RustFS. It is
@@ -316,12 +314,7 @@ scenario(
     ctx.step('a copy into an ordinary folder asked first')
 
     // "Mit System-App öffnen" shows its notice; confirmed, the copy lies in its own place.
-    const opened = join(
-      instance.root,
-      'cache',
-      'com.haex.holzi',
-      'files-opened-encrypted',
-    )
+    const appFiles = encryptedSystemAppFiles(instance.root)
     await instance.click('files-entry-Unterlagen')
     await instance.waitForDisplayed('files-entry-Archiv')
     await contextMenu(instance, 'files-entry-brief.pdf')
@@ -332,7 +325,7 @@ scenario(
     // command ran with the confirmation.
     await ctx.waitFor(
       'the decrypted copy for the system app',
-      () => existsSync(opened) && readdirSync(opened).length > 0,
+      () => appFiles.hasOpenedCopy(),
     )
     ctx.step('open with the system app after the notice')
 
@@ -341,19 +334,17 @@ scenario(
     await instance.press('lock-instance')
     await instance.waitForEnd(PROCESS_END_LIMIT_MS)
     assert.ok(
-      !existsSync(opened) || readdirSync(opened).length === 0,
+      appFiles.hasNoOpenedCopy(),
       'no copy left after the close',
     )
-    const logs = join(instance.root, 'data', 'com.haex.holzi', 'logs')
-    const logFiles = existsSync(logs) ? readdirSync(logs) : []
-    for (const file of logFiles) {
-      const text = readFileSync(join(logs, file), 'utf8')
+    const logTexts = appFiles.logTexts()
+    for (const text of logTexts) {
       for (const secret of [...SECRET_NAMES, 'Rechnungen', 'Archiv', 'strom'])
-        assert.ok(!text.includes(secret), `${secret} in the log ${file}`)
+        assert.ok(!text.includes(secret), `${secret} in a log`)
     }
     ctx.step(
       'closed: no copy left, nothing named in the log',
-      `${logFiles.length} log files`,
+      `${logTexts.length} log files`,
     )
   },
 )
