@@ -2184,6 +2184,7 @@
       "modified": "Modified"
     },
     "encrypted": {
+      "damagedEntry": "Damaged entry",
       "notice": {
         "title": "Encrypted folder",
         "body": "What you put into an encrypted folder is encrypted by holzi before it goes to the cloud storage. The provider sees neither contents nor names. Only this vault can read it, on any of its devices. If the vault is lost and there is no backup, the files can no longer be read.",

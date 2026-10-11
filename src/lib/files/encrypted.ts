@@ -59,3 +59,15 @@ export function encryptedLook(entry: EncryptedEntry): EncryptedLook | null {
     return { icon: 'lucide:folder-key', stateKey: null }
   return null
 }
+
+/**
+ * The i18n key of the name to show instead of `entry.name`, or `null` to show the name. A folder
+ * whose head cannot be read keeps its random prefix as name (`….hxef`), and a sidecar that does
+ * not open keeps its id: neither means anything to a person.
+ */
+export function shownNameKey(entry: EncryptedEntry): string | null {
+  const info = entry.encrypted
+  if (!info || info.state === 'readable') return null
+  if (info.role === 'folder') return `files.encrypted.state.${info.state}`
+  return 'files.encrypted.damagedEntry'
+}

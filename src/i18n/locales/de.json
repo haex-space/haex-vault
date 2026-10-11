@@ -2184,6 +2184,7 @@
       "modified": "Geändert"
     },
     "encrypted": {
+      "damagedEntry": "Beschädigter Eintrag",
       "notice": {
         "title": "Verschlüsselter Ordner",
         "body": "Was du in einen verschlüsselten Ordner legst, verschlüsselt holzi, bevor es in den Cloud-Speicher geht. Der Anbieter sieht weder Inhalte noch Namen. Lesen lässt es sich nur mit dieser Vault, auf jedem ihrer Geräte. Geht die Vault verloren und gibt es kein Backup, sind die Dateien nicht mehr lesbar.",

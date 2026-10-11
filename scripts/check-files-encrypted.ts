@@ -6,6 +6,7 @@ import { test } from 'node:test'
 import {
   canCreateEncrypted,
   encryptedLook,
+  shownNameKey,
 } from '../src/lib/files/encrypted.ts'
 import { folderMenu } from '../src/lib/files/menus.ts'
 
@@ -117,5 +118,30 @@ test('states that cannot be read name themselves', () => {
       encrypted: { role: 'folder', state: 'newerFormat' },
     })?.stateKey,
     'files.encrypted.state.newerFormat',
+  )
+})
+
+test('unreadable encrypted entries show a word, not their random id', () => {
+  assert.equal(
+    shownNameKey({
+      kind: 'dir',
+      encrypted: { role: 'folder', state: 'readable' },
+    }),
+    null,
+  )
+  assert.equal(shownNameKey({ kind: 'file', encrypted: null }), null)
+  assert.equal(
+    shownNameKey({
+      kind: 'dir',
+      encrypted: { role: 'folder', state: 'otherVault' },
+    }),
+    'files.encrypted.state.otherVault',
+  )
+  assert.equal(
+    shownNameKey({
+      kind: 'file',
+      encrypted: { role: 'inside', state: 'damaged' },
+    }),
+    'files.encrypted.damagedEntry',
   )
 })
