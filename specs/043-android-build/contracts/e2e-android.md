@@ -41,7 +41,9 @@ Emulator mit `su` (Google-APIs-Image) leitet seine Firewall `127.0.0.1:P` über 
 Emulator-Netz an `10.0.2.2:P` weiter (eigene NAT-Ketten `holzi_e2e_out`/`holzi_e2e_post`, im
 Preflight eingerichtet, `E2E_ANDROID_REDIRECT=1`); `adb reverse` trug den Sync-Verkehr über
 dieselbe adb-Verbindung wie chromedriver, und ein großer Sync ließ adb den Emulator verlieren
-(„device offline“). Ein Telefon ohne `su` bekommt `adb reverse tcp:P tcp:P`. adbd bleibt der
+(„device offline“). Vor den Szenarien prüft der Lauf bis 30 s, ob das Gerät einen Wegwerf-Server
+des Testrechners so erreicht; kommt das Emulator-Netz nicht hoch, nimmt er `adb reverse` und sagt
+es. Ein Telefon ohne `su` bekommt `adb reverse tcp:P tcp:P`. adbd bleibt der
 shell-Benutzer (kein `adb root`: gepushte Dateien gehörten sonst root, die App könnte sie nicht
 öffnen). Bricht adb kurz ab, warten `am force-stop` und `pm clear` beim Aufräumen bis 30 s auf
 das Gerät und versuchen es noch einmal. iroh-Relays in Android-Läufen: `http://127.0.0.1:3340`
