@@ -7,7 +7,7 @@
 //! - [`tree`]: the view of a folder from its sidecars.
 //! - [`ops`]: list, stat, read and create inside; [`manage`]: rename, delete and the versions they
 //!   replace; [`cleanup`]: what stays behind; [`source`]: reading ranges block by block;
-//!   [`transfer`]: sealing uploads.
+//!   [`transfer`]: sealing uploads; [`opened`]: copies for the system's apps.
 //!
 //! Opened folders ([`EncryptedFolders`]) keep their keys in memory as `Zeroizing` until the vault
 //! closes. Nothing here logs a name, a path or an object key of an encrypted folder (FR-027).
@@ -17,6 +17,7 @@ pub mod cleanup;
 pub mod format;
 pub mod load;
 pub mod manage;
+pub mod opened;
 pub mod ops;
 pub mod redacted;
 pub mod route;

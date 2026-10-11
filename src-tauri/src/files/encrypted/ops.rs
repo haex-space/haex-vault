@@ -28,11 +28,6 @@ fn soon() -> Instant {
     Instant::now() + CALL
 }
 
-/// The error for what is still to come (opening with the system's app).
-pub fn later() -> FilesError {
-    FilesError::new(FilesErrorCode::Unsupported, "not in encrypted folders yet")
-}
-
 fn not_found() -> FilesError {
     FilesError::new(FilesErrorCode::NotFound, "not found")
 }

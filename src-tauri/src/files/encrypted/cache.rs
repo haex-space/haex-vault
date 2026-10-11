@@ -135,6 +135,43 @@ pub fn put_head(
     Ok(())
 }
 
+/// Whether "Nicht mehr fragen" was chosen on this device for opening files of folder `folder_id`
+/// with the system's app (FR-028).
+pub fn open_ack(q: &mut impl Query, storage_id: &str, folder_id: &str) -> haex_crdt::Result<bool> {
+    let acks: Vec<i64> = q.query_map(
+        "SELECT open_ack FROM encrypted_folder_heads_no_sync \
+         WHERE storage_id = ?1 AND folder_id = ?2",
+        params![storage_id, folder_id],
+        |r| r.get(0),
+    )?;
+    Ok(acks.iter().any(|ack| *ack != 0))
+}
+
+/// Notes "Nicht mehr fragen" for folder `folder_id` at the head `object_key`. A folder this device
+/// created has no row before a listing read its head: the row starts without an ETag then, so the
+/// next listing reads the head and fills it in, keeping the answer.
+pub fn set_open_ack(
+    tx: &mut CrdtTransaction<'_>,
+    storage_id: &str,
+    folder_id: &str,
+    object_key: &str,
+) -> haex_crdt::Result<()> {
+    let updated = tx.execute(
+        "UPDATE encrypted_folder_heads_no_sync SET open_ack = 1 \
+         WHERE storage_id = ?1 AND folder_id = ?2",
+        params![storage_id, folder_id],
+    )?;
+    if updated == 0 {
+        tx.execute(
+            "INSERT INTO encrypted_folder_heads_no_sync \
+             (storage_id, object_key, etag, folder_id, name, state, key_id, open_ack, loaded_at) \
+             VALUES (?1, ?2, '', ?3, NULL, 'readable', NULL, 1, 0)",
+            params![storage_id, object_key, folder_id],
+        )?;
+    }
+    Ok(())
+}
+
 /// Drops the heads at `object_keys` (their folders are gone from the listing).
 pub fn drop_heads(
     tx: &mut CrdtTransaction<'_>,
