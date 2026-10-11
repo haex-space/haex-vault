@@ -1,6 +1,5 @@
 //! The viewer, thumbnails and opening with the system's app (spec 044 US1, US2).
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -335,7 +334,7 @@ async fn download_to_open(
     storage: &StorageFiles,
     files: &FilesState,
     path: &str,
-) -> Result<PathBuf, FilesError> {
+) -> Result<std::path::PathBuf, FilesError> {
     let entry = storage.stat(path).await?;
     if entry.kind != EntryKind::File {
         return Err(FilesError::invalid_path("not a file"));
