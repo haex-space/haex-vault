@@ -115,6 +115,13 @@ impl FakeStore {
     }
 }
 
+/// An ETag that changes with the content, as a provider's does.
+fn etag(body: &[u8]) -> String {
+    use sha2::Digest;
+    let digest = sha2::Sha256::digest(body);
+    format!("\"{}\"", data_encoding::HEXLOWER.encode(&digest[..8]))
+}
+
 fn slot(access: &Access, key: &str) -> (String, String) {
     (access.location.bucket.clone(), key.to_owned())
 }
@@ -175,6 +182,7 @@ impl RemoteStore for FakeStore {
                 key: k.clone(),
                 size: body.len() as u64,
                 last_modified: "2026-10-06T10:00:00.000Z".to_owned(),
+                etag: etag(body),
             })
             .collect();
         if objects.len() > max {
@@ -203,16 +211,17 @@ impl RemoteStore for FakeStore {
         _deadline: Instant,
     ) -> Result<ObjectHead, StorageError> {
         self.enter(Op::Head, key)?;
-        let size = self
+        let (size, etag) = self
             .objects
             .lock()
             .expect("lock")
             .get(&slot(access, key))
-            .map(|body| body.len() as u64)
+            .map(|body| (body.len() as u64, etag(body)))
             .ok_or(StorageError::NotFound)?;
         Ok(ObjectHead {
             size,
             last_modified: Some("Tue, 06 Oct 2026 10:00:00 GMT".to_owned()),
+            etag: Some(etag),
         })
     }
 
@@ -266,6 +275,7 @@ impl RemoteStore for FakeStore {
                     key: key.clone(),
                     size: body.len() as u64,
                     last_modified: "2026-10-06T10:00:00.000Z".to_owned(),
+                    etag: etag(body),
                 }),
             }
         }

@@ -288,6 +288,7 @@ impl RemoteStore for S3Store {
                 key: object.key,
                 size: object.size,
                 last_modified: object.last_modified,
+                etag: object.etag,
             }));
             if objects.len() > max {
                 return Err(StorageError::TooLarge);
@@ -342,6 +343,7 @@ impl RemoteStore for S3Store {
         Ok(ObjectHead {
             size,
             last_modified: header("last-modified"),
+            etag: header("etag"),
         })
     }
 

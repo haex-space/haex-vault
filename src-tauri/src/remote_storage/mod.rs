@@ -211,6 +211,8 @@ pub struct ObjectInfo {
     pub key: String,
     pub size: u64,
     pub last_modified: String,
+    /// The provider's ETag, quotes included; changes with the content (spec 048, research R6).
+    pub etag: String,
 }
 
 /// What a `HEAD` tells about an object (spec 044 FR-034).
@@ -219,6 +221,8 @@ pub struct ObjectHead {
     pub size: u64,
     /// The provider's `Last-Modified` (an HTTP date), when it sent one.
     pub last_modified: Option<String>,
+    /// The provider's ETag, when it sent one.
+    pub etag: Option<String>,
 }
 
 /// One level of a bucket below a prefix (spec 044 FR-034): the objects right there and the

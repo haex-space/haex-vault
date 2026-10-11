@@ -47,6 +47,7 @@ pub(super) async fn list_dir(
                     key: object.key,
                     size: object.size,
                     last_modified: object.last_modified,
+                    etag: object.etag,
                 }),
         );
         listing
