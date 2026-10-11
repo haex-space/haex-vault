@@ -316,27 +316,35 @@ scenario(
     assert.ok((await listKeys(rustfs, BUCKET)).includes('brief.pdf'))
     ctx.step('a copy into an ordinary folder asked first')
 
-    // "Mit System-App öffnen" shows its notice; confirmed, the copy lies in its own place.
-    const appFiles = encryptedSystemAppFiles(instance.root)
-    await instance.click('files-entry-Unterlagen')
-    await instance.waitForDisplayed('files-entry-Archiv')
-    await contextMenu(instance, 'files-entry-brief.pdf')
-    await instance.click('files-menu-openSystem')
-    await instance.waitForDisplayed('files-open-system-notice')
-    await instance.click('files-open-system-confirm')
-    // Whether a system app is there to open it does not matter here: the copy shows that the
-    // command ran with the confirmation.
-    await ctx.waitFor('the decrypted copy for the system app', () =>
-      appFiles.hasOpenedCopy(),
-    )
-    ctx.step('open with the system app after the notice')
+    // Android has no system-app action in the files menu yet (research R11), so this part is
+    // covered only by the desktop run.
+    const appFiles =
+      process.env.E2E_PLATFORM === 'android'
+        ? undefined
+        : encryptedSystemAppFiles(instance.root)
+    if (appFiles !== undefined) {
+      // "Mit System-App öffnen" shows its notice; confirmed, the copy lies in its own place.
+      await instance.click('files-entry-Unterlagen')
+      await instance.waitForDisplayed('files-entry-Archiv')
+      await contextMenu(instance, 'files-entry-brief.pdf')
+      await instance.click('files-menu-openSystem')
+      await instance.waitForDisplayed('files-open-system-notice')
+      await instance.click('files-open-system-confirm')
+      // Whether a system app is there to open it does not matter here: the copy shows that the
+      // command ran with the confirmation.
+      await ctx.waitFor('the decrypted copy for the system app', () =>
+        appFiles.hasOpenedCopy(),
+      )
+      ctx.step('open with the system app after the notice')
+    }
 
     // Closing the vault removes the copies; the app's log names nothing of the folder (SC-009).
     await openLauncher(instance)
     await instance.press('lock-instance')
     await instance.waitForEnd(PROCESS_END_LIMIT_MS)
-    assert.ok(appFiles.hasNoOpenedCopy(), 'no copy left after the close')
-    const logTexts = appFiles.logTexts()
+    if (appFiles !== undefined)
+      assert.ok(appFiles.hasNoOpenedCopy(), 'no copy left after the close')
+    const logTexts = appFiles?.logTexts() ?? []
     for (const text of logTexts) {
       for (const secret of [...SECRET_NAMES, 'Rechnungen', 'Archiv', 'strom'])
         assert.ok(!text.includes(secret), `${secret} in a log`)
