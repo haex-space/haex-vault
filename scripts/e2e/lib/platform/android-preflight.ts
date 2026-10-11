@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs'
 import { createAdb, deviceSerial, realAdbRunner } from './adb.ts'
 import type { AdbRunner } from './adb.ts'
 import { PACKAGE } from './android.ts'
+import { prepareRedirect, REDIRECT_ENV } from './reach.ts'
 
 export interface AndroidPreflight {
   ok: boolean
@@ -175,6 +176,14 @@ export function checkAndroidPreflight(
   }
 
   const env: Record<string, string> = { ANDROID_SERIAL: serial }
+  try {
+    // Services of the run reach an emulator through its network, not through adb (see `reach.ts`).
+    if (prepareRedirect(adb)) env[REDIRECT_ENV] = '1'
+  } catch (error) {
+    messages.push(
+      `could not prepare ${serial} to reach this machine: ${(error as Error).message}`,
+    )
+  }
   if (chromedriver !== undefined) env.E2E_CHROMEDRIVER = chromedriver
   if (irohRelay !== undefined) env.E2E_IROH_RELAY = irohRelay
   return { ok: messages.length === 0, messages, versions, env }

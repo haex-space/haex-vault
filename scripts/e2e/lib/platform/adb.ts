@@ -24,10 +24,38 @@ export interface Adb {
   reverse(port: number): void
   /** Runs `sh -c script` as the app (debug builds only) and returns its raw output. */
   runAs(pkg: string, script: string): Buffer
+  /**
+   * Runs `sh -c script` as root through the device's `su` (an emulator image with Google APIs lets the
+   * shell use it, a phone does not) and returns its trimmed output. adbd itself stays the shell user,
+   * so the files it pushes keep an owner the app may open (under `adb root` they do not).
+   */
+  su(script: string): string
   /** Copies a file of this machine to `remote` on the device (outside any app's storage). */
   push(local: string, remote: string): void
   /** Copies the file `remote` of the device (outside any app's storage) to this machine. */
   pull(remote: string, local: string): void
+  /**
+   * Waits until adb sees the device again (after its connection dropped, "device offline"); false
+   * when it does not within `limitMs`. Synchronous, as the teardown that needs it.
+   */
+  waitForDevice(limitMs?: number): boolean
+}
+
+/** Blocks this thread for `ms` (the adb calls here are synchronous anyway). */
+const sleepSync = (ms: number) =>
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+
+/**
+ * Runs `action`; when adb fails, waits for the device to come back once and runs it again. A short
+ * drop of the adb connection must not leave the app running for the next scenario.
+ */
+export function withDevice<T>(adb: Adb, action: () => T): T {
+  try {
+    return action()
+  } catch (error) {
+    if (!adb.waitForDevice()) throw error
+    return action()
+  }
 }
 
 export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
@@ -61,11 +89,28 @@ export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
     runAs(pkg, script) {
       return adb(['exec-out', 'run-as', pkg, 'sh', '-c', script])
     },
+    su(script) {
+      // adb joins the arguments into one command line for the device's shell: quote the script.
+      const quoted = `'${script.replaceAll("'", "'\\''")}'`
+      return adb(['shell', 'su', '0', 'sh', '-c', quoted]).toString().trim()
+    },
     push(local, remote) {
       adb(['push', local, remote])
     },
     pull(remote, local) {
       adb(['pull', remote, local])
+    },
+    waitForDevice(limitMs = 30_000) {
+      const end = Date.now() + limitMs
+      for (;;) {
+        try {
+          if (adb(['get-state']).toString().trim() === 'device') return true
+        } catch {
+          // Offline or gone for now.
+        }
+        if (Date.now() >= end) return false
+        sleepSync(500)
+      }
     },
   }
 }

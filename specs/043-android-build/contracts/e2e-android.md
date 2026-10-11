@@ -36,8 +36,15 @@ Sitzung: `POST /session` an chromedriver mit
 "androidUseRunningApp": true } }`. URLs: `tauri://localhost` → `http://tauri.localhost`,
 `holzi-ext://localhost` → `http://holzi-ext.localhost`.
 
-Dienste: Für jeden Port eines Dienstes auf dem Testrechner `adb reverse tcp:P tcp:P`; alle
-Geräte benutzen `127.0.0.1`. iroh-Relays in Android-Läufen: `http://127.0.0.1:3340`
+Dienste: Alle Geräte benutzen `127.0.0.1:P` für einen Dienst auf dem Testrechner. Auf einem
+Emulator mit `su` (Google-APIs-Image) leitet seine Firewall `127.0.0.1:P` über das
+Emulator-Netz an `10.0.2.2:P` weiter (eigene NAT-Ketten `holzi_e2e_out`/`holzi_e2e_post`, im
+Preflight eingerichtet, `E2E_ANDROID_REDIRECT=1`); `adb reverse` trug den Sync-Verkehr über
+dieselbe adb-Verbindung wie chromedriver, und ein großer Sync ließ adb den Emulator verlieren
+(„device offline“). Ein Telefon ohne `su` bekommt `adb reverse tcp:P tcp:P`. adbd bleibt der
+shell-Benutzer (kein `adb root`: gepushte Dateien gehörten sonst root, die App könnte sie nicht
+öffnen). Bricht adb kurz ab, warten `am force-stop` und `pm clear` beim Aufräumen bis 30 s auf
+das Gerät und versuchen es noch einmal. iroh-Relays in Android-Läufen: `http://127.0.0.1:3340`
 (`iroh-relay --dev`); Linux-Läufe bleiben beim geschlossenen Port.
 
 Darstellung: `wm size 2560x1600`, `wm density 320` für Desktop-Szenarien; Android-Fälle für
@@ -100,7 +107,7 @@ Abdeckungsrechnung der Desktop-Fälle.
   `addDevice('…', 'phone')` hinzugefügtes Gerät läuft dann auf Linux (`sync-link`: der Laptop auf
   dem Telefon verknüpft ein Linux-Gerät). Jedes Gerät merkt sich seinen Host.
 - iroh-Relay: pro Szenario mit Gruppe ein `iroh-relay --dev` auf einem freien Port statt fest 3340
-  (der Port steht in einer eigenen Konfiguration, Metriken aus), `adb reverse` dafür; alle Geräte
+  (der Port steht in einer eigenen Konfiguration, Metriken aus), erreichbar wie die Dienste oben; alle Geräte
   bekommen `http://127.0.0.1:<port>` als einzigen iroh-Relay. Der Preflight verlangt `iroh-relay`
   (`E2E_IROH_RELAY` oder `PATH`).
 - Linux-Teil: Ein Android-Lauf prüft zusätzlich die Linux-Werkzeuge und baut die Linux-App wie ein
