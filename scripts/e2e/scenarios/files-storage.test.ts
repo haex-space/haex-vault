@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { deviceFiles } from '../lib/extension-files.ts'
 import { fileFixture } from '../lib/file-fixtures.ts'
 import { createAndUnlock, type FlowInstance } from '../lib/flows.ts'
-import { contextMenu } from '../lib/passwords.ts'
+import { contextMenu, doubleClick } from '../lib/passwords.ts'
 import { listKeys, putObject, startRustfs } from '../lib/rustfs.ts'
 import { scenario } from '../lib/scenario.ts'
 import { connectStorage, filesGo } from '../lib/storage-setup.ts'
@@ -89,14 +89,14 @@ scenario(
     ctx.step('a new folder and a renamed one')
 
     // A text and a film from the storage.
-    await instance.click('files-entry-notiz.txt')
+    await doubleClick(instance, 'files-entry-notiz.txt')
     await instance.waitForDisplayed('files-viewer-text')
     assert.match(
       await textOf(instance, 'files-viewer-text'),
       /Hallo aus dem Speicher/,
     )
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-film.mp4')
+    await doubleClick(instance, 'files-entry-film.mp4')
     await instance.waitForDisplayed('files-viewer-video')
     await ctx.waitFor('the film to play and seek', () =>
       instance.exec<boolean>(

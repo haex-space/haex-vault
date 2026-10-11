@@ -581,14 +581,6 @@ watch(tabActive, (active) => {
         data-testid="files-main"
         @keydown.esc="selection = EMPTY_SELECTION"
       >
-        <FilesActionBar
-          v-if="selecting || canPaste"
-          :selected="selection.paths.length"
-          :can-paste="canPaste"
-          :read-only="folderOwned"
-          @run="runBar"
-          @clear="selection = EMPTY_SELECTION"
-        />
         <FilesSearchResults
           v-if="searchQuery && path"
           class="flex-1"
@@ -620,12 +612,24 @@ watch(tabActive, (active) => {
               :dimmed="dimmed"
               :settings-link="settingsLink"
               @press="onPress"
+              @open="activate"
+              @clear="selection = EMPTY_SELECTION"
               @context="onContext"
               @drop="onDrop"
               @settings="openStorageSettings"
             />
           </FilesMenu>
         </FilesDropTarget>
+        <!-- Below the list: appearing above it would move the rows between the two clicks of a
+             double click. -->
+        <FilesActionBar
+          v-if="selecting || canPaste"
+          :selected="selection.paths.length"
+          :can-paste="canPaste"
+          :read-only="folderOwned"
+          @run="runBar"
+          @clear="selection = EMPTY_SELECTION"
+        />
         <FilesViewer
           v-if="openEntry"
           :source="source"

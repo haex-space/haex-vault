@@ -3,8 +3,9 @@
  * The open folder as list or grid (spec 044 FR-003, FR-008): both scroll virtually, so a folder
  * with 50 000 entries mounts only the rows on screen. Loading, empty and error states replace the
  * list; a folder the system denies shows why. A press reports the entry with the keys held (the
- * frame decides between opening and selecting, `lib/files/clipboard.ts`); entries drag onto a
- * folder row or the open folder (FR-018).
+ * frame decides between opening and selecting, `lib/files/clipboard.ts`); a double click, Enter or
+ * Space opens it, a click on the empty area clears the selection. Entries drag onto a folder row or
+ * the open folder (FR-018).
  */
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
@@ -38,6 +39,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   press: [entry: Entry, keys: ClickKeys]
+  open: [entry: Entry]
+  clear: []
   /** The context menu opens over an entry, or over the empty area (`null`). */
   context: [entry: Entry | null]
   settings: []
@@ -100,11 +103,34 @@ function size(entry: Entry): string {
     : formatFileSize(entry.size)
 }
 
+/** The last press came from a finger: a tap opens, and a double tap is no double click. */
+let touch = false
+
 function press(entry: Entry, event: MouseEvent) {
+  // Enter and Space click a focused row without a pointer.
+  if (event.detail === 0) {
+    emit('open', entry)
+    return
+  }
   emit('press', entry, {
     toggle: event.ctrlKey || event.metaKey,
     range: event.shiftKey,
+    touch,
   })
+}
+
+function onPointerdown(event: PointerEvent) {
+  touch = event.pointerType === 'touch'
+}
+
+function open(entry: Entry) {
+  if (!touch) emit('open', entry)
+}
+
+function onBackgroundClick(event: MouseEvent) {
+  if (!(event.target as HTMLElement | null)?.closest('[data-path]')) {
+    emit('clear')
+  }
 }
 
 function onContextMenu(event: MouseEvent) {
@@ -172,6 +198,7 @@ const errorText = computed(() => {
     ref="container"
     class="h-full min-h-0"
     :class="dropOver === folder ? 'ring-2 ring-primary ring-inset' : ''"
+    @pointerdown="onPointerdown"
     @contextmenu="onContextMenu"
     @dragover="onDragOver(null, $event)"
     @dragleave="dropOver = null"
@@ -208,6 +235,7 @@ const errorText = computed(() => {
       role="list"
       :aria-busy="loading"
       data-testid="files-entries"
+      @click="onBackgroundClick"
     >
       <div v-bind="wrapperProps">
         <template v-if="view === 'list'">
@@ -224,6 +252,7 @@ const errorText = computed(() => {
             :aria-selected="entry ? selected.includes(entry.path) : undefined"
             :draggable="!!entry"
             @click="entry && press(entry, $event)"
+            @dblclick="entry && open(entry)"
             @dragstart="entry && onDragStart(entry, $event)"
             @dragover="entry && onDragOver(entry, $event)"
             @drop="entry && onDrop(entry, $event)"
@@ -280,6 +309,7 @@ const errorText = computed(() => {
               :aria-selected="selected.includes(entry.path)"
               draggable="true"
               @click="press(entry, $event)"
+              @dblclick="open(entry)"
               @dragstart="onDragStart(entry, $event)"
               @dragover="onDragOver(entry, $event)"
               @drop="onDrop(entry, $event)"

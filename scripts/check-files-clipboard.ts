@@ -18,35 +18,46 @@ import {
 import { entriesMenu, folderMenu } from '../src/lib/files/menus.ts'
 
 const ORDER = ['/x/a', '/x/b', '/x/c', '/x/d']
-const NO_KEYS = { toggle: false, range: false }
+const CLICK = { toggle: false, range: false, touch: false }
+const TAP = { toggle: false, range: false, touch: true }
 
-test('a plain click without a selection opens the entry', () => {
-  const result = clickEntry(EMPTY_SELECTION, '/x/a', ORDER, NO_KEYS)
+test('a plain click selects the entry alone and opens nothing', () => {
+  const first = clickEntry(EMPTY_SELECTION, '/x/a', ORDER, CLICK)
+  assert.equal(first.activate, false)
+  assert.deepEqual(first.selection, { paths: ['/x/a'], anchor: '/x/a' })
+  const many: Selection = { paths: ['/x/a', '/x/b'], anchor: '/x/a' }
+  const other = clickEntry(many, '/x/c', ORDER, CLICK)
+  assert.equal(other.activate, false)
+  assert.deepEqual(other.selection, { paths: ['/x/c'], anchor: '/x/c' })
+})
+
+test('a tap without a selection opens the entry', () => {
+  const result = clickEntry(EMPTY_SELECTION, '/x/a', ORDER, TAP)
   assert.equal(result.activate, true)
   assert.deepEqual(result.selection, EMPTY_SELECTION)
 })
 
-test('toggle adds and removes; with a selection a plain click toggles too', () => {
+test('toggle adds and removes; with a selection a tap toggles too', () => {
   let selection: Selection = EMPTY_SELECTION
   ;({ selection } = clickEntry(selection, '/x/a', ORDER, {
+    ...CLICK,
     toggle: true,
-    range: false,
   }))
   assert.deepEqual(selection.paths, ['/x/a'])
-  const plain = clickEntry(selection, '/x/c', ORDER, NO_KEYS)
+  const plain = clickEntry(selection, '/x/c', ORDER, TAP)
   assert.equal(plain.activate, false)
   assert.deepEqual(plain.selection.paths, ['/x/a', '/x/c'])
-  const off = clickEntry(plain.selection, '/x/a', ORDER, NO_KEYS)
+  const off = clickEntry(plain.selection, '/x/a', ORDER, TAP)
   assert.deepEqual(off.selection.paths, ['/x/c'])
-  const none = clickEntry(off.selection, '/x/c', ORDER, NO_KEYS)
+  const none = clickEntry(off.selection, '/x/c', ORDER, TAP)
   assert.deepEqual(none.selection, EMPTY_SELECTION)
 })
 
 test('a range runs from the anchor in folder order, both ways', () => {
   const start: Selection = { paths: ['/x/b'], anchor: '/x/b' }
-  const down = clickEntry(start, '/x/d', ORDER, { toggle: false, range: true })
+  const down = clickEntry(start, '/x/d', ORDER, { ...CLICK, range: true })
   assert.deepEqual(down.selection.paths, ['/x/b', '/x/c', '/x/d'])
-  const up = clickEntry(start, '/x/a', ORDER, { toggle: false, range: true })
+  const up = clickEntry(start, '/x/a', ORDER, { ...CLICK, range: true })
   assert.deepEqual(up.selection.paths, ['/x/a', '/x/b'])
 })
 

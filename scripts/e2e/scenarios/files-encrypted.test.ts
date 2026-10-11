@@ -7,7 +7,7 @@ import {
   type FlowInstance,
 } from '../lib/flows.ts'
 import { PROCESS_END_LIMIT_MS } from '../lib/close-promises.ts'
-import { contextMenu } from '../lib/passwords.ts'
+import { contextMenu, doubleClick } from '../lib/passwords.ts'
 import { solidPng } from '../lib/png.ts'
 import {
   getObject,
@@ -139,12 +139,12 @@ scenario(
       await instance.click('files-menu-copy')
       await instance.click('files-storage-Fotos')
       await instance.waitForDisplayed('files-entry-Unterlagen')
-      await instance.click('files-entry-Unterlagen')
+      await doubleClick(instance, 'files-entry-Unterlagen')
       await instance.click('files-action-paste')
       await instance.waitForDisplayed(`files-entry-${name}`)
     }
-    await instance.click('files-entry-Belege')
-    await instance.click('files-entry-d0')
+    await doubleClick(instance, 'files-entry-Belege')
+    await doubleClick(instance, 'files-entry-d0')
     await instance.waitForDisplayed('files-entry-f0-0.txt')
     await instance.click('files-up')
     await instance.click('files-up')
@@ -176,14 +176,14 @@ scenario(
     ctx.step('the bucket holds nothing in the clear')
 
     // The browser opens text, PDF and image, and shows a thumbnail in the grid.
-    await instance.click('files-entry-notiz.txt')
+    await doubleClick(instance, 'files-entry-notiz.txt')
     await instance.waitForDisplayed('files-viewer-text')
     assert.match(await textOf(instance, 'files-viewer-text'), new RegExp(NOTE))
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
+    await doubleClick(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed('files-viewer-pdf')
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-foto.png')
+    await doubleClick(instance, 'files-entry-foto.png')
     await instance.waitForDisplayed('files-viewer-image')
     await instance.click('files-viewer-close')
     await instance.click('files-view-toggle')
@@ -212,17 +212,17 @@ scenario(
     await instance.click('files-reload')
     await instance.waitForDisplayed('files-entry-notiz.txt')
 
-    await instance.click('files-entry-notiz.txt')
+    await doubleClick(instance, 'files-entry-notiz.txt')
     await instance.waitForDisplayed('files-viewer-failed')
     assert.doesNotMatch(
       await textOf(instance, 'files-viewer'),
       new RegExp(NOTE),
     )
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-foto.png')
+    await doubleClick(instance, 'files-entry-foto.png')
     await instance.waitForDisplayed('files-viewer-failed')
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
+    await doubleClick(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed('files-viewer-pdf')
     await instance.click('files-viewer-close')
     ctx.step('changed and cut content is refused, the rest still opens')

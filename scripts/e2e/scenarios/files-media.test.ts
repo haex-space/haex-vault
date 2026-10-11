@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { deviceFiles } from '../lib/extension-files.ts'
 import { fileFixture } from '../lib/file-fixtures.ts'
 import { createAndUnlock, type FlowInstance } from '../lib/flows.ts'
+import { doubleClick } from '../lib/passwords.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 
@@ -69,14 +70,14 @@ scenario('files-media', { timeoutMs: 240_000 }, async (ctx) => {
     await instance.waitForDisplayed('files-entry-film.mp4')
 
     // Audio plays.
-    await instance.click('files-entry-ton.mp3')
+    await doubleClick(instance, 'files-entry-ton.mp3')
     await instance.waitForDisplayed('files-viewer-audio')
     await playing(instance, 'files-viewer-audio')
     ctx.step('the MP3 plays')
     await instance.click('files-viewer-close')
 
     // Video plays and seeks to the middle.
-    await instance.click('files-entry-film.mp4')
+    await doubleClick(instance, 'files-entry-film.mp4')
     await instance.waitForDisplayed('files-viewer-video')
     await playing(instance, 'files-viewer-video')
     await ctx.waitFor('the video to seek to the middle', () =>
@@ -104,7 +105,7 @@ scenario('files-media', { timeoutMs: 240_000 }, async (ctx) => {
     )
 
     // The PDF turns to page 2.
-    await instance.click('files-entry-brief.pdf')
+    await doubleClick(instance, 'files-entry-brief.pdf')
     await instance.waitForDisplayed('files-viewer-pdf')
     await ctx.waitFor(
       'page 1 of the PDF',
@@ -139,7 +140,7 @@ scenario('files-media', { timeoutMs: 240_000 }, async (ctx) => {
 
     // Closing the tab ends the URLs it still holds.
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-film.mp4')
+    await doubleClick(instance, 'files-entry-film.mp4')
     await instance.waitForDisplayed('files-viewer-video')
     const held = await mediaUrl(instance, 'files-viewer-video')
     assert.equal((await fetchFromPage(instance, held, 'bytes=0-0')).status, 206)
