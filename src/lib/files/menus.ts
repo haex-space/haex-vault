@@ -12,6 +12,7 @@ export type FilesCommand =
   | 'rename'
   | 'delete'
   | 'newFolder'
+  | 'newEncryptedFolder'
   | 'openSystem'
 
 export type FilesMenuItem = {
@@ -63,12 +64,15 @@ export type FolderMenuInput = {
   readOnly: boolean
   /** Something is in holzi's clipboard and may go here. */
   canPaste: boolean
+  /** An encrypted folder may be created here (spec 048 FR-001, `lib/files/encrypted.ts`). */
+  canEncrypt?: boolean
 }
 
 /** The menu of the open folder's empty area. */
 export function folderMenu(input: FolderMenuInput): FilesMenuEntry[] {
   return [
     item('newFolder', input.readOnly),
+    ...(input.canEncrypt ? [item('newEncryptedFolder', input.readOnly)] : []),
     item('paste', input.readOnly || !input.canPaste),
   ]
 }
