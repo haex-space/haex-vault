@@ -17,7 +17,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::error::HolziError;
 use crate::files::access::{check, AgentGrants, Target, Verdict, Want};
-use crate::files::encrypted::{Scope, VaultSource};
+use crate::files::encrypted::{Background, Scope, VaultSource};
 use crate::files::local::{resolve, resolve_entry};
 use crate::files::state::FilesState;
 use crate::files::storage_source::StorageFiles;
@@ -74,10 +74,21 @@ pub(crate) async fn window_storage(
             .database()
             .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "no open vault"))
     });
+    let gate = state.gate().clone();
+    let background: Background = Arc::new(move |work| {
+        let token = gate.token();
+        let _ = gate.spawn(async move {
+            tokio::select! {
+                () = token.cancelled() => {}
+                () = work => {}
+            }
+        });
+    });
     Ok(storage_files(state, storage_id).await?.with_scope(Scope {
         storage_id: storage_id.to_owned(),
         folders: Arc::clone(&files.encrypted),
         vault,
+        background,
     }))
 }
 

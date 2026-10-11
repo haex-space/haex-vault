@@ -14,7 +14,7 @@ use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 use crate::files::encrypted::route::{self, decorate, route, Route};
-use crate::files::encrypted::{ops, Scope};
+use crate::files::encrypted::{manage, ops, Scope};
 use crate::files::kind::mime_for;
 use crate::files::local::edit::check_name;
 pub use crate::files::storage_time::{parse_http_date_ms, parse_iso_ms};
@@ -295,8 +295,8 @@ impl StorageFiles {
     /// Renames the entry `path` in its folder: a file is copied on the provider and deleted, a
     /// folder object by object.
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<Entry, FilesError> {
-        if let Route::Encrypted(_) = route(self, path).await? {
-            return Err(ops::later());
+        if let Route::Encrypted(at) = route(self, path).await? {
+            return manage::rename(self, &at, new_name).await;
         }
         check_storage_name(new_name)?;
         let entry = self.stat(path).await?;
@@ -349,8 +349,8 @@ impl StorageFiles {
         cancel: &CancellationToken,
         progress: &mut (dyn FnMut(u64) + Send),
     ) -> Result<(), FilesError> {
-        if let Route::Encrypted(_) = route(self, path).await? {
-            return Err(ops::later());
+        if let Route::Encrypted(at) = route(self, path).await? {
+            return manage::delete(self, &at, cancel, progress).await;
         }
         if self.stat(path).await?.kind == EntryKind::File {
             let key = object_key(path)?;
@@ -371,8 +371,9 @@ impl StorageFiles {
             .into_iter()
             .map(|object| object.key)
             .collect();
-        // The marker last, so a folder stays visible until it is empty.
-        keys.sort_by_key(|key| *key == prefix);
+        // The marker last, so a folder stays visible until it is empty; the head of an encrypted
+        // folder in it after the folder's other objects (spec 048, format "Löschen des Ordners").
+        keys.sort_by_key(|key| (*key == prefix, key.ends_with(".hxef/h")));
         for (done, key) in keys.iter().enumerate() {
             if cancel.is_cancelled() {
                 return Err(FilesError::new(

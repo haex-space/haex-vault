@@ -18,7 +18,7 @@ use super::format::keys::FolderKeys;
 use super::format::sidecar::open_sidecar;
 use super::format::{decode_id, folder_id, Id};
 use super::vault_keys::HeldKeys;
-use crate::files::storage_source::{parse_http_date_ms, storage_error};
+use crate::files::storage_source::{parse_http_date_ms, parse_iso_ms, storage_error};
 use crate::files::{EncryptedState, FilesError};
 use crate::remote_storage::{Access, RemoteStore, StorageError};
 
@@ -26,7 +26,7 @@ use crate::remote_storage::{Access, RemoteStore, StorageError};
 pub const AT_ONCE: usize = 32;
 
 /// The largest head holzi reads (one recipient is 91 bytes; spaces add a few).
-const MAX_HEAD: usize = 64 * 1024;
+pub const MAX_HEAD: usize = 64 * 1024;
 
 /// The largest sidecar holzi reads (a name is at most 255 bytes).
 const MAX_SIDECAR: usize = 64 * 1024;
@@ -208,6 +208,8 @@ pub struct LoadedFolder {
     pub broken: Vec<Id>,
     /// The content objects by `oid` with their length.
     pub contents: HashMap<Id, u64>,
+    /// When the provider last changed each sidecar and content object, ms (for the cleanup).
+    pub times: HashMap<Id, i64>,
 }
 
 /// Loads the folder `prefix` (`P`) with id `fid`; `cached` are the rows the cache holds for it.
@@ -227,9 +229,12 @@ pub async fn load_folder(
     let mut listed: Vec<(Id, String)> = Vec::new();
     for object in objects {
         let rest = &object.key[prefix.len()..];
+        let time = parse_iso_ms(&object.last_modified);
         if let Some(sid) = rest.strip_prefix("m/").and_then(decode_id) {
+            loaded.times.extend(time.map(|time| (sid, time)));
             listed.push((sid, object.etag));
         } else if let Some(oid) = rest.strip_prefix("c/").and_then(decode_id) {
+            loaded.times.extend(time.map(|time| (oid, time)));
             loaded.contents.insert(oid, object.size);
         }
     }

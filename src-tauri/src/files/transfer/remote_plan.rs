@@ -3,6 +3,7 @@
 //! itself within one bucket, too little space for a download; FR-022).
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use tokio::runtime::Handle;
@@ -11,11 +12,13 @@ use walkdir::WalkDir;
 
 use super::local::Totals;
 use super::remote::CALL;
+use super::remote_plan_encrypted::{
+    encrypted_items, encrypted_prefix_of, nested_items, raw_items, relink_items,
+};
 use super::TransferOp;
 use crate::files::encrypted::format::is_folder_prefix;
-use crate::files::encrypted::ops::later;
 use crate::files::encrypted::route::{open, route, view, Located, Route};
-use crate::files::encrypted::tree::{facts, Item as TreeItem, Version};
+use crate::files::encrypted::tree::Version;
 use crate::files::encrypted::OpenFolder;
 use crate::files::local::edit::check_name;
 use crate::files::local::ops::io_error;
@@ -56,16 +59,46 @@ pub(super) struct Item {
     /// An empty folder (device), a folder marker (storage) or a folder entry (encrypted folder):
     /// made at the target, never asked.
     pub(super) folder: bool,
-    /// A file or folder of an encrypted folder (spec 048); `from` is then its window path.
+    /// A file or folder of an encrypted folder (spec 048); `from` is then empty.
     pub(super) encrypted: Option<EncSource>,
+}
+
+/// What a node of an encrypted folder is, as a transfer's source.
+#[derive(Clone)]
+pub(super) enum EncNode {
+    /// The encrypted folder itself.
+    Root,
+    /// The virtual folder of entries whose parent is gone.
+    Recovered,
+    Folder(Version),
+    File(Version),
 }
 
 /// An entry of an encrypted folder as a transfer's source.
 #[derive(Clone)]
 pub(super) struct EncSource {
     pub(super) folder: Arc<OpenFolder>,
-    /// The file's version; `None` for a folder.
-    pub(super) version: Option<Version>,
+    pub(super) node: EncNode,
+    /// Moves inside its own encrypted folder: written anew under its new parent (FR-018).
+    pub(super) relink: bool,
+}
+
+impl EncSource {
+    /// The version of a file or folder entry.
+    pub(super) fn version(&self) -> Option<&Version> {
+        match &self.node {
+            EncNode::File(version) | EncNode::Folder(version) => Some(version),
+            EncNode::Root | EncNode::Recovered => None,
+        }
+    }
+
+    /// The version of a file.
+    pub(super) fn file(&self) -> Option<&Version> {
+        match &self.node {
+            EncNode::File(version) => Some(version),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Debug for EncSource {
@@ -91,10 +124,33 @@ pub struct Plan {
     pub totals: Totals,
     /// Set when the target is in an encrypted folder.
     pub(super) target: Option<EncTarget>,
+    /// The files that leave an encrypted folder for an ordinary folder of a storage; the window
+    /// is asked once before the start (FR-019), then this is 0.
+    pub(super) leaving: AtomicU64,
 }
 
-fn soon() -> Instant {
+impl Plan {
+    /// How many files leave an encrypted folder for an ordinary one and still need the window's
+    /// yes (FR-019).
+    pub fn leaving(&self) -> u64 {
+        self.leaving.load(Ordering::SeqCst)
+    }
+
+    /// The window said yes; a retry does not ask again.
+    pub fn confirm_leaving(&self) {
+        self.leaving.store(0, Ordering::SeqCst);
+    }
+}
+
+pub(super) fn soon() -> Instant {
     Instant::now() + CALL
+}
+
+/// Where a transfer's items go.
+enum To<'a> {
+    Device,
+    Plain(&'a StorageFiles),
+    Encrypted(&'a EncTarget),
 }
 
 /// Lists what a job moves, refuses a folder into itself within one bucket and too little space
@@ -104,6 +160,18 @@ pub fn prepare_remote(
     handle: &Handle,
     free_space: impl Fn(&Path) -> Option<u64>,
 ) -> Result<Plan, FilesError> {
+    let target = match &job.to {
+        Side::Storage(files) => match handle.block_on(route(files, &job.target))? {
+            Route::Encrypted(at) => Some(handle.block_on(encrypted_target(files, at))?),
+            Route::Plain => None,
+        },
+        Side::Device => None,
+    };
+    let to = match (&job.to, &target) {
+        (_, Some(target)) => To::Encrypted(target),
+        (Side::Storage(files), None) => To::Plain(files),
+        (Side::Device, None) => To::Device,
+    };
     let mut items = Vec::new();
     let mut folders = Vec::new();
     for source in &job.sources {
@@ -120,11 +188,13 @@ pub fn prepare_remote(
                         ));
                     }
                 }
+                let decrypts = !matches!(to, To::Plain(_));
                 match handle.block_on(route(files, source))? {
-                    Route::Plain => handle.block_on(storage_items(files, source, &mut items))?,
-                    Route::Encrypted(_) if job.op == TransferOp::Move => return Err(later()),
+                    Route::Plain => {
+                        handle.block_on(storage_items(files, source, decrypts, &mut items))?;
+                    }
                     Route::Encrypted(at) => {
-                        handle.block_on(encrypted_items(files, &at, &mut items))?;
+                        handle.block_on(encrypted_source(files, &at, job, &to, &mut items))?
                     }
                 }
             }
@@ -142,21 +212,19 @@ pub fn prepare_remote(
             "this name is kept for encrypted folders",
         ));
     }
-    let target = match &job.to {
-        Side::Storage(files) => match handle.block_on(route(files, &job.target))? {
-            Route::Encrypted(at) => Some(handle.block_on(encrypted_target(files, at))?),
-            Route::Plain => None,
-        },
-        Side::Device => None,
-    };
     if target.is_some() {
         for part in items.iter().flat_map(|item| &item.rel) {
             check_name(part)?;
         }
-    } else if matches!(job.to, Side::Storage(_)) && items.iter().any(|i| i.encrypted.is_some()) {
-        // Out of an encrypted folder into an ordinary one asks first (FR-019, spec 048 US5).
-        return Err(later());
     }
+    // Out of an encrypted folder into an ordinary one of a storage asks first (FR-019).
+    let leaving = match to {
+        To::Plain(_) => items
+            .iter()
+            .filter(|item| !item.folder && item.encrypted.is_some())
+            .count() as u64,
+        _ => 0,
+    };
     let totals = Totals {
         items: items.iter().filter(|item| !item.folder).count() as u64,
         bytes: items.iter().map(|item| item.size).sum(),
@@ -176,7 +244,34 @@ pub fn prepare_remote(
         folders,
         totals,
         target,
+        leaving: AtomicU64::new(leaving),
     })
+}
+
+/// The items of the encrypted folder, or entry in one, at `at`: written anew inside its own
+/// folder for a move there, its objects as they are for the folder itself into an ordinary folder
+/// of a storage, else decrypted.
+async fn encrypted_source(
+    files: &StorageFiles,
+    at: &Located,
+    job: &RemoteJob,
+    to: &To<'_>,
+    items: &mut Vec<Item>,
+) -> Result<(), FilesError> {
+    match to {
+        To::Plain(target) if at.rest.is_empty() => {
+            raw_items(files, at, target, &job.target, items).await
+        }
+        To::Encrypted(target)
+            if job.op == TransferOp::Move
+                && !at.rest.is_empty()
+                && target.folder.prefix == at.head.prefix
+                && target.files.access().location == files.access().location =>
+        {
+            relink_items(files, at, target, items).await
+        }
+        _ => encrypted_items(files, at, &[], items).await,
+    }
 }
 
 fn device_items(
@@ -225,9 +320,12 @@ fn device_items(
     Ok(())
 }
 
+/// The objects of the file or folder `source`. With `decrypts` (the target is the device or an
+/// encrypted folder) an encrypted folder inside comes decrypted instead of as its objects.
 async fn storage_items(
     files: &StorageFiles,
     source: &str,
+    decrypts: bool,
     items: &mut Vec<Item>,
 ) -> Result<(), FilesError> {
     let entry = files.stat(source).await?;
@@ -243,12 +341,23 @@ async fn storage_items(
         return Ok(());
     }
     let prefix = folder_prefix(source)?;
-    let objects = files
+    let mut objects = files
         .store()
         .list(files.access(), &prefix, MAX_OBJECTS, soon())
         .await
         .map_err(storage_error)?;
+    // The head of an encrypted folder inside after its other objects (format: the head last).
+    objects.sort_by_key(|object| object.key.ends_with(".hxef/h"));
+    let mut nested: Vec<String> = Vec::new();
     for object in objects {
+        if decrypts {
+            if let Some(inner) = encrypted_prefix_of(&prefix, &object.key) {
+                if !nested.contains(&inner) {
+                    nested.push(inner);
+                }
+                continue;
+            }
+        }
         let mut rel = vec![name.clone()];
         let rest = object.key[prefix.len()..].trim_end_matches('/');
         if !rest.is_empty() {
@@ -262,49 +371,7 @@ async fn storage_items(
             encrypted: None,
         });
     }
-    Ok(())
-}
-
-/// The files and folders of the encrypted folder (or entry in one) at `at`; a damaged file refuses
-/// the transfer before it starts (FR-022).
-async fn encrypted_items(
-    files: &StorageFiles,
-    at: &Located,
-    items: &mut Vec<Item>,
-) -> Result<(), FilesError> {
-    let folder = open(files, at).await?;
-    let view = view(files, &folder).await?;
-    let top = view
-        .tree
-        .find(&at.rest)
-        .ok_or_else(|| FilesError::new(FilesErrorCode::NotFound, "not found"))?;
-    let name = at.rest.last().unwrap_or(&at.head.display).clone();
-    let below = view.tree.below(top).into_iter().map(|(index, mut rel)| {
-        rel.insert(0, name.clone());
-        (index, rel)
-    });
-    for (index, rel) in std::iter::once((top, vec![name.clone()])).chain(below) {
-        let (version, damaged) = match &view.tree.node(index).item {
-            TreeItem::Version { version, damaged } => (Some((**version).clone()), *damaged),
-            TreeItem::Broken { .. } => (None, true),
-            TreeItem::Root | TreeItem::Recovered => (None, false),
-        };
-        if damaged {
-            return Err(crate::files::encrypted::damaged());
-        }
-        let file = version.as_ref().and_then(facts).map(|facts| facts.size);
-        items.push(Item {
-            from: String::new(),
-            rel,
-            size: file.unwrap_or(0),
-            folder: file.is_none(),
-            encrypted: Some(EncSource {
-                folder: Arc::clone(&folder),
-                version: version.filter(|_| file.is_some()),
-            }),
-        });
-    }
-    Ok(())
+    nested_items(files, &prefix, &name, &nested, items).await
 }
 
 /// The encrypted folder at `at` as a target: it opens and is a folder.

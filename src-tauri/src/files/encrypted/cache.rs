@@ -300,6 +300,24 @@ pub fn drop_entries(
     Ok(())
 }
 
+/// Drops the head and the sidecars cached for the folder `folder_id` (it was deleted).
+pub fn drop_folder(
+    tx: &mut CrdtTransaction<'_>,
+    storage_id: &str,
+    folder_id: &str,
+) -> haex_crdt::Result<()> {
+    for table in [
+        "encrypted_folder_heads_no_sync",
+        "encrypted_folder_entries_no_sync",
+    ] {
+        tx.execute(
+            &format!("DELETE FROM {table} WHERE storage_id = ?1 AND folder_id = ?2"),
+            params![storage_id, folder_id],
+        )?;
+    }
+    Ok(())
+}
+
 /// Drops everything cached for the storage `storage_id` (it is being removed).
 pub fn remove_storage(tx: &mut CrdtTransaction<'_>, storage_id: &str) -> haex_crdt::Result<()> {
     for table in [

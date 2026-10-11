@@ -238,11 +238,8 @@ async fn a_download_checks_the_sha256_of_the_sidecar() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn copies_from_ordinary_and_other_encrypted_folders_are_sealed_on_the_way() {
+async fn copies_from_ordinary_folders_are_sealed_on_the_way() {
     let scene = with_folder().await;
-    create_encrypted_folder(&scene.files(), "/", "Andere")
-        .await
-        .unwrap();
     scene.fake.insert(BUCKET, "offen.txt", b"offen");
     let copy = |from: &str, to: &str| {
         let (from, to) = (from.to_owned(), to.to_owned());
@@ -263,39 +260,13 @@ async fn copies_from_ordinary_and_other_encrypted_folders_are_sealed_on_the_way(
     };
     assert_eq!(copy("/offen.txt", "/Unterlagen").await, Outcome::Done);
     assert!(!scene.fake.calls().iter().any(|(op, _)| *op == Op::Copy));
-    assert_eq!(
-        copy("/Unterlagen/offen.txt", "/Andere").await,
-        Outcome::Done
-    );
+    assert!(!scene
+        .keys()
+        .iter()
+        .any(|key| key.contains(".hxef/") && key.contains("offen")));
     let (_out, back) = device();
-    download(&scene, "/Andere/offen.txt", &back).await;
+    download(&scene, "/Unterlagen/offen.txt", &back).await;
     assert_eq!(std::fs::read(back.join("offen.txt")).unwrap(), b"offen");
-
-    // Out into an ordinary folder asks first (US5), so it waits; moving out waits for US5 too.
-    let error = transfer(
-        TransferOp::Copy,
-        side(scene.files()),
-        &["/Unterlagen/offen.txt".to_owned()],
-        side(scene.files()),
-        "/",
-        None,
-        None,
-    )
-    .await
-    .unwrap_err();
-    assert_eq!(error.code, FilesErrorCode::Unsupported);
-    let error = transfer(
-        TransferOp::Move,
-        side(scene.files()),
-        &["/Unterlagen/offen.txt".to_owned()],
-        Side::Device,
-        &back.to_string_lossy(),
-        None,
-        None,
-    )
-    .await
-    .unwrap_err();
-    assert_eq!(error.code, FilesErrorCode::Unsupported);
 }
 
 #[tokio::test(flavor = "multi_thread")]

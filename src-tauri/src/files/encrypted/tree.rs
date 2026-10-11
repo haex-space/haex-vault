@@ -235,6 +235,14 @@ impl Tree {
         Some(at)
     }
 
+    /// The node that shows the version `sid`.
+    pub fn find_sid(&self, sid: &Id) -> Option<usize> {
+        self.nodes.iter().position(|node| match &node.item {
+            Item::Version { version, .. } => version.sid == *sid,
+            _ => false,
+        })
+    }
+
     /// Whether the node holds entries (the root, the virtual folder, a folder entry).
     pub fn is_dir(&self, index: usize) -> bool {
         !is_file(&self.nodes[index].item)

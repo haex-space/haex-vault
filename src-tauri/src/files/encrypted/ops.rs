@@ -1,7 +1,7 @@
 //! What the window does in and with encrypted folders (spec 048 US1): create one (one head, nothing
 //! else), list, stat, read the start of a file, and create a sub folder (one sidecar of kind
-//! `folder`, no marker object). Renaming, moving and deleting come with US5 (PR E) and are refused
-//! until then; a damaged entry answers `damaged` without data.
+//! `folder`, no marker object); renaming and deleting are in [`super::manage`]. A damaged entry
+//! answers `damaged` without data.
 
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -28,7 +28,7 @@ fn soon() -> Instant {
     Instant::now() + CALL
 }
 
-/// The error for what US5 brings (rename, move, delete inside encrypted folders).
+/// The error for what is still to come (opening with the system's app).
 pub fn later() -> FilesError {
     FilesError::new(FilesErrorCode::Unsupported, "not in encrypted folders yet")
 }
