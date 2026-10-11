@@ -528,6 +528,7 @@ watch(tabActive, (active) => {
           :current-storage="storageId"
           @pick="onSidebarPick"
           @pick-storage="onPickStorage"
+          @add-storage="openStorageSettings"
         />
       </nav>
       <main

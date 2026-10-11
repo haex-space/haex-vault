@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * The sidebar of the file browser (spec 044 FR-002): the known places of the device, its drives
- * with free space where known, and the storages of spec 038 (US5).
+ * with free space where known, and the cloud storages of spec 038 (US5) with a button that leads
+ * to adding one in the settings.
  */
 import type { Sources } from '@bindings/Sources'
 import { formatFileSize } from '~/lib/passwords/format'
@@ -14,7 +15,11 @@ defineProps<{
   currentStorage: string | null
 }>()
 
-const emit = defineEmits<{ pick: [path: string]; pickStorage: [id: string] }>()
+const emit = defineEmits<{
+  pick: [path: string]
+  pickStorage: [id: string]
+  addStorage: []
+}>()
 
 const { t } = useI18n()
 
@@ -79,10 +84,23 @@ const PLACE_ICONS: Record<string, string> = {
         </li>
       </ul>
     </section>
-    <section v-if="sources?.storages.length">
-      <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
-        {{ t('files.sidebar.storages') }}
-      </h2>
+    <section v-if="sources">
+      <div class="flex items-center justify-between gap-2 pb-1 pl-2">
+        <h2 class="text-xs font-medium text-muted-foreground">
+          {{ t('files.sidebar.storages') }}
+        </h2>
+        <UiButton
+          variant="ghost"
+          size="icon-sm"
+          class="shrink-0"
+          :aria-label="t('files.sidebar.addStorage')"
+          :tooltip="t('files.sidebar.addStorage')"
+          data-testid="files-add-storage"
+          @click="emit('addStorage')"
+        >
+          <Icon name="lucide:plus" class="size-4" />
+        </UiButton>
+      </div>
       <ul>
         <li v-for="storage in sources.storages" :key="storage.id">
           <button
