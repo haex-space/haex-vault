@@ -41,8 +41,8 @@ pub const RETRIES: [Duration; 3] = [
 /// How long one call may take; a part of 8 MiB on a slow line needs a while.
 pub(super) const CALL: Duration = Duration::from_secs(5 * 60);
 
-use super::remote_plan::{fill, remove_empty, Item};
 pub use super::remote_plan::{prepare_remote, Plan, RemoteJob, Side};
+use super::remote_plan::{remove_empty, Item};
 
 fn soon() -> Instant {
     Instant::now() + CALL
@@ -288,7 +288,7 @@ impl Run<'_, '_> {
             (Side::Device, Place::Key(key)) => {
                 let mut file = std::fs::File::open(&item.from)
                     .map_err(|error| io_error(error, Path::new(&item.from)))?;
-                self.upload(key, item.size, &mut |buf| file.read(buf))
+                self.upload(key, &mut |buf| file.read(buf))
             }
             (Side::Storage(from), Place::Device(path)) => {
                 let from = Arc::clone(from);
@@ -319,90 +319,13 @@ impl Run<'_, '_> {
                     ))
                 })?;
                 let handle = self.handle.clone();
-                self.upload(key, item.size, &mut |buf| handle.block_on(reader.read(buf)))
+                self.upload(key, &mut |buf| handle.block_on(reader.read(buf)))
             }
             (Side::Device, Place::Device(_)) => Err(Stop::Failed(FilesError::new(
                 FilesErrorCode::Unsupported,
                 "device to device runs as a local transfer",
             ))),
         }
-    }
-
-    /// Sends `size` bytes from `read` to `key`: one `put` under [`PART`], else in parts.
-    fn upload(
-        &mut self,
-        key: &str,
-        size: u64,
-        read: &mut dyn FnMut(&mut [u8]) -> std::io::Result<usize>,
-    ) -> Result<(), Stop> {
-        let files = match &self.job.to {
-            Side::Storage(files) => Arc::clone(files),
-            Side::Device => unreachable!("an upload goes to a storage"),
-        };
-        let (store, access) = (files.store(), files.access());
-        if size < PART as u64 {
-            let body = fill(read, PART).map_err(|_| {
-                Stop::Failed(FilesError::new(FilesErrorCode::NoAccess, "not readable"))
-            })?;
-            let length = body.len() as u64;
-            self.retried(|| {
-                self.handle
-                    .block_on(store.put(access, key, body.clone(), soon()))
-            })?;
-            self.done.bytes += length;
-            return Ok(());
-        }
-        let id = self.retried(|| {
-            self.handle
-                .block_on(store.create_multipart(access, key, soon()))
-        })?;
-        let sent = self.parts(&files, key, &id, read);
-        if sent.is_err() {
-            // Nothing half stays at the provider (FR-020).
-            let _ = self
-                .handle
-                .block_on(store.abort_multipart(access, key, &id, soon()));
-        }
-        sent
-    }
-
-    fn parts(
-        &mut self,
-        files: &StorageFiles,
-        key: &str,
-        id: &str,
-        read: &mut dyn FnMut(&mut [u8]) -> std::io::Result<usize>,
-    ) -> Result<(), Stop> {
-        let (store, access) = (files.store(), files.access());
-        let mut etags = Vec::new();
-        for number in 1u16.. {
-            self.check()?;
-            let body = fill(read, PART).map_err(|_| {
-                Stop::Failed(FilesError::new(FilesErrorCode::NoAccess, "not readable"))
-            })?;
-            if body.is_empty() {
-                break;
-            }
-            let length = body.len() as u64;
-            let etag = self.retried(|| {
-                self.handle.block_on(store.upload_part(
-                    access,
-                    key,
-                    id,
-                    number,
-                    body.clone(),
-                    soon(),
-                ))
-            })?;
-            etags.push(etag);
-            self.done.bytes += length;
-            self.report();
-        }
-        self.check()?;
-        self.retried(|| {
-            self.handle
-                .block_on(store.complete_multipart(access, key, id, &etags, soon()))
-        })
     }
 
     /// Fetches `key` into a part file beside `path`, renamed at the end.
@@ -481,6 +404,9 @@ impl Run<'_, '_> {
         }
     }
 }
+
+#[path = "remote_upload.rs"]
+mod upload;
 
 #[cfg(test)]
 #[path = "remote_tests.rs"]
