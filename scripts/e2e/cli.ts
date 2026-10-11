@@ -33,6 +33,11 @@ import {
 import type { RunFacts } from './lib/report.ts'
 import type { CloseBehavior } from './lib/scenario.ts'
 import { checkAndroidPreflight } from './lib/platform/android-preflight.ts'
+import {
+  EMULATOR_HOST,
+  REDIRECT_ENV,
+  redirectWorks,
+} from './lib/platform/reach.ts'
 import type { AndroidPreflight } from './lib/platform/android-preflight.ts'
 import { PACKAGE } from './lib/platform/android.ts'
 import { exclusionsFor } from './platform-exclusions.ts'
@@ -202,6 +207,8 @@ export interface CliDeps {
   preflight(): Promise<PreflightOutcome>
   /** The checks of an Android run; it installs `apk` first when given. */
   androidPreflight?(apk?: string): AndroidPreflight
+  /** Whether the device reaches this machine through its network (`reach.ts`); a check replaces it. */
+  redirectWorks?(serial: string): Promise<boolean>
   scenarioNames(): string[]
   scenarioNameProblems(): string[]
   newMarker(): string
@@ -302,6 +309,27 @@ export async function runCli(
       E2E_PLATFORM: 'android',
       HOLZI_E2E_SYNC_LOOPBACK: '1',
       ...android.env,
+    }
+    if (
+      android.ok &&
+      android.env[REDIRECT_ENV] === '1' &&
+      !(await (deps.redirectWorks ?? redirectWorks)(
+        android.env.ANDROID_SERIAL ?? '',
+      ))
+    ) {
+      // Its network is not up: adb reverse does not need it (see `reach.ts`).
+      platformEnv = Object.fromEntries(
+        Object.entries(platformEnv).filter(([key]) => key !== REDIRECT_ENV),
+      )
+      deps.print(
+        `the device does not reach this machine through its network (${EMULATOR_HOST}); using adb reverse`,
+      )
+    } else if (android.ok) {
+      deps.print(
+        platformEnv[REDIRECT_ENV] === '1'
+          ? `the device reaches the run's services through its network (${EMULATOR_HOST})`
+          : "the device reaches the run's services through adb reverse",
+      )
     }
     // The app on the device; closing its vault always ends it (spec 043 FR-006).
     application = {

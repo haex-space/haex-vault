@@ -205,6 +205,36 @@ describe('reachFromDevice', () => {
   })
 })
 
+describe('redirectWorks', () => {
+  it('is true once the device gets the answer of this machine', async () => {
+    const { redirectWorks } = await import('./reach.ts')
+    const fake = fakeAdb()
+    let tries = 0
+    const works = await redirectWorks(
+      'emu',
+      5000,
+      async () => (++tries < 2 ? '' : 'holzi-e2e-reach\n'),
+      fake.run,
+    )
+    assert.equal(works, true)
+    assert.equal(tries, 2)
+    assert.match(fake.calls[0]!, /DNAT --to-destination 10\.0\.2\.2:\d+/)
+  })
+
+  it('is false when the device never reaches this machine', async () => {
+    const { redirectWorks } = await import('./reach.ts')
+    const works = await redirectWorks(
+      'emu',
+      0,
+      async () => {
+        throw new Error('nc: connect: Network is unreachable')
+      },
+      fakeAdb().run,
+    )
+    assert.equal(works, false)
+  })
+})
+
 describe('prepareRedirect', () => {
   it('sets up its chains on a device with su', async () => {
     const { prepareRedirect } = await import('./reach.ts')
