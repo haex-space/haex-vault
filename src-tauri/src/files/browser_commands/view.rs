@@ -11,6 +11,7 @@ use ts_rs::TS;
 use super::{blocking, device_path, storage_of, window_storage};
 use crate::files::access::Want;
 use crate::files::encrypted::ops::{file_at, later};
+#[cfg(desktop)]
 use crate::files::encrypted::redacted::Redacted;
 use crate::files::encrypted::route::{plain_by_memory, route, Located, Route};
 use crate::files::encrypted::source::{EncryptedFile, EncryptedFileSource};
