@@ -25,6 +25,12 @@ pub mod vault_keys;
 #[cfg(test)]
 pub mod test_support;
 
+#[cfg(test)]
+#[path = "folder_tests.rs"]
+mod folder_tests;
+#[cfg(test)]
+#[path = "leak_tests.rs"]
+mod leak_tests;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
