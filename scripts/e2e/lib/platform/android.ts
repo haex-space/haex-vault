@@ -9,6 +9,7 @@ import { newSessionWithRetry } from '../instance.ts'
 import { createPage } from '../page.ts'
 import type { StepRecorder } from '../page.ts'
 import { WebDriverClient } from '../webdriver.ts'
+import { withDevice } from './adb.ts'
 import type { Adb } from './adb.ts'
 import { androidCapabilities, startChromedriver } from './chromedriver.ts'
 import type { Chromedriver } from './chromedriver.ts'
@@ -197,9 +198,9 @@ export async function startAndroidInstance(
   const pid = await launchApp(adb)
   const forceStop = () => {
     try {
-      adb.shell('am', 'force-stop', PACKAGE)
+      withDevice(adb, () => adb.shell('am', 'force-stop', PACKAGE))
     } catch {
-      // The device may be gone; there is nothing left to end then.
+      // The device is gone for good; there is nothing left to end then.
     }
   }
   let driver: Chromedriver
@@ -375,11 +376,13 @@ export class AndroidData implements DataHandle {
   }
 
   dispose(): void {
-    try {
-      restoreDevice(this.adb)
-    } finally {
-      this.adb.shell('pm', 'clear', PACKAGE)
-    }
+    withDevice(this.adb, () => {
+      try {
+        restoreDevice(this.adb)
+      } finally {
+        this.adb.shell('pm', 'clear', PACKAGE)
+      }
+    })
   }
 }
 

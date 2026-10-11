@@ -63,6 +63,38 @@ describe('createAdb', () => {
   })
 })
 
+describe('withDevice', () => {
+  it('runs the action again once the device is back after adb dropped it', async () => {
+    const { withDevice } = await import('./adb.ts')
+    const fake = fakeAdb({ '-s emu get-state': 'device\n' })
+    const adb = createAdb('emu', fake.run)
+    let tries = 0
+    const result = withDevice(adb, () => {
+      tries += 1
+      if (tries === 1) throw new Error('adb: device offline')
+      return 'cleared'
+    })
+    assert.equal(result, 'cleared')
+    assert.equal(tries, 2)
+    assert.deepEqual(fake.calls, ['-s emu get-state'])
+  })
+
+  it('gives up with the first error when the device does not come back', async () => {
+    const { withDevice } = await import('./adb.ts')
+    const adb = {
+      ...createAdb('emu', fakeAdb().run),
+      waitForDevice: () => false,
+    }
+    assert.throws(
+      () =>
+        withDevice(adb, () => {
+          throw new Error('adb: device offline')
+        }),
+      /device offline/,
+    )
+  })
+})
+
 describe('deviceSerial', () => {
   it('takes ANDROID_SERIAL when set', () => {
     assert.equal(
@@ -153,6 +185,46 @@ describe('reachFromDevice', () => {
     )
     reachFromDevice(5001, {}, fake.run)
     assert.deepEqual(fake.calls, ['-s emu reverse tcp:5000 tcp:5000'])
+  })
+
+  it("sends the port on through the emulator's network once the preflight prepared it", async () => {
+    const { reachFromDevice } = await import('./reach.ts')
+    const fake = fakeAdb()
+    reachFromDevice(
+      5000,
+      {
+        E2E_PLATFORM: 'android',
+        ANDROID_SERIAL: 'emu',
+        E2E_ANDROID_REDIRECT: '1',
+      },
+      fake.run,
+    )
+    assert.deepEqual(fake.calls, [
+      "-s emu shell su 0 sh -c 'iptables -t nat -A holzi_e2e_out -p tcp -d 127.0.0.1 --dport 5000 -j DNAT --to-destination 10.0.2.2:5000'",
+    ])
+  })
+})
+
+describe('prepareRedirect', () => {
+  it('sets up its chains on a device with su', async () => {
+    const { prepareRedirect } = await import('./reach.ts')
+    const fake = fakeAdb({ "-s emu shell su 0 sh -c 'id -u'": '0\n' })
+    assert.equal(prepareRedirect(createAdb('emu', fake.run)), true)
+    assert.equal(fake.calls.length, 2)
+    assert.match(fake.calls[1]!, /route_localnet=1/)
+    assert.match(fake.calls[1]!, /iptables -t nat -F holzi_e2e_out/)
+    assert.match(fake.calls[1]!, /-j MASQUERADE/)
+  })
+
+  it('leaves a device without su (a phone) to adb reverse', async () => {
+    const { prepareRedirect } = await import('./reach.ts')
+    const fake = fakeAdb({
+      '-s emu shell su': new Error(
+        '/system/bin/sh: su: inaccessible or not found',
+      ),
+    })
+    assert.equal(prepareRedirect(createAdb('emu', fake.run)), false)
+    assert.equal(fake.calls.length, 1)
   })
 })
 
