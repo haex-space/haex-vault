@@ -63,6 +63,37 @@ describe('createAdb', () => {
   })
 })
 
+describe('a device adb lost for a moment', () => {
+  it('runs a refused command again once the device is back', () => {
+    const calls: string[] = []
+    let refused = false
+    const run: AdbRunner = (args) => {
+      const line = args.join(' ')
+      calls.push(line)
+      if (line === '-s emu get-state') return Buffer.from('device\n')
+      if (!refused) {
+        refused = true
+        throw new Error(
+          'Command failed: adb -s emu shell mkdir -p /x\nadb: device offline',
+        )
+      }
+      return Buffer.from('')
+    }
+    createAdb('emu', run).shell('mkdir', '-p', '/x')
+    assert.deepEqual(calls, [
+      '-s emu shell mkdir -p /x',
+      '-s emu get-state',
+      '-s emu shell mkdir -p /x',
+    ])
+  })
+
+  it('does not run a command again that failed on the device', () => {
+    const fake = fakeAdb({ '-s emu shell false': new Error('exit 1') })
+    assert.throws(() => createAdb('emu', fake.run).shell('false'), /exit 1/)
+    assert.deepEqual(fake.calls, ['-s emu shell false'])
+  })
+})
+
 describe('withDevice', () => {
   it('runs the action again once the device is back after adb dropped it', async () => {
     const { withDevice } = await import('./adb.ts')
