@@ -462,7 +462,9 @@ fn unwrap(envelope: &StoredEnvelope, own: &DeviceKeys) -> haex_crdt::Result<Cont
 }
 
 /// Stores an unwrapped key in device-local storage, leaving an existing row
-/// with the same key id unchanged.
+/// with the same key id unchanged. Rows are never deleted: encrypted folders
+/// (spec 048, `files::encrypted::vault_keys`) unwrap their folder key with the
+/// generation they were made under, however old it is.
 fn store_own_key(tx: &mut CrdtTransaction<'_>, key: &ContentKey) -> haex_crdt::Result<()> {
     tx.execute(
         "INSERT OR IGNORE INTO vault_content_keys_no_sync (key_id, generation, key) \

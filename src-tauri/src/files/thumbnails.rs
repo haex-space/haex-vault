@@ -104,7 +104,10 @@ pub fn render_into_cache(
             Ok(bytes)
         }
         Err(reason) => {
-            log::info!("files: no thumbnail for {name}: {reason}");
+            log::info!(
+                "files: no thumbnail for {}: {reason}",
+                crate::files::encrypted::redacted::Redacted(name)
+            );
             if std::fs::create_dir_all(cache_dir).is_ok() {
                 let _ = std::fs::write(&broken, b"");
             }

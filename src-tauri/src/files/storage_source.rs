@@ -49,6 +49,19 @@ pub fn storage_error(error: StorageError) -> FilesError {
     }
 }
 
+/// Whether `name` may name an ordinary entry of a storage: the rules of [`check_name`], and not the
+/// form of an encrypted folder (spec 048), so it never shows as a damaged one.
+pub fn check_storage_name(name: &str) -> Result<(), FilesError> {
+    check_name(name)?;
+    if crate::files::encrypted::format::is_folder_prefix(name) {
+        return Err(FilesError::new(
+            FilesErrorCode::InvalidName,
+            "this name is kept for encrypted folders",
+        ));
+    }
+    Ok(())
+}
+
 fn soon() -> Instant {
     Instant::now() + CALL
 }
@@ -113,6 +126,8 @@ fn file_entry(key: &str, size: u64, modified_ms: Option<i64>) -> Entry {
         symlink: false,
         no_access: false,
         holzi_owned: false,
+        encrypted: None,
+        conflict: false,
     }
 }
 
@@ -133,6 +148,8 @@ fn folder_entry(prefix: &str) -> Entry {
         symlink: false,
         no_access: false,
         holzi_owned: false,
+        encrypted: None,
+        conflict: false,
     }
 }
 
@@ -283,7 +300,7 @@ impl StorageFiles {
 
     /// Creates the folder `name` in `folder` (its marker object).
     pub async fn create_folder(&self, folder: &str, name: &str) -> Result<Entry, FilesError> {
-        check_name(name)?;
+        check_storage_name(name)?;
         let prefix = format!("{}{name}/", folder_prefix(folder)?);
         if self.taken(&path_of(&prefix)).await? {
             return Err(FilesError::new(FilesErrorCode::Exists, "the name is taken"));
@@ -306,7 +323,7 @@ impl StorageFiles {
     /// Renames the entry `path` in its folder: a file is copied on the provider and deleted, a
     /// folder object by object.
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<Entry, FilesError> {
-        check_name(new_name)?;
+        check_storage_name(new_name)?;
         let entry = self.stat(path).await?;
         let parent = match path.rfind('/') {
             Some(0) | None => "/",

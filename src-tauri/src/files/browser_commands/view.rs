@@ -10,6 +10,7 @@ use ts_rs::TS;
 
 use super::{blocking, device_path, storage_files, storage_of};
 use crate::files::access::Want;
+use crate::files::encrypted::redacted::Redacted;
 use crate::files::kind::{viewer_kind, ViewerKind};
 use crate::files::local::ops;
 use crate::files::local::text::{read_text, text_from, TextContent, TEXT_LIMIT};
@@ -208,9 +209,11 @@ pub async fn files_open_system(
         app.opener()
             .open_path(real.to_string_lossy(), None::<&str>)
             .map_err(|error| {
+                // The opener's error can quote the path (FR-027).
+                let _ = error;
                 log::warn!(
-                    "files: the system could not open {}: {error}",
-                    real.display()
+                    "files: the system could not open {}",
+                    Redacted(&real.to_string_lossy())
                 );
                 FilesError::new(FilesErrorCode::Unsupported, "no app for this file")
             })

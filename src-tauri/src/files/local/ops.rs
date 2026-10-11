@@ -49,6 +49,8 @@ fn describe(path: &Path, own: &OwnPlaces) -> Option<Entry> {
             .flatten(),
         no_access: kind == EntryKind::Dir && !can_enter(path),
         holzi_owned: own.contains(path),
+        encrypted: None,
+        conflict: false,
         path: path.to_string_lossy().into_owned(),
         name,
         kind,

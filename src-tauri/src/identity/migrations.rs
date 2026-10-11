@@ -37,6 +37,7 @@ use std::sync::Arc;
 use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_files::AGENT_FILES_0029;
+use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
 use super::migrations_extensions::SYNC_PARKING_0025;
@@ -621,6 +622,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0029_agent_file_permissions"),
         AGENT_FILES_0029.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0030_encrypted_folders"),
+        ENCRYPTED_FOLDERS_0030.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

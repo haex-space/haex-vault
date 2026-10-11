@@ -12,6 +12,7 @@ use walkdir::WalkDir;
 use super::local::Totals;
 use super::remote::CALL;
 use super::TransferOp;
+use crate::files::encrypted::format::is_folder_prefix;
 use crate::files::local::ops::io_error;
 use crate::files::storage_source::{folder_prefix, object_key, storage_error, StorageFiles};
 use crate::files::{FilesError, FilesErrorCode};
@@ -89,6 +90,18 @@ pub fn prepare_remote(
                 handle.block_on(storage_items(files, source, &mut items))?;
             }
         }
+    }
+    // A device name of an encrypted folder's form would show as a damaged one (spec 048).
+    let uploads = matches!((&job.from, &job.to), (Side::Device, Side::Storage(_)));
+    if uploads
+        && items
+            .iter()
+            .any(|item| item.rel.iter().any(|part| is_folder_prefix(part)))
+    {
+        return Err(FilesError::new(
+            FilesErrorCode::InvalidName,
+            "this name is kept for encrypted folders",
+        ));
     }
     let totals = Totals {
         items: items.iter().filter(|item| !item.folder).count() as u64,

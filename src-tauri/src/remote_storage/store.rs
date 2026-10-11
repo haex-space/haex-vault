@@ -239,6 +239,7 @@ pub fn remove_storage(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
         )?;
     }
     crate::files::permissions::remove_storage(tx, id)?;
+    crate::files::encrypted::cache::remove_storage(tx, id)?;
     tx.execute(
         "DELETE FROM storage_tests_no_sync WHERE storage_id = ?1",
         params![id],
