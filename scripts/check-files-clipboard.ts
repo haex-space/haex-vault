@@ -150,6 +150,21 @@ test('the menu of one file opens, selects, copies, renames and deletes', () => {
   )
 })
 
+test('without system apps (Android) a file cannot open with one', () => {
+  assert.deepEqual(
+    ids(
+      entriesMenu({
+        count: 1,
+        singleFile: true,
+        readOnly: false,
+        selecting: false,
+        systemApps: false,
+      }),
+    ),
+    ['open', 'select', 'copy', 'cut', 'rename', 'delete'],
+  )
+})
+
 test('several entries cannot be renamed; in own places only copying is left', () => {
   assert.deepEqual(
     ids(

@@ -49,7 +49,6 @@ const {
   sourcesAsync,
   releaseTabAsync,
   statAsync,
-  openSystemAsync,
   encryptedNoticeShownAsync,
   encryptedNoticeAckAsync,
 } = useFiles()
@@ -235,6 +234,7 @@ const menuEntries = computed(() => {
     singleFile: entries.length === 1 && entries[0]?.kind === 'file',
     readOnly: folderOwned.value || entries.some((entry) => entry.holziOwned),
     selecting: selecting.value,
+    systemApps: !isAndroid.value,
   })
 })
 
@@ -318,6 +318,12 @@ async function ackNotice() {
 const deleting = ref(false)
 const pendingDelete = ref<string[]>([])
 
+const {
+  noticing: openNoticing,
+  openAsync: openSystemAsync,
+  confirmAsync: confirmOpenAsync,
+} = useFilesOpenSystem(source, (cause) => toast.error(errorText(cause)))
+
 function remember(op: FilesClipboard['op'], entries: Entry[]) {
   if (!path.value || !entries.length) return
   transfers.clipboard = {
@@ -345,10 +351,7 @@ async function run(command: FilesCommand, targets: Selection | null) {
       if (first) activate(first)
       break
     case 'openSystem':
-      if (first)
-        await openSystemAsync(source.value, first.path).catch((cause) =>
-          toast.error(errorText(cause)),
-        )
+      if (first) await openSystemAsync(first.path)
       break
     case 'select':
       selection.value = {
@@ -630,6 +633,7 @@ watch(tabActive, (active) => {
           :siblings="shown"
           @close="closeViewer"
           @show="showSibling"
+          @open-system="openSystemAsync"
         />
       </main>
     </div>
@@ -643,6 +647,10 @@ watch(tabActive, (active) => {
       @done="folder.reload()"
     />
     <FilesEncryptedNotice v-model:open="noticing" @confirm="ackNotice" />
+    <FilesOpenSystemNotice
+      v-model:open="openNoticing"
+      @confirm="confirmOpenAsync"
+    />
     <FilesDeleteDialog
       v-model:open="deleting"
       :count="pendingDelete.length"

@@ -1,8 +1,8 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { ConflictChoice } from '@bindings/ConflictChoice'
 import type { FilesError } from '@bindings/FilesError'
 import type { SourceRef } from '@bindings/SourceRef'
+import type { TransferAnswer } from '@bindings/TransferAnswer'
 import type { TransferEvent } from '@bindings/TransferEvent'
 import type { TransferOp } from '@bindings/TransferOp'
 import type { TransferProgress } from '@bindings/TransferProgress'
@@ -21,6 +21,9 @@ export type TransferView = {
   progress: TransferProgress | null
   /** A name at the target the transfer waits on. */
   conflict: string | null
+  /** How many files leave an encrypted folder for an ordinary one; the transfer waits for the
+   * answer before it starts (spec 048 FR-019). */
+  leaving: number | null
   state: 'running' | 'failed'
   error: FilesError | null
 }
@@ -57,7 +60,9 @@ export const useFilesTransfersStore = defineStore('filesTransfers', () => {
         transfer.progress = event.progress
         break
       case 'conflict':
-        transfer.conflict = event.name
+        if ('leavesEncryption' in event)
+          transfer.leaving = event.leavesEncryption.count
+        else transfer.conflict = event.name
         break
       case 'done':
         drop(key)
@@ -69,6 +74,7 @@ export const useFilesTransfersStore = defineStore('filesTransfers', () => {
       case 'failed':
         transfer.state = 'failed'
         transfer.conflict = null
+        transfer.leaving = null
         transfer.error = event.error
         break
     }
@@ -89,6 +95,7 @@ export const useFilesTransfersStore = defineStore('filesTransfers', () => {
       tabId,
       progress: null,
       conflict: null,
+      leaving: null,
       state: 'running',
       error: null,
     })
@@ -140,11 +147,14 @@ export const useFilesTransfersStore = defineStore('filesTransfers', () => {
 
   async function answerAsync(
     key: number,
-    choice: ConflictChoice,
+    choice: TransferAnswer,
     forAll: boolean,
   ): Promise<void> {
     const transfer = view(key)
-    if (transfer) transfer.conflict = null
+    if (transfer) {
+      transfer.conflict = null
+      transfer.leaving = null
+    }
     const id = await ids.get(key)
     if (id) await files.transferAnswerAsync(id, choice, forAll)
   }

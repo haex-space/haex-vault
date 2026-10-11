@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
  * The transfer bar (spec 044 FR-019, FR-021): every running or failed transfer with its progress,
- * cancel, and for a failed one the reason and "try again". A name conflict opens its question in
- * the tab that started the transfer; any other tab offers a button for it.
+ * cancel, and for a failed one the reason and "try again". A name conflict, or files about to
+ * leave an encrypted folder (spec 048 FR-019), opens its question in the tab that started the
+ * transfer; any other tab offers a button for it.
  */
 import { toast } from 'vue-sonner'
-import type { ConflictChoice } from '@bindings/ConflictChoice'
+import type { TransferAnswer } from '@bindings/TransferAnswer'
 import type { TransferView } from '~/stores/filesTransfers'
 import { formatFileSize } from '~/lib/passwords/format'
 
@@ -18,10 +19,14 @@ const store = useFilesTransfersStore()
 /** A conflict the user asked to answer here, though another tab started the transfer. */
 const answering = ref<number | null>(null)
 
+function waits(transfer: TransferView): boolean {
+  return transfer.conflict !== null || transfer.leaving !== null
+}
+
 const asking = computed(() =>
   store.transfers.find(
     (transfer) =>
-      transfer.conflict !== null &&
+      waits(transfer) &&
       (transfer.tabId === props.tabId || transfer.key === answering.value),
   ),
 )
@@ -59,7 +64,7 @@ async function run(work: () => Promise<void>) {
   }
 }
 
-function answer(choice: ConflictChoice, forAll: boolean) {
+function answer(choice: TransferAnswer, forAll: boolean) {
   const transfer = asking.value
   if (!transfer) return
   answering.value = null
@@ -119,7 +124,7 @@ function cancelAsking() {
         </div>
       </div>
       <UiButton
-        v-if="transfer.conflict !== null && transfer.tabId !== tabId"
+        v-if="waits(transfer) && transfer.tabId !== tabId"
         size="sm"
         variant="outline"
         @click="answering = transfer.key"
@@ -149,6 +154,7 @@ function cancelAsking() {
     <FilesConflictDialog
       :open="!!asking"
       :name="asking?.conflict ?? ''"
+      :leaving="asking?.leaving ?? null"
       @answer="answer"
       @cancel="cancelAsking"
     />

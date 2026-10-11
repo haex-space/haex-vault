@@ -3,7 +3,6 @@
  * user; paths are checked in Rust. Errors come back as `FilesError` (`{ code, message }`).
  */
 import { Channel, invoke } from '@tauri-apps/api/core'
-import type { ConflictChoice } from '@bindings/ConflictChoice'
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
 import type { FilesSearchEvent } from '@bindings/FilesSearchEvent'
@@ -13,6 +12,7 @@ import type { SearchFilters } from '@bindings/SearchFilters'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { Sources } from '@bindings/Sources'
 import type { TextContent } from '@bindings/TextContent'
+import type { TransferAnswer } from '@bindings/TransferAnswer'
 import type { TransferEvent } from '@bindings/TransferEvent'
 import type { TransferOp } from '@bindings/TransferOp'
 import type { TransferTarget } from '@bindings/TransferTarget'
@@ -94,11 +94,20 @@ export function useFiles() {
     await invoke('files_unwatch', { id })
   }
 
+  /** Opens a file with the system's app. A file of an encrypted folder answers `needsNotice`
+   * until the window showed its notice and calls again with `confirmed` (spec 048 FR-028). */
   async function openSystemAsync(
     source: SourceRef,
     path: string,
+    confirmed = false,
+    dontAskAgain = false,
   ): Promise<void> {
-    await invoke('files_open_system', { source, path })
+    await invoke('files_open_system', {
+      source,
+      path,
+      confirmed,
+      dontAskAgain,
+    })
   }
 
   async function createFolderAsync(
@@ -181,7 +190,7 @@ export function useFiles() {
 
   async function transferAnswerAsync(
     transferId: string,
-    choice: ConflictChoice,
+    choice: TransferAnswer,
     forAll: boolean,
   ): Promise<void> {
     await invoke('files_transfer_answer', { transferId, choice, forAll })
