@@ -151,3 +151,27 @@ export async function putObject(
   const answer = await signedRequest(server, 'PUT', `/${bucket}/${key}`, bytes)
   if (!answer.ok) throw new Error(`PUT ${key}: ${answer.status}`)
 }
+
+/** The keys in `bucket` with their sizes (one page is enough for a scenario). */
+export async function listObjects(
+  server: Rustfs,
+  bucket: string,
+): Promise<{ key: string; size: number }[]> {
+  const answer = await signedRequest(server, 'GET', `/${bucket}`)
+  const text = await answer.text()
+  return [...text.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)].map((m) => ({
+    key: /<Key>([^<]*)<\/Key>/.exec(m[1] ?? '')?.[1] ?? '',
+    size: Number(/<Size>(\d+)<\/Size>/.exec(m[1] ?? '')?.[1] ?? '0'),
+  }))
+}
+
+/** The bytes at `key` in `bucket`, as another program would read them (spec 048). */
+export async function getObject(
+  server: Rustfs,
+  bucket: string,
+  key: string,
+): Promise<Uint8Array> {
+  const answer = await signedRequest(server, 'GET', `/${bucket}/${key}`)
+  if (!answer.ok) throw new Error(`GET ${key}: ${answer.status}`)
+  return new Uint8Array(await answer.arrayBuffer())
+}

@@ -1,8 +1,17 @@
 // Encrypted folders in the file browser (spec 048): where one may be created, and how an entry's
 // encryption shows. Pure, so `scripts/check-files-encrypted.ts` runs it without vue.
 
-import type { Entry } from '@bindings/Entry'
-import type { SourceRef } from '@bindings/SourceRef'
+import type { SourceRef } from '../../types/bindings/SourceRef.ts'
+
+/** What `Entry` carries about encryption (bindings `EncryptedInfo`); restated here because the
+ * generated `Entry` imports without file extensions, which `node --test` cannot load. */
+export type EncryptedEntry = {
+  kind: 'file' | 'dir'
+  encrypted: {
+    role: 'folder' | 'inside'
+    state: 'readable' | 'otherVault' | 'newerFormat' | 'damaged'
+  } | null
+}
 
 /** The prefixes of extension areas in a storage (spec 038 FR-010); no encrypted folder goes there. */
 const EXTENSION_AREAS = ['/holzi-ext/', '/holzi-ext-dev/']
@@ -32,9 +41,7 @@ export type EncryptedLook = {
 }
 
 /** The icon and state text of an entry with encryption, or `null` for an ordinary entry. */
-export function encryptedLook(
-  entry: Pick<Entry, 'kind' | 'encrypted'>,
-): EncryptedLook | null {
+export function encryptedLook(entry: EncryptedEntry): EncryptedLook | null {
   const info = entry.encrypted
   if (!info) return null
   if (info.state !== 'readable') {
