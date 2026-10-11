@@ -16,6 +16,7 @@ pub mod picked;
 pub mod search;
 pub mod state;
 pub mod storage_source;
+pub mod storage_time;
 pub mod streaming;
 pub mod thumbnails;
 pub mod transfer;
@@ -64,6 +65,18 @@ pub enum FilesErrorCode {
     Credentials,
     /// A storage did not answer (network, timeout).
     Unreachable,
+    /// Not inside an encrypted folder (spec 048): another encrypted folder, for one.
+    InEncrypted,
+    /// Not in the area of an extension in a storage (spec 048 FR-001, 038 FR-010).
+    InExtensionArea,
+    /// This device holds no content key of the vault yet (before the first data sync).
+    NoKey,
+    /// An encrypted folder or an entry in it failed its checks (FR-022 to FR-025).
+    Damaged,
+    /// An encrypted folder of another vault.
+    OtherVault,
+    /// An encrypted folder of a newer format version.
+    NewerFormat,
 }
 
 impl FilesError {
@@ -121,4 +134,38 @@ pub struct Entry {
     pub no_access: bool,
     /// In one of holzi's own places: read-only for the user (FR-037).
     pub holzi_owned: bool,
+    /// An encrypted folder or an entry in one (spec 048).
+    pub encrypted: Option<EncryptedInfo>,
+    /// A conflict copy after the format's rules; the name holds the addition already.
+    pub conflict: bool,
+}
+
+/// Where an entry stands to encryption (spec 048, contracts/tauri-commands.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct EncryptedInfo {
+    pub role: EncryptedRole,
+    pub state: EncryptedState,
+}
+
+/// The encrypted folder itself, or an entry in one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum EncryptedRole {
+    Folder,
+    Inside,
+}
+
+/// What holzi can do with an encrypted folder or an entry (data-model.md). A `damaged` entry can
+/// only be deleted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum EncryptedState {
+    Readable,
+    OtherVault,
+    NewerFormat,
+    Damaged,
 }

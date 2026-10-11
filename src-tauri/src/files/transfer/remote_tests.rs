@@ -409,3 +409,26 @@ async fn too_little_space_for_a_download_is_refused() {
     .unwrap();
     assert_eq!(result.unwrap_err().code, FilesErrorCode::NoSpace);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_upload_of_a_name_kept_for_encrypted_folders_is_refused() {
+    let (_dir, real) = folder();
+    let reserved = real.join("aaaaaaaaaaaaaaaaaaaaaaaaaa.hxef");
+    std::fs::create_dir_all(&reserved).unwrap();
+    std::fs::write(reserved.join("h"), "x").unwrap();
+    let fake = Arc::new(FakeStore::new());
+    let job = job(
+        TransferOp::Copy,
+        Side::Device,
+        &[&reserved.to_string_lossy()],
+        storage(&fake, BUCKET),
+        "/",
+    );
+    let result = tokio::task::spawn_blocking(move || {
+        prepare_remote(&job, &tokio::runtime::Handle::current(), |_| None).map(|_| ())
+    })
+    .await
+    .unwrap();
+    assert_eq!(result.unwrap_err().code, FilesErrorCode::InvalidName);
+    assert!(fake.keys(BUCKET).is_empty());
+}

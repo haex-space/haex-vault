@@ -2091,7 +2091,8 @@
       "paste": "Paste",
       "rename": "Rename",
       "delete": "Delete",
-      "newFolder": "New folder"
+      "newFolder": "New folder",
+      "newEncryptedFolder": "New encrypted folder"
     },
     "selection": {
       "count": "{count} selected | {count} selected",
@@ -2102,6 +2103,7 @@
     },
     "name": {
       "newFolder": "New folder",
+      "newEncryptedFolder": "New encrypted folder",
       "rename": "Rename",
       "label": "Name",
       "create": "Create",
@@ -2181,6 +2183,19 @@
       "size": "Size",
       "modified": "Modified"
     },
+    "encrypted": {
+      "damagedEntry": "Damaged entry",
+      "notice": {
+        "title": "Encrypted folder",
+        "body": "What you put into an encrypted folder is encrypted by holzi before it goes to the cloud storage. The provider sees neither contents nor names. Only this vault can read it, on any of its devices. If the vault is lost and there is no backup, the files can no longer be read.",
+        "confirm": "Understood"
+      },
+      "state": {
+        "otherVault": "Another vault's encrypted folder",
+        "newerFormat": "Needs a newer version of holzi",
+        "damaged": "Damaged: cannot be decrypted"
+      }
+    },
     "error": {
       "invalidPath": "This path cannot be opened.",
       "notFound": "Not found.",
@@ -2197,7 +2212,13 @@
       "noSpace": "Not enough space.",
       "invalidName": "This name is not allowed.",
       "credentials": "The cloud storage's credentials are missing or were refused.",
-      "unreachable": "The cloud storage cannot be reached."
+      "unreachable": "The cloud storage cannot be reached.",
+      "inEncrypted": "An encrypted folder cannot hold another one.",
+      "inExtensionArea": "An extension's area cannot hold an encrypted folder.",
+      "noKey": "This device does not have the vault's key yet. Wait until it has synced.",
+      "damaged": "Damaged: this cannot be decrypted.",
+      "otherVault": "This folder belongs to another vault.",
+      "newerFormat": "This needs a newer version of holzi."
     },
     "agentPermission": {
       "title": "Access to a cloud storage",

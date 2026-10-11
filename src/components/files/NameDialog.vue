@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * A new folder, or a new name for an entry (spec 044 FR-017): a name that is taken or not allowed
- * is refused with the reason, and the dialog stays open.
+ * A new folder, or a new name for an entry (spec 044 FR-017), or a new encrypted folder (spec 048
+ * FR-001): a name that is taken or not allowed is refused with the reason, and the dialog stays open.
  */
 import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
@@ -13,6 +13,8 @@ const props = defineProps<{
   folder: string
   /** The entry to rename, or `null` for a new folder. */
   entry: Entry | null
+  /** A new folder is an encrypted folder (spec 048 FR-001). */
+  encrypted?: boolean
 }>()
 
 const emit = defineEmits<{ done: [entry: Entry] }>()
@@ -20,7 +22,8 @@ const open = defineModel<boolean>('open', { required: true })
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
-const { createFolderAsync, renameAsync } = useFiles()
+const { createFolderAsync, createEncryptedFolderAsync, renameAsync } =
+  useFiles()
 
 const name = ref('')
 const error = ref<string | null>(null)
@@ -37,7 +40,13 @@ async function saveAsync() {
   try {
     const entry = props.entry
       ? await renameAsync(props.source, props.entry.path, name.value)
-      : await createFolderAsync(props.source, props.folder, name.value)
+      : props.encrypted
+        ? await createEncryptedFolderAsync(
+            props.source,
+            props.folder,
+            name.value,
+          )
+        : await createFolderAsync(props.source, props.folder, name.value)
     open.value = false
     emit('done', entry)
   } catch (cause) {
@@ -52,7 +61,13 @@ async function saveAsync() {
 <template>
   <UiDrawerModal
     v-model:open="open"
-    :title="entry ? t('files.name.rename') : t('files.name.newFolder')"
+    :title="
+      entry
+        ? t('files.name.rename')
+        : encrypted
+          ? t('files.name.newEncryptedFolder')
+          : t('files.name.newFolder')
+    "
   >
     <template #content>
       <form

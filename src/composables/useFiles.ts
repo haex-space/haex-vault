@@ -117,6 +117,37 @@ export function useFiles() {
     return await invoke<Entry>('files_rename', { source, path, newName })
   }
 
+  /** A new encrypted folder in the storage folder `path` (spec 048 FR-001). */
+  async function createEncryptedFolderAsync(
+    source: SourceRef,
+    path: string,
+    name: string,
+  ): Promise<Entry> {
+    return await invoke<Entry>('files_create_encrypted_folder', {
+      source,
+      path,
+      name,
+    })
+  }
+
+  /** Whether this device showed the notice of FR-002 already. */
+  async function encryptedNoticeShownAsync(): Promise<boolean> {
+    const answer = await invoke<{ shown: boolean }>('files_encrypted_notice')
+    return answer.shown
+  }
+
+  async function encryptedNoticeAckAsync(): Promise<void> {
+    await invoke('files_encrypted_notice_ack')
+  }
+
+  /** Loads the encrypted folder under `path` again from its storage. */
+  async function encryptedRefreshAsync(
+    source: SourceRef,
+    path: string,
+  ): Promise<void> {
+    await invoke('files_encrypted_refresh', { source, path })
+  }
+
   /** Starts a copy, move or delete; `onEvent` hears its progress, conflicts and end. Refusals
    * before the start (`intoItself`, `noSpace`, …) reject. Resolves to the transfer id. */
   async function transferStartAsync(
@@ -204,6 +235,10 @@ export function useFiles() {
     openSystemAsync,
     createFolderAsync,
     renameAsync,
+    createEncryptedFolderAsync,
+    encryptedNoticeShownAsync,
+    encryptedNoticeAckAsync,
+    encryptedRefreshAsync,
     transferStartAsync,
     importDroppedAsync,
     transferAnswerAsync,

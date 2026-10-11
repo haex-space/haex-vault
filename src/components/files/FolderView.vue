@@ -17,6 +17,7 @@ import {
   ENTRIES_MIME,
   parseDragPayload,
 } from '~/lib/files/clipboard'
+import { shownNameKey } from '~/lib/files/encrypted'
 import { formatFileSize } from '~/lib/passwords/format'
 
 const props = defineProps<{
@@ -48,6 +49,12 @@ const emit = defineEmits<{
 }>()
 
 const { t, d } = useI18n()
+
+/** The name as shown: unreadable encrypted entries get a word instead of their random id. */
+function shownName(entry: Entry): string {
+  const key = shownNameKey(entry)
+  return key ? t(key) : entry.name
+}
 
 const ROW_HEIGHT = 40
 const TILE_WIDTH = 132
@@ -225,7 +232,9 @@ const errorText = computed(() => {
               <span class="size-5 shrink-0">
                 <FilesEntryIcon :source="source" :entry="entry" />
               </span>
-              <span class="min-w-0 flex-1 truncate">{{ entry.name }}</span>
+              <span class="min-w-0 flex-1 truncate">{{
+                shownName(entry)
+              }}</span>
               <Icon
                 v-if="entry.symlink"
                 name="lucide:link"
@@ -279,7 +288,7 @@ const errorText = computed(() => {
                 <FilesEntryIcon :source="source" :entry="entry" thumbnail />
               </span>
               <span class="line-clamp-2 w-full text-center break-all">
-                {{ entry.name }}
+                {{ shownName(entry) }}
               </span>
             </button>
           </div>

@@ -1,10 +1,10 @@
 //! Creating, renaming and transfers (spec 044 US3, US5).
 
 use tauri::ipc::Channel;
-use tauri::State;
+use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use super::{blocking, device_entry, device_path, side_of, storage_files, storage_of};
+use super::{blocking, device_entry, device_path, side_of, storage_of, window_storage};
 use crate::files::access::Want;
 use crate::files::local::edit;
 use crate::files::state::FilesState;
@@ -19,6 +19,7 @@ use crate::state::AppState;
 /// Creates a folder (FR-017).
 #[tauri::command]
 pub async fn files_create_folder(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     source: SourceRef,
@@ -26,7 +27,7 @@ pub async fn files_create_folder(
     name: String,
 ) -> Result<Entry, FilesError> {
     if let Some(id) = storage_of(&source) {
-        return storage_files(&state, id)
+        return window_storage(&app, &state, &files, id)
             .await?
             .create_folder(&path, &name)
             .await;
@@ -39,6 +40,7 @@ pub async fn files_create_folder(
 /// Renames an entry in its folder (FR-017).
 #[tauri::command]
 pub async fn files_rename(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     source: SourceRef,
@@ -46,7 +48,7 @@ pub async fn files_rename(
     new_name: String,
 ) -> Result<Entry, FilesError> {
     if let Some(id) = storage_of(&source) {
-        return storage_files(&state, id)
+        return window_storage(&app, &state, &files, id)
             .await?
             .rename(&path, &new_name)
             .await;
@@ -69,6 +71,7 @@ pub struct TransferTarget {
 /// (FR-037), then the job is listed and checked (into itself, space) before it starts.
 #[allow(clippy::too_many_arguments)]
 async fn start_remote(
+    app: &AppHandle,
     state: &State<'_, AppState>,
     files: &FilesState,
     transfers: &TransferManager,
@@ -101,9 +104,9 @@ async fn start_remote(
     };
     let job = RemoteJob {
         op,
-        from: side_of(state, from).await?,
+        from: side_of(app, state, files, from).await?,
         sources,
-        to: side_of(state, &to.source).await?,
+        to: side_of(app, state, files, &to.source).await?,
         target,
     };
     let (job, plan) = blocking(move || {
@@ -172,6 +175,7 @@ async fn start_transfer(
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn files_transfer_start(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     transfers: State<'_, TransferManager>,
@@ -183,7 +187,7 @@ pub async fn files_transfer_start(
 ) -> Result<String, FilesError> {
     if let (Some(id), TransferOp::Delete) = (storage_of(&from), op) {
         // A storage has no trash: the window asked before (FR-023).
-        let storage = storage_files(&state, id).await?;
+        let storage = window_storage(&app, &state, &files, id).await?;
         return transfers.start_storage_delete(state.gate(), storage, paths, channel);
     }
     let crosses = storage_of(&from).is_some()
@@ -192,7 +196,10 @@ pub async fn files_transfer_start(
             .is_some_and(|target| storage_of(&target.source).is_some());
     if crosses {
         let to = to.ok_or_else(|| FilesError::invalid_path("no target folder"))?;
-        return start_remote(&state, &files, &transfers, op, &from, &paths, to, channel).await;
+        return start_remote(
+            &app, &state, &files, &transfers, op, &from, &paths, to, channel,
+        )
+        .await;
     }
     start_transfer(&state, &files, &transfers, op, &from, &paths, to, channel).await
 }
@@ -200,6 +207,7 @@ pub async fn files_transfer_start(
 /// Copies files and folders dropped from the system into a folder (FR-024).
 #[tauri::command]
 pub async fn files_import_dropped(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     transfers: State<'_, TransferManager>,
@@ -209,6 +217,7 @@ pub async fn files_import_dropped(
 ) -> Result<String, FilesError> {
     if storage_of(&to.source).is_some() {
         return start_remote(
+            &app,
             &state,
             &files,
             &transfers,

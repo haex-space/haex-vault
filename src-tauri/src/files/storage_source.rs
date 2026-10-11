@@ -13,8 +13,11 @@ use tokio::io::AsyncReadExt;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
+use crate::files::encrypted::route::{self, decorate, route, Route};
+use crate::files::encrypted::{ops, Scope};
 use crate::files::kind::mime_for;
 use crate::files::local::edit::check_name;
+pub use crate::files::storage_time::{parse_http_date_ms, parse_iso_ms};
 use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode};
 use crate::remote_storage::{Access, ObjectInfo, RemoteStore, StorageError};
 
@@ -49,12 +52,25 @@ pub fn storage_error(error: StorageError) -> FilesError {
     }
 }
 
+/// Whether `name` may name an ordinary entry of a storage: the rules of [`check_name`], and not the
+/// form of an encrypted folder (spec 048), so it never shows as a damaged one.
+pub fn check_storage_name(name: &str) -> Result<(), FilesError> {
+    check_name(name)?;
+    if crate::files::encrypted::format::is_folder_prefix(name) {
+        return Err(FilesError::new(
+            FilesErrorCode::InvalidName,
+            "this name is kept for encrypted folders",
+        ));
+    }
+    Ok(())
+}
+
 fn soon() -> Instant {
     Instant::now() + CALL
 }
 
 /// The parts of a window path; `/` has none. `.`, `..` and empty parts are refused.
-fn parts(path: &str) -> Result<Vec<&str>, FilesError> {
+pub(crate) fn parts(path: &str) -> Result<Vec<&str>, FilesError> {
     let rest = path
         .strip_prefix('/')
         .ok_or_else(|| FilesError::invalid_path("a storage path starts with /"))?;
@@ -113,6 +129,8 @@ fn file_entry(key: &str, size: u64, modified_ms: Option<i64>) -> Entry {
         symlink: false,
         no_access: false,
         holzi_owned: false,
+        encrypted: None,
+        conflict: false,
     }
 }
 
@@ -133,84 +151,37 @@ fn folder_entry(prefix: &str) -> Entry {
         symlink: false,
         no_access: false,
         holzi_owned: false,
+        encrypted: None,
+        conflict: false,
     }
 }
 
-/// Days since 1970-01-01 of a date of the proleptic Gregorian calendar (Howard Hinnant's
-/// `days_from_civil`).
-fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
-    let year = if month <= 2 { year - 1 } else { year };
-    let era = year.div_euclid(400);
-    let yoe = year - era * 400;
-    let month = i64::from(month);
-    let doy = (153 * (if month > 2 { month - 3 } else { month + 9 }) + 2) / 5 + i64::from(day) - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146_097 + doe - 719_468
-}
-
-fn millis(year: i64, month: u32, day: u32, hour: u32, minute: u32, second: u32) -> Option<i64> {
-    if !(1..=12).contains(&month)
-        || !(1..=31).contains(&day)
-        || hour > 23
-        || minute > 59
-        || second > 60
-    {
-        return None;
-    }
-    let seconds = days_from_civil(year, month, day) * 86_400
-        + i64::from(hour) * 3_600
-        + i64::from(minute) * 60
-        + i64::from(second);
-    Some(seconds * 1_000)
-}
-
-/// The time of a listing (`2026-10-06T10:00:00.000Z`) in milliseconds since 1970.
-pub fn parse_iso_ms(text: &str) -> Option<i64> {
-    let (date, time) = text.trim_end_matches('Z').split_once('T')?;
-    let mut date = date.split('-');
-    let year = date.next()?.parse().ok()?;
-    let month = date.next()?.parse().ok()?;
-    let day = date.next()?.parse().ok()?;
-    let mut time = time.split(':');
-    let hour = time.next()?.parse().ok()?;
-    let minute = time.next()?.parse().ok()?;
-    let second = time.next()?.split('.').next()?.parse().ok()?;
-    millis(year, month, day, hour, minute, second)
-}
-
-/// The time of an HTTP date (`Tue, 06 Oct 2026 10:00:00 GMT`) in milliseconds since 1970.
-pub fn parse_http_date_ms(text: &str) -> Option<i64> {
-    const MONTHS: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    let mut words = text.split_whitespace().skip(1);
-    let day = words.next()?.parse().ok()?;
-    let month_name = words.next()?;
-    let month = MONTHS.iter().position(|m| *m == month_name)?;
-    let year = words.next()?.parse().ok()?;
-    let mut time = words.next()?.split(':');
-    let hour = time.next()?.parse().ok()?;
-    let minute = time.next()?.parse().ok()?;
-    let second = time.next()?.parse().ok()?;
-    millis(
-        year,
-        u32::try_from(month).ok()? + 1,
-        day,
-        hour,
-        minute,
-        second,
-    )
-}
-
-/// The files of one storage.
+/// The files of one storage. With a [`Scope`] (the window) paths go through encrypted folders by
+/// their decrypted names (spec 048, [`route`]); without one such paths are refused.
 pub struct StorageFiles {
     store: Arc<dyn RemoteStore>,
     access: Access,
+    scope: Option<Scope>,
 }
 
 impl StorageFiles {
     pub fn new(store: Arc<dyn RemoteStore>, access: Access) -> Self {
-        Self { store, access }
+        Self {
+            store,
+            access,
+            scope: None,
+        }
+    }
+
+    pub fn with_scope(self, scope: Scope) -> Self {
+        Self {
+            scope: Some(scope),
+            ..self
+        }
+    }
+
+    pub fn scope(&self) -> Option<&Scope> {
+        self.scope.as_ref()
     }
 
     pub fn store(&self) -> &Arc<dyn RemoteStore> {
@@ -223,13 +194,25 @@ impl StorageFiles {
 
     /// Every entry of the folder `path`, unsorted (the window sorts).
     pub async fn list(&self, path: &str) -> Result<Vec<Entry>, FilesError> {
+        if let Route::Encrypted(at) = route(self, path).await? {
+            return ops::list(self, &at).await;
+        }
         let prefix = folder_prefix(path)?;
         let listing = self
             .store
             .list_dir(&self.access, &prefix, MAX_ENTRIES, soon())
             .await
             .map_err(storage_error)?;
-        let folders = listing.prefixes.iter().map(|prefix| folder_entry(prefix));
+        let heads = match &self.scope {
+            Some(scope) => decorate(self, scope, &prefix, &listing).await?,
+            None => Vec::new(),
+        };
+        let folders = listing
+            .prefixes
+            .iter()
+            .filter(|sub| !heads.iter().any(|head| head.prefix == **sub))
+            .map(|prefix| folder_entry(prefix))
+            .chain(heads.iter().map(|head| route::folder_entry(head, path)));
         let files = listing.objects.iter().map(|object| {
             file_entry(
                 &object.key,
@@ -252,6 +235,9 @@ impl StorageFiles {
 
     /// The entry at `path`: a file when its key exists, else a folder when its prefix does.
     pub async fn stat(&self, path: &str) -> Result<Entry, FilesError> {
+        if let Route::Encrypted(at) = route(self, path).await? {
+            return ops::stat(self, &at).await;
+        }
         let prefix = folder_prefix(path)?;
         if prefix.is_empty() {
             return Ok(folder_entry(""));
@@ -283,7 +269,10 @@ impl StorageFiles {
 
     /// Creates the folder `name` in `folder` (its marker object).
     pub async fn create_folder(&self, folder: &str, name: &str) -> Result<Entry, FilesError> {
-        check_name(name)?;
+        if let Route::Encrypted(at) = route(self, folder).await? {
+            return ops::create_folder(self, &at, name).await;
+        }
+        check_storage_name(name)?;
         let prefix = format!("{}{name}/", folder_prefix(folder)?);
         if self.taken(&path_of(&prefix)).await? {
             return Err(FilesError::new(FilesErrorCode::Exists, "the name is taken"));
@@ -306,7 +295,10 @@ impl StorageFiles {
     /// Renames the entry `path` in its folder: a file is copied on the provider and deleted, a
     /// folder object by object.
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<Entry, FilesError> {
-        check_name(new_name)?;
+        if let Route::Encrypted(_) = route(self, path).await? {
+            return Err(ops::later());
+        }
+        check_storage_name(new_name)?;
         let entry = self.stat(path).await?;
         let parent = match path.rfind('/') {
             Some(0) | None => "/",
@@ -357,6 +349,9 @@ impl StorageFiles {
         cancel: &CancellationToken,
         progress: &mut (dyn FnMut(u64) + Send),
     ) -> Result<(), FilesError> {
+        if let Route::Encrypted(_) = route(self, path).await? {
+            return Err(ops::later());
+        }
         if self.stat(path).await?.kind == EntryKind::File {
             let key = object_key(path)?;
             self.store
@@ -420,6 +415,9 @@ impl StorageFiles {
         size: u64,
         limit: u64,
     ) -> Result<Vec<u8>, FilesError> {
+        if let Route::Encrypted(at) = route(self, path).await? {
+            return ops::read_start(self, &at, limit).await;
+        }
         let key = object_key(path)?;
         let len = size.min(limit.saturating_add(1));
         let mut reader = self

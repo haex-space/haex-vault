@@ -90,6 +90,16 @@ impl WrappedDek {
         Self(wrapped)
     }
 
+    /// The wrapped bytes, as a cache keeps them (still wrapped).
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Wrapped bytes of [`Self::as_bytes`]; `None` for the wrong length.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        bytes.try_into().ok().map(Self)
+    }
+
     /// The `DEK`, only for the entry and content it was wrapped for.
     pub fn unwrap(
         &self,

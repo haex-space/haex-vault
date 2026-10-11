@@ -2091,7 +2091,8 @@
       "paste": "Einfügen",
       "rename": "Umbenennen",
       "delete": "Löschen",
-      "newFolder": "Neuer Ordner"
+      "newFolder": "Neuer Ordner",
+      "newEncryptedFolder": "Neuer verschlüsselter Ordner"
     },
     "selection": {
       "count": "{count} ausgewählt | {count} ausgewählt",
@@ -2102,6 +2103,7 @@
     },
     "name": {
       "newFolder": "Neuer Ordner",
+      "newEncryptedFolder": "Neuer verschlüsselter Ordner",
       "rename": "Umbenennen",
       "label": "Name",
       "create": "Anlegen",
@@ -2181,6 +2183,19 @@
       "size": "Größe",
       "modified": "Geändert"
     },
+    "encrypted": {
+      "damagedEntry": "Beschädigter Eintrag",
+      "notice": {
+        "title": "Verschlüsselter Ordner",
+        "body": "Was du in einen verschlüsselten Ordner legst, verschlüsselt holzi, bevor es in den Cloud-Speicher geht. Der Anbieter sieht weder Inhalte noch Namen. Lesen lässt es sich nur mit dieser Vault, auf jedem ihrer Geräte. Geht die Vault verloren und gibt es kein Backup, sind die Dateien nicht mehr lesbar.",
+        "confirm": "Verstanden"
+      },
+      "state": {
+        "otherVault": "Verschlüsselter Ordner einer anderen Vault",
+        "newerFormat": "Braucht eine neuere Version von holzi",
+        "damaged": "Beschädigt: lässt sich nicht entschlüsseln"
+      }
+    },
     "error": {
       "invalidPath": "Dieser Pfad lässt sich nicht öffnen.",
       "notFound": "Nicht gefunden.",
@@ -2197,7 +2212,13 @@
       "noSpace": "Nicht genug Platz.",
       "invalidName": "Dieser Name ist nicht erlaubt.",
       "credentials": "Die Zugangsdaten des Cloud-Speichers fehlen oder wurden abgelehnt.",
-      "unreachable": "Der Cloud-Speicher ist nicht erreichbar."
+      "unreachable": "Der Cloud-Speicher ist nicht erreichbar.",
+      "inEncrypted": "In einem verschlüsselten Ordner lässt sich kein weiterer anlegen.",
+      "inExtensionArea": "Im Bereich einer Erweiterung lässt sich kein verschlüsselter Ordner anlegen.",
+      "noKey": "Auf diesem Gerät fehlt noch der Schlüssel der Vault. Warte, bis es synchronisiert ist.",
+      "damaged": "Beschädigt: Das lässt sich nicht entschlüsseln.",
+      "otherVault": "Dieser Ordner gehört einer anderen Vault.",
+      "newerFormat": "Dafür braucht es eine neuere Version von holzi."
     },
     "agentPermission": {
       "title": "Zugriff auf einen Cloud-Speicher",

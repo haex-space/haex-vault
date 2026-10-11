@@ -244,3 +244,56 @@ fn the_extensions_of_a_storage_are_those_granted_it_by_id() {
         .expect("names");
     assert_eq!(names, ["notes"]);
 }
+
+#[test]
+fn removing_a_storage_drops_what_this_device_cached_of_its_encrypted_folders() {
+    use crate::files::encrypted::cache::{self, HeadRow};
+    use crate::files::EncryptedState;
+    let (_dir, db) = vault();
+    put(
+        &db,
+        Some(connection("c1", "item-1")),
+        Some(storage("s1", "c1")),
+    )
+    .expect("insert");
+    put(&db, None, Some(storage("s2", "c1"))).expect("insert");
+    for storage_id in ["s1", "s2"] {
+        db.write_blocking(move |tx| {
+            cache::put_head(
+                tx,
+                storage_id,
+                &HeadRow {
+                    object_key: "aaaaaaaaaaaaaaaaaaaaaaaaaa.hxef/h".to_owned(),
+                    etag: "\"e\"".to_owned(),
+                    folder_id: "aaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+                    name: Some("Unterlagen".to_owned()),
+                    state: EncryptedState::Readable,
+                    key_id: None,
+                    open_ack: false,
+                },
+                1,
+            )?;
+            Ok(())
+        })
+        .expect("cache a head");
+    }
+
+    db.write_blocking(|tx| Ok(store::remove_storage(tx, "s1")?))
+        .expect("remove");
+
+    assert_eq!(
+        count(
+            &db,
+            "SELECT COUNT(*) FROM encrypted_folder_heads_no_sync WHERE storage_id = 's1'"
+        ),
+        0
+    );
+    assert_eq!(
+        count(
+            &db,
+            "SELECT COUNT(*) FROM encrypted_folder_heads_no_sync WHERE storage_id = 's2'"
+        ),
+        1,
+        "another storage keeps its cache"
+    );
+}

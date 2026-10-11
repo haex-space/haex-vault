@@ -104,7 +104,10 @@ pub fn render_into_cache(
             Ok(bytes)
         }
         Err(reason) => {
-            log::info!("files: no thumbnail for {name}: {reason}");
+            log::info!(
+                "files: no thumbnail for {}: {reason}",
+                crate::files::encrypted::redacted::Redacted(name)
+            );
             if std::fs::create_dir_all(cache_dir).is_ok() {
                 let _ = std::fs::write(&broken, b"");
             }
@@ -124,10 +127,26 @@ fn write_atomically(target: &PathBuf, bytes: &[u8]) -> std::io::Result<()> {
 }
 
 fn render(path: &Path) -> Result<Vec<u8>, String> {
-    let mut reader = ImageReader::open(path)
+    let reader = ImageReader::open(path)
         .map_err(|e| e.to_string())?
         .with_guessed_format()
         .map_err(|e| e.to_string())?;
+    render_from(reader)
+}
+
+/// The thumbnail of the image in `bytes`, made in memory (spec 048: entries of encrypted folders
+/// never touch the disk).
+pub fn render_bytes(bytes: &[u8]) -> Result<Vec<u8>, FilesError> {
+    ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| e.to_string())
+        .and_then(render_from)
+        .map_err(|_| broken_error())
+}
+
+fn render_from<R: std::io::BufRead + std::io::Seek>(
+    mut reader: ImageReader<R>,
+) -> Result<Vec<u8>, String> {
     let mut limits = Limits::default();
     limits.max_image_width = Some(MAX_SIDE);
     limits.max_image_height = Some(MAX_SIDE);
@@ -157,6 +176,79 @@ fn render(path: &Path) -> Result<Vec<u8>, String> {
         .encode_image(&small)
         .map_err(|e| e.to_string())?;
     Ok(bytes)
+}
+
+/// The most bytes [`MemoryThumbnails`] keeps.
+pub const MEMORY_LIMIT: usize = 64 * 1024 * 1024;
+
+/// Thumbnails of entries in encrypted folders (spec 048 FR-026, research R10): only in memory, at
+/// most [`MEMORY_LIMIT`] bytes, the least recently used go first; emptied when the vault closes.
+/// `None` marks an image that could not be decoded.
+#[derive(Default)]
+pub struct MemoryThumbnails {
+    kept: std::sync::Mutex<Kept>,
+}
+
+// ponytail: a linear scan over a queue; at ~20 KB per thumbnail that is a few thousand entries. A
+// map with an order list is the upgrade if it ever shows in a profile.
+#[derive(Default)]
+struct Kept {
+    /// Least recently used first.
+    order: std::collections::VecDeque<(String, Option<Vec<u8>>)>,
+    bytes: usize,
+}
+
+impl MemoryThumbnails {
+    fn kept(&self) -> std::sync::MutexGuard<'_, Kept> {
+        self.kept
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// The thumbnail under `key`, if one was made in this session.
+    pub fn get(&self, key: &str) -> Option<Result<Vec<u8>, FilesError>> {
+        let mut kept = self.kept();
+        let at = kept.order.iter().position(|(k, _)| k == key)?;
+        let hit = kept.order.remove(at)?;
+        let answer = hit.1.clone().ok_or_else(broken_error);
+        kept.order.push_back(hit);
+        Some(answer)
+    }
+
+    /// Keeps `made` under `key`, dropping the least recently used beyond the limit.
+    pub fn put(&self, key: String, made: &Result<Vec<u8>, FilesError>) {
+        let bytes = made.as_ref().ok().cloned();
+        let size = bytes.as_ref().map_or(0, Vec::len);
+        if size > MEMORY_LIMIT {
+            return;
+        }
+        let mut kept = self.kept();
+        if let Some(at) = kept.order.iter().position(|(k, _)| *k == key) {
+            if let Some((_, old)) = kept.order.remove(at) {
+                kept.bytes -= old.map_or(0, |old| old.len());
+            }
+        }
+        kept.order.push_back((key, bytes));
+        kept.bytes += size;
+        while kept.bytes > MEMORY_LIMIT {
+            let Some((_, old)) = kept.order.pop_front() else {
+                break;
+            };
+            kept.bytes -= old.map_or(0, |old| old.len());
+        }
+    }
+
+    /// Forgets every thumbnail (the vault closes).
+    pub fn clear(&self) {
+        let mut kept = self.kept();
+        kept.order.clear();
+        kept.bytes = 0;
+    }
+
+    /// The bytes kept.
+    pub fn size(&self) -> usize {
+        self.kept().bytes
+    }
 }
 
 /// The size within [`EDGE`] × [`EDGE`] keeping the shape; never larger than the original.

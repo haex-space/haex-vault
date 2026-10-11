@@ -23,6 +23,7 @@ import {
   isFiltering,
   parseFilter,
 } from '~/lib/files/filters'
+import { canCreateEncrypted } from '~/lib/files/encrypted'
 import { entriesMenu, type FilesCommand, folderMenu } from '~/lib/files/menus'
 import { filesLocation, parseFilesPlace } from '~/lib/files/registry'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
@@ -44,7 +45,14 @@ let openFrames = 0
 const { t } = useI18n()
 const router = useTabRouter()
 const prefs = useFilesPrefs()
-const { sourcesAsync, releaseTabAsync, statAsync, openSystemAsync } = useFiles()
+const {
+  sourcesAsync,
+  releaseTabAsync,
+  statAsync,
+  openSystemAsync,
+  encryptedNoticeShownAsync,
+  encryptedNoticeAckAsync,
+} = useFiles()
 const transfers = useFilesTransfersStore()
 const { isAndroid } = useDeviceCapabilities()
 
@@ -165,14 +173,19 @@ watch(shown, (entries) => {
 
 /** The open folder is one of holzi's own places (FR-037): nothing changes in it. */
 const folderOwned = ref(false)
+/** The open folder is, or lies in, an encrypted folder (spec 048). */
+const folderEncrypted = ref(false)
 watch(
   [source, path],
   async ([current, folderPath]) => {
     folderOwned.value = false
+    folderEncrypted.value = false
     if (folderPath === null) return
     const entry = await statAsync(current, folderPath).catch(() => null)
-    if (path.value === folderPath)
+    if (path.value === folderPath) {
       folderOwned.value = entry?.holziOwned ?? false
+      folderEncrypted.value = !!entry?.encrypted
+    }
   },
   { immediate: true },
 )
@@ -207,7 +220,15 @@ function entriesOf(targets: Selection): Entry[] {
 const menuEntries = computed(() => {
   const targets = menuTargets.value
   if (!targets)
-    return folderMenu({ readOnly: folderOwned.value, canPaste: canPaste.value })
+    return folderMenu({
+      readOnly: folderOwned.value,
+      canPaste: canPaste.value,
+      canEncrypt: canCreateEncrypted({
+        source: source.value,
+        path: path.value,
+        inEncrypted: folderEncrypted.value,
+      }),
+    })
   const entries = entriesOf(targets)
   return entriesMenu({
     count: entries.length,
@@ -280,6 +301,20 @@ async function placeAsync(
 
 const naming = ref(false)
 const renaming = ref<Entry | null>(null)
+/** The name dialog creates an encrypted folder (spec 048). */
+const namingEncrypted = ref(false)
+/** The notice before the first encrypted folder (FR-002) is open. */
+const noticing = ref(false)
+
+function startEncrypted() {
+  namingEncrypted.value = true
+  naming.value = true
+}
+
+async function ackNotice() {
+  await encryptedNoticeAckAsync().catch(() => {})
+  startEncrypted()
+}
 const deleting = ref(false)
 const pendingDelete = ref<string[]>([])
 
@@ -343,7 +378,14 @@ async function run(command: FilesCommand, targets: Selection | null) {
       break
     case 'newFolder':
       renaming.value = null
+      namingEncrypted.value = false
       naming.value = true
+      break
+    case 'newEncryptedFolder':
+      renaming.value = null
+      // Before the first encrypted folder on this device, the notice of FR-002.
+      if (await encryptedNoticeShownAsync().catch(() => false)) startEncrypted()
+      else noticing.value = true
       break
     case 'delete':
       pendingDelete.value = entries.map((entry) => entry.path)
@@ -597,8 +639,10 @@ watch(tabActive, (active) => {
       :source="source"
       :folder="path ?? ''"
       :entry="renaming"
+      :encrypted="namingEncrypted"
       @done="folder.reload()"
     />
+    <FilesEncryptedNotice v-model:open="noticing" @confirm="ackNotice" />
     <FilesDeleteDialog
       v-model:open="deleting"
       :count="pendingDelete.length"

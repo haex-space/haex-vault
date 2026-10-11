@@ -49,6 +49,8 @@ fn describe(path: &Path, own: &OwnPlaces) -> Option<Entry> {
             .flatten(),
         no_access: kind == EntryKind::Dir && !can_enter(path),
         holzi_owned: own.contains(path),
+        encrypted: None,
+        conflict: false,
         path: path.to_string_lossy().into_owned(),
         name,
         kind,
@@ -101,7 +103,12 @@ pub fn io_error(error: std::io::Error, path: &Path) -> FilesError {
         }
         ErrorKind::NotADirectory => FilesError::invalid_path("not a folder"),
         _ => {
-            log::warn!("files: {} failed: {error}", path.display());
+            // The path can be a download out of an encrypted folder (spec 048 FR-027).
+            log::warn!(
+                "files: {} failed: {}",
+                crate::files::encrypted::redacted::Redacted(&path.to_string_lossy()),
+                error.kind()
+            );
             FilesError::new(FilesErrorCode::NotFound, "not readable")
         }
     }

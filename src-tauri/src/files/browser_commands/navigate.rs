@@ -2,10 +2,10 @@
 
 use serde::Serialize;
 use tauri::ipc::Channel;
-use tauri::State;
+use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use super::{blocking, device_path, storage_files, storage_of};
+use super::{blocking, device_path, storage_of, window_storage};
 use crate::files::access::Want;
 use crate::files::local::drives::{drives, Drive};
 use crate::files::local::ops;
@@ -93,13 +93,17 @@ pub async fn files_sources(
 /// Every entry of a folder.
 #[tauri::command]
 pub async fn files_list(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     source: SourceRef,
     path: String,
 ) -> Result<Vec<Entry>, FilesError> {
     if let Some(id) = storage_of(&source) {
-        return storage_files(&state, id).await?.list(&path).await;
+        return window_storage(&app, &state, &files, id)
+            .await?
+            .list(&path)
+            .await;
     }
     let real = device_path(&files, &source, &path, Want::Read)?;
     let own = files.own.clone();
@@ -109,13 +113,17 @@ pub async fn files_list(
 /// One entry.
 #[tauri::command]
 pub async fn files_stat(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     source: SourceRef,
     path: String,
 ) -> Result<Entry, FilesError> {
     if let Some(id) = storage_of(&source) {
-        return storage_files(&state, id).await?.stat(&path).await;
+        return window_storage(&app, &state, &files, id)
+            .await?
+            .stat(&path)
+            .await;
     }
     let real = device_path(&files, &source, &path, Want::Read)?;
     let own = files.own.clone();

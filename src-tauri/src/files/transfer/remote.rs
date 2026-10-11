@@ -41,8 +41,8 @@ pub const RETRIES: [Duration; 3] = [
 /// How long one call may take; a part of 8 MiB on a slow line needs a while.
 pub(super) const CALL: Duration = Duration::from_secs(5 * 60);
 
-use super::remote_plan::{fill, remove_empty, Item};
 pub use super::remote_plan::{prepare_remote, Plan, RemoteJob, Side};
+use super::remote_plan::{remove_empty, EncTarget, Item};
 
 fn soon() -> Instant {
     Instant::now() + CALL
@@ -66,6 +66,8 @@ struct Run<'h, 'a> {
     handle: &'h Handle,
     retries: &'h [Duration],
     hooks: &'h mut Hooks<'a>,
+    /// The target when it is in an encrypted folder (spec 048).
+    target: Option<&'h EncTarget>,
     totals: Totals,
     done: Totals,
     for_all: Option<ConflictChoice>,
@@ -84,6 +86,7 @@ pub fn run_remote(
         handle,
         retries,
         hooks: &mut hooks,
+        target: plan.target.as_ref(),
         totals: plan.totals,
         done: Totals::default(),
         for_all: None,
@@ -106,6 +109,8 @@ pub fn run_remote(
 enum Place {
     Device(PathBuf),
     Key(String),
+    /// The names below the target folder in an encrypted folder.
+    Encrypted(Vec<String>),
 }
 
 impl Run<'_, '_> {
@@ -156,6 +161,9 @@ impl Run<'_, '_> {
     }
 
     fn place_of(&self, rel: &[String], folder: bool) -> Result<Place, Stop> {
+        if self.target.is_some() {
+            return Ok(Place::Encrypted(rel.to_vec()));
+        }
         Ok(match &self.job.to {
             Side::Device => {
                 let mut path = PathBuf::from(&self.job.target);
@@ -176,6 +184,7 @@ impl Run<'_, '_> {
     fn taken(&self, place: &Place) -> Result<bool, Stop> {
         match place {
             Place::Device(path) => Ok(std::fs::symlink_metadata(path).is_ok()),
+            Place::Encrypted(rel) => self.encrypted_taken(rel),
             Place::Key(key) => {
                 let files = self.target_storage().expect("a key is on a storage");
                 match self.retried(|| {
@@ -216,6 +225,7 @@ impl Run<'_, '_> {
                     Place::Device(free_name(path.parent().unwrap_or(&path), &name))
                 }
                 Place::Key(key) => Place::Key(self.free_key(&key)?),
+                Place::Encrypted(rel) => Place::Encrypted(self.encrypted_free(rel)?),
             }),
         })
     }
@@ -263,6 +273,7 @@ impl Run<'_, '_> {
 
     fn make_folder(&mut self, item: &Item) -> Result<(), Stop> {
         match self.place_of(&item.rel, true)? {
+            Place::Encrypted(rel) => self.encrypted_folder(&rel)?,
             Place::Device(path) => {
                 std::fs::create_dir_all(&path).map_err(|error| io_error(error, &path))?;
             }
@@ -284,15 +295,20 @@ impl Run<'_, '_> {
     }
 
     fn send(&mut self, item: &Item, place: &Place) -> Result<(), Stop> {
+        if item.encrypted.is_some() || matches!(place, Place::Encrypted(_)) {
+            return self.send_encrypted(item, place);
+        }
         match (&self.job.from, place) {
             (Side::Device, Place::Key(key)) => {
                 let mut file = std::fs::File::open(&item.from)
                     .map_err(|error| io_error(error, Path::new(&item.from)))?;
-                self.upload(key, item.size, &mut |buf| file.read(buf))
+                self.upload(key, &mut |buf| file.read(buf))
             }
             (Side::Storage(from), Place::Device(path)) => {
                 let from = Arc::clone(from);
-                self.download(&from, &item.from, item.size, path)
+                self.download(path, |run, part| {
+                    run.fetch(&from, &item.from, item.size, part)
+                })
             }
             (Side::Storage(from), Place::Key(key)) => {
                 let from = Arc::clone(from);
@@ -319,99 +335,20 @@ impl Run<'_, '_> {
                     ))
                 })?;
                 let handle = self.handle.clone();
-                self.upload(key, item.size, &mut |buf| handle.block_on(reader.read(buf)))
+                self.upload(key, &mut |buf| handle.block_on(reader.read(buf)))
             }
-            (Side::Device, Place::Device(_)) => Err(Stop::Failed(FilesError::new(
+            _ => Err(Stop::Failed(FilesError::new(
                 FilesErrorCode::Unsupported,
                 "device to device runs as a local transfer",
             ))),
         }
     }
 
-    /// Sends `size` bytes from `read` to `key`: one `put` under [`PART`], else in parts.
-    fn upload(
-        &mut self,
-        key: &str,
-        size: u64,
-        read: &mut dyn FnMut(&mut [u8]) -> std::io::Result<usize>,
-    ) -> Result<(), Stop> {
-        let files = match &self.job.to {
-            Side::Storage(files) => Arc::clone(files),
-            Side::Device => unreachable!("an upload goes to a storage"),
-        };
-        let (store, access) = (files.store(), files.access());
-        if size < PART as u64 {
-            let body = fill(read, PART).map_err(|_| {
-                Stop::Failed(FilesError::new(FilesErrorCode::NoAccess, "not readable"))
-            })?;
-            let length = body.len() as u64;
-            self.retried(|| {
-                self.handle
-                    .block_on(store.put(access, key, body.clone(), soon()))
-            })?;
-            self.done.bytes += length;
-            return Ok(());
-        }
-        let id = self.retried(|| {
-            self.handle
-                .block_on(store.create_multipart(access, key, soon()))
-        })?;
-        let sent = self.parts(&files, key, &id, read);
-        if sent.is_err() {
-            // Nothing half stays at the provider (FR-020).
-            let _ = self
-                .handle
-                .block_on(store.abort_multipart(access, key, &id, soon()));
-        }
-        sent
-    }
-
-    fn parts(
-        &mut self,
-        files: &StorageFiles,
-        key: &str,
-        id: &str,
-        read: &mut dyn FnMut(&mut [u8]) -> std::io::Result<usize>,
-    ) -> Result<(), Stop> {
-        let (store, access) = (files.store(), files.access());
-        let mut etags = Vec::new();
-        for number in 1u16.. {
-            self.check()?;
-            let body = fill(read, PART).map_err(|_| {
-                Stop::Failed(FilesError::new(FilesErrorCode::NoAccess, "not readable"))
-            })?;
-            if body.is_empty() {
-                break;
-            }
-            let length = body.len() as u64;
-            let etag = self.retried(|| {
-                self.handle.block_on(store.upload_part(
-                    access,
-                    key,
-                    id,
-                    number,
-                    body.clone(),
-                    soon(),
-                ))
-            })?;
-            etags.push(etag);
-            self.done.bytes += length;
-            self.report();
-        }
-        self.check()?;
-        self.retried(|| {
-            self.handle
-                .block_on(store.complete_multipart(access, key, id, &etags, soon()))
-        })
-    }
-
-    /// Fetches `key` into a part file beside `path`, renamed at the end.
+    /// Fills a part file beside `path` with `fetch` and renames it at the end.
     fn download(
         &mut self,
-        files: &StorageFiles,
-        key: &str,
-        size: u64,
         path: &Path,
+        fetch: impl FnOnce(&mut Self, &Path) -> Result<(), Stop>,
     ) -> Result<(), Stop> {
         let folder = path
             .parent()
@@ -422,7 +359,7 @@ impl Run<'_, '_> {
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
         let part = folder.join(format!(".{name}.holzi-part-{}", uuid::Uuid::new_v4()));
-        let result = self.fetch(files, key, size, &part).and_then(|()| {
+        let result = fetch(self, &part).and_then(|()| {
             (self.hooks.rename)(&part, path).map_err(|error| Stop::from(io_error(error, path)))
         });
         if result.is_err() {
@@ -481,6 +418,11 @@ impl Run<'_, '_> {
         }
     }
 }
+
+#[path = "remote_encrypted.rs"]
+mod encrypted;
+#[path = "remote_upload.rs"]
+mod upload;
 
 #[cfg(test)]
 #[path = "remote_tests.rs"]

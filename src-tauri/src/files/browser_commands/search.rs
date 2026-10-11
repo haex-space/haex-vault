@@ -1,9 +1,9 @@
 //! Search by name (spec 044 US4).
 
 use tauri::ipc::Channel;
-use tauri::State;
+use tauri::{AppHandle, State};
 
-use super::{device_path, storage_files, storage_of};
+use super::{device_path, storage_of, window_storage};
 use crate::files::access::Want;
 use crate::files::search::{
     FilesSearchEvent, SearchFilters, SearchLimits, SearchManager, SearchOptions,
@@ -16,6 +16,7 @@ use crate::state::AppState;
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn files_search_start(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     searches: State<'_, SearchManager>,
@@ -34,7 +35,7 @@ pub async fn files_search_start(
         limits: SearchLimits::USER,
     };
     if let Some(id) = storage_of(&source) {
-        let storage = storage_files(&state, id).await?;
+        let storage = window_storage(&app, &state, &files, id).await?;
         return searches.start_storage(state.gate(), storage, path, query, options, channel);
     }
     let root = device_path(&files, &source, &path, Want::Read)?;
