@@ -149,8 +149,12 @@ Begleitdatei ungültig, ein neues Feld braucht eine neue Formatversion):
   `oid` im Zielordner kopieren, dann eine neue Begleitdatei mit neuer `entry`, `content` = neue `oid`,
   `cid` wie im Original und `dek` unter `K_wrap` des Zielordners neu verpackt.
 - **Aufräumen**: Begleitdateien, die eine andere als `base` hat, und Inhaltsobjekte ohne Verweis
-  löscht holzi, wenn ihre Änderungszeit beim Anbieter älter als 24 Stunden ist.
+  löscht holzi, wenn ihre Änderungszeit beim Anbieter älter als 24 Stunden ist. Gibt es im Ordner
+  eine Begleitdatei, die sich nicht öffnen lässt, bleiben alle Inhaltsobjekte liegen, weil sie auf
+  eines davon zeigen kann.
 - **Löschen eines Eintrags**: Inhaltsobjekte und Begleitdateien aller Nachkommen, zuletzt die eigene.
+  Mit einer Fassung gehen die älteren Fassungen desselben Eintrags, die ohne sie wieder gelten
+  würden (keine verbleibende Fassung nennt sie als `base`), die älteren zuerst.
 - **Löschen des Ordners**: alle Objekte unter `P`, der Kopf zuletzt.
 
 ## Testvektoren
