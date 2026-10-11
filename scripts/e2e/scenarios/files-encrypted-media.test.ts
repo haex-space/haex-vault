@@ -20,6 +20,7 @@ const BUCKET = 'holzi-encrypted-media-e2e'
 const MEDIA = ['ton.mp3', 'film.mp4']
 
 async function setName(instance: FlowInstance, name: string) {
+  await instance.waitForDisplayed('files-name-input')
   await instance.exec(
     `const input = document.querySelector('[data-testid="files-name-input"]')
      input.value = ''
