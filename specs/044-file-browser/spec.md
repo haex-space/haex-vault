@@ -554,4 +554,5 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   dazu in dieser Spec nichts.
 - Zugriff über einzeln gewählte Ordner auf Android (Storage Access Framework).
 - Änderungen am Dateizugriff von Erweiterungen (Spec 017).
-- Andere Protokolle als S3 (WebDAV, SMB, FTP).
+- Andere Protokolle als S3 (SMB, FTP). WebDAV- und SFTP-Speicher bringt Spec 050
+  ([`050-webdav-sftp-storage`](../050-webdav-sftp-storage/spec.md)); sie erscheinen hier wie S3-Speicher.
