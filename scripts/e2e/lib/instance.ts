@@ -101,7 +101,12 @@ export function prepareRoot(
 }
 
 export function removeRoot(root: string): void {
-  rmSync(root, { recursive: true, force: true })
+  rmSync(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100,
+  })
 }
 
 /**
