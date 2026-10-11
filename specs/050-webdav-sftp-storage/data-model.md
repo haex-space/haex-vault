@@ -68,6 +68,7 @@ Eigentümer `storage` wie in 038 (Regel Z14). Titel nach Protokoll: `S3: <Anbiet
 | eigenes Feld `privateKey`   | —                | —                     | —                 | privater Schlüssel als Text (wie eingegeben oder erzeugt) |
 | eigenes Feld `passphrase`   | —                | —                     | —                 | optional                                                  |
 
+Ein erzeugter Schlüssel (`generatedKey`) wird beim Speichern als `privateKey` im Eintrag abgelegt.
 `credentials::read` liefert je nach Protokoll der Verbindung (Typ unten) und meldet einen Eintrag ohne
 die nötigen Felder als `missing` wie in 038.
 
@@ -106,5 +107,9 @@ sieht.
 
 - **Upload-Sitzung** je Store: Kennung → Zustand (WebDAV: Strom und laufende Anfrage; SFTP: offene
   Zwischendatei und Stellen der Teile). Ohne Teil nach 30 Minuten verworfen.
+- **Vorläufige SSH-Schlüssel**: Kennung → erzeugter privater Schlüssel (`Zeroizing`), bis zum Speichern,
+  höchstens 30 Minuten, verworfen beim Sperren der Vault (FR-008).
+- **Zuletzt gezeigter Hostschlüssel** je Verbindung (bei `hostKeyChanged`), Grundlage für
+  `storage_host_key_accept`; nicht gespeichert.
 - **SSH-Sitzungen** je Verbindung (Kennung, Hostschlüssel, Benutzer): bis zu zwei, nach 60 s ohne Aufruf
   geschlossen; verworfen bei neuen Zugangsdaten oder neuem Hostschlüssel.

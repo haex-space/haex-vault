@@ -140,7 +140,10 @@ https://github.com/RustCrypto/SSH; crates.io-API (Versionen und Abhängigkeiten,
 - **Erzeugen** (FR-008): `PrivateKey::random(&mut rng, Algorithm::Ed25519)`, Kommentar `holzi`, ohne
   Passphrase (geschützt durch den Passwortmanager der Vault). holzi zeigt den öffentlichen Schlüssel als
   OpenSSH-Zeile (`ssh-ed25519 AAAA… holzi`) zum Kopieren. Hetzner verlangt auf Port 22 das Format
-  RFC 4716, auf Port 23 die OpenSSH-Zeile; die Voreinstellung nutzt Port 23 (R11).
+  RFC 4716, auf Port 23 die OpenSSH-Zeile; die Voreinstellung nutzt Port 23 (R11). Der private
+  Schlüssel geht nie in die Oberfläche: holzi hält ihn bis zum Speichern als vorläufigen Schlüssel im
+  Prozess (Kennung → `Zeroizing`, verworfen nach 30 Minuten, beim Sperren der Vault und nach dem
+  Speichern) und gibt nur Kennung und öffentlichen Schlüssel zurück (Analyse U1).
 - **Einfügen oder Datei einlesen**: `russh::keys::decode_secret_key(text, passphrase)` liest OpenSSH (auch
   mit Passphrase), PKCS#1, PKCS#8, `EC PRIVATE KEY` und PuTTY-PPK. holzi prüft den Schlüssel beim
   Speichern und legt den Text so ab, wie der Nutzer ihn gab, mit der Passphrase in einem eigenen Feld.
@@ -164,6 +167,8 @@ ohne Gewinn, weil die Passphrase im selben Eintrag läge).
   Hetzner mit dem Verweis auf die veröffentlichten Fingerabdrücke). Bestätigt der Nutzer, schickt die
   Oberfläche den Schlüssel mit dem nächsten Speichern mit; holzi verbindet erneut und akzeptiert nur
   genau diesen Schlüssel.
+- Den zuletzt gezeigten Schlüssel je Verbindung merkt sich der Prozess (nicht gespeichert), damit
+  „annehmen“ nur genau den Schlüssel übernimmt, den der Nutzer gesehen hat (Analyse U2).
 - Zeigt der Server später einen anderen Schlüssel, scheitert jeder Aufruf mit `HostKeyChanged` (R10);
   die Einstellungen zeigen am Speicher die Warnung mit altem und neuem Fingerabdruck und die Aktion
   „Neuen Schlüssel annehmen“ (`storage_host_key_accept`, contracts/tauri-commands.md). Erweiterungen und
@@ -282,7 +287,8 @@ für Navigation, Viewer, Transfers, Suche, Agents); ein `enum` für die Form im 
 - **Groß-/Kleinschreibung**: Vor dem Schreiben einer neuen Datei liest der Store den Elternordner (eine
   Ebene) und lehnt ab, wenn dort ein Name liegt, der sich nur in der Schreibweise unterscheidet
   (`InvalidKey`, Randfall der Spec); so trifft ein Schreiben auf Koofr (unterscheidet nicht) nie eine
-  andere Datei.
+  andere Datei. Die Prüfung liegt in `tree.rs` und gilt auch für den Dateibrowser: Dort ist ein solcher
+  Name „schon vorhanden“ und löst die Konfliktfrage aus (Analyse C1).
 - **Leere Ordner nach dem Löschen**: Nach dem Löschen einer Datei entfernt holzi die dadurch leeren
   Elternordner bis zur Wurzel des Bereichs der Erweiterung, nie darüber. SFTP `remove_dir` scheitert an
   nicht leeren Ordnern von selbst; bei WebDAV prüft holzi mit `PROPFIND`, dass der Ordner leer ist, und
@@ -302,8 +308,9 @@ wie in Spec 038 R5.
 
 **Decision**:
 
-- `StorageError` bekommt `QuotaExceeded` (WebDAV 507, SFTP `SSH_FX_FAILURE` beim Schreiben mit vollem
-  Kontingent laut `statvfs` nicht zuverlässig erkennbar: dort `Network` mit Log), `HostKeyChanged`,
+- `StorageError` bekommt `QuotaExceeded` (WebDAV 507; SFTP meldet beim Schreiben nur `SSH_FX_FAILURE`,
+  daher fragt holzi danach `statvfs@openssh.com` ab, wenn der Server es anbietet, und meldet
+  `QuotaExceeded`, wenn weniger frei ist als der Rest der Datei, sonst `Network` mit Log), `HostKeyChanged`,
   `HostKeyUnknown` und `Unsupported` (R8). Für Erweiterungen wird `QuotaExceeded` zur Fehlerart „Grenze
   überschritten“ und `HostKey*` zu „Netzwerkfehler“ (FR-021); der Dateibrowser nennt beide eigens.
 - `TestOutcome` bekommt `folderMissing` (statt `bucketMissing` bei WebDAV und SFTP), `notWebDav`,

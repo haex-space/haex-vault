@@ -31,23 +31,25 @@ type CredentialsInput =
       privateKey: string
       passphrase?: string
     }
+  | { kind: 'generatedKey'; username: string; keyId: string }
 ```
 
-`s3` nur für S3-Verbindungen, `password` für WebDAV und SFTP, `sshKey` nur für SFTP; sonst Fehler
+`s3` nur für S3-Verbindungen, `password` für WebDAV und SFTP, `sshKey` und `generatedKey` nur für SFTP;
+sonst Fehler
 `invalid credentials`. Ein privater Schlüssel, den `russh::keys::decode_secret_key` nicht lesen kann
 (auch: falsche Passphrase), ist `invalid credentials` vor jedem Test.
 
 ## Neue Commands
 
-| Command                    | Argumente                                                                  | Antwort                                                                                                                                                                                                                             |
-| -------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storage_ssh_key_generate` | —                                                                          | `{ privateKey, publicKey }`: neuer Ed25519-Schlüssel (research R4). Der private Schlüssel geht nur ins Formular zurück und wird erst mit `storage_connection_save` im Passwortmanager abgelegt; holzi speichert ihn sonst nirgends. |
-| `storage_host_key_accept`  | `{ connectionId, hostKey }`                                                | `ConnectionView`; nur wenn der letzte Test dieser Verbindung auf diesem Gerät `hostKeyChanged` mit genau diesem `hostKey` ergab. Setzt `host_key` und `host_key_confirmed_at`, verwirft offene SSH-Sitzungen, testet danach.        |
-| `storage_folder_create`    | `{ storageId }` oder `{ connectionId, folder }` (vor dem ersten Speichern) | `TestResult` des anschließenden Tests; legt den Ordner (mit fehlenden Elternordnern) an, nur auf ausdrückliche Aktion des Nutzers (FR-006).                                                                                         |
+| Command                    | Argumente                                                                  | Antwort                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `storage_ssh_key_generate` | —                                                                          | `{ keyId, publicKey }`: neuer Ed25519-Schlüssel (research R4). Der private Schlüssel bleibt im Prozess (vorläufige Schlüssel nach `keyId`, `Zeroizing`, verworfen nach 30 Minuten, beim Sperren der Vault und nach dem Speichern); `storage_connection_save` mit `{ kind: 'generatedKey', keyId }` legt ihn im Passwortmanager ab. Eine unbekannte oder abgelaufene `keyId` ist `invalid credentials`. |
+| `storage_host_key_accept`  | `{ connectionId, hostKey }`                                                | `ConnectionView`; nur wenn der zuletzt gezeigte Hostschlüssel dieser Verbindung auf diesem Gerät (im Prozess gemerkt bei `hostKeyChanged`, research R5) genau dieser `hostKey` ist. Setzt `host_key` und `host_key_confirmed_at`, verwirft offene SSH-Sitzungen, testet danach.                                                                                                                        |
+| `storage_folder_create`    | `{ storageId }` oder `{ connectionId, folder }` (vor dem ersten Speichern) | `TestResult` des anschließenden Tests; legt den Ordner (mit fehlenden Elternordnern) an, nur auf ausdrückliche Aktion des Nutzers (FR-006).                                                                                                                                                                                                                                                            |
 
-`storage_ssh_key_generate` gibt den privaten Schlüssel einmal an das Formular, weil der Nutzer den
-öffentlichen Schlüssel erst beim Anbieter hinterlegen muss, bevor der Test gelingen kann. Die Oberfläche
-hält ihn nur im Formular und zeigt ihn nicht an.
+Der Nutzer muss den öffentlichen Schlüssel erst beim Anbieter hinterlegen, bevor der Test gelingen kann;
+darum liegt der erzeugte private Schlüssel bis zum Speichern als vorläufiger Schlüssel im Prozess. Die
+Oberfläche kennt nur `keyId` und den öffentlichen Schlüssel (FR-008).
 
 ## Fehler an die Oberfläche
 

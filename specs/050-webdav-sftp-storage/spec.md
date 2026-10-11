@@ -193,9 +193,10 @@ Servers austauschen und prüfen, dass holzi die Verbindung verweigert.
    Vergleich des Fingerabdrucks annehmen.
 3. **Given** ein privater Schlüssel mit Passphrase, **When** Anna ihn einträgt, **Then** liegen Schlüssel
    und Passphrase im Passwortmanager, und holzi zeigt den Schlüssel nirgends sonst im Klartext.
-4. **Given** Anna hat noch keinen Schlüssel, **When** sie „Schlüssel erzeugen“ wählt, **Then** legt holzi
-   ein neues Schlüsselpaar im Passwortmanager an und zeigt den öffentlichen Schlüssel zum Kopieren, damit
-   sie ihn beim Anbieter hinterlegen kann.
+4. **Given** Anna hat noch keinen Schlüssel, **When** sie „Schlüssel erzeugen“ wählt, **Then** erzeugt holzi
+   ein neues Schlüsselpaar und zeigt den öffentlichen Schlüssel zum Kopieren, damit sie ihn beim Anbieter
+   hinterlegen kann; der private Schlüssel verlässt holzi nie (auch nicht in die Oberfläche) und liegt nach
+   dem Speichern der Verbindung im Passwortmanager.
 5. **Given** falsche Zugangsdaten, ein nicht erreichbarer Host, ein fehlender Ordner oder fehlende
    Rechte, **When** Anna speichern will, **Then** nennt holzi den Grund und speichert nichts; beim
    fehlenden Ordner bietet holzi wie in US1 an, ihn anzulegen.
@@ -302,8 +303,10 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
 - **Server, der beim Kopieren oder Verschieben nicht überschreibt**: holzi erreicht dasselbe Ergebnis
   wie bei S3 (das Ziel wird ersetzt), ohne dass das Ziel zwischendurch fehlt oder halb ist, soweit der
   Server das zulässt; sonst meldet holzi den Fehler, bevor etwas verloren geht.
-- **Kontingent beim Anbieter erschöpft**: Hochladen scheitert mit einem eigenen verständlichen Fehler;
-  keine halbe Datei bleibt zurück.
+- **Kontingent beim Anbieter erschöpft**: Hochladen scheitert mit einem eigenen verständlichen Fehler,
+  soweit der Server ein volles Kontingent erkennen lässt (WebDAV meldet es; bei SFTP fragt holzi nach
+  einem gescheiterten Schreiben den freien Platz ab, wenn der Server das anbietet), sonst mit dem
+  Netzwerkfehler; keine halbe Datei bleibt zurück.
 - **Gleichzeitige Änderung derselben Datei von außen** (etwa per Nextcloud-Client): Es gilt, was zuletzt
   geschrieben wurde; verschlüsselte Ordner erkennen Konflikte nach Spec 048.
 
@@ -337,8 +340,10 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
 - **FR-007**: Alle Zugangsdaten der neuen Protokolle (Passwort, privater Schlüssel, Passphrase) MÜSSEN
   im Passwortmanager liegen und DÜRFEN sonst nirgends in lesbarer Form gespeichert werden (wie Spec
   038 FR-005).
-- **FR-008**: holzi MUSS auf Wunsch ein SSH-Schlüsselpaar erzeugen, den privaten Schlüssel im
-  Passwortmanager ablegen und den öffentlichen Schlüssel zum Kopieren anzeigen. Ein vorhandener
+- **FR-008**: holzi MUSS auf Wunsch ein SSH-Schlüsselpaar erzeugen, den öffentlichen Schlüssel zum
+  Kopieren anzeigen und den privaten Schlüssel beim Speichern der Verbindung im Passwortmanager ablegen;
+  bis dahin DARF der erzeugte private Schlüssel nur im Prozess von holzi liegen, nie in der Oberfläche
+  und nie auf der Festplatte. Ein vorhandener
   privater Schlüssel MUSS sich einfügen oder aus einer Datei einlesen lassen.
 - **FR-009**: Verbindungen, Speicher und bestätigte Hostschlüssel MÜSSEN Vault-Daten sein und mit dem
   Datensync auf alle eigenen Geräte gelangen (wie Spec 038 FR-006). Das Ergebnis des letzten Tests
