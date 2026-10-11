@@ -19,7 +19,7 @@ another file's content and replay an old version under the current key (spec 048
 ## Decision
 
 **holzi has one format for encrypted folders, `HXEF`, versioned, specified in
-`docs/formats/encrypted-folder-v1.md` with test vectors.** Spec 048 defines version 1.
+[`docs/formats/encrypted-folder-v1.md`](../formats/encrypted-folder-v1.md) with test vectors.** Spec 048 defines version 1.
 
 - Per-file encryption under a folder: random object names, encrypted sidecars that carry each
   entry's parent, name and metadata, content in 64 KiB XChaCha20-Poly1305 blocks bound to their
