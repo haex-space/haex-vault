@@ -318,6 +318,46 @@ mod storage {
         assert_eq!(names, ["/Urlaub/2026/notiz.txt", "/Urlaub/Notizen"]);
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_search_goes_through_encrypted_folders_by_their_decrypted_names() {
+        use crate::files::encrypted::test_support::{filled, tree};
+        use crate::remote_storage::test_support::Op;
+
+        let scene = filled(&tree(&[
+            ("Belege/2026/strom.pdf", "pdf"),
+            ("Belege/2026/gas.pdf", "pdf"),
+            ("notiz.txt", "n"),
+        ]))
+        .await;
+        scene.fake.insert("b", "Fotos/stromzaehler.jpg", b"x");
+        let files = scene.files();
+        // Loaded once: the search reads no sidecar and lists nothing inside; only the listing of
+        // `/` looks at the folder's head, as every listing there does.
+        files.list("/").await.unwrap();
+        files.list("/Unterlagen").await.unwrap();
+        let mark = scene.fake.calls().len();
+        let (names, _, end) = run(&files, "/", "strom", &user(), &CancellationToken::new()).await;
+        assert_eq!(
+            names,
+            [
+                "/Fotos/stromzaehler.jpg",
+                "/Unterlagen/Belege/2026/strom.pdf"
+            ]
+        );
+        assert_eq!(end, SearchEnd::Done { truncated: false });
+        let inside: Vec<(Op, String)> = scene.fake.calls()[mark..]
+            .iter()
+            .filter(|(_, key)| key.contains(".hxef/") && !key.ends_with(".hxef/h"))
+            .cloned()
+            .collect();
+        assert!(inside.is_empty(), "{inside:?}");
+
+        // Without the window's scope (agents, spec 048 US6) nothing inside is found.
+        let plain = StorageFiles::new(scene.fake.clone(), access("b"));
+        let (names, _, _) = run(&plain, "/", "strom", &user(), &CancellationToken::new()).await;
+        assert_eq!(names, ["/Fotos/stromzaehler.jpg"]);
+    }
+
     #[tokio::test]
     async fn a_cancelled_storage_search_stops() {
         let files = files(&["a/notiz.txt"]);
