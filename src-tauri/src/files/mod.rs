@@ -7,6 +7,7 @@ pub mod access;
 pub mod agent;
 pub mod browser_commands;
 pub mod commands;
+pub mod encrypted;
 pub mod kind;
 pub mod local;
 pub mod media;

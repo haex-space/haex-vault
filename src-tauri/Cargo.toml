@@ -124,6 +124,9 @@ chacha20poly1305 = { version = "0.10", features = ["std"] }
 postcard = { version = "1", features = ["use-std"] }
 # Randomness for content keys and nonces. Already in the lock via other crates.
 getrandom = "0.4"
+# Encrypted folders (spec 048, T005): Base32 object names (RFC 4648, no padding), hex and Base64 of
+# the format `HXEF`. Already in the lock via other crates; no new crate in the build.
+data-encoding = { version = "2.11", features = ["std"] }
 
 # Password manager (spec 034, plan "Neue Abhängigkeiten"). `keepass` reads KDBX 3 and 4 for the
 # import (research R12, verdict of the spike T003); `csv` parses the Bitwarden and LastPass exports
