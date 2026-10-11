@@ -13,6 +13,8 @@ use tokio::io::AsyncReadExt;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
+use crate::files::encrypted::route::{self, decorate, route, Route};
+use crate::files::encrypted::{ops, Scope};
 use crate::files::kind::mime_for;
 use crate::files::local::edit::check_name;
 pub use crate::files::storage_time::{parse_http_date_ms, parse_iso_ms};
@@ -68,7 +70,7 @@ fn soon() -> Instant {
 }
 
 /// The parts of a window path; `/` has none. `.`, `..` and empty parts are refused.
-fn parts(path: &str) -> Result<Vec<&str>, FilesError> {
+pub(crate) fn parts(path: &str) -> Result<Vec<&str>, FilesError> {
     let rest = path
         .strip_prefix('/')
         .ok_or_else(|| FilesError::invalid_path("a storage path starts with /"))?;
@@ -154,15 +156,32 @@ fn folder_entry(prefix: &str) -> Entry {
     }
 }
 
-/// The files of one storage.
+/// The files of one storage. With a [`Scope`] (the window) paths go through encrypted folders by
+/// their decrypted names (spec 048, [`route`]); without one such paths are refused.
 pub struct StorageFiles {
     store: Arc<dyn RemoteStore>,
     access: Access,
+    scope: Option<Scope>,
 }
 
 impl StorageFiles {
     pub fn new(store: Arc<dyn RemoteStore>, access: Access) -> Self {
-        Self { store, access }
+        Self {
+            store,
+            access,
+            scope: None,
+        }
+    }
+
+    pub fn with_scope(self, scope: Scope) -> Self {
+        Self {
+            scope: Some(scope),
+            ..self
+        }
+    }
+
+    pub fn scope(&self) -> Option<&Scope> {
+        self.scope.as_ref()
     }
 
     pub fn store(&self) -> &Arc<dyn RemoteStore> {
@@ -175,13 +194,25 @@ impl StorageFiles {
 
     /// Every entry of the folder `path`, unsorted (the window sorts).
     pub async fn list(&self, path: &str) -> Result<Vec<Entry>, FilesError> {
+        if let Route::Encrypted(at) = route(self, path).await? {
+            return ops::list(self, &at).await;
+        }
         let prefix = folder_prefix(path)?;
         let listing = self
             .store
             .list_dir(&self.access, &prefix, MAX_ENTRIES, soon())
             .await
             .map_err(storage_error)?;
-        let folders = listing.prefixes.iter().map(|prefix| folder_entry(prefix));
+        let heads = match &self.scope {
+            Some(scope) => decorate(self, scope, &prefix, &listing).await?,
+            None => Vec::new(),
+        };
+        let folders = listing
+            .prefixes
+            .iter()
+            .filter(|sub| !heads.iter().any(|head| head.prefix == **sub))
+            .map(|prefix| folder_entry(prefix))
+            .chain(heads.iter().map(|head| route::folder_entry(head, path)));
         let files = listing.objects.iter().map(|object| {
             file_entry(
                 &object.key,
@@ -204,6 +235,9 @@ impl StorageFiles {
 
     /// The entry at `path`: a file when its key exists, else a folder when its prefix does.
     pub async fn stat(&self, path: &str) -> Result<Entry, FilesError> {
+        if let Route::Encrypted(at) = route(self, path).await? {
+            return ops::stat(self, &at).await;
+        }
         let prefix = folder_prefix(path)?;
         if prefix.is_empty() {
             return Ok(folder_entry(""));
@@ -235,6 +269,9 @@ impl StorageFiles {
 
     /// Creates the folder `name` in `folder` (its marker object).
     pub async fn create_folder(&self, folder: &str, name: &str) -> Result<Entry, FilesError> {
+        if let Route::Encrypted(at) = route(self, folder).await? {
+            return ops::create_folder(self, &at, name).await;
+        }
         check_storage_name(name)?;
         let prefix = format!("{}{name}/", folder_prefix(folder)?);
         if self.taken(&path_of(&prefix)).await? {
@@ -258,6 +295,9 @@ impl StorageFiles {
     /// Renames the entry `path` in its folder: a file is copied on the provider and deleted, a
     /// folder object by object.
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<Entry, FilesError> {
+        if let Route::Encrypted(_) = route(self, path).await? {
+            return Err(ops::later());
+        }
         check_storage_name(new_name)?;
         let entry = self.stat(path).await?;
         let parent = match path.rfind('/') {
@@ -309,6 +349,9 @@ impl StorageFiles {
         cancel: &CancellationToken,
         progress: &mut (dyn FnMut(u64) + Send),
     ) -> Result<(), FilesError> {
+        if let Route::Encrypted(_) = route(self, path).await? {
+            return Err(ops::later());
+        }
         if self.stat(path).await?.kind == EntryKind::File {
             let key = object_key(path)?;
             self.store
@@ -372,6 +415,9 @@ impl StorageFiles {
         size: u64,
         limit: u64,
     ) -> Result<Vec<u8>, FilesError> {
+        if let Route::Encrypted(at) = route(self, path).await? {
+            return ops::read_start(self, &at, limit).await;
+        }
         let key = object_key(path)?;
         let len = size.min(limit.saturating_add(1));
         let mut reader = self

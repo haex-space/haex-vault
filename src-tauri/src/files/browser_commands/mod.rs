@@ -5,6 +5,7 @@
 //! [`search`]; this module keeps what they share.
 
 pub mod change;
+pub mod encrypted;
 pub mod navigate;
 pub mod search;
 pub mod view;
@@ -12,10 +13,11 @@ pub mod view;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use crate::error::HolziError;
 use crate::files::access::{check, AgentGrants, Target, Verdict, Want};
+use crate::files::encrypted::{Scope, VaultSource};
 use crate::files::local::{resolve, resolve_entry};
 use crate::files::state::FilesState;
 use crate::files::storage_source::StorageFiles;
@@ -56,6 +58,29 @@ pub(crate) async fn storage_files(
     ))
 }
 
+/// [`storage_files`] for the window: with the [`Scope`] that lets its paths go through encrypted
+/// folders by their decrypted names (spec 048). The opened folders live in `files` until the vault
+/// closes.
+pub(crate) async fn window_storage(
+    app: &AppHandle,
+    state: &AppState,
+    files: &FilesState,
+    storage_id: &str,
+) -> Result<StorageFiles, FilesError> {
+    files.forget_on_close(state.gate());
+    let app = app.clone();
+    let vault: VaultSource = Arc::new(move || {
+        app.state::<AppState>()
+            .database()
+            .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "no open vault"))
+    });
+    Ok(storage_files(state, storage_id).await?.with_scope(Scope {
+        storage_id: storage_id.to_owned(),
+        folders: Arc::clone(&files.encrypted),
+        vault,
+    }))
+}
+
 /// The storage id of `source`, if it is one.
 pub(super) fn storage_of(source: &SourceRef) -> Option<&str> {
     match source {
@@ -66,11 +91,13 @@ pub(super) fn storage_of(source: &SourceRef) -> Option<&str> {
 
 /// One end of a transfer across sources.
 pub(super) async fn side_of(
+    app: &AppHandle,
     state: &State<'_, AppState>,
+    files: &FilesState,
     source: &SourceRef,
 ) -> Result<Side, FilesError> {
     Ok(match storage_of(source) {
-        Some(id) => Side::Storage(Arc::new(storage_files(state, id).await?)),
+        Some(id) => Side::Storage(Arc::new(window_storage(app, state, files, id).await?)),
         None => Side::Device,
     })
 }

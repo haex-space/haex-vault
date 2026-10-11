@@ -162,3 +162,32 @@ fn an_image_beyond_the_limits_is_refused_without_decoding() {
         FilesErrorCode::Broken
     );
 }
+
+#[test]
+fn memory_thumbnails_keep_the_most_recent_within_the_limit() {
+    let kept = MemoryThumbnails::default();
+    let big = vec![0u8; MEMORY_LIMIT / 2];
+    kept.put("a".to_owned(), &Ok(big.clone()));
+    kept.put("b".to_owned(), &Ok(big.clone()));
+    assert!(kept.get("a").is_some(), "a is now the most recent");
+    kept.put("c".to_owned(), &Ok(big));
+    assert!(kept.get("b").is_none(), "the least recent went");
+    assert!(kept.get("a").is_some());
+    assert!(kept.size() <= MEMORY_LIMIT);
+    kept.put("kaputt".to_owned(), &Err(broken_error()));
+    assert_eq!(
+        kept.get("kaputt").unwrap().unwrap_err().code,
+        FilesErrorCode::Broken
+    );
+    kept.clear();
+    assert_eq!(kept.size(), 0);
+    assert!(kept.get("a").is_none());
+}
+
+#[test]
+fn bytes_that_are_no_image_are_broken() {
+    assert_eq!(
+        render_bytes(b"kein Bild").unwrap_err().code,
+        FilesErrorCode::Broken
+    );
+}

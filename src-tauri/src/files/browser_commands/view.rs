@@ -8,29 +8,34 @@ use tauri::ipc::Response;
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use super::{blocking, device_path, storage_files, storage_of};
+use super::{blocking, device_path, storage_of, window_storage};
 use crate::files::access::Want;
+use crate::files::encrypted::ops::{file_at, later};
 use crate::files::encrypted::redacted::Redacted;
+use crate::files::encrypted::route::{plain_by_memory, route, Located, Route};
+use crate::files::encrypted::source::{EncryptedFile, EncryptedFileSource};
 use crate::files::kind::{viewer_kind, ViewerKind};
 use crate::files::local::ops;
 use crate::files::local::text::{read_text, text_from, TextContent, TEXT_LIMIT};
 use crate::files::media::MediaServer;
 use crate::files::state::FilesState;
+use crate::files::storage_source::StorageFiles;
 use crate::files::storage_source::{object_key, storage_error};
-use crate::files::streaming::{LocalFileSource, StorageFileSource};
+use crate::files::streaming::{LocalFileSource, StorageFileSource, StreamingSource};
 use crate::files::{thumbnails, Entry, EntryKind, FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
 
 /// The text of a file for the viewer, at most 5 MB (FR-015).
 #[tauri::command]
 pub async fn files_read_text(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     source: SourceRef,
     path: String,
 ) -> Result<TextContent, FilesError> {
     if let Some(id) = storage_of(&source) {
-        let storage = storage_files(&state, id).await?;
+        let storage = window_storage(&app, &state, &files, id).await?;
         let entry = storage.stat(&path).await?;
         if entry.kind != EntryKind::File {
             return Err(FilesError::invalid_path("not a file"));
@@ -59,6 +64,7 @@ pub struct Opened {
 /// server (FR-012, FR-016), text is read with [`files_read_text`], the rest is the info view.
 #[tauri::command]
 pub async fn files_open(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     media: State<'_, MediaServer>,
@@ -67,28 +73,37 @@ pub async fn files_open(
     tab_id: String,
 ) -> Result<Opened, FilesError> {
     if let Some(id) = storage_of(&source) {
-        let storage = storage_files(&state, id).await?;
+        let storage = window_storage(&app, &state, &files, id).await?;
         let entry = storage.stat(&path).await?;
         if entry.kind != EntryKind::File {
             return Err(FilesError::invalid_path("not a file"));
         }
         let kind = viewer_kind(&entry.name);
-        let url = if streams(kind) {
-            let mime = entry
-                .mime
-                .clone()
-                .unwrap_or_else(|| "application/octet-stream".to_owned());
-            let file = StorageFileSource::new(
+        let mime = entry
+            .mime
+            .clone()
+            .unwrap_or_else(|| "application/octet-stream".to_owned());
+        let source: Option<Arc<dyn StreamingSource>> = match route(&storage, &path).await? {
+            // Video and audio from encrypted folders come with spec 048 US4.
+            Route::Encrypted(at) if matches!(kind, ViewerKind::Image | ViewerKind::Pdf) => {
+                let (folder, version) = file_at(&storage, &at).await?;
+                let file = EncryptedFile::open(&storage, folder, &version).await?;
+                Some(Arc::new(EncryptedFileSource::new(file, mime)))
+            }
+            Route::Encrypted(at) => {
+                file_at(&storage, &at).await?;
+                None
+            }
+            Route::Plain if streams(kind) => Some(Arc::new(StorageFileSource::new(
                 storage.store().clone(),
                 storage.access().clone(),
                 object_key(&path)?,
                 entry.size.unwrap_or(0),
                 mime,
-            );
-            Some(media.register(&tab_id, Arc::new(file)))
-        } else {
-            None
+            ))),
+            Route::Plain => None,
         };
+        let url = source.map(|source| media.register(&tab_id, source));
         return Ok(Opened { kind, url, entry });
     }
     let real = device_path(&files, &source, &path, Want::Read)?;
@@ -135,6 +150,7 @@ pub fn files_release_tab(media: State<'_, MediaServer>, tab_id: String) {
 /// The JPEG thumbnail of an image (FR-005).
 #[tauri::command]
 pub async fn files_thumbnail(
+    app: AppHandle,
     state: State<'_, AppState>,
     files: State<'_, FilesState>,
     source: SourceRef,
@@ -143,51 +159,118 @@ pub async fn files_thumbnail(
     modified_ms: i64,
 ) -> Result<Response, FilesError> {
     if let Some(id) = storage_of(&source) {
-        let cache = files.thumbnails.clone();
-        let label = format!("storage:{id}");
-        if let Some(hit) = thumbnails::cached(&cache, &label, &path, size, modified_ms) {
-            return hit.map(Response::new);
-        }
-        if size > STORAGE_THUMBNAIL_LIMIT {
-            return Err(FilesError::new(
-                FilesErrorCode::TooLarge,
-                "too large for a thumbnail",
-            ));
-        }
-        let storage = storage_files(&state, id).await?;
-        let key = object_key(&path)?;
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(60);
-        let mut reader = storage
-            .store()
-            .get_range(storage.access(), &key, 0, size, deadline)
+        let open = || window_storage(&app, &state, &files, id);
+        return storage_thumbnail(&files, id, path, size, modified_ms, open)
             .await
-            .map_err(storage_error)?;
-        let temp = cache.join(format!(".download-{}", uuid::Uuid::new_v4()));
-        let downloaded = async {
-            tokio::fs::create_dir_all(&cache).await?;
-            let mut file = tokio::fs::File::create(&temp).await?;
-            tokio::io::copy(&mut reader, &mut file).await?;
-            Ok::<(), std::io::Error>(())
-        }
-        .await;
-        if downloaded.is_err() {
-            let _ = tokio::fs::remove_file(&temp).await;
-            return Err(storage_error(crate::remote_storage::StorageError::Network));
-        }
-        let bytes = blocking(move || {
-            let made =
-                thumbnails::render_into_cache(&cache, &label, &path, size, modified_ms, &temp);
-            let _ = std::fs::remove_file(&temp);
-            made
-        })
-        .await?;
-        return Ok(Response::new(bytes));
+            .map(Response::new);
     }
     let real = device_path(&files, &source, &path, Want::Read)?;
     let cache = files.thumbnails.clone();
     let bytes =
         blocking(move || thumbnails::thumbnail(&cache, "device", &real, size, modified_ms)).await?;
     Ok(Response::new(bytes))
+}
+
+/// The thumbnail of `path` in the storage `id`: an image in an encrypted folder is made in memory
+/// and kept in memory only (spec 048 FR-026); any other is downloaded beside the disk cache as in
+/// spec 044. `open` opens the storage when a thumbnail has to be made.
+pub(crate) async fn storage_thumbnail<F, Fut>(
+    files: &FilesState,
+    id: &str,
+    path: String,
+    size: u64,
+    modified_ms: i64,
+    open: F,
+) -> Result<Vec<u8>, FilesError>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<StorageFiles, FilesError>>,
+{
+    let cache = files.thumbnails.clone();
+    let label = format!("storage:{id}");
+    let key = thumbnails::cache_key(&label, &path, size, modified_ms);
+    if let Some(hit) = files.memory_thumbnails.get(&key) {
+        return hit;
+    }
+    // The disk cache only for a path known to be outside encrypted folders (FR-026).
+    let plain = plain_by_memory(&files.encrypted, id, &path);
+    if plain {
+        if let Some(hit) = thumbnails::cached(&cache, &label, &path, size, modified_ms) {
+            return hit;
+        }
+    }
+    if size > STORAGE_THUMBNAIL_LIMIT {
+        return Err(FilesError::new(
+            FilesErrorCode::TooLarge,
+            "too large for a thumbnail",
+        ));
+    }
+    let storage = open().await?;
+    if let Route::Encrypted(at) = route(&storage, &path).await? {
+        let made = memory_thumbnail(&storage, &at).await;
+        // A made thumbnail or an image that does not decode; never a damaged or unreachable file.
+        if made
+            .as_ref()
+            .map_or_else(|e| e.code == FilesErrorCode::Broken, |_| true)
+        {
+            files.memory_thumbnails.put(key, &made);
+        }
+        return made;
+    }
+    if !plain {
+        if let Some(hit) = thumbnails::cached(&cache, &label, &path, size, modified_ms) {
+            return hit;
+        }
+    }
+    let key = object_key(&path)?;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(60);
+    let mut reader = storage
+        .store()
+        .get_range(storage.access(), &key, 0, size, deadline)
+        .await
+        .map_err(storage_error)?;
+    let temp = cache.join(format!(".download-{}", uuid::Uuid::new_v4()));
+    let downloaded = async {
+        tokio::fs::create_dir_all(&cache).await?;
+        let mut file = tokio::fs::File::create(&temp).await?;
+        tokio::io::copy(&mut reader, &mut file).await?;
+        Ok::<(), std::io::Error>(())
+    }
+    .await;
+    if downloaded.is_err() {
+        let _ = tokio::fs::remove_file(&temp).await;
+        return Err(storage_error(crate::remote_storage::StorageError::Network));
+    }
+    let bytes = blocking(move || {
+        let made = thumbnails::render_into_cache(&cache, &label, &path, size, modified_ms, &temp);
+        let _ = std::fs::remove_file(&temp);
+        made
+    })
+    .await?;
+    Ok(bytes)
+}
+
+/// The thumbnail of an image in an encrypted folder, made in memory: nothing under the thumbnail
+/// cache, no download file (spec 048 FR-026).
+async fn memory_thumbnail(storage: &StorageFiles, at: &Located) -> Result<Vec<u8>, FilesError> {
+    let (folder, version) = file_at(storage, at).await?;
+    let file = EncryptedFile::open(storage, folder, &version).await?;
+    if file.size() > STORAGE_THUMBNAIL_LIMIT {
+        return Err(FilesError::new(
+            FilesErrorCode::TooLarge,
+            "too large for a thumbnail",
+        ));
+    }
+    let mut bytes = Vec::new();
+    let mut at = 0;
+    while at < file.size() {
+        let end = file
+            .size()
+            .min(at + crate::files::encrypted::source::WINDOW);
+        bytes.extend(file.read(at, end).await?);
+        at = end;
+    }
+    blocking(move || thumbnails::render_bytes(&bytes)).await
 }
 
 /// Opens a file with the system's app for it (FR-014).
@@ -200,7 +283,7 @@ pub async fn files_open_system(
     path: String,
 ) -> Result<(), FilesError> {
     let real = match storage_of(&source) {
-        Some(id) => download_to_open(&state, &files, id, &path).await?,
+        Some(id) => download_to_open(&app, &state, &files, id, &path).await?,
         None => device_path(&files, &source, &path, Want::Read)?,
     };
     #[cfg(desktop)]
@@ -231,12 +314,17 @@ pub async fn files_open_system(
 /// A file of a storage, downloaded into holzi's cache so the system's app can open it (FR-014;
 /// the copy stays until the cache is cleared).
 async fn download_to_open(
+    app: &AppHandle,
     state: &State<'_, AppState>,
     files: &FilesState,
     storage_id: &str,
     path: &str,
 ) -> Result<PathBuf, FilesError> {
-    let storage = storage_files(state, storage_id).await?;
+    let storage = window_storage(app, state, files, storage_id).await?;
+    // Encrypted folders need the notice and their own folder first (spec 048 US5).
+    if let Route::Encrypted(_) = route(&storage, path).await? {
+        return Err(later());
+    }
     let entry = storage.stat(path).await?;
     if entry.kind != EntryKind::File {
         return Err(FilesError::invalid_path("not a file"));

@@ -54,21 +54,23 @@ fn parse_state(text: &str) -> Option<EncryptedState> {
     })
 }
 
+type RawHead = (
+    String,
+    String,
+    String,
+    Option<String>,
+    String,
+    Option<Vec<u8>>,
+    i64,
+);
+
 /// The heads cached for the encrypted folders right below `parent` (a prefix, `""` at the root).
 pub fn heads_under(
     q: &mut impl Query,
     storage_id: &str,
     parent: &str,
 ) -> haex_crdt::Result<Vec<HeadRow>> {
-    let rows: Vec<(
-        String,
-        String,
-        String,
-        Option<String>,
-        String,
-        Option<Vec<u8>>,
-        i64,
-    )> = q.query_map(
+    let rows: Vec<RawHead> = q.query_map(
         "SELECT object_key, etag, folder_id, name, state, key_id, open_ack \
              FROM encrypted_folder_heads_no_sync \
              WHERE storage_id = ?1 AND substr(object_key, 1, length(?2)) = ?2",

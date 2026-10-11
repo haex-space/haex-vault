@@ -37,3 +37,26 @@ fn a_reload_ends_every_watch() {
     assert!(!files.unwatch(first));
     assert!(!files.unwatch(second));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_close_drops_the_opened_encrypted_folders_and_their_thumbnails() {
+    let (_dir, files) = state();
+    let gate = VaultGate::with_runtime(tokio::runtime::Handle::current());
+    gate.begin_session().unwrap();
+    files.encrypted.set_heads("s1", "", Vec::new());
+    files
+        .memory_thumbnails
+        .put("k".to_owned(), &Ok(vec![1, 2, 3]));
+    files.forget_on_close(&gate);
+    files.forget_on_close(&gate);
+    assert!(files.encrypted.heads("s1", "").is_some());
+
+    gate.request_close();
+    tokio::time::timeout(WAIT, async {
+        while files.encrypted.heads("s1", "").is_some() || files.memory_thumbnails.size() > 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("forgotten after the close");
+}

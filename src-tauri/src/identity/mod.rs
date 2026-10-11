@@ -14,7 +14,7 @@ pub mod migrations;
 mod migrations_agent_files;
 #[cfg(test)]
 mod migrations_agent_files_tests;
-mod migrations_encrypted_folders;
+pub mod migrations_encrypted_folders;
 #[cfg(test)]
 mod migrations_encrypted_folders_tests;
 pub mod migrations_extensions;
