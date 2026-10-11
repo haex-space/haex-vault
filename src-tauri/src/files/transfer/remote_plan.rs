@@ -13,6 +13,11 @@ use super::local::Totals;
 use super::remote::CALL;
 use super::TransferOp;
 use crate::files::encrypted::format::is_folder_prefix;
+use crate::files::encrypted::ops::later;
+use crate::files::encrypted::route::{open, route, view, Located, Route};
+use crate::files::encrypted::tree::{facts, Item as TreeItem, Version};
+use crate::files::encrypted::OpenFolder;
+use crate::files::local::edit::check_name;
 use crate::files::local::ops::io_error;
 use crate::files::storage_source::{folder_prefix, object_key, storage_error, StorageFiles};
 use crate::files::{FilesError, FilesErrorCode};
@@ -48,8 +53,34 @@ pub(super) struct Item {
     /// The parts of its place below the target folder.
     pub(super) rel: Vec<String>,
     pub(super) size: u64,
-    /// An empty folder (device) or a folder marker (storage): made at the target, never asked.
+    /// An empty folder (device), a folder marker (storage) or a folder entry (encrypted folder):
+    /// made at the target, never asked.
     pub(super) folder: bool,
+    /// A file or folder of an encrypted folder (spec 048); `from` is then its window path.
+    pub(super) encrypted: Option<EncSource>,
+}
+
+/// An entry of an encrypted folder as a transfer's source.
+#[derive(Clone)]
+pub(super) struct EncSource {
+    pub(super) folder: Arc<OpenFolder>,
+    /// The file's version; `None` for a folder.
+    pub(super) version: Option<Version>,
+}
+
+impl std::fmt::Debug for EncSource {
+    // Never a name of the folder (FR-027).
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("EncSource")
+    }
+}
+
+/// An encrypted folder, or a folder in one, as a transfer's target (spec 048).
+pub(super) struct EncTarget {
+    pub(super) files: Arc<StorageFiles>,
+    pub(super) folder: Arc<OpenFolder>,
+    /// The target folder's names below the encrypted folder.
+    pub(super) rest: Vec<String>,
 }
 
 /// The items of a job and its totals.
@@ -58,6 +89,8 @@ pub struct Plan {
     /// The device folders a move empties at the end.
     pub(super) folders: Vec<PathBuf>,
     pub totals: Totals,
+    /// Set when the target is in an encrypted folder.
+    pub(super) target: Option<EncTarget>,
 }
 
 fn soon() -> Instant {
@@ -87,7 +120,13 @@ pub fn prepare_remote(
                         ));
                     }
                 }
-                handle.block_on(storage_items(files, source, &mut items))?;
+                match handle.block_on(route(files, source))? {
+                    Route::Plain => handle.block_on(storage_items(files, source, &mut items))?,
+                    Route::Encrypted(_) if job.op == TransferOp::Move => return Err(later()),
+                    Route::Encrypted(at) => {
+                        handle.block_on(encrypted_items(files, &at, &mut items))?;
+                    }
+                }
             }
         }
     }
@@ -102,6 +141,21 @@ pub fn prepare_remote(
             FilesErrorCode::InvalidName,
             "this name is kept for encrypted folders",
         ));
+    }
+    let target = match &job.to {
+        Side::Storage(files) => match handle.block_on(route(files, &job.target))? {
+            Route::Encrypted(at) => Some(handle.block_on(encrypted_target(files, at))?),
+            Route::Plain => None,
+        },
+        Side::Device => None,
+    };
+    if target.is_some() {
+        for part in items.iter().flat_map(|item| &item.rel) {
+            check_name(part)?;
+        }
+    } else if matches!(job.to, Side::Storage(_)) && items.iter().any(|i| i.encrypted.is_some()) {
+        // Out of an encrypted folder into an ordinary one asks first (FR-019, spec 048 US5).
+        return Err(later());
     }
     let totals = Totals {
         items: items.iter().filter(|item| !item.folder).count() as u64,
@@ -121,6 +175,7 @@ pub fn prepare_remote(
         items,
         folders,
         totals,
+        target,
     })
 }
 
@@ -152,6 +207,7 @@ fn device_items(
                     rel,
                     size: 0,
                     folder: true,
+                    encrypted: None,
                 });
             }
         } else if file_type.is_file() {
@@ -161,6 +217,7 @@ fn device_items(
                 rel,
                 size,
                 folder: false,
+                encrypted: None,
             });
         }
         // Links stay behind: a storage has none.
@@ -181,6 +238,7 @@ async fn storage_items(
             rel: vec![name],
             size: entry.size.unwrap_or(0),
             folder: false,
+            encrypted: None,
         });
         return Ok(());
     }
@@ -201,9 +259,69 @@ async fn storage_items(
             from: object.key,
             rel,
             size: object.size,
+            encrypted: None,
         });
     }
     Ok(())
+}
+
+/// The files and folders of the encrypted folder (or entry in one) at `at`; a damaged file refuses
+/// the transfer before it starts (FR-022).
+async fn encrypted_items(
+    files: &StorageFiles,
+    at: &Located,
+    items: &mut Vec<Item>,
+) -> Result<(), FilesError> {
+    let folder = open(files, at).await?;
+    let view = view(files, &folder).await?;
+    let top = view
+        .tree
+        .find(&at.rest)
+        .ok_or_else(|| FilesError::new(FilesErrorCode::NotFound, "not found"))?;
+    let name = at.rest.last().unwrap_or(&at.head.display).clone();
+    let below = view.tree.below(top).into_iter().map(|(index, mut rel)| {
+        rel.insert(0, name.clone());
+        (index, rel)
+    });
+    for (index, rel) in std::iter::once((top, vec![name.clone()])).chain(below) {
+        let (version, damaged) = match &view.tree.node(index).item {
+            TreeItem::Version { version, damaged } => (Some((**version).clone()), *damaged),
+            TreeItem::Broken { .. } => (None, true),
+            TreeItem::Root | TreeItem::Recovered => (None, false),
+        };
+        if damaged {
+            return Err(crate::files::encrypted::damaged());
+        }
+        let file = version.as_ref().and_then(facts).map(|facts| facts.size);
+        items.push(Item {
+            from: String::new(),
+            rel,
+            size: file.unwrap_or(0),
+            folder: file.is_none(),
+            encrypted: Some(EncSource {
+                folder: Arc::clone(&folder),
+                version: version.filter(|_| file.is_some()),
+            }),
+        });
+    }
+    Ok(())
+}
+
+/// The encrypted folder at `at` as a target: it opens and is a folder.
+async fn encrypted_target(files: &Arc<StorageFiles>, at: Located) -> Result<EncTarget, FilesError> {
+    let folder = open(files, &at).await?;
+    let view = view(files, &folder).await?;
+    match view.tree.find(&at.rest) {
+        Some(index) if view.tree.parent_id(index).is_some() => {}
+        Some(_) => return Err(FilesError::invalid_path("not a folder")),
+        None => return Err(FilesError::new(FilesErrorCode::NotFound, "not found")),
+    }
+    drop(view);
+    Ok(EncTarget {
+        files: Arc::clone(files),
+        folder,
+        rest: at.rest,
+    })
 }
 
 /// Removes `folder` and the folders below it that are empty now.

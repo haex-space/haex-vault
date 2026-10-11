@@ -1,10 +1,16 @@
 //! Shared setup for the tests of encrypted folders: a vault that holds content keys, a fake storage
-//! and the window's view of it.
+//! and the window's view of it, and a transfer run as the manager runs it.
 
 use std::sync::Arc;
+use std::time::Duration;
+
+use tokio_util::sync::CancellationToken;
 
 use super::{EncryptedFolders, Scope};
 use crate::files::storage_source::StorageFiles;
+use crate::files::transfer::local::{Hooks, Outcome, Removal};
+use crate::files::transfer::remote::{prepare_remote, run_remote, RemoteJob, Side};
+use crate::files::transfer::{ConflictChoice, TransferOp};
 use crate::remote_storage::test_support::{access, vault, FakeStore};
 use crate::sync::content_keys::ContentKey;
 use crate::vault_gate::VaultDb;
@@ -86,4 +92,50 @@ impl Scene {
     pub fn keys(&self) -> Vec<String> {
         self.fake.keys(BUCKET)
     }
+}
+
+/// Runs a transfer on a blocking thread as the manager does; conflicts are answered `answer` (none
+/// cancels), and `cancel_after` progress reports cancel it.
+pub async fn transfer(
+    op: TransferOp,
+    from: Side,
+    sources: &[String],
+    to: Side,
+    target: &str,
+    answer: Option<ConflictChoice>,
+    cancel_after: Option<usize>,
+) -> Result<Outcome, crate::files::FilesError> {
+    let job = RemoteJob {
+        op,
+        from,
+        sources: sources.to_vec(),
+        to,
+        target: target.to_owned(),
+    };
+    tokio::task::spawn_blocking(move || {
+        let handle = tokio::runtime::Handle::current();
+        let plan = prepare_remote(&job, &handle, |_| None)?;
+        let cancel = CancellationToken::new();
+        let mut seen = 0;
+        Ok(run_remote(
+            &job,
+            &plan,
+            &handle,
+            &[Duration::ZERO; 3],
+            Hooks {
+                cancel: &cancel,
+                ask: &mut |_| answer.map(|choice| (choice, false)),
+                progress: &mut |_| {
+                    seen += 1;
+                    if cancel_after == Some(seen) {
+                        cancel.cancel();
+                    }
+                },
+                removal: Removal::Permanent,
+                rename: &|from, to| std::fs::rename(from, to),
+            },
+        ))
+    })
+    .await
+    .expect("join")
 }

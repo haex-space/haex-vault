@@ -193,3 +193,7 @@ impl StreamingSource for EncryptedFileSource {
         &self.content_type
     }
 }
+
+#[cfg(test)]
+#[path = "source_tests.rs"]
+mod tests;

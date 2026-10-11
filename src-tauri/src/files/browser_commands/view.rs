@@ -360,3 +360,7 @@ async fn download_to_open(
     }
     Ok(target)
 }
+
+#[cfg(test)]
+#[path = "view_tests.rs"]
+mod tests;

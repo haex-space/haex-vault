@@ -55,6 +55,11 @@ impl FakeStore {
         self.failures.lock().expect("lock").insert(op, error);
     }
 
+    /// Calls of `op` work again.
+    pub fn heal(&self, op: Op) {
+        self.failures.lock().expect("lock").remove(&op);
+    }
+
     /// The next call of `op` answers `error`, later ones work again.
     pub fn fail_once(&self, op: Op, error: StorageError) {
         self.once.lock().expect("lock").insert(op, error);

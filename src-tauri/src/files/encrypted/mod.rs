@@ -5,7 +5,8 @@
 //!   shown by its decrypted name), and opening one.
 //! - [`load`] and [`cache`]: heads and sidecars from the bucket, with the ETag cache in the vault.
 //! - [`tree`]: the view of a folder from its sidecars.
-//! - [`ops`]: list, stat, read and create inside; [`source`]: reading ranges block by block.
+//! - [`ops`]: list, stat, read and create inside; [`source`]: reading ranges block by block;
+//!   [`transfer`]: sealing uploads.
 //!
 //! Opened folders ([`EncryptedFolders`]) keep their keys in memory as `Zeroizing` until the vault
 //! closes. Nothing here logs a name, a path or an object key of an encrypted folder (FR-027).
@@ -17,11 +18,13 @@ pub mod ops;
 pub mod redacted;
 pub mod route;
 pub mod source;
+pub mod transfer;
 pub mod tree;
 pub mod vault_keys;
 
 #[cfg(test)]
 pub mod test_support;
+
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
