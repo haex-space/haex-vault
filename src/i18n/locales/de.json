@@ -203,7 +203,7 @@
     },
     "files": {
       "device": "Dieses Gerät",
-      "storage": "Speicher"
+      "storage": "Cloud-Speicher"
     }
   },
   "chat": {
@@ -491,8 +491,8 @@
         "keywords": "Agenten Delegaten Claude Codex"
       },
       "storage": {
-        "title": "Speicher",
-        "keywords": "Speicher S3 Bucket RustFS AWS MinIO Cloud Verbindung Zugangsdaten"
+        "title": "Cloud-Speicher",
+        "keywords": "Cloud-Speicher Speicher S3 Bucket RustFS AWS MinIO Verbindung Zugangsdaten"
       },
       "extensions": {
         "title": "Erweiterungen",
@@ -593,7 +593,7 @@
           "title": "Verbindung"
         },
         "storage": {
-          "title": "Speicher"
+          "title": "Cloud-Speicher"
         },
         "remove": {
           "title": "Entfernen"
@@ -886,11 +886,11 @@
       }
     },
     "storage": {
-      "intro": "Verbindungen zu S3-kompatiblen Anbietern. Auf jeder Verbindung liegen Speicher, je ein Bucket. Erweiterungen sehen nur die Namen und nutzen einen Speicher nur mit deiner Erlaubnis.",
+      "intro": "Verbindungen zu S3-kompatiblen Anbietern. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
       "addConnection": "Verbindung hinzufügen",
       "addConnectionHint": "Ein S3-kompatibler Anbieter wie RustFS oder AWS",
       "none": "Noch keine Verbindung.",
-      "addStorage": "Speicher hinzufügen",
+      "addStorage": "Cloud-Speicher hinzufügen",
       "insecure": "Unverschlüsselt",
       "insecureHint": "Daten gehen unverschlüsselt (http) über das Netz. Das ist nur im eigenen Netz erlaubt.",
       "local": "Lokal",
@@ -932,7 +932,7 @@
         "secretAccessKey": "Geheimnis",
         "sessionToken": "Sitzungs-Token (optional)",
         "bucket": "Bucket",
-        "storageName": "Name des Speichers"
+        "storageName": "Name des Cloud-Speichers"
       },
       "kinds": {
         "aws": "AWS S3",
@@ -946,7 +946,7 @@
       "groups": {
         "connection": "Verbindung",
         "credentials": "Zugangsdaten",
-        "storage": "Erster Speicher",
+        "storage": "Erster Cloud-Speicher",
         "test": "Test"
       },
       "newCredentials": "Neue Zugangsdaten eingeben",
@@ -958,11 +958,11 @@
       "test": "Jetzt testen",
       "remove": "Entfernen",
       "cancel": "Abbrechen",
-      "notFound": "Diese Verbindung oder dieser Speicher existiert nicht mehr.",
+      "notFound": "Diese Verbindung oder dieser Cloud-Speicher existiert nicht mehr.",
       "removal": {
         "connectionTitle": "Verbindung „{name}“ entfernen",
-        "storageTitle": "Speicher „{name}“ entfernen",
-        "storages": "Diese Speicher werden entfernt:",
+        "storageTitle": "Cloud-Speicher „{name}“ entfernen",
+        "storages": "Diese Cloud-Speicher werden entfernt:",
         "extensions": "Diese Erweiterungen verlieren den Zugriff:",
         "credentials": "Die Zugangsdaten werden aus dem Passwortmanager gelöscht.",
         "objects": "Die Daten im Bucket bleiben beim Anbieter.",
@@ -1396,7 +1396,7 @@
     "expiredOn": "Abgelaufen am {date}",
     "owner": "Gehört zu: {name}",
     "owners": {
-      "storage": "Speicher"
+      "storage": "Cloud-Speicher"
     },
     "menu": {
       "button": "Aktionen für {name}",
@@ -1955,7 +1955,7 @@
         "web": "Internet",
         "notifications": "Benachrichtigungen",
         "passwords": "Passwörter",
-        "remoteStorage": "Entfernter Speicher",
+        "remoteStorage": "Cloud-Speicher",
         "mail": "Mail",
         "shell": "Programme ausführen"
       },
@@ -1964,8 +1964,8 @@
         "filesystem": "Alle Dateien und Ordner",
         "web": "Jede Website und jeder Server im Internet",
         "passwords": "Alle Passwörter",
-        "remoteStorage": "Alle Speicher",
-        "remoteStorageAdd": "Speicher auf jedem Server",
+        "remoteStorage": "Alle Cloud-Speicher",
+        "remoteStorageAdd": "Cloud-Speicher auf jedem Server",
         "mail": "Alle Mail-Server",
         "shell": "Jedes Programm"
       }
@@ -2000,10 +2000,10 @@
     },
     "storageDialog": {
       "title": {
-        "add": "„{name}“ möchte einen Speicher anlegen",
-        "update": "„{name}“ möchte einen Speicher ändern",
-        "test": "„{name}“ möchte einen Speicher testen",
-        "remove": "„{name}“ möchte einen Speicher entfernen"
+        "add": "„{name}“ möchte einen Cloud-Speicher anlegen",
+        "update": "„{name}“ möchte einen Cloud-Speicher ändern",
+        "test": "„{name}“ möchte einen Cloud-Speicher testen",
+        "remove": "„{name}“ möchte einen Cloud-Speicher entfernen"
       },
       "name": "Name",
       "bucket": "Bucket",
@@ -2025,8 +2025,8 @@
       }
     },
     "storageCredentials": {
-      "title": "Zugangsdaten für einen Speicher",
-      "for": "„{name}“ möchte einen Speicher bei {provider} nutzen.",
+      "title": "Zugangsdaten für einen Cloud-Speicher",
+      "for": "„{name}“ möchte einen Cloud-Speicher bei {provider} nutzen.",
       "onlyHere": "holzi fragt Zugangsdaten nur in diesem Fenster über der ganzen App, nie im Tab einer Erweiterung. Sie landen im Passwortmanager; die Erweiterung bekommt sie nie.",
       "confirm": "Testen und speichern"
     }
@@ -2078,7 +2078,7 @@
       }
     },
     "storage": {
-      "settings": "Speicher-Einstellungen öffnen"
+      "settings": "Cloud-Speicher-Einstellungen öffnen"
     },
     "cancel": "Abbrechen",
     "drop": "Hierher kopieren",
@@ -2149,7 +2149,8 @@
       "places": "Orte",
       "drives": "Laufwerke",
       "free": "{size} frei",
-      "storages": "Speicher"
+      "storages": "Cloud-Speicher",
+      "addStorage": "Cloud-Speicher hinzufügen"
     },
     "places": {
       "home": "Persönlicher Ordner",
@@ -2195,14 +2196,14 @@
       "intoItself": "Ein Ordner kann nicht in sich selbst.",
       "noSpace": "Nicht genug Platz.",
       "invalidName": "Dieser Name ist nicht erlaubt.",
-      "credentials": "Die Zugangsdaten des Speichers fehlen oder wurden abgelehnt.",
-      "unreachable": "Der Speicher ist nicht erreichbar."
+      "credentials": "Die Zugangsdaten des Cloud-Speichers fehlen oder wurden abgelehnt.",
+      "unreachable": "Der Cloud-Speicher ist nicht erreichbar."
     },
     "agentPermission": {
-      "title": "Zugriff auf einen Speicher",
-      "read": "Der Agent im Chat möchte Dateien im Speicher „{name}“ lesen.",
-      "readWrite": "Der Agent im Chat möchte Dateien im Speicher „{name}“ lesen und ändern.",
-      "hint": "holzi merkt sich deine Antwort für diesen Speicher.",
+      "title": "Zugriff auf einen Cloud-Speicher",
+      "read": "Der Agent im Chat möchte Dateien im Cloud-Speicher „{name}“ lesen.",
+      "readWrite": "Der Agent im Chat möchte Dateien im Cloud-Speicher „{name}“ lesen und ändern.",
+      "hint": "holzi merkt sich deine Antwort für diesen Cloud-Speicher.",
       "allowRead": "Lesen erlauben",
       "allowReadWrite": "Lesen und Schreiben erlauben",
       "deny": "Ablehnen"

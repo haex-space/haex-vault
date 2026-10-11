@@ -203,7 +203,7 @@
     },
     "files": {
       "device": "This device",
-      "storage": "Storage"
+      "storage": "Cloud storage"
     }
   },
   "chat": {
@@ -491,8 +491,8 @@
         "keywords": "agents delegates Claude Codex"
       },
       "storage": {
-        "title": "Storage",
-        "keywords": "Storage S3 bucket RustFS AWS MinIO cloud connection credentials"
+        "title": "Cloud storage",
+        "keywords": "Cloud storage S3 bucket RustFS AWS MinIO connection credentials"
       },
       "extensions": {
         "title": "Extensions",
@@ -593,7 +593,7 @@
           "title": "Connection"
         },
         "storage": {
-          "title": "Storage"
+          "title": "Cloud storage"
         },
         "remove": {
           "title": "Remove"
@@ -886,11 +886,11 @@
       }
     },
     "storage": {
-      "intro": "Connections to S3-compatible providers. Each connection holds storages, one bucket each. Extensions only see the names and use a storage only with your permission.",
+      "intro": "Connections to S3-compatible providers. Each connection holds cloud storages, one bucket each. Extensions only see the names and use a cloud storage only with your permission.",
       "addConnection": "Add connection",
       "addConnectionHint": "An S3-compatible provider such as RustFS or AWS",
       "none": "No connection yet.",
-      "addStorage": "Add storage",
+      "addStorage": "Add cloud storage",
       "insecure": "Unencrypted",
       "insecureHint": "Data travels unencrypted (http). This is only allowed within your own network.",
       "local": "Local",
@@ -932,7 +932,7 @@
         "secretAccessKey": "Secret",
         "sessionToken": "Session token (optional)",
         "bucket": "Bucket",
-        "storageName": "Name of the storage"
+        "storageName": "Name of the cloud storage"
       },
       "kinds": {
         "aws": "AWS S3",
@@ -946,7 +946,7 @@
       "groups": {
         "connection": "Connection",
         "credentials": "Credentials",
-        "storage": "First storage",
+        "storage": "First cloud storage",
         "test": "Test"
       },
       "newCredentials": "Enter new credentials",
@@ -958,11 +958,11 @@
       "test": "Test now",
       "remove": "Remove",
       "cancel": "Cancel",
-      "notFound": "This connection or storage no longer exists.",
+      "notFound": "This connection or cloud storage no longer exists.",
       "removal": {
         "connectionTitle": "Remove connection “{name}”",
-        "storageTitle": "Remove storage “{name}”",
-        "storages": "These storages are removed:",
+        "storageTitle": "Remove cloud storage “{name}”",
+        "storages": "These cloud storages are removed:",
         "extensions": "These extensions lose access:",
         "credentials": "The credentials are deleted from the password manager.",
         "objects": "The data in the bucket stays at the provider.",
@@ -1396,7 +1396,7 @@
     "expiredOn": "Expired on {date}",
     "owner": "Belongs to: {name}",
     "owners": {
-      "storage": "Storage"
+      "storage": "Cloud storage"
     },
     "menu": {
       "button": "Actions for {name}",
@@ -1955,7 +1955,7 @@
         "web": "Internet",
         "notifications": "Notifications",
         "passwords": "Passwords",
-        "remoteStorage": "Remote storage",
+        "remoteStorage": "Cloud storage",
         "mail": "Mail",
         "shell": "Run programs"
       },
@@ -1964,8 +1964,8 @@
         "filesystem": "All files and folders",
         "web": "Every website and server on the internet",
         "passwords": "All passwords",
-        "remoteStorage": "All storages",
-        "remoteStorageAdd": "Storages on any server",
+        "remoteStorage": "All cloud storages",
+        "remoteStorageAdd": "Cloud storages on any server",
         "mail": "All mail servers",
         "shell": "Any program"
       }
@@ -2000,10 +2000,10 @@
     },
     "storageDialog": {
       "title": {
-        "add": "“{name}” wants to add a storage",
-        "update": "“{name}” wants to change a storage",
-        "test": "“{name}” wants to test a storage",
-        "remove": "“{name}” wants to remove a storage"
+        "add": "“{name}” wants to add a cloud storage",
+        "update": "“{name}” wants to change a cloud storage",
+        "test": "“{name}” wants to test a cloud storage",
+        "remove": "“{name}” wants to remove a cloud storage"
       },
       "name": "Name",
       "bucket": "Bucket",
@@ -2025,8 +2025,8 @@
       }
     },
     "storageCredentials": {
-      "title": "Credentials for a storage",
-      "for": "“{name}” wants to use a storage at {provider}.",
+      "title": "Credentials for a cloud storage",
+      "for": "“{name}” wants to use a cloud storage at {provider}.",
       "onlyHere": "holzi asks for credentials only in this window over the whole app, never in an extension's tab. They go to the password manager; the extension never gets them.",
       "confirm": "Test and save"
     }
@@ -2078,7 +2078,7 @@
       }
     },
     "storage": {
-      "settings": "Open storage settings"
+      "settings": "Open cloud storage settings"
     },
     "cancel": "Cancel",
     "drop": "Copy here",
@@ -2149,7 +2149,8 @@
       "places": "Places",
       "drives": "Drives",
       "free": "{size} free",
-      "storages": "Storages"
+      "storages": "Cloud storage",
+      "addStorage": "Add cloud storage"
     },
     "places": {
       "home": "Home",
@@ -2195,14 +2196,14 @@
       "intoItself": "A folder cannot go into itself.",
       "noSpace": "Not enough space.",
       "invalidName": "This name is not allowed.",
-      "credentials": "The storage's credentials are missing or were refused.",
-      "unreachable": "The storage cannot be reached."
+      "credentials": "The cloud storage's credentials are missing or were refused.",
+      "unreachable": "The cloud storage cannot be reached."
     },
     "agentPermission": {
-      "title": "Access to a storage",
-      "read": "The agent in the chat wants to read files in the storage “{name}”.",
-      "readWrite": "The agent in the chat wants to read and change files in the storage “{name}”.",
-      "hint": "holzi remembers your answer for this storage.",
+      "title": "Access to a cloud storage",
+      "read": "The agent in the chat wants to read files in the cloud storage “{name}”.",
+      "readWrite": "The agent in the chat wants to read and change files in the cloud storage “{name}”.",
+      "hint": "holzi remembers your answer for this cloud storage.",
       "allowRead": "Allow reading",
       "allowReadWrite": "Allow reading and writing",
       "deny": "Deny"

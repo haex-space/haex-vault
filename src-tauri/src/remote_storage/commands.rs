@@ -1,4 +1,4 @@
-//! The Tauri commands of the settings category "Speicher" (spec 038, contracts/tauri-commands.md).
+//! The Tauri commands of the settings category "Cloud-Speicher" (spec 038, contracts/tauri-commands.md).
 //! Each one calls the [`StorageService`] over the open vault; none returns a secret. The dialog
 //! command for extensions (`storage_dialog_resolve`) comes with the bridge (PR D).
 

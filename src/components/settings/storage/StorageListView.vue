@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The category "Speicher" (spec 038, US1, T028): every connection as its own group, its row leads
+ * The category "Cloud-Speicher" (spec 038, US1, T028): every connection as its own group, its row leads
  * to the connection form, below it its storages with bucket, last test on this device and the
  * extensions that may use it, and a row to add a storage. A connection whose credentials are not
  * here says so: "wird synchronisiert" while they are on their way from another device, "neue
