@@ -1,0 +1,538 @@
+{
+  "_comment": [
+    "HXEF v1 test vectors (spec 048, docs/formats/encrypted-folder-v1.md).",
+    "The expected outcome of one head case was changed by hand afterwards (a recipient whose key id the reader holds but which does not unwrap is damaged); its bytes are unchanged.",
+    "Generated once by a throwaway Python script written from the format document only, not from",
+    "holzi's implementation: XChaCha20-Poly1305 from PyNaCl 1.6.2 (libsodium,",
+    "crypto_aead_xchacha20poly1305_ietf_encrypt), HKDF-SHA256 from Python's hmac and hashlib.",
+    "Fixed inputs are literal byte ranges or the first n bytes of SHA-256 over a label such as",
+    "'dek/one'. Plaintext of a content object of size s: byte i = i mod 251.",
+    "Binary values are lowercase hex; ids also as lowercase unpadded Base32 where the format names them.",
+    "Large content objects carry object_len and object_sha256 instead of the bytes: a reader seals",
+    "the plaintext with the given dek, cid and nonce_prefix, which must give exactly that hash.",
+    "Content cases apply ops in order to the named object: flip = XOR 0x01 at an offset,",
+    "truncate = keep the first n bytes, append = add hex bytes, swap = [a, b, len] exchanges two",
+    "ranges, replace = [offset, hex] overwrites. Every content, sidecar and failing dek case must be refused."
+  ],
+  "constants": {
+    "magic": "48584546",
+    "version": 1,
+    "chunk": 65536,
+    "salt": "686f6c7a69"
+  },
+  "keys": {
+    "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "kek": "9f4a3117fc39beefadc336cf41f5dc7c029eff5f9b67b4827fb489a54fe45b2c",
+    "fk": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "k_meta": "333e7d0638044006f5fe2c4056fa3ecfc906613bf480f43ae5782e208bdbdedb",
+    "k_wrap": "b26a8bcc38db23accbd09e16c01d45dd13c3f9f00c9f368663c52fb21411c40c"
+  },
+  "head": {
+    "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "fid_base32": "b4pc2pclljuxrb4wuw2mhuxb6a",
+    "object_key": "b4pc2pclljuxrb4wuw2mhuxb6a.hxef/h",
+    "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+    "wrap_nonce": "404142434445464748494a4b4c4d4e4f5051525354555657",
+    "name_nonce": "58595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f",
+    "name": "Unterlagen",
+    "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+    "renamed": {
+      "name": "Belege 2026",
+      "name_nonce": "707172737475767778797a7b7c7d7e7f8081828384858687",
+      "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d49555707172737475767778797a7b7c7d7e7f80818283848586873d0e2a2ee7f814b2a353b96096fb45d199b8a8edbf6d77c0f1e9d3"
+    },
+    "cases": [
+      {
+        "name": "readable",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "readable"
+      },
+      {
+        "name": "an unknown recipient kind is skipped by its length",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f0020705007370616365005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "readable"
+      },
+      {
+        "name": "the reader holds another key generation",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "00000000000000000000000000000000",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "otherVault"
+      },
+      {
+        "name": "the reader holds another key under the same key id (a changed recipient)",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f"
+          }
+        ],
+        "expect": "damaged"
+      },
+      {
+        "name": "only a recipient of an unknown kind",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001070500737061636558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "otherVault"
+      },
+      {
+        "name": "version 2",
+        "bytes": "4858454602000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "newerFormat"
+      },
+      {
+        "name": "other magic",
+        "bytes": "4858464501000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "damaged"
+      },
+      {
+        "name": "the head names another folder than its prefix",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "damaged"
+      },
+      {
+        "name": "an own recipient with len 87",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005700a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d49558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "damaged"
+      },
+      {
+        "name": "a changed byte in the name",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754657414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "damaged"
+      },
+      {
+        "name": "cut inside the recipients",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f5051",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "damaged"
+      },
+      {
+        "name": "cut before the name's tag ends",
+        "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b",
+        "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "reader": [
+          {
+            "key_id": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+            "vck": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+          }
+        ],
+        "expect": "damaged"
+      }
+    ]
+  },
+  "contents": [
+    {
+      "name": "empty",
+      "size": 0,
+      "dek": "7eb4d1c62fdabed30cedc5ab548d5f3f61a13d6012f4587c276409314a24a294",
+      "cid": "24a81fa4d6925fadc5083384d6f3a8eb",
+      "nonce_prefix": "ab2a3ad1dbab4fdd3b2764c567011050",
+      "plaintext_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "object_len": 54,
+      "object_sha256": "22c5c187c7229e28fc61301a98ae4d3ba37ee4b916919197a909d4a18adc5cdf",
+      "object": "48584546010124a81fa4d6925fadc5083384d6f3a8ebab2a3ad1dbab4fdd3b2764c567011050aa62af2cdf6297476ced3f832df48916"
+    },
+    {
+      "name": "one",
+      "size": 1,
+      "dek": "bf306e0d3222f707482bb75a3cbaa5ecfdb306bd051fa36f76a5fb94c2322e4b",
+      "cid": "589895df6b52a5b6693a0ea123d49de3",
+      "nonce_prefix": "de040da08b0f3cca14b4ba4b1a331a64",
+      "plaintext_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+      "object_len": 55,
+      "object_sha256": "b6794d632c52ba4a5ed390e9a4166560ef13dab84460a8e2b0193b06ca8a4979",
+      "object": "485845460101589895df6b52a5b6693a0ea123d49de3de040da08b0f3cca14b4ba4b1a331a64e660a493cf99fa7de3eefc8187064bb92b"
+    },
+    {
+      "name": "one-other",
+      "size": 1,
+      "dek": "fc989028b55177b668b697f76d7d878530504b98d1609a6ebed9b00ec852071f",
+      "cid": "a38b4ed6f5ab431e49f72afe661a9879",
+      "nonce_prefix": "ebb70724c9558662d51af71544937581",
+      "plaintext_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+      "object_len": 55,
+      "object_sha256": "e4235beef2b170c6bee00c64d611f0b2676b13233732dbcaca92f47c61ea1935",
+      "object": "485845460101a38b4ed6f5ab431e49f72afe661a9879ebb70724c9558662d51af715449375818b557d6591d1ea7c6f749d1ac5921551f9"
+    },
+    {
+      "name": "chunk",
+      "size": 65536,
+      "dek": "baf8344c1581094e506ade2fcb9254a990493001c8b0536b1559b8362aa92d37",
+      "cid": "ac1ab01ad3378db2d3fa7df54739ac73",
+      "nonce_prefix": "9011841df15f5b6305cfb3a244d862a8",
+      "plaintext_sha256": "4b640d85ab3ba30fd02c9fc9db4a8928f416322ad27022ea58a65aaee68a4df2",
+      "object_len": 65590,
+      "object_sha256": "a4bd2c1989a58b699f488dc43c09672c270df36387183d25b64f207984d35191"
+    },
+    {
+      "name": "chunk-plus-one",
+      "size": 65537,
+      "dek": "da444cdae80fb651cef0750ea9ab4714095cfa590ed971069e7acf8b84e9b3c2",
+      "cid": "1605b900fb8e26dffd5fb67da0b51a05",
+      "nonce_prefix": "ab6be228e951b56eaeb77955440c0d6f",
+      "plaintext_sha256": "237356e18b503616912abb8ffaed3a72591e397d4ac294c4637917d48a3f529d",
+      "object_len": 65607,
+      "object_sha256": "8569d7476a52f3c2354810542733bab46bff4543f29f217dac201016449969c1"
+    },
+    {
+      "name": "two-chunks",
+      "size": 131072,
+      "dek": "084c231be50c2d7e87aa5a82f65b81a4caebed6074686c6501964f1dc5697ee7",
+      "cid": "625ea9a95421bc3839df363960358a11",
+      "nonce_prefix": "60ec43eb603f7f567beca6f22b3b5ab4",
+      "plaintext_sha256": "feb1e4409d009e0ec502eaabe321f86b5197a881e9b765252ec8a75d6957596d",
+      "object_len": 131142,
+      "object_sha256": "160d471f7058ee940117bcb4ad921cd709fa544e7805fb398f14ef29cfac6bc7"
+    }
+  ],
+  "content_cases": [
+    {
+      "name": "a changed byte in a block",
+      "object": "chunk-plus-one",
+      "ops": [
+        {
+          "flip": 43
+        }
+      ],
+      "reader": {
+        "cid": "1605b900fb8e26dffd5fb67da0b51a05",
+        "dek": "da444cdae80fb651cef0750ea9ab4714095cfa590ed971069e7acf8b84e9b3c2",
+        "size": 65537
+      }
+    },
+    {
+      "name": "a changed byte in the nonce prefix",
+      "object": "one",
+      "ops": [
+        {
+          "flip": 30
+        }
+      ],
+      "reader": {
+        "cid": "589895df6b52a5b6693a0ea123d49de3",
+        "dek": "bf306e0d3222f707482bb75a3cbaa5ecfdb306bd051fa36f76a5fb94c2322e4b",
+        "size": 1
+      }
+    },
+    {
+      "name": "a changed byte in the cid",
+      "object": "one",
+      "ops": [
+        {
+          "flip": 6
+        }
+      ],
+      "reader": {
+        "cid": "589895df6b52a5b6693a0ea123d49de3",
+        "dek": "bf306e0d3222f707482bb75a3cbaa5ecfdb306bd051fa36f76a5fb94c2322e4b",
+        "size": 1
+      }
+    },
+    {
+      "name": "a changed byte in the last tag",
+      "object": "chunk-plus-one",
+      "ops": [
+        {
+          "flip": 65606
+        }
+      ],
+      "reader": {
+        "cid": "1605b900fb8e26dffd5fb67da0b51a05",
+        "dek": "da444cdae80fb651cef0750ea9ab4714095cfa590ed971069e7acf8b84e9b3c2",
+        "size": 65537
+      }
+    },
+    {
+      "name": "cut at a block boundary, size as written",
+      "object": "chunk-plus-one",
+      "ops": [
+        {
+          "truncate": 65590
+        }
+      ],
+      "reader": {
+        "cid": "1605b900fb8e26dffd5fb67da0b51a05",
+        "dek": "da444cdae80fb651cef0750ea9ab4714095cfa590ed971069e7acf8b84e9b3c2",
+        "size": 65537
+      }
+    },
+    {
+      "name": "cut at a block boundary, size of the cut object",
+      "object": "chunk-plus-one",
+      "ops": [
+        {
+          "truncate": 65590
+        }
+      ],
+      "reader": {
+        "cid": "1605b900fb8e26dffd5fb67da0b51a05",
+        "dek": "da444cdae80fb651cef0750ea9ab4714095cfa590ed971069e7acf8b84e9b3c2",
+        "size": 65536
+      }
+    },
+    {
+      "name": "cut to the header",
+      "object": "empty",
+      "ops": [
+        {
+          "truncate": 38
+        }
+      ],
+      "reader": {
+        "cid": "24a81fa4d6925fadc5083384d6f3a8eb",
+        "dek": "7eb4d1c62fdabed30cedc5ab548d5f3f61a13d6012f4587c276409314a24a294",
+        "size": 0
+      }
+    },
+    {
+      "name": "extended by a byte",
+      "object": "chunk-plus-one",
+      "ops": [
+        {
+          "append": "00"
+        }
+      ],
+      "reader": {
+        "cid": "1605b900fb8e26dffd5fb67da0b51a05",
+        "dek": "da444cdae80fb651cef0750ea9ab4714095cfa590ed971069e7acf8b84e9b3c2",
+        "size": 65537
+      }
+    },
+    {
+      "name": "extended by an empty block after a full last one",
+      "object": "chunk",
+      "ops": [
+        {
+          "append": "eba1620d9d831ab2884babc5479b00f6"
+        }
+      ],
+      "reader": {
+        "cid": "ac1ab01ad3378db2d3fa7df54739ac73",
+        "dek": "baf8344c1581094e506ade2fcb9254a990493001c8b0536b1559b8362aa92d37",
+        "size": 65536
+      }
+    },
+    {
+      "name": "two blocks swapped",
+      "object": "two-chunks",
+      "ops": [
+        {
+          "swap": [38, 65590, 65552]
+        }
+      ],
+      "reader": {
+        "cid": "625ea9a95421bc3839df363960358a11",
+        "dek": "084c231be50c2d7e87aa5a82f65b81a4caebed6074686c6501964f1dc5697ee7",
+        "size": 131072
+      }
+    },
+    {
+      "name": "last on a block that is not the last",
+      "object": "chunk",
+      "ops": [
+        {
+          "append": "a85258996921037c99c0136c8dbba4c083"
+        }
+      ],
+      "reader": {
+        "cid": "ac1ab01ad3378db2d3fa7df54739ac73",
+        "dek": "baf8344c1581094e506ade2fcb9254a990493001c8b0536b1559b8362aa92d37",
+        "size": 65537
+      }
+    },
+    {
+      "name": "no last on the final block",
+      "object": "one",
+      "ops": [
+        {
+          "replace": [
+            0,
+            "485845460101589895df6b52a5b6693a0ea123d49de3de040da08b0f3cca14b4ba4b1a331a64e6b0b6a847c96e0c05489a79a2dead9f4f"
+          ]
+        }
+      ],
+      "reader": {
+        "cid": "589895df6b52a5b6693a0ea123d49de3",
+        "dek": "bf306e0d3222f707482bb75a3cbaa5ecfdb306bd051fa36f76a5fb94c2322e4b",
+        "size": 1
+      }
+    },
+    {
+      "name": "the content object of another file",
+      "object": "one-other",
+      "ops": [],
+      "reader": {
+        "cid": "589895df6b52a5b6693a0ea123d49de3",
+        "dek": "bf306e0d3222f707482bb75a3cbaa5ecfdb306bd051fa36f76a5fb94c2322e4b",
+        "size": 1
+      }
+    },
+    {
+      "name": "the right cid under another key",
+      "object": "one",
+      "ops": [],
+      "reader": {
+        "cid": "589895df6b52a5b6693a0ea123d49de3",
+        "dek": "fc989028b55177b668b697f76d7d878530504b98d1609a6ebed9b00ec852071f",
+        "size": 1
+      }
+    }
+  ],
+  "sidecars": [
+    {
+      "name": "file",
+      "sid": "701e6ad10c6c9a70fadc2b20876456be",
+      "object_key": "b4pc2pclljuxrb4wuw2mhuxb6a.hxef/m/oapgvuimnsnhb6w4fmqiozcwxy",
+      "nonce": "18a8abc6986ce6fb5d1d0b9c9edb847b064945eb4a5be33c",
+      "json": "{\"v\":1,\"entry\":\"3c33eiulyxqfyxdojl3ldfwbey\",\"parent\":\"b4pc2pclljuxrb4wuw2mhuxb6a\",\"name\":\"Rechnung März.pdf\",\"kind\":\"file\",\"revision\":1,\"base\":null,\"written\":1791000000000,\"size\":1,\"modified\":1790000000000,\"type\":\"application/pdf\",\"sha256\":\"6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d\",\"content\":\"lcmjlx3lkks3m2j2b2qshve54m\",\"cid\":\"lcmjlx3lkks3m2j2b2qshve54m\",\"dek\":\"0i487alCaRMXRAmYRyYDyGcWt+uTD2DfRCsutdwO8wTArC8oc7ox0U5UpN+LQfxZZJVbwtGjb2cflTguDFOGQjGrTTBvdyRs\"}",
+      "bytes": "485845460102701e6ad10c6c9a70fadc2b20876456be18a8abc6986ce6fb5d1d0b9c9edb847b064945eb4a5be33cae35a2249b2fda19f2623b346c89a50bedf0bf702aa35cd8a4a85932c94e0f3b04ae176f0f74eddf756075d303fed776b38a4940c0d0f3cae73efa9ac7ca62b07fc8db85ef838a076c6af08f06a2df5250dc950eb2edc1dec55c0423294e3d3731cb784418dbed0da44d9d539fdf5c9607688b319a6940297932d63823a56bf6eed40ff51cd9d72312c49794a4326aef7cb4aca80e2a1ab0d8745d789e21f28d3703b96245f399964339b1e67fddfbd4d271ee1bea02cebaeb8eabd953a63d8cac09f76a0b232a2983527bf7a246f4533963633562042d30785361c6077abfdf359dbe03ab68ca0c4c67992c837dfe915d78f533dcdac451b18e8e6d20eb4c43f3a35e586f76907fab1c9f63c62614dfefac1ce3799b42a2923c6ed8d8e68b18320ae3af33f8327ef76537c1b1742acb95ea06d240d2d7f968df3a2e713969715548d5159c287411135f7d9bab9b580752d59ca6b561a2cbf98d10280ed79d0445b27b5a2624d8afd62d0199fcf9007082d9757479a42483a0344563ea6f02de22da5526709703a7b91a552fe10a5a835f199b6594d4c7f97310784bb8ceae14f83b60d8b8e0a989f797ee6d7ea7eadd5ab2c313cd0563571e8c85ce228284bf9b79ca1fd59daba8dfc0bd18ad5cede8e43d673146c95931e71163d4bdfd9d491f7908ebe08de344c2a3900c385fb704eebb6076c21719",
+      "entry": "d8b7b2228bc5e05c5c6e4af6b196c126",
+      "dek": "bf306e0d3222f707482bb75a3cbaa5ecfdb306bd051fa36f76a5fb94c2322e4b"
+    },
+    {
+      "name": "copy",
+      "sid": "d5b8f2aa4ccb4beed02a547e6b7d8cca",
+      "object_key": "b4pc2pclljuxrb4wuw2mhuxb6a.hxef/m/2w4pfksmznf65ubkkr7gw7mmzi",
+      "nonce": "d45b4b86537c5ce3b492dba678cb05887b7bb7488c930106",
+      "json": "{\"v\":1,\"entry\":\"fk427vttaw66h4o32wj7fmzyxy\",\"parent\":\"b4pc2pclljuxrb4wuw2mhuxb6a\",\"name\":\"Rechnung März (Kopie).pdf\",\"kind\":\"file\",\"revision\":1,\"base\":null,\"written\":1791000000000,\"size\":1,\"modified\":1790000000000,\"type\":\"application/pdf\",\"sha256\":\"6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d\",\"content\":\"mvfqnvu362e27pn36zixsatpia\",\"cid\":\"lcmjlx3lkks3m2j2b2qshve54m\",\"dek\":\"uL8sW4jbWkJ/7CDCLHAFQuLSyRBW1sVCKDnb5fnT+4iFXJ5zyEHT3gsIfmIFHypR/4rAd5n/69WHxrh2NYonmSHRaCUJaGru\"}",
+      "bytes": "485845460102d5b8f2aa4ccb4beed02a547e6b7d8ccad45b4b86537c5ce3b492dba678cb05887b7bb7488c930106d1b8b4c8cd8680a344b905795eba1cd3c18562a1b8d89999a424bb7c123975d9e790266dfd44a439e05c03335440dbf6c4ffb1904aa73c64593b8d10ab7d9907d47c2c72968c1577f64e7291ff7eefff8bad50b7eaeb187dbeaa37deecf35b367f4686e94379d64a143dcc5b1e2819f826c29a82db45c915573e06c7871abdf094d6a803483f4d83529bf304ad401823ecb2f257a4638bae882cfde0ccc67975bf2fbf15109f61e771b41c4f9f4aaca213ca78df1fdc488c8e3b472eef8c8eba5a9b3860877f2df37e5f9f44485c4d6e675266c366ace253f14944f29eda2877fffdaa81b3609fbbdfd070faf50f4c745bba014886eec8466ed2fcc495df52d3e80fe69d2035c3066423d45e9cef6f0e662ab73899a14893db55b5a639456e3fc6ca74153dd4fc38840d22d02239e8d9605e8f0d3b5d1260ccef7809b59413512e399dc78626073a2eb4eebbeb63ef1b1b2b7c22779a463220fd323b0651268014d9710946c299ad405ad71a320838df370a8f91cc7cee6f18f2c4cae34c6b71ce7b08594022a865b61f8e1f88ea6c7ec778baf174632121b863b9ae4cf70b5d7f175ca34e2eb612de87fda3b6cb3853e40a4078fd479f5bffa84bb509fa9dfa2032bb5aada72aa7fdd492fec0aa58a4ff4a1d4d3dc78fa6022cd098c24b2c1be1301a35495a15eee1f8da4c9c0840e4d980a6fc0c645747844140b3580095",
+      "entry": "2ab9afd67305bde3f1dbd593f2b338be",
+      "dek": "bf306e0d3222f707482bb75a3cbaa5ecfdb306bd051fa36f76a5fb94c2322e4b"
+    },
+    {
+      "name": "folder",
+      "sid": "b17a85f73d28fd43269da104d325ec75",
+      "object_key": "b4pc2pclljuxrb4wuw2mhuxb6a.hxef/m/wf5il5z5fd6ugju5uecngjpmou",
+      "nonce": "e61a2bfa091a5f4b2d5fcc9f4681027af0f06c413cfb15cb",
+      "json": "{\"v\":1,\"entry\":\"vrlthytkpdu37z3ossmth45r44\",\"parent\":\"b4pc2pclljuxrb4wuw2mhuxb6a\",\"name\":\"Belege\",\"kind\":\"folder\",\"revision\":2,\"base\":\"xscrjsbghm2py2fsr6dit5rtem\",\"written\":1791000000500}",
+      "bytes": "485845460102b17a85f73d28fd43269da104d325ec75e61a2bfa091a5f4b2d5fcc9f4681027af0f06c413cfb15cb991c8a8726f980758b23fb5e49579b0eaedec7263bb59a6ea033d3e47d26422a6f954615670a3eab4f7c7410a5d59a8b0c1bb8ed190b94ee4488d3148f02b49dcb64ee886cb60e6991af47a97f2df02d29e6b6f7079566be8ebc019f27e2e08759d2f2b5ec6020b9e996c5e55ad1b5d0e97c8deb165152a5133e24c332b9f3a1396c323d25ad5b70a1f5e10928711237ae0debab554ec3367cc2c40f4fd8c89f3960301a1b3ec08b1013d8e873f033ee093b15f8e698fde445b82a4466e9b18092b37bb0267fca851aaac7",
+      "entry": "ac5733e26a78e9bfe76e949933f3b1e7"
+    }
+  ],
+  "sidecar_cases": [
+    {
+      "name": "a sidecar of another folder",
+      "bytes": "485845460102701e6ad10c6c9a70fadc2b20876456be18a8abc6986ce6fb5d1d0b9c9edb847b064945eb4a5be33cae35a2249b2fda19f2623b346c89a50bedf0bf702aa35cd8a4a85932c94e0f3b04ae176f0f74eddf756075d303fed776b38a4940c0d0f3cae73efa9ac7ca62b07fc8db85ef838a076c6af08f06a2df5250dc950eb2edc1dec55c0423294e3d3731cb784418dbed0da44d9d539fdf5c9607688b319a6940297932d63823a56bf6eed40ff51cd9d72312c49794a4326aef7cb4aca80e2a1ab0d8745d789e21f28d3703b96245f399964339b1e67fddfbd4d271ee1bea02cebaeb8eabd953a63d8cac09f76a0b232a2983527bf7a246f4533963633562042d30785361c6077abfdf359dbe03ab68ca0c4c67992c837dfe915d78f533dcdac451b18e8e6d20eb4c43f3a35e586f76907fab1c9f63c62614dfefac1ce3799b42a2923c6ed8d8e68b18320ae3af33f8327ef76537c1b1742acb95ea06d240d2d7f968df3a2e713969715548d5159c287411135f7d9bab9b580752d59ca6b561a2cbf98d10280ed79d0445b27b5a2624d8afd62d0199fcf9007082d9757479a42483a0344563ea6f02de22da5526709703a7b91a552fe10a5a835f199b6594d4c7f97310784bb8ceae14f83b60d8b8e0a989f797ee6d7ea7eadd5ab2c313cd0563571e8c85ce228284bf9b79ca1fd59daba8dfc0bd18ad5cede8e43d673146c95931e71163d4bdfd9d491f7908ebe08de344c2a3900c385fb704eebb6076c21719",
+      "fid": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+      "sid": "701e6ad10c6c9a70fadc2b20876456be"
+    },
+    {
+      "name": "a sidecar under another sid",
+      "bytes": "485845460102701e6ad10c6c9a70fadc2b20876456be18a8abc6986ce6fb5d1d0b9c9edb847b064945eb4a5be33cae35a2249b2fda19f2623b346c89a50bedf0bf702aa35cd8a4a85932c94e0f3b04ae176f0f74eddf756075d303fed776b38a4940c0d0f3cae73efa9ac7ca62b07fc8db85ef838a076c6af08f06a2df5250dc950eb2edc1dec55c0423294e3d3731cb784418dbed0da44d9d539fdf5c9607688b319a6940297932d63823a56bf6eed40ff51cd9d72312c49794a4326aef7cb4aca80e2a1ab0d8745d789e21f28d3703b96245f399964339b1e67fddfbd4d271ee1bea02cebaeb8eabd953a63d8cac09f76a0b232a2983527bf7a246f4533963633562042d30785361c6077abfdf359dbe03ab68ca0c4c67992c837dfe915d78f533dcdac451b18e8e6d20eb4c43f3a35e586f76907fab1c9f63c62614dfefac1ce3799b42a2923c6ed8d8e68b18320ae3af33f8327ef76537c1b1742acb95ea06d240d2d7f968df3a2e713969715548d5159c287411135f7d9bab9b580752d59ca6b561a2cbf98d10280ed79d0445b27b5a2624d8afd62d0199fcf9007082d9757479a42483a0344563ea6f02de22da5526709703a7b91a552fe10a5a835f199b6594d4c7f97310784bb8ceae14f83b60d8b8e0a989f797ee6d7ea7eadd5ab2c313cd0563571e8c85ce228284bf9b79ca1fd59daba8dfc0bd18ad5cede8e43d673146c95931e71163d4bdfd9d491f7908ebe08de344c2a3900c385fb704eebb6076c21719",
+      "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "sid": "d5b8f2aa4ccb4beed02a547e6b7d8cca"
+    },
+    {
+      "name": "a sidecar whose sid was rewritten to its new name",
+      "bytes": "485845460102d5b8f2aa4ccb4beed02a547e6b7d8cca18a8abc6986ce6fb5d1d0b9c9edb847b064945eb4a5be33cae35a2249b2fda19f2623b346c89a50bedf0bf702aa35cd8a4a85932c94e0f3b04ae176f0f74eddf756075d303fed776b38a4940c0d0f3cae73efa9ac7ca62b07fc8db85ef838a076c6af08f06a2df5250dc950eb2edc1dec55c0423294e3d3731cb784418dbed0da44d9d539fdf5c9607688b319a6940297932d63823a56bf6eed40ff51cd9d72312c49794a4326aef7cb4aca80e2a1ab0d8745d789e21f28d3703b96245f399964339b1e67fddfbd4d271ee1bea02cebaeb8eabd953a63d8cac09f76a0b232a2983527bf7a246f4533963633562042d30785361c6077abfdf359dbe03ab68ca0c4c67992c837dfe915d78f533dcdac451b18e8e6d20eb4c43f3a35e586f76907fab1c9f63c62614dfefac1ce3799b42a2923c6ed8d8e68b18320ae3af33f8327ef76537c1b1742acb95ea06d240d2d7f968df3a2e713969715548d5159c287411135f7d9bab9b580752d59ca6b561a2cbf98d10280ed79d0445b27b5a2624d8afd62d0199fcf9007082d9757479a42483a0344563ea6f02de22da5526709703a7b91a552fe10a5a835f199b6594d4c7f97310784bb8ceae14f83b60d8b8e0a989f797ee6d7ea7eadd5ab2c313cd0563571e8c85ce228284bf9b79ca1fd59daba8dfc0bd18ad5cede8e43d673146c95931e71163d4bdfd9d491f7908ebe08de344c2a3900c385fb704eebb6076c21719",
+      "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "sid": "d5b8f2aa4ccb4beed02a547e6b7d8cca"
+    },
+    {
+      "name": "a changed byte in the ciphertext",
+      "bytes": "485845460102701e6ad10c6c9a70fadc2b20876456be18a8abc6986ce6fb5d1d0b9c9edb847b064945eb4a5be33cae35a2249b2fda19f2623b346c89a40bedf0bf702aa35cd8a4a85932c94e0f3b04ae176f0f74eddf756075d303fed776b38a4940c0d0f3cae73efa9ac7ca62b07fc8db85ef838a076c6af08f06a2df5250dc950eb2edc1dec55c0423294e3d3731cb784418dbed0da44d9d539fdf5c9607688b319a6940297932d63823a56bf6eed40ff51cd9d72312c49794a4326aef7cb4aca80e2a1ab0d8745d789e21f28d3703b96245f399964339b1e67fddfbd4d271ee1bea02cebaeb8eabd953a63d8cac09f76a0b232a2983527bf7a246f4533963633562042d30785361c6077abfdf359dbe03ab68ca0c4c67992c837dfe915d78f533dcdac451b18e8e6d20eb4c43f3a35e586f76907fab1c9f63c62614dfefac1ce3799b42a2923c6ed8d8e68b18320ae3af33f8327ef76537c1b1742acb95ea06d240d2d7f968df3a2e713969715548d5159c287411135f7d9bab9b580752d59ca6b561a2cbf98d10280ed79d0445b27b5a2624d8afd62d0199fcf9007082d9757479a42483a0344563ea6f02de22da5526709703a7b91a552fe10a5a835f199b6594d4c7f97310784bb8ceae14f83b60d8b8e0a989f797ee6d7ea7eadd5ab2c313cd0563571e8c85ce228284bf9b79ca1fd59daba8dfc0bd18ad5cede8e43d673146c95931e71163d4bdfd9d491f7908ebe08de344c2a3900c385fb704eebb6076c21719",
+      "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "sid": "701e6ad10c6c9a70fadc2b20876456be"
+    },
+    {
+      "name": "version 2",
+      "bytes": "485845460202701e6ad10c6c9a70fadc2b20876456be18a8abc6986ce6fb5d1d0b9c9edb847b064945eb4a5be33cae35a2249b2fda19f2623b346c89a50bedf0bf702aa35cd8a4a85932c94e0f3b04ae176f0f74eddf756075d303fed776b38a4940c0d0f3cae73efa9ac7ca62b07fc8db85ef838a076c6af08f06a2df5250dc950eb2edc1dec55c0423294e3d3731cb784418dbed0da44d9d539fdf5c9607688b319a6940297932d63823a56bf6eed40ff51cd9d72312c49794a4326aef7cb4aca80e2a1ab0d8745d789e21f28d3703b96245f399964339b1e67fddfbd4d271ee1bea02cebaeb8eabd953a63d8cac09f76a0b232a2983527bf7a246f4533963633562042d30785361c6077abfdf359dbe03ab68ca0c4c67992c837dfe915d78f533dcdac451b18e8e6d20eb4c43f3a35e586f76907fab1c9f63c62614dfefac1ce3799b42a2923c6ed8d8e68b18320ae3af33f8327ef76537c1b1742acb95ea06d240d2d7f968df3a2e713969715548d5159c287411135f7d9bab9b580752d59ca6b561a2cbf98d10280ed79d0445b27b5a2624d8afd62d0199fcf9007082d9757479a42483a0344563ea6f02de22da5526709703a7b91a552fe10a5a835f199b6594d4c7f97310784bb8ceae14f83b60d8b8e0a989f797ee6d7ea7eadd5ab2c313cd0563571e8c85ce228284bf9b79ca1fd59daba8dfc0bd18ad5cede8e43d673146c95931e71163d4bdfd9d491f7908ebe08de344c2a3900c385fb704eebb6076c21719",
+      "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "sid": "701e6ad10c6c9a70fadc2b20876456be"
+    },
+    {
+      "name": "cut",
+      "bytes": "485845460102701e6ad10c6c9a70fadc2b20876456be18a8abc6986ce6fb5d1d0b9c9edb847b064945eb4a5be3",
+      "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "sid": "701e6ad10c6c9a70fadc2b20876456be"
+    }
+  ],
+  "dek_cases": [
+    {
+      "name": "the copy's key under the original entry",
+      "sidecar": "copy",
+      "entry": "d8b7b2228bc5e05c5c6e4af6b196c126",
+      "expect": "refused"
+    },
+    {
+      "name": "the original's key under the copy's entry",
+      "sidecar": "file",
+      "entry": "2ab9afd67305bde3f1dbd593f2b338be",
+      "expect": "refused"
+    },
+    {
+      "name": "the copy's key under its own entry",
+      "sidecar": "copy",
+      "entry": "2ab9afd67305bde3f1dbd593f2b338be",
+      "expect": "dek"
+    }
+  ]
+}

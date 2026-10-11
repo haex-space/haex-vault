@@ -4355,6 +4355,7 @@ dependencies = [
  "ciborium",
  "cpal",
  "csv",
+ "data-encoding",
  "dunce",
  "ed25519-dalek",
  "either",
