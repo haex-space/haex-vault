@@ -323,9 +323,8 @@ scenario(
     await instance.click('files-open-system-confirm')
     // Whether a system app is there to open it does not matter here: the copy shows that the
     // command ran with the confirmation.
-    await ctx.waitFor(
-      'the decrypted copy for the system app',
-      () => appFiles.hasOpenedCopy(),
+    await ctx.waitFor('the decrypted copy for the system app', () =>
+      appFiles.hasOpenedCopy(),
     )
     ctx.step('open with the system app after the notice')
 
@@ -333,10 +332,7 @@ scenario(
     await openLauncher(instance)
     await instance.press('lock-instance')
     await instance.waitForEnd(PROCESS_END_LIMIT_MS)
-    assert.ok(
-      appFiles.hasNoOpenedCopy(),
-      'no copy left after the close',
-    )
+    assert.ok(appFiles.hasNoOpenedCopy(), 'no copy left after the close')
     const logTexts = appFiles.logTexts()
     for (const text of logTexts) {
       for (const secret of [...SECRET_NAMES, 'Rechnungen', 'Archiv', 'strom'])
