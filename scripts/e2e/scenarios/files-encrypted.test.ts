@@ -36,6 +36,8 @@ import { runAction } from '../lib/settings.ts'
 const BUCKET = 'holzi-encrypted-e2e'
 const NOTE = 'Hallo aus dem verschlüsselten Ordner'
 const SECRET_NAMES = ['Unterlagen', 'notiz', 'brief', 'foto', 'Belege']
+// Android's emulator needs several minutes for the deliberately large folder copy below.
+const TRANSFER_TIMEOUT_MS = 300_000
 /** Length of a content object of a file of `size` bytes below 64 KiB: header, one tag, data. */
 const contentLength = (size: number) => 38 + 16 + size
 
@@ -70,7 +72,7 @@ async function pasteAndWait(ctx: ScenarioContext, instance: FlowInstance) {
   await ctx.waitFor(
     'the transfer to end',
     () => gone(instance, 'files-transfers'),
-    { timeoutMs: 120_000 },
+    { timeoutMs: TRANSFER_TIMEOUT_MS },
   )
 }
 
