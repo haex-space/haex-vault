@@ -318,7 +318,9 @@ export async function runCli(
       ))
     ) {
       // Its network is not up: adb reverse does not need it (see `reach.ts`).
-      delete platformEnv[REDIRECT_ENV]
+      platformEnv = Object.fromEntries(
+        Object.entries(platformEnv).filter(([key]) => key !== REDIRECT_ENV),
+      )
       deps.print(
         `the device does not reach this machine through its network (${EMULATOR_HOST}); using adb reverse`,
       )
