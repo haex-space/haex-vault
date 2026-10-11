@@ -65,8 +65,8 @@ scenario(
       appId: 'system.files',
       at: `/storage/${storageId}?p=${encodeURIComponent('/')}`,
     })
-    await instance.waitForDisplayed('files-entries')
-    await contextMenu(instance, 'files-entries')
+    await instance.waitForDisplayed('files-empty')
+    await contextMenu(instance, 'files-empty')
     await instance.click('files-menu-newEncryptedFolder')
     await instance.waitForDisplayed('files-encrypted-notice')
     await instance.click('files-encrypted-notice-confirm')
