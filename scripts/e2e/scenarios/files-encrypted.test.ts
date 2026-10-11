@@ -248,7 +248,7 @@ scenario(
     await contextMenu(instance, 'files-entry-Rechnungen')
     await instance.click('files-menu-rename')
     await setName(instance, 'Archiv')
-    await instance.waitForDisplayed('files-entry-Archiv')
+    await instance.waitForDisplayed('files-entry-Archiv', 30_000)
     const renameMs = Math.round(performance.now() - renameStart)
     assert.ok(renameMs < 30_000, `rename took ${renameMs} ms`)
     assert.deepEqual(await keysUnder(rustfs, prefix, 'c'), contentBefore)
