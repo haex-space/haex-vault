@@ -15,6 +15,10 @@
 //! Since the media server (T041) the probe also hands the window three files served by it (a video,
 //! an audio file and a PDF, built in with [`FIXTURES`]), and the window plays, seeks and draws them
 //! the way the viewer does.
+//!
+//! Spec 048 (T013, SC-010): the probe adds one step of its own, [`ENCRYPTED_VECTORS_STEP`], which
+//! runs the test vectors of encrypted folders on the platform, so Windows, macOS and Android check
+//! them too.
 
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
@@ -28,6 +32,7 @@ use serde_json::json;
 use tauri::{AppHandle, Runtime};
 use tokio::io::AsyncRead;
 
+use crate::files::encrypted::format::vectors;
 use crate::files::media::MediaServer;
 use crate::files::streaming::StreamingSource;
 
@@ -39,6 +44,9 @@ pub const HEALTH_PATH: &str = "/__probe";
 
 /// The body of a healthy answer.
 pub const HEALTH_BODY: &str = "ok";
+
+/// The name of the step that checks the test vectors of encrypted folders.
+pub const ENCRYPTED_VECTORS_STEP: &str = "encrypted-vectors";
 
 /// How long the probe waits for the window's report before it gives up.
 pub const REPORT_TIMEOUT: Duration = Duration::from_secs(90);
@@ -116,9 +124,13 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> std::io::Result<u16> {
     std::thread::spawn(move || {
         std::thread::sleep(REPORT_TIMEOUT);
         if !REPORTED.swap(true, Ordering::SeqCst) {
+            let vectors = encrypted_vectors();
             let line = result_line(&json!({
                 "ok": false,
-                "steps": [{ "name": "report", "ok": false, "detail": "no report from the window" }],
+                "steps": [
+                    { "name": "report", "ok": false, "detail": "no report from the window" },
+                    { "name": vectors.name, "ok": vectors.ok, "detail": vectors.detail },
+                ],
                 "serverSaw": seen(),
             }));
             emit(&app, &line);
@@ -270,6 +282,19 @@ pub struct Report {
     pub user_agent: Option<String>,
 }
 
+/// The step [`ENCRYPTED_VECTORS_STEP`]: every check of `v1-vectors.json`, run here.
+pub fn encrypted_vectors() -> Step {
+    let (ok, detail) = match vectors::check(vectors::V1) {
+        Ok(count) => (true, format!("{count} checks passed")),
+        Err(failure) => (false, failure),
+    };
+    Step {
+        name: ENCRYPTED_VECTORS_STEP.to_owned(),
+        ok,
+        detail: Some(detail),
+    }
+}
+
 /// The exit code for a report: 0 only when there is at least one step and every step passed.
 pub fn exit_code(report: &Report) -> i32 {
     if !report.steps.is_empty() && report.steps.iter().all(|step| step.ok) {
@@ -286,10 +311,11 @@ pub fn result_line(value: &serde_json::Value) -> String {
 
 /// The window's report: printed once, then the process ends with [`exit_code`].
 #[tauri::command]
-pub fn platform_probe_report<R: Runtime>(app: AppHandle<R>, report: Report) {
+pub fn platform_probe_report<R: Runtime>(app: AppHandle<R>, mut report: Report) {
     if REPORTED.swap(true, Ordering::SeqCst) {
         return;
     }
+    report.steps.push(encrypted_vectors());
     let code = exit_code(&report);
     let steps: Vec<_> = report
         .steps

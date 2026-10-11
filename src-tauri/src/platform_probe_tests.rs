@@ -164,3 +164,14 @@ async fn the_fixtures_get_server_urls_and_are_read_in_ranges() {
         .unwrap();
     assert!(past.is_empty());
 }
+
+#[test]
+fn the_encrypted_vectors_step_passes_and_says_how_many_checks_ran() {
+    let step = encrypted_vectors();
+    assert_eq!(step.name, ENCRYPTED_VECTORS_STEP);
+    assert!(step.ok, "{:?}", step.detail);
+    assert!(step
+        .detail
+        .as_deref()
+        .is_some_and(|detail| detail.ends_with("checks passed")));
+}
