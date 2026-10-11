@@ -131,23 +131,32 @@ pub fn open_head(
     if parsed.fid != *fid {
         return HeadOutcome::Damaged;
     }
+    // A key id is a hash of its key, so a held generation that does not unwrap means the
+    // recipient was changed: damaged, not another vault.
+    let mut tampered = false;
     let unwrapped = parsed.own.iter().find_map(|data| {
         let key_id: Id = array(data, 0).ok()?;
         let vck = vck_for(&key_id)?;
-        let fk = Zeroizing::new(
-            open(
-                &kek(&vck),
-                &data[16..16 + NONCE_LEN],
-                &data[16 + NONCE_LEN..],
-                &wrap_aad(fid, ART_OWN, &key_id),
-            )
-            .ok()?,
-        );
-        let fk: [u8; 32] = fk.as_slice().try_into().ok()?;
-        Some((Zeroizing::new(fk), key_id))
+        let fk = open(
+            &kek(&vck),
+            &data[16..16 + NONCE_LEN],
+            &data[16 + NONCE_LEN..],
+            &wrap_aad(fid, ART_OWN, &key_id),
+        )
+        .ok()
+        .map(Zeroizing::new)
+        .and_then(|fk| <[u8; 32]>::try_from(fk.as_slice()).ok());
+        if fk.is_none() {
+            tampered = true;
+        }
+        Some((Zeroizing::new(fk?), key_id))
     });
     let Some((fk, key_id)) = unwrapped else {
-        return HeadOutcome::OtherVault;
+        return if tampered {
+            HeadOutcome::Damaged
+        } else {
+            HeadOutcome::OtherVault
+        };
     };
     let keys = FolderKeys::derive(&fk);
     let name = open(

@@ -77,7 +77,8 @@ art 0x00:  daten = key_id(16) | wrap_nonce(24) | wrapped_fk(48)        len = 88
   zum Präfix, kein entpackbarer Empfänger (Zustand „andere Vault“), Name nicht zu öffnen
   („beschädigt“).
   Ein Empfänger der Art `0x00`, dessen `key_id` der Leser kennt, der sich aber nicht entpacken
-  lässt, zählt dabei wie ein fremder: Gibt es keinen anderen, ist der Zustand „andere Vault“.
+  lässt, ist verändert worden (`key_id` ist ein Hash des Schlüssels): Gibt es keinen anderen, der
+  sich entpacken lässt, ist der Zustand „beschädigt“.
 
 ## Inhaltsobjekt
 

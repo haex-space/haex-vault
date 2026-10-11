@@ -1,6 +1,7 @@
 {
   "_comment": [
     "HXEF v1 test vectors (spec 048, docs/formats/encrypted-folder-v1.md).",
+    "The expected outcome of one head case was changed by hand afterwards (a recipient whose key id the reader holds but which does not unwrap is damaged); its bytes are unchanged.",
     "Generated once by a throwaway Python script written from the format document only, not from",
     "holzi's implementation: XChaCha20-Poly1305 from PyNaCl 1.6.2 (libsodium,",
     "crypto_aead_xchacha20poly1305_ietf_encrypt), HKDF-SHA256 from Python's hmac and hashlib.",
@@ -78,7 +79,7 @@
         "expect": "otherVault"
       },
       {
-        "name": "the reader holds another key under the same key id",
+        "name": "the reader holds another key under the same key id (a changed recipient)",
         "bytes": "4858454601000f1e2d3c4b5a69788796a5b4c3d2e1f001005800a0a1a2a3a4a5a6a7a8a9aaabacadaeaf404142434445464748494a4b4c4d4e4f50515253545556578e1976f2e0a845bf870c8d8dd9457c7bff0fff5d0014a0d912236a538754c3d8188a896e7902e65a0e7f9d1403d4955558595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f754656414a225d1848c76067ab8a4e49bf710fb51a81880b4b4e",
         "fid": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
         "reader": [
@@ -87,7 +88,7 @@
             "vck": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f"
           }
         ],
-        "expect": "otherVault"
+        "expect": "damaged"
       },
       {
         "name": "only a recipient of an unknown kind",
