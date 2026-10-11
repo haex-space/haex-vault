@@ -40,6 +40,7 @@ const SECRET_NAMES = ['Unterlagen', 'notiz', 'brief', 'foto', 'Belege']
 const contentLength = (size: number) => 38 + 16 + size
 
 async function setName(instance: FlowInstance, name: string) {
+  await instance.waitForDisplayed('files-name-input')
   await instance.exec(
     `const input = document.querySelector('[data-testid="files-name-input"]')
      input.value = ''
