@@ -151,6 +151,9 @@ Kompilieren, nicht Verhalten zur Laufzeit.
   Grenzen: Eingabe bis 50 MB, Ausgabe bis 200 000 Zeichen mit Kennzeichen „abgeschnitten“.
 - **Probe**: `pdf-extract`, `calamine`, `zip` 8, `quick-xml` 0.41 kompilieren für Android und Windows,
   kein ring/aws-lc-rs im Baum.
+- **Befund bei der Umsetzung**: pdf-extract 0.12 kennt die Textoperatoren `'` und `"` nicht (nur `Tj`,
+  `TJ`, `T*`); Ghostscript schreibt damit jede Zeile nach der ersten. holzi schreibt sie vor dem Lesen
+  mit lopdf in `T*` + `Tj` um.
 - **Alternatives**: `lopdf` direkt (schlechtere Wortabstände), `oxidize-pdf` (viele Abhängigkeiten,
   jung), `mupdf` (C, AGPL), `dotext` (seit 2017 tot), `docx-rust` (mehr Abhängigkeiten).
 

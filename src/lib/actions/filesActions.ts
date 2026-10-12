@@ -165,7 +165,7 @@ export const FILES_ACTIONS: readonly ActionDefinition[] = [
     id: 'files.read',
     titleKey: 'actions.files.read',
     description:
-      'Read a file: the text of a text file, at most 200 000 characters (`truncated` says the rest was cut). For other formats you get the details of the file and a `note` why there is no text.',
+      'Read a file: the text of a text file, a PDF, a Word or Writer document (docx, odt) or a spreadsheet (xlsx, xls, ods; one block per sheet under its name), at most 200 000 characters (`truncated` says the rest was cut). An image is shown to you if your model accepts images. For anything else, a scanned PDF or a file over 50 MB you get the details of the file and a `note` why there is no text.',
     input: {
       type: 'object',
       properties: { source: SOURCE, path: PATH },

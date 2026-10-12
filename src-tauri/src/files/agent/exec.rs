@@ -2,7 +2,8 @@
 //! 0011). Every call runs as the agent it was built for, never as a caller named in the input:
 //! holzi's own places are refused and left out of every answer (FR-033), the device needs the grant
 //! "files of the device" (FR-031), a storage its own grant, asked for once when it is missing
-//! (FR-031a; [`super::reach`]). The writing actions are in [`super::exec_write`].
+//! (FR-031a; [`super::reach`]). Reading is in [`super::read`], the writing actions are in
+//! [`super::exec_write`].
 
 use std::path::Path;
 
@@ -13,12 +14,11 @@ use tokio_util::sync::CancellationToken;
 
 use super::env::AgentEnv;
 use super::reach::{blocking, cancelled, entry_json, files_error, parse, PathInput, Place};
-use crate::chat::tools::native_action::{NativeError, NativeExecutor};
+use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
 use crate::files::access::{storage_listed, visible_to, StorageGrant, Want};
-use crate::files::kind::{category, FileCategory};
+use crate::files::kind::FileCategory;
 use crate::files::local::drives::drives;
 use crate::files::local::ops;
-use crate::files::local::text::{read_text, text_from};
 use crate::files::permissions::BUILTIN_AGENT;
 use crate::files::search::{
     search, search_storage, SearchEnd, SearchFilters, SearchHit, SearchLimits, SearchOptions,
@@ -26,7 +26,7 @@ use crate::files::search::{
 use crate::files::storage_source::parse_iso_ms;
 use crate::files::transfer::local::Removal;
 use crate::files::transfer::platform_removal;
-use crate::files::{EntryKind, FilesErrorCode, SourceRef};
+use crate::files::{EntryKind, SourceRef};
 use crate::passwords::access::Caller;
 
 /// The actions this executor runs; `files.show` opens a window and stays in the frontend.
@@ -47,10 +47,6 @@ pub const FILE_ACTION_IDS: &[&str] = &[
 const LIST_LIMIT: usize = 500;
 /// The most entries one `files.list` returns.
 const LIST_LIMIT_MAX: usize = 2_000;
-/// The most characters of text `files.read` returns (FR-035).
-pub const TEXT_CHARS: usize = 200_000;
-/// Bytes read for [`TEXT_CHARS`]: four per character at most in UTF-8.
-const TEXT_BYTES: u64 = 4 * TEXT_CHARS as u64;
 
 /// The file actions of one agent.
 pub struct FilesAgent<E> {
@@ -84,13 +80,15 @@ impl<E: AgentEnv + 'static> NativeExecutor for FilesAgent<E> {
         action_id: &str,
         input: Value,
         cancel: &CancellationToken,
-    ) -> Result<Value, NativeError> {
-        match action_id {
+    ) -> Result<NativeReply, NativeError> {
+        if action_id == "files.read" {
+            return self.read(parse(input)?, cancel).await;
+        }
+        let result = match action_id {
             "files.sources" => self.sources().await,
             "files.list" => self.list(parse(input)?, cancel).await,
             "files.stat" => self.stat(parse(input)?, cancel).await,
             "files.search" => self.search(parse(input)?, cancel).await,
-            "files.read" => self.read(parse(input)?, cancel).await,
             "files.folder.create" => self.create_folder(parse(input)?, cancel).await,
             "files.rename" => self.rename(parse(input)?, cancel).await,
             "files.copy" => self.transfer(false, parse(input)?, cancel).await,
@@ -100,7 +98,8 @@ impl<E: AgentEnv + 'static> NativeExecutor for FilesAgent<E> {
                 "unknown_action",
                 format!("{other} is no file action"),
             )),
-        }
+        };
+        result.map(NativeReply::from)
     }
 }
 
@@ -320,65 +319,5 @@ impl<E: AgentEnv> FilesAgent<E> {
             |folder| folder.to_string_lossy().into_owned(),
         );
         Ok((source, folder, Some(entry.name)))
-    }
-
-    /// Text of text files; for anything else the entry and why there is no text (FR-035a).
-    async fn read(
-        &self,
-        input: PathInput,
-        cancel: &CancellationToken,
-    ) -> Result<Value, NativeError> {
-        let (entry, storage, real) = self.entry(&input, cancel).await?;
-        if entry.kind == EntryKind::Dir {
-            return Err(NativeError::invalid_input(
-                Some("path"),
-                "this is a folder; list it with files_list",
-            ));
-        }
-        let note = match category(&entry.name) {
-            Some(FileCategory::Image) => {
-                Some("This is an image. holzi cannot show images to the model yet.")
-            }
-            Some(FileCategory::Video | FileCategory::Audio) => {
-                Some("This is a video or audio file; holzi cannot read its content.")
-            }
-            Some(FileCategory::Document) => {
-                Some("holzi cannot get the text out of this document format yet.")
-            }
-            Some(FileCategory::Text) | None => None,
-        };
-        if let Some(note) = note {
-            return Ok(json!({ "entry": entry_json(&entry), "note": note }));
-        }
-        let text = match (storage, real) {
-            (Some(files), _) => {
-                let bytes = files
-                    .read_start(&input.path, entry.size.unwrap_or(0), TEXT_BYTES)
-                    .await
-                    .map_err(files_error)?;
-                text_from(bytes, TEXT_BYTES)
-            }
-            (None, Some(real)) => tokio::task::spawn_blocking(move || read_text(&real, TEXT_BYTES))
-                .await
-                .map_err(|_| NativeError::new("failed", "the action failed"))?,
-            (None, None) => unreachable!("an entry lies on the device or on a storage"),
-        };
-        match text {
-            Ok(content) => {
-                let mut chars = content.text.char_indices();
-                let cut = chars.nth(TEXT_CHARS).map(|(at, _)| at);
-                let text = cut.map_or(content.text.as_str(), |at| &content.text[..at]);
-                Ok(json!({
-                    "entry": entry_json(&entry),
-                    "text": text,
-                    "truncated": content.truncated || cut.is_some(),
-                }))
-            }
-            Err(error) if error.code == FilesErrorCode::Binary => Ok(json!({
-                "entry": entry_json(&entry),
-                "note": "This file holds no text holzi can read.",
-            })),
-            Err(error) => Err(files_error(error)),
-        }
     }
 }

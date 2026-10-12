@@ -192,6 +192,11 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     icon: 'lucide:ban',
     overviewRow: true,
   }),
+  // Spec 044 FR-031b: what agents may do with files.
+  subView('agents.files', 'agents/files', 'agents', {
+    icon: 'lucide:folder-lock',
+    overviewRow: true,
+  }),
   // Spec 038: storage connections (S3) and the storages on them. The forms and the removal are
   // reached from the list, never searched for.
   categoryLocation('storage'),

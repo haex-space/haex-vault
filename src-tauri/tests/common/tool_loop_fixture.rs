@@ -342,7 +342,28 @@ pub async fn run_scripted_turn(
     user_message_id: Uuid,
     assistant_message_id: Uuid,
 ) -> (Vec<ChatMessage>, Vec<(String, Value)>) {
-    let request = base_request();
+    run_scripted_turn_with(
+        db,
+        chat_state,
+        session,
+        thread_id,
+        user_message_id,
+        assistant_message_id,
+        base_request(),
+    )
+    .await
+}
+
+/// [`run_scripted_turn`] with a request of the test's own (capabilities, tools).
+pub async fn run_scripted_turn_with(
+    db: &Database,
+    chat_state: &ChatState,
+    session: &ActiveSession,
+    thread_id: Uuid,
+    user_message_id: Uuid,
+    assistant_message_id: Uuid,
+    request: ChatRequest,
+) -> (Vec<ChatMessage>, Vec<(String, Value)>) {
     let stream = session.adapter.stream_chat(request.clone()).await.unwrap();
 
     let mut events: Vec<(String, Value)> = Vec::new();

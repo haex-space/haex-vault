@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import { deviceFiles } from '../lib/extension-files.ts'
+import { fileFixture } from '../lib/file-fixtures.ts'
 import {
   connectProvider,
   createAndUnlock,
@@ -12,7 +13,7 @@ import { scenario } from '../lib/scenario.ts'
 
 // Spec 044 US6 (T084, quickstart §6 step 1): a scripted model reaches files through the catalog. It
 // finds the file actions with `find_actions` (they are not in the core offer), searches a folder of
-// the device and reads a text file. The actions run in Rust (ADR 0011); what the model gets back
+// the device, reads a text file and the text of a PDF. The actions run in Rust (ADR 0011); what the model gets back
 // is the tool result of the next request.
 
 type Message = { role: string; content: unknown }
@@ -59,6 +60,7 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
     await createAndUnlock(instance, { name })
     // After the start: on Android it clears the app's data, where the folder lives.
     files.write('notiz-agent.txt', 'Hallo vom Agent')
+    files.write('steuer.pdf', fileFixture('steuer.pdf'))
     // The page takes a deep link only after it handed the actions to Rust.
     await instance.navigate(
       `tauri://localhost/workspace/${encodeURIComponent(name)}?open=system.files`,
@@ -92,12 +94,16 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
             path: `${files.folder}/notiz-agent.txt`,
           },
         },
+        {
+          tool: 'files_read',
+          input: { source: 'device', path: `${files.folder}/steuer.pdf` },
+        },
         { text: 'fertig' },
       ],
     })
     await connectProvider(instance, provider)
     await startReply(instance, provider, 'Lies meine Notiz vom Agent')
-    const requests = await waitForRequests(provider, 5)
+    const requests = await waitForRequests(provider, 6)
 
     const offered = (requests[0]?.tools ?? []).map((tool) => tool.name)
     assert.ok(offered.includes('find_actions'), offered.join(', '))
@@ -113,6 +119,11 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
     const read = toolResult(requests[4]!)
     assert.match(read, /Hallo vom Agent/)
     ctx.step('files_read gives its text')
+
+    const pdf = toolResult(requests[5]!)
+    assert.match(pdf, /Steuerbescheid 2025/)
+    assert.match(pdf, /312 Euro/)
+    ctx.step('files_read gives the text of a PDF')
   } finally {
     files.remove()
   }

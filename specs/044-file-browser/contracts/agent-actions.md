@@ -44,6 +44,10 @@ sonst `files_<code>` aus `FilesErrorCode` in snake_case (`files_blocked`, `files
 - **Ersetzen** bei `files.copy` gibt es nicht: Ein Agent überschreibt nur mit `files.move` und der Stufe
   Risky.
 - **Agenten-Transfers** laufen ohne Rückfrage zum Namen; die Entscheidung steht in `onConflict`.
+- **Lesen** (FR-035a): Text aus Textdateien, PDFs mit Textschicht, docx, odt, xlsx, xls und ods (je
+  Blatt `## <Name>`, Zellen mit Tabulator). Ein Bild kommt als JPEG im Werkzeugergebnis; nimmt das Modell
+  keine Bilder an, steht dort ein Hinweis. Sonst `note` mit dem Grund (Scan ohne Textschicht, über
+  50 MB, Format unbekannt).
 - **Grenzen** (FR-035): Eingabedatei für Textauszug bis 50 MB; Bilder auf lange Kante 1568 px und
   höchstens 5 MB verkleinert.
 - **Ohne Fenster** (FR-034): alle Aktionen außer `files.show` arbeiten headless, sobald die Definitionen

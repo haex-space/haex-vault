@@ -571,6 +571,11 @@
           "title": "Delegate deny rules",
           "description": "Actions that stay off-limits even in an autonomous mode.",
           "keywords": "deny rules forbidden commands"
+        },
+        "files": {
+          "title": "Files",
+          "description": "What agents may do with the files of the device and the cloud storages.",
+          "keywords": "files storage permission access agent revoke"
         }
       },
       "federation": {
@@ -968,6 +973,20 @@
         "objects": "The data in the bucket stays at the provider.",
         "confirm": "Remove for good"
       }
+    },
+    "agentFiles": {
+      "builtin": "Agent in the chat",
+      "device": "Files of the device",
+      "deviceHint": "Everything except holzi's own data.",
+      "granted": "Allowed",
+      "denied": "Blocked",
+      "ask": "Ask on first access",
+      "read": "Read",
+      "readWrite": "Read and write",
+      "noStorages": "No cloud storages set up.",
+      "saved": "Saved.",
+      "failed": "Saving failed",
+      "loadFailed": "Permissions could not be loaded"
     }
   },
   "models": {
@@ -1328,6 +1347,9 @@
         "servers": {
           "set": "Set the connection servers"
         }
+      },
+      "agentFiles": {
+        "set": "Set an agent's file permission"
       }
     },
     "scopes": {

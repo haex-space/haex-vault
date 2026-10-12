@@ -119,12 +119,12 @@ async fn text_is_read_up_to_its_limit_and_other_files_get_a_note() {
     }
     assert_eq!(code(read("steuer").await), "invalid_input");
 
-    let long = "ä".repeat(super::exec::TEXT_CHARS + 5);
+    let long = "ä".repeat(crate::files::extract::TEXT_CHARS + 5);
     std::fs::write(scene.path("lang.txt"), &long).expect("write");
     let text = read("lang.txt").await.expect("text");
     assert_eq!(
         text["text"].as_str().unwrap().chars().count(),
-        super::exec::TEXT_CHARS
+        crate::files::extract::TEXT_CHARS
     );
     assert_eq!(text["truncated"], true);
 }

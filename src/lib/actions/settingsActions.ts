@@ -465,6 +465,26 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   }),
   setting({
+    id: 'settings.agentFiles.set',
+    description:
+      'Set what an agent may do with the files of the device or with one storage (spec 044 FR-031b); without status the default applies again. User only.',
+    input: {
+      type: 'object',
+      properties: {
+        agentId: { type: 'string' },
+        kind: { type: 'string', enum: ['device', 'storage'] },
+        target: { type: 'string' },
+        status: {
+          type: 'string',
+          enum: ['granted', 'read', 'readWrite', 'denied'],
+        },
+      },
+      required: ['agentId', 'kind', 'target'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+  }),
+  setting({
     id: 'settings.delegate.setDenyRules',
     description: 'Set the delegate deny rules of the vault. User only.',
     input: {

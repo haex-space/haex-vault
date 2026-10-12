@@ -5,8 +5,8 @@
 #![allow(clippy::disallowed_methods)]
 
 use super::{
-    grants_of, list, permission_id, set, AgentFileKind, AgentFilePermission, AgentFileStatus,
-    BUILTIN_AGENT,
+    grants_of, list, permission_id, remove, set, AgentFileKind, AgentFilePermission,
+    AgentFileStatus, BUILTIN_AGENT,
 };
 use crate::files::access::{AgentGrants, DeviceGrant, StorageGrant};
 use crate::remote_storage::test_support::vault;
@@ -248,4 +248,34 @@ fn removing_a_storage_takes_its_permissions_along() {
     let rows = db.read_blocking(|q| Ok(list(q)?)).expect("list");
     let targets: Vec<&str> = rows.iter().map(|r| r.target.as_str()).collect();
     assert_eq!(targets, ["", "s2"]);
+}
+
+#[test]
+fn a_removed_row_brings_back_the_default() {
+    let (_dir, db) = vault();
+    put(
+        &db,
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::Storage,
+            "s1",
+            AgentFileStatus::Read,
+        ),
+    )
+    .expect("put");
+    put(
+        &db,
+        row(
+            BUILTIN_AGENT,
+            AgentFileKind::Device,
+            "",
+            AgentFileStatus::Denied,
+        ),
+    )
+    .expect("put");
+    db.write_blocking(|tx| Ok(remove(tx, BUILTIN_AGENT, AgentFileKind::Device, "")?))
+        .expect("remove");
+    let grants = grants(&db, BUILTIN_AGENT);
+    assert_eq!(grants.device, None);
+    assert_eq!(grants.storages.get("s1"), Some(&StorageGrant::Read));
 }

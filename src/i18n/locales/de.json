@@ -571,6 +571,11 @@
           "title": "Verbotsregeln für Delegaten",
           "description": "Aktionen, die auch im autonomen Modus tabu bleiben.",
           "keywords": "verbieten Regeln tabu Befehle"
+        },
+        "files": {
+          "title": "Dateien",
+          "description": "Was Agents mit den Dateien des Geräts und den Cloud-Speichern tun dürfen.",
+          "keywords": "Dateien Speicher Berechtigung Zugriff Agent widerrufen"
         }
       },
       "federation": {
@@ -968,6 +973,20 @@
         "objects": "Die Daten im Bucket bleiben beim Anbieter.",
         "confirm": "Endgültig entfernen"
       }
+    },
+    "agentFiles": {
+      "builtin": "Agent im Chat",
+      "device": "Dateien des Geräts",
+      "deviceHint": "Alles außer den eigenen Daten von holzi.",
+      "granted": "Erlaubt",
+      "denied": "Gesperrt",
+      "ask": "Beim ersten Zugriff fragen",
+      "read": "Lesen",
+      "readWrite": "Lesen und Schreiben",
+      "noStorages": "Keine Cloud-Speicher eingerichtet.",
+      "saved": "Gespeichert.",
+      "failed": "Speichern fehlgeschlagen",
+      "loadFailed": "Berechtigungen konnten nicht geladen werden"
     }
   },
   "models": {
@@ -1328,6 +1347,9 @@
         "servers": {
           "set": "Verbindungsserver setzen"
         }
+      },
+      "agentFiles": {
+        "set": "Datei-Berechtigung eines Agents setzen"
       }
     },
     "scopes": {

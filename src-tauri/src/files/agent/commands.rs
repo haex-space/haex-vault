@@ -12,7 +12,10 @@ use ts_rs::TS;
 use super::env::TauriEnv;
 use super::exec::FilesAgent;
 use super::prompt::{FilesAgentChoice, PermissionPrompt};
+use crate::error::HolziError;
+use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
 use crate::files::{FilesError, SourceRef};
+use crate::state::AppState;
 
 /// The executor of the built-in agent, managed as a state.
 pub type BuiltinFilesAgent = Arc<FilesAgent<TauriEnv<tauri::Wry>>>;
@@ -77,4 +80,55 @@ pub async fn files_agent_check(
             },
         },
     )
+}
+
+/// Every stored file permission of every agent (FR-031b); the settings view shows the defaults of
+/// what has no row.
+#[tauri::command]
+pub async fn files_agent_permissions(
+    state: State<'_, AppState>,
+) -> Result<Vec<AgentFilePermission>, HolziError> {
+    state.database()?.read(|q| Ok(permissions::list(q)?)).await
+}
+
+/// What the user decides in the settings (`settings.agentFiles.set`, a guardrail no agent reaches).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilesAgentPermissionSetArgs {
+    pub agent_id: String,
+    pub kind: AgentFileKind,
+    pub target: String,
+    /// `None` removes the row: the default applies again.
+    pub status: Option<AgentFileStatus>,
+}
+
+#[tauri::command]
+pub async fn files_agent_permission_set(
+    state: State<'_, AppState>,
+    args: FilesAgentPermissionSetArgs,
+) -> Result<(), HolziError> {
+    let db = state.database()?;
+    match args.status {
+        Some(status) => {
+            let row = AgentFilePermission {
+                agent_id: args.agent_id,
+                kind: args.kind,
+                target: args.target,
+                status,
+                updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
+            };
+            db.write(move |tx| Ok(permissions::set(tx, &row)?)).await
+        }
+        None => {
+            db.write(move |tx| {
+                Ok(permissions::remove(
+                    tx,
+                    &args.agent_id,
+                    args.kind,
+                    &args.target,
+                )?)
+            })
+            .await
+        }
+    }
 }
