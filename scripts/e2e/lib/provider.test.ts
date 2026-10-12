@@ -193,6 +193,31 @@ describe('startProvider', () => {
     assert.match(await send([{ name: 'files_list' }]), /"text":"done"/)
   })
 
+  it('a step builds its input from the request it answers', async () => {
+    const provider = await withProvider({
+      kind: 'script',
+      steps: [
+        {
+          tool: 'files_list',
+          input: (request) => ({
+            path: (request as { messages: { content: string }[] }).messages[0]!
+              .content,
+          }),
+        },
+      ],
+    })
+    const call = await (
+      await fetch(`${provider.baseUrl}/v1/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          tools: [{ name: 'files_list' }],
+          messages: [{ content: '/b' }],
+        }),
+      })
+    ).text()
+    assert.match(call, /"partial_json":"\{\\"path\\":\\"\/b\\"\}"/)
+  })
+
   it('records method, path and body, and never the credential headers', async () => {
     const provider = await withProvider({ kind: 'error', status: 500 })
     const sentinel = 'sk-test-sentinel-do-not-record'

@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict'
 import { deviceFiles } from '../lib/extension-files.ts'
-import { unwrap, type FlowInstance } from '../lib/flows.ts'
+import { unwrap } from '../lib/flows.ts'
 import { startRustfs } from '../lib/rustfs.ts'
-import { scenario, type ScenarioContext } from '../lib/scenario.ts'
-import { runAction } from '../lib/settings.ts'
+import { scenario } from '../lib/scenario.ts'
+import {
+  list,
+  names,
+  openFiles,
+  type Page,
+  type Source,
+  startImport,
+  transfersDone,
+} from '../lib/storage-files.ts'
 import { connectStorage } from '../lib/storage-setup.ts'
 
 // Spec 048, US3, quickstart §4 (T038, SC-007): an encrypted folder in a storage of RustFS on two
@@ -15,76 +23,12 @@ import { connectStorage } from '../lib/storage-setup.ts'
 
 const BUCKET = 'holzi-encrypted-two-e2e'
 const SYNC_TIMEOUT_MS = 60_000
-const TRANSFER_TIMEOUT_MS = 60_000
-
-type Page = Pick<FlowInstance, 'invoke' | 'exec'>
-type Source = { kind: 'storage'; storageId: string }
-type Entry = {
-  name: string
-  path: string
-  size: number | null
-  encrypted: { role: string; state: string } | null
-}
-
-const list = async (page: Page, source: Source, path: string) =>
-  unwrap<Entry[]>(
-    'files_list',
-    await page.invoke('files_list', { source, path }),
-  )
-
-const names = async (page: Page, source: Source, path: string) =>
-  (await list(page, source, path)).map((entry) => entry.name).sort()
-
 /** Loads the folder at `path` again, as the browser's refresh does. */
 const refresh = async (page: Page, source: Source, path: string) =>
   unwrap(
     'files_encrypted_refresh',
     await page.invoke('files_encrypted_refresh', { source, path }),
   )
-
-const TRANSFERS = `document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('filesTransfers')`
-
-/** Copies device files into `path` of `source` as a drop from the system does; does not wait. */
-async function startImport(
-  page: Page,
-  files: string[],
-  source: Source,
-  path: string,
-) {
-  await page.exec(
-    `return ${TRANSFERS}.importAsync(arguments[0], arguments[1], 'e2e').then(() => true)`,
-    [files, { source, path }],
-  )
-}
-
-/** Waits until no transfer of the file browser runs; fails on one that failed. */
-async function transfersDone(ctx: ScenarioContext, page: Page, what: string) {
-  await ctx.waitFor(
-    what,
-    async () => {
-      const state = await page.exec<{ running: number; failed: string[] }>(
-        `const transfers = ${TRANSFERS}.transfers
-         return {
-           running: transfers.length,
-           failed: transfers.filter((t) => t.state === 'failed').map((t) => JSON.stringify(t.error)),
-         }`,
-      )
-      if (state.failed.length > 0) {
-        throw new Error(`a transfer failed: ${state.failed.join(', ')}`)
-      }
-      return state.running === 0
-    },
-    { timeoutMs: TRANSFER_TIMEOUT_MS },
-  )
-}
-
-/** Opens the file browser on the storage's top folder; the transfers live in its store. */
-async function openFiles(page: FlowInstance, storageId: string) {
-  await runAction(page, 'wm.app.open', {
-    appId: 'system.files',
-    at: `/storage/${storageId}?p=${encodeURIComponent('/')}`,
-  })
-}
 
 scenario(
   'files-encrypted-two-devices',
