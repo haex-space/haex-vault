@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 use walkdir::WalkDir;
 
+use crate::files::encrypted::format::is_folder_prefix;
 use crate::files::kind::{category, FileCategory};
 use crate::files::local::ops::{is_hidden, stat};
 use crate::files::local::OwnPlaces;
@@ -286,6 +287,11 @@ pub async fn search_storage(
                 continue;
             }
             if entry.kind == EntryKind::Dir {
+                // Agents have no encrypted-folder scope. Do not search or expose the raw HXEF
+                // prefix: fuzzy matching can otherwise mistake its random name for a query.
+                if files.scope().is_none() && is_folder_prefix(&entry.name) {
+                    continue;
+                }
                 folders.push_back(entry.path.clone());
             }
             let Some(matched) = matcher.match_one(entry.name.as_str(), 0) else {
