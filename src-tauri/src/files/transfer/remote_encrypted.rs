@@ -149,11 +149,12 @@ impl<'h> Run<'h, '_> {
         }
     }
 
-    /// Whether source and target are one bucket, so the provider copies.
+    /// Whether source and target are one bucket whose provider copies (spec 050 research R8).
     fn same_bucket(&self) -> bool {
         match (&self.job.from, &self.job.to) {
             (Side::Storage(from), Side::Storage(to)) => {
                 from.access().location == to.access().location
+                    && from.store().copies_on_provider(from.access())
             }
             _ => false,
         }

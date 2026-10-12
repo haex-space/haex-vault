@@ -45,10 +45,19 @@ pub fn storage_error(error: StorageError) -> FilesError {
             FilesErrorCode::NoAccess,
             "the credentials lack the right for this",
         ),
-        StorageError::Network | StorageError::TimedOut => {
+        StorageError::Network
+        | StorageError::TimedOut
+        | StorageError::HostKeyChanged
+        | StorageError::HostKeyUnknown => {
             FilesError::new(FilesErrorCode::Unreachable, "the storage is not reachable")
         }
         StorageError::TooLarge => FilesError::new(FilesErrorCode::TooLarge, "too many entries"),
+        StorageError::QuotaExceeded => {
+            FilesError::new(FilesErrorCode::NoSpace, "the storage is full")
+        }
+        StorageError::Unsupported => {
+            FilesError::new(FilesErrorCode::Unsupported, "the storage cannot do this")
+        }
     }
 }
 

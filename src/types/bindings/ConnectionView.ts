@@ -2,12 +2,13 @@
 import type { Addressing } from "./Addressing";
 import type { CredentialsState } from "./CredentialsState";
 import type { EndpointScope } from "./EndpointScope";
+import type { Protocol } from "./Protocol";
 import type { ProviderKind } from "./ProviderKind";
 
 /**
  * A connection as the settings show it.
  */
-export type ConnectionView = { id: string, providerName: string, providerKind: ProviderKind, endpoint: string, region: string, addressing: Addressing,
+export type ConnectionView = { id: string, protocol: Protocol, providerName: string, providerKind: ProviderKind, endpoint: string, region: string, addressing: Addressing,
 /**
  * The endpoint sends without encryption (`http`).
  */

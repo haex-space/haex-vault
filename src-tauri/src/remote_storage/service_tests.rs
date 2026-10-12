@@ -12,7 +12,9 @@ use zeroize::Zeroizing;
 use super::model::{ConnectionInput, CredentialsInput, RemovalTarget, StorageInput};
 use super::service::StorageService;
 use super::test_support::{grant_storage, resolver, vault, FakeStore, Op};
-use super::{Addressing, CredentialsState, EndpointScope, ProviderKind, StorageError, TestOutcome};
+use super::{
+    Addressing, CredentialsState, EndpointScope, Protocol, ProviderKind, StorageError, TestOutcome,
+};
 use crate::error::HolziError;
 use crate::passwords::service::PasswordsService;
 use crate::storage::query::Query;
@@ -20,14 +22,14 @@ use crate::vault_gate::VaultDb;
 
 const SECRET: &str = "placeholder-secret-of-service-tests";
 
-struct Setup {
+pub(super) struct Setup {
     _dir: tempfile::TempDir,
-    db: VaultDb,
-    fake: Arc<FakeStore>,
-    service: StorageService,
+    pub(super) db: VaultDb,
+    pub(super) fake: Arc<FakeStore>,
+    pub(super) service: StorageService,
 }
 
-fn setup() -> Setup {
+pub(super) fn setup() -> Setup {
     let (dir, db) = vault();
     let fake = Arc::new(FakeStore::new());
     let names = resolver(&[
@@ -50,17 +52,18 @@ fn setup() -> Setup {
     }
 }
 
-fn typed() -> CredentialsInput {
-    CredentialsInput {
+pub(super) fn typed() -> CredentialsInput {
+    CredentialsInput::S3 {
         access_key_id: "AKIDEXAMPLE".to_owned(),
         secret_access_key: Zeroizing::new(SECRET.to_owned()),
         session_token: None,
     }
 }
 
-fn input(id: Option<String>, credentials: Option<CredentialsInput>) -> ConnectionInput {
+pub(super) fn input(id: Option<String>, credentials: Option<CredentialsInput>) -> ConnectionInput {
     ConnectionInput {
         id,
+        protocol: Protocol::S3,
         provider_name: "RustFS".to_owned(),
         provider_kind: ProviderKind::Rustfs,
         endpoint: Some("http://127.0.0.1:9000".to_owned()),
