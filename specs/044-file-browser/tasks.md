@@ -209,11 +209,11 @@ self-checking `platform-probe` jobs of T007, because full E2E on those platforms
 
 **Independent Test**: spec.md US7; quickstart.md §7.
 
-- [ ] T086 [P] [US7] Manifest `src-tauri/gen/android/app/src/main/AndroidManifest.xml`: `MANAGE_EXTERNAL_STORAGE`, `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE` with `android:maxSdkVersion="29"`
-- [ ] T087 [US7] Plugin `src-tauri/plugins/holzi-android`: Kotlin commands `allFilesAccessStatus` (`Environment.isExternalStorageManager()` on API 30+, runtime permission on 26–29) and `requestAllFilesAccess` (`ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` with `package:` URI, fallback `ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION` on `ActivityNotFoundException`; runtime request on 26–29); `build.rs` `COMMANDS`, plugin permissions, Rust wrappers in `src/android.rs`; app capability allows them
-- [ ] T088 [US7] Commands `files_all_access`, `files_request_all_access` (desktop: always granted, request is a no-op)
-- [ ] T089 [US7] UI `src/components/files/AllFilesAccess.vue`: explanation and button instead of the list when not granted; recheck on window focus/visibility change
-- [ ] T090 [US7] `pnpm check:android-versions`; extend `platform-probe-android` (T007): run once without the permission (probe reports `granted: false`), then `adb shell appops set <package> MANAGE_EXTERNAL_STORAGE allow`, restart, probe lists `/storage/emulated/0`, then `adb shell touch /storage/emulated/0/Download/probe.txt` and the probe sees the watch event; commit, open PR H
+- [x] T086 [P] [US7] Manifest `src-tauri/gen/android/app/src/main/AndroidManifest.xml`: `MANAGE_EXTERNAL_STORAGE`, `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE` with `android:maxSdkVersion="29"`
+- [x] T087 [US7] Plugin `src-tauri/plugins/holzi-android`: Kotlin commands `allFilesAccessStatus` (`Environment.isExternalStorageManager()` on API 30+, runtime permission on 26–29) and `requestAllFilesAccess` (`ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` with `package:` URI, fallback `ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION` on `ActivityNotFoundException`; runtime request on 26–29); `build.rs` `COMMANDS`, plugin permissions, Rust wrappers in `src/android.rs`; app capability allows them
+- [x] T088 [US7] Commands `files_all_access`, `files_request_all_access` (desktop: always granted, request is a no-op)
+- [x] T089 [US7] UI `src/components/files/AllFilesAccess.vue`: explanation and button instead of the list when not granted; recheck on window focus/visibility change
+- [x] T090 [US7] `pnpm check:android-versions`; extend `platform-probe-android` (T007): run once without the permission (probe reports `granted: false`), then `adb shell appops set <package> MANAGE_EXTERNAL_STORAGE allow`, restart, probe lists `/storage/emulated/0`, then `adb shell touch /storage/emulated/0/Download/probe.txt` and the probe sees the watch event; commit, open PR H **Done differently**: the probe step `all-files` reports the permission and lists `/storage/emulated/0` with it; `scripts/ci/android-platform-probe.sh` runs it without and with `appops … allow`. The watch event is left to `files-basic`, which sees a new file in the app's download folder below `/storage/emulated/0` on the Android emulator; the flow with the settings is the e2e scenario `android-all-files`
 
 ---
 
