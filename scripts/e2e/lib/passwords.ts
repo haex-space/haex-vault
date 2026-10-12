@@ -156,8 +156,9 @@ export async function contextMenu(
 export async function doubleClick(
   instance: FlowInstance,
   hook: string,
+  deadlineMs?: number,
 ): Promise<void> {
-  await instance.waitForDisplayed(hook)
+  await instance.waitForDisplayed(hook, deadlineMs)
   await instance.exec(
     `document.querySelector(arguments[0]).dispatchEvent(new MouseEvent('dblclick', {
        bubbles: true, cancelable: true, detail: 2,
