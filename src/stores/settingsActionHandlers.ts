@@ -250,17 +250,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await setPrefAsync(VAULT, AUTONOMY_KEY, String(input.mode))
     return done
   })
-  on('settings.agentFiles.set', async ({ input }) => {
-    await invoke('files_agent_permission_set', {
-      args: {
-        agentId: String(input.agentId),
-        kind: String(input.kind),
-        target: String(input.target),
-        status: typeof input.status === 'string' ? input.status : null,
-      },
-    })
-    return done
-  })
   on('settings.delegate.setDenyRules', async ({ input }) => {
     await setPrefAsync(VAULT, DENY_RULES_KEY, JSON.stringify(input.rules))
     return done
