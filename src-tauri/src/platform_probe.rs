@@ -19,6 +19,10 @@
 //! Spec 048 (T013, SC-010): the probe adds one step of its own, [`ENCRYPTED_VECTORS_STEP`], which
 //! runs the test vectors of encrypted folders on the platform, so Windows, macOS and Android check
 //! them too.
+//!
+//! Spec 044 (T090, FR-039): on Android one more step, [`ALL_FILES_STEP`], says whether holzi holds
+//! "Zugriff auf alle Dateien" and, when it does, whether the shared storage lists. The Android job
+//! runs the probe without the permission and again with it.
 
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
@@ -47,6 +51,9 @@ pub const HEALTH_BODY: &str = "ok";
 
 /// The name of the step that checks the test vectors of encrypted folders.
 pub const ENCRYPTED_VECTORS_STEP: &str = "encrypted-vectors";
+
+/// The name of the step that checks "Zugriff auf alle Dateien" on Android.
+pub const ALL_FILES_STEP: &str = "all-files";
 
 /// How long the probe waits for the window's report before it gives up.
 pub const REPORT_TIMEOUT: Duration = Duration::from_secs(90);
@@ -295,6 +302,27 @@ pub fn encrypted_vectors() -> Step {
     }
 }
 
+/// The step [`ALL_FILES_STEP`] for `granted` (or why it could not be checked): without the
+/// permission nothing more is expected; with it `listing` of the shared storage must have worked.
+pub fn all_files(
+    granted: Result<bool, String>,
+    listing: impl FnOnce() -> std::io::Result<usize>,
+) -> Step {
+    let (ok, detail) = match granted {
+        Ok(false) => (true, "granted: false".to_owned()),
+        Ok(true) => match listing() {
+            Ok(count) => (true, format!("granted: true; {count} entries")),
+            Err(error) => (false, format!("granted: true; the listing failed: {error}")),
+        },
+        Err(error) => (false, format!("not checked: {error}")),
+    };
+    Step {
+        name: ALL_FILES_STEP.to_owned(),
+        ok,
+        detail: Some(detail),
+    }
+}
+
 /// The exit code for a report: 0 only when there is at least one step and every step passed.
 pub fn exit_code(report: &Report) -> i32 {
     if !report.steps.is_empty() && report.steps.iter().all(|step| step.ok) {
@@ -316,6 +344,15 @@ pub fn platform_probe_report<R: Runtime>(app: AppHandle<R>, mut report: Report) 
         return;
     }
     report.steps.push(encrypted_vectors());
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_holzi_android::HolziAndroidExt;
+        report
+            .steps
+            .push(all_files(app.holzi_android().all_files_access(), || {
+                Ok(std::fs::read_dir("/storage/emulated/0")?.count())
+            }));
+    }
     let code = exit_code(&report);
     let steps: Vec<_> = report
         .steps
