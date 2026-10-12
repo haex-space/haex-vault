@@ -34,6 +34,9 @@ Speicher erreichen (FR-018). `ProtocolStore` reicht nach `access.location.protoc
 - **Fehlende Elternordner** unterhalb des Speicherordners legt `put`/`begin_upload` an; fehlt der
   Speicherordner selbst, ist das `NotFound` (R2).
 - **`ObjectInfo.etag`**: S3 ETag, WebDAV `getetag` (ohne Anführungszeichen), SFTP `"<size>-<mtime>"`.
+  Bei SFTP hat `mtime` nur Sekundenauflösung; gleich große Überschreibungen innerhalb derselben
+  Sekunde können daher dieselbe Marke ergeben. Falls Spec 048 solche Änderungen erkennen muss,
+  muss sie für SFTP ein stärkeres Änderungsmerkmal zusätzlich verlangen.
 - **`last_modified`**: wie geliefert (S3 ISO 8601, WebDAV RFC 1123, SFTP Unix-Zeit als RFC 3339).
 - **Fehler**: `NotFound`, `AccessDenied`, `MissingRight`, `Network`, `TooLarge`, `TimedOut` wie heute,
   dazu `QuotaExceeded`, `HostKeyChanged`, `HostKeyUnknown`, `Unsupported` (R10). Fehlermeldungen und
