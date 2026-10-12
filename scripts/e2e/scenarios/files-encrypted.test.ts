@@ -39,6 +39,7 @@ const SECRET_NAMES = ['Unterlagen', 'notiz', 'brief', 'foto', 'Belege']
 // Android's emulator needs several minutes for the deliberately large folder copy below.
 const TRANSFER_TIMEOUT_MS = 300_000
 const RENAME_TIMEOUT_MS = 120_000
+const FILE_ENTRY_TIMEOUT_MS = 30_000
 /** Length of a content object of a file of `size` bytes below 64 KiB: header, one tag, data. */
 const contentLength = (size: number) => 38 + 16 + size
 
@@ -179,7 +180,7 @@ scenario(
     await instance.waitForDisplayed('files-viewer-text')
     assert.match(await textOf(instance, 'files-viewer-text'), new RegExp(NOTE))
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-brief.pdf')
+    await instance.click('files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed('files-viewer-pdf')
     await instance.click('files-viewer-close')
     await instance.click('files-entry-foto.png')
@@ -221,7 +222,7 @@ scenario(
     await instance.click('files-entry-foto.png')
     await instance.waitForDisplayed('files-viewer-failed')
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-brief.pdf', 30_000)
+    await instance.click('files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed('files-viewer-pdf')
     await instance.click('files-viewer-close')
     ctx.step('changed and cut content is refused, the rest still opens')
@@ -237,7 +238,10 @@ scenario(
     await instance.click('files-storage-Fotos')
     await instance.waitForDisplayed('files-entry-Unterlagen')
     await instance.click('files-entry-Unterlagen')
-    await instance.waitForDisplayed('files-entry-brief.pdf')
+    await instance.waitForDisplayed(
+      'files-entry-brief.pdf',
+      FILE_ENTRY_TIMEOUT_MS,
+    )
     await pasteAndWait(ctx, instance)
     await instance.waitForDisplayed('files-entry-Rechnungen')
     ctx.step('a folder of 200 files went in')
@@ -257,27 +261,33 @@ scenario(
     ctx.step('renamed: no content object written', `${renameMs} ms`)
 
     // A move inside the folder: no content object either.
-    await contextMenu(instance, 'files-entry-brief.pdf')
+    await contextMenu(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.click('files-menu-cut')
     await instance.click('files-entry-Belege')
     await instance.waitForDisplayed('files-entry-d0')
     await pasteAndWait(ctx, instance)
-    await instance.waitForDisplayed('files-entry-brief.pdf')
+    await instance.waitForDisplayed(
+      'files-entry-brief.pdf',
+      FILE_ENTRY_TIMEOUT_MS,
+    )
     assert.deepEqual(await keysUnder(rustfs, prefix, 'c'), contentBefore)
     ctx.step('moved into Belege')
 
     // A copy back up: the provider copies the content object under a new name.
-    await contextMenu(instance, 'files-entry-brief.pdf')
+    await contextMenu(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.click('files-menu-copy')
     await instance.click('files-up')
     await instance.waitForDisplayed('files-entry-Archiv')
     await pasteAndWait(ctx, instance)
-    await instance.waitForDisplayed('files-entry-brief.pdf')
+    await instance.waitForDisplayed(
+      'files-entry-brief.pdf',
+      FILE_ENTRY_TIMEOUT_MS,
+    )
     assert.equal(
       (await keysUnder(rustfs, prefix, 'c')).length,
       contentBefore.length + 1,
     )
-    await instance.click('files-entry-brief.pdf')
+    await instance.click('files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed('files-viewer-pdf')
     await instance.click('files-viewer-close')
     ctx.step('copied: the copy opens')
@@ -303,7 +313,7 @@ scenario(
     ctx.step('the search finds strom.pdf')
 
     // Into an ordinary folder of the storage it asks first; there the file lies in the clear.
-    await contextMenu(instance, 'files-entry-brief.pdf')
+    await contextMenu(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.click('files-menu-copy')
     await instance.click('files-up')
     await instance.waitForDisplayed('files-entry-Unterlagen')
@@ -327,7 +337,11 @@ scenario(
       // "Mit System-App öffnen" shows its notice; confirmed, the copy lies in its own place.
       await instance.click('files-entry-Unterlagen')
       await instance.waitForDisplayed('files-entry-Archiv')
-      await contextMenu(instance, 'files-entry-brief.pdf')
+      await contextMenu(
+        instance,
+        'files-entry-brief.pdf',
+        FILE_ENTRY_TIMEOUT_MS,
+      )
       await instance.click('files-menu-openSystem')
       await instance.waitForDisplayed('files-open-system-notice')
       await instance.click('files-open-system-confirm')
