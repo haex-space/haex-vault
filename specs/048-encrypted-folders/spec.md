@@ -21,11 +21,16 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
 - **Speicher**, **Speicherverbindung**, **Bereich einer Erweiterung**: wie in Spec 038.
 - **Dateibrowser**, **Quelle**, **Viewer**, **Transfer**, **Agent**, **Agent-Berechtigung**: wie in
   Spec 044.
-- **Verschlüsselter Ordner**: ein Ordner in einem Speicher, dessen Inhalt holzi verschlüsselt ablegt.
+- **Verschlüsselter Ordner**: ein Ordner in einem Speicher oder auf dem Gerät (User Story 7), dessen
+  Inhalt holzi verschlüsselt ablegt.
   Im Dateibrowser verhält er sich wie ein gewöhnlicher Ordner mit Unterordnern und Dateien; beim
   Anbieter ist er ein Präfix mit zufälligem Namen, darunter liegen nur Objekte mit zufälligen Namen und
   unlesbarem Inhalt. Sichtbar ist nur, in welchem gewöhnlichen Ordner er liegt; sein Name steht
-  verschlüsselt im Kopf des Ordners.
+  verschlüsselt im Kopf des Ordners. Auf dem Gerät gilt dasselbe für jedes andere Programm: Es sieht
+  ein Verzeichnis `<zufall>.hxef` mit Dateien zufälliger Namen.
+- **Fremde Datei**: eine Datei in einem verschlüsselten Ordner auf dem Gerät, die nicht zum Format
+  gehört, etwa eine Konfliktkopie eines Sync-Programms (`… (conflicted copy)`), `.DS_Store` oder
+  `Thumbs.db`.
 - **Eintrag**: eine Datei oder ein Unterordner in einem verschlüsselten Ordner.
 - **Inhaltsobjekt**: der verschlüsselte Inhalt einer Datei als ein Objekt im Speicher, in Blöcken
   verschlüsselt, sodass holzi beliebige Teilbereiche lesen kann.
@@ -121,6 +126,24 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
   (Betreiber).
 - Q: Braucht ein eigenes Gerät ein Passwort für den Ordner? → A: Nein. Jedes Gerät der Vault liest
   ohne Rückfrage.
+
+### Session 2026-10-12
+
+- Q: Gibt es verschlüsselte Ordner auch auf dem Gerät? → A: Ja, überall im Verzeichnisbaum des Geräts,
+  ohne einen Ordner vorher als Speicher einzutragen (User Story 7). Typischer Fall: ein Ordner, den ein
+  anderes Programm synchronisiert (Nextcloud, Syncthing, Dropbox) oder ein USB-Stick (Betreiber).
+- Q: Über welche Schnittstelle? → A: Alle Speicher-Anbindungen über eine gemeinsame Schnittstelle (S3,
+  WebDAV, SFTP und ein lokales Verzeichnis); der Dateibrowser für das ganze Gerät bleibt bei seinem
+  eigenen Code und gibt nur Pfade in verschlüsselten Ordnern weiter (Betreiber, research R15).
+- Q: Löschen auf dem Gerät: Papierkorb oder endgültig? → A: Endgültig nach einer Rückfrage, wie in einem
+  Speicher; verschlüsselte Objekte im Papierkorb nützen niemandem (Betreiber).
+- Q: Gilt „Dateien des Geräts“ eines Agents auch für verschlüsselte Ordner auf dem Gerät? → A: Nein.
+  Es gilt dieselbe Freigabe je Ordner wie im Speicher (FR-030 bis FR-034) (Betreiber).
+- Q: Dürfen Erweiterungen mit Dateizugriff die rohen Dateien eines verschlüsselten Ordners auf dem
+  Gerät lesen oder ändern? → A: Nein. Sie sind für den Dateizugriff gesperrt wie holzis eigene Daten;
+  Zugang gibt es nur über die Freigabe je Ordner (FR-035 bis FR-039) (Betreiber).
+- Q: Was passiert mit fremden Dateien, etwa Konfliktkopien eines Sync-Programms? → A: holzi zeigt sie
+  nicht als Einträge, nennt ihre Zahl als Hinweis und löscht sie nie von selbst (Betreiber).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -295,6 +318,41 @@ wieder nichts.
 8. **Given** eine Erweiterung ohne `remoteStorage` für den Speicher, **When** sie auf den Ordner
    zugreifen will, **Then** fragt holzi nicht einmal, sondern lehnt ab wie heute in 038.
 
+### User Story 7 - Verschlüsselte Ordner auf dem Gerät (Priority: P2)
+
+Anna synchronisiert den Ordner `~/Nextcloud` mit dem Nextcloud-Programm. Im Dateibrowser legt sie dort
+den verschlüsselten Ordner „Steuer“ an und zieht ihre Belege hinein. Das Nextcloud-Programm lädt nur
+unlesbare Dateien mit zufälligen Namen hoch. Auf dem Laptop, auf dem dieselbe Vault und derselbe
+Nextcloud-Ordner liegen, öffnet sie „Steuer“ ohne Passwort. Einen zweiten verschlüsselten Ordner legt
+sie auf ihrem USB-Stick an.
+
+**Why this priority**: Viele nutzen einen Sync-Ordner oder einen Datenträger statt eines eigenen
+S3-Speichers; derselbe Schutz soll dort gelten. Es baut auf US1 bis US6 auf.
+
+**Independent Test**: In einem Testverzeichnis des Geräts einen verschlüsselten Ordner anlegen, Dateien
+hineinkopieren, öffnen, umbenennen, löschen; das Verzeichnis mit Werkzeugen des Systems lesen (nur
+`h`, `m/…`, `c/…` mit zufälligen Namen); eine fremde Datei hineinlegen; eine Erweiterung mit
+Dateizugriff auf das Verzeichnis versuchen lassen, die rohen Dateien zu lesen.
+
+**Acceptance Scenarios**:
+
+1. **Given** ein Ordner des Geräts im Dateibrowser, **When** Anna „Neuer verschlüsselter Ordner“ wählt,
+   **Then** entsteht dort ein Verzeichnis `<zufall>.hxef` mit nur dem Kopf, und der Dateibrowser zeigt
+   ihn mit seinem Namen und Schloss-Symbol.
+2. **Given** dieser Ordner, **When** Anna darin wie in US1, US4 und US5 arbeitet (hineinkopieren,
+   öffnen, Video abspielen, umbenennen, verschieben, suchen), **Then** geht alles wie in einem Speicher,
+   und andere Programme sehen nur Dateien mit zufälligen Namen und unlesbarem Inhalt.
+3. **Given** ein Eintrag im verschlüsselten Ordner, **When** Anna ihn löscht, **Then** fragt holzi vorher
+   und löscht endgültig, nicht in den Papierkorb.
+4. **Given** ein anderes Gerät derselben Vault mit demselben synchronisierten Ordner, **When** es den
+   verschlüsselten Ordner öffnet, **Then** sieht es dieselben Einträge ohne Rückfrage.
+5. **Given** eine Konfliktkopie des Sync-Programms im verschlüsselten Ordner, **When** Anna ihn öffnet,
+   **Then** erscheint sie nicht als Eintrag, holzi nennt die Zahl fremder Dateien und löscht sie nicht.
+6. **Given** ein Agent mit „Dateien des Geräts“, **When** er in den verschlüsselten Ordner will, **Then**
+   gelten die Freigaben je Ordner aus US6; die rohen Dateien erreicht er nie.
+7. **Given** eine Erweiterung mit Dateizugriff auf `~/Nextcloud`, **When** sie die rohen Dateien unter
+   `<zufall>.hxef` lesen, schreiben oder löschen will, **Then** lehnt holzi ab.
+
 ### Edge Cases
 
 - **Vault verloren**: Ohne die Vault (oder ein Backup von ihr) sind die Inhalte nicht mehr lesbar. Es
@@ -350,6 +408,20 @@ wieder nichts.
   nach dem Löschen. holzi nennt das im Hinweis beim Löschen, wenn es die Versionierung erkennt.
 - **Mehr als die Größengrenze des Anbieters für ein Objekt**: wie in 044 (mehrteiliger Upload); die
   Verschlüsselung in Blöcken DARF das nicht verhindern.
+- **Auf dem Gerät: ein anderes Programm ändert den Ordner** (Sync-Programm lädt neue Dateien herunter,
+  löscht welche): Der Dateibrowser beobachtet das Verzeichnis wie in 044 und lädt die Ansicht neu; was
+  fehlt oder halb geschrieben ist, gilt wie im Speicher als beschädigt oder unsichtbar.
+- **Auf dem Gerät: Datenträger entfernt** (USB-Stick abgezogen): Der Ordner ist nicht mehr da; offene
+  Freigabe-URLs und Transfers enden mit „nicht gefunden“, nichts Entschlüsseltes bleibt zurück.
+- **Auf dem Gerät: halb geschriebene Datei** (Absturz während des Schreibens): Teil-Dateien von holzi
+  im verschlüsselten Ordner sind keine Einträge; holzi entfernt sie nach 24 Stunden wie verwaiste
+  Objekte.
+- **Auf dem Gerät: fremde Dateien**: Sie erscheinen nicht als Einträge, holzi nennt ihre Zahl und löscht
+  sie nie von selbst, auch nicht beim Aufräumen; beim Löschen des ganzen verschlüsselten Ordners nennt
+  die Rückfrage sie mit und löscht sie mit.
+- **Auf dem Gerät: Kopie mit einem anderen Programm** (der Nutzer kopiert `<zufall>.hxef` mit dem
+  Dateimanager des Systems): Die Kopie ist ein gültiger verschlüsselter Ordner mit derselben Kennung,
+  wie die rohe Kopie im Speicher (PR E).
 
 ## Requirements _(mandatory)_
 
@@ -516,6 +588,39 @@ wieder nichts.
   Objektarten, Schlüsselableitung, Verfahren, Versionen), damit Ordner auch ohne holzi geprüft werden
   können, und es MUSS Testvektoren geben.
 
+**Auf dem Gerät (User Story 7)**
+
+- **FR-043**: Der Nutzer MUSS in jedem Ordner des Geräts, den er schreiben darf, einen verschlüsselten
+  Ordner anlegen können, außer in holzis eigenen Daten (044 FR-037) und innerhalb eines verschlüsselten
+  Ordners. Er MUSS im selben Format liegen wie im Speicher (`<zufall>.hxef/` mit `h`, `m/…`, `c/…`).
+- **FR-044**: Alle Anforderungen an verschlüsselte Ordner im Speicher (FR-001 bis FR-042) MÜSSEN auf dem
+  Gerät genauso gelten, umgesetzt über dieselbe Schicht und eine gemeinsame Speicher-Schnittstelle mit
+  einer Umsetzung für lokale Verzeichnisse (FR-041); es DARF keine zweite Umsetzung des Formats oder
+  der Ordnerlogik für das Gerät geben.
+- **FR-045**: Der Dateibrowser des Geräts MUSS verschlüsselte Ordner beim Auflisten erkennen, sie mit
+  entschlüsseltem Namen und Zustand zeigen und jeden Pfad in einem verschlüsselten Ordner an diese
+  Schicht geben: Auflisten, Angaben, Öffnen und Medien, Vorschaubilder, Text, Anlegen, Umbenennen,
+  Verschieben, Kopieren, Löschen, Suche, Beobachten, „Mit System-App öffnen“, Drag & Drop.
+- **FR-046**: Löschen in oder von einem verschlüsselten Ordner auf dem Gerät MUSS vorher fragen und
+  endgültig löschen, nie in den Papierkorb.
+- **FR-047**: Schreiben auf dem Gerät MUSS über eine Teil-Datei und Umbenennen geschehen, sodass andere
+  Programme nie eine halbe Datei unter einem endgültigen Namen sehen.
+- **FR-048**: Fremde Dateien in einem verschlüsselten Ordner DÜRFEN NICHT als Einträge erscheinen; holzi
+  MUSS ihre Zahl als Hinweis zeigen und DARF sie nicht von selbst löschen, außer beim Löschen des ganzen
+  Ordners nach einer Rückfrage, die sie nennt.
+- **FR-049**: Die Suche ab einem gewöhnlichen Ordner des Geräts MUSS verschlüsselte Ordner über ihre
+  entschlüsselten Namen durchsuchen und DARF nie rohe Dateien eines verschlüsselten Ordners als Treffer
+  liefern.
+- **FR-050**: Für Agents MUSS ein verschlüsselter Ordner auf dem Gerät dieselbe Freigabe je Ordner
+  verlangen wie im Speicher (FR-030 bis FR-034); „Dateien des Geräts“ DARF ihn nicht einschließen, und
+  rohe Dateien darin DÜRFEN Agents weder sehen noch lesen noch ändern.
+- **FR-051**: Der Dateizugriff von Erweiterungen (Spec 017) MUSS rohe Dateien und Verzeichnisse in
+  verschlüsselten Ordnern sperren wie holzis eigene Daten (017 FR-049): kein Auflisten, Lesen,
+  Schreiben, Löschen oder Beobachten. Erweiterungen erreichen einen verschlüsselten Ordner auf dem
+  Gerät nur über die Freigabe je Ordner (FR-035 bis FR-039).
+- **FR-052**: Verschlüsselte Ordner auf dem Gerät MÜSSEN unter Linux, Windows, macOS und Android
+  funktionieren, auf Android mit „Zugriff auf alle Dateien“ (044, 043).
+
 ### Key Entities
 
 - **Verschlüsselter Ordner**: Speicher, Elternordner, zufälliges Präfix, verschlüsselter Name,
@@ -567,6 +672,12 @@ wieder nichts.
   verschlüsselten Daten der Vault auf dem Gerät.
 - **SC-010**: Die Testvektoren aus FR-042 laufen in der CI bei jedem PR auf allen Plattformen von holzi
   durch, auch auf Android.
+- **SC-011**: Ein verschlüsselter Ordner auf dem Gerät mit 1 000 Einträgen ist beim ersten Öffnen in
+  unter 2 Sekunden sichtbar, beim nächsten in unter 1 Sekunde.
+- **SC-012**: In 100 % der Fälle eines Prüfkatalogs (Namen, Pfade, Inhalte wie in SC-001) liegt auf dem
+  Gerät unter `<zufall>.hxef` kein Klartext; in 100 % der geprüften Zugriffe (Auflisten, Lesen,
+  Schreiben, Löschen, Beobachten) erreicht eine Erweiterung mit Dateizugriff die rohen Dateien nicht,
+  und ein Agent sieht sie nicht.
 
 ## Assumptions
 
@@ -587,7 +698,10 @@ wieder nichts.
 - Verfahren und Blockgröße legt der Plan fest (research R2, R4: XChaCha20-Poly1305, Blöcke zu
   64 KiB); das Modell kommt aus haex-vault, das Format nicht (research R3).
 - Ein Speicher hat keine Benachrichtigung über Änderungen; Änderungen anderer Geräte erscheinen wie in
-  044 beim Neuladen oder Zurückkehren.
+  044 beim Neuladen oder Zurückkehren. Auf dem Gerät beobachtet holzi das Verzeichnis.
+- Auf dem Gerät gilt für andere Programme dieselbe Grenze wie für einen Anbieter: Sie sehen Zahl,
+  Größen und Zeiten der Dateien. Die Verschlüsselung der Festplatte durch das System bleibt davon
+  unberührt.
 
 ## Nicht im Umfang
 
@@ -596,7 +710,9 @@ wieder nichts.
 - Entzug und Erneuern von Schlüsseln (etwa nach einem verlorenen Gerät) und neues Verschlüsseln eines
   Ordners.
 - Umwandeln bestehender Ordner in verschlüsselte und zurück (FR-004).
-- Verschlüsselte Ordner auf dem Gerät selbst oder auf anderen Quellen als Speichern aus 038.
+- Verschlüsselte Ordner auf anderen Quellen als Speichern (038, 050) und dem Gerät (User Story 7).
+- Ein Ordner des Geräts als eingetragener Speicher; das lokale Verzeichnis ist nur eine Umsetzung der
+  gemeinsamen Schnittstelle unter den verschlüsselten Ordnern.
 - Verschlüsselte Bereiche von Erweiterungen (ihr eigener Bereich bleibt, wie sie ihn schreiben).
 - Ein Passwort je Ordner oder eine Wiederherstellung ohne Vault.
 - Die Sync-Regeln, die verschlüsselte Ordner als Ziel nutzen werden.
