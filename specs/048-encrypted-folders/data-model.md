@@ -97,6 +97,15 @@ PRIMARY KEY (`storage_id`, `folder_id`, `sidecar`); INDEX (`storage_id`, `folder
 - Neue Art `encryptedFolder`, Ziel `<storage_id>/<folder_id>`, Aktionen `read`/`readWrite`; Zeilen nur
   mit „Erlaubnis merken“, nie aus einem Manifest ([contracts/bridge.md](./contracts/bridge.md)).
 
+### Verschlüsselte Ordner auf dem Gerät (User Story 7, research R16)
+
+- Keine neue Tabelle. Die Spalte `storage_id` der beiden `_no_sync`-Tabellen und das Ziel der
+  Freigaben (`<storage_id>/<folder_id>`) tragen für das Gerät die Kennung `device:<wurzel>`
+  (`device:/` unter Linux, macOS und Android; `device:C:` je Laufwerk unter Windows); `object_key` ist
+  der Pfad ohne die Wurzel.
+- Zeilen zu Ordnern, deren Kopf beim Laden fehlt, löscht holzi.
+- `EncryptedInfo` bekommt `foreign: number` (Zahl fremder Dateien, nur für den Ordner selbst, sonst 0).
+
 ## Nur im Arbeitsspeicher
 
 | Entität                           | Inhalt                                                  | Lebensdauer                                          |

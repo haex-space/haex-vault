@@ -239,6 +239,40 @@ tested for the built-in agent and through `Caller::ExternalAgent` in unit tests.
 
 ---
 
+## Phase 9b: User Story 7 - Verschlüsselte Ordner auf dem Gerät (Priority: P2), PR I to L
+
+**Goal**: encrypted folders anywhere on the device, through the same layer and a local implementation of
+the shared storage interface (spec clarifications 2026-10-12, research R15–R19).
+
+**Independent Test**: quickstart §10.
+
+### PR I: local implementation and foreign files
+
+- [ ] T070 [P] [US7] Tests first in `src-tauri/src/remote_storage/local_tests.rs` (temp directories): keys map under the root; `..`, absolute keys and link escapes refused; `list` recursive and `list_dir` one level; `head` gives size, HTTP-date `last_modified` and an ETag that changes with content and stays with a rename-free rewrite of equal bytes only if size, mtime and inode stay; `get_range` reads exactly the range; `put` and upload sessions never leave a half file under the final name (FR-047); `copy`, `rename_tree`, `remove_tree`; errors map to `StorageError` without paths in messages (FR-027)
+- [ ] T071 [US7] `src-tauri/src/remote_storage/local.rs`: `LocalStore` per research R15 (root from `Location.bucket`), wired into `ProtocolStore` (`remote_storage/protocol.rs`) with a new `Protocol::Local` (`remote_storage/mod.rs`) that is never stored or offered: `remote_storage::store`/`service` refuse it for configured storages, the settings window does not list it (check the TS binding consumers). Coordinate with the session building spec 050 before starting, because both change `protocol.rs` and `mod.rs`
+- [ ] T072 [P] [US7] Foreign files (research R19): tests first in `src-tauri/src/files/encrypted/load_tests.rs`, `cleanup_tests.rs`, `manage_tests.rs`: objects under a folder that are not `h`, `m/<26>`, `c/<26>` or a holzi part file are not entries, are counted, are never removed by cleanup, and are removed with the whole folder; `EncryptedInfo.foreign` ("Zahl fremder Dateien, nur für den Ordner selbst, sonst 0"); rule added to `docs/formats/encrypted-folder-v1.md`
+
+### PR J: the device browser's switch
+
+- [ ] T073 [P] [US7] Tests first in `src-tauri/src/files/browser_commands/device_encrypted_tests.rs` (temp directories, a vault with a content key): a device path through `<26>.hxef` resolves to a storage view with id `device:<root>` (`device:/` on Unix, `device:C:` on Windows) and the path inside; listing an ordinary folder shows `<26>.hxef` as an encrypted folder with its decrypted name and state; create refused in holzi's own places (`holziOwned`) and inside an encrypted folder (`inEncrypted`); delete inside is permanent; cache rows of folders whose head is gone are removed
+- [ ] T074 [US7] `src-tauri/src/files/browser_commands/mod.rs`: the switch of research R17 (a helper next to `storage_of`/`checked` that returns the storage view for device paths in encrypted folders) and its use in every branch listed in R17 (`navigate.rs`, `view.rs`, `change.rs`, `search.rs`, `encrypted.rs`); `files_list` of an ordinary device folder decrypts `.hxef` heads like `StorageFiles::list`; `files_create_encrypted_folder` and `files_encrypted_refresh` accept the device
+- [ ] T075 [US7] Transfers and delete: `side_of` gives `Side::Storage(view)` for device paths in encrypted folders and `crosses` in `files_transfer_start` considers it; deletes in or of an encrypted folder on the device go through `start_storage_delete` (permanent, FR-046); the window's delete question (`src/components/apps/FilesApp.vue`, today `isAndroid || storage`) also asks for these paths and names foreign files when the whole folder goes
+- [ ] T076 [US7] Watch and search: `files_watch` on a path in an encrypted folder watches its `.hxef` directory and reports changes as changes of the open folder; `files/search.rs` device walk does not descend into `.hxef` directories but continues with `search_storage` on the decrypted tree (FR-049); tests in `search_tests.rs`
+- [ ] T077 [P] [US7] Window: "Neuer verschlüsselter Ordner" also in device folders (`src/lib/files/encrypted.ts` `canCreateEncrypted` for `device`, not in holzi's own places), the hint about foreign files in `src/components/files/FolderView.vue` (`EncryptedInfo.foreign`), i18n de/en; `scripts/check-files-encrypted.ts` cases
+- [ ] T078 [US7] E2E `scripts/e2e/scenarios/files-encrypted-device.test.ts` (quickstart §10 steps 1–4): create in a device test folder, copy in, open text/image/video, rename, search, delete asks and leaves nothing in the trash, the folder holds only `h`, `m/…`, `c/…` without plaintext, a foreign file is hinted and kept
+
+### PR K: agents and extensions on the device (after PR G #389)
+
+- [ ] T079 [P] [US7] Tests first: `src-tauri/src/extensions/fs/` tests — every operation (read, write, delete, list, watch, dialogs) on a path with a `.hxef` part is refused like holzi's own places and `read_dir` leaves such directories out; `src-tauri/src/files/access_tests.rs` and agent tests — `Target::Device` inside an encrypted folder is blocked for agents, `visible_to` hides `.hxef` directories, and agent actions on decrypted paths need the folder grant with `device:<root>` (FR-050, FR-051)
+- [ ] T080 [US7] `src-tauri/src/extensions/fs/mod.rs` (`touches_denied`, `authorize_by`) and `ops.rs` (`read_dir`): the pattern check of research R18; `src-tauri/src/files/access.rs` and `src-tauri/src/files/agent/` (exec, exec_write, reach): raw `.hxef` blocked and hidden, decrypted paths through the storage view with the grants of PR G; extension bridge `extension_encrypted_folder_*` accepts `device:<root>` storage ids only for extensions with file access to that place (decide with graphify whether `remoteStorage` or the filesystem permission gates it and record the decision here)
+- [ ] T081 [US7] E2E part of quickstart §10 step 5 in `scripts/e2e/scenarios/extension-encrypted-folder.test.ts` or a new `extension-encrypted-device.test.ts`
+
+### PR L: rename after spec 050
+
+- [ ] T082 [US7] Rename `RemoteStore` to `ObjectStore` (file `remote_storage/remote_store.rs` → `object_store.rs`, every use, `FakeStore`, docs and specs that name it), no behaviour change, after spec 050 is merged; one PR
+
+---
+
 ## Phase 10: Polish & Cross-Cutting Concerns
 
 - [ ] T066 [P] Performance check against RustFS in `files-encrypted.test.ts` or a separate measurement noted in the PR: 1 000 entries first open < 5 s and second < 1 s, 10 000 < 30 s, 20 heads < 2 s (SC-003); upload/download at most 20 % slower than an ordinary folder and ≤ 1 % larger for files ≥ 1 MB (SC-005)
@@ -261,6 +295,7 @@ tested for the built-in agent and through `Caller::ExternalAgent` in unit tests.
 - **US3** (Phase 5): needs US1 and US5's conflict handling in writes (T044).
 - **US6 agents** (Phase 8): needs US1 and 044 T074, T076, T077, T082.
 - **US6 extensions** (Phase 9): needs US1; independent of Phase 8.
+- **US7** (Phase 9b): PR I needs agreement with the spec 050 session; PR J needs PR I; PR K needs PR J and PR G (#389); PR L after spec 050 is merged.
 - **Polish**: after the stories it measures.
 
 ### Within each story

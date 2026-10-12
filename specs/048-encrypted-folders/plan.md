@@ -180,6 +180,19 @@ Jeder PR ist für sich prüfbar und lauffähig.
    Brückenfunktionen, Auswahl-Dialog, Freigabe bis Frame-Ende, Einstellungen; E2E
    `extension-encrypted-folder`.
 
+**Nachtrag 2026-10-12, User Story 7 (verschlüsselte Ordner auf dem Gerät; research R15 bis R19):**
+
+10. **PR I (Lokale Anbindung)**: `LocalStore` mit `Protocol::Local` hinter `ProtocolStore`, Regel für
+    fremde Dateien im Laden, Aufräumen und Löschen (auch im Speicher), Formatdokument. Nach Absprache mit
+    der Sitzung, die Spec 050 baut, weil beide `remote_storage/protocol.rs` und `mod.rs` ändern.
+11. **PR J (US7)**: Weiche im Dateibrowser des Geräts (R17): Erkennen beim Auflisten, Anlegen, Öffnen,
+    Medien, Vorschaubilder, Transfers, endgültiges Löschen mit Rückfrage, Suche, Beobachten,
+    „Mit System-App öffnen“, Hinweis auf fremde Dateien; E2E `files-encrypted-device`.
+12. **PR K (US7, Agents und Erweiterungen)**: rohe Dateien gesperrt, Freigaben je Ordner auf dem Gerät
+    (R18); nach PR G (#389).
+13. **PR L (Umbenennen)**: `RemoteStore` → `ObjectStore` in einem rein mechanischen PR, nach dem Merge
+    von Spec 050.
+
 ## Complexity Tracking
 
 | Abweichung                                               | Warum nötig                                                       | Einfachere Alternative verworfen, weil                                         |

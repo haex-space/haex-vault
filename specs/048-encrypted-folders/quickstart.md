@@ -87,3 +87,23 @@ Szene `extension-encrypted-folder` mit der Probe-Erweiterung:
 
 Nach dem Sperren der Vault: `files-opened-encrypted` leer, kein Name aus dem Ordner in den Logs
 (`grep` der Szene über das Log der Instanz) (SC-009).
+
+## §10 Auf dem Gerät (US7, PR I bis K)
+
+```sh
+cargo test --lib files::encrypted -j 4
+cargo test --lib remote_storage::local -j 4
+pnpm test:e2e --grep files-encrypted-device
+```
+
+Erwartet:
+
+1. In einem Testverzeichnis des Geräts entsteht nach „Neuer verschlüsselter Ordner“ ein Verzeichnis
+   `<zufall>.hxef` mit nur `h`; der Dateibrowser zeigt den Namen mit Schloss.
+2. Hineinkopieren, Öffnen, Video, Umbenennen, Verschieben, Suche funktionieren; mit den Mitteln des
+   Systems gelesen enthält das Verzeichnis nur `h`, `m/…`, `c/…` ohne Klartext (SC-012).
+3. Löschen fragt und löscht endgültig; im Papierkorb landet nichts.
+4. Eine fremde Datei (`notiz (conflicted copy).txt`) im Verzeichnis erscheint nicht als Eintrag, der
+   Hinweis nennt 1, nach dem Aufräumen ist sie noch da.
+5. Die Probe-Erweiterung mit Dateizugriff auf das Testverzeichnis bekommt beim Lesen, Schreiben,
+   Löschen und Beobachten unter `<zufall>.hxef` eine Ablehnung und sieht es in Listen nicht.

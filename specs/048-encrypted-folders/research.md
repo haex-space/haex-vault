@@ -259,3 +259,87 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
     (Rig von 033).
   - Testvektoren laufen in der Plattform-Probe der CI auch unter Windows, macOS und Android (SC-010).
 - **Rationale**: Keine Netzdienste in `cargo test` (Constitution); die CI-Probe deckt Android ab.
+
+## R15 — Eine Speicher-Schnittstelle, auch für lokale Verzeichnisse (User Story 7, 2026-10-12)
+
+- **Decision**: Verschlüsselte Ordner auf dem Gerät laufen über dieselbe Schicht `files/encrypted` wie
+  im Speicher. Darunter kommt ein `LocalStore`, eine Umsetzung der gemeinsamen Speicher-Schnittstelle
+  (heute `RemoteStore`, `src-tauri/src/remote_storage/remote_store.rs:13-152`) für ein lokales
+  Verzeichnis. Ausgewählt wird er wie S3, WebDAV und SFTP über `ProtocolStore`
+  (`remote_storage/protocol.rs:30-43`) mit einem neuen `Protocol::Local`. Es wird nie als Speicher
+  gespeichert oder in den Einstellungen angeboten; `Location.bucket` trägt den Wurzelpfad.
+  - Schlüssel sind Pfade unter der Wurzel; `..` und Auswege über Links lehnt `LocalStore` ab.
+  - `list` geht rekursiv, `list_dir` eine Ebene; `head` liefert Größe, Änderungszeit als HTTP-Datum
+    und ein ETag aus Größe, Änderungszeit und Inode (Windows: Datei-Index).
+  - `get_range` liest ab einer Stelle mit `take`; `put` schreibt eine Teil-Datei und benennt sie um
+    (FR-047); Upload-Sitzungen sind eine Teil-Datei, an die Teile angehängt werden, `finish_upload`
+    synchronisiert und benennt um, `abort_upload` löscht sie.
+  - `copies_on_provider` = wahr (`fs::copy`), `rename_tree` = `fs::rename`, `remove_tree` =
+    `remove_dir_all`.
+- **Name**: Nach dem Merge von Spec 050 heißt die Schnittstelle `ObjectStore` (eigener, rein
+  mechanischer PR; Betreiber 2026-10-12). Bis dahin bleibt `RemoteStore`, damit die Arbeit an 050
+  keine Konflikte bekommt.
+- **Rationale**: Der Betreiber will alle Speicher-Anbindungen über eine Schnittstelle (S3, WebDAV,
+  SFTP, lokal). Die Schicht `files/encrypted` braucht dann keine zweite Umsetzung (FR-041, FR-044).
+- **Alternatives considered**: `LocalStore` direkt an `StorageFiles` übergeben, ohne `Protocol`
+  (vermeidet Änderungen an Bindings und Datenbank-Text, aber eine Anbindung neben der Weiche); den
+  ganzen Geräte-Browser über die Schnittstelle führen (verliert Laufwerke, Links, Papierkorb,
+  Beobachten; verworfen, Betreiber 2026-10-12).
+
+## R16 — Kennung des Geräts als Speicher
+
+- **Decision**: Für den Zwischenspeicher und die Freigaben braucht ein verschlüsselter Ordner auf dem
+  Gerät eine Speicher-Kennung. Sie ist `device:<wurzel>` je Dateisystem-Wurzel: unter Linux, macOS und
+  Android `device:/`, unter Windows je Laufwerk `device:C:`. Schlüssel sind die Pfade ohne die Wurzel.
+  So bleibt die Kennung stabil, wenn ein Ordner auf dem Gerät verschoben wird, und Freigaben für
+  Agents und Erweiterungen (`<storage_id>/<folder_id>`) gelten weiter.
+- Zeilen im Zwischenspeicher (`encrypted_folder_*_no_sync`) zu Ordnern, deren Kopf beim Laden fehlt,
+  löscht holzi; für Gerätekennungen läuft `cache::remove_storage` nie.
+- **Alternatives considered**: eine Kennung je Elternordner (verliert Zwischenspeicher und Freigaben
+  beim Verschieben); eine je Ordner-Kennung (kollidiert mit Kopien desselben Ordners).
+
+## R17 — Weiche im Dateibrowser des Geräts
+
+- **Decision**: Eine Funktion in `files/browser_commands/mod.rs` erkennt, ob ein Gerätepfad durch ein
+  Verzeichnis `<zufall>.hxef` geht (`format::is_folder_prefix` je Pfadteil, nach dem Auflösen wie in
+  `checked()` `:131-175`), und liefert dann eine Speicher-Sicht (`StorageFiles` mit `LocalStore` und
+  `Scope` für `device:<wurzel>`) samt Pfad darin. Jede Stelle, die heute nach `storage_of()` verzweigt
+  (`navigate.rs:108`, `:128`; `view.rs:50`, `:110`, `:168`, `:313`; `change.rs:35`, `:56`, `:89-103`,
+  `:149-206`, `:218-245`; `search.rs:41`; `encrypted.rs:48`, `:101`), nimmt diese Sicht, wenn der Pfad
+  in einem verschlüsselten Ordner liegt.
+- **Auflisten** eines gewöhnlichen Ordners (`ops::list`): Einträge mit dem Namen `<zufall>.hxef`
+  werden über ihren Kopf als verschlüsselte Ordner mit Namen und Zustand gezeigt (wie
+  `StorageFiles::list`).
+- **Transfers**: `side_of` liefert für solche Pfade `Side::Storage(sicht)`; `crosses` in
+  `files_transfer_start` berücksichtigt das. Gerät ↔ verschlüsselter Ordner auf dem Gerät läuft damit
+  über die Transfers aus PR C und E.
+- **Löschen**: über `start_storage_delete` (endgültig, Rückfrage im Fenster, FR-046), nicht
+  `platform_removal()`.
+- **Beobachten**: `files_watch` auf einen Pfad in einem verschlüsselten Ordner beobachtet das
+  Verzeichnis `<zufall>.hxef` und meldet jede Änderung als Änderung des offenen Ordners; das Fenster
+  lädt neu und holt neue Begleitdateien nach ETag.
+- **Suche** (`files/search.rs:155`): Der Lauf über das Gerät steigt nicht in `<zufall>.hxef` ab,
+  sondern sucht im entschlüsselten Baum des Ordners (`search_storage`) weiter (FR-049).
+
+## R18 — Rohe Dateien für Erweiterungen und Agents sperren
+
+- **Decision**:
+  - **Erweiterungen**: `touches_denied` / `authorize_by` in `extensions/fs/mod.rs:213-277` prüfen
+    zusätzlich, ob ein Pfadteil des aufgelösten Pfads `format::is_folder_prefix` erfüllt; solche Pfade
+    sind wie holzis eigene Daten gesperrt (Lesen, Schreiben, Löschen, Beobachten, Dialoge). `read_dir`
+    (`ops.rs:115-131`) lässt sie in Listen weg.
+  - **Agents**: `files/access.rs` `check()` (`:77`) behandelt `Target::Device` in einem verschlüsselten
+    Ordner wie gesperrt; `visible_to` (`:150`) lässt rohe `.hxef`-Verzeichnisse weg. Die Dateiaktionen
+    (`files/agent/exec.rs`, `exec_write.rs`) gehen für Pfade darin über die Speicher-Sicht mit den
+    Freigaben aus PR G.
+- **Rationale**: FR-050, FR-051; eine Erweiterung mit Dateizugriff könnte sonst Objekte löschen und den
+  Ordner beschädigen.
+
+## R19 — Fremde Dateien
+
+- **Decision**: Unter einem verschlüsselten Ordner gilt alles als fremd, was nicht `h`, `m/<26>`,
+  `c/<26>` oder eine Teil-Datei von holzi ist. Das Laden (`load.rs`) übergeht fremde Dateien und zählt
+  sie; das Aufräumen (`cleanup.rs`) löscht sie nie; das Löschen des ganzen Ordners nennt ihre Zahl in
+  der Rückfrage und löscht sie mit. Die Regel kommt in `docs/formats/encrypted-folder-v1.md` und gilt
+  auch im Speicher (etwa für Dateien, die jemand über die Weboberfläche des Anbieters hochlädt).
+- `EncryptedInfo` bekommt für den Ordner selbst `foreign: number`; das Fenster zeigt den Hinweis.

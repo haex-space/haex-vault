@@ -52,6 +52,18 @@ Ordner trägt `state: 'damaged'` und lässt sich nur löschen.
 - `files_thumbnail` für Einträge in verschlüsselten Ordnern antwortet aus dem Arbeitsspeicher und legt
   nichts im Cache-Verzeichnis ab.
 
+## Auf dem Gerät (User Story 7)
+
+- `files_create_encrypted_folder` und `files_encrypted_refresh` nehmen auch `source: { kind: 'device' }`;
+  Fehler `holziOwned` in holzis eigenen Daten, `inEncrypted` in einem verschlüsselten Ordner.
+- Alle Commands, die einen Gerätepfad nehmen, behandeln einen Pfad in einem verschlüsselten Ordner wie
+  im Speicher (research R17); `files_list` eines gewöhnlichen Ordners zeigt `<zufall>.hxef` als
+  verschlüsselten Ordner mit Namen.
+- `files_transfer_start` mit `op: 'delete'` in oder auf einen verschlüsselten Ordner des Geräts löscht
+  endgültig; das Fenster fragt vorher wie bei einem Speicher.
+- `EncryptedInfo.foreign`: Zahl fremder Dateien des Ordners; das Fenster zeigt einen Hinweis, wenn sie
+  größer als 0 ist.
+
 ## Fehlercodes
 
 Neu: `inEncrypted`, `inExtensionArea`, `noKey`, `needsNotice`, `damaged`, `otherVault`,
