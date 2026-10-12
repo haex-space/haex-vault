@@ -161,12 +161,21 @@ fn build_messages(messages: &[super::types::ChatMessage]) -> Vec<Value> {
             }
             ChatRole::ToolResult { .. } => {
                 let mut blocks = Vec::new();
-                while let Some(ChatRole::ToolResult {
-                    call_id,
-                    content,
-                    is_error,
-                }) = messages.get(i).map(|m| &m.role)
+                while let Some((
+                    ChatRole::ToolResult {
+                        call_id,
+                        content,
+                        is_error,
+                    },
+                    attachments,
+                )) = messages.get(i).map(|m| (&m.role, &m.attachments))
                 {
+                    // Images of a tool (spec 044 research R2) go with its text as blocks.
+                    let content = if attachments.is_empty() {
+                        Value::String(content.clone())
+                    } else {
+                        Value::Array(user_content_blocks(content, attachments))
+                    };
                     let mut block = serde_json::json!({
                         "type": "tool_result",
                         "tool_use_id": call_id,

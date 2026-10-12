@@ -67,6 +67,17 @@ pub struct ToolResult {
     /// Set when the call needs the user to choose first (spec 046): the tool round asks in the
     /// chat and replaces this result; `content` is what the model would see if nobody asked.
     pub choice: Option<ChoiceRequest>,
+    /// Images for the model (spec 044 research R2): the tool round sends them along when the model
+    /// accepts images, else a note in their place; the history keeps only a note.
+    pub images: Vec<ToolImage>,
+}
+
+/// An image a tool hands to the model, ready to send (`files.read`: a JPEG within the limits).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolImage {
+    pub name: String,
+    pub media_type: String,
+    pub bytes: Vec<u8>,
 }
 
 impl ToolResult {
@@ -75,6 +86,7 @@ impl ToolResult {
             content: content.into(),
             is_error: false,
             choice: None,
+            images: Vec::new(),
         }
     }
 
@@ -83,6 +95,7 @@ impl ToolResult {
             content: content.into(),
             is_error: true,
             choice: None,
+            images: Vec::new(),
         }
     }
 
@@ -92,7 +105,13 @@ impl ToolResult {
             content: content.into(),
             is_error: true,
             choice: Some(choice),
+            images: Vec::new(),
         }
+    }
+
+    pub fn with_images(mut self, images: Vec<ToolImage>) -> Self {
+        self.images = images;
+        self
     }
 }
 

@@ -191,6 +191,44 @@ fn an_image_attachment_becomes_a_base64_image_block_alongside_the_text() {
 }
 
 #[test]
+fn a_tool_result_with_an_image_sends_its_text_and_the_image_as_blocks() {
+    let mut request = sample_request("claude-sonnet-5");
+    request.messages.push(ChatMessage {
+        role: ChatRole::ToolCall {
+            id: "call-1".to_string(),
+            name: "files_read".to_string(),
+            input: serde_json::json!({}),
+        },
+        content: String::new(),
+        attachments: Vec::new(),
+    });
+    request.messages.push(ChatMessage {
+        role: ChatRole::ToolResult {
+            call_id: "call-1".to_string(),
+            content: "{\"note\":\"The image follows.\"}".to_string(),
+            is_error: false,
+        },
+        content: String::new(),
+        attachments: vec![Attachment {
+            name: "foto.jpg".to_string(),
+            kind: AttachmentKind::Image,
+            media_type: "image/jpeg".to_string(),
+            bytes: vec![1, 2, 3],
+        }],
+    });
+    let body = build_messages_body(&request);
+    let result = &body["messages"][2]["content"][0];
+    assert_eq!(result["type"], "tool_result");
+    assert_eq!(result["content"][0]["type"], "text");
+    assert_eq!(
+        result["content"][0]["text"],
+        "{\"note\":\"The image follows.\"}"
+    );
+    assert_eq!(result["content"][1]["type"], "image");
+    assert_eq!(result["content"][1]["source"]["media_type"], "image/jpeg");
+}
+
+#[test]
 fn a_text_attachment_is_inlined_as_an_extra_text_block() {
     let mut request = sample_request("claude-sonnet-5");
     request.messages[0].attachments.push(Attachment {

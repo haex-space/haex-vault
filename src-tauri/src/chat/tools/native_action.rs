@@ -12,7 +12,7 @@ use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use super::action_tool::{error_content, AgentActionDef, ACTION_SOURCE};
-use super::{RiskClass, Tool, ToolResult};
+use super::{RiskClass, Tool, ToolImage, ToolResult};
 
 /// Why a native action failed, as the model sees it: the same `code`, `field` and `message` an
 /// action of the window reports.
@@ -42,6 +42,22 @@ impl NativeError {
     }
 }
 
+/// What a native action gives the model: its result, and images to show it (`files.read`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeReply {
+    pub result: Value,
+    pub images: Vec<ToolImage>,
+}
+
+impl From<Value> for NativeReply {
+    fn from(result: Value) -> Self {
+        Self {
+            result,
+            images: Vec::new(),
+        }
+    }
+}
+
 /// Runs the native actions of one area (`files.*`). The executor fixes the caller itself, never
 /// from the input (ADR 0007).
 #[async_trait]
@@ -54,7 +70,7 @@ pub trait NativeExecutor: Send + Sync {
         action_id: &str,
         input: Value,
         cancel: &CancellationToken,
-    ) -> Result<Value, NativeError>;
+    ) -> Result<NativeReply, NativeError>;
 }
 
 /// The executors of this process by action id; filled in `setup()`. Cheap to clone.
@@ -136,7 +152,7 @@ impl Tool for NativeActionTool {
             outcome = run => outcome,
         };
         match outcome {
-            Ok(result) => ToolResult::ok(result.to_string()),
+            Ok(reply) => ToolResult::ok(reply.result.to_string()).with_images(reply.images),
             Err(error) => ToolResult::error(error_content(
                 &error.code,
                 error.field.as_deref(),

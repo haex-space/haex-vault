@@ -5,16 +5,19 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::action_tool::AgentActionDef;
-use super::native_action::{NativeActionTool, NativeError, NativeExecutor, NativeExecutors};
-use super::{RiskClass, Tool};
+use super::native_action::{
+    NativeActionTool, NativeError, NativeExecutor, NativeExecutors, NativeReply,
+};
+use super::{RiskClass, Tool, ToolImage};
 
-/// Answers `files.list` with its input, fails `files.stat` with a field and never ends `files.read`.
+/// Answers `files.list` with its input, `files.copy` with an image, fails `files.stat` with a field
+/// and never ends `files.read`.
 struct Echo;
 
 #[async_trait]
 impl NativeExecutor for Echo {
     fn action_ids(&self) -> &'static [&'static str] {
-        &["files.list", "files.stat", "files.read"]
+        &["files.list", "files.stat", "files.read", "files.copy"]
     }
 
     async fn run(
@@ -22,10 +25,18 @@ impl NativeExecutor for Echo {
         action_id: &str,
         input: Value,
         _cancel: &CancellationToken,
-    ) -> Result<Value, NativeError> {
+    ) -> Result<NativeReply, NativeError> {
         match action_id {
-            "files.list" => Ok(json!({ "got": input })),
+            "files.list" => Ok(json!({ "got": input }).into()),
             "files.stat" => Err(NativeError::invalid_input(Some("path"), "no such path")),
+            "files.copy" => Ok(NativeReply {
+                result: json!({ "note": "an image" }),
+                images: vec![ToolImage {
+                    name: "a.jpg".to_owned(),
+                    media_type: "image/jpeg".to_owned(),
+                    bytes: vec![1, 2, 3],
+                }],
+            }),
             _ => std::future::pending().await,
         }
     }
@@ -103,5 +114,17 @@ fn executors_are_found_by_each_of_their_ids() {
     assert!(executors.get("files.stat").is_some());
     let mut ids = executors.ids();
     ids.sort_unstable();
-    assert_eq!(ids, ["files.list", "files.read", "files.stat"]);
+    assert_eq!(
+        ids,
+        ["files.copy", "files.list", "files.read", "files.stat"]
+    );
+}
+
+#[tokio::test]
+async fn images_of_a_reply_reach_the_tool_result() {
+    let tool = NativeActionTool::new(def("files.copy", "write"), Arc::new(Echo));
+    let result = tool.execute(json!({}), CancellationToken::new()).await;
+    assert_eq!(result.content, r#"{"note":"an image"}"#);
+    assert_eq!(result.images.len(), 1);
+    assert_eq!(result.images[0].name, "a.jpg");
 }

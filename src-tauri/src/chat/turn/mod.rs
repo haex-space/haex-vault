@@ -17,6 +17,7 @@
 //! - [`persist`] — row writes, the shared event helpers, the logical clock
 
 mod choices;
+mod images;
 mod persist;
 mod step;
 mod tool_round;

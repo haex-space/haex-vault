@@ -145,8 +145,23 @@ pub fn render_bytes(bytes: &[u8]) -> Result<Vec<u8>, FilesError> {
 }
 
 fn render_from<R: std::io::BufRead + std::io::Seek>(
-    mut reader: ImageReader<R>,
+    reader: ImageReader<R>,
 ) -> Result<Vec<u8>, String> {
+    let small = upright_within(reader, EDGE)?;
+    let mut bytes = Vec::new();
+    JpegEncoder::new_with_quality(&mut Cursor::new(&mut bytes), QUALITY)
+        .encode_image(&small)
+        .map_err(|e| e.to_string())?;
+    Ok(bytes)
+}
+
+/// The image of `reader` decoded within the limits, turned upright by its EXIF orientation and
+/// shrunk so its longest edge is at most `edge` (never enlarged). Thumbnails and the images agents
+/// read (`files::extract::image`) share it.
+pub(crate) fn upright_within<R: std::io::BufRead + std::io::Seek>(
+    mut reader: ImageReader<R>,
+    edge: u32,
+) -> Result<RgbImage, String> {
     let mut limits = Limits::default();
     limits.max_image_width = Some(MAX_SIDE);
     limits.max_image_height = Some(MAX_SIDE);
@@ -157,9 +172,9 @@ fn render_from<R: std::io::BufRead + std::io::Seek>(
     let mut image = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
     image.apply_orientation(orientation);
     let rgb = DynamicImage::ImageRgb8(image.to_rgb8());
-    let (width, height) = fit(rgb.width(), rgb.height());
-    let small = if (width, height) == (rgb.width(), rgb.height()) {
-        rgb.to_rgb8()
+    let (width, height) = fit(rgb.width(), rgb.height(), edge);
+    if (width, height) == (rgb.width(), rgb.height()) {
+        Ok(rgb.to_rgb8())
     } else {
         let mut target = Image::new(width, height, PixelType::U8x3);
         if rgb.pixel_type() != Some(PixelType::U8x3) {
@@ -169,13 +184,8 @@ fn render_from<R: std::io::BufRead + std::io::Seek>(
             .resize(&rgb, &mut target, &ResizeOptions::new())
             .map_err(|e| e.to_string())?;
         RgbImage::from_raw(width, height, target.into_vec())
-            .ok_or_else(|| "resized buffer has the wrong size".to_owned())?
-    };
-    let mut bytes = Vec::new();
-    JpegEncoder::new_with_quality(&mut Cursor::new(&mut bytes), QUALITY)
-        .encode_image(&small)
-        .map_err(|e| e.to_string())?;
-    Ok(bytes)
+            .ok_or_else(|| "resized buffer has the wrong size".to_owned())
+    }
 }
 
 /// The most bytes [`MemoryThumbnails`] keeps.
@@ -251,17 +261,17 @@ impl MemoryThumbnails {
     }
 }
 
-/// The size within [`EDGE`] × [`EDGE`] keeping the shape; never larger than the original.
-fn fit(width: u32, height: u32) -> (u32, u32) {
+/// The size within `edge` × `edge` keeping the shape; never larger than the original.
+fn fit(width: u32, height: u32, edge: u32) -> (u32, u32) {
     let longest = width.max(height);
-    if longest <= EDGE || longest == 0 {
+    if longest <= edge || longest == 0 {
         return (width, height);
     }
     let scale =
-        |side: u32| ((u64::from(side) * u64::from(EDGE)) / u64::from(longest)).max(1) as u32;
+        |side: u32| ((u64::from(side) * u64::from(edge)) / u64::from(longest)).max(1) as u32;
     (scale(width), scale(height))
 }
 
 #[cfg(test)]
 #[path = "thumbnails_tests.rs"]
-mod tests;
+pub(crate) mod tests;

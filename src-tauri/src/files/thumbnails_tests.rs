@@ -21,7 +21,7 @@ fn dims(jpeg: &[u8]) -> (u32, u32) {
 }
 
 /// A JPEG of `width` × `height` with an EXIF orientation tag (APP1 right after SOI).
-fn jpeg_with_orientation(width: u32, height: u32, orientation: u16) -> Vec<u8> {
+pub(crate) fn jpeg_with_orientation(width: u32, height: u32, orientation: u16) -> Vec<u8> {
     let mut plain = Vec::new();
     DynamicImage::ImageRgb8(RgbImage::new(width, height))
         .write_to(&mut Cursor::new(&mut plain), ImageFormat::Jpeg)

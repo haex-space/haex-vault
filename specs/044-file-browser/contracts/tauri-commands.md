@@ -59,12 +59,12 @@ Bilder, Downloads. `StorageSource`: Id und Name des Speichers aus 038.
 
 ## Berechtigungen der Agents
 
-| Command                         | Eingabe                                                    | Ausgabe                       |
-| ------------------------------- | ---------------------------------------------------------- | ----------------------------- |
-| `files_agent_permissions`       | –                                                          | `AgentFilePermission[]`       |
-| `files_agent_permission_set`    | `agentId, kind, target, status`                            | –                             |
-| `files_agent_permission_answer` | `args: { requestId, choice: 'read'\|'readWrite'\|'deny' }` | – (Antwort auf die Rückfrage) |
-| `files_agent_check`             | `source, path` (nur Handler von `files.show`)              | `FilesAgentShow`              |
+| Command                         | Eingabe                                                                                 | Ausgabe                       |
+| ------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------- |
+| `files_agent_permissions`       | –                                                                                       | `AgentFilePermission[]`       |
+| `files_agent_permission_set`    | `args: { agentId, kind, target, status? }` (ohne `status`: Zeile löschen, Vorgabe gilt) | –                             |
+| `files_agent_permission_answer` | `args: { requestId, choice: 'read'\|'readWrite'\|'deny' }`                              | – (Antwort auf die Rückfrage) |
+| `files_agent_check`             | `source, path` (nur Handler von `files.show`)                                           | `FilesAgentShow`              |
 
 Event `files-agent-permission-request { requestId, agentId, storageId, storageName, wants: 'read'|'readWrite' }`
 von Rust an das Fenster; ohne Antwort in 60 s oder ohne Fenster gilt „abgelehnt für diesen Aufruf“

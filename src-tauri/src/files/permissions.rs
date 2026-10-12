@@ -211,6 +211,21 @@ pub fn set(tx: &mut CrdtTransaction<'_>, row: &AgentFilePermission) -> Result<()
     Ok(())
 }
 
+/// Removes the row of `agent_id`, `kind` and `target`: the default applies again (the device for
+/// the built-in agent, a question for a storage).
+pub fn remove(
+    tx: &mut CrdtTransaction<'_>,
+    agent_id: &str,
+    kind: AgentFileKind,
+    target: &str,
+) -> Result<()> {
+    tx.execute(
+        "DELETE FROM agent_file_permissions WHERE id = ?1",
+        params![permission_id(agent_id, kind, target)],
+    )?;
+    Ok(())
+}
+
 /// Removes every agent's permission for the storage `storage_id`; part of removing the storage.
 pub fn remove_storage(tx: &mut CrdtTransaction<'_>, storage_id: &str) -> Result<()> {
     tx.execute(

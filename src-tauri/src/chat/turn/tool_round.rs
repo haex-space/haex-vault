@@ -25,6 +25,7 @@ use crate::chat::tools::permission;
 use crate::chat::tools::{ApprovalDecision, Tool, ToolResult as ToolExecResult};
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
 
+use super::images;
 use super::persist::{
     empty_tool_message, persist_final_message, persist_message, persist_tool_pair,
 };
@@ -322,6 +323,7 @@ impl TurnRunner<'_> {
     /// emits the matching events.
     async fn persist_round(&mut self, executed: &[ExecutedCall]) -> Result<(), ()> {
         self.bump_created_at();
+        let shown = images::shows_images(&self.request);
         for (call, result, source) in executed {
             let tool_call_row_id = Uuid::new_v4();
             let input_json =
@@ -341,7 +343,7 @@ impl TurnRunner<'_> {
             let tool_result_row_id = Uuid::new_v4();
             let result_msg = ChatMessage {
                 role: MessageRole::ToolResult,
-                content: result.content.clone(),
+                content: images::kept(result, shown),
                 provider_id: self.session.provider_id,
                 model_id: Some(self.session.model_id.clone()),
                 tool_call_id: Some(call.id.clone()),
@@ -371,7 +373,7 @@ impl TurnRunner<'_> {
                     message_id: tool_result_row_id,
                     thread_id: self.thread_id,
                     tool_call_id: call.id.clone(),
-                    content: result.content.clone(),
+                    content: images::kept(result, shown),
                     is_error: result.is_error,
                 },
             );
@@ -405,14 +407,16 @@ impl TurnRunner<'_> {
                 content: String::new(),
             });
         }
+        let shown = images::shows_images(&self.request);
         for (call, result, _) in executed {
+            let (content, attachments) = images::sent(result, shown);
             self.request.messages.push(LlmMessage {
                 role: ChatRole::ToolResult {
                     call_id: call.id.clone(),
-                    content: result.content.clone(),
+                    content,
                     is_error: result.is_error,
                 },
-                attachments: Vec::new(),
+                attachments,
                 content: String::new(),
             });
         }

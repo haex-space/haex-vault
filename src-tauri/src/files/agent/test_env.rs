@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 use super::env::AgentEnv;
 use super::exec::FilesAgent;
 use super::prompt::{FilesAgentChoice, FilesAgentPermissionRequest, PermissionPrompt};
-use crate::chat::tools::native_action::{NativeError, NativeExecutor};
+use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
 use crate::files::access::AgentGrants;
 use crate::files::browser_commands::{KnownPlace, StorageSource};
 use crate::files::local::OwnPlaces;
@@ -165,6 +165,11 @@ impl Scene {
     }
 
     pub async fn run(&self, action: &str, input: Value) -> Result<Value, NativeError> {
+        Ok(self.reply(action, input).await?.result)
+    }
+
+    /// The whole answer, with the images it shows the model.
+    pub async fn reply(&self, action: &str, input: Value) -> Result<NativeReply, NativeError> {
         self.agent
             .run(action, input, &CancellationToken::new())
             .await

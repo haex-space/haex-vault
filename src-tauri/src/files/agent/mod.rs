@@ -7,10 +7,13 @@ pub mod exec;
 mod exec_write;
 pub mod prompt;
 mod reach;
+mod read;
 
 #[cfg(test)]
 mod exec_tests;
 #[cfg(test)]
 mod exec_write_tests;
+#[cfg(test)]
+mod read_tests;
 #[cfg(test)]
 mod test_env;
