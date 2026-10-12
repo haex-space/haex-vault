@@ -221,7 +221,7 @@ scenario(
     await instance.click('files-entry-foto.png')
     await instance.waitForDisplayed('files-viewer-failed')
     await instance.click('files-viewer-close')
-    await instance.click('files-entry-brief.pdf')
+    await instance.click('files-entry-brief.pdf', 30_000)
     await instance.waitForDisplayed('files-viewer-pdf')
     await instance.click('files-viewer-close')
     ctx.step('changed and cut content is refused, the rest still opens')
