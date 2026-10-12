@@ -1,12 +1,15 @@
 <script setup lang="ts">
 /**
- * A storage on a connection (spec 038, US1, T028, FR-002, FR-004): its name and bucket. A new
- * storage or a new bucket is tested before it is saved; a new name is not. "Jetzt testen" runs the
+ * A storage on a connection (spec 038, US1, T028, FR-002, FR-004; spec 050 US1): its name and
+ * bucket, or folder on WebDAV. A new storage or a new bucket or folder is tested before it is
+ * saved; a new name is not. A missing folder is made only when the user says so (FR-006), and a
+ * folder inside another storage's folder of the connection gets a warning (FR-003). "Jetzt testen" runs the
  * test again and remembers its outcome on this device; a test object holzi could not delete is
  * named (SC-004). The credentials come from the connection, so none are typed here.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { StorageInput } from '@bindings/StorageInput'
+import type { StorageView } from '@bindings/StorageView'
 import type { TestResult } from '@bindings/TestResult'
 
 const { t } = useI18n()
@@ -34,6 +37,9 @@ const draft = reactive({ name: '', bucket: '' })
 const busy = ref(false)
 const failure = ref<string | null>(null)
 const tested = ref<string | null>(null)
+/** The last save or test found the folder missing (WebDAV, SFTP; FR-006). */
+const folderMissing = ref(false)
+const tree = computed(() => parent.value?.protocol !== 's3')
 
 let filled = false
 watchEffect(() => {
@@ -44,24 +50,66 @@ watchEffect(() => {
   draft.bucket = stored.bucket
 })
 
-async function saveAsync() {
+async function saveAsync(createFolder = false) {
   if (busy.value) return
   busy.value = true
   failure.value = null
+  folderMissing.value = false
   const input: StorageInput = {
     id: isNew.value ? undefined : storageId.value,
     connectionId: connectionId.value,
     name: draft.name.trim() || draft.bucket.trim(),
     bucket: draft.bucket.trim(),
+    createFolder,
   }
   try {
-    await invoke('storage_save', { input })
+    const saved = await invoke<StorageView>('storage_save', { input })
+    if (saved.warning) {
+      // Saved; the warning stays until the user leaves (FR-003).
+      tested.value = t(`settings.storage.warnings.${saved.warning}`)
+      return
+    }
     router.back()
+  } catch (error) {
+    failure.value = storageError(error)
+    folderMissing.value = tree.value && isFolderMissing(error)
+  } finally {
+    busy.value = false
+  }
+}
+
+/** Makes the missing folder: through the save for a new storage or folder, else for the saved one. */
+async function createFolderAsync() {
+  if (isNew.value || draft.bucket.trim() !== existing.value?.bucket) {
+    await saveAsync(true)
+    return
+  }
+  if (busy.value) return
+  busy.value = true
+  failure.value = null
+  folderMissing.value = false
+  try {
+    show(
+      await invoke<TestResult>('storage_folder_create', {
+        id: storageId.value,
+      }),
+    )
   } catch (error) {
     failure.value = storageError(error)
   } finally {
     busy.value = false
   }
+}
+
+/** Shows the outcome of a test, naming a test object holzi could not delete (SC-004). */
+function show(result: TestResult) {
+  const text = t(`settings.storage.outcome.${result.outcome}`)
+  const message = result.leftoverKey
+    ? `${text}. ${t('settings.storage.leftover', { key: result.leftoverKey })}`
+    : text
+  if (result.outcome === 'passed') tested.value = message
+  else failure.value = message
+  folderMissing.value = tree.value && result.outcome === 'folderMissing'
 }
 
 async function testAsync() {
@@ -70,15 +118,11 @@ async function testAsync() {
   failure.value = null
   tested.value = null
   try {
-    const result = await invoke<TestResult>('storage_test', {
-      id: storageId.value,
-    })
-    const text = t(`settings.storage.outcome.${result.outcome}`)
-    const message = result.leftoverKey
-      ? `${text}. ${t('settings.storage.leftover', { key: result.leftoverKey })}`
-      : text
-    if (result.outcome === 'passed') tested.value = message
-    else failure.value = message
+    show(
+      await invoke<TestResult>('storage_test', {
+        id: storageId.value,
+      }),
+    )
   } catch (error) {
     failure.value = storageError(error)
   } finally {
@@ -93,7 +137,7 @@ async function testAsync() {
       {{ t('settings.storage.notFound') }}
     </p>
 
-    <form v-else class="flex flex-col gap-3" @submit.prevent="saveAsync">
+    <form v-else class="flex flex-col gap-3" @submit.prevent="saveAsync()">
       <SettingsGroup :label="parent?.providerName">
         <li class="px-4 py-3">
           <UiInput
@@ -111,7 +155,11 @@ async function testAsync() {
           <UiInput
             id="storage-bucket"
             v-model="draft.bucket"
-            :label="t('settings.storage.fields.bucket')"
+            :label="
+              tree
+                ? t('settings.storage.fields.folder')
+                : t('settings.storage.fields.bucket')
+            "
             :labels="fieldLabels.input.value"
             label-bg="var(--muted)"
             autocomplete="off"
@@ -152,6 +200,16 @@ async function testAsync() {
               ? t('settings.storage.save')
               : t('settings.storage.saveName')
           }}
+        </UiButton>
+        <UiButton
+          v-if="folderMissing"
+          type="button"
+          variant="outline"
+          :disabled="busy"
+          data-testid="storage-create-folder"
+          @click="createFolderAsync"
+        >
+          {{ t('settings.storage.createFolder') }}
         </UiButton>
         <template v-if="!isNew">
           <UiButton

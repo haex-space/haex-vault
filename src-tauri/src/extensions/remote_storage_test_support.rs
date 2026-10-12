@@ -175,6 +175,7 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
         addressing: Addressing::Path,
         credentials: Some(credentials()),
         bucket_for_test: "photos".to_owned(),
+        create_folder: false,
     }))
     .expect("connection");
     let storage = |name: &str, bucket: &str| {
@@ -183,6 +184,7 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
             connection_id: connection.id.clone(),
             name: name.to_owned(),
             bucket: bucket.to_owned(),
+            create_folder: false,
         }))
         .expect("storage")
         .id

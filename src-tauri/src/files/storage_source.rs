@@ -48,7 +48,8 @@ pub fn storage_error(error: StorageError) -> FilesError {
         StorageError::Network
         | StorageError::TimedOut
         | StorageError::HostKeyChanged
-        | StorageError::HostKeyUnknown => {
+        | StorageError::HostKeyUnknown
+        | StorageError::Protocol => {
             FilesError::new(FilesErrorCode::Unreachable, "the storage is not reachable")
         }
         StorageError::TooLarge => FilesError::new(FilesErrorCode::TooLarge, "too many entries"),

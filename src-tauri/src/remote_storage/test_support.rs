@@ -1,7 +1,7 @@
 //! A [`RemoteStore`] in memory for tests (research R10): objects per bucket, an error to answer
 //! per operation, and a record of the calls.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
@@ -47,6 +47,8 @@ pub struct FakeStore {
     times: Mutex<HashMap<(String, String), String>>,
     /// Copies stream through holzi instead of the provider (SFTP, spec 050 research R8).
     no_copy: AtomicBool,
+    /// Folders below the connection's root on a WebDAV or SFTP server (spec 050), without `/`.
+    folders: Mutex<BTreeSet<String>>,
 }
 
 impl FakeStore {
@@ -57,6 +59,16 @@ impl FakeStore {
     /// Every later call of `op` answers `error`.
     pub fn fail(&self, op: Op, error: StorageError) {
         self.failures.lock().expect("lock").insert(op, error);
+    }
+
+    /// The folder `path` (below the connection's root, without `/`) is on the server.
+    pub fn add_folder(&self, path: &str) {
+        self.folders.lock().expect("lock").insert(path.to_owned());
+    }
+
+    /// Whether the folder `path` is on the server.
+    pub fn has_folder(&self, path: &str) -> bool {
+        self.folders.lock().expect("lock").contains(path)
     }
 
     /// The store no longer copies on the provider, as an SFTP server (spec 050 research R8).
@@ -181,6 +193,10 @@ impl RemoteStore for FakeStore {
         _deadline: Instant,
     ) -> Result<(), StorageError> {
         self.enter(Op::Put, key)?;
+        if access.location.is_tree() && key.ends_with('/') {
+            let folder = format!("{}/{key}", access.location.bucket);
+            self.add_folder(folder.trim_matches('/'));
+        }
         self.objects
             .lock()
             .expect("lock")
@@ -260,6 +276,18 @@ impl RemoteStore for FakeStore {
         _deadline: Instant,
     ) -> Result<ObjectHead, StorageError> {
         self.enter(Op::Head, key)?;
+        // The folder of a WebDAV or SFTP storage (the probe asks for it, spec 050 research R10).
+        let bucket = &access.location.bucket;
+        if access.location.is_tree()
+            && key.is_empty()
+            && (bucket.is_empty() || self.has_folder(bucket) || self.object(bucket, "").is_some())
+        {
+            return Ok(ObjectHead {
+                size: 0,
+                last_modified: None,
+                etag: None,
+            });
+        }
         let (size, etag) = self
             .objects
             .lock()

@@ -2,6 +2,10 @@
 //! delete a test object `holzi-test/<UUID>`. Reading alone would call a read-only key suitable,
 //! and an extension could then not upload. The object is deleted also after a failed step; when
 //! that delete fails too, the result names its key, which is all holzi can do.
+//!
+//! On WebDAV and SFTP (spec 050 research R10) the test first asks for the folder of the storage, so
+//! a missing folder is `folderMissing` without any write, and afterwards removes the folder
+//! `holzi-test/` again when it is empty.
 
 use std::time::Duration;
 
@@ -35,6 +39,7 @@ fn after_write(error: StorageError) -> TestOutcome {
         StorageError::Network | StorageError::TimedOut | StorageError::Unsupported => {
             TestOutcome::Unreachable
         }
+        StorageError::Protocol => TestOutcome::NotWebDav,
         StorageError::HostKeyUnknown => TestOutcome::HostKeyUnknown,
         StorageError::HostKeyChanged => TestOutcome::HostKeyChanged,
         StorageError::AccessDenied
@@ -47,6 +52,11 @@ fn after_write(error: StorageError) -> TestOutcome {
 
 /// The outcome for an error of the first write; a missing target is a missing folder on WebDAV
 /// and SFTP (spec 050 research R10).
+pub(super) fn outcome_of_write(error: StorageError, tree: bool) -> TestOutcome {
+    on_write(error, tree)
+}
+
+/// See [`outcome_of_write`].
 fn on_write(error: StorageError, tree: bool) -> TestOutcome {
     match error {
         StorageError::AccessDenied => TestOutcome::AccessDenied,
@@ -55,6 +65,7 @@ fn on_write(error: StorageError, tree: bool) -> TestOutcome {
         StorageError::NotFound => TestOutcome::BucketMissing,
         StorageError::HostKeyUnknown => TestOutcome::HostKeyUnknown,
         StorageError::HostKeyChanged => TestOutcome::HostKeyChanged,
+        StorageError::Protocol => TestOutcome::NotWebDav,
         StorageError::Network
         | StorageError::TimedOut
         | StorageError::TooLarge
@@ -95,15 +106,42 @@ async fn steps(
     Ok(())
 }
 
+/// Whether the folder of a WebDAV or SFTP storage is there; an error is the outcome of the test.
+async fn folder_there(
+    store: &dyn RemoteStore,
+    access: &Access,
+    deadline: Instant,
+) -> Result<(), TestOutcome> {
+    match store.head(access, "", deadline).await {
+        Ok(_) => Ok(()),
+        Err(StorageError::NotFound) => Err(TestOutcome::FolderMissing),
+        Err(error) => Err(on_write(error, true)),
+    }
+}
+
 /// Tests `access` within [`TEST_TIME`] (see the module).
 pub async fn probe(store: &dyn RemoteStore, access: &Access) -> ProbeResult {
     let key = format!("{TEST_PREFIX}{}", Uuid::new_v4());
     let deadline = Instant::now() + TEST_TIME;
+    let tree = access.location.is_tree();
+    if tree {
+        if let Err(outcome) = folder_there(store, access, deadline).await {
+            return ProbeResult {
+                outcome,
+                leftover_key: None,
+            };
+        }
+    }
     let steps = steps(store, access, &key, deadline).await;
     let written = steps.as_ref().err().is_none_or(|(_, written)| *written);
     let deleted = if written {
         let cleanup = deadline.max(Instant::now()) + CLEANUP_TIME;
-        store.delete(access, &key, cleanup).await
+        let deleted = store.delete(access, &key, cleanup).await;
+        if tree && deleted.is_ok() {
+            // Only an empty folder goes; a failure here leaves nothing but an empty folder.
+            let _ = store.delete(access, TEST_PREFIX, cleanup).await;
+        }
+        deleted
     } else {
         Ok(())
     };

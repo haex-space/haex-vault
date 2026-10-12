@@ -88,3 +88,40 @@ async fn a_failed_listing_after_a_failed_delete_still_names_the_key() {
     assert_eq!(result.outcome, TestOutcome::Unreachable);
     assert!(result.leftover_key.is_some());
 }
+
+/// Access to a WebDAV storage on the fake; its folder is there when the fake holds the key "".
+fn webdav(folder_there: bool) -> (FakeStore, super::Access) {
+    let store = FakeStore::new();
+    if folder_there {
+        store.insert(BUCKET, "", b"");
+    }
+    let mut access = access(BUCKET);
+    access.location.protocol = super::Protocol::WebDav;
+    (store, access)
+}
+
+#[tokio::test]
+async fn a_webdav_storage_is_asked_for_its_folder_first_and_tidied_after() {
+    let (store, access) = webdav(true);
+    let result = probe(&store, &access).await;
+    assert_eq!(result.outcome, TestOutcome::Passed);
+    let calls = store.calls();
+    assert_eq!(calls.first(), Some(&(Op::Head, String::new())));
+    assert_eq!(
+        calls.last(),
+        Some(&(Op::Delete, TEST_PREFIX.to_owned())),
+        "the empty test folder goes too (spec 050 research R10)"
+    );
+}
+
+#[tokio::test]
+async fn a_missing_folder_is_named_without_writing() {
+    let (store, access) = webdav(false);
+    let result = probe(&store, &access).await;
+    assert_eq!(result.outcome, TestOutcome::FolderMissing);
+    assert!(!store.calls().iter().any(|(op, _)| *op == Op::Put));
+
+    let (store, access) = webdav(true);
+    store.fail(Op::Head, StorageError::Protocol);
+    assert_eq!(probe(&store, &access).await.outcome, TestOutcome::NotWebDav);
+}

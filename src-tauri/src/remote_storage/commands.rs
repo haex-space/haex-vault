@@ -14,6 +14,7 @@ use super::model::{
 use super::protocol::ProtocolStore;
 use super::s3::S3Store;
 use super::service::StorageService;
+use super::webdav::WebDavStore;
 use super::RemoteStore;
 use crate::error::Result;
 use crate::extensions::remote_storage_dialog::{StorageAnswer, StorageTrial};
@@ -25,7 +26,13 @@ use crate::state::AppState;
 pub fn stores() -> Arc<dyn RemoteStore> {
     static STORE: OnceLock<Arc<ProtocolStore>> = OnceLock::new();
     STORE
-        .get_or_init(|| Arc::new(ProtocolStore::new(Arc::new(S3Store::system()), None, None)))
+        .get_or_init(|| {
+            Arc::new(ProtocolStore::new(
+                Arc::new(S3Store::system()),
+                Some(Arc::new(WebDavStore::system())),
+                None,
+            ))
+        })
         .clone()
 }
 
@@ -54,6 +61,13 @@ pub async fn storage_connection_save(
     input: ConnectionInput,
 ) -> Result<ConnectionView> {
     service(&state)?.save_connection(input).await
+}
+
+/// Creates the missing folder of a WebDAV or SFTP storage on the user's word, then tests it
+/// (spec 050 FR-006).
+#[tauri::command]
+pub async fn storage_folder_create(state: State<'_, AppState>, id: String) -> Result<TestResult> {
+    service(&state)?.create_folder(&id).await
 }
 
 /// Removes a connection, its storages and permissions, then any unused credentials.

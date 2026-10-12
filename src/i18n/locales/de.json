@@ -127,7 +127,10 @@
       "instances": "Instanzen",
       "running": "läuft",
       "count": "{count} Instanzen offen",
-      "wheel": { "open": "Dock öffnen", "close": "Dock schließen" },
+      "wheel": {
+        "open": "Dock öffnen",
+        "close": "Dock schließen"
+      },
       "controls": {
         "launcher": "Launcher",
         "workspaces": "Arbeitsbereiche",
@@ -492,7 +495,7 @@
       },
       "storage": {
         "title": "Cloud-Speicher",
-        "keywords": "Cloud-Speicher Speicher S3 Bucket RustFS AWS MinIO Verbindung Zugangsdaten"
+        "keywords": "Cloud-Speicher Speicher S3 Bucket RustFS AWS MinIO WebDAV Nextcloud Hetzner Storage Box Koofr kDrive Ordner Verbindung Zugangsdaten"
       },
       "extensions": {
         "title": "Erweiterungen",
@@ -628,14 +631,21 @@
       "edge": "Kante",
       "align": "Ausrichtung",
       "mode": "Verhalten",
-      "styleOptions": { "bar": "Leiste", "wheel": "Rad" },
+      "styleOptions": {
+        "bar": "Leiste",
+        "wheel": "Rad"
+      },
       "edgeOptions": {
         "top": "Oben",
         "bottom": "Unten",
         "left": "Links",
         "right": "Rechts"
       },
-      "alignOptions": { "start": "Anfang", "center": "Mitte", "end": "Ende" },
+      "alignOptions": {
+        "start": "Anfang",
+        "center": "Mitte",
+        "end": "Ende"
+      },
       "modeOptions": {
         "reserved": "Platz reservieren",
         "floating": "Schweben",
@@ -906,9 +916,9 @@
       "failed": "Nicht gespeichert"
     },
     "storage": {
-      "intro": "Verbindungen zu S3-kompatiblen Anbietern. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
+      "intro": "Verbindungen zu Anbietern über S3 oder WebDAV. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket oder Ordner. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
       "addConnection": "Verbindung hinzufügen",
-      "addConnectionHint": "Ein S3-kompatibler Anbieter wie RustFS oder AWS",
+      "addConnectionHint": "Ein Anbieter mit S3 wie RustFS oder AWS, oder mit WebDAV wie eine Hetzner Storage Box oder Nextcloud",
       "none": "Noch keine Verbindung.",
       "addStorage": "Cloud-Speicher hinzufügen",
       "insecure": "Unverschlüsselt",
@@ -927,7 +937,11 @@
         "accessDenied": "Zugangsdaten falsch",
         "unreachable": "Endpunkt nicht erreichbar",
         "bucketMissing": "Bucket fehlt",
-        "missingRight": "Ein Recht fehlt (Schreiben, Lesen, Auflisten oder Löschen)"
+        "missingRight": "Ein Recht fehlt (Schreiben, Lesen, Auflisten oder Löschen)",
+        "folderMissing": "Ordner fehlt",
+        "notWebDav": "Die Adresse antwortet nicht als WebDAV (oder leitet weiter)",
+        "hostKeyUnknown": "Der Hostschlüssel ist noch nicht bestätigt",
+        "hostKeyChanged": "Der Server zeigt einen anderen Hostschlüssel"
       },
       "leftover": "Das Testobjekt „{key}“ konnte nicht gelöscht werden. Lösche es bitte beim Anbieter.",
       "invalid": {
@@ -936,7 +950,12 @@
         "endpoint": "Dieser Endpunkt ist nicht erlaubt: http geht nur zu Adressen im eigenen Netz, Adressen wie 169.254.x.x erreicht holzi nie, und ein Name darf nicht zugleich auf eigene und öffentliche Adressen zeigen.",
         "credentials": "Zugangsschlüssel und Geheimnis sind nötig.",
         "name": "Der Name braucht 1 bis 80 Zeichen.",
-        "bucket": "Bucket-Namen haben 3 bis 63 Zeichen: Kleinbuchstaben, Ziffern, Punkt und Bindestrich."
+        "bucket": "Bucket-Namen haben 3 bis 63 Zeichen: Kleinbuchstaben, Ziffern, Punkt und Bindestrich.",
+        "folder": "Ein Ordner besteht aus Teilen mit / dazwischen, ohne / am Anfang und Ende, ohne . oder .. und mit höchstens 255 Byte je Teil; leer ist der oberste Ordner.",
+        "login": "Benutzername und Passwort sind nötig.",
+        "protocol": "Das Protokoll einer Verbindung lässt sich nicht ändern.",
+        "providerKind": "Dieser Anbieter passt nicht zum Protokoll.",
+        "hostKey": "Der Hostschlüssel fehlt oder passt nicht zum Protokoll."
       },
       "credentialsUnavailable": {
         "syncing": "Die Zugangsdaten sind auf diesem Gerät noch nicht angekommen.",
@@ -952,12 +971,20 @@
         "secretAccessKey": "Geheimnis",
         "sessionToken": "Sitzungs-Token (optional)",
         "bucket": "Bucket",
-        "storageName": "Name des Cloud-Speichers"
+        "storageName": "Name des Cloud-Speichers",
+        "protocol": "Protokoll",
+        "username": "Benutzername",
+        "password": "Passwort",
+        "folder": "Ordner"
       },
       "kinds": {
         "aws": "AWS S3",
         "rustfs": "RustFS",
-        "other": "Anderer S3-kompatibler Anbieter"
+        "other": "Anderer Anbieter",
+        "hetznerStorageBox": "Hetzner Storage Box",
+        "nextcloud": "Nextcloud",
+        "koofr": "Koofr",
+        "kdrive": "Infomaniak kDrive"
       },
       "addressingModes": {
         "path": "Pfad (Host/Bucket)",
@@ -970,7 +997,7 @@
         "test": "Test"
       },
       "newCredentials": "Neue Zugangsdaten eingeben",
-      "credentialsKept": "Die Zugangsdaten liegen im Passwortmanager als „S3: {name}“.",
+      "credentialsKept": "Die Zugangsdaten liegen im Passwortmanager als „{label}: {name}“.",
       "testBucketHint": "Mit diesem Bucket prüft holzi die Verbindung, bevor sie gespeichert wird.",
       "save": "Testen und speichern",
       "saveName": "Speichern",
@@ -985,8 +1012,31 @@
         "storages": "Diese Cloud-Speicher werden entfernt:",
         "extensions": "Diese Erweiterungen verlieren den Zugriff:",
         "credentials": "Die Zugangsdaten werden aus dem Passwortmanager gelöscht.",
-        "objects": "Die Daten im Bucket bleiben beim Anbieter.",
+        "objects": "Die Daten bleiben beim Anbieter.",
         "confirm": "Endgültig entfernen"
+      },
+      "protocols": {
+        "s3": "S3",
+        "webdav": "WebDAV",
+        "sftp": "SFTP"
+      },
+      "entryLabels": {
+        "s3": "S3",
+        "webdav": "WebDAV",
+        "sftp": "SFTP"
+      },
+      "presetHints": {
+        "hetznerStorageBox": "Schalte in der Hetzner-Konsole „WebDAV“ und „Externe Erreichbarkeit“ ein. Ein Unterkonto heißt wie dein Benutzer mit -subN dahinter.",
+        "nextcloud": "Nutze ein App-Passwort (Einstellungen → Sicherheit); bei Zwei-Faktor ist es Pflicht.",
+        "koofr": "Benutzername ist deine E-Mail, als Passwort geht nur ein App-Passwort. Nach mehreren falschen Passwörtern sperrt Koofr etwa eine Stunde.",
+        "kdrive": "Die Nummer steht in der Adresse der kDrive-Web-App nach /drive/. WebDAV gibt es nicht in kSuite Free und Standard; bei Zwei-Faktor brauchst du ein App-Passwort."
+      },
+      "placeholdersHint": "Ersetze die Teile in spitzen Klammern durch deine Angaben.",
+      "testFolderHint": "Mit diesem Ordner prüft holzi die Verbindung, bevor sie gespeichert wird. Leer ist der oberste Ordner.",
+      "createFolder": "Ordner anlegen",
+      "createFolderAndSave": "Ordner anlegen und speichern",
+      "warnings": {
+        "nestedFolder": "Gespeichert. Achtung: Ein anderer Cloud-Speicher dieser Verbindung liegt in diesem Ordner oder umgekehrt."
       }
     }
   },
@@ -1274,7 +1324,9 @@
       "approval": {
         "decide": "Freigabe entscheiden"
       },
-      "choice": { "answer": "Rückfrage beantworten" },
+      "choice": {
+        "answer": "Rückfrage beantworten"
+      },
       "permissionMode": {
         "set": "Berechtigungsmodus setzen"
       },

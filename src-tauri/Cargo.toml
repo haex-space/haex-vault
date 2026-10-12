@@ -242,6 +242,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 fast_image_resize = { version = "6.1", features = ["image"] }
 # Spec 044 US6 (research R8): text for agents from PDFs (pdf-extract on lopdf), spreadsheets
 # (calamine) and documents (docx and odt read with zip and quick-xml, the versions calamine uses).
+# quick-xml also reads the answers of WebDAV servers (spec 050 research R2).
 pdf-extract = "0.12"
 # The PDF model pdf-extract reads, to spell out the text operators `'` and `"` it does not know.
 lopdf = "0.42"
