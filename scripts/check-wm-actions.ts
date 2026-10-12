@@ -399,6 +399,7 @@ const EXPECTED_GUARDRAILS = [
   'settings.autonomy.setMode',
   'settings.delegate.setDenyRules',
   'settings.privacy.screenCapture.set',
+  'settings.agents.files.set',
 ]
 
 test('the guardrail scope contains every expected user-only action', () => {

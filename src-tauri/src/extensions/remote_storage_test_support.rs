@@ -23,7 +23,7 @@ use crate::remote_storage::address::Resolver;
 use crate::remote_storage::model::{ConnectionInput, CredentialsInput, StorageInput};
 use crate::remote_storage::service::StorageService;
 use crate::remote_storage::test_support::{resolver, vault, FakeStore};
-use crate::remote_storage::{Addressing, ProviderKind};
+use crate::remote_storage::{Addressing, Protocol, ProviderKind};
 use crate::storage::known_devices;
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -114,7 +114,7 @@ pub(crate) struct Setup {
 }
 
 pub(crate) fn credentials() -> CredentialsInput {
-    CredentialsInput {
+    CredentialsInput::S3 {
         access_key_id: ACCESS_KEY.to_owned(),
         secret_access_key: Zeroizing::new(SECRET.to_owned()),
         session_token: None,
@@ -167,6 +167,7 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
     );
     let connection = block_on(service.save_connection(ConnectionInput {
         id: None,
+        protocol: Protocol::S3,
         provider_name: "RustFS".to_owned(),
         provider_kind: ProviderKind::Rustfs,
         endpoint: Some(ENDPOINT.to_owned()),

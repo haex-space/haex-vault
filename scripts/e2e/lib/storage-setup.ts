@@ -15,12 +15,14 @@ export async function connectStorage(
     'storage_connection_save',
     await instance.invoke('storage_connection_save', {
       input: {
+        protocol: 's3',
         providerName: 'RustFS',
         providerKind: 'rustfs',
         endpoint: rustfs.endpoint,
         region: rustfs.region,
         addressing: 'path',
         credentials: {
+          kind: 's3',
           accessKeyId: rustfs.accessKeyId,
           secretAccessKey: rustfs.secretAccessKey,
         },

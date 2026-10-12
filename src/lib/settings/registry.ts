@@ -192,7 +192,7 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     icon: 'lucide:ban',
     overviewRow: true,
   }),
-  // Spec 044 FR-031b: what agents may do with files.
+  // Spec 044 FR-031b: what each agent may do with files.
   subView('agents.files', 'agents/files', 'agents', {
     icon: 'lucide:folder-lock',
     overviewRow: true,

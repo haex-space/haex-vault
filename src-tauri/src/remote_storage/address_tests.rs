@@ -13,7 +13,7 @@ use reqwest::Url;
 use super::address::{
     check_endpoint, endpoint_url, is_insecure, pin, scope_of, AddressError, Resolver,
 };
-use super::{Addressing, EndpointScope, Location, ProviderKind};
+use super::{Addressing, EndpointScope, Location, Protocol, ProviderKind};
 
 use EndpointScope::{Local, Public};
 
@@ -69,12 +69,14 @@ fn an_http_endpoint_is_marked_insecure() {
 
 fn aws(region: &str) -> Location {
     Location {
+        protocol: Protocol::S3,
         provider_kind: ProviderKind::Aws,
         endpoint: String::new(),
         endpoint_scope: Public,
         region: region.to_owned(),
         addressing: Addressing::Virtual,
         bucket: "b".to_owned(),
+        host_key: None,
     }
 }
 

@@ -9,12 +9,12 @@ use tauri::State;
 use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
 
-use super::env::TauriEnv;
+use super::env::{open_vault, vault_error, TauriEnv};
 use super::exec::FilesAgent;
 use super::prompt::{FilesAgentChoice, PermissionPrompt};
 use crate::error::HolziError;
 use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
-use crate::files::{FilesError, SourceRef};
+use crate::files::{FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
 
 /// The executor of the built-in agent, managed as a state.
@@ -34,6 +34,44 @@ pub fn files_agent_permission_answer(
     args: FilesAgentAnswerArgs,
 ) {
     prompt.answer(&args.request_id, args.choice);
+}
+
+/// The stored file permissions of every agent, for the settings (FR-031b).
+#[tauri::command]
+pub async fn files_agent_permissions(
+    state: State<'_, AppState>,
+) -> Result<Vec<AgentFilePermission>, FilesError> {
+    open_vault(&state)?
+        .read(|q| Ok(permissions::list(q)?))
+        .await
+        .map_err(vault_error)
+}
+
+/// Sets one file permission of an agent from the settings (FR-031b): a change or a revoke.
+#[tauri::command]
+pub async fn files_agent_permission_set(
+    state: State<'_, AppState>,
+    agent_id: String,
+    kind: AgentFileKind,
+    target: String,
+    status: AgentFileStatus,
+) -> Result<(), FilesError> {
+    let row = AgentFilePermission {
+        agent_id,
+        kind,
+        target,
+        status,
+        updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
+    };
+    open_vault(&state)?
+        .write(move |tx| Ok(permissions::set(tx, &row)?))
+        .await
+        .map_err(|error| match error {
+            HolziError::InvalidInput { reason } => {
+                FilesError::new(FilesErrorCode::Unsupported, reason)
+            }
+            other => vault_error(other),
+        })
 }
 
 /// Whether the agent may show the entry, and where the file browser opens.
@@ -80,55 +118,4 @@ pub async fn files_agent_check(
             },
         },
     )
-}
-
-/// Every stored file permission of every agent (FR-031b); the settings view shows the defaults of
-/// what has no row.
-#[tauri::command]
-pub async fn files_agent_permissions(
-    state: State<'_, AppState>,
-) -> Result<Vec<AgentFilePermission>, HolziError> {
-    state.database()?.read(|q| Ok(permissions::list(q)?)).await
-}
-
-/// What the user decides in the settings (`settings.agentFiles.set`, a guardrail no agent reaches).
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FilesAgentPermissionSetArgs {
-    pub agent_id: String,
-    pub kind: AgentFileKind,
-    pub target: String,
-    /// `None` removes the row: the default applies again.
-    pub status: Option<AgentFileStatus>,
-}
-
-#[tauri::command]
-pub async fn files_agent_permission_set(
-    state: State<'_, AppState>,
-    args: FilesAgentPermissionSetArgs,
-) -> Result<(), HolziError> {
-    let db = state.database()?;
-    match args.status {
-        Some(status) => {
-            let row = AgentFilePermission {
-                agent_id: args.agent_id,
-                kind: args.kind,
-                target: args.target,
-                status,
-                updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
-            };
-            db.write(move |tx| Ok(permissions::set(tx, &row)?)).await
-        }
-        None => {
-            db.write(move |tx| {
-                Ok(permissions::remove(
-                    tx,
-                    &args.agent_id,
-                    args.kind,
-                    &args.target,
-                )?)
-            })
-            .await
-        }
-    }
 }

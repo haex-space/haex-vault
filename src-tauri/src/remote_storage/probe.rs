@@ -32,23 +32,33 @@ pub struct ProbeResult {
 /// refusal now is a missing right.
 fn after_write(error: StorageError) -> TestOutcome {
     match error {
-        StorageError::Network | StorageError::TimedOut => TestOutcome::Unreachable,
+        StorageError::Network | StorageError::TimedOut | StorageError::Unsupported => {
+            TestOutcome::Unreachable
+        }
+        StorageError::HostKeyUnknown => TestOutcome::HostKeyUnknown,
+        StorageError::HostKeyChanged => TestOutcome::HostKeyChanged,
         StorageError::AccessDenied
         | StorageError::MissingRight
         | StorageError::NotFound
-        | StorageError::TooLarge => TestOutcome::MissingRight,
+        | StorageError::TooLarge
+        | StorageError::QuotaExceeded => TestOutcome::MissingRight,
     }
 }
 
-/// The outcome for an error of the first write.
-fn on_write(error: StorageError) -> TestOutcome {
+/// The outcome for an error of the first write; a missing target is a missing folder on WebDAV
+/// and SFTP (spec 050 research R10).
+fn on_write(error: StorageError, tree: bool) -> TestOutcome {
     match error {
         StorageError::AccessDenied => TestOutcome::AccessDenied,
-        StorageError::MissingRight => TestOutcome::MissingRight,
+        StorageError::MissingRight | StorageError::QuotaExceeded => TestOutcome::MissingRight,
+        StorageError::NotFound if tree => TestOutcome::FolderMissing,
         StorageError::NotFound => TestOutcome::BucketMissing,
-        StorageError::Network | StorageError::TimedOut | StorageError::TooLarge => {
-            TestOutcome::Unreachable
-        }
+        StorageError::HostKeyUnknown => TestOutcome::HostKeyUnknown,
+        StorageError::HostKeyChanged => TestOutcome::HostKeyChanged,
+        StorageError::Network
+        | StorageError::TimedOut
+        | StorageError::TooLarge
+        | StorageError::Unsupported => TestOutcome::Unreachable,
     }
 }
 
@@ -65,7 +75,7 @@ async fn steps(
         .await
         .map_err(|error| {
             let maybe_written = matches!(error, StorageError::Network | StorageError::TimedOut);
-            (on_write(error), maybe_written)
+            (on_write(error, access.location.is_tree()), maybe_written)
         })?;
     let written = |error| (after_write(error), true);
     let read = store

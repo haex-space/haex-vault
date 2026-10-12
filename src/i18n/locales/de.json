@@ -574,8 +574,8 @@
         },
         "files": {
           "title": "Dateien",
-          "description": "Was Agents mit den Dateien des Geräts und den Cloud-Speichern tun dürfen.",
-          "keywords": "Dateien Speicher Berechtigung Zugriff Agent widerrufen"
+          "description": "Was Agents auf dem Gerät und in Cloud-Speichern dürfen.",
+          "keywords": "Dateien Zugriff Berechtigung Cloud-Speicher Gerät widerrufen"
         }
       },
       "federation": {
@@ -890,6 +890,20 @@
         "unload": "Entladen"
       }
     },
+    "agentFiles": {
+      "builtin": "Agent im Chat",
+      "device": "Dateien des Geräts",
+      "deviceDescription": "Lesen und Suchen überall, Ändern nach der Freigabestufe",
+      "storageDescription": "Cloud-Speicher",
+      "status": {
+        "ask": "Fragt nach",
+        "read": "Lesen",
+        "readWrite": "Lesen und Schreiben",
+        "denied": "Abgelehnt"
+      },
+      "loadFailed": "Berechtigungen nicht geladen",
+      "failed": "Nicht gespeichert"
+    },
     "storage": {
       "intro": "Verbindungen zu S3-kompatiblen Anbietern. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
       "addConnection": "Verbindung hinzufügen",
@@ -973,20 +987,6 @@
         "objects": "Die Daten im Bucket bleiben beim Anbieter.",
         "confirm": "Endgültig entfernen"
       }
-    },
-    "agentFiles": {
-      "builtin": "Agent im Chat",
-      "device": "Dateien des Geräts",
-      "deviceHint": "Alles außer den eigenen Daten von holzi.",
-      "granted": "Erlaubt",
-      "denied": "Gesperrt",
-      "ask": "Beim ersten Zugriff fragen",
-      "read": "Lesen",
-      "readWrite": "Lesen und Schreiben",
-      "noStorages": "Keine Cloud-Speicher eingerichtet.",
-      "saved": "Gespeichert.",
-      "failed": "Speichern fehlgeschlagen",
-      "loadFailed": "Berechtigungen konnten nicht geladen werden"
     }
   },
   "models": {
@@ -1347,9 +1347,6 @@
         "servers": {
           "set": "Verbindungsserver setzen"
         }
-      },
-      "agentFiles": {
-        "set": "Datei-Berechtigung eines Agents setzen"
       }
     },
     "scopes": {

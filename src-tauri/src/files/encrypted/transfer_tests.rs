@@ -186,7 +186,7 @@ async fn a_part_that_keeps_failing_aborts_and_the_next_try_is_a_new_object() {
         .fake
         .calls()
         .iter()
-        .filter(|(op, _)| *op == Op::CreateMultipart)
+        .filter(|(op, _)| *op == Op::BeginUpload)
         .map(|(_, key)| key.clone())
         .collect();
     scene.fake.heal(Op::UploadPart);

@@ -3,4 +3,4 @@
 /**
  * The provider a connection was created for; it only prefills endpoint and addressing.
  */
-export type ProviderKind = "aws" | "rustfs" | "other";
+export type ProviderKind = "aws" | "rustfs" | "hetznerStorageBox" | "nextcloud" | "koofr" | "kdrive" | "other";

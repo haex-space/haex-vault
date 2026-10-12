@@ -18,7 +18,7 @@ pub(super) async fn list_dir(
     deadline: Instant,
 ) -> Result<DirListing, StorageError> {
     let bucket = bucket(access)?;
-    let credentials = signing(&access.credentials);
+    let credentials = signing(&access.credentials)?;
     let mut listing = DirListing::default();
     let mut token: Option<String> = None;
     loop {
@@ -73,7 +73,7 @@ pub(super) async fn copy(
     deadline: Instant,
 ) -> Result<(), StorageError> {
     let bucket = bucket(access)?;
-    let credentials = signing(&access.credentials);
+    let credentials = signing(&access.credentials)?;
     let source = copy_source(&access.location.bucket, from);
     let mut action = bucket.put_object(Some(&credentials), to);
     action

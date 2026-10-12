@@ -265,4 +265,13 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await setPrefAsync(VAULT, DENY_RULES_KEY, JSON.stringify(input.rules))
     return done
   })
+  on('settings.agents.files.set', async ({ input }) => {
+    await invoke('files_agent_permission_set', {
+      agentId: input.agentId,
+      kind: input.kind,
+      target: input.target,
+      status: input.status,
+    })
+    return done
+  })
 }

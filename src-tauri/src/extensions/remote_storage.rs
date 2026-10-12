@@ -175,9 +175,14 @@ fn mapped(
             record(ctx, service, storage_id, outcome);
             provider("accessDenied")
         }
-        StorageError::Network => provider("network"),
+        // A host key nobody confirmed is the user's to settle in holzi (spec 050 contracts/bridge.md).
+        StorageError::Network
+        | StorageError::HostKeyChanged
+        | StorageError::HostKeyUnknown
+        | StorageError::Unsupported => provider("network"),
         StorageError::TooLarge => limit("answer too large"),
         StorageError::TimedOut => limit("time limit exceeded"),
+        StorageError::QuotaExceeded => limit("quota exceeded"),
     }
 }
 

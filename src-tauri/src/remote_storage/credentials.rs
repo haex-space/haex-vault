@@ -11,7 +11,10 @@
 use haex_crdt::rusqlite::params;
 use zeroize::Zeroizing;
 
-use super::{store, Credentials, CredentialsState};
+use super::{
+    store, Credentials, CredentialsState, PasswordCredentials, Protocol, S3Credentials,
+    SshKeyCredentials,
+};
 use crate::error::{HolziError, Result};
 use crate::passwords::access::{Caller, Grant, GrantAction, Scope};
 use crate::passwords::items;
@@ -30,42 +33,81 @@ pub const CALLER: Caller = Caller::Internal { feature: FEATURE };
 /// The custom field that holds a session token.
 pub const SESSION_TOKEN: &str = "sessionToken";
 
+/// The custom field that holds a private SSH key (spec 050 data-model.md).
+pub const PRIVATE_KEY: &str = "privateKey";
+
+/// The custom field that holds the passphrase of a private SSH key.
+pub const PASSPHRASE: &str = "passphrase";
+
 /// Grants the internal storage caller read and write access for credential operations.
 fn grants() -> [Grant; 1] {
     [Grant::new(GrantAction::ReadWrite, Scope::All)]
 }
 
-/// Creates the entry for new credentials and returns its id.
+/// A custom field of an entry.
+fn field(key: &str, value: &Zeroizing<String>) -> KeyValueInput {
+    KeyValueInput {
+        key: key.to_owned(),
+        value: Some(value.to_string()),
+    }
+}
+
+/// Creates the entry for new credentials and returns its id. The title names the protocol (spec
+/// 050 data-model.md): `S3: …`, `WebDAV: …` or `SFTP: …`; a private key and its passphrase go into
+/// custom fields, which the password manager treats as secrets.
 pub async fn create(
     passwords: &PasswordsService,
+    protocol: Protocol,
     provider_name: &str,
     endpoint: &str,
     credentials: &Credentials,
 ) -> Result<String> {
+    let label = match protocol {
+        Protocol::S3 => "S3",
+        Protocol::WebDav => "WebDAV",
+        Protocol::Sftp => "SFTP",
+    };
+    let (username, password, key_values) = match credentials {
+        Credentials::S3(s3) => (
+            s3.access_key_id.clone(),
+            Some(s3.secret_access_key.to_string()),
+            s3.session_token
+                .iter()
+                .map(|token| field(SESSION_TOKEN, token))
+                .collect(),
+        ),
+        Credentials::Password(login) => (
+            login.username.clone(),
+            Some(login.password.to_string()),
+            Vec::new(),
+        ),
+        Credentials::SshKey(key) => (
+            key.username.clone(),
+            None,
+            std::iter::once(field(PRIVATE_KEY, &key.private_key))
+                .chain(key.passphrase.iter().map(|text| field(PASSPHRASE, text)))
+                .collect(),
+        ),
+    };
     let input = ItemInput {
-        title: Some(format!("S3: {}", provider_name.trim())),
-        username: Some(credentials.access_key_id.clone()),
-        password: Some(credentials.secret_access_key.to_string()),
+        title: Some(format!("{label}: {}", provider_name.trim())),
+        username: Some(username),
+        password,
         url: (!endpoint.trim().is_empty()).then(|| endpoint.trim().to_owned()),
-        key_values: credentials
-            .session_token
-            .iter()
-            .map(|token| KeyValueInput {
-                key: SESSION_TOKEN.to_owned(),
-                value: Some(token.to_string()),
-            })
-            .collect(),
+        key_values,
         ..ItemInput::default()
     };
     passwords.create_owned_item(&CALLER, input).await
 }
 
-/// Reads the credentials of the entry `item_id`. An entry that is not there, or one without a key
-/// or a secret, is [`HolziError::StorageCredentialsUnavailable`] with its [`state`].
+/// Reads the credentials of the entry `item_id` for a connection of `protocol`. An entry that is not
+/// there, or one without the fields the protocol needs, is
+/// [`HolziError::StorageCredentialsUnavailable`] with its [`state`].
 pub async fn read(
     passwords: &PasswordsService,
     db: &VaultDb,
     item_id: &str,
+    protocol: Protocol,
 ) -> Result<Credentials> {
     let unavailable = |state| HolziError::StorageCredentialsUnavailable { state };
     let item = match passwords
@@ -76,23 +118,38 @@ pub async fn read(
         Err(HolziError::PasswordsNotFound) => return Err(unavailable(state(db, item_id).await?)),
         Err(error) => return Err(error),
     };
-    let session_token = item
-        .key_values
-        .iter()
-        .find(|kv| kv.key.as_deref() == Some(SESSION_TOKEN))
-        .and_then(|kv| kv.value.clone())
-        .filter(|token| !token.is_empty())
-        .map(Zeroizing::new);
-    match (item.username, item.password) {
-        (Some(access_key_id), Some(secret)) if !access_key_id.is_empty() && !secret.is_empty() => {
-            Ok(Credentials {
-                access_key_id,
-                secret_access_key: Zeroizing::new(secret),
-                session_token,
+    let custom = |key: &str| {
+        item.key_values
+            .iter()
+            .find(|kv| kv.key.as_deref() == Some(key))
+            .and_then(|kv| kv.value.clone())
+            .filter(|value| !value.is_empty())
+            .map(Zeroizing::new)
+    };
+    let username = item.username.clone().filter(|name| !name.is_empty());
+    let password = item.password.clone().filter(|secret| !secret.is_empty());
+    let credentials = match (protocol, username, password) {
+        (Protocol::S3, Some(access_key_id), Some(secret)) => Some(Credentials::S3(S3Credentials {
+            access_key_id,
+            secret_access_key: Zeroizing::new(secret),
+            session_token: custom(SESSION_TOKEN),
+        })),
+        (Protocol::Sftp, Some(username), None) => custom(PRIVATE_KEY).map(|private_key| {
+            Credentials::SshKey(SshKeyCredentials {
+                username,
+                private_key,
+                passphrase: custom(PASSPHRASE),
             })
+        }),
+        (Protocol::WebDav | Protocol::Sftp, Some(username), Some(password)) => {
+            Some(Credentials::Password(PasswordCredentials {
+                username,
+                password: Zeroizing::new(password),
+            }))
         }
-        _ => Err(unavailable(CredentialsState::Missing)),
-    }
+        _ => None,
+    };
+    credentials.ok_or_else(|| unavailable(CredentialsState::Missing))
 }
 
 /// Whether the entry `item_id` is here, deleted or not yet arrived (see the module).

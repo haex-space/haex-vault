@@ -1,11 +1,13 @@
-//! holzi's own S3 (spec 038, plan.md "Structure Decision"): storage connections (provider,
-//! endpoint, region, addressing; the credentials are an entry of the password manager owned by
-//! `storage`, rule Z14 of spec 034) and the storages on them, one bucket each. holzi speaks the
-//! protocol itself; extensions are one consumer of it (PR D), spec 029 another.
+//! holzi's own storages (spec 038, spec 050): storage connections (protocol, provider, endpoint,
+//! region, addressing; the credentials are an entry of the password manager owned by `storage`,
+//! rule Z14 of spec 034) and the storages on them, one bucket or folder each. holzi speaks the
+//! protocols itself; extensions are one consumer of it, spec 029 another.
 //!
-//! [`RemoteStore`] is the one seam to the provider: [`s3::S3Store`] signs with `rusty-s3` and sends
-//! with `reqwest` to the address [`address`] checked and pinned (research R1, R8); tests use a fake
-//! (research R10). No error of this module carries an endpoint, a header or a body of the provider.
+//! [`RemoteStore`] is the one seam to the provider: [`protocol::ProtocolStore`] hands each call to
+//! the store of the connection's protocol (spec 050 research R1); [`s3::S3Store`] signs with
+//! `rusty-s3` and sends with `reqwest` to the address [`address`] checked and pinned (038 research
+//! R1, R8); tests use a fake (038 research R10). No error of this module carries an endpoint, a
+//! header or a body of the provider.
 
 pub mod address;
 #[cfg(test)]
@@ -14,10 +16,19 @@ pub mod commands;
 pub mod credentials;
 #[cfg(test)]
 mod credentials_tests;
+mod http;
+#[cfg(test)]
+mod http_tests;
+#[cfg(test)]
+mod mod_tests;
 pub mod model;
 pub mod probe;
 #[cfg(test)]
 mod probe_tests;
+pub mod protocol;
+#[cfg(test)]
+mod protocol_tests;
+mod remote_store;
 pub mod s3;
 mod s3_ext;
 #[cfg(test)]
@@ -27,20 +38,51 @@ mod s3_multipart;
 mod s3_tests;
 pub mod service;
 #[cfg(test)]
+mod service_protocol_tests;
+#[cfg(test)]
 mod service_tests;
 pub mod store;
 #[cfg(test)]
 mod store_tests;
 #[cfg(test)]
 pub(crate) mod test_support;
+#[cfg(test)]
+mod test_support_env;
 
 use std::fmt;
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio::time::Instant;
 use ts_rs::TS;
 use zeroize::Zeroizing;
+
+pub use remote_store::RemoteStore;
+
+/// The protocol of a connection (spec 050 FR-001); it never changes once the connection is saved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "lowercase")]
+pub enum Protocol {
+    S3,
+    WebDav,
+    Sftp,
+}
+
+impl Protocol {
+    /// Whether folders are real folders on the server (spec 050 research R8): WebDAV and SFTP.
+    pub fn is_tree(self) -> bool {
+        matches!(self, Self::WebDav | Self::Sftp)
+    }
+
+    /// Whether `kind` is a provider of this protocol (data-model.md).
+    pub fn fits(self, kind: ProviderKind) -> bool {
+        use ProviderKind::*;
+        match self {
+            Self::S3 => matches!(kind, Aws | Rustfs | Other),
+            Self::WebDav => matches!(kind, HetznerStorageBox | Nextcloud | Koofr | Kdrive | Other),
+            Self::Sftp => matches!(kind, HetznerStorageBox | Other),
+        }
+    }
+}
 
 /// The provider a connection was created for; it only prefills endpoint and addressing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -49,6 +91,10 @@ use zeroize::Zeroizing;
 pub enum ProviderKind {
     Aws,
     Rustfs,
+    HetznerStorageBox,
+    Nextcloud,
+    Koofr,
+    Kdrive,
     Other,
 }
 
@@ -84,6 +130,14 @@ pub enum TestOutcome {
     Unreachable,
     BucketMissing,
     MissingRight,
+    /// The folder of a WebDAV or SFTP storage does not exist (spec 050 research R10).
+    FolderMissing,
+    /// The address does not answer as WebDAV (refused `PROPFIND`, a redirect).
+    NotWebDav,
+    /// The SFTP server showed a host key nobody confirmed yet.
+    HostKeyUnknown,
+    /// The SFTP server showed another host key than the confirmed one.
+    HostKeyChanged,
 }
 
 /// Whether the credentials entry of a connection is on this device (data-model.md): `syncing`
@@ -113,7 +167,16 @@ macro_rules! text_enum {
     };
 }
 
-text_enum!(ProviderKind { Aws = "aws", Rustfs = "rustfs", Other = "other" });
+text_enum!(Protocol { S3 = "s3", WebDav = "webdav", Sftp = "sftp" });
+text_enum!(ProviderKind {
+    Aws = "aws",
+    Rustfs = "rustfs",
+    HetznerStorageBox = "hetznerStorageBox",
+    Nextcloud = "nextcloud",
+    Koofr = "koofr",
+    Kdrive = "kdrive",
+    Other = "other",
+});
 text_enum!(Addressing { Path = "path", Virtual = "virtual" });
 text_enum!(EndpointScope { Public = "public", Local = "local" });
 text_enum!(TestOutcome {
@@ -122,12 +185,17 @@ text_enum!(TestOutcome {
     Unreachable = "unreachable",
     BucketMissing = "bucketMissing",
     MissingRight = "missingRight",
+    FolderMissing = "folderMissing",
+    NotWebDav = "notWebDav",
+    HostKeyUnknown = "hostKeyUnknown",
+    HostKeyChanged = "hostKeyChanged",
 });
 
 /// A row of `haex_storage_connections`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConnectionRow {
     pub id: String,
+    pub protocol: Protocol,
     pub provider_name: String,
     pub provider_kind: ProviderKind,
     /// Empty for `aws`: the address follows from the region.
@@ -135,6 +203,10 @@ pub struct ConnectionRow {
     pub endpoint_scope: EndpointScope,
     pub region: String,
     pub addressing: Addressing,
+    /// The confirmed host key of an SFTP server as an OpenSSH line (spec 050 research R5).
+    pub host_key: Option<String>,
+    /// When the user confirmed `host_key` (RFC 3339).
+    pub host_key_confirmed_at: Option<String>,
     pub credentials_item_id: String,
     pub created_at: String,
     pub updated_at: String,
@@ -146,23 +218,35 @@ pub struct StorageRow {
     pub id: String,
     pub connection_id: String,
     pub name: String,
+    /// The bucket (S3) or the folder below the connection (WebDAV, SFTP; empty for the root).
     pub bucket: String,
     pub created_at: String,
     pub updated_at: String,
 }
 
-/// Credentials of a connection; `Debug` shows only the access key id.
+/// Credentials of a connection, by protocol (spec 050 data-model.md); `Debug` shows only the access
+/// key id or the user name.
+#[derive(Clone, Debug)]
+pub enum Credentials {
+    S3(S3Credentials),
+    /// WebDAV, or SFTP with a password.
+    Password(PasswordCredentials),
+    /// SFTP with a private key.
+    SshKey(SshKeyCredentials),
+}
+
+/// An S3 access key.
 #[derive(Clone)]
-pub struct Credentials {
+pub struct S3Credentials {
     pub access_key_id: String,
     pub secret_access_key: Zeroizing<String>,
     pub session_token: Option<Zeroizing<String>>,
 }
 
-impl fmt::Debug for Credentials {
+impl fmt::Debug for S3Credentials {
     /// Formats credentials with the secret key and any session token redacted.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Credentials")
+        f.debug_struct("S3Credentials")
             .field("access_key_id", &self.access_key_id)
             .field("secret_access_key", &"<redacted>")
             .field(
@@ -173,28 +257,78 @@ impl fmt::Debug for Credentials {
     }
 }
 
-/// Where one bucket lives: the connection's address data plus the bucket.
+/// A user name and a password.
+#[derive(Clone)]
+pub struct PasswordCredentials {
+    pub username: String,
+    pub password: Zeroizing<String>,
+}
+
+impl fmt::Debug for PasswordCredentials {
+    /// Formats credentials with the password redacted.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PasswordCredentials")
+            .field("username", &self.username)
+            .field("password", &"<redacted>")
+            .finish()
+    }
+}
+
+/// A user name and a private SSH key (as text), optionally with its passphrase.
+#[derive(Clone)]
+pub struct SshKeyCredentials {
+    pub username: String,
+    pub private_key: Zeroizing<String>,
+    pub passphrase: Option<Zeroizing<String>>,
+}
+
+impl fmt::Debug for SshKeyCredentials {
+    /// Formats credentials with the key and any passphrase redacted.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SshKeyCredentials")
+            .field("username", &self.username)
+            .field("private_key", &"<redacted>")
+            .field(
+                "passphrase",
+                &self.passphrase.as_ref().map(|_| "<redacted>"),
+            )
+            .finish()
+    }
+}
+
+/// Where one bucket or folder lives: the connection's address data plus the bucket or folder.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Location {
+    pub protocol: Protocol,
     pub provider_kind: ProviderKind,
     pub endpoint: String,
     pub endpoint_scope: EndpointScope,
     pub region: String,
     pub addressing: Addressing,
+    /// The bucket (S3) or the folder (WebDAV, SFTP).
     pub bucket: String,
+    /// The confirmed host key (SFTP).
+    pub host_key: Option<String>,
 }
 
 impl Location {
     /// The location of `bucket` on `connection`.
     pub fn of(connection: &ConnectionRow, bucket: &str) -> Self {
         Self {
+            protocol: connection.protocol,
             provider_kind: connection.provider_kind,
             endpoint: connection.endpoint.clone(),
             endpoint_scope: connection.endpoint_scope,
             region: connection.region.clone(),
             addressing: connection.addressing,
             bucket: bucket.to_owned(),
+            host_key: connection.host_key.clone(),
         }
+    }
+
+    /// Whether folders are real folders on the server (WebDAV, SFTP).
+    pub fn is_tree(&self) -> bool {
+        self.protocol.is_tree()
     }
 }
 
@@ -257,122 +391,16 @@ pub enum StorageError {
     /// The deadline passed.
     #[error("timed out")]
     TimedOut,
-}
-
-/// The provider behind a storage (research R10): the S3 implementation, or a fake in tests. Every
-/// call ends at `deadline`.
-#[async_trait]
-pub trait RemoteStore: Send + Sync {
-    /// Writes `body` to `key` in the bucket described by `access`, before `deadline`.
-    async fn put(
-        &self,
-        access: &Access,
-        key: &str,
-        body: Vec<u8>,
-        deadline: Instant,
-    ) -> Result<(), StorageError>;
-
-    /// The object, read up to `max_bytes` (more is [`StorageError::TooLarge`]).
-    async fn get(
-        &self,
-        access: &Access,
-        key: &str,
-        max_bytes: usize,
-        deadline: Instant,
-    ) -> Result<Vec<u8>, StorageError>;
-
-    /// The objects under `prefix`, following the provider's pages up to `max` (more is
-    /// [`StorageError::TooLarge`]).
-    async fn list(
-        &self,
-        access: &Access,
-        prefix: &str,
-        max: usize,
-        deadline: Instant,
-    ) -> Result<Vec<ObjectInfo>, StorageError>;
-
-    /// Deletes `key` from the bucket described by `access`, before `deadline`.
-    async fn delete(
-        &self,
-        access: &Access,
-        key: &str,
-        deadline: Instant,
-    ) -> Result<(), StorageError>;
-
-    /// Size and time of `key` (spec 044).
-    async fn head(
-        &self,
-        access: &Access,
-        key: &str,
-        deadline: Instant,
-    ) -> Result<ObjectHead, StorageError>;
-
-    /// A reader for `len` bytes of `key` from `start` (spec 044 FR-012, FR-013). `deadline` holds
-    /// until the answer starts; the body then streams without one (a film plays for hours) and is
-    /// never held whole.
-    async fn get_range(
-        &self,
-        access: &Access,
-        key: &str,
-        start: u64,
-        len: u64,
-        deadline: Instant,
-    ) -> Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>, StorageError>;
-
-    /// One level below `prefix` (spec 044 FR-034), following pages up to `max` entries (more is
-    /// [`StorageError::TooLarge`]).
-    async fn list_dir(
-        &self,
-        access: &Access,
-        prefix: &str,
-        max: usize,
-        deadline: Instant,
-    ) -> Result<DirListing, StorageError>;
-
-    /// Copies `from` to `to` in the same bucket on the provider (spec 044: renaming, moving within
-    /// a storage); objects up to 5 GB, the limit of S3's `CopyObject`.
-    async fn copy(
-        &self,
-        access: &Access,
-        from: &str,
-        to: &str,
-        deadline: Instant,
-    ) -> Result<(), StorageError>;
-    /// Starts an upload in parts of `key` (spec 044 FR-020); returns its id.
-    async fn create_multipart(
-        &self,
-        access: &Access,
-        key: &str,
-        deadline: Instant,
-    ) -> Result<String, StorageError>;
-
-    /// Uploads part `number` (from 1) of an upload; returns the part's ETag.
-    async fn upload_part(
-        &self,
-        access: &Access,
-        key: &str,
-        upload_id: &str,
-        number: u16,
-        body: Vec<u8>,
-        deadline: Instant,
-    ) -> Result<String, StorageError>;
-
-    /// Joins the parts (their ETags in order) into the object.
-    async fn complete_multipart(
-        &self,
-        access: &Access,
-        key: &str,
-        upload_id: &str,
-        etags: &[String],
-        deadline: Instant,
-    ) -> Result<(), StorageError>;
-
-    /// Drops an upload and its parts, so nothing half stays at the provider (FR-020).
-    async fn abort_multipart(
-        &self,
-        access: &Access,
-        key: &str,
-        upload_id: &str,
-        deadline: Instant,
-    ) -> Result<(), StorageError>;
+    /// The provider's quota is used up (WebDAV 507; spec 050 research R10).
+    #[error("quota exceeded")]
+    QuotaExceeded,
+    /// The SFTP server showed another host key than the confirmed one; nothing was sent.
+    #[error("host key changed")]
+    HostKeyChanged,
+    /// The SFTP server showed a host key nobody confirmed yet; nothing was sent.
+    #[error("host key unknown")]
+    HostKeyUnknown,
+    /// The protocol does not offer this call (spec 050 research R8).
+    #[error("unsupported")]
+    Unsupported,
 }

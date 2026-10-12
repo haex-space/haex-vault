@@ -2,19 +2,15 @@
 //! per operation, and a record of the calls.
 
 use std::collections::{BTreeMap, HashMap};
-use std::io;
-use std::net::IpAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use async_trait::async_trait;
 use tokio::time::Instant;
-use zeroize::Zeroizing;
 
-use super::address::Resolver;
-use super::{
-    Access, Addressing, Credentials, DirListing, EndpointScope, Location, ObjectHead, ObjectInfo,
-    ProviderKind, RemoteStore, StorageError,
-};
+use super::{Access, DirListing, ObjectHead, ObjectInfo, RemoteStore, StorageError};
+
+pub use super::test_support_env::{access, credentials, grant_storage, resolver, vault};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Op {
@@ -26,10 +22,12 @@ pub enum Op {
     GetRange,
     ListDir,
     Copy,
-    CreateMultipart,
+    RenameTree,
+    RemoveTree,
+    BeginUpload,
     UploadPart,
-    CompleteMultipart,
-    AbortMultipart,
+    FinishUpload,
+    AbortUpload,
 }
 
 /// An upload in parts that is not complete yet: bucket, key and its parts by number.
@@ -47,6 +45,8 @@ pub struct FakeStore {
     uploads: Mutex<HashMap<String, Upload>>,
     /// Modification times other than the default, by bucket and key (ISO 8601).
     times: Mutex<HashMap<(String, String), String>>,
+    /// Copies stream through holzi instead of the provider (SFTP, spec 050 research R8).
+    no_copy: AtomicBool,
 }
 
 impl FakeStore {
@@ -57,6 +57,11 @@ impl FakeStore {
     /// Every later call of `op` answers `error`.
     pub fn fail(&self, op: Op, error: StorageError) {
         self.failures.lock().expect("lock").insert(op, error);
+    }
+
+    /// The store no longer copies on the provider, as an SFTP server (spec 050 research R8).
+    pub fn without_copy(&self) {
+        self.no_copy.store(true, Ordering::Relaxed);
     }
 
     /// Calls of `op` work again.
@@ -123,6 +128,24 @@ impl FakeStore {
     /// Key, start and length of every `get_range` so far.
     pub fn ranges(&self) -> Vec<(String, u64, u64)> {
         self.ranges.lock().expect("lock").clone()
+    }
+
+    /// Moves the object `from`, or every object under the prefix `from`, to `to` in `bucket`.
+    fn move_under(&self, bucket: &str, from: &str, to: &str) -> Result<(), StorageError> {
+        let mut objects = self.objects.lock().expect("lock");
+        let moved: Vec<(String, String)> = objects
+            .keys()
+            .filter(|(b, k)| b == bucket && k.starts_with(from))
+            .cloned()
+            .collect();
+        if moved.is_empty() {
+            return Err(StorageError::NotFound);
+        }
+        for slot in moved {
+            let body = objects.remove(&slot).expect("listed above");
+            objects.insert((slot.0, format!("{to}{}", &slot.1[from.len()..])), body);
+        }
+        Ok(())
     }
 
     fn enter(&self, op: Op, key: &str) -> Result<(), StorageError> {
@@ -333,13 +356,45 @@ impl RemoteStore for FakeStore {
         Ok(())
     }
 
-    async fn create_multipart(
+    fn copies_on_provider(&self, _access: &Access) -> bool {
+        !self.no_copy.load(Ordering::Relaxed)
+    }
+
+    /// Moves every object under `from` (a key or a prefix) to `to`, as one call.
+    async fn rename_tree(
+        &self,
+        access: &Access,
+        from: &str,
+        to: &str,
+        _deadline: Instant,
+    ) -> Result<(), StorageError> {
+        self.enter(Op::RenameTree, from)?;
+        self.move_under(&access.location.bucket, from, to)
+    }
+
+    /// Removes every object under `prefix`, as one call.
+    async fn remove_tree(
+        &self,
+        access: &Access,
+        prefix: &str,
+        _deadline: Instant,
+    ) -> Result<(), StorageError> {
+        self.enter(Op::RemoveTree, prefix)?;
+        let bucket = &access.location.bucket;
+        self.objects
+            .lock()
+            .expect("lock")
+            .retain(|(b, k), _| b != bucket || !k.starts_with(prefix));
+        Ok(())
+    }
+
+    async fn begin_upload(
         &self,
         access: &Access,
         key: &str,
         _deadline: Instant,
     ) -> Result<String, StorageError> {
-        self.enter(Op::CreateMultipart, key)?;
+        self.enter(Op::BeginUpload, key)?;
         let id = uuid::Uuid::new_v4().to_string();
         self.uploads.lock().expect("lock").insert(
             id.clone(),
@@ -368,7 +423,7 @@ impl RemoteStore for FakeStore {
         Ok(format!("\"etag-{number}\""))
     }
 
-    async fn complete_multipart(
+    async fn finish_upload(
         &self,
         _access: &Access,
         key: &str,
@@ -376,7 +431,7 @@ impl RemoteStore for FakeStore {
         etags: &[String],
         _deadline: Instant,
     ) -> Result<(), StorageError> {
-        self.enter(Op::CompleteMultipart, key)?;
+        self.enter(Op::FinishUpload, key)?;
         let (bucket, key, parts) = self
             .uploads
             .lock()
@@ -394,100 +449,15 @@ impl RemoteStore for FakeStore {
         Ok(())
     }
 
-    async fn abort_multipart(
+    async fn abort_upload(
         &self,
         _access: &Access,
         key: &str,
         upload_id: &str,
         _deadline: Instant,
     ) -> Result<(), StorageError> {
-        self.enter(Op::AbortMultipart, key)?;
+        self.enter(Op::AbortUpload, key)?;
         self.uploads.lock().expect("lock").remove(upload_id);
         Ok(())
     }
-}
-
-/// Answers names from a fixed table; an unknown name has no address.
-pub struct Table(HashMap<String, Vec<IpAddr>>);
-
-/// A resolver that answers `entries` (name, addresses).
-pub fn resolver(entries: &[(&str, &[&str])]) -> std::sync::Arc<Table> {
-    std::sync::Arc::new(Table(
-        entries
-            .iter()
-            .map(|(name, ips)| {
-                (
-                    (*name).to_owned(),
-                    ips.iter().map(|ip| ip.parse().expect("ip")).collect(),
-                )
-            })
-            .collect(),
-    ))
-}
-
-#[async_trait]
-impl Resolver for Table {
-    async fn lookup(&self, host: &str, _port: u16) -> io::Result<Vec<IpAddr>> {
-        Ok(self.0.get(host).cloned().unwrap_or_default())
-    }
-}
-
-/// Placeholder credentials; never a real key.
-pub fn credentials() -> Credentials {
-    Credentials {
-        access_key_id: "AKIDEXAMPLE".to_owned(),
-        secret_access_key: Zeroizing::new("placeholder-secret".to_owned()),
-        session_token: None,
-    }
-}
-
-/// Access to `bucket` on a local RustFS of the user.
-pub fn access(bucket: &str) -> Access {
-    Access {
-        location: Location {
-            provider_kind: ProviderKind::Rustfs,
-            endpoint: "http://127.0.0.1:9000".to_owned(),
-            endpoint_scope: EndpointScope::Local,
-            region: "us-east-1".to_owned(),
-            addressing: Addressing::Path,
-            bucket: bucket.to_owned(),
-        },
-        credentials: credentials(),
-    }
-}
-
-/// A fresh temporary vault behind a gate; the directory lives as long as the returned guard.
-pub fn vault() -> (tempfile::TempDir, crate::vault_gate::VaultDb) {
-    let (dir, db) = crate::passwords::test_support::open_test_vault();
-    let db = crate::vault_gate::VaultGate::new()
-        .vault_db(std::sync::Arc::new(db))
-        .expect("open the gate");
-    (dir, db)
-}
-
-/// Adds an installed extension `name` with a `remoteStorage` permission for `target`.
-pub fn grant_storage(db: &crate::vault_gate::VaultDb, name: &str, target: &str, status: &str) {
-    let (name, target, status) = (name.to_owned(), target.to_owned(), status.to_owned());
-    db.write_blocking(move |tx| {
-        let extension_id = format!("ext-{name}");
-        tx.execute(
-            "INSERT OR IGNORE INTO extensions (id, public_key, name, installed_at, updated_at) \
-             VALUES (?1, 'pk', ?2, 0, 0)",
-            haex_crdt::rusqlite::params![extension_id, name],
-        )?;
-        tx.execute(
-            "INSERT INTO extension_permissions \
-             (id, extension_id, kind, action, target, status, declared, vault_device_uuid, \
-              updated_at) VALUES (?1, ?2, 'remoteStorage', 'read', ?3, ?4, 0, ?5, 0)",
-            haex_crdt::rusqlite::params![
-                uuid::Uuid::new_v4().to_string(),
-                extension_id,
-                target,
-                status,
-                crate::identity::VAULT_SCOPE_UUID.to_string()
-            ],
-        )?;
-        Ok(())
-    })
-    .expect("grant a storage permission");
 }

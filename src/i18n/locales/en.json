@@ -574,8 +574,8 @@
         },
         "files": {
           "title": "Files",
-          "description": "What agents may do with the files of the device and the cloud storages.",
-          "keywords": "files storage permission access agent revoke"
+          "description": "What agents may do on this device and in cloud storages.",
+          "keywords": "files access permission cloud storage device revoke"
         }
       },
       "federation": {
@@ -890,6 +890,20 @@
         "unload": "Unload"
       }
     },
+    "agentFiles": {
+      "builtin": "Agent in the chat",
+      "device": "Files of this device",
+      "deviceDescription": "Read and search everywhere, change per approval level",
+      "storageDescription": "Cloud storage",
+      "status": {
+        "ask": "Asks first",
+        "read": "Read",
+        "readWrite": "Read and write",
+        "denied": "Denied"
+      },
+      "loadFailed": "Permissions not loaded",
+      "failed": "Not saved"
+    },
     "storage": {
       "intro": "Connections to S3-compatible providers. Each connection holds cloud storages, one bucket each. Extensions only see the names and use a cloud storage only with your permission.",
       "addConnection": "Add connection",
@@ -973,20 +987,6 @@
         "objects": "The data in the bucket stays at the provider.",
         "confirm": "Remove for good"
       }
-    },
-    "agentFiles": {
-      "builtin": "Agent in the chat",
-      "device": "Files of the device",
-      "deviceHint": "Everything except holzi's own data.",
-      "granted": "Allowed",
-      "denied": "Blocked",
-      "ask": "Ask on first access",
-      "read": "Read",
-      "readWrite": "Read and write",
-      "noStorages": "No cloud storages set up.",
-      "saved": "Saved.",
-      "failed": "Saving failed",
-      "loadFailed": "Permissions could not be loaded"
     }
   },
   "models": {
@@ -1347,9 +1347,6 @@
         "servers": {
           "set": "Set the connection servers"
         }
-      },
-      "agentFiles": {
-        "set": "Set an agent's file permission"
       }
     },
     "scopes": {
