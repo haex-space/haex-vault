@@ -9,8 +9,11 @@ use std::collections::BTreeMap;
 use haex_bundle::jcs::JsonValue;
 
 use super::{BundleRejection, VerifiedBundle};
+use crate::chat::tools::action_tool::schema_in_subset;
 use crate::extensions::ids::{ExtensionName, PublicKey};
-use crate::extensions::permissions::manifest_map::{map_manifest_permissions, DeclaredPermissions};
+use crate::extensions::permissions::manifest_map::{
+    map_manifest_permissions, map_manifest_tools, DeclaredPermissions,
+};
 
 const DEFAULT_ENTRY: &str = "index.html";
 
@@ -32,6 +35,76 @@ pub struct Manifest {
     /// Translations of name and description per locale, as the manifest writes them.
     pub i18n: Option<serde_json::Value>,
     pub permissions: DeclaredPermissions,
+    /// Tools the extension offers to the agent (spec 018), in manifest order.
+    pub tools: Vec<ManifestTool>,
+}
+
+/// What a tool does (spec 018, Clarification 2026-10-10); it sets how the agent's calls are
+/// approved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolEffect {
+    Read,
+    Change,
+    Destructive,
+}
+
+/// A tool of the manifest's `tools` block (`contracts/manifest-tools.md`). The format is checked
+/// by `haex-bundle`; whether holzi can check the input is `supported`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManifestTool {
+    pub name: String,
+    pub title_de: String,
+    pub title_en: String,
+    /// For the model, in English.
+    pub description: String,
+    pub input_schema: serde_json::Value,
+    pub effect: ToolEffect,
+    pub examples_de: Vec<String>,
+    pub examples_en: Vec<String>,
+    /// The input schema keeps to the subset holzi validates (research R5); a tool outside it is
+    /// installed but never offered.
+    pub supported: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct Localized<T> {
+    de: T,
+    en: T,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawTool {
+    name: String,
+    title: Localized<String>,
+    description: String,
+    input_schema: serde_json::Value,
+    effect: ToolEffect,
+    examples: Localized<Vec<String>>,
+}
+
+/// The `tools` block, already checked by `haex-bundle`; absent or `null` means none.
+fn tools(manifest: &BTreeMap<String, JsonValue>) -> Option<Vec<ManifestTool>> {
+    let Some(tools) = manifest.get("tools").filter(|v| !v.is_null()) else {
+        return Some(Vec::new());
+    };
+    let raw: Vec<RawTool> = serde_json::from_value(serde_json::Value::from(tools)).ok()?;
+    Some(
+        raw.into_iter()
+            .map(|tool| ManifestTool {
+                supported: schema_in_subset(&tool.input_schema),
+                name: tool.name,
+                title_de: tool.title.de,
+                title_en: tool.title.en,
+                description: tool.description,
+                input_schema: tool.input_schema,
+                effect: tool.effect,
+                examples_de: tool.examples.de,
+                examples_en: tool.examples.en,
+            })
+            .collect(),
+    )
 }
 
 fn text(manifest: &BTreeMap<String, JsonValue>, key: &str) -> Option<String> {
@@ -85,6 +158,12 @@ impl Manifest {
                 .and_then(serde_json::Value::as_str)
                 .map(|value| JsonValue::String(value.to_owned()))
         };
+        // A bundle's tools are checked by `haex-bundle` on verification; a development version is
+        // never verified, so its tools block gets the same check here.
+        if let Some(tools) = manifest.get("tools").filter(|v| !v.is_null()) {
+            haex_bundle::tools::check_tools(tools)
+                .map_err(|_| BundleRejection::new(haex_bundle::ErrorKind::ManifestInvalid))?;
+        }
         if let Some(name) = from_package("name") {
             manifest.insert("name".to_owned(), name);
         }
@@ -123,6 +202,9 @@ impl Manifest {
             .get("permissions")
             .map(serde_json::Value::from)
             .unwrap_or(serde_json::Value::Null);
+        let tools = tools(manifest).ok_or_else(invalid)?;
+        let mut permissions = map_manifest_permissions(&permissions);
+        permissions.declared.extend(map_manifest_tools(&tools));
         Ok(Self {
             name,
             version,
@@ -139,7 +221,8 @@ impl Manifest {
                 .get("i18n")
                 .filter(|v| v.as_object().is_some())
                 .map(serde_json::Value::from),
-            permissions: map_manifest_permissions(&permissions),
+            permissions,
+            tools,
         })
     }
 

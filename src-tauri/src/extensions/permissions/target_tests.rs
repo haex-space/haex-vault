@@ -339,3 +339,31 @@ fn an_encrypted_folder_target_names_exactly_one_folder() {
     );
     assert_eq!(Action::parse(PermissionKind::EncryptedFolder, "add"), None);
 }
+
+#[test]
+fn an_agent_tool_permission_names_a_tool_or_every_tool() {
+    let kind = PermissionKind::AgentTool;
+    assert_eq!(PermissionKind::parse("agentTool"), Some(kind));
+    assert!(!kind.is_device_scoped());
+    assert_eq!(
+        Target::parse(kind, "count_unread"),
+        Some(Target::Tool("count_unread".into()))
+    );
+    assert_eq!(Target::parse(kind, "*"), Some(Target::Any));
+    assert_eq!(Target::parse(kind, "Count-Unread"), None);
+    assert_eq!(Target::parse(kind, ""), None);
+}
+
+#[test]
+fn an_agent_tool_permission_has_an_effect_and_the_star_row_covers_every_effect() {
+    let kind = PermissionKind::AgentTool;
+    for effect in ["read", "change", "destructive", "*"] {
+        assert_eq!(Action::parse(kind, effect).unwrap().as_string(), effect);
+    }
+    assert_eq!(Action::parse(kind, "readWrite"), None);
+    let every = Action::parse(kind, "*").unwrap();
+    for effect in [Action::Read, Action::Change, Action::Destructive] {
+        assert!(every.covers(&effect));
+    }
+    assert!(!Action::Change.covers(&Action::Destructive));
+}

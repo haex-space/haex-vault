@@ -1,6 +1,7 @@
 use serde_json::json;
 
 use super::*;
+use crate::extensions::bundle::{ManifestTool, ToolEffect};
 use crate::extensions::permissions::{Action, PermissionKind, Target};
 
 fn declared(permissions: serde_json::Value) -> DeclaredPermissions {
@@ -192,4 +193,45 @@ fn encrypted_folders_are_forbidden_in_every_spelling_and_never_declared() {
     );
     assert!(result.unsupported_categories.is_empty());
     assert!(result.invalid.is_empty());
+}
+
+fn tool(name: &str, effect: ToolEffect) -> ManifestTool {
+    ManifestTool {
+        name: name.into(),
+        title_de: name.into(),
+        title_en: name.into(),
+        description: name.into(),
+        input_schema: json!({ "type": "object" }),
+        effect,
+        examples_de: vec![name.into()],
+        examples_en: vec![name.into()],
+        supported: true,
+    }
+}
+
+#[test]
+fn each_tool_becomes_an_agent_tool_permission_with_its_effect() {
+    let declared = map_manifest_tools(&[
+        tool("count_unread", ToolEffect::Read),
+        tool("delete_all", ToolEffect::Destructive),
+    ]);
+    let rows: Vec<_> = declared
+        .iter()
+        .map(|d| (d.kind, d.action.clone(), d.target_text.as_str()))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (PermissionKind::AgentTool, Action::Read, "count_unread"),
+            (PermissionKind::AgentTool, Action::Destructive, "delete_all"),
+        ]
+    );
+    assert_eq!(declared[0].target, Target::Tool("count_unread".into()));
+}
+
+#[test]
+fn tools_are_declared_only_in_the_tools_block() {
+    let result = declared(json!({ "agentTool": [{ "target": "*", "action": "read" }] }));
+    assert!(result.declared.is_empty());
+    assert_eq!(result.unsupported_categories, ["agentTool"]);
 }

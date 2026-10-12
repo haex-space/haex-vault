@@ -14,7 +14,7 @@ pub mod store;
 
 pub use haex_bundle::format::limits;
 pub use haex_bundle::{Migration, VerifiedBundle};
-pub use manifest::Manifest;
+pub use manifest::{Manifest, ManifestTool, ToolEffect};
 
 /// Why a bundle was refused: the error kind of the format (`archive_invalid`, `file_mismatch`, …,
 /// contracts/bundle-format.md) and, for entry-level errors and `file_mismatch`, the path inside the
