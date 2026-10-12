@@ -11,6 +11,8 @@ pub mod commands;
 pub mod desktop;
 pub mod dev;
 pub mod dev_csp;
+pub mod encrypted_folder;
+pub mod encrypted_folder_choose;
 pub mod error;
 pub mod fs;
 pub mod host;

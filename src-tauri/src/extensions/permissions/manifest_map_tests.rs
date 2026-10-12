@@ -170,3 +170,26 @@ fn a_missing_permissions_object_declares_nothing() {
     let result = declared(serde_json::Value::Null);
     assert!(result.declared.is_empty() && result.unsupported_categories.is_empty());
 }
+
+#[test]
+fn encrypted_folders_are_forbidden_in_every_spelling_and_never_declared() {
+    let result = declared(json!({
+        "encryptedFolder": [{ "target": "s1/aaaaaaaaaaaaaaaaaaaaaaaaaa", "operation": "read" }],
+        "Encrypted_Folders": [],
+        "remoteStorage": [{ "target": "s1" }]
+    }));
+    assert_eq!(
+        result.forbidden_categories,
+        ["Encrypted_Folders", "encryptedFolder"]
+    );
+    assert_eq!(
+        kinds_and_actions(&result),
+        vec![(
+            PermissionKind::RemoteStorage,
+            Action::Read,
+            "s1".to_string()
+        )]
+    );
+    assert!(result.unsupported_categories.is_empty());
+    assert!(result.invalid.is_empty());
+}

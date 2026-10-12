@@ -15,4 +15,9 @@ deviceScoped: boolean,
 /**
  * A `database` target of an extension that is not installed: only "Verweigern" is offered.
  */
-targetMissing: boolean, };
+targetMissing: boolean,
+/**
+ * For `encryptedFolder`: the storage and the decrypted folder name the question names (spec
+ * 048 FR-036); the extension never gets them.
+ */
+encryptedFolder?: { storageName: string, folderName: string, }, };

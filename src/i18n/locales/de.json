@@ -832,6 +832,7 @@
         "denied": "Verweigert"
       },
       "temporary": "bis holzi beendet wird",
+      "temporaryFrame": "bis die Erweiterung neu geladen wird",
       "allDevices": "alle Geräte",
       "thisDevice": "dieses Gerät",
       "notDeclared": "nicht im Manifest",
@@ -1929,7 +1930,8 @@
         "dev_installed_conflict": "Eine Erweiterung mit diesem Schlüssel und Namen ist installiert oder war es (auch mit behaltenen Daten).",
         "dev_tables_exist": "Es gibt schon Tabellen mit dem Präfix dieser Erweiterung.",
         "dev_project_changed": "Das Projekt nennt jetzt einen anderen Schlüssel oder Namen; lade es erneut.",
-        "dev_prefix_conflict": "Auf diesem Gerät ist eine Entwicklungsfassung dieser Erweiterung geladen; entlade sie zuerst."
+        "dev_prefix_conflict": "Auf diesem Gerät ist eine Entwicklungsfassung dieser Erweiterung geladen; entlade sie zuerst.",
+        "forbidden_permission": "Das Manifest verlangt Zugriff auf verschlüsselte Ordner. Diesen Zugriff gibst nur du, wenn holzi dich fragt, nie ein Manifest."
       },
       "title": "Erweiterung installieren",
       "fileType": "Erweiterung",
@@ -1976,7 +1978,8 @@
         "passwords": "Passwörter",
         "remoteStorage": "Cloud-Speicher",
         "mail": "Mail",
-        "shell": "Programme ausführen"
+        "shell": "Programme ausführen",
+        "encryptedFolder": "Verschlüsselter Ordner"
       },
       "everyMethod": "alle Anfragen",
       "everything": {
@@ -1989,6 +1992,18 @@
         "shell": "Jedes Programm"
       }
     },
+    "encryptedChooser": {
+      "title": "„{name}“ möchte einen verschlüsselten Ordner öffnen",
+      "intro": "Wähle einen verschlüsselten Ordner im Cloud-Speicher „{storage}“. Die Erweiterung erfährt seinen Namen erst, wenn du es erlaubst.",
+      "wantsRead": "Die Erweiterung möchte lesen.",
+      "wantsReadWrite": "Die Erweiterung möchte lesen und schreiben.",
+      "none": "In diesem Cloud-Speicher gibt es keinen verschlüsselten Ordner, den holzi öffnen kann.",
+      "remember": "Erlaubnis merken",
+      "untilReload": "Ohne Haken gilt die Antwort, bis die Erweiterung neu geladen oder geschlossen wird.",
+      "allowRead": "Lesen erlauben",
+      "allowReadWrite": "Lesen und Schreiben erlauben",
+      "deny": "Ablehnen"
+    },
     "permissionRequest": {
       "title": "„{name}“ bittet um eine Berechtigung",
       "notDeclared": "Diese Berechtigung steht nicht im Manifest der Erweiterung.",
@@ -1998,7 +2013,8 @@
       "scopeVault": "Gilt dann auf allen deinen Geräten.",
       "scopeDevice": "Gilt dann nur auf diesem Gerät. Auf deinen anderen Geräten fragt holzi erneut.",
       "allow": "Erlauben",
-      "deny": "Verweigern"
+      "deny": "Verweigern",
+      "encryptedFolder": "Ordner „{folder}“ im Cloud-Speicher „{storage}“"
     },
     "statusError": {
       "migration_changed": "Eine angewendete Migration wurde geändert",

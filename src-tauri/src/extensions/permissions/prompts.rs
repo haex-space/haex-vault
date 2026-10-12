@@ -6,7 +6,9 @@
 //! merged, and a question disappears when all frames that wait for it are closed. The SDK waits
 //! for the target its 1004 named, which for a shell program is the name the extension gave, not
 //! the canonical path asked about; each such name hears the decision. The decision is
-//! remembered in `extension_permissions`, or held in memory until the process ends (ADR-0003).
+//! remembered in `extension_permissions`, or held in memory until the process ends (ADR-0003); a
+//! held answer about an encrypted folder only until a frame of the extension is unloaded or
+//! reloaded (spec 048 FR-036, [`PermissionState::frame_ended`]).
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -35,6 +37,21 @@ pub struct PermissionRequestEvent {
     pub device_scoped: bool,
     /// A `database` target of an extension that is not installed: only "Verweigern" is offered.
     pub target_missing: bool,
+    /// For `encryptedFolder`: the storage and the decrypted folder name the question names (spec
+    /// 048 FR-036); the extension never gets them.
+    // Inline: the scripts' type check reads this binding without its siblings.
+    #[ts(optional, inline)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_folder: Option<FolderNames>,
+}
+
+/// What a question about an encrypted folder names for the user.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct FolderNames {
+    pub storage_name: String,
+    pub folder_name: String,
 }
 
 /// The answer of holzi's window (`extension_permission_resolve`).
@@ -196,6 +213,15 @@ impl PermissionState {
     /// back when the same key and name are loaded or installed again.
     pub fn forget_extension(&self, extension_id: Uuid) {
         lock(&self.temporary).remove(&extension_id);
+    }
+
+    /// A frame of `extension_id` was unloaded or loaded a new page: its held answers about
+    /// encrypted folders end with it (spec 048 FR-036); the vault's lock ends the process and with
+    /// it every held answer.
+    pub fn frame_ended(&self, extension_id: Uuid) {
+        if let Some(list) = lock(&self.temporary).get_mut(&extension_id) {
+            list.retain(|d| d.kind != PermissionKind::EncryptedFolder);
+        }
     }
 
     /// Removes one held decision (settings: "Entfernen").

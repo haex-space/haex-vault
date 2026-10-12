@@ -106,6 +106,7 @@ pub async fn extension_frame_close(
 ) -> Result<()> {
     let host = state.extensions();
     if let Some(closed) = host.frames.close(&frame) {
+        host.permissions.frame_ended(closed.extension_id);
         let last = host.frames.of_extension(closed.extension_id).is_empty();
         host.fs.frame_closed(&frame, closed.extension_id, last);
         if last {
@@ -126,10 +127,15 @@ pub async fn extension_frame_close(
 }
 
 /// A new page loaded in a frame and set up a new SDK channel: the shell output its old page had
-/// not acknowledged is lost, so its shells no longer wait for it until it acknowledges again.
+/// not acknowledged is lost, so its shells no longer wait for it until it acknowledges again; held
+/// answers about encrypted folders end (spec 048 FR-036).
 #[tauri::command]
 pub async fn extension_frame_reloaded(state: State<'_, AppState>, frame: String) -> Result<()> {
-    state.extensions().shells.frame_reloaded(&frame);
+    let host = state.extensions();
+    host.shells.frame_reloaded(&frame);
+    if let Some(session) = host.frames.get(&frame) {
+        host.permissions.frame_ended(session.extension_id);
+    }
     Ok(())
 }
 
@@ -141,6 +147,18 @@ pub async fn extension_dialog_resolve(
     confirmed: bool,
 ) -> Result<()> {
     state.extensions().resolve_dialog(&request_id, confirmed);
+    Ok(())
+}
+
+/// holzi's window answers a folder chooser of an extension (`extension_encrypted_folder_choose`,
+/// spec 048 FR-036). Only holzi's window reaches this command.
+#[tauri::command]
+pub async fn extension_encrypted_folder_choose_resolve(
+    state: State<'_, AppState>,
+    request_id: String,
+    answer: crate::extensions::encrypted_folder_choose::ChooseAnswer,
+) -> Result<()> {
+    state.extensions().encrypted.resolve(&request_id, answer);
     Ok(())
 }
 

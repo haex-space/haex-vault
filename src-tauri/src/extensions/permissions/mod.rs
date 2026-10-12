@@ -13,7 +13,7 @@ pub use evaluate::{evaluate, Decision};
 pub use model::{
     Action, GrantScope, Permission, PermissionKind, PermissionRequest, PermissionStatus, VAULT_WIDE,
 };
-pub use target::{HostPattern, RequestTarget, Target, UrlPattern, WebRequest};
+pub use target::{FolderRef, HostPattern, RequestTarget, Target, UrlPattern, WebRequest};
 
 #[cfg(test)]
 #[path = "evaluate_tests.rs"]

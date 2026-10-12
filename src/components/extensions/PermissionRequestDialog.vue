@@ -3,19 +3,24 @@
  * The question of an extension for a permission (spec 017, US3, T069, contracts/permissions.md):
  * one at a time, "Erlauben" or "Verweigern", "Merken" to keep the answer, which then holds on every
  * own device, for the shell only on this one. Closing the dialog cancels; it never denies. Mounted once in the
- * desktop, following the controlled dialog of `chat/PermissionPrompt.vue`.
+ * desktop, following the controlled dialog of `chat/PermissionPrompt.vue`. For an encrypted folder
+ * (spec 048 FR-036) it names the cloud storage and the folder, and "Erlaubnis merken" starts off:
+ * without it the answer holds until the extension reloads.
  */
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useExtensionPermissionsStore()
 
-const remember = ref(true)
+/** Whether "remember" starts ticked: not for an encrypted folder (spec 048 FR-036). */
+const rememberByDefault = () => store.shown?.kind !== 'encryptedFolder'
+const remember = ref(rememberByDefault())
 const failure = ref<string | null>(null)
+const folderKind = computed(() => store.shown?.kind === 'encryptedFolder')
 
 watch(
   () => store.shown?.requestId,
   () => {
-    remember.value = true
+    remember.value = rememberByDefault()
     failure.value = null
   },
 )
@@ -52,8 +57,12 @@ function onUpdateOpen(open: boolean) {
           :kind="store.shown.kind"
           :action="store.shown.action"
           :target="store.shown.target"
+          :folder="store.shown.encryptedFolder"
         />
-        <p v-if="!store.shown.declared" class="text-xs text-muted-foreground">
+        <p
+          v-if="!store.shown.declared && !folderKind"
+          class="text-xs text-muted-foreground"
+        >
           {{ t('extensions.permissionRequest.notDeclared') }}
         </p>
         <p
@@ -70,9 +79,19 @@ function onUpdateOpen(open: boolean) {
           {{ t('extensions.permissionRequest.shellWarning') }}
         </p>
         <label class="flex items-center gap-2 text-sm">
-          <ShadcnCheckbox v-model="remember" />
-          {{ t('extensions.permissionRequest.remember') }}
+          <ShadcnCheckbox
+            v-model="remember"
+            data-testid="extension-permission-remember"
+          />
+          {{
+            folderKind
+              ? t('extensions.encryptedChooser.remember')
+              : t('extensions.permissionRequest.remember')
+          }}
         </label>
+        <p v-if="folderKind && !remember" class="text-xs text-muted-foreground">
+          {{ t('extensions.encryptedChooser.untilReload') }}
+        </p>
         <p v-if="remember" class="text-xs text-muted-foreground">
           {{
             store.shown.deviceScoped

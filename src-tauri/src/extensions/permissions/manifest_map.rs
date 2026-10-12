@@ -37,6 +37,9 @@ pub struct DeclaredPermissions {
     pub declared: Vec<DeclaredPermission>,
     /// Categories with at least one entry that holzi does not offer, sorted.
     pub unsupported_categories: Vec<String>,
+    /// Categories a manifest must never name, as it names them (spec 048 FR-037): the bundle is
+    /// refused, whatever their entries are.
+    pub forbidden_categories: Vec<String>,
     pub invalid: Vec<InvalidDeclaration>,
 }
 
@@ -55,6 +58,18 @@ fn category_kind(category: &str) -> Option<PermissionKind> {
     }
 }
 
+/// Whether a manifest category asks for access to encrypted folders, in any spelling
+/// (`encryptedFolder`, `encrypted_folders`, `Encrypted-Folder`, …). Only the user grants that, when
+/// asked (spec 048 FR-036, FR-037).
+fn is_forbidden(category: &str) -> bool {
+    let folded: String = category
+        .chars()
+        .filter(|c| !matches!(c, '-' | '_' | ' ' | '.'))
+        .flat_map(char::to_lowercase)
+        .collect();
+    matches!(folded.as_str(), "encryptedfolder" | "encryptedfolders")
+}
+
 /// The action a declaration without one gets: `read` where a kind has `read` and `readWrite`,
 /// every method for `web`, the only action of `notifications` and `shell`.
 /// `mail` has no such default and must name its action.
@@ -67,7 +82,7 @@ fn default_action(kind: PermissionKind) -> Option<&'static str> {
         PermissionKind::Web => Some("*"),
         PermissionKind::Notifications => Some("show"),
         PermissionKind::Shell => Some("execute"),
-        PermissionKind::Mail => None,
+        PermissionKind::Mail | PermissionKind::EncryptedFolder => None,
     }
 }
 
@@ -87,6 +102,10 @@ pub fn map_manifest_permissions(permissions: &Value) -> DeclaredPermissions {
         return result;
     };
     for (category, entries) in categories {
+        if is_forbidden(category) {
+            result.forbidden_categories.push(category.clone());
+            continue;
+        }
         let Some(kind) = category_kind(category) else {
             if entries.as_array().is_some_and(|e| !e.is_empty()) {
                 result.unsupported_categories.push(category.clone());
@@ -120,6 +139,7 @@ pub fn map_manifest_permissions(permissions: &Value) -> DeclaredPermissions {
         }
     }
     result.unsupported_categories.sort();
+    result.forbidden_categories.sort();
     result
 }
 

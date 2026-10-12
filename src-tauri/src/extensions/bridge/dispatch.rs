@@ -13,7 +13,8 @@ use super::{database, methods, permissions};
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::{
-    fs, kv, logs, mail, notifications, passwords, remote_storage, remote_storage_manage, shell, web,
+    encrypted_folder, fs, kv, logs, mail, notifications, passwords, remote_storage,
+    remote_storage_manage, shell, web,
 };
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -394,6 +395,31 @@ pub static METHODS: &[Method] = &[
         name: "extension_remote_storage_delete",
         handler: remote_storage::delete,
         module: remote_storage::MODULE,
+    },
+    Method {
+        name: "extension_encrypted_folder_choose",
+        handler: encrypted_folder::choose,
+        module: encrypted_folder::MODULE,
+    },
+    Method {
+        name: "extension_encrypted_folder_list",
+        handler: encrypted_folder::list,
+        module: encrypted_folder::MODULE,
+    },
+    Method {
+        name: "extension_encrypted_folder_download",
+        handler: encrypted_folder::download,
+        module: encrypted_folder::MODULE,
+    },
+    Method {
+        name: "extension_encrypted_folder_upload",
+        handler: encrypted_folder::upload,
+        module: encrypted_folder::MODULE,
+    },
+    Method {
+        name: "extension_encrypted_folder_delete",
+        handler: encrypted_folder::delete,
+        module: encrypted_folder::MODULE,
     },
     Method {
         name: "extension_shell_close",

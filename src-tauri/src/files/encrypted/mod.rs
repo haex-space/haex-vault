@@ -5,6 +5,7 @@
 //!   shown by its decrypted name), and opening one.
 //! - [`load`] and [`cache`]: heads and sidecars from the bucket, with the ETag cache in the vault.
 //! - [`tree`]: the view of a folder from its sidecars.
+//! - [`by_id`]: folders by their id, for callers outside the window (extensions).
 //! - [`ops`]: list, stat, read and create inside; [`manage`]: rename, delete and the versions they
 //!   replace; [`cleanup`]: what stays behind; [`source`]: reading ranges block by block;
 //!   [`transfer`]: sealing uploads; [`opened`]: copies for the system's apps.
@@ -12,6 +13,7 @@
 //! Opened folders ([`EncryptedFolders`]) keep their keys in memory as `Zeroizing` until the vault
 //! closes. Nothing here logs a name, a path or an object key of an encrypted folder (FR-027).
 
+pub mod by_id;
 pub mod cache;
 pub mod cleanup;
 pub mod format;

@@ -309,3 +309,33 @@ fn add_is_an_action_of_remote_storage_that_read_write_does_not_cover() {
     assert!(!Action::ReadWrite.covers(&add));
     assert!(Action::parse(PermissionKind::Passwords, "add").is_none());
 }
+
+#[test]
+fn an_encrypted_folder_target_names_exactly_one_folder() {
+    let folder = "s1/aaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let request = RequestTarget::EncryptedFolder(FolderRef::parse(folder).unwrap());
+    assert!(matches(PermissionKind::EncryptedFolder, folder, &request));
+    let other =
+        RequestTarget::EncryptedFolder(FolderRef::parse("s1/baaaaaaaaaaaaaaaaaaaaaaaaa").unwrap());
+    assert!(!matches(PermissionKind::EncryptedFolder, folder, &other));
+    for bad in [
+        "*",
+        "s1",
+        "s1/*",
+        "/aaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "s1/AAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "s1/x",
+    ] {
+        assert!(
+            Target::parse(PermissionKind::EncryptedFolder, bad).is_none(),
+            "{bad}"
+        );
+    }
+    // `*` of another kind never reaches an encrypted folder.
+    assert!(!Target::Any.matches(&request));
+    assert_eq!(
+        Action::parse(PermissionKind::EncryptedFolder, "readWrite"),
+        Some(Action::ReadWrite)
+    );
+    assert_eq!(Action::parse(PermissionKind::EncryptedFolder, "add"), None);
+}

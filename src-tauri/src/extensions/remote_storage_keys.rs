@@ -30,8 +30,9 @@ fn invalid(what: &str) -> BridgeError {
     BridgeError::new(ExtensionErrorCode::Validation, format!("invalid {what}"))
 }
 
-/// The rules of research R5. A list prefix may be empty and may end in `/`.
-fn valid(text: &str, list: bool) -> bool {
+/// The rules of research R5. A list prefix may be empty and may end in `/`. Paths in encrypted
+/// folders of extensions follow them too (spec 048, contracts/bridge.md).
+pub(super) fn valid(text: &str, list: bool) -> bool {
     if text.is_empty() {
         return list;
     }

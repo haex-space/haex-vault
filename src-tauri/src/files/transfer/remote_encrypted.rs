@@ -11,17 +11,17 @@ use std::path::Path;
 use std::sync::Arc;
 
 use tokio::io::AsyncReadExt;
-use zeroize::Zeroizing;
 
 use super::upload::Upload;
 use super::{soon, Place, Run, Side, Stop, PART};
-use crate::files::encrypted::format::sidecar::{FileFacts, Sidecar, SidecarKind};
 use crate::files::encrypted::format::Id;
 use crate::files::encrypted::manage::drop_replaced;
 use crate::files::encrypted::ops::{now_ms, write_version};
 use crate::files::encrypted::route::view;
 use crate::files::encrypted::source::EncryptedFile;
-use crate::files::encrypted::transfer::{ensure_folder, Decrypting, Sealed, SealedParts};
+use crate::files::encrypted::transfer::{
+    ensure_folder, file_version, Decrypting, NewFile, Sealed, SealedParts,
+};
 use crate::files::encrypted::tree::{facts, Item as TreeItem, Version};
 use crate::files::encrypted::{damaged, new_id, OpenFolder};
 use crate::files::kind::mime_for;
@@ -34,17 +34,6 @@ use crate::remote_storage::StorageError;
 
 /// Reads plaintext for a sealed upload.
 type Reader<'r> = dyn FnMut(&mut [u8]) -> Result<usize, FilesError> + 'r;
-
-/// A content object complete at the target, for its sidecar.
-struct NewFile {
-    oid: Id,
-    cid: Id,
-    dek: Zeroizing<[u8; 32]>,
-    size: u64,
-    sha256: [u8; 32],
-    modified: u64,
-    content_type: Option<String>,
-}
 
 impl<'h> Run<'h, '_> {
     pub(super) fn enc_target(&self) -> &'h EncTarget {
@@ -357,36 +346,15 @@ impl<'h> Run<'h, '_> {
             self.delete_quietly(files, &key);
             return Err(stop);
         }
-        let (entry, base, revision) = match &replaced {
-            Some(old) => (old.sidecar.entry, Some(old.sid), old.sidecar.revision + 1),
-            None => (new_id(), None, 1),
-        };
-        let version = Version {
-            sid: new_id(),
-            sidecar: Sidecar {
-                entry,
-                parent,
-                name,
-                revision,
-                base,
-                written: now_ms(),
-                kind: SidecarKind::File(FileFacts {
-                    size: file.size,
-                    modified: file.modified,
-                    content_type: file.content_type,
-                    sha256: file.sha256,
-                    content: file.oid,
-                    cid: file.cid,
-                    dek: folder.wrap_dek(&entry, &file.cid, &file.dek),
-                }),
-            },
-        };
         let object_len = crate::files::encrypted::format::content::ciphertext_len(file.size);
+        let oid = file.oid;
+        let version = file_version(folder, parent, name, file, replaced.as_ref());
+        let entry = version.sidecar.entry;
         let written = self.handle.block_on(write_version(
             files,
             folder,
             version,
-            Some((file.oid, object_len)),
+            Some((oid, object_len)),
         ));
         if let Err(error) = written {
             self.delete_quietly(files, &key);

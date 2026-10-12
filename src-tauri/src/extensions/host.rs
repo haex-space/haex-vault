@@ -69,6 +69,8 @@ pub struct ExtensionHost {
     pub shells: super::shell::ShellState,
     /// Provider and dialogs of the remote storage of extensions (spec 038).
     pub storage: super::remote_storage_dialog::StorageState,
+    /// Opened encrypted folders and the open folder choosers of extensions (spec 048 US6).
+    pub encrypted: super::encrypted_folder_choose::EncryptedFolderState,
     /// Entry and Content-Security-Policy per bundle started in this process.
     started: Mutex<HashMap<Uuid, Arc<Started>>>,
     /// The bundle each extension last started with on this device, to see an update.
@@ -210,6 +212,7 @@ impl ExtensionHost {
     pub fn drop_dialogs_of(&self, frame: &str) {
         self.dialogs().retain(|_, (f, _)| f != frame);
         self.storage.drop_of(frame);
+        self.encrypted.drop_of(frame);
     }
 
     /// A place for one more SQL call of `extension_id`, or `None` while `max` are running. Other
