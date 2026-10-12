@@ -71,6 +71,16 @@ The expected kind assumes this order; the first failing check wins.
 - `bad-entry-missing.xt` — `manifest_invalid` — entry app.html is not a file of the bundle
 - `bad-migrations-dir.xt` — `manifest_invalid` — migrationsDir ../migrations breaks the path rules
 - `bad-permissions-array.xt` — `manifest_invalid` — permissions is an array, not an object
+- `good-tools.xt` — valid — tools block with a read and a change tool
+- `bad-tools-not-array.xt` — `manifest_invalid` — tools is an object, not an array
+- `bad-tools-name.xt` — `manifest_invalid` — tool name Count-Unread breaks ^[a-z][a-z0-9_]{0,31}$
+- `bad-tools-duplicate.xt` — `manifest_invalid` — two tools named count_unread
+- `bad-tools-effect.xt` — `manifest_invalid` — tool effect write is not read, change or destructive
+- `bad-tools-title.xt` — `manifest_invalid` — tool title without en
+- `bad-tools-examples.xt` — `manifest_invalid` — tool examples.de is empty
+- `bad-tools-schema.xt` — `manifest_invalid` — tool inputSchema has type string, not object
+- `bad-tools-unknown-key.xt` — `manifest_invalid` — tool has the unknown key risk
+- `bad-tools-too-many.xt` — `manifest_invalid` — 33 tools, more than 32
 - `bad-weak-key.xt` — `manifest_invalid` — manifest and signature.json both name the small-order identity point as publicKey
 - `bad-journal-missing-sql.xt` — `manifest_invalid` — db/meta/_journal.json names 0001_tags, db/0001_tags.sql is absent
 - `bad-migration-not-utf8.xt` — `manifest_invalid` — db/0001_tags.sql named by the journal is not UTF-8
