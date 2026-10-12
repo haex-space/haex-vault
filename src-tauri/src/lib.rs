@@ -393,6 +393,8 @@ pub fn run() {
             files::browser_commands::encrypted::files_encrypted_notice_ack,
             files::browser_commands::encrypted::files_encrypted_refresh,
             files::agent::commands::files_agent_permission_answer,
+            files::agent::commands::files_agent_permissions,
+            files::agent::commands::files_agent_permission_set,
             files::agent::commands::files_agent_check,
             platform::insets::device_insets,
             privacy::screen_capture::screen_capture_protection_get,
