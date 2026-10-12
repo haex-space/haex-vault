@@ -58,9 +58,42 @@ export function withDevice<T>(adb: Adb, action: () => T): T {
   }
 }
 
+/**
+ * adb refused the command because it does not see the device right now: the command never reached
+ * it, so running it again once the device is back is safe.
+ */
+export function deviceAway(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /device offline|device '[^']*' not found|no devices\/emulators found/.test(
+    message,
+  )
+}
+
 export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
-  const adb = (args: string[], input?: Buffer) =>
+  const once = (args: string[], input?: Buffer) =>
     run(['-s', serial, ...args], input)
+  const waitForDevice = (limitMs = 30_000) => {
+    const end = Date.now() + limitMs
+    for (;;) {
+      try {
+        if (once(['get-state']).toString().trim() === 'device') return true
+      } catch {
+        // Offline or gone for now.
+      }
+      if (Date.now() >= end) return false
+      sleepSync(500)
+    }
+  }
+  // The emulator's adb connection drops now and then (seen right after the app ended and while a
+  // large sync starts); a command refused for that runs again once the device is back.
+  const adb = (args: string[], input?: Buffer) => {
+    try {
+      return once(args, input)
+    } catch (error) {
+      if (!deviceAway(error) || !waitForDevice()) throw error
+      return once(args, input)
+    }
+  }
   return {
     serial,
     shell: (...args) =>
@@ -100,18 +133,7 @@ export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
     pull(remote, local) {
       adb(['pull', remote, local])
     },
-    waitForDevice(limitMs = 30_000) {
-      const end = Date.now() + limitMs
-      for (;;) {
-        try {
-          if (adb(['get-state']).toString().trim() === 'device') return true
-        } catch {
-          // Offline or gone for now.
-        }
-        if (Date.now() >= end) return false
-        sleepSync(500)
-      }
-    },
+    waitForDevice,
   }
 }
 
