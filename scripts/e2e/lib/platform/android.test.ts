@@ -8,6 +8,7 @@ import type { AdbRunner } from './adb.ts'
 import {
   AndroidData,
   closeVault,
+  frontPackage,
   notificationTitles,
   PACKAGE,
   createAndroidHost,
@@ -156,10 +157,21 @@ describe('prepareDevice', () => {
     prepareDevice(createAdb('emu', fake.run), { colorScheme: 'dark' })
     assert.deepEqual(fake.calls, [
       `-s emu shell pm clear ${PACKAGE}`,
+      `-s emu shell appops set ${PACKAGE} MANAGE_EXTERNAL_STORAGE allow`,
       '-s emu shell wm size 2560x1600',
       '-s emu shell wm density 320',
       '-s emu shell cmd uimode night yes',
     ])
+  })
+
+  it('starts without the access to all files when the scenario asks', () => {
+    const fake = fakeAdb()
+    prepareDevice(createAdb('emu', fake.run), { withoutAllFiles: true })
+    assert.ok(
+      fake.calls.includes(
+        `-s emu shell appops set ${PACKAGE} MANAGE_EXTERNAL_STORAGE default`,
+      ),
+    )
   })
 
   it('keeps the data when the scenario reuses it', () => {
@@ -167,6 +179,18 @@ describe('prepareDevice', () => {
     prepareDevice(createAdb('emu', fake.run), { reuse: true })
     assert.ok(!fake.calls.some((call) => call.includes('pm clear')))
     assert.ok(fake.calls.includes('-s emu shell cmd uimode night no'))
+  })
+})
+
+describe('frontPackage', () => {
+  it('reads the package of the resumed activity', () => {
+    const dump = [
+      '  Stack #1: type=standard mode=fullscreen',
+      '  topResumedActivity=ActivityRecord{6f1a2b u0 com.android.settings/.Settings$AppManageExternalStorageActivity t42}',
+      '    mResumedActivity: ActivityRecord{6f1a2b u0 com.android.settings/.Settings$AppManageExternalStorageActivity t42}',
+    ].join('\n')
+    assert.equal(frontPackage(dump), 'com.android.settings')
+    assert.equal(frontPackage('nothing resumed'), undefined)
   })
 })
 

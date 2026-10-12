@@ -80,6 +80,11 @@ watchEffect(() => {
 })
 
 const folder = useFilesFolder(source, path)
+// Android: "Zugriff auf alle Dateien" (FR-039); a grant in the settings loads the device at once.
+const allAccess = useFilesAllAccess(() => {
+  void sources.execute()
+  void folder.reload()
+})
 // --- Search and filter (US4): both live in the tab's location ---
 
 const searchQuery = computed(() => place.value?.q ?? '')
@@ -581,8 +586,13 @@ watch(tabActive, (active) => {
         data-testid="files-main"
         @keydown.esc="selection = EMPTY_SELECTION"
       >
+        <FilesAllFilesAccess
+          v-if="source.kind === 'device' && allAccess.granted.value === false"
+          class="flex-1"
+          @request="allAccess.requestAsync()"
+        />
         <FilesSearchResults
-          v-if="searchQuery && path"
+          v-else-if="searchQuery && path"
           class="flex-1"
           :source="source"
           :root="path"

@@ -6,15 +6,17 @@ Typen werden mit `ts-rs` nach `src/types/bindings/` erzeugt.
 
 ## Quellen und Navigation
 
-| Command                    | Eingabe                              | Ausgabe                                                                    |
-| -------------------------- | ------------------------------------ | -------------------------------------------------------------------------- |
-| `files_sources`            | –                                    | `{ device: { roots: Root[], known: Place[] }, storages: StorageSource[] }` |
-| `files_list`               | `source: SourceRef, path: string`    | `Entry[]` (alle Einträge; Sortieren im Fenster)                            |
-| `files_stat`               | `source, path`                       | `Entry`                                                                    |
-| `files_watch`              | `path, channel: Channel<WatchEvent>` | `watchId` (Desktop und Android; iOS `unsupported`)                         |
-| `files_unwatch`            | `watchId`                            | –                                                                          |
-| `files_all_access`         | –                                    | `{ granted: bool, platform: 'android' \| 'other' }`                        |
-| `files_request_all_access` | –                                    | – (öffnet die Systemeinstellungen, nur Android)                            |
+| Command                    | Eingabe                              | Ausgabe                                                                        |
+| -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| `files_sources`            | –                                    | `{ device: { roots: Root[], known: Place[] }, storages: StorageSource[] }`     |
+| `files_all_access`         | –                                    | `boolean` (FR-039: auf Android „Zugriff auf alle Dateien“, sonst immer `true`) |
+| `files_request_all_access` | –                                    | – (Android: Systemeinstellung öffnen, vor API 30 Laufzeitfrage; sonst nichts)  |
+| `files_list`               | `source: SourceRef, path: string`    | `Entry[]` (alle Einträge; Sortieren im Fenster)                                |
+| `files_stat`               | `source, path`                       | `Entry`                                                                        |
+| `files_watch`              | `path, channel: Channel<WatchEvent>` | `watchId` (Desktop und Android; iOS `unsupported`)                             |
+| `files_unwatch`            | `watchId`                            | –                                                                              |
+| `files_all_access`         | –                                    | `{ granted: bool, platform: 'android' \| 'other' }`                            |
+| `files_request_all_access` | –                                    | – (öffnet die Systemeinstellungen, nur Android)                                |
 
 `Root`: Laufwerk mit Name, Pfad, gesamt/frei (falls bekannt). `Place`: bekannte Orte wie Dokumente,
 Bilder, Downloads. `StorageSource`: Id und Name des Speichers aus 038.

@@ -87,6 +87,8 @@ export interface StartInstanceRequest {
   framebufferDir?: string
   /** A phone-sized screen from the start (spec 043); only a phone has one. */
   phoneScreen?: boolean
+  /** Without "Zugriff auf alle Dateien" from the start (spec 044); only a phone lacks it. */
+  withoutAllFiles?: boolean
 }
 
 export interface FailureInfo {
@@ -139,6 +141,8 @@ export interface ScenarioContext {
     framebufferDir?: string
     /** A phone-sized screen, 360 CSS pixels wide, from the start (spec 043); only a phone has one. */
     phoneScreen?: boolean
+    /** Starts without "Zugriff auf alle Dateien" (spec 044 FR-039); only a phone lacks it. */
+    withoutAllFiles?: boolean
   }): Promise<Instance>
   /** Starts a stand-in model provider ([stand-in-provider.md](stand-in-provider.md)); ended with the context. */
   provider(behavior?: Behavior, options?: ProviderOptions): Promise<Provider>

@@ -2324,6 +2324,11 @@
       "newerFormat": "Dafür braucht es eine neuere Version von holzi.",
       "needsNotice": "Das geht erst nach dem Hinweis."
     },
+    "allAccess": {
+      "title": "Zugriff auf alle Dateien",
+      "text": "Damit holzi die Dateien deines Geräts zeigen, öffnen und verwalten kann, braucht es die Berechtigung „Zugriff auf alle Dateien“. Du erteilst sie in den Einstellungen von Android; danach erscheinen deine Dateien hier. Die Cloud-Speicher bleiben auch ohne sie erreichbar.",
+      "button": "In den Einstellungen erlauben"
+    },
     "agentPermission": {
       "title": "Zugriff auf einen Cloud-Speicher",
       "read": "Der Agent im Chat möchte Dateien im Cloud-Speicher „{name}“ lesen.",

@@ -97,10 +97,8 @@ fn an_acknowledging_frame_holds_a_flooding_shell_back() {
         .wait_until("a full window", |e| count(e) >= acknowledged + WINDOW);
     std::thread::sleep(Duration::from_millis(300));
     let held = events();
-    assert!(
-        held <= acknowledged + WINDOW,
-        "{held} events, window {WINDOW}"
-    );
+    let open = open_events(&s, &session, &s.notes.session.frame).expect("the frame is open");
+    assert!(open <= WINDOW, "{open} open events, window {WINDOW}");
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(events(), held, "the reading waits");
 

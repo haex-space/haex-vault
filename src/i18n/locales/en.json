@@ -2324,6 +2324,11 @@
       "newerFormat": "This needs a newer version of holzi.",
       "needsNotice": "This needs the notice first."
     },
+    "allAccess": {
+      "title": "Access to all files",
+      "text": "To show, open and manage the files of your device, holzi needs the permission “All files access”. You give it in Android’s settings; your files show here afterwards. The cloud storages stay reachable without it.",
+      "button": "Allow in the settings"
+    },
     "agentPermission": {
       "title": "Access to a cloud storage",
       "read": "The agent in the chat wants to read files in the cloud storage “{name}”.",

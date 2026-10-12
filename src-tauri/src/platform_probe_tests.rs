@@ -175,3 +175,20 @@ fn the_encrypted_vectors_step_passes_and_says_how_many_checks_ran() {
         .as_deref()
         .is_some_and(|detail| detail.ends_with("checks passed")));
 }
+
+#[test]
+fn all_files_passes_without_the_permission_and_with_a_working_listing() {
+    let without = all_files(Ok(false), || {
+        panic!("nothing is listed without the permission")
+    });
+    assert!(without.ok);
+    assert_eq!(without.detail.as_deref(), Some("granted: false"));
+    let with = all_files(Ok(true), || Ok(7));
+    assert!(with.ok);
+    assert_eq!(with.detail.as_deref(), Some("granted: true; 7 entries"));
+    let refused = all_files(Ok(true), || {
+        Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+    });
+    assert!(!refused.ok);
+    assert!(!all_files(Err("no plugin".to_owned()), || Ok(0)).ok);
+}

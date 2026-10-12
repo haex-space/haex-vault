@@ -35,6 +35,9 @@ pub use tauri::plugin::PermissionState;
 pub enum Permission {
     /// Recording audio for the speech input (FR-029).
     Microphone,
+    /// The shared storage before API 30 (spec 044 FR-039); from API 30 on "Zugriff auf alle Dateien"
+    /// is no runtime permission ([`HolziAndroid::request_all_files_access`]).
+    Storage,
 }
 
 impl Permission {
@@ -42,6 +45,7 @@ impl Permission {
     pub fn alias(self) -> &'static str {
         match self {
             Permission::Microphone => "microphone",
+            Permission::Storage => "storage",
         }
     }
 }
