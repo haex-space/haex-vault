@@ -35,6 +35,16 @@ export function useFiles() {
     return await invoke<Sources>('files_sources')
   }
 
+  /** Whether the files of this device are reachable (FR-039: on Android "Zugriff auf alle Dateien"). */
+  async function allAccessAsync(): Promise<boolean> {
+    return await invoke<boolean>('files_all_access')
+  }
+
+  /** Leads to the system's setting for it; on Android before version 11 asks right away. */
+  async function requestAllAccessAsync(): Promise<void> {
+    await invoke('files_request_all_access')
+  }
+
   async function listAsync(source: SourceRef, path: string): Promise<Entry[]> {
     return await invoke<Entry[]>('files_list', { source, path })
   }
@@ -232,6 +242,8 @@ export function useFiles() {
 
   return {
     sourcesAsync,
+    allAccessAsync,
+    requestAllAccessAsync,
     listAsync,
     statAsync,
     readTextAsync,
