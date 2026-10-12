@@ -11,9 +11,11 @@ use ts_rs::TS;
 
 use super::env::{open_vault, vault_error, TauriEnv};
 use super::exec::FilesAgent;
-use super::prompt::{FilesAgentChoice, PermissionPrompt};
+use super::prompt::{FilesAgentAnswer, FilesAgentChoice, PermissionPrompt};
 use crate::error::HolziError;
-use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
+use crate::files::permissions::{
+    self, AgentFileKind, AgentFilePermission, AgentFileReach, AgentFileStatus,
+};
 use crate::files::{FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
 
@@ -26,6 +28,12 @@ pub type BuiltinFilesAgent = Arc<FilesAgent<TauriEnv<tauri::Wry>>>;
 pub struct FilesAgentAnswerArgs {
     pub request_id: String,
     pub choice: FilesAgentChoice,
+    /// "Erlaubnis merken" of a folder's question (spec 048 FR-031).
+    #[serde(default)]
+    pub remember: bool,
+    /// "auch für Cloud-Modelle" of a folder's question (FR-030a).
+    #[serde(default)]
+    pub also_cloud: bool,
 }
 
 #[tauri::command]
@@ -33,7 +41,14 @@ pub fn files_agent_permission_answer(
     prompt: State<'_, PermissionPrompt>,
     args: FilesAgentAnswerArgs,
 ) {
-    prompt.answer(&args.request_id, args.choice);
+    prompt.answer(
+        &args.request_id,
+        FilesAgentAnswer {
+            choice: args.choice,
+            remember: args.remember,
+            also_cloud: args.also_cloud,
+        },
+    );
 }
 
 /// The stored file permissions of every agent, for the settings (FR-031b).
@@ -55,6 +70,7 @@ pub async fn files_agent_permission_set(
     kind: AgentFileKind,
     target: String,
     status: AgentFileStatus,
+    reach: Option<AgentFileReach>,
 ) -> Result<(), FilesError> {
     let row = AgentFilePermission {
         agent_id,
@@ -62,6 +78,7 @@ pub async fn files_agent_permission_set(
         target,
         status,
         updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
+        reach,
     };
     open_vault(&state)?
         .write(move |tx| Ok(permissions::set(tx, &row)?))
@@ -72,6 +89,21 @@ pub async fn files_agent_permission_set(
             }
             other => vault_error(other),
         })
+}
+
+/// Removes one file permission of an agent from the settings: its default applies again, and an
+/// encrypted folder asks on the next access (spec 048 FR-033).
+#[tauri::command]
+pub async fn files_agent_permission_remove(
+    state: State<'_, AppState>,
+    agent_id: String,
+    kind: AgentFileKind,
+    target: String,
+) -> Result<(), FilesError> {
+    open_vault(&state)?
+        .write(move |tx| Ok(permissions::remove(tx, &agent_id, kind, &target)?))
+        .await
+        .map_err(vault_error)
 }
 
 /// Whether the agent may show the entry, and where the file browser opens.

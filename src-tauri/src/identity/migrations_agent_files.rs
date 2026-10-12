@@ -15,3 +15,10 @@ pub const AGENT_FILES_0029: &str = r#"CREATE TABLE agent_file_permissions (
   status TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );"#;
+
+/// The migration `0032_agent_folder_reach` (spec 048, data-model.md): agents' permissions for
+/// encrypted folders (`kind = 'encryptedFolder'`) say which models they cover, `local` or `cloud`;
+/// NULL for every other kind. A new column of a tracked table raises
+/// [`super::migrations::HOLZI_TRIGGER_VERSION`].
+pub const AGENT_FOLDER_REACH_0032: &str =
+    "ALTER TABLE agent_file_permissions ADD COLUMN reach TEXT;";

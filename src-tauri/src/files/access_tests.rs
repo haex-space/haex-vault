@@ -324,3 +324,150 @@ fn extensions_and_internal_callers_use_their_own_entrances() {
         );
     }
 }
+
+// Encrypted folders (spec 048 FR-030, FR-030a, FR-031)
+
+const FOLDER: &str = "s1/abc";
+
+fn folder_grants(storage: StorageGrant, folder: Option<(StorageGrant, Locality)>) -> AgentGrants {
+    let mut grants = AgentGrants::default().with_storage("s1", storage);
+    if let Some((grant, reach)) = folder {
+        grants
+            .folders
+            .insert(FOLDER.to_owned(), FolderGrant { grant, reach });
+    }
+    grants
+}
+
+fn folder(
+    grants: &AgentGrants,
+    want: Want,
+    held: Option<StorageGrant>,
+    model: Locality,
+) -> Verdict {
+    check_folder(&builtin(), "s1", FOLDER, want, grants, held, model)
+}
+
+#[test]
+fn a_folder_without_a_row_asks_even_with_the_storage_granted() {
+    let grants = folder_grants(StorageGrant::ReadWrite, None);
+    for want in [Want::Read, Want::Write] {
+        assert_eq!(folder(&grants, want, None, Locality::Local), Verdict::Ask);
+    }
+    // External agents follow the same rules (FR-034).
+    assert_eq!(
+        check_folder(
+            &external(),
+            "s1",
+            FOLDER,
+            Want::Read,
+            &grants,
+            None,
+            Locality::Cloud
+        ),
+        Verdict::Ask
+    );
+}
+
+#[test]
+fn a_folder_grant_never_exceeds_the_storage_grant() {
+    let grants = folder_grants(
+        StorageGrant::Read,
+        Some((StorageGrant::ReadWrite, Locality::Cloud)),
+    );
+    assert_eq!(
+        folder(&grants, Want::Read, None, Locality::Local),
+        Verdict::Allowed
+    );
+    assert_eq!(
+        refused(folder(&grants, Want::Write, None, Locality::Local)),
+        FilesErrorCode::NotGranted
+    );
+    let denied = folder_grants(
+        StorageGrant::Denied,
+        Some((StorageGrant::ReadWrite, Locality::Cloud)),
+    );
+    assert_eq!(
+        refused(folder(&denied, Want::Read, None, Locality::Local)),
+        FilesErrorCode::NotGranted
+    );
+}
+
+#[test]
+fn read_reads_readwrite_writes_and_denied_refuses() {
+    let read = folder_grants(
+        StorageGrant::ReadWrite,
+        Some((StorageGrant::Read, Locality::Cloud)),
+    );
+    assert_eq!(
+        folder(&read, Want::Read, None, Locality::Cloud),
+        Verdict::Allowed
+    );
+    assert_eq!(
+        refused(folder(&read, Want::Write, None, Locality::Cloud)),
+        FilesErrorCode::ReadOnly
+    );
+    let write = folder_grants(
+        StorageGrant::ReadWrite,
+        Some((StorageGrant::ReadWrite, Locality::Cloud)),
+    );
+    assert_eq!(
+        folder(&write, Want::Write, None, Locality::Cloud),
+        Verdict::Allowed
+    );
+    let denied = folder_grants(
+        StorageGrant::ReadWrite,
+        Some((StorageGrant::Denied, Locality::Cloud)),
+    );
+    assert_eq!(
+        refused(folder(&denied, Want::Read, None, Locality::Local)),
+        FilesErrorCode::NotGranted
+    );
+}
+
+#[test]
+fn a_grant_for_local_models_asks_again_for_a_cloud_model() {
+    let local = folder_grants(
+        StorageGrant::ReadWrite,
+        Some((StorageGrant::Read, Locality::Local)),
+    );
+    assert_eq!(
+        folder(&local, Want::Read, None, Locality::Local),
+        Verdict::Allowed
+    );
+    assert_eq!(
+        folder(&local, Want::Read, None, Locality::Cloud),
+        Verdict::Ask
+    );
+}
+
+#[test]
+fn an_answer_of_the_task_comes_before_the_stored_row() {
+    let none = folder_grants(StorageGrant::ReadWrite, None);
+    assert_eq!(
+        folder(&none, Want::Read, Some(StorageGrant::Read), Locality::Cloud),
+        Verdict::Allowed
+    );
+    assert_eq!(
+        refused(folder(
+            &none,
+            Want::Write,
+            Some(StorageGrant::Read),
+            Locality::Cloud
+        )),
+        FilesErrorCode::ReadOnly
+    );
+    let stored = folder_grants(
+        StorageGrant::ReadWrite,
+        Some((StorageGrant::ReadWrite, Locality::Cloud)),
+    );
+    assert_eq!(
+        refused(folder(
+            &stored,
+            Want::Read,
+            Some(StorageGrant::Denied),
+            Locality::Local
+        )),
+        FilesErrorCode::NotGranted
+    );
+}

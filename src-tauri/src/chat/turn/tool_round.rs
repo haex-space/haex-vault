@@ -19,6 +19,7 @@ use crate::chat::events::{
 };
 use crate::chat::session::ChatState;
 use crate::chat::tools::action_tool::ACTION_SOURCE;
+use crate::chat::tools::agent_task::{within, AgentTask};
 use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
 use crate::chat::tools::offer::{extend_offer, found_tools};
 use crate::chat::tools::permission;
@@ -83,7 +84,12 @@ impl TurnRunner<'_> {
         }
 
         let plans = self.plan_calls(step.tool_calls).await;
-        let mut executed = Self::execute_plans(self.chat_state, &self.cancel, plans).await;
+        let task = AgentTask::of_turn(&self.assistant_message_id.to_string(), self.session);
+        let mut executed = within(
+            task,
+            Self::execute_plans(self.chat_state, &self.cancel, plans),
+        )
+        .await;
         self.resolve_choices(&mut executed).await;
 
         // Aborted mid-round (either an in-flight `execute()` was cut

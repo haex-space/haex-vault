@@ -12,6 +12,7 @@ mod action_bridge_tests;
 pub mod action_tool;
 #[cfg(test)]
 mod action_tool_tests;
+pub mod agent_task;
 pub mod ask_user;
 #[cfg(test)]
 mod ask_user_tests;

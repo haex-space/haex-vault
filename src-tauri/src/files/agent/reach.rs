@@ -176,13 +176,20 @@ impl<E: AgentEnv> FilesAgent<E> {
                     Want::Read => FilesAgentWant::Read,
                     Want::Write => FilesAgentWant::ReadWrite,
                 };
-                let choice = prompt
-                    .ask(&self.agent_id, &storage.id, &storage.name, wants, cancel)
+                let answer = prompt
+                    .ask(
+                        &self.agent_id,
+                        &storage.id,
+                        &storage.name,
+                        wants,
+                        None,
+                        cancel,
+                    )
                     .await;
-                let Some(choice) = choice else {
+                let Some(answer) = answer else {
                     return Err(unavailable());
                 };
-                let status = match choice {
+                let status = match answer.choice {
                     FilesAgentChoice::Read => AgentFileStatus::Read,
                     FilesAgentChoice::ReadWrite => AgentFileStatus::ReadWrite,
                     FilesAgentChoice::Deny => AgentFileStatus::Denied,
@@ -242,8 +249,15 @@ impl<E: AgentEnv> FilesAgent<E> {
                 Ok((entry, None, Some(real)))
             }
             Place::Storage(storage) => {
-                let files = self.storage(&storage, Want::Read, cancel).await?;
-                let entry = files.stat(&input.path).await.map_err(files_error)?;
+                let (files, paths) = self
+                    .storage_at(
+                        &storage,
+                        Want::Read,
+                        std::slice::from_ref(&input.path),
+                        cancel,
+                    )
+                    .await?;
+                let entry = files.stat(&paths[0]).await.map_err(files_error)?;
                 Ok((entry, Some(files), None))
             }
         }
