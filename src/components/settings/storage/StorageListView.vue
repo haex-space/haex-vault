@@ -19,11 +19,14 @@ const storagesOf = (connectionId: string): StorageView[] =>
 
 function connectionDescription(connection: ConnectionView): string {
   const where = connection.endpoint || t('settings.storage.kinds.aws')
-  return `${where} · ${connection.region}`
+  const protocol = t(`settings.storage.protocols.${connection.protocol}`)
+  return connection.protocol === 's3'
+    ? `${protocol} · ${where} · ${connection.region}`
+    : `${protocol} · ${where}`
 }
 
 function storageDescription(storage: StorageView): string {
-  const parts = [storage.bucket]
+  const parts = [storage.bucket || '/']
   parts.push(
     storage.lastTest
       ? t('settings.storage.lastTest', {

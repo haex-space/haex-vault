@@ -20,6 +20,7 @@ use tokio::io::AsyncRead;
 use tokio::time::Instant;
 
 use super::address::{self, Resolver, SystemResolver};
+pub(super) use super::http::read_body;
 use super::{
     Access, Addressing, Credentials, DirListing, ObjectHead, ObjectInfo, RemoteStore, StorageError,
 };
@@ -137,26 +138,6 @@ pub(super) fn signing(credentials: &Credentials) -> Result<rusty_s3::Credentials
         Some(token) => rusty_s3::Credentials::new_with_token(key, secret, token.as_str()),
         None => rusty_s3::Credentials::new(key, secret),
     })
-}
-
-/// Reads `response` up to `max` bytes before `deadline`; more is [`StorageError::TooLarge`].
-pub(super) async fn read_body(
-    mut response: reqwest::Response,
-    max: usize,
-    deadline: Instant,
-) -> Result<Vec<u8>, StorageError> {
-    let mut body = Vec::new();
-    while let Some(chunk) = tokio::time::timeout_at(deadline, response.chunk())
-        .await
-        .map_err(|_| StorageError::TimedOut)?
-        .map_err(|_| StorageError::Network)?
-    {
-        if body.len() + chunk.len() > max {
-            return Err(StorageError::TooLarge);
-        }
-        body.extend_from_slice(&chunk);
-    }
-    Ok(body)
 }
 
 /// The `<Code>` of an S3 error answer, if it is a plain word.

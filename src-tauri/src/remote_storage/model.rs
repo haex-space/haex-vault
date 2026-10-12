@@ -87,6 +87,11 @@ pub struct ConnectionInput {
     pub credentials: Option<CredentialsInput>,
     /// The bucket or folder the test before saving uses (FR-003).
     pub bucket_for_test: String,
+    /// Create that folder when the test finds it missing (WebDAV, SFTP; spec 050 FR-006): the
+    /// user said so after a first test answered `folderMissing`.
+    #[ts(as = "Option<bool>", optional)]
+    #[serde(default)]
+    pub create_folder: bool,
 }
 
 /// The protocol of a connection input that names none (the settings before spec 050).
@@ -105,6 +110,10 @@ pub struct StorageInput {
     pub connection_id: String,
     pub name: String,
     pub bucket: String,
+    /// Create the folder when the test finds it missing (spec 050 FR-006), on the user's word.
+    #[ts(as = "Option<bool>", optional)]
+    #[serde(default)]
+    pub create_folder: bool,
 }
 
 /// A connection as the settings show it.
@@ -148,6 +157,19 @@ pub struct StorageView {
     pub last_test: Option<LastTest>,
     /// The extensions with a permission for this storage.
     pub extensions: Vec<String>,
+    /// Only in the answer of `storage_save` (spec 050 FR-003).
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<StorageWarning>,
+}
+
+/// What `storage_save` warns about without refusing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub enum StorageWarning {
+    /// Another storage of the connection has its folder inside or around this one.
+    NestedFolder,
 }
 
 /// `storage_list`.

@@ -18,7 +18,7 @@ use zeroize::Zeroizing;
 use super::address::{self, AddressError, Resolver};
 use super::model::{
     ConnectionInput, ConnectionView, CredentialsInput, LastTest, RemovalPreview, RemovalTarget,
-    StorageInput, StorageOverview, StorageView, TestResult,
+    StorageInput, StorageOverview, StorageView, StorageWarning, TestResult,
 };
 use super::probe::probe;
 use super::{
@@ -93,7 +93,7 @@ fn credentials_of(input: CredentialsInput, protocol: Protocol) -> Result<Credent
         (CredentialsInput::Password { username, password }, Protocol::WebDav | Protocol::Sftp) => {
             let username = username.trim().to_owned();
             if username.is_empty() || !nonempty(&password) {
-                return Err(invalid("credentials"));
+                return Err(invalid("login"));
             }
             Ok(Credentials::Password(PasswordCredentials {
                 username,
@@ -110,7 +110,7 @@ fn credentials_of(input: CredentialsInput, protocol: Protocol) -> Result<Credent
         ) => {
             let username = username.trim().to_owned();
             if username.is_empty() || private_key.trim().is_empty() {
-                return Err(invalid("credentials"));
+                return Err(invalid("login"));
             }
             Ok(Credentials::SshKey(SshKeyCredentials {
                 username,
@@ -192,6 +192,7 @@ impl StorageService {
                         connection_id: row.connection_id,
                         name: row.name,
                         bucket: row.bucket,
+                        warning: None,
                     });
                 }
                 Ok(StorageOverview {
@@ -259,7 +260,11 @@ impl StorageService {
         input: ConnectionInput,
         confirmed_scope: Option<EndpointScope>,
     ) -> Result<ConnectionView> {
-        let endpoint = input.endpoint.as_deref().unwrap_or("").trim().to_owned();
+        let mut endpoint = input.endpoint.as_deref().unwrap_or("").trim().to_owned();
+        // A WebDAV address is a folder; with its `/` no server redirects (spec 050 research R2).
+        if input.protocol == Protocol::WebDav && !endpoint.is_empty() && !endpoint.ends_with('/') {
+            endpoint.push('/');
+        }
         let existing = match &input.id {
             Some(id) => Some(self.connection(id).await?),
             None => None,
@@ -326,7 +331,7 @@ impl StorageService {
             (None, Some(_)) => None,
         };
         if test_with.is_some() && !store::target_ok(row.protocol, &input.bucket_for_test) {
-            return Err(invalid("bucket"));
+            return Err(invalid(store::target_field(row.protocol)));
         }
         if moved {
             row.endpoint_scope = self.scope_of(&url).await?;
@@ -339,7 +344,7 @@ impl StorageService {
                 location: Location::of(&row, &input.bucket_for_test),
                 credentials,
             };
-            let result = probe(self.store.as_ref(), &access).await;
+            let result = self.probe_creating(&access, input.create_folder).await?;
             self.record_for_bucket(&row.id, &input.bucket_for_test, result.outcome)
                 .await?;
             failed(result)?;
@@ -445,7 +450,7 @@ impl StorageService {
                 location: Location::of(&connection, &row.bucket),
                 credentials,
             };
-            let result = probe(self.store.as_ref(), &access).await;
+            let result = self.probe_creating(&access, input.create_folder).await?;
             failed(result)?;
             Some(LastTest {
                 at: now,
@@ -465,6 +470,7 @@ impl StorageService {
                 Ok(())
             })
             .await?;
+        let nested = self.nested_folder(&row).await?;
         let (id, last) = (row.id.clone(), tested);
         let (extensions, last_test) = self
             .db
@@ -485,7 +491,72 @@ impl StorageService {
             bucket: row.bucket,
             last_test,
             extensions,
+            warning: nested.then_some(StorageWarning::NestedFolder),
         })
+    }
+
+    /// Whether another storage of the same WebDAV or SFTP connection has its folder inside or
+    /// around the folder of `row` (spec 050 FR-003): a warning, not an error.
+    async fn nested_folder(&self, row: &StorageRow) -> Result<bool> {
+        let row = row.clone();
+        self.db
+            .read(move |q| {
+                let tree = store::connection(q, &row.connection_id)?
+                    .is_some_and(|connection| connection.protocol.is_tree());
+                let within = |inner: &str, outer: &str| {
+                    outer.is_empty() || inner == outer || inner.starts_with(&format!("{outer}/"))
+                };
+                Ok(tree
+                    && store::storages(q)?.iter().any(|other| {
+                        other.id != row.id
+                            && other.connection_id == row.connection_id
+                            && (within(&other.bucket, &row.bucket)
+                                || within(&row.bucket, &other.bucket))
+                    }))
+            })
+            .await
+    }
+
+    /// Creates the missing folder of the saved storage `storage_id` on the user's word (spec 050
+    /// FR-006), with missing folders above it, then tests it and remembers the outcome.
+    pub async fn create_folder(&self, storage_id: &str) -> Result<TestResult> {
+        let access = self.access_of(storage_id).await?;
+        let result = self.probe_creating(&access, true).await?;
+        self.record(storage_id, result.outcome).await?;
+        Ok(TestResult {
+            outcome: result.outcome,
+            leftover_key: result.leftover_key,
+        })
+    }
+
+    /// The test of `access`; when it finds the folder of a WebDAV or SFTP storage missing and
+    /// `create` says so, holzi makes the folder (with missing folders above it) and tests again.
+    /// Never makes a folder without `create` (FR-006).
+    async fn probe_creating(
+        &self,
+        access: &Access,
+        create: bool,
+    ) -> Result<super::probe::ProbeResult> {
+        let first = probe(self.store.as_ref(), access).await;
+        let folder = access.location.bucket.clone();
+        if first.outcome != TestOutcome::FolderMissing || !create || folder.is_empty() {
+            return Ok(first);
+        }
+        let mut root = access.clone();
+        root.location.bucket = String::new();
+        let deadline = tokio::time::Instant::now() + super::probe::TEST_TIME;
+        if let Err(error) = self
+            .store
+            .put(&root, &format!("{folder}/"), Vec::new(), deadline)
+            .await
+        {
+            log::warn!("remote storage: folder not created: {error}");
+            return Ok(super::probe::ProbeResult {
+                outcome: super::probe::outcome_of_write(error, true),
+                leftover_key: None,
+            });
+        }
+        Ok(probe(self.store.as_ref(), access).await)
     }
 
     /// Tests a storage and remembers the outcome on this device.

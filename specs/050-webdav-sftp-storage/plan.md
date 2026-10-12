@@ -17,7 +17,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Protokoll je Verbindung** (R1): `ProtocolStore` ersetzt `s3_store()` und reicht nach
   `access.location.protocol` an `S3Store`, `WebDavStore` oder `SftpStore` weiter. Aufrufer und Fälschungen
   in den Tests bleiben, wie sie sind.
-- **WebDAV** (R2): eigener Client auf `reqwest` und `quick-xml` 0.42; nur `Depth: 1`, Ordner-Adressen mit
+- **WebDAV** (R2): eigener Client auf `reqwest` und `quick-xml` 0.41; nur `Depth: 1`, Ordner-Adressen mit
   `/`, keine Weiterleitungen, `href` geprüft. Der HTTP-Client mit festen Adressen zieht aus `s3.rs` nach
   `http.rs`.
 - **SFTP** (R3–R5): `russh` 0.63.3 (Backend ring, ohne aws-lc-rs) und `russh-sftp` 3.0.0; eigene TCP-
@@ -40,7 +40,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 TypeScript 6 (strict), Vue 3.5, Nuxt 4.5 (SPA)
 
 **Primary Dependencies**: neu `russh` 0.63.3 (`default-features = false`, `ring`, `rsa`, `flate2`),
-`russh-sftp` 3.0.0, `quick-xml` 0.42 (schon transitiv vorhanden, jetzt direkt); vorhanden `reqwest` 0.13
+`russh-sftp` 3.0.0, `quick-xml` 0.41 (schon direkt vorhanden, Spec 044); vorhanden `reqwest` 0.13
 (rustls, ring), `rusty-s3`, `tokio`, `zeroize`, `uuid`, `ts-rs`; Dev: `wiremock` (vorhanden), ein
 WebDAV-Server im Prozess (Kandidat `dav-server`, beim Setup geprüft, R14); Frontend: haex-ui
 (Group/Row/OptionRow, Dialoge), keine neue Abhängigkeit

@@ -48,6 +48,10 @@ mod store_tests;
 pub(crate) mod test_support;
 #[cfg(test)]
 mod test_support_env;
+mod tree;
+#[cfg(test)]
+mod tree_tests;
+pub mod webdav;
 
 use std::fmt;
 
@@ -403,4 +407,8 @@ pub enum StorageError {
     /// The protocol does not offer this call (spec 050 research R8).
     #[error("unsupported")]
     Unsupported,
+    /// The server does not answer as its protocol expects: a redirect, a refused `PROPFIND`, an
+    /// answer that does not parse (spec 050 research R2).
+    #[error("protocol")]
+    Protocol,
 }

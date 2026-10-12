@@ -3,6 +3,7 @@
 //! proxy. S3 and WebDAV build one per call.
 
 use reqwest::Url;
+use tokio::time::Instant;
 
 use super::address::{self, Resolver};
 use super::{EndpointScope, StorageError};
@@ -26,4 +27,24 @@ pub(super) async fn pinned_client(
         builder = builder.resolve_to_addrs(host, &pinned.addrs);
     }
     builder.build().map_err(|_| StorageError::Network)
+}
+
+/// Reads `response` up to `max` bytes before `deadline`; more is [`StorageError::TooLarge`].
+pub(super) async fn read_body(
+    mut response: reqwest::Response,
+    max: usize,
+    deadline: Instant,
+) -> Result<Vec<u8>, StorageError> {
+    let mut body = Vec::new();
+    while let Some(chunk) = tokio::time::timeout_at(deadline, response.chunk())
+        .await
+        .map_err(|_| StorageError::TimedOut)?
+        .map_err(|_| StorageError::Network)?
+    {
+        if body.len() + chunk.len() > max {
+            return Err(StorageError::TooLarge);
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }

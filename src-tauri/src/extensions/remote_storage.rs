@@ -179,7 +179,8 @@ fn mapped(
         StorageError::Network
         | StorageError::HostKeyChanged
         | StorageError::HostKeyUnknown
-        | StorageError::Unsupported => provider("network"),
+        | StorageError::Unsupported
+        | StorageError::Protocol => provider("network"),
         StorageError::TooLarge => limit("answer too large"),
         StorageError::TimedOut => limit("time limit exceeded"),
         StorageError::QuotaExceeded => limit("quota exceeded"),

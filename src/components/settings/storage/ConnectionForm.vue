@@ -1,20 +1,25 @@
 <script setup lang="ts">
 /**
- * A storage connection (spec 038, US1, T028, FR-001–FR-005): provider, endpoint, region,
- * addressing and the credentials. The provider presets prefill endpoint and addressing; an `http`
- * endpoint is marked unencrypted. Unlike other settings this form is confirmed once ("Testen und
+ * A storage connection (spec 038, US1, T028, FR-001–FR-005; spec 050 US1): protocol, provider,
+ * endpoint, and for S3 region and addressing, and the credentials. The protocol is chosen once, for
+ * a new connection. The provider presets prefill endpoint and addressing; a WebDAV preset shows the
+ * parts in `<…>` the user fills in (spec 050 research R11). An `http` endpoint is marked
+ * unencrypted. Unlike other settings this form is confirmed once ("Testen und
  * speichern"), because holzi tests a new connection, new credentials or a moved endpoint before it
  * saves anything (FR-003); a failed test saves nothing and names the reason. A new connection
- * also gets its first storage on the tested bucket. The credentials go to the password manager
- * ("S3: <Name>") and never come back to this window; to change them the user types new ones.
+ * also gets its first storage on the tested bucket or folder; a missing folder is made only when
+ * the user says so (FR-006). The credentials go to the password manager ("S3: <Name>",
+ * "WebDAV: <Name>") and never come back to this window; to change them the user types new ones.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { Addressing } from '@bindings/Addressing'
 import type { ConnectionInput } from '@bindings/ConnectionInput'
 import type { ConnectionView } from '@bindings/ConnectionView'
+import type { Protocol } from '@bindings/Protocol'
 import type { ProviderKind } from '@bindings/ProviderKind'
 import type { StorageInput } from '@bindings/StorageInput'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
+import { PRESETS, type FormProtocol } from './presets'
 
 const { t } = useI18n()
 const router = useTabRouter()
@@ -31,37 +36,27 @@ const missing = computed(
   () => !isNew.value && overview.value !== null && !existing.value,
 )
 
-/** The providers this form offers so far: the S3 ones (WebDAV and SFTP follow, spec 050). */
-type S3Kind = Extract<ProviderKind, 'aws' | 'rustfs' | 'other'>
-
-const PRESETS: Record<
-  S3Kind,
-  { endpoint: string; addressing: Addressing; region: string }
-> = {
-  aws: { endpoint: '', addressing: 'virtual', region: 'eu-central-1' },
-  rustfs: {
-    endpoint: 'http://127.0.0.1:9000',
-    addressing: 'path',
-    region: 'us-east-1',
-  },
-  other: { endpoint: 'https://', addressing: 'path', region: 'us-east-1' },
-}
-
 const draft = reactive({
+  protocol: 's3' as Protocol,
   providerKind: 'rustfs' as ProviderKind,
   providerName: t('settings.storage.kinds.rustfs'),
-  endpoint: PRESETS.rustfs.endpoint,
-  region: PRESETS.rustfs.region,
-  addressing: PRESETS.rustfs.addressing,
+  endpoint: 'http://127.0.0.1:9000',
+  region: 'us-east-1',
+  addressing: 'path' as Addressing,
   accessKeyId: '',
   secretAccessKey: '',
   sessionToken: '',
+  username: '',
+  password: '',
   bucket: '',
   storageName: '',
 })
 const replaceCredentials = ref(false)
 const busy = ref(false)
 const failure = ref<string | null>(null)
+/** The last test found the folder missing; the user may let holzi make it (FR-006). */
+const folderMissing = ref(false)
+const tree = computed(() => draft.protocol !== 's3')
 
 /** The form shows the stored connection once it is known; later reloads keep what is typed. */
 let filled = false
@@ -69,6 +64,7 @@ watchEffect(() => {
   const stored = existing.value
   if (filled || !stored) return
   filled = true
+  draft.protocol = stored.protocol
   draft.providerKind = stored.providerKind
   draft.providerName = stored.providerName
   draft.endpoint = stored.endpoint
@@ -80,12 +76,25 @@ watchEffect(() => {
   replaceCredentials.value = stored.credentials === 'missing'
 })
 
+const protocolOptions = computed<SettingsSelectOption[]>(() =>
+  (['s3', 'webdav'] as const).map((protocol) => ({
+    value: protocol,
+    label: t(`settings.storage.protocols.${protocol}`),
+  })),
+)
 const kindOptions = computed<SettingsSelectOption[]>(() =>
-  (['rustfs', 'aws', 'other'] as const).map((kind) => ({
+  Object.keys(PRESETS[draft.protocol as FormProtocol] ?? {}).map((kind) => ({
     value: kind,
     label: t(`settings.storage.kinds.${kind}`),
   })),
 )
+/** The hint of a provider: what to fill in or switch on at the provider (research R11). */
+const presetHint = computed(() =>
+  draft.protocol === 'webdav' && draft.providerKind !== 'other'
+    ? t(`settings.storage.presetHints.${draft.providerKind}`)
+    : null,
+)
+const placeholdersLeft = computed(() => /<[^>]+>/.test(draft.endpoint))
 const addressingOptions = computed<SettingsSelectOption[]>(() =>
   (['path', 'virtual'] as const).map((mode) => ({
     value: mode,
@@ -96,11 +105,20 @@ const addressingOptions = computed<SettingsSelectOption[]>(() =>
 /** A new provider prefills its endpoint, region and addressing, and the name while untouched. */
 function choose(kind: string) {
   const previous = draft.providerKind
-  const next = kind as S3Kind
+  const next = kind as ProviderKind
   draft.providerKind = next
-  Object.assign(draft, PRESETS[next])
+  const preset = PRESETS[draft.protocol as FormProtocol]?.[next]
+  if (preset) Object.assign(draft, preset)
   if (draft.providerName === t(`settings.storage.kinds.${previous}`))
     draft.providerName = t(`settings.storage.kinds.${next}`)
+  folderMissing.value = false
+}
+
+/** Another protocol starts from its first provider (only for a new connection, FR-001). */
+function chooseProtocol(protocol: string) {
+  draft.protocol = protocol as Protocol
+  const first = Object.keys(PRESETS[protocol as FormProtocol] ?? {})[0]
+  if (first) choose(first)
 }
 
 const insecure = computed(() =>
@@ -111,29 +129,42 @@ const withCredentials = computed(() => isNew.value || replaceCredentials.value)
 function clearSecrets() {
   draft.secretAccessKey = ''
   draft.sessionToken = ''
+  draft.password = ''
 }
 
-async function saveAsync() {
+/** The credentials as typed, in the kind of the protocol. */
+function typedCredentials(): ConnectionInput['credentials'] {
+  if (!withCredentials.value) return undefined
+  if (tree.value)
+    return {
+      kind: 'password',
+      username: draft.username.trim(),
+      password: draft.password,
+    }
+  return {
+    kind: 's3',
+    accessKeyId: draft.accessKeyId,
+    secretAccessKey: draft.secretAccessKey,
+    sessionToken: draft.sessionToken.trim() || undefined,
+  }
+}
+
+async function saveAsync(createFolder = false) {
   if (busy.value) return
   busy.value = true
   failure.value = null
+  folderMissing.value = false
   const input: ConnectionInput = {
     id: isNew.value ? undefined : connectionId.value,
-    protocol: 's3',
+    protocol: draft.protocol,
     providerName: draft.providerName,
     providerKind: draft.providerKind,
     endpoint: draft.endpoint.trim() || undefined,
-    region: draft.region,
-    addressing: draft.addressing,
-    credentials: withCredentials.value
-      ? {
-          kind: 's3',
-          accessKeyId: draft.accessKeyId,
-          secretAccessKey: draft.secretAccessKey,
-          sessionToken: draft.sessionToken.trim() || undefined,
-        }
-      : undefined,
+    region: tree.value ? '' : draft.region,
+    addressing: tree.value ? 'path' : draft.addressing,
+    credentials: typedCredentials(),
     bucketForTest: draft.bucket.trim(),
+    createFolder,
   }
   try {
     const saved = await invoke<ConnectionView>('storage_connection_save', {
@@ -158,6 +189,7 @@ async function saveAsync() {
     router.back()
   } catch (error) {
     failure.value = storageError(error)
+    folderMissing.value = tree.value && isFolderMissing(error)
   } finally {
     busy.value = false
   }
@@ -170,8 +202,21 @@ async function saveAsync() {
       {{ t('settings.storage.notFound') }}
     </p>
 
-    <form v-else class="flex flex-col gap-3" @submit.prevent="saveAsync">
+    <form v-else class="flex flex-col gap-3" @submit.prevent="saveAsync()">
       <SettingsGroup :label="t('settings.storage.groups.connection')">
+        <SettingsRow
+          :title="t('settings.storage.fields.protocol')"
+          label-for="storage-protocol"
+        >
+          <SettingsSelect
+            id="storage-protocol"
+            :model-value="draft.protocol"
+            :options="protocolOptions"
+            :disabled="!isNew"
+            data-testid="storage-protocol"
+            @update:model-value="chooseProtocol"
+          />
+        </SettingsRow>
         <SettingsRow
           :title="t('settings.storage.fields.providerKind')"
           label-for="storage-provider-kind"
@@ -210,6 +255,20 @@ async function saveAsync() {
             data-testid="storage-endpoint"
           />
           <p
+            v-if="presetHint"
+            class="text-sm text-muted-foreground"
+            data-testid="storage-preset-hint"
+          >
+            {{ presetHint }}
+          </p>
+          <p
+            v-if="placeholdersLeft"
+            class="text-sm text-destructive"
+            data-testid="storage-endpoint-placeholders"
+          >
+            {{ t('settings.storage.placeholdersHint') }}
+          </p>
+          <p
             v-if="insecure"
             class="text-sm text-destructive"
             data-testid="storage-endpoint-insecure"
@@ -217,7 +276,7 @@ async function saveAsync() {
             {{ t('settings.storage.insecureHint') }}
           </p>
         </li>
-        <li class="px-4 py-3">
+        <li v-if="!tree" class="px-4 py-3">
           <UiInput
             id="storage-region"
             v-model="draft.region"
@@ -230,6 +289,7 @@ async function saveAsync() {
           />
         </li>
         <SettingsRow
+          v-if="!tree"
           :title="t('settings.storage.fields.addressing')"
           label-for="storage-addressing"
         >
@@ -250,13 +310,38 @@ async function saveAsync() {
           :title="t('settings.storage.newCredentials')"
           :description="
             t('settings.storage.credentialsKept', {
+              label: t(`settings.storage.entryLabels.${draft.protocol}`),
               name: existing?.providerName ?? draft.providerName,
             })
           "
           data-testid="storage-replace-credentials"
           @change="replaceCredentials = $event"
         />
-        <template v-if="withCredentials">
+        <template v-if="withCredentials && tree">
+          <li class="px-4 py-3">
+            <UiInput
+              id="storage-username"
+              v-model="draft.username"
+              :label="t('settings.storage.fields.username')"
+              :labels="fieldLabels.input.value"
+              label-bg="var(--muted)"
+              autocomplete="off"
+              data-testid="storage-username"
+            />
+          </li>
+          <li class="px-4 py-3">
+            <UiInputPassword
+              id="storage-password"
+              v-model="draft.password"
+              :label="t('settings.storage.fields.password')"
+              :labels="fieldLabels.password.value"
+              label-bg="var(--muted)"
+              autocomplete="new-password"
+              data-testid="storage-password"
+            />
+          </li>
+        </template>
+        <template v-else-if="withCredentials">
           <li class="px-4 py-3">
             <UiInput
               id="storage-access-key"
@@ -304,14 +389,22 @@ async function saveAsync() {
           <UiInput
             id="storage-bucket"
             v-model="draft.bucket"
-            :label="t('settings.storage.fields.bucket')"
+            :label="
+              tree
+                ? t('settings.storage.fields.folder')
+                : t('settings.storage.fields.bucket')
+            "
             :labels="fieldLabels.input.value"
             label-bg="var(--muted)"
             autocomplete="off"
             data-testid="storage-bucket"
           />
           <p class="text-sm text-muted-foreground">
-            {{ t('settings.storage.testBucketHint') }}
+            {{
+              tree
+                ? t('settings.storage.testFolderHint')
+                : t('settings.storage.testBucketHint')
+            }}
           </p>
         </li>
         <li v-if="isNew" class="px-4 py-3">
@@ -341,6 +434,16 @@ async function saveAsync() {
           {{
             busy ? t('settings.storage.testing') : t('settings.storage.save')
           }}
+        </UiButton>
+        <UiButton
+          v-if="folderMissing"
+          type="button"
+          variant="outline"
+          :disabled="busy"
+          data-testid="storage-create-folder"
+          @click="saveAsync(true)"
+        >
+          {{ t('settings.storage.createFolderAndSave') }}
         </UiButton>
         <UiButton
           v-if="!isNew"

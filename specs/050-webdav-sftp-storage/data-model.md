@@ -84,7 +84,8 @@ die nötigen Felder als `missing` wie in 038.
   - `SshKey { username, private_key, passphrase }`.
     Alle Geheimnisse in `Zeroizing`, `Debug` zeigt nur den Benutzernamen bzw. Zugangsschlüssel.
 - `ObjectInfo` ergänzt um `etag: Option<String>` (research R8).
-- `StorageError` ergänzt um `QuotaExceeded`, `HostKeyChanged`, `HostKeyUnknown`, `Unsupported`.
+- `StorageError` ergänzt um `QuotaExceeded`, `HostKeyChanged`, `HostKeyUnknown`, `Unsupported` und
+  `Protocol` (PR C).
 - `TestOutcome` ergänzt um `FolderMissing`, `NotWebDav`, `HostKeyUnknown`, `HostKeyChanged`.
 - `TestResult` ergänzt um `hostKey?: { key, fingerprint }` (der vom Server gezeigte Schlüssel bei
   `hostKeyUnknown` und `hostKeyChanged`).

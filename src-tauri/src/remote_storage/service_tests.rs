@@ -71,6 +71,7 @@ pub(super) fn input(id: Option<String>, credentials: Option<CredentialsInput>) -
         addressing: Addressing::Path,
         credentials,
         bucket_for_test: "holzi-test".to_owned(),
+        create_folder: false,
     }
 }
 
@@ -223,6 +224,7 @@ async fn storages_are_tested_when_new_and_remembered() {
             connection_id: connection.id.clone(),
             name: "Fotos".to_owned(),
             bucket: "holzi-test".to_owned(),
+            create_folder: false,
         })
         .await
         .expect("storage");
@@ -240,6 +242,7 @@ async fn storages_are_tested_when_new_and_remembered() {
             connection_id: connection.id.clone(),
             name: "Bilder".to_owned(),
             bucket: "holzi-test".to_owned(),
+            create_folder: false,
         })
         .await
         .expect("rename");
@@ -273,6 +276,7 @@ async fn a_removal_is_previewed_and_takes_the_credentials_with_it() {
                 connection_id: connection.id.clone(),
                 name: name.to_owned(),
                 bucket: "holzi-test".to_owned(),
+                create_folder: false,
             })
             .await
             .expect("storage");
@@ -319,6 +323,7 @@ async fn a_test_without_credentials_says_why_and_is_remembered() {
             connection_id: connection.id,
             name: "Fotos".to_owned(),
             bucket: "holzi-test".to_owned(),
+            create_folder: false,
         })
         .await
         .expect("storage");
@@ -361,6 +366,7 @@ async fn a_test_without_synced_credentials_is_not_recorded_as_access_denied() {
             connection_id: connection.id,
             name: "Fotos".to_owned(),
             bucket: "holzi-test".to_owned(),
+            create_folder: false,
         })
         .await
         .expect("storage");
@@ -420,6 +426,7 @@ async fn the_scope_of_an_endpoint_is_fixed_when_it_is_set() {
             connection_id: view.id.clone(),
             name: "Fotos".to_owned(),
             bucket: "holzi-test".to_owned(),
+            create_folder: false,
         })
         .await
         .expect("storage");
@@ -470,6 +477,7 @@ async fn a_changed_storage_is_tested_on_the_connection_it_belongs_to() {
             connection_id: connection.id.clone(),
             name: "Fotos".to_owned(),
             bucket: "holzi-test".to_owned(),
+            create_folder: false,
         })
         .await
         .expect("storage");
@@ -481,6 +489,7 @@ async fn a_changed_storage_is_tested_on_the_connection_it_belongs_to() {
             connection_id: "another-connection".to_owned(),
             name: "Fotos".to_owned(),
             bucket: "holzi-other".to_owned(),
+            create_folder: false,
         })
         .await
         .expect("tested on the storage's own connection");

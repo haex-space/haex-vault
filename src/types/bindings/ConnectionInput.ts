@@ -23,4 +23,9 @@ credentials?: CredentialsInput,
 /**
  * The bucket or folder the test before saving uses (FR-003).
  */
-bucketForTest: string, };
+bucketForTest: string,
+/**
+ * Create that folder when the test finds it missing (WebDAV, SFTP; spec 050 FR-006): the
+ * user said so after a first test answered `folderMissing`.
+ */
+createFolder?: boolean, };

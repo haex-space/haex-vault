@@ -31,8 +31,8 @@ Einspeisung der Tests).
 ## R2 — WebDAV-Client
 
 **Decision**: holzi schreibt den WebDAV-Client selbst auf dem vorhandenen `reqwest` (rustls, ring) und
-`quick-xml` 0.42 (schon im Build über `keepass` und `plist`; als direkte Abhängigkeit mit derselben
-Version). Methoden: `PROPFIND` (immer `Depth: 1`), `GET` mit `Range`, `HEAD`, `PUT` (gestreamt), `DELETE`,
+`quick-xml` 0.41, das holzi schon direkt für die Texte aus Office-Dateien nutzt (Spec 044 US6; bei
+der Umsetzung festgestellt, PR C). Methoden: `PROPFIND` (immer `Depth: 1`), `GET` mit `Range`, `HEAD`, `PUT` (gestreamt), `DELETE`,
 `MKCOL`, `MOVE`, `COPY`. Den HTTP-Client baut eine gemeinsame Funktion, die heute in
 `remote_storage/s3.rs:59-80` steckt (keine Weiterleitungen, kein Proxy, `resolve_to_addrs` auf die
 geprüften Adressen); sie zieht nach `remote_storage/http.rs` um.
@@ -317,10 +317,15 @@ wie in Spec 038 R5.
   `hostKeyUnknown` (mit gezeigtem Schlüssel und Fingerabdruck in `TestResult`) und `hostKeyChanged`.
 - Der Test (`remote_storage/probe.rs`) bleibt: `holzi-test/<UUID>` schreiben, lesen, auflisten, löschen;
   bei WebDAV und SFTP zusätzlich den dabei angelegten Ordner `holzi-test/` entfernen, wenn er leer ist.
-  Ein fehlender Ordner wird am ersten Schreiben erkannt (WebDAV 409 nach erfolglosem `PROPFIND` des
-  Speicherordners, SFTP `No such file`), nicht durch eigenes Anlegen.
-- „Ordner anlegen“ (FR-006) ist ein eigener Command (`storage_folder_create`), den die Oberfläche nach
-  Bestätigung ruft; danach testet sie erneut.
+  Vor dem Schreiben fragt der Test nach dem Ordner des Speichers (`head` auf den leeren Schlüssel:
+  WebDAV `PROPFIND` mit `Depth: 0`, SFTP `metadata`); fehlt er, ist das `folderMissing` ohne jedes
+  Schreiben. Eine Antwort, die nicht nach WebDAV aussieht (Weiterleitung, 405 auf `PROPFIND`, keine
+  207), ist der neue Fehler `StorageError::Protocol` und im Test `notWebDav`.
+- „Ordner anlegen“ (FR-006): Für eine neue Verbindung oder einen neuen Speicher schickt die
+  Oberfläche nach der Bestätigung dasselbe Speichern noch einmal mit `createFolder: true`; holzi legt
+  den Ordner dann an, wenn der Test ihn vermisst, und testet erneut. Für einen gespeicherten Speicher
+  gibt es den Command `storage_folder_create`. (Bei der Umsetzung geändert, PR C: eine neue
+  Verbindung hat vor dem ersten Speichern keine Kennung, die ein eigener Command nennen könnte.)
 
 ## R11 — Voreinstellungen
 
@@ -374,7 +379,9 @@ einer synchronisierten Tabelle ohne Nutzen.
   `russh_sftp::server::run` über einem temporären Ordner (`tokio::io::duplex` oder Loopback).
 - **Gleichstand**: Der Katalog der Erweiterungsfunktionen aus Spec 038 läuft als eine Testfunktion je
   Fall gegen alle drei Stores (S3 gegen die vorhandene Testunterstützung).
-- **E2E**: `drakkan/sftpgo` (v2.7.6, nur als Testbild) liefert SFTP und WebDAV in einem Container, mit
+- **E2E** (bei der Umsetzung geändert, PR C): `rclone/rclone` (1.71.1) mit `serve webdav` und später
+  `serve sftp`, ohne Benutzerdatei, nur mit `--user`/`--pass` (`scripts/e2e/lib/webdav.ts`). Ursprünglich
+  geplant: `drakkan/sftpgo` (v2.7.6, nur als Testbild) liefert SFTP und WebDAV in einem Container, mit
   festen Hostschlüsseln (gemountet), Benutzern aus einer JSON-Datei (`SFTPGO_LOADDATA_FROM`) und
   `SFTPGO_WEBDAVD__BINDINGS__0__PORT`. Neben RustFS in den E2E-Diensten; auf Android über
   `adb reverse` wie RustFS (`scripts/e2e/PLATFORMS.md`).

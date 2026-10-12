@@ -49,6 +49,13 @@ type StorageError = {
   state?: CredentialsState
 }
 
+/** Whether a storage command failed because the folder of a WebDAV or SFTP storage is missing
+ * (spec 050 FR-006); the form then offers to make it. */
+export function isFolderMissing(error: unknown): boolean {
+  const e = (error ?? {}) as StorageError
+  return e.kind === 'StorageTestFailed' && e.outcome === 'folderMissing'
+}
+
 /** The text of an error of the storage commands; other errors as `useErrorString` has them. */
 export function useStorageError() {
   const { t } = useI18n()

@@ -242,6 +242,7 @@ fn add_on_same_provider(
         connection_id: connection.id,
         name: answer.name.unwrap_or_else(|| name.to_owned()),
         bucket: answer.bucket.unwrap_or_else(|| bucket.to_owned()),
+        create_folder: false,
     }))
     .map_err(from_service)?;
     Ok(saved.id)
@@ -326,6 +327,7 @@ fn add_with_endpoint(
             connection_id: chosen.id.clone(),
             name: storage_name,
             bucket: storage_bucket,
+            create_folder: false,
         }))
         .map_err(from_service)?;
         return Ok(saved.id);
@@ -345,6 +347,7 @@ fn add_with_endpoint(
                 addressing,
                 credentials: Some(credentials),
                 bucket_for_test: storage_bucket.clone(),
+                create_folder: false,
             },
             scope,
         ))
@@ -355,6 +358,7 @@ fn add_with_endpoint(
         connection_id: connection.id.clone(),
         name: storage_name,
         bucket: storage_bucket,
+        create_folder: false,
     })) {
         Ok(saved) => Ok(saved.id),
         Err(error) => {
@@ -412,6 +416,7 @@ pub fn update_backend(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
                 addressing: connection.addressing,
                 credentials: Some(credentials),
                 bucket_for_test: new_bucket.clone(),
+                create_folder: false,
             }))
         })?;
     }
@@ -424,6 +429,7 @@ pub fn update_backend(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
                 .name
                 .unwrap_or_else(|| name.unwrap_or(&storage.name).to_owned()),
             bucket: new_bucket,
+            create_folder: false,
         }),
     )
     .map_err(from_service)?;

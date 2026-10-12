@@ -3,4 +3,8 @@
 /**
  * `storage_save`: a new storage without `id`, otherwise a change of one.
  */
-export type StorageInput = { id?: string, connectionId: string, name: string, bucket: string, };
+export type StorageInput = { id?: string, connectionId: string, name: string, bucket: string,
+/**
+ * Create the folder when the test finds it missing (spec 050 FR-006), on the user's word.
+ */
+createFolder?: boolean, };

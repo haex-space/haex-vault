@@ -39,6 +39,7 @@ Speicher erreichen (FR-018). `ProtocolStore` reicht nach `access.location.protoc
   muss sie für SFTP ein stärkeres Änderungsmerkmal zusätzlich verlangen.
 - **`last_modified`**: wie geliefert (S3 ISO 8601, WebDAV RFC 1123, SFTP Unix-Zeit als RFC 3339).
 - **Fehler**: `NotFound`, `AccessDenied`, `MissingRight`, `Network`, `TooLarge`, `TimedOut` wie heute,
-  dazu `QuotaExceeded`, `HostKeyChanged`, `HostKeyUnknown`, `Unsupported` (R10). Fehlermeldungen und
+  dazu `QuotaExceeded`, `HostKeyChanged`, `HostKeyUnknown`, `Unsupported` (R10) und `Protocol` (der
+  Server antwortet nicht wie sein Protokoll: Weiterleitung, 405 auf `PROPFIND`, keine 207). Fehlermeldungen und
   Log nennen nie Zugangsdaten; das Log nennt Status bzw. SFTP-Fehlercode, nicht den Antworttext.
 - **Gleichzeitigkeit**: je Verbindung höchstens 4 WebDAV-Anfragen bzw. 2 SSH-Sitzungen (R12).

@@ -244,7 +244,7 @@ fn a_storage_on_webdav_holds_a_folder() {
     s.bucket = "/Fotos".to_owned();
     assert!(matches!(
         put(&db, None, Some(s)),
-        Err(HolziError::StorageInvalid { field }) if field == "bucket"
+        Err(HolziError::StorageInvalid { field }) if field == "folder"
     ));
 }
 

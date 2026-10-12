@@ -239,9 +239,19 @@ pub fn check_storage(row: &StorageRow, protocol: Protocol) -> Result<()> {
         return Err(invalid("name"));
     }
     if !target_ok(protocol, &row.bucket) {
-        return Err(invalid("bucket"));
+        return Err(invalid(target_field(protocol)));
     }
     Ok(())
+}
+
+/// The name of the field of a bucket or folder in an error: `bucket` for S3, `folder` for WebDAV
+/// and SFTP.
+pub fn target_field(protocol: Protocol) -> &'static str {
+    if protocol.is_tree() {
+        "folder"
+    } else {
+        "bucket"
+    }
 }
 
 /// Whether `bucket` is a valid bucket (S3) or folder (WebDAV, SFTP) on a connection of `protocol`.
