@@ -31,6 +31,8 @@ const SCENARIO_FACING = [
 const KNOWN_VIOLATIONS: Record<string, string> = {
   'scenarios/relaunch-after-lock.test.ts':
     'checks the window server of the virtual screen through its framebuffer; a process-level scenario of spec 013, not a multi-device one',
+  'scenarios/extension-encrypted-folder.test.ts':
+    'builds and rewrites a signed extension bundle in the scenario, so it needs node:fs for the local bundle setup',
 }
 
 const scenarioFiles = () =>
