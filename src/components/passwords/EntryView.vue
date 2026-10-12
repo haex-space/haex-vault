@@ -8,6 +8,7 @@
  */
 import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
 import type { ItemDetail } from '@bindings/ItemDetail'
+import type { BreadcrumbPlace } from '~/lib/passwords/breadcrumb'
 import { displayTitle, isExpired, localDay } from '~/lib/passwords/format'
 import { entryFreshness, type EntryFreshness } from '~/lib/passwords/remote'
 import { entryTab, withEntryTab, type EntryTab } from '~/lib/passwords/registry'
@@ -88,6 +89,14 @@ function leaveDeleted() {
 onMounted(loadAsync)
 
 const title = computed(() => displayTitle(detail.value?.title))
+/** The folder the entry is in now: a move elsewhere shows at once, the loaded detail is older. */
+const crumbPlace = computed<BreadcrumbPlace>(() => ({
+  kind: 'entry',
+  groupId:
+    store.headersById.get(props.itemId)?.groupId ??
+    detail.value?.groupId ??
+    null,
+}))
 const expired = computed(() =>
   isExpired(detail.value?.expiresAt, localDay(new Date())),
 )
@@ -121,36 +130,30 @@ async function removeOtpAsync() {
   <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6 @md:px-6">
     <div class="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div class="flex items-center gap-2 pt-1">
-        <UiButton
-          variant="ghost"
-          size="icon"
-          class="-ml-2 shrink-0"
-          :aria-label="t('passwords.back')"
-          :tooltip="t('passwords.back')"
-          data-testid="passwords-back"
-          @click="router.back()"
-        >
-          <Icon name="lucide:arrow-left" class="size-5" />
-        </UiButton>
-        <span
-          v-if="detail"
-          class="size-7 shrink-0"
-          :style="detail.color ? { color: detail.color } : undefined"
-          aria-hidden="true"
-        >
-          <PasswordsEntryIcon
-            :value="detail.icon"
-            :fallback="DEFAULT_ENTRY_ICON"
-          />
-        </span>
-        <h1
-          v-if="detail"
-          class="min-w-0 flex-1 truncate text-2xl font-bold"
-          :class="title === null ? 'text-muted-foreground italic' : ''"
-          data-testid="passwords-entry-title"
-        >
-          {{ title ?? t('passwords.untitled') }}
-        </h1>
+        <PasswordsBreadcrumbs class="min-w-0 flex-1" :place="crumbPlace">
+          <template v-if="detail" #default>
+            <div class="flex min-w-0 items-baseline gap-2 px-1">
+              <span
+                class="size-7 shrink-0 self-center"
+                :style="detail.color ? { color: detail.color } : undefined"
+                aria-hidden="true"
+              >
+                <PasswordsEntryIcon
+                  :value="detail.icon"
+                  :fallback="DEFAULT_ENTRY_ICON"
+                />
+              </span>
+              <h1
+                class="truncate text-2xl font-bold text-foreground"
+                :class="title === null ? 'text-muted-foreground italic' : ''"
+                aria-current="page"
+                data-testid="passwords-entry-title"
+              >
+                {{ title ?? t('passwords.untitled') }}
+              </h1>
+            </div>
+          </template>
+        </PasswordsBreadcrumbs>
         <ShadcnBadge
           v-if="detail?.owner"
           variant="secondary"

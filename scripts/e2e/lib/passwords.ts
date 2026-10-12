@@ -398,7 +398,7 @@ export async function horizontalOverflow(
   instance: FlowInstance,
 ): Promise<number> {
   return instance.exec<number>(
-    `const frame = document.querySelector('[data-testid="passwords-search"]').closest('[data-wm-window-id]')
+    `const frame = document.querySelector('[data-passwords-app]').closest('[data-wm-window-id]')
      const right = frame.getBoundingClientRect().right
      const clipped = (el) => {
        for (let node = el.parentElement; node && node !== frame; node = node.parentElement) {
