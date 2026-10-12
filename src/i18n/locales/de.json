@@ -912,6 +912,13 @@
         "readWrite": "Lesen und Schreiben",
         "denied": "Abgelehnt"
       },
+      "folderUnknown": "Verschlüsselter Ordner",
+      "folderDescription": "Verschlüsselter Ordner in „{storage}“ · {status} · {reach}",
+      "reach": {
+        "local": "nur Modelle auf diesem Gerät",
+        "cloud": "auch Cloud-Modelle"
+      },
+      "revoke": "Widerrufen",
       "loadFailed": "Berechtigungen nicht geladen",
       "failed": "Nicht gespeichert"
     },
@@ -2336,7 +2343,19 @@
       "hint": "holzi merkt sich deine Antwort für diesen Cloud-Speicher.",
       "allowRead": "Lesen erlauben",
       "allowReadWrite": "Lesen und Schreiben erlauben",
-      "deny": "Ablehnen"
+      "deny": "Ablehnen",
+      "folder": {
+        "title": "Zugriff auf einen verschlüsselten Ordner",
+        "read": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ im Cloud-Speicher „{storage}“ lesen.",
+        "readWrite": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ im Cloud-Speicher „{storage}“ lesen und ändern.",
+        "local": "Gelesene Inhalte gehen an das Modell „{model}“ auf diesem Gerät.",
+        "cloud": "Gelesene Inhalte gehen an das Modell „{model}“ in der Cloud.",
+        "remember": "Erlaubnis merken",
+        "alsoCloud": "auch für Cloud-Modelle",
+        "thisTask": "Ohne Haken gilt die Antwort nur für diese Aufgabe.",
+        "kept": "holzi merkt sich die Antwort für diesen Ordner.",
+        "keptLocal": "holzi merkt sich die Antwort nur für Modelle auf diesem Gerät; für diese Aufgabe gilt sie trotzdem."
+      }
     }
   }
 }

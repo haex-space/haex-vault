@@ -2,11 +2,13 @@
 /**
  * What each agent may do with files (spec 044 FR-031 to FR-031b): the files of this device and
  * each cloud storage, changed or revoked on selection (spec 023 FR-021). The permissions sync with
- * the vault; a storage nobody decided on yet asks on the agent's first access. Writes go through
- * the catalog action, which no agent may call (a guardrail).
+ * the vault; a storage nobody decided on yet asks on the agent's first access. Remembered answers
+ * for encrypted folders (spec 048 FR-033) list with storage, status and reach; a revoke removes
+ * the answer at once, so the agent is asked again. Writes go through the catalog actions, which no
+ * agent may call (guardrails).
  */
 import { invoke } from '@tauri-apps/api/core'
-import type { AgentFilePermission } from '@bindings/AgentFilePermission'
+import type { AgentFilePermissionView } from '@bindings/AgentFilePermissionView'
 import {
   agentFiles,
   BUILTIN_AGENT,
@@ -17,15 +19,18 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 const { overview } = useStorageOverview()
 const setPermission = useActionOrThrow('settings.agents.files.set')
+const removePermission = useActionOrThrow('settings.agents.files.remove')
 
-const rows = ref<AgentFilePermission[] | null>(null)
+const rows = ref<AgentFilePermissionView[] | null>(null)
 const busy = ref(false)
 const loadError = ref<string | null>(null)
 const opError = ref<string | null>(null)
 
 async function reloadAsync() {
   try {
-    rows.value = await invoke<AgentFilePermission[]>('files_agent_permissions')
+    rows.value = await invoke<AgentFilePermissionView[]>(
+      'files_agent_permissions',
+    )
     loadError.value = null
   } catch (error: unknown) {
     loadError.value = errString(error)
@@ -65,6 +70,19 @@ async function saveAsync(
   opError.value = null
   try {
     await setPermission({ agentId, kind, target, status })
+  } catch (error: unknown) {
+    opError.value = errString(error)
+  } finally {
+    busy.value = false
+    await reloadAsync()
+  }
+}
+
+async function revokeAsync(agentId: string, target: string) {
+  busy.value = true
+  opError.value = null
+  try {
+    await removePermission({ agentId, kind: 'encryptedFolder', target })
   } catch (error: unknown) {
     opError.value = errString(error)
   } finally {
@@ -128,6 +146,30 @@ function onStorage(agentId: string, storageId: string, next: string) {
           :data-testid="`agent-files-storage-${agent.agentId}-${storage.id}`"
           @update:model-value="onStorage(agent.agentId, storage.id, $event)"
         />
+      </SettingsRow>
+      <SettingsRow
+        v-for="folder in agent.folders"
+        :key="folder.target"
+        :title="folder.name ?? t('settings.agentFiles.folderUnknown')"
+        :description="
+          t('settings.agentFiles.folderDescription', {
+            storage: folder.storageName,
+            status: t(`settings.agentFiles.status.${folder.status}`),
+            reach: t(`settings.agentFiles.reach.${folder.reach}`),
+          })
+        "
+        icon="lucide:folder-lock"
+      >
+        <UiButton
+          type="button"
+          variant="outline"
+          size="sm"
+          :disabled="busy"
+          :data-testid="`agent-files-folder-revoke-${agent.agentId}-${folder.target}`"
+          @click="revokeAsync(agent.agentId, folder.target)"
+        >
+          {{ t('settings.agentFiles.revoke') }}
+        </UiButton>
       </SettingsRow>
     </SettingsGroup>
 

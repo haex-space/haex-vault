@@ -13,6 +13,7 @@ use super::env::{open_vault, vault_error, TauriEnv};
 use super::exec::FilesAgent;
 use super::prompt::{FilesAgentAnswer, FilesAgentChoice, PermissionPrompt};
 use crate::error::HolziError;
+use crate::files::encrypted::cache::heads_of_folder;
 use crate::files::permissions::{
     self, AgentFileKind, AgentFilePermission, AgentFileReach, AgentFileStatus,
 };
@@ -51,13 +52,44 @@ pub fn files_agent_permission_answer(
     );
 }
 
-/// The stored file permissions of every agent, for the settings (FR-031b).
+/// A stored permission as the settings show it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentFilePermissionView {
+    #[serde(flatten)]
+    #[ts(flatten)]
+    pub permission: AgentFilePermission,
+    /// The decrypted name of an encrypted folder, when this device has read its head.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub folder_name: Option<String>,
+}
+
+/// The stored file permissions of every agent, for the settings (044 FR-031b, 048 FR-033).
 #[tauri::command]
 pub async fn files_agent_permissions(
     state: State<'_, AppState>,
-) -> Result<Vec<AgentFilePermission>, FilesError> {
+) -> Result<Vec<AgentFilePermissionView>, FilesError> {
     open_vault(&state)?
-        .read(|q| Ok(permissions::list(q)?))
+        .read(|q| {
+            let mut views = Vec::new();
+            for permission in permissions::list(q)? {
+                let folder_name = match (permission.kind, permission.target.split_once('/')) {
+                    (AgentFileKind::EncryptedFolder, Some((storage, folder))) => {
+                        heads_of_folder(q, storage, folder)?
+                            .into_iter()
+                            .find_map(|(_, name)| name)
+                    }
+                    _ => None,
+                };
+                views.push(AgentFilePermissionView {
+                    permission,
+                    folder_name,
+                });
+            }
+            Ok(views)
+        })
         .await
         .map_err(vault_error)
 }
