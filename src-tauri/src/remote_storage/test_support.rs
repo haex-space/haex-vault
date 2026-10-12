@@ -42,6 +42,8 @@ pub struct FakeStore {
     /// Errors for the next call of an operation only.
     once: Mutex<HashMap<Op, StorageError>>,
     calls: Mutex<Vec<(Op, String)>>,
+    /// Key, start and length of every `get_range`.
+    ranges: Mutex<Vec<(String, u64, u64)>>,
     uploads: Mutex<HashMap<String, Upload>>,
     /// Modification times other than the default, by bucket and key (ISO 8601).
     times: Mutex<HashMap<(String, String), String>>,
@@ -116,6 +118,11 @@ impl FakeStore {
     /// The operations called so far with their key or prefix.
     pub fn calls(&self) -> Vec<(Op, String)> {
         self.calls.lock().expect("lock").clone()
+    }
+
+    /// Key, start and length of every `get_range` so far.
+    pub fn ranges(&self) -> Vec<(String, u64, u64)> {
+        self.ranges.lock().expect("lock").clone()
     }
 
     fn enter(&self, op: Op, key: &str) -> Result<(), StorageError> {
@@ -253,6 +260,10 @@ impl RemoteStore for FakeStore {
         _deadline: Instant,
     ) -> Result<Box<dyn tokio::io::AsyncRead + Send + Unpin>, StorageError> {
         self.enter(Op::GetRange, key)?;
+        self.ranges
+            .lock()
+            .expect("lock")
+            .push((key.to_owned(), start, len));
         let body = self
             .objects
             .lock()

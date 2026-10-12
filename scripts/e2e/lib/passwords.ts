@@ -136,8 +136,9 @@ export async function placeOf(
 export async function contextMenu(
   instance: FlowInstance,
   hook: string,
+  deadlineMs?: number,
 ): Promise<void> {
-  await instance.waitForDisplayed(hook)
+  await instance.waitForDisplayed(hook, deadlineMs)
   await instance.exec(
     `const el = document.querySelector(arguments[0])
      const box = el.getBoundingClientRect()
