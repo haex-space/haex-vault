@@ -6,6 +6,7 @@
 pub mod local;
 pub mod remote;
 mod remote_plan;
+mod remote_plan_encrypted;
 
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -43,6 +44,33 @@ pub enum ConflictChoice {
     Skip,
 }
 
+/// The answer to files leaving an encrypted folder for an ordinary folder of a storage (spec 048
+/// FR-019).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum LeaveChoice {
+    Proceed,
+    Cancel,
+}
+
+/// What the window answers a waiting transfer: a taken name or files leaving encryption.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(untagged)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum TransferAnswer {
+    Name(ConflictChoice),
+    Leave(LeaveChoice),
+}
+
+/// How many files leave an encrypted folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct Leaving {
+    #[ts(type = "number")]
+    pub count: u64,
+}
+
 /// How far a transfer is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -69,6 +97,14 @@ pub enum TransferEvent {
     /// A name is taken; the transfer waits for [`TransferManager::answer`].
     Conflict {
         name: String,
+    },
+    /// Files of an encrypted folder go into an ordinary folder of a storage, where they lie
+    /// unencrypted; before it starts the transfer waits for `proceed` or `cancel` (spec 048
+    /// FR-019). The window sees it as a `conflict` with `leavesEncryption`.
+    #[serde(rename = "conflict")]
+    LeavesEncryption {
+        #[serde(rename = "leavesEncryption")]
+        leaves_encryption: Leaving,
     },
     Done,
     Cancelled,
@@ -107,7 +143,7 @@ struct Known {
     work: Work,
     channel: Channel<TransferEvent>,
     cancel: CancellationToken,
-    answers: Sender<(ConflictChoice, bool)>,
+    answers: Sender<(TransferAnswer, bool)>,
 }
 
 /// The transfers of this session; a Tauri managed state.
@@ -208,10 +244,16 @@ impl TransferManager {
             Work::Remote { job, plan } => gate
                 .spawn_blocking(move || {
                     let handle = tokio::runtime::Handle::current();
-                    let outcome =
+                    let send = |event| {
+                        let _ = channel.send(event);
+                    };
+                    let outcome = if confirm_leaving(&plan, &cancel, &send, &answered) {
                         with_hooks(Removal::Permanent, &cancel, &channel, &answered, |hooks| {
                             remote::run_remote(&job, &plan, &handle, &remote::RETRIES, hooks)
-                        });
+                        })
+                    } else {
+                        Outcome::Cancelled
+                    };
                     manager.finish(&owned_id, outcome, &channel);
                 })
                 .map(drop),
@@ -246,8 +288,8 @@ impl TransferManager {
         let _ = channel.send(event);
     }
 
-    /// Answers the conflict a transfer waits on.
-    pub fn answer(&self, id: &str, choice: ConflictChoice, for_all: bool) {
+    /// Answers the question a transfer waits on.
+    pub fn answer(&self, id: &str, choice: TransferAnswer, for_all: bool) {
         if let Some(known) = self.known().get(id) {
             let _ = known.answers.send((choice, for_all));
         }
@@ -303,6 +345,37 @@ async fn delete_on_storage(
     Outcome::Done
 }
 
+/// Asks the window once whether files may leave an encrypted folder for an ordinary folder of a
+/// storage (spec 048 FR-019); true to go on. A retry after a yes does not ask again.
+fn confirm_leaving(
+    plan: &Plan,
+    cancel: &CancellationToken,
+    send: &dyn Fn(TransferEvent),
+    answered: &Receiver<(TransferAnswer, bool)>,
+) -> bool {
+    let count = plan.leaving();
+    if count == 0 {
+        return true;
+    }
+    send(TransferEvent::LeavesEncryption {
+        leaves_encryption: Leaving { count },
+    });
+    loop {
+        match answered.recv_timeout(ANSWER_POLL) {
+            Ok((TransferAnswer::Leave(choice), _)) => {
+                let go = choice == LeaveChoice::Proceed;
+                if go {
+                    plan.confirm_leaving();
+                }
+                return go;
+            }
+            Ok(_) => {}
+            Err(RecvTimeoutError::Timeout) if !cancel.is_cancelled() => {}
+            Err(_) => return false,
+        }
+    }
+}
+
 /// The blocking part of a local job.
 fn work_local(
     job: &Job,
@@ -310,7 +383,7 @@ fn work_local(
     removal: Removal,
     cancel: &CancellationToken,
     channel: &Channel<TransferEvent>,
-    answered: &Receiver<(ConflictChoice, bool)>,
+    answered: &Receiver<(TransferAnswer, bool)>,
 ) -> Outcome {
     with_hooks(removal, cancel, channel, answered, |hooks| {
         local::run(job, totals, hooks)
@@ -323,7 +396,7 @@ fn with_hooks(
     removal: Removal,
     cancel: &CancellationToken,
     channel: &Channel<TransferEvent>,
-    answered: &Receiver<(ConflictChoice, bool)>,
+    answered: &Receiver<(TransferAnswer, bool)>,
     work: impl FnOnce(Hooks<'_>) -> Outcome,
 ) -> Outcome {
     let mut last = Instant::now() - PROGRESS_EVERY;
@@ -340,7 +413,8 @@ fn with_hooks(
         });
         loop {
             match answered.recv_timeout(ANSWER_POLL) {
-                Ok(answer) => return Some(answer),
+                Ok((TransferAnswer::Name(choice), for_all)) => return Some((choice, for_all)),
+                Ok(_) => {}
                 Err(RecvTimeoutError::Timeout) if !cancel.is_cancelled() => {}
                 Err(_) => return None,
             }

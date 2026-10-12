@@ -1,17 +1,22 @@
 //! Shared setup for the tests of encrypted folders: a vault that holds content keys, a fake storage
 //! and the window's view of it, and a transfer run as the manager runs it.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 
+use super::manage::shown_version;
+use super::ops::create_encrypted_folder;
+use super::route::{open, route, view, Route};
+use super::tree::Version;
 use super::{EncryptedFolders, Scope};
 use crate::files::storage_source::StorageFiles;
 use crate::files::transfer::local::{Hooks, Outcome, Removal};
 use crate::files::transfer::remote::{prepare_remote, run_remote, RemoteJob, Side};
 use crate::files::transfer::{ConflictChoice, TransferOp};
-use crate::remote_storage::test_support::{access, vault, FakeStore};
+use crate::remote_storage::test_support::{access, vault, FakeStore, Op};
 use crate::sync::content_keys::ContentKey;
 use crate::vault_gate::VaultDb;
 
@@ -70,11 +75,17 @@ impl Scene {
 
     /// The storage as the window sees it.
     pub fn files(&self) -> StorageFiles {
+        self.files_in(BUCKET, STORAGE)
+    }
+
+    /// Another storage `storage_id` of the window on `bucket` of the same provider.
+    pub fn files_in(&self, bucket: &str, storage_id: &str) -> StorageFiles {
         let db = self.db.clone();
-        StorageFiles::new(self.fake.clone(), access(BUCKET)).with_scope(Scope {
-            storage_id: STORAGE.to_owned(),
+        StorageFiles::new(self.fake.clone(), access(bucket)).with_scope(Scope {
+            storage_id: storage_id.to_owned(),
             folders: Arc::clone(&self.folders),
             vault: Arc::new(move || Ok(db.clone())),
+            background: Arc::new(|_| {}),
         })
     }
 
@@ -85,6 +96,7 @@ impl Scene {
             storage_id: STORAGE.to_owned(),
             folders: Arc::default(),
             vault: Arc::new(move || Ok(db.clone())),
+            background: Arc::new(|_| {}),
         })
     }
 
@@ -138,4 +150,72 @@ pub async fn transfer(
     })
     .await
     .expect("join")
+}
+
+/// The encrypted folder "Unterlagen" with the device files `tree` (path → content) copied in.
+pub async fn filled(tree: &[(String, String)]) -> Scene {
+    let scene = Scene::new();
+    create_encrypted_folder(&scene.files(), "/", "Unterlagen")
+        .await
+        .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut tops = BTreeSet::new();
+    for (path, content) in tree {
+        let file = dir.path().join(path);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, content).unwrap();
+        tops.insert(path.split('/').next().unwrap().to_owned());
+    }
+    let sources: Vec<String> = tops
+        .iter()
+        .map(|top| dir.path().join(top).to_string_lossy().into_owned())
+        .collect();
+    let outcome = transfer(
+        TransferOp::Copy,
+        Side::Device,
+        &sources,
+        Side::Storage(Arc::new(scene.files())),
+        "/Unterlagen",
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(outcome, Outcome::Done);
+    scene
+}
+
+pub fn tree(files: &[(&str, &str)]) -> Vec<(String, String)> {
+    files
+        .iter()
+        .map(|(path, content)| ((*path).to_owned(), (*content).to_owned()))
+        .collect()
+}
+
+/// The calls of `ops` since call number `mark`, with their keys.
+pub fn since(scene: &Scene, mark: usize, ops: &[Op]) -> Vec<(Op, String)> {
+    scene.fake.calls()[mark..]
+        .iter()
+        .filter(|(op, _)| ops.contains(op))
+        .cloned()
+        .collect()
+}
+
+pub const WRITES: [Op; 5] = [
+    Op::Put,
+    Op::Copy,
+    Op::CreateMultipart,
+    Op::UploadPart,
+    Op::CompleteMultipart,
+];
+
+/// The version the entry at `path` shows.
+pub async fn version_of(files: &StorageFiles, path: &str) -> Version {
+    let Route::Encrypted(at) = route(files, path).await.unwrap() else {
+        panic!("{path} is in an encrypted folder");
+    };
+    let folder = open(files, &at).await.unwrap();
+    let view = view(files, &folder).await.unwrap();
+    let index = view.tree.find(&at.rest).unwrap();
+    shown_version(&view.tree.node(index).item).unwrap()
 }

@@ -39,7 +39,7 @@ fn a_reload_ends_every_watch() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_close_drops_the_opened_encrypted_folders_and_their_thumbnails() {
+async fn a_close_drops_the_opened_encrypted_folders_their_thumbnails_and_copies() {
     let (_dir, files) = state();
     let gate = VaultGate::with_runtime(tokio::runtime::Handle::current());
     gate.begin_session().unwrap();
@@ -47,16 +47,26 @@ async fn a_close_drops_the_opened_encrypted_folders_and_their_thumbnails() {
     files
         .memory_thumbnails
         .put("k".to_owned(), &Ok(vec![1, 2, 3]));
+    let copy = files.opened_encrypted.join("a").join("brief.pdf");
+    std::fs::create_dir_all(copy.parent().unwrap()).unwrap();
+    std::fs::write(&copy, "entschlüsselt").unwrap();
     files.forget_on_close(&gate);
     files.forget_on_close(&gate);
     assert!(files.encrypted.heads("s1", "").is_some());
 
     gate.request_close();
     tokio::time::timeout(WAIT, async {
-        while files.encrypted.heads("s1", "").is_some() || files.memory_thumbnails.size() > 0 {
+        while files.encrypted.heads("s1", "").is_some()
+            || files.memory_thumbnails.size() > 0
+            || files.opened_encrypted.exists()
+        {
             tokio::task::yield_now().await;
         }
     })
     .await
     .expect("forgotten after the close");
+    assert!(
+        !files.thumbnails.starts_with(&files.opened_encrypted),
+        "a place of its own"
+    );
 }

@@ -1,19 +1,27 @@
 <script setup lang="ts">
 /**
- * A name a transfer finds taken at its target (spec 044 FR-021): replace, keep both (the new one
- * gets a number) or skip, optionally for every further name of this transfer. Closing the dialog
- * cancels the transfer.
+ * What a transfer waits on. A name it finds taken at its target (spec 044 FR-021): replace, keep
+ * both (the new one gets a number) or skip, optionally for every further name of this transfer.
+ * Or, before it starts, files of an encrypted folder that would lie unencrypted in an ordinary
+ * folder of a cloud storage (spec 048 FR-019): go on or cancel. Closing the dialog cancels the
+ * transfer.
  */
-import type { ConflictChoice } from '@bindings/ConflictChoice'
+import type { TransferAnswer } from '@bindings/TransferAnswer'
 
-const props = defineProps<{ open: boolean; name: string }>()
+const props = defineProps<{
+  open: boolean
+  name: string
+  /** Set when files leave an encrypted folder: how many. */
+  leaving?: number | null
+}>()
 const emit = defineEmits<{
-  answer: [choice: ConflictChoice, forAll: boolean]
+  answer: [choice: TransferAnswer, forAll: boolean]
   cancel: []
 }>()
 
 const { t } = useI18n()
 const forAll = ref(false)
+const leaves = computed(() => props.leaving != null)
 watch(
   () => props.open,
   (open) => {
@@ -27,7 +35,41 @@ watch(
     :open="open"
     @update:open="(value: boolean) => !value && emit('cancel')"
   >
-    <ShadcnAlertDialogContent data-testid="files-conflict">
+    <ShadcnAlertDialogContent
+      v-if="leaves"
+      data-testid="files-leave-encryption"
+    >
+      <ShadcnAlertDialogHeader>
+        <ShadcnAlertDialogTitle>{{
+          t('files.conflict.leaving.title')
+        }}</ShadcnAlertDialogTitle>
+        <ShadcnAlertDialogDescription>
+          {{
+            t(
+              'files.conflict.leaving.body',
+              { count: leaving ?? 0 },
+              leaving ?? 0,
+            )
+          }}
+        </ShadcnAlertDialogDescription>
+      </ShadcnAlertDialogHeader>
+      <ShadcnAlertDialogFooter class="flex-wrap gap-2">
+        <UiButton
+          variant="outline"
+          data-testid="files-leave-encryption-cancel"
+          @click="emit('answer', 'cancel', false)"
+        >
+          {{ t('files.cancel') }}
+        </UiButton>
+        <UiButton
+          data-testid="files-leave-encryption-proceed"
+          @click="emit('answer', 'proceed', false)"
+        >
+          {{ t('files.conflict.leaving.proceed') }}
+        </UiButton>
+      </ShadcnAlertDialogFooter>
+    </ShadcnAlertDialogContent>
+    <ShadcnAlertDialogContent v-else data-testid="files-conflict">
       <ShadcnAlertDialogHeader>
         <ShadcnAlertDialogTitle>{{
           t('files.conflict.title')

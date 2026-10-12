@@ -10,6 +10,7 @@ use std::sync::Arc;
 use tokio::time::Instant;
 
 use super::cache::{self, HeadRow};
+use super::cleanup;
 use super::format::head::HeadOutcome;
 use super::format::{encode_id, is_folder_prefix};
 use super::load::{load_folder, load_heads, read_head, LoadedHead};
@@ -92,6 +93,30 @@ pub async fn route(files: &StorageFiles, path: &str) -> Result<Route, FilesError
         prefix.push('/');
     }
     Ok(Route::Plain)
+}
+
+/// The encrypted folder at the object prefix `prefix` (`…/<fid>.hxef/`), as its parent's listing
+/// names it; for a transfer that finds one inside an ordinary folder (spec 048 T044).
+pub async fn located_at(files: &StorageFiles, prefix: &str) -> Result<Located, FilesError> {
+    let scope = files.scope().ok_or_else(in_encrypted)?;
+    let parent = parent_of(prefix);
+    let head = heads_of(files, scope, parent)
+        .await?
+        .into_iter()
+        .find(|head| head.prefix == prefix)
+        .ok_or_else(|| FilesError::new(FilesErrorCode::NotFound, "not found"))?;
+    let mut root: String = parent
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .map(|part| format!("/{part}"))
+        .collect();
+    root.push('/');
+    root.push_str(&head.display);
+    Ok(Located {
+        head,
+        root,
+        rest: Vec::new(),
+    })
 }
 
 /// Whether this session's listings show the folders of the file `path` of `storage` outside every
@@ -274,6 +299,22 @@ async fn remember(
     .map_err(vault_error)
 }
 
+/// Forgets the heads of the level that holds the encrypted folder `prefix` (it was renamed, moved
+/// or deleted), so the next path through that level lists it again.
+pub fn forget_level(files: &StorageFiles, prefix: &str) {
+    if let Some(scope) = files.scope() {
+        scope
+            .folders
+            .forget_heads(&scope.storage_id, parent_of(prefix));
+    }
+}
+
+/// The prefix of the level that holds the prefix `prefix` (`""` at the root).
+pub fn parent_of(prefix: &str) -> &str {
+    let trimmed = prefix.trim_end_matches('/');
+    trimmed.rfind('/').map_or("", |slash| &prefix[..=slash])
+}
+
 /// The last segment of a key or prefix.
 fn raw_name(key: &str) -> &str {
     key.trim_end_matches('/').rsplit('/').next().unwrap_or("")
@@ -402,6 +443,14 @@ pub async fn load_view(
         })
         .await
         .map_err(vault_error)?;
+    }
+    let leftovers = cleanup::leftovers(&loaded, cleanup::now_ms());
+    if !leftovers.is_empty() {
+        let (store, access) = (Arc::clone(files.store()), files.access().clone());
+        let prefix = folder.prefix.clone();
+        (scope.background)(Box::pin(async move {
+            cleanup::clean(store.as_ref(), &access, &prefix, &leftovers).await;
+        }));
     }
     Ok(loaded)
 }

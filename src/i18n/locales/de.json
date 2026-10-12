@@ -2116,7 +2116,12 @@
       "replace": "Ersetzen",
       "keepBoth": "Beide behalten",
       "skip": "Überspringen",
-      "answer": "Frage beantworten"
+      "answer": "Frage beantworten",
+      "leaving": {
+        "title": "Ohne Verschlüsselung ablegen?",
+        "body": "{count} Datei aus einem verschlüsselten Ordner liegt danach unverschlüsselt im Cloud-Speicher, und der Anbieter kann sie lesen. | {count} Dateien aus einem verschlüsselten Ordner liegen danach unverschlüsselt im Cloud-Speicher, und der Anbieter kann sie lesen.",
+        "proceed": "Unverschlüsselt ablegen"
+      }
     },
     "delete": {
       "title": "Endgültig löschen?",
@@ -2194,6 +2199,12 @@
         "otherVault": "Verschlüsselter Ordner einer anderen Vault",
         "newerFormat": "Braucht eine neuere Version von holzi",
         "damaged": "Beschädigt: lässt sich nicht entschlüsseln"
+      },
+      "openSystem": {
+        "title": "Entschlüsselte Kopie auf diesem Gerät",
+        "body": "Damit eine andere App die Datei öffnen kann, legt holzi eine entschlüsselte Kopie auf diesem Gerät ab. Die App kann sie behalten. holzi entfernt seine Kopie, wenn du die Vault sperrst oder schließt.",
+        "dontAskAgain": "Nicht mehr fragen",
+        "confirm": "Öffnen"
       }
     },
     "error": {
@@ -2218,7 +2229,8 @@
       "noKey": "Auf diesem Gerät fehlt noch der Schlüssel der Vault. Warte, bis es synchronisiert ist.",
       "damaged": "Beschädigt: Das lässt sich nicht entschlüsseln.",
       "otherVault": "Dieser Ordner gehört einer anderen Vault.",
-      "newerFormat": "Dafür braucht es eine neuere Version von holzi."
+      "newerFormat": "Dafür braucht es eine neuere Version von holzi.",
+      "needsNotice": "Das geht erst nach dem Hinweis."
     },
     "agentPermission": {
       "title": "Zugriff auf einen Cloud-Speicher",

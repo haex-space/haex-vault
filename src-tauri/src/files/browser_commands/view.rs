@@ -1,6 +1,5 @@
 //! The viewer, thumbnails and opening with the system's app (spec 044 US1, US2).
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -10,7 +9,9 @@ use ts_rs::TS;
 
 use super::{blocking, device_path, storage_of, window_storage};
 use crate::files::access::Want;
-use crate::files::encrypted::ops::{file_at, later};
+#[cfg(desktop)]
+use crate::files::encrypted::opened::copy_for_app;
+use crate::files::encrypted::ops::file_at;
 #[cfg(desktop)]
 use crate::files::encrypted::redacted::Redacted;
 use crate::files::encrypted::route::{plain_by_memory, route, Located, Route};
@@ -274,7 +275,10 @@ async fn memory_thumbnail(storage: &StorageFiles, at: &Located) -> Result<Vec<u8
     blocking(move || thumbnails::render_bytes(&bytes)).await
 }
 
-/// Opens a file with the system's app for it (FR-014).
+/// Opens a file with the system's app for it (FR-014). A file of an encrypted folder needs the
+/// notice first (spec 048 FR-028): without `confirmed`, and unless "Nicht mehr fragen" was chosen
+/// for its folder on this device, the answer is `needsNotice`; `confirmed` with `dont_ask_again`
+/// remembers that choice. Not on mobiles yet (research R11).
 #[tauri::command]
 pub async fn files_open_system(
     app: AppHandle,
@@ -282,14 +286,33 @@ pub async fn files_open_system(
     files: State<'_, FilesState>,
     source: SourceRef,
     path: String,
+    confirmed: bool,
+    dont_ask_again: bool,
 ) -> Result<(), FilesError> {
-    let real = match storage_of(&source) {
-        Some(id) => download_to_open(&app, &state, &files, id, &path).await?,
-        None => device_path(&files, &source, &path, Want::Read)?,
-    };
+    #[cfg(mobile)]
+    {
+        let _ = (app, state, files, source, path, confirmed, dont_ask_again);
+        Err(FilesError::new(
+            FilesErrorCode::Unsupported,
+            "not on this platform yet",
+        ))
+    }
     #[cfg(desktop)]
     {
         use tauri_plugin_opener::OpenerExt;
+        let real = match storage_of(&source) {
+            Some(id) => {
+                let storage = window_storage(&app, &state, &files, id).await?;
+                match route(&storage, &path).await? {
+                    Route::Encrypted(at) => {
+                        let root = &files.opened_encrypted;
+                        copy_for_app(&storage, &at, root, confirmed, dont_ask_again).await?
+                    }
+                    Route::Plain => download_to_open(&storage, &files, &path).await?,
+                }
+            }
+            None => device_path(&files, &source, &path, Want::Read)?,
+        };
         app.opener()
             .open_path(real.to_string_lossy(), None::<&str>)
             .map_err(|error| {
@@ -302,30 +325,16 @@ pub async fn files_open_system(
                 FilesError::new(FilesErrorCode::Unsupported, "no app for this file")
             })
     }
-    #[cfg(mobile)]
-    {
-        let _ = (app, real);
-        Err(FilesError::new(
-            FilesErrorCode::Unsupported,
-            "not on this platform yet",
-        ))
-    }
 }
 
-/// A file of a storage, downloaded into holzi's cache so the system's app can open it (FR-014;
-/// the copy stays until the cache is cleared).
+/// A file of an ordinary folder of a storage, downloaded into holzi's cache so the system's app
+/// can open it (FR-014; the copy stays until the cache is cleared).
+#[cfg(desktop)]
 async fn download_to_open(
-    app: &AppHandle,
-    state: &State<'_, AppState>,
+    storage: &StorageFiles,
     files: &FilesState,
-    storage_id: &str,
     path: &str,
-) -> Result<PathBuf, FilesError> {
-    let storage = window_storage(app, state, files, storage_id).await?;
-    // Encrypted folders need the notice and their own folder first (spec 048 US5).
-    if let Route::Encrypted(_) = route(&storage, path).await? {
-        return Err(later());
-    }
+) -> Result<std::path::PathBuf, FilesError> {
     let entry = storage.stat(path).await?;
     if entry.kind != EntryKind::File {
         return Err(FilesError::invalid_path("not a file"));

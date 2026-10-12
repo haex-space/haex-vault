@@ -11,7 +11,7 @@ use crate::files::state::FilesState;
 use crate::files::transfer::local::{prepare, touches_own, Job};
 use crate::files::transfer::remote::{prepare_remote, RemoteJob};
 use crate::files::transfer::{
-    platform_removal, same_device, ConflictChoice, TransferEvent, TransferManager, TransferOp,
+    platform_removal, same_device, TransferAnswer, TransferEvent, TransferManager, TransferOp,
 };
 use crate::files::{Entry, FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
@@ -242,12 +242,13 @@ pub async fn files_import_dropped(
     .await
 }
 
-/// Answers the name conflict a transfer waits on.
+/// Answers the question a transfer waits on: a taken name, or files leaving an encrypted folder
+/// (spec 048 FR-019, `proceed` or `cancel`).
 #[tauri::command]
 pub fn files_transfer_answer(
     transfers: State<'_, TransferManager>,
     transfer_id: String,
-    choice: ConflictChoice,
+    choice: TransferAnswer,
     for_all: bool,
 ) {
     transfers.answer(&transfer_id, choice, for_all);

@@ -42,7 +42,7 @@ pub const RETRIES: [Duration; 3] = [
 pub(super) const CALL: Duration = Duration::from_secs(5 * 60);
 
 pub use super::remote_plan::{prepare_remote, Plan, RemoteJob, Side};
-use super::remote_plan::{remove_empty, EncTarget, Item};
+use super::remote_plan::{remove_empty, EncSource, EncTarget, Item};
 
 fn soon() -> Instant {
     Instant::now() + CALL
@@ -71,6 +71,8 @@ struct Run<'h, 'a> {
     totals: Totals,
     done: Totals,
     for_all: Option<ConflictChoice>,
+    /// Folders a move out of encrypted folders leaves, for the end.
+    emptied: Vec<EncSource>,
 }
 
 /// Runs a prepared job to its end; `retries` are the waits before trying a call again.
@@ -90,13 +92,17 @@ pub fn run_remote(
         totals: plan.totals,
         done: Totals::default(),
         for_all: None,
+        emptied: Vec::new(),
     };
-    let result = plan.items.iter().try_for_each(|item| run.item(item));
+    let mut result = plan.items.iter().try_for_each(|item| run.item(item));
     // A move leaves the device folders it emptied behind; they go too.
     if result.is_ok() && job.op == TransferOp::Move && matches!(job.from, Side::Device) {
         for folder in &plan.folders {
             remove_empty(folder);
         }
+    }
+    if result.is_ok() && !run.emptied.is_empty() {
+        result = run.finish_move();
     }
     match result {
         Ok(()) => Outcome::Done,
@@ -252,6 +258,9 @@ impl Run<'_, '_> {
 
     fn item(&mut self, item: &Item) -> Result<(), Stop> {
         self.check()?;
+        if let Some(source) = item.encrypted.as_ref().filter(|source| source.relink) {
+            return self.relink(item, source);
+        }
         if item.folder {
             self.make_folder(item)?;
         } else {
@@ -273,7 +282,9 @@ impl Run<'_, '_> {
 
     fn make_folder(&mut self, item: &Item) -> Result<(), Stop> {
         match self.place_of(&item.rel, true)? {
-            Place::Encrypted(rel) => self.encrypted_folder(&rel)?,
+            Place::Encrypted(rel) => {
+                self.encrypted_folder(&rel)?;
+            }
             Place::Device(path) => {
                 std::fs::create_dir_all(&path).map_err(|error| io_error(error, &path))?;
             }
@@ -401,8 +412,12 @@ impl Run<'_, '_> {
         out.sync_all().map_err(|error| io_error(error, part).into())
     }
 
-    /// After a move: the source goes (a device file for good, an object of a storage).
-    fn remove_source(&self, item: &Item) -> Result<(), Stop> {
+    /// After a move: the source goes (a device file for good, an object of a storage, a file of
+    /// an encrypted folder with its versions).
+    fn remove_source(&mut self, item: &Item) -> Result<(), Stop> {
+        if let Some(source) = &item.encrypted {
+            return self.remove_encrypted(source);
+        }
         match &self.job.from {
             Side::Device => {
                 if !item.folder {
@@ -421,6 +436,8 @@ impl Run<'_, '_> {
 
 #[path = "remote_encrypted.rs"]
 mod encrypted;
+#[path = "remote_encrypted_move.rs"]
+mod encrypted_move;
 #[path = "remote_upload.rs"]
 mod upload;
 

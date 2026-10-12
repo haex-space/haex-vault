@@ -43,6 +43,8 @@ pub struct FakeStore {
     once: Mutex<HashMap<Op, StorageError>>,
     calls: Mutex<Vec<(Op, String)>>,
     uploads: Mutex<HashMap<String, Upload>>,
+    /// Modification times other than the default, by bucket and key (ISO 8601).
+    times: Mutex<HashMap<(String, String), String>>,
 }
 
 impl FakeStore {
@@ -82,6 +84,14 @@ impl FakeStore {
             .lock()
             .expect("lock")
             .insert((bucket.to_owned(), key.to_owned()), body.to_vec());
+    }
+
+    /// Lists the object at `key` in `bucket` as last changed at `iso` (ISO 8601).
+    pub fn set_modified(&self, bucket: &str, key: &str, iso: &str) {
+        self.times
+            .lock()
+            .expect("lock")
+            .insert((bucket.to_owned(), key.to_owned()), iso.to_owned());
     }
 
     /// The object at `key` in `bucket`.
@@ -177,16 +187,20 @@ impl RemoteStore for FakeStore {
         _deadline: Instant,
     ) -> Result<Vec<ObjectInfo>, StorageError> {
         self.enter(Op::List, prefix)?;
+        let times = self.times.lock().expect("lock");
         let objects: Vec<ObjectInfo> = self
             .objects
             .lock()
             .expect("lock")
             .iter()
             .filter(|((b, k), _)| *b == access.location.bucket && k.starts_with(prefix))
-            .map(|((_, k), body)| ObjectInfo {
-                key: k.clone(),
+            .map(|(slot, body)| ObjectInfo {
+                key: slot.1.clone(),
                 size: body.len() as u64,
-                last_modified: "2026-10-06T10:00:00.000Z".to_owned(),
+                last_modified: times
+                    .get(slot)
+                    .cloned()
+                    .unwrap_or_else(|| "2026-10-06T10:00:00.000Z".to_owned()),
                 etag: etag(body),
             })
             .collect();

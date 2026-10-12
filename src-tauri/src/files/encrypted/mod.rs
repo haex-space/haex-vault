@@ -5,15 +5,19 @@
 //!   shown by its decrypted name), and opening one.
 //! - [`load`] and [`cache`]: heads and sidecars from the bucket, with the ETag cache in the vault.
 //! - [`tree`]: the view of a folder from its sidecars.
-//! - [`ops`]: list, stat, read and create inside; [`source`]: reading ranges block by block;
-//!   [`transfer`]: sealing uploads.
+//! - [`ops`]: list, stat, read and create inside; [`manage`]: rename, delete and the versions they
+//!   replace; [`cleanup`]: what stays behind; [`source`]: reading ranges block by block;
+//!   [`transfer`]: sealing uploads; [`opened`]: copies for the system's apps.
 //!
 //! Opened folders ([`EncryptedFolders`]) keep their keys in memory as `Zeroizing` until the vault
 //! closes. Nothing here logs a name, a path or an object key of an encrypted folder (FR-027).
 
 pub mod cache;
+pub mod cleanup;
 pub mod format;
 pub mod load;
+pub mod manage;
+pub mod opened;
 pub mod ops;
 pub mod redacted;
 pub mod route;
@@ -54,6 +58,9 @@ pub fn new_id() -> Id {
 /// itself, so a failed transfer kept for a retry does not hold the close up.
 pub type VaultSource = Arc<dyn Fn() -> Result<VaultDb, FilesError> + Send + Sync>;
 
+/// Runs work in the background of the vault session (the cleanup after a load), ending with it.
+pub type Background = Arc<dyn Fn(futures::future::BoxFuture<'static, ()>) + Send + Sync>;
+
 /// What a storage of the window needs for encrypted folders. Callers without it (agents, until
 /// spec 048 US6) see encrypted folders by their raw prefix and cannot go into them.
 #[derive(Clone)]
@@ -61,6 +68,7 @@ pub struct Scope {
     pub storage_id: String,
     pub folders: Arc<EncryptedFolders>,
     pub vault: VaultSource,
+    pub background: Background,
 }
 
 impl Scope {
@@ -118,6 +126,8 @@ pub struct OpenFolder {
     pub prefix: String,
     pub fid: Id,
     pub etag: Option<String>,
+    /// `FK`, for a new name in the head.
+    fk: Zeroizing<[u8; 32]>,
     keys: FolderKeys,
     view: tokio::sync::Mutex<Option<FolderView>>,
 }
@@ -135,6 +145,7 @@ impl OpenFolder {
             prefix,
             fid,
             etag,
+            fk: fk.clone(),
             keys: FolderKeys::derive(fk),
             view: tokio::sync::Mutex::new(None),
         }
@@ -173,6 +184,10 @@ impl OpenFolder {
 
     pub fn keys(&self) -> &FolderKeys {
         &self.keys
+    }
+
+    pub fn fk(&self) -> &[u8; 32] {
+        &self.fk
     }
 
     /// The sealed sidecar `sid` of this folder.
@@ -256,14 +271,92 @@ impl FolderView {
         self.rebuild(fid);
     }
 
-    /// Drops a version this device deleted.
-    pub fn remove(&mut self, fid: Id, sid: &Id) {
-        if let Some(version) = self.versions.remove(sid) {
-            if let Some(facts) = tree::facts(&version) {
-                self.contents.remove(&facts.content);
+    /// Drops versions this device deleted; their content objects go with them unless another
+    /// version still points at one (a rename keeps the content).
+    pub fn remove(&mut self, fid: Id, sids: &[Id]) {
+        for sid in sids {
+            if let Some(version) = self.versions.remove(sid) {
+                if let Some(facts) = tree::facts(&version) {
+                    if !self.references(&facts.content, &[]) {
+                        self.contents.remove(&facts.content);
+                    }
+                }
             }
         }
         self.rebuild(fid);
+    }
+
+    /// Whether a version of this view other than `except` points at the content object `oid`.
+    pub fn references(&self, oid: &Id, except: &[Id]) -> bool {
+        self.versions.values().any(|version| {
+            !except.contains(&version.sid)
+                && tree::facts(version).is_some_and(|facts| facts.content == *oid)
+        })
+    }
+
+    /// The version `sid`, whether it shows or not.
+    pub fn version(&self, sid: &Id) -> Option<&Version> {
+        self.versions.get(sid)
+    }
+
+    /// The versions of `entry` another version of it names as `base`: replaced, never shown.
+    pub fn superseded(&self, entry: &Id) -> Vec<Version> {
+        let of_entry: Vec<&Version> = self
+            .versions
+            .values()
+            .filter(|version| version.sidecar.entry == *entry)
+            .collect();
+        of_entry
+            .iter()
+            .filter(|version| {
+                of_entry
+                    .iter()
+                    .any(|other| other.sidecar.base == Some(version.sid))
+            })
+            .map(|version| (*version).clone())
+            .collect()
+    }
+
+    /// `gone` and the versions that would show again without them: a replaced version whose
+    /// every successor is in the set (format "Ansicht": a version nobody names counts).
+    pub fn with_replaced(&self, gone: &[Id]) -> Vec<Version> {
+        let mut out: HashSet<Id> = gone.iter().copied().collect();
+        let entries: HashSet<Id> = gone
+            .iter()
+            .filter_map(|sid| self.versions.get(sid))
+            .map(|version| version.sidecar.entry)
+            .collect();
+        let candidates: Vec<&Version> = self
+            .versions
+            .values()
+            .filter(|version| entries.contains(&version.sidecar.entry))
+            .collect();
+        loop {
+            let mut grown = false;
+            for version in &candidates {
+                if out.contains(&version.sid) {
+                    continue;
+                }
+                let mut successors = candidates
+                    .iter()
+                    .filter(|other| other.sidecar.base == Some(version.sid))
+                    .peekable();
+                if successors.peek().is_some() && successors.all(|other| out.contains(&other.sid)) {
+                    out.insert(version.sid);
+                    grown = true;
+                }
+            }
+            if !grown {
+                break;
+            }
+        }
+        let mut versions: Vec<Version> = out
+            .iter()
+            .filter_map(|sid| self.versions.get(sid).cloned())
+            .collect();
+        // Older versions first: what stays after a failure never shows an older one again.
+        versions.sort_by_key(|version| (version.sidecar.revision, version.sid));
+        versions
     }
 
     fn rebuild(&mut self, fid: Id) {
@@ -313,6 +406,14 @@ impl EncryptedFolders {
         self.inner()
             .heads
             .insert((storage.to_owned(), parent.to_owned()), heads);
+    }
+
+    /// Forgets the heads below `parent` (a folder there was renamed, moved or deleted), so the
+    /// next path through it lists that level again.
+    pub fn forget_heads(&self, storage: &str, parent: &str) {
+        self.inner()
+            .heads
+            .remove(&(storage.to_owned(), parent.to_owned()));
     }
 
     /// The folder `prefix` of `storage`, opened with the head of `etag`.

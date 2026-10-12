@@ -2116,7 +2116,12 @@
       "replace": "Replace",
       "keepBoth": "Keep both",
       "skip": "Skip",
-      "answer": "Answer question"
+      "answer": "Answer question",
+      "leaving": {
+        "title": "Store without encryption?",
+        "body": "{count} file from an encrypted folder will then lie unencrypted in the cloud storage, where the provider can read it. | {count} files from an encrypted folder will then lie unencrypted in the cloud storage, where the provider can read them.",
+        "proceed": "Store unencrypted"
+      }
     },
     "delete": {
       "title": "Delete for good?",
@@ -2194,6 +2199,12 @@
         "otherVault": "Another vault's encrypted folder",
         "newerFormat": "Needs a newer version of holzi",
         "damaged": "Damaged: cannot be decrypted"
+      },
+      "openSystem": {
+        "title": "Decrypted copy on this device",
+        "body": "So that another app can open the file, holzi places a decrypted copy on this device. The app may keep it. holzi removes its copy when you lock or close the vault.",
+        "dontAskAgain": "Don't ask again",
+        "confirm": "Open"
       }
     },
     "error": {
@@ -2218,7 +2229,8 @@
       "noKey": "This device does not have the vault's key yet. Wait until it has synced.",
       "damaged": "Damaged: this cannot be decrypted.",
       "otherVault": "This folder belongs to another vault.",
-      "newerFormat": "This needs a newer version of holzi."
+      "newerFormat": "This needs a newer version of holzi.",
+      "needsNotice": "This needs the notice first."
     },
     "agentPermission": {
       "title": "Access to a cloud storage",

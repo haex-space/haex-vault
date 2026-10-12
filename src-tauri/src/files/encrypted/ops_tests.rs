@@ -138,24 +138,3 @@ async fn a_sub_folder_is_one_sidecar_and_survives_a_fresh_load() {
     let stat = other.stat("/Unterlagen/Belege/2026").await.unwrap();
     assert_eq!(stat.kind, EntryKind::Dir);
 }
-
-#[tokio::test(flavor = "multi_thread")]
-async fn renaming_and_deleting_inside_wait_for_a_later_version() {
-    let scene = Scene::new();
-    let files = scene.files();
-    create_encrypted_folder(&files, "/", "Unterlagen")
-        .await
-        .unwrap();
-    files.create_folder("/Unterlagen", "Belege").await.unwrap();
-    let error = files
-        .rename("/Unterlagen/Belege", "Akten")
-        .await
-        .unwrap_err();
-    assert_eq!(error.code, FilesErrorCode::Unsupported);
-    let cancel = tokio_util::sync::CancellationToken::new();
-    let error = files
-        .delete("/Unterlagen", &cancel, &mut |_| {})
-        .await
-        .unwrap_err();
-    assert_eq!(error.code, FilesErrorCode::Unsupported);
-}

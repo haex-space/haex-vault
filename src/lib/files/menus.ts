@@ -32,6 +32,8 @@ export type EntriesMenuInput = {
   readOnly: boolean
   /** The selection mode is on (touch selects through the menu). */
   selecting: boolean
+  /** The system's apps can open files here; not on Android yet (spec 048 research R11). */
+  systemApps?: boolean
 }
 
 const item = (id: FilesCommand, disabled = false): FilesMenuItem => ({
@@ -47,7 +49,8 @@ export function entriesMenu(input: EntriesMenuInput): FilesMenuEntry[] {
   const single = input.count === 1
   const entries: FilesMenuEntry[] = []
   if (single) entries.push(item('open'))
-  if (single && input.singleFile) entries.push(item('openSystem'))
+  if (single && input.singleFile && input.systemApps !== false)
+    entries.push(item('openSystem'))
   if (!input.selecting) entries.push(item('select'))
   entries.push(
     SEPARATOR,

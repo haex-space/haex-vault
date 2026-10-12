@@ -18,10 +18,16 @@ const props = defineProps<{
   siblings: Entry[]
 }>()
 
-const emit = defineEmits<{ close: []; show: [entry: Entry] }>()
+const emit = defineEmits<{
+  close: []
+  show: [entry: Entry]
+  /** Open with the system's app; the frame asks first for a file of an encrypted folder. */
+  openSystem: [path: string]
+}>()
 
 const { t, d } = useI18n()
-const { readTextAsync, openAsync, releaseAsync, openSystemAsync } = useFiles()
+const { readTextAsync, openAsync, releaseAsync } = useFiles()
+const { isAndroid } = useDeviceCapabilities()
 const { tabId } = useWmTab()
 
 const kind = computed(() => viewerKind(props.entry.name))
@@ -106,13 +112,8 @@ function onKeydown(event: KeyboardEvent) {
   else if (event.key === 'ArrowRight') step(1)
 }
 
-async function openSystem() {
-  try {
-    await openSystemAsync(props.source, props.entry.path)
-  } catch (error) {
-    const code = asFilesError(error)?.code
-    failed.value = code ? t(`files.error.${code}`) : String(error)
-  }
+function openSystem() {
+  emit('openSystem', props.entry.path)
 }
 
 const panel = useTemplateRef<HTMLElement>('panel')
@@ -166,6 +167,7 @@ onMounted(() => panel.value?.focus())
         </UiButton>
       </template>
       <UiButton
+        v-if="!isAndroid"
         variant="ghost"
         size="icon"
         :aria-label="t('files.viewer.openSystem')"
@@ -257,7 +259,7 @@ onMounted(() => panel.value?.focus())
             }}
           </dd>
         </template>
-        <dd class="col-span-2 pt-4">
+        <dd v-if="!isAndroid" class="col-span-2 pt-4">
           <UiButton data-testid="files-info-open-system" @click="openSystem">
             <Icon name="lucide:external-link" class="size-4" />
             {{ t('files.viewer.openSystem') }}
