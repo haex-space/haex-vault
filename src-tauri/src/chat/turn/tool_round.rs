@@ -86,11 +86,11 @@ impl TurnRunner<'_> {
         let plans = self.plan_calls(step.tool_calls).await;
         let task = AgentTask::of_turn(&self.assistant_message_id.to_string(), self.session);
         let mut executed = within(
-            task,
+            task.clone(),
             Self::execute_plans(self.chat_state, &self.cancel, plans),
         )
         .await;
-        self.resolve_choices(&mut executed).await;
+        within(task, self.resolve_choices(&mut executed)).await;
 
         // Aborted mid-round (either an in-flight `execute()` was cut
         // short, or a pending approval's sender was dropped): none of
