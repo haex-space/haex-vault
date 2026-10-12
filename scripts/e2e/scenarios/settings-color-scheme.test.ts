@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, openChat } from '../lib/flows.ts'
+import { openVault } from '../lib/sync-flows.ts'
 import {
   backgroundContrast,
   choose,
@@ -24,7 +25,8 @@ const scheme = (instance: { exec<T>(s: string): Promise<T> }) =>
 scenario('settings-color-scheme', {}, async (ctx) => {
   const instance = await ctx.startInstance({ colorScheme: 'dark' })
   const name = 'e2e-settings-scheme'
-  await createAndUnlock(instance, { name })
+  const { passphrase } = ctx.credentials()
+  await createAndUnlock(instance, { name, passphrase })
   await openChat(instance)
   await openSettings(instance)
   await instance.click('settings-category-general')
@@ -104,18 +106,22 @@ scenario('settings-color-scheme', {}, async (ctx) => {
   const lightTrack = await trackContrast()
   ctx.step(`switch track in light mode ${lightTrack.toFixed(2)}`)
 
-  // S12: the start page follows the system, the workspace brings the vault's choice back.
-  await instance.navigate('tauri://localhost/')
-  await ctx.waitFor('the start page follows the system', async () => {
-    const path = await instance.exec<string>('return location.pathname')
-    return path === '/' && (await scheme(instance)).dark
+  // S12: the start page follows the system, the workspace brings the vault's choice back. One process
+  // holds one vault session (spec 013), and the start page sends an open vault to its workspace at once:
+  // it shows only before the vault opens, so the check starts the app again over the same data.
+  await instance.stop()
+  const next = await ctx.startInstance({
+    colorScheme: 'dark',
+    reusesRoot: instance.root,
   })
-  await instance.navigate(
-    `tauri://localhost/workspace/${encodeURIComponent(name)}`,
-  )
+  await ctx.waitFor('the start page follows the system', async () => {
+    const path = await next.exec<string>('return location.pathname')
+    return path === '/' && (await scheme(next)).dark
+  })
+  await openVault(next, name, passphrase)
   await ctx.waitFor('the workspace brings light back', async () => {
-    const path = await instance.exec<string>('return location.pathname')
-    return path.startsWith('/workspace/') && !(await scheme(instance)).dark
+    const path = await next.exec<string>('return location.pathname')
+    return path.startsWith('/workspace/') && !(await scheme(next)).dark
   })
   ctx.step('S12 start page and workspace')
 })
