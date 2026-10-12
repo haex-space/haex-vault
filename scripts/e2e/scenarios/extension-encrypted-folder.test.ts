@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { unwrap } from '../lib/flows.ts'
-import { devProject } from '../lib/extension-dev.ts'
 import {
   fixture,
   inFrame,
@@ -53,12 +50,13 @@ function text(page: Page, testid: string): Promise<string> {
   )
 }
 
-// Spec 048, US6 extension part (quickstart §8, T065): a manifest that asks for encrypted folders
-// is refused; an extension without `remoteStorage` is refused without a question; with it, holzi's
-// chooser names the folders and asks in the same view; an answer without "Erlaubnis merken" holds
-// until the extension reloads, one with it is not asked again; a revoke holds at once. The probe
-// fixture is not rebuilt: it calls the bridge by name like the storage scene, and permissions are
-// set from the scene. Needs Docker for RustFS; skipped without it.
+// Spec 048, US6 extension part (quickstart §8, T065): an extension without `remoteStorage` is
+// refused without a question; with it, holzi's chooser names the folders and asks in the same
+// view; an answer without "Erlaubnis merken" holds until the extension reloads, one with it is not
+// asked again; a revoke holds at once. The forbidden encrypted-folder manifest case is covered by
+// the Rust registry/developer-mode tests because developer project folders are not available on
+// Android. The probe fixture is not rebuilt: it calls the bridge by name like the storage scene,
+// and permissions are set from the scene. Needs Docker for RustFS; skipped without it.
 scenario(
   'extension-encrypted-folder',
   { timeoutMs: 300_000, needs: { container: true } },
@@ -68,24 +66,6 @@ scenario(
     ctx.step('RustFS started')
     const group = await ctx.group({ users: { anna: ['laptop'] } })
     const page = group.device('anna/laptop').page
-
-    // The project is read before anything else, so developer mode need not be on to see it.
-    const project = devProject(5199)
-    const manifestPath = join(project, 'haextension', 'manifest.json')
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<
-      string,
-      unknown
-    >
-    manifest.permissions = {
-      encryptedFolder: [{ target: '*', operation: 'read' }],
-    }
-    writeFileSync(manifestPath, JSON.stringify(manifest))
-    const refused = (await page.invoke('extension_dev_load', {
-      projectPath: project,
-    })) as { ok: boolean; error?: { reason?: string } }
-    assert.equal(refused.ok, false)
-    assert.equal(refused.error?.reason, 'forbidden_permission')
-    ctx.step('a manifest asking for encrypted folders is refused')
 
     const storageId = await connectStorage(page, rustfs, BUCKET, 'Fotos')
     unwrap(
