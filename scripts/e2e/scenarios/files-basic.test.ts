@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { deviceFiles } from '../lib/extension-files.ts'
 import { createAndUnlock, type FlowInstance } from '../lib/flows.ts'
 import { solidPng } from '../lib/png.ts'
+import { doubleClick } from '../lib/passwords.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 
@@ -71,7 +72,7 @@ scenario('files-basic', { timeoutMs: 180_000 }, async (ctx) => {
     assert.deepEqual(await entryNames(instance), ['foto.png', 'notiz.txt'])
 
     // A text opens in the viewer.
-    await instance.click('files-entry-notiz.txt')
+    await doubleClick(instance, 'files-entry-notiz.txt')
     await instance.waitForDisplayed('files-viewer-text')
     assert.match(
       await textOf(instance, 'files-viewer-text'),
@@ -80,7 +81,7 @@ scenario('files-basic', { timeoutMs: 180_000 }, async (ctx) => {
     await instance.click('files-viewer-close')
 
     // An image opens too.
-    await instance.click('files-entry-foto.png')
+    await doubleClick(instance, 'files-entry-foto.png')
     await instance.waitForDisplayed('files-viewer-image')
     await instance.click('files-viewer-close')
 
@@ -126,7 +127,7 @@ scenario('files-basic', { timeoutMs: 180_000 }, async (ctx) => {
     await ctx.waitFor('the folder in its parent', () =>
       scrollTo(instance, folderName),
     )
-    await instance.click(`files-entry-${folderName}`)
+    await doubleClick(instance, `files-entry-${folderName}`)
     await instance.waitForDisplayed('files-entry-notiz.txt')
     // A folder opened again starts at the top.
     assert.equal(await scrollTop(instance), 0)

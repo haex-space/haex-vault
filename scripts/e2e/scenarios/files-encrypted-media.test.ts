@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { deviceFiles } from '../lib/extension-files.ts'
 import { fileFixture } from '../lib/file-fixtures.ts'
 import { createAndUnlock, type FlowInstance } from '../lib/flows.ts'
-import { contextMenu } from '../lib/passwords.ts'
+import { contextMenu, doubleClick } from '../lib/passwords.ts'
 import { startRustfs } from '../lib/rustfs.ts'
 import { scenario } from '../lib/scenario.ts'
 import { connectStorage, filesGo } from '../lib/storage-setup.ts'
@@ -82,13 +82,13 @@ scenario(
       await instance.click('files-menu-copy')
       await instance.click('files-storage-Medien')
       await instance.waitForDisplayed('files-entry-Filme')
-      await instance.click('files-entry-Filme')
+      await doubleClick(instance, 'files-entry-Filme')
       await instance.click('files-action-paste')
       await instance.waitForDisplayed(`files-entry-${name}`)
     }
     ctx.step('MP3 and MP4 went into the encrypted folder')
 
-    await instance.click('files-entry-ton.mp3')
+    await doubleClick(instance, 'files-entry-ton.mp3')
     await instance.waitForDisplayed('files-viewer-audio')
     await ctx.waitFor('the MP3 to play', () =>
       instance.exec<boolean>(
@@ -101,7 +101,7 @@ scenario(
     await instance.click('files-viewer-close')
     ctx.step('the MP3 plays')
 
-    await instance.click('files-entry-film.mp4')
+    await doubleClick(instance, 'files-entry-film.mp4')
     await instance.waitForDisplayed('files-viewer-video')
     await ctx.waitFor('the film to play and seek', () =>
       instance.exec<boolean>(

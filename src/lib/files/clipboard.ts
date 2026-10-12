@@ -8,13 +8,14 @@ export type Selection = { paths: string[]; anchor: string | null }
 
 export const EMPTY_SELECTION: Selection = { paths: [], anchor: null }
 
-/** Keys held during a click: toggle (Ctrl or Cmd), range (Shift). */
-export type ClickKeys = { toggle: boolean; range: boolean }
+/** Keys held during a click: toggle (Ctrl or Cmd), range (Shift); `touch` for a tap. */
+export type ClickKeys = { toggle: boolean; range: boolean; touch: boolean }
 
 /**
- * What a click on `path` does. Without keys and without a selection it opens the entry; with a
- * selection a plain click toggles (as on touch, where there are no keys). Toggle adds or removes,
- * range selects from the anchor to `path` in the folder's `order`.
+ * What a click on `path` does. A plain mouse click selects the entry alone (a double click opens
+ * it, `FolderView.vue`). A tap opens the entry while nothing is selected and toggles it otherwise,
+ * as there are no keys on touch. Toggle adds or removes, range selects from the anchor to `path` in
+ * the folder's `order`.
  */
 export function clickEntry(
   selection: Selection,
@@ -36,8 +37,11 @@ export function clickEntry(
       }
     }
   }
-  if (!keys.toggle && !keys.range && selection.paths.length === 0) {
-    return { selection, activate: true }
+  if (!keys.toggle && !keys.range) {
+    if (!keys.touch) {
+      return { selection: { paths: [path], anchor: path }, activate: false }
+    }
+    if (selection.paths.length === 0) return { selection, activate: true }
   }
   const paths = selection.paths.includes(path)
     ? selection.paths.filter((p) => p !== path)

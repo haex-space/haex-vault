@@ -151,6 +151,23 @@ export async function contextMenu(
   )
 }
 
+/** Double-clicks the element found by hook, as the rig has no pointer actions: a `dblclick` event
+ * (a file browser entry opens on it, a single click only selects). */
+export async function doubleClick(
+  instance: FlowInstance,
+  hook: string,
+  deadlineMs?: number,
+): Promise<void> {
+  await instance.waitForDisplayed(hook, deadlineMs)
+  await instance.exec(
+    `document.querySelector(arguments[0]).dispatchEvent(new MouseEvent('dblclick', {
+       bubbles: true, cancelable: true, detail: 2,
+     }))
+     return true`,
+    [toSelector(hook)],
+  )
+}
+
 /** Drags the element found by `from` onto the one found by `to` with the events of HTML drag and
  * drop and one shared `DataTransfer`, as the browser does (the rig has no pointer actions). The
  * target is looked for once the drag has started: some only show while something is dragged (the

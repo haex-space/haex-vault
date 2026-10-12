@@ -103,6 +103,13 @@ HTTP-Server mit Tokens (aus haex-vault), nie ganze Datei im RAM."
 - Q: Wie greift holzi auf Android zu? → A: Mit „Zugriff auf alle Dateien“; echte Pfade wie auf dem
   Desktop, kein Weg über einzeln gewählte Ordner.
 
+### Session 2026-10-11
+
+- Q: Wie wählt man Einträge aus, und wie öffnet man sie? → A: Mit der Maus wählt ein Klick den Eintrag
+  aus (Strg fügt hinzu oder nimmt weg, Umschalt wählt einen Bereich), ein Doppelklick, Enter oder
+  Leertaste öffnet ihn, ein Klick auf die freie Fläche hebt die Auswahl auf. Auf Touch öffnet ein
+  Tippen, solange nichts ausgewählt ist (Betreiber).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Dateien durchsuchen und ansehen (Priority: P1)
@@ -395,6 +402,9 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 
 - **FR-017**: Der Nutzer MUSS Ordner anlegen und Einträge umbenennen können. Ein vorhandener Name
   MUSS mit Grund abgelehnt werden.
+- **FR-017a**: Mit der Maus MUSS ein Klick einen Eintrag auswählen und ein Doppelklick ihn öffnen;
+  Enter und Leertaste MÜSSEN ihn ebenfalls öffnen. Auf Touch MUSS ein Tippen ihn öffnen, solange
+  nichts ausgewählt ist.
 - **FR-018**: Der Nutzer MUSS eine Auswahl kopieren und verschieben können, über Menü, eine
   Zwischenablage innerhalb von holzi und Ziehen innerhalb von holzi, auch zwischen Gerät und
   Speicher.

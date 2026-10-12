@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The bar above the folder while entries are selected or something waits in holzi's clipboard
+ * The bar below the folder while entries are selected or something waits in holzi's clipboard
  * (spec 044 FR-017, FR-018): the same commands as the context menu, reachable on touch without a
  * long press.
  */
@@ -19,7 +19,7 @@ const { t } = useI18n()
 
 <template>
   <div
-    class="flex h-11 shrink-0 items-center gap-1 border-b bg-background px-2 text-sm"
+    class="flex h-11 shrink-0 items-center gap-1 border-t bg-background px-2 text-sm"
     data-testid="files-action-bar"
   >
     <template v-if="selected">

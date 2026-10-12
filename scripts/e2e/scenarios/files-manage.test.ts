@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 
 import { deviceFiles } from '../lib/extension-files.ts'
 import { createAndUnlock, unwrap, type FlowInstance } from '../lib/flows.ts'
-import { contextMenu, dragTo } from '../lib/passwords.ts'
+import { contextMenu, doubleClick, dragTo } from '../lib/passwords.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 
@@ -93,7 +93,7 @@ scenario('files-manage', { timeoutMs: 240_000 }, async (ctx) => {
     ctx.step('moved by dragging')
 
     // A copy whose name is taken: keep both.
-    await instance.click('files-entry-ordner')
+    await doubleClick(instance, 'files-entry-ordner')
     await instance.waitForDisplayed('files-entry-x.txt')
     await contextMenu(instance, 'files-entry-b.txt')
     await instance.click('files-menu-copy')
@@ -125,7 +125,7 @@ scenario('files-manage', { timeoutMs: 240_000 }, async (ctx) => {
     // A folder pasted into itself is refused before anything starts.
     await contextMenu(instance, 'files-entry-ordner')
     await instance.click('files-menu-copy')
-    await instance.click('files-entry-ordner')
+    await doubleClick(instance, 'files-entry-ordner')
     await instance.waitForDisplayed('files-entry-x.txt')
     await instance.click('files-action-paste')
     await ctx.waitFor('the refusal', () =>
