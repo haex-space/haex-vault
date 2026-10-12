@@ -1318,6 +1318,11 @@
       "autonomy": {
         "setMode": "Autonomie-Modus setzen"
       },
+      "agents": {
+        "files": {
+          "set": "Dateirechte eines Agents setzen"
+        }
+      },
       "general": {
         "setLanguage": "Sprache festlegen"
       },
