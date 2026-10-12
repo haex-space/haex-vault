@@ -57,6 +57,7 @@ const LOCATION_PATHS: Record<string, string> = {
   'agents.providers': '/agents/providers',
   'agents.autonomy': '/agents/autonomy',
   'agents.denyRules': '/agents/deny-rules',
+  'agents.files': '/agents/files',
   storage: '/storage',
   'storage.connection': '/storage/connections/new',
   'storage.storage': '/storage/connections/c1/storages/new',
@@ -158,6 +159,7 @@ test('overview rows of general (spec 042), models and agents; federation has non
     'agents.providers',
     'agents.autonomy',
     'agents.denyRules',
+    'agents.files',
   ])
   assert.deepEqual(rows('general'), [
     'general.basic',

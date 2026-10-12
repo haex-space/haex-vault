@@ -62,15 +62,19 @@ impl<R: Runtime> TauriEnv<R> {
     }
 
     fn vault(&self) -> Result<crate::vault_gate::VaultDb, FilesError> {
-        self.app
-            .state::<AppState>()
-            .database()
-            .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "no open vault"))
+        open_vault(&self.app.state::<AppState>())
     }
 }
 
+/// The open vault's database.
+pub(super) fn open_vault(state: &AppState) -> Result<crate::vault_gate::VaultDb, FilesError> {
+    state
+        .database()
+        .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "no open vault"))
+}
+
 /// A database error, without its details.
-fn vault_error(error: HolziError) -> FilesError {
+pub(super) fn vault_error(error: HolziError) -> FilesError {
     log::warn!("files: the permissions of agents could not be read or written: {error}");
     FilesError::new(FilesErrorCode::Unsupported, "the vault could not be read")
 }

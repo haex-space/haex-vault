@@ -571,6 +571,11 @@
           "title": "Verbotsregeln für Delegaten",
           "description": "Aktionen, die auch im autonomen Modus tabu bleiben.",
           "keywords": "verbieten Regeln tabu Befehle"
+        },
+        "files": {
+          "title": "Dateien",
+          "description": "Was Agents auf dem Gerät und in Cloud-Speichern dürfen.",
+          "keywords": "Dateien Zugriff Berechtigung Cloud-Speicher Gerät widerrufen"
         }
       },
       "federation": {
@@ -884,6 +889,20 @@
         "loadHint": "Ordner mit haextension/manifest.json",
         "unload": "Entladen"
       }
+    },
+    "agentFiles": {
+      "builtin": "Agent im Chat",
+      "device": "Dateien des Geräts",
+      "deviceDescription": "Lesen und Suchen überall, Ändern nach der Freigabestufe",
+      "storageDescription": "Cloud-Speicher",
+      "status": {
+        "ask": "Fragt nach",
+        "read": "Lesen",
+        "readWrite": "Lesen und Schreiben",
+        "denied": "Abgelehnt"
+      },
+      "loadFailed": "Berechtigungen nicht geladen",
+      "failed": "Nicht gespeichert"
     },
     "storage": {
       "intro": "Verbindungen zu S3-kompatiblen Anbietern. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
