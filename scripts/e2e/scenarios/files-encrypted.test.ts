@@ -222,6 +222,10 @@ scenario(
     await doubleClick(instance, 'files-entry-foto.png')
     await instance.waitForDisplayed('files-viewer-failed')
     await instance.click('files-viewer-close')
+    await instance.waitForDisplayed(
+      'files-entry-brief.pdf',
+      FILE_ENTRY_TIMEOUT_MS,
+    )
     await doubleClick(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed('files-viewer-pdf')
     await instance.click('files-viewer-close')
