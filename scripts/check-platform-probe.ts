@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { runPlatformProbe } from '../src/lib/platformProbe.ts'
-import { judgeProbe } from './lib/platformProbeResult.ts'
+import { judgeProbe, parseExpectation } from './lib/platformProbeResult.ts'
 
 const answering = (status: number, body: string): typeof fetch =>
   (async () => new Response(body, { status })) as typeof fetch
@@ -90,4 +90,27 @@ test('logcat lines without an exit code can pass', () => {
     judgeProbe('10-08 I holzi: HOLZI_PROBE_RESULT {"ok":true}', null).ok,
     true,
   )
+})
+
+test('an expected step must be there with its detail', () => {
+  const line = (detail: string) =>
+    `HOLZI_PROBE_RESULT ${JSON.stringify({ ok: true, steps: [{ name: 'all-files', ok: true, detail }] })}`
+  const expect = parseExpectation('all-files=granted: false')
+  assert.deepEqual(expect, { step: 'all-files', detail: 'granted: false' })
+  assert.equal(judgeProbe(line('granted: false'), null, expect).ok, true)
+  const granted = judgeProbe(line('granted: true, 3 entries'), null, expect)
+  assert.equal(granted.ok, false)
+  assert.match(granted.message, /expected "granted: false"/)
+  const missing = judgeProbe(
+    'HOLZI_PROBE_RESULT {"ok":true,"steps":[]}',
+    null,
+    expect,
+  )
+  assert.equal(missing.ok, false)
+})
+
+test('an expectation needs a step name before the equals sign', () => {
+  assert.equal(parseExpectation('=granted'), undefined)
+  assert.equal(parseExpectation('all-files'), undefined)
+  assert.equal(parseExpectation(undefined), undefined)
 })

@@ -14,7 +14,11 @@ Typen werden mit `ts-rs` nach `src/types/bindings/` erzeugt.
 | `files_watch`              | `path, channel: Channel<WatchEvent>` | `watchId` (Desktop und Android; iOS `unsupported`)                         |
 | `files_unwatch`            | `watchId`                            | –                                                                          |
 | `files_all_access`         | –                                    | `{ granted: bool, platform: 'android' \| 'other' }`                        |
-| `files_request_all_access` | –                                    | – (öffnet die Systemeinstellungen, nur Android)                            |
+| `files_request_all_access` | –                                    | wie `files_all_access` (s. u.)                                             |
+
+`files_request_all_access` öffnet ab Android 11 die Systemeinstellungen und antwortet sofort mit dem
+alten Stand (das Fenster prüft bei der Rückkehr neu); unter Android 8–10 fragt das System, und die
+Antwort enthält die Entscheidung. Auf anderen Plattformen gilt immer `granted: true`.
 
 `Root`: Laufwerk mit Name, Pfad, gesamt/frei (falls bekannt). `Place`: bekannte Orte wie Dokumente,
 Bilder, Downloads. `StorageSource`: Id und Name des Speichers aus 038.

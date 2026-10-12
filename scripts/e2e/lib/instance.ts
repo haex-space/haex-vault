@@ -213,6 +213,8 @@ export interface PhoneControls {
   allowNotifications(allowed: boolean): void
   /** Refuses the microphone for good, as the person's second "Don't allow" does (FR-029). */
   refuseMicrophone(): void
+  /** Grants "Zugriff auf alle Dateien" as the person does in the system settings (spec 044 US7). */
+  allowAllFiles(): void
   /** The titles of the app's notifications the system shows now. */
   notificationTitles(): string[]
 }

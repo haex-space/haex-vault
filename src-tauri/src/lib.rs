@@ -17,6 +17,8 @@ pub mod passwords;
 pub mod platform;
 #[cfg(feature = "platform-probe")]
 pub mod platform_probe;
+#[cfg(feature = "platform-probe")]
+pub mod platform_probe_files;
 pub mod privacy;
 pub mod providers;
 pub mod remote_storage;
@@ -377,6 +379,8 @@ pub fn run() {
             platform::commands::platform_capabilities,
             files::commands::picked_file_name,
             files::browser_commands::navigate::files_sources,
+            files::browser_commands::all_access::files_all_access,
+            files::browser_commands::all_access::files_request_all_access,
             files::browser_commands::navigate::files_list,
             files::browser_commands::navigate::files_stat,
             files::browser_commands::view::files_read_text,

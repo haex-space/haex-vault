@@ -2067,6 +2067,11 @@
     }
   },
   "files": {
+    "allAccess": {
+      "title": "Access to all files",
+      "body": "To show, open and manage the files of this device, holzi needs the permission \"All files access\". You grant it in the system settings and can revoke it there at any time.",
+      "request": "Open settings"
+    },
     "back": "Back",
     "forward": "Forward",
     "up": "Up one folder",

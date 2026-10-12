@@ -1,7 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Network changes for the sync (spec 043, FR-019); a normal permission, granted at install. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- The speech input (spec 043, FR-029); a runtime permission, asked before the first recording. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- The file browser (spec 044, FR-039, research R11): "Zugriff auf alle Dateien" from API 30,
+         granted in the system settings; the two storage permissions before, asked at runtime. -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <!-- Android 10 reaches real paths only without scoped storage; from 11 on the flag is ignored. -->
+    <application android:requestLegacyExternalStorage="true" />
 </manifest>

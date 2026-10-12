@@ -2067,6 +2067,11 @@
     }
   },
   "files": {
+    "allAccess": {
+      "title": "Zugriff auf alle Dateien",
+      "body": "Damit holzi die Dateien dieses Geräts zeigen, öffnen und verwalten kann, braucht es die Berechtigung „Zugriff auf alle Dateien“. Du erteilst sie in den Systemeinstellungen und kannst sie dort jederzeit wieder entziehen.",
+      "request": "Zu den Einstellungen"
+    },
     "back": "Zurück",
     "forward": "Vor",
     "up": "Übergeordneter Ordner",

@@ -151,15 +151,26 @@ describe('deviceSerial', () => {
 })
 
 describe('prepareDevice', () => {
-  it('clears the data, sizes the display like the Linux screen and sets the colour scheme', () => {
+  it('clears the data, grants all files, sizes the display like the Linux screen and sets the colour scheme', () => {
     const fake = fakeAdb()
     prepareDevice(createAdb('emu', fake.run), { colorScheme: 'dark' })
     assert.deepEqual(fake.calls, [
       `-s emu shell pm clear ${PACKAGE}`,
+      `-s emu shell appops set ${PACKAGE} MANAGE_EXTERNAL_STORAGE allow`,
       '-s emu shell wm size 2560x1600',
       '-s emu shell wm density 320',
       '-s emu shell cmd uimode night yes',
     ])
+  })
+
+  it('starts without access to all files when the scenario asks so', () => {
+    const fake = fakeAdb()
+    prepareDevice(createAdb('emu', fake.run), { withoutAllFiles: true })
+    assert.ok(
+      fake.calls.includes(
+        `-s emu shell appops set ${PACKAGE} MANAGE_EXTERNAL_STORAGE default`,
+      ),
+    )
   })
 
   it('keeps the data when the scenario reuses it', () => {

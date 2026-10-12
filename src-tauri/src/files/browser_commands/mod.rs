@@ -4,6 +4,7 @@
 //! [`view`] (viewer, thumbnails, system apps), [`change`] (create, rename, transfers) and
 //! [`search`]; this module keeps what they share.
 
+pub mod all_access;
 pub mod change;
 pub mod encrypted;
 pub mod navigate;

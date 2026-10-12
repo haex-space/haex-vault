@@ -19,11 +19,15 @@
 //! Spec 048 (T013, SC-010): the probe adds one step of its own, [`ENCRYPTED_VECTORS_STEP`], which
 //! runs the test vectors of encrypted folders on the platform, so Windows, macOS and Android check
 //! them too.
+//!
+//! Spec 044 US7 (T090): on Android the probe adds the step of [`platform_probe_files`], what holzi
+//! reaches of the shared storage with and without "Zugriff auf alle Dateien".
 
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -35,6 +39,7 @@ use tokio::io::AsyncRead;
 use crate::files::encrypted::format::vectors;
 use crate::files::media::MediaServer;
 use crate::files::streaming::StreamingSource;
+use crate::platform_probe_files;
 
 /// Every result line starts with this, so the CI finds it in stdout or in logcat.
 pub const RESULT_MARKER: &str = "HOLZI_PROBE_RESULT";
@@ -55,6 +60,14 @@ const LOOPBACK_SOURCE: &str = "http://127.0.0.1:*";
 const MAX_SEEN: usize = 200;
 
 static REPORTED: AtomicBool = AtomicBool::new(false);
+
+/// The step of [`platform_probe_files`] once it ended (Android only), and the signal that it did.
+static ALL_FILES: Mutex<Option<Step>> = Mutex::new(None);
+static ALL_FILES_DONE: Condvar = Condvar::new();
+
+/// How long the report waits for that step: its own wait and some time to list and watch.
+const ALL_FILES_REPORT_WAIT: Duration =
+    platform_probe_files::WAIT.saturating_add(Duration::from_secs(10));
 
 /// Every request line the health server received, so a failed fetch shows whether the web view
 /// reached the server at all (and whether it sent a preflight).
@@ -96,6 +109,8 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> std::io::Result<u16> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let port = listener.local_addr()?.port();
     note(app, STARTED_FILE, &format!("port {port}"));
+    #[cfg(target_os = "android")]
+    start_all_files(app);
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             note_seen(format!(
@@ -131,6 +146,8 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> std::io::Result<u16> {
                     { "name": "report", "ok": false, "detail": "no report from the window" },
                     { "name": vectors.name, "ok": vectors.ok, "detail": vectors.detail },
                 ],
+                "allFiles": all_files_step(Duration::ZERO)
+                    .map(|step| json!({ "name": step.name, "ok": step.ok, "detail": step.detail })),
                 "serverSaw": seen(),
             }));
             emit(&app, &line);
@@ -138,6 +155,40 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> std::io::Result<u16> {
         }
     });
     Ok(port)
+}
+
+/// Runs the step of [`platform_probe_files`] on the shared storage, apart from the window.
+#[cfg(target_os = "android")]
+fn start_all_files<R: Runtime>(app: &AppHandle<R>) {
+    use tauri_plugin_holzi_android::HolziAndroidExt;
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let step = platform_probe_files::check(
+            app.holzi_android().all_files_access(),
+            std::path::Path::new(platform_probe_files::ROOT),
+            || note(&app, platform_probe_files::WATCHING_FILE, "watching"),
+            platform_probe_files::WAIT,
+        );
+        *ALL_FILES.lock().unwrap_or_else(PoisonError::into_inner) = Some(step);
+        ALL_FILES_DONE.notify_all();
+    });
+}
+
+/// The step of [`platform_probe_files`], waiting up to `wait` for it; `None` off Android.
+fn all_files_step(wait: Duration) -> Option<Step> {
+    if !cfg!(target_os = "android") {
+        return None;
+    }
+    let slot = ALL_FILES.lock().unwrap_or_else(PoisonError::into_inner);
+    let (mut slot, _) = ALL_FILES_DONE
+        .wait_timeout_while(slot, wait, |step| step.is_none())
+        .unwrap_or_else(PoisonError::into_inner);
+    Some(slot.take().unwrap_or_else(|| Step {
+        name: platform_probe_files::STEP.to_owned(),
+        ok: false,
+        detail: Some("not finished".to_owned()),
+    }))
 }
 
 /// The files the window plays and draws: name, bytes, media type (`src-tauri/tests/fixtures/files`).
@@ -315,22 +366,26 @@ pub fn platform_probe_report<R: Runtime>(app: AppHandle<R>, mut report: Report) 
     if REPORTED.swap(true, Ordering::SeqCst) {
         return;
     }
-    report.steps.push(encrypted_vectors());
-    let code = exit_code(&report);
-    let steps: Vec<_> = report
-        .steps
-        .iter()
-        .map(|step| json!({ "name": step.name, "ok": step.ok, "detail": step.detail }))
-        .collect();
-    let line = result_line(&json!({
-        "ok": code == 0,
-        "steps": steps,
-        "userAgent": report.user_agent,
-        "platform": std::env::consts::OS,
-        "serverSaw": seen(),
-    }));
-    emit(&app, &line);
-    app.exit(code);
+    // The step of the shared storage may still wait for the CI's file: not on the main thread.
+    std::thread::spawn(move || {
+        report.steps.push(encrypted_vectors());
+        report.steps.extend(all_files_step(ALL_FILES_REPORT_WAIT));
+        let code = exit_code(&report);
+        let steps: Vec<_> = report
+            .steps
+            .iter()
+            .map(|step| json!({ "name": step.name, "ok": step.ok, "detail": step.detail }))
+            .collect();
+        let line = result_line(&json!({
+            "ok": code == 0,
+            "steps": steps,
+            "userAgent": report.user_agent,
+            "platform": std::env::consts::OS,
+            "serverSaw": seen(),
+        }));
+        emit(&app, &line);
+        app.exit(code);
+    });
 }
 
 /// Files in holzi's cache directory that the Android job reads with `adb shell run-as`, because a

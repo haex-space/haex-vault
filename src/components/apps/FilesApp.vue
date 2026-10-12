@@ -80,6 +80,23 @@ watchEffect(() => {
 })
 
 const folder = useFilesFolder(source, path)
+
+// Android without "Zugriff auf alle Dateien" (US7): an explanation instead of the device's folders.
+const allAccess = useFilesAllAccess(() => {
+  void sources.execute()
+  void folder.reload()
+})
+const lacksAccess = computed(
+  () => allAccess.missing.value && source.value.kind === 'device',
+)
+
+async function requestAccess() {
+  try {
+    await allAccess.requestAsync()
+  } catch (cause) {
+    toast.error(errorText(cause))
+  }
+}
 // --- Search and filter (US4): both live in the tab's location ---
 
 const searchQuery = computed(() => place.value?.q ?? '')
@@ -581,8 +598,13 @@ watch(tabActive, (active) => {
         data-testid="files-main"
         @keydown.esc="selection = EMPTY_SELECTION"
       >
+        <FilesAllFilesAccess
+          v-if="lacksAccess"
+          class="flex-1"
+          @request="requestAccess"
+        />
         <FilesSearchResults
-          v-if="searchQuery && path"
+          v-else-if="searchQuery && path"
           class="flex-1"
           :source="source"
           :root="path"

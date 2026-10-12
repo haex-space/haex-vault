@@ -36,7 +36,7 @@ export function mapAndroidUrl(url: string): string {
 
 /**
  * Brings the device into the state a scenario expects before the app starts: its data cleared unless
- * the scenario reuses it, a desktop-sized display (about 1280×800 dp, like the Linux virtual screen)
+ * the scenario reuses it, access to all files, a desktop-sized display (about 1280×800 dp, like the Linux virtual screen)
  * or a phone-sized one (360×800 dp), and the requested colour scheme. The size is set before the
  * start: the web view does not take a new density over while it runs.
  */
@@ -46,9 +46,19 @@ export function prepareDevice(
     reuse?: boolean
     colorScheme?: ColorScheme
     phoneScreen?: boolean
+    withoutAllFiles?: boolean
   },
 ): void {
   if (options.reuse !== true) adb.shell('pm', 'clear', PACKAGE)
+  // As a person who granted "Zugriff auf alle Dateien" (spec 044 US7): without it the file browser
+  // shows its explanation instead of the device's folders.
+  adb.shell(
+    'appops',
+    'set',
+    PACKAGE,
+    'MANAGE_EXTERNAL_STORAGE',
+    options.withoutAllFiles === true ? 'default' : 'allow',
+  )
   if (options.phoneScreen === true) {
     adb.shell('wm', 'size', '1080x2400')
     adb.shell('wm', 'density', '480')
@@ -101,6 +111,10 @@ export function phoneControls(adb: Adb): PhoneControls {
     },
     notificationTitles: () =>
       notificationTitles(adb.shell('dumpsys', 'notification', '--noredact')),
+    // Granting does not end the app; only taking it back would.
+    allowAllFiles: () => {
+      adb.shell('appops', 'set', PACKAGE, 'MANAGE_EXTERNAL_STORAGE', 'allow')
+    },
     // Not granted until now, so marking it decided does not end the app.
     refuseMicrophone: () => {
       adb.shell(
@@ -186,6 +200,8 @@ export interface AndroidStartOptions {
   reuse?: boolean
   /** A phone-sized screen instead of the desktop-sized one. */
   phoneScreen?: boolean
+  /** Without "Zugriff auf alle Dateien" (spec 044 US7). */
+  withoutAllFiles?: boolean
   step?: StepRecorder
 }
 

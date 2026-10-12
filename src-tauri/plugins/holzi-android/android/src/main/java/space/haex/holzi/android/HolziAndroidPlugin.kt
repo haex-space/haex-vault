@@ -2,11 +2,14 @@ package space.haex.holzi.android
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.WindowManager
@@ -14,8 +17,10 @@ import android.webkit.WebView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import app.tauri.annotation.Command
+import app.tauri.PermissionState
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.Permission
+import app.tauri.annotation.PermissionCallback
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Channel
 import app.tauri.plugin.Invoke
@@ -44,10 +49,20 @@ class NetworkArgs {
 
 /**
  * holzi's Android platform code (spec 043, ADR-0010); the core calls it directly. The core asks for
- * the microphone through the plugin's own `checkPermissions`/`requestPermissions` (FR-029).
+ * the microphone through the plugin's own `checkPermissions`/`requestPermissions` (FR-029). The
+ * alias "storage" is the file access before API 30 (spec 044, FR-039).
  */
 @TauriPlugin(
-    permissions = [Permission(strings = [Manifest.permission.RECORD_AUDIO], alias = "microphone")]
+    permissions = [
+        Permission(strings = [Manifest.permission.RECORD_AUDIO], alias = "microphone"),
+        Permission(
+            strings = [
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            ],
+            alias = "storage",
+        ),
+    ]
 )
 class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     @Volatile private var insetsChannel: Channel? = null
@@ -161,4 +176,50 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
             invoke.resolve()
         }
     }
+
+    /**
+     * Whether holzi may reach every file (spec 044, FR-039, research R11): "Zugriff auf alle Dateien"
+     * from API 30, the storage permissions before.
+     */
+    private fun allFilesGranted(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            getPermissionState("storage") == PermissionState.GRANTED
+        }
+
+    private fun resolveAllFiles(invoke: Invoke) {
+        val result = JSObject()
+        result.put("granted", allFilesGranted())
+        invoke.resolve(result)
+    }
+
+    @Command
+    fun allFilesAccessStatus(invoke: Invoke) = resolveAllFiles(invoke)
+
+    /**
+     * From API 30 opens the system setting for holzi and answers at once; the file browser checks
+     * again when the person comes back. Before, the system asks and this answers with the decision.
+     */
+    @Command
+    fun requestAllFilesAccess(invoke: Invoke) {
+        if (allFilesGranted()) return resolveAllFiles(invoke)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return requestPermissionForAlias("storage", invoke, "allFilesAnswered")
+        }
+        val forHolzi = Intent(
+            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.parse("package:${activity.packageName}"),
+        )
+        try {
+            activity.startActivity(forHolzi)
+        } catch (e: ActivityNotFoundException) {
+            // Some systems have only the list of all apps.
+            activity.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+        }
+        resolveAllFiles(invoke)
+    }
+
+    @PermissionCallback
+    private fun allFilesAnswered(invoke: Invoke) = resolveAllFiles(invoke)
 }

@@ -4,26 +4,39 @@
  *
  *   node scripts/run-platform-probe.ts <path to the holzi binary>
  *
- * and by `platform-probe-android`, which judges a saved logcat:
+ * and by `platform-probe-android`, which judges a saved logcat, optionally with one step that must
+ * be there with a detail starting so:
  *
- *   node scripts/run-platform-probe.ts --judge <logcat file>
+ *   node scripts/run-platform-probe.ts --judge <logcat file> [--expect <step>=<detail start>]
  *
  * Exit 0 only when the line reports `ok: true` and the process ended with 0.
  */
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-import { judgeProbe, PROBE_TIMEOUT_MS } from './lib/platformProbeResult.ts'
+import {
+  judgeProbe,
+  parseExpectation,
+  PROBE_TIMEOUT_MS,
+} from './lib/platformProbeResult.ts'
 
 if (process.argv[2] === '--judge') {
   const file = process.argv[3]
   if (!file) {
     console.error(
-      'usage: node scripts/run-platform-probe.ts --judge <logcat file>',
+      'usage: node scripts/run-platform-probe.ts --judge <logcat file> [--expect <step>=<detail start>]',
     )
     process.exit(2)
   }
-  const verdict = judgeProbe(readFileSync(file, 'utf8'), null)
+  const expect =
+    process.argv[4] === '--expect'
+      ? parseExpectation(process.argv[5])
+      : undefined
+  if (process.argv[4] !== undefined && expect === undefined) {
+    console.error(`unknown option: ${process.argv.slice(4).join(' ')}`)
+    process.exit(2)
+  }
+  const verdict = judgeProbe(readFileSync(file, 'utf8'), null, expect)
   console.log(verdict.message)
   process.exit(verdict.ok ? 0 : 1)
 }

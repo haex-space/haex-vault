@@ -55,6 +55,16 @@ impl<R: Runtime> HolziAndroid<R> {
         Ok(crate::PermissionState::Granted)
     }
 
+    /// Desktop systems leave file access to their own rules; holzi needs no grant here.
+    pub fn all_files_access(&self) -> Result<bool, String> {
+        Ok(true)
+    }
+
+    /// As [`HolziAndroid::all_files_access`]: nothing to ask here.
+    pub fn request_all_files_access(&self) -> Result<bool, String> {
+        Ok(true)
+    }
+
     /// Screen capture protection exists only on Android.
     pub fn set_secure(&self, _enabled: bool) -> Result<(), String> {
         Ok(())

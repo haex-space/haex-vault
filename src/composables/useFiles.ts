@@ -4,6 +4,7 @@
  */
 import { Channel, invoke } from '@tauri-apps/api/core'
 import type { Entry } from '@bindings/Entry'
+import type { FilesAllAccess } from '@bindings/FilesAllAccess'
 import type { FilesError } from '@bindings/FilesError'
 import type { FilesSearchEvent } from '@bindings/FilesSearchEvent'
 import type { FolderChanged } from '@bindings/FolderChanged'
@@ -33,6 +34,16 @@ export function asFilesError(error: unknown): FilesError | undefined {
 export function useFiles() {
   async function sourcesAsync(): Promise<Sources> {
     return await invoke<Sources>('files_sources')
+  }
+
+  /** Whether holzi may reach every file of the device; only Android asks (US7). */
+  async function allAccessAsync(): Promise<FilesAllAccess> {
+    return await invoke<FilesAllAccess>('files_all_access')
+  }
+
+  /** Leads into the system settings (Android 11+) or asks (Android 8 to 10). */
+  async function requestAllAccessAsync(): Promise<FilesAllAccess> {
+    return await invoke<FilesAllAccess>('files_request_all_access')
   }
 
   async function listAsync(source: SourceRef, path: string): Promise<Entry[]> {
@@ -232,6 +243,8 @@ export function useFiles() {
 
   return {
     sourcesAsync,
+    allAccessAsync,
+    requestAllAccessAsync,
     listAsync,
     statAsync,
     readTextAsync,

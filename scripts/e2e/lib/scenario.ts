@@ -213,6 +213,7 @@ export async function runScenario(
           step,
           framebufferDir: instanceOptions.framebufferDir,
           phoneScreen: instanceOptions.phoneScreen,
+          withoutAllFiles: instanceOptions.withoutAllFiles,
         })
         instances.push(instance)
         // The root is removed with the scenario, not when the instance stops, so a fresh instance can reuse it.
@@ -465,6 +466,7 @@ export function scenario(
               colorScheme: request.colorScheme,
               reuse: request.reuse,
               phoneScreen: request.phoneScreen,
+              withoutAllFiles: request.withoutAllFiles,
               step: request.step,
             })
           : startInstance({
