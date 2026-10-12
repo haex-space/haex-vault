@@ -71,6 +71,9 @@ aber zulassen. Die Sync-Regeln und der Umbau 027/029 sollen dasselbe Format nutz
   Erweiterung keinen Speicher. Mit ihr sieht sie weiter nur ihren eigenen Bereich. Einzige Ausnahme
   ist ein verschlüsselter Ordner mit Freigabe (FR-035 bis FR-039); diese Spec ändert 038 FR-010
   dafür.
+- **Spec 050** (WebDAV- und SFTP-Speicher): bringt Speicher mit diesen Protokollen und verlangt, dass
+  verschlüsselte Ordner dort genauso funktionieren (050 FR-024). `ObjectInfo.etag` führt die Spec ein,
+  die zuerst landet (050 research R8).
 - **Umbau 027/029** (Spaces als Rahmen mit Einträgen) und **Sync-Regeln** (ersetzt 025, noch ohne
   Nummer): sollen dasselbe Format nutzen. Ein Space verschlüsselt den Ordnerschlüssel zusätzlich für
   seine Mitglieder; die Sync-Regeln legen „Cloud verschlüsselt“ als verschlüsselten Ordner an. Beides
