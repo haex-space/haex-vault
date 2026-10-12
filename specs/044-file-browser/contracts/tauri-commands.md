@@ -61,15 +61,20 @@ Bilder, Downloads. `StorageSource`: Id und Name des Speichers aus 038.
 
 ## Berechtigungen der Agents
 
-| Command                         | Eingabe                                                    | Ausgabe                       |
-| ------------------------------- | ---------------------------------------------------------- | ----------------------------- |
-| `files_agent_permissions`       | –                                                          | `AgentFilePermission[]`       |
-| `files_agent_permission_set`    | `agentId, kind, target, status`                            | –                             |
-| `files_agent_permission_answer` | `args: { requestId, choice: 'read'\|'readWrite'\|'deny' }` | – (Antwort auf die Rückfrage) |
-| `files_agent_check`             | `source, path` (nur Handler von `files.show`)              | `FilesAgentShow`              |
+| Command                         | Eingabe                                                                                        | Ausgabe                       |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------- |
+| `files_agent_permissions`       | –                                                                                              | `AgentFilePermissionView[]`   |
+| `files_agent_permission_set`    | `agentId, kind, target, status, reach?` (`reach` nur bei `encryptedFolder`, 048)               | –                             |
+| `files_agent_permission_remove` | `agentId, kind, target` (Zeile löschen, die Vorgabe gilt; ein Ordner fragt wieder, 048 FR-033) | –                             |
+| `files_agent_permission_answer` | `args: { requestId, choice: 'read'\|'readWrite'\|'deny', remember?, alsoCloud? }` (Haken: 048) | – (Antwort auf die Rückfrage) |
+| `files_agent_check`             | `source, path` (nur Handler von `files.show`)                                                  | `FilesAgentShow`              |
 
-Event `files-agent-permission-request { requestId, agentId, storageId, storageName, wants: 'read'|'readWrite' }`
-von Rust an das Fenster; ohne Antwort in 60 s oder ohne Fenster gilt „abgelehnt für diesen Aufruf“
+`AgentFilePermissionView` ist eine Zeile von `agent_file_permissions` mit `folderName?`: dem
+entschlüsselten Namen eines verschlüsselten Ordners, wenn dieses Gerät seinen Kopf gelesen hat.
+
+Event `files-agent-permission-request { requestId, agentId, storageId, storageName, wants: 'read'|'readWrite', folder? }`
+von Rust an das Fenster; `folder { name, model, cloud }` steht bei einem verschlüsselten Ordner
+(spec 048 FR-030a). Ohne Antwort in 60 s oder ohne Fenster gilt „abgelehnt für diesen Aufruf“
 (nicht gespeichert).
 
 `FilesAgentShow { allowed, reason?, source?, folder?, open? }`: dieselben Prüfungen wie `files.stat`,
