@@ -1,6 +1,12 @@
+use std::path::Path;
+use std::sync::Arc;
+
 use super::*;
 use crate::files::encrypted::format::is_folder_prefix;
-use crate::files::encrypted::test_support::{Scene, BUCKET};
+use crate::files::encrypted::test_support::{transfer, Scene, BUCKET};
+use crate::files::transfer::local::Outcome;
+use crate::files::transfer::remote::Side;
+use crate::files::transfer::{ConflictChoice, TransferOp};
 use crate::files::{EncryptedInfo, EncryptedRole, EntryKind};
 
 fn names(entries: &[Entry]) -> Vec<String> {
@@ -137,4 +143,124 @@ async fn a_sub_folder_is_one_sidecar_and_survives_a_fresh_load() {
     );
     let stat = other.stat("/Unterlagen/Belege/2026").await.unwrap();
     assert_eq!(stat.kind, EntryKind::Dir);
+}
+
+/// Writes `content` to the device file `dir/name` and copies it into `/Unterlagen` of `files`.
+async fn put(files: Arc<StorageFiles>, dir: &Path, name: &str, content: &str) {
+    let file = dir.join(name);
+    std::fs::write(&file, content).unwrap();
+    let outcome = transfer(
+        TransferOp::Copy,
+        Side::Device,
+        &[file.to_string_lossy().into_owned()],
+        Side::Storage(files),
+        "/Unterlagen",
+        Some(ConflictChoice::Replace),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(outcome, Outcome::Done);
+}
+
+/// The entry named `name` and the one named as its conflict copy, as a third device lists them.
+async fn kept_and_copy(scene: &Scene, stem: &str, ext: &str) -> (Entry, Entry) {
+    let listed = scene.fresh_files().list("/Unterlagen").await.unwrap();
+    assert_eq!(listed.len(), 2, "{:?}", names(&listed));
+    let (copies, kept): (Vec<Entry>, Vec<Entry>) = listed
+        .into_iter()
+        .partition(|entry| entry.name.starts_with(&format!("{stem} (Konflikt ")));
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept[0].name, format!("{stem}{ext}"));
+    assert_eq!(copies.len(), 1);
+    assert!(
+        copies[0].name.ends_with(&format!("){ext}")),
+        "{}",
+        copies[0].name
+    );
+    (kept[0].clone(), copies[0].clone())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_devices_replacing_one_file_keep_both_the_older_as_a_conflict_copy() {
+    let scene = Scene::new();
+    create_encrypted_folder(&scene.files(), "/", "Unterlagen")
+        .await
+        .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    put(Arc::new(scene.files()), dir.path(), "notiz.txt", "eins").await;
+    // The second device has the folder loaded with the first version.
+    let second = Arc::new(scene.fresh_files());
+    assert_eq!(
+        names(&second.list("/Unterlagen").await.unwrap()),
+        ["notiz.txt"]
+    );
+
+    // Both replace that version, the second without seeing the first's.
+    put(Arc::new(scene.files()), dir.path(), "notiz.txt", "von eins").await;
+    put(second, dir.path(), "notiz.txt", "von zwei, laenger").await;
+
+    let (kept, copy) = kept_and_copy(&scene, "notiz", ".txt").await;
+    assert!(
+        copy.modified_ms <= kept.modified_ms,
+        "the older one is the copy"
+    );
+    let mut sizes = [kept.size, copy.size];
+    sizes.sort();
+    assert_eq!(sizes, [Some(8), Some(17)]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_devices_adding_one_name_both_show_one_as_a_conflict_copy() {
+    let scene = Scene::new();
+    create_encrypted_folder(&scene.files(), "/", "Unterlagen")
+        .await
+        .unwrap();
+    let second = Arc::new(scene.fresh_files());
+    assert!(second.list("/Unterlagen").await.unwrap().is_empty());
+    let dir = tempfile::tempdir().unwrap();
+    put(Arc::new(scene.files()), dir.path(), "brief.txt", "eins").await;
+    put(second, dir.path(), "brief.txt", "zwei!").await;
+
+    let (kept, copy) = kept_and_copy(&scene, "brief", ".txt").await;
+    assert!(copy.modified_ms <= kept.modified_ms);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_encrypted_folders_of_one_name_both_show_one_as_a_conflict_copy() {
+    let scene = Scene::new();
+    let files = scene.files();
+    create_encrypted_folder(&files, "/", "Unterlagen")
+        .await
+        .unwrap();
+    // Two devices that create the name at once both pass the check before either head is
+    // written. The head does not carry its parent, so a head created elsewhere and put beside
+    // the first is that outcome.
+    files.create_folder("/", "Ablage").await.unwrap();
+    create_encrypted_folder(&files, "/Ablage", "Unterlagen")
+        .await
+        .unwrap();
+    let raced = scene
+        .keys()
+        .into_iter()
+        .find(|key| key.starts_with("Ablage/") && key.ends_with(".hxef/h"))
+        .unwrap();
+    let head = scene.fake.object(BUCKET, &raced).unwrap();
+    scene
+        .fake
+        .insert(BUCKET, raced.strip_prefix("Ablage/").unwrap(), &head);
+
+    let other = scene.fresh_files();
+    let listed = other.list("/").await.unwrap();
+    let encrypted: Vec<&Entry> = listed
+        .iter()
+        .filter(|entry| entry.encrypted.is_some())
+        .collect();
+    assert_eq!(encrypted.len(), 2, "{:?}", names(&listed));
+    assert!(encrypted.iter().any(|entry| entry.name == "Unterlagen"));
+    let copy = encrypted
+        .iter()
+        .find(|entry| entry.name.starts_with("Unterlagen (Konflikt "))
+        .expect("a conflict copy");
+    assert!(other.list(&copy.path).await.unwrap().is_empty());
 }
