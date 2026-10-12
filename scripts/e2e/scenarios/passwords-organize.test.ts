@@ -285,6 +285,9 @@ scenario('passwords-organize', { timeoutMs: 300_000 }, async (ctx) => {
   await instance.type(`passwords-entry-${mail}`, KEY.delete)
   await instance.waitForDisplayed('passwords-delete-confirm')
   await instance.typeToFocused(KEY.escape)
+  // The dialog gives the focus back to Mail's row when its closing animation ends; a Delete typed on
+  // another row before that could land on Mail (it once deleted Mail instead of Git below).
+  await ctx.waitFor('the delete dialog closed', () => dialogClosed(instance))
   // Earlier toasts are marked, so a new one counts even when an older one expires meanwhile
   // (comparing the number of toasts failed then).
   await instance.exec(
