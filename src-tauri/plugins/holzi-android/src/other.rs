@@ -55,6 +55,16 @@ impl<R: Runtime> HolziAndroid<R> {
         Ok(crate::PermissionState::Granted)
     }
 
+    /// Every file the system lets the user reach is reachable here.
+    pub fn all_files_access(&self) -> Result<bool, String> {
+        Ok(true)
+    }
+
+    /// As [`HolziAndroid::all_files_access`]: nothing to ask here.
+    pub fn request_all_files_access(&self) -> Result<(), String> {
+        Ok(())
+    }
+
     /// Screen capture protection exists only on Android.
     pub fn set_secure(&self, _enabled: bool) -> Result<(), String> {
         Ok(())

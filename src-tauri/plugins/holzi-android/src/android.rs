@@ -52,6 +52,16 @@ struct DeviceName {
     name: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct AllFilesAccess {
+    granted: bool,
+}
+
+#[derive(Deserialize)]
+struct SettingsOpened {
+    opened: bool,
+}
+
 #[derive(Serialize)]
 struct PermissionArgs {
     permissions: [&'static str; 1],
@@ -128,6 +138,29 @@ impl<R: Runtime> HolziAndroid<R> {
             )
             .map_err(|error| error.to_string())?;
         state_of(states, permission)
+    }
+
+    /// Whether holzi may read and write the shared storage (spec 044 FR-039).
+    pub fn all_files_access(&self) -> Result<bool, String> {
+        self.0
+            .run_mobile_plugin::<AllFilesAccess>("allFilesAccess", ())
+            .map(|access| access.granted)
+            .map_err(|error| error.to_string())
+    }
+
+    /// Leads the person to "Zugriff auf alle Dateien" in the system's settings (API 30 on), or asks
+    /// for the storage permission before API 30 and blocks until they answer. From the settings
+    /// they come back by themselves; the window checks again then.
+    pub fn request_all_files_access(&self) -> Result<(), String> {
+        let opened = self
+            .0
+            .run_mobile_plugin::<SettingsOpened>("requestAllFilesAccess", ())
+            .map_err(|error| error.to_string())?
+            .opened;
+        if !opened {
+            self.request_permission(Permission::Storage)?;
+        }
+        Ok(())
     }
 
     /// Hides the window from screenshots, screen recordings and the recent apps view (FR-011a).

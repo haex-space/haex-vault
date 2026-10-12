@@ -2,11 +2,15 @@ package space.haex.holzi.android
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.WindowManager
@@ -44,10 +48,20 @@ class NetworkArgs {
 
 /**
  * holzi's Android platform code (spec 043, ADR-0010); the core calls it directly. The core asks for
- * the microphone through the plugin's own `checkPermissions`/`requestPermissions` (FR-029).
+ * the microphone (FR-029) and, before API 30, the storage (spec 044 FR-039) through the plugin's
+ * own `checkPermissions`/`requestPermissions`.
  */
 @TauriPlugin(
-    permissions = [Permission(strings = [Manifest.permission.RECORD_AUDIO], alias = "microphone")]
+    permissions = [
+        Permission(strings = [Manifest.permission.RECORD_AUDIO], alias = "microphone"),
+        Permission(
+            strings = [
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            ],
+            alias = "storage",
+        ),
+    ]
 )
 class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     @Volatile private var insetsChannel: Channel? = null
@@ -159,6 +173,55 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
                 activity.setRecentsScreenshotEnabled(!args.enabled)
             }
             invoke.resolve()
+        }
+    }
+
+    /**
+     * Whether holzi may read and write the shared storage (spec 044 FR-039): "Zugriff auf alle
+     * Dateien" from API 30 on, the storage permissions before.
+     */
+    @Command
+    fun allFilesAccess(invoke: Invoke) {
+        val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            listOf(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            ).all { activity.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+        }
+        val result = JSObject()
+        result.put("granted", granted)
+        invoke.resolve(result)
+    }
+
+    /**
+     * Opens the system's page for "Zugriff auf alle Dateien" (API 30 on): holzi's own page, else
+     * the list of all apps where a system has no page per app. The person comes back by themselves;
+     * the window checks again then (research R11). Before API 30 nothing opens (`opened` false) and
+     * the core asks for the storage permission instead.
+     */
+    @Command
+    fun requestAllFilesAccess(invoke: Invoke) {
+        val result = JSObject()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            result.put("opened", false)
+            invoke.resolve(result)
+            return
+        }
+        activity.runOnUiThread {
+            try {
+                activity.startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:${activity.packageName}"),
+                    )
+                )
+            } catch (e: ActivityNotFoundException) {
+                activity.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }
+            result.put("opened", true)
+            invoke.resolve(result)
         }
     }
 }

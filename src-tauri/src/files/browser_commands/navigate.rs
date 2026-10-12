@@ -12,6 +12,7 @@ use crate::files::local::ops;
 use crate::files::state::FilesState;
 use crate::files::{Entry, FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
+use tauri_plugin_holzi_android::HolziAndroidExt;
 
 /// A known place for the sidebar.
 #[derive(Debug, Clone, Serialize, TS)]
@@ -88,6 +89,40 @@ pub async fn files_sources(
         known,
         storages,
     })
+}
+
+/// Whether the file browser reaches the files of this device (FR-039): on Android "Zugriff auf alle
+/// Dateien", everywhere else always. A failing question counts as not granted.
+#[tauri::command]
+pub async fn files_all_access(app: AppHandle) -> Result<bool, FilesError> {
+    blocking(move || {
+        Ok(app
+            .holzi_android()
+            .all_files_access()
+            .unwrap_or_else(|error| {
+                log::warn!("files: the access to all files could not be checked: {error}");
+                false
+            }))
+    })
+    .await
+}
+
+/// Leads to the system's setting for the files of this device (FR-039); the window checks again
+/// when the person comes back. Nothing to do outside Android.
+#[tauri::command]
+pub async fn files_request_all_access(app: AppHandle) -> Result<(), FilesError> {
+    blocking(move || {
+        app.holzi_android()
+            .request_all_files_access()
+            .map_err(|error| {
+                log::warn!("files: the setting for all files could not be opened: {error}");
+                FilesError::new(
+                    FilesErrorCode::Unsupported,
+                    "the setting could not be opened",
+                )
+            })
+    })
+    .await
 }
 
 /// Every entry of a folder.
