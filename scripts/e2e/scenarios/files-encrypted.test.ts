@@ -241,7 +241,7 @@ scenario(
     await instance.click('files-menu-copy')
     await instance.click('files-storage-Fotos')
     await instance.waitForDisplayed('files-entry-Unterlagen')
-    await instance.click('files-entry-Unterlagen')
+    await doubleClick(instance, 'files-entry-Unterlagen', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed(
       'files-entry-brief.pdf',
       FILE_ENTRY_TIMEOUT_MS,
@@ -267,7 +267,7 @@ scenario(
     // A move inside the folder: no content object either.
     await contextMenu(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.click('files-menu-cut')
-    await instance.click('files-entry-Belege')
+    await doubleClick(instance, 'files-entry-Belege', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed('files-entry-d0')
     await pasteAndWait(ctx, instance)
     await instance.waitForDisplayed(
@@ -291,7 +291,7 @@ scenario(
       (await keysUnder(rustfs, prefix, 'c')).length,
       contentBefore.length + 1,
     )
-    await instance.click('files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
+    await doubleClick(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.waitForDisplayed('files-viewer-pdf')
     await instance.click('files-viewer-close')
     ctx.step('copied: the copy opens')
@@ -339,7 +339,11 @@ scenario(
         : encryptedSystemAppFiles(instance.root)
     if (appFiles !== undefined) {
       // "Mit System-App öffnen" shows its notice; confirmed, the copy lies in its own place.
-      await instance.click('files-entry-Unterlagen')
+      await doubleClick(
+        instance,
+        'files-entry-Unterlagen',
+        FILE_ENTRY_TIMEOUT_MS,
+      )
       await instance.waitForDisplayed('files-entry-Archiv')
       await contextMenu(
         instance,
