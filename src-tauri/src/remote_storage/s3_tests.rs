@@ -17,8 +17,8 @@ use zeroize::Zeroizing;
 use super::address::Resolver;
 use super::s3::{classify, S3Store};
 use super::{
-    Access, Addressing, Credentials, EndpointScope, Location, ProviderKind, RemoteStore,
-    StorageError,
+    Access, Addressing, Credentials, EndpointScope, Location, Protocol, ProviderKind, RemoteStore,
+    S3Credentials, StorageError,
 };
 
 const BUCKET: &str = "holzi-test";
@@ -26,18 +26,20 @@ const BUCKET: &str = "holzi-test";
 fn access(endpoint: &str, addressing: Addressing, scope: EndpointScope) -> Access {
     Access {
         location: Location {
+            protocol: Protocol::S3,
             provider_kind: ProviderKind::Rustfs,
             endpoint: endpoint.to_owned(),
             endpoint_scope: scope,
             region: "us-east-1".to_owned(),
             addressing,
             bucket: BUCKET.to_owned(),
+            host_key: None,
         },
-        credentials: Credentials {
+        credentials: Credentials::S3(S3Credentials {
             access_key_id: "AKIDEXAMPLE".to_owned(),
             secret_access_key: Zeroizing::new("placeholder-secret".to_owned()),
             session_token: None,
-        },
+        }),
     }
 }
 

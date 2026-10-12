@@ -17,8 +17,8 @@ use zeroize::Zeroizing;
 use super::address::Resolver;
 use super::s3::{copy_source, S3Store};
 use super::{
-    Access, Addressing, Credentials, EndpointScope, Location, ProviderKind, RemoteStore,
-    StorageError,
+    Access, Addressing, Credentials, EndpointScope, Location, Protocol, ProviderKind, RemoteStore,
+    S3Credentials, StorageError,
 };
 
 const BUCKET: &str = "holzi-test";
@@ -39,18 +39,20 @@ fn store() -> S3Store {
 fn access(server: &MockServer) -> Access {
     Access {
         location: Location {
+            protocol: Protocol::S3,
             provider_kind: ProviderKind::Rustfs,
             endpoint: server.uri(),
             endpoint_scope: EndpointScope::Local,
             region: "us-east-1".to_owned(),
             addressing: Addressing::Path,
             bucket: BUCKET.to_owned(),
+            host_key: None,
         },
-        credentials: Credentials {
+        credentials: Credentials::S3(S3Credentials {
             access_key_id: "AKIDEXAMPLE".to_owned(),
             secret_access_key: Zeroizing::new("placeholder-secret".to_owned()),
             session_token: None,
-        },
+        }),
     }
 }
 
@@ -312,7 +314,7 @@ async fn an_upload_in_parts_creates_uploads_completes_and_aborts() {
     let store = store();
     let access = access(&server);
     let id = store
-        .create_multipart(&access, "gross.bin", soon())
+        .begin_upload(&access, "gross.bin", soon())
         .await
         .expect("create");
     assert_eq!(id, "upload-1");
@@ -322,11 +324,11 @@ async fn an_upload_in_parts_creates_uploads_completes_and_aborts() {
         .expect("part");
     assert_eq!(etag, "\"teil-1\"");
     store
-        .complete_multipart(&access, "gross.bin", &id, &[etag], soon())
+        .finish_upload(&access, "gross.bin", &id, &[etag], soon())
         .await
         .expect("complete");
     store
-        .abort_multipart(&access, "gross.bin", "upload-2", soon())
+        .abort_upload(&access, "gross.bin", "upload-2", soon())
         .await
         .expect("abort");
 

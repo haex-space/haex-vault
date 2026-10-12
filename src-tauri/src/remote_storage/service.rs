@@ -1,4 +1,5 @@
-//! What the settings do with connections and storages (spec 038 US1, contracts/tauri-commands.md):
+//! What the settings do with connections and storages (spec 038 US1, spec 050 US1,
+//! contracts/tauri-commands.md):
 //! list, save after a passed test, test, preview a removal and remove. The Tauri commands in
 //! [`super::commands`] only call this; extensions reach storages through [`StorageService::access_of`]
 //! (PR D).
@@ -22,7 +23,8 @@ use super::model::{
 use super::probe::probe;
 use super::{
     credentials, store, Access, ConnectionRow, Credentials, CredentialsState, EndpointScope,
-    Location, RemoteStore, StorageRow, TestOutcome,
+    Location, PasswordCredentials, Protocol, RemoteStore, S3Credentials, SshKeyCredentials,
+    StorageRow, TestOutcome,
 };
 use crate::error::{HolziError, Result};
 use crate::passwords::clock;
@@ -51,6 +53,7 @@ fn invalid(field: &str) -> HolziError {
 fn view(row: &ConnectionRow, credentials: super::CredentialsState) -> ConnectionView {
     ConnectionView {
         id: row.id.clone(),
+        protocol: row.protocol,
         provider_name: row.provider_name.clone(),
         provider_kind: row.provider_kind,
         endpoint: row.endpoint.clone(),
@@ -62,21 +65,61 @@ fn view(row: &ConnectionRow, credentials: super::CredentialsState) -> Connection
     }
 }
 
-/// Validates required credential fields and normalizes the key ID and optional token.
-/// The secret access key is preserved exactly as entered.
-fn credentials_of(input: CredentialsInput) -> Result<Credentials> {
-    let access_key_id = input.access_key_id.trim().to_owned();
-    if access_key_id.is_empty() || input.secret_access_key.is_empty() {
-        return Err(invalid("credentials"));
+/// Validates required credential fields for `protocol` (spec 050 contracts/tauri-commands.md) and
+/// normalizes the key id, the user name and the optional token. Secrets are kept exactly as entered.
+fn credentials_of(input: CredentialsInput, protocol: Protocol) -> Result<Credentials> {
+    let nonempty = |text: &Zeroizing<String>| !text.is_empty();
+    match (input, protocol) {
+        (
+            CredentialsInput::S3 {
+                access_key_id,
+                secret_access_key,
+                session_token,
+            },
+            Protocol::S3,
+        ) => {
+            let access_key_id = access_key_id.trim().to_owned();
+            if access_key_id.is_empty() || !nonempty(&secret_access_key) {
+                return Err(invalid("credentials"));
+            }
+            Ok(Credentials::S3(S3Credentials {
+                access_key_id,
+                secret_access_key,
+                session_token: session_token
+                    .filter(|token| !token.is_empty())
+                    .map(|token| Zeroizing::new(token.trim().to_owned())),
+            }))
+        }
+        (CredentialsInput::Password { username, password }, Protocol::WebDav | Protocol::Sftp) => {
+            let username = username.trim().to_owned();
+            if username.is_empty() || !nonempty(&password) {
+                return Err(invalid("credentials"));
+            }
+            Ok(Credentials::Password(PasswordCredentials {
+                username,
+                password,
+            }))
+        }
+        (
+            CredentialsInput::SshKey {
+                username,
+                private_key,
+                passphrase,
+            },
+            Protocol::Sftp,
+        ) => {
+            let username = username.trim().to_owned();
+            if username.is_empty() || private_key.trim().is_empty() {
+                return Err(invalid("credentials"));
+            }
+            Ok(Credentials::SshKey(SshKeyCredentials {
+                username,
+                private_key,
+                passphrase: passphrase.filter(|text| !text.is_empty()),
+            }))
+        }
+        _ => Err(invalid("credentials")),
     }
-    Ok(Credentials {
-        access_key_id,
-        secret_access_key: input.secret_access_key,
-        session_token: input
-            .session_token
-            .filter(|token| !token.is_empty())
-            .map(|token| Zeroizing::new(token.trim().to_owned())),
-    })
 }
 
 /// A test that did not get as far as the provider: its address is not known.
@@ -182,8 +225,13 @@ impl StorageService {
     pub async fn access_of(&self, storage_id: &str) -> Result<Access> {
         let storage = self.storage(storage_id).await?;
         let connection = self.connection(&storage.connection_id).await?;
-        let credentials =
-            credentials::read(&self.passwords, &self.db, &connection.credentials_item_id).await?;
+        let credentials = credentials::read(
+            &self.passwords,
+            &self.db,
+            &connection.credentials_item_id,
+            connection.protocol,
+        )
+        .await?;
         Ok(Access {
             location: Location::of(&connection, &storage.bucket),
             credentials,
@@ -216,12 +264,20 @@ impl StorageService {
             Some(id) => Some(self.connection(id).await?),
             None => None,
         };
+        // The protocol of a saved connection never changes (spec 050 FR-001).
+        if existing
+            .as_ref()
+            .is_some_and(|e| e.protocol != input.protocol)
+        {
+            return Err(invalid("protocol"));
+        }
         let now = clock::now();
         let mut row = ConnectionRow {
             id: input
                 .id
                 .clone()
                 .unwrap_or_else(|| Uuid::new_v4().to_string()),
+            protocol: input.protocol,
             provider_name: input.provider_name.trim().to_owned(),
             provider_kind: input.provider_kind,
             endpoint,
@@ -230,6 +286,10 @@ impl StorageService {
                 .map_or(EndpointScope::Public, |e| e.endpoint_scope),
             region: input.region.trim().to_owned(),
             addressing: input.addressing,
+            host_key: existing.as_ref().and_then(|e| e.host_key.clone()),
+            host_key_confirmed_at: existing
+                .as_ref()
+                .and_then(|e| e.host_key_confirmed_at.clone()),
             credentials_item_id: existing
                 .as_ref()
                 .map(|e| e.credentials_item_id.clone())
@@ -244,19 +304,28 @@ impl StorageService {
         let url = address::endpoint_url(&Location::of(&row, &input.bucket_for_test))
             .map_err(|_| invalid("endpoint"))?;
 
-        let new_credentials = input.credentials.map(credentials_of).transpose()?;
+        let new_credentials = input
+            .credentials
+            .map(|credentials| credentials_of(credentials, row.protocol))
+            .transpose()?;
         let moved = existing.as_ref().is_none_or(|e| {
             e.endpoint != row.endpoint || e.region != row.region || e.addressing != row.addressing
         });
         let test_with = match (&new_credentials, &existing) {
             (Some(credentials), _) => Some(credentials.clone()),
             (None, None) => return Err(invalid("credentials")),
-            (None, Some(e)) if moved => {
-                Some(credentials::read(&self.passwords, &self.db, &e.credentials_item_id).await?)
-            }
+            (None, Some(e)) if moved => Some(
+                credentials::read(
+                    &self.passwords,
+                    &self.db,
+                    &e.credentials_item_id,
+                    e.protocol,
+                )
+                .await?,
+            ),
             (None, Some(_)) => None,
         };
-        if test_with.is_some() && !store::bucket_ok(&input.bucket_for_test) {
+        if test_with.is_some() && !store::target_ok(row.protocol, &input.bucket_for_test) {
             return Err(invalid("bucket"));
         }
         if moved {
@@ -280,6 +349,7 @@ impl StorageService {
         if let Some(credentials) = &new_credentials {
             row.credentials_item_id = credentials::create(
                 &self.passwords,
+                row.protocol,
                 &row.provider_name,
                 &row.endpoint,
                 credentials,
@@ -362,11 +432,15 @@ impl StorageService {
                 .map_or_else(|| now.clone(), |e| e.created_at.clone()),
             updated_at: now.clone(),
         };
-        store::check_storage(&row)?;
+        store::check_storage(&row, connection.protocol)?;
         let tested = if existing.as_ref().is_none_or(|e| e.bucket != row.bucket) {
-            let credentials =
-                credentials::read(&self.passwords, &self.db, &connection.credentials_item_id)
-                    .await?;
+            let credentials = credentials::read(
+                &self.passwords,
+                &self.db,
+                &connection.credentials_item_id,
+                connection.protocol,
+            )
+            .await?;
             let access = Access {
                 location: Location::of(&connection, &row.bucket),
                 credentials,

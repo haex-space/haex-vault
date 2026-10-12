@@ -44,7 +44,7 @@ use super::migrations_extensions::SYNC_PARKING_0025;
 use super::migrations_passwords::PASSWORDS_0022;
 use super::migrations_passwords_owner::PASSWORDS_OWNER_0027;
 use super::migrations_passwords_refs::PASSWORDS_REFS_0026;
-use super::migrations_storage::STORAGE_0028;
+use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 
 /// CRDT trigger-schema version holzi installs on open.
 ///
@@ -89,7 +89,9 @@ use super::migrations_storage::STORAGE_0028;
 /// - 18: `0028_storage_connections` (spec 038) introduced two new CRDT-tracked tables.
 /// - 19: `0029_agent_file_permissions` (spec 044) introduced the CRDT-tracked
 ///   `agent_file_permissions`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 19;
+/// - 20: `0031_storage_protocols` (spec 050) added `protocol`, `host_key` and
+///   `host_key_confirmed_at` to `haex_storage_connections`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 20;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -626,6 +628,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0030_encrypted_folders"),
         ENCRYPTED_FOLDERS_0030.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0031_storage_protocols"),
+        STORAGE_PROTOCOLS_0031.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

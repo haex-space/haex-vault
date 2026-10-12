@@ -110,11 +110,11 @@ impl StorageState {
         let _ = self.resolver.set(resolver);
     }
 
-    /// The provider: S3 unless a test set another.
+    /// The providers of every protocol unless a test set another.
     pub fn store(&self) -> Arc<dyn RemoteStore> {
         Arc::clone(
             self.store
-                .get_or_init(crate::remote_storage::commands::s3_store),
+                .get_or_init(crate::remote_storage::commands::stores),
         )
     }
 

@@ -17,6 +17,15 @@ scenario('android-back-gesture', { needs: { phone: true } }, async (ctx) => {
     at: '/general/basic',
   })
   assert.ok(opened.ok, JSON.stringify(opened))
+
+  // The settings singleton may already be open at a nested location when the workspace is
+  // restored. Normalize the starting page through the same tab-navigation API before testing
+  // the phone's back semantics.
+  const positioned = await runAction(instance, 'wm.tab.navigate', {
+    to: '/general/basic',
+    replace: true,
+  })
+  assert.ok(positioned.ok, JSON.stringify(positioned))
   await waitForLocation(instance, 'general.basic')
   await instance.click('settings-row-general.basic.password')
   await waitForLocation(instance, 'general.basic.password')

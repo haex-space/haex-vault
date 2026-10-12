@@ -324,7 +324,10 @@ impl Run<'_, '_> {
             (Side::Storage(from), Place::Key(key)) => {
                 let from = Arc::clone(from);
                 let to = self.target_storage().expect("a key is on a storage");
-                if from.access().location == to.access().location {
+                // Within one bucket the provider copies, when it can (spec 050 research R8).
+                if from.access().location == to.access().location
+                    && from.store().copies_on_provider(from.access())
+                {
                     self.retried(|| {
                         self.handle.block_on(from.store().copy(
                             from.access(),

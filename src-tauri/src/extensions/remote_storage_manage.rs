@@ -23,7 +23,7 @@ use crate::passwords::clock::unix_millis;
 use crate::remote_storage::address;
 use crate::remote_storage::model::{ConnectionInput, CredentialsInput, StorageInput};
 use crate::remote_storage::service::StorageService;
-use crate::remote_storage::{Addressing, EndpointScope, ProviderKind, TestOutcome};
+use crate::remote_storage::{Addressing, EndpointScope, Protocol, ProviderKind, TestOutcome};
 use crate::storage::query::Query;
 
 pub const MODULE: &str = module_path!();
@@ -54,8 +54,12 @@ fn kind_of(outcome: TestOutcome) -> &'static str {
     match outcome {
         TestOutcome::Passed => "passed",
         TestOutcome::AccessDenied | TestOutcome::MissingRight => "accessDenied",
-        TestOutcome::Unreachable => "network",
+        TestOutcome::Unreachable
+        | TestOutcome::NotWebDav
+        | TestOutcome::HostKeyUnknown
+        | TestOutcome::HostKeyChanged => "network",
         TestOutcome::BucketMissing => "bucketMissing",
+        TestOutcome::FolderMissing => "folderMissing",
     }
 }
 
@@ -333,6 +337,7 @@ fn add_with_endpoint(
         block_on(service.save_proposed_connection(
             ConnectionInput {
                 id: None,
+                protocol: Protocol::S3,
                 provider_name: provider_name.clone(),
                 provider_kind: kind,
                 endpoint: Some(endpoint_text.clone()),
@@ -399,6 +404,7 @@ pub fn update_backend(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
         with_credentials(&mut dialog, credentials, |credentials| {
             block_on(service.save_connection(ConnectionInput {
                 id: Some(connection.id.clone()),
+                protocol: connection.protocol,
                 provider_name: connection.provider_name.clone(),
                 provider_kind: connection.provider_kind,
                 endpoint: Some(connection.endpoint.clone()),

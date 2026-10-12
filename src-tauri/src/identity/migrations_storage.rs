@@ -40,6 +40,17 @@ CREATE TABLE storage_tests_no_sync (
   outcome TEXT NOT NULL
 );"#;
 
+/// The migration `0031_storage_protocols` (spec 050, data-model.md, research R13): the protocol of a
+/// connection (existing connections are S3) and the confirmed host key of an SFTP server with the
+/// time of its confirmation. `haex_storage_connections` is CRDT-tracked, so
+/// [`super::migrations::HOLZI_TRIGGER_VERSION`] is raised with it. `haex_storages.bucket` keeps its
+/// name and holds the folder of a WebDAV or SFTP storage.
+pub const STORAGE_PROTOCOLS_0031: &str = r#"ALTER TABLE haex_storage_connections ADD COLUMN protocol TEXT NOT NULL DEFAULT 's3';
+--> statement-breakpoint
+ALTER TABLE haex_storage_connections ADD COLUMN host_key TEXT;
+--> statement-breakpoint
+ALTER TABLE haex_storage_connections ADD COLUMN host_key_confirmed_at TEXT;"#;
+
 /// The tables of [`STORAGE_0028`] that haex-crdt tracks and syncs.
 pub const SYNCED_TABLES: [&str; 2] = ["haex_storage_connections", "haex_storages"];
 

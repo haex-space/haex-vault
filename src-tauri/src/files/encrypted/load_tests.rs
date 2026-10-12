@@ -273,13 +273,23 @@ impl RemoteStore for Gauge {
     async fn copy(&self, a: &Access, f: &str, t: &str, d: Instant) -> Result<(), StorageError> {
         self.inner.copy(a, f, t, d).await
     }
-    async fn create_multipart(
+    fn copies_on_provider(&self, a: &Access) -> bool {
+        self.inner.copies_on_provider(a)
+    }
+    async fn rename_tree(
         &self,
         a: &Access,
-        k: &str,
+        f: &str,
+        t: &str,
         d: Instant,
-    ) -> Result<String, StorageError> {
-        self.inner.create_multipart(a, k, d).await
+    ) -> Result<(), StorageError> {
+        self.inner.rename_tree(a, f, t, d).await
+    }
+    async fn remove_tree(&self, a: &Access, p: &str, d: Instant) -> Result<(), StorageError> {
+        self.inner.remove_tree(a, p, d).await
+    }
+    async fn begin_upload(&self, a: &Access, k: &str, d: Instant) -> Result<String, StorageError> {
+        self.inner.begin_upload(a, k, d).await
     }
     async fn upload_part(
         &self,
@@ -292,7 +302,7 @@ impl RemoteStore for Gauge {
     ) -> Result<String, StorageError> {
         self.inner.upload_part(a, k, u, n, b, d).await
     }
-    async fn complete_multipart(
+    async fn finish_upload(
         &self,
         a: &Access,
         k: &str,
@@ -300,16 +310,16 @@ impl RemoteStore for Gauge {
         e: &[String],
         d: Instant,
     ) -> Result<(), StorageError> {
-        self.inner.complete_multipart(a, k, u, e, d).await
+        self.inner.finish_upload(a, k, u, e, d).await
     }
-    async fn abort_multipart(
+    async fn abort_upload(
         &self,
         a: &Access,
         k: &str,
         u: &str,
         d: Instant,
     ) -> Result<(), StorageError> {
-        self.inner.abort_multipart(a, k, u, d).await
+        self.inner.abort_upload(a, k, u, d).await
     }
 }
 

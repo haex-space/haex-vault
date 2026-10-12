@@ -571,6 +571,11 @@
           "title": "Delegate deny rules",
           "description": "Actions that stay off-limits even in an autonomous mode.",
           "keywords": "deny rules forbidden commands"
+        },
+        "files": {
+          "title": "Files",
+          "description": "What agents may do on this device and in cloud storages.",
+          "keywords": "files access permission cloud storage device revoke"
         }
       },
       "federation": {
@@ -885,6 +890,20 @@
         "loadHint": "Folder with haextension/manifest.json",
         "unload": "Unload"
       }
+    },
+    "agentFiles": {
+      "builtin": "Agent in the chat",
+      "device": "Files of this device",
+      "deviceDescription": "Read and search everywhere, change per approval level",
+      "storageDescription": "Cloud storage",
+      "status": {
+        "ask": "Asks first",
+        "read": "Read",
+        "readWrite": "Read and write",
+        "denied": "Denied"
+      },
+      "loadFailed": "Permissions not loaded",
+      "failed": "Not saved"
     },
     "storage": {
       "intro": "Connections to S3-compatible providers. Each connection holds cloud storages, one bucket each. Extensions only see the names and use a cloud storage only with your permission.",

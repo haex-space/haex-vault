@@ -388,6 +388,7 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 
 - Spaces, Space-Buckets, Zugangsschlüssel je Space, Eignungsprüfung und Versionierung (Spec 029).
 - Ein Dateibrowser oder Dateisync von holzi auf einem Speicher (Specs 025 und 029).
-- Andere Protokolle (IMAP, SMTP, ICS, WebDAV, FTP). Sie folgen demselben Grundsatz in eigenen Specs.
+- Andere Protokolle (IMAP, SMTP, ICS, FTP). Sie folgen demselben Grundsatz in eigenen Specs. WebDAV und
+  SFTP baut Spec 050 ([`050-webdav-sftp-storage`](../050-webdav-sftp-storage/spec.md)).
 - Verschlüsselung der Objekte durch holzi; was eine Erweiterung hochlädt, liegt beim Anbieter so, wie
   sie es schickt.

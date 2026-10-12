@@ -19,7 +19,7 @@ pub(super) async fn create(
     deadline: Instant,
 ) -> Result<String, StorageError> {
     let bucket = bucket(access)?;
-    let credentials = signing(&access.credentials);
+    let credentials = signing(&access.credentials)?;
     let url = bucket
         .create_multipart_upload(Some(&credentials), key)
         .sign(SIGNED_FOR);
@@ -45,7 +45,7 @@ pub(super) async fn upload_part(
     deadline: Instant,
 ) -> Result<String, StorageError> {
     let bucket = bucket(access)?;
-    let credentials = signing(&access.credentials);
+    let credentials = signing(&access.credentials)?;
     let url = bucket
         .upload_part(Some(&credentials), key, number, upload_id)
         .sign(SIGNED_FOR);
@@ -72,7 +72,7 @@ pub(super) async fn complete(
     deadline: Instant,
 ) -> Result<(), StorageError> {
     let bucket = bucket(access)?;
-    let credentials = signing(&access.credentials);
+    let credentials = signing(&access.credentials)?;
     let action = bucket.complete_multipart_upload(
         Some(&credentials),
         key,
@@ -95,7 +95,7 @@ pub(super) async fn abort(
     deadline: Instant,
 ) -> Result<(), StorageError> {
     let bucket = bucket(access)?;
-    let credentials = signing(&access.credentials);
+    let credentials = signing(&access.credentials)?;
     let url = bucket
         .abort_multipart_upload(Some(&credentials), key, upload_id)
         .sign(SIGNED_FOR);

@@ -10,14 +10,17 @@ use std::collections::HashMap;
 use haex_crdt::rusqlite::{params, Row};
 use haex_crdt::CrdtTransaction;
 
-use super::{Addressing, ConnectionRow, EndpointScope, ProviderKind, StorageRow, TestOutcome};
+use super::{
+    Addressing, ConnectionRow, EndpointScope, Protocol, ProviderKind, StorageRow, TestOutcome,
+};
 use crate::error::{HolziError, Result};
 use crate::extensions::permissions::store::TABLES as PERMISSION_TABLES;
 use crate::extensions::permissions::PermissionKind;
 use crate::storage::query::Query;
 
 const CONNECTION_COLUMNS: &str = "id, provider_name, provider_kind, endpoint, endpoint_scope, \
-     region, addressing, credentials_item_id, created_at, updated_at";
+     region, addressing, credentials_item_id, created_at, updated_at, protocol, host_key, \
+     host_key_confirmed_at";
 
 const STORAGE_COLUMNS: &str = "id, connection_id, name, bucket, created_at, updated_at";
 
@@ -50,6 +53,9 @@ fn connection_of(r: &Row<'_>) -> haex_crdt::rusqlite::Result<ConnectionRow> {
         credentials_item_id: r.get(7)?,
         created_at: r.get(8)?,
         updated_at: r.get(9)?,
+        protocol: Protocol::parse(&r.get::<_, String>(10)?).ok_or_else(|| unknown(10))?,
+        host_key: r.get(11)?,
+        host_key_confirmed_at: r.get(12)?,
     })
 }
 
@@ -132,17 +138,93 @@ pub fn bucket_ok(bucket: &str) -> bool {
         && !bucket.contains("..")
 }
 
-/// The field rules of a connection (data-model.md); the endpoint is checked by
-/// [`super::address`].
+/// A folder of a WebDAV or SFTP storage (spec 050 data-model.md): empty for the root, otherwise
+/// parts separated by `/`, none empty, `.` or `..`, none longer than 255 bytes, no control
+/// characters (so no `/` at the start or the end).
+pub fn folder_ok(folder: &str) -> bool {
+    folder.is_empty()
+        || folder.split('/').all(|part| {
+            !part.is_empty()
+                && part != "."
+                && part != ".."
+                && part.len() <= 255
+                && !part.chars().any(char::is_control)
+        })
+}
+
+/// The shape of a WebDAV endpoint (spec 050 data-model.md): `https`, or `http` (local only, which
+/// [`super::address`] checks), with a trailing `/`, no user, query or fragment.
+fn webdav_endpoint_ok(endpoint: &str) -> bool {
+    // The parser adds the `/` of an empty path itself, so the text must carry it.
+    endpoint.ends_with('/')
+        && url::Url::parse(endpoint).is_ok_and(|url| {
+            matches!(url.scheme(), "https" | "http")
+                && url.host_str().is_some()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+                && url.path().ends_with('/')
+        })
+}
+
+/// The shape of an SFTP endpoint (spec 050 data-model.md): `sftp://host` or `sftp://host:port`
+/// (port 1–65535), without a path, user, query or fragment.
+fn sftp_endpoint_ok(endpoint: &str) -> bool {
+    url::Url::parse(endpoint).is_ok_and(|url| {
+        url.scheme() == "sftp"
+            && url.host_str().is_some()
+            && url.port() != Some(0)
+            && url.username().is_empty()
+            && url.password().is_none()
+            && matches!(url.path(), "" | "/")
+            && url.query().is_none()
+            && url.fragment().is_none()
+    })
+}
+
+/// The field rules of a connection (038 and 050 data-model.md); the addresses of the endpoint are
+/// checked by [`super::address`].
 pub fn check_connection(row: &ConnectionRow) -> Result<()> {
     if !name_ok(&row.provider_name, 80) {
         return Err(invalid("providerName"));
     }
-    if !name_ok(&row.region, 64) {
+    if !row.protocol.fits(row.provider_kind) {
+        return Err(invalid("providerKind"));
+    }
+    let endpoint = row.endpoint.trim();
+    match row.protocol {
+        Protocol::S3 => {
+            if !name_ok(&row.region, 64) {
+                return Err(invalid("region"));
+            }
+            if endpoint.is_empty() && row.provider_kind != ProviderKind::Aws {
+                return Err(invalid("endpoint"));
+            }
+        }
+        Protocol::WebDav => {
+            if !webdav_endpoint_ok(endpoint) {
+                return Err(invalid("endpoint"));
+            }
+        }
+        Protocol::Sftp => {
+            if !sftp_endpoint_ok(endpoint) {
+                return Err(invalid("endpoint"));
+            }
+        }
+    }
+    if row.protocol != Protocol::S3
+        && (!row.region.is_empty() || row.addressing != Addressing::Path)
+    {
         return Err(invalid("region"));
     }
-    if row.endpoint.trim().is_empty() && row.provider_kind != ProviderKind::Aws {
-        return Err(invalid("endpoint"));
+    // Only SFTP has a host key, and it is never saved without one (research R5).
+    let host_key = row
+        .host_key
+        .as_deref()
+        .is_some_and(|key| !key.trim().is_empty());
+    if host_key != (row.protocol == Protocol::Sftp) {
+        return Err(invalid("hostKey"));
     }
     if row.credentials_item_id.is_empty() {
         return Err(invalid("credentials"));
@@ -150,21 +232,38 @@ pub fn check_connection(row: &ConnectionRow) -> Result<()> {
     Ok(())
 }
 
-/// The field rules of a storage (data-model.md).
-pub fn check_storage(row: &StorageRow) -> Result<()> {
+/// The field rules of a storage on a connection of `protocol` (data-model.md): a bucket for S3, a
+/// folder for WebDAV and SFTP.
+pub fn check_storage(row: &StorageRow, protocol: Protocol) -> Result<()> {
     if !name_ok(&row.name, 80) {
         return Err(invalid("name"));
     }
-    if !bucket_ok(&row.bucket) {
+    if !target_ok(protocol, &row.bucket) {
         return Err(invalid("bucket"));
     }
     Ok(())
 }
 
+/// Whether `bucket` is a valid bucket (S3) or folder (WebDAV, SFTP) on a connection of `protocol`.
+pub fn target_ok(protocol: Protocol, bucket: &str) -> bool {
+    match protocol {
+        Protocol::S3 => bucket_ok(bucket),
+        Protocol::WebDav | Protocol::Sftp => folder_ok(bucket),
+    }
+}
+
 /// Writes `row`: a new id is inserted, a known one updated.
 pub fn put_connection(tx: &mut CrdtTransaction<'_>, row: &ConnectionRow) -> Result<()> {
     check_connection(row)?;
-    let exists = connection(tx, &row.id)?.is_some();
+    let stored = connection(tx, &row.id)?;
+    // The protocol of a saved connection never changes (spec 050 FR-001).
+    if stored
+        .as_ref()
+        .is_some_and(|stored| stored.protocol != row.protocol)
+    {
+        return Err(invalid("protocol"));
+    }
+    let exists = stored.is_some();
     let values = params![
         row.id,
         row.provider_name.trim(),
@@ -176,19 +275,23 @@ pub fn put_connection(tx: &mut CrdtTransaction<'_>, row: &ConnectionRow) -> Resu
         row.credentials_item_id,
         row.created_at,
         row.updated_at,
+        row.protocol.as_str(),
+        row.host_key,
+        row.host_key_confirmed_at,
     ];
     if exists {
         tx.execute(
             "UPDATE haex_storage_connections SET provider_name = ?2, provider_kind = ?3, \
              endpoint = ?4, endpoint_scope = ?5, region = ?6, addressing = ?7, \
-             credentials_item_id = ?8, updated_at = ?10 WHERE id = ?1",
+             credentials_item_id = ?8, updated_at = ?10, host_key = ?12, \
+             host_key_confirmed_at = ?13 WHERE id = ?1 AND protocol = ?11",
             values,
         )?;
     } else {
         tx.execute(
             &format!(
                 "INSERT INTO haex_storage_connections ({CONNECTION_COLUMNS}) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"
             ),
             values,
         )?;
@@ -199,10 +302,10 @@ pub fn put_connection(tx: &mut CrdtTransaction<'_>, row: &ConnectionRow) -> Resu
 /// Writes `row` on an existing connection: a new id is inserted, a known one updated (its
 /// connection stays).
 pub fn put_storage(tx: &mut CrdtTransaction<'_>, row: &StorageRow) -> Result<()> {
-    check_storage(row)?;
-    if connection(tx, &row.connection_id)?.is_none() {
+    let Some(connection) = connection(tx, &row.connection_id)? else {
         return Err(HolziError::StorageNotFound);
-    }
+    };
+    check_storage(row, connection.protocol)?;
     let values = params![
         row.id,
         row.connection_id,
