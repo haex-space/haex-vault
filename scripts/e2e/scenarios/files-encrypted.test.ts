@@ -46,8 +46,8 @@ async function setName(instance: FlowInstance, name: string) {
   await instance.waitForDisplayed('files-name-input')
   await instance.exec(
     `const input = document.querySelector('[data-testid="files-name-input"]')
-     input.value = ''
-     input.dispatchEvent(new Event('input', { bubbles: true }))
+     input.focus()
+     input.select()
      return true`,
   )
   await instance.type('files-name-input', name)
