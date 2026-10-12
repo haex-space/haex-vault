@@ -43,6 +43,7 @@ async function confirm() {
   failure.value = null
   busy.value = true
   const trial = await confirmAsync({
+    kind: 's3',
     accessKeyId: draft.accessKeyId.trim(),
     secretAccessKey: draft.secretAccessKey,
     sessionToken: draft.sessionToken.trim() || undefined,

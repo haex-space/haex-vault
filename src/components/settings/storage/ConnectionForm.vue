@@ -31,8 +31,11 @@ const missing = computed(
   () => !isNew.value && overview.value !== null && !existing.value,
 )
 
+/** The providers this form offers so far: the S3 ones (WebDAV and SFTP follow, spec 050). */
+type S3Kind = Extract<ProviderKind, 'aws' | 'rustfs' | 'other'>
+
 const PRESETS: Record<
-  ProviderKind,
+  S3Kind,
   { endpoint: string; addressing: Addressing; region: string }
 > = {
   aws: { endpoint: '', addressing: 'virtual', region: 'eu-central-1' },
@@ -93,7 +96,7 @@ const addressingOptions = computed<SettingsSelectOption[]>(() =>
 /** A new provider prefills its endpoint, region and addressing, and the name while untouched. */
 function choose(kind: string) {
   const previous = draft.providerKind
-  const next = kind as ProviderKind
+  const next = kind as S3Kind
   draft.providerKind = next
   Object.assign(draft, PRESETS[next])
   if (draft.providerName === t(`settings.storage.kinds.${previous}`))
@@ -116,6 +119,7 @@ async function saveAsync() {
   failure.value = null
   const input: ConnectionInput = {
     id: isNew.value ? undefined : connectionId.value,
+    protocol: 's3',
     providerName: draft.providerName,
     providerKind: draft.providerKind,
     endpoint: draft.endpoint.trim() || undefined,
@@ -123,6 +127,7 @@ async function saveAsync() {
     addressing: draft.addressing,
     credentials: withCredentials.value
       ? {
+          kind: 's3',
           accessKeyId: draft.accessKeyId,
           secretAccessKey: draft.secretAccessKey,
           sessionToken: draft.sessionToken.trim() || undefined,

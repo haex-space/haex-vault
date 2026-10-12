@@ -204,9 +204,9 @@ pub fn since(scene: &Scene, mark: usize, ops: &[Op]) -> Vec<(Op, String)> {
 pub const WRITES: [Op; 5] = [
     Op::Put,
     Op::Copy,
-    Op::CreateMultipart,
+    Op::BeginUpload,
     Op::UploadPart,
-    Op::CompleteMultipart,
+    Op::FinishUpload,
 ];
 
 /// The version the entry at `path` shows.

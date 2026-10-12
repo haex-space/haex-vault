@@ -21,8 +21,7 @@ use tokio::time::Instant;
 
 use super::address::{self, Resolver, SystemResolver};
 use super::{
-    Access, Addressing, Credentials, DirListing, EndpointScope, ObjectHead, ObjectInfo,
-    RemoteStore, StorageError,
+    Access, Addressing, Credentials, DirListing, ObjectHead, ObjectInfo, RemoteStore, StorageError,
 };
 
 pub use super::s3_ext::copy_source;
@@ -55,28 +54,6 @@ impl S3Store {
         Self::new(Arc::new(SystemResolver))
     }
 
-    /// A client that reaches the host of `url` only at its checked addresses.
-    async fn client_for(
-        &self,
-        url: &Url,
-        scope: EndpointScope,
-    ) -> Result<reqwest::Client, StorageError> {
-        let pinned = address::pin(url, scope, self.resolver.as_ref())
-            .await
-            .map_err(|error| {
-                log::warn!("remote storage: endpoint refused: {error}");
-                StorageError::Network
-            })?;
-        let mut builder = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .no_proxy()
-            .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")));
-        if let Some(host) = &pinned.host {
-            builder = builder.resolve_to_addrs(host, &pinned.addrs);
-        }
-        builder.build().map_err(|_| StorageError::Network)
-    }
-
     /// Sends one signed request and returns the answer when its status is a success. `headers`
     /// must be the ones the address was signed with.
     pub(super) async fn send(
@@ -90,7 +67,11 @@ impl S3Store {
     ) -> Result<reqwest::Response, StorageError> {
         let client = tokio::time::timeout_at(
             deadline,
-            self.client_for(&url, access.location.endpoint_scope),
+            super::http::pinned_client(
+                &url,
+                access.location.endpoint_scope,
+                self.resolver.as_ref(),
+            ),
         )
         .await
         .map_err(|_| StorageError::TimedOut)??;
@@ -143,14 +124,19 @@ pub(super) fn bucket(access: &Access) -> Result<Bucket, StorageError> {
     .map_err(|_| StorageError::Network)
 }
 
-/// Builds signing credentials, including the session token when present.
-pub(super) fn signing(credentials: &Credentials) -> rusty_s3::Credentials {
+/// Builds signing credentials, including the session token when present. Credentials of another
+/// protocol never reach S3 ([`StorageError::AccessDenied`]).
+pub(super) fn signing(credentials: &Credentials) -> Result<rusty_s3::Credentials, StorageError> {
+    let Credentials::S3(credentials) = credentials else {
+        log::warn!("remote storage: S3 got credentials of another protocol");
+        return Err(StorageError::AccessDenied);
+    };
     let key = credentials.access_key_id.clone();
     let secret = credentials.secret_access_key.as_str();
-    match &credentials.session_token {
+    Ok(match &credentials.session_token {
         Some(token) => rusty_s3::Credentials::new_with_token(key, secret, token.as_str()),
         None => rusty_s3::Credentials::new(key, secret),
-    }
+    })
 }
 
 /// Reads `response` up to `max` bytes before `deadline`; more is [`StorageError::TooLarge`].
@@ -231,7 +217,7 @@ impl RemoteStore for S3Store {
         deadline: Instant,
     ) -> Result<(), StorageError> {
         let bucket = bucket(access)?;
-        let credentials = signing(&access.credentials);
+        let credentials = signing(&access.credentials)?;
         let url = bucket.put_object(Some(&credentials), key).sign(SIGNED_FOR);
         self.send(access, Method::PUT, url, Some(body), &[], deadline)
             .await
@@ -247,7 +233,7 @@ impl RemoteStore for S3Store {
         deadline: Instant,
     ) -> Result<Vec<u8>, StorageError> {
         let bucket = bucket(access)?;
-        let credentials = signing(&access.credentials);
+        let credentials = signing(&access.credentials)?;
         let url = bucket.get_object(Some(&credentials), key).sign(SIGNED_FOR);
         let response = self
             .send(access, Method::GET, url, None, &[], deadline)
@@ -264,7 +250,7 @@ impl RemoteStore for S3Store {
         deadline: Instant,
     ) -> Result<Vec<ObjectInfo>, StorageError> {
         let bucket = bucket(access)?;
-        let credentials = signing(&access.credentials);
+        let credentials = signing(&access.credentials)?;
         let mut objects = Vec::new();
         let mut token: Option<String> = None;
         loop {
@@ -308,7 +294,7 @@ impl RemoteStore for S3Store {
         deadline: Instant,
     ) -> Result<(), StorageError> {
         let bucket = bucket(access)?;
-        let credentials = signing(&access.credentials);
+        let credentials = signing(&access.credentials)?;
         let url = bucket
             .delete_object(Some(&credentials), key)
             .sign(SIGNED_FOR);
@@ -325,7 +311,7 @@ impl RemoteStore for S3Store {
         deadline: Instant,
     ) -> Result<ObjectHead, StorageError> {
         let bucket = bucket(access)?;
-        let credentials = signing(&access.credentials);
+        let credentials = signing(&access.credentials)?;
         let url = bucket.head_object(Some(&credentials), key).sign(SIGNED_FOR);
         let response = self
             .send(access, Method::HEAD, url, None, &[], deadline)
@@ -360,7 +346,7 @@ impl RemoteStore for S3Store {
             return Ok(Box::new(tokio::io::empty()));
         }
         let bucket = bucket(access)?;
-        let credentials = signing(&access.credentials);
+        let credentials = signing(&access.credentials)?;
         let range = format!("bytes={start}-{}", start + len - 1);
         let mut action = bucket.get_object(Some(&credentials), key);
         action.headers_mut().insert("range", range.clone());
@@ -410,7 +396,33 @@ impl RemoteStore for S3Store {
         super::s3_ext::copy(self, access, from, to, deadline).await
     }
 
-    async fn create_multipart(
+    /// S3 copies on the provider (`CopyObject`).
+    fn copies_on_provider(&self, _access: &Access) -> bool {
+        true
+    }
+
+    /// Never called for S3: folders are prefixes, moved object by object (spec 050 research R8).
+    async fn rename_tree(
+        &self,
+        _access: &Access,
+        _from: &str,
+        _to: &str,
+        _deadline: Instant,
+    ) -> Result<(), StorageError> {
+        Err(StorageError::Unsupported)
+    }
+
+    /// Never called for S3: folders are prefixes, deleted object by object (spec 050 research R8).
+    async fn remove_tree(
+        &self,
+        _access: &Access,
+        _prefix: &str,
+        _deadline: Instant,
+    ) -> Result<(), StorageError> {
+        Err(StorageError::Unsupported)
+    }
+
+    async fn begin_upload(
         &self,
         access: &Access,
         key: &str,
@@ -431,18 +443,18 @@ impl RemoteStore for S3Store {
         super::s3_multipart::upload_part(self, access, key, upload_id, number, body, deadline).await
     }
 
-    async fn complete_multipart(
+    async fn finish_upload(
         &self,
         access: &Access,
         key: &str,
         upload_id: &str,
-        etags: &[String],
+        marks: &[String],
         deadline: Instant,
     ) -> Result<(), StorageError> {
-        super::s3_multipart::complete(self, access, key, upload_id, etags, deadline).await
+        super::s3_multipart::complete(self, access, key, upload_id, marks, deadline).await
     }
 
-    async fn abort_multipart(
+    async fn abort_upload(
         &self,
         access: &Access,
         key: &str,

@@ -71,12 +71,13 @@ scenario(
       'storage_connection_save',
       await page.invoke('storage_connection_save', {
         input: {
+          protocol: 's3',
           providerName: 'RustFS',
           providerKind: 'rustfs',
           endpoint: rustfs.endpoint,
           region: rustfs.region,
           addressing: 'path',
-          credentials,
+          credentials: { kind: 's3', ...credentials },
           bucketForTest: USERS_BUCKET,
         },
       }),

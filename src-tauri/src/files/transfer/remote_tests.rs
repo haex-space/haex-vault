@@ -113,10 +113,7 @@ async fn a_small_file_goes_up_in_one_put_and_a_folder_keeps_its_tree() {
             "Ziel/Fotos/leer/"
         ]
     );
-    assert!(!fake
-        .calls()
-        .iter()
-        .any(|(op, _)| *op == Op::CreateMultipart));
+    assert!(!fake.calls().iter().any(|(op, _)| *op == Op::BeginUpload));
     assert!(real.join("Fotos/a.jpg").exists(), "a copy keeps the source");
 }
 
@@ -171,7 +168,7 @@ async fn a_cancelled_upload_in_parts_is_aborted() {
     assert_eq!(outcome, Outcome::Cancelled);
     assert!(fake.keys(BUCKET).is_empty());
     assert!(fake.open_uploads().is_empty(), "the upload was aborted");
-    assert!(fake.calls().iter().any(|(op, _)| *op == Op::AbortMultipart));
+    assert!(fake.calls().iter().any(|(op, _)| *op == Op::AbortUpload));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -249,6 +246,30 @@ async fn within_one_bucket_the_provider_copies_and_a_move_deletes() {
         .count();
     assert_eq!(copies, 2);
     assert!(!fake.calls().iter().any(|(op, _)| *op == Op::GetRange));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn within_one_bucket_without_copies_on_the_provider_the_bytes_stream_through() {
+    // An SFTP server cannot copy (spec 050 research R8).
+    let fake = Arc::new(FakeStore::new());
+    fake.without_copy();
+    fake.insert(BUCKET, "Alt/a.txt", b"a");
+    let (outcome, _) = run_job(
+        job(
+            TransferOp::Copy,
+            storage(&fake, BUCKET),
+            &["/Alt/a.txt"],
+            storage(&fake, BUCKET),
+            "/Neu",
+        ),
+        vec![],
+        None,
+    )
+    .await;
+    assert_eq!(outcome, Outcome::Done);
+    assert_eq!(fake.object(BUCKET, "Neu/a.txt").as_deref(), Some(&b"a"[..]));
+    assert!(!fake.calls().iter().any(|(op, _)| *op == Op::Copy));
+    assert!(fake.calls().iter().any(|(op, _)| *op == Op::GetRange));
 }
 
 #[tokio::test(flavor = "multi_thread")]

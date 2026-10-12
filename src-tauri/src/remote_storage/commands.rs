@@ -11,6 +11,7 @@ use super::model::{
     ConnectionInput, ConnectionView, RemovalPreview, RemovalTarget, StorageInput, StorageOverview,
     StorageView, TestResult,
 };
+use super::protocol::ProtocolStore;
 use super::s3::S3Store;
 use super::service::StorageService;
 use super::RemoteStore;
@@ -19,10 +20,13 @@ use crate::extensions::remote_storage_dialog::{StorageAnswer, StorageTrial};
 use crate::passwords::service::PasswordsService;
 use crate::state::AppState;
 
-/// The provider of this process: S3 with the resolver of the operating system.
-pub fn s3_store() -> Arc<dyn RemoteStore> {
-    static STORE: OnceLock<Arc<S3Store>> = OnceLock::new();
-    STORE.get_or_init(|| Arc::new(S3Store::system())).clone()
+/// The providers of this process (spec 050 research R1): one store per protocol, each with the
+/// resolver of the operating system, chosen per call by the connection's protocol.
+pub fn stores() -> Arc<dyn RemoteStore> {
+    static STORE: OnceLock<Arc<ProtocolStore>> = OnceLock::new();
+    STORE
+        .get_or_init(|| Arc::new(ProtocolStore::new(Arc::new(S3Store::system()), None, None)))
+        .clone()
 }
 
 /// The service over the active vault; `VaultClosed` or `NoActiveInstance` when there is none.
@@ -32,7 +36,7 @@ pub(crate) fn service(state: &AppState) -> Result<StorageService> {
     Ok(StorageService::new(
         db,
         passwords,
-        s3_store(),
+        stores(),
         Arc::new(SystemResolver),
     ))
 }

@@ -53,7 +53,7 @@ pub(crate) async fn storage_files(
             }
         })?;
     Ok(StorageFiles::new(
-        crate::remote_storage::commands::s3_store(),
+        crate::remote_storage::commands::stores(),
         access,
     ))
 }

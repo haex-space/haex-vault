@@ -395,6 +395,43 @@ fn reopening_a_pre_0028_vault_installs_the_storage_triggers() {
     }
 }
 
+/// `0031_storage_protocols` (spec 050) adds the protocol and the host key to the CRDT-tracked
+/// connections. A vault from before it stores trigger version 19, so only the bump to 20 tracks the
+/// new columns; without it a confirmed host key would stay on the device that confirmed it.
+#[test]
+fn reopening_a_pre_0031_vault_tracks_the_protocol_of_a_connection() {
+    let trigger_sql = |db: &Database| -> String {
+        db.with_connection(|conn| {
+            Ok(conn.query_row(
+                "SELECT sql FROM sqlite_master \
+                 WHERE type = 'trigger' AND name = 'z_dirty_haex_storage_connections_update'",
+                [],
+                |r| r.get(0),
+            )?)
+        })
+        .expect("the update trigger of the connections must exist")
+    };
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db_path = dir.path().join("vault.db");
+    let installation_id = installation_id_path(dir.path());
+
+    let old = open_vault(dir.path(), source_without("0031_storage_protocols"), 19);
+    assert!(
+        !trigger_sql(&old).contains("host_key"),
+        "precondition: the pre-0031 trigger must not know the columns yet"
+    );
+    drop(old);
+
+    let upgraded = Database::open(vault_config(PASSPHRASE, &db_path, &installation_id, false))
+        .expect("reopen upgraded vault");
+    let sql = trigger_sql(&upgraded);
+    assert!(
+        sql.contains("protocol") && sql.contains("host_key"),
+        "0031 added `protocol` and `host_key` to the CRDT-tracked connections (spec 050 FR-009), \
+         but the production open path left them untracked. Bump HOLZI_TRIGGER_VERSION.\n{sql}"
+    );
+}
+
 #[test]
 fn a_vault_from_before_spec_024_gets_its_derived_identity_and_first_device_list() {
     let dir = tempfile::tempdir().expect("tempdir");

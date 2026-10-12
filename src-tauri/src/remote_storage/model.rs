@@ -1,5 +1,5 @@
-//! What the settings send and get back (spec 038, contracts/tauri-commands.md). No answer carries
-//! a secret; the secret only travels in [`CredentialsInput`], from the window to Rust.
+//! What the settings send and get back (spec 038 and spec 050, contracts/tauri-commands.md). No
+//! answer carries a secret; the secret only travels in [`CredentialsInput`], from the window to Rust.
 
 use std::fmt;
 
@@ -7,27 +7,58 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use zeroize::Zeroizing;
 
-use super::{Addressing, CredentialsState, EndpointScope, ProviderKind, TestOutcome};
+use super::{Addressing, CredentialsState, EndpointScope, Protocol, ProviderKind, TestOutcome};
 
-/// Credentials as typed by the user; `Debug` shows only the access key id.
+/// Credentials as typed by the user, by kind (spec 050 contracts/tauri-commands.md): `s3` only for
+/// S3 connections, `password` for WebDAV and SFTP, `sshKey` only for SFTP. `Debug` shows only the
+/// access key id or the user name.
 #[derive(Clone, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
-#[serde(rename_all = "camelCase")]
-pub struct CredentialsInput {
-    pub access_key_id: String,
-    #[ts(type = "string")]
-    pub secret_access_key: Zeroizing<String>,
-    #[ts(type = "string | null", optional)]
-    #[serde(default)]
-    pub session_token: Option<Zeroizing<String>>,
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum CredentialsInput {
+    #[serde(rename_all = "camelCase")]
+    S3 {
+        access_key_id: String,
+        #[ts(type = "string")]
+        secret_access_key: Zeroizing<String>,
+        #[ts(type = "string | null", optional)]
+        #[serde(default)]
+        session_token: Option<Zeroizing<String>>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Password {
+        username: String,
+        #[ts(type = "string")]
+        password: Zeroizing<String>,
+    },
+    #[serde(rename_all = "camelCase")]
+    SshKey {
+        username: String,
+        #[ts(type = "string")]
+        private_key: Zeroizing<String>,
+        #[ts(type = "string | null", optional)]
+        #[serde(default)]
+        passphrase: Option<Zeroizing<String>>,
+    },
 }
 
 impl fmt::Debug for CredentialsInput {
-    /// Formats credential input with only the access key ID, omitting secret fields.
+    /// Formats credential input with only the access key ID or the user name, omitting secrets.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CredentialsInput")
-            .field("access_key_id", &self.access_key_id)
-            .finish_non_exhaustive()
+        match self {
+            Self::S3 { access_key_id, .. } => f
+                .debug_struct("CredentialsInput::S3")
+                .field("access_key_id", access_key_id)
+                .finish_non_exhaustive(),
+            Self::Password { username, .. } => f
+                .debug_struct("CredentialsInput::Password")
+                .field("username", username)
+                .finish_non_exhaustive(),
+            Self::SshKey { username, .. } => f
+                .debug_struct("CredentialsInput::SshKey")
+                .field("username", username)
+                .finish_non_exhaustive(),
+        }
     }
 }
 
@@ -39,6 +70,9 @@ pub struct ConnectionInput {
     #[ts(optional)]
     #[serde(default)]
     pub id: Option<String>,
+    /// The protocol; a change of a saved connection must keep it (spec 050 FR-001).
+    #[serde(default = "s3")]
+    pub protocol: Protocol,
     pub provider_name: String,
     pub provider_kind: ProviderKind,
     /// Empty or absent only for `aws`.
@@ -51,8 +85,13 @@ pub struct ConnectionInput {
     #[ts(optional)]
     #[serde(default)]
     pub credentials: Option<CredentialsInput>,
-    /// The bucket the test before saving uses (FR-003).
+    /// The bucket or folder the test before saving uses (FR-003).
     pub bucket_for_test: String,
+}
+
+/// The protocol of a connection input that names none (the settings before spec 050).
+fn s3() -> Protocol {
+    Protocol::S3
 }
 
 /// `storage_save`: a new storage without `id`, otherwise a change of one.
@@ -74,6 +113,7 @@ pub struct StorageInput {
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionView {
     pub id: String,
+    pub protocol: Protocol,
     pub provider_name: String,
     pub provider_kind: ProviderKind,
     pub endpoint: String,
@@ -103,6 +143,7 @@ pub struct StorageView {
     pub id: String,
     pub connection_id: String,
     pub name: String,
+    /// The bucket (S3) or the folder (WebDAV, SFTP).
     pub bucket: String,
     pub last_test: Option<LastTest>,
     /// The extensions with a permission for this storage.

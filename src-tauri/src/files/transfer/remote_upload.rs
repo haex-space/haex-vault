@@ -78,7 +78,7 @@ impl Run<'_, '_> {
             None => {
                 let id = self.retried(|| {
                     self.handle
-                        .block_on(store.create_multipart(access, key, soon()))
+                        .block_on(store.begin_upload(access, key, soon()))
                 })?;
                 upload.id = Some(id.clone());
                 id
@@ -116,14 +116,14 @@ impl Run<'_, '_> {
         let id = upload.id.clone().unwrap_or_default();
         self.retried(|| {
             self.handle
-                .block_on(store.complete_multipart(access, &key, &id, &upload.etags, soon()))
+                .block_on(store.finish_upload(access, &key, &id, &upload.etags, soon()))
         })
     }
 
     /// Drops a started upload in parts (FR-020).
     pub(super) fn abort_upload(&self, files: &StorageFiles, upload: &Upload) {
         if let Some(id) = &upload.id {
-            let _ = self.handle.block_on(files.store().abort_multipart(
+            let _ = self.handle.block_on(files.store().abort_upload(
                 files.access(),
                 &upload.key,
                 id,

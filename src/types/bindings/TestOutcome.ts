@@ -3,4 +3,4 @@
 /**
  * The result of a connection test (research R9), stored per device in `storage_tests_no_sync`.
  */
-export type TestOutcome = "passed" | "accessDenied" | "unreachable" | "bucketMissing" | "missingRight";
+export type TestOutcome = "passed" | "accessDenied" | "unreachable" | "bucketMissing" | "missingRight" | "folderMissing" | "notWebDav" | "hostKeyUnknown" | "hostKeyChanged";
