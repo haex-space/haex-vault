@@ -147,6 +147,20 @@ pub fn open_ack(q: &mut impl Query, storage_id: &str, folder_id: &str) -> haex_c
     Ok(acks.iter().any(|ack| *ack != 0))
 }
 
+/// The object keys of the heads this device read for folder `folder_id` (normally one; a folder
+/// copied within the storage keeps its id), and the decrypted names of the readable ones.
+pub fn heads_of_folder(
+    q: &mut impl Query,
+    storage_id: &str,
+    folder_id: &str,
+) -> haex_crdt::Result<Vec<(String, Option<String>)>> {
+    q.query_map(
+        "SELECT object_key, CASE WHEN state = 'readable' THEN name END          FROM encrypted_folder_heads_no_sync WHERE storage_id = ?1 AND folder_id = ?2          ORDER BY object_key",
+        params![storage_id, folder_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )
+}
+
 /// Notes "Nicht mehr fragen" for folder `folder_id` at the head `object_key`. A folder this device
 /// created has no row before a listing read its head: the row starts without an ETag then, so the
 /// next listing reads the head and fills it in, keeping the answer.
