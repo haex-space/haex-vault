@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Kind, action and target of one extension permission, as the install dialog, the permission
- * question and the settings show it. A wildcard (`*`) is spelled out and marked, so nobody mistakes
+ * question and the settings show it; an encrypted folder by its storage and name. A wildcard (`*`) is spelled out and marked, so nobody mistakes
  * it for a narrow target: it allows everything of its kind.
  */
 import {
@@ -10,7 +10,16 @@ import {
   isEveryAction,
 } from '~/lib/extensions/permissionScope'
 
-const props = defineProps<{ kind: string; action: string; target: string }>()
+import type { FolderNames } from '@bindings/FolderNames'
+
+const props = defineProps<{
+  kind: string
+  action: string
+  target: string
+  /** For an encrypted folder: its cloud storage and decrypted name (spec 048), shown instead of the
+   * raw target. */
+  folder?: FolderNames | null
+}>()
 const { t } = useI18n()
 
 const everything = computed(() =>
@@ -35,6 +44,18 @@ const everyAction = computed(() => isEveryAction(props.kind, props.action))
     >
       <Icon name="lucide:triangle-alert" class="size-3.5 shrink-0" />
       {{ t(`extensions.permissions.everything.${everything}`) }}
+    </span>
+    <span
+      v-else-if="folder"
+      class="text-xs break-all"
+      data-testid="extension-permission-folder"
+    >
+      {{
+        t('extensions.permissionRequest.encryptedFolder', {
+          folder: folder.folderName,
+          storage: folder.storageName,
+        })
+      }}
     </span>
     <span v-else-if="hasTarget(kind)" class="font-mono text-xs break-all">{{
       target

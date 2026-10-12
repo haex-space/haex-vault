@@ -37,6 +37,38 @@ pub enum Target {
     /// (`host:port`, `host`, an IPv6 address as `[addr]` or `[addr]:port`), matched like a mail
     /// server (spec 038 FR-009b).
     StorageId(String),
+    /// One encrypted folder: `<storage_id>/<folder_id>` (spec 048, contracts/bridge.md). Never a
+    /// wildcard: a grant names exactly one folder.
+    EncryptedFolder(FolderRef),
+}
+
+/// An encrypted folder of a storage: the storage's id and the Base32 id of the folder.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FolderRef {
+    pub storage_id: String,
+    pub folder_id: String,
+}
+
+impl FolderRef {
+    /// `<storage_id>/<folder_id>`: a storage id without `/` and a folder id in the spelling of
+    /// [`encode_id`](crate::files::encrypted::format::encode_id).
+    pub fn parse(value: &str) -> Option<Self> {
+        let (storage_id, folder_id) = value.split_once('/')?;
+        let valid_storage = !storage_id.is_empty()
+            && storage_id.len() <= 128
+            && storage_id.chars().all(|c| !c.is_control() && c != '*');
+        (valid_storage && crate::files::encrypted::format::decode_id(folder_id).is_some()).then(
+            || Self {
+                storage_id: storage_id.to_owned(),
+                folder_id: folder_id.to_owned(),
+            },
+        )
+    }
+
+    /// The stored form, the inverse of [`FolderRef::parse`].
+    pub fn target(&self) -> String {
+        format!("{}/{}", self.storage_id, self.folder_id)
+    }
 }
 
 /// How a host part of a target matches.
@@ -82,6 +114,7 @@ pub enum RequestTarget {
         host: String,
         port: u16,
     },
+    EncryptedFolder(FolderRef),
 }
 
 /// A parsed http(s) request URL.
@@ -138,6 +171,7 @@ impl Target {
             K::Mail => parse_mail_server(value),
             K::Shell if value == "*" => Some(Self::Any),
             K::Shell => clean_absolute(value).map(Self::Program),
+            K::EncryptedFolder => FolderRef::parse(value).map(Self::EncryptedFolder),
         }
     }
 
@@ -145,7 +179,7 @@ impl Target {
     /// match.
     pub fn matches(&self, request: &RequestTarget) -> bool {
         match (self, request) {
-            (Self::Any, RequestTarget::Table(_)) => false,
+            (Self::Any, RequestTarget::Table(_) | RequestTarget::EncryptedFolder(_)) => false,
             (Self::Any, _) => true,
             (Self::ExtensionTables(prefix), RequestTarget::Table(table)) => &table.prefix == prefix,
             (Self::ExtensionTable(own), RequestTarget::Table(table)) => own == table,
@@ -165,6 +199,7 @@ impl Target {
             (Self::Program(program), RequestTarget::Program(asked)) => program == asked,
             (Self::Tag(tag), RequestTarget::Tag(asked)) => *tag == fold(asked),
             (Self::StorageId(id), RequestTarget::StorageId(asked)) => id == asked,
+            (Self::EncryptedFolder(own), RequestTarget::EncryptedFolder(asked)) => own == asked,
             (Self::StorageId(host), RequestTarget::Endpoint { host: asked, port }) => {
                 parse_endpoint_host(host).is_some_and(|server| {
                     server.matches(&RequestTarget::MailServer {

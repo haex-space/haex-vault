@@ -82,3 +82,27 @@ fn a_question_remembers_only_a_bounded_number_of_told_names() {
     assert_eq!(told.len(), MAX_TOLD);
     assert!(told.contains("bash"), "the first name is kept");
 }
+
+#[test]
+fn the_end_of_a_frame_drops_only_held_answers_about_encrypted_folders() {
+    let state = PermissionState::default();
+    let ext = Uuid::new_v4();
+    state.hold(&question(ext, "t"), PermissionStatus::Granted);
+    let folder = Question {
+        extension_id: ext,
+        kind: PermissionKind::EncryptedFolder,
+        action: "read".into(),
+        target: "s1/aaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+    };
+    state.hold(&folder, PermissionStatus::Granted);
+    assert_eq!(
+        state.temporary(ext, PermissionKind::EncryptedFolder).len(),
+        1
+    );
+    state.frame_ended(ext);
+    assert!(state
+        .temporary(ext, PermissionKind::EncryptedFolder)
+        .is_empty());
+    let kept: Vec<PermissionKind> = state.held(ext).iter().map(|d| d.kind).collect();
+    assert_eq!(kept, [PermissionKind::Database]);
+}

@@ -15,9 +15,11 @@ use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::fs::end_revoked_watches;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::mail::watch::end_revoked as end_revoked_mail_watches;
-use crate::extensions::permissions::prompts::{Asked, PermissionDecision, Question};
+use crate::extensions::permissions::prompts::{Asked, FolderNames, PermissionDecision, Question};
 use crate::extensions::permissions::store::{self as permission_store, NewPermission};
-use crate::extensions::permissions::{Permission, PermissionKind, PermissionStatus, VAULT_WIDE};
+use crate::extensions::permissions::{
+    FolderRef, Permission, PermissionKind, PermissionStatus, VAULT_WIDE,
+};
 use crate::passwords::clock::unix_millis;
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -50,6 +52,40 @@ pub struct PermissionView {
     pub temporary: bool,
     /// holzi cannot read the row (FR-022); it counts as absent.
     pub unreadable: bool,
+    /// For `encryptedFolder`: the storage's name and the folder's decrypted name as this device
+    /// last read it (spec 048 FR-038); absent when this device does not know them.
+    // Inline: the scripts' type check reads this binding without its siblings.
+    #[ts(optional, inline)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<FolderNames>,
+}
+
+/// The names of the encrypted folder `target` (`<storage_id>/<folder_id>`), if known here.
+fn folder_names(
+    q: &mut impl crate::storage::query::Query,
+    kind: &str,
+    target: &str,
+) -> haex_crdt::Result<Option<FolderNames>> {
+    if kind != PermissionKind::EncryptedFolder.as_str() {
+        return Ok(None);
+    }
+    let Some(folder) = FolderRef::parse(target) else {
+        return Ok(None);
+    };
+    let storage_name = crate::remote_storage::store::storage(q, &folder.storage_id)
+        .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?
+        .map(|row| row.name);
+    let folder_name =
+        crate::files::encrypted::cache::heads_of_folder(q, &folder.storage_id, &folder.folder_id)?
+            .into_iter()
+            .find_map(|(_, name)| name);
+    Ok(match (storage_name, folder_name) {
+        (Some(storage_name), Some(folder_name)) => Some(FolderNames {
+            storage_name,
+            folder_name,
+        }),
+        _ => None,
+    })
 }
 
 fn parse_id(text: &str) -> Result<Uuid> {
@@ -64,11 +100,25 @@ fn invalid(reason: &str) -> HolziError {
 
 /// Remembered rows of every device and the decisions held in memory.
 pub fn list(db: &VaultDb, host: &ExtensionHost, extension_id: Uuid) -> Result<Vec<PermissionView>> {
-    let (rows, devices) = db.read_blocking(move |q| {
+    let held = host.permissions.held(extension_id);
+    let held_targets: Vec<(String, String)> = held
+        .iter()
+        .map(|d| (d.kind.as_str().to_owned(), d.target.clone()))
+        .collect();
+    let (rows, devices, names) = db.read_blocking(move |q| {
         let rows = permission_store::rows_of(q, extension_id)
             .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?;
-        Ok((rows, known_devices::list_devices(q)?))
+        let mut names = Vec::new();
+        for (kind, target) in rows
+            .iter()
+            .map(|r| (r.kind.clone(), r.target.clone()))
+            .chain(held_targets)
+        {
+            names.push(folder_names(q, &kind, &target)?);
+        }
+        Ok((rows, known_devices::list_devices(q)?, names))
     })?;
+    let mut names = names.into_iter();
     let device_name = |uuid: Uuid| {
         devices
             .iter()
@@ -97,25 +147,22 @@ pub fn list(db: &VaultDb, host: &ExtensionHost, extension_id: Uuid) -> Result<Ve
             status: row.status,
             declared: row.declared,
             temporary: false,
+            folder: names.next().flatten(),
         })
         .collect();
-    views.extend(
-        host.permissions
-            .held(extension_id)
-            .into_iter()
-            .map(|held| PermissionView {
-                id: None,
-                kind: held.kind.as_str().to_owned(),
-                action: held.action,
-                target: held.target,
-                status: held.status.as_str().to_owned(),
-                declared: false,
-                all_devices: false,
-                device_name: None,
-                temporary: true,
-                unreadable: false,
-            }),
-    );
+    views.extend(held.into_iter().map(|held| PermissionView {
+        id: None,
+        kind: held.kind.as_str().to_owned(),
+        action: held.action,
+        target: held.target,
+        status: held.status.as_str().to_owned(),
+        declared: false,
+        all_devices: false,
+        device_name: None,
+        temporary: true,
+        unreadable: false,
+        folder: names.next().flatten(),
+    }));
     Ok(views)
 }
 
@@ -245,6 +292,53 @@ pub struct PermissionResolveArgs {
     pub remember: bool,
 }
 
+/// Keeps the user's decision on `question`: as a row with "remember", else held in memory (for an
+/// encrypted folder until a frame of the extension ends, spec 048 FR-036).
+pub fn record(
+    db: &VaultDb,
+    host: &ExtensionHost,
+    device: Uuid,
+    question: &Question,
+    status: PermissionStatus,
+    remember: bool,
+    now_ms: i64,
+) -> Result<()> {
+    if !remember {
+        host.permissions.hold(question, status);
+        // No row was written, so no change report reaches the running watches (`remove`).
+        end_revoked_watches(db, host, device);
+        end_revoked_mail_watches(db, host, device);
+        return Ok(());
+    }
+    let scope = question.kind.scope_on(device);
+    let Question {
+        extension_id,
+        kind,
+        action,
+        target,
+    } = question.clone();
+    db.write_blocking(move |tx| {
+        let declared = permission_store::rows_of(tx, extension_id)?
+            .iter()
+            .any(|r| r.declared && r.is_about(kind.as_str(), &action, &target));
+        permission_store::put(
+            tx,
+            extension_id,
+            &NewPermission {
+                kind: kind.as_str(),
+                action: &action,
+                target: &target,
+                status: status.as_str(),
+                declared,
+                vault_device_uuid: scope,
+            },
+            now_ms,
+        )
+        .map(drop)
+        .map_err(Into::into)
+    })
+}
+
 /// Answers an open question: remembered as a row or held in memory, then every frame of the
 /// extension hears `extension:permission-resolved` and the SDK repeats its call. A question that
 /// is gone (its frames closed) is ignored.
@@ -263,40 +357,7 @@ pub fn resolve(
         PermissionDecision::Allow => PermissionStatus::Granted,
         PermissionDecision::Deny => PermissionStatus::Denied,
     };
-    if args.remember {
-        let scope = question.kind.scope_on(device);
-        let Question {
-            extension_id,
-            kind,
-            action,
-            target,
-        } = question.clone();
-        db.write_blocking(move |tx| {
-            let declared = permission_store::rows_of(tx, extension_id)?
-                .iter()
-                .any(|r| r.declared && r.is_about(kind.as_str(), &action, &target));
-            permission_store::put(
-                tx,
-                extension_id,
-                &NewPermission {
-                    kind: kind.as_str(),
-                    action: &action,
-                    target: &target,
-                    status: status.as_str(),
-                    declared,
-                    vault_device_uuid: scope,
-                },
-                now_ms,
-            )
-            .map(drop)
-            .map_err(Into::into)
-        })?;
-    } else {
-        host.permissions.hold(&question, status);
-        // No row was written, so no change report reaches the running watches (`remove`).
-        end_revoked_watches(db, host, device);
-        end_revoked_mail_watches(db, host, device);
-    }
+    record(db, host, device, &question, status, args.remember, now_ms)?;
     // The SDK waits for the target its 1004 named.
     for target in told {
         emit_to_frames(

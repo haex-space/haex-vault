@@ -475,5 +475,8 @@ fn not_confirmed_replacement() -> HolziError {
 }
 
 #[cfg(test)]
+#[path = "install_forbidden_tests.rs"]
+mod install_forbidden_tests;
+#[cfg(test)]
 #[path = "install_tests.rs"]
 mod install_tests;

@@ -19,10 +19,13 @@ pub enum PermissionKind {
     RemoteStorage,
     Mail,
     Shell,
+    /// One encrypted folder of a storage (spec 048 FR-036): granted only by the user when asked,
+    /// never from a manifest (FR-037).
+    EncryptedFolder,
 }
 
 impl PermissionKind {
-    pub const ALL: [PermissionKind; 8] = [
+    pub const ALL: [PermissionKind; 9] = [
         Self::Database,
         Self::Filesystem,
         Self::Web,
@@ -31,6 +34,7 @@ impl PermissionKind {
         Self::RemoteStorage,
         Self::Mail,
         Self::Shell,
+        Self::EncryptedFolder,
     ];
 
     /// The stored name; anything else is not a kind holzi knows (FR-022).
@@ -48,6 +52,7 @@ impl PermissionKind {
             Self::RemoteStorage => "remoteStorage",
             Self::Mail => "mail",
             Self::Shell => "shell",
+            Self::EncryptedFolder => "encryptedFolder",
         }
     }
 
@@ -97,12 +102,14 @@ impl Action {
     pub fn parse(kind: PermissionKind, value: &str) -> Option<Self> {
         use PermissionKind as K;
         match (kind, value) {
-            (K::Database | K::Filesystem | K::Passwords | K::RemoteStorage, "read") => {
-                Some(Self::Read)
-            }
-            (K::Database | K::Filesystem | K::Passwords | K::RemoteStorage, "readWrite") => {
-                Some(Self::ReadWrite)
-            }
+            (
+                K::Database | K::Filesystem | K::Passwords | K::RemoteStorage | K::EncryptedFolder,
+                "read",
+            ) => Some(Self::Read),
+            (
+                K::Database | K::Filesystem | K::Passwords | K::RemoteStorage | K::EncryptedFolder,
+                "readWrite",
+            ) => Some(Self::ReadWrite),
             (K::Web, "*") => Some(Self::AnyMethod),
             (K::Web, method) if is_http_method(method) => Some(Self::Method(method.to_owned())),
             (K::Notifications, "show") => Some(Self::Show),

@@ -62,8 +62,9 @@ use extensions::commands::dev::{
     extension_dev_unload,
 };
 use extensions::commands::frames::{
-    extension_bridge_call, extension_dialog_resolve, extension_frame_close, extension_frame_open,
-    extension_frame_reloaded, extension_host_context_set,
+    extension_bridge_call, extension_dialog_resolve, extension_encrypted_folder_choose_resolve,
+    extension_frame_close, extension_frame_open, extension_frame_reloaded,
+    extension_host_context_set,
 };
 use extensions::commands::install::{extension_install, extension_install_preview};
 use extensions::commands::manage::{
@@ -334,7 +335,14 @@ pub fn run() {
             // Spec 032: actions of a model's tool call go out as events; `ChatState` is managed
             // without an `AppHandle`, so the emitter is set here.
             // Spec 044: the file browser's places, thumbnail cache and folder watches.
-            app.manage(files::state::FilesState::from_app(app.handle()));
+            let files_state = files::state::FilesState::from_app(app.handle());
+            // Spec 048 US6: extensions share the encrypted folders the window opened; a vault's
+            // close ends the process and them with it (ADR-0003).
+            app.state::<AppState>()
+                .extensions()
+                .encrypted
+                .set_folders(std::sync::Arc::clone(&files_state.encrypted));
+            app.manage(files_state);
             app.manage(files::transfer::TransferManager::default());
             app.manage(files::search::SearchManager::default());
             // Spec 044 US6 (ADR 0011): the file actions of the built-in agent run here, without a
@@ -554,6 +562,7 @@ pub fn run() {
             extension_bridge_call,
             extension_host_context_set,
             extension_dialog_resolve,
+            extension_encrypted_folder_choose_resolve,
             extension_permissions_list,
             extension_permission_set,
             extension_permission_remove,

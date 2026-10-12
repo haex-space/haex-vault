@@ -27,6 +27,8 @@ pub enum ExtensionErrorCode {
     Web = 2005,
     Manifest = 3000,
     Validation = 3001,
+    /// An entry of an encrypted folder failed its checks (spec 048, contracts/bridge.md).
+    Damaged = 3010,
     /// Rows, run time, size or concurrent requests over the limit (FR-031).
     LimitExceeded = 7000,
     /// The method is unknown or deliberately not offered (FR-060, FR-061).
@@ -71,6 +73,12 @@ pub enum Asks {
     /// There is nothing a permission could name: no question, the SDK waits as for one nobody
     /// answers.
     Nothing,
+    /// The question is about `details.target`, an encrypted folder, and holzi's window names it
+    /// by these names, which the extension never gets (spec 048 FR-036, FR-039).
+    Folder {
+        storage_name: String,
+        folder_name: String,
+    },
 }
 
 impl BridgeError {

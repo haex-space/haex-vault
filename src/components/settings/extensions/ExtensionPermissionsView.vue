@@ -4,7 +4,9 @@
  * action, target, state and where it holds ("alle Geräte" or the device's name), declared or not;
  * the state changes on selection; "Widerrufen" removes it. Where a permission holds follows its
  * kind (shell on this device, everything else on all devices); nobody chooses.
- * Decisions held until holzi is closed are listed with "Entfernen".
+ * Decisions held until holzi is closed are listed with "Entfernen"; those about an encrypted
+ * folder (spec 048 FR-038) only until the extension reloads, and every encrypted folder is named
+ * by its cloud storage and decrypted name.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { PermissionView } from '@bindings/PermissionView'
@@ -74,7 +76,10 @@ function removeAsync(permission: PermissionView) {
 }
 
 function scopeText(permission: PermissionView): string {
-  if (permission.temporary) return t('settings.extensions.temporary')
+  if (permission.temporary)
+    return permission.kind === 'encryptedFolder'
+      ? t('settings.extensions.temporaryFrame')
+      : t('settings.extensions.temporary')
   return permission.allDevices
     ? t('settings.extensions.allDevices')
     : (permission.deviceName ?? t('settings.extensions.thisDevice'))
@@ -105,10 +110,13 @@ onMounted(loadAsync)
           :kind="permission.kind"
           :action="permission.action"
           :target="permission.target"
+          :folder="permission.folder"
         />
         <span class="text-xs text-muted-foreground">
           {{ scopeText(permission) }}
-          <template v-if="!permission.declared">
+          <template
+            v-if="!permission.declared && permission.kind !== 'encryptedFolder'"
+          >
             · {{ t('settings.extensions.notDeclared') }}
           </template>
           <template v-if="permission.unreadable">

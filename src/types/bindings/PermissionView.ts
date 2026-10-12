@@ -27,4 +27,9 @@ temporary: boolean,
 /**
  * holzi cannot read the row (FR-022); it counts as absent.
  */
-unreadable: boolean, };
+unreadable: boolean,
+/**
+ * For `encryptedFolder`: the storage's name and the folder's decrypted name as this device
+ * last read it (spec 048 FR-038); absent when this device does not know them.
+ */
+folder?: { storageName: string, folderName: string, }, };

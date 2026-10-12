@@ -827,6 +827,7 @@
         "denied": "Denied"
       },
       "temporary": "until holzi is closed",
+      "temporaryFrame": "until the extension reloads",
       "allDevices": "all devices",
       "thisDevice": "this device",
       "notDeclared": "not in the manifest",
@@ -1910,7 +1911,8 @@
         "dev_installed_conflict": "An extension with this key and name is or was installed (also with kept data).",
         "dev_tables_exist": "Tables with this extension's prefix exist already.",
         "dev_project_changed": "The project now names another key or name; load it again.",
-        "dev_prefix_conflict": "A development version of this extension is loaded on this device; unload it first."
+        "dev_prefix_conflict": "A development version of this extension is loaded on this device; unload it first.",
+        "forbidden_permission": "The manifest asks for access to encrypted folders. Only you give that access, when holzi asks you, never a manifest."
       },
       "title": "Install extension",
       "fileType": "Extension",
@@ -1957,7 +1959,8 @@
         "passwords": "Passwords",
         "remoteStorage": "Cloud storage",
         "mail": "Mail",
-        "shell": "Run programs"
+        "shell": "Run programs",
+        "encryptedFolder": "Encrypted folder"
       },
       "everyMethod": "all requests",
       "everything": {
@@ -1970,6 +1973,18 @@
         "shell": "Any program"
       }
     },
+    "encryptedChooser": {
+      "title": "“{name}” wants to open an encrypted folder",
+      "intro": "Choose an encrypted folder in the cloud storage “{storage}”. The extension learns its name only once you allow it.",
+      "wantsRead": "The extension wants to read.",
+      "wantsReadWrite": "The extension wants to read and write.",
+      "none": "This cloud storage holds no encrypted folder holzi can open.",
+      "remember": "Remember permission",
+      "untilReload": "Without the tick the answer holds until the extension reloads or closes.",
+      "allowRead": "Allow reading",
+      "allowReadWrite": "Allow reading and writing",
+      "deny": "Refuse"
+    },
     "permissionRequest": {
       "title": "“{name}” asks for a permission",
       "notDeclared": "This permission is not in the extension's manifest.",
@@ -1979,7 +1994,8 @@
       "scopeVault": "Then holds on all your devices.",
       "scopeDevice": "Then holds on this device only. holzi asks again on your other devices.",
       "allow": "Allow",
-      "deny": "Deny"
+      "deny": "Deny",
+      "encryptedFolder": "Folder “{folder}” in the cloud storage “{storage}”"
     },
     "statusError": {
       "migration_changed": "An applied migration was changed",

@@ -46,7 +46,17 @@ impl Manifest {
     /// Reads the manifest of a bundle that `haex-bundle` verified. `displayMode` is accepted and
     /// ignored: an extension always opens as a tab (FR-014).
     pub fn from_verified(bundle: &VerifiedBundle) -> Result<Self, BundleRejection> {
-        Self::from_object(&bundle.manifest)
+        Self::from_object(&bundle.manifest)?.allowed()
+    }
+
+    /// Refuses a manifest that declares a permission no manifest may carry (spec 048 FR-037), at
+    /// install, update and when a development version loads. A stored manifest is read without
+    /// this check: it was checked when it was installed.
+    fn allowed(self) -> Result<Self, BundleRejection> {
+        match self.permissions.forbidden_categories.first() {
+            Some(category) => Err(BundleRejection::forbidden_permission(category)),
+            None => Ok(self),
+        }
     }
 
     /// Reads `haextension/manifest.json` of a project loaded in developer mode (US12): restricted
@@ -85,7 +95,7 @@ impl Manifest {
                 }
             }
         }
-        Self::from_object(&manifest)
+        Self::from_object(&manifest)?.allowed()
     }
 
     /// Reads the stored `manifest_json` of a bundle that was verified when it was installed.

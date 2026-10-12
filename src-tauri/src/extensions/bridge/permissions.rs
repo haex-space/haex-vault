@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use super::dispatch::CallContext;
 use crate::extensions::error::{Asks, BridgeError, ExtensionErrorCode};
 use crate::extensions::ids::ExtensionTable;
-use crate::extensions::permissions::prompts::{PermissionRequestEvent, Question};
+use crate::extensions::permissions::prompts::{FolderNames, PermissionRequestEvent, Question};
 use crate::extensions::permissions::store::rows_of;
 use crate::extensions::permissions::{
     evaluate, Action, Decision, PermissionKind, PermissionRequest, RequestTarget,
@@ -31,10 +31,20 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
     else {
         return;
     };
-    let target = match error.asks.as_deref() {
-        None => told.clone(),
-        Some(Asks::Target(target)) => target.clone(),
+    let (target, folder) = match error.asks.as_deref() {
+        None => (told.clone(), None),
+        Some(Asks::Target(target)) => (target.clone(), None),
         Some(Asks::Nothing) => return,
+        Some(Asks::Folder {
+            storage_name,
+            folder_name,
+        }) => (
+            told.clone(),
+            Some(FolderNames {
+                storage_name: storage_name.clone(),
+                folder_name: folder_name.clone(),
+            }),
+        ),
     };
     let Some(kind) = PermissionKind::parse(&kind) else {
         return;
@@ -85,6 +95,7 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
         declared,
         device_scoped: kind.is_device_scoped(),
         target_missing,
+        encrypted_folder: folder,
     };
     if let Ok(payload) = serde_json::to_value(event) {
         ctx.emitter.emit(PERMISSION_REQUEST, payload);
