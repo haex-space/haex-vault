@@ -475,4 +475,29 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     scope: 'guardrails',
     effect: 'write',
   }),
+  setting({
+    id: 'settings.agents.files.set',
+    description:
+      "Set an agent's permission for the files of this device or for one storage. User only.",
+    input: {
+      type: 'object',
+      properties: {
+        agentId: { type: 'string' },
+        kind: { type: 'string', enum: ['device', 'storage'] },
+        target: {
+          type: 'string',
+          description: 'Empty for the device, the storage id for a storage.',
+        },
+        status: {
+          type: 'string',
+          enum: ['granted', 'read', 'readWrite', 'denied'],
+          description:
+            "'granted' or 'denied' for the device; 'read', 'readWrite' or 'denied' for a storage.",
+        },
+      },
+      required: ['agentId', 'kind', 'target', 'status'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+  }),
 ]

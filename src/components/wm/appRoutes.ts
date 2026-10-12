@@ -84,6 +84,9 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'agents.denyRules': defineAsyncComponent(
     () => import('~/components/settings/DelegateDenyRulesSetting.vue'),
   ),
+  'agents.files': defineAsyncComponent(
+    () => import('~/components/settings/AgentFilesSetting.vue'),
+  ),
   storage: defineAsyncComponent(
     () => import('~/components/settings/storage/StorageListView.vue'),
   ),
