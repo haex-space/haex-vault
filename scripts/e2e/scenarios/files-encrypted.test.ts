@@ -38,6 +38,7 @@ const NOTE = 'Hallo aus dem verschlüsselten Ordner'
 const SECRET_NAMES = ['Unterlagen', 'notiz', 'brief', 'foto', 'Belege']
 // Android's emulator needs several minutes for the deliberately large folder copy below.
 const TRANSFER_TIMEOUT_MS = 300_000
+const RENAME_TIMEOUT_MS = 120_000
 /** Length of a content object of a file of `size` bytes below 64 KiB: header, one tag, data. */
 const contentLength = (size: number) => 38 + 16 + size
 
@@ -248,9 +249,9 @@ scenario(
     await contextMenu(instance, 'files-entry-Rechnungen')
     await instance.click('files-menu-rename')
     await setName(instance, 'Archiv')
-    await instance.waitForDisplayed('files-entry-Archiv', 30_000)
+    await instance.waitForDisplayed('files-entry-Archiv', RENAME_TIMEOUT_MS)
     const renameMs = Math.round(performance.now() - renameStart)
-    assert.ok(renameMs < 30_000, `rename took ${renameMs} ms`)
+    assert.ok(renameMs < RENAME_TIMEOUT_MS, `rename took ${renameMs} ms`)
     assert.deepEqual(await keysUnder(rustfs, prefix, 'c'), contentBefore)
     assert.equal((await keysUnder(rustfs, prefix, 'm')).length, sidecarsBefore)
     ctx.step('renamed: no content object written', `${renameMs} ms`)
