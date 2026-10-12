@@ -36,9 +36,11 @@ export function mapAndroidUrl(url: string): string {
 
 /**
  * Brings the device into the state a scenario expects before the app starts: its data cleared unless
- * the scenario reuses it, a desktop-sized display (about 1280×800 dp, like the Linux virtual screen)
- * or a phone-sized one (360×800 dp), and the requested colour scheme. The size is set before the
- * start: the web view does not take a new density over while it runs.
+ * the scenario reuses it, "Zugriff auf alle Dateien" given as a person would (spec 044 FR-039)
+ * unless the scenario starts without it, a desktop-sized display (about 1280×800 dp, like the Linux
+ * virtual screen) or a phone-sized one (360×800 dp), and the requested colour scheme. The size is set
+ * before the start: the web view does not take a new density over while it runs; the permission
+ * too: taking it from a running app ends it.
  */
 export function prepareDevice(
   adb: Adb,
@@ -46,9 +48,17 @@ export function prepareDevice(
     reuse?: boolean
     colorScheme?: ColorScheme
     phoneScreen?: boolean
+    withoutAllFiles?: boolean
   },
 ): void {
   if (options.reuse !== true) adb.shell('pm', 'clear', PACKAGE)
+  adb.shell(
+    'appops',
+    'set',
+    PACKAGE,
+    ALL_FILES,
+    options.withoutAllFiles === true ? 'default' : 'allow',
+  )
   if (options.phoneScreen === true) {
     adb.shell('wm', 'size', '1080x2400')
     adb.shell('wm', 'density', '480')
@@ -101,6 +111,12 @@ export function phoneControls(adb: Adb): PhoneControls {
     },
     notificationTitles: () =>
       notificationTitles(adb.shell('dumpsys', 'notification', '--noredact')),
+    // Granting does not end the app (taking it would); the person's way back is the back key.
+    allowAllFiles: () => {
+      adb.shell('appops', 'set', PACKAGE, ALL_FILES, 'allow')
+    },
+    frontPackage: () =>
+      frontPackage(adb.shell('dumpsys', 'activity', 'activities')),
     // Not granted until now, so marking it decided does not end the app.
     refuseMicrophone: () => {
       adb.shell(
@@ -117,6 +133,13 @@ export function phoneControls(adb: Adb): PhoneControls {
 
 const NOTIFICATIONS = 'android.permission.POST_NOTIFICATIONS'
 const MICROPHONE = 'android.permission.RECORD_AUDIO'
+/** The app op behind "Zugriff auf alle Dateien" (API 30 on). */
+const ALL_FILES = 'MANAGE_EXTERNAL_STORAGE'
+
+/** The package of the resumed activity in the output of `dumpsys activity activities`. */
+export function frontPackage(dump: string): string | undefined {
+  return /ResumedActivity:? ActivityRecord\{\S+ \S+ ([\w.]+)\//.exec(dump)?.[1]
+}
 
 /** The titles of the app's notifications in the output of `dumpsys notification --noredact`. */
 export function notificationTitles(dump: string): string[] {
@@ -186,6 +209,8 @@ export interface AndroidStartOptions {
   reuse?: boolean
   /** A phone-sized screen instead of the desktop-sized one. */
   phoneScreen?: boolean
+  /** Without "Zugriff auf alle Dateien". */
+  withoutAllFiles?: boolean
   step?: StepRecorder
 }
 

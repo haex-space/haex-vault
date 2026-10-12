@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict'
+import { createAndUnlock } from '../lib/flows.ts'
+import { scenario } from '../lib/scenario.ts'
+import { runAction } from '../lib/settings.ts'
+import { translations } from '../lib/translations.ts'
+
+// Spec 044 US7 (FR-039, quickstart §7 steps 1–2): without "Zugriff auf alle Dateien" the file browser
+// explains why it needs it instead of showing an empty list, and its button leads into the system's
+// settings. The person allows it there and comes back with the back key: the device's files show
+// without a restart. The permission is given through the phone's controls, as the system's switch
+// cannot be driven.
+
+const TITLES = translations('files.allAccess.title')
+
+scenario('android-all-files', { needs: { phone: true } }, async (ctx) => {
+  const instance = await ctx.startInstance({ withoutAllFiles: true })
+  const phone = instance.phone
+  assert.ok(phone !== undefined, 'a phone has its controls')
+  await createAndUnlock(instance, { name: 'phone-files' })
+  await runAction(instance, 'wm.app.open', { appId: 'system.files' })
+
+  await instance.waitForDisplayed('files-all-access', 15_000)
+  const shown = await instance.exec<string>(
+    `return document.querySelector('[data-testid="files-all-access"] h2')?.textContent?.trim() ?? ''`,
+  )
+  assert.ok(TITLES.includes(shown), `the browser says "${shown}"`)
+  ctx.step('without the permission the browser explains it')
+
+  await instance.click('files-all-access-request')
+  await ctx.waitFor(
+    "the system's settings in front",
+    () => Promise.resolve(phone.frontPackage() === 'com.android.settings'),
+    { timeoutMs: 15_000 },
+  )
+  phone.allowAllFiles()
+  phone.back()
+  await ctx.waitFor(
+    "the device's files",
+    () =>
+      instance.exec<boolean>(
+        `return !document.querySelector('[data-testid="files-all-access"]')
+           && Boolean(document.querySelector('[data-testid="files-entries"], [data-testid="files-empty"]'))`,
+      ),
+    { timeoutMs: 30_000 },
+  )
+  ctx.step('allowed in the settings, the files show without a restart')
+})
