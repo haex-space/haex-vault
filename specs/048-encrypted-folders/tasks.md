@@ -149,9 +149,9 @@ vaults see a neutral folder.
 
 **Independent Test**: quickstart §4 (`pnpm test:e2e files-encrypted-two-devices`).
 
-- [ ] T036 [P] [US3] Tests in `src-tauri/src/files/encrypted/vault_keys_tests.rs` and `head_tests.rs`: a folder wrapped with generation 1 opens after the device received generation 2 (removal of another device); a new folder uses generation 2; a head with no recipient this device can unwrap is `otherVault`
-- [ ] T037 [P] [US3] Concurrency tests in `src-tauri/src/files/encrypted/ops_tests.rs`: two writers with the same `base` for one entry → both kept, the older as conflict copy; two creates of the same name in one parent (files or encrypted folders) → both shown, one as conflict copy (spec edge case "Gleicher Name zweimal")
-- [ ] T038 [US3] E2E `scripts/e2e/scenarios/files-encrypted-two-devices.test.ts` (rig of spec 033, `needs.container`): device 1 creates and fills; device 2 opens without input (SC-007), adds a file, device 1 sees it after refresh; both write `notiz.txt` at once → both visible, one "notiz (Konflikt …).txt"; a second vault on the same bucket sees "Verschlüsselter Ordner einer anderen Vault" and cannot write
+- [x] T036 [P] [US3] Tests in `src-tauri/src/files/encrypted/vault_keys_tests.rs` and `head_tests.rs`: a folder wrapped with generation 1 opens after the device received generation 2 (removal of another device); a new folder uses generation 2; a head with no recipient this device can unwrap is `otherVault`
+- [x] T037 [P] [US3] Concurrency tests in `src-tauri/src/files/encrypted/ops_tests.rs`: two writers with the same `base` for one entry → both kept, the older as conflict copy; two creates of the same name in one parent (files or encrypted folders) → both shown, one as conflict copy (spec edge case "Gleicher Name zweimal")
+- [x] T038 [US3] E2E `scripts/e2e/scenarios/files-encrypted-two-devices.test.ts` (rig of spec 033, `needs.container`): device 1 creates and fills; device 2 opens without input (SC-007), adds a file, device 1 sees it after refresh; both write `notiz.txt` at once → both visible, one "notiz (Konflikt …).txt"; a second vault on the same bucket sees "Verschlüsselter Ordner einer anderen Vault" and cannot write
 
 **Checkpoint**: US3 = PR F.
 
