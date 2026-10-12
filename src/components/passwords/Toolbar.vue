@@ -4,7 +4,8 @@
  * search field bound to `?q=` of the place with the tag filter beside it, "+", which creates an
  * entry or a folder (in the open folder), and the menu with generator, import, tags and settings.
  * The search text is the only free text a place carries; it is never a secret (the search looks
- * at title, username, URL and tag names only).
+ * at title, username, URL and tag names only). While an entry is open, search, tag filter and "+"
+ * leave the row (spec 036, FR-010a); the entry's breadcrumbs stand above it.
  */
 import { Search } from '@lucide/vue'
 
@@ -19,6 +20,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const router = useTabRouter()
+
+/** An entry is open: its view, its editor or a new one. */
+const entryOpen = computed(() => router.route.path.startsWith('/entry/'))
 
 const query = ref(router.route.query.q ?? '')
 // A history step to another place or another search puts its own text into the field.
@@ -90,7 +94,9 @@ function keepEditorFocus(event: Event) {
     >
       <Icon name="lucide:panel-left" class="size-4" />
     </UiButton>
+    <div v-if="entryOpen" class="flex-1" />
     <UiInput
+      v-else
       :model-value="query"
       type="search"
       :placeholder="t('passwords.search.placeholder')"
@@ -103,9 +109,9 @@ function keepEditorFocus(event: Event) {
       @update:model-value="onUpdate"
       @keydown.esc.prevent.stop="clear"
     />
-    <PasswordsTagFilter />
+    <PasswordsTagFilter v-if="!entryOpen" />
     <div class="flex items-center gap-1">
-      <ShadcnDropdownMenu>
+      <ShadcnDropdownMenu v-if="!entryOpen">
         <ShadcnDropdownMenuTrigger as-child>
           <UiButton
             size="icon"

@@ -1,15 +1,18 @@
 // Breadcrumbs above the list (spec 036, FR-010, research R10): the root "Alle Einträge", the
 // ancestors and the open folder; in the trash, a tag view and the search the name of the view
-// instead. Every part but the last is a target (a link and a drop target). Pure, so
+// instead. Every part but the last is a target (a link and a drop target). An open entry shows
+// the path to its folder in the toolbar, every part a target (FR-010a). Pure, so
 // `scripts/check-passwords-breadcrumb.ts` runs it without vue.
-import type { TreeGroup } from './tree.ts'
+import { trashGroupIds, type TreeGroup } from './tree.ts'
 
-/** What the list shows: a folder (`null` is the top level) or one of the views without a path. */
+/** What the list shows: a folder (`null` is the top level) or one of the views without a path;
+ * or the open entry with its folder. */
 export type BreadcrumbPlace =
   | { kind: 'folder'; id: string | null }
   | { kind: 'trash' }
   | { kind: 'tag'; name: string }
   | { kind: 'search' }
+  | { kind: 'entry'; groupId: string | null }
 
 export type Crumb =
   | { kind: 'root'; target: boolean }
@@ -32,10 +35,17 @@ export function breadcrumb(
   if (place.kind === 'tag')
     return [{ kind: 'view', view: 'tag', name: place.name, target: false }]
 
+  if (
+    place.kind === 'entry' &&
+    place.groupId !== null &&
+    trashGroupIds(groups).has(place.groupId)
+  )
+    return [{ kind: 'view', view: 'trash', target: false }]
+
   const byId = new Map(groups.map((group) => [group.id, group]))
   const chain: { id: string; name: string | null }[] = []
   const seen = new Set<string>()
-  let current: string | null = place.id
+  let current: string | null = place.kind === 'entry' ? place.groupId : place.id
   while (current !== null && !seen.has(current)) {
     seen.add(current)
     const group = byId.get(current)
@@ -51,7 +61,7 @@ export function breadcrumb(
       target: true,
     })),
   ]
-  crumbs[crumbs.length - 1]!.target = false
+  if (place.kind === 'folder') crumbs[crumbs.length - 1]!.target = false
   return crumbs
 }
 

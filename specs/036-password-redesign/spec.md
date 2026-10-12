@@ -76,6 +76,13 @@ Browser-Erweiterung) ist nicht Teil dieser Spec. Referenz: haex-vault @
   KeePass-Import werden dessen Verweise `{REF:…}` in dieses System umgewandelt, soweit
   eindeutig (haex-vault tut das nicht).
 
+### Session 2026-10-11
+
+- Q: Was zeigt die obere Leiste, solange ein Eintrag offen ist (Ansicht, Bearbeiten, Neu)? → A:
+  Suche, Tag-Filter und „+“ ergeben dort keinen Sinn und entfallen; der Knopf der Seitenleiste
+  und das Menü bleiben. Die Ansicht des Eintrags zeigt über sich die Brotkrumen wie die Liste,
+  mit dem Titel des Eintrags als letztem Teil (Betreiber).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Einen Eintrag in Tabs lesen und bearbeiten (Priority: P1)
@@ -499,6 +506,13 @@ Passwort in der Kopie überschreiben, die Quelle löschen.
   ein Ziel. Im Papierkorb, in einer Tag-Ansicht und in der Suche MUSS an der Stelle der Name
   der Ansicht stehen. Zu lange Pfade MÜSSEN sich kürzen (die mittleren Teile in einem
   Überlaufmenü), statt die Zeile zu sprengen.
+- **FR-010a**: Solange ein Eintrag offen ist (Ansicht, Bearbeiten, Neu), MUSS die obere Leiste
+  nur den Knopf der Seitenleiste und das Menü zeigen; Suche, Tag-Filter und „+“ entfallen. Die
+  Ansicht eines Eintrags MUSS über sich die Brotkrumen wie die Liste zeigen: Wurzel „Alle
+  Einträge“ und die Ordner bis zu seinem Ordner, jeder Teil ein Ziel, als letzter Teil der
+  Titel des Eintrags mit seinem Icon. Ein Eintrag im Papierkorb zeigt dort den Papierkorb. Der
+  Editor behält seinen Kopf mit Abbrechen und Speichern, damit kein Link an der Nachfrage zu
+  ungespeicherten Änderungen vorbeiführt.
 - **FR-011**: Mehrfachauswahl MUSS wie in 034 per Umschalt-Klick (Bereich), Strg/Cmd-Klick
   (einzeln) und, sobald eine Auswahl besteht, per einfachem Klick möglich sein, auf dem
   Telefon per Langdruck auf eine Zeile (mit einer kurzen Rückmeldung am Gerät, wo es die

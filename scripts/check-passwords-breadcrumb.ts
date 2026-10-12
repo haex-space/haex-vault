@@ -68,6 +68,27 @@ test('trash, tag and search show the name of the view instead', () => {
   assert.equal(search[0]!.target, false)
 })
 
+test('an open entry shows the path to its folder, every part a target', () => {
+  const crumbs = breadcrumb(GROUPS, { kind: 'entry', groupId: 'server' })
+  assert.deepEqual(labels(crumbs), ['root', 'Arbeit', 'Server'])
+  assert.ok(crumbs.every((crumb) => crumb.target))
+  const top = breadcrumb(GROUPS, { kind: 'entry', groupId: null })
+  assert.deepEqual(labels(top), ['root'])
+  assert.equal(top[0]!.target, true)
+})
+
+test('an entry in the trash or in a folder below it shows the trash', () => {
+  const nested = [
+    ...GROUPS,
+    { id: 'old', name: 'Alt', parentId: 'trash', sortOrder: 0 },
+  ]
+  for (const groupId of ['trash', 'old']) {
+    const crumbs = breadcrumb(nested, { kind: 'entry', groupId })
+    assert.deepEqual(labels(crumbs), ['view:trash'])
+    assert.equal(crumbs[0]!.target, false)
+  }
+})
+
 test('a long path keeps the first and the last parts and puts the middle into the overflow', () => {
   const crumbs = breadcrumb(GROUPS, { kind: 'folder', id: 'db' })
   const short = collapseCrumbs(crumbs, 3)

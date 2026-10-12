@@ -4,7 +4,8 @@
  * and the open folder as the big title of the page; in the trash, a tag view and the search the
  * name of the view. Every part but the last is a link and takes a drop of entries and folders,
  * which move there (a folder into itself is refused). A long path keeps the root and the last parts
- * and puts the middle ones into a menu.
+ * and puts the middle ones into a menu. For an open entry (FR-010a) the default slot is the last
+ * part, the entry's title, so a part of the path that is no target is plain text.
  */
 import {
   breadcrumb,
@@ -19,6 +20,9 @@ const props = defineProps<{
   place: BreadcrumbPlace
 }>()
 
+defineSlots<{ default?: () => unknown }>()
+const slots = useSlots()
+
 const { t } = useI18n()
 const router = useTabRouter()
 const store = usePasswordsStore()
@@ -29,8 +33,12 @@ const { width } = useElementSize(nav)
 /** Below 28 rem the row shows at most three parts (root, "…", the open folder). */
 const max = computed(() => (width.value > 0 && width.value < 448 ? 3 : 5))
 
+/** The slot's title takes one of the places on the row. */
 const parts = computed(() =>
-  collapseCrumbs(breadcrumb(store.groups, props.place), max.value),
+  collapseCrumbs(
+    breadcrumb(store.groups, props.place),
+    slots.default ? max.value - 1 : max.value,
+  ),
 )
 
 type Shown = { kind: 'crumb'; crumb: Crumb } | { kind: 'more' }
@@ -134,7 +142,7 @@ async function onDrop(event: DragEvent, crumb: Crumb) {
           <ShadcnBreadcrumbLink
             as="button"
             type="button"
-            class="flex min-w-0 items-center gap-1.5 rounded px-1 text-base"
+            class="flex min-w-0 items-baseline gap-1.5 rounded px-1 text-base"
             :class="dropping === keyOf(part.crumb) ? 'ring-2 ring-primary' : ''"
             :data-testid="`passwords-crumb-${keyOf(part.crumb)}`"
             @click="go(part.crumb)"
@@ -150,6 +158,17 @@ async function onDrop(event: DragEvent, crumb: Crumb) {
             <span class="truncate">{{ label(part.crumb) }}</span>
           </ShadcnBreadcrumbLink>
         </ShadcnBreadcrumbItem>
+        <ShadcnBreadcrumbItem
+          v-else-if="place.kind === 'entry'"
+          class="min-w-0 shrink"
+        >
+          <span
+            class="truncate px-1 text-base text-foreground"
+            aria-current="page"
+          >
+            {{ label(part.crumb) }}
+          </span>
+        </ShadcnBreadcrumbItem>
         <ShadcnBreadcrumbItem v-else class="min-w-0 flex-1">
           <h1
             class="truncate px-1 text-2xl font-bold text-foreground"
@@ -158,6 +177,12 @@ async function onDrop(event: DragEvent, crumb: Crumb) {
           >
             {{ label(part.crumb) }}
           </h1>
+        </ShadcnBreadcrumbItem>
+      </template>
+      <template v-if="slots.default">
+        <ShadcnBreadcrumbSeparator class="self-center" />
+        <ShadcnBreadcrumbItem class="min-w-0 flex-1">
+          <slot />
         </ShadcnBreadcrumbItem>
       </template>
     </ShadcnBreadcrumbList>
