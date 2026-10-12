@@ -2007,6 +2007,10 @@
       "replaceSameVersion": "Die Fassung {version} ist schon mit anderem Inhalt in der Vault. Welche läuft, wäre dann zufällig; installieren ersetzt sie auf allen Geräten.",
       "confirmReplace": "Vorhandene Fassung ersetzen",
       "permissions": "Berechtigungen",
+      "agentTools": {
+        "title": "Werkzeuge für den Agenten",
+        "hint": "Angehakt: Der Agent darf das Werkzeug nutzen, bei ändernden Werkzeugen je nach Modus mit Rückfrage. Nicht angehakt: holzi fragt bei jedem Aufruf nach."
+      },
       "vaultWide": "Die Erweiterung wird in der ganzen Vault installiert und erscheint auch auf deinen verknüpften Geräten. Ihre Berechtigungen gelten dort ebenso, außer denen für die Shell.",
       "deviceOnly": "Gilt nur auf diesem Gerät: Auf deinen anderen Geräten fragt holzi erneut.",
       "unsupported": "Wird von holzi nicht unterstützt: {categories}",
@@ -2043,7 +2047,13 @@
         "remoteStorage": "Cloud-Speicher",
         "mail": "Mail",
         "shell": "Programme ausführen",
-        "encryptedFolder": "Verschlüsselter Ordner"
+        "encryptedFolder": "Verschlüsselter Ordner",
+        "agentTool": "Werkzeug für den Agenten"
+      },
+      "effect": {
+        "read": "liest nur",
+        "change": "ändert Daten",
+        "destructive": "löscht oder ist nicht rückgängig zu machen"
       },
       "everyMethod": "alle Anfragen",
       "everything": {

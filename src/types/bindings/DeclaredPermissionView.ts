@@ -7,4 +7,8 @@ export type DeclaredPermissionView = { kind: string, action: string, target: str
 /**
  * Remembered only for this device (shell); every other kind holds on every own device.
  */
-deviceScoped: boolean, };
+deviceScoped: boolean,
+/**
+ * For `agentTool`: the tool's title per locale, from the manifest.
+ */
+titleDe?: string, titleEn?: string, };

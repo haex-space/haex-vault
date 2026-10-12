@@ -2007,6 +2007,10 @@
       "replaceSameVersion": "Version {version} is already in the vault with other content. Which one runs would then be chance; installing replaces it on all devices.",
       "confirmReplace": "Replace the existing version",
       "permissions": "Permissions",
+      "agentTools": {
+        "title": "Tools for the agent",
+        "hint": "Ticked: the agent may use the tool; tools that change something may still ask, depending on the mode. Unticked: holzi asks before every call."
+      },
       "vaultWide": "The extension is installed in the whole vault and also appears on your linked devices. Its permissions hold there as well, except those for the shell.",
       "deviceOnly": "Holds on this device only: holzi asks again on your other devices.",
       "unsupported": "Not supported by holzi: {categories}",
@@ -2043,7 +2047,13 @@
         "remoteStorage": "Cloud storage",
         "mail": "Mail",
         "shell": "Run programs",
-        "encryptedFolder": "Encrypted folder"
+        "encryptedFolder": "Encrypted folder",
+        "agentTool": "Tool for the agent"
+      },
+      "effect": {
+        "read": "only reads",
+        "change": "changes data",
+        "destructive": "deletes or cannot be undone"
       },
       "everyMethod": "all requests",
       "everything": {

@@ -2,6 +2,7 @@
 //! and the life cycle per device (research R11).
 
 pub mod blobs;
+mod declared_view;
 pub mod effective;
 pub mod install;
 pub mod lifecycle;

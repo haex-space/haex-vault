@@ -8,6 +8,9 @@
  * vault already holds with other content replaces it only after a confirmation. Nothing is written
  * before "Installieren".
  *
+ * Tools the extension offers to the agent (spec 018) are a group of their own, by title and effect;
+ * ticked, the effect decides when a call needs an approval, unticked every call needs one.
+ *
  * With `dev` the same dialog loads a project folder in developer mode (US12, FR-064): unsigned,
  * from its development server, every permission for this device only.
  */
@@ -16,10 +19,15 @@ import { open as openFile } from '@tauri-apps/plugin-dialog'
 import type { DeclaredPermissionView } from '@bindings/DeclaredPermissionView'
 import type { InstallPreview } from '@bindings/InstallPreview'
 import type { PermissionChoice } from '@bindings/PermissionChoice'
+import {
+  effectLabelKey,
+  splitAgentTools,
+  toolTitle,
+} from '~/lib/extensions/agentTools'
 
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{ dev?: boolean }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { pickOneAsync } = usePickedFile()
 
@@ -37,6 +45,7 @@ const shown = computed(
   () =>
     preview.value?.existing?.newPermissions ?? preview.value?.declared ?? [],
 )
+const groups = computed(() => splitAgentTools(shown.value, locale.value))
 /** A preview that can be confirmed: a valid bundle, or any project holzi could read. */
 const usable = computed(
   () => preview.value !== null && (props.dev || preview.value.signatureValid),
@@ -229,11 +238,11 @@ watch(open, (isOpen) => {
           </div>
 
           <SettingsGroup
-            v-if="shown.length > 0"
+            v-if="groups.others.length > 0"
             :label="t('extensions.install.permissions')"
           >
             <li
-              v-for="permission in shown"
+              v-for="permission in groups.others"
               :key="key(permission)"
               class="flex flex-col gap-2 px-4 py-3"
             >
@@ -256,6 +265,36 @@ watch(open, (isOpen) => {
               </p>
             </li>
           </SettingsGroup>
+
+          <div
+            v-if="groups.tools.length > 0"
+            class="flex flex-col gap-2"
+            data-testid="extensions-install-agent-tools"
+          >
+            <SettingsGroup :label="t('extensions.install.agentTools.title')">
+              <li
+                v-for="tool in groups.tools"
+                :key="key(tool)"
+                class="px-4 py-3"
+              >
+                <label class="flex items-start gap-3">
+                  <ShadcnCheckbox
+                    v-model="choices[key(tool)]!.granted"
+                    class="mt-0.5"
+                  />
+                  <span class="flex flex-col">
+                    <span class="text-sm">{{ toolTitle(tool, locale) }}</span>
+                    <span class="text-xs text-muted-foreground">{{
+                      t(effectLabelKey(tool.action))
+                    }}</span>
+                  </span>
+                </label>
+              </li>
+            </SettingsGroup>
+            <p class="px-1 text-xs text-muted-foreground">
+              {{ t('extensions.install.agentTools.hint') }}
+            </p>
+          </div>
 
           <p
             v-if="preview.unsupportedCategories.length > 0"
