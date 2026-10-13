@@ -142,7 +142,7 @@ fn search_score(def: &AgentActionDef, query: &[String]) -> usize {
 /// "Erweiterung" finds "Erweiterungen" without "set" finding "settings".
 const MIN_PREFIX_LEN: usize = 5;
 
-fn word_matches(query: &str, known: &str) -> bool {
+pub(super) fn word_matches(query: &str, known: &str) -> bool {
     let (shorter, longer) = if query.len() <= known.len() {
         (query, known)
     } else {

@@ -20,6 +20,9 @@ pub mod availability;
 pub mod cli;
 #[cfg(test)]
 mod cli_tests;
+pub mod extension_offer;
+#[cfg(test)]
+mod extension_offer_tests;
 pub mod find_actions;
 pub mod mcp;
 #[cfg(test)]
