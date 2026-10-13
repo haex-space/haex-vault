@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
 import { unwrap } from '../lib/flows.ts'
-import { onDevice } from '../lib/platform/device-files.ts'
+import { deviceFiles, onDevice } from '../lib/platform/device-files.ts'
 import { startRustfs } from '../lib/rustfs.ts'
 import { scenario } from '../lib/scenario.ts'
 import {
@@ -49,17 +46,13 @@ scenario(
     const phone = group.device('anna/phone').page
     const other = group.device('ben/desktop').page
 
-    // Files of this machine; `onDevice` hands each device a path it can read.
-    const folder = mkdtempSync(join(tmpdir(), 'holzi-encrypted-two-'))
-    ctx.onTeardown(() => rmSync(folder, { recursive: true, force: true }))
-    const file = (name: string, content: string) => {
-      const path = join(folder, name)
-      mkdirSync(dirname(path), { recursive: true })
-      writeFileSync(path, content)
-      return path
-    }
-    const brief = file('brief.txt', 'Brief vom Laptop')
-    const antwort = file('antwort.txt', 'Antwort vom Telefon')
+    // Host files; `onDevice` hands each device a path it can read.
+    const hostFiles = deviceFiles('holzi-encrypted-two-host-', { E2E_PLATFORM: 'linux' })
+    ctx.onTeardown(() => hostFiles.remove())
+    hostFiles.write('brief.txt', 'Brief vom Laptop')
+    hostFiles.write('antwort.txt', 'Antwort vom Telefon')
+    const brief = hostFiles.path('brief.txt')
+    const antwort = hostFiles.path('antwort.txt')
 
     const storageId = await connectStorage(laptop, rustfs, BUCKET, 'Fotos')
     const source: Source = { kind: 'storage', storageId }
