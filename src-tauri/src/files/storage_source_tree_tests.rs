@@ -146,3 +146,49 @@ async fn s3_keeps_renaming_and_deleting_object_by_object() {
     assert!(calls.contains(&Op::Copy) && calls.contains(&Op::Delete));
     assert!(!calls.contains(&Op::RenameTree) && !calls.contains(&Op::RemoveTree));
 }
+
+/// Spec 050 US5 (T082): the same ways on a real SFTP server of the test process.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_sftp_storage_takes_the_same_ways_in_the_file_browser() {
+    use crate::remote_storage::sftp::test_server::{self, Options};
+    use crate::remote_storage::sftp::SftpStore;
+    use crate::remote_storage::test_support::resolver;
+    use crate::remote_storage::{Credentials, PasswordCredentials};
+
+    let server = test_server::start(Options::new(33)).await;
+    std::fs::create_dir_all(server.path("Ablage/Fotos/2026")).unwrap();
+    std::fs::write(server.path("Ablage/Fotos/2026/a.jpg"), b"a").unwrap();
+    let mut access = access(FOLDER);
+    access.location.protocol = Protocol::Sftp;
+    access.location.endpoint = server.endpoint();
+    access.location.host_key = Some(server.host_key.clone());
+    access.credentials = Credentials::Password(PasswordCredentials {
+        username: "anna".to_owned(),
+        password: zeroize::Zeroizing::new("password".to_owned()),
+    });
+    let files = StorageFiles::new(Arc::new(SftpStore::new(resolver(&[]))), access);
+
+    assert_eq!(files.stat("/Fotos").await.unwrap().kind, EntryKind::Dir);
+    files.create_folder("/", "Neu").await.unwrap();
+    assert_eq!(
+        files.create_folder("/", "neu").await.unwrap_err().code,
+        FilesErrorCode::Exists,
+        "a name that differs only in case is taken"
+    );
+    files.rename("/Fotos", "Bilder").await.unwrap();
+    assert!(server.path("Ablage/Bilder/2026/a.jpg").exists());
+    files.rename("/Neu", "NEU").await.unwrap();
+    assert!(server.path("Ablage/NEU").is_dir(), "only the case changed");
+    let mut heard = Vec::new();
+    files
+        .delete("/Bilder", &CancellationToken::new(), &mut |n| heard.push(n))
+        .await
+        .unwrap();
+    assert!(!server.path("Ablage/Bilder").exists());
+    assert_eq!(heard, [1]);
+    let listed = files.list("/").await.unwrap();
+    assert_eq!(
+        listed.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(),
+        ["NEU"]
+    );
+}

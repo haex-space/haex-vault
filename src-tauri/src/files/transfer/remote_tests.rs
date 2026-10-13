@@ -34,7 +34,7 @@ fn names(dir: &Path) -> Vec<String> {
 }
 
 /// Runs `job` on a blocking thread as the manager does, answering conflicts from `answers`.
-async fn run_job(
+pub(super) async fn run_job(
     job: RemoteJob,
     answers: Vec<(ConflictChoice, bool)>,
     cancel_after_progress: Option<usize>,
@@ -73,7 +73,13 @@ async fn run_job(
     .unwrap()
 }
 
-fn job(op: TransferOp, from: Side, sources: &[&str], to: Side, target: &str) -> RemoteJob {
+pub(super) fn job(
+    op: TransferOp,
+    from: Side,
+    sources: &[&str],
+    to: Side,
+    target: &str,
+) -> RemoteJob {
     RemoteJob {
         op,
         from,
