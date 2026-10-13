@@ -1,4 +1,5 @@
 import type { FlowInstance } from './flows.ts'
+import { KEY } from './settings.ts'
 
 // Helpers for haex-ui's fields (spec 035-appearance-and-fields, FR-002 to FR-004). A field is found by
 // the `id` its `<input>` carries; the border is its input group (or the textarea frame).
@@ -62,3 +63,45 @@ export async function fieldError(
  * its own; it follows the input inside the field's group). */
 export const clearButtonOf = (hook: string): string =>
   `[data-testid="${hook}"] ~ button`
+
+type Typing = Pick<FlowInstance, 'type' | 'exec'>
+
+/** The value of the field with the test hook `hook`. */
+export function valueOf(instance: Typing, hook: string): Promise<string> {
+  return instance.exec<string>(
+    `return document.querySelector('[data-testid="' + arguments[0] + '"]').value`,
+    [hook],
+  )
+}
+
+/**
+ * Replaces the text of the field `hook` with `text` and checks the field holds it: on the Android
+ * runner's desktop instance a typed key was seen to go missing (spec 050 PR C). One more try, then
+ * a failure that says so (never the text, which may be a secret).
+ */
+export async function typeChecked(
+  instance: Typing,
+  hook: string,
+  text: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await instance.type(hook, `${KEY.control}a${KEY.release}${KEY.backspace}`)
+    await instance.type(hook, text)
+    if ((await valueOf(instance, hook)) === text) return
+  }
+  const held = await valueOf(instance, hook)
+  throw new Error(
+    `${hook} holds ${held.length} characters instead of the ${text.length} typed`,
+  )
+}
+
+/** The text of the element with the test hook `hook`. */
+export function textOf(
+  instance: Pick<FlowInstance, 'exec'>,
+  hook: string,
+): Promise<string> {
+  return instance.exec<string>(
+    `return document.querySelector('[data-testid="' + arguments[0] + '"]').textContent.trim()`,
+    [hook],
+  )
+}
