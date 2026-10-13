@@ -84,7 +84,7 @@ scenario(
     ctx.step('a wrong password is named and saves nothing')
 
     await replaceText(laptop, 'storage-password', webdav.password)
-    await laptop.type('storage-password', KEY.enter)
+    await laptop.click('storage-save')
     await laptop.waitForDisplayed('storage-create-folder', 20_000)
     assert.match(
       await textOf(laptop, 'storage-failure'),
