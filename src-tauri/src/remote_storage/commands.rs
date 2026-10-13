@@ -8,12 +8,13 @@ use tauri::State;
 
 use super::address::SystemResolver;
 use super::model::{
-    ConnectionInput, ConnectionView, RemovalPreview, RemovalTarget, StorageInput, StorageOverview,
-    StorageView, TestResult,
+    ConnectionInput, ConnectionView, GeneratedKey, RemovalPreview, RemovalTarget, StorageInput,
+    StorageOverview, StorageView, TestResult,
 };
 use super::protocol::ProtocolStore;
 use super::s3::S3Store;
 use super::service::StorageService;
+use super::sftp::{keys, SftpStore};
 use super::webdav::WebDavStore;
 use super::RemoteStore;
 use crate::error::Result;
@@ -30,7 +31,7 @@ pub fn stores() -> Arc<dyn RemoteStore> {
             Arc::new(ProtocolStore::new(
                 Arc::new(S3Store::system()),
                 Some(Arc::new(WebDavStore::system())),
-                None,
+                Some(Arc::new(SftpStore::system())),
             ))
         })
         .clone()
@@ -117,4 +118,39 @@ pub async fn storage_dialog_resolve(
         Some(trial) => trial.await.unwrap_or(StorageTrial::Ended),
         None => StorageTrial::Ended,
     })
+}
+
+/// Generates an SSH key for an SFTP connection (spec 050 research R4): the id the window sends
+/// back on save and the public key line for the provider. The private key stays in the process
+/// until the connection is saved, for 30 minutes at most, and goes when the vault closes.
+#[tauri::command]
+pub async fn storage_ssh_key_generate(state: State<'_, AppState>) -> Result<GeneratedKey> {
+    let gate = state.gate();
+    let token = gate.token();
+    static WATCHED: std::sync::Once = std::sync::Once::new();
+    WATCHED.call_once(|| {
+        tokio::spawn(async move {
+            token.cancelled().await;
+            keys::pending().clear();
+        });
+    });
+    let (key_id, public_key) =
+        keys::pending()
+            .generate()
+            .map_err(|_| crate::error::HolziError::StorageInvalid {
+                field: "credentials".to_owned(),
+            })?;
+    Ok(GeneratedKey { key_id, public_key })
+}
+
+/// Takes the host key an SFTP server showed in place of the confirmed one (research R5).
+#[tauri::command]
+pub async fn storage_host_key_accept(
+    state: State<'_, AppState>,
+    connection_id: String,
+    host_key: String,
+) -> Result<ConnectionView> {
+    service(&state)?
+        .accept_host_key(&connection_id, &host_key)
+        .await
 }

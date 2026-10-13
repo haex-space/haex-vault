@@ -72,20 +72,21 @@ pub(super) fn input(id: Option<String>, credentials: Option<CredentialsInput>) -
         credentials,
         bucket_for_test: "holzi-test".to_owned(),
         create_folder: false,
+        host_key: None,
     }
 }
 
-fn count(db: &VaultDb, sql: &str) -> i64 {
+pub(super) fn count(db: &VaultDb, sql: &str) -> i64 {
     let sql = sql.to_owned();
     db.read_blocking(move |q| Ok(q.query_row(&sql, &[], |r| r.get::<_, i64>(0))?.unwrap_or(0)))
         .expect("count")
 }
 
-fn entries(db: &VaultDb) -> i64 {
+pub(super) fn entries(db: &VaultDb) -> i64 {
     count(db, "SELECT COUNT(*) FROM haex_passwords_item_details")
 }
 
-fn ops(fake: &FakeStore) -> usize {
+pub(super) fn ops(fake: &FakeStore) -> usize {
     fake.calls().len()
 }
 
@@ -127,7 +128,8 @@ async fn a_failed_test_saves_nothing_and_keeps_no_credentials() {
         error,
         HolziError::StorageTestFailed {
             outcome: TestOutcome::AccessDenied,
-            leftover_key: None
+            leftover_key: None,
+            ..
         }
     ));
     assert!(!format!("{error:?}").contains(SECRET));
@@ -393,73 +395,6 @@ async fn a_test_without_synced_credentials_is_not_recorded_as_access_denied() {
         Some(TestOutcome::Passed),
         "syncing credentials must not look refused"
     );
-}
-
-#[tokio::test]
-async fn the_scope_of_an_endpoint_is_fixed_when_it_is_set() {
-    let s = setup();
-    let mut public = input(None, Some(typed()));
-    public.endpoint = Some("https://s3.example.com".to_owned());
-    let view = s.service.save_connection(public).await.expect("public");
-    assert_eq!(view.endpoint_scope, EndpointScope::Public);
-    assert!(!view.insecure);
-
-    let mut moved = input(Some(view.id.clone()), None);
-    moved.endpoint = Some("http://rustfs.lan:9000".to_owned());
-    let view = s.service.save_connection(moved).await.expect("local");
-    assert_eq!(
-        view.endpoint_scope,
-        EndpointScope::Local,
-        "a changed endpoint gets its scope anew"
-    );
-    assert!(view.insecure);
-
-    let mut renamed = input(Some(view.id.clone()), None);
-    renamed.endpoint = Some("http://rustfs.lan:9000".to_owned());
-    renamed.provider_name = "Heim".to_owned();
-    let view = s.service.save_connection(renamed).await.expect("renamed");
-    assert_eq!(view.endpoint_scope, EndpointScope::Local, "kept");
-    let storage = s
-        .service
-        .save_storage(StorageInput {
-            id: None,
-            connection_id: view.id.clone(),
-            name: "Fotos".to_owned(),
-            bucket: "holzi-test".to_owned(),
-            create_folder: false,
-        })
-        .await
-        .expect("storage");
-    assert_eq!(
-        s.service
-            .access_of(&storage.id)
-            .await
-            .expect("access")
-            .location
-            .endpoint_scope,
-        EndpointScope::Local,
-        "every call checks against the stored scope"
-    );
-}
-
-#[tokio::test]
-async fn an_endpoint_without_addresses_fails_its_test_and_saves_nothing() {
-    let s = setup();
-    let mut nowhere = input(None, Some(typed()));
-    nowhere.endpoint = Some("https://nowhere.example.com".to_owned());
-    assert!(matches!(
-        s.service.save_connection(nowhere).await,
-        Err(HolziError::StorageTestFailed {
-            outcome: TestOutcome::Unreachable,
-            leftover_key: None
-        })
-    ));
-    assert_eq!(ops(&s.fake), 0);
-    assert_eq!(
-        count(&s.db, "SELECT COUNT(*) FROM haex_storage_connections"),
-        0
-    );
-    assert_eq!(entries(&s.db), 0);
 }
 
 #[tokio::test]

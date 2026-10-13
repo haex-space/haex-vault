@@ -1,7 +1,8 @@
 //! Which endpoints holzi talks to (spec 038 FR-017, FR-009b, research R8).
 //!
-//! [`check_endpoint`] looks at the address as typed: only `http` and `https`, no user name or
-//! password in it, and no IP address that is never reached. [`scope_of`] fixes the scope of an
+//! [`check_endpoint`] looks at the address as typed: only `http`, `https` and `sftp` (spec 050,
+//! port 22 unless given), no user name or password in it, and no IP address that is never
+//! reached. [`scope_of`] fixes the scope of an
 //! endpoint when it is set ([`EndpointScope`]): `local` when its host resolves to loopback or
 //! private addresses only, `public` when it resolves to public addresses only. [`pin`] runs before
 //! every call: it resolves the host once, checks that every address lies in the stored scope, and
@@ -12,7 +13,7 @@
 //!   unspecified, multicast and broadcast addresses, also as IPv4-mapped IPv6.
 //! - Loopback and private addresses (RFC 1918, RFC 4193) only for scope `local`, public addresses
 //!   only for scope `public`; a host with both is refused.
-//! - `http` only for scope `local`.
+//! - `http` only for scope `local`; `sftp` is encrypted like `https`.
 
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -103,12 +104,35 @@ pub fn in_scope(ip: IpAddr, scope: EndpointScope) -> bool {
     )
 }
 
+/// Whether the scheme of `url` encrypts (`https`, `sftp`); `http` does not, others are refused.
 fn is_https(url: &Url) -> Result<bool, AddressError> {
     match url.scheme() {
-        "https" => Ok(true),
+        "https" | "sftp" => Ok(true),
         "http" => Ok(false),
         _ => Err(AddressError::Invalid),
     }
+}
+
+/// The host of `url` as a name or an IP address. The URL parser keeps the host of a scheme it
+/// does not know (`sftp`) as text, so an IP address there is read here; otherwise it would pass
+/// the address checks as a name.
+pub fn host_of(url: &Url) -> Option<Host<String>> {
+    let host = url.host()?.to_owned();
+    let Host::Domain(name) = &host else {
+        return Some(host);
+    };
+    let bare = name.trim_start_matches('[').trim_end_matches(']');
+    Some(match bare.parse::<IpAddr>() {
+        Ok(IpAddr::V4(ip)) => Host::Ipv4(ip),
+        Ok(IpAddr::V6(ip)) => Host::Ipv6(ip),
+        Err(_) => host,
+    })
+}
+
+/// The port of `url`: the one given, else that of its scheme (22 for `sftp`).
+pub fn port_of(url: &Url) -> Option<u16> {
+    url.port_or_known_default()
+        .or_else(|| (url.scheme() == "sftp").then_some(22))
 }
 
 /// Checks an endpoint as typed (see the module). An IP address is refused here when it is never
@@ -124,7 +148,7 @@ pub fn check_endpoint(endpoint: &str) -> Result<Url, AddressError> {
     {
         return Err(AddressError::Invalid);
     }
-    let ip = match url.host().ok_or(AddressError::Invalid)? {
+    let ip = match host_of(&url).ok_or(AddressError::Invalid)? {
         Host::Domain(_) => return Ok(url),
         Host::Ipv4(ip) => IpAddr::V4(ip),
         Host::Ipv6(ip) => IpAddr::V6(ip),
@@ -195,16 +219,16 @@ async fn addresses(
     url: &Url,
     resolver: &dyn Resolver,
 ) -> Result<(Option<String>, u16, Vec<IpAddr>), AddressError> {
-    let port = url.port_or_known_default().ok_or(AddressError::Invalid)?;
-    let (host, ips) = match url.host().ok_or(AddressError::Invalid)? {
+    let port = port_of(url).ok_or(AddressError::Invalid)?;
+    let (host, ips) = match host_of(url).ok_or(AddressError::Invalid)? {
         Host::Ipv4(ip) => (None, vec![IpAddr::V4(ip)]),
         Host::Ipv6(ip) => (None, vec![IpAddr::V6(ip)]),
         Host::Domain(name) => {
             let ips = resolver
-                .lookup(name, port)
+                .lookup(&name, port)
                 .await
                 .map_err(|_| AddressError::Unresolved)?;
-            (Some(name.to_owned()), ips)
+            (Some(name), ips)
         }
     };
     if ips.is_empty() {

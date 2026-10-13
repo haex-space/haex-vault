@@ -91,6 +91,7 @@ pub(super) fn with_credentials<T>(
             Err(HolziError::StorageTestFailed {
                 outcome,
                 leftover_key,
+                ..
             }) => {
                 dialog.failed(outcome, leftover_key);
                 let next = confirmed(dialog.answer()?)?;
@@ -270,6 +271,7 @@ pub fn update_backend(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
                 credentials: Some(credentials),
                 bucket_for_test: new_bucket.clone(),
                 create_folder,
+                host_key: None,
             }))
             .map(|_| create_folder)
         })?;

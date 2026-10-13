@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use reqwest::Url;
 
 use super::address::{
-    check_endpoint, endpoint_url, is_insecure, pin, scope_of, AddressError, Resolver,
+    check_endpoint, endpoint_url, is_insecure, pin, port_of, scope_of, AddressError, Resolver,
 };
 use super::{Addressing, EndpointScope, Location, Protocol, ProviderKind};
 
@@ -276,4 +276,31 @@ async fn a_name_that_does_not_resolve_is_refused() {
         pin(&url("https://nowhere.example.com"), Public, &resolver).await,
         Err(AddressError::Unresolved)
     );
+}
+
+/// Spec 050 (T069): `sftp://` is encrypted like `https`, its port is 22 unless given, and its
+/// addresses follow the same rules.
+#[tokio::test]
+async fn sftp_is_encrypted_and_listens_on_22_unless_told() {
+    assert!(check_endpoint("sftp://storage.example.com").is_ok());
+    assert!(
+        check_endpoint("sftp://203.0.113.5:23").is_ok(),
+        "public, encrypted"
+    );
+    assert!(check_endpoint("sftp://anna@storage.example.com").is_err());
+    assert!(check_endpoint("sftp://169.254.169.254").is_err());
+    assert!(
+        check_endpoint("sftp://[fe80::1]:22").is_err(),
+        "an IP address in an sftp URL is checked like one in https"
+    );
+    assert!(!is_insecure(&url("sftp://storage.example.com")));
+    assert_eq!(port_of(&url("sftp://storage.example.com")), Some(22));
+    assert_eq!(port_of(&url("sftp://storage.example.com:23")), Some(23));
+    let names = Answers::new(&[&["203.0.113.5"], &["203.0.113.5"]]);
+    let target = url("sftp://storage.example.com:23");
+    assert_eq!(scope_of(&target, &names).await, Ok(EndpointScope::Public));
+    let pinned = pin(&target, EndpointScope::Public, &names)
+        .await
+        .expect("pinned");
+    assert_eq!(pinned.addrs, ["203.0.113.5:23".parse().unwrap()]);
 }

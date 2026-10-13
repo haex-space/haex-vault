@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use tokio::time::Instant;
 
-use super::{Access, DirListing, ObjectHead, ObjectInfo, StorageError};
+use super::{Access, DirListing, Location, ObjectHead, ObjectInfo, StorageError};
 
 /// The provider behind a storage. Keys are relative to the bucket or folder of `access`; a key
 /// ending in `/` names a folder.
@@ -91,6 +91,12 @@ pub trait RemoteStore: Send + Sync {
     /// Whether [`RemoteStore::copy`] copies on the provider (spec 050 research R8); otherwise a
     /// copy streams through holzi.
     fn copies_on_provider(&self, access: &Access) -> bool;
+
+    /// The host key the server at `location` showed when the last connection was refused for it
+    /// (spec 050 research R5), as an OpenSSH line; `None` for protocols without host keys.
+    fn shown_host_key(&self, _location: &Location) -> Option<String> {
+        None
+    }
 
     /// Moves the file or folder `from` to `to` in one call (spec 050 research R8). Only for
     /// protocols with real folders; S3 answers [`StorageError::Unsupported`].

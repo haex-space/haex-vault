@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { unwrap } from '../lib/flows.ts'
-import { choose, KEY, openSettings, waitForLocation } from '../lib/settings.ts'
+import { textOf, typeChecked } from '../lib/fields.ts'
+import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 import { listFolder, startWebdav } from '../lib/webdav.ts'
 
 const FOLDER = 'Fotos'
@@ -18,55 +19,6 @@ type Overview = {
 }
 
 type Header = { id: string; title: string | null; owner?: string | null }
-
-/** Replaces the text of the field `hook` with `text`: empty it, then type. */
-async function replaceText(
-  page: { type(hook: string, text: string): Promise<void> },
-  hook: string,
-  text: string,
-): Promise<void> {
-  await page.type(hook, `${KEY.control}a${KEY.release}${KEY.backspace}`)
-  await page.type(hook, text)
-}
-
-type Typing = {
-  type(hook: string, text: string): Promise<void>
-  exec<T>(script: string, args?: unknown[]): Promise<T>
-}
-
-/** The value of the field `hook`. */
-function valueOf(page: Typing, hook: string): Promise<string> {
-  return page.exec<string>(
-    `return document.querySelector('[data-testid="' + arguments[0] + '"]').value`,
-    [hook],
-  )
-}
-
-/**
- * Replaces the text of the field `hook` with `text` and checks the field holds it: on the Android
- * runner's desktop instance a typed key was seen to go missing, and the login then failed for a
- * reason the scenario does not test. One more try, then a failure that says so (never the text).
- */
-async function typeChecked(page: Typing, hook: string, text: string) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    await replaceText(page, hook, text)
-    if ((await valueOf(page, hook)) === text) return
-  }
-  const held = await valueOf(page, hook)
-  throw new Error(
-    `${hook} holds ${held.length} characters instead of the ${text.length} typed`,
-  )
-}
-
-/** The text of the element `hook`. */
-async function textOf(
-  page: { exec<T>(script: string): Promise<T> },
-  hook: string,
-): Promise<string> {
-  return page.exec<string>(
-    `return document.querySelector('[data-testid="${hook}"]').textContent.trim()`,
-  )
-}
 
 // Spec 050, US1 (quickstart §5, SC-001, SC-007): in Einstellungen → Cloud-Speicher the user
 // connects a local WebDAV server. A wrong password is named and saves nothing; the folder of the
