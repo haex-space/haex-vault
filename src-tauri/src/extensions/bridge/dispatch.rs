@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use super::frames::{FrameSession, FrameSource};
-use super::{database, methods, permissions};
+use super::{agent_tasks, database, methods, permissions};
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::{
@@ -46,6 +46,16 @@ pub struct Method {
 
 /// The allowlist (contracts/bridge.md §Methoden).
 pub static METHODS: &[Method] = &[
+    Method {
+        name: "extension_ai_task_start",
+        handler: agent_tasks::start,
+        module: agent_tasks::MODULE,
+    },
+    Method {
+        name: "extension_ai_task_cancel",
+        handler: agent_tasks::cancel,
+        module: agent_tasks::MODULE,
+    },
     Method {
         name: "extension_context_get",
         handler: methods::context_get,

@@ -107,6 +107,11 @@ pub async fn extension_frame_close(
     let host = state.extensions();
     if let Some(closed) = host.frames.close(&frame) {
         host.permissions.frame_ended(closed.extension_id);
+        host.agent_tasks()
+            .cancel_owned_by(&crate::agent_tasks::TaskOwner {
+                extension_id: closed.extension_id,
+                frame: closed.frame.clone(),
+            });
         let last = host.frames.of_extension(closed.extension_id).is_empty();
         host.fs.frame_closed(&frame, closed.extension_id, last);
         if last {
@@ -134,6 +139,11 @@ pub async fn extension_frame_reloaded(state: State<'_, AppState>, frame: String)
     let host = state.extensions();
     host.shells.frame_reloaded(&frame);
     if let Some(session) = host.frames.get(&frame) {
+        host.agent_tasks()
+            .cancel_owned_by(&crate::agent_tasks::TaskOwner {
+                extension_id: session.extension_id,
+                frame: session.frame.clone(),
+            });
         host.permissions.frame_ended(session.extension_id);
     }
     Ok(())

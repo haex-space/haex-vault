@@ -57,6 +57,9 @@ pub trait Desktop: Send + Sync {
 #[derive(Default)]
 pub struct ExtensionHost {
     pub frames: FrameRegistry,
+    /// Structured agent tasks owned by extension frames; credentials and provider state stay in
+    /// the host and are never part of a frame session.
+    pub(crate) agent_tasks: crate::agent_tasks::TaskRegistry,
     /// Dialog choices per frame, holzi's protected places and folder watches (US9).
     pub fs: super::fs::FsState,
     /// Open permission questions and decisions held in memory (US3).
@@ -103,6 +106,11 @@ impl Drop for SqlSlot {
 }
 
 impl ExtensionHost {
+    /// The in-memory structured-task registry for this extension host.
+    pub(crate) fn agent_tasks(&self) -> crate::agent_tasks::TaskRegistry {
+        self.agent_tasks.clone()
+    }
+
     /// Sets what holzi does on the desktop; only the first call counts.
     pub fn set_desktop(&self, desktop: Arc<dyn Desktop>) {
         let _ = self.desktop.set(desktop);
