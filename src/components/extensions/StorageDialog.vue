@@ -8,9 +8,10 @@
  * types there would reach it. Escape and the cancel button answer "no".
  */
 import { computed, onMounted, ref } from 'vue'
-import type {
-  StorageChoice,
-  StorageRequest,
+import {
+  isFolderProtocol,
+  type StorageChoice,
+  type StorageRequest,
 } from '~/composables/useStorageRequests'
 
 const props = defineProps<{ request: StorageRequest }>()
@@ -26,6 +27,9 @@ const NEW_CREDENTIALS_VALUE = '__holzi_new_credentials__'
 const chosen = ref(connections.value[0]?.id ?? NEW_CREDENTIALS_VALUE)
 /** For a change: new credentials in holzi's window. */
 const newCredentials = ref(false)
+/** WebDAV and SFTP keep a storage in a folder, which holzi makes only on the user's word. */
+const inFolder = computed(() => isFolderProtocol(proposal.value.protocol))
+const createFolder = ref(false)
 
 const needsCredentials = computed(() => {
   if (props.request.kind === 'add')
@@ -43,6 +47,7 @@ function confirm() {
         ? chosen.value
         : undefined,
     newCredentials: needsCredentials.value,
+    createFolder: inFolder.value && createFolder.value,
   })
 }
 
@@ -94,7 +99,11 @@ onMounted(() => {
         </template>
         <template v-if="proposal.bucket">
           <dt class="text-muted-foreground">
-            {{ t('extensions.storageDialog.bucket') }}
+            {{
+              inFolder
+                ? t('extensions.storageDialog.folder')
+                : t('extensions.storageDialog.bucket')
+            }}
           </dt>
           <dd class="font-mono text-xs break-all">
             <span
@@ -186,6 +195,16 @@ onMounted(() => {
           data-testid="storage-dialog-new-credentials"
         />
         {{ t('extensions.storageDialog.newCredentials') }}
+      </label>
+      <label
+        v-if="inFolder && (request.kind === 'add' || request.kind === 'update')"
+        class="flex items-center gap-2 text-sm"
+      >
+        <ShadcnCheckbox
+          v-model="createFolder"
+          data-testid="storage-dialog-create-folder"
+        />
+        {{ t('extensions.storageDialog.createFolder') }}
       </label>
       <p v-if="needsCredentials" class="text-xs text-muted-foreground">
         {{ t('extensions.storageDialog.credentialsNext') }}

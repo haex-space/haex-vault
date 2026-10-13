@@ -17,10 +17,12 @@ import type { StorageTrial } from '@bindings/StorageTrial'
 
 export type StorageRequestKind = 'add' | 'update' | 'test' | 'remove'
 
-/** What holzi shows of an extension's proposal; never credentials. */
+/** What holzi shows of an extension's proposal; never credentials. `bucket` is the folder of a
+ * WebDAV or SFTP storage (spec 050). */
 export type StorageProposal = {
   name?: string
   bucket?: string
+  protocol?: 's3' | 'webdav' | 'sftp'
   currentName?: string
   currentBucket?: string
   providerName?: string
@@ -43,6 +45,13 @@ export type StorageRequest = {
 
 /** The request whose credentials holzi's window over the whole app asks for. */
 const credentialsRequest = ref<StorageRequest | null>(null)
+/** Whether the user said in the dialog over the tab to make a missing folder (spec 050 FR-006). */
+const credentialsCreateFolder = ref(false)
+
+/** Whether a storage of `protocol` keeps its files in a folder of a server (WebDAV, SFTP). */
+export function isFolderProtocol(protocol: StorageProposal['protocol']) {
+  return protocol === 'webdav' || protocol === 'sftp'
+}
 
 export function resolveStorageAsync(
   requestId: string,
@@ -56,15 +65,20 @@ export function useStorageCredentials() {
   return {
     request: readonly(credentialsRequest),
     /**
-     * Sends the credentials and waits for their test. The window closes when the request ends
+     * Sends the credentials and waits for their test; `createFolder` makes a missing folder of a
+     * WebDAV or SFTP storage. The window closes when the request ends
      * (`extension-storage-request-ended`); a failed test leaves it open.
      */
-    async confirmAsync(credentials: CredentialsInput): Promise<StorageTrial> {
+    async confirmAsync(
+      credentials: CredentialsInput,
+      createFolder = false,
+    ): Promise<StorageTrial> {
       const open = credentialsRequest.value
       if (!open) return { kind: 'ended' }
       const trial = await resolveStorageAsync(open.requestId, {
         kind: 'confirm',
         credentials,
+        createFolder: createFolder || credentialsCreateFolder.value,
       }).catch((): StorageTrial => ({ kind: 'ended' }))
       if (trial.kind === 'ended' && credentialsRequest.value === open)
         credentialsRequest.value = null
@@ -84,7 +98,12 @@ export function useStorageCredentials() {
 /** What the user chose in the dialog over the tab. */
 export type StorageChoice =
   | { confirm: false }
-  | { confirm: true; connectionId?: string; newCredentials: boolean }
+  | {
+      confirm: true
+      connectionId?: string
+      newCredentials: boolean
+      createFolder?: boolean
+    }
 
 /**
  * The storage dialog of one extension frame: shows the frame's request, answers it or hands it on
@@ -140,11 +159,16 @@ export function useFrameStorageDialog(
     if (!open) return
     if (choice.confirm && choice.newCredentials && !choice.connectionId) {
       // No `afterAnswer`: focusing the frame now would send the typed credentials to it.
+      credentialsCreateFolder.value = choice.createFolder ?? false
       credentialsRequest.value = open
       return
     }
     const answer: StorageAnswer = choice.confirm
-      ? { kind: 'confirm', connectionId: choice.connectionId }
+      ? {
+          kind: 'confirm',
+          connectionId: choice.connectionId,
+          createFolder: choice.createFolder,
+        }
       : { kind: 'cancel' }
     void resolveStorageAsync(open.requestId, answer).catch(() => {})
     afterAnswer()

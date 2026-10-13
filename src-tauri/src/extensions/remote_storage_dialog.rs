@@ -55,6 +55,10 @@ pub enum StorageAnswer {
         #[ts(optional)]
         #[serde(default)]
         bucket: Option<String>,
+        /// The user's word to make a missing folder of a WebDAV or SFTP storage (spec 050 FR-006).
+        #[ts(as = "Option<bool>", optional)]
+        #[serde(default)]
+        create_folder: bool,
     },
 }
 

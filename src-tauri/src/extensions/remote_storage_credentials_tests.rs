@@ -15,6 +15,7 @@ fn with_credentials() -> StorageAnswer {
         credentials: Some(credentials()),
         name: None,
         bucket: None,
+        create_folder: false,
     }
 }
 

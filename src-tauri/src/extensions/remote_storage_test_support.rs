@@ -1,6 +1,8 @@
 //! The setup of the remote storage tests of the bridge (spec 038): a vault with an identity, the
-//! probe extension installed, the fake provider in the host, two storages the user made in the
-//! settings, and events that answer storage dialogs as a test sets them.
+//! probe extension installed, the fake provider in the host for S3 and holzi's WebDAV client for
+//! WebDAV (spec 050), two S3 storages the user made in the settings, and events that answer
+//! storage dialogs as a test sets them. [`Setup::add_webdav`] adds a storage on a WebDAV server
+//! of the test process ([`WebdavServer`]).
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -21,9 +23,11 @@ use crate::extensions::remote_storage_dialog::{StorageAnswer, StorageTrial};
 use crate::passwords::service::PasswordsService;
 use crate::remote_storage::address::Resolver;
 use crate::remote_storage::model::{ConnectionInput, CredentialsInput, StorageInput};
+use crate::remote_storage::protocol::ProtocolStore;
 use crate::remote_storage::service::StorageService;
 use crate::remote_storage::test_support::{resolver, vault, FakeStore};
-use crate::remote_storage::{Addressing, Protocol, ProviderKind};
+use crate::remote_storage::webdav::{test_server, WebDavStore};
+use crate::remote_storage::{Addressing, Protocol, ProviderKind, RemoteStore};
 use crate::storage::known_devices;
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -106,6 +110,8 @@ pub(crate) struct Setup {
     _dir: tempfile::TempDir,
     pub vault: VaultDb,
     pub fake: Arc<FakeStore>,
+    /// The fake for S3 and holzi's WebDAV client, as the host's storage calls see them.
+    pub store: Arc<dyn RemoteStore>,
     pub events: Arc<Events>,
     pub ctx: CallContext,
     /// Two storages the user made in the settings, on one connection.
@@ -150,8 +156,13 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
         .expect("effective")
         .bundle_id;
     let fake = Arc::new(FakeStore::new());
+    let store: Arc<dyn RemoteStore> = Arc::new(ProtocolStore::new(
+        fake.clone(),
+        Some(Arc::new(WebDavStore::new(resolver(&[])))),
+        None,
+    ));
     let host = Arc::new(ExtensionHost::default());
-    host.storage.set(fake.clone(), names);
+    host.storage.set(store.clone(), names);
     let events = Arc::new(Events {
         host: Arc::clone(&host),
         seen: Mutex::new(Vec::new()),
@@ -162,7 +173,7 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
     let service = StorageService::new(
         vault.clone(),
         PasswordsService::new(vault.clone()),
-        fake.clone(),
+        store.clone(),
         resolver(&[]),
     );
     let connection = block_on(service.save_connection(ConnectionInput {
@@ -202,13 +213,76 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
         },
         vault,
         fake,
+        store,
         events,
         photos,
         notes,
     }
 }
 
+/// A WebDAV server of the test process (spec 050 research R14), on a runtime of its own so it
+/// keeps serving between the bridge's calls; it ends with this value.
+pub(crate) struct WebdavServer {
+    _runtime: tokio::runtime::Runtime,
+    pub endpoint: String,
+}
+
+impl WebdavServer {
+    /// A server with the empty folder `folder`.
+    pub fn start(folder: &str) -> Self {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let access = runtime.block_on(test_server::start(folder));
+        Self {
+            _runtime: runtime,
+            endpoint: access.location.endpoint,
+        }
+    }
+}
+
+pub(crate) const WEBDAV_USER: &str = "user-leak-marker";
+pub(crate) const WEBDAV_PASSWORD: &str = "password-leak-marker-9c2d";
+
 impl Setup {
+    /// A WebDAV connection to `server` and a storage `name` on its folder `folder`, made as the
+    /// user would in the settings; returns the storage's id.
+    pub fn add_webdav(&self, server: &WebdavServer, name: &str, folder: &str) -> String {
+        let service = StorageService::new(
+            self.vault.clone(),
+            PasswordsService::new(self.vault.clone()),
+            self.store.clone(),
+            resolver(&[]),
+        );
+        let connection = block_on(service.save_connection(ConnectionInput {
+            id: None,
+            protocol: Protocol::WebDav,
+            provider_name: "Server".to_owned(),
+            provider_kind: ProviderKind::Other,
+            endpoint: Some(server.endpoint.clone()),
+            region: String::new(),
+            addressing: Addressing::Path,
+            credentials: Some(CredentialsInput::Password {
+                username: WEBDAV_USER.to_owned(),
+                password: Zeroizing::new(WEBDAV_PASSWORD.to_owned()),
+            }),
+            bucket_for_test: folder.to_owned(),
+            create_folder: false,
+        }))
+        .expect("webdav connection");
+        block_on(service.save_storage(StorageInput {
+            id: None,
+            connection_id: connection.id,
+            name: name.to_owned(),
+            bucket: folder.to_owned(),
+            create_folder: false,
+        }))
+        .expect("webdav storage")
+        .id
+    }
+
     pub fn call(&self, method: &str, params: Value) -> Result<Value, BridgeError> {
         bridge_call(&self.ctx, method, &params)
     }

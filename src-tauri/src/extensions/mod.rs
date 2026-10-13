@@ -31,8 +31,10 @@ pub mod remote_storage_dialog;
 pub mod remote_storage_endpoint;
 pub mod remote_storage_keys;
 pub mod remote_storage_manage;
+pub mod remote_storage_propose;
 #[cfg(test)]
 pub(crate) mod remote_storage_test_support;
+mod remote_storage_tree;
 pub mod shell;
 pub mod sql;
 pub mod web;

@@ -14,7 +14,7 @@ use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::{
     encrypted_folder, fs, kv, logs, mail, notifications, passwords, remote_storage,
-    remote_storage_manage, shell, web,
+    remote_storage_manage, remote_storage_propose, shell, web,
 };
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -358,8 +358,8 @@ pub static METHODS: &[Method] = &[
     },
     Method {
         name: "extension_remote_storage_add_backend",
-        handler: remote_storage_manage::add_backend,
-        module: remote_storage_manage::MODULE,
+        handler: remote_storage_propose::add_backend,
+        module: remote_storage_propose::MODULE,
     },
     Method {
         name: "extension_remote_storage_update_backend",

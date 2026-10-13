@@ -26,6 +26,7 @@ fn confirm() -> StorageAnswer {
         credentials: None,
         name: None,
         bucket: None,
+        create_folder: false,
     }
 }
 
@@ -35,6 +36,7 @@ fn with_credentials() -> StorageAnswer {
         credentials: Some(credentials()),
         name: None,
         bucket: None,
+        create_folder: false,
     }
 }
 
@@ -294,6 +296,7 @@ fn an_existing_connection_can_take_the_new_storage_without_credentials() {
         credentials: None,
         name: None,
         bucket: None,
+        create_folder: false,
     });
     let proposal = add(json!({ "endpoint": ENDPOINT, "region": REGION, "bucket": "more" }));
     s.call("extension_remote_storage_add_backend", proposal)
