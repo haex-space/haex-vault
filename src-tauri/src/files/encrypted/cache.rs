@@ -161,6 +161,17 @@ pub fn heads_of_folder(
     )
 }
 
+/// The object keys of every head cached for `storage_id`, at any depth (the device's folders,
+/// spec 048 US7).
+pub fn head_keys(q: &mut impl Query, storage_id: &str) -> haex_crdt::Result<Vec<String>> {
+    q.query_map(
+        "SELECT object_key FROM encrypted_folder_heads_no_sync WHERE storage_id = ?1 \
+             ORDER BY object_key",
+        params![storage_id],
+        |r| r.get(0),
+    )
+}
+
 /// Notes "Nicht mehr fragen" for folder `folder_id` at the head `object_key`. A folder this device
 /// created has no row before a listing read its head: the row starts without an ETag then, so the
 /// next listing reads the head and fills it in, keeping the answer.

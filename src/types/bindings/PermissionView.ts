@@ -32,4 +32,8 @@ unreadable: boolean,
  * For `encryptedFolder`: the storage's name and the folder's decrypted name as this device
  * last read it (spec 048 FR-038); absent when this device does not know them.
  */
-folder?: { storageName: string, folderName: string, }, };
+folder?: { storageName: string, folderName: string,
+/**
+ * The folder lies on this device, not in a cloud storage (spec 048 US7).
+ */
+onDevice: boolean, }, };

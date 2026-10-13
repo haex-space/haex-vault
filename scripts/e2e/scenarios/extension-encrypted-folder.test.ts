@@ -242,6 +242,7 @@ scenario(
     assert.deepEqual(grant.folder, {
       storageName: 'Fotos',
       folderName: 'Unterlagen',
+      onDevice: false,
     })
     unwrap(
       'extension_permission_remove',

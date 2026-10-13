@@ -12,6 +12,7 @@ use std::sync::Arc;
 use super::cache;
 use super::format::{encode_id, Id};
 use super::route::{in_encrypted, located_at, vault_error, Located};
+use crate::files::access::is_device_storage;
 use crate::files::storage_source::{folder_prefix, StorageFiles};
 use crate::files::{EncryptedState, EntryKind, FilesError, FilesErrorCode};
 
@@ -58,12 +59,44 @@ pub async fn find(files: &StorageFiles, fid: &Id) -> Result<Located, FilesError>
             }
         }
     }
+    // The device is never walked: it is the whole file system (spec 048 US7).
+    if is_device_storage(&scope.storage_id) {
+        return Err(not_found());
+    }
     walk(files)
         .await?
         .into_iter()
         .filter(|at| readable(at) && at.head.fid == Some(*fid))
         .min_by(|a, b| a.head.prefix.cmp(&b.head.prefix))
         .ok_or_else(not_found)
+}
+
+/// The readable encrypted folders this vault's cache knows on the device `files` (spec 048 US7),
+/// one per id, by their decrypted names; the device is never walked.
+pub async fn known_on_device(files: &StorageFiles) -> Result<Vec<Located>, FilesError> {
+    let scope = files.scope().ok_or_else(in_encrypted)?;
+    let storage = scope.storage_id.clone();
+    let cached = scope
+        .db()?
+        .read(move |q| cache::head_keys(q, &storage))
+        .await
+        .map_err(vault_error)?;
+    let mut found = Vec::new();
+    for object_key in cached {
+        let Some(prefix) = object_key.strip_suffix('h') else {
+            continue;
+        };
+        if let Ok(at) = located_at(files, prefix).await {
+            if readable(&at) {
+                found.push(at);
+            }
+        }
+    }
+    found.sort_by(|a, b| a.head.prefix.cmp(&b.head.prefix));
+    let mut seen = HashSet::new();
+    found.retain(|at| seen.insert(at.head.fid));
+    found.sort_by(|a, b| a.head.display.cmp(&b.head.display));
+    Ok(found)
 }
 
 /// Every encrypted folder below the ordinary folders of the storage, at most [`MAX_FOLDERS`]

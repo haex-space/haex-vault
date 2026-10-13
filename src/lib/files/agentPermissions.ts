@@ -24,6 +24,8 @@ export type FolderGrant = {
   target: string
   name: string | null
   storageName: string
+  /** The folder lies on this device (`device:<root>`, spec 048 US7), not in a storage. */
+  onDevice: boolean
   status: 'read' | 'readWrite' | 'denied'
   reach: 'local' | 'cloud'
 }
@@ -35,7 +37,8 @@ export type AgentFiles = {
   agentId: string
   device: boolean
   storages: { id: string; name: string; status: StorageChoice }[]
-  /** By storage name, then folder name; folders of a storage that is gone are left out. */
+  /** By storage name (the device's first), then folder name; folders of a storage that is gone are
+   * left out. */
   folders: FolderGrant[]
 }
 
@@ -72,9 +75,12 @@ export function agentFiles(
       }),
       folders: own
         .flatMap((row): FolderGrant[] => {
-          const storage = storages.find((candidate) =>
-            row.target.startsWith(`${candidate.id}/`),
-          )
+          const onDevice = row.target.startsWith('device:')
+          const storage = onDevice
+            ? { name: '' }
+            : storages.find((candidate) =>
+                row.target.startsWith(`${candidate.id}/`),
+              )
           if (
             row.kind !== 'encryptedFolder' ||
             !storage ||
@@ -86,6 +92,7 @@ export function agentFiles(
               target: row.target,
               name: row.folderName ?? null,
               storageName: storage.name,
+              onDevice,
               status: row.status,
               reach: row.reach ?? 'local',
             },

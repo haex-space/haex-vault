@@ -244,6 +244,33 @@ fn decision(
     Ok(evaluate(&grants, &request, device))
 }
 
+/// Whether the calling extension may `access` `path` by its filesystem permission or a dialog
+/// choice of its frame, without asking anyone: the place of an encrypted folder on the device,
+/// which an extension reaches only with file access there (spec 048 US7, PR K2).
+pub fn permits(ctx: &CallContext, path: &Path, access: Access) -> bool {
+    let Ok(environment) = ctx.host.fs.environment() else {
+        return false;
+    };
+    if touches_denied(&environment, path, Reach::Path) {
+        return false;
+    }
+    if ctx.host.fs.chosen(&ctx.session.frame, path, access) {
+        return true;
+    }
+    environment.free_paths
+        && matches!(
+            decision(
+                &ctx.db,
+                &ctx.host,
+                ctx.session.extension_id,
+                ctx.device,
+                path,
+                access
+            ),
+            Ok(Decision::Allow)
+        )
+}
+
 /// What let a call reach its path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Allowed {

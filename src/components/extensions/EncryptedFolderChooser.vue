@@ -16,6 +16,8 @@ interface ChooseRequest {
   requestId: string
   extensionName: string
   storageName: string
+  /** The folders lie on this device, not in a cloud storage (spec 048 US7). */
+  onDevice?: boolean
   access: 'read' | 'readWrite'
   folders: { folderId: string; name: string }[]
 }
@@ -91,9 +93,12 @@ onBeforeUnmount(() => {
       <div class="space-y-3" data-testid="extension-encrypted-chooser">
         <p class="text-sm">
           {{
-            t('extensions.encryptedChooser.intro', {
-              storage: shown.storageName,
-            })
+            t(
+              shown.onDevice
+                ? 'extensions.encryptedChooser.introDevice'
+                : 'extensions.encryptedChooser.intro',
+              { storage: shown.storageName },
+            )
           }}
         </p>
         <p class="text-xs text-muted-foreground">

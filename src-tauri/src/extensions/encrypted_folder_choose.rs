@@ -15,13 +15,16 @@ use serde_json::{json, Value};
 use ts_rs::TS;
 
 use super::bridge::dispatch::CallContext;
-use super::encrypted_folder::{denied, files, limits, storage_gate, storage_name, within};
+use super::encrypted_folder::{
+    denied, files, limits, place_gate, storage_gate, storage_name, within,
+};
 use super::error::{BridgeError, ExtensionErrorCode};
 use super::permissions::prompts::Question;
 use super::permissions::{Action, FolderRef, PermissionKind, PermissionStatus};
 use super::protocol::token;
 use super::remote_storage::text;
-use crate::files::encrypted::by_id::readable_folders;
+use crate::files::access::is_device_storage;
+use crate::files::encrypted::by_id::{known_on_device, readable_folders};
 use crate::files::encrypted::format::encode_id;
 use crate::files::encrypted::EncryptedFolders;
 use crate::storage::query::Query;
@@ -150,10 +153,22 @@ pub fn choose(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     storage_gate(ctx, storage_id, &access)?;
     let limits = limits(ctx)?;
     let files = files(ctx, storage_id)?;
-    let offered: Vec<(String, String)> = within(&limits, readable_folders(&files))?
+    // On the device the cache names the folders, and only those whose place the extension may
+    // reach are offered (spec 048 US7, PR K2).
+    let folders = if is_device_storage(storage_id) {
+        within(&limits, known_on_device(&files))?
+    } else {
+        within(&limits, readable_folders(&files))?
+    };
+    let offered: Vec<(String, String)> = folders
         .iter()
+        .filter(|at| place_gate(ctx, storage_id, at, &access))
         .filter_map(|at| Some((encode_id(&at.head.fid?), at.head.display.clone())))
         .collect();
+    // Without file access to any folder's place the extension learns nothing, and nobody is asked.
+    if is_device_storage(storage_id) && offered.is_empty() {
+        return Err(denied(PermissionKind::EncryptedFolder, &access, storage_id));
+    }
     let (extension_name, storage) = (display_name(ctx), storage_name(ctx, storage_id)?);
     let request_id = token::mint();
     let frame = &ctx.session.frame;
@@ -171,6 +186,7 @@ pub fn choose(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
             "frame": frame,
             "extensionName": extension_name,
             "storageName": storage,
+            "onDevice": is_device_storage(storage_id),
             "access": wanted,
             "folders": offered
                 .iter()

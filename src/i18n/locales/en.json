@@ -914,6 +914,7 @@
       },
       "folderUnknown": "Encrypted folder",
       "folderDescription": "Encrypted folder in “{storage}” · {status} · {reach}",
+      "folderDescriptionDevice": "Encrypted folder on this device · {status} · {reach}",
       "reach": {
         "local": "only models on this device",
         "cloud": "also cloud models"
@@ -2059,6 +2060,7 @@
     "encryptedChooser": {
       "title": "“{name}” wants to open an encrypted folder",
       "intro": "Choose an encrypted folder in the cloud storage “{storage}”. The extension learns its name only once you allow it.",
+      "introDevice": "Choose an encrypted folder on this device. The extension learns its name only once you allow it.",
       "wantsRead": "The extension wants to read.",
       "wantsReadWrite": "The extension wants to read and write.",
       "none": "This cloud storage holds no encrypted folder holzi can open.",
@@ -2078,7 +2080,8 @@
       "scopeDevice": "Then holds on this device only. holzi asks again on your other devices.",
       "allow": "Allow",
       "deny": "Deny",
-      "encryptedFolder": "Folder “{folder}” in the cloud storage “{storage}”"
+      "encryptedFolder": "Folder “{folder}” in the cloud storage “{storage}”",
+      "encryptedFolderDevice": "Folder “{folder}” on this device"
     },
     "statusError": {
       "migration_changed": "An applied migration was changed",
@@ -2352,7 +2355,9 @@
       "folder": {
         "title": "Access to an encrypted folder",
         "read": "The agent in the chat wants to read the encrypted folder “{name}” in the cloud storage “{storage}”.",
+        "readDevice": "The agent in the chat wants to read the encrypted folder “{name}” on this device.",
         "readWrite": "The agent in the chat wants to read and change the encrypted folder “{name}” in the cloud storage “{storage}”.",
+        "readWriteDevice": "The agent in the chat wants to read and change the encrypted folder “{name}” on this device.",
         "local": "What it reads goes to the model “{model}” on this device.",
         "cloud": "What it reads goes to the model “{model}” in the cloud.",
         "remember": "Remember this permission",

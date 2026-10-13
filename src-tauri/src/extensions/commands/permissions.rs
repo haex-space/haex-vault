@@ -72,9 +72,14 @@ fn folder_names(
     let Some(folder) = FolderRef::parse(target) else {
         return Ok(None);
     };
-    let storage_name = crate::remote_storage::store::storage(q, &folder.storage_id)
-        .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?
-        .map(|row| row.name);
+    let on_device = crate::files::access::is_device_storage(&folder.storage_id);
+    let storage_name = if on_device {
+        Some(super::super::encrypted_folder::DEVICE_NAME.to_owned())
+    } else {
+        crate::remote_storage::store::storage(q, &folder.storage_id)
+            .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?
+            .map(|row| row.name)
+    };
     let folder_name =
         crate::files::encrypted::cache::heads_of_folder(q, &folder.storage_id, &folder.folder_id)?
             .into_iter()
@@ -83,6 +88,7 @@ fn folder_names(
         (Some(storage_name), Some(folder_name)) => Some(FolderNames {
             storage_name,
             folder_name,
+            on_device,
         }),
         _ => None,
     })
