@@ -184,7 +184,9 @@ abgelehnt, ohne dass ein Dialog erscheint.
 6. **Given** eine Erweiterung entfernt einen Speicher, den auch andere Erweiterungen nutzen, **When**
    der Dialog erscheint, **Then** nennt er diese Erweiterungen.
 7. **Given** die Zugangsdaten eines Speichers, **When** eine Erweiterung irgendeine Funktion nutzt,
-   auch die Passwort-Funktionen mit einer Freigabe für `*`, **Then** erreicht sie die Zugangsdaten nie.
+   auch die Passwort-Funktionen mit einer Freigabe für `*`, **Then** erreicht sie die Zugangsdaten nie
+   (gilt für von holzi angelegte Einträge; für einen vom Nutzer gewählten Eintrag gelten dessen
+   Freigaben, Spec 052).
 
 ---
 
@@ -254,7 +256,8 @@ auf Gerät 2 testen und von einer Erweiterung dort hochladen lassen.
 - **FR-005**: Die Zugangsdaten MÜSSEN im Passwortmanager (034) liegen und DÜRFEN sonst nirgends in
   lesbarer Form gespeichert werden. Das Geheimnis zeigt nur der Passwortmanager auf eine eigene Aktion
   des Nutzers (wie Passwörter in 034); die Einstellungen der Speicher zeigen es nicht und verweisen auf
-  den Eintrag.
+  den Eintrag. Seit Spec 052 darf der Nutzer statt neuer Zugangsdaten einen vorhandenen Eintrag wählen;
+  für ihn gelten die Freigaben des Passwortmanagers wie für jeden Eintrag.
 - **FR-006**: Speicherverbindungen und Speicher MÜSSEN Vault-Daten sein und mit dem Datensync (Spec 024)
   auf alle eigenen Geräte gelangen.
 - **FR-007**: Beim Entfernen einer Verbindung oder eines Speichers MUSS holzi vorher die betroffenen
