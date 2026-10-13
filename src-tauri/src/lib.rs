@@ -1,4 +1,5 @@
 pub mod adapters;
+pub mod agent_tasks;
 #[cfg(feature = "voice")]
 pub mod audio;
 pub mod catalog;
