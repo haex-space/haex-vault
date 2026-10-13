@@ -14,12 +14,13 @@ use uuid::Uuid;
 
 use super::defs::ExtensionToolDef;
 use super::slot::McpLink;
+use crate::chat::tools::extension_offer::MatchEntry;
 use crate::chat::tools::{RiskClass, Tool, ToolOrigin, ToolResult};
 use crate::extensions::bridge::frames::FrameSession;
 use crate::extensions::bundle::ToolEffect;
 
 /// `chat_messages.tool_source` of an extension's tool.
-pub const SOURCE: &str = "haextension";
+pub const SOURCE: &str = crate::chat::tools::extension_offer::EXTENSION_SOURCE;
 /// How long one call may take (like `DEFAULT_ACTION_TIMEOUT`).
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 /// The most text of a result the model gets.
@@ -187,6 +188,21 @@ impl Tool for ExtensionTool {
 
     fn always_ask(&self) -> bool {
         self.def.always_ask
+    }
+
+    fn match_entry(&self) -> Option<MatchEntry> {
+        let tool = &self.def.tool;
+        let texts = [&tool.title_de, &tool.title_en, &tool.description]
+            .into_iter()
+            .chain(&tool.examples_de)
+            .chain(&tool.examples_en)
+            .cloned()
+            .collect();
+        Some(MatchEntry {
+            tool_name: self.def.model_name.clone(),
+            extension_title: self.def.extension_title.clone(),
+            texts,
+        })
     }
 
     async fn execute(&self, input: Value, cancel: CancellationToken) -> ToolResult {

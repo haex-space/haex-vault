@@ -109,7 +109,10 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
         registry.register(tool);
     }
     if !search_defs.is_empty() {
-        registry.register(Arc::new(FindActionsTool::new(search_defs)));
+        registry.register(Arc::new(FindActionsTool::with_extensions(
+            search_defs,
+            &chat.tool_registry,
+        )));
         registry.register(Arc::new(AskUserTool));
     }
     Ok(count)

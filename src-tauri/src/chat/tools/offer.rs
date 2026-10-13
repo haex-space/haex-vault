@@ -4,12 +4,16 @@
 //! the model only sees the fixed core plus `find_actions` initially. Search
 //! results replace the previous non-core additions for the next step.
 
+use std::collections::HashSet;
+
 use serde_json::Value;
 
 use crate::adapters::types::ToolSpec;
 
 use super::action_tool::{AgentActionDef, ACTION_SOURCE};
 use super::ask_user::ASK_USER_TOOL_NAME;
+use super::availability::ToolAvailability;
+use super::extension_offer::{matched_offer, EXTENSION_SOURCE};
 use super::{Tool, ToolRegistry};
 
 pub const FIND_ACTIONS_TOOL_NAME: &str = "find_actions";
@@ -25,10 +29,12 @@ pub fn tool_spec(tool: &dyn Tool) -> ToolSpec {
     }
 }
 
-/// Keeps all non-action tools and only the fixed core action tools plus search and `ask_user`.
+/// Keeps all other tools and only the fixed core action tools plus search and `ask_user`; an
+/// extension's tool only comes with a message it fits ([`first_offer`]).
 pub fn core_offer(registry: &ToolRegistry) -> Vec<ToolSpec> {
     registry
         .iter()
+        .filter(|tool| tool.source() != EXTENSION_SOURCE)
         .filter(|tool| {
             tool.source() != ACTION_SOURCE
                 || tool.name() == FIND_ACTIONS_TOOL_NAME
@@ -39,34 +45,64 @@ pub fn core_offer(registry: &ToolRegistry) -> Vec<ToolSpec> {
         .collect()
 }
 
-/// Replaces earlier search additions with the latest result while retaining
-/// the core action tools and every non-action tool.
+/// The first step's offer: the core plus up to three extension tools that fit `message` (spec
+/// 018, research R6), at most 14 tools; nothing for a model that cannot use tools or a delegate
+/// turn (FR-017). The matched tools stay for every step, since [`extend_offer`] keeps them.
+pub fn first_offer(
+    availability: ToolAvailability,
+    registry: &ToolRegistry,
+    message: &str,
+) -> Vec<ToolSpec> {
+    if !availability.offers_tools() {
+        return Vec::new();
+    }
+    let mut offer = core_offer(registry);
+    for name in matched_offer(message, &registry.match_entries()) {
+        if let Some(tool) = registry.get(&name) {
+            offer.push(tool_spec(tool.as_ref()));
+        }
+    }
+    offer
+}
+
+/// The extension tools a search may add (spec 018, research R7), and the tools the turn's first
+/// step offered, which stay for the whole turn.
+#[derive(Debug, Default)]
+pub struct ExtensionScope {
+    pub names: HashSet<String>,
+    pub pinned: HashSet<String>,
+}
+
+/// Replaces earlier search additions with the latest result while retaining the core action
+/// tools, the first step's tools and every other tool.
 pub fn extend_offer(
     request_tools: &mut Vec<ToolSpec>,
     found: &[ToolSpec],
     action_defs: &[AgentActionDef],
+    extensions: &ExtensionScope,
 ) {
-    let core_names: std::collections::HashSet<&str> = action_defs
+    let core_names: HashSet<&str> = action_defs
         .iter()
         .filter(|def| def.core)
         .map(|def| def.tool_name.as_str())
         .collect();
-    let action_names: std::collections::HashSet<&str> = action_defs
+    let action_names: HashSet<&str> = action_defs
         .iter()
         .map(|def| def.tool_name.as_str())
         .collect();
+    let searchable = |name: &str| {
+        (action_names.contains(name) && !core_names.contains(name))
+            || extensions.names.contains(name)
+    };
 
-    request_tools.retain(|tool| {
-        !action_names.contains(tool.name.as_str()) || core_names.contains(tool.name.as_str())
-    });
+    request_tools.retain(|tool| !searchable(&tool.name) || extensions.pinned.contains(&tool.name));
 
     // One slot each stays for `find_actions` and `ask_user`.
     let max_found = MAX_ACTION_OFFER.saturating_sub(core_names.len() + 2);
     let mut added = 0;
     for tool in found {
         if added >= max_found
-            || core_names.contains(tool.name.as_str())
-            || !action_names.contains(tool.name.as_str())
+            || !searchable(&tool.name)
             || request_tools
                 .iter()
                 .any(|existing| existing.name == tool.name)
@@ -121,17 +157,50 @@ fn words(text: &str) -> Vec<String> {
     result
 }
 
-fn search_score(def: &AgentActionDef, query: &[String]) -> usize {
-    let haystack = [
-        def.action_id.as_str(),
-        def.tool_name.as_str(),
-        def.description.as_str(),
-        def.titles.de.as_str(),
-        def.titles.en.as_str(),
-    ]
-    .into_iter()
-    .flat_map(words)
-    .collect::<std::collections::HashSet<_>>();
+/// One searchable tool: a built-in action or an extension's tool (spec 018, research R7).
+#[derive(Debug, Clone)]
+pub struct SearchEntry {
+    /// Orders ties: the action id, or the tool name.
+    pub key: String,
+    pub tool: ToolSpec,
+    /// What a query is compared with.
+    pub texts: Vec<String>,
+}
+
+impl SearchEntry {
+    pub fn action(def: &AgentActionDef) -> Self {
+        Self {
+            key: def.action_id.clone(),
+            tool: ToolSpec {
+                name: def.tool_name.clone(),
+                description: def.description.clone(),
+                input_schema: def.input_schema.clone(),
+            },
+            texts: vec![
+                def.action_id.clone(),
+                def.tool_name.clone(),
+                def.description.clone(),
+                def.titles.de.clone(),
+                def.titles.en.clone(),
+            ],
+        }
+    }
+
+    /// The search result of this tool, the same form for actions and extension tools.
+    pub fn result(&self) -> Value {
+        serde_json::json!({
+            "tool": self.tool.name,
+            "description": self.tool.description,
+            "inputSchema": self.tool.input_schema,
+        })
+    }
+}
+
+fn search_score(texts: &[String], query: &[String]) -> usize {
+    let haystack = texts
+        .iter()
+        .flat_map(|text| words(text))
+        .collect::<HashSet<_>>();
     query
         .iter()
         .filter(|word| haystack.iter().any(|known| word_matches(word, known)))
@@ -151,30 +220,32 @@ pub(super) fn word_matches(query: &str, known: &str) -> bool {
     shorter == longer || (shorter.len() >= MIN_PREFIX_LEN && longer.starts_with(shorter))
 }
 
-/// Searches all registered built-in actions, with stable id ordering for ties.
-/// The cursor is an opaque decimal offset owned by this implementation.
-pub fn search_actions(
-    defs: &[AgentActionDef],
+/// Searches `entries`, with stable key ordering for ties. The cursor is an opaque decimal offset
+/// owned by this implementation.
+pub fn search_entries<'a>(
+    entries: &'a [SearchEntry],
     query: Option<&str>,
     cursor: Option<&str>,
     limit: usize,
-) -> (Vec<AgentActionDef>, Option<String>) {
+) -> (Vec<&'a SearchEntry>, Option<String>) {
     let offset = cursor
         .and_then(|value| value.parse::<usize>().ok())
         .unwrap_or(0);
-    let mut ranked: Vec<(usize, &AgentActionDef)> = defs
+    let query = query.map(words);
+    let mut ranked: Vec<(usize, &SearchEntry)> = entries
         .iter()
-        .filter_map(|def| {
+        .filter_map(|entry| {
             let score = query
-                .map(|text| search_score(def, &words(text)))
+                .as_ref()
+                .map(|query| search_score(&entry.texts, query))
                 .unwrap_or(1);
-            (score > 0).then_some((score, def))
+            (score > 0).then_some((score, entry))
         })
         .collect();
     ranked.sort_by(|(left_score, left), (right_score, right)| {
         right_score
             .cmp(left_score)
-            .then_with(|| left.action_id.cmp(&right.action_id))
+            .then_with(|| left.key.cmp(&right.key))
     });
 
     let page_size = limit.clamp(1, MAX_SEARCH_RESULTS);
@@ -183,16 +254,24 @@ pub fn search_actions(
         .into_iter()
         .skip(offset)
         .take(page_size)
-        .map(|(_, def)| def.clone())
+        .map(|(_, entry)| entry)
         .collect::<Vec<_>>();
     let next = (offset + page.len() < total).then(|| (offset + page.len()).to_string());
     (page, next)
 }
 
-pub fn action_result(def: &AgentActionDef) -> Value {
-    serde_json::json!({
-        "tool": def.tool_name,
-        "description": def.description,
-        "inputSchema": def.input_schema,
-    })
+/// Searches all registered built-in actions, with stable id ordering for ties.
+pub fn search_actions(
+    defs: &[AgentActionDef],
+    query: Option<&str>,
+    cursor: Option<&str>,
+    limit: usize,
+) -> (Vec<AgentActionDef>, Option<String>) {
+    let entries: Vec<SearchEntry> = defs.iter().map(SearchEntry::action).collect();
+    let (page, next) = search_entries(&entries, query, cursor, limit);
+    let page = page
+        .into_iter()
+        .filter_map(|entry| defs.iter().find(|def| def.action_id == entry.key).cloned())
+        .collect();
+    (page, next)
 }

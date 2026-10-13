@@ -64,6 +64,9 @@ struct TurnRunner<'a> {
     /// Carried across tool rounds (not reset per round) so two rounds
     /// landing in the same millisecond still sort in round order.
     next_created_at: i64,
+    /// The tools of the first step; a search never takes them away (spec 018: the extension
+    /// tools that fit the message stay for the whole turn).
+    first_offer: std::collections::HashSet<String>,
 }
 
 /// Drives one `send_message` turn to completion: consumes the
@@ -96,6 +99,7 @@ pub async fn run_turn(
         assistant_message_id,
         cancel,
         emit,
+        first_offer: request.tools.iter().map(|tool| tool.name.clone()).collect(),
         request,
         parent_id: user_message_id,
         rounds_used: 0,

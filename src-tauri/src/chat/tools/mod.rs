@@ -192,6 +192,10 @@ pub trait Tool: Send + Sync {
     fn always_ask(&self) -> bool {
         false
     }
+    /// What the matched offer compares with a message (spec 018); only an extension's tool has it.
+    fn match_entry(&self) -> Option<extension_offer::MatchEntry> {
+        None
+    }
     /// `cancel` fires when `abort_current_generation` cancels the turn
     /// this call belongs to (T032). Implementations that own a cancellable
     /// resource (a child process, an MCP request) MUST race it against
@@ -248,6 +252,14 @@ impl ToolRegistry {
 
     pub fn iter(&self) -> impl Iterator<Item = &Arc<dyn Tool>> {
         self.tools.iter()
+    }
+
+    /// The texts of every extension tool for the matched offer (spec 018).
+    pub fn match_entries(&self) -> Vec<extension_offer::MatchEntry> {
+        self.tools
+            .iter()
+            .filter_map(|tool| tool.match_entry())
+            .collect()
     }
 
     pub fn action_defs(&self) -> Vec<action_tool::AgentActionDef> {

@@ -32,7 +32,7 @@ use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::adapters::types::{ChatMessage as LlmMessage, ChatRequest, ChatRole, ToolSpec};
 use crate::chat::events::EVENT_CHAT_TOOL_AVAILABILITY;
 use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
-use crate::chat::tools::offer::core_offer;
+use crate::chat::tools::offer::first_offer;
 use crate::chat::tools::prompt::system_prompt;
 use crate::chat::tools::ApprovalDecision;
 use crate::error::{HolziError, Result};
@@ -431,16 +431,15 @@ pub async fn send_message(
     // Tools only for a model that can use them; a delegate runs its own agent (spec 032 R14).
     let tool_availability =
         ToolAvailability::of(session.provider_kind, model_capabilities.as_ref());
-    let tools = if tool_availability.offers_tools() {
+    let tools = {
         let registry = chat
             .tool_registry
             .lock()
             .map_err(|e| HolziError::CrdtInit {
                 reason: format!("chat.tool_registry mutex poisoned: {e}"),
             })?;
-        core_offer(&registry)
-    } else {
-        Vec::new()
+        // Spec 018: the extension tools that fit the message come with the first step.
+        first_offer(tool_availability, &registry, &args.content)
     };
     let reasoning_requested =
         reasoning_requested_for(model_capabilities.as_ref(), &request_model_id, &tools);

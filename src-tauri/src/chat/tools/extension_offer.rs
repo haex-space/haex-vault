@@ -8,6 +8,9 @@ use std::collections::{BTreeSet, HashSet};
 
 use super::offer::word_matches;
 
+/// `Tool::source` of an extension's tool, persisted as `chat_messages.tool_source`.
+pub const EXTENSION_SOURCE: &str = "haextension";
+
 /// The most tools a message adds to the first offer.
 pub const MAX_MATCHED: usize = 3;
 /// A tool needs this many words of the message in its texts, unless the message names its
