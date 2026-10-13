@@ -610,7 +610,7 @@ pub fn run() {
             // Spec 043 (research R4): Android keeps the process of a finished activity cached.
             // End it, so the next start is a new process at the vault picker (ADR-0003).
             #[cfg(target_os = "android")]
-            tauri::RunEvent::Exit => std::process::exit(0),
+            tauri::RunEvent::Exit => platform::end_process(0),
             _ => {}
         });
 }

@@ -69,7 +69,7 @@ impl CloseEffects for AppCloseEffects {
         self.children.kill_all();
         match policy {
             ClosePolicy::Relaunch => tauri::process::restart(&self.app.env()),
-            ClosePolicy::Exit => std::process::exit(0),
+            ClosePolicy::Exit => crate::platform::end_process(0),
         }
     }
 }

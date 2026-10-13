@@ -111,6 +111,8 @@ export function phoneControls(adb: Adb): PhoneControls {
     },
     notificationTitles: () =>
       notificationTitles(adb.shell('dumpsys', 'notification', '--noredact')),
+    crashLines: (pid) =>
+      crashLines(adb.shell('logcat', '-d', '-b', 'crash', `--pid=${pid}`)),
     // Granting does not end the app (taking it would); the person's way back is the back key.
     allowAllFiles: () => {
       adb.shell('appops', 'set', PACKAGE, ALL_FILES, 'allow')
@@ -139,6 +141,14 @@ const ALL_FILES = 'MANAGE_EXTERNAL_STORAGE'
 /** The package of the resumed activity in the output of `dumpsys activity activities`. */
 export function frontPackage(dump: string): string | undefined {
   return /ResumedActivity:? ActivityRecord\{\S+ \S+ ([\w.]+)\//.exec(dump)?.[1]
+}
+
+/** The entries of `logcat -b crash` output, without its section headers. */
+export function crashLines(dump: string): string[] {
+  return dump
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('---------'))
 }
 
 /** The titles of the app's notifications in the output of `dumpsys notification --noredact`. */

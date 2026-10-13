@@ -219,6 +219,8 @@ export interface PhoneControls {
   frontPackage(): string | undefined
   /** The titles of the app's notifications the system shows now. */
   notificationTitles(): string[]
+  /** What the app's process `pid` left in the system's crash log, e.g. an abort while it ended. */
+  crashLines(pid: number): string[]
 }
 
 export interface Instance extends Page {
