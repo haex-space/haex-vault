@@ -320,14 +320,20 @@ scenario(
     await contextMenu(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.click('files-menu-copy')
     await instance.click('files-up')
-    await instance.waitForDisplayed('files-entry-Unterlagen')
+    await instance.waitForDisplayed(
+      'files-entry-Unterlagen',
+      FILE_ENTRY_TIMEOUT_MS,
+    )
     await instance.click('files-action-paste')
     await instance.waitForDisplayed('files-leave-encryption')
     await instance.click('files-leave-encryption-proceed')
     await ctx.waitFor('the transfer to end', () =>
       gone(instance, 'files-transfers'),
     )
-    await instance.waitForDisplayed('files-entry-brief.pdf')
+    await instance.waitForDisplayed(
+      'files-entry-brief.pdf',
+      FILE_ENTRY_TIMEOUT_MS,
+    )
     assert.ok((await listKeys(rustfs, BUCKET)).includes('brief.pdf'))
     ctx.step('a copy into an ordinary folder asked first')
 
