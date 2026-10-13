@@ -60,6 +60,8 @@ pub struct ExtensionHost {
     /// Structured agent tasks owned by extension frames; credentials and provider state stay in
     /// the host and are never part of a frame session.
     pub(crate) agent_tasks: crate::agent_tasks::TaskRegistry,
+    /// Frames the agent's tool calls wait for (spec 018, research R9).
+    pub agent_frames: super::agent_tools::frame_request::FrameRequests,
     /// Dialog choices per frame, holzi's protected places and folder watches (US9).
     pub fs: super::fs::FsState,
     /// Open permission questions and decisions held in memory (US3).

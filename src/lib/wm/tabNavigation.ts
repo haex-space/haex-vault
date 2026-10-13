@@ -4,7 +4,12 @@
 // location) from a re-activated singleton (push the location onto its history). Histories live
 // next to the store's non-persisted tab runtime, never in the persisted layout (FR-011).
 import type { AppDefinition } from './apps.ts'
-import { findOpenTab, frontmostWindow, openApp } from './layoutState.ts'
+import {
+  findOpenTab,
+  frontmostWindow,
+  openApp,
+  openAppInBackground,
+} from './layoutState.ts'
 import {
   canGoBack,
   createHistory,
@@ -76,6 +81,20 @@ export function openAppAt(
   const before = tabIds(state)
   openApp(state, appId, apps)
   return settle(state, histories, before, appId, at, leavingTitle)
+}
+
+/** `openAppInBackground` (spec 018, research R9): a new tab starts at `/`, an open one keeps its
+ * history. */
+export function openAppInBackgroundAt(
+  state: WmState,
+  histories: TabHistories,
+  appId: string,
+  apps: readonly AppDefinition[],
+): OpenResult {
+  const before = tabIds(state)
+  const tabId = openAppInBackground(state, appId, apps)
+  syncHistories(histories, state)
+  return { tabId, created: tabId !== null && !before.has(tabId) }
 }
 
 /** `addTab` (015 FR-032/FR-033) plus a start location (FR-012). */

@@ -111,17 +111,13 @@ export function activateExistingSingleton(
   return true
 }
 
-/** Opens `appId` as a new window, or activates its existing tab if it is a singleton app already
- * open somewhere (FR-016). No-op for an `appId` the registry does not resolve — callers (Launcher,
- * legacy-route redirect) are expected to only ever pass a known id. */
-export function openApp(
+/** A new window of `app` with one tab, placed like every new window in the active workspace. */
+function newAppWindow(
   state: WmState,
+  app: AppDefinition,
   appId: string,
-  apps: readonly AppDefinition[] = [],
-): void {
-  const app = getAppDefinition(appId, apps)
-  if (!app) return
-  if (activateExistingSingleton(state, app, appId)) return
+  minimized: boolean,
+): WmWindow {
   const tabId = crypto.randomUUID()
   const openInWorkspace = state.windows.filter(
     (w) => w.workspaceId === state.activeWorkspaceId,
@@ -142,14 +138,49 @@ export function openApp(
     y: geometry.y,
     width: geometry.width,
     height: geometry.height,
-    minimized: false,
+    minimized,
     maximized: false,
     stack: ++state.nextStack,
     tabs: [{ id: tabId, appId }],
     activeTabId: tabId,
   }
   state.windows.push(window)
-  state.activeWindowId = window.id
+  return window
+}
+
+/** Opens `appId` as a new window, or activates its existing tab if it is a singleton app already
+ * open somewhere (FR-016). No-op for an `appId` the registry does not resolve — callers (Launcher,
+ * legacy-route redirect) are expected to only ever pass a known id. */
+export function openApp(
+  state: WmState,
+  appId: string,
+  apps: readonly AppDefinition[] = [],
+): void {
+  const app = getAppDefinition(appId, apps)
+  if (!app) return
+  if (activateExistingSingleton(state, app, appId)) return
+  state.activeWindowId = newAppWindow(state, app, appId, false).id
+}
+
+/** The tab of `appId` that serves a call of the agent (spec 018, research R9), without touching the
+ * user's window, workspace or focus: a tab already open in the active workspace (only those are
+ * mounted), else a new minimized window there. The compact layout hides minimized windows the same
+ * way, so it needs nothing else. `null` for an unknown app and for a singleton open in another
+ * workspace, which cannot serve here and must not open twice. */
+export function openAppInBackground(
+  state: WmState,
+  appId: string,
+  apps: readonly AppDefinition[] = [],
+): string | null {
+  const app = getAppDefinition(appId, apps)
+  if (!app) return null
+  for (const window of state.windows) {
+    if (window.workspaceId !== state.activeWorkspaceId) continue
+    const tab = window.tabs.find((t) => t.appId === appId)
+    if (tab) return tab.id
+  }
+  if (!app.multiInstance && findOpenTab(state, appId)) return null
+  return newAppWindow(state, app, appId, true).activeTabId
 }
 
 /** Removes the window (and its tabs) without asking anything — guard confirmation (FR-014) runs

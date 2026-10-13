@@ -3,6 +3,7 @@
 //! frontend to the frame's port.
 
 pub mod commands;
+pub mod frame_request;
 pub mod link;
 pub mod slot;
 
@@ -20,3 +21,7 @@ mod contract_tests;
 #[cfg(test)]
 #[path = "commands_tests.rs"]
 mod commands_tests;
+
+#[cfg(test)]
+#[path = "frame_request_tests.rs"]
+mod frame_request_tests;

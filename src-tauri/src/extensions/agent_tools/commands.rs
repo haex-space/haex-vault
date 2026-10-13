@@ -40,3 +40,15 @@ pub async fn extension_mcp_send(
     deliver(&state.extensions().frames, &frame, message);
     Ok(())
 }
+
+/// holzi's window answers `extension-agent-frame`: the frame to call the extension's tools in, or
+/// `None` when it could not provide one.
+#[tauri::command]
+pub async fn extension_agent_frame_ready(
+    state: State<'_, AppState>,
+    request_id: String,
+    frame: Option<String>,
+) -> Result<()> {
+    state.extensions().agent_frames.answer(&request_id, frame);
+    Ok(())
+}
