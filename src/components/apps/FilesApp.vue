@@ -143,6 +143,7 @@ const {
   selecting,
   clearSelection,
   folderOwned,
+  folderForeign,
   canPaste,
   menuEntries,
   dimmed,
@@ -159,6 +160,7 @@ const {
   ackNotice,
   deleting,
   pendingDelete,
+  pendingForeign,
   deleteNow,
   openNoticing,
   openSystemAsync,
@@ -312,6 +314,10 @@ watch(tabActive, (active) => {
         data-testid="files-main"
         @keydown.esc="clearSelection()"
       >
+        <FilesForeignHint
+          v-if="folderForeign > 0 && !searchQuery"
+          :count="folderForeign"
+        />
         <FilesAllFilesAccess
           v-if="source.kind === 'device' && allAccess.granted.value === false"
           class="flex-1"
@@ -394,6 +400,7 @@ watch(tabActive, (active) => {
     <FilesDeleteDialog
       v-model:open="deleting"
       :count="pendingDelete.length"
+      :foreign="pendingForeign"
       @confirm="deleteNow"
     />
   </div>
