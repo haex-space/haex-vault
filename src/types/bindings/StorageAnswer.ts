@@ -12,4 +12,8 @@ connectionId?: string,
 /**
  * New credentials; only holzi's window over the whole app sends them.
  */
-credentials?: CredentialsInput, name?: string, bucket?: string, };
+credentials?: CredentialsInput, name?: string, bucket?: string,
+/**
+ * The user's word to make a missing folder of a WebDAV or SFTP storage (spec 050 FR-006).
+ */
+createFolder?: boolean, };

@@ -1,8 +1,11 @@
 //! Remote storage of extensions (spec 038 US2, contracts/bridge.md, research R4–R7): the list of
 //! storages by name only and the four object methods, each under a `remoteStorage` permission for
 //! the storage and inside the extension's own area ([`super::remote_storage_keys`]). holzi speaks
-//! S3 itself ([`crate::remote_storage`]); no answer and no error carries credentials, the endpoint
-//! or the region. The management methods are in [`super::remote_storage_manage`].
+//! S3, WebDAV and SFTP itself ([`crate::remote_storage`]); an extension gets the same answers on
+//! each (spec 050 FR-017, [`super::remote_storage_tree`]). No answer and no error carries
+//! credentials, the endpoint, the host or the region. Adding storages is in
+//! [`super::remote_storage_propose`], the other management methods in
+//! [`super::remote_storage_manage`].
 
 use base64::Engine;
 use serde_json::{json, Value};
@@ -17,12 +20,13 @@ use super::permissions::{
     RequestTarget, Target,
 };
 use super::remote_storage_keys::Area;
+use super::remote_storage_tree::{check_key, clashes, prune};
 use super::sql::exec::{limits_of, Limits};
 use crate::error::HolziError;
 use crate::passwords::service::PasswordsService;
 use crate::remote_storage::model::StorageOverview;
 use crate::remote_storage::service::StorageService;
-use crate::remote_storage::{Access, CredentialsState, StorageError, TestOutcome};
+use crate::remote_storage::{Access, CredentialsState, Protocol, StorageError, TestOutcome};
 
 pub const MODULE: &str = module_path!();
 
@@ -208,21 +212,33 @@ pub(super) fn overview(service: &StorageService) -> Result<StorageOverview, Brid
     block_on(service.overview()).map_err(|_| unavailable())
 }
 
-/// One item of the list (FR-009a): names only.
+/// The name of a storage's place in a call: a bucket on S3, a folder on a server with real
+/// folders (WebDAV, SFTP; a local folder of spec 048 is never offered to extensions).
+pub(super) fn place_of(protocol: Protocol) -> &'static str {
+    if protocol.is_tree() {
+        "folder"
+    } else {
+        "bucket"
+    }
+}
+
+/// One item of the list (FR-009a, spec 050 contracts/bridge.md): names only; a folder instead of
+/// a bucket on WebDAV and SFTP.
 pub(super) fn item(overview: &StorageOverview, storage_id: &str) -> Option<Value> {
     let storage = overview.storages.iter().find(|s| s.id == storage_id)?;
-    let provider_name = overview
+    let connection = overview
         .connections
         .iter()
-        .find(|c| c.id == storage.connection_id)
-        .map(|c| c.provider_name.as_str())?;
-    Some(json!({
+        .find(|c| c.id == storage.connection_id)?;
+    let place = place_of(connection.protocol);
+    let mut item = json!({
         "id": storage.id,
-        "type": "s3",
+        "type": connection.protocol.as_str(),
         "name": storage.name,
-        "providerName": provider_name,
-        "bucket": storage.bucket,
-    }))
+        "providerName": connection.provider_name,
+    });
+    item[place] = json!(storage.bucket);
+    Some(item)
 }
 
 /// `{}` → the storages a read permission covers, by name (FR-009a). Without any read permission
@@ -273,11 +289,20 @@ pub fn upload(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let body = base64::engine::general_purpose::STANDARD
         .decode(data)
         .map_err(|_| invalid("data must be base64"))?;
-    let key = Area::of(ctx)?.key(text(params, "key")?)?;
+    let own = text(params, "key")?;
+    let key = Area::of(ctx)?.key(own)?;
     let service = service(ctx);
     let access = access(ctx, &service, storage_id)?;
+    check_key(&access, own, "key")?;
     let store = ctx.host.storage.store();
-    block_on(store.put(&access, &key, body, deadline(&limits)))
+    let deadline = deadline(&limits);
+    if access.location.is_tree()
+        && block_on(clashes(store.as_ref(), &access, &key, deadline))
+            .map_err(|e| mapped(ctx, &service, storage_id, e))?
+    {
+        return Err(invalid("invalid key"));
+    }
+    block_on(store.put(&access, &key, body, deadline))
         .map_err(|e| mapped(ctx, &service, storage_id, e))?;
     Ok(Value::Null)
 }
@@ -286,10 +311,12 @@ pub fn upload(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
 pub fn download(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let storage_id = text(params, "backendId")?;
     check_storage(ctx, Action::Read, storage_id)?;
-    let key = Area::of(ctx)?.key(text(params, "key")?)?;
+    let own = text(params, "key")?;
+    let key = Area::of(ctx)?.key(own)?;
     let limits = limits(ctx)?;
     let service = service(ctx);
     let access = access(ctx, &service, storage_id)?;
+    check_key(&access, own, "key")?;
     let store = ctx.host.storage.store();
     let body = block_on(store.get(&access, &key, max_object(&limits), deadline(&limits)))
         .map_err(|e| mapped(ctx, &service, storage_id, e))?;
@@ -313,6 +340,7 @@ pub fn list(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let max = usize::try_from(limits.max_rows).unwrap_or(usize::MAX);
     let service = service(ctx);
     let access = access(ctx, &service, storage_id)?;
+    check_key(&access, prefix, "prefix")?;
     let store = ctx.host.storage.store();
     let objects = block_on(store.list(&access, &full, max, deadline(&limits))).map_err(|e| {
         if e == StorageError::TooLarge {
@@ -324,6 +352,8 @@ pub fn list(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     Ok(Value::Array(
         objects
             .iter()
+            // A server with real folders lists them as `ordner/`; S3 shows an extension none.
+            .filter(|object| !(access.location.is_tree() && object.key.ends_with('/')))
             .filter_map(|object| {
                 Some(json!({
                     "key": area.strip(&object.key)?,
@@ -339,16 +369,33 @@ pub fn list(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
 pub fn delete(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let storage_id = text(params, "backendId")?;
     check_storage(ctx, Action::ReadWrite, storage_id)?;
-    let key = Area::of(ctx)?.key(text(params, "key")?)?;
+    let own = text(params, "key")?;
+    let area = Area::of(ctx)?;
+    let key = area.key(own)?;
     let limits = limits(ctx)?;
     let service = service(ctx);
     let access = access(ctx, &service, storage_id)?;
+    check_key(&access, own, "key")?;
     let store = ctx.host.storage.store();
-    block_on(store.delete(&access, &key, deadline(&limits)))
+    let deadline = deadline(&limits);
+    block_on(store.delete(&access, &key, deadline))
         .map_err(|e| mapped(ctx, &service, storage_id, e))?;
+    if access.location.is_tree() {
+        block_on(prune(
+            store.as_ref(),
+            &access,
+            area.prefix(),
+            &key,
+            deadline,
+        ));
+    }
     Ok(Value::Null)
 }
 
 #[cfg(test)]
 #[path = "remote_storage_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "remote_storage_parity_tests.rs"]
+mod parity_tests;

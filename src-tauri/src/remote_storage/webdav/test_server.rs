@@ -17,7 +17,7 @@ use crate::remote_storage::{
 };
 
 /// Starts the server and returns the access to its folder `folder` (made here, empty).
-pub(super) async fn start(folder: &str) -> Access {
+pub(crate) async fn start(folder: &str) -> Access {
     let dav = DavHandler::builder()
         .filesystem(MemFs::new())
         .locksystem(MemLs::new())

@@ -385,3 +385,35 @@ async fn a_listing_deletes_an_old_temporary_file_and_ignores_a_failed_delete() {
         .collect();
     assert_eq!(objects, [("a.jpg", "2026-10-12T10:00:00.000Z")]);
 }
+
+#[tokio::test]
+async fn a_file_address_sent_on_to_a_folder_is_not_found() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/dav/Fotos/Urlaub"))
+        .respond_with(ResponseTemplate::new(301).insert_header("location", "/dav/Fotos/Urlaub/"))
+        .mount(&server)
+        .await;
+    Mock::given(method("PROPFIND"))
+        .and(path("/dav/Fotos/Urlaub/"))
+        .respond_with(ResponseTemplate::new(207).set_body_string(FOLDER))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/dav/Fotos/anmelden"))
+        .respond_with(ResponseTemplate::new(302).insert_header("location", "/login"))
+        .mount(&server)
+        .await;
+    let store = store();
+    let access = access(&server);
+    assert_eq!(
+        store.get(&access, "Urlaub", 100, soon()).await.err(),
+        Some(StorageError::NotFound),
+        "as on S3, where no object has that key"
+    );
+    assert_eq!(
+        store.get(&access, "anmelden", 100, soon()).await.err(),
+        Some(StorageError::Protocol),
+        "any other redirect stays refused"
+    );
+}

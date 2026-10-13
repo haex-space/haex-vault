@@ -3,7 +3,7 @@
 
 use uuid::Uuid;
 
-use super::{Area, MAX_KEY_BYTES};
+use super::{fits_tree, Area, MAX_KEY_BYTES};
 use crate::extensions::ids::{extension_id, storage_vault_id, ExtensionName, PublicKey};
 
 const VAULT_A: [u8; 32] = [1; 32];
@@ -152,5 +152,23 @@ fn encoded_separators_and_dots_stay_literal_inside_the_area() {
         );
         assert_eq!(url.query(), None, "{key:?}");
         assert_eq!(url.fragment(), None, "{key:?}");
+    }
+}
+
+/// Spec 050 research R9: what a server with real folders cannot store, refused on WebDAV and SFTP.
+#[test]
+fn a_server_with_real_folders_takes_no_long_parts_or_refused_characters() {
+    for good in [
+        "a/b.txt",
+        "Ärger/ü ö.txt",
+        &"x".repeat(255),
+        "a.holzi-part-x",
+    ] {
+        assert!(fits_tree(good), "{good:?}");
+    }
+    let long = "x".repeat(256);
+    let part = format!("a/{}1", crate::remote_storage::PART_PREFIX);
+    for bad in ["a:b", "a/b*", "was?", "\"x\"", "<x>", "a|b", &long, &part] {
+        assert!(!fits_tree(bad), "{bad:?}");
     }
 }

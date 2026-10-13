@@ -45,7 +45,9 @@ Zugangsdaten (FR-017a).
 
 `extension_remote_storage_update_backend`: `config` kennt bei `webdav` und `sftp` nur `folder` (statt
 `bucket`); ein neuer Ordner wird vor dem Speichern getestet. Fehlt er, bietet der Dialog wie die
-Einstellungen an, ihn anzulegen (FR-006), nur nach Bestätigung.
+Einstellungen an, ihn anzulegen (FR-006), nur nach Bestätigung. Umgesetzt (PR E): Der Dialog über dem Tab hat dafür ein Kästchen
+„Ordner beim Anbieter anlegen, falls er fehlt“; holzis Fenster über der App bietet nach dem Ergebnis
+`folderMissing` „Ordner anlegen und speichern“. Dasselbe gilt beim Hinzufügen.
 
 ## Objekte
 
@@ -57,6 +59,9 @@ Einstellungen an, ihn anzulegen (FR-006), nur nach Bestätigung.
   `:*?"<>|`, Teil beginnt mit `.holzi-part-`, und ein Name, der sich im Elternordner nur in der
   Schreibweise von einem vorhandenen unterscheidet.
 - `delete` entfernt danach leere Elternordner bis zur Wurzel des Bereichs der Erweiterung.
+- Wie bei S3 (bei PR E ergänzt): Ein Präfix in einem Ordner, den es nicht gibt, listet leer; ein
+  Schlüssel, unter dem ein Ordner liegt, ist beim Herunterladen „nicht gefunden“ (1001), auch wenn der
+  Server die Adresse an den Ordner weiterleitet.
 
 ## Fehler
 

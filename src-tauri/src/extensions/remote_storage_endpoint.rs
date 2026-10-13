@@ -2,7 +2,8 @@
 //! checked before holzi shows its dialog: its form, the permission `remoteStorage`/`add` for its
 //! host, and that all its addresses lie in one scope holzi reaches (`http` only to a local one).
 //! The scope found here is what the dialog shows and what the new connection must keep. AWS by
-//! region needs `add` for its regional host as well ([`check_aws`]).
+//! region needs `add` for its regional host as well ([`check_aws`]). A WebDAV address (spec 050
+//! US6) follows the same rules; its folder path is kept and ends in `/`.
 
 use std::time::Duration;
 
@@ -16,7 +17,7 @@ use super::permissions::{Action, RequestTarget};
 use super::remote_storage::{check, grants, invalid, provider};
 use crate::remote_storage::address::{self, AddressError};
 use crate::remote_storage::model::ConnectionView;
-use crate::remote_storage::EndpointScope;
+use crate::remote_storage::{EndpointScope, Protocol};
 
 /// How long holzi waits for the addresses of a proposed endpoint before the dialog.
 const RESOLVE_TIME: Duration = Duration::from_secs(10);
@@ -28,11 +29,20 @@ pub(super) struct Proposed {
 }
 
 impl Proposed {
-    /// Checks `endpoint` (see the module): 3001 for a form or an address holzi never reaches,
-    /// 1004/1002 without the `add` permission for its host, 2002 `network` when it does not
-    /// resolve.
-    pub fn check(ctx: &CallContext, endpoint: &str) -> Result<Self, BridgeError> {
-        let url = address::check_endpoint(endpoint).map_err(|_| invalid("endpoint not allowed"))?;
+    /// Checks `endpoint` of `protocol` (see the module): 3001 for a form or an address holzi
+    /// never reaches, 1004/1002 without the `add` permission for its host (port from the scheme
+    /// when absent), 2002 `network` when it does not resolve.
+    pub fn check(
+        ctx: &CallContext,
+        endpoint: &str,
+        protocol: Protocol,
+    ) -> Result<Self, BridgeError> {
+        let mut url =
+            address::check_endpoint(endpoint).map_err(|_| invalid("endpoint not allowed"))?;
+        if protocol == Protocol::WebDav && !url.path().ends_with('/') {
+            let path = format!("{}/", url.path());
+            url.set_path(&path);
+        }
         let host = match url.host() {
             Some(Host::Domain(name)) => name.to_ascii_lowercase(),
             Some(Host::Ipv4(ip)) => ip.to_string(),
@@ -57,10 +67,11 @@ impl Proposed {
         }
     }
 
-    /// Whether the user may pick `connection` instead of new credentials: it talks to this
-    /// endpoint in `region`, in the scope the dialog shows.
-    pub fn fits(&self, connection: &ConnectionView, region: &str) -> bool {
-        Url::parse(&connection.endpoint).is_ok_and(|own| own == self.url)
+    /// Whether the user may pick `connection` instead of new credentials: it speaks `protocol`
+    /// to this endpoint in `region` (empty for WebDAV), in the scope the dialog shows.
+    pub fn fits(&self, connection: &ConnectionView, protocol: Protocol, region: &str) -> bool {
+        connection.protocol == protocol
+            && Url::parse(&connection.endpoint).is_ok_and(|own| own == self.url)
             && connection.region == region
             && connection.endpoint_scope == self.scope
     }

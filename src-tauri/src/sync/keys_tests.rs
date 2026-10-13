@@ -135,41 +135,6 @@ fn a_placeholder_seed_becomes_the_derived_identity() {
     );
 }
 
-/// A logger that keeps every record, for searching it for secrets. The
-/// logger is process-wide and other tests log into it too, which only makes
-/// the search stricter.
-mod capture {
-    use std::sync::{Mutex, Once};
-
-    static RECORDS: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    static INSTALL: Once = Once::new();
-    struct Capture;
-
-    impl log::Log for Capture {
-        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-            true
-        }
-        fn log(&self, record: &log::Record<'_>) {
-            RECORDS
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .push(format!("{}", record.args()));
-        }
-        fn flush(&self) {}
-    }
-
-    pub fn install() {
-        INSTALL.call_once(|| {
-            let _ = log::set_logger(&Capture);
-            log::set_max_level(log::LevelFilter::Trace);
-        });
-    }
-
-    pub fn all() -> String {
-        RECORDS.lock().unwrap_or_else(|e| e.into_inner()).join("\n")
-    }
-}
-
 /// Every way a secret's bytes could reach a log line: hex, the decimal list
 /// `{:?}` prints for a byte array, and the `Zeroizing` wrapper's own debug.
 fn secret_forms(secret: &[u8; 32]) -> Vec<String> {
@@ -223,7 +188,7 @@ async fn a_failing_handshake_logs_no_secret_bytes() {
     use crate::sync::handshake::{accept, dial};
     use crate::sync::test_support::Member;
 
-    capture::install();
+    crate::test_log::install();
     let main = Member::genesis();
     let foreign = Member::genesis();
     let main_vault_secret = query::read(main.device.db(), |r| vault_secret(r))
@@ -262,7 +227,7 @@ async fn a_failing_handshake_logs_no_secret_bytes() {
     );
     log::debug!("sync: keys {:?} {:?}", main.keys, foreign.keys);
 
-    let logs = capture::all();
+    let logs = crate::test_log::all();
     for secret in [
         &*main.keys.device_secret,
         &*main.keys.endpoint_secret,

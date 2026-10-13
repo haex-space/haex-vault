@@ -20,6 +20,12 @@ use super::ids::storage_vault_id;
 /// The longest key S3 stores, prefix included.
 pub const MAX_KEY_BYTES: usize = 1024;
 
+/// The longest name of one folder or file on a server with real folders (spec 050 research R9).
+const MAX_PART_BYTES: usize = 255;
+
+/// Characters common file systems refuse in a name (spec 050 research R9).
+const REFUSED_BY_FILE_SYSTEMS: [char; 7] = [':', '*', '?', '"', '<', '>', '|'];
+
 /// The area of one extension in every bucket.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Area {
@@ -51,6 +57,17 @@ pub(super) fn valid(text: &str, list: bool) -> bool {
         && body
             .split('/')
             .all(|part| !part.is_empty() && part != "." && part != "..")
+}
+
+/// Whether a key or list prefix that passed [`valid`] can be stored on a server with real folders
+/// (WebDAV, SFTP; spec 050 research R9): no part longer than 255 bytes, none with a character
+/// common file systems refuse, none named like holzi's temporary files.
+pub(super) fn fits_tree(text: &str) -> bool {
+    text.split('/').all(|part| {
+        part.len() <= MAX_PART_BYTES
+            && !part.contains(REFUSED_BY_FILE_SYSTEMS)
+            && !part.starts_with(crate::remote_storage::PART_PREFIX)
+    })
 }
 
 impl Area {
