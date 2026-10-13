@@ -13,7 +13,6 @@ use crate::extensions::bridge::dispatch::{CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 
-pub(crate) const MODULE: &str = module_path!();
 pub(crate) const COMPLETED_EVENT: &str = "haextension:ai-task:completed";
 
 const FIXTURE_PROFILE: &str = "fixture-paper-note";
