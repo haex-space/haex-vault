@@ -83,7 +83,8 @@ async fn another_vaults_folder_shows_by_its_prefix_and_stays_closed() {
         root[0].encrypted,
         Some(EncryptedInfo {
             role: EncryptedRole::Folder,
-            state: EncryptedState::OtherVault
+            state: EncryptedState::OtherVault,
+            foreign: 0,
         })
     );
     assert!(root[0].modified_ms.is_some(), "the head's time shows");

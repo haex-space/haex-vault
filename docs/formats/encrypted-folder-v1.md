@@ -44,8 +44,9 @@ Buckets) unter `P = E + base32(fid) + ".hxef/"`:
 | Begleitdatei  | `P + "m/" + base32(sid)` | je Fassung eines Eintrags         |
 | Inhaltsobjekt | `P + "c/" + base32(oid)` | je Fassung oder Kopie einer Datei |
 
-Sonst liegt nichts unter `P`. Content-Type aller Objekte ist `application/octet-stream`; holzi setzt
-keine eigenen Metadaten.
+Sonst schreibt holzi nichts unter `P`. Content-Type aller Objekte ist `application/octet-stream`;
+holzi setzt keine eigenen Metadaten. Was ein anderes Programm dort ablegt, ist eine fremde Datei
+(siehe Regeln).
 
 Als verschlüsselter Ordner gilt nur ein Präfix aus genau 26 Zeichen Base32 (Kleinbuchstaben) und
 `.hxef/`. Einen gewöhnlichen Ordner oder eine Datei mit einem Namen dieser Form legt holzi nicht an
@@ -155,7 +156,12 @@ Begleitdatei ungültig, ein neues Feld braucht eine neue Formatversion):
 - **Löschen eines Eintrags**: Inhaltsobjekte und Begleitdateien aller Nachkommen, zuletzt die eigene.
   Mit einer Fassung gehen die älteren Fassungen desselben Eintrags, die ohne sie wieder gelten
   würden (keine verbleibende Fassung nennt sie als `base`), die älteren zuerst.
-- **Löschen des Ordners**: alle Objekte unter `P`, der Kopf zuletzt.
+- **Löschen des Ordners**: alle Objekte unter `P`, der Kopf zuletzt, fremde Dateien eingeschlossen.
+- **Fremde Dateien** (etwa Konfliktkopien eines Sync-Programms oder über die Weboberfläche des
+  Anbieters hochgeladene Dateien): jedes Objekt unter `P`, das nicht `h`, `m/` + 26 Zeichen Base32,
+  `c/` + 26 Zeichen Base32 oder eine Teil-Datei von holzi ist. Ordner-Markierungen (Namen mit `/` am
+  Ende) zählen nicht. Fremde Dateien sind keine Einträge; holzi zählt sie, nennt ihre Zahl für den
+  Ordner selbst, löscht sie beim Aufräumen nie und nur mit dem ganzen Ordner.
 
 ## Testvektoren
 

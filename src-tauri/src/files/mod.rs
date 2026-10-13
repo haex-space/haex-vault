@@ -155,6 +155,9 @@ pub struct Entry {
 pub struct EncryptedInfo {
     pub role: EncryptedRole,
     pub state: EncryptedState,
+    /// Files in the folder that are not part of the format (research R19), for the folder itself
+    /// when it was opened; 0 for an entry inside and in a listing of the folder's parent.
+    pub foreign: u32,
 }
 
 /// The encrypted folder itself, or an entry in one.

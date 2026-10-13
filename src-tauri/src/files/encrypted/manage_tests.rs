@@ -263,6 +263,25 @@ async fn deleting_the_folder_removes_everything_under_its_prefix_the_head_last()
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn deleting_the_folder_takes_its_foreign_files_with_it() {
+    let scene = filled(&tree(&[("b.txt", "b")])).await;
+    let head = scene
+        .keys()
+        .into_iter()
+        .find(|key| key.ends_with(".hxef/h"))
+        .unwrap();
+    let foreign = format!("{}notiz (conflicted copy).txt", &head[..head.len() - 1]);
+    scene.fake.insert(BUCKET, &foreign, b"fremd");
+    let cancel = CancellationToken::new();
+    scene
+        .files()
+        .delete("/Unterlagen", &cancel, &mut |_| {})
+        .await
+        .unwrap();
+    assert!(scene.keys().is_empty(), "{:?}", scene.keys());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_unreadable_encrypted_folder_can_still_be_deleted() {
     let scene = filled(&tree(&[("a.txt", "a")])).await;
     let head = scene

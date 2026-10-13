@@ -210,6 +210,9 @@ pub struct LoadedFolder {
     pub contents: HashMap<Id, u64>,
     /// When the provider last changed each sidecar and content object, ms (for the cleanup).
     pub times: HashMap<Id, i64>,
+    /// Files under the folder that are not `h`, `m/<id>` or `c/<id>` (research R19): never entries,
+    /// never cleaned up, removed only with the whole folder.
+    pub foreign: u32,
 }
 
 /// Loads the folder `prefix` (`P`) with id `fid`; `cached` are the rows the cache holds for it.
@@ -236,6 +239,9 @@ pub async fn load_folder(
         } else if let Some(oid) = rest.strip_prefix("c/").and_then(decode_id) {
             loaded.times.extend(time.map(|time| (oid, time)));
             loaded.contents.insert(oid, object.size);
+        } else if rest != "h" && !rest.is_empty() && !rest.ends_with('/') {
+            // Folder markers are no files; holzi's temporary files never show in a listing.
+            loaded.foreign = loaded.foreign.saturating_add(1);
         }
     }
     let mut cached: HashMap<Id, EntryRow> = cached.into_iter().map(|row| (row.sid, row)).collect();

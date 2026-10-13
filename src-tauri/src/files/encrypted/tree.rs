@@ -304,6 +304,7 @@ impl Tree {
                 } else {
                     EncryptedState::Readable
                 },
+                foreign: 0,
             }),
             conflict: node.conflict,
         }

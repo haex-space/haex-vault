@@ -30,7 +30,8 @@ async fn create_writes_one_head_and_nothing_else() {
         entry.encrypted,
         Some(EncryptedInfo {
             role: EncryptedRole::Folder,
-            state: EncryptedState::Readable
+            state: EncryptedState::Readable,
+            foreign: 0,
         })
     );
     let keys = scene.keys();
