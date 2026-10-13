@@ -1,18 +1,18 @@
 {
   "content_hashes": {
-    ".devshell/packages.nix": "sha256:5c1a80e761663dedf9482fe8be05d11fbc9b6a8598e26b0014c4d3d9ff6a3460",
+    ".devshell/packages.nix": "sha256:c583edabc929da4bddcea1ec8cb2f581d0821e38b3c483781c31aa5dc17ad6c9",
     ".devshell/rust-toolchain.toml": "sha256:4e65ed263aab67039b4c325ded85a514ccfa395c459cac5d93723edbd0e1b60a",
     ".envrc": "sha256:1d26c74fd25a4c3dbb09e029fc609588da499fd4af2a41c88f6316c7f8c54cf1",
-    "flake.nix": "sha256:4c4511192564b502d2a8201bebb9545f29c5b7f448b1430d6a444cb0f91b3224"
+    "flake.nix": "sha256:f1cdac773d6ee1e1135d8671d6c90290e403a7342fa537d3d8aee54c5f5d8550"
   },
-  "generation_id": "g_20261006T202445Z_e3b0",
+  "generation_id": "g_20261013T104416Z_e3b0",
   "molecules": [
     {
       "id": "com.github.haexmas.atoms.ast-grep",
       "paths": [
         ".spaex/constitution.md"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -20,7 +20,7 @@
       "paths": [
         ".spaex/constitution.md"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -28,7 +28,7 @@
       "paths": [
         ".spaex/constitution.md"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -36,7 +36,7 @@
       "paths": [
         ".spaex/constitution.md"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -44,7 +44,7 @@
       "paths": [
         ".spaex/constitution.md"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -53,7 +53,7 @@
       "paths": [
         ".spaex/constitution.md"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -63,7 +63,7 @@
         ".devshell/rust-toolchain.toml",
         ".spaex/generated/nix-packages.json"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -73,7 +73,7 @@
         ".envrc",
         "flake.nix"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -81,7 +81,7 @@
       "paths": [
         ".spaex/generated/nix-packages.json"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -89,7 +89,7 @@
       "paths": [
         ".spaex/generated/nix-packages.json"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -97,7 +97,7 @@
       "paths": [
         ".spaex/constitution.md"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
@@ -105,22 +105,24 @@
       "paths": [
         ".spaex/constitution.md"
       ],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms"
     },
     {
       "id": "com.github.haexmas.atoms.speckit",
       "paths": [],
-      "revision": "b662c6205d6a1ebd7fac588291f82ea8e78c3d52",
+      "revision": "1e201c4984e1799e1180e40a1fe1e1b2b9250e66",
       "source": "https://github.com/haexmas/atoms",
       "speckit": {
         "cli_version": "1.0.11",
-        "declaration_fingerprint": "sha256:a0d4b23acd3a85719053a17388dcb1ff6d9da9d825c164aaa24253a7b575331b",
+        "declaration_fingerprint": "sha256:0a18dbf7d99038f7c0d3c0ef92c43d3c9d5638a794b2499ef1e2a800cb4443c1",
         "outcomes": {
-          "claude": "installed"
+          "claude": "installed",
+          "codex": "installed"
         },
         "selected": [
-          "claude"
+          "claude",
+          "codex"
         ]
       }
     }
