@@ -21,10 +21,10 @@ export default defineNuxtConfig({
   // build. Layer declares its peers; we list them explicitly under
   // `dependencies` below. It ships no i18n: pass translated labels to
   // its components (e.g. `UiInputPassword` `labels`).
-  // Keep this on the haextension merge commit: it contains the radio-group API
-  // used by this branch.
+  // The commit of haex-space/haextension#96 (a closed context menu trigger no
+  // longer catches clicks); move it to the merge commit once #96 is merged.
   extends: [
-    'github:haex-space/haextension/packages/haex-ui#4845aa5507c955fe51033f3858e8358e0b3bcf3b',
+    'github:haex-space/haextension/packages/haex-ui#cbea6d5b6e445fb55b4be70c7ef0753f5643219d',
   ],
   build: {
     transpile: ['reka-ui'],

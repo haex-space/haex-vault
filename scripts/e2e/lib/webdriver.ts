@@ -191,6 +191,27 @@ export class WebDriverClient {
     })
   }
 
+  /** A left click of the mouse at a point of the viewport: the page's hit test decides which element
+   * receives it, as for a user's click. */
+  async clickAt(x: number, y: number): Promise<void> {
+    await this.call('POST', this.session('/actions'), {
+      actions: [
+        {
+          type: 'pointer',
+          id: 'mouse',
+          parameters: { pointerType: 'mouse' },
+          actions: [
+            { type: 'pointerMove', duration: 0, x, y, origin: 'viewport' },
+            { type: 'pointerDown', button: 0 },
+            { type: 'pause', duration: 80 },
+            { type: 'pointerUp', button: 0 },
+          ],
+        },
+      ],
+    })
+    await this.call('DELETE', this.session('/actions'))
+  }
+
   async click(element: string): Promise<void> {
     await this.call('POST', this.session(`/element/${element}/click`), {})
   }

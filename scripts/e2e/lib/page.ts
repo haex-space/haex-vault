@@ -298,6 +298,9 @@ export interface Page {
     options?: InvokeOptions,
   ): Promise<InvokeResult>
   click(hook: string, deadlineMs?: number): Promise<void>
+  /** Clicks a point of the viewport rather than an element: whatever the page's hit test finds there
+   * receives the click, even an element behind another one. */
+  clickAt(x: number, y: number): Promise<void>
   waitForDisplayed(hook: string, deadlineMs?: number): Promise<void>
   type(hook: string, text: string, deadlineMs?: number): Promise<void>
   typeToFocused(text: string): Promise<void>
@@ -383,6 +386,7 @@ export function createPage(options: PageOptions): Page {
     invoke: (command, args, invokeOptions) =>
       client.invoke(command, args, invokeOptions),
     click: (hook, deadlineMs) => click(client, hook, deadlineMs),
+    clickAt: (x, y) => client.clickAt(x, y),
     waitForDisplayed: (hook, deadlineMs) =>
       waitForDisplayed(client, hook, deadlineMs),
     type: (hook, text, deadlineMs) => type(client, hook, text, deadlineMs),
