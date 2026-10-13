@@ -42,7 +42,7 @@ impl SearchFilters {
         self.types.is_some() || self.size_min.is_some() || self.size_max.is_some()
     }
 
-    fn admits(&self, entry: &Entry) -> bool {
+    pub(crate) fn admits(&self, entry: &Entry) -> bool {
         if entry.kind == EntryKind::Dir && self.files_only() {
             return false;
         }
@@ -134,7 +134,7 @@ pub fn max_typos(needle: &str) -> u16 {
 }
 
 /// The typo-tolerant, case-blind matcher of a query (research R6).
-fn matcher_for(query: &str) -> Matcher {
+pub(crate) fn matcher_for(query: &str) -> Matcher {
     let pattern = Pattern::new(
         query,
         PatternConfig::default().max_typos(Some(max_typos(query))),
@@ -151,13 +151,27 @@ fn matcher_for(query: &str) -> Matcher {
 /// How often hits go out at most.
 const BATCH_EVERY: Duration = Duration::from_millis(100);
 
-/// Searches `root` and below for names like `query`; hands hits to `emit` in batches.
+/// Searches `root` and below for names like `query`; hands hits to `emit` in batches. The raw
+/// directories of encrypted folders are neither entered nor hits (spec 048 FR-049).
 pub fn search(
     root: &Path,
     query: &str,
     options: &SearchOptions,
     cancel: &CancellationToken,
     emit: &mut dyn FnMut(Vec<SearchHit>),
+) -> SearchEnd {
+    search_passing(root, query, options, cancel, emit, &mut Vec::new())
+}
+
+/// [`search`], noting in `passed` the directories of encrypted folders it went past, so they can
+/// be searched by their decrypted names ([`super::search_device`]).
+pub fn search_passing(
+    root: &Path,
+    query: &str,
+    options: &SearchOptions,
+    cancel: &CancellationToken,
+    emit: &mut dyn FnMut(Vec<SearchHit>),
+    passed: &mut Vec<std::path::PathBuf>,
 ) -> SearchEnd {
     let query = query.trim();
     if query.is_empty() {
@@ -182,6 +196,12 @@ pub fn search(
         })
         .into_iter()
         .filter_entry(|item| {
+            let encrypted = item.file_type().is_dir()
+                && item.file_name().to_str().is_some_and(is_folder_prefix);
+            if encrypted {
+                passed.push(item.path().to_path_buf());
+                return false;
+            }
             let hidden = !options.show_hidden
                 && item
                     .metadata()
@@ -337,110 +357,7 @@ pub enum FilesSearchEvent {
     },
 }
 
-/// The running searches of this session; a Tauri managed state. Each has its own token below the
-/// gate's, so closing the vault ends it; a new search of a tab cancels the old one from the window
-/// (FR-028).
-#[derive(Clone, Default)]
-pub struct SearchManager {
-    running: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, CancellationToken>>>,
-}
-
-impl SearchManager {
-    fn running(
-        &self,
-    ) -> std::sync::MutexGuard<'_, std::collections::HashMap<String, CancellationToken>> {
-        self.running
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
-
-    /// Starts a search on the blocking pool; returns its id.
-    pub fn start(
-        &self,
-        gate: &crate::vault_gate::VaultGate,
-        root: std::path::PathBuf,
-        query: String,
-        options: SearchOptions,
-        channel: tauri::ipc::Channel<FilesSearchEvent>,
-    ) -> Result<String, crate::files::FilesError> {
-        let id = uuid::Uuid::new_v4().to_string();
-        let cancel = gate.token().child_token();
-        self.running().insert(id.clone(), cancel.clone());
-        let manager = self.clone();
-        let owned_id = id.clone();
-        let spawned = gate.spawn_blocking(move || {
-            let end = search(&root, &query, &options, &cancel, &mut |hits| {
-                let _ = channel.send(FilesSearchEvent::Hits { hits });
-            });
-            manager.running().remove(&owned_id);
-            if let SearchEnd::Done { truncated } = end {
-                let _ = channel.send(FilesSearchEvent::Done { truncated });
-            }
-        });
-        if let Err(error) = spawned {
-            self.running().remove(&id);
-            log::warn!("files: a search could not start: {error}");
-            return Err(crate::files::FilesError::new(
-                crate::files::FilesErrorCode::Unsupported,
-                "the vault is closing",
-            ));
-        }
-        Ok(id)
-    }
-
-    /// Starts a search of a storage as tracked session work; returns its id.
-    pub fn start_storage(
-        &self,
-        gate: &crate::vault_gate::VaultGate,
-        files: crate::files::storage_source::StorageFiles,
-        root: String,
-        query: String,
-        options: SearchOptions,
-        channel: tauri::ipc::Channel<FilesSearchEvent>,
-    ) -> Result<String, crate::files::FilesError> {
-        let id = uuid::Uuid::new_v4().to_string();
-        let cancel = gate.token().child_token();
-        self.running().insert(id.clone(), cancel.clone());
-        let manager = self.clone();
-        let owned_id = id.clone();
-        let spawned = gate.spawn(async move {
-            let (hits, steps) = (channel.clone(), channel.clone());
-            let end = search_storage(
-                &files,
-                &root,
-                &query,
-                &options,
-                &cancel,
-                &mut |found| {
-                    let _ = hits.send(FilesSearchEvent::Hits { hits: found });
-                },
-                &mut |dirs| {
-                    let _ = steps.send(FilesSearchEvent::Progress { dirs });
-                },
-            )
-            .await;
-            manager.running().remove(&owned_id);
-            if let SearchEnd::Done { truncated } = end {
-                let _ = channel.send(FilesSearchEvent::Done { truncated });
-            }
-        });
-        if let Err(error) = spawned {
-            self.running().remove(&id);
-            log::warn!("files: a search could not start: {error}");
-            return Err(crate::files::FilesError::new(
-                crate::files::FilesErrorCode::Unsupported,
-                "the vault is closing",
-            ));
-        }
-        Ok(id)
-    }
-
-    pub fn cancel(&self, id: &str) {
-        if let Some(cancel) = self.running().remove(id) {
-            cancel.cancel();
-        }
-    }
-}
+pub use super::search_manager::SearchManager;
 
 #[cfg(test)]
 #[path = "search_tests.rs"]

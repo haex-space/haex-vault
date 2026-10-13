@@ -16,7 +16,11 @@
 pub mod by_id;
 pub mod cache;
 pub mod cleanup;
+pub mod device;
+#[cfg(test)]
+pub mod device_scene;
 pub mod format;
+pub mod journal;
 pub mod load;
 pub mod manage;
 pub mod opened;
@@ -171,9 +175,28 @@ impl OpenFolder {
         }))
     }
 
-    /// Replaces the view with a new load.
-    pub async fn reload(&self, loaded: LoadedFolder) {
-        *self.view.lock().await = Some(FolderView::new(self.fid, loaded));
+    /// The number of this device's last change to the view; a reload takes it before it loads.
+    pub async fn mark(&self) -> u64 {
+        self.view
+            .lock()
+            .await
+            .as_ref()
+            .map_or(0, |view| view.journal.mark)
+    }
+
+    /// Replaces the view with a new load that began at `mark`; what this device changed since
+    /// stays ([`journal`]).
+    pub async fn reload(&self, loaded: LoadedFolder, mark: u64) {
+        let mut guard = self.view.lock().await;
+        let mut fresh = FolderView::new(self.fid, loaded);
+        if let Some(old) = guard.as_ref() {
+            for change in old.journal.since(mark) {
+                fresh.apply(change);
+            }
+            fresh.journal = old.journal.clone();
+            fresh.rebuild(self.fid);
+        }
+        *guard = Some(fresh);
     }
 
     /// Marks the version `sid` damaged after a failed read (FR-022, FR-025).
@@ -233,6 +256,7 @@ pub struct FolderView {
     pub tree: Tree,
     /// Files in the folder that are not part of the format (research R19).
     pub foreign: u32,
+    journal: journal::Journal,
 }
 
 impl FolderView {
@@ -255,6 +279,7 @@ impl FolderView {
             contents: loaded.contents,
             damaged: HashSet::new(),
             foreign: loaded.foreign,
+            journal: journal::Journal::default(),
             tree: Tree::build(&Inputs {
                 fid,
                 versions: &[],
@@ -269,25 +294,41 @@ impl FolderView {
 
     /// Adds a version this device wrote (its content object, if any, of `content_len` bytes).
     pub fn add(&mut self, fid: Id, version: Version, content: Option<(Id, u64)>) {
-        if let Some((oid, len)) = content {
-            self.contents.insert(oid, len);
-        }
-        self.versions.insert(version.sid, version);
+        let change = journal::Change::Add(Box::new(version), content);
+        self.apply(&change);
+        self.journal.record(change);
         self.rebuild(fid);
+    }
+
+    /// `change` without rebuilding the tree.
+    fn apply(&mut self, change: &journal::Change) {
+        match change {
+            journal::Change::Add(version, content) => {
+                if let Some((oid, len)) = content {
+                    self.contents.insert(*oid, *len);
+                }
+                self.versions.insert(version.sid, (**version).clone());
+            }
+            journal::Change::Remove(sids) => {
+                for sid in sids {
+                    if let Some(version) = self.versions.remove(sid) {
+                        if let Some(facts) = tree::facts(&version) {
+                            if !self.references(&facts.content, &[]) {
+                                self.contents.remove(&facts.content);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Drops versions this device deleted; their content objects go with them unless another
     /// version still points at one (a rename keeps the content).
     pub fn remove(&mut self, fid: Id, sids: &[Id]) {
-        for sid in sids {
-            if let Some(version) = self.versions.remove(sid) {
-                if let Some(facts) = tree::facts(&version) {
-                    if !self.references(&facts.content, &[]) {
-                        self.contents.remove(&facts.content);
-                    }
-                }
-            }
-        }
+        let change = journal::Change::Remove(sids.to_vec());
+        self.apply(&change);
+        self.journal.record(change);
         self.rebuild(fid);
     }
 

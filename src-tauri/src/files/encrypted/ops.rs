@@ -61,9 +61,15 @@ pub async fn list(files: &StorageFiles, at: &Located) -> Result<Vec<Entry>, File
 pub async fn stat(files: &StorageFiles, at: &Located) -> Result<Entry, FilesError> {
     if at.rest.is_empty() {
         let mut entry = located_entry(at);
-        // The count of foreign files needs the folder open; one that does not open has none shown.
+        // The window asks for the folder itself when it enters it: its sidecars are read again (by
+        // ETag), so what others wrote shows, with the count of foreign files. A folder that does
+        // not open shows none.
         if let (Ok(folder), Some(info)) = (open(files, at).await, entry.encrypted.as_mut()) {
-            info.foreign = view(files, &folder).await.map_or(0, |view| view.foreign);
+            let mark = folder.mark().await;
+            if let Ok(loaded) = route::load_view(files, &folder).await {
+                info.foreign = loaded.foreign;
+                folder.reload(loaded, mark).await;
+            }
         }
         return Ok(entry);
     }
@@ -225,7 +231,7 @@ pub async fn create_encrypted_folder(
         .await
         .map_err(storage_error)?;
     let folder = Arc::new(OpenFolder::new(prefix.clone(), fid, None, &fk));
-    folder.reload(super::load::LoadedFolder::default()).await;
+    folder.reload(super::load::LoadedFolder::default(), 0).await;
     scope.folders.keep(&scope.storage_id, folder);
     let head = FolderHead {
         prefix,
@@ -254,8 +260,9 @@ pub async fn refresh(files: &StorageFiles, path: &str) -> Result<(), FilesError>
         return Err(state_error(at.head.state));
     }
     let folder = open(files, &at).await?;
+    let mark = folder.mark().await;
     let loaded = route::load_view(files, &folder).await?;
-    folder.reload(loaded).await;
+    folder.reload(loaded, mark).await;
     Ok(())
 }
 

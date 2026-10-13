@@ -13,16 +13,17 @@ pub mod view;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager};
 
 use crate::error::HolziError;
 use crate::files::access::{check, AgentGrants, Target, Verdict, Want};
+use crate::files::encrypted::device::{has_raw_part, route_device, DeviceRoot};
 use crate::files::encrypted::{Background, Scope, VaultSource};
 use crate::files::local::{resolve, resolve_entry};
 use crate::files::state::FilesState;
 use crate::files::storage_source::StorageFiles;
 use crate::files::transfer::remote::Side;
-use crate::files::{FilesError, FilesErrorCode, SourceRef};
+use crate::files::{Entry, FilesError, FilesErrorCode, SourceRef};
 use crate::passwords::access::Caller;
 use crate::state::AppState;
 
@@ -67,6 +68,31 @@ pub(crate) async fn window_storage<R: tauri::Runtime>(
     files: &FilesState,
     storage_id: &str,
 ) -> Result<StorageFiles, FilesError> {
+    let scope = window_scope(app, state, files, storage_id);
+    Ok(storage_files(state, storage_id).await?.with_scope(scope))
+}
+
+/// The device as a storage for its encrypted folders (spec 048 US7, research R16), with the same
+/// scope as [`window_storage`]; it needs an open vault for the folder keys and the cache.
+pub(crate) fn device_storage<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    files: &FilesState,
+    root: &DeviceRoot,
+) -> Result<StorageFiles, FilesError> {
+    state
+        .database()
+        .map_err(|_| FilesError::new(FilesErrorCode::Unsupported, "no open vault"))?;
+    let scope = window_scope(app, state, files, &root.storage_id);
+    Ok(root.files(crate::remote_storage::commands::stores(), scope))
+}
+
+fn window_scope<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    files: &FilesState,
+    storage_id: &str,
+) -> Scope {
     files.forget_on_close(state.gate());
     let app = app.clone();
     let vault: VaultSource = Arc::new(move || {
@@ -84,12 +110,12 @@ pub(crate) async fn window_storage<R: tauri::Runtime>(
             }
         });
     });
-    Ok(storage_files(state, storage_id).await?.with_scope(Scope {
+    Scope {
         storage_id: storage_id.to_owned(),
         folders: Arc::clone(&files.encrypted),
         vault,
         background,
-    }))
+    }
 }
 
 /// The storage id of `source`, if it is one.
@@ -100,16 +126,144 @@ pub(super) fn storage_of(source: &SourceRef) -> Option<&str> {
     }
 }
 
-/// One end of a transfer across sources.
-pub(super) async fn side_of(
+/// Where a window path of a source leads (spec 048 research R17). It lives for one command, so the
+/// storage is not boxed.
+#[allow(clippy::large_enum_variant)]
+pub(super) enum Place {
+    /// A storage, or an encrypted folder on this device (`device`) seen as the device's storage;
+    /// `path` is the window path in that storage.
+    Storage {
+        files: StorageFiles,
+        path: String,
+        device: Option<DeviceRoot>,
+    },
+    /// An ordinary path of this device.
+    Device,
+}
+
+impl Place {
+    /// `entry` of the storage as the window's source names it.
+    pub(super) fn entry(device: Option<&DeviceRoot>, entry: Entry) -> Entry {
+        match device {
+            Some(root) => root.entry(entry),
+            None => entry,
+        }
+    }
+}
+
+/// Where `path` of `source` leads. A device path into an encrypted folder is checked like the
+/// device folder that holds the folder: no change in holzi's own places (FR-037).
+pub(super) async fn place_of(
     app: &AppHandle,
-    state: &State<'_, AppState>,
+    state: &AppState,
     files: &FilesState,
     source: &SourceRef,
-) -> Result<Side, FilesError> {
-    Ok(match storage_of(source) {
-        Some(id) => Side::Storage(Arc::new(window_storage(app, state, files, id).await?)),
-        None => Side::Device,
+    path: &str,
+    want: Want,
+) -> Result<Place, FilesError> {
+    if let Some(id) = storage_of(source) {
+        return Ok(Place::Storage {
+            files: window_storage(app, state, files, id).await?,
+            path: path.to_owned(),
+            device: None,
+        });
+    }
+    let device = Path::new(path);
+    let Some(root) = DeviceRoot::of(device) else {
+        return Ok(Place::Device);
+    };
+    // An ordinary path that exists needs neither the vault nor a listing.
+    if !has_raw_part(device) && device.symlink_metadata().is_ok() {
+        return Ok(Place::Device);
+    }
+    let Ok(storage) = device_storage(app, state, files, &root) else {
+        return Ok(Place::Device);
+    };
+    let Some(view) = route_device(&storage, &root, device).await? else {
+        return Ok(Place::Device);
+    };
+    let holder = device
+        .ancestors()
+        .find(|dir| dir.symlink_metadata().is_ok())
+        .unwrap_or(&root.dir);
+    checked(files, source, &holder.to_string_lossy(), want, resolve)?;
+    Ok(Place::Storage {
+        files: storage,
+        path: view,
+        device: Some(root),
+    })
+}
+
+/// One end of a transfer: the storage the paths are on (also the device's storage when one of
+/// them is in an encrypted folder on this device), or the device, with the paths on it.
+pub(super) struct Ends {
+    pub storage: Option<StorageFiles>,
+    pub paths: Vec<String>,
+}
+
+impl Ends {
+    /// The side of a transfer.
+    pub fn side(self) -> (Side, Vec<String>) {
+        match self.storage {
+            Some(storage) => (Side::Storage(Arc::new(storage)), self.paths),
+            None => (Side::Device, self.paths),
+        }
+    }
+}
+
+/// The end of `paths` of `source` for `want`. When one of them leads into an encrypted folder on
+/// this device, all go through the device's storage; the ordinary ones are checked as before.
+pub(super) async fn ends_of(
+    app: &AppHandle,
+    state: &AppState,
+    files: &FilesState,
+    source: &SourceRef,
+    paths: &[String],
+    want: Want,
+) -> Result<Ends, FilesError> {
+    if let Some(id) = storage_of(source) {
+        return Ok(Ends {
+            storage: Some(window_storage(app, state, files, id).await?),
+            paths: paths.to_vec(),
+        });
+    }
+    let mut device = None;
+    for path in paths {
+        if let Place::Storage {
+            files: storage,
+            device: Some(root),
+            ..
+        } = place_of(app, state, files, source, path, want).await?
+        {
+            device = Some((storage, root));
+            break;
+        }
+    }
+    let Some((storage, root)) = device else {
+        let paths = paths
+            .iter()
+            .map(|path| {
+                device_entry(files, source, path, want)
+                    .map(|real| real.to_string_lossy().into_owned())
+            })
+            .collect::<Result<_, _>>()?;
+        return Ok(Ends {
+            storage: None,
+            paths,
+        });
+    };
+    let mut views = Vec::with_capacity(paths.len());
+    for path in paths {
+        if Path::new(path).symlink_metadata().is_ok() {
+            device_entry(files, source, path, want)?;
+        } else {
+            place_of(app, state, files, source, path, want).await?;
+        }
+        views.push(root.view_of(Path::new(path)));
+    }
+    Ok(Ends {
+        storage: Some(storage),
+        paths: views,
     })
 }
 
@@ -159,6 +313,10 @@ fn checked(
             FilesErrorCode::Unsupported,
             "storages come with a later version",
         ));
+    }
+    // The raw directory of an encrypted folder is no path of the window (spec 048 research R17).
+    if has_raw_part(Path::new(path)) {
+        return Err(FilesError::new(FilesErrorCode::NotFound, "not found"));
     }
     let real = resolver(Path::new(path))?;
     match check(
