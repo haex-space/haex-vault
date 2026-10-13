@@ -34,6 +34,22 @@ PGP-Schlüssel, Serveradressen und was sonst noch so kommen wird."
 - Q: Welche weiteren Angaben? → A: Später Messenger-Kennungen, PGP-Schlüssel, Serveradressen und was
   noch kommt. Diese Spec macht die Angaben eines Kontakts dafür erweiterbar; die konkreten Arten
   bringen spätere Specs.
+- Q: Wie führt holzi beim ersten Abgleich Telefonkontakte mit vorhandenen Kontakten zusammen? → A:
+  Eindeutige Treffer (gleicher Name und mindestens eine gleiche Telefonnummer oder E-Mail-Adresse)
+  automatisch; unsichere Treffer (nur der Name oder nur eine Nummer beziehungsweise E-Mail-Adresse
+  gleich) zeigt die Übersicht, und der Nutzer entscheidet je Paar.
+- Q: Darf der eingebaute Agent Kontakte ohne eigene Freigabe lesen? → A: Nein, nur nach Freigabe wie
+  externe Agenten; beim ersten Zugriff fragt holzi, die Antwort wird gemerkt.
+- Q: Was passiert mit Einladungen von Vaults, die nicht bestätigt im Adressbuch stehen? → A: Sie
+  erscheinen getrennt unter „Von Unbekannten“, ohne Benachrichtigung, mit „Annehmen“, „Verwerfen“
+  und „Absender blockieren“; eine Einstellung zum Verwerfen gibt es nicht.
+- Q: Wo schaltet man den Abgleich ein und wählt das Zielkonto? → A: In einer neuen Kategorie
+  „Kontakte“ der Einstellungen-App (Abgleich, Zielkonto, Stand, blockierte Vaults, Inhalt der eigenen
+  Visitenkarte); die App „Kontakte“ verlinkt dorthin.
+- Q: Gehen alle holzi-Kontakte ins Telefon? → A: Nein. Jeder Kontakt hat eine Herkunft (woher der
+  Eintrag kommt, auch bei vom Telefon übernommenen) und eigene Abgleichsziele (auf welche Telefone und
+  in welches Telefonkonto er geht). In holzi angelegte Kontakte gehen standardmäßig auf kein Telefon;
+  beim Anlegen wird der Nutzer gefragt. Vom Telefon übernommene haben ihr Herkunftstelefon als Ziel.
 
 ## Begriffe
 
@@ -62,8 +78,14 @@ PGP-Schlüssel, Serveradressen und was sonst noch so kommen wird."
   Telefon-Adressbuch eines Telefons. Er ist je Gerät eingeschaltet oder aus.
 - **Zuordnung**: das Wissen eines Telefons, welcher Kontakt im Adressbuch zu welchem Kontakt im
   Telefon-Adressbuch gehört. Jedes Telefon hat seine eigene.
-- **Zielkonto**: das Telefonkonto, in das holzi Kontakte schreibt, die im Adressbuch neu entstanden
-  sind.
+- **Herkunft**: woher ein Kontakt stammt: in holzi angelegt (auf welchem Gerät, von wem: Nutzer oder
+  Agent), vom Telefon übernommen (welches Telefon, welches Telefonkonto) oder aus einer Visitenkarte.
+  Sie wird beim Anlegen festgelegt und ändert sich nicht.
+- **Abgleichsziel**: ein Telefon und ein Telefonkonto darauf, in das ein Kontakt geschrieben und mit
+  dem er abgeglichen wird. Ein Kontakt hat keines, eines oder mehrere. Nur Kontakte mit einem
+  Abgleichsziel auf einem Telefon kommen in dessen Telefon-Adressbuch.
+- **Zielkonto**: das Telefonkonto, das holzi auf einem Telefon vorschlägt, wenn ein Kontakt dieses
+  Telefon als Abgleichsziel bekommt.
 - Die „Kontakte“ aus haex-vault waren Identitäten zum Teilen (Schlüsselpaare anderer Vaults). Ihren
   Zweck übernimmt hier die Visitenkarte; die Daten aus haex-vault werden nicht übernommen.
 
@@ -165,8 +187,9 @@ den Abgleich einschalten, Anzahl und Inhalt vergleichen, dann auf beiden Seiten 
 
 1. **Given** ein Telefon mit 300 Kontakten in einem Google-Konto und 20 auf der SIM, **When** Mara den
    Abgleich einschaltet und die Berechtigung erteilt, **Then** zeigt holzi vor dem ersten Abgleich, wie
-   viele Kontakte neu ins Adressbuch kommen, wie viele neu ins Telefon und wie viele zusammengeführt
-   werden, und führt ihn erst nach ihrer Bestätigung aus.
+   viele Kontakte neu ins Adressbuch kommen, wie viele neu ins Telefon (Kontakte, die dieses Telefon
+   schon als Abgleichsziel haben) und wie viele zusammengeführt
+   werden, listet unsichere Paare zur Entscheidung auf und führt ihn erst nach ihrer Bestätigung aus.
 2. **Given** der erste Abgleich ist bestätigt, **When** er fertig ist, **Then** enthält das Adressbuch
    alle 320 Kontakte mit allen Angaben, die das Telefon-Adressbuch für sie hat und die holzi kennt.
 3. **Given** ein laufender Abgleich, **When** Mara im Telefon-Adressbuch eine Nummer ändert und holzi
@@ -185,23 +208,35 @@ den Abgleich einschalten, Anzahl und Inhalt vergleichen, dann auf beiden Seiten 
 
 ### User Story 3 - Änderungen von anderen Geräten landen im Telefon (Priority: P1)
 
-Mara ändert am Desktop die Anschrift eines Kontakts und legt einen neuen an. Sobald ihr Telefon diese
-Änderungen über den Datensync bekommen hat, schreibt holzi sie ins Telefon-Adressbuch; der neue
-Kontakt landet im Zielkonto, das Mara beim Einschalten des Abgleichs gewählt hat.
+Mara ändert am Desktop die Anschrift eines Kontakts, der von ihrem Telefon stammt, und legt zwei
+neue an. Beim ersten fragt holzi, ob er auch aufs Telefon soll; sie wählt ihr Telefon, und holzi
+schlägt dessen Zielkonto vor. Den zweiten lässt sie, wie vorgeschlagen, nur in holzi. Sobald ihr
+Telefon die Änderungen über den Datensync bekommen hat, schreibt holzi die geänderte Anschrift und den
+ersten neuen Kontakt ins Telefon-Adressbuch; der zweite bleibt nur in holzi.
 
 **Why this priority**: Ohne diese Richtung wäre das Telefon nur eine Quelle, und das Adressbuch in
 holzi wäre nicht das führende Adressbuch, das der Betreiber möchte.
 
 **Independent Test**: Desktop und Telefon verbunden, Abgleich auf dem Telefon an; am Desktop einen
-Kontakt ändern und einen anlegen; auf dem Telefon nach dem Sync im Telefon-Adressbuch prüfen.
+Kontakt ändern und zwei anlegen (mit und ohne Abgleichsziel); auf dem Telefon nach dem Sync im
+Telefon-Adressbuch prüfen.
 
 **Acceptance Scenarios**:
 
-1. **Given** Abgleich an, Zielkonto „Google (mara@…)“, **When** Mara am Desktop einen Kontakt anlegt und
-   das Telefon synchronisiert, **Then** steht der Kontakt im Telefon-Adressbuch im Google-Konto.
-2. **Given** ein Kontakt, der im Telefon in einem Firmenkonto liegt, **When** Mara ihn am Desktop
+1. **Given** Abgleich an, Zielkonto „Google (mara@…)“, **When** Mara am Desktop einen Kontakt anlegt,
+   als Abgleichsziel ihr Telefon mit dem vorgeschlagenen Konto wählt und das Telefon synchronisiert,
+   **Then** steht der Kontakt im Telefon-Adressbuch im Google-Konto.
+2. **Given** Abgleich an, **When** Mara in holzi einen Kontakt anlegt und die Frage nach dem Telefon
+   unverändert lässt, **Then** bleibt er nur in holzi, und als Herkunft steht „in holzi angelegt“ mit
+   dem Gerät.
+3. **Given** ein Kontakt, der im Telefon in einem Firmenkonto liegt, **When** Mara ihn am Desktop
    ändert, **Then** schreibt holzi die Änderung in dieses Firmenkonto, nicht ins Zielkonto.
-3. **Given** das Telefon war während der Änderungen am Desktop aus, **When** Mara holzi auf dem Telefon
+4. **Given** ein Kontakt mit Abgleichsziel Telefon, **When** Mara das Ziel entfernt, **Then** fragt
+   holzi, ob der Kontakt im Telefon gelöscht oder dort nur nicht mehr abgeglichen werden soll.
+5. **Given** 40 Kontakte ohne Abgleichsziel, **When** Mara sie in der Liste auswählt (oder eine Gruppe
+   wählt) und ihnen ihr Telefon als Ziel gibt, **Then** schreibt holzi alle 40 beim nächsten Abgleich
+   ins Telefon.
+6. **Given** das Telefon war während der Änderungen am Desktop aus, **When** Mara holzi auf dem Telefon
    wieder öffnet, **Then** holt holzi Sync und Abgleich nach, ohne dass sie etwas tun muss.
 
 ---
@@ -336,6 +371,12 @@ Empfänger beim Senden offline war.
   ein, auf dem dieselben Kontakte über das Google-Konto schon liegen, führt holzi sie mit den
   vorhandenen Kontakten zusammen, statt Doppel anzulegen. Ändert Google danach einen Kontakt auf beiden
   Telefonen, kommt dieselbe Änderung zweimal an und ergibt dasselbe Ergebnis.
+  Zusammengeführte Kontakte haben danach beide Telefone als Abgleichsziel.
+- **Zwei Telefone mit verschiedenen Konten**: Ein Kontakt vom ersten Telefon kommt nicht von selbst
+  auf das zweite; dafür muss Mara ihm das zweite Telefon als Abgleichsziel geben.
+- **Ziel auf einem Telefon ohne Abgleich**: Schaltet Mara auf einem Telefon den Abgleich aus, bleiben
+  die Abgleichsziele der Kontakte bestehen, und das Telefon ist für neue Ziele nicht mehr wählbar.
+  Schaltet sie ihn wieder ein, gelten die alten Ziele wieder.
 - **Gleichzeitige Änderung**: Ändert Mara dasselbe Feld im Telefon-Adressbuch und an einem anderen
   Gerät in holzi, endet es auf allen Geräten und im Telefon gleich (Regel von Spec 024). Verschiedene
   Felder desselben Kontakts bleiben beide erhalten.
@@ -446,6 +487,10 @@ Empfänger beim Senden offline war.
 - **FR-015**: Auf Android MUSS sich der Abgleich je Gerät und Vault ein- und ausschalten lassen; die
   Auswahl speichert sich sofort (Spec 023 FR-021). Standard ist „Aus“. Auf Geräten ohne
   Telefon-Adressbuch MUSS er als „Auf diesem Gerät nicht verfügbar“ erscheinen.
+- **FR-015a**: Die Einstellungen-App MUSS eine Kategorie „Kontakte“ bekommen mit: Abgleich (an/aus,
+  Zielkonto, Stand des letzten Abgleichs, nicht angekommene Änderungen), Inhalt der eigenen
+  Visitenkarte (FR-009) und Liste der blockierten Vaults (FR-039). Die App „Kontakte“ MUSS dorthin
+  verlinken.
 - **FR-016**: Würde ein Abgleich mehr als 10 Kontakte und zugleich mehr als 10 % des Adressbuchs auf
   einmal löschen, MUSS holzi das vorher anzeigen und den Nutzer entscheiden lassen: löschen oder die
   betroffenen Kontakte behalten (im Adressbuch beziehungsweise neu ins Telefon schreiben).
@@ -455,17 +500,37 @@ Empfänger beim Senden offline war.
 - **FR-018**: Beim Einschalten MUSS der Nutzer das Zielkonto aus den beschreibbaren Telefonkonten
   wählen; holzi schlägt das Standardkonto des Telefons vor. Das Zielkonto lässt sich später ändern;
   bereits geschriebene Kontakte bleiben dabei in ihrem Konto.
+- **FR-018a**: Jeder Kontakt MUSS eine Herkunft haben, die holzi beim Anlegen festlegt und in der
+  Ansicht des Kontakts zeigt: in holzi angelegt (Gerät; Nutzer oder Agent), vom Telefon übernommen
+  (Telefon und Telefonkonto) oder aus einer Visitenkarte. Sie DARF sich danach nicht ändern, auch nicht
+  durch Zusammenführen (der Kontakt behält die Herkunft des älteren Eintrags).
+- **FR-018b**: Jeder Kontakt MUSS eigene Abgleichsziele haben. Vom Telefon übernommene Kontakte haben
+  ihr Herkunftstelefon mit ihrem Telefonkonto als Ziel; beim Zusammenführen bekommt ein Kontakt das
+  Telefon, auf dem er schon liegt, als weiteres Ziel. In holzi angelegte, aus einer Visitenkarte oder
+  von einem Agenten angelegte Kontakte haben standardmäßig KEIN Ziel.
+- **FR-018c**: Beim Anlegen eines Kontakts in holzi MUSS der Nutzer gefragt werden, ob er auf Telefone
+  der Vault soll (Auswahl der Telefone, je Telefon dessen Zielkonto vorgeschlagen); vorausgewählt ist
+  „Nur in holzi“. Abgleichsziele MÜSSEN sich später je Kontakt und für mehrere ausgewählte Kontakte
+  oder eine Gruppe auf einmal ändern lassen. Wählbar sind alle Telefone der Vault, die den Abgleich
+  eingeschaltet haben. Hat kein Telefon der Vault den Abgleich eingeschaltet, entfällt die Frage.
+- **FR-018d**: Entfernt der Nutzer ein Abgleichsziel, MUSS holzi fragen, ob der Kontakt in diesem
+  Telefon gelöscht oder dort nur nicht mehr abgeglichen werden soll.
 - **FR-019**: Vor dem ersten Abgleich nach dem Einschalten MUSS holzi zusammenführen und eine Übersicht
-  zeigen (neu ins Adressbuch, neu ins Telefon, zusammengeführt) und erst nach Bestätigung schreiben.
-  Zusammengeführt werden Kontakte, die nach Name und mindestens einer gleichen Telefonnummer oder
-  E-Mail-Adresse dieselbe Person sind; der Plan legt die genaue Regel fest.
+  zeigen (neu ins Adressbuch, neu ins Telefon, zusammengeführt, unsicher) und erst nach Bestätigung
+  schreiben. Automatisch zusammengeführt werden Kontakte mit gleichem Namen und mindestens einer
+  gleichen Telefonnummer oder E-Mail-Adresse. Unsichere Treffer (nur der Name gleich, oder nur eine
+  Telefonnummer beziehungsweise E-Mail-Adresse gleich) MUSS die Übersicht als Paare zeigen, und der
+  Nutzer entscheidet je Paar „zusammenführen“ oder „getrennt lassen“ (Standard: getrennt lassen). Wie
+  Namen und Nummern für den Vergleich vereinheitlicht werden, legt der Plan fest.
 - **FR-020**: Bei eingeschaltetem Abgleich MUSS holzi Änderungen im Telefon-Adressbuch (Anlegen, Ändern,
   Löschen, aus jedem Telefonkonto) ins Adressbuch übernehmen, solange holzi im Vordergrund und die
   Vault offen ist, und Änderungen aus der Zeit davor beim nächsten Öffnen oder Zurückkehren nachholen
   (Spec 043 FR-018).
 - **FR-021**: Bei eingeschaltetem Abgleich MUSS holzi Änderungen im Adressbuch, egal von welchem Gerät
-  oder Aufrufer, ins Telefon-Adressbuch schreiben: Änderungen und Löschungen in das Telefonkonto, in dem
-  der Kontakt liegt, neue Kontakte ins Zielkonto.
+  oder Aufrufer, ins Telefon-Adressbuch schreiben, aber nur für Kontakte mit diesem Telefon als
+  Abgleichsziel: Änderungen und Löschungen in das Telefonkonto, in dem der Kontakt liegt; ein Kontakt,
+  der das Telefon neu als Ziel bekommt, in das Telefonkonto dieses Ziels. Kontakte ohne Ziel auf diesem
+  Telefon DARF holzi dort nicht schreiben.
 - **FR-022**: Beim Zurückschreiben DARF holzi nur Angaben ändern, die es kennt und die sich geändert
   haben; andere Angaben des Kontakts im Telefon-Adressbuch MÜSSEN unverändert bleiben.
 - **FR-023**: Ein Abgleich DARF keine Angabe verlieren: Ein Kontakt, der aus dem Telefon ins Adressbuch
@@ -490,7 +555,9 @@ Empfänger beim Senden offline war.
   (erklärt, erteilt, verweigert, fragen). Erweiterungen DÜRFEN Kontakte in dieser Spec NICHT ändern.
 - **FR-030**: Für Agenten MUSS es Berechtigungsbereiche „Kontakte lesen“ und „Kontakte ändern“ geben
   (Spec 020 FR-031), mit demselben Ziel wie FR-029. Ohne Freigabe hat kein Agent Zugriff, auch der
-  eingebaute nicht.
+  eingebaute nicht. Greift der eingebaute Agent ohne Freigabe zu, MUSS holzi den Nutzer fragen
+  (einmal erlauben, immer erlauben, ablehnen) und eine dauerhafte Antwort merken; sie lässt sich
+  später entziehen.
 - **FR-031**: Eine Ablehnung DARF NICHT verraten, ob es passende Kontakte gibt (wie Spec 034 FR-029).
 - **FR-032**: Die Kontakt-Aktionen MÜSSEN so beschrieben sein, dass Spec 021 sie ohne Umbau über den
   MCP-Server anbieten kann (Spec 032 FR-001).
@@ -523,7 +590,9 @@ Empfänger beim Senden offline war.
 
 ### Key Entities
 
-- **Kontakt**: eine Person oder Organisation im Adressbuch; gehört zur Vault und wird synchronisiert.
+- **Kontakt**: eine Person oder Organisation im Adressbuch mit Herkunft und Abgleichszielen; gehört
+  zur Vault und wird synchronisiert.
+- **Abgleichsziel**: Telefon und Telefonkonto, in das ein Kontakt geschrieben wird.
 - **Angabe**: ein Wert eines Kontakts mit Art und optional Bezeichnung; die Menge der Arten ist offen
   (FR-007).
 - **holzi-Adressen**: Vault-Identität, Geräte mit Netzwerkkennungen und Nostr-Relays eines Kontakts,
