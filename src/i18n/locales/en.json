@@ -982,7 +982,10 @@
         "protocol": "Protocol",
         "username": "User name",
         "password": "Password",
-        "folder": "Folder"
+        "folder": "Folder",
+        "authMethod": "Sign in with",
+        "privateKey": "Private key",
+        "passphrase": "Key passphrase (optional)"
       },
       "kinds": {
         "aws": "AWS S3",
@@ -1044,6 +1047,31 @@
       "createFolderAndSave": "Create folder and save",
       "warnings": {
         "nestedFolder": "Saved. Note: another cloud storage of this connection lies in this folder, or the other way round."
+      },
+      "authMethods": {
+        "password": "Password",
+        "key": "SSH key"
+      },
+      "actions": {
+        "generateKey": "Generate key",
+        "copyPublicKey": "Copy public key",
+        "copied": "Copied",
+        "readKeyFile": "Or read it from a file:",
+        "confirmHostKey": "Confirm and save",
+        "acceptHostKey": "Accept the new key"
+      },
+      "generatedKeyHint": "Add this public key at your provider. holzi keeps the private key; it goes to the password manager when you save.",
+      "sftpHints": {
+        "hetznerStorageBox": "Turn on “SSH support” and “External reachability” in the Hetzner console. Port 23 takes keys as an OpenSSH line."
+      },
+      "hostKey": {
+        "unknown": "The server shows this host key. Compare the fingerprint with what your provider publishes before you confirm. Only then does holzi send your credentials.",
+        "changed": "The server shows another host key than the confirmed one. The server may have moved, or someone pretends to be your server. Accept the new key only when your provider confirms it.",
+        "previous": "Before",
+        "shown": "Now",
+        "compareHint": "Your provider names the fingerprint, or read it on the server with ssh-keygen -lf.",
+        "hetznerHint": "Hetzner lists the fingerprints of its Storage Boxes in its documentation.",
+        "changedHint": "Open the storage and test it: the test shows both fingerprints."
       }
     }
   },

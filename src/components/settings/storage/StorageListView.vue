@@ -17,6 +17,13 @@ const { overview, failure } = useStorageOverview()
 const storagesOf = (connectionId: string): StorageView[] =>
   overview.value?.storages.filter((s) => s.connectionId === connectionId) ?? []
 
+/** Whether a storage of the connection last met another host key than the confirmed one (SFTP,
+ * spec 050 research R5): the storage's test shows both and takes the new one. */
+const hostKeyChanged = (connectionId: string): boolean =>
+  storagesOf(connectionId).some(
+    (storage) => storage.lastTest?.outcome === 'hostKeyChanged',
+  )
+
 function connectionDescription(connection: ConnectionView): string {
   const where = connection.endpoint || t('settings.storage.kinds.aws')
   const protocol = t(`settings.storage.protocols.${connection.protocol}`)
@@ -104,6 +111,14 @@ function storageDescription(storage: StorageView): string {
           data-testid="storage-local"
         >
           {{ t('settings.storage.local') }}
+        </span>
+        <span
+          v-if="hostKeyChanged(connection.id)"
+          class="rounded-md bg-destructive/15 px-2 py-0.5 text-xs text-destructive"
+          :title="t('settings.storage.hostKey.changedHint')"
+          data-testid="storage-host-key-changed"
+        >
+          {{ t('settings.storage.outcome.hostKeyChanged') }}
         </span>
         <span
           v-if="connection.insecure"

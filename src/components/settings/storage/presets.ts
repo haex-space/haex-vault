@@ -6,8 +6,8 @@ import type { Addressing } from '@bindings/Addressing'
 import type { Protocol } from '@bindings/Protocol'
 import type { ProviderKind } from '@bindings/ProviderKind'
 
-/** The protocols this form offers so far (SFTP follows, spec 050). */
-export type FormProtocol = Extract<Protocol, 's3' | 'webdav'>
+/** The protocols this form offers (spec 050). */
+export type FormProtocol = Extract<Protocol, 's3' | 'webdav' | 'sftp'>
 
 export type Preset = {
   endpoint: string
@@ -51,5 +51,14 @@ export const PRESETS: Record<
       region: '',
     },
     other: { endpoint: 'https://', addressing: 'path', region: '' },
+  },
+  sftp: {
+    // Port 23 takes keys as OpenSSH lines; port 22 wants RFC 4716 (research R11).
+    hetznerStorageBox: {
+      endpoint: 'sftp://<benutzer>.your-storagebox.de:23',
+      addressing: 'path',
+      region: '',
+    },
+    other: { endpoint: 'sftp://', addressing: 'path', region: '' },
   },
 }

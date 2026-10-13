@@ -5,12 +5,16 @@
  * saved; a new name is not. A missing folder is made only when the user says so (FR-006), and a
  * folder inside another storage's folder of the connection gets a warning (FR-003). "Jetzt testen" runs the
  * test again and remembers its outcome on this device; a test object holzi could not delete is
- * named (SC-004). The credentials come from the connection, so none are typed here.
+ * named (SC-004). The credentials come from the connection, so none are typed here. When an SFTP
+ * server shows another host key than the confirmed one, the test names both fingerprints and the
+ * user may take the new key (spec 050 research R5).
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { StorageInput } from '@bindings/StorageInput'
+import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { StorageView } from '@bindings/StorageView'
 import type { TestResult } from '@bindings/TestResult'
+import HostKeyConfirm from './HostKeyConfirm.vue'
 
 const { t } = useI18n()
 const router = useTabRouter()
@@ -40,6 +44,8 @@ const tested = ref<string | null>(null)
 /** The last save or test found the folder missing (WebDAV, SFTP; FR-006). */
 const folderMissing = ref(false)
 const tree = computed(() => parent.value?.protocol !== 's3')
+/** The key an SFTP server showed in place of the confirmed one (research R5). */
+const changedKey = ref<ShownHostKey | null>(null)
 
 let filled = false
 watchEffect(() => {
@@ -110,6 +116,25 @@ function show(result: TestResult) {
   if (result.outcome === 'passed') tested.value = message
   else failure.value = message
   folderMissing.value = tree.value && result.outcome === 'folderMissing'
+  changedKey.value =
+    result.outcome === 'hostKeyChanged' ? (result.hostKey ?? null) : null
+}
+
+/** Takes the key the server showed for the connection, then tests again. */
+async function acceptHostKeyAsync() {
+  const key = changedKey.value
+  if (!key) return
+  changedKey.value = null
+  try {
+    await invoke('storage_host_key_accept', {
+      connectionId: connectionId.value,
+      hostKey: key.key,
+    })
+  } catch (error) {
+    failure.value = storageError(error)
+    return
+  }
+  await testAsync()
 }
 
 async function testAsync() {
@@ -193,6 +218,19 @@ async function testAsync() {
       >
         {{ failure }}
       </p>
+      <HostKeyConfirm
+        v-if="changedKey"
+        :shown="changedKey"
+        :previous="parent?.hostKey?.fingerprint ?? '–'"
+        :hint="
+          parent?.providerKind === 'hetznerStorageBox'
+            ? t('settings.storage.hostKey.hetznerHint')
+            : null
+        "
+        :busy="busy"
+        @confirm="acceptHostKeyAsync"
+        @cancel="changedKey = null"
+      />
       <div class="flex flex-wrap gap-2">
         <UiButton type="submit" :loading="busy" data-testid="storage-save">
           {{

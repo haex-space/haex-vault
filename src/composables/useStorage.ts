@@ -5,6 +5,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { ConnectionView } from '@bindings/ConnectionView'
 import type { CredentialsState } from '@bindings/CredentialsState'
+import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { StorageOverview } from '@bindings/StorageOverview'
 import type { TestOutcome } from '@bindings/TestOutcome'
 
@@ -45,6 +46,7 @@ type StorageError = {
   kind?: string
   outcome?: TestOutcome
   leftoverKey?: string | null
+  hostKey?: ShownHostKey
   field?: string
   state?: CredentialsState
 }
@@ -54,6 +56,18 @@ type StorageError = {
 export function isFolderMissing(error: unknown): boolean {
   const e = (error ?? {}) as StorageError
   return e.kind === 'StorageTestFailed' && e.outcome === 'folderMissing'
+}
+
+/** The host key an SFTP server showed when a save failed for it (spec 050 research R5), with
+ * whether it replaces a confirmed one; the form then asks the user to confirm it. */
+export function shownHostKey(
+  error: unknown,
+): { key: ShownHostKey; changed: boolean } | null {
+  const e = (error ?? {}) as StorageError
+  if (e.kind !== 'StorageTestFailed' || !e.hostKey) return null
+  if (e.outcome !== 'hostKeyUnknown' && e.outcome !== 'hostKeyChanged')
+    return null
+  return { key: e.hostKey, changed: e.outcome === 'hostKeyChanged' }
 }
 
 /** The text of an error of the storage commands; other errors as `useErrorString` has them. */

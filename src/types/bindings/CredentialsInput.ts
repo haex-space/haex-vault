@@ -2,7 +2,7 @@
 
 /**
  * Credentials as typed by the user, by kind (spec 050 contracts/tauri-commands.md): `s3` only for
- * S3 connections, `password` for WebDAV and SFTP, `sshKey` only for SFTP. `Debug` shows only the
- * access key id or the user name.
+ * S3 connections, `password` for WebDAV and SFTP, `sshKey` and `generatedKey` only for SFTP.
+ * `Debug` shows only the access key id or the user name.
  */
-export type CredentialsInput = { "kind": "s3", accessKeyId: string, secretAccessKey: string, sessionToken?: string | null, } | { "kind": "password", username: string, password: string, } | { "kind": "sshKey", username: string, privateKey: string, passphrase?: string | null, };
+export type CredentialsInput = { "kind": "s3", accessKeyId: string, secretAccessKey: string, sessionToken?: string | null, } | { "kind": "password", username: string, password: string, } | { "kind": "sshKey", username: string, privateKey: string, passphrase?: string | null, } | { "kind": "generatedKey", username: string, keyId: string, };

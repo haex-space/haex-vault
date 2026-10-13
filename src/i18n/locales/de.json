@@ -982,7 +982,10 @@
         "protocol": "Protokoll",
         "username": "Benutzername",
         "password": "Passwort",
-        "folder": "Ordner"
+        "folder": "Ordner",
+        "authMethod": "Anmeldung",
+        "privateKey": "Privater Schlüssel",
+        "passphrase": "Passphrase des Schlüssels (optional)"
       },
       "kinds": {
         "aws": "AWS S3",
@@ -1044,6 +1047,31 @@
       "createFolderAndSave": "Ordner anlegen und speichern",
       "warnings": {
         "nestedFolder": "Gespeichert. Achtung: Ein anderer Cloud-Speicher dieser Verbindung liegt in diesem Ordner oder umgekehrt."
+      },
+      "authMethods": {
+        "password": "Passwort",
+        "key": "SSH-Schlüssel"
+      },
+      "actions": {
+        "generateKey": "Schlüssel erzeugen",
+        "copyPublicKey": "Öffentlichen Schlüssel kopieren",
+        "copied": "Kopiert",
+        "readKeyFile": "Oder aus einer Datei lesen:",
+        "confirmHostKey": "Bestätigen und speichern",
+        "acceptHostKey": "Neuen Schlüssel annehmen"
+      },
+      "generatedKeyHint": "Trage diesen öffentlichen Schlüssel bei deinem Anbieter ein. Den privaten Schlüssel behält holzi; beim Speichern landet er im Passwortmanager.",
+      "sftpHints": {
+        "hetznerStorageBox": "Schalte in der Hetzner-Konsole „SSH-Unterstützung“ und „Externe Erreichbarkeit“ ein. Port 23 nimmt Schlüssel als OpenSSH-Zeile."
+      },
+      "hostKey": {
+        "unknown": "Der Server zeigt diesen Hostschlüssel. Vergleiche den Fingerabdruck mit der Angabe deines Anbieters, bevor du bestätigst. Erst danach schickt holzi deine Zugangsdaten.",
+        "changed": "Der Server zeigt einen anderen Hostschlüssel als den bestätigten. Das kann ein Umzug des Servers sein, oder jemand gibt sich als dein Server aus. Nimm den neuen Schlüssel nur an, wenn dein Anbieter ihn bestätigt.",
+        "previous": "Bisher",
+        "shown": "Jetzt",
+        "compareHint": "Den Fingerabdruck nennt dein Anbieter, oder du liest ihn auf dem Server mit ssh-keygen -lf.",
+        "hetznerHint": "Hetzner nennt die Fingerabdrücke der Storage Boxen in seiner Dokumentation.",
+        "changedHint": "Öffne den Speicher und teste ihn: Der Test zeigt beide Fingerabdrücke."
       }
     }
   },

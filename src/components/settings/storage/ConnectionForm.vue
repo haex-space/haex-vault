@@ -17,8 +17,13 @@ import type { ConnectionInput } from '@bindings/ConnectionInput'
 import type { ConnectionView } from '@bindings/ConnectionView'
 import type { Protocol } from '@bindings/Protocol'
 import type { ProviderKind } from '@bindings/ProviderKind'
+import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { StorageInput } from '@bindings/StorageInput'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
+import CredentialsFields, {
+  type CredentialsDraft,
+} from './CredentialsFields.vue'
+import HostKeyConfirm from './HostKeyConfirm.vue'
 import { PRESETS, type FormProtocol } from './presets'
 
 const { t } = useI18n()
@@ -43,14 +48,25 @@ const draft = reactive({
   endpoint: 'http://127.0.0.1:9000',
   region: 'us-east-1',
   addressing: 'path' as Addressing,
+  bucket: '',
+  storageName: '',
+})
+const credentials = ref<CredentialsDraft>({
   accessKeyId: '',
   secretAccessKey: '',
   sessionToken: '',
   username: '',
   password: '',
-  bucket: '',
-  storageName: '',
+  authMethod: 'password',
+  privateKey: '',
+  passphrase: '',
+  keyId: '',
+  publicKey: '',
 })
+/** The host key the server showed, waiting for the user's word (SFTP, research R5). */
+const shown = ref<{ key: ShownHostKey; changed: boolean } | null>(null)
+/** The host key the user confirmed; the next save sends it. */
+const confirmedKey = ref<string | undefined>()
 const replaceCredentials = ref(false)
 const busy = ref(false)
 const failure = ref<string | null>(null)
@@ -77,7 +93,7 @@ watchEffect(() => {
 })
 
 const protocolOptions = computed<SettingsSelectOption[]>(() =>
-  (['s3', 'webdav'] as const).map((protocol) => ({
+  (['s3', 'webdav', 'sftp'] as const).map((protocol) => ({
     value: protocol,
     label: t(`settings.storage.protocols.${protocol}`),
   })),
@@ -89,11 +105,14 @@ const kindOptions = computed<SettingsSelectOption[]>(() =>
   })),
 )
 /** The hint of a provider: what to fill in or switch on at the provider (research R11). */
-const presetHint = computed(() =>
-  draft.protocol === 'webdav' && draft.providerKind !== 'other'
-    ? t(`settings.storage.presetHints.${draft.providerKind}`)
-    : null,
-)
+const presetHint = computed(() => {
+  if (draft.providerKind === 'other') return null
+  if (draft.protocol === 'webdav')
+    return t(`settings.storage.presetHints.${draft.providerKind}`)
+  if (draft.protocol === 'sftp')
+    return t(`settings.storage.sftpHints.${draft.providerKind}`)
+  return null
+})
 const placeholdersLeft = computed(() => /<[^>]+>/.test(draft.endpoint))
 const addressingOptions = computed<SettingsSelectOption[]>(() =>
   (['path', 'virtual'] as const).map((mode) => ({
@@ -127,25 +146,38 @@ const insecure = computed(() =>
 const withCredentials = computed(() => isNew.value || replaceCredentials.value)
 
 function clearSecrets() {
-  draft.secretAccessKey = ''
-  draft.sessionToken = ''
-  draft.password = ''
+  Object.assign(credentials.value, {
+    secretAccessKey: '',
+    sessionToken: '',
+    password: '',
+    privateKey: '',
+    passphrase: '',
+    keyId: '',
+    publicKey: '',
+  })
 }
 
 /** The credentials as typed, in the kind of the protocol. */
 function typedCredentials(): ConnectionInput['credentials'] {
   if (!withCredentials.value) return undefined
+  const typed = credentials.value
+  const username = typed.username.trim()
+  if (draft.protocol === 'sftp' && typed.authMethod === 'key')
+    return typed.keyId
+      ? { kind: 'generatedKey', username, keyId: typed.keyId }
+      : {
+          kind: 'sshKey',
+          username,
+          privateKey: typed.privateKey,
+          passphrase: typed.passphrase || undefined,
+        }
   if (tree.value)
-    return {
-      kind: 'password',
-      username: draft.username.trim(),
-      password: draft.password,
-    }
+    return { kind: 'password', username, password: typed.password }
   return {
     kind: 's3',
-    accessKeyId: draft.accessKeyId,
-    secretAccessKey: draft.secretAccessKey,
-    sessionToken: draft.sessionToken.trim() || undefined,
+    accessKeyId: typed.accessKeyId,
+    secretAccessKey: typed.secretAccessKey,
+    sessionToken: typed.sessionToken.trim() || undefined,
   }
 }
 
@@ -165,6 +197,7 @@ async function saveAsync(createFolder = false) {
     credentials: typedCredentials(),
     bucketForTest: draft.bucket.trim(),
     createFolder,
+    hostKey: confirmedKey.value,
   }
   try {
     const saved = await invoke<ConnectionView>('storage_connection_save', {
@@ -190,9 +223,32 @@ async function saveAsync(createFolder = false) {
   } catch (error) {
     failure.value = storageError(error)
     folderMissing.value = tree.value && isFolderMissing(error)
+    shown.value = shownHostKey(error)
   } finally {
     busy.value = false
   }
+}
+
+/** The user confirmed the shown host key: a new one goes with the next save, a changed one is
+ * taken first (only exactly the key the server showed, research R5). */
+async function confirmHostKeyAsync() {
+  const key = shown.value
+  if (!key) return
+  shown.value = null
+  if (key.changed && !isNew.value) {
+    try {
+      await invoke('storage_host_key_accept', {
+        connectionId: connectionId.value,
+        hostKey: key.key.key,
+      })
+    } catch (error) {
+      failure.value = storageError(error)
+      return
+    }
+  } else {
+    confirmedKey.value = key.key.key
+  }
+  await saveAsync()
 }
 </script>
 
@@ -317,65 +373,11 @@ async function saveAsync(createFolder = false) {
           data-testid="storage-replace-credentials"
           @change="replaceCredentials = $event"
         />
-        <template v-if="withCredentials && tree">
-          <li class="px-4 py-3">
-            <UiInput
-              id="storage-username"
-              v-model="draft.username"
-              :label="t('settings.storage.fields.username')"
-              :labels="fieldLabels.input.value"
-              label-bg="var(--muted)"
-              autocomplete="off"
-              data-testid="storage-username"
-            />
-          </li>
-          <li class="px-4 py-3">
-            <UiInputPassword
-              id="storage-password"
-              v-model="draft.password"
-              :label="t('settings.storage.fields.password')"
-              :labels="fieldLabels.password.value"
-              label-bg="var(--muted)"
-              autocomplete="new-password"
-              data-testid="storage-password"
-            />
-          </li>
-        </template>
-        <template v-else-if="withCredentials">
-          <li class="px-4 py-3">
-            <UiInput
-              id="storage-access-key"
-              v-model="draft.accessKeyId"
-              :label="t('settings.storage.fields.accessKeyId')"
-              :labels="fieldLabels.input.value"
-              label-bg="var(--muted)"
-              autocomplete="off"
-              data-testid="storage-access-key"
-            />
-          </li>
-          <li class="px-4 py-3">
-            <UiInputPassword
-              id="storage-secret"
-              v-model="draft.secretAccessKey"
-              :label="t('settings.storage.fields.secretAccessKey')"
-              :labels="fieldLabels.password.value"
-              label-bg="var(--muted)"
-              autocomplete="new-password"
-              data-testid="storage-secret"
-            />
-          </li>
-          <li class="px-4 py-3">
-            <UiInputPassword
-              id="storage-session-token"
-              v-model="draft.sessionToken"
-              :label="t('settings.storage.fields.sessionToken')"
-              :labels="fieldLabels.password.value"
-              label-bg="var(--muted)"
-              autocomplete="off"
-              data-testid="storage-session-token"
-            />
-          </li>
-        </template>
+        <CredentialsFields
+          v-if="withCredentials"
+          v-model="credentials"
+          :protocol="draft.protocol"
+        />
       </SettingsGroup>
 
       <SettingsGroup
@@ -429,6 +431,19 @@ async function saveAsync(createFolder = false) {
       >
         {{ failure }}
       </p>
+      <HostKeyConfirm
+        v-if="shown"
+        :shown="shown.key"
+        :previous="shown.changed ? existing?.hostKey?.fingerprint : undefined"
+        :hint="
+          draft.providerKind === 'hetznerStorageBox'
+            ? t('settings.storage.hostKey.hetznerHint')
+            : null
+        "
+        :busy="busy"
+        @confirm="confirmHostKeyAsync"
+        @cancel="shown = null"
+      />
       <div class="flex flex-wrap gap-2">
         <UiButton type="submit" :loading="busy" data-testid="storage-save">
           {{
