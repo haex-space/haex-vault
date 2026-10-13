@@ -43,15 +43,32 @@ const FILE_ENTRY_TIMEOUT_MS = 30_000
 /** Length of a content object of a file of `size` bytes below 64 KiB: header, one tag, data. */
 const contentLength = (size: number) => 38 + 16 + size
 
+/** The text of the name field. */
+const nameInField = (instance: FlowInstance) =>
+  instance.exec<string>(
+    `return document.querySelector('[data-testid="files-name-input"]').value`,
+  )
+
+/**
+ * Types `name` into the name dialog and saves. Keys typed while the dialog still fills in the old
+ * name were seen to go missing ("Archiv" became "chiv"), so the field is read back: one more try,
+ * then a failure that says what the field holds.
+ */
 async function setName(instance: FlowInstance, name: string) {
   await instance.waitForDisplayed('files-name-input')
-  await instance.exec(
-    `const input = document.querySelector('[data-testid="files-name-input"]')
-     input.focus()
-     input.select()
-     return true`,
-  )
-  await instance.type('files-name-input', name)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await instance.exec(
+      `const input = document.querySelector('[data-testid="files-name-input"]')
+       input.value = ''
+       input.dispatchEvent(new Event('input', { bubbles: true }))
+       input.focus()
+       return true`,
+    )
+    await instance.type('files-name-input', name)
+    if ((await nameInField(instance)) === name) break
+  }
+  const held = await nameInField(instance)
+  assert.equal(held, name, `the name field holds "${held}"`)
   await instance.click('files-name-save')
 }
 
