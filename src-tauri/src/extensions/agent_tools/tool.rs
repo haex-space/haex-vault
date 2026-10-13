@@ -111,7 +111,7 @@ impl ExtensionTool {
             Err(reason) => return self.failure("extension_unavailable", reason),
         };
         // Declared in the manifest but not served by the running extension (research R10).
-        if !link.tools().iter().any(|name| *name == self.def.tool.name) {
+        if !link.tools().contains(&self.def.tool.name) {
             return self.failure(
                 "tool_unavailable",
                 format!("the extension does not serve `{}`", self.def.tool.name),

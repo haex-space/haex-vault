@@ -130,7 +130,7 @@ async fn the_agent_answers_with_a_confirmed_tool_of_the_test_extension() {
     set_permission_mode(&db, "auto");
     let vault = vault_db(&db);
     let device = vault
-        .read(|q| known_devices::list_devices(q).map_err(Into::into))
+        .read(|q| known_devices::list_devices(q))
         .await
         .unwrap()
         .first()
