@@ -340,6 +340,11 @@ futures = "0.3"
 # HTTP mock server for adapter tests — spins a local listener on a
 # random port, allows scripted responses, and shuts down on Drop.
 wiremock = "0.6"
+# Spec 050 (research R14): a WebDAV server in the test process with its files in memory, for the
+# stateful tests of the WebDAV store; served over `hyper` (already in the tree through reqwest).
+dav-server = { version = "0.11", default-features = false, features = ["memfs"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
 # Spec 034 (spike T003, fixtures T079): writing a KDBX 4 file and generating an RSA key exist only
 # in tests, the shipped build reads KDBX and never writes it or generates keys.
 keepass = { version = "0.15", features = ["save_kdbx4"] }

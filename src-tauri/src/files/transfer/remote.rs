@@ -193,6 +193,10 @@ impl Run<'_, '_> {
             Place::Encrypted(rel) => self.encrypted_taken(rel),
             Place::Key(key) => {
                 let files = self.target_storage().expect("a key is on a storage");
+                // A name that differs only in case is taken too (spec 050 research R9).
+                if files.access().location.is_tree() {
+                    return self.retried(|| self.handle.block_on(files.key_taken(key, None)));
+                }
                 match self.retried(|| {
                     self.handle
                         .block_on(files.store().head(files.access(), key, soon()))

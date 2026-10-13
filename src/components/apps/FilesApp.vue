@@ -516,12 +516,13 @@ const storageName = computed(
     )?.name,
 )
 
-/** A storage's credentials failed: its settings can fix them (spec 038). */
+/** A storage's credentials or host key failed: its settings can fix them (spec 038, 050). */
 const settingsLink = computed(
   () =>
     storageId.value !== null &&
     (folder.error.value?.code === 'credentials' ||
-      folder.error.value?.code === 'noAccess'),
+      folder.error.value?.code === 'noAccess' ||
+      folder.error.value?.code === 'hostKey'),
 )
 
 const { openApp } = useWmTab()

@@ -379,6 +379,9 @@ einer synchronisierten Tabelle ohne Nutzen.
   `russh_sftp::server::run` über einem temporären Ordner (`tokio::io::duplex` oder Loopback).
 - **Gleichstand**: Der Katalog der Erweiterungsfunktionen aus Spec 038 läuft als eine Testfunktion je
   Fall gegen alle drei Stores (S3 gegen die vorhandene Testunterstützung).
+- **WebDAV-Server im Prozess** (PR D): `dav-server` 0.11.0 (Apache-2.0, erschienen 2026-02-21) nur mit
+  `memfs`, über `hyper` auf einem freien Port der Loopback-Schnittstelle
+  (`webdav/test_server.rs`); er beantwortet `Depth: 1`, `MOVE`/`COPY` mit `Overwrite` und `Range`.
 - **E2E** (bei der Umsetzung geändert, PR C): `rclone/rclone` (1.71.1) mit `serve webdav` und später
   `serve sftp`, ohne Benutzerdatei, nur mit `--user`/`--pass` (`scripts/e2e/lib/webdav.ts`). Ursprünglich
   geplant: `drakkan/sftpgo` (v2.7.6, nur als Testbild) liefert SFTP und WebDAV in einem Container, mit

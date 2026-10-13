@@ -110,3 +110,42 @@ export async function listFolder(
     .filter((href) => href.replace(/\/$/, '') !== path.replace(/\/$/, ''))
     .map((href) => href.replace(/\/$/, '').split('/').pop() ?? '')
 }
+
+/** Writes `body` to `path` (without `/` at the start), making its folders first. */
+export async function putFile(
+  server: Webdav,
+  path: string,
+  body: Uint8Array | string,
+): Promise<void> {
+  const parts = path.split('/')
+  for (let depth = 1; depth < parts.length; depth++) {
+    const folder = `/${parts.slice(0, depth).join('/')}/`
+    const made = await davRequest(server, 'MKCOL', folder)
+    if (made.status !== 201 && made.status !== 405)
+      throw new Error(`MKCOL ${folder}: ${made.status}`)
+  }
+  const put = await davRequest(server, 'PUT', `/${path}`, { body })
+  if (put.status >= 300) throw new Error(`PUT ${path}: ${put.status}`)
+}
+
+/** Every file and folder below the folder `path` (with `/` at the end), as paths below it;
+ * folders end in `/`. */
+export async function listTree(
+  server: Webdav,
+  path: string,
+): Promise<string[]> {
+  const found: string[] = []
+  for (const name of await listFolder(server, path)) {
+    const answer = await davRequest(server, 'PROPFIND', `${path}${name}/`, {
+      headers: { depth: '0' },
+    })
+    if (answer.status === 207 && /collection/.test(await answer.text())) {
+      found.push(`${name}/`)
+      for (const below of await listTree(server, `${path}${name}/`))
+        found.push(`${name}/${below}`)
+    } else {
+      found.push(name)
+    }
+  }
+  return found.sort()
+}

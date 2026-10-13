@@ -2,6 +2,7 @@
 // files-storage scenarios).
 import { unwrap, type FlowInstance } from './flows.ts'
 import type { Rustfs } from './rustfs.ts'
+import type { Webdav } from './webdav.ts'
 import { runAction, wmSnapshot } from './settings.ts'
 
 /** Saves a connection to `rustfs` and a storage `name` on `bucket`; returns the storage's id. */
@@ -34,6 +35,43 @@ export async function connectStorage(
     'storage_save',
     await instance.invoke('storage_save', {
       input: { connectionId: connection.id, name, bucket },
+    }),
+  )
+  return storage.id
+}
+
+/** Saves a connection to the WebDAV server `webdav` and a storage `name` on its folder `folder`,
+ * made when missing (spec 050); returns the storage's id. */
+export async function connectWebdav(
+  instance: Pick<FlowInstance, 'invoke'>,
+  webdav: Webdav,
+  folder: string,
+  name: string,
+): Promise<string> {
+  const connection = unwrap<{ id: string }>(
+    'storage_connection_save',
+    await instance.invoke('storage_connection_save', {
+      input: {
+        protocol: 'webdav',
+        providerName: 'rclone',
+        providerKind: 'other',
+        endpoint: webdav.endpoint,
+        region: '',
+        addressing: 'path',
+        credentials: {
+          kind: 'password',
+          username: webdav.username,
+          password: webdav.password,
+        },
+        bucketForTest: folder,
+        createFolder: true,
+      },
+    }),
+  )
+  const storage = unwrap<{ id: string }>(
+    'storage_save',
+    await instance.invoke('storage_save', {
+      input: { connectionId: connection.id, name, bucket: folder },
     }),
   )
   return storage.id
