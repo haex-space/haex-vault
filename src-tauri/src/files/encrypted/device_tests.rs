@@ -178,3 +178,27 @@ async fn the_cache_forgets_a_folder_whose_directory_is_gone() {
     assert!(named.is_empty());
     assert_eq!(count(&device.db), 0);
 }
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_level_that_cannot_be_listed_does_not_hide_the_folder_below() {
+    use std::os::unix::fs::PermissionsExt;
+    let device = Device::new();
+    let inner = device.home.path().join("gesperrt/innen");
+    std::fs::create_dir_all(&inner).unwrap();
+    let files = device.files();
+    create_encrypted_folder(&files, &device.root.view_of(&inner), "Unterlagen")
+        .await
+        .unwrap();
+    // Entering works, listing does not (as Android's `/storage` for an app).
+    let locked = device.home.path().join("gesperrt");
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o311)).unwrap();
+    let fresh = Device {
+        folders: Default::default(),
+        ..device
+    };
+    let target = inner.join("Unterlagen");
+    let routed = route_device(&fresh.files(), &fresh.root, &target).await;
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(routed.unwrap(), Some(fresh.root.view_of(&target)));
+}
