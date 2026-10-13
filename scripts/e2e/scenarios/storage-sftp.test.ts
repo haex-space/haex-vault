@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
 import { textOf, typeChecked } from '../lib/fields.ts'
 import { unwrap } from '../lib/flows.ts'
 import { scenario } from '../lib/scenario.ts'
@@ -35,7 +33,7 @@ scenario(
   async (ctx) => {
     const sftp = await prepareSftp()
     ctx.onTeardown(() => sftp.stop())
-    mkdirSync(join(sftp.root, FOLDER))
+    sftp.makeFolder(FOLDER)
 
     const group = await ctx.group({ users: { anna: ['laptop', 'phone'] } })
     const laptop = group.device('anna/laptop').page
@@ -79,7 +77,7 @@ scenario(
     )
     assert.deepEqual((await overview(laptop)).connections, [], 'nothing saved')
     assert.deepEqual(
-      readdirSync(join(sftp.root, FOLDER)),
+      sftp.listFolder(FOLDER),
       [],
       'nothing reached the folder before the key was confirmed',
     )
@@ -91,11 +89,7 @@ scenario(
     const saved = await overview(laptop)
     assert.equal(saved.connections[0]?.protocol, 'sftp')
     assert.equal(saved.connections[0]?.hostKey?.fingerprint, sftp.fingerprint)
-    assert.deepEqual(
-      readdirSync(join(sftp.root, FOLDER)),
-      [],
-      'no test file stays',
-    )
+    assert.deepEqual(sftp.listFolder(FOLDER), [], 'no test file stays')
     const headers = unwrap<{ headers: Header[] }>(
       'passwords_load_overview',
       await laptop.invoke('passwords_load_overview'),

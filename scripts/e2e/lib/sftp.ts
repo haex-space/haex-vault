@@ -4,7 +4,13 @@
 // server with another host key on the same port. Reached from an Android emulator like RustFS.
 import { spawnSync } from 'node:child_process'
 import { createHash, createPublicKey, generateKeyPairSync } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { freePort } from './ports.ts'
@@ -15,8 +21,10 @@ export interface Sftp {
   /** `sftp://127.0.0.1:<port>`: a local address, so the connection gets the scope `local`. */
   endpoint: string
   username: string
-  /** The folder the server serves; files written here are on the server. */
-  root: string
+  /** Creates a folder below the server root for scenario setup. */
+  makeFolder(name: string): void
+  /** Lists a folder below the server root for scenario assertions. */
+  listFolder(name: string): string[]
   /** `SHA256:…` of the host key the server shows now, as holzi and OpenSSH name it. */
   fingerprint: string
   /** Lets the user sign in with the public key line `line` (`ssh-ed25519 AAAA… holzi`). */
@@ -61,7 +69,12 @@ export async function prepareSftp(): Promise<Sftp> {
   const server: Sftp = {
     endpoint: `sftp://127.0.0.1:${port}`,
     username: 'anna',
-    root,
+    makeFolder(name) {
+      mkdirSync(join(root, name))
+    },
+    listFolder(name) {
+      return readdirSync(join(root, name))
+    },
     fingerprint: '',
     authorize(line) {
       authorized.push(line.trim())
