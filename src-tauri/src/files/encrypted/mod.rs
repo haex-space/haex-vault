@@ -17,6 +17,8 @@ pub mod by_id;
 pub mod cache;
 pub mod cleanup;
 pub mod device;
+#[cfg(test)]
+pub mod device_scene;
 pub mod format;
 pub mod load;
 pub mod manage;

@@ -4,7 +4,7 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use super::{blocking, device_entry, device_path, side_of, storage_of, window_storage};
+use super::{blocking, device_entry, device_path, ends_of, place_of, Ends, Place};
 use crate::files::access::Want;
 use crate::files::local::edit;
 use crate::files::state::FilesState;
@@ -26,11 +26,14 @@ pub async fn files_create_folder(
     path: String,
     name: String,
 ) -> Result<Entry, FilesError> {
-    if let Some(id) = storage_of(&source) {
-        return window_storage(&app, &state, &files, id)
-            .await?
-            .create_folder(&path, &name)
-            .await;
+    if let Place::Storage {
+        files: storage,
+        path,
+        device,
+    } = place_of(&app, &state, &files, &source, &path, Want::Write).await?
+    {
+        let entry = storage.create_folder(&path, &name).await?;
+        return Ok(Place::entry(device.as_ref(), entry));
     }
     let parent = device_path(&files, &source, &path, Want::Write)?;
     let own = files.own.clone();
@@ -47,11 +50,14 @@ pub async fn files_rename(
     path: String,
     new_name: String,
 ) -> Result<Entry, FilesError> {
-    if let Some(id) = storage_of(&source) {
-        return window_storage(&app, &state, &files, id)
-            .await?
-            .rename(&path, &new_name)
-            .await;
+    if let Place::Storage {
+        files: storage,
+        path,
+        device,
+    } = place_of(&app, &state, &files, &source, &path, Want::Write).await?
+    {
+        let entry = storage.rename(&path, &new_name).await?;
+        return Ok(Place::entry(device.as_ref(), entry));
     }
     let entry = device_entry(&files, &source, &path, Want::Write)?;
     let own = files.own.clone();
@@ -67,47 +73,25 @@ pub struct TransferTarget {
     pub path: String,
 }
 
-/// Copies or moves between sources (US5): the device paths are checked as for a local transfer
-/// (FR-037), then the job is listed and checked (into itself, space) before it starts.
-#[allow(clippy::too_many_arguments)]
+/// Copies or moves between sources (US5), or into, out of and within encrypted folders on this
+/// device (spec 048 research R17): the ends were checked as for a local transfer (FR-037); the job
+/// is listed and checked (into itself, space) before it starts.
 async fn start_remote(
-    app: &AppHandle,
-    state: &State<'_, AppState>,
-    files: &FilesState,
+    state: &AppState,
     transfers: &TransferManager,
     op: TransferOp,
-    from: &SourceRef,
-    paths: &[String],
-    to: TransferTarget,
+    from: Ends,
+    to: Ends,
     channel: Channel<TransferEvent>,
 ) -> Result<String, FilesError> {
-    let want = if op == TransferOp::Copy {
-        Want::Read
-    } else {
-        Want::Write
-    };
-    let sources = match storage_of(from) {
-        Some(_) => paths.to_vec(),
-        None => paths
-            .iter()
-            .map(|path| {
-                device_entry(files, from, path, want)
-                    .map(|real| real.to_string_lossy().into_owned())
-            })
-            .collect::<Result<_, _>>()?,
-    };
-    let target = match storage_of(&to.source) {
-        Some(_) => to.path.clone(),
-        None => device_path(files, &to.source, &to.path, Want::Write)?
-            .to_string_lossy()
-            .into_owned(),
-    };
+    let (from, sources) = from.side();
+    let (to, mut targets) = to.side();
     let job = RemoteJob {
         op,
-        from: side_of(app, state, files, from).await?,
+        from,
         sources,
-        to: side_of(app, state, files, &to.source).await?,
-        target,
+        to,
+        target: targets.pop().unwrap_or_default(),
     };
     let (job, plan) = blocking(move || {
         let handle = tokio::runtime::Handle::current();
@@ -185,23 +169,55 @@ pub async fn files_transfer_start(
     to: Option<TransferTarget>,
     channel: Channel<TransferEvent>,
 ) -> Result<String, FilesError> {
-    if let (Some(id), TransferOp::Delete) = (storage_of(&from), op) {
-        // A storage has no trash: the window asked before (FR-023).
-        let storage = window_storage(&app, &state, &files, id).await?;
-        return transfers.start_storage_delete(state.gate(), storage, paths, channel);
+    // Copying reads the sources; moving and deleting change their folders.
+    let want = if op == TransferOp::Copy {
+        Want::Read
+    } else {
+        Want::Write
+    };
+    let mut ends = ends_of(&app, &state, &files, &from, &paths, want).await?;
+    if op == TransferOp::Delete {
+        if let Some(storage) = ends.storage.take() {
+            // A storage has no trash, nor has an encrypted folder on the device: the window asked
+            // before (FR-023, spec 048 FR-046).
+            return transfers.start_storage_delete(state.gate(), storage, ends.paths, channel);
+        }
     }
-    let crosses = storage_of(&from).is_some()
-        || to
+    let target = match &to {
+        Some(to) => Some(target_of(&app, &state, &files, to).await?),
+        None => None,
+    };
+    let crosses = ends.storage.is_some()
+        || target
             .as_ref()
-            .is_some_and(|target| storage_of(&target.source).is_some());
+            .is_some_and(|target| target.storage.is_some());
     if crosses {
-        let to = to.ok_or_else(|| FilesError::invalid_path("no target folder"))?;
-        return start_remote(
-            &app, &state, &files, &transfers, op, &from, &paths, to, channel,
-        )
-        .await;
+        let to = target.ok_or_else(|| FilesError::invalid_path("no target folder"))?;
+        return start_remote(&state, &transfers, op, ends, to, channel).await;
     }
     start_transfer(&state, &files, &transfers, op, &from, &paths, to, channel).await
+}
+
+/// The end of a transfer's target folder.
+async fn target_of(
+    app: &AppHandle,
+    state: &AppState,
+    files: &FilesState,
+    to: &TransferTarget,
+) -> Result<Ends, FilesError> {
+    let place = place_of(app, state, files, &to.source, &to.path, Want::Write).await?;
+    Ok(match place {
+        Place::Storage { files, path, .. } => Ends {
+            storage: Some(files),
+            paths: vec![path],
+        },
+        Place::Device => Ends {
+            storage: None,
+            paths: vec![device_path(files, &to.source, &to.path, Want::Write)?
+                .to_string_lossy()
+                .into_owned()],
+        },
+    })
 }
 
 /// Copies files and folders dropped from the system into a folder (FR-024).
@@ -215,19 +231,10 @@ pub async fn files_import_dropped(
     to: TransferTarget,
     channel: Channel<TransferEvent>,
 ) -> Result<String, FilesError> {
-    if storage_of(&to.source).is_some() {
-        return start_remote(
-            &app,
-            &state,
-            &files,
-            &transfers,
-            TransferOp::Copy,
-            &SourceRef::Device,
-            &paths,
-            to,
-            channel,
-        )
-        .await;
+    let target = target_of(&app, &state, &files, &to).await?;
+    if target.storage.is_some() {
+        let from = ends_of(&app, &state, &files, &SourceRef::Device, &paths, Want::Read).await?;
+        return start_remote(&state, &transfers, TransferOp::Copy, from, target, channel).await;
     }
     start_transfer(
         &state,

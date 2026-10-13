@@ -7,7 +7,7 @@ use tauri::ipc::Response;
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use super::{blocking, device_path, storage_of, window_storage};
+use super::{blocking, device_path, place_of, storage_of, window_storage, Place};
 use crate::files::access::Want;
 #[cfg(desktop)]
 use crate::files::encrypted::opened::copy_for_app;
@@ -36,8 +36,12 @@ pub async fn files_read_text(
     source: SourceRef,
     path: String,
 ) -> Result<TextContent, FilesError> {
-    if let Some(id) = storage_of(&source) {
-        let storage = window_storage(&app, &state, &files, id).await?;
+    if let Place::Storage {
+        files: storage,
+        path,
+        ..
+    } = place_of(&app, &state, &files, &source, &path, Want::Read).await?
+    {
         let entry = storage.stat(&path).await?;
         if entry.kind != EntryKind::File {
             return Err(FilesError::invalid_path("not a file"));
@@ -74,9 +78,13 @@ pub async fn files_open(
     path: String,
     tab_id: String,
 ) -> Result<Opened, FilesError> {
-    if let Some(id) = storage_of(&source) {
-        let storage = window_storage(&app, &state, &files, id).await?;
-        let entry = storage.stat(&path).await?;
+    if let Place::Storage {
+        files: storage,
+        path,
+        device,
+    } = place_of(&app, &state, &files, &source, &path, Want::Read).await?
+    {
+        let entry = Place::entry(device.as_ref(), storage.stat(&path).await?);
         if entry.kind != EntryKind::File {
             return Err(FilesError::invalid_path("not a file"));
         }
@@ -162,6 +170,18 @@ pub async fn files_thumbnail(
     if let Some(id) = storage_of(&source) {
         let open = || window_storage(&app, &state, &files, id);
         return storage_thumbnail(&files, id, path, size, modified_ms, open)
+            .await
+            .map(Response::new);
+    }
+    if let Place::Storage {
+        files: storage,
+        path,
+        device: Some(root),
+    } = place_of(&app, &state, &files, &source, &path, Want::Read).await?
+    {
+        // An image in an encrypted folder on the device: made in memory, never cached on disk.
+        let open = || async move { Ok(storage) };
+        return storage_thumbnail(&files, &root.storage_id, path, size, modified_ms, open)
             .await
             .map(Response::new);
     }
@@ -299,18 +319,19 @@ pub async fn files_open_system(
     #[cfg(desktop)]
     {
         use tauri_plugin_opener::OpenerExt;
-        let real = match storage_of(&source) {
-            Some(id) => {
-                let storage = window_storage(&app, &state, &files, id).await?;
-                match route(&storage, &path).await? {
-                    Route::Encrypted(at) => {
-                        let root = &files.opened_encrypted;
-                        copy_for_app(&storage, &at, root, confirmed, dont_ask_again).await?
-                    }
-                    Route::Plain => download_to_open(&storage, &files, &path).await?,
+        let real = match place_of(&app, &state, &files, &source, &path, Want::Read).await? {
+            Place::Storage {
+                files: storage,
+                path,
+                ..
+            } => match route(&storage, &path).await? {
+                Route::Encrypted(at) => {
+                    let root = &files.opened_encrypted;
+                    copy_for_app(&storage, &at, root, confirmed, dont_ask_again).await?
                 }
-            }
-            None => device_path(&files, &source, &path, Want::Read)?,
+                Route::Plain => download_to_open(&storage, &files, &path).await?,
+            },
+            Place::Device => device_path(&files, &source, &path, Want::Read)?,
         };
         app.opener()
             .open_path(real.to_string_lossy(), None::<&str>)
