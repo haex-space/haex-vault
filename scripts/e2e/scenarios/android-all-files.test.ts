@@ -11,6 +11,8 @@ import { translations } from '../lib/translations.ts'
 // cannot be driven.
 
 const TITLES = translations('files.allAccess.title')
+/** How long a back key gets to bring holzi to the front before it is pressed again. */
+const BACK_AGAIN_MS = 3_000
 
 scenario('android-all-files', { needs: { phone: true } }, async (ctx) => {
   const instance = await ctx.startInstance({ withoutAllFiles: true })
@@ -33,7 +35,23 @@ scenario('android-all-files', { needs: { phone: true } }, async (ctx) => {
     { timeoutMs: 15_000 },
   )
   phone.allowAllFiles()
-  phone.back()
+  // The settings open in two steps, a forwarding screen and then the page; a back key pressed
+  // between the two is lost and the page stays. Like a person, press it again while holzi is not
+  // back in front.
+  let pressedAt = 0
+  await ctx.waitFor(
+    'holzi in front again',
+    () => {
+      if (phone.frontPackage() === 'com.haex.holzi')
+        return Promise.resolve(true)
+      if (performance.now() - pressedAt > BACK_AGAIN_MS) {
+        phone.back()
+        pressedAt = performance.now()
+      }
+      return Promise.resolve(false)
+    },
+    { timeoutMs: 20_000 },
+  )
   await ctx.waitFor(
     "the device's files",
     () =>
