@@ -197,18 +197,16 @@ async fn two_devices_replacing_one_file_keep_both_the_older_as_a_conflict_copy()
         ["notiz.txt"]
     );
 
-    // Both replace that version, the second without seeing the first's.
+    // Both replace that version, the second without seeing the first's. The fake provider is so
+    // fast that two writes can share a millisecond of `written`; then the sid decides, which is
+    // right for every device but not the order this test checks.
     put(Arc::new(scene.files()), dir.path(), "notiz.txt", "von eins").await;
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     put(second, dir.path(), "notiz.txt", "von zwei, laenger").await;
 
     let (kept, copy) = kept_and_copy(&scene, "notiz", ".txt").await;
-    assert!(
-        copy.modified_ms <= kept.modified_ms,
-        "the older one is the copy"
-    );
-    let mut sizes = [kept.size, copy.size];
-    sizes.sort();
-    assert_eq!(sizes, [Some(8), Some(17)]);
+    // The later write stays under the name, the older one is the copy.
+    assert_eq!((kept.size, copy.size), (Some(17), Some(8)));
 }
 
 #[tokio::test(flavor = "multi_thread")]
