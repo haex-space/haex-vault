@@ -59,8 +59,7 @@ function fields(node: Node, found: string[] = []): string[] {
 }
 
 function hasElement(node: Node, tagName: string): boolean {
-  if (node.type === ELEMENT && node.tag?.toLowerCase() === tagName)
-    return true
+  if (node.type === ELEMENT && node.tag?.toLowerCase() === tagName) return true
   return (node.children ?? []).some((child) => hasElement(child, tagName))
 }
 
