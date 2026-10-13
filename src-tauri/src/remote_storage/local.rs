@@ -126,18 +126,24 @@ impl RemoteStore for LocalStore {
         deadline: Instant,
     ) -> Result<Vec<ObjectInfo>, StorageError> {
         let base = root(access);
-        tree::list(prefix, max, |dir| {
-            let base = base.clone();
-            async move {
-                let path = resolve(&base, &dir)?;
-                match blocking(deadline, move || read_entries(&path)).await {
-                    // A prefix may name no folder at all, as on S3.
-                    Err(StorageError::NotFound) => Ok(Vec::new()),
-                    other => other,
+        let (found, _) = tree::list(
+            prefix,
+            max,
+            crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
+            |dir| {
+                let base = base.clone();
+                async move {
+                    let path = resolve(&base, &dir)?;
+                    match blocking(deadline, move || read_entries(&path)).await {
+                        // A prefix may name no folder at all, as on S3.
+                        Err(StorageError::NotFound) => Ok(Vec::new()),
+                        other => other,
+                    }
                 }
-            }
-        })
-        .await
+            },
+        )
+        .await?;
+        Ok(found)
     }
 
     /// Deletes a file; a key ending in `/` removes the folder only when it is empty, as deleting a
