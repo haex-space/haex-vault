@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use super::frames::{FrameSession, FrameSource};
-use super::{database, methods, permissions};
+use super::{agent_tasks, database, methods, permissions};
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::{
