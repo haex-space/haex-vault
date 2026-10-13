@@ -45,13 +45,13 @@ pub fn storage_error(error: StorageError) -> FilesError {
             FilesErrorCode::NoAccess,
             "the credentials lack the right for this",
         ),
-        StorageError::Network
-        | StorageError::TimedOut
-        | StorageError::HostKeyChanged
-        | StorageError::HostKeyUnknown
-        | StorageError::Protocol => {
+        StorageError::Network | StorageError::TimedOut | StorageError::Protocol => {
             FilesError::new(FilesErrorCode::Unreachable, "the storage is not reachable")
         }
+        StorageError::HostKeyChanged | StorageError::HostKeyUnknown => FilesError::new(
+            FilesErrorCode::HostKey,
+            "the server's host key is not the confirmed one",
+        ),
         StorageError::TooLarge => FilesError::new(FilesErrorCode::TooLarge, "too many entries"),
         StorageError::QuotaExceeded => {
             FilesError::new(FilesErrorCode::NoSpace, "the storage is full")
@@ -167,7 +167,9 @@ fn folder_entry(prefix: &str) -> Entry {
 }
 
 /// The files of one storage. With a [`Scope`] (the window) paths go through encrypted folders by
-/// their decrypted names (spec 048, [`route`]); without one such paths are refused.
+/// their decrypted names (spec 048, [`route`]); without one such paths are refused. On a server
+/// with real folders (WebDAV, SFTP; spec 050) finding, renaming and deleting an entry go their own
+/// way (`storage_source_tree.rs`).
 pub struct StorageFiles {
     store: Arc<dyn RemoteStore>,
     access: Access,
@@ -248,6 +250,9 @@ impl StorageFiles {
         if let Route::Encrypted(at) = route(self, path).await? {
             return ops::stat(self, &at).await;
         }
+        if self.access.location.is_tree() {
+            return self.tree_stat(path).await;
+        }
         let prefix = folder_prefix(path)?;
         if prefix.is_empty() {
             return Ok(folder_entry(""));
@@ -268,8 +273,12 @@ impl StorageFiles {
         }
     }
 
-    /// Whether `path` names a file or a folder already.
+    /// Whether `path` names a file or a folder already (on a server with real folders also one
+    /// whose name differs only in case).
     async fn taken(&self, path: &str) -> Result<bool, FilesError> {
+        if self.access.location.is_tree() {
+            return self.tree_taken(path, None).await;
+        }
         match self.stat(path).await {
             Ok(_) => Ok(true),
             Err(error) if error.code == FilesErrorCode::NotFound => Ok(false),
@@ -322,6 +331,12 @@ impl StorageFiles {
         if target == path {
             return Ok(entry);
         }
+        if self.access.location.is_tree() {
+            if self.tree_taken(&target, Some(&entry.name)).await? {
+                return Err(FilesError::new(FilesErrorCode::Exists, "the name is taken"));
+            }
+            return self.tree_rename(&entry, path, &target).await;
+        }
         if self.taken(&target).await? {
             return Err(FilesError::new(FilesErrorCode::Exists, "the name is taken"));
         }
@@ -362,7 +377,11 @@ impl StorageFiles {
         if let Route::Encrypted(at) = route(self, path).await? {
             return manage::delete(self, &at, cancel, progress).await;
         }
-        if self.stat(path).await?.kind == EntryKind::File {
+        let kind = self.stat(path).await?.kind;
+        if self.access.location.is_tree() {
+            return self.tree_delete(path, kind, progress).await;
+        }
+        if kind == EntryKind::File {
             let key = object_key(path)?;
             self.store
                 .delete(&self.access, &key, soon())
@@ -445,6 +464,12 @@ impl StorageFiles {
     }
 }
 
+#[path = "storage_source_tree.rs"]
+mod tree;
+
 #[cfg(test)]
 #[path = "storage_source_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "storage_source_tree_tests.rs"]
+mod tree_tests;

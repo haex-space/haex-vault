@@ -68,8 +68,10 @@ pub(super) fn files_error(error: &FilesError) -> BridgeError {
     match error.code {
         C::Damaged => BridgeError::new(ExtensionErrorCode::Damaged, "the entry is damaged"),
         C::Credentials | C::NoAccess => provider("accessDenied"),
-        C::Unreachable => provider("network"),
+        // As the plain storage calls report them (`remote_storage.rs`).
+        C::Unreachable | C::HostKey => provider("network"),
         C::TooLarge => limit("too large"),
+        C::NoSpace => limit("quota exceeded"),
         C::Unsupported => unavailable(),
         C::Exists => invalid("the name is taken"),
         _ => invalid("invalid path"),

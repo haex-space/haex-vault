@@ -2323,6 +2323,7 @@
       "invalidName": "Dieser Name ist nicht erlaubt.",
       "credentials": "Die Zugangsdaten des Cloud-Speichers fehlen oder wurden abgelehnt.",
       "unreachable": "Der Cloud-Speicher ist nicht erreichbar.",
+      "hostKey": "Der Server des Cloud-Speichers zeigt einen anderen Hostschlüssel als den bestätigten. Prüfe die Verbindung in den Einstellungen.",
       "inEncrypted": "In einem verschlüsselten Ordner lässt sich kein weiterer anlegen.",
       "inExtensionArea": "Im Bereich einer Erweiterung lässt sich kein verschlüsselter Ordner anlegen.",
       "noKey": "Auf diesem Gerät fehlt noch der Schlüssel der Vault. Warte, bis es synchronisiert ist.",

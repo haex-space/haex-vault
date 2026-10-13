@@ -259,6 +259,50 @@ async fn a_storage_is_asked_for_once_and_the_answer_kept() {
     assert_eq!(scene.asked(), 1);
 }
 
+/// Spec 050 US2 (044 FR-019, FR-031a): a WebDAV storage is reached through the same paths as an S3
+/// one: asked for once, then listed, searched and read; a read grant writes nothing.
+#[tokio::test]
+async fn a_webdav_storage_is_reached_like_an_s3_storage() {
+    let mut scene = Scene::new(Some(FilesAgentChoice::Read));
+    scene.agent.env.protocol = crate::remote_storage::Protocol::WebDav;
+    scene.agent.env.store.insert("s1", "Briefe/", b"");
+    scene
+        .agent
+        .env
+        .store
+        .insert("s1", "Briefe/strom.txt", b"Abschlag");
+    let list = scene
+        .run("files.list", json!({ "source": "storage:s1", "path": "/" }))
+        .await
+        .expect("list");
+    assert_eq!(names(&list, "entries"), ["Briefe", "a.txt"]);
+    assert_eq!(scene.asked(), 1);
+    let found = scene
+        .run(
+            "files.search",
+            json!({ "source": "storage:s1", "path": "/", "query": "strom" }),
+        )
+        .await
+        .expect("search");
+    assert_eq!(found["hits"][0]["path"], "/Briefe/strom.txt", "{found}");
+    let text = scene
+        .run(
+            "files.read",
+            json!({ "source": "storage:s1", "path": "/Briefe/strom.txt" }),
+        )
+        .await
+        .expect("read");
+    assert_eq!(text["text"], "Abschlag");
+    let refused = scene
+        .run(
+            "files.rename",
+            json!({ "source": "storage:s1", "path": "/Briefe", "newName": "Post" }),
+        )
+        .await;
+    assert_eq!(code(refused), "files_not_granted");
+    assert_eq!(scene.asked(), 1, "no second question");
+}
+
 /// SC-005: without a grant, a storage of that name and none at all look the same.
 #[tokio::test]
 async fn an_unknown_storage_and_a_refused_one_answer_alike() {

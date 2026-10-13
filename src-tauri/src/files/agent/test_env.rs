@@ -27,6 +27,7 @@ use crate::files::transfer::local::Removal;
 use crate::files::FilesError;
 use crate::passwords::access::Caller;
 use crate::remote_storage::test_support::{access, FakeStore};
+use crate::remote_storage::Protocol;
 
 pub struct FakeEnv {
     pub own: OwnPlaces,
@@ -40,6 +41,8 @@ pub struct FakeEnv {
     /// The bucket and scope of a storage with encrypted folders; without, storage `s` is bucket
     /// `s` and has none.
     pub scoped: Option<(String, Scope)>,
+    /// The protocol of every storage (S3 unless a test says otherwise; spec 050).
+    pub protocol: Protocol,
     pub prompt: PermissionPrompt,
     pub asked: Arc<Mutex<Vec<FilesAgentPermissionRequest>>>,
 }
@@ -116,11 +119,16 @@ impl AgentEnv for FakeEnv {
     }
 
     async fn open_storage(&self, storage_id: &str) -> Result<StorageFiles, FilesError> {
+        let at = |bucket: &str| {
+            let mut access = access(bucket);
+            access.location.protocol = self.protocol;
+            access
+        };
         Ok(match &self.scoped {
             Some((bucket, scope)) => {
-                StorageFiles::new(self.store.clone(), access(bucket)).with_scope(scope.clone())
+                StorageFiles::new(self.store.clone(), at(bucket)).with_scope(scope.clone())
             }
-            None => StorageFiles::new(self.store.clone(), access(storage_id)),
+            None => StorageFiles::new(self.store.clone(), at(storage_id)),
         })
     }
 
@@ -196,6 +204,7 @@ impl Scene {
             }],
             store,
             scoped: None,
+            protocol: Protocol::S3,
             prompt,
             asked,
         };
@@ -237,6 +246,7 @@ impl Scene {
             }],
             store: encrypted.fake.clone(),
             scoped: Some((BUCKET.to_owned(), scope)),
+            protocol: Protocol::S3,
             prompt,
             asked,
         };
