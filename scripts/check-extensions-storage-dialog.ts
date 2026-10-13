@@ -104,5 +104,8 @@ test('the credentials are typed in the window over the whole app', () => {
   const credentials = fields(
     template('../src/components/settings/storage/CredentialsFields.vue'),
   )
-  assert.ok(credentials.includes('uiinputpassword'), JSON.stringify(credentials))
+  assert.ok(
+    credentials.includes('uiinputpassword'),
+    JSON.stringify(credentials),
+  )
 })
