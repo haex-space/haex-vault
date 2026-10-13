@@ -47,14 +47,20 @@ scenario(
     const other = group.device('ben/desktop').page
 
     // Host files; `onDevice` hands each device a path it can read.
-    const hostFiles = deviceFiles('holzi-encrypted-two-host-', { E2E_PLATFORM: 'linux' })
+    const hostFiles = deviceFiles('holzi-encrypted-two-host-', {
+      E2E_PLATFORM: 'linux',
+    })
     ctx.onTeardown(() => hostFiles.remove())
     hostFiles.write('brief.txt', 'Brief vom Laptop')
     hostFiles.write('antwort.txt', 'Antwort vom Telefon')
     const brief = hostFiles.path('brief.txt')
     const antwort = hostFiles.path('antwort.txt')
-    const laptopFiles = deviceFiles('holzi-encrypted-two-laptop-', { E2E_PLATFORM: 'linux' })
-    const phoneFiles = deviceFiles('holzi-encrypted-two-phone-', { E2E_PLATFORM: 'linux' })
+    const laptopFiles = deviceFiles('holzi-encrypted-two-laptop-', {
+      E2E_PLATFORM: 'linux',
+    })
+    const phoneFiles = deviceFiles('holzi-encrypted-two-phone-', {
+      E2E_PLATFORM: 'linux',
+    })
     ctx.onTeardown(() => laptopFiles.remove())
     ctx.onTeardown(() => phoneFiles.remove())
     laptopFiles.write('notiz.txt', 'vom Laptop')
