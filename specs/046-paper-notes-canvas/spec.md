@@ -8,7 +8,7 @@
 
 **Input**: User description: "Schüler fotografieren handschriftliche Notizen auf normalem Papier. Haex-notes erstellt daraus ein aufgeräumtes, bearbeitbares Canvas mit korrigiertem Text in einer auswählbaren Handschrift, erhaltenen Zeichnungen und PDF-Export. Das Original bleibt erhalten; eine persönliche Handschrift-Erkennung ist ausdrücklich nicht Bestandteil des ersten Schritts."
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Foto in einen sauberen Entwurf umwandeln (Priority: P1)
 
@@ -78,7 +78,7 @@ Ein Schüler exportiert den fertig geprüften Canvas als PDF, um ihn abzugeben, 
 - Eine verwendete Handschrift-Darstellung ist nicht verfügbar. Der Text muss mit einer neutralen Fallback-Darstellung lesbar bleiben.
 - Bilder werden einzeln verarbeitet; ein Batch- oder Mehrseitenimport ist nicht Bestandteil der ersten Ausbaustufe. Ein Fehler bei Dekodierung oder Aufbereitung darf nicht zum Verlust bereits gespeicherter Seiten führen.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -122,7 +122,7 @@ Ein Schüler exportiert den fertig geprüften Canvas als PDF, um ihn abzugeben, 
 - Zwangsbindung an einen bestimmten Cloud-Anbieter oder ein bestimmtes KI-Modell.
 - Eine direkte LLM-/OCR-Integration in haex-notes neben dem Holzi-Agent-Task.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

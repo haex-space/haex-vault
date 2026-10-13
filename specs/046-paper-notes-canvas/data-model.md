@@ -11,16 +11,16 @@ undoable add, remove, replace, and mutate operations.
 
 Optional metadata on a page. It is absent for ordinary handwritten or blank pages.
 
-| Field | Type | Rules |
-|---|---|---|
-| `version` | integer | Starts at `1`; unknown future versions must not be silently discarded. |
-| `originalAssetId` | string | References the unchanged imported image in the asset store. |
-| `sourceMimeType` | string | Must describe an imported image supported by the import flow. |
-| `sourceWidth` / `sourceHeight` | positive integer | Original pixel dimensions used to interpret normalized source boxes. |
-| `processing` | `PaperNoteProcessing` | Tracks readiness, failure and processing destination. |
-| `regions` | `RecognitionRegion[]` | One entry per recognized or reviewable source area. |
-| `createdAt` | ISO timestamp | Set once when the import is created. |
-| `updatedAt` | ISO timestamp | Updated when recognition or review state changes. |
+| Field                          | Type                  | Rules                                                                  |
+| ------------------------------ | --------------------- | ---------------------------------------------------------------------- |
+| `version`                      | integer               | Starts at `1`; unknown future versions must not be silently discarded. |
+| `originalAssetId`              | string                | References the unchanged imported image in the asset store.            |
+| `sourceMimeType`               | string                | Must describe an imported image supported by the import flow.          |
+| `sourceWidth` / `sourceHeight` | positive integer      | Original pixel dimensions used to interpret normalized source boxes.   |
+| `processing`                   | `PaperNoteProcessing` | Tracks readiness, failure and processing destination.                  |
+| `regions`                      | `RecognitionRegion[]` | One entry per recognized or reviewable source area.                    |
+| `createdAt`                    | ISO timestamp         | Set once when the import is created.                                   |
+| `updatedAt`                    | ISO timestamp         | Updated when recognition or review state changes.                      |
 
 The object is persisted with the page and must be included when a page is shared,
 provided the referenced assets are included by `collectAssetIds()`.
@@ -48,17 +48,17 @@ Validation rules:
 
 Each region links source coordinates to one or more generated canvas elements.
 
-| Field | Type | Rules |
-|---|---|---|
-| `id` | string | Stable within the import. |
-| `kind` | `"text" \| "drawing" \| "unknown"` | Unknown regions remain reviewable. |
-| `sourceBox` | normalized `BBox` | `[x, y, width, height]`, each coordinate between `0` and `1`; width and height must be positive. |
-| `elementIds` | string[] | IDs of generated `TextElement`/`ImageElement`s; may be empty for unresolved regions. |
-| `recognizedText` | string? | Raw text returned by recognition for text regions. |
-| `suggestions` | `TextSuggestion[]` | Ordered spelling or interpretation suggestions; never applied automatically. |
-| `confidence` | number? | Provider confidence in `[0, 1]`; absent means unknown, not zero. |
-| `review` | `"unreviewed" \| "accepted" \| "edited" \| "rejected"` | `rejected` hides the generated candidate but keeps the source reference. |
-| `reviewNote` | string? | Optional user note for unresolved content. |
+| Field            | Type                                                   | Rules                                                                                            |
+| ---------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `id`             | string                                                 | Stable within the import.                                                                        |
+| `kind`           | `"text" \| "drawing" \| "unknown"`                     | Unknown regions remain reviewable.                                                               |
+| `sourceBox`      | normalized `BBox`                                      | `[x, y, width, height]`, each coordinate between `0` and `1`; width and height must be positive. |
+| `elementIds`     | string[]                                               | IDs of generated `TextElement`/`ImageElement`s; may be empty for unresolved regions.             |
+| `recognizedText` | string?                                                | Raw text returned by recognition for text regions.                                               |
+| `suggestions`    | `TextSuggestion[]`                                     | Ordered spelling or interpretation suggestions; never applied automatically.                     |
+| `confidence`     | number?                                                | Provider confidence in `[0, 1]`; absent means unknown, not zero.                                 |
+| `review`         | `"unreviewed" \| "accepted" \| "edited" \| "rejected"` | `rejected` hides the generated candidate but keeps the source reference.                         |
+| `reviewNote`     | string?                                                | Optional user note for unresolved content.                                                       |
 
 `TextElement.text` is the current canonical text after a user accepts or edits a
 candidate. `recognizedText` is retained to make the change reversible and

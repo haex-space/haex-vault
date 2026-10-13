@@ -36,21 +36,21 @@ Die Umsetzung erweitert das bestehende haex-notes-Dokumentmodell und bindet die 
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Regel | Stand |
-|---|---|
-| I. Keine Geheimnisse in Git | ✅ Provider-Verträge enthalten keine Schlüssel; Zugangsdaten werden ausschließlich zur Laufzeit aus der Geräte-/Nutzerkonfiguration verwendet. |
-| II. Keine lokalen absoluten Pfade in Versioned Config | ✅ Spezifikation, Plan und Verträge verwenden nur Repository-Pfade und Laufzeitbegriffe. |
-| III. Geräteunabhängige Projektidentität | ✅ Das Implementierungsziel wird über Repository-URL und vollständige Revision referenziert, nicht über einen lokalen Pfad. |
-| IV. Fremde Inhalte mit unveränderlicher Revision | ✅ haex-space/haextension ist mit Revision `1d24a491f24a20f5579ab16304c0a081fcd1fca8` und konkreten Pfaden referenziert. |
-| V. Externe Quellen nur per Allowlist | ✅ Es wird keine neue Harness-Quelle aktiviert. |
-| VI. Selbständernde Anweisungen reviewen | ✅ Keine Constitution-, Skill- oder Berechtigungsdatei wird geändert. |
-| VII. Relay blockiert lokale Arbeit nie | ✅ Originalimport, Canvas-Speicherung und manueller Fallback bleiben auch bei nicht verfügbarem Provider nutzbar. |
-| VIII. Keine Verschleierung | ✅ Externe Verarbeitung und ihr Ziel werden dem Nutzer sichtbar gemacht. |
-| Worktree und PR-Workflow | ✅ Spec und Plan liegen auf `feat/paper-notes-canvas` in einem eigenen Worktree; Implementierung folgt später im Zielrepository über dessen Review-Workflow. |
-| Tests getrennt von Produktion | ✅ Neue Tests werden in separaten Vitest-Dateien geplant. |
-| Graphify-first | ✅ Die begrenzte Graph-Abfrage wurde ausgeführt. Im holzi-Graphen gab es keine passende haex-notes-Implementierung; im Zielrepository werden die vorhandenen Dokument-, Command-, Asset- und Renderer-Abstraktionen erweitert. |
+| Regel                                                 | Stand                                                                                                                                                                                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| I. Keine Geheimnisse in Git                           | ✅ Provider-Verträge enthalten keine Schlüssel; Zugangsdaten werden ausschließlich zur Laufzeit aus der Geräte-/Nutzerkonfiguration verwendet.                                                                                 |
+| II. Keine lokalen absoluten Pfade in Versioned Config | ✅ Spezifikation, Plan und Verträge verwenden nur Repository-Pfade und Laufzeitbegriffe.                                                                                                                                       |
+| III. Geräteunabhängige Projektidentität               | ✅ Das Implementierungsziel wird über Repository-URL und vollständige Revision referenziert, nicht über einen lokalen Pfad.                                                                                                    |
+| IV. Fremde Inhalte mit unveränderlicher Revision      | ✅ haex-space/haextension ist mit Revision `1d24a491f24a20f5579ab16304c0a081fcd1fca8` und konkreten Pfaden referenziert.                                                                                                       |
+| V. Externe Quellen nur per Allowlist                  | ✅ Es wird keine neue Harness-Quelle aktiviert.                                                                                                                                                                                |
+| VI. Selbständernde Anweisungen reviewen               | ✅ Keine Constitution-, Skill- oder Berechtigungsdatei wird geändert.                                                                                                                                                          |
+| VII. Relay blockiert lokale Arbeit nie                | ✅ Originalimport, Canvas-Speicherung und manueller Fallback bleiben auch bei nicht verfügbarem Provider nutzbar.                                                                                                              |
+| VIII. Keine Verschleierung                            | ✅ Externe Verarbeitung und ihr Ziel werden dem Nutzer sichtbar gemacht.                                                                                                                                                       |
+| Worktree und PR-Workflow                              | ✅ Spec und Plan liegen auf `feat/paper-notes-canvas` in einem eigenen Worktree; Implementierung folgt später im Zielrepository über dessen Review-Workflow.                                                                   |
+| Tests getrennt von Produktion                         | ✅ Neue Tests werden in separaten Vitest-Dateien geplant.                                                                                                                                                                      |
+| Graphify-first                                        | ✅ Die begrenzte Graph-Abfrage wurde ausgeführt. Im holzi-Graphen gab es keine passende haex-notes-Implementierung; im Zielrepository werden die vorhandenen Dokument-, Command-, Asset- und Renderer-Abstraktionen erweitert. |
 
 **Gate-Ergebnis vor der Recherche**: PASS. Es gibt keine offene Verfassungsabweichung, die eine Planänderung oder ein ADR erfordert.
 
