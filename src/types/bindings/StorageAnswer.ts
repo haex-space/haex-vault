@@ -16,4 +16,9 @@ credentials?: CredentialsInput, name?: string, bucket?: string,
 /**
  * The user's word to make a missing folder of a WebDAV or SFTP storage (spec 050 FR-006).
  */
-createFolder?: boolean, };
+createFolder?: boolean,
+/**
+ * The host key (an OpenSSH line) the user confirmed in holzi's window after
+ * `hostKeyUnknown` (SFTP, spec 050 research R5).
+ */
+hostKey?: string, };
