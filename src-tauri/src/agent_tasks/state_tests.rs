@@ -43,6 +43,20 @@ fn cancellation_is_owner_scoped_and_idempotent() {
 }
 
 #[test]
+fn cancelled_task_cannot_transition_to_completion() {
+    let registry = TaskRegistry::default();
+    let owner = owner();
+    let record = registry.start(owner.clone()).unwrap();
+
+    assert!(registry.cancel(record.id, &owner));
+    assert!(!registry.transition(record.id, TaskRunStatus::Completed, None));
+    assert_eq!(
+        registry.get(record.id).unwrap().status,
+        TaskRunStatus::Cancelled
+    );
+}
+
+#[test]
 fn closing_a_frame_cancels_all_owned_tasks() {
     let registry = TaskRegistry::default();
     let owner = owner();

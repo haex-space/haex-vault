@@ -150,11 +150,13 @@ pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeEr
             return;
         }
         if let Err(error) = validate_paper_note_result(&result) {
-            registry_for_task.transition(
+            if !registry_for_task.transition(
                 task_id,
                 TaskRunStatus::Failed,
                 Some(task_provenance.clone()),
-            );
+            ) {
+                return;
+            }
             emit_completion(
                 emitter.as_ref(),
                 &host,
@@ -163,11 +165,13 @@ pub(crate) fn start(ctx: &CallContext, params: &Value) -> Result<Value, BridgeEr
             );
             return;
         }
-        registry_for_task.transition(
+        if !registry_for_task.transition(
             task_id,
             TaskRunStatus::Completed,
             Some(task_provenance.clone()),
-        );
+        ) {
+            return;
+        }
         emit_completion(
             emitter.as_ref(),
             &host,
