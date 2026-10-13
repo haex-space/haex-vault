@@ -48,6 +48,14 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     counterCase: 'android-not-available',
   },
   {
+    scenario: 'extension-encrypted-device',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'an extension reaches an encrypted folder on the device only by file access to its place, and there are no free paths on Android (FR-016)',
+    counterCase: 'android-not-available',
+  },
+  {
     scenario: 'relaunch-after-lock',
     platform: 'android',
     kind: 'excluded',

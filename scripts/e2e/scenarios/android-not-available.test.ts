@@ -8,16 +8,20 @@ import {
   openFromLauncher,
   probeRequest,
 } from '../lib/extensions.ts'
+import { deviceFiles } from '../lib/extension-files.ts'
 import { runAction, waitForLocation } from '../lib/settings.ts'
 
 /** The bridge's answer for what this device does not have (spec 017, FR-066). */
 const NOT_AVAILABLE = 8001
+/** The bridge's answer for a refused permission. */
+const DENIED = 1002
 
-// Spec 043 FR-016, FR-026 (the counter case of `extension-files` and `extension-dev-mode`): what a
-// phone does not have is not offered and says so. The capability table names it; an extension that
-// reads a free path, picks a folder or watches one hears "not available"; developer mode (a project
-// folder) is left out of the extension settings, and the delegate settings say "not available on
-// this device".
+// Spec 043 FR-016, FR-026 (the counter case of `extension-files`, `extension-dev-mode` and
+// `extension-encrypted-device`): what a phone does not have is not offered and says so. The
+// capability table names it; an extension that reads a free path, picks a folder or watches one
+// hears "not available", and an encrypted folder on the device stays closed to it; developer mode
+// (a project folder) is left out of the extension settings, and the delegate settings say "not
+// available on this device".
 scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'phone-vault' })
@@ -73,6 +77,48 @@ scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
     assert.equal(answer.error?.code, NOT_AVAILABLE, what)
   }
   ctx.step('an extension hears "not available" for free paths and folders')
+
+  // The counter case of `extension-encrypted-device`: an extension reaches an encrypted folder on
+  // the device only with file access to its place (spec 048 US7), and a phone has no free paths, so
+  // even a stored permission there leaves it refused and nobody asked.
+  const device = deviceFiles('holzi-not-available-')
+  ctx.onTeardown(() => device.remove())
+  device.write('offen.txt', 'offen')
+  unwrap(
+    'files_create_encrypted_folder',
+    await instance.invoke('files_create_encrypted_folder', {
+      source: { kind: 'device' },
+      path: device.folder,
+      name: 'Tresor',
+    }),
+  )
+  unwrap(
+    'extension_permission_set',
+    await instance.invoke('extension_permission_set', {
+      args: {
+        extensionId: probe.id,
+        kind: 'filesystem',
+        action: 'readWrite',
+        target: device.folder,
+        status: 'granted',
+      },
+    }),
+  )
+  const chooser = await probeRequest(
+    instance,
+    probe,
+    'extension_encrypted_folder_choose',
+    { request: { storageId: 'device:/', access: 'readWrite' } },
+  )
+  assert.equal(chooser.error?.code, DENIED, JSON.stringify(chooser))
+  assert.equal(
+    await instance.exec<boolean>(
+      `return document.querySelector('[data-testid="extension-encrypted-chooser"]') !== null`,
+    ),
+    false,
+    'the chooser is shown',
+  )
+  ctx.step('an encrypted folder on the device stays closed to an extension')
 
   const extensions = await runAction(instance, 'wm.app.open', {
     appId: 'system.settings',
