@@ -114,16 +114,16 @@ scenario(
     )
     await page.click('storage-dialog-confirm')
     await page.waitForDisplayed('storage-credentials-modal', 10_000)
-    await page.type('storage-credentials-username', webdav.username)
-    await page.type('storage-credentials-password', 'not-the-password')
-    await page.type('storage-credentials-password', KEY.enter)
+    await page.type('storage-username', webdav.username)
+    await page.type('storage-password', 'not-the-password')
+    await page.type('storage-password', KEY.enter)
     await page.waitForDisplayed('storage-credentials-failure', 20_000)
     assert.match(
       await textOf(page, 'storage-credentials-failure'),
       /Zugangsdaten falsch|Credentials wrong/,
     )
-    await replaceText(page, 'storage-credentials-password', webdav.password)
-    await page.type('storage-credentials-password', KEY.enter)
+    await replaceText(page, 'storage-password', webdav.password)
+    await page.type('storage-password', KEY.enter)
     await page.waitForDisplayed('storage-credentials-create-folder', 20_000)
     assert.match(
       await textOf(page, 'storage-credentials-failure'),

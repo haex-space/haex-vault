@@ -2,6 +2,7 @@
 // files-storage scenarios).
 import { unwrap, type FlowInstance } from './flows.ts'
 import type { Rustfs } from './rustfs.ts'
+import type { Sftp } from './sftp.ts'
 import type { Webdav } from './webdav.ts'
 import { runAction, wmSnapshot } from './settings.ts'
 
@@ -65,6 +66,43 @@ export async function connectWebdav(
         },
         bucketForTest: folder,
         createFolder: true,
+      },
+    }),
+  )
+  const storage = unwrap<{ id: string }>(
+    'storage_save',
+    await instance.invoke('storage_save', {
+      input: { connectionId: connection.id, name, bucket: folder },
+    }),
+  )
+  return storage.id
+}
+
+/** Saves a connection to the SFTP server `sftp` (with a password, its host key confirmed) and a
+ * storage `name` on its folder `folder`; returns the storage's id. */
+export async function connectSftp(
+  instance: Pick<FlowInstance, 'invoke'>,
+  sftp: Sftp,
+  folder: string,
+  name: string,
+): Promise<string> {
+  const connection = unwrap<{ id: string }>(
+    'storage_connection_save',
+    await instance.invoke('storage_connection_save', {
+      input: {
+        protocol: 'sftp',
+        providerName: 'rclone',
+        providerKind: 'other',
+        endpoint: sftp.endpoint,
+        region: '',
+        addressing: 'path',
+        credentials: {
+          kind: 'password',
+          username: sftp.username,
+          password: sftp.password,
+        },
+        bucketForTest: folder,
+        hostKey: sftp.hostKey,
       },
     }),
   )
