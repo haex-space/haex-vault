@@ -21,6 +21,7 @@ use tokio_util::sync::CancellationToken;
 use super::bridge::blocking::block_on;
 use super::bridge::dispatch::CallContext;
 use super::error::{Asks, BridgeError, ExtensionErrorCode};
+use super::fs::Access as FsAccess;
 use super::permissions::store::candidates;
 use super::permissions::{
     evaluate, Action, Decision, FolderRef, Permission, PermissionKind, PermissionRequest,
@@ -29,7 +30,9 @@ use super::permissions::{
 use super::remote_storage::{self, provider, text};
 use super::remote_storage_keys::valid;
 use super::sql::exec::{limits_of, Limits};
+use crate::files::access::is_device_storage;
 use crate::files::encrypted::by_id::find;
+use crate::files::encrypted::device::DeviceRoot;
 use crate::files::encrypted::format::{decode_id, Id};
 use crate::files::encrypted::route::Located;
 use crate::files::encrypted::source::{EncryptedFile, WINDOW};
@@ -37,8 +40,12 @@ use crate::files::encrypted::tree::{facts, Item};
 use crate::files::encrypted::{manage, ops, route, transfer, Scope};
 use crate::files::storage_source::StorageFiles;
 use crate::files::{EntryKind, FilesError, FilesErrorCode};
+use crate::remote_storage::local::LocalStore;
 
 pub const MODULE: &str = module_path!();
+
+/// What the user reads as the storage of an encrypted folder on the device.
+pub(crate) const DEVICE_NAME: &str = "Dieses Gerät";
 
 const KIND: PermissionKind = PermissionKind::EncryptedFolder;
 
@@ -100,11 +107,16 @@ pub(super) fn limits(ctx: &CallContext) -> Result<Limits, BridgeError> {
 }
 
 /// `remoteStorage` for `storage_id` covers `action`, or 1002 without a question (FR-035, FR-036).
+/// The device (`device:<root>`, spec 048 US7) is not a storage of 038: there each folder's place
+/// is checked against the filesystem permission instead ([`place_gate`]).
 pub(super) fn storage_gate(
     ctx: &CallContext,
     storage_id: &str,
     action: &Action,
 ) -> Result<(), BridgeError> {
+    if is_device_storage(storage_id) {
+        return Ok(());
+    }
     let request = PermissionRequest {
         kind: PermissionKind::RemoteStorage,
         action: action.clone(),
@@ -118,25 +130,49 @@ pub(super) fn storage_gate(
     }
 }
 
+/// Whether the place of the folder `at` on the device lets the extension `action` there: file
+/// access to the folder that holds it (spec 048 US7, PR K2). Elsewhere always.
+pub(super) fn place_gate(
+    ctx: &CallContext,
+    storage_id: &str,
+    at: &Located,
+    action: &Action,
+) -> bool {
+    let Some(root) = DeviceRoot::from_id(storage_id) else {
+        return true;
+    };
+    let holder = root.dir.join(route::parent_of(&at.head.prefix));
+    let access = match action {
+        Action::Read => FsAccess::Read,
+        _ => FsAccess::Write,
+    };
+    super::fs::permits(ctx, &holder, access)
+}
+
 /// The storage with the scope that goes through encrypted folders, sharing the opened folders of
-/// this session with holzi's window.
+/// this session with holzi's window; for `device:<root>` the device behind its local store.
 pub(super) fn files(ctx: &CallContext, storage_id: &str) -> Result<StorageFiles, BridgeError> {
+    let db = ctx.db.clone();
+    let scope = Scope {
+        storage_id: storage_id.to_owned(),
+        folders: ctx.host.encrypted.folders(),
+        vault: Arc::new(move || Ok(db.clone())),
+        // The window's loads clean up; an extension's call leaves nothing running.
+        background: Arc::new(|_| {}),
+    };
+    if let Some(root) = DeviceRoot::from_id(storage_id) {
+        return Ok(root.files(Arc::new(LocalStore::new()), scope));
+    }
     let service = remote_storage::service(ctx);
     let access = remote_storage::access(ctx, &service, storage_id)?;
-    let db = ctx.db.clone();
-    Ok(
-        StorageFiles::new(ctx.host.storage.store(), access).with_scope(Scope {
-            storage_id: storage_id.to_owned(),
-            folders: ctx.host.encrypted.folders(),
-            vault: Arc::new(move || Ok(db.clone())),
-            // The window's loads clean up; an extension's call leaves nothing running.
-            background: Arc::new(|_| {}),
-        }),
-    )
+    Ok(StorageFiles::new(ctx.host.storage.store(), access).with_scope(scope))
 }
 
 /// The storage's name, for the user only.
 pub(super) fn storage_name(ctx: &CallContext, storage_id: &str) -> Result<String, BridgeError> {
+    if is_device_storage(storage_id) {
+        return Ok(DEVICE_NAME.to_owned());
+    }
     let id = storage_id.to_owned();
     ctx.db
         .read_blocking(move |q| {
@@ -222,6 +258,12 @@ fn reach(
         return Err(denied(KIND, &action, &target));
     }
     let found = within(limits, find(files, &call.fid));
+    // On the device: without file access to the folder's place, 1002 and nobody is asked.
+    if let Ok(at) = &found {
+        if !place_gate(ctx, &call.storage_id, at, &action) {
+            return Err(denied(KIND, &action, &target));
+        }
+    }
     match (decision, found) {
         (Decision::Allow, Ok(at)) => Ok(Located {
             rest: call.rest.clone(),
@@ -370,6 +412,9 @@ pub fn delete(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
 
 pub use super::encrypted_folder_choose::choose;
 
+#[cfg(test)]
+#[path = "encrypted_folder_device_tests.rs"]
+mod device_tests;
 #[cfg(test)]
 #[path = "encrypted_folder_tests.rs"]
 mod tests;

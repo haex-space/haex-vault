@@ -152,11 +152,16 @@ function onStorage(agentId: string, storageId: string, next: string) {
         :key="folder.target"
         :title="folder.name ?? t('settings.agentFiles.folderUnknown')"
         :description="
-          t('settings.agentFiles.folderDescription', {
-            storage: folder.storageName,
-            status: t(`settings.agentFiles.status.${folder.status}`),
-            reach: t(`settings.agentFiles.reach.${folder.reach}`),
-          })
+          t(
+            folder.onDevice
+              ? 'settings.agentFiles.folderDescriptionDevice'
+              : 'settings.agentFiles.folderDescription',
+            {
+              storage: folder.storageName,
+              status: t(`settings.agentFiles.status.${folder.status}`),
+              reach: t(`settings.agentFiles.reach.${folder.reach}`),
+            },
+          )
         "
         icon="lucide:folder-lock"
       >

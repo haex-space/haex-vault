@@ -51,10 +51,12 @@ const everyAction = computed(() => isEveryAction(props.kind, props.action))
       data-testid="extension-permission-folder"
     >
       {{
-        t('extensions.permissionRequest.encryptedFolder', {
-          folder: folder.folderName,
-          storage: folder.storageName,
-        })
+        t(
+          folder.onDevice
+            ? 'extensions.permissionRequest.encryptedFolderDevice'
+            : 'extensions.permissionRequest.encryptedFolder',
+          { folder: folder.folderName, storage: folder.storageName },
+        )
       }}
     </span>
     <span v-else-if="hasTarget(kind)" class="font-mono text-xs break-all">{{

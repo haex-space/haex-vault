@@ -8,6 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use tokio::time::Instant;
 
+use super::cache::{self, HeadRow};
 use super::format::head::seal_head;
 use super::format::sidecar::{Sidecar, SidecarKind};
 use super::format::{encode_id, FOLDER_SUFFIX};
@@ -230,7 +231,33 @@ pub async fn create_encrypted_folder(
         .put(files.access(), &format!("{prefix}h"), head, soon())
         .await
         .map_err(storage_error)?;
-    let folder = Arc::new(OpenFolder::new(prefix.clone(), fid, None, &fk));
+    // The head goes into the cache at once, so a caller that knows the folder only by its id
+    // finds it before any listing (extensions, spec 048 US6, US7).
+    let etag = files
+        .store()
+        .head(files.access(), &format!("{prefix}h"), soon())
+        .await
+        .ok()
+        .and_then(|head| head.etag);
+    if let Some(etag) = &etag {
+        let row = HeadRow {
+            object_key: format!("{prefix}h"),
+            etag: etag.clone(),
+            folder_id: encode_id(&fid),
+            name: Some(name.to_owned()),
+            state: EncryptedState::Readable,
+            key_id: Some(key.key_id),
+            open_ack: false,
+        };
+        let storage = scope.storage_id.clone();
+        let now = crate::passwords::clock::unix_millis(SystemTime::now());
+        scope
+            .db()?
+            .write(move |tx| cache::put_head(tx, &storage, &row, now))
+            .await
+            .map_err(vault_error)?;
+    }
+    let folder = Arc::new(OpenFolder::new(prefix.clone(), fid, etag.clone(), &fk));
     folder.reload(super::load::LoadedFolder::default(), 0).await;
     scope.folders.keep(&scope.storage_id, folder);
     let head = FolderHead {
@@ -240,7 +267,7 @@ pub async fn create_encrypted_folder(
         display: name.to_owned(),
         conflict: false,
         modified_ms: crate::passwords::clock::unix_millis(SystemTime::now()).into(),
-        etag: None,
+        etag,
     };
     let mut heads = scope
         .folders

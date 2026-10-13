@@ -52,6 +52,8 @@ pub struct PermissionRequestEvent {
 pub struct FolderNames {
     pub storage_name: String,
     pub folder_name: String,
+    /// The folder lies on this device, not in a cloud storage (spec 048 US7).
+    pub on_device: bool,
 }
 
 /// The answer of holzi's window (`extension_permission_resolve`).

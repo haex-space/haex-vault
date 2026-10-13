@@ -52,10 +52,11 @@ pub struct FolderRef {
 }
 
 impl FolderRef {
-    /// `<storage_id>/<folder_id>`: a storage id without `/` and a folder id in the spelling of
-    /// [`encode_id`](crate::files::encrypted::format::encode_id).
+    /// `<storage_id>/<folder_id>`: a storage id (`device:/` holds a `/` itself) and a folder id in
+    /// the spelling of [`encode_id`](crate::files::encrypted::format::encode_id).
     pub fn parse(value: &str) -> Option<Self> {
-        let (storage_id, folder_id) = value.split_once('/')?;
+        // The folder id never holds a `/`; a storage id may (`device:/`, spec 048 US7).
+        let (storage_id, folder_id) = value.rsplit_once('/')?;
         let valid_storage = !storage_id.is_empty()
             && storage_id.len() <= 128
             && storage_id.chars().all(|c| !c.is_control() && c != '*');

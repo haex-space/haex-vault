@@ -202,3 +202,16 @@ async fn a_level_that_cannot_be_listed_does_not_hide_the_folder_below() {
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
     assert_eq!(routed.unwrap(), Some(fresh.root.view_of(&target)));
 }
+
+#[test]
+fn a_storage_id_names_its_root() {
+    let slash = DeviceRoot::from_id("device:/").unwrap();
+    assert_eq!(slash.dir, Path::new("/"));
+    assert!(slash.same_paths());
+    let drive = DeviceRoot::from_id("device:C:").unwrap();
+    assert_eq!(drive.dir.to_string_lossy(), "C:\\");
+    assert!(!drive.same_paths());
+    for id in ["device:", "device:c:", "device:CD:", "s1", "device:/x"] {
+        assert_eq!(DeviceRoot::from_id(id), None, "{id}");
+    }
+}

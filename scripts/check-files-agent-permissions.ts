@@ -83,7 +83,7 @@ test('rows of a storage that is gone are left out', () => {
   )
 })
 
-test('remembered folder answers list with name, storage and reach; a gone storage drops them', () => {
+test('remembered folder answers list with name, storage and reach; the device first, a gone storage drops them', () => {
   const [builtin] = agentFiles(
     [
       {
@@ -93,14 +93,27 @@ test('remembered folder answers list with name, storage and reach; a gone storag
       },
       row(BUILTIN_AGENT, 'encryptedFolder', 's1/def', 'readWrite'),
       row(BUILTIN_AGENT, 'encryptedFolder', 'gone/xyz', 'read'),
+      {
+        ...row(BUILTIN_AGENT, 'encryptedFolder', 'device:/ghi', 'read'),
+        folderName: 'Tresor',
+      },
     ],
     STORAGES,
   )
   assert.deepEqual(builtin?.folders, [
     {
+      target: 'device:/ghi',
+      name: 'Tresor',
+      storageName: '',
+      onDevice: true,
+      status: 'read',
+      reach: 'local',
+    },
+    {
       target: 's2/abc',
       name: 'Unterlagen',
       storageName: 'Archiv',
+      onDevice: false,
       status: 'read',
       reach: 'cloud',
     },
@@ -108,6 +121,7 @@ test('remembered folder answers list with name, storage and reach; a gone storag
       target: 's1/def',
       name: null,
       storageName: 'Fotos',
+      onDevice: false,
       status: 'readWrite',
       reach: 'local',
     },

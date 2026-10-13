@@ -15,10 +15,15 @@ use super::prompt::{FilesAgentChoice, FilesAgentWant};
 use crate::chat::tools::native_action::NativeError;
 use crate::files::access::{check, StorageGrant, Target, Verdict, Want};
 use crate::files::browser_commands::StorageSource;
+use crate::files::encrypted::device::{has_raw_part, DeviceRoot};
+use crate::files::encrypted::route::{route, Route};
 use crate::files::local::{ops, resolve, resolve_entry};
 use crate::files::permissions::AgentFileStatus;
 use crate::files::storage_source::StorageFiles;
 use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode};
+
+/// What the question about an encrypted folder on the device names as its storage.
+pub(super) const DEVICE_NAME: &str = "Gerät";
 
 /// Where a call looks.
 pub(super) enum Place {
@@ -133,6 +138,62 @@ impl<E: AgentEnv> FilesAgent<E> {
         }
     }
 
+    /// [`Self::place`] for `paths`: device paths into encrypted folders on the device (by their
+    /// decrypted or opaque names) are the device as a storage, so the folder grants of spec 048
+    /// apply (US7, FR-050). Such paths and ordinary device paths are never mixed in one call: the
+    /// device's storage would pass the ordinary ones by holzi's checks of its own places.
+    pub(super) async fn place_for(
+        &self,
+        source: &str,
+        paths: &[String],
+    ) -> Result<Place, NativeError> {
+        let place = self.place(source).await?;
+        if !matches!(place, Place::Device) {
+            return Ok(place);
+        }
+        let mut device = None;
+        let mut ordinary = false;
+        for path in paths {
+            match self.encrypted_on_device(path).await {
+                Some(storage) => device = Some(storage),
+                None => ordinary = true,
+            }
+        }
+        match (device, ordinary) {
+            (None, _) => Ok(Place::Device),
+            (Some(storage), false) => Ok(Place::Storage(storage)),
+            (Some(_), true) => Err(NativeError::invalid_input(
+                Some("paths"),
+                "paths in encrypted folders and ordinary paths go in separate calls",
+            )),
+        }
+    }
+
+    /// [`Self::place_for`] of one path.
+    pub(super) async fn place_at(&self, source: &str, path: &str) -> Result<Place, NativeError> {
+        self.place_for(source, std::slice::from_ref(&path.to_owned()))
+            .await
+    }
+
+    /// The device as a storage when the device path `path` leads into an encrypted folder there.
+    /// Only where its window paths are device paths (not yet on Windows).
+    async fn encrypted_on_device(&self, path: &str) -> Option<StorageSource> {
+        let device = Path::new(path);
+        let root = DeviceRoot::of(device).filter(DeviceRoot::same_paths)?;
+        let (resolved, by_ref) = self.resolved(&root.storage_id, path);
+        if !by_ref && (has_raw_part(device) || device.symlink_metadata().is_ok()) {
+            return None;
+        }
+        let files = self.env.open_storage(&root.storage_id).await.ok()?;
+        match route(&files, &resolved).await {
+            Ok(Route::Encrypted(_)) => Some(StorageSource {
+                id: root.storage_id,
+                name: DEVICE_NAME.to_owned(),
+            }),
+            _ => None,
+        }
+    }
+
     /// The resolved device path the agent may `want`; `entry` keeps a link itself.
     pub(super) async fn device(
         &self,
@@ -240,7 +301,7 @@ impl<E: AgentEnv> FilesAgent<E> {
         input: &PathInput,
         cancel: &CancellationToken,
     ) -> Result<(Entry, Option<StorageFiles>, Option<PathBuf>), NativeError> {
-        match self.place(&input.source).await? {
+        match self.place_at(&input.source, &input.path).await? {
             Place::Device => {
                 let real = self.device(&input.path, Want::Read, false).await?;
                 let own = self.env.own();

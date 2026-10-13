@@ -64,7 +64,15 @@ async fn a_folder_is_found_by_its_id_from_the_cache_or_by_a_walk() {
         .unwrap();
     let fid = fid_of(&files, "/Privat", "Steuer");
 
-    // Another device: nothing in memory, no cached head, so the storage is walked.
+    // Another device: nothing in memory, no cached head (its `_no_sync` tables are its own), so
+    // the storage is walked.
+    scene
+        .db
+        .write_blocking(|tx| {
+            tx.execute("DELETE FROM encrypted_folder_heads_no_sync", &[])?;
+            Ok(())
+        })
+        .unwrap();
     let mark = scene.fake.calls().len();
     let walked = find(&scene.fresh_files(), &fid).await.unwrap();
     assert!(scene.fake.calls()[mark..]

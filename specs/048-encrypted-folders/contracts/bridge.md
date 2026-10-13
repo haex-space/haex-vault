@@ -35,12 +35,23 @@ Agent-Zuschreibung). Grundlage: Berechtigungsart `remoteStorage` aus 038 und die
 - Keine Funktion gibt Objektnamen, Schlüssel, Begleitdateien oder rohe Bytes beim Anbieter heraus
   (FR-036).
 
+### Auf dem Gerät (User Story 7, Betreiber 2026-10-13)
+
+- `storageId` ist `device:/` (Linux, macOS, Android) oder `device:C:` je Laufwerk (Windows).
+- Statt `remoteStorage` braucht die Erweiterung Dateizugriff (`filesystem`, Lesen bzw. Lesen und
+  Schreiben) auf den Ordner, in dem der verschlüsselte Ordner liegt; ohne ihn 1002 ohne Frage. Die
+  Erlaubnis je Ordner (`encryptedFolder`) kommt wie im Speicher dazu und wird immer gefragt.
+- `choose` bietet die Ordner an, die diese Vault auf dem Gerät kennt (Zwischenspeicher der Köpfe)
+  und deren Ort die Erweiterung erreicht; ist es keiner, 1002 ohne Auswahl. Das Gerät wird nie
+  durchsucht.
+- Die Auswahl und die Frage nennen den Ordner „auf diesem Gerät“.
+
 ## Fehler
 
-| Code | Fall                                                                     |
-| ---- | ------------------------------------------------------------------------ |
-| 1002 | Erlaubnis abgelehnt oder keine `remoteStorage`-Berechtigung (ohne Frage) |
-| 1004 | Frage an den Nutzer läuft                                                |
-| 2002 | Anbieter-Fehler wie 038 (`accessDenied`, `network`, `bucketMissing`)     |
-| 3001 | ungültiger `path` oder unbekannte `folderId`                             |
-| 3010 | Eintrag beschädigt (`damaged`)                                           |
+| Code | Fall                                                                                                                  |
+| ---- | --------------------------------------------------------------------------------------------------------------------- |
+| 1002 | Erlaubnis abgelehnt, keine `remoteStorage`-Berechtigung oder auf dem Gerät kein Dateizugriff auf den Ort (ohne Frage) |
+| 1004 | Frage an den Nutzer läuft                                                                                             |
+| 2002 | Anbieter-Fehler wie 038 (`accessDenied`, `network`, `bucketMissing`)                                                  |
+| 3001 | ungültiger `path` oder unbekannte `folderId`                                                                          |
+| 3010 | Eintrag beschädigt (`damaged`)                                                                                        |

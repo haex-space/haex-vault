@@ -914,6 +914,7 @@
       },
       "folderUnknown": "Verschlüsselter Ordner",
       "folderDescription": "Verschlüsselter Ordner in „{storage}“ · {status} · {reach}",
+      "folderDescriptionDevice": "Verschlüsselter Ordner auf diesem Gerät · {status} · {reach}",
       "reach": {
         "local": "nur Modelle auf diesem Gerät",
         "cloud": "auch Cloud-Modelle"
@@ -2098,6 +2099,7 @@
     "encryptedChooser": {
       "title": "„{name}“ möchte einen verschlüsselten Ordner öffnen",
       "intro": "Wähle einen verschlüsselten Ordner im Cloud-Speicher „{storage}“. Die Erweiterung erfährt seinen Namen erst, wenn du es erlaubst.",
+      "introDevice": "Wähle einen verschlüsselten Ordner auf diesem Gerät. Die Erweiterung erfährt seinen Namen erst, wenn du es erlaubst.",
       "wantsRead": "Die Erweiterung möchte lesen.",
       "wantsReadWrite": "Die Erweiterung möchte lesen und schreiben.",
       "none": "In diesem Cloud-Speicher gibt es keinen verschlüsselten Ordner, den holzi öffnen kann.",
@@ -2117,7 +2119,8 @@
       "scopeDevice": "Gilt dann nur auf diesem Gerät. Auf deinen anderen Geräten fragt holzi erneut.",
       "allow": "Erlauben",
       "deny": "Verweigern",
-      "encryptedFolder": "Ordner „{folder}“ im Cloud-Speicher „{storage}“"
+      "encryptedFolder": "Ordner „{folder}“ im Cloud-Speicher „{storage}“",
+      "encryptedFolderDevice": "Ordner „{folder}“ auf diesem Gerät"
     },
     "statusError": {
       "migration_changed": "Eine angewendete Migration wurde geändert",
@@ -2391,7 +2394,9 @@
       "folder": {
         "title": "Zugriff auf einen verschlüsselten Ordner",
         "read": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ im Cloud-Speicher „{storage}“ lesen.",
+        "readDevice": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ auf diesem Gerät lesen.",
         "readWrite": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ im Cloud-Speicher „{storage}“ lesen und ändern.",
+        "readWriteDevice": "Der Agent im Chat möchte den verschlüsselten Ordner „{name}“ auf diesem Gerät lesen und ändern.",
         "local": "Gelesene Inhalte gehen an das Modell „{model}“ auf diesem Gerät.",
         "cloud": "Gelesene Inhalte gehen an das Modell „{model}“ in der Cloud.",
         "remember": "Erlaubnis merken",

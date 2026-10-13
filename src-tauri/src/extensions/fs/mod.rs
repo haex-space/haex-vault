@@ -26,6 +26,7 @@ use crate::extensions::permissions::store::candidates;
 use crate::extensions::permissions::{
     evaluate, Action, Decision, PermissionKind, PermissionRequest, RequestTarget,
 };
+use crate::files::encrypted::device::has_raw_part;
 use crate::files::local::{known_places, OwnPlaces};
 use crate::files::picked::{Opener, PickedFile};
 use crate::vault_gate::VaultDb;
@@ -208,10 +209,13 @@ fn protected() -> BridgeError {
     BridgeError::new(ExtensionErrorCode::PermissionDenied, "path is protected")
 }
 
-/// Whether `path` touches one of holzi's own places: lies in one, or, for a call that reaches the
-/// whole tree, holds one.
+/// Whether `path` touches one of holzi's own places (lies in one, or, for a call that reaches the
+/// whole tree, holds one) or goes through the raw directory of an encrypted folder, which an
+/// extension reaches only through that folder's own permission (spec 048 FR-051). A tree call on
+/// a folder that holds an encrypted folder is not refused: it moves or removes the whole folder,
+/// as any other folder of the user, and never leaves it half.
 fn touches_denied(environment: &FsEnvironment, path: &Path, reach: Reach) -> bool {
-    environment.denied.touches(path, reach == Reach::Tree)
+    environment.denied.touches(path, reach == Reach::Tree) || has_raw_part(path)
 }
 
 /// What the permissions of `extension_id` on `device` say about `path` (dialog choices aside).
@@ -238,6 +242,33 @@ fn decision(
         target: RequestTarget::Path(path.to_path_buf()),
     };
     Ok(evaluate(&grants, &request, device))
+}
+
+/// Whether the calling extension may `access` `path` by its filesystem permission or a dialog
+/// choice of its frame, without asking anyone: the place of an encrypted folder on the device,
+/// which an extension reaches only with file access there (spec 048 US7, PR K2).
+pub fn permits(ctx: &CallContext, path: &Path, access: Access) -> bool {
+    let Ok(environment) = ctx.host.fs.environment() else {
+        return false;
+    };
+    if touches_denied(&environment, path, Reach::Path) {
+        return false;
+    }
+    if ctx.host.fs.chosen(&ctx.session.frame, path, access) {
+        return true;
+    }
+    environment.free_paths
+        && matches!(
+            decision(
+                &ctx.db,
+                &ctx.host,
+                ctx.session.extension_id,
+                ctx.device,
+                path,
+                access
+            ),
+            Ok(Decision::Allow)
+        )
 }
 
 /// What let a call reach its path.
@@ -347,6 +378,9 @@ pub fn check(
     Ok(json!({ "status": status }))
 }
 
+#[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
+#[path = "fs_encrypted_tests.rs"]
+mod fs_encrypted_tests;
 #[cfg(test)]
 pub(crate) mod test_support;
 #[cfg(test)]

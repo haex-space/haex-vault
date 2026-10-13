@@ -16,6 +16,8 @@ mod exec_tests;
 #[cfg(test)]
 mod exec_write_tests;
 #[cfg(test)]
+mod folders_device_tests;
+#[cfg(test)]
 mod folders_tests;
 #[cfg(test)]
 mod read_tests;

@@ -110,10 +110,10 @@ async function answerAsync(choice: FilesAgentChoice): Promise<void> {
         </ShadcnAlertDialogTitle>
         <ShadcnAlertDialogDescription v-if="current.folder">
           {{
-            t(`files.agentPermission.folder.${current.wants}`, {
-              name: current.folder.name,
-              storage: current.storageName,
-            })
+            t(
+              `files.agentPermission.folder.${current.wants}${current.storageId.startsWith('device:') ? 'Device' : ''}`,
+              { name: current.folder.name, storage: current.storageName },
+            )
           }}
           {{
             t(

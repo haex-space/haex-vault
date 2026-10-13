@@ -247,7 +247,7 @@ pub fn set(tx: &mut CrdtTransaction<'_>, row: &AgentFilePermission) -> Result<()
             row.reach.is_some()
                 && row
                     .target
-                    .split_once('/')
+                    .rsplit_once('/')
                     .is_some_and(|(storage, folder)| !storage.is_empty() && !folder.is_empty())
         }
     };

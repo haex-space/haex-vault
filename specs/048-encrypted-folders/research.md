@@ -343,6 +343,15 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
     Freigaben aus PR G.
 - **Rationale**: FR-050, FR-051; eine Erweiterung mit Dateizugriff könnte sonst Objekte löschen und den
   Ordner beschädigen.
+- **Erweiterungen über `encryptedFolders` (Betreiber 2026-10-13)**: `device:<wurzel>` hängt an der
+  Dateizugriff-Erlaubnis für den Ordner, der den verschlüsselten Ordner enthält, nicht an
+  `remoteStorage`; dazu die Erlaubnis je Ordner. Die Auswahl nennt nur Ordner aus dem Zwischenspeicher
+  der Köpfe, deren Ort die Erweiterung erreicht. Verworfen: nur die Erlaubnis je Ordner (eine
+  Erweiterung ohne Dateizugriff käme so an Gerätedaten).
+- **Agents**: ein Gerätepfad in einen verschlüsselten Ordner wird zum Speicher `device:<wurzel>`, der
+  der Freigabe „Dateien des Geräts“ folgt; ein Aufruf mischt solche Pfade nie mit gewöhnlichen (die
+  Speicher-Sicht des Geräts ginge an der Prüfung von holzis eigenen Daten vorbei). Unter Windows
+  erreichen Agents diese Ordner noch nicht.
 
 ## R19 — Fremde Dateien
 

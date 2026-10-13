@@ -8,7 +8,8 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use super::prompt::{FilesAgentPermissionRequest, PermissionPrompt, EVENT_PERMISSION_REQUEST};
 use crate::error::HolziError;
 use crate::files::access::AgentGrants;
-use crate::files::browser_commands::{window_storage, KnownPlace, StorageSource};
+use crate::files::browser_commands::{device_storage, window_storage, KnownPlace, StorageSource};
+use crate::files::encrypted::device::DeviceRoot;
 use crate::files::local::OwnPlaces;
 use crate::files::permissions::{
     self, AgentFileKind, AgentFilePermission, AgentFileReach, AgentFileStatus,
@@ -174,6 +175,15 @@ impl<R: Runtime> AgentEnv for TauriEnv<R> {
     }
 
     async fn open_storage(&self, storage_id: &str) -> Result<StorageFiles, FilesError> {
+        // The device as a storage, for its encrypted folders (spec 048 US7).
+        if let Some(root) = DeviceRoot::from_id(storage_id) {
+            return device_storage(
+                &self.app,
+                &self.app.state::<AppState>(),
+                &self.app.state::<FilesState>(),
+                &root,
+            );
+        }
         window_storage(
             &self.app,
             &self.app.state::<AppState>(),

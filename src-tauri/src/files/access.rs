@@ -9,6 +9,9 @@
 //! - An encrypted folder of a storage (spec 048 FR-030 to FR-032) needs, on top of the storage's
 //!   grant, one for exactly that folder, never more than the storage's. It covers either only local
 //!   models or also cloud models; an answer without "Erlaubnis merken" holds only for the task.
+//! - On the device (spec 048 US7, FR-050) the raw directory of an encrypted folder is blocked for
+//!   agents and never listed; the folder is reached by its decrypted name as the storage
+//!   `device:<root>`, which follows the grant "files of the device", and its folder grant.
 //! - Extensions and holzi functions use their own entrances (`extensions::fs`, `remote_storage`).
 //!
 //! Paths are checked as resolved targets ([`crate::files::local::resolve`]), never as spelled.
@@ -16,6 +19,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::files::encrypted::device::has_raw_part;
 use crate::files::local::OwnPlaces;
 use crate::files::{FilesError, FilesErrorCode};
 use crate::passwords::access::Caller;
@@ -93,6 +97,11 @@ pub enum Verdict {
     Refused(FilesError),
 }
 
+/// Whether `storage_id` is the device as a storage (`device:/`, `device:C:`; spec 048 research R16).
+pub fn is_device_storage(storage_id: &str) -> bool {
+    storage_id.starts_with("device:")
+}
+
 /// Whether `caller` may `want` `target`.
 pub fn check(
     caller: &Caller,
@@ -101,6 +110,18 @@ pub fn check(
     own: &OwnPlaces,
     grants: &AgentGrants,
 ) -> Verdict {
+    if let Target::Device(path) = target {
+        if has_raw_part(path) {
+            // The raw objects of an encrypted folder: only through the folder (spec 048 FR-050).
+            return match caller {
+                Caller::User => refuse(FilesErrorCode::NotFound, "not found"),
+                _ => refuse(
+                    FilesErrorCode::Blocked,
+                    "the raw objects of an encrypted folder are not available",
+                ),
+            };
+        }
+    }
     match caller {
         Caller::User => match target {
             Target::Device(path) if own.contains(path) => match want {
@@ -134,6 +155,17 @@ fn agent(
                     "holzi's own data is not available to agents",
                 );
             }
+            if device_granted(caller, grants) {
+                Verdict::Allowed
+            } else {
+                refuse(
+                    FilesErrorCode::NotGranted,
+                    "the files of the device are not granted",
+                )
+            }
+        }
+        // The device as a storage: the grant "files of the device" (spec 048 US7).
+        Target::Storage(id) if is_device_storage(id) => {
             if device_granted(caller, grants) {
                 Verdict::Allowed
             } else {
@@ -179,7 +211,17 @@ pub fn check_folder(
             grants,
         );
     }
-    match (grants.storages.get(storage_id), want) {
+    let storage = if is_device_storage(storage_id) {
+        // The device's grant caps its folders as a storage's grant does.
+        Some(if device_granted(caller, grants) {
+            StorageGrant::ReadWrite
+        } else {
+            StorageGrant::Denied
+        })
+    } else {
+        grants.storages.get(storage_id).copied()
+    };
+    match (storage, want) {
         (None | Some(StorageGrant::Denied), _) => {
             return refuse(FilesErrorCode::NotGranted, "this storage is not granted");
         }
@@ -222,11 +264,12 @@ fn device_granted(caller: &Caller, grants: &AgentGrants) -> bool {
 }
 
 /// Whether an entry at the resolved `path` may appear in a list or search result for `caller`:
-/// agents never see holzi's own places (FR-033).
+/// agents never see holzi's own places (FR-033) nor the raw directory of an encrypted folder
+/// (spec 048 FR-050).
 pub fn visible_to(caller: &Caller, path: &Path, own: &OwnPlaces, grants: &AgentGrants) -> bool {
     match caller {
         Caller::BuiltinAgent | Caller::ExternalAgent { .. } => {
-            !own.contains_resolved(path) && device_granted(caller, grants)
+            !own.contains_resolved(path) && !has_raw_part(path) && device_granted(caller, grants)
         }
         _ => true,
     }
@@ -251,3 +294,7 @@ fn refuse(code: FilesErrorCode, message: &str) -> Verdict {
 #[cfg(test)]
 #[path = "access_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "access_device_tests.rs"]
+mod device_tests;

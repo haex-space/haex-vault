@@ -20,4 +20,8 @@ targetMissing: boolean,
  * For `encryptedFolder`: the storage and the decrypted folder name the question names (spec
  * 048 FR-036); the extension never gets them.
  */
-encryptedFolder?: { storageName: string, folderName: string, }, };
+encryptedFolder?: { storageName: string, folderName: string,
+/**
+ * The folder lies on this device, not in a cloud storage (spec 048 US7).
+ */
+onDevice: boolean, }, };

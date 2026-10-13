@@ -75,7 +75,7 @@ pub async fn files_agent_permissions(
         .read(|q| {
             let mut views = Vec::new();
             for permission in permissions::list(q)? {
-                let folder_name = match (permission.kind, permission.target.split_once('/')) {
+                let folder_name = match (permission.kind, permission.target.rsplit_once('/')) {
                     (AgentFileKind::EncryptedFolder, Some((storage, folder))) => {
                         heads_of_folder(q, storage, folder)?
                             .into_iter()

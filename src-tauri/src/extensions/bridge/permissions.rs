@@ -12,6 +12,7 @@ use crate::extensions::permissions::store::rows_of;
 use crate::extensions::permissions::{
     evaluate, Action, Decision, PermissionKind, PermissionRequest, RequestTarget,
 };
+use crate::files::access::is_device_storage;
 use crate::storage::query::Query;
 
 /// Event to holzi's window: a question for the user.
@@ -43,6 +44,8 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
             Some(FolderNames {
                 storage_name: storage_name.clone(),
                 folder_name: folder_name.clone(),
+                on_device: crate::extensions::permissions::FolderRef::parse(&told)
+                    .is_some_and(|folder| is_device_storage(&folder.storage_id)),
             }),
         ),
     };
