@@ -13,7 +13,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { freePort } from './ports.ts'
+import { reservePort } from './ports.ts'
 import { reachFromDevice } from './platform/reach.ts'
 import { RCLONE_IMAGE } from './webdav.ts'
 
@@ -55,9 +55,13 @@ function hostKey(): { pem: string; fingerprint: string } {
   return { pem, fingerprint: `SHA256:${digest.replace(/=+$/, '')}` }
 }
 
-/** Prepares a server on a free port; `startAsync` starts it. */
+/**
+ * Prepares a server on a free port; `startAsync` starts it. The port stays reserved until then: a
+ * scenario starts its devices in between, and their drivers and relays pick free ports too.
+ */
 export async function prepareSftp(): Promise<Sftp> {
-  const port = await freePort()
+  const reserved = await reservePort()
+  const port = reserved.port
   reachFromDevice(port)
   const base = mkdtempSync(join(tmpdir(), 'holzi-sftp-'))
   const keys = join(base, 'keys')
@@ -90,6 +94,7 @@ export async function prepareSftp(): Promise<Sftp> {
       if (authorized.length === 0)
         throw new Error('authorize a key before the server starts')
       writeFileSync(join(keys, 'authorized_keys'), `${authorized.join('\n')}\n`)
+      await reserved.release()
       const run = spawnSync(
         'docker',
         [
@@ -135,6 +140,7 @@ export async function prepareSftp(): Promise<Sftp> {
     },
     stop() {
       if (container) spawnSync('docker', ['rm', '-f', container])
+      void reserved.release()
       rmSync(base, { recursive: true, force: true })
     },
   }
