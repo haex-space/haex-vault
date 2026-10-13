@@ -53,6 +53,12 @@ scenario(
     hostFiles.write('antwort.txt', 'Antwort vom Telefon')
     const brief = hostFiles.path('brief.txt')
     const antwort = hostFiles.path('antwort.txt')
+    const laptopFiles = deviceFiles('holzi-encrypted-two-laptop-', { E2E_PLATFORM: 'linux' })
+    const phoneFiles = deviceFiles('holzi-encrypted-two-phone-', { E2E_PLATFORM: 'linux' })
+    ctx.onTeardown(() => laptopFiles.remove())
+    ctx.onTeardown(() => phoneFiles.remove())
+    laptopFiles.write('notiz.txt', 'vom Laptop')
+    phoneFiles.write('notiz.txt', 'vom Telefon, etwas länger')
 
     const storageId = await connectStorage(laptop, rustfs, BUCKET, 'Fotos')
     const source: Source = { kind: 'storage', storageId }
@@ -118,8 +124,8 @@ scenario(
     ctx.step('a file the phone adds shows on the laptop after a refresh')
 
     // Both write notiz.txt, neither seeing the other's: both stay, one as a conflict copy.
-    const fromLaptop = file('laptop/notiz.txt', 'vom Laptop')
-    const fromPhone = file('phone/notiz.txt', 'vom Telefon, etwas länger')
+    const fromLaptop = laptopFiles.path('notiz.txt')
+    const fromPhone = phoneFiles.path('notiz.txt')
     await Promise.all([
       startImport(
         laptop,
