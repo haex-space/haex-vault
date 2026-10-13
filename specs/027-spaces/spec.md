@@ -722,7 +722,8 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   ein gefälschter oder veränderter Link lokal abgewiesen wird und keine Annahme
   gesendet werden kann. Die Vault-Identität allein DARF NICHT genügen, um eine
   Einladung auszulösen; holzi DARF keinen Weg anbieten, eine Einladung an eine
-  eingegebene Vault-Identität zu schicken. holzi MUSS beim Öffnen einen
+  eingegebene Vault-Identität zu schicken. Die Einladung an einen Kontakt mit
+  bestätigter Visitenkarte regelt Spec 051 (FR-033 bis FR-040 dort). holzi MUSS beim Öffnen einen
   unlesbaren, ungültigen, abgelaufenen oder bereits eingelösten Link und einen
   Link des eigenen Space oder eines Space, in dem die eigene Vault schon
   Mitglied ist, mit einem Hinweis abweisen.
@@ -1079,7 +1080,8 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   Eingeladenen (Kopieren, QR-Code); der Admin muss dessen Vault-Identität
   vorher nicht kennen, sie kommt mit der Annahme (FR-009). Spec 024 zeigt die
   eigene Vault-Identität weiter an, sie ist aber keine Einladeadresse mehr.
-  Ein Adressbuch ist nicht Teil dieser Spec.
+  Ein Adressbuch ist nicht Teil dieser Spec; Spec 051 führt es ein und ergänzt
+  das Einladen aus dem Adressbuch.
 - Ein Space nutzt das Relay, das die Vault des Admins eingerichtet hat; die
   Einladung nennt es. Ob ein Bereich zugleich auf mehreren Relays liegen darf,
   ist die offene Frage aus Spec 026 FR-040; sie gilt für Spaces ebenso und wird
@@ -1108,7 +1110,8 @@ in der Mitgliederliste, und eine neue Schlüsselgeneration ist entstanden.
   verhindert.
 - Einladen über die bloße Vault-Identität, ein Adress- oder Kontaktbuch und
   das Blockieren einzelner Absender: Es gibt keine Einladung ohne Link des
-  Admins, deshalb auch nichts zu blockieren (2026-10-01).
+  Admins, deshalb auch nichts zu blockieren (2026-10-01). Adressbuch, Einladen
+  aus dem Adressbuch und Blockieren ergänzt Spec 051 (2026-10-13).
 - Das Weitergeben des Links: Wie der Admin ihn überträgt, bestimmt er selbst.
   holzi bietet Kopieren und einen QR-Code, keinen eigenen Versandweg.
 - Admin-Rolle übertragen, weder auf Wunsch noch nach Verlust, dazu mehrere
