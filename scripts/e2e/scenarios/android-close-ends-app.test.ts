@@ -12,6 +12,13 @@ scenario('android-close-ends-app', { needs: { phone: true } }, async (ctx) => {
   await first.press('lock-instance')
   await first.waitForEnd(PROCESS_END_LIMIT_MS)
   assert.equal(first.alive(), false)
+  // Ending the process with `exit` aborted in the system's UI renderer (libhwui): "FORTIFY:
+  // pthread_mutex_lock called on a destroyed mutex".
+  assert.deepEqual(
+    first.phone?.crashLines(first.pid),
+    [],
+    'the app ended without an abort',
+  )
   await first.stop()
   ctx.step('closing the vault ended the app')
 

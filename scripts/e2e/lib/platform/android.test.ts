@@ -8,6 +8,7 @@ import type { AdbRunner } from './adb.ts'
 import {
   AndroidData,
   closeVault,
+  crashLines,
   frontPackage,
   notificationTitles,
   PACKAGE,
@@ -422,5 +423,19 @@ describe('the notifications of the app (stage 3)', () => {
       android.text=String (in 5 Minuten)
 `
     assert.deepEqual(notificationTitles(dump), ['Standup'])
+  })
+})
+
+describe('the crash log of the app', () => {
+  it('keeps the entries and drops the section headers', () => {
+    const dump = `--------- beginning of crash
+10-14 01:02:47.405  3158  3172 F libc    : FORTIFY: pthread_mutex_lock called on a destroyed mutex (0x7efbf8e04880)
+
+`
+    assert.deepEqual(crashLines(dump), [
+      '10-14 01:02:47.405  3158  3172 F libc    : FORTIFY: pthread_mutex_lock called on a destroyed mutex (0x7efbf8e04880)',
+    ])
+    assert.deepEqual(crashLines('--------- beginning of crash\n'), [])
+    assert.deepEqual(crashLines(''), [])
   })
 })
