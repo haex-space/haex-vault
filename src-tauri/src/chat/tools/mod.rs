@@ -142,6 +142,19 @@ pub struct ChoiceOption {
     pub unavailable: Option<String>,
 }
 
+/// Where a tool of an extension comes from (spec 018, research R8): shown with its calls and kept
+/// in the history, so the history stays readable after the extension is removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolOrigin {
+    pub extension_id: String,
+    pub extension_name: String,
+    pub tool_title_de: String,
+    pub tool_title_en: String,
+    /// A development version of the extension.
+    pub dev: bool,
+}
+
 /// One callable tool, regardless of source (host-CLI, MCP). `execute` takes
 /// the already-parsed JSON input the model produced and never panics —
 /// execution failures (bad input, a crashed process, an unreachable MCP
@@ -166,6 +179,15 @@ pub trait Tool: Send + Sync {
     /// them without downcasting trait objects.
     fn action_definition(&self) -> Option<&action_tool::AgentActionDef> {
         None
+    }
+    /// The extension a tool comes from (spec 018, research R8); `None` for holzi's own tools.
+    fn origin(&self) -> Option<ToolOrigin> {
+        None
+    }
+    /// Every call needs the user's consent, in every mode, "Plan" included (spec 018: a tool the
+    /// user confirmed with "ask").
+    fn always_ask(&self) -> bool {
+        false
     }
     /// `cancel` fires when `abort_current_generation` cancels the turn
     /// this call belongs to (T032). Implementations that own a cancellable

@@ -3,9 +3,11 @@
 //! frontend to the frame's port.
 
 pub mod commands;
+pub mod defs;
 pub mod frame_request;
 pub mod link;
 pub mod slot;
+pub mod tool;
 
 #[cfg(test)]
 pub(crate) mod test_support;
@@ -25,3 +27,11 @@ mod commands_tests;
 #[cfg(test)]
 #[path = "frame_request_tests.rs"]
 mod frame_request_tests;
+
+#[cfg(test)]
+#[path = "defs_tests.rs"]
+mod defs_tests;
+
+#[cfg(test)]
+#[path = "tool_tests.rs"]
+mod tool_tests;

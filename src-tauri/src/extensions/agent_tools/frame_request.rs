@@ -4,14 +4,22 @@
 //! ready, or with `null`.
 
 use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
+use async_trait::async_trait;
 use futures::channel::oneshot;
 use serde_json::json;
+use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
+use super::commands::to_frame;
+use super::slot::McpLink;
+use super::tool::Links;
 use crate::extensions::bridge::dispatch::Emit;
+use crate::extensions::bridge::frames::FrameSession;
+use crate::extensions::commands::frames::WindowEmitter;
+use crate::state::AppState;
 
 /// Event: holzi's window shall provide a frame of the extension.
 pub const AGENT_FRAME: &str = "extension-agent-frame";
@@ -19,6 +27,10 @@ pub const AGENT_FRAME: &str = "extension-agent-frame";
 /// How long a call waits for the window's answer: the window's own limit (10 s) plus room for its
 /// answer to arrive.
 pub const AGENT_FRAME_WAIT: Duration = Duration::from_secs(12);
+
+/// How long the MCP handshake with a ready frame may take (research R9); `connect` has no limit
+/// of its own.
+pub const LINK_WAIT: Duration = Duration::from_secs(10);
 
 /// Requests waiting for holzi's window.
 #[derive(Default)]
@@ -57,5 +69,36 @@ impl FrameRequests {
             Some(waiting) => waiting.send(frame).is_ok(),
             None => false,
         }
+    }
+}
+
+/// The agent's way to an extension's frame in holzi's window: a frame from the window, then the
+/// frame session's MCP connection.
+pub struct WindowLinks(pub AppHandle);
+
+#[async_trait]
+impl Links for WindowLinks {
+    async fn open(&self, extension_id: Uuid) -> Result<(Arc<FrameSession>, Arc<McpLink>), String> {
+        let host = self.0.state::<AppState>().extensions();
+        let frame = host
+            .agent_frames
+            .request(
+                &WindowEmitter(self.0.clone()),
+                extension_id,
+                AGENT_FRAME_WAIT,
+            )
+            .await
+            .ok_or("no frame of the extension could be opened")?;
+        let session = host
+            .frames
+            .get(&frame)
+            .filter(|session| session.extension_id == extension_id)
+            .ok_or("the frame of the extension closed")?;
+        let send = to_frame(WindowEmitter(self.0.clone()), frame);
+        let link = tokio::time::timeout(LINK_WAIT, session.mcp.link(send))
+            .await
+            .map_err(|_| "the extension did not connect in time".to_owned())?
+            .map_err(|error| error.to_string())?;
+        Ok((session, link))
     }
 }
