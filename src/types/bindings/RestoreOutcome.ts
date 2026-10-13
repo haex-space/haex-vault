@@ -3,7 +3,7 @@
 /**
  * What a restore of a history state did.
  */
-export type RestoreOutcome = { updatedAt: string,
+export type RestoreOutcome = { updatedAt: string, 
 /**
  * File names of attachments whose binary data is gone and that were therefore not re-linked.
  */

@@ -7,23 +7,23 @@ import type { ProviderKind } from "./ProviderKind";
 /**
  * `storage_connection_save`: a new connection without `id`, otherwise a change of one.
  */
-export type ConnectionInput = { id?: string,
+export type ConnectionInput = { id?: string, 
 /**
  * The protocol; a change of a saved connection must keep it (spec 050 FR-001).
  */
-protocol: Protocol, providerName: string, providerKind: ProviderKind,
+protocol: Protocol, providerName: string, providerKind: ProviderKind, 
 /**
  * Empty or absent only for `aws`.
  */
-endpoint?: string, region: string, addressing: Addressing,
+endpoint?: string, region: string, addressing: Addressing, 
 /**
  * New credentials; required for a new connection.
  */
-credentials?: CredentialsInput,
+credentials?: CredentialsInput, 
 /**
  * The bucket or folder the test before saving uses (FR-003).
  */
-bucketForTest: string,
+bucketForTest: string, 
 /**
  * Create that folder when the test finds it missing (WebDAV, SFTP; spec 050 FR-006): the
  * user said so after a first test answered `folderMissing`.

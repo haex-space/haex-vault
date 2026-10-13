@@ -5,11 +5,11 @@ import type { LinkedFrom } from "./LinkedFrom";
  * A passkey shown at an entry, without its keys: one of its own, or with `linked_from` one of
  * another entry shown by a link (then the window offers only "Verweis lösen").
  */
-export type PasskeyView = { id: string, relyingPartyId: string, relyingPartyName: string | null, userName: string | null, nickname: string | null, algorithm: number, createdAt: string | null, lastUsedAt: string | null,
+export type PasskeyView = { id: string, relyingPartyId: string, relyingPartyName: string | null, userName: string | null, nickname: string | null, algorithm: number, createdAt: string | null, lastUsedAt: string | null, 
 /**
  * The entry the passkey belongs to (`None` only for old data without an entry).
  */
-itemId: string | null, isDiscoverable: boolean,
+itemId: string | null, isDiscoverable: boolean, 
 /**
  * The imported counter; holzi's own confirmations leave it as it is (research R5).
  */

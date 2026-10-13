@@ -5,7 +5,7 @@ import type { AttentionKind } from "./AttentionKind";
  * One place where the user has to rework by hand: entry, folder path and what is missing; never a
  * value of a secret.
  */
-export type AttentionRow = {
+export type AttentionRow = { 
 /**
  * The entry the place belongs to, so the window can open it; `None` for the source as a whole.
  */

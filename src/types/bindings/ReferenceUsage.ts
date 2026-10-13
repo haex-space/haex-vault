@@ -3,11 +3,11 @@
 /**
  * How many other entries point at an entry (FR-048), before it is deleted for good.
  */
-export type ReferenceUsage = { itemId: string,
+export type ReferenceUsage = { itemId: string, 
 /**
  * Entries with a placeholder on this one in a text field.
  */
-targetItems: number,
+targetItems: number, 
 /**
  * Entries that use one of its passkeys through a link (stage 4).
  */

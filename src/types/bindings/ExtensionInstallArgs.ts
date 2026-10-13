@@ -2,15 +2,15 @@
 import type { PermissionChoice } from "./PermissionChoice";
 import type { PickedFile } from "./PickedFile";
 
-export type ExtensionInstallArgs = {
+export type ExtensionInstallArgs = { 
 /**
  * The choice of the open dialog (spec 043: a path or a provider address).
  */
-file: PickedFile,
+file: PickedFile, 
 /**
  * The choice per declared permission; a declaration without a choice becomes `ask`.
  */
-accepted: Array<PermissionChoice>,
+accepted: Array<PermissionChoice>, 
 /**
  * The user confirmed a downgrade or the replacement of another bundle of the same version.
  */

@@ -6,7 +6,7 @@ import type { RefMark } from "./RefMark";
  * The placeholders in the fields of an entry (`ItemDetail.references`): the window shows marks
  * instead of the raw text and does not need to load the password for them.
  */
-export type ItemReferences = { username: Array<RefMark>, password: Array<RefMark>, url: Array<RefMark>, note: Array<RefMark>,
+export type ItemReferences = { username: Array<RefMark>, password: Array<RefMark>, url: Array<RefMark>, note: Array<RefMark>, 
 /**
  * Only the custom fields that hold a placeholder.
  */

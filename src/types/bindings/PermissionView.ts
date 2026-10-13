@@ -3,31 +3,31 @@
 /**
  * One permission as the settings show it.
  */
-export type PermissionView = {
+export type PermissionView = { 
 /**
  * Row id; `None` for a decision held in memory.
  */
-id?: string, kind: string, action: string, target: string,
+id?: string, kind: string, action: string, target: string, 
 /**
  * `granted`, `denied` or `ask`.
  */
-status: string, declared: boolean,
+status: string, declared: boolean, 
 /**
  * Holds on every own device.
  */
-allDevices: boolean,
+allDevices: boolean, 
 /**
  * The device a device-scoped row holds on.
  */
-deviceName?: string,
+deviceName?: string, 
 /**
  * Held only until holzi is closed.
  */
-temporary: boolean,
+temporary: boolean, 
 /**
  * holzi cannot read the row (FR-022); it counts as absent.
  */
-unreadable: boolean,
+unreadable: boolean, 
 /**
  * For `encryptedFolder`: the storage's name and the folder's decrypted name as this device
  * last read it (spec 048 FR-038); absent when this device does not know them.

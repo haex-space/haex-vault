@@ -4,11 +4,11 @@ import type { CredentialsInput } from "./CredentialsInput";
 /**
  * The user's answer to a storage dialog (contracts/tauri-commands.md `storage_dialog_resolve`).
  */
-export type StorageAnswer = { "kind": "cancel" } | { "kind": "confirm",
+export type StorageAnswer = { "kind": "cancel" } | { "kind": "confirm", 
 /**
  * An existing connection the user chose for the new storage.
  */
-connectionId?: string,
+connectionId?: string, 
 /**
  * New credentials; only holzi's window over the whole app sends them.
  */

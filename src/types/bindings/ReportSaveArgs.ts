@@ -2,7 +2,7 @@
 import type { ImportReport } from "./ImportReport";
 import type { PickedFile } from "./PickedFile";
 
-export type ReportSaveArgs = { report: ImportReport,
+export type ReportSaveArgs = { report: ImportReport, 
 /**
  * The choice of the save dialog.
  */

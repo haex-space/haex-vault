@@ -3,7 +3,7 @@
 /**
  * The code a main device shows.
  */
-export type LinkCodeInfo = { code: string, qrSvg: string,
+export type LinkCodeInfo = { code: string, qrSvg: string, 
 /**
  * Milliseconds since the epoch.
  */

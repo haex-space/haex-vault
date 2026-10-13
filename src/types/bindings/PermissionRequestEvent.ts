@@ -3,19 +3,19 @@
 /**
  * One open question, as holzi's window shows it.
  */
-export type PermissionRequestEvent = { requestId: string, extensionId: string, displayName: string, kind: string, action: string, target: string,
+export type PermissionRequestEvent = { requestId: string, extensionId: string, displayName: string, kind: string, action: string, target: string, 
 /**
  * The manifest declares this permission.
  */
-declared: boolean,
+declared: boolean, 
 /**
  * Remembered for this device only (shell); every other kind for every own device.
  */
-deviceScoped: boolean,
+deviceScoped: boolean, 
 /**
  * A `database` target of an extension that is not installed: only "Verweigern" is offered.
  */
-targetMissing: boolean,
+targetMissing: boolean, 
 /**
  * For `encryptedFolder`: the storage and the decrypted folder name the question names (spec
  * 048 FR-036); the extension never gets them.

@@ -5,27 +5,27 @@ import type { EntryKind } from "./EntryKind";
 /**
  * One entry of a folder (data-model.md).
  */
-export type Entry = { name: string,
+export type Entry = { name: string, 
 /**
  * Device: the absolute path; storage: the key, folders ending in `/`.
  */
-path: string, kind: EntryKind,
+path: string, kind: EntryKind, 
 /**
  * Files only.
  */
-size: number | null, modifiedMs: number | null, mime: string | null, hidden: boolean, symlink: boolean,
+size: number | null, modifiedMs: number | null, mime: string | null, hidden: boolean, symlink: boolean, 
 /**
  * The system denies access.
  */
-noAccess: boolean,
+noAccess: boolean, 
 /**
  * In one of holzi's own places: read-only for the user (FR-037).
  */
-holziOwned: boolean,
+holziOwned: boolean, 
 /**
  * An encrypted folder or an entry in one (spec 048).
  */
-encrypted: EncryptedInfo | null,
+encrypted: EncryptedInfo | null, 
 /**
  * A conflict copy after the format's rules; the name holds the addition already.
  */

@@ -8,11 +8,11 @@ import type { ProviderKind } from "./ProviderKind";
 /**
  * A connection as the settings show it.
  */
-export type ConnectionView = { id: string, protocol: Protocol, providerName: string, providerKind: ProviderKind, endpoint: string, region: string, addressing: Addressing,
+export type ConnectionView = { id: string, protocol: Protocol, providerName: string, providerKind: ProviderKind, endpoint: string, region: string, addressing: Addressing, 
 /**
  * The endpoint sends without encryption (`http`).
  */
-insecure: boolean,
+insecure: boolean, 
 /**
  * Whether the endpoint lies in the local network or on this device (research R8).
  */

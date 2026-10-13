@@ -5,47 +5,47 @@ import type { PlatformName } from "./PlatformName";
 /**
  * The facilities of this device; fixed for the life of the process.
  */
-export type PlatformCapabilities = { platform: PlatformName,
+export type PlatformCapabilities = { platform: PlatformName, 
 /**
  * The CLI delegates (claude, codex): external programs with a terminal.
  */
-cliDelegates: boolean,
+cliDelegates: boolean, 
 /**
  * The chat tool `run_command`.
  */
-commandTool: boolean,
+commandTool: boolean, 
 /**
  * The terminal of extensions.
  */
-terminal: boolean,
+terminal: boolean, 
 /**
  * Watching folders for extensions.
  */
-folderWatch: boolean,
+folderWatch: boolean, 
 /**
  * File paths outside a dialog choice for extensions.
  */
-freePaths: boolean,
+freePaths: boolean, 
 /**
  * Choosing a folder in a dialog.
  */
-folderPick: boolean,
+folderPick: boolean, 
 /**
  * Detecting a graphics card for model recommendations.
  */
-gpuDetection: boolean,
+gpuDetection: boolean, 
 /**
  * Closing the vault restarts the app at the vault picker (spec 013); otherwise it ends.
  */
-relaunchOnClose: boolean,
+relaunchOnClose: boolean, 
 /**
  * The screen capture protection setting exists (FR-011a).
  */
-screenCapture: boolean,
+screenCapture: boolean, 
 /**
  * The system has a back gesture (spec 020 FR-019).
  */
-backGesture: boolean,
+backGesture: boolean, 
 /**
  * The presets of the model catalogs the suggestions come from.
  */

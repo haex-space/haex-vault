@@ -10,28 +10,28 @@ import type { TagRef } from "./TagRef";
  * The detail view of one entry, without secrets: `has_*` flags tell what exists, the values come
  * only through `reveal`, `copy_field` and `totp_code`.
  */
-export type ItemDetail = { note: string | null,
+export type ItemDetail = { note: string | null, 
 /**
  * JSON `{ "username": [..], … }`; the password manager only keeps it for the later bridge.
  */
-autofillAliases: string | null, otpDigits: number | null, otpPeriod: number | null, otpAlgorithm: string | null, hasOtpSecret: boolean, otpState: OtpState, keyValues: Array<KeyValueView>, attachments: Array<AttachmentView>, passkeys: Array<PasskeyView>,
+autofillAliases: string | null, otpDigits: number | null, otpPeriod: number | null, otpAlgorithm: string | null, hasOtpSecret: boolean, otpState: OtpState, keyValues: Array<KeyValueView>, attachments: Array<AttachmentView>, passkeys: Array<PasskeyView>, 
 /**
  * The placeholders in the reference fields (spec 036); filled by the service.
  */
-references: ItemReferences, id: string, title: string | null, username: string | null, url: string | null, icon: string | null, color: string | null,
+references: ItemReferences, id: string, title: string | null, username: string | null, url: string | null, icon: string | null, color: string | null, 
 /**
  * `trash`, a folder id or `None` for the root.
  */
-groupId: string | null,
+groupId: string | null, 
 /**
  * For an entry deleted directly: the folder it came from (the trash shows its path); `None`
  * at the top level and for everything not deleted directly.
  */
-trashedFromGroupId: string | null, tags: Array<TagRef>,
+trashedFromGroupId: string | null, tags: Array<TagRef>, 
 /**
  * `YYYY-MM-DD`.
  */
-expiresAt: string | null, hasPassword: boolean, hasTotp: boolean, passkeyCount: number, attachmentCount: number, createdAt: string | null, updatedAt: string | null,
+expiresAt: string | null, hasPassword: boolean, hasTotp: boolean, passkeyCount: number, attachmentCount: number, createdAt: string | null, updatedAt: string | null, 
 /**
  * The holzi function the entry belongs to (spec 038, rule Z14), `None` for the user's own; the
  * window marks such entries.

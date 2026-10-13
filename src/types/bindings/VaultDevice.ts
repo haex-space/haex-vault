@@ -5,19 +5,19 @@ import type { DeviceRole } from "./DeviceRole";
 /**
  * One device of the vault for the settings' device list.
  */
-export type VaultDevice = { vaultDeviceUuid: string,
+export type VaultDevice = { vaultDeviceUuid: string, 
 /**
  * The device key as hex.
  */
-devicePubkey: string,
+devicePubkey: string, 
 /**
  * `None` for a device that has no name yet.
  */
-alias: string | null, role: DeviceRole, isCurrent: boolean,
+alias: string | null, role: DeviceRole, isCurrent: boolean, 
 /**
  * Whether a session with it is open right now.
  */
-online: boolean,
+online: boolean, 
 /**
  * Milliseconds since the epoch; `None` when this device knows of no time.
  */

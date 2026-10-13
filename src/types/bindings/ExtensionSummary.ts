@@ -3,67 +3,67 @@
 /**
  * One extension of the vault.
  */
-export type ExtensionSummary = { id: string, name: string,
+export type ExtensionSummary = { id: string, name: string, 
 /**
  * `displayName` of the effective bundle, else `name`.
  */
-title: string, description?: string,
+title: string, description?: string, 
 /**
  * Version of the effective bundle; `None` while no bundle of it is live.
  */
-version?: string, publisherFingerprint: string, enabled: boolean,
+version?: string, publisherFingerprint: string, enabled: boolean, 
 /**
  * `installed`, or `removed` with its data kept (FR-008); one removed with its data is not
  * listed.
  */
-state: string,
+state: string, 
 /**
  * For `removed`: the bytes its kept tables take on this device, indexes included; `None` when
  * SQLite cannot tell.
  */
-keptDataBytes?: number,
+keptDataBytes?: number, 
 /**
  * The app opens at most once (manifest `singleInstance`).
  */
-singleInstance: boolean, hasIcon: boolean,
+singleInstance: boolean, hasIcon: boolean, 
 /**
  * State on this device (`transferring`, `ready`, …); `None` before its first start here.
  */
-statusHere?: string,
+statusHere?: string, 
 /**
  * The error kind of that state.
  */
-statusErrorHere?: string,
+statusErrorHere?: string, 
 /**
  * The state on every own device that started it, this device first. Inline, so the binding
  * imports nothing (the check scripts load it with Node's own module rules).
  */
-devices: Array<{
+devices: Array<{ 
 /**
  * The device's `vault_device_uuid`.
  */
-deviceId: string,
+deviceId: string, 
 /**
  * The device's name; empty when it has none.
  */
-deviceName: string, thisDevice: boolean,
+deviceName: string, thisDevice: boolean, 
 /**
  * `transferring`, `ready`, `signature_failed`, `migration_failed` or `disabled`.
  */
-status: string,
+status: string, 
 /**
  * The error kind (`migration_changed`, …), never data of the extension.
  */
-error?: string,
+error?: string, 
 /**
  * Version of the bundle the device runs or is getting; none while disabled there.
  */
-version?: string,
+version?: string, 
 /**
  * Another device with an older version than this one: what it still writes in the older
  * form arrives here only once it updated (research R10).
  */
-behind: boolean, }>,
+behind: boolean, }>, 
 /**
  * A development version on this device (US12): enabled only while developer mode is on.
  */
