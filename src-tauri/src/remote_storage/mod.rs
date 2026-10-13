@@ -19,6 +19,8 @@ mod credentials_tests;
 mod http;
 #[cfg(test)]
 mod http_tests;
+pub mod local;
+mod local_fs;
 #[cfg(test)]
 mod mod_tests;
 pub mod model;
@@ -70,12 +72,18 @@ pub enum Protocol {
     S3,
     WebDav,
     Sftp,
+    /// A folder on this device (spec 048 US7, research R15): only for encrypted folders there,
+    /// never saved as a connection, never offered and never sent to or taken from the window.
+    #[serde(skip)]
+    #[ts(skip)]
+    Local,
 }
 
 impl Protocol {
-    /// Whether folders are real folders on the server (spec 050 research R8): WebDAV and SFTP.
+    /// Whether folders are real folders on the server (spec 050 research R8): WebDAV, SFTP and a
+    /// local folder.
     pub fn is_tree(self) -> bool {
-        matches!(self, Self::WebDav | Self::Sftp)
+        matches!(self, Self::WebDav | Self::Sftp | Self::Local)
     }
 
     /// Whether `kind` is a provider of this protocol (data-model.md).
@@ -85,6 +93,7 @@ impl Protocol {
             Self::S3 => matches!(kind, Aws | Rustfs | Other),
             Self::WebDav => matches!(kind, HetznerStorageBox | Nextcloud | Koofr | Kdrive | Other),
             Self::Sftp => matches!(kind, HetznerStorageBox | Other),
+            Self::Local => false,
         }
     }
 }
@@ -172,7 +181,28 @@ macro_rules! text_enum {
     };
 }
 
-text_enum!(Protocol { S3 = "s3", WebDav = "webdav", Sftp = "sftp" });
+impl Protocol {
+    /// The text stored in the vault; `local` only shows in logs, it is never stored.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::S3 => "s3",
+            Self::WebDav => "webdav",
+            Self::Sftp => "sftp",
+            Self::Local => "local",
+        }
+    }
+
+    /// The value of a stored text; `None` for an unknown one and for `local`, so no synced row can
+    /// point a storage at a folder of this device.
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "s3" => Some(Self::S3),
+            "webdav" => Some(Self::WebDav),
+            "sftp" => Some(Self::Sftp),
+            _ => None,
+        }
+    }
+}
 text_enum!(ProviderKind {
     Aws = "aws",
     Rustfs = "rustfs",

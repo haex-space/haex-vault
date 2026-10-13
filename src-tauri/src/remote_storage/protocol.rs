@@ -1,12 +1,14 @@
 //! One [`RemoteStore`] for every protocol (spec 050 research R1): each call goes to the store of
 //! the protocol of `access`, so no caller needs to know whether a storage speaks S3, WebDAV or
-//! SFTP (FR-018). A protocol without a store yet answers [`StorageError::Unsupported`].
+//! SFTP (FR-018). A protocol without a store yet answers [`StorageError::Unsupported`]. A folder on
+//! this device ([`Protocol::Local`], spec 048 research R15) always has its store.
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::time::Instant;
 
+use super::local::LocalStore;
 use super::{Access, DirListing, ObjectHead, ObjectInfo, Protocol, RemoteStore, StorageError};
 
 /// The stores of the protocols, chosen per call by `access.location.protocol`.
@@ -14,16 +16,22 @@ pub struct ProtocolStore {
     s3: Arc<dyn RemoteStore>,
     webdav: Option<Arc<dyn RemoteStore>>,
     sftp: Option<Arc<dyn RemoteStore>>,
+    local: Arc<dyn RemoteStore>,
 }
 
 impl ProtocolStore {
-    /// A store with `s3` and, when given, the stores for WebDAV and SFTP.
+    /// A store with `s3`, a [`LocalStore`] and, when given, the stores for WebDAV and SFTP.
     pub fn new(
         s3: Arc<dyn RemoteStore>,
         webdav: Option<Arc<dyn RemoteStore>>,
         sftp: Option<Arc<dyn RemoteStore>>,
     ) -> Self {
-        Self { s3, webdav, sftp }
+        Self {
+            s3,
+            webdav,
+            sftp,
+            local: Arc::new(LocalStore::new()),
+        }
     }
 
     /// The store for the protocol of `access`.
@@ -32,6 +40,7 @@ impl ProtocolStore {
             Protocol::S3 => Some(&self.s3),
             Protocol::WebDav => self.webdav.as_ref(),
             Protocol::Sftp => self.sftp.as_ref(),
+            Protocol::Local => Some(&self.local),
         };
         store.map(Arc::as_ref).ok_or_else(|| {
             log::warn!(

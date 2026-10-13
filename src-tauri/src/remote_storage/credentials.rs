@@ -66,6 +66,7 @@ pub async fn create(
         Protocol::S3 => "S3",
         Protocol::WebDav => "WebDAV",
         Protocol::Sftp => "SFTP",
+        Protocol::Local => return Err(super::store::invalid("protocol")),
     };
     let (username, password, key_values) = match credentials {
         Credentials::S3(s3) => (

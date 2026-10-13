@@ -25,7 +25,7 @@ const CONNECTION_COLUMNS: &str = "id, provider_name, provider_kind, endpoint, en
 const STORAGE_COLUMNS: &str = "id, connection_id, name, bucket, created_at, updated_at";
 
 /// Builds a validation error identifying the rejected row field.
-fn invalid(field: &str) -> HolziError {
+pub(super) fn invalid(field: &str) -> HolziError {
     HolziError::StorageInvalid {
         field: field.to_owned(),
     }
@@ -212,6 +212,8 @@ pub fn check_connection(row: &ConnectionRow) -> Result<()> {
                 return Err(invalid("endpoint"));
             }
         }
+        // A folder on this device is never a connection (spec 048 research R15).
+        Protocol::Local => return Err(invalid("protocol")),
     }
     if row.protocol != Protocol::S3
         && (!row.region.is_empty() || row.addressing != Addressing::Path)
@@ -259,6 +261,7 @@ pub fn target_ok(protocol: Protocol, bucket: &str) -> bool {
     match protocol {
         Protocol::S3 => bucket_ok(bucket),
         Protocol::WebDav | Protocol::Sftp => folder_ok(bucket),
+        Protocol::Local => false,
     }
 }
 

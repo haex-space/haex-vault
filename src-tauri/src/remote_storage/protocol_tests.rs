@@ -63,3 +63,21 @@ async fn a_protocol_without_a_store_is_unsupported() {
     assert!(!store.copies_on_provider(&webdav));
     assert!(s3.calls().is_empty(), "nothing goes to S3 instead");
 }
+
+#[tokio::test]
+async fn a_local_folder_always_has_its_store() {
+    let s3 = Arc::new(FakeStore::new());
+    let store = ProtocolStore::new(s3.clone(), None, None);
+    let root = tempfile::tempdir().expect("root");
+    let local = super::local::access_of(root.path());
+    store
+        .put(&local, "a/b.txt", b"x".to_vec(), soon())
+        .await
+        .expect("put");
+    assert_eq!(
+        std::fs::read(root.path().join("a/b.txt")).expect("file"),
+        b"x"
+    );
+    assert!(store.copies_on_provider(&local));
+    assert!(s3.calls().is_empty(), "nothing goes to S3 instead");
+}
