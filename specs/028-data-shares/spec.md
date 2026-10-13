@@ -594,7 +594,7 @@ angezeigter ursprünglicher Autorin.
   Freigabetyp, die Erweiterung, was mitgeteilt wird (bei einer Sammlung: „mit
   allen Einträgen“) und die bisherigen Empfänger mit ihren Fähigkeiten. Er MUSS
   erlauben, einen Empfänger durch einen Einladungslink einzuladen (Spec 027
-  FR-008) und für jeden Empfänger genau eine Fähigkeitsstufe zu wählen: Lesen, Schreiben (umfasst
+  FR-008) oder aus dem Adressbuch (Spec 051 FR-033) und für jeden Empfänger genau eine Fähigkeitsstufe zu wählen: Lesen, Schreiben (umfasst
   Lesen) oder Löschen (umfasst Schreiben). Freie Kombinationen gibt es nicht.
   Admin DARF NICHT wählbar sein.
 - **FR-009**: Rechte MÜSSEN an Vault-Identitäten gehen, nie an Geräte. Der
@@ -961,8 +961,8 @@ angezeigter ursprünglicher Autorin.
 - Eigentümer und Empfänger nutzen holzi und dieselbe Erweiterung (gleicher
   öffentlicher Schlüssel und Name), nicht zwingend dieselbe Version.
 - Personen werden über einen Einladungslink eingeladen, den der Eigentümer
-  selbst weitergibt. Ein Adressbuch gibt es nicht; den Namen in der Einladung
-  gibt der Eigentümer für sich selbst an.
+  selbst weitergibt, oder aus dem Adressbuch (Spec 051). Den Namen in der
+  Einladung gibt der Eigentümer für sich selbst an.
 - Ein entfernter Empfänger behält, was er schon entschlüsseln konnte, wie beim
   Entfernen aus einem Space (Entwurf §13; haex-vault ADR 0002, Repository
   `https://github.com/haex-space/haex-vault`, Revision
