@@ -17,6 +17,7 @@ use super::env::AgentEnv;
 use super::folders::TaskMemory;
 use super::reach::{blocking, cancelled, entry_json, files_error, parse, PathInput, Place};
 use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
+use crate::files::access::is_device_storage;
 use crate::files::access::{storage_listed, visible_to, StorageGrant, Want};
 use crate::files::kind::FileCategory;
 use crate::files::local::drives::drives;
@@ -191,20 +192,24 @@ impl<E: AgentEnv> FilesAgent<E> {
         cancel: &CancellationToken,
     ) -> Result<Value, NativeError> {
         let limit = input.limit.unwrap_or(LIST_LIMIT).clamp(1, LIST_LIMIT_MAX);
-        let shown: Vec<Value> = match self.place(&input.source).await? {
+        let shown: Vec<Value> = match self.place_at(&input.source, &input.path).await? {
             Place::Device => {
                 let real = self.device(&input.path, Want::Read, false).await?;
                 let own = self.env.own();
                 let grants = self.env.grants(&self.agent_id).await.map_err(files_error)?;
                 let caller = self.caller.clone();
-                let entries = blocking(move || {
-                    Ok(ops::list(&real, &own)?
-                        .into_iter()
-                        .filter(|entry| visible_to(&caller, Path::new(&entry.path), &own, &grants))
-                        .collect::<Vec<_>>())
-                })
-                .await?;
-                entries.iter().map(entry_json).collect()
+                let folder = real.clone();
+                let listed = blocking(move || ops::list(&folder, &own)).await?;
+                let mut shown: Vec<Value> = listed
+                    .iter()
+                    .filter(|entry| {
+                        visible_to(&caller, Path::new(&entry.path), &self.env.own(), &grants)
+                    })
+                    .map(entry_json)
+                    .collect();
+                // Encrypted folders by name, or opaque until granted (spec 048 US7).
+                shown.extend(self.device_folders(&real, listed).await?);
+                shown
             }
             Place::Storage(storage) => {
                 let (files, paths) = self
@@ -227,7 +232,7 @@ impl<E: AgentEnv> FilesAgent<E> {
         cancel: &CancellationToken,
     ) -> Result<Value, NativeError> {
         let (entry, files, _) = self.entry(&input, cancel).await?;
-        match (files, self.place(&input.source).await?) {
+        match (files, self.place_at(&input.source, &input.path).await?) {
             (Some(files), Place::Storage(storage)) => Ok(self
                 .shown_entries(&storage, &files, std::slice::from_ref(&entry))
                 .await?
@@ -264,7 +269,7 @@ impl<E: AgentEnv> FilesAgent<E> {
             limits: SearchLimits::AGENT,
         };
         let mut hits: Vec<SearchHit> = Vec::new();
-        let end = match self.place(&input.source).await? {
+        let end = match self.place_at(&input.source, &input.path).await? {
             Place::Device => {
                 let root = self.device(&input.path, Want::Read, false).await?;
                 let cancel = cancel.clone();
@@ -321,8 +326,10 @@ impl<E: AgentEnv> FilesAgent<E> {
             source: source.to_owned(),
             path: path.to_owned(),
         };
-        let source = match self.place(source).await? {
+        let source = match self.place_at(source, path).await? {
             Place::Device => SourceRef::Device,
+            // The window names a folder on the device by its device path (spec 048 US7).
+            Place::Storage(storage) if is_device_storage(&storage.id) => SourceRef::Device,
             Place::Storage(storage) => SourceRef::Storage {
                 storage_id: storage.id,
             },

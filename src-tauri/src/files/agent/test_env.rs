@@ -19,6 +19,7 @@ use super::prompt::{
 use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
 use crate::files::access::{AgentGrants, FolderGrant, Locality, StorageGrant};
 use crate::files::browser_commands::{KnownPlace, StorageSource};
+use crate::files::encrypted::device::DeviceRoot;
 use crate::files::encrypted::Scope;
 use crate::files::local::OwnPlaces;
 use crate::files::permissions::{AgentFileReach, AgentFileStatus, BUILTIN_AGENT};
@@ -26,6 +27,7 @@ use crate::files::storage_source::StorageFiles;
 use crate::files::transfer::local::Removal;
 use crate::files::FilesError;
 use crate::passwords::access::Caller;
+use crate::remote_storage::local::LocalStore;
 use crate::remote_storage::test_support::{access, FakeStore};
 use crate::remote_storage::Protocol;
 
@@ -43,6 +45,8 @@ pub struct FakeEnv {
     pub scoped: Option<(String, Scope)>,
     /// The protocol of every storage (S3 unless a test says otherwise; spec 050).
     pub protocol: Protocol,
+    /// The scope of the device as a storage, for its encrypted folders (spec 048 US7).
+    pub device: Option<Scope>,
     pub prompt: PermissionPrompt,
     pub asked: Arc<Mutex<Vec<FilesAgentPermissionRequest>>>,
 }
@@ -119,6 +123,9 @@ impl AgentEnv for FakeEnv {
     }
 
     async fn open_storage(&self, storage_id: &str) -> Result<StorageFiles, FilesError> {
+        if let (Some(root), Some(scope)) = (DeviceRoot::from_id(storage_id), &self.device) {
+            return Ok(root.files(Arc::new(LocalStore::new()), scope.clone()));
+        }
         let at = |bucket: &str| {
             let mut access = access(bucket);
             access.location.protocol = self.protocol;
@@ -204,7 +211,46 @@ impl Scene {
             }],
             store,
             scoped: None,
+            device: None,
             protocol: Protocol::S3,
+            prompt,
+            asked,
+        };
+        let agent = FilesAgent {
+            env,
+            agent_id: BUILTIN_AGENT.to_owned(),
+            caller: Caller::BuiltinAgent,
+            removal: Removal::Permanent,
+            memory: Mutex::default(),
+        };
+        Self {
+            _dir: dir,
+            root,
+            agent,
+        }
+    }
+
+    /// The agent over the device of `device` (its home folder is `root`), whose encrypted folders
+    /// it reaches as the storage `device:/`; questions for a folder get `answer`, `None` is a
+    /// missing window (spec 048 US7).
+    pub fn over_device(
+        device: &crate::files::encrypted::device_scene::DeviceScene,
+        answer: Option<FilesAgentAnswer>,
+    ) -> Self {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = fs::canonicalize(device.home.path()).expect("canonical");
+        let (prompt, asked) = window(answer);
+        let env = FakeEnv {
+            own: OwnPlaces::new(Vec::new()),
+            known: Vec::new(),
+            grants: Mutex::new(AgentGrants::default()),
+            stored: Mutex::new(Vec::new()),
+            stored_folders: Mutex::new(Vec::new()),
+            storages: Vec::new(),
+            store: Arc::new(FakeStore::new()),
+            scoped: None,
+            protocol: Protocol::S3,
+            device: device.files().scope().cloned(),
             prompt,
             asked,
         };
@@ -246,6 +292,7 @@ impl Scene {
             }],
             store: encrypted.fake.clone(),
             scoped: Some((BUCKET.to_owned(), scope)),
+            device: None,
             protocol: Protocol::S3,
             prompt,
             asked,

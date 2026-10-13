@@ -21,6 +21,7 @@ use crate::chat::tools::agent_task;
 use crate::chat::tools::native_action::NativeError;
 use crate::files::access::{check_folder, Locality, StorageGrant, Verdict, Want};
 use crate::files::browser_commands::StorageSource;
+use crate::files::encrypted::device::{name_encrypted, DeviceRoot};
 use crate::files::encrypted::format::encode_id;
 use crate::files::encrypted::route::{route, Route};
 use crate::files::encrypted::state_error;
@@ -123,7 +124,7 @@ impl<E: AgentEnv> FilesAgent<E> {
 
     /// `path` with an opaque name of this task replaced by the folder's path, and whether it held
     /// one.
-    fn resolved(&self, storage_id: &str, path: &str) -> (String, bool) {
+    pub(super) fn resolved(&self, storage_id: &str, path: &str) -> (String, bool) {
         let memory = self.memory();
         let parts: Vec<&str> = path.split('/').collect();
         for (at, part) in parts.iter().enumerate() {
@@ -367,6 +368,43 @@ impl<E: AgentEnv> FilesAgent<E> {
             }));
         }
         Ok(shown)
+    }
+
+    /// The encrypted folders among `listed` (a listing of the ordinary device folder `folder`) as
+    /// the agent sees them: by name once it may read one, else opaque (spec 048 US7). Their raw
+    /// directories never show.
+    pub(super) async fn device_folders(
+        &self,
+        folder: &std::path::Path,
+        listed: Vec<Entry>,
+    ) -> Result<Vec<Value>, NativeError> {
+        let raw = |entry: &Entry| {
+            entry.kind == crate::files::EntryKind::Dir
+                && crate::files::encrypted::format::is_folder_prefix(&entry.name)
+        };
+        let Some(root) = DeviceRoot::of(folder).filter(DeviceRoot::same_paths) else {
+            return Ok(Vec::new());
+        };
+        if !listed.iter().any(raw) {
+            return Ok(Vec::new());
+        }
+        let files = self
+            .env
+            .open_storage(&root.storage_id)
+            .await
+            .map_err(files_error)?;
+        let named = name_encrypted(&files, &root, folder, listed)
+            .await
+            .map_err(files_error)?;
+        let encrypted: Vec<Entry> = named
+            .into_iter()
+            .filter(|entry| entry.encrypted.is_some())
+            .collect();
+        let storage = StorageSource {
+            id: root.storage_id.clone(),
+            name: super::reach::DEVICE_NAME.to_owned(),
+        };
+        self.shown_entries(&storage, &files, &encrypted).await
     }
 
     /// The hits of a storage search without anything from an encrypted folder the agent may not

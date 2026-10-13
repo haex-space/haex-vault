@@ -61,6 +61,32 @@ impl DeviceRoot {
         }
     }
 
+    /// The root of the storage id `device:/` or `device:C:`.
+    pub fn from_id(storage_id: &str) -> Option<Self> {
+        match storage_id.strip_prefix("device:")? {
+            "/" => Some(Self {
+                dir: PathBuf::from("/"),
+                storage_id: storage_id.to_owned(),
+            }),
+            drive => {
+                let letter = drive.strip_suffix(':').filter(|l| l.len() == 1)?;
+                letter
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase())
+                    .then(|| Self {
+                        dir: PathBuf::from(format!("{letter}:\\")),
+                        storage_id: storage_id.to_owned(),
+                    })
+            }
+        }
+    }
+
+    /// Whether a window path of the storage view is the device path itself (Unix, macOS,
+    /// Android); on Windows the drive is cut off.
+    pub fn same_paths(&self) -> bool {
+        self.dir == Path::new("/")
+    }
+
     /// The window path of the storage view for the device path `path` (`/a/b`).
     pub fn view_of(&self, path: &Path) -> String {
         let mut view = String::new();

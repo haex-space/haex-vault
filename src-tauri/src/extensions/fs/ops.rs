@@ -13,6 +13,7 @@ use super::dialogs::document_failed;
 use super::{authorize, Access, Reach};
 use crate::extensions::bridge::dispatch::CallContext;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
+use crate::files::encrypted::format::is_folder_prefix;
 use crate::files::picked;
 
 pub const MODULE: &str = module_path!();
@@ -118,6 +119,10 @@ pub fn read_dir(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError>
     for entry in std::fs::read_dir(&path).map_err(|e| failed("read_dir", e))? {
         let entry = entry.map_err(|e| failed("read_dir", e))?;
         let metadata = entry.metadata().map_err(|e| failed("read_dir", e))?;
+        // The raw directory of an encrypted folder never shows (spec 048 FR-051).
+        if metadata.is_dir() && entry.file_name().to_str().is_some_and(is_folder_prefix) {
+            continue;
+        }
         entries.push(json!({
             "name": entry.file_name().to_string_lossy(),
             "path": entry.path().to_string_lossy(),

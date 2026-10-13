@@ -149,7 +149,7 @@ impl<E: AgentEnv> FilesAgent<E> {
         input: CreateFolderInput,
         cancel: &CancellationToken,
     ) -> Result<Value, NativeError> {
-        let entry = match self.place(&input.source).await? {
+        let entry = match self.place_at(&input.source, &input.path).await? {
             Place::Device => {
                 let parent = self.device(&input.path, Want::Write, false).await?;
                 let own = self.env.own();
@@ -173,7 +173,7 @@ impl<E: AgentEnv> FilesAgent<E> {
         input: RenameInput,
         cancel: &CancellationToken,
     ) -> Result<Value, NativeError> {
-        let entry = match self.place(&input.source).await? {
+        let entry = match self.place_at(&input.source, &input.path).await? {
             Place::Device => {
                 let real = self.device(&input.path, Want::Write, true).await?;
                 let own = self.env.own();
@@ -222,9 +222,12 @@ impl<E: AgentEnv> FilesAgent<E> {
         } else {
             (TransferOp::Copy, Want::Read)
         };
-        let from = self.place(&input.source).await?;
+        let from = self.place_for(&input.source, &input.paths).await?;
         let to = self
-            .place(input.to_source.as_deref().unwrap_or(&input.source))
+            .place_at(
+                input.to_source.as_deref().unwrap_or(&input.source),
+                &input.to,
+            )
             .await?;
         let own = self.env.own();
         let cancel = cancel.clone();
@@ -339,7 +342,7 @@ impl<E: AgentEnv> FilesAgent<E> {
                 "name at least one path",
             ));
         }
-        match self.place(&input.source).await? {
+        match self.place_for(&input.source, &input.paths).await? {
             Place::Device => {
                 let mut sources = Vec::new();
                 for path in &input.paths {

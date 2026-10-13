@@ -141,11 +141,12 @@ mod desktop {
         }
     }
 
-    /// `path` below `root` as the SDK reports it; a path outside the watched folder is not
-    /// reported.
+    /// `path` below `root` as the SDK reports it; a path outside the watched folder, or inside the
+    /// raw directory of an encrypted folder (spec 048 FR-051), is not reported.
     fn relative(root: &Path, path: &Path) -> Option<String> {
         path.strip_prefix(root)
             .ok()
+            .filter(|rest| !crate::files::encrypted::device::has_raw_part(rest))
             .map(|rest| rest.to_string_lossy().into_owned())
     }
 }
