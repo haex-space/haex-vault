@@ -61,9 +61,14 @@ pub async fn list(files: &StorageFiles, at: &Located) -> Result<Vec<Entry>, File
 pub async fn stat(files: &StorageFiles, at: &Located) -> Result<Entry, FilesError> {
     if at.rest.is_empty() {
         let mut entry = located_entry(at);
-        // The count of foreign files needs the folder open; one that does not open has none shown.
+        // The window asks for the folder itself when it enters it: its sidecars are read again (by
+        // ETag), so what others wrote shows, with the count of foreign files. A folder that does
+        // not open shows none.
         if let (Ok(folder), Some(info)) = (open(files, at).await, entry.encrypted.as_mut()) {
-            info.foreign = view(files, &folder).await.map_or(0, |view| view.foreign);
+            if let Ok(loaded) = route::load_view(files, &folder).await {
+                info.foreign = loaded.foreign;
+                folder.reload(loaded).await;
+            }
         }
         return Ok(entry);
     }
