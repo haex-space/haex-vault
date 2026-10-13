@@ -92,8 +92,11 @@ test('the storage dialog over a tab has no field for credentials', () => {
 })
 
 test('the credentials are typed in the window over the whole app', () => {
-  const found = fields(
-    template('../src/components/StorageCredentialsModal.vue'),
+  const modal = fields(template('../src/components/StorageCredentialsModal.vue'))
+  assert.ok(modal.includes('credentialsfields'), JSON.stringify(modal))
+
+  const credentials = fields(
+    template('../src/components/settings/storage/CredentialsFields.vue'),
   )
-  assert.ok(found.includes('uiinputpassword'), JSON.stringify(found))
+  assert.ok(credentials.includes('uiinputpassword'), JSON.stringify(credentials))
 })
