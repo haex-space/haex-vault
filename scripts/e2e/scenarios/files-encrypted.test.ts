@@ -344,7 +344,10 @@ scenario(
     await ctx.waitFor('the transfer to end', () =>
       gone(instance, 'files-transfers'),
     )
-    await instance.waitForDisplayed('files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
+    await instance.waitForDisplayed(
+      'files-entry-brief.pdf',
+      FILE_ENTRY_TIMEOUT_MS,
+    )
     assert.ok((await listKeys(rustfs, BUCKET)).includes('brief.pdf'))
     ctx.step('a copy into an ordinary folder asked first')
 
