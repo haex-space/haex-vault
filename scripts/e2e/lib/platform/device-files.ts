@@ -5,12 +5,13 @@
 import {
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, join, relative } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { createAdb } from './adb.ts'
 import type { Adb } from './adb.ts'
@@ -25,6 +26,8 @@ export interface DeviceFiles {
   /** Empty files `sub/d<i>/f<i>-<j>.txt` for `i < folders`, `j < files`: a large tree in one go
    * (on the phone one shell loop, not a push per file). */
   tree: (sub: string, folders: number, files: number) => void
+  /** Every file below `sub` (the whole folder for `''`), as paths relative to the folder. */
+  files: (sub?: string) => string[]
   remove: () => void
 }
 
@@ -70,6 +73,11 @@ export function deviceFiles(
             writeFileSync(join(dir, `f${i}-${j}.txt`), '')
         }
       },
+      files: (sub = '') =>
+        readdirSync(join(folder, sub), { recursive: true, withFileTypes: true })
+          .filter((entry) => entry.isFile())
+          .map((entry) => relative(folder, join(entry.parentPath, entry.name)))
+          .sort(),
       remove: () => rmSync(folder, { recursive: true, force: true }),
     }
   }
@@ -121,6 +129,14 @@ export function deviceFiles(
             `chmod -R a+rwX ${quote(folder)} 2>/dev/null; true`,
         ),
       ),
+    files: (sub = '') =>
+      adb
+        .shell('find', quote(sub ? `${folder}/${sub}` : folder), '-type', 'f')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith(`${folder}/`))
+        .map((line) => line.slice(folder.length + 1))
+        .sort(),
     remove: () => void adb.shell('rm', '-rf', quote(folder)),
   }
 }

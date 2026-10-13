@@ -1,16 +1,20 @@
-//! Commands of encrypted folders (spec 048 US1, contracts/tauri-commands.md): create one, the
-//! one-time notice before the first (FR-002, device preference `files.encryptedNotice`), and
-//! loading a folder's sidecars again.
+//! Commands of encrypted folders (spec 048 US1, US7, contracts/tauri-commands.md): create one in a
+//! storage or on this device, the one-time notice before the first (FR-002, device preference
+//! `files.encryptedNotice`), and loading a folder's sidecars again.
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use super::{storage_of, window_storage};
+use super::device_storage;
+use super::{device_path, place_of, Place};
 use crate::device::commands::resolve_vault_device_uuid;
+use crate::files::access::Want;
+use crate::files::encrypted::device::DeviceRoot;
 use crate::files::encrypted::ops;
 use crate::files::encrypted::route::vault_error;
 use crate::files::state::FilesState;
+use crate::files::storage_source::StorageFiles;
 use crate::files::{Entry, FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
@@ -26,16 +30,37 @@ pub struct EncryptedNotice {
     pub shown: bool,
 }
 
-fn storage_id(source: &SourceRef) -> Result<&str, FilesError> {
-    storage_of(source).ok_or_else(|| {
-        FilesError::new(
-            FilesErrorCode::Unsupported,
-            "encrypted folders are only in storages",
-        )
-    })
+/// The storage of `path` with the path in it: a storage, or the device as its storage (spec 048
+/// US7). A device folder must be one the user may change (not in holzi's own places).
+async fn storage_at(
+    app: &AppHandle,
+    state: &AppState,
+    files: &FilesState,
+    source: &SourceRef,
+    path: &str,
+) -> Result<(StorageFiles, String, Option<DeviceRoot>), FilesError> {
+    match place_of(app, state, files, source, path, Want::Write).await? {
+        Place::Storage {
+            files: storage,
+            path,
+            device,
+        } => Ok((storage, path, device)),
+        Place::Device => {
+            let real = device_path(files, source, path, Want::Write)?;
+            let root = DeviceRoot::of(&real).ok_or_else(|| {
+                FilesError::new(
+                    FilesErrorCode::Unsupported,
+                    "no encrypted folder in this place",
+                )
+            })?;
+            let storage = device_storage(app, state, files, &root)?;
+            let view = root.view_of(&real);
+            Ok((storage, view, Some(root)))
+        }
+    }
 }
 
-/// Creates the encrypted folder `name` in the ordinary folder `path` of a storage.
+/// Creates the encrypted folder `name` in the ordinary folder `path` of a storage or this device.
 #[tauri::command]
 pub async fn files_create_encrypted_folder(
     app: AppHandle,
@@ -45,8 +70,9 @@ pub async fn files_create_encrypted_folder(
     path: String,
     name: String,
 ) -> Result<Entry, FilesError> {
-    let storage = window_storage(&app, &state, &files, storage_id(&source)?).await?;
-    ops::create_encrypted_folder(&storage, &path, &name).await
+    let (storage, path, device) = storage_at(&app, &state, &files, &source, &path).await?;
+    let entry = ops::create_encrypted_folder(&storage, &path, &name).await?;
+    Ok(Place::entry(device.as_ref(), entry))
 }
 
 async fn device_scope(
@@ -98,6 +124,6 @@ pub async fn files_encrypted_refresh(
     source: SourceRef,
     path: String,
 ) -> Result<(), FilesError> {
-    let storage = window_storage(&app, &state, &files, storage_id(&source)?).await?;
+    let (storage, path, _) = storage_at(&app, &state, &files, &source, &path).await?;
     ops::refresh(&storage, &path).await
 }

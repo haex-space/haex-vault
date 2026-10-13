@@ -2227,7 +2227,8 @@
     "delete": {
       "title": "Endgültig löschen?",
       "body": "{count} Eintrag wird endgültig gelöscht. Das lässt sich nicht rückgängig machen. | {count} Einträge werden endgültig gelöscht. Das lässt sich nicht rückgängig machen.",
-      "confirm": "Löschen"
+      "confirm": "Löschen",
+      "foreign": "Mit dem verschlüsselten Ordner geht {count} fremde Datei, die nicht von holzi stammt. | Mit dem verschlüsselten Ordner gehen {count} fremde Dateien, die nicht von holzi stammen."
     },
     "transfer": {
       "copy": "Kopieren",
@@ -2291,9 +2292,10 @@
     },
     "encrypted": {
       "damagedEntry": "Beschädigter Eintrag",
+      "foreign": "In diesem Ordner liegt {count} fremde Datei, etwa die Konfliktkopie eines Sync-Programms. holzi zeigt sie nicht an und löscht sie nicht von selbst. | In diesem Ordner liegen {count} fremde Dateien, etwa Konfliktkopien eines Sync-Programms. holzi zeigt sie nicht an und löscht sie nicht von selbst.",
       "notice": {
         "title": "Verschlüsselter Ordner",
-        "body": "Was du in einen verschlüsselten Ordner legst, verschlüsselt holzi, bevor es in den Cloud-Speicher geht. Der Anbieter sieht weder Inhalte noch Namen. Lesen lässt es sich nur mit dieser Vault, auf jedem ihrer Geräte. Geht die Vault verloren und gibt es kein Backup, sind die Dateien nicht mehr lesbar.",
+        "body": "Was du in einen verschlüsselten Ordner legst, verschlüsselt holzi, bevor es gespeichert wird, im Cloud-Speicher wie auf diesem Gerät. Weder der Anbieter noch andere Programme sehen Inhalte oder Namen. Lesen lässt es sich nur mit dieser Vault, auf jedem ihrer Geräte. Geht die Vault verloren und gibt es kein Backup, sind die Dateien nicht mehr lesbar.",
         "confirm": "Verstanden"
       },
       "state": {

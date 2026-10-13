@@ -10,6 +10,8 @@ export type EncryptedEntry = {
   encrypted: {
     role: 'folder' | 'inside'
     state: 'readable' | 'otherVault' | 'newerFormat' | 'damaged'
+    /** Files in the folder that are not part of the format (research R19); the folder itself. */
+    foreign?: number
   } | null
 }
 
@@ -22,15 +24,42 @@ export type EncryptHereInput = {
   path: string | null
   /** The open folder is, or lies in, an encrypted folder: nothing new is encrypted there. */
   inEncrypted: boolean
+  /** The open folder is one of holzi's own places (FR-037): nothing is created there. */
+  owned?: boolean
 }
 
-/** Whether "Neuer verschlüsselter Ordner" belongs in the open folder (FR-001). */
+/**
+ * Whether "Neuer verschlüsselter Ordner" belongs in the open folder: in a storage (FR-001) and in
+ * any folder of this device (US7, FR-043), but not inside an encrypted folder, not in an extension
+ * area and not in holzi's own places.
+ */
 export function canCreateEncrypted(input: EncryptHereInput): boolean {
-  if (input.source.kind !== 'storage' || input.path === null) return false
-  if (input.inEncrypted) return false
+  if (input.path === null || input.inEncrypted || input.owned) return false
+  if (input.source.kind === 'device') return true
   const folder = input.path.endsWith('/') ? input.path : `${input.path}/`
   return !EXTENSION_AREAS.some(
     (area) => folder === area || folder.startsWith(area),
+  )
+}
+
+export type DeleteInput = {
+  source: SourceRef
+  android: boolean
+  /** The open folder is, or lies in, an encrypted folder. */
+  inEncrypted: boolean
+  entries: readonly EncryptedEntry[]
+}
+
+/**
+ * Whether deleting asks first because it is for good (spec 044 FR-023, spec 048 FR-046): on
+ * Android, in a storage, and in or of an encrypted folder, which has no trash.
+ */
+export function asksBeforeDelete(input: DeleteInput): boolean {
+  return (
+    input.android ||
+    input.source.kind === 'storage' ||
+    input.inEncrypted ||
+    input.entries.some((entry) => entry.encrypted !== null)
   )
 }
 

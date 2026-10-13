@@ -21,7 +21,7 @@ use crate::files::storage_source::{parts, storage_error, StorageFiles};
 use crate::files::{
     EncryptedInfo, EncryptedRole, EncryptedState, Entry, EntryKind, FilesError, FilesErrorCode,
 };
-use crate::remote_storage::DirListing;
+use crate::remote_storage::{DirListing, Protocol};
 
 /// The most entries of one level holzi lists to find the encrypted folders in it.
 const MAX_ENTRIES: usize = 100_000;
@@ -74,7 +74,13 @@ pub async fn route(files: &StorageFiles, path: &str) -> Result<Route, FilesError
     };
     let mut prefix = String::new();
     for (at, part) in parts.iter().enumerate() {
-        let heads = heads_of(files, scope, &prefix).await?;
+        let heads = match heads_of(files, scope, &prefix).await {
+            Ok(heads) => heads,
+            // A level of the device that cannot be listed (Android's `/storage`) holds no
+            // encrypted folder for holzi; deeper levels may still be (spec 048 US7).
+            Err(_) if files.access().location.protocol == Protocol::Local => Vec::new(),
+            Err(error) => return Err(error),
+        };
         if let Some(head) = heads.iter().find(|head| head.display == *part) {
             return Ok(Route::Encrypted(Located {
                 head: Arc::clone(head),
