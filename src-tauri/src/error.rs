@@ -301,6 +301,10 @@ pub enum HolziError {
         outcome: crate::remote_storage::TestOutcome,
         #[serde(rename = "leftoverKey")]
         leftover_key: Option<String>,
+        /// The key an SFTP server showed when it was not the confirmed one (spec 050).
+        #[serde(rename = "hostKey", skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        host_key: Option<crate::remote_storage::model::ShownHostKey>,
     },
 
     /// The credentials entry of the connection is not on this device (`syncing`) or was deleted

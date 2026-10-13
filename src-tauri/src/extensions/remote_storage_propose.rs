@@ -266,6 +266,7 @@ fn add_on_endpoint(
                 credentials: Some(credentials),
                 bucket_for_test: storage_bucket.clone(),
                 create_folder,
+                host_key: None,
             },
             scope,
         ))

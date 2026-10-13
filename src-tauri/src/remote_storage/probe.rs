@@ -12,6 +12,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use uuid::Uuid;
 
+use super::model::ShownHostKey;
 use super::{Access, RemoteStore, StorageError, TestOutcome};
 
 /// The time the four steps get together.
@@ -30,6 +31,23 @@ const CONTENT: &[u8] = b"holzi storage test";
 pub struct ProbeResult {
     pub outcome: TestOutcome,
     pub leftover_key: Option<String>,
+    /// The key an SFTP server showed when it was not the confirmed one (spec 050 research R5).
+    pub host_key: Option<ShownHostKey>,
+}
+
+/// The key the server of `access` showed, when the outcome is about host keys.
+fn shown(store: &dyn RemoteStore, access: &Access, outcome: TestOutcome) -> Option<ShownHostKey> {
+    if !matches!(
+        outcome,
+        TestOutcome::HostKeyUnknown | TestOutcome::HostKeyChanged
+    ) {
+        return None;
+    }
+    let key = store.shown_host_key(&access.location)?;
+    Some(ShownHostKey {
+        fingerprint: super::sftp::keys::fingerprint(&key)?,
+        key,
+    })
 }
 
 /// The outcome for an error in a step after the object was written: the credentials work, so a
@@ -127,6 +145,7 @@ pub async fn probe(store: &dyn RemoteStore, access: &Access) -> ProbeResult {
     if tree {
         if let Err(outcome) = folder_there(store, access, deadline).await {
             return ProbeResult {
+                host_key: shown(store, access, outcome),
                 outcome,
                 leftover_key: None,
             };
@@ -151,6 +170,7 @@ pub async fn probe(store: &dyn RemoteStore, access: &Access) -> ProbeResult {
         (Ok(()), Err(error)) => after_write(*error),
     };
     ProbeResult {
+        host_key: shown(store, access, outcome),
         outcome,
         leftover_key: deleted.is_err().then_some(key),
     }

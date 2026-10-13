@@ -13,18 +13,17 @@ use std::time::Duration;
 
 use reqwest::Url;
 use uuid::Uuid;
-use zeroize::Zeroizing;
 
 use super::address::{self, AddressError, Resolver};
 use super::model::{
-    ConnectionInput, ConnectionView, CredentialsInput, LastTest, RemovalPreview, RemovalTarget,
-    StorageInput, StorageOverview, StorageView, StorageWarning, TestResult,
+    ConfirmedHostKey, ConnectionInput, ConnectionView, CredentialsInput, LastTest, RemovalPreview,
+    RemovalTarget, StorageInput, StorageOverview, StorageView, StorageWarning, TestResult,
 };
 use super::probe::probe;
+use super::sftp::keys;
 use super::{
-    credentials, store, Access, ConnectionRow, Credentials, CredentialsState, EndpointScope,
-    Location, PasswordCredentials, Protocol, RemoteStore, S3Credentials, SshKeyCredentials,
-    StorageRow, TestOutcome,
+    credentials, store, Access, ConnectionRow, CredentialsState, EndpointScope, Location, Protocol,
+    RemoteStore, StorageRow, TestOutcome,
 };
 use crate::error::{HolziError, Result};
 use crate::passwords::clock;
@@ -62,63 +61,12 @@ fn view(row: &ConnectionRow, credentials: super::CredentialsState) -> Connection
         insecure: Url::parse(&row.endpoint).is_ok_and(|url| address::is_insecure(&url)),
         endpoint_scope: row.endpoint_scope,
         credentials,
-    }
-}
-
-/// Validates required credential fields for `protocol` (spec 050 contracts/tauri-commands.md) and
-/// normalizes the key id, the user name and the optional token. Secrets are kept exactly as entered.
-fn credentials_of(input: CredentialsInput, protocol: Protocol) -> Result<Credentials> {
-    let nonempty = |text: &Zeroizing<String>| !text.is_empty();
-    match (input, protocol) {
-        (
-            CredentialsInput::S3 {
-                access_key_id,
-                secret_access_key,
-                session_token,
-            },
-            Protocol::S3,
-        ) => {
-            let access_key_id = access_key_id.trim().to_owned();
-            if access_key_id.is_empty() || !nonempty(&secret_access_key) {
-                return Err(invalid("credentials"));
-            }
-            Ok(Credentials::S3(S3Credentials {
-                access_key_id,
-                secret_access_key,
-                session_token: session_token
-                    .filter(|token| !token.is_empty())
-                    .map(|token| Zeroizing::new(token.trim().to_owned())),
-            }))
-        }
-        (CredentialsInput::Password { username, password }, Protocol::WebDav | Protocol::Sftp) => {
-            let username = username.trim().to_owned();
-            if username.is_empty() || !nonempty(&password) {
-                return Err(invalid("login"));
-            }
-            Ok(Credentials::Password(PasswordCredentials {
-                username,
-                password,
-            }))
-        }
-        (
-            CredentialsInput::SshKey {
-                username,
-                private_key,
-                passphrase,
-            },
-            Protocol::Sftp,
-        ) => {
-            let username = username.trim().to_owned();
-            if username.is_empty() || private_key.trim().is_empty() {
-                return Err(invalid("login"));
-            }
-            Ok(Credentials::SshKey(SshKeyCredentials {
-                username,
-                private_key,
-                passphrase: passphrase.filter(|text| !text.is_empty()),
-            }))
-        }
-        _ => Err(invalid("credentials")),
+        host_key: row.host_key.as_deref().and_then(|line| {
+            Some(ConfirmedHostKey {
+                fingerprint: keys::fingerprint(line)?,
+                confirmed_at: row.host_key_confirmed_at.clone().unwrap_or_default(),
+            })
+        }),
     }
 }
 
@@ -127,6 +75,7 @@ fn unreachable() -> HolziError {
     HolziError::StorageTestFailed {
         outcome: TestOutcome::Unreachable,
         leftover_key: None,
+        host_key: None,
     }
 }
 
@@ -137,6 +86,7 @@ fn failed(result: super::probe::ProbeResult) -> Result<()> {
         outcome => Err(HolziError::StorageTestFailed {
             outcome,
             leftover_key: result.leftover_key,
+            host_key: result.host_key,
         }),
     }
 }
@@ -305,16 +255,35 @@ impl StorageService {
                 .unwrap_or_else(|| now.clone()),
             updated_at: now,
         };
-        store::check_connection(&row)?;
+        // The host key the user confirmed (SFTP, research R5) is the one accepted from now on.
+        if let Some(line) = input.host_key.as_deref() {
+            if row.protocol != Protocol::Sftp {
+                return Err(invalid("hostKey"));
+            }
+            let key = keys::parse_host_key(line).ok_or_else(|| invalid("hostKey"))?;
+            let line = keys::host_key_line(&key);
+            if row.host_key.as_deref() != Some(line.as_str()) {
+                row.host_key = Some(line);
+                row.host_key_confirmed_at = Some(row.updated_at.clone());
+            }
+        }
+        store::check_draft(&row)?;
         let url = address::endpoint_url(&Location::of(&row, &input.bucket_for_test))
             .map_err(|_| invalid("endpoint"))?;
 
+        let generated = match &input.credentials {
+            Some(CredentialsInput::GeneratedKey { key_id, .. }) => Some(key_id.clone()),
+            _ => None,
+        };
         let new_credentials = input
             .credentials
             .map(|credentials| credentials_of(credentials, row.protocol))
             .transpose()?;
         let moved = existing.as_ref().is_none_or(|e| {
-            e.endpoint != row.endpoint || e.region != row.region || e.addressing != row.addressing
+            e.endpoint != row.endpoint
+                || e.region != row.region
+                || e.addressing != row.addressing
+                || e.host_key != row.host_key
         });
         let test_with = match (&new_credentials, &existing) {
             (Some(credentials), _) => Some(credentials.clone()),
@@ -374,6 +343,10 @@ impl StorageService {
         }
         if let (Some(_), Some(old)) = (&new_credentials, old_item) {
             self.delete_credentials_if_unused(&old).await;
+        }
+        // A generated key is in the password manager now; the process forgets it (FR-008).
+        if let Some(key_id) = generated {
+            keys::pending().take(&key_id);
         }
         let state = credentials::state(&self.db, &row.credentials_item_id).await?;
         Ok(view(&row, state))
@@ -526,6 +499,7 @@ impl StorageService {
         Ok(TestResult {
             outcome: result.outcome,
             leftover_key: result.leftover_key,
+            host_key: result.host_key,
         })
     }
 
@@ -552,6 +526,7 @@ impl StorageService {
         {
             log::warn!("remote storage: folder not created: {error}");
             return Ok(super::probe::ProbeResult {
+                host_key: None,
                 outcome: super::probe::outcome_of_write(error, true),
                 leftover_key: None,
             });
@@ -576,6 +551,7 @@ impl StorageService {
         Ok(TestResult {
             outcome: result.outcome,
             leftover_key: result.leftover_key,
+            host_key: result.host_key,
         })
     }
 
@@ -639,3 +615,10 @@ impl StorageService {
         Ok(())
     }
 }
+
+#[path = "service_host_key.rs"]
+mod host_key;
+
+#[path = "service_credentials.rs"]
+mod credentials_input;
+use credentials_input::credentials_of;

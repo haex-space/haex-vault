@@ -134,8 +134,8 @@ use providers::{
 };
 use remote_storage::commands::{
     storage_connection_remove, storage_connection_save, storage_dialog_resolve,
-    storage_folder_create, storage_list, storage_removal_preview, storage_remove, storage_save,
-    storage_test,
+    storage_folder_create, storage_host_key_accept, storage_list, storage_removal_preview,
+    storage_remove, storage_save, storage_ssh_key_generate, storage_test,
 };
 use storage::preferences_commands::{clear_pref, get_pref, set_pref};
 use storage::wm_session_commands::{
@@ -524,6 +524,8 @@ pub fn run() {
             storage_removal_preview,
             storage_test,
             storage_folder_create,
+            storage_ssh_key_generate,
+            storage_host_key_accept,
             storage_dialog_resolve,
             passwords_references_parse,
             passwords_copy,

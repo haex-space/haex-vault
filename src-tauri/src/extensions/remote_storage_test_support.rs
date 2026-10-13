@@ -187,6 +187,7 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
         credentials: Some(credentials()),
         bucket_for_test: "photos".to_owned(),
         create_folder: false,
+        host_key: None,
     }))
     .expect("connection");
     let storage = |name: &str, bucket: &str| {
@@ -270,6 +271,7 @@ impl Setup {
             }),
             bucket_for_test: folder.to_owned(),
             create_folder: false,
+            host_key: None,
         }))
         .expect("webdav connection");
         block_on(service.save_storage(StorageInput {

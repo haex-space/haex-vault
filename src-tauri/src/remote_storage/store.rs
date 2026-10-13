@@ -183,9 +183,19 @@ fn sftp_endpoint_ok(endpoint: &str) -> bool {
     })
 }
 
-/// The field rules of a connection (038 and 050 data-model.md); the addresses of the endpoint are
-/// checked by [`super::address`].
+/// The field rules of a connection as it is saved (038 and 050 data-model.md); the addresses of the
+/// endpoint are checked by [`super::address`].
 pub fn check_connection(row: &ConnectionRow) -> Result<()> {
+    check_fields(row, true)
+}
+
+/// The field rules before the test of a new SFTP connection, which may not have a confirmed host
+/// key yet: its test ends at `hostKeyUnknown` and saves nothing (research R5).
+pub fn check_draft(row: &ConnectionRow) -> Result<()> {
+    check_fields(row, false)
+}
+
+fn check_fields(row: &ConnectionRow, saved: bool) -> Result<()> {
     if !name_ok(&row.provider_name, 80) {
         return Err(invalid("providerName"));
     }
@@ -225,7 +235,8 @@ pub fn check_connection(row: &ConnectionRow) -> Result<()> {
         .host_key
         .as_deref()
         .is_some_and(|key| !key.trim().is_empty());
-    if host_key != (row.protocol == Protocol::Sftp) {
+    let sftp = row.protocol == Protocol::Sftp;
+    if (host_key && !sftp) || (saved && sftp && !host_key) {
         return Err(invalid("hostKey"));
     }
     if row.credentials_item_id.is_empty() {

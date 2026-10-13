@@ -9,7 +9,9 @@ use async_trait::async_trait;
 use tokio::time::Instant;
 
 use super::local::LocalStore;
-use super::{Access, DirListing, ObjectHead, ObjectInfo, Protocol, RemoteStore, StorageError};
+use super::{
+    Access, DirListing, Location, ObjectHead, ObjectInfo, Protocol, RemoteStore, StorageError,
+};
 
 /// The stores of the protocols, chosen per call by `access.location.protocol`.
 pub struct ProtocolStore {
@@ -140,6 +142,13 @@ impl RemoteStore for ProtocolStore {
     fn copies_on_provider(&self, access: &Access) -> bool {
         self.of(access)
             .is_ok_and(|store| store.copies_on_provider(access))
+    }
+
+    fn shown_host_key(&self, location: &Location) -> Option<String> {
+        match location.protocol {
+            Protocol::Sftp => self.sftp.as_ref()?.shown_host_key(location),
+            _ => None,
+        }
     }
 
     async fn rename_tree(

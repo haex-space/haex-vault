@@ -71,6 +71,7 @@ fn webdav(folder: &str, create_folder: bool) -> super::model::ConnectionInput {
         }),
         bucket_for_test: folder.to_owned(),
         create_folder,
+        host_key: None,
     }
 }
 

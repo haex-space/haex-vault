@@ -10,8 +10,8 @@ use zeroize::Zeroizing;
 use super::{Addressing, CredentialsState, EndpointScope, Protocol, ProviderKind, TestOutcome};
 
 /// Credentials as typed by the user, by kind (spec 050 contracts/tauri-commands.md): `s3` only for
-/// S3 connections, `password` for WebDAV and SFTP, `sshKey` only for SFTP. `Debug` shows only the
-/// access key id or the user name.
+/// S3 connections, `password` for WebDAV and SFTP, `sshKey` and `generatedKey` only for SFTP.
+/// `Debug` shows only the access key id or the user name.
 #[derive(Clone, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -40,6 +40,9 @@ pub enum CredentialsInput {
         #[serde(default)]
         passphrase: Option<Zeroizing<String>>,
     },
+    /// A key holzi generated (`storage_ssh_key_generate`); its private half never left Rust.
+    #[serde(rename_all = "camelCase")]
+    GeneratedKey { username: String, key_id: String },
 }
 
 impl fmt::Debug for CredentialsInput {
@@ -56,6 +59,10 @@ impl fmt::Debug for CredentialsInput {
                 .finish_non_exhaustive(),
             Self::SshKey { username, .. } => f
                 .debug_struct("CredentialsInput::SshKey")
+                .field("username", username)
+                .finish_non_exhaustive(),
+            Self::GeneratedKey { username, .. } => f
+                .debug_struct("CredentialsInput::GeneratedKey")
                 .field("username", username)
                 .finish_non_exhaustive(),
         }
@@ -92,6 +99,11 @@ pub struct ConnectionInput {
     #[ts(as = "Option<bool>", optional)]
     #[serde(default)]
     pub create_folder: bool,
+    /// The host key (an OpenSSH line) the user confirmed after `hostKeyUnknown` (SFTP, spec 050
+    /// research R5); holzi then accepts exactly this key.
+    #[ts(optional)]
+    #[serde(default)]
+    pub host_key: Option<String>,
 }
 
 /// The protocol of a connection input that names none (the settings before spec 050).
@@ -133,6 +145,41 @@ pub struct ConnectionView {
     /// Whether the endpoint lies in the local network or on this device (research R8).
     pub endpoint_scope: EndpointScope,
     pub credentials: CredentialsState,
+    /// The confirmed host key of an SFTP connection (spec 050 research R5).
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_key: Option<ConfirmedHostKey>,
+}
+
+/// The host key a user confirmed for an SFTP connection.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmedHostKey {
+    /// `SHA256:…`, as OpenSSH shows it.
+    pub fingerprint: String,
+    pub confirmed_at: String,
+}
+
+/// The host key an SFTP server showed when it was not the confirmed one (spec 050 research R5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct ShownHostKey {
+    /// The OpenSSH line, which the window sends back once the user confirmed it.
+    pub key: String,
+    /// `SHA256:…`, to compare with what the provider publishes.
+    pub fingerprint: String,
+}
+
+/// The key `storage_ssh_key_generate` made: its id and its public key line, never its private key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedKey {
+    pub key_id: String,
+    /// `ssh-ed25519 AAAA… holzi`, for the provider's list of keys.
+    pub public_key: String,
 }
 
 /// The last test of a storage on this device.
@@ -188,6 +235,10 @@ pub struct StorageOverview {
 pub struct TestResult {
     pub outcome: TestOutcome,
     pub leftover_key: Option<String>,
+    /// The key an SFTP server showed at `hostKeyUnknown` or `hostKeyChanged`.
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_key: Option<ShownHostKey>,
 }
 
 /// `storage_removal_preview`: one of the two ids.

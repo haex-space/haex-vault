@@ -40,9 +40,14 @@ mod s3_multipart;
 mod s3_tests;
 pub mod service;
 #[cfg(test)]
+mod service_endpoint_tests;
+#[cfg(test)]
 mod service_protocol_tests;
 #[cfg(test)]
+mod service_sftp_tests;
+#[cfg(test)]
 mod service_tests;
+pub mod sftp;
 pub mod store;
 #[cfg(test)]
 mod store_tests;
