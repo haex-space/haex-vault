@@ -95,6 +95,45 @@
     "valid": false,
     "kind": "manifest_invalid"
   },
+  "good-tools.xt": {
+    "valid": true
+  },
+  "bad-tools-not-array.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-tools-name.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-tools-duplicate.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-tools-effect.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-tools-title.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-tools-examples.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-tools-schema.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-tools-unknown-key.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
+  "bad-tools-too-many.xt": {
+    "valid": false,
+    "kind": "manifest_invalid"
+  },
   "bad-weak-key.xt": {
     "valid": false,
     "kind": "manifest_invalid"

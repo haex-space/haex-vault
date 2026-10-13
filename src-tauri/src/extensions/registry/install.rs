@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+pub use super::declared_view::DeclaredPermissionView;
 use super::effective::{effective_bundle, live_bundles, retire, same_version_others};
 use crate::error::{HolziError, Result};
 use crate::extensions::bundle::store::{store_blobs, write_registry_rows, BundleIds};
@@ -25,29 +26,6 @@ use crate::extensions::permissions::PermissionStatus;
 use crate::files::picked::{self, Opener, PickedFile};
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
-
-/// One declared permission as the install dialog shows it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub struct DeclaredPermissionView {
-    pub kind: String,
-    pub action: String,
-    pub target: String,
-    /// Remembered only for this device (shell); every other kind holds on every own device.
-    pub device_scoped: bool,
-}
-
-impl From<&DeclaredPermission> for DeclaredPermissionView {
-    fn from(d: &DeclaredPermission) -> Self {
-        Self {
-            kind: d.kind.as_str().to_owned(),
-            action: d.action.as_string(),
-            target: d.target_text.clone(),
-            device_scoped: d.kind.is_device_scoped(),
-        }
-    }
-}
 
 /// The installed extension a bundle would update.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
@@ -231,7 +209,7 @@ pub fn preview_of(
             is_downgrade: manifest.version < current.version,
             new_permissions: new_declarations(declared, &rows)
                 .into_iter()
-                .map(DeclaredPermissionView::from)
+                .map(|d| DeclaredPermissionView::of(d, manifest))
                 .collect(),
         })
     } else {
@@ -256,7 +234,10 @@ pub fn preview_of(
         description: manifest.description.clone(),
         author: manifest.author.clone(),
         publisher_fingerprint: Some(publisher_fingerprint(&bundle.public_key)),
-        declared: declared.iter().map(DeclaredPermissionView::from).collect(),
+        declared: declared
+            .iter()
+            .map(|d| DeclaredPermissionView::of(d, manifest))
+            .collect(),
         unsupported_categories: manifest.permissions.unsupported_categories.clone(),
         existing,
         replaces_same_version: !same_version_others(
@@ -474,6 +455,9 @@ fn not_confirmed_replacement() -> HolziError {
     }
 }
 
+#[cfg(test)]
+#[path = "install_agent_tools_tests.rs"]
+mod install_agent_tools_tests;
 #[cfg(test)]
 #[path = "install_forbidden_tests.rs"]
 mod install_forbidden_tests;

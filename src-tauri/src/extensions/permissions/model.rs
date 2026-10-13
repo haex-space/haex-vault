@@ -22,10 +22,13 @@ pub enum PermissionKind {
     /// One encrypted folder of a storage (spec 048 FR-036): granted only by the user when asked,
     /// never from a manifest (FR-037).
     EncryptedFolder,
+    /// A tool the extension offers to the agent (spec 018): declared in the manifest's `tools`,
+    /// the action is its effect and the target its name; `*` stands for every tool.
+    AgentTool,
 }
 
 impl PermissionKind {
-    pub const ALL: [PermissionKind; 9] = [
+    pub const ALL: [PermissionKind; 10] = [
         Self::Database,
         Self::Filesystem,
         Self::Web,
@@ -35,6 +38,7 @@ impl PermissionKind {
         Self::Mail,
         Self::Shell,
         Self::EncryptedFolder,
+        Self::AgentTool,
     ];
 
     /// The stored name; anything else is not a kind holzi knows (FR-022).
@@ -42,6 +46,7 @@ impl PermissionKind {
         Self::ALL.into_iter().find(|kind| kind.as_str() == value)
     }
 
+    /// The stored spelling of this permission kind, also used in install previews.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Database => "database",
@@ -53,6 +58,7 @@ impl PermissionKind {
             Self::Mail => "mail",
             Self::Shell => "shell",
             Self::EncryptedFolder => "encryptedFolder",
+            Self::AgentTool => "agentTool",
         }
     }
 
@@ -95,6 +101,11 @@ pub enum Action {
     Execute,
     /// Propose a new storage endpoint on a host (spec 038 FR-009b); `readWrite` does not cover it.
     Add,
+    /// The effects of an agent tool besides `read` (spec 018).
+    Change,
+    Destructive,
+    /// Every effect: the `*` row of an extension's agent tools.
+    AnyEffect,
 }
 
 impl Action {
@@ -118,6 +129,10 @@ impl Action {
             (K::Mail, "poll") => Some(Self::Poll),
             (K::Shell, "execute") => Some(Self::Execute),
             (K::RemoteStorage, "add") => Some(Self::Add),
+            (K::AgentTool, "read") => Some(Self::Read),
+            (K::AgentTool, "change") => Some(Self::Change),
+            (K::AgentTool, "destructive") => Some(Self::Destructive),
+            (K::AgentTool, "*") => Some(Self::AnyEffect),
             _ => None,
         }
     }
@@ -128,22 +143,25 @@ impl Action {
             Self::Read => "read".to_owned(),
             Self::ReadWrite => "readWrite".to_owned(),
             Self::Method(method) => method.clone(),
-            Self::AnyMethod => "*".to_owned(),
+            Self::AnyMethod | Self::AnyEffect => "*".to_owned(),
             Self::Show => "show".to_owned(),
             Self::Fetch => "fetch".to_owned(),
             Self::Send => "send".to_owned(),
             Self::Poll => "poll".to_owned(),
             Self::Execute => "execute".to_owned(),
             Self::Add => "add".to_owned(),
+            Self::Change => "change".to_owned(),
+            Self::Destructive => "destructive".to_owned(),
         }
     }
 
     /// Whether a permission for `self` covers a request for `requested`: `readWrite` covers
-    /// `read`, `*` covers every method, everything else only itself.
+    /// `read`, `*` covers every method or every effect, everything else only itself.
     pub fn covers(&self, requested: &Action) -> bool {
         match (self, requested) {
             (Self::ReadWrite, Self::Read) => true,
             (Self::AnyMethod, Self::Method(_)) => true,
+            (Self::AnyEffect, Self::Read | Self::Change | Self::Destructive) => true,
             _ => self == requested,
         }
     }

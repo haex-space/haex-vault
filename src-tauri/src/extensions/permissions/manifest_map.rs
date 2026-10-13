@@ -11,6 +11,7 @@ use serde_json::Value;
 
 use super::model::{Action, PermissionKind};
 use super::target::Target;
+use crate::extensions::bundle::{ManifestTool, ToolEffect};
 
 /// One permission an extension declares in its manifest.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,7 +83,7 @@ fn default_action(kind: PermissionKind) -> Option<&'static str> {
         PermissionKind::Web => Some("*"),
         PermissionKind::Notifications => Some("show"),
         PermissionKind::Shell => Some("execute"),
-        PermissionKind::Mail | PermissionKind::EncryptedFolder => None,
+        PermissionKind::Mail | PermissionKind::EncryptedFolder | PermissionKind::AgentTool => None,
     }
 }
 
@@ -141,6 +142,25 @@ pub fn map_manifest_permissions(permissions: &Value) -> DeclaredPermissions {
     result.unsupported_categories.sort();
     result.forbidden_categories.sort();
     result
+}
+
+/// Each tool of the manifest's `tools` block as an `agentTool` permission (spec 018, research R4):
+/// the effect is the action, the name the target. Tools are declared only there; a `permissions`
+/// category `agentTool` is not one holzi offers.
+pub fn map_manifest_tools(tools: &[ManifestTool]) -> Vec<DeclaredPermission> {
+    tools
+        .iter()
+        .map(|tool| DeclaredPermission {
+            kind: PermissionKind::AgentTool,
+            action: match tool.effect {
+                ToolEffect::Read => Action::Read,
+                ToolEffect::Change => Action::Change,
+                ToolEffect::Destructive => Action::Destructive,
+            },
+            target: Target::Tool(tool.name.clone()),
+            target_text: tool.name.clone(),
+        })
+        .collect()
 }
 
 fn map_entry(kind: PermissionKind, entry: &Value) -> Option<DeclaredPermission> {

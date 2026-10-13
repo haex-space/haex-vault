@@ -319,7 +319,7 @@ pub fn preview(q: &mut impl Query, project: &DevProject, device: Uuid) -> Result
             .permissions
             .declared
             .iter()
-            .map(DeclaredPermissionView::from)
+            .map(|d| DeclaredPermissionView::of(d, manifest))
             .collect(),
         unsupported_categories: manifest.permissions.unsupported_categories.clone(),
         existing: None,

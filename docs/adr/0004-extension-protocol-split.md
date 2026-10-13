@@ -1,6 +1,6 @@
 # Extensions reach the agent over MCP and the host over a typed bridge
 
-Status: accepted
+Status: accepted; direction A settled by spec 018 (see the end)
 Date: 2026-09-21
 
 ## Decision
@@ -9,18 +9,19 @@ Holzi hosts haextensions (signed web bundles that run in a sandboxed iframe).
 Traffic between an extension and holzi runs in two directions. Each direction
 has its own protocol, its own code path, and the same permission model.
 
-| Direction | Caller → callee                        | Protocol                                                      | Authorization                                                                  |
-| --------- | -------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| A         | holzi (agent) → extension              | **MCP**: holzi is the client, the extension is the server     | Tool declared in the manifest and confirmed at install; per-call approval gate |
-| B         | extension → host operation (file, DB…) | **Typed request/response over the extension's `MessagePort`** | Manifest grants; anything else prompts the user                                |
+| Direction | Caller → callee                        | Protocol                                                      | Authorization                                                                                         |
+| --------- | -------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| A         | holzi (agent) → extension              | **MCP**: holzi is the client, the extension is the server     | Tool declared in the manifest and confirmed at install; per-call approval gate by the declared effect |
+| B         | extension → host operation (file, DB…) | **Typed request/response over the extension's `MessagePort`** | Manifest grants; anything else prompts the user                                                       |
 
 **Direction A.** An extension declares the tools it offers in its manifest and
 serves them over MCP at runtime. Holzi connects as an MCP client and registers
-each tool in the existing `ToolRegistry` with source `haextension`. Tools are
-`Risky` by default; MCP tool annotations are hints from an untrusted party and
-never lower the risk class on their own. A tool call needs an open window of
-the extension; holzi opens one minimized when none exists. A call invokes the
-extension's functions directly and need not be visible in its UI.
+each tool in the existing `ToolRegistry` with source `haextension`. The risk
+class follows the effect the signed manifest declares (`read`, `change`,
+`destructive`); MCP tool annotations are hints and are never read. A tool
+call needs an open window of the extension; holzi opens one minimized when none
+exists. A call invokes the extension's functions directly and need not be
+visible in its UI.
 
 **Direction B.** The extension calls typed host methods (the protocol the
 haex-vault SDK already speaks). The frontend only relays JSON between the
@@ -41,10 +42,12 @@ calls the host function directly. Host operations never pass through the agent.
   extension is checked against the _extension's_ grants, and its prompt says
   it was triggered by an agent call.
 
-**The LLM is never reachable from an extension.** The bridge dispatches from a
-deny-by-default allowlist of host methods. It offers no MCP sampling, no path
-into the chat runtime, and no extension-to-extension calls. A contract test
-enumerates the bridge methods and fails if any reaches chat or model code.
+**An extension reaches a model only through a route the user set.** The bridge
+dispatches from a deny-by-default allowlist of host methods. Neither the bridge
+nor the tool connection offers MCP sampling, a path into the chat runtime, or
+extension-to-extension calls; holzi's MCP client refuses every request from the
+extension's server except `ping`. A contract test enumerates the bridge
+methods and fails if any reaches chat or model code.
 
 ## Rationale
 
@@ -83,15 +86,36 @@ are that direction's normal traffic.
 - Holzi does not plan native-webview extension windows. The iframe plus
   port model leaves one chokepoint and needs no per-command Tauri ACL
   allowlist.
-- Open for the plan of 018, not yet verified: whether `rmcp` 3.4.0's
-  `(Sink, Stream)` transport needs extra feature flags in holzi, the
-  extension-side `MessagePort` transport for an MCP server, and how to
-  attribute a host operation to an in-flight agent call.
 - Prompt handling for direction B needs the queue and duplicate-request
   handling that haex-vault's prompt code already has.
 - The bundle format and the two independent checks of extension SQL that spec 017
   settled are recorded in
   [ADR-0008](./0008-extension-bundle-signature-and-sql-authorizer.md).
+
+## Direction A settled (spec 018, 2026-10-12)
+
+- **Effect from the manifest.** Each tool declares its effect in the signed
+  manifest instead of being `Risky` by default (operator decision
+  2026-10-10): an extension can do only what its permissions allow, and the
+  signature binds the declaration. Each tool is stored as a permission of the
+  kind `agentTool` (action = effect, target = tool name); a tool left unticked
+  at install asks before every call, in every mode.
+- **Transport.** MCP messages travel as the port message `haexspace:mcp`
+  beside the bridge's messages; the frontend relays them to one Tauri command
+  per direction, and Rust identifies the extension from the frame session as
+  for the bridge. holzi's client uses `rmcp` 3.5's `(Sink, Stream)` transport,
+  which needs no extra feature, with protocol version `2025-11-25`. The
+  vault-sdk serves the tools with a small MCP server of its own (no new
+  dependency), from haex-space/vault-sdk@280cebf63eba72422d1ddd62e1edeb5ad7e7d3cc.
+  The SDK's native Tauri mode gets no MCP path.
+- **Models for extensions.** "The LLM is never reachable from an extension"
+  becomes "only through a route the user set": the operator wants extensions
+  to use holzi's agent once the user can choose which model answers which
+  extension's questions (a later spec). Until then no such route exists, and
+  neither the bridge nor the tool connection is one.
+- **Attributing host operations.** The frame session counts the agent calls
+  in flight; a host prompt raised while the count is above zero says it was
+  triggered by an agent call.
 
 ## Considered alternatives
 

@@ -10,7 +10,9 @@ sie an, der Server antwortet mit derselben). `clientInfo` ist `{name: "holzi", v
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | holzi → Erweiterung | Rust-Event `extension-mcp-message {frame, message}` → Frontend → `port.postMessage({type: "haexspace:mcp", message})`      |
 | Erweiterung → holzi | `port.postMessage({type: "haexspace:mcp", message})` → `useExtensionFrame` → Command `extension_mcp_send {frame, message}` |
-| Tauri-Modus (nativ) | Event-Name `haexspace:mcp` über `listen()` wie andere Ereignisse                                                           |
+
+Der native Tauri-Modus des SDK bekommt keinen MCP-Weg: holzi lädt Erweiterungen nur im iframe
+(ADR-0004), und kein Host böte das Gegenstück (vault-sdk#64).
 
 `message` ist ein JSON-RPC-2.0-Objekt, unverändert. Rust bestimmt die Erweiterung aus `frame`
 (`FrameRegistry`); eine unbekannte Rahmen-Sitzung wird verworfen.

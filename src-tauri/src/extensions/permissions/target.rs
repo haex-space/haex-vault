@@ -40,6 +40,8 @@ pub enum Target {
     /// One encrypted folder: `<storage_id>/<folder_id>` (spec 048, contracts/bridge.md). Never a
     /// wildcard: a grant names exactly one folder.
     EncryptedFolder(FolderRef),
+    /// An agent tool, by its manifest name (`^[a-z][a-z0-9_]{0,31}$`).
+    Tool(String),
 }
 
 /// An encrypted folder of a storage: the storage's id and the Base32 id of the folder.
@@ -172,6 +174,8 @@ impl Target {
             K::Shell if value == "*" => Some(Self::Any),
             K::Shell => clean_absolute(value).map(Self::Program),
             K::EncryptedFolder => FolderRef::parse(value).map(Self::EncryptedFolder),
+            K::AgentTool if value == "*" => Some(Self::Any),
+            K::AgentTool => is_tool_name(value).then(|| Self::Tool(value.to_owned())),
         }
     }
 
@@ -211,6 +215,14 @@ impl Target {
             _ => false,
         }
     }
+}
+
+/// A tool name as the manifest's `tools` block allows it: `^[a-z][a-z0-9_]{0,31}$`.
+fn is_tool_name(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    bytes.next().is_some_and(|b| b.is_ascii_lowercase())
+        && value.len() <= 32
+        && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
 }
 
 impl HostPattern {
