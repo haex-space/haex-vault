@@ -13,12 +13,15 @@ use tokio_util::sync::CancellationToken;
 
 use super::env::AgentEnv;
 use super::exec::FilesAgent;
-use super::prompt::{FilesAgentChoice, FilesAgentPermissionRequest, PermissionPrompt};
+use super::prompt::{
+    FilesAgentAnswer, FilesAgentChoice, FilesAgentPermissionRequest, PermissionPrompt,
+};
 use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
-use crate::files::access::AgentGrants;
+use crate::files::access::{AgentGrants, FolderGrant, Locality, StorageGrant};
 use crate::files::browser_commands::{KnownPlace, StorageSource};
+use crate::files::encrypted::Scope;
 use crate::files::local::OwnPlaces;
-use crate::files::permissions::{AgentFileStatus, BUILTIN_AGENT};
+use crate::files::permissions::{AgentFileReach, AgentFileStatus, BUILTIN_AGENT};
 use crate::files::storage_source::StorageFiles;
 use crate::files::transfer::local::Removal;
 use crate::files::FilesError;
@@ -30,8 +33,13 @@ pub struct FakeEnv {
     pub known: Vec<KnownPlace>,
     pub grants: Mutex<AgentGrants>,
     pub stored: Mutex<Vec<(String, AgentFileStatus)>>,
+    /// Stored folder answers: target, status, reach.
+    pub stored_folders: Mutex<Vec<(String, AgentFileStatus, AgentFileReach)>>,
     pub storages: Vec<StorageSource>,
     pub store: Arc<FakeStore>,
+    /// The bucket and scope of a storage with encrypted folders; without, storage `s` is bucket
+    /// `s` and has none.
+    pub scoped: Option<(String, Scope)>,
     pub prompt: PermissionPrompt,
     pub asked: Arc<Mutex<Vec<FilesAgentPermissionRequest>>>,
 }
@@ -73,17 +81,77 @@ impl AgentEnv for FakeEnv {
         Ok(())
     }
 
+    async fn store_folder_grant(
+        &self,
+        _agent_id: &str,
+        target: &str,
+        status: AgentFileStatus,
+        reach: AgentFileReach,
+    ) -> Result<(), FilesError> {
+        let grant = match status {
+            AgentFileStatus::Read => StorageGrant::Read,
+            AgentFileStatus::ReadWrite => StorageGrant::ReadWrite,
+            _ => StorageGrant::Denied,
+        };
+        let reach_of = match reach {
+            AgentFileReach::Local => Locality::Local,
+            AgentFileReach::Cloud => Locality::Cloud,
+        };
+        self.grants.lock().expect("grants").folders.insert(
+            target.to_owned(),
+            FolderGrant {
+                grant,
+                reach: reach_of,
+            },
+        );
+        self.stored_folders
+            .lock()
+            .expect("stored")
+            .push((target.to_owned(), status, reach));
+        Ok(())
+    }
+
     async fn storages(&self) -> Result<Vec<StorageSource>, FilesError> {
         Ok(self.storages.clone())
     }
 
     async fn open_storage(&self, storage_id: &str) -> Result<StorageFiles, FilesError> {
-        Ok(StorageFiles::new(self.store.clone(), access(storage_id)))
+        Ok(match &self.scoped {
+            Some((bucket, scope)) => {
+                StorageFiles::new(self.store.clone(), access(bucket)).with_scope(scope.clone())
+            }
+            None => StorageFiles::new(self.store.clone(), access(storage_id)),
+        })
     }
 
     fn prompt(&self) -> &PermissionPrompt {
         &self.prompt
     }
+}
+
+/// A prompt whose window records each question and answers it with `answer`; `None` is a missing
+/// window.
+fn window(
+    answer: Option<FilesAgentAnswer>,
+) -> (
+    PermissionPrompt,
+    Arc<Mutex<Vec<FilesAgentPermissionRequest>>>,
+) {
+    let prompt = PermissionPrompt::with_timeout(Duration::from_secs(5));
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let (seen, answering) = (asked.clone(), prompt.clone());
+    prompt.set_emitter(Arc::new(move |request: &FilesAgentPermissionRequest| {
+        seen.lock().expect("asked").push(request.clone());
+        let Some(answer) = answer else {
+            return false;
+        };
+        let (answering, id) = (answering.clone(), request.request_id.clone());
+        tokio::spawn(async move {
+            answering.answer(&id, answer);
+        });
+        true
+    }));
+    (prompt, asked)
 }
 
 /// The device folder of a test and the agent over it.
@@ -112,20 +180,7 @@ impl Scene {
 
         let store = Arc::new(FakeStore::new());
         store.insert("s1", "a.txt", b"im Speicher");
-        let prompt = PermissionPrompt::with_timeout(Duration::from_secs(5));
-        let asked = Arc::new(Mutex::new(Vec::new()));
-        let (seen, answering) = (asked.clone(), prompt.clone());
-        prompt.set_emitter(Arc::new(move |request: &FilesAgentPermissionRequest| {
-            seen.lock().expect("asked").push(request.clone());
-            let Some(choice) = answer else {
-                return false;
-            };
-            let (answering, id) = (answering.clone(), request.request_id.clone());
-            tokio::spawn(async move {
-                answering.answer(&id, choice);
-            });
-            true
-        }));
+        let (prompt, asked) = window(answer.map(FilesAgentAnswer::plain));
         let env = FakeEnv {
             own: OwnPlaces::new(vec![root.join("holzi")]),
             known: vec![KnownPlace {
@@ -134,11 +189,13 @@ impl Scene {
             }],
             grants: Mutex::new(AgentGrants::default()),
             stored: Mutex::new(Vec::new()),
+            stored_folders: Mutex::new(Vec::new()),
             storages: vec![StorageSource {
                 id: "s1".to_owned(),
                 name: "Fotos".to_owned(),
             }],
             store,
+            scoped: None,
             prompt,
             asked,
         };
@@ -147,12 +204,59 @@ impl Scene {
             agent_id: BUILTIN_AGENT.to_owned(),
             caller: Caller::BuiltinAgent,
             removal: Removal::Permanent,
+            memory: Mutex::default(),
         };
         Self {
             _dir: dir,
             root,
             agent,
         }
+    }
+
+    /// The agent over storage `s1` ("Fotos") of `encrypted`, with its encrypted folders, granted
+    /// `storage` for it; questions for a folder get `answer`, `None` is a missing window.
+    pub fn over_encrypted(
+        encrypted: &crate::files::encrypted::test_support::Scene,
+        storage: StorageGrant,
+        answer: Option<FilesAgentAnswer>,
+    ) -> Self {
+        use crate::files::encrypted::test_support::{BUCKET, STORAGE};
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = fs::canonicalize(dir.path()).expect("canonical");
+        let (prompt, asked) = window(answer);
+        let scope = encrypted.files().scope().cloned().expect("a scope");
+        let env = FakeEnv {
+            own: OwnPlaces::new(Vec::new()),
+            known: Vec::new(),
+            grants: Mutex::new(AgentGrants::default().with_storage(STORAGE, storage)),
+            stored: Mutex::new(Vec::new()),
+            stored_folders: Mutex::new(Vec::new()),
+            storages: vec![StorageSource {
+                id: STORAGE.to_owned(),
+                name: "Fotos".to_owned(),
+            }],
+            store: encrypted.fake.clone(),
+            scoped: Some((BUCKET.to_owned(), scope)),
+            prompt,
+            asked,
+        };
+        let agent = FilesAgent {
+            env,
+            agent_id: BUILTIN_AGENT.to_owned(),
+            caller: Caller::BuiltinAgent,
+            removal: Removal::Permanent,
+            memory: Mutex::default(),
+        };
+        Self {
+            _dir: dir,
+            root,
+            agent,
+        }
+    }
+
+    /// The questions asked so far.
+    pub fn questions(&self) -> Vec<FilesAgentPermissionRequest> {
+        self.agent.env.asked.lock().expect("asked").clone()
     }
 
     /// `name` below the device folder, as an agent spells it.

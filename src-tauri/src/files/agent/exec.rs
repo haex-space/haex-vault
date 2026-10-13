@@ -6,6 +6,7 @@
 //! [`super::exec_write`].
 
 use std::path::Path;
+use std::sync::Mutex;
 
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -13,6 +14,7 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::env::AgentEnv;
+use super::folders::TaskMemory;
 use super::reach::{blocking, cancelled, entry_json, files_error, parse, PathInput, Place};
 use crate::chat::tools::native_action::{NativeError, NativeExecutor, NativeReply};
 use crate::files::access::{storage_listed, visible_to, StorageGrant, Want};
@@ -55,6 +57,8 @@ pub struct FilesAgent<E> {
     pub(super) caller: Caller,
     /// How a delete on the device removes (FR-023).
     pub(super) removal: Removal,
+    /// Answers and opaque names of the running task (spec 048 FR-031, FR-032).
+    pub(super) memory: Mutex<TaskMemory>,
 }
 
 impl<E: AgentEnv> FilesAgent<E> {
@@ -65,6 +69,7 @@ impl<E: AgentEnv> FilesAgent<E> {
             agent_id: BUILTIN_AGENT.to_owned(),
             caller: Caller::BuiltinAgent,
             removal: platform_removal(),
+            memory: Mutex::default(),
         }
     }
 }
@@ -186,30 +191,32 @@ impl<E: AgentEnv> FilesAgent<E> {
         cancel: &CancellationToken,
     ) -> Result<Value, NativeError> {
         let limit = input.limit.unwrap_or(LIST_LIMIT).clamp(1, LIST_LIMIT_MAX);
-        let entries = match self.place(&input.source).await? {
+        let shown: Vec<Value> = match self.place(&input.source).await? {
             Place::Device => {
                 let real = self.device(&input.path, Want::Read, false).await?;
                 let own = self.env.own();
                 let grants = self.env.grants(&self.agent_id).await.map_err(files_error)?;
                 let caller = self.caller.clone();
-                blocking(move || {
+                let entries = blocking(move || {
                     Ok(ops::list(&real, &own)?
                         .into_iter()
                         .filter(|entry| visible_to(&caller, Path::new(&entry.path), &own, &grants))
                         .collect::<Vec<_>>())
                 })
-                .await?
+                .await?;
+                entries.iter().map(entry_json).collect()
             }
-            Place::Storage(storage) => self
-                .storage(&storage, Want::Read, cancel)
-                .await?
-                .list(&input.path)
-                .await
-                .map_err(files_error)?,
+            Place::Storage(storage) => {
+                let (files, paths) = self
+                    .storage_at(&storage, Want::Read, &[input.path], cancel)
+                    .await?;
+                let entries = files.list(&paths[0]).await.map_err(files_error)?;
+                self.shown_entries(&storage, &files, &entries).await?
+            }
         };
-        let truncated = entries.len() > limit;
+        let truncated = shown.len() > limit;
         Ok(json!({
-            "entries": entries.iter().take(limit).map(entry_json).collect::<Vec<_>>(),
+            "entries": shown.into_iter().take(limit).collect::<Vec<_>>(),
             "truncated": truncated,
         }))
     }
@@ -219,8 +226,14 @@ impl<E: AgentEnv> FilesAgent<E> {
         input: PathInput,
         cancel: &CancellationToken,
     ) -> Result<Value, NativeError> {
-        let entry = self.entry(&input, cancel).await?.0;
-        Ok(entry_json(&entry))
+        let (entry, files, _) = self.entry(&input, cancel).await?;
+        match (files, self.place(&input.source).await?) {
+            (Some(files), Place::Storage(storage)) => Ok(self
+                .shown_entries(&storage, &files, std::slice::from_ref(&entry))
+                .await?
+                .remove(0)),
+            _ => Ok(entry_json(&entry)),
+        }
     }
 
     async fn search(
@@ -268,17 +281,21 @@ impl<E: AgentEnv> FilesAgent<E> {
                 end
             }
             Place::Storage(storage) => {
-                let files = self.storage(&storage, Want::Read, cancel).await?;
-                search_storage(
+                let (files, paths) = self
+                    .storage_at(&storage, Want::Read, &[input.path], cancel)
+                    .await?;
+                let end = search_storage(
                     &files,
-                    &input.path,
+                    &paths[0],
                     &input.query,
                     &options,
                     cancel,
                     &mut |batch| hits.extend(batch),
                     &mut |_| {},
                 )
-                .await
+                .await;
+                hits = self.shown_hits(&storage, &files, hits).await?;
+                end
             }
         };
         let truncated = match end {

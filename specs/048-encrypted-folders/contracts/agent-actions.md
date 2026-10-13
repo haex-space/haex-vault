@@ -10,7 +10,12 @@ Neue Aktionen gibt es nicht; geändert wird, was Agents sehen und wann holzi fra
   zählt je Antwort; `ref` ist eine Kennung, die nur in dieser Aufgabe des Agents gilt und mit der er
   den Ordner in weiteren Aktionen nennt. Name, Einträge, Anzahl und Objekte bleiben verborgen
   (FR-032).
+- `path` dieses Eintrags ist der übergeordnete Ordner mit `ref` als letztem Teil; über diesen Pfad
+  (und darunter) fragt holzi nach der Freigabe. Nennt der Agent den Ordner ohne Freigabe bei seinem
+  echten Namen oder seinem Präfix beim Anbieter, ist er „nicht gefunden“, ohne Frage.
 - `files.search` über einen Speicher lässt verschlüsselte Ordner ohne Freigabe aus.
+- Kopieren oder Verschieben aus einem verschlüsselten Ordner in einen gewöhnlichen Ordner eines
+  Speichers lehnt holzi für Agents ab (die Rückfrage aus FR-019 kann nur der Nutzer beantworten).
 - Mit Freigabe sieht der Agent den Ordner mit seinem Namen und darin alles wie in einem gewöhnlichen
   Ordner.
 

@@ -26,9 +26,17 @@ export type Behavior =
    * without tools (a thread title) a short text. */
   | { kind: 'script'; steps: ScriptStep[] }
 
-/** One answer of a scripted model: a call of `tool` with `input`, or a closing text. */
+/** One answer of a scripted model: a call of `tool` with `input`, or a closing text. An `input`
+ * given as a function is built from the request it answers, so a step can use what the last tool
+ * returned (a name only the app knows). */
 export type ScriptStep =
-  { tool: string; input: Record<string, unknown> } | { text: string }
+  | {
+      tool: string
+      input:
+        | Record<string, unknown>
+        | ((request: unknown) => Record<string, unknown>)
+    }
+  | { text: string }
 
 export interface Connection {
   id: number
@@ -174,6 +182,7 @@ function scripted(
   res: ServerResponse,
   connectionId: number,
   step: ScriptStep,
+  request: unknown,
 ): void {
   res.writeHead(200, { 'content-type': 'text/event-stream' })
   if ('text' in step) {
@@ -202,7 +211,9 @@ function scripted(
         index: 0,
         delta: {
           type: 'input_json_delta',
-          partial_json: JSON.stringify(step.input),
+          partial_json: JSON.stringify(
+            typeof step.input === 'function' ? step.input(request) : step.input,
+          ),
         },
       }) +
       sseEvent('content_block_stop', { type: 'content_block_stop', index: 0 }) +
@@ -336,7 +347,7 @@ export async function startProvider(
           const step = tools?.length
             ? (current.steps[scriptAt++] ?? { text: 'done' })
             : { text: 'title' }
-          scripted(res, connection.id, step)
+          scripted(res, connection.id, step, body)
           return
         }
         streamThenFinish(res, connection.id, current)

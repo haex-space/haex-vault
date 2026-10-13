@@ -58,11 +58,11 @@ pub(crate) async fn storage_files(
     ))
 }
 
-/// [`storage_files`] for the window: with the [`Scope`] that lets its paths go through encrypted
-/// folders by their decrypted names (spec 048). The opened folders live in `files` until the vault
-/// closes.
-pub(crate) async fn window_storage(
-    app: &AppHandle,
+/// [`storage_files`] for the window and for agents: with the [`Scope`] that lets its paths go
+/// through encrypted folders by their decrypted names (spec 048); an agent's executor decides which
+/// folders it may enter. The opened folders live in `files` until the vault closes.
+pub(crate) async fn window_storage<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     state: &AppState,
     files: &FilesState,
     storage_id: &str,

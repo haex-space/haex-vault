@@ -912,6 +912,13 @@
         "readWrite": "Read and write",
         "denied": "Denied"
       },
+      "folderUnknown": "Encrypted folder",
+      "folderDescription": "Encrypted folder in “{storage}” · {status} · {reach}",
+      "reach": {
+        "local": "only models on this device",
+        "cloud": "also cloud models"
+      },
+      "revoke": "Revoke",
       "loadFailed": "Permissions not loaded",
       "failed": "Not saved"
     },
@@ -2336,7 +2343,19 @@
       "hint": "holzi remembers your answer for this cloud storage.",
       "allowRead": "Allow reading",
       "allowReadWrite": "Allow reading and writing",
-      "deny": "Deny"
+      "deny": "Deny",
+      "folder": {
+        "title": "Access to an encrypted folder",
+        "read": "The agent in the chat wants to read the encrypted folder “{name}” in the cloud storage “{storage}”.",
+        "readWrite": "The agent in the chat wants to read and change the encrypted folder “{name}” in the cloud storage “{storage}”.",
+        "local": "What it reads goes to the model “{model}” on this device.",
+        "cloud": "What it reads goes to the model “{model}” in the cloud.",
+        "remember": "Remember this permission",
+        "alsoCloud": "also for cloud models",
+        "thisTask": "Without the checkbox the answer holds for this task only.",
+        "kept": "holzi remembers the answer for this folder.",
+        "keptLocal": "holzi remembers the answer for models on this device only; it still holds for this task."
+      }
     }
   }
 }

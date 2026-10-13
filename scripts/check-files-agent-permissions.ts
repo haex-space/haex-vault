@@ -32,6 +32,7 @@ test('without rows the built-in agent reaches the device and every storage asks'
         { id: 's1', name: 'Fotos', status: 'ask' },
         { id: 's2', name: 'Archiv', status: 'ask' },
       ],
+      folders: [],
     },
   ])
 })
@@ -80,4 +81,35 @@ test('rows of a storage that is gone are left out', () => {
     builtin?.storages.map((storage) => storage.id),
     ['s1', 's2'],
   )
+})
+
+test('remembered folder answers list with name, storage and reach; a gone storage drops them', () => {
+  const [builtin] = agentFiles(
+    [
+      {
+        ...row(BUILTIN_AGENT, 'encryptedFolder', 's2/abc', 'read'),
+        reach: 'cloud',
+        folderName: 'Unterlagen',
+      },
+      row(BUILTIN_AGENT, 'encryptedFolder', 's1/def', 'readWrite'),
+      row(BUILTIN_AGENT, 'encryptedFolder', 'gone/xyz', 'read'),
+    ],
+    STORAGES,
+  )
+  assert.deepEqual(builtin?.folders, [
+    {
+      target: 's2/abc',
+      name: 'Unterlagen',
+      storageName: 'Archiv',
+      status: 'read',
+      reach: 'cloud',
+    },
+    {
+      target: 's1/def',
+      name: null,
+      storageName: 'Fotos',
+      status: 'readWrite',
+      reach: 'local',
+    },
+  ])
 })

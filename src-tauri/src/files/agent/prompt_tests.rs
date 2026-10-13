@@ -3,7 +3,10 @@ use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 
-use super::{FilesAgentChoice, FilesAgentPermissionRequest, FilesAgentWant, PermissionPrompt};
+use super::{
+    FilesAgentAnswer, FilesAgentChoice, FilesAgentPermissionRequest, FilesAgentWant,
+    PermissionPrompt,
+};
 
 /// A prompt whose window records each question and, with `reply`, answers it at once.
 fn prompt_with_window(
@@ -21,7 +24,7 @@ fn prompt_with_window(
         if let Some(choice) = reply {
             let (answering, id) = (answering.clone(), request.request_id.clone());
             tokio::spawn(async move {
-                answering.answer(&id, choice);
+                answering.answer(&id, FilesAgentAnswer::plain(choice));
             });
         }
         true
@@ -31,8 +34,9 @@ fn prompt_with_window(
 
 async fn ask(prompt: &PermissionPrompt, cancel: &CancellationToken) -> Option<FilesAgentChoice> {
     prompt
-        .ask("builtin", "s1", "Fotos", FilesAgentWant::Read, cancel)
+        .ask("builtin", "s1", "Fotos", FilesAgentWant::Read, None, cancel)
         .await
+        .map(|answer| answer.choice)
 }
 
 #[tokio::test]
@@ -62,7 +66,7 @@ async fn no_answer_in_time_refuses_and_a_late_answer_finds_nothing() {
     let (prompt, asked) = prompt_with_window(None, Duration::from_millis(20));
     assert_eq!(ask(&prompt, &CancellationToken::new()).await, None);
     let id = asked.lock().expect("asked")[0].request_id.clone();
-    assert!(!prompt.answer(&id, FilesAgentChoice::Read));
+    assert!(!prompt.answer(&id, FilesAgentAnswer::plain(FilesAgentChoice::Read)));
 }
 
 #[tokio::test]

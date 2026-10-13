@@ -155,12 +155,15 @@ impl<E: AgentEnv> FilesAgent<E> {
                 let own = self.env.own();
                 blocking(move || edit::create_folder(&parent, &input.name, &own)).await?
             }
-            Place::Storage(storage) => self
-                .storage(&storage, Want::Write, cancel)
-                .await?
-                .create_folder(&input.path, &input.name)
-                .await
-                .map_err(files_error)?,
+            Place::Storage(storage) => {
+                let (files, paths) = self
+                    .storage_at(&storage, Want::Write, &[input.path], cancel)
+                    .await?;
+                files
+                    .create_folder(&paths[0], &input.name)
+                    .await
+                    .map_err(files_error)?
+            }
         };
         Ok(entry_json(&entry))
     }
@@ -177,12 +180,15 @@ impl<E: AgentEnv> FilesAgent<E> {
                 refuse_own_trees(&own, std::slice::from_ref(&real))?;
                 blocking(move || edit::rename(&real, &input.new_name, &own)).await?
             }
-            Place::Storage(storage) => self
-                .storage(&storage, Want::Write, cancel)
-                .await?
-                .rename(&input.path, &input.new_name)
-                .await
-                .map_err(files_error)?,
+            Place::Storage(storage) => {
+                let (files, paths) = self
+                    .storage_at(&storage, Want::Write, &[input.path], cancel)
+                    .await?;
+                files
+                    .rename(&paths[0], &input.new_name)
+                    .await
+                    .map_err(files_error)?
+            }
         };
         Ok(entry_json(&entry))
     }
@@ -263,8 +269,10 @@ impl<E: AgentEnv> FilesAgent<E> {
                 (Side::Device, sources)
             }
             Place::Storage(storage) => {
-                let files = self.storage(&storage, want, &cancel).await?;
-                (Side::Storage(Arc::new(files)), input.paths.clone())
+                let (files, paths) = self
+                    .storage_at(&storage, want, &input.paths, &cancel)
+                    .await?;
+                (Side::Storage(Arc::new(files)), paths)
             }
         };
         let (to, target) = match to {
@@ -282,8 +290,15 @@ impl<E: AgentEnv> FilesAgent<E> {
                 (Side::Device, target.to_string_lossy().into_owned())
             }
             Place::Storage(storage) => {
-                let files = self.storage(&storage, Want::Write, &cancel).await?;
-                (Side::Storage(Arc::new(files)), input.to.clone())
+                let (files, mut paths) = self
+                    .storage_at(
+                        &storage,
+                        Want::Write,
+                        std::slice::from_ref(&input.to),
+                        &cancel,
+                    )
+                    .await?;
+                (Side::Storage(Arc::new(files)), paths.remove(0))
             }
         };
         let job = RemoteJob {
@@ -296,6 +311,14 @@ impl<E: AgentEnv> FilesAgent<E> {
         let report = blocking(move || {
             let handle = tokio::runtime::Handle::current();
             let plan = prepare_remote(&job, &handle, free_space)?;
+            // Nobody can confirm for an agent that files leave an encrypted folder for an ordinary
+            // one (spec 048 FR-019).
+            if plan.leaving() > 0 {
+                return Err(FilesError::new(
+                    FilesErrorCode::NotGranted,
+                    "files may not leave an encrypted folder for an ordinary folder",
+                ));
+            }
             Ok(run_with(choice, Removal::Permanent, &cancel, |hooks| {
                 run_remote(&job, &plan, &handle, &RETRIES, hooks)
             }))
@@ -346,8 +369,10 @@ impl<E: AgentEnv> FilesAgent<E> {
                 Ok(json!({ "deleted": count, "trash": removal == Removal::Trash }))
             }
             Place::Storage(storage) => {
-                let files = self.storage(&storage, Want::Write, cancel).await?;
-                for (done, path) in input.paths.iter().enumerate() {
+                let (files, paths) = self
+                    .storage_at(&storage, Want::Write, &input.paths, cancel)
+                    .await?;
+                for (done, path) in paths.iter().enumerate() {
                     if let Err(error) = files.delete(path, cancel, &mut |_| {}).await {
                         if cancel.is_cancelled() {
                             return Err(cancelled());

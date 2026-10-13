@@ -78,6 +78,8 @@ pub enum FilesErrorCode {
     OtherVault,
     /// An encrypted folder of a newer format version.
     NewerFormat,
+    /// An encrypted folder granted to an agent for reading only (spec 048, contracts/agent-actions.md).
+    ReadOnly,
     /// Opening a file of an encrypted folder with the system's app needs the notice first
     /// (spec 048 FR-028); the window asks and calls again with `confirmed`.
     NeedsNotice,

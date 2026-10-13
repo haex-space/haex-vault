@@ -1,5 +1,6 @@
 //! The question to the user when an agent reaches for a storage it has no permission for (spec 044
-//! FR-031a, research R14), after the pattern of `chat/tools/action_bridge.rs`: Rust emits
+//! FR-031a, research R14), or for an encrypted folder in it (spec 048 FR-030a, FR-031), after the
+//! pattern of `chat/tools/action_bridge.rs`: Rust emits
 //! `files-agent-permission-request`, parks on a oneshot and waits for
 //! `files_agent_permission_answer`. Nobody to ask (no window), no answer in 60 s or a cancelled turn
 //! refuse this one call; the caller stores only real answers.
@@ -39,6 +40,40 @@ pub enum FilesAgentChoice {
     Deny,
 }
 
+/// The user's answer. A storage's answer is always kept; a folder's only with `remember`, and for
+/// cloud models only with `also_cloud` too.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilesAgentAnswer {
+    pub choice: FilesAgentChoice,
+    pub remember: bool,
+    pub also_cloud: bool,
+}
+
+impl FilesAgentAnswer {
+    /// `choice` without the checkboxes.
+    pub fn plain(choice: FilesAgentChoice) -> Self {
+        Self {
+            choice,
+            remember: false,
+            also_cloud: false,
+        }
+    }
+}
+
+/// What the question names for an encrypted folder (FR-030a); only the user sees it, never the
+/// agent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct FilesAgentFolderQuestion {
+    /// The decrypted name.
+    pub name: String,
+    /// The model the read contents go to.
+    pub model: String,
+    /// Whether it runs in the cloud rather than on this device.
+    pub cloud: bool,
+}
+
 /// The payload of [`EVENT_PERMISSION_REQUEST`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +84,10 @@ pub struct FilesAgentPermissionRequest {
     pub storage_id: String,
     pub storage_name: String,
     pub wants: FilesAgentWant,
+    /// Set when the question is for an encrypted folder of the storage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub folder: Option<FilesAgentFolderQuestion>,
 }
 
 /// Delivers a question to the window; `false` when no window could hear it.
@@ -56,8 +95,8 @@ pub type PromptEmitter = Arc<dyn Fn(&FilesAgentPermissionRequest) -> bool + Send
 
 struct Inner {
     emitter: Mutex<Option<PromptEmitter>>,
-    pending: Mutex<HashMap<String, oneshot::Sender<FilesAgentChoice>>>,
-    /// One question at a time: two calls for one storage must not ask twice.
+    pending: Mutex<HashMap<String, oneshot::Sender<FilesAgentAnswer>>>,
+    /// One question at a time: two calls for one storage or folder must not ask twice.
     asking: tokio::sync::Mutex<()>,
     timeout: Duration,
 }
@@ -108,8 +147,9 @@ impl PermissionPrompt {
         storage_id: &str,
         storage_name: &str,
         wants: FilesAgentWant,
+        folder: Option<FilesAgentFolderQuestion>,
         cancel: &CancellationToken,
-    ) -> Option<FilesAgentChoice> {
+    ) -> Option<FilesAgentAnswer> {
         let emitter = self
             .inner
             .emitter
@@ -122,6 +162,7 @@ impl PermissionPrompt {
             storage_id: storage_id.to_owned(),
             storage_name: storage_name.to_owned(),
             wants,
+            folder,
         };
         let (sender, receiver) = oneshot::channel();
         self.pending().insert(request.request_id.clone(), sender);
@@ -140,14 +181,14 @@ impl PermissionPrompt {
     }
 
     /// The window's answer; `false` for an unknown or late id.
-    pub fn answer(&self, request_id: &str, choice: FilesAgentChoice) -> bool {
+    pub fn answer(&self, request_id: &str, answer: FilesAgentAnswer) -> bool {
         match self.pending().remove(request_id) {
-            Some(sender) => sender.send(choice).is_ok(),
+            Some(sender) => sender.send(answer).is_ok(),
             None => false,
         }
     }
 
-    fn pending(&self) -> MutexGuard<'_, HashMap<String, oneshot::Sender<FilesAgentChoice>>> {
+    fn pending(&self) -> MutexGuard<'_, HashMap<String, oneshot::Sender<FilesAgentAnswer>>> {
         self.inner
             .pending
             .lock()

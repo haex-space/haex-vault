@@ -8,9 +8,11 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use super::prompt::{FilesAgentPermissionRequest, PermissionPrompt, EVENT_PERMISSION_REQUEST};
 use crate::error::HolziError;
 use crate::files::access::AgentGrants;
-use crate::files::browser_commands::{storage_files, KnownPlace, StorageSource};
+use crate::files::browser_commands::{window_storage, KnownPlace, StorageSource};
 use crate::files::local::OwnPlaces;
-use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
+use crate::files::permissions::{
+    self, AgentFileKind, AgentFilePermission, AgentFileReach, AgentFileStatus,
+};
 use crate::files::state::FilesState;
 use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesError, FilesErrorCode};
@@ -32,6 +34,16 @@ pub trait AgentEnv: Send + Sync {
         agent_id: &str,
         storage_id: &str,
         status: AgentFileStatus,
+    ) -> Result<(), FilesError>;
+
+    /// Stores the user's answer for an encrypted folder, given with "Erlaubnis merken" (spec 048
+    /// FR-031); `target` is `<storage_id>/<folder_id>`.
+    async fn store_folder_grant(
+        &self,
+        agent_id: &str,
+        target: &str,
+        status: AgentFileStatus,
+        reach: AgentFileReach,
     ) -> Result<(), FilesError>;
 
     /// Every storage of the vault, granted or not.
@@ -117,6 +129,28 @@ impl<R: Runtime> AgentEnv for TauriEnv<R> {
             target: storage_id.to_owned(),
             status,
             updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
+            reach: None,
+        };
+        self.vault()?
+            .write(move |tx| Ok(permissions::set(tx, &row)?))
+            .await
+            .map_err(vault_error)
+    }
+
+    async fn store_folder_grant(
+        &self,
+        agent_id: &str,
+        target: &str,
+        status: AgentFileStatus,
+        reach: AgentFileReach,
+    ) -> Result<(), FilesError> {
+        let row = AgentFilePermission {
+            agent_id: agent_id.to_owned(),
+            kind: AgentFileKind::EncryptedFolder,
+            target: target.to_owned(),
+            status,
+            updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
+            reach: Some(reach),
         };
         self.vault()?
             .write(move |tx| Ok(permissions::set(tx, &row)?))
@@ -140,7 +174,13 @@ impl<R: Runtime> AgentEnv for TauriEnv<R> {
     }
 
     async fn open_storage(&self, storage_id: &str) -> Result<StorageFiles, FilesError> {
-        storage_files(&self.app.state::<AppState>(), storage_id).await
+        window_storage(
+            &self.app,
+            &self.app.state::<AppState>(),
+            &self.app.state::<FilesState>(),
+            storage_id,
+        )
+        .await
     }
 
     fn prompt(&self) -> &PermissionPrompt {

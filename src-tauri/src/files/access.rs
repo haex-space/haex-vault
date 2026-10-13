@@ -6,6 +6,9 @@
 //!   grant is asked. The device needs the grant "files of the device": the built-in agent has it
 //!   unless revoked, an external agent only once granted. A storage needs a grant for exactly that
 //!   storage; without one the caller asks the user, `read` never writes, `denied` refuses.
+//! - An encrypted folder of a storage (spec 048 FR-030 to FR-032) needs, on top of the storage's
+//!   grant, one for exactly that folder, never more than the storage's. It covers either only local
+//!   models or also cloud models; an answer without "Erlaubnis merken" holds only for the task.
 //! - Extensions and holzi functions use their own entrances (`extensions::fs`, `remote_storage`).
 //!
 //! Paths are checked as resolved targets ([`crate::files::local::resolve`]), never as spelled.
@@ -48,11 +51,28 @@ pub enum StorageGrant {
     Denied,
 }
 
+/// Where the model of an agent runs (spec 048 FR-030a); for a stored folder grant, which models it
+/// covers: `Local` only local ones, `Cloud` also cloud ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Locality {
+    Local,
+    Cloud,
+}
+
+/// The agent's stored grant for one encrypted folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FolderGrant {
+    pub grant: StorageGrant,
+    pub reach: Locality,
+}
+
 /// The stored grants of one agent (`agent_file_permissions`, data-model.md); absent means no row.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AgentGrants {
     pub device: Option<DeviceGrant>,
     pub storages: HashMap<String, StorageGrant>,
+    /// By `<storage_id>/<folder_id>`.
+    pub folders: HashMap<String, FolderGrant>,
 }
 
 impl AgentGrants {
@@ -134,6 +154,62 @@ fn agent(
             ),
             (Some(StorageGrant::Read | StorageGrant::ReadWrite), _) => Verdict::Allowed,
         },
+    }
+}
+
+/// Whether an agent may `want` the encrypted folder `folder` (`<storage_id>/<folder_id>`) of
+/// `storage_id` while its model runs `locally` or not. `held` is the answer of this task without
+/// "Erlaubnis merken"; it comes before a stored row. The storage's grant is settled first (the
+/// caller asked for it already) and caps the folder's.
+pub fn check_folder(
+    caller: &Caller,
+    storage_id: &str,
+    folder: &str,
+    want: Want,
+    grants: &AgentGrants,
+    held: Option<StorageGrant>,
+    model: Locality,
+) -> Verdict {
+    if !matches!(caller, Caller::BuiltinAgent | Caller::ExternalAgent { .. }) {
+        return check(
+            caller,
+            &Target::Storage(storage_id.to_owned()),
+            want,
+            &OwnPlaces::default(),
+            grants,
+        );
+    }
+    match (grants.storages.get(storage_id), want) {
+        (None | Some(StorageGrant::Denied), _) => {
+            return refuse(FilesErrorCode::NotGranted, "this storage is not granted");
+        }
+        (Some(StorageGrant::Read), Want::Write) => {
+            return refuse(
+                FilesErrorCode::NotGranted,
+                "this storage is granted for reading only",
+            );
+        }
+        _ => {}
+    }
+    let grant = match (held, grants.folders.get(folder)) {
+        (Some(held), _) => held,
+        (None, None) => return Verdict::Ask,
+        // Granted for local models only, and this task uses a cloud model: ask again.
+        (None, Some(stored)) if stored.reach == Locality::Local && model == Locality::Cloud => {
+            return Verdict::Ask;
+        }
+        (None, Some(stored)) => stored.grant,
+    };
+    match (grant, want) {
+        (StorageGrant::Denied, _) => refuse(
+            FilesErrorCode::NotGranted,
+            "this encrypted folder is not granted",
+        ),
+        (StorageGrant::Read, Want::Write) => refuse(
+            FilesErrorCode::ReadOnly,
+            "this encrypted folder is granted for reading only",
+        ),
+        (StorageGrant::Read | StorageGrant::ReadWrite, _) => Verdict::Allowed,
     }
 }
 

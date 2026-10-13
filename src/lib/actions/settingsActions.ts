@@ -500,4 +500,23 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     scope: 'guardrails',
     effect: 'write',
   }),
+  setting({
+    id: 'settings.agents.files.remove',
+    description:
+      "Remove an agent's remembered file permission, such as one for an encrypted folder; the agent is asked again. User only.",
+    input: {
+      type: 'object',
+      properties: {
+        agentId: { type: 'string' },
+        kind: {
+          type: 'string',
+          enum: ['device', 'storage', 'encryptedFolder'],
+        },
+        target: { type: 'string' },
+      },
+      required: ['agentId', 'kind', 'target'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+  }),
 ]

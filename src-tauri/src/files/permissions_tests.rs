@@ -5,10 +5,10 @@
 #![allow(clippy::disallowed_methods)]
 
 use super::{
-    grants_of, list, permission_id, remove, set, AgentFileKind, AgentFilePermission,
-    AgentFileStatus, BUILTIN_AGENT,
+    folder_target, grants_of, list, permission_id, remove, remove_storage, set, AgentFileKind,
+    AgentFilePermission, AgentFileReach, AgentFileStatus, BUILTIN_AGENT,
 };
-use crate::files::access::{AgentGrants, DeviceGrant, StorageGrant};
+use crate::files::access::{AgentGrants, DeviceGrant, FolderGrant, Locality, StorageGrant};
 use crate::remote_storage::test_support::vault;
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -25,6 +25,7 @@ fn row(
         target: target.to_owned(),
         status,
         updated_at: 1,
+        reach: None,
     }
 }
 
@@ -278,4 +279,60 @@ fn a_removed_row_brings_back_the_default() {
     let grants = grants(&db, BUILTIN_AGENT);
     assert_eq!(grants.device, None);
     assert_eq!(grants.storages.get("s1"), Some(&StorageGrant::Read));
+}
+
+#[test]
+fn a_folder_row_keeps_its_reach_and_leaves_with_its_storage() {
+    let (_dir, db) = vault();
+    let folder = |storage: &str, reach: AgentFileReach| AgentFilePermission {
+        reach: Some(reach),
+        ..row(
+            BUILTIN_AGENT,
+            AgentFileKind::EncryptedFolder,
+            &folder_target(storage, "abc"),
+            AgentFileStatus::Read,
+        )
+    };
+    put(&db, folder("s1", AgentFileReach::Cloud)).expect("set");
+    put(&db, folder("s10", AgentFileReach::Local)).expect("set");
+    let held = grants(&db, BUILTIN_AGENT);
+    assert_eq!(
+        held.folders.get("s1/abc"),
+        Some(&FolderGrant {
+            grant: StorageGrant::Read,
+            reach: Locality::Cloud
+        })
+    );
+    // A folder needs its reach and a target of storage and folder; the others carry none.
+    for wrong in [
+        AgentFilePermission {
+            reach: None,
+            ..folder("s1", AgentFileReach::Local)
+        },
+        AgentFilePermission {
+            target: "s1".to_owned(),
+            ..folder("s1", AgentFileReach::Local)
+        },
+        AgentFilePermission {
+            reach: Some(AgentFileReach::Local),
+            ..row(
+                BUILTIN_AGENT,
+                AgentFileKind::Storage,
+                "s1",
+                AgentFileStatus::Read,
+            )
+        },
+    ] {
+        assert!(put(&db, wrong).is_err());
+    }
+    // Removing storage s1 takes its folder along, not the one of s10.
+    db.write_blocking(|tx| Ok(remove_storage(tx, "s1")?))
+        .expect("remove");
+    let left: Vec<String> = db
+        .read_blocking(|q| Ok(list(q)?))
+        .expect("list")
+        .into_iter()
+        .map(|row| row.target)
+        .collect();
+    assert_eq!(left, ["s10/abc"]);
 }
