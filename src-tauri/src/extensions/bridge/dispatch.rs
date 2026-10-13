@@ -10,7 +10,6 @@ use uuid::Uuid;
 
 use super::frames::{FrameSession, FrameSource};
 use super::{database, methods, permissions};
-use crate::agent_tasks::bridge as agent_tasks;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::{

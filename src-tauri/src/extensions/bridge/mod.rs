@@ -6,5 +6,6 @@ pub mod database;
 pub mod dispatch;
 pub mod events;
 pub mod frames;
+pub(crate) mod agent_tasks;
 pub mod methods;
 pub mod permissions;
