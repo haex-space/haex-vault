@@ -40,6 +40,9 @@ Speicher erreichen (FR-018). `ProtocolStore` reicht nach `access.location.protoc
 - **`last_modified`**: in Auflistungen (`ObjectInfo`) bei jedem Protokoll ISO 8601 wie bei S3 (WebDAV
   rechnet `getlastmodified` um, SFTP die Unix-Zeit; bei PR D geändert, weil der Dateibrowser ISO liest),
   bei `head` (`ObjectHead`) ein HTTP-Datum wie der `Last-Modified`-Kopf von S3.
+- **`shown_host_key(location)`** (bei PR F ergänzt): der Hostschlüssel, den der Server dieser Adresse beim
+  letzten abgewiesenen Verbindungsaufbau gezeigt hat (OpenSSH-Zeile, nur im Prozess); bei S3 und WebDAV
+  `None`. Daraus kommen `TestResult.hostKey` und die Prüfung von `storage_host_key_accept` (research R5).
 - **Fehler**: `NotFound`, `AccessDenied`, `MissingRight`, `Network`, `TooLarge`, `TimedOut` wie heute,
   dazu `QuotaExceeded`, `HostKeyChanged`, `HostKeyUnknown`, `Unsupported` (R10) und `Protocol` (der
   Server antwortet nicht wie sein Protokoll: Weiterleitung, 405 auf `PROPFIND`, keine 207). Fehlermeldungen und

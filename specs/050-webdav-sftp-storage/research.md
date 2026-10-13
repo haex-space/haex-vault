@@ -388,6 +388,10 @@ einer synchronisierten Tabelle ohne Nutzen.
   festen Hostschlüsseln (gemountet), Benutzern aus einer JSON-Datei (`SFTPGO_LOADDATA_FROM`) und
   `SFTPGO_WEBDAVD__BINDINGS__0__PORT`. Neben RustFS in den E2E-Diensten; auf Android über
   `adb reverse` wie RustFS (`scripts/e2e/PLATFORMS.md`).
+- **SFTP-Server im Prozess** (PR F): `russh::server::run_stream` mit einem `russh_sftp::server::Handler`
+  über einem temporären Ordner (`sftp/test_server.rs`); er zählt Anmeldeversuche und bietet
+  `posix-rename@openssh.com` wahlweise an. Für die E2E `rclone serve sftp` mit Hostschlüssel und
+  `--authorized-keys` aus einem temporären Ordner (`scripts/e2e/lib/sftp.ts`).
 - Von Hand (SC-008): Hetzner Storage Box (WebDAV und SFTP) und Nextcloud.
 
 ## R15 — vault-sdk und haextension
