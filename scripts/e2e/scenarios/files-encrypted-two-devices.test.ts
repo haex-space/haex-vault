@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { deviceFiles } from '../lib/extension-files.ts'
 import { unwrap } from '../lib/flows.ts'
+import { deviceFiles, onDevice } from '../lib/platform/device-files.ts'
 import { startRustfs } from '../lib/rustfs.ts'
 import { scenario } from '../lib/scenario.ts'
 import {
@@ -18,8 +18,9 @@ import { connectStorage } from '../lib/storage-setup.ts'
 // devices of one vault. The laptop creates and fills it; the phone opens it without any input,
 // adds a file, and the laptop sees it after a refresh. Both write `notiz.txt` without seeing the
 // other's: both stay, one as "notiz (Konflikt …).txt". A second vault on the same bucket sees a
-// neutral folder it cannot write into. The devices come from the group API of spec 033. Needs
-// Docker for RustFS; skipped without it.
+// neutral folder it cannot write into. The devices come from the group API of spec 033; in an
+// Android run the phone is on the emulator and the others on Linux, so each device imports its
+// file from where it can read it (`onDevice`). Needs Docker for RustFS; skipped without it.
 
 const BUCKET = 'holzi-encrypted-two-e2e'
 const SYNC_TIMEOUT_MS = 60_000
@@ -45,10 +46,25 @@ scenario(
     const phone = group.device('anna/phone').page
     const other = group.device('ben/desktop').page
 
-    const files = deviceFiles('holzi-encrypted-two-')
-    ctx.onTeardown(() => files.remove())
-    files.write('brief.txt', 'Brief vom Laptop')
-    files.write('antwort.txt', 'Antwort vom Telefon')
+    // Host files; `onDevice` hands each device a path it can read.
+    const hostFiles = deviceFiles('holzi-encrypted-two-host-', {
+      E2E_PLATFORM: 'linux',
+    })
+    ctx.onTeardown(() => hostFiles.remove())
+    hostFiles.write('brief.txt', 'Brief vom Laptop')
+    hostFiles.write('antwort.txt', 'Antwort vom Telefon')
+    const brief = hostFiles.path('brief.txt')
+    const antwort = hostFiles.path('antwort.txt')
+    const laptopFiles = deviceFiles('holzi-encrypted-two-laptop-', {
+      E2E_PLATFORM: 'linux',
+    })
+    const phoneFiles = deviceFiles('holzi-encrypted-two-phone-', {
+      E2E_PLATFORM: 'linux',
+    })
+    ctx.onTeardown(() => laptopFiles.remove())
+    ctx.onTeardown(() => phoneFiles.remove())
+    laptopFiles.write('notiz.txt', 'vom Laptop')
+    phoneFiles.write('notiz.txt', 'vom Telefon, etwas länger')
 
     const storageId = await connectStorage(laptop, rustfs, BUCKET, 'Fotos')
     const source: Source = { kind: 'storage', storageId }
@@ -78,7 +94,7 @@ scenario(
         name: 'Unterlagen',
       }),
     )
-    await startImport(laptop, [files.path('brief.txt')], source, '/Unterlagen')
+    await startImport(laptop, [onDevice(brief, laptop)], source, '/Unterlagen')
     await transfersDone(ctx, laptop, 'brief.txt to go in on the laptop')
     ctx.step('the laptop created and filled the folder')
 
@@ -104,7 +120,7 @@ scenario(
     assert.equal(text.text, 'Brief vom Laptop')
     ctx.step('the phone opens the folder and the file without input')
 
-    await startImport(phone, [files.path('antwort.txt')], source, '/Unterlagen')
+    await startImport(phone, [onDevice(antwort, phone)], source, '/Unterlagen')
     await transfersDone(ctx, phone, 'antwort.txt to go in on the phone')
     await refresh(laptop, source, '/Unterlagen')
     assert.deepEqual(await names(laptop, source, '/Unterlagen'), [
@@ -114,20 +130,16 @@ scenario(
     ctx.step('a file the phone adds shows on the laptop after a refresh')
 
     // Both write notiz.txt, neither seeing the other's: both stay, one as a conflict copy.
-    const fromLaptop = deviceFiles('holzi-encrypted-laptop-')
-    const fromPhone = deviceFiles('holzi-encrypted-phone-')
-    ctx.onTeardown(() => fromLaptop.remove())
-    ctx.onTeardown(() => fromPhone.remove())
-    fromLaptop.write('notiz.txt', 'vom Laptop')
-    fromPhone.write('notiz.txt', 'vom Telefon, etwas länger')
+    const fromLaptop = laptopFiles.path('notiz.txt')
+    const fromPhone = phoneFiles.path('notiz.txt')
     await Promise.all([
       startImport(
         laptop,
-        [fromLaptop.path('notiz.txt')],
+        [onDevice(fromLaptop, laptop)],
         source,
         '/Unterlagen',
       ),
-      startImport(phone, [fromPhone.path('notiz.txt')], source, '/Unterlagen'),
+      startImport(phone, [onDevice(fromPhone, phone)], source, '/Unterlagen'),
     ])
     await transfersDone(ctx, laptop, 'notiz.txt to go in on the laptop')
     await transfersDone(ctx, phone, 'notiz.txt to go in on the phone')
