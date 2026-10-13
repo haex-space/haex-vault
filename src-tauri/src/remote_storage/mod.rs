@@ -131,7 +131,7 @@ pub enum Addressing {
 /// `local` when its host resolves to loopback or private addresses, else `public`. Every call
 /// checks each resolved address against it, so a public name that later points into the local
 /// network (DNS rebinding) reaches nothing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
 pub enum EndpointScope {
