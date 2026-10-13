@@ -11,10 +11,12 @@ use crate::passwords::test_support::open_test_vault;
 use crate::storage::known_devices;
 use crate::vault_gate::VaultGate;
 
+/// Returns the fixed signing key shared by all bundle versions in these tests.
 fn key() -> SigningKey {
     SigningKey::from_bytes(&[7; 32])
 }
 
+/// Builds a tool's manifest JSON with the supplied name, effect and input schema.
 fn tool(name: &str, effect: &str, schema: &str) -> String {
     format!(
         r#"{{"name":"{name}","title":{{"de":"{name} de","en":"{name} en"}},"description":"Does {name}.","inputSchema":{schema},"effect":"{effect}","examples":{{"de":["{name}?"],"en":["{name}?"]}}}}"#
@@ -23,6 +25,7 @@ fn tool(name: &str, effect: &str, schema: &str) -> String {
 
 const OBJECT: &str = r#"{"type":"object"}"#;
 
+/// Builds a signed mail extension bundle with the given version and tool declarations.
 fn build(version: &str, tools: &[String]) -> Vec<u8> {
     let manifest = haex_bundle::jcs::parse_restricted(&format!(
         r#"{{"name":"mail","version":"{version}","permissions":{{}},"tools":[{}]}}"#,
@@ -42,6 +45,7 @@ struct Vault {
     device: Uuid,
 }
 
+/// Opens a temporary test vault and retrieves its bootstrapped device UUID.
 fn vault() -> Vault {
     let (dir, db) = open_test_vault();
     let vault = VaultGate::new().vault_db(Arc::new(db)).unwrap();
@@ -59,6 +63,7 @@ fn vault() -> Vault {
 }
 
 impl Vault {
+    /// Reads an install or update preview from bundle bytes without installing them.
     fn preview(&self, bytes: &[u8]) -> InstallPreview {
         let bytes = bytes.to_vec();
         self.vault
@@ -66,6 +71,7 @@ impl Vault {
             .unwrap()
     }
 
+    /// Installs a bundle with the supplied permission choices and returns its extension UUID.
     fn install(&self, bytes: &[u8], choices: Vec<PermissionChoice>) -> Uuid {
         install(&self.vault, bytes, choices, false, self.device, 1_000)
             .unwrap()
@@ -88,6 +94,7 @@ impl Vault {
     }
 }
 
+/// Returns the action and target of each permission requiring confirmation in an update.
 fn new_tools(preview: &InstallPreview) -> Vec<(String, String)> {
     preview
         .existing
@@ -99,6 +106,7 @@ fn new_tools(preview: &InstallPreview) -> Vec<(String, String)> {
         .collect()
 }
 
+/// Creates a granted choice for the named tool and effect.
 fn ticked(effect: &str, name: &str) -> PermissionChoice {
     PermissionChoice {
         kind: "agentTool".into(),
@@ -108,6 +116,7 @@ fn ticked(effect: &str, name: &str) -> PermissionChoice {
     }
 }
 
+/// Checks that install previews expose tool names, effects, localized titles and vault scope.
 #[test]
 fn the_preview_lists_each_tool_with_its_effect_and_titles() {
     let v = vault();
@@ -155,6 +164,7 @@ fn the_preview_lists_each_tool_with_its_effect_and_titles() {
     );
 }
 
+/// Checks selected tools are granted while unselected tools retain the ask status.
 #[test]
 fn ticked_tools_are_granted_and_unticked_ones_ask() {
     let v = vault();
@@ -177,6 +187,8 @@ fn ticked_tools_are_granted_and_unticked_ones_ask() {
     );
 }
 
+/// Checks updates request new tools and changed effects, preserve schema-only grants and
+/// remove permissions for dropped tools or obsolete effects.
 #[test]
 fn an_update_asks_only_for_new_tools_and_changed_effects() {
     let v = vault();

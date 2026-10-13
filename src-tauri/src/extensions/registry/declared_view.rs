@@ -28,6 +28,7 @@ pub struct DeclaredPermissionView {
 }
 
 impl DeclaredPermissionView {
+    /// Builds an install preview row, adding localized titles for a matching manifest tool.
     pub fn of(d: &DeclaredPermission, manifest: &Manifest) -> Self {
         let tool = (d.kind == PermissionKind::AgentTool)
             .then(|| manifest.tools.iter().find(|t| t.name == d.target_text))

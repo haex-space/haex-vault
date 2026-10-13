@@ -46,6 +46,7 @@ impl PermissionKind {
         Self::ALL.into_iter().find(|kind| kind.as_str() == value)
     }
 
+    /// The stored spelling of this permission kind, also used in install previews.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Database => "database",

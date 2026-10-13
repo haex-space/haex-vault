@@ -187,6 +187,8 @@ impl Manifest {
         }
     }
 
+    /// Reads manifest fields and maps declared permissions and tools; invalid required fields
+    /// or malformed tools return `ManifestInvalid`.
     fn from_object(manifest: &BTreeMap<String, JsonValue>) -> Result<Self, BundleRejection> {
         let invalid = || BundleRejection::new(haex_bundle::ErrorKind::ManifestInvalid);
         let name = text(manifest, "name")

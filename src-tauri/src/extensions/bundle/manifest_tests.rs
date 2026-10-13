@@ -77,6 +77,7 @@ fn the_stored_manifest_bytes_give_the_same_view() {
     assert!(Manifest::from_stored(b"{ }").is_err());
 }
 
+/// Checks that verified tools retain their metadata, schemas and effects.
 #[test]
 fn the_tools_vector_gives_each_tool_with_its_effect() {
     let manifest = Manifest::from_verified(&vector("good-tools.xt")).unwrap();
@@ -99,12 +100,14 @@ fn the_tools_vector_gives_each_tool_with_its_effect() {
     assert_eq!(add.effect, ToolEffect::Change);
 }
 
+/// Checks that an absent tools block produces an empty tool list.
 #[test]
 fn a_manifest_without_tools_has_none() {
     let manifest = Manifest::from_verified(&vector("good-minimal.xt")).unwrap();
     assert!(manifest.tools.is_empty());
 }
 
+/// Checks that unsupported schemas preserve the tool but mark it unavailable to the agent.
 #[test]
 fn a_tool_outside_the_schema_subset_is_kept_but_not_supported() {
     let mut bundle = vector("good-tools.xt");
@@ -119,6 +122,7 @@ fn a_tool_outside_the_schema_subset_is_kept_but_not_supported() {
     assert!(manifest.tools[1].supported);
 }
 
+/// Checks that stored and freshly verified manifests yield the same tools.
 #[test]
 fn the_stored_tools_give_the_same_view() {
     let bundle = vector("good-tools.xt");
@@ -130,12 +134,14 @@ fn the_stored_tools_give_the_same_view() {
 
 const DEV_TOOL: &str = r#"{"name":"count_unread","title":{"de":"Zählen","en":"Count"},"description":"Counts.","inputSchema":{"type":"object"},"effect":"destructive","examples":{"de":["Zähle"],"en":["Count"]}}"#;
 
+/// Builds a development manifest with the supplied JSON tools block.
 fn dev_manifest(tools: &str) -> String {
     format!(
         r#"{{"name":"dev-tools","version":"0.1.0","publicKey":"3614253f84ba66a8faa168d317a6979992979a3e7ad15ae83ca2823f5ca97d34","permissions":{{}},"tools":{tools}}}"#
     )
 }
 
+/// Checks that development manifests load valid tools and their effects.
 #[test]
 fn a_development_version_reads_its_tools() {
     let manifest = Manifest::from_dev_file(&dev_manifest(&format!("[{DEV_TOOL}]")), None).unwrap();
@@ -143,6 +149,7 @@ fn a_development_version_reads_its_tools() {
     assert_eq!(manifest.tools[0].effect, ToolEffect::Destructive);
 }
 
+/// Checks that development manifests reject tool names outside the bundle format.
 #[test]
 fn a_development_version_with_a_malformed_tools_block_is_refused() {
     let bad = DEV_TOOL.replace("count_unread", "Count-Unread");

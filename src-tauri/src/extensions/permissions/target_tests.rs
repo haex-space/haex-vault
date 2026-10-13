@@ -340,6 +340,7 @@ fn an_encrypted_folder_target_names_exactly_one_folder() {
     assert_eq!(Action::parse(PermissionKind::EncryptedFolder, "add"), None);
 }
 
+/// Checks tool targets accept valid names and `*`, rejecting other spellings.
 #[test]
 fn an_agent_tool_permission_names_a_tool_or_every_tool() {
     let kind = PermissionKind::AgentTool;
@@ -354,6 +355,7 @@ fn an_agent_tool_permission_names_a_tool_or_every_tool() {
     assert_eq!(Target::parse(kind, ""), None);
 }
 
+/// Checks tool actions accept effects and wildcard permissions cover every effect.
 #[test]
 fn an_agent_tool_permission_has_an_effect_and_the_star_row_covers_every_effect() {
     let kind = PermissionKind::AgentTool;
