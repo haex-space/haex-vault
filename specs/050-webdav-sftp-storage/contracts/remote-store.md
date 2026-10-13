@@ -37,7 +37,9 @@ Speicher erreichen (FR-018). `ProtocolStore` reicht nach `access.location.protoc
   Bei SFTP hat `mtime` nur Sekundenauflösung; gleich große Überschreibungen innerhalb derselben
   Sekunde können daher dieselbe Marke ergeben. Falls Spec 048 solche Änderungen erkennen muss,
   muss sie für SFTP ein stärkeres Änderungsmerkmal zusätzlich verlangen.
-- **`last_modified`**: wie geliefert (S3 ISO 8601, WebDAV RFC 1123, SFTP Unix-Zeit als RFC 3339).
+- **`last_modified`**: in Auflistungen (`ObjectInfo`) bei jedem Protokoll ISO 8601 wie bei S3 (WebDAV
+  rechnet `getlastmodified` um, SFTP die Unix-Zeit; bei PR D geändert, weil der Dateibrowser ISO liest),
+  bei `head` (`ObjectHead`) ein HTTP-Datum wie der `Last-Modified`-Kopf von S3.
 - **Fehler**: `NotFound`, `AccessDenied`, `MissingRight`, `Network`, `TooLarge`, `TimedOut` wie heute,
   dazu `QuotaExceeded`, `HostKeyChanged`, `HostKeyUnknown`, `Unsupported` (R10) und `Protocol` (der
   Server antwortet nicht wie sein Protokoll: Weiterleitung, 405 auf `PROPFIND`, keine 207). Fehlermeldungen und
