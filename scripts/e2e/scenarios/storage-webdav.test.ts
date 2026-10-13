@@ -29,6 +29,35 @@ async function replaceText(
   await page.type(hook, text)
 }
 
+type Typing = {
+  type(hook: string, text: string): Promise<void>
+  exec<T>(script: string, args?: unknown[]): Promise<T>
+}
+
+/** The value of the field `hook`. */
+function valueOf(page: Typing, hook: string): Promise<string> {
+  return page.exec<string>(
+    `return document.querySelector('[data-testid="' + arguments[0] + '"]').value`,
+    [hook],
+  )
+}
+
+/**
+ * Replaces the text of the field `hook` with `text` and checks the field holds it: on the Android
+ * runner's desktop instance a typed key was seen to go missing, and the login then failed for a
+ * reason the scenario does not test. One more try, then a failure that says so (never the text).
+ */
+async function typeChecked(page: Typing, hook: string, text: string) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await replaceText(page, hook, text)
+    if ((await valueOf(page, hook)) === text) return
+  }
+  const held = await valueOf(page, hook)
+  throw new Error(
+    `${hook} holds ${held.length} characters instead of the ${text.length} typed`,
+  )
+}
+
 /** The text of the element `hook`. */
 async function textOf(
   page: { exec<T>(script: string): Promise<T> },
@@ -68,12 +97,12 @@ scenario(
     await choose(laptop, 'storage-protocol', 'webdav')
     await laptop.waitForDisplayed('storage-username')
     await choose(laptop, 'storage-provider-kind', 'other')
-    await replaceText(laptop, 'storage-endpoint', webdav.endpoint)
+    await typeChecked(laptop, 'storage-endpoint', webdav.endpoint)
     await laptop.waitForDisplayed('storage-endpoint-insecure')
-    await laptop.type('storage-username', webdav.username)
-    await laptop.type('storage-password', 'not-the-password')
-    await laptop.type('storage-bucket', FOLDER)
-    await laptop.type('storage-name', 'Fotos')
+    await typeChecked(laptop, 'storage-username', webdav.username)
+    await typeChecked(laptop, 'storage-password', 'not-the-password')
+    await typeChecked(laptop, 'storage-bucket', FOLDER)
+    await typeChecked(laptop, 'storage-name', 'Fotos')
     await laptop.click('storage-save')
     await laptop.waitForDisplayed('storage-failure', 20_000)
     assert.match(
@@ -83,9 +112,16 @@ scenario(
     assert.deepEqual((await overview(laptop)).connections, [], 'nothing saved')
     ctx.step('a wrong password is named and saves nothing')
 
-    await replaceText(laptop, 'storage-password', webdav.password)
+    await typeChecked(laptop, 'storage-password', webdav.password)
     await laptop.click('storage-save')
-    await laptop.waitForDisplayed('storage-create-folder', 20_000)
+    await laptop
+      .waitForDisplayed('storage-create-folder', 20_000)
+      .catch(async (error: Error) => {
+        const shown = await textOf(laptop, 'storage-failure').catch(() => '')
+        throw new Error(
+          `${error.message}; the form says: ${shown || 'nothing'}`,
+        )
+      })
     assert.match(
       await textOf(laptop, 'storage-failure'),
       /Ordner fehlt|Folder missing/,
