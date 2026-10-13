@@ -519,10 +519,13 @@ export function scenario(
           devices: info.devices,
         }),
     }
-    const result = await withConnectionRetry(
-      () => runScenario(name, options, body, deps),
-      (retried) => writeResult(env, retried),
-    )
+    const run = () => runScenario(name, options, body, deps)
+    // These messages describe the Android adb/ChromeDriver transport. On desktop, the similar
+    // renderer/DevTools wording can be an actual WebKit failure and must not be hidden by a retry.
+    const result =
+      android === undefined
+        ? await run()
+        : await withConnectionRetry(run, (retried) => writeResult(env, retried))
     if (result.status === 'skipped') t.skip(result.skipReason)
     if (result.status === 'failed') throw new Error(result.error)
   })
