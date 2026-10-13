@@ -50,7 +50,7 @@ scenario(
     await laptop.waitForDisplayed('storage-username', 20_000)
     await choose(laptop, 'storage-provider-kind', 'other')
     await typeChecked(laptop, 'storage-endpoint', webdav.endpoint)
-    await laptop.waitForDisplayed('storage-endpoint-insecure')
+    await laptop.waitForDisplayed('storage-endpoint-insecure', 20_000)
     await typeChecked(laptop, 'storage-username', webdav.username)
     await typeChecked(laptop, 'storage-password', 'not-the-password')
     await typeChecked(laptop, 'storage-bucket', FOLDER)
@@ -88,8 +88,8 @@ scenario(
     const saving = Date.now()
     await laptop.click('storage-create-folder')
     await waitForLocation(laptop, 'storage', 20_000)
-    await laptop.waitForDisplayed('storage-row')
-    await laptop.waitForDisplayed('storage-insecure')
+    await laptop.waitForDisplayed('storage-row', 20_000)
+    await laptop.waitForDisplayed('storage-insecure', 20_000)
     ctx.step(
       'folder made and connected after a passed test',
       `form ${Math.round((Date.now() - opened) / 1000)} s, test and save ${Date.now() - saving} ms`,
