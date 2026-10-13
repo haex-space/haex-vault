@@ -6,6 +6,7 @@ pub mod commands;
 pub mod defs;
 pub mod frame_request;
 pub mod link;
+pub mod registration;
 pub mod slot;
 pub mod tool;
 
@@ -35,3 +36,7 @@ mod defs_tests;
 #[cfg(test)]
 #[path = "tool_tests.rs"]
 mod tool_tests;
+
+#[cfg(test)]
+#[path = "registration_tests.rs"]
+mod registration_tests;

@@ -148,6 +148,8 @@ pub async fn open_instance(
     // Spec 024: the sync service runs as tracked session work and ends with the close.
     crate::vault_events::start_for_active_instance(&app, &state);
     crate::extensions::registry::lifecycle::start_for_active_instance(&app, &state);
+    // Spec 018: the confirmed tools of extensions, offered to the agent.
+    crate::extensions::agent_tools::registration::start_for_active_instance(&app, &state, &chat);
     crate::extensions::sql::changes::start_for_active_instance(&app, &state);
     crate::sync::start_for_active_instance(&app, &state).await;
     // Spec 034: the password manager tidies its binary data once per open.
