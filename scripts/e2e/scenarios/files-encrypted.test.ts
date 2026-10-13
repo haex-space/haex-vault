@@ -337,7 +337,10 @@ scenario(
     await contextMenu(instance, 'files-entry-brief.pdf', FILE_ENTRY_TIMEOUT_MS)
     await instance.click('files-menu-copy')
     await instance.click('files-up')
-    await instance.waitForDisplayed('files-entry-Unterlagen')
+    await instance.waitForDisplayed(
+      'files-entry-Unterlagen',
+      FILE_ENTRY_TIMEOUT_MS,
+    )
     await instance.click('files-action-paste')
     await instance.waitForDisplayed('files-leave-encryption')
     await instance.click('files-leave-encryption-proceed')
