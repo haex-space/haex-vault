@@ -49,6 +49,12 @@ Paths in the report are for reading on the machine that produced it; they are no
 `failedStep` names the last step the scenario reached before failing, or the failing wait's description,
 so that a maintainer needs no second run to find the step (SC-004).
 
+`retriedAfter` is set when the scenario ran a second time because the connection to the phone broke in
+the first run (spec 043: the adb transport dropped, or chromedriver lost or never reached the web
+view; `scripts/e2e/lib/infrastructure-retry.ts` lists the messages). It holds the first run's error;
+everything else in the entry is the second run's. Any other failure is never retried, and a scenario
+runs at most twice.
+
 ## Key steps (FR-020)
 
 `instance-ready`, `unlocked`, `reply-streaming`, `press`, `provider-closed`, `process-ended`,
@@ -71,6 +77,8 @@ scenario still passes.
 passed  lock-while-streaming            9.1 s   press to process end 0.6 s
 failed  window-close-while-streaming   14.0 s   failed at: process-ended (limit 4 s)
                                                 material: <run directory>/window-close-while-streaming
+passed  sync-copy                      74.7 s
+                                                retried after: could not attach to the app on emulator-5554: chrome not reachable …
 skipped relaunch-after-lock                     the build exits on close; this scenario needs one that relaunches
 …
 Application: <path> (closes by exit, from path)   Result: FAILED (1 failed, 1 skipped, 5 passed)

@@ -183,6 +183,29 @@ describe('formatSummary', () => {
     assert.match(text, /material: \/run\/a/)
   })
 
+  it('names the first error of a retried scenario on its own line', () => {
+    const report = buildReport(facts({ expected: ['a', 'b'] }), [
+      result('a', 'passed', {
+        durationMs: 9100,
+        retriedAfter: 'chrome not reachable\n  (details)',
+      }),
+      result('b', 'failed', {
+        durationMs: 4000,
+        error: 'x',
+        material: '/run/b',
+        retriedAfter: 'not connected to DevTools',
+      }),
+    ])
+    const lines = formatSummary(report)
+    const after = (name: string) =>
+      lines[lines.findIndex((line) => line.includes(` ${name} `)) + 1]
+    assert.match(after('a') ?? '', /^\s+retried after: chrome not reachable$/)
+    assert.match(
+      lines.join('\n'),
+      /material: \/run\/b\n\s+retried after: not connected to DevTools/,
+    )
+  })
+
   it('shows press to process end for a passing scenario with both steps', () => {
     const report = buildReport(facts({ expected: ['a'] }), [
       result('a', 'passed', {
