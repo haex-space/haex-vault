@@ -57,8 +57,11 @@ Ordner trägt `state: 'damaged'` und lässt sich nur löschen.
 - `files_create_encrypted_folder` und `files_encrypted_refresh` nehmen auch `source: { kind: 'device' }`;
   Fehler `holziOwned` in holzis eigenen Daten, `inEncrypted` in einem verschlüsselten Ordner.
 - Alle Commands, die einen Gerätepfad nehmen, behandeln einen Pfad in einem verschlüsselten Ordner wie
-  im Speicher (research R17); `files_list` eines gewöhnlichen Ordners zeigt `<zufall>.hxef` als
-  verschlüsselten Ordner mit Namen.
+  im Speicher (research R17): Das Fenster nennt den Ordner und alles darin bei den entschlüsselten
+  Namen; `files_list` eines gewöhnlichen Ordners zeigt `<zufall>.hxef` als verschlüsselten Ordner mit
+  Namen, und ein roher Pfad durch `<zufall>.hxef` ist `notFound`.
+- `files_watch` auf einen Pfad in einem verschlüsselten Ordner beobachtet dessen Verzeichnis, liest
+  neue Begleitdateien nach ETag und meldet dann den offenen Ordner.
 - `files_transfer_start` mit `op: 'delete'` in oder auf einen verschlüsselten Ordner des Geräts löscht
   endgültig; das Fenster fragt vorher wie bei einem Speicher.
 - `EncryptedInfo.foreign`: Zahl fremder Dateien des Ordners; das Fenster zeigt einen Hinweis, wenn sie

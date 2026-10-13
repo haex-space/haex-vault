@@ -300,10 +300,19 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
 
 ## R17 — Weiche im Dateibrowser des Geräts
 
-- **Decision**: Eine Funktion in `files/browser_commands/mod.rs` erkennt, ob ein Gerätepfad durch ein
-  Verzeichnis `<zufall>.hxef` geht (`format::is_folder_prefix` je Pfadteil, nach dem Auflösen wie in
-  `checked()` `:131-175`), und liefert dann eine Speicher-Sicht (`StorageFiles` mit `LocalStore` und
-  `Scope` für `device:<wurzel>`) samt Pfad darin. Jede Stelle, die heute nach `storage_of()` verzweigt
+- **Decision**: Eine Funktion in `files/browser_commands/mod.rs` (`place_of`) liefert für einen
+  Gerätepfad in einem verschlüsselten Ordner eine Speicher-Sicht (`StorageFiles` mit `LocalStore` und
+  `Scope` für `device:<wurzel>`) samt Pfad darin. Das Fenster sieht den Ordner wie im Speicher unter
+  seinem entschlüsselten Namen (`/home/anna/Unterlagen/Belege`); ein solcher Pfad existiert auf der
+  Platte nicht. Darum ist ein Pfad, der existiert, gewöhnlich, und nur ein fehlender wird über die
+  Köpfe seiner Ebenen gesucht (`files/encrypted/device.rs`, `route_device`). Unter Unix und Android ist
+  der Pfad der Speicher-Sicht gleich dem Gerätepfad; unter Windows fällt das Laufwerk weg. Ein roher
+  Pfad durch `<zufall>.hxef` ist kein Pfad des Fensters (`notFound`). Eine Ebene des Geräts, die sich
+  nicht auflisten lässt (Androids `/storage`), gilt als Ebene ohne verschlüsselte Ordner.
+  - Umsetzung 2026-10-13 statt der ersten Fassung (rohe Pfadteile `<zufall>.hxef` erkennen): mit
+    entschlüsselten Namen braucht keine Antwort (Einträge, Suchtreffer, Transfers) eine Umrechnung,
+    und Pfadleiste wie Brotkrumen zeigen Namen statt Zufallszeichen.
+- Jede Stelle, die heute nach `storage_of()` verzweigt
   (`navigate.rs:108`, `:128`; `view.rs:50`, `:110`, `:168`, `:313`; `change.rs:35`, `:56`, `:89-103`,
   `:149-206`, `:218-245`; `search.rs:41`; `encrypted.rs:48`, `:101`), nimmt diese Sicht, wenn der Pfad
   in einem verschlüsselten Ordner liegt.
