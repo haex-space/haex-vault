@@ -14,6 +14,10 @@ mod ops;
 mod request;
 #[cfg(test)]
 mod request_tests;
+#[cfg(test)]
+mod server_tests;
+#[cfg(test)]
+mod test_server;
 mod upload;
 #[cfg(test)]
 mod upload_tests;
@@ -36,6 +40,11 @@ use upload::Sessions;
 
 /// Requests that may run at once against one connection (research R12).
 const PER_CONNECTION: usize = 4;
+
+/// The current time in milliseconds since 1970, to tell the age of temporary files.
+fn now_ms() -> i64 {
+    crate::passwords::clock::unix_millis(std::time::SystemTime::now())
+}
 
 /// The WebDAV implementation of [`RemoteStore`].
 pub struct WebDavStore {
@@ -183,10 +192,12 @@ impl RemoteStore for WebDavStore {
         max: usize,
         deadline: Instant,
     ) -> Result<Vec<ObjectInfo>, StorageError> {
-        tree::list(prefix, max, |dir| async move {
+        let (found, stale) = tree::list(prefix, max, now_ms(), |dir| async move {
             self.read_dir(access, &dir, deadline).await
         })
-        .await
+        .await?;
+        self.sweep(access, stale, deadline).await;
+        Ok(found)
     }
 
     /// Deletes a file; a key ending in `/` removes the folder only when it is empty, as deleting a
@@ -274,27 +285,9 @@ impl RemoteStore for WebDavStore {
         max: usize,
         deadline: Instant,
     ) -> Result<DirListing, StorageError> {
-        let mut listing = DirListing::default();
-        for entry in self.read_dir(access, prefix, deadline).await? {
-            if tree::is_part(&entry.name) {
-                continue;
-            }
-            if entry.is_dir {
-                listing.prefixes.push(format!("{prefix}{}/", entry.name));
-            } else {
-                listing.objects.push(ObjectInfo {
-                    key: format!("{prefix}{}", entry.name),
-                    size: entry.size,
-                    last_modified: entry.modified,
-                    etag: entry.etag,
-                });
-            }
-        }
-        if listing.objects.len() + listing.prefixes.len() > max {
-            return Err(StorageError::TooLarge);
-        }
-        listing.prefixes.sort();
-        listing.objects.sort_by(|a, b| a.key.cmp(&b.key));
+        let entries = self.read_dir(access, prefix, deadline).await?;
+        let (listing, stale) = tree::level(prefix, entries, max, now_ms())?;
+        self.sweep(access, stale, deadline).await;
         Ok(listing)
     }
 

@@ -60,6 +60,7 @@ use ts_rs::TS;
 use zeroize::Zeroizing;
 
 pub use remote_store::RemoteStore;
+pub use tree::case_clash;
 
 /// The protocol of a connection (spec 050 FR-001); it never changes once the connection is saved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]

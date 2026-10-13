@@ -328,3 +328,60 @@ async fn a_cancelled_upload_deletes_its_temporary_file() {
         "nothing lands under the name"
     );
 }
+
+#[tokio::test]
+async fn a_listing_whose_answer_does_not_come_in_time_is_timed_out() {
+    let server = MockServer::start().await;
+    Mock::given(method("PROPFIND"))
+        .respond_with(
+            ResponseTemplate::new(207)
+                .set_body_string(FOLDER)
+                .set_delay(Duration::from_secs(30)),
+        )
+        .mount(&server)
+        .await;
+    let started = std::time::Instant::now();
+    let deadline = Instant::now() + Duration::from_millis(300);
+    let result = store().list_dir(&access(&server), "", 100, deadline).await;
+    assert_eq!(result.err(), Some(StorageError::TimedOut), "FR-013");
+    assert!(started.elapsed() < Duration::from_secs(5));
+}
+
+const OLD_PART: &str = r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">
+<d:response><d:href>/dav/Fotos/</d:href><d:propstat><d:prop>
+<d:resourcetype><d:collection/></d:resourcetype></d:prop>
+<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/dav/Fotos/.holzi-part-alt</d:href><d:propstat><d:prop><d:resourcetype/>
+<d:getcontentlength>9</d:getcontentlength>
+<d:getlastmodified>Mon, 12 Oct 2020 10:00:00 GMT</d:getlastmodified></d:prop>
+<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+<d:response><d:href>/dav/Fotos/a.jpg</d:href><d:propstat><d:prop><d:resourcetype/>
+<d:getcontentlength>5</d:getcontentlength>
+<d:getlastmodified>Mon, 12 Oct 2026 10:00:00 GMT</d:getlastmodified></d:prop>
+<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>"#;
+
+#[tokio::test]
+async fn a_listing_deletes_an_old_temporary_file_and_ignores_a_failed_delete() {
+    let server = MockServer::start().await;
+    Mock::given(method("PROPFIND"))
+        .respond_with(ResponseTemplate::new(207).set_body_string(OLD_PART))
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/dav/Fotos/.holzi-part-alt"))
+        .respond_with(ResponseTemplate::new(500))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let listing = store()
+        .list_dir(&access(&server), "", 100, soon())
+        .await
+        .expect("a failed delete leaves the listing alone");
+    let objects: Vec<(&str, &str)> = listing
+        .objects
+        .iter()
+        .map(|o| (o.key.as_str(), o.last_modified.as_str()))
+        .collect();
+    assert_eq!(objects, [("a.jpg", "2026-10-12T10:00:00.000Z")]);
+}

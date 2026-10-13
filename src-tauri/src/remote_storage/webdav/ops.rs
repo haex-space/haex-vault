@@ -10,17 +10,22 @@ use super::super::{Access, StorageError};
 use super::multistatus::{self, Entry};
 use super::request::{decoded_path, method, send, send_raw, status_error, url_of, PROPFIND_BODY};
 use super::WebDavStore;
+use crate::files::storage_time::parse_http_date_ms;
+use crate::passwords::clock::format_millis;
 
 /// The largest `PROPFIND` answer holzi reads (about 100 000 entries).
 const MAX_LISTING: usize = 64 * 1024 * 1024;
 
-/// The entry of a `PROPFIND` as one entry of its folder; a server without `getetag` gets a mark
-/// from size and time.
+/// The entry of a `PROPFIND` as one entry of its folder: the HTTP date as the time of an S3
+/// listing; a server without `getetag` gets a mark from size and time.
 pub(super) fn dir_entry(entry: Entry) -> DirEntry {
-    let modified = entry.modified.unwrap_or_default();
+    let sent = entry.modified.unwrap_or_default();
+    let modified = parse_http_date_ms(&sent)
+        .map(format_millis)
+        .unwrap_or_default();
     let etag = entry
         .etag
-        .unwrap_or_else(|| format!("{}-{modified}", entry.size));
+        .unwrap_or_else(|| format!("{}-{sent}", entry.size));
     DirEntry {
         name: entry.name,
         is_dir: entry.is_dir,
@@ -189,5 +194,24 @@ impl WebDavStore {
             StatusCode::NOT_FOUND => Ok(()),
             status => Err(status_error(&Method::DELETE, status)),
         }
+    }
+
+    /// Deletes temporary files a broken upload left behind (older than a day, found by a
+    /// listing); a failure is only logged, the next listing tries again.
+    pub(super) async fn sweep(&self, access: &Access, stale: Vec<String>, deadline: Instant) {
+        if stale.is_empty() {
+            return;
+        }
+        let mut failed = 0;
+        for key in &stale {
+            if self.remove(access, key, deadline).await.is_err() {
+                failed += 1;
+            }
+        }
+        log::info!(
+            "remote storage: deleted {} of {} old WebDAV temporary files",
+            stale.len() - failed,
+            stale.len()
+        );
     }
 }
