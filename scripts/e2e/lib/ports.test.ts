@@ -1,7 +1,12 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
-import { PortInUseError, freePort, withPortRetry } from './ports.ts'
+import {
+  PortInUseError,
+  freePort,
+  reservePort,
+  withPortRetry,
+} from './ports.ts'
 
 function listen(port: number): Promise<net.Server> {
   return new Promise((resolve, reject) => {
@@ -16,6 +21,17 @@ describe('ports', () => {
     const port = await freePort()
     assert.ok(Number.isInteger(port) && port >= 1024 && port <= 65535)
     const server = await listen(port)
+    server.close()
+  })
+
+  it('holds a reserved port until it is released', async () => {
+    const reserved = await reservePort()
+    await assert.rejects(listen(reserved.port), { code: 'EADDRINUSE' })
+    for (let i = 0; i < 50; i++)
+      assert.notEqual(await freePort(), reserved.port)
+    await reserved.release()
+    await reserved.release()
+    const server = await listen(reserved.port)
     server.close()
   })
 
