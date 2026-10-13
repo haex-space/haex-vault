@@ -2,10 +2,12 @@
 //! MCP client, the extension's frame the server, and the messages travel as JSON through the
 //! frontend to the frame's port.
 
+pub mod commands;
 pub mod link;
+pub mod slot;
 
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 
 #[cfg(test)]
 #[path = "link_tests.rs"]
@@ -14,3 +16,7 @@ mod link_tests;
 #[cfg(test)]
 #[path = "contract_tests.rs"]
 mod contract_tests;
+
+#[cfg(test)]
+#[path = "commands_tests.rs"]
+mod commands_tests;

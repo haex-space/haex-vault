@@ -202,3 +202,29 @@ pub async fn pipe() -> Pipe {
     }
     panic!("the handshake did not finish");
 }
+
+/// Starts [`TestServer`] with raw JSON ends, the way a frame's server sits behind the frontend
+/// relay: `deliver` gets every message of the server, the returned function hands it one. The
+/// server runs until its input is dropped.
+pub fn serve_json<D>(deliver: D) -> impl Fn(Value) + Send + Sync + 'static
+where
+    D: Fn(Value) + Send + 'static,
+{
+    let (server_in, server_rx) = unbounded::<RxJsonRpcMessage<RoleServer>>();
+    let (server_tx, mut server_out) = unbounded::<TxJsonRpcMessage<RoleServer>>();
+    tokio::spawn(async move {
+        while let Some(message) = server_out.next().await {
+            deliver(serde_json::to_value(&message).expect("server message as JSON"));
+        }
+    });
+    tokio::spawn(async move {
+        if let Ok(server) = TestServer.serve((server_tx, server_rx)).await {
+            let _ = server.waiting().await;
+        }
+    });
+    move |value: Value| {
+        if let Ok(message) = serde_json::from_value::<RxJsonRpcMessage<RoleServer>>(value) {
+            let _ = server_in.unbounded_send(message);
+        }
+    }
+}

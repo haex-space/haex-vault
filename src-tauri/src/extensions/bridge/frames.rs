@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use uuid::Uuid;
 
+use crate::extensions::agent_tools::slot::McpSlot;
 use crate::extensions::protocol::token;
 
 /// What a frame shows.
@@ -40,6 +41,8 @@ pub struct FrameSession {
     /// Start token in the frame URL; HTML of the extension is served only with it.
     pub token: String,
     pub opened_at: Instant,
+    /// The agent's tool connection to this frame (spec 018).
+    pub mcp: McpSlot,
 }
 
 #[derive(Default)]
@@ -77,14 +80,20 @@ impl FrameRegistry {
             tab_id: tab_id.to_owned(),
             token: token::mint(),
             opened_at: Instant::now(),
+            mcp: McpSlot::default(),
         });
         self.sessions()
             .insert(session.frame.clone(), Arc::clone(&session));
         session
     }
 
+    /// Ends a session and its tool connection.
     pub fn close(&self, frame: &str) -> Option<Arc<FrameSession>> {
-        self.sessions().remove(frame)
+        let closed = self.sessions().remove(frame);
+        if let Some(session) = &closed {
+            session.mcp.close();
+        }
+        closed
     }
 
     pub fn get(&self, frame: &str) -> Option<Arc<FrameSession>> {
