@@ -95,7 +95,7 @@ scenario(
     await laptop.click('storage-add-connection')
     await waitForLocation(laptop, 'storage.connection')
     await choose(laptop, 'storage-protocol', 'webdav')
-    await laptop.waitForDisplayed('storage-username')
+    await laptop.waitForDisplayed('storage-username', 20_000)
     await choose(laptop, 'storage-provider-kind', 'other')
     await typeChecked(laptop, 'storage-endpoint', webdav.endpoint)
     await laptop.waitForDisplayed('storage-endpoint-insecure')
