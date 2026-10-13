@@ -214,4 +214,25 @@ impl WebDavStore {
             stale.len()
         );
     }
+
+    /// `error` of a call on the file `key`, or [`StorageError::NotFound`] when the server
+    /// redirected because a folder has that name (servers send `x` on to `x/`): no file has that
+    /// key, as on S3.
+    pub(super) async fn file_error(
+        &self,
+        access: &Access,
+        key: &str,
+        error: StorageError,
+        deadline: Instant,
+    ) -> StorageError {
+        let folder = format!("{key}/");
+        if error == StorageError::Protocol
+            && !key.is_empty()
+            && !key.ends_with('/')
+            && self.propfind(access, &folder, 0, deadline).await.is_ok()
+        {
+            return StorageError::NotFound;
+        }
+        error
+    }
 }

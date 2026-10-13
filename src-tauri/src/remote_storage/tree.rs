@@ -10,7 +10,7 @@ use super::{DirListing, ObjectInfo, StorageError};
 use crate::files::storage_time::parse_iso_ms;
 
 /// The start of the name of a temporary file holzi writes before it moves it to its name.
-pub(super) const PART_PREFIX: &str = ".holzi-part-";
+pub const PART_PREFIX: &str = ".holzi-part-";
 
 /// How many folders a listing reads at once (spec 050 research R12).
 const PARALLEL_READS: usize = 4;
@@ -121,7 +121,8 @@ pub(super) fn ancestors(key: &str) -> Vec<&str> {
 /// The objects under `prefix` as S3 would list them, read folder by folder from the folder of
 /// `prefix` with `read_dir` (which gets a folder key, empty for the top). Folders are entries
 /// `ordner/` of size 0; temporary files are left out, and those older than a day at `now_ms` come
-/// back as keys for the store to delete. More than `max` entries is [`StorageError::TooLarge`].
+/// back as keys for the store to delete. A folder that is not there lists as empty. More than
+/// `max` entries is [`StorageError::TooLarge`].
 pub(super) async fn list<F, Fut>(
     prefix: &str,
     max: usize,
@@ -146,7 +147,12 @@ where
             .collect()
             .await;
         for (dir, entries) in listings {
-            for entry in entries? {
+            // A folder that is not there holds nothing, as S3 lists an unknown prefix as empty.
+            let entries = match entries {
+                Err(StorageError::NotFound) => Vec::new(),
+                entries => entries?,
+            };
+            for entry in entries {
                 if is_part(&entry.name) {
                     if stale(&entry, now_ms) {
                         stale_parts.push(format!("{dir}{}", entry.name));

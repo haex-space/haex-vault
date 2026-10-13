@@ -17,7 +17,7 @@ mod request_tests;
 #[cfg(test)]
 mod server_tests;
 #[cfg(test)]
-mod test_server;
+pub(crate) mod test_server;
 mod upload;
 #[cfg(test)]
 mod upload_tests;
@@ -171,17 +171,23 @@ impl RemoteStore for WebDavStore {
         max_bytes: usize,
         deadline: Instant,
     ) -> Result<Vec<u8>, StorageError> {
-        let _permit = self.permit(access, deadline).await?;
-        let response = send(
-            self.resolver.as_ref(),
-            access,
-            Method::GET,
-            url_of(&access.location, key)?,
-            &[],
-            None,
-            deadline,
-        )
-        .await?;
+        let sent = {
+            let _permit = self.permit(access, deadline).await?;
+            send(
+                self.resolver.as_ref(),
+                access,
+                Method::GET,
+                url_of(&access.location, key)?,
+                &[],
+                None,
+                deadline,
+            )
+            .await
+        };
+        let response = match sent {
+            Ok(response) => response,
+            Err(error) => return Err(self.file_error(access, key, error, deadline).await),
+        };
         super::http::read_body(response, max_bytes, deadline).await
     }
 
@@ -227,9 +233,11 @@ impl RemoteStore for WebDavStore {
         key: &str,
         deadline: Instant,
     ) -> Result<ObjectHead, StorageError> {
-        let entry = self
-            .propfind(access, key, 0, deadline)
-            .await?
+        let entries = match self.propfind(access, key, 0, deadline).await {
+            Ok(entries) => entries,
+            Err(error) => return Err(self.file_error(access, key, error, deadline).await),
+        };
+        let entry = entries
             .into_iter()
             .find(|entry| entry.name.is_empty())
             .ok_or(StorageError::NotFound)?;
@@ -252,7 +260,7 @@ impl RemoteStore for WebDavStore {
             return Ok(Box::new(tokio::io::empty()));
         }
         // The permit covers the start of the answer; the body then streams without it.
-        let response = {
+        let sent = {
             let _permit = self.permit(access, deadline).await?;
             send(
                 self.resolver.as_ref(),
@@ -263,7 +271,11 @@ impl RemoteStore for WebDavStore {
                 None,
                 deadline,
             )
-            .await?
+            .await
+        };
+        let response = match sent {
+            Ok(response) => response,
+            Err(error) => return Err(self.file_error(access, key, error, deadline).await),
         };
         // A server that ignores the range answers 200 with the whole file; only a part from the
         // start can be cut from that (as for S3).

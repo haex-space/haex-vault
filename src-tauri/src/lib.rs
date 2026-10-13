@@ -31,6 +31,8 @@ pub mod storage;
 // CoreAudio/WASAPI system dependency) at all.
 pub mod stt;
 pub mod sync;
+#[cfg(test)]
+mod test_log;
 pub mod tls;
 pub mod vault_events;
 pub mod vault_gate;

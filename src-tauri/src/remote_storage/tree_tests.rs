@@ -223,3 +223,15 @@ fn a_name_that_differs_only_in_case_clashes() {
     assert_eq!(case_clash(["Straße"], "STRASSE"), None);
     assert_eq!(case_clash(["Ärger"], "ärger"), Some("Ärger"));
 }
+
+#[tokio::test]
+async fn a_folder_that_is_not_there_lists_as_empty() {
+    let server = server();
+    let (found, _) = list("Unbekannt/x", 100, NOW, |dir| {
+        let entries = server.get(dir.as_str()).cloned();
+        async move { entries.ok_or(StorageError::NotFound) }
+    })
+    .await
+    .expect("as S3 lists an unknown prefix");
+    assert!(found.is_empty());
+}
