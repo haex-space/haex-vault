@@ -2,104 +2,14 @@
 //! is the device, seen through the local store with the id `device:/`.
 
 use std::path::Path;
-use std::sync::Arc;
 
 use tokio_util::sync::CancellationToken;
 
 use super::*;
+use crate::files::encrypted::device_scene::{walkdir, DeviceScene as Device};
 use crate::files::encrypted::ops::create_encrypted_folder;
-use crate::files::encrypted::test_support::{give_key, transfer};
-use crate::files::encrypted::{EncryptedFolders, Scope};
-use crate::files::local::ops;
-use crate::files::transfer::local::Outcome;
-use crate::files::transfer::remote::Side;
-use crate::files::transfer::TransferOp;
 use crate::files::EncryptedState;
-use crate::remote_storage::local::LocalStore;
-use crate::remote_storage::test_support::vault;
 use crate::vault_gate::VaultDb;
-
-struct Device {
-    _vault: tempfile::TempDir,
-    db: VaultDb,
-    folders: Arc<EncryptedFolders>,
-    home: tempfile::TempDir,
-    root: DeviceRoot,
-}
-
-impl Device {
-    fn new() -> Self {
-        let (dir, db) = vault();
-        give_key(&db, 1);
-        let home = tempfile::tempdir().unwrap();
-        let root = DeviceRoot::of(home.path()).unwrap();
-        Self {
-            _vault: dir,
-            db,
-            folders: Arc::default(),
-            home,
-            root,
-        }
-    }
-
-    /// The device as the window's storage view.
-    fn files(&self) -> StorageFiles {
-        let db = self.db.clone();
-        self.root.files(
-            Arc::new(LocalStore::new()),
-            Scope {
-                storage_id: self.root.storage_id.clone(),
-                folders: Arc::clone(&self.folders),
-                vault: Arc::new(move || Ok(db.clone())),
-                background: Arc::new(|_| {}),
-            },
-        )
-    }
-
-    fn view(&self, rel: &str) -> String {
-        self.root.view_of(&self.home.path().join(rel))
-    }
-
-    /// "Unterlagen" in the home folder with `notiz.txt` copied in.
-    async fn with_folder(&self) -> String {
-        create_encrypted_folder(&self.files(), &self.view(""), "Unterlagen")
-            .await
-            .unwrap();
-        let source = tempfile::tempdir().unwrap();
-        let file = source.path().join("notiz.txt");
-        std::fs::write(&file, "Strom").unwrap();
-        let outcome = transfer(
-            TransferOp::Copy,
-            Side::Device,
-            &[file.to_string_lossy().into_owned()],
-            Side::Storage(Arc::new(self.files())),
-            &self.view("Unterlagen"),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-        assert_eq!(outcome, Outcome::Done);
-        raw_dir(self.home.path())
-    }
-
-    fn listed(&self) -> Vec<Entry> {
-        ops::list(
-            self.home.path(),
-            &crate::files::local::places::OwnPlaces::default(),
-        )
-        .unwrap()
-    }
-}
-
-/// The name of the one encrypted folder's directory in `dir`.
-fn raw_dir(dir: &Path) -> String {
-    std::fs::read_dir(dir)
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-        .find(|name| is_folder_prefix(name))
-        .expect("an encrypted folder")
-}
 
 #[cfg(unix)]
 #[test]
@@ -175,19 +85,6 @@ async fn a_path_by_the_decrypted_name_leads_into_the_folder() {
     assert_eq!(stored.len(), 3, "h, one sidecar, one content: {stored:?}");
 }
 
-fn walkdir(dir: &Path) -> Vec<std::path::PathBuf> {
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            files.extend(walkdir(&path));
-        } else {
-            files.push(path);
-        }
-    }
-    files
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn a_device_listing_names_the_folder_by_its_head() {
     let device = Device::new();
@@ -245,7 +142,10 @@ async fn deleting_inside_removes_the_objects_for_good() {
         .delete(&device.view("Unterlagen"), &cancel, &mut |_| {})
         .await
         .unwrap();
-    assert!(!device.home.path().join(&raw).join("h").exists());
+    assert!(
+        !device.home.path().join(&raw).exists(),
+        "no empty directory stays"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

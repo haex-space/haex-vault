@@ -3,8 +3,9 @@
 use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 
-use super::{device_path, storage_of, window_storage};
+use super::{device_path, device_storage, place_of, Place};
 use crate::files::access::Want;
+use crate::files::encrypted::device::DeviceRoot;
 use crate::files::search::{
     FilesSearchEvent, SearchFilters, SearchLimits, SearchManager, SearchOptions,
 };
@@ -34,12 +35,30 @@ pub async fn files_search_start(
         hide_own: false,
         limits: SearchLimits::USER,
     };
-    if let Some(id) = storage_of(&source) {
-        let storage = window_storage(&app, &state, &files, id).await?;
-        return searches.start_storage(state.gate(), storage, path, query, options, channel);
+    if let Place::Storage {
+        files: storage,
+        path,
+        device,
+    } = place_of(&app, &state, &files, &source, &path, Want::Read).await?
+    {
+        return searches.start_storage(
+            state.gate(),
+            storage,
+            path,
+            query,
+            options,
+            channel,
+            device,
+        );
     }
     let root = device_path(&files, &source, &path, Want::Read)?;
-    searches.start(state.gate(), root, query, options, channel)
+    // The encrypted folders below are searched by their decrypted names (spec 048 FR-049).
+    let encrypted = DeviceRoot::of(&root).and_then(|device| {
+        device_storage(&app, &state, &files, &device)
+            .ok()
+            .map(|storage| (storage, device))
+    });
+    searches.start(state.gate(), root, query, options, channel, encrypted)
 }
 
 /// Ends a search; the window calls it when the query changes or the tab goes away (FR-028).

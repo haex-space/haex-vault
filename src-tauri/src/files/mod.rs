@@ -15,6 +15,8 @@ pub mod media;
 pub mod permissions;
 pub mod picked;
 pub mod search;
+pub mod search_device;
+pub mod search_manager;
 pub mod state;
 pub mod storage_source;
 pub mod storage_time;

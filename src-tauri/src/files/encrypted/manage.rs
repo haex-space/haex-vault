@@ -287,6 +287,14 @@ pub async fn delete_folder(
         }
         delete_keys(files, std::slice::from_ref(key), &mut done, progress).await?;
     }
+    // Real folders (the device, WebDAV, SFTP) would stay behind empty.
+    if files.access().location.is_tree() {
+        files
+            .store()
+            .remove_tree(files.access(), prefix, soon())
+            .await
+            .map_err(storage_error)?;
+    }
     forget_level(files, prefix);
     if let (Some(scope), Some(fid)) = (files.scope(), fid) {
         let (storage, folder_id) = (scope.storage_id.clone(), encode_id(&fid));

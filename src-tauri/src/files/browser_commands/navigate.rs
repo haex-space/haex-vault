@@ -5,12 +5,16 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use super::{blocking, device_path, storage_of, window_storage};
+use super::{blocking, device_path, device_storage, place_of, Place};
 use crate::files::access::Want;
+use crate::files::encrypted::device::{name_encrypted, DeviceRoot};
+use crate::files::encrypted::format::is_folder_prefix;
+use crate::files::encrypted::redacted::Redacted;
+use crate::files::encrypted::route::{route, Route};
 use crate::files::local::drives::{drives, Drive};
 use crate::files::local::ops;
 use crate::files::state::FilesState;
-use crate::files::{Entry, FilesError, FilesErrorCode, SourceRef};
+use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode, SourceRef};
 use crate::state::AppState;
 use tauri_plugin_holzi_android::HolziAndroidExt;
 
@@ -125,7 +129,7 @@ pub async fn files_request_all_access(app: AppHandle) -> Result<(), FilesError> 
     .await
 }
 
-/// Every entry of a folder.
+/// Every entry of a folder. A device folder shows its encrypted folders by name (spec 048 US7).
 #[tauri::command]
 pub async fn files_list(
     app: AppHandle,
@@ -134,15 +138,37 @@ pub async fn files_list(
     source: SourceRef,
     path: String,
 ) -> Result<Vec<Entry>, FilesError> {
-    if let Some(id) = storage_of(&source) {
-        return window_storage(&app, &state, &files, id)
-            .await?
-            .list(&path)
-            .await;
+    if let Place::Storage {
+        files: storage,
+        path,
+        device,
+    } = place_of(&app, &state, &files, &source, &path, Want::Read).await?
+    {
+        let entries = storage.list(&path).await?;
+        return Ok(entries
+            .into_iter()
+            .map(|entry| Place::entry(device.as_ref(), entry))
+            .collect());
     }
     let real = device_path(&files, &source, &path, Want::Read)?;
     let own = files.own.clone();
-    blocking(move || ops::list(&real, &own)).await
+    let folder = real.clone();
+    let entries = blocking(move || ops::list(&folder, &own)).await?;
+    let Some(root) = DeviceRoot::of(&real) else {
+        return Ok(entries);
+    };
+    let has_encrypted = entries
+        .iter()
+        .any(|entry| entry.kind == EntryKind::Dir && is_folder_prefix(&entry.name));
+    let Ok(storage) = device_storage(&app, &state, &files, &root) else {
+        return Ok(entries);
+    };
+    match name_encrypted(&storage, &root, &real, entries.clone()).await {
+        Ok(named) => Ok(named),
+        Err(error) if has_encrypted => Err(error),
+        // Only the cache could not be tidied; the folder still lists.
+        Err(_) => Ok(entries),
+    }
 }
 
 /// One entry.
@@ -154,43 +180,74 @@ pub async fn files_stat(
     source: SourceRef,
     path: String,
 ) -> Result<Entry, FilesError> {
-    if let Some(id) = storage_of(&source) {
-        return window_storage(&app, &state, &files, id)
-            .await?
-            .stat(&path)
-            .await;
+    if let Place::Storage {
+        files: storage,
+        path,
+        device,
+    } = place_of(&app, &state, &files, &source, &path, Want::Read).await?
+    {
+        let entry = storage.stat(&path).await?;
+        return Ok(Place::entry(device.as_ref(), entry));
     }
     let real = device_path(&files, &source, &path, Want::Read)?;
     let own = files.own.clone();
     blocking(move || ops::stat(&real, &own)).await
 }
 
-/// Watches the open folder (not its sub folders); every debounced batch goes to `channel`.
+/// Watches the open folder (not its sub folders); every debounced batch goes to `channel`. In an
+/// encrypted folder on the device the whole directory of that folder is watched and every change
+/// reads as a change of the open folder (spec 048 research R17).
 #[tauri::command]
-pub fn files_watch(
+pub async fn files_watch(
+    app: AppHandle,
+    state: State<'_, AppState>,
     files: State<'_, FilesState>,
     path: String,
     channel: Channel<FolderChanged>,
 ) -> Result<u64, FilesError> {
-    let real = device_path(&files, &SourceRef::Device, &path, Want::Read)?;
+    let source = SourceRef::Device;
+    let (real, recursive, report) =
+        match place_of(&app, &state, &files, &source, &path, Want::Read).await? {
+            Place::Storage {
+                files: storage,
+                path: view,
+                device: Some(root),
+            } => {
+                let Route::Encrypted(at) = route(&storage, &view).await? else {
+                    return Err(FilesError::new(FilesErrorCode::NotFound, "not found"));
+                };
+                (root.dir.join(&at.head.prefix), true, Some(path.clone()))
+            }
+            _ => (
+                device_path(&files, &source, &path, Want::Read)?,
+                false,
+                None,
+            ),
+        };
     #[cfg(not(target_os = "ios"))]
     {
-        let watch = crate::files::local::watch::watch_folder(&real, false, move |changes| {
-            let paths = changes
-                .into_iter()
-                .map(|change| change.path.to_string_lossy().into_owned())
-                .collect();
+        let watch = crate::files::local::watch::watch_folder(&real, recursive, move |changes| {
+            let paths = match &report {
+                Some(open) => vec![open.clone()],
+                None => changes
+                    .into_iter()
+                    .map(|change| change.path.to_string_lossy().into_owned())
+                    .collect(),
+            };
             let _ = channel.send(FolderChanged { paths });
         })
         .map_err(|reason| {
-            log::warn!("files: watching {} failed: {reason}", real.display());
+            log::warn!(
+                "files: watching {} failed: {reason}",
+                Redacted(&real.to_string_lossy())
+            );
             FilesError::new(FilesErrorCode::Unsupported, "this folder cannot be watched")
         })?;
         Ok(files.keep_watch(watch))
     }
     #[cfg(target_os = "ios")]
     {
-        let _ = (real, channel);
+        let _ = (real, recursive, report, channel);
         Err(FilesError::new(
             FilesErrorCode::Unsupported,
             "no watching on this platform",
