@@ -212,6 +212,16 @@ pub(super) fn overview(service: &StorageService) -> Result<StorageOverview, Brid
     block_on(service.overview()).map_err(|_| unavailable())
 }
 
+/// The name of a storage's place in a call: a bucket on S3, a folder on a server with real
+/// folders (WebDAV, SFTP; a local folder of spec 048 is never offered to extensions).
+pub(super) fn place_of(protocol: Protocol) -> &'static str {
+    if protocol.is_tree() {
+        "folder"
+    } else {
+        "bucket"
+    }
+}
+
 /// One item of the list (FR-009a, spec 050 contracts/bridge.md): names only; a folder instead of
 /// a bucket on WebDAV and SFTP.
 pub(super) fn item(overview: &StorageOverview, storage_id: &str) -> Option<Value> {
@@ -220,10 +230,7 @@ pub(super) fn item(overview: &StorageOverview, storage_id: &str) -> Option<Value
         .connections
         .iter()
         .find(|c| c.id == storage.connection_id)?;
-    let place = match connection.protocol {
-        Protocol::S3 => "bucket",
-        Protocol::WebDav | Protocol::Sftp => "folder",
-    };
+    let place = place_of(connection.protocol);
     let mut item = json!({
         "id": storage.id,
         "type": connection.protocol.as_str(),

@@ -14,6 +14,7 @@ use super::bridge::dispatch::CallContext;
 use super::commands::permissions::{set, PermissionSetArgs};
 use super::error::{BridgeError, ExtensionErrorCode};
 use super::permissions::Action;
+pub(super) use super::remote_storage::place_of;
 use super::remote_storage::{
     check_storage, invalid, item, not_found, overview, provider, service, text,
 };
@@ -22,7 +23,7 @@ use crate::error::HolziError;
 use crate::passwords::clock::unix_millis;
 use crate::remote_storage::model::{ConnectionInput, CredentialsInput, StorageInput};
 use crate::remote_storage::service::StorageService;
-use crate::remote_storage::{Protocol, TestOutcome};
+use crate::remote_storage::TestOutcome;
 use crate::storage::query::Query;
 
 pub const MODULE: &str = module_path!();
@@ -42,14 +43,6 @@ const CREDENTIAL_FIELDS: [&str; 9] = [
 
 fn carries_credentials(map: &Map<String, Value>) -> bool {
     CREDENTIAL_FIELDS.iter().any(|f| map.contains_key(*f))
-}
-
-/// The name of a storage's place in a call: a bucket on S3, a folder on WebDAV and SFTP.
-pub(super) fn place_of(protocol: Protocol) -> &'static str {
-    match protocol {
-        Protocol::S3 => "bucket",
-        Protocol::WebDav | Protocol::Sftp => "folder",
-    }
 }
 
 pub(super) fn cancelled() -> BridgeError {
