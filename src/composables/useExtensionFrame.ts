@@ -16,6 +16,7 @@ import {
   readRequest,
   type FrameEvent,
 } from '~/lib/extensions/bridge'
+import { mcpPortMessage, readMcpMessage } from '~/lib/extensions/mcpRelay'
 import {
   initMessage,
   navigateMessage,
@@ -142,6 +143,15 @@ export function useExtensionFrame(
   }
 
   async function relay(port: MessagePort, data: unknown): Promise<void> {
+    // The extension's answers to the agent's tool calls (spec 018), apart from the bridge.
+    const mcp = readMcpMessage(data)
+    if (mcp) {
+      if (frame)
+        void invoke('extension_mcp_send', { frame, message: mcp }).catch(
+          () => {},
+        )
+      return
+    }
     const request = readRequest(data)
     if (!request || !frame) return
     const response = await invoke<unknown>('extension_bridge_call', {
@@ -340,6 +350,13 @@ export function useExtensionFrame(
   void Promise.all([
     listen<FrameEvent>('extension-frame-event', (event) =>
       events.push(event.payload),
+    ),
+    listen<{ frame: string; message: unknown }>(
+      'extension-mcp-message',
+      (event) => {
+        if (event.payload.frame === frame)
+          sdkPort?.postMessage(mcpPortMessage(event.payload.message))
+      },
     ),
     listen<{ frame: string; active: boolean }>(
       'extension-tab-attention',
