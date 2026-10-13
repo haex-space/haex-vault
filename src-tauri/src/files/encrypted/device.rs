@@ -149,6 +149,14 @@ pub async fn name_encrypted(
         .filter(|entry| raw(entry))
         .map(|entry| entry.name.clone())
         .collect();
+    // A level this session already knows without encrypted folders needs no look at the cache.
+    let known_plain = scope
+        .folders
+        .heads(&scope.storage_id, &prefix)
+        .is_some_and(|heads| heads.is_empty());
+    if present.is_empty() && known_plain {
+        return Ok(entries);
+    }
     drop_gone(scope, &prefix, present.clone()).await?;
     if present.is_empty() {
         scope
