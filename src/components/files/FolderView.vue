@@ -69,9 +69,12 @@ const columns = computed(() =>
   Math.max(1, Math.floor((width.value || TILE_WIDTH) / TILE_WIDTH)),
 )
 
-/** The list's rows: one entry each; the grid's rows: `columns` entries each. */
-const rows = computed<Entry[][]>(() => {
-  if (props.view === 'list') return props.entries.map((entry) => [entry])
+/** The list's rows: one entry each. */
+const listRows = computed<Entry[][]>(() =>
+  props.entries.map((entry) => [entry]),
+)
+/** The grid's rows: `columns` entries each. */
+const gridRows = computed<Entry[][]>(() => {
   const out: Entry[][] = []
   for (let i = 0; i < props.entries.length; i += columns.value) {
     out.push(props.entries.slice(i, i + columns.value))
@@ -79,16 +82,32 @@ const rows = computed<Entry[][]>(() => {
   return out
 })
 
-const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(rows, {
-  itemHeight: () => (props.view === 'list' ? ROW_HEIGHT : TILE_HEIGHT),
+// One virtual list per view, each with a fixed row height: given a function, VueUse adds up the
+// heights of all rows above the first one shown on every scroll, and the garbage of that stalled
+// a folder of 50 000 entries for more than half a second at a time (FR-008).
+const listVirtual = useVirtualList(listRows, {
+  itemHeight: ROW_HEIGHT,
   overscan: 8,
 })
+const gridVirtual = useVirtualList(gridRows, {
+  itemHeight: TILE_HEIGHT,
+  overscan: 8,
+})
+const virtual = computed(() =>
+  props.view === 'list' ? listVirtual : gridVirtual,
+)
+const list = computed(() => virtual.value.list.value)
+const containerProps = computed(() => virtual.value.containerProps)
+const wrapperProps = computed(() => virtual.value.wrapperProps.value)
 
 // A new folder starts at the top. Not on every new list: the watch and the focus load the same
 // folder again, and that keeps where the user scrolled to.
 watch(
   () => `${JSON.stringify(props.source)}|${props.folder}`,
-  () => scrollTo(0),
+  () => {
+    listVirtual.scrollTo(0)
+    gridVirtual.scrollTo(0)
+  },
 )
 
 function modified(entry: Entry): string {
