@@ -10,16 +10,21 @@ is added by a file beside `lib/platform/linux.ts`; no scenario changes.
 
 ## Android (spec 043)
 
-Run it with an emulator or a phone attached (one device, or name it with `ANDROID_SERIAL`):
+Run it with an emulator or a phone attached (one device, or name it with `ANDROID_SERIAL`). The
+devShell brings the emulator of the CI (`holzi-emulator`: API 35, `google_apis`, x86_64), the
+chromedriver of its web view and `iroh-relay`, so in `nix develop`:
 
 ```sh
-E2E_CHROMEDRIVER=/path/to/chromedriver pnpm test:e2e --platform android --apk app-x86_64-debug.apk
+holzi-emulator -no-window -no-snapshot-save &   # adb sees it as emulator-5554
+pnpm test:e2e --platform android --apk app-x86_64-debug.apk --grep files-basic
 ```
 
-`iroh-relay` must be on `PATH` or named by `E2E_IROH_RELAY` (`cargo install iroh-relay --version
-<its version in src-tauri/Cargo.lock> --features server --locked`). The run also needs the Linux tools
-of a Linux run: it builds the Linux app for the other devices of a group, and its preflight stops
-without them.
+`--grep` takes part of a scenario name. When only tests change, the debug APK of a CI run (artifact
+`holzi-android-debug`) saves the Android build. Outside the devShell, name chromedriver by
+`E2E_CHROMEDRIVER` (Chrome for Testing, the major version of the device's web view) and `iroh-relay`
+by `E2E_IROH_RELAY` (`cargo install iroh-relay --version <its version in src-tauri/Cargo.lock>
+--features server --locked`). The run also needs the Linux tools of a Linux run: it builds the Linux
+app for the other devices of a group, and its preflight stops without them.
 
 - **Driver**: chromedriver attached to the web view of the app that already runs
   (`goog:chromeOptions.androidUseRunningApp`; without it chromedriver would clear the app's data). Its
