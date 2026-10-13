@@ -89,7 +89,9 @@
           # the one exception below, which is itself gated on a contributed
           # package name.
           shellHook = ''
-            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath packages}:$LD_LIBRARY_PATH"
+            # Append the inherited value only when non-empty: a trailing `:`
+            # is an empty element, which makes ld.so search the working directory.
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath packages}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           '' + pkgs.lib.optionalString (builtins.elem "cudatoolkit" packageNames) ''
             # `cudarc` (pulled in by `mistralrs/cuda`) looks for one of
             # CUDA_HOME/CUDA_PATH/CUDA_ROOT/CUDA_TOOLKIT_ROOT_DIR at build time to
