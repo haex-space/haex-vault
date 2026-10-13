@@ -235,6 +235,44 @@ impl Tree {
         Some(at)
     }
 
+    /// Hangs the only version of a new entry into the tree without building it again (a transfer
+    /// writes many, research R7): only when its parent node is unique here and its name is free in
+    /// it. Otherwise nothing changes and `false` says the tree must be built again.
+    pub fn append(&mut self, version: &Version) -> bool {
+        let parent = if version.sidecar.parent == self.fid {
+            ROOT
+        } else {
+            let mut folders = self.nodes.iter().enumerate().filter(|(_, node)| {
+                matches!(&node.item, Item::Version { version: shown, .. }
+                    if shown.sidecar.entry == version.sidecar.parent)
+                    && !is_file(&node.item)
+            });
+            match (folders.next(), folders.next()) {
+                (Some((index, _)), None) => index,
+                _ => return false,
+            }
+        };
+        let name = &version.sidecar.name;
+        if self.children[parent]
+            .iter()
+            .any(|&child| self.nodes[child].name == *name)
+        {
+            return false;
+        }
+        let index = self.nodes.len();
+        self.nodes.push(Node {
+            name: name.clone(),
+            conflict: false,
+            item: Item::Version {
+                version: Box::new(version.clone()),
+                damaged: false,
+            },
+        });
+        self.children.push(Vec::new());
+        self.children[parent].push(index);
+        true
+    }
+
     /// The node that shows the version `sid`.
     pub fn find_sid(&self, sid: &Id) -> Option<usize> {
         self.nodes.iter().position(|node| match &node.item {
