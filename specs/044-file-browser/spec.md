@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-07
 
-**Status**: Implemented (T035, T093 offen)
+**Status**: Implemented (T093 offen)
 
 **Input**: User description: "Dateibrowser und Viewer als fester Bestandteil von holzi (Spec 044).
 Grundlage ist das abgestimmte Design docs/plans/2026-10-07-file-browser-design.md, das alle
