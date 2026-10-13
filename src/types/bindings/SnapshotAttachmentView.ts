@@ -3,7 +3,7 @@
 /**
  * An attachment of a history state.
  */
-export type SnapshotAttachmentView = { fileName: string, binaryHash: string, 
+export type SnapshotAttachmentView = { fileName: string, binaryHash: string,
 /**
  * Whether the binary data is still there (a restore skips the attachment if it is not).
  */

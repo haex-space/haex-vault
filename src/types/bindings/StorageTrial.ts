@@ -4,7 +4,7 @@ import type { TestOutcome } from "./TestOutcome";
 /**
  * What holzi's window learns of the credentials it sent (`storage_dialog_resolve`).
  */
-export type StorageTrial = { "kind": "ended" } | { "kind": "failed", outcome: TestOutcome, 
+export type StorageTrial = { "kind": "ended" } | { "kind": "failed", outcome: TestOutcome,
 /**
  * The test object holzi could not delete, if the failed probe left one behind.
  */

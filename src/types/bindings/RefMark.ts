@@ -6,11 +6,11 @@ import type { RefStatus } from "./RefStatus";
  * One placeholder in a text: its place (UTF-16 offsets, as the window counts), its source and
  * whether it resolves. No value.
  */
-export type RefMark = { start: number, end: number, sourceItemId: string, 
+export type RefMark = { start: number, end: number, sourceItemId: string,
 /**
  * The title of the source, `None` when it does not exist (or has none).
  */
-sourceTitle: string | null, kind: RefMarkKind, 
+sourceTitle: string | null, kind: RefMarkKind,
 /**
  * The key of the custom field for `extra`.
  */

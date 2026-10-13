@@ -5,20 +5,20 @@ import type { TagRef } from "./TagRef";
  * The view of an entry without secrets that lists deliver (FR-026). No password, TOTP secret,
  * passkey key, custom field, note or attachment ever appears here; only whether they exist.
  */
-export type ItemHeader = { id: string, title: string | null, username: string | null, url: string | null, icon: string | null, color: string | null, 
+export type ItemHeader = { id: string, title: string | null, username: string | null, url: string | null, icon: string | null, color: string | null,
 /**
  * `trash`, a folder id or `None` for the root.
  */
-groupId: string | null, 
+groupId: string | null,
 /**
  * For an entry deleted directly: the folder it came from (the trash shows its path); `None`
  * at the top level and for everything not deleted directly.
  */
-trashedFromGroupId: string | null, tags: Array<TagRef>, 
+trashedFromGroupId: string | null, tags: Array<TagRef>,
 /**
  * `YYYY-MM-DD`.
  */
-expiresAt: string | null, hasPassword: boolean, hasTotp: boolean, passkeyCount: number, attachmentCount: number, createdAt: string | null, updatedAt: string | null, 
+expiresAt: string | null, hasPassword: boolean, hasTotp: boolean, passkeyCount: number, attachmentCount: number, createdAt: string | null, updatedAt: string | null,
 /**
  * The holzi function the entry belongs to (spec 038, rule Z14), `None` for the user's own; the
  * window marks such entries.

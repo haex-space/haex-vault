@@ -5,7 +5,7 @@ import type { FilesAgentWant } from "./FilesAgentWant";
 /**
  * The payload of [`EVENT_PERMISSION_REQUEST`].
  */
-export type FilesAgentPermissionRequest = { requestId: string, agentId: string, storageId: string, storageName: string, wants: FilesAgentWant, 
+export type FilesAgentPermissionRequest = { requestId: string, agentId: string, storageId: string, storageName: string, wants: FilesAgentWant,
 /**
  * Set when the question is for an encrypted folder of the storage.
  */

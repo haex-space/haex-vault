@@ -3,7 +3,7 @@
 /**
  * The public key of the vault identity (FR-046).
  */
-export type VaultPublicIdentity = { 
+export type VaultPublicIdentity = {
 /**
  * Nostr `npub` form, naming the vault in member lists and rights; not an invitation address.
  */

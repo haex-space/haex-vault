@@ -2,7 +2,7 @@
 import type { CopyOptions } from "./CopyOptions";
 import type { Target } from "./Target";
 
-export type CopyArgs = { targets: Array<Target>, 
+export type CopyArgs = { targets: Array<Target>,
 /**
  * `null` is the top level.
  */

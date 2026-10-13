@@ -3,63 +3,63 @@
 /**
  * The limits with the bounds the settings show next to them; the bounds are only checked here.
  */
-export type ExtensionLimitsView = { values: { 
+export type ExtensionLimitsView = { values: {
 /**
  * Rows one query may return.
  */
-maxRows: number, 
+maxRows: number,
 /**
  * Requests running at the same time.
  */
-maxConcurrent: number, 
+maxConcurrent: number,
 /**
  * Bytes of one SQL statement with its parameters.
  */
-maxSqlBytes: number, 
+maxSqlBytes: number,
 /**
  * Run time of one request in milliseconds.
  */
-timeoutMs: number, 
+timeoutMs: number,
 /**
  * Bytes of one answer.
  */
-maxResponseBytes: number, }, min: { 
+maxResponseBytes: number, }, min: {
 /**
  * Rows one query may return.
  */
-maxRows: number, 
+maxRows: number,
 /**
  * Requests running at the same time.
  */
-maxConcurrent: number, 
+maxConcurrent: number,
 /**
  * Bytes of one SQL statement with its parameters.
  */
-maxSqlBytes: number, 
+maxSqlBytes: number,
 /**
  * Run time of one request in milliseconds.
  */
-timeoutMs: number, 
+timeoutMs: number,
 /**
  * Bytes of one answer.
  */
-maxResponseBytes: number, }, max: { 
+maxResponseBytes: number, }, max: {
 /**
  * Rows one query may return.
  */
-maxRows: number, 
+maxRows: number,
 /**
  * Requests running at the same time.
  */
-maxConcurrent: number, 
+maxConcurrent: number,
 /**
  * Bytes of one SQL statement with its parameters.
  */
-maxSqlBytes: number, 
+maxSqlBytes: number,
 /**
  * Run time of one request in milliseconds.
  */
-timeoutMs: number, 
+timeoutMs: number,
 /**
  * Bytes of one answer.
  */

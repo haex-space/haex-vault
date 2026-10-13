@@ -6,15 +6,15 @@ import type { AgentFileStatus } from "./AgentFileStatus";
 /**
  * A stored permission as the settings show it.
  */
-export type AgentFilePermissionView = { 
+export type AgentFilePermissionView = {
 /**
  * The decrypted name of an encrypted folder, when this device has read its head.
  */
-folderName?: string, agentId: string, kind: AgentFileKind, 
+folderName?: string, agentId: string, kind: AgentFileKind,
 /**
  * Empty for the device, the storage id for a storage.
  */
-target: string, status: AgentFileStatus, updatedAt: number, 
+target: string, status: AgentFileStatus, updatedAt: number,
 /**
  * Only for an encrypted folder.
  */

@@ -4,7 +4,7 @@ import type { ChooseDecision } from "./ChooseDecision";
 /**
  * The user's answer in the chooser (`extension_encrypted_folder_choose_resolve`).
  */
-export type ChooseAnswer = { "kind": "cancel" } | { "kind": "decide", folderId: string, decision: ChooseDecision, 
+export type ChooseAnswer = { "kind": "cancel" } | { "kind": "decide", folderId: string, decision: ChooseDecision,
 /**
  * "Erlaubnis merken"; off by default.
  */

@@ -4,7 +4,7 @@ import type { KeyValueInput } from "./KeyValueInput";
 /**
  * The data to create an entry with. Everything may be empty, also the title (FR-001).
  */
-export type ItemInput = { title?: string, username?: string, password?: string, note?: string, url?: string, icon?: string, color?: string, expiresAt?: string, 
+export type ItemInput = { title?: string, username?: string, password?: string, note?: string, url?: string, icon?: string, color?: string, expiresAt?: string,
 /**
  * A secret or an `otpauth://` address; normalised and checked on create (FR-003).
  */

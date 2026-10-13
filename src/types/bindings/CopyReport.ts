@@ -3,7 +3,7 @@
 /**
  * What a copy made. No ids: the window reloads.
  */
-export type CopyReport = { itemsCreated: number, groupsCreated: number, passkeyLinks: number, 
+export type CopyReport = { itemsCreated: number, groupsCreated: number, passkeyLinks: number,
 /**
  * Targets that were deleted meanwhile (or lie in the trash) and were skipped.
  */

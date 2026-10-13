@@ -4,11 +4,11 @@
  * A passkey as the passkey service lists it (`passkey_list`, `ChoiceRequired`): the header data,
  * the credential id as Base64URL, never a key.
  */
-export type PasskeyHeader = { id: string, credentialId: string, rpId: string, rpName: string | null, userName: string | null, userDisplayName: string | null, nickname: string | null, algorithm: number, isDiscoverable: boolean, createdAt: string | null, lastUsedAt: string | null, 
+export type PasskeyHeader = { id: string, credentialId: string, rpId: string, rpName: string | null, userName: string | null, userDisplayName: string | null, nickname: string | null, algorithm: number, isDiscoverable: boolean, createdAt: string | null, lastUsedAt: string | null,
 /**
  * The entry through which the caller reads the passkey: its own when readable, else a target.
  */
-itemId: string, 
+itemId: string,
 /**
  * Set when the caller reads the passkey through a link: the entry it belongs to.
  */

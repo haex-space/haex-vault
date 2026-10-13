@@ -6,7 +6,7 @@ import type { StorageSource } from "./StorageSource";
 /**
  * What the sidebar shows.
  */
-export type Sources = { drives: Array<Drive>, known: Array<KnownPlace>, 
+export type Sources = { drives: Array<Drive>, known: Array<KnownPlace>,
 /**
  * The storages of spec 038 (US5).
  */

@@ -6,7 +6,7 @@ import type { ThisDevice } from "./ThisDevice";
 /**
  * What the device list view needs besides the devices.
  */
-export type SyncStatus = { thisDevice: ThisDevice, openAdmissions: Array<OpenAdmission>, linking: LinkingStatus | null, 
+export type SyncStatus = { thisDevice: ThisDevice, openAdmissions: Array<OpenAdmission>, linking: LinkingStatus | null,
 /**
  * This vault file is the copy of a main device and this device enrolled
  * itself as a main device; the user has not read that yet (FR-044).

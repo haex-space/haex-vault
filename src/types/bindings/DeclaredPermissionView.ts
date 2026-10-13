@@ -3,7 +3,7 @@
 /**
  * One declared permission as the install dialog shows it.
  */
-export type DeclaredPermissionView = { kind: string, action: string, target: string, 
+export type DeclaredPermissionView = { kind: string, action: string, target: string,
 /**
  * Remembered only for this device (shell); every other kind holds on every own device.
  */

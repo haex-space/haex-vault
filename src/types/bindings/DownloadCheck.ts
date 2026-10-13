@@ -3,15 +3,15 @@
 /**
  * What the confirmation shows.
  */
-export type DownloadCheck = { 
+export type DownloadCheck = {
 /**
  * The size of the download; absent when no source names it.
  */
-sizeBytes: number | null, 
+sizeBytes: number | null,
 /**
  * The free space where models are stored; absent when the system does not tell.
  */
-freeBytes: number | null, 
+freeBytes: number | null,
 /**
  * Whether the download fits with a reserve of a tenth of its size. Without a size or without
  * the free space there is nothing to warn about.
