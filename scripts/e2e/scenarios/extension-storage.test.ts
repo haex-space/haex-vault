@@ -212,10 +212,10 @@ scenario(
     await page.click('storage-dialog-new-credentials')
     await page.click('storage-dialog-confirm')
     await page.waitForDisplayed('storage-credentials-modal', 10_000)
-    await page.type('storage-credentials-access-key', rustfs.accessKeyId)
-    await page.type('storage-credentials-secret', 'not-the-secret')
+    await page.type('storage-access-key', rustfs.accessKeyId)
+    await page.type('storage-secret', 'not-the-secret')
     // Enter in a field confirms, as the button does.
-    await page.type('storage-credentials-secret', KEY.enter)
+    await page.type('storage-secret', KEY.enter)
     await page.waitForDisplayed('storage-credentials-failure', 20_000)
     const refused = await page.exec<string>(
       `return document.querySelector('[data-testid="storage-credentials-failure"]').textContent.trim()`,
@@ -224,11 +224,11 @@ scenario(
     ctx.step('wrong credentials are named in holzi’s window, which stays open')
 
     await page.type(
-      'storage-credentials-secret',
+      'storage-secret',
       `${KEY.control}a${KEY.release}${KEY.backspace}`,
     )
-    await page.type('storage-credentials-secret', rustfs.secretAccessKey)
-    await page.type('storage-credentials-secret', KEY.enter)
+    await page.type('storage-secret', rustfs.secretAccessKey)
+    await page.type('storage-secret', KEY.enter)
     const updated = await answer(page, probe)
     assert.equal(updated.error, undefined, JSON.stringify(updated))
     assert.ok(

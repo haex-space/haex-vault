@@ -27,7 +27,7 @@ use super::bridge::dispatch::CallContext;
 use super::error::{BridgeError, ExtensionErrorCode};
 use super::protocol::token;
 use crate::remote_storage::address::{Resolver, SystemResolver};
-use crate::remote_storage::model::CredentialsInput;
+use crate::remote_storage::model::{CredentialsInput, ShownHostKey};
 use crate::remote_storage::{RemoteStore, TestOutcome};
 
 /// A storage dialog nobody answers ends as cancel, like a confirmation dialog.
@@ -59,6 +59,11 @@ pub enum StorageAnswer {
         #[ts(as = "Option<bool>", optional)]
         #[serde(default)]
         create_folder: bool,
+        /// The host key (an OpenSSH line) the user confirmed in holzi's window after
+        /// `hostKeyUnknown` (SFTP, spec 050 research R5).
+        #[ts(optional)]
+        #[serde(default)]
+        host_key: Option<String>,
     },
 }
 
@@ -87,6 +92,10 @@ pub enum StorageTrial {
         /// The test object holzi could not delete, if the failed probe left one behind.
         #[serde(rename = "leftoverKey")]
         leftover_key: Option<String>,
+        /// The key an SFTP server showed at `hostKeyUnknown`, for the user to compare and confirm.
+        #[serde(rename = "hostKey", skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        host_key: Option<ShownHostKey>,
     },
 }
 
@@ -236,10 +245,16 @@ impl Dialog<'_> {
 
     /// The test of the credentials of the last answer failed: holzi's window shows `outcome` and
     /// the dialog waits for the next answer.
-    pub fn failed(&mut self, outcome: TestOutcome, leftover_key: Option<String>) {
+    pub fn failed(
+        &mut self,
+        outcome: TestOutcome,
+        leftover_key: Option<String>,
+        host_key: Option<ShownHostKey>,
+    ) {
         self.end_trial(StorageTrial::Failed {
             outcome,
             leftover_key,
+            host_key,
         });
     }
 

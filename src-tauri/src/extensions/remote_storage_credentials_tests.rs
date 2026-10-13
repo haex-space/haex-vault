@@ -16,6 +16,7 @@ fn with_credentials() -> StorageAnswer {
         name: None,
         bucket: None,
         create_folder: false,
+        host_key: None,
     }
 }
 
@@ -28,6 +29,7 @@ fn local_proposal() -> Value {
 const DENIED: StorageTrial = StorageTrial::Failed {
     outcome: TestOutcome::AccessDenied,
     leftover_key: None,
+    host_key: None,
 };
 
 #[test]
@@ -123,6 +125,7 @@ fn a_leftover_test_object_is_reported_to_holzis_window() {
         [Some(StorageTrial::Failed {
             outcome: TestOutcome::MissingRight,
             leftover_key: Some(_),
+            ..
         })]
     ));
 }

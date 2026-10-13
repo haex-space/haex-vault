@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { reservePort } from './ports.ts'
 import { reachFromDevice } from './platform/reach.ts'
 import { RCLONE_IMAGE } from './webdav.ts'
@@ -25,8 +25,16 @@ export interface Sftp {
   makeFolder(name: string): void
   /** Lists a folder below the server root for scenario assertions. */
   listFolder(name: string): string[]
+  /** Every file and folder below the folder `name`, as paths below it; folders end in `/`. */
+  listTree(name: string): string[]
+  /** Writes the file `name` (with its folders) below the server root for scenario setup. */
+  writeFile(name: string, body: Uint8Array | string): void
   /** `SHA256:…` of the host key the server shows now, as holzi and OpenSSH name it. */
   fingerprint: string
+  /** The host key the server shows now as an OpenSSH line (`ssh-ed25519 AAAA…`). */
+  hostKey: string
+  /** The password of the user, when the server takes one (`prepareSftp({ password })`). */
+  password?: string
   /** Lets the user sign in with the public key line `line` (`ssh-ed25519 AAAA… holzi`). */
   authorize(line: string): void
   /** Starts the server, or starts it again with a new host key. */
@@ -41,8 +49,8 @@ function sshString(bytes: Buffer): Buffer {
   return Buffer.concat([length, bytes])
 }
 
-/** A new Ed25519 host key: the PEM for the server and its OpenSSH fingerprint. */
-function hostKey(): { pem: string; fingerprint: string } {
+/** A new Ed25519 host key: the PEM for the server, its OpenSSH line and its fingerprint. */
+function hostKey(): { pem: string; line: string; fingerprint: string } {
   const { privateKey } = generateKeyPairSync('ed25519')
   const pem = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString()
   const jwk = createPublicKey(privateKey).export({ format: 'jwk' })
@@ -52,14 +60,18 @@ function hostKey(): { pem: string; fingerprint: string } {
     sshString(raw),
   ])
   const digest = createHash('sha256').update(blob).digest('base64')
-  return { pem, fingerprint: `SHA256:${digest.replace(/=+$/, '')}` }
+  return {
+    pem,
+    line: `ssh-ed25519 ${blob.toString('base64')}`,
+    fingerprint: `SHA256:${digest.replace(/=+$/, '')}`,
+  }
 }
 
-/**
- * Prepares a server on a free port; `startAsync` starts it. The port stays reserved until then: a
- * scenario starts its devices in between, and their drivers and relays pick free ports too.
- */
-export async function prepareSftp(): Promise<Sftp> {
+/** Prepares a server on a free port; `startAsync` starts it. With `password` the user signs in
+ * with it, otherwise with the keys `authorize` registers. The port stays reserved until then. */
+export async function prepareSftp(
+  setup: { password?: string } = {},
+): Promise<Sftp> {
   const reserved = await reservePort()
   const port = reserved.port
   reachFromDevice(port)
@@ -79,7 +91,28 @@ export async function prepareSftp(): Promise<Sftp> {
     listFolder(name) {
       return readdirSync(join(root, name))
     },
+    listTree(name) {
+      const walk = (folder: string): string[] =>
+        readdirSync(join(root, folder), { withFileTypes: true }).flatMap(
+          (entry) =>
+            entry.isDirectory()
+              ? [
+                  `${entry.name}/`,
+                  ...walk(join(folder, entry.name)).map(
+                    (below) => `${entry.name}/${below}`,
+                  ),
+                ]
+              : [entry.name],
+        )
+      return walk(name).sort()
+    },
+    writeFile(name, body) {
+      mkdirSync(dirname(join(root, name)), { recursive: true })
+      writeFileSync(join(root, name), body)
+    },
     fingerprint: '',
+    hostKey: '',
+    password: setup.password,
     authorize(line) {
       authorized.push(line.trim())
     },
@@ -89,11 +122,19 @@ export async function prepareSftp(): Promise<Sftp> {
         const key = hostKey()
         writeFileSync(join(keys, 'host'), key.pem, { mode: 0o600 })
         server.fingerprint = key.fingerprint
+        server.hostKey = key.line
       }
       // rclone 1.71.1 hangs on an empty file of authorized keys.
-      if (authorized.length === 0)
-        throw new Error('authorize a key before the server starts')
-      writeFileSync(join(keys, 'authorized_keys'), `${authorized.join('\n')}\n`)
+      if (authorized.length === 0 && !setup.password)
+        throw new Error('authorize a key or give a password')
+      const login = setup.password
+        ? ['--pass', setup.password]
+        : ['--authorized-keys', '/keys/authorized_keys']
+      if (authorized.length > 0)
+        writeFileSync(
+          join(keys, 'authorized_keys'),
+          `${authorized.join('\n')}\n`,
+        )
       await reserved.release()
       const run = spawnSync(
         'docker',
@@ -119,8 +160,7 @@ export async function prepareSftp(): Promise<Sftp> {
           server.username,
           '--key',
           '/keys/host',
-          '--authorized-keys',
-          '/keys/authorized_keys',
+          ...login,
         ],
         { encoding: 'utf8', timeout: 300_000 },
       )

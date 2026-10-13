@@ -66,12 +66,13 @@ export function useStorageCredentials() {
     request: readonly(credentialsRequest),
     /**
      * Sends the credentials and waits for their test; `createFolder` makes a missing folder of a
-     * WebDAV or SFTP storage. The window closes when the request ends
+     * WebDAV or SFTP storage, `hostKey` is the SFTP host key the user confirmed. The window closes when the request ends
      * (`extension-storage-request-ended`); a failed test leaves it open.
      */
     async confirmAsync(
       credentials: CredentialsInput,
       createFolder = false,
+      hostKey?: string,
     ): Promise<StorageTrial> {
       const open = credentialsRequest.value
       if (!open) return { kind: 'ended' }
@@ -79,6 +80,7 @@ export function useStorageCredentials() {
         kind: 'confirm',
         credentials,
         createFolder: createFolder || credentialsCreateFolder.value,
+        hostKey,
       }).catch((): StorageTrial => ({ kind: 'ended' }))
       if (trial.kind === 'ended' && credentialsRequest.value === open)
         credentialsRequest.value = null

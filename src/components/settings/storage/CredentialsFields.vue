@@ -11,20 +11,7 @@ import { useClipboard } from '@vueuse/core'
 import type { GeneratedKey } from '@bindings/GeneratedKey'
 import type { Protocol } from '@bindings/Protocol'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
-
-export type CredentialsDraft = {
-  accessKeyId: string
-  secretAccessKey: string
-  sessionToken: string
-  username: string
-  password: string
-  authMethod: 'password' | 'key'
-  privateKey: string
-  passphrase: string
-  /** A key holzi generated; its private half never reaches this window. */
-  keyId: string
-  publicKey: string
-}
+import type { CredentialsDraft } from './credentials'
 
 const props = defineProps<{ protocol: Protocol }>()
 const draft = defineModel<CredentialsDraft>({ required: true })

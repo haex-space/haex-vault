@@ -58,6 +58,11 @@ function fields(node: Node, found: string[] = []): string[] {
   return found
 }
 
+function hasElement(node: Node, tagName: string): boolean {
+  if (node.type === ELEMENT && node.tag?.toLowerCase() === tagName) return true
+  return (node.children ?? []).some((child) => hasElement(child, tagName))
+}
+
 function parsed(source: string, filename: string): Node {
   const { descriptor, errors } = parse(source, { filename })
   assert.deepEqual(errors, [])
@@ -92,8 +97,14 @@ test('the storage dialog over a tab has no field for credentials', () => {
 })
 
 test('the credentials are typed in the window over the whole app', () => {
-  const found = fields(
-    template('../src/components/StorageCredentialsModal.vue'),
+  const modal = template('../src/components/StorageCredentialsModal.vue')
+  assert.ok(hasElement(modal, 'credentialsfields'))
+
+  const credentials = fields(
+    template('../src/components/settings/storage/CredentialsFields.vue'),
   )
-  assert.ok(found.includes('uiinputpassword'), JSON.stringify(found))
+  assert.ok(
+    credentials.includes('uiinputpassword'),
+    JSON.stringify(credentials),
+  )
 })

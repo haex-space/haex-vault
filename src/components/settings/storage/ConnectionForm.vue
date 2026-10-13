@@ -20,9 +20,8 @@ import type { ProviderKind } from '@bindings/ProviderKind'
 import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { StorageInput } from '@bindings/StorageInput'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
-import CredentialsFields, {
-  type CredentialsDraft,
-} from './CredentialsFields.vue'
+import CredentialsFields from './CredentialsFields.vue'
+import { credentialsInput, emptyCredentials } from './credentials'
 import HostKeyConfirm from './HostKeyConfirm.vue'
 import { PRESETS, type FormProtocol } from './presets'
 
@@ -51,18 +50,7 @@ const draft = reactive({
   bucket: '',
   storageName: '',
 })
-const credentials = ref<CredentialsDraft>({
-  accessKeyId: '',
-  secretAccessKey: '',
-  sessionToken: '',
-  username: '',
-  password: '',
-  authMethod: 'password',
-  privateKey: '',
-  passphrase: '',
-  keyId: '',
-  publicKey: '',
-})
+const credentials = ref(emptyCredentials())
 /** The host key the server showed, waiting for the user's word (SFTP, research R5). */
 const shown = ref<{ key: ShownHostKey; changed: boolean } | null>(null)
 /** The host key the user confirmed; the next save sends it. */
@@ -160,25 +148,7 @@ function clearSecrets() {
 /** The credentials as typed, in the kind of the protocol. */
 function typedCredentials(): ConnectionInput['credentials'] {
   if (!withCredentials.value) return undefined
-  const typed = credentials.value
-  const username = typed.username.trim()
-  if (draft.protocol === 'sftp' && typed.authMethod === 'key')
-    return typed.keyId
-      ? { kind: 'generatedKey', username, keyId: typed.keyId }
-      : {
-          kind: 'sshKey',
-          username,
-          privateKey: typed.privateKey,
-          passphrase: typed.passphrase || undefined,
-        }
-  if (tree.value)
-    return { kind: 'password', username, password: typed.password }
-  return {
-    kind: 's3',
-    accessKeyId: typed.accessKeyId,
-    secretAccessKey: typed.secretAccessKey,
-    sessionToken: typed.sessionToken.trim() || undefined,
-  }
+  return credentialsInput(draft.protocol, credentials.value)
 }
 
 async function saveAsync(createFolder = false) {

@@ -449,5 +449,8 @@ mod encrypted_move;
 mod upload;
 
 #[cfg(test)]
+#[path = "remote_sftp_tests.rs"]
+mod sftp_tests;
+#[cfg(test)]
 #[path = "remote_tests.rs"]
 mod tests;

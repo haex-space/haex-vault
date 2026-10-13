@@ -43,15 +43,14 @@ impl Proposed {
             let path = format!("{}/", url.path());
             url.set_path(&path);
         }
-        let host = match url.host() {
+        // An IP address in an `sftp://` URL is read as one (`address::host_of`).
+        let host = match address::host_of(&url) {
             Some(Host::Domain(name)) => name.to_ascii_lowercase(),
             Some(Host::Ipv4(ip)) => ip.to_string(),
             Some(Host::Ipv6(ip)) => format!("[{ip}]"),
             None => return Err(invalid("endpoint not allowed")),
         };
-        let port = url
-            .port_or_known_default()
-            .ok_or_else(|| invalid("endpoint not allowed"))?;
+        let port = address::port_of(&url).ok_or_else(|| invalid("endpoint not allowed"))?;
         let asked = format!("{host}:{port}");
         may_add(ctx, host, port, &asked)?;
         let resolver = ctx.host.storage.resolver();
