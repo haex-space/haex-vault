@@ -25,6 +25,7 @@ use crate::remote_storage::address::Resolver;
 use crate::remote_storage::model::{ConnectionInput, CredentialsInput, StorageInput};
 use crate::remote_storage::protocol::ProtocolStore;
 use crate::remote_storage::service::StorageService;
+use crate::remote_storage::sftp::{test_server as sftp_server, SftpStore};
 use crate::remote_storage::test_support::{resolver, vault, FakeStore};
 use crate::remote_storage::webdav::{test_server, WebDavStore};
 use crate::remote_storage::{Addressing, Protocol, ProviderKind, RemoteStore};
@@ -159,7 +160,7 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
     let store: Arc<dyn RemoteStore> = Arc::new(ProtocolStore::new(
         fake.clone(),
         Some(Arc::new(WebDavStore::new(resolver(&[])))),
-        None,
+        Some(Arc::new(SftpStore::new(resolver(&[])))),
     ));
     let host = Arc::new(ExtensionHost::default());
     host.storage.set(store.clone(), names);
@@ -247,6 +248,32 @@ impl WebdavServer {
 pub(crate) const WEBDAV_USER: &str = "user-leak-marker";
 pub(crate) const WEBDAV_PASSWORD: &str = "password-leak-marker-9c2d";
 
+/// An SFTP server of the test process (spec 050 research R14) with the empty folder `folder`, its
+/// own runtime and a login whose parts are leak markers.
+pub(crate) struct SftpServer {
+    _runtime: tokio::runtime::Runtime,
+    pub server: sftp_server::TestServer,
+}
+
+impl SftpServer {
+    pub fn start(folder: &str) -> Self {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let mut options = sftp_server::Options::new(42);
+        options.username = WEBDAV_USER.to_owned();
+        options.password = Some(WEBDAV_PASSWORD.to_owned());
+        let server = runtime.block_on(sftp_server::start(options));
+        std::fs::create_dir_all(server.path(folder)).expect("folder");
+        Self {
+            _runtime: runtime,
+            server,
+        }
+    }
+}
+
 impl Setup {
     /// A WebDAV connection to `server` and a storage `name` on its folder `folder`, made as the
     /// user would in the settings; returns the storage's id.
@@ -282,6 +309,43 @@ impl Setup {
             create_folder: false,
         }))
         .expect("webdav storage")
+        .id
+    }
+
+    /// An SFTP connection to `server` with its confirmed host key and a storage `name` on its
+    /// folder `folder`; returns the storage's id.
+    pub fn add_sftp(&self, server: &SftpServer, name: &str, folder: &str) -> String {
+        let service = StorageService::new(
+            self.vault.clone(),
+            PasswordsService::new(self.vault.clone()),
+            self.store.clone(),
+            resolver(&[]),
+        );
+        let connection = block_on(service.save_connection(ConnectionInput {
+            id: None,
+            protocol: Protocol::Sftp,
+            provider_name: "SFTP".to_owned(),
+            provider_kind: ProviderKind::Other,
+            endpoint: Some(server.server.endpoint()),
+            region: String::new(),
+            addressing: Addressing::Path,
+            credentials: Some(CredentialsInput::Password {
+                username: WEBDAV_USER.to_owned(),
+                password: Zeroizing::new(WEBDAV_PASSWORD.to_owned()),
+            }),
+            bucket_for_test: folder.to_owned(),
+            create_folder: false,
+            host_key: Some(server.server.host_key.clone()),
+        }))
+        .expect("sftp connection");
+        block_on(service.save_storage(StorageInput {
+            id: None,
+            connection_id: connection.id,
+            name: name.to_owned(),
+            bucket: folder.to_owned(),
+            create_folder: false,
+        }))
+        .expect("sftp storage")
         .id
     }
 

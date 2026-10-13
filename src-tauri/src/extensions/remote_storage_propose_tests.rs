@@ -23,6 +23,7 @@ fn answer(credentials: bool, create_folder: bool) -> StorageAnswer {
         name: None,
         bucket: None,
         create_folder,
+        host_key: None,
     }
 }
 
@@ -68,6 +69,7 @@ fn a_webdav_proposal_asks_for_its_host_and_makes_a_missing_folder_only_on_the_us
             Some(StorageTrial::Failed {
                 outcome: TestOutcome::FolderMissing,
                 leftover_key: None,
+                host_key: None,
             }),
             Some(StorageTrial::Ended),
         ],

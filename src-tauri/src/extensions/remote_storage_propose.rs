@@ -15,8 +15,8 @@ use super::remote_storage::{check_storage, invalid, overview, service};
 use super::remote_storage_dialog::{ask, open, DialogKind};
 use super::remote_storage_endpoint::{check_aws, Proposed};
 use super::remote_storage_manage::{
-    answer_item, cancelled, config, confirmed, extension_name, from_service, grant, optional_text,
-    place_of, request, with_credentials,
+    answer_item, config, confirmed, extension_name, from_service, grant, optional_text, place_of,
+    request, with_credentials, Typed,
 };
 use crate::remote_storage::address;
 use crate::remote_storage::model::{ConnectionInput, StorageInput};
@@ -34,12 +34,14 @@ pub fn add_backend(ctx: &CallContext, params: &Value) -> Result<Value, BridgeErr
     let protocol = match optional_text(request, "type")? {
         Some("s3") => Protocol::S3,
         Some("webdav") => Protocol::WebDav,
-        _ => return Err(invalid("type must be s3 or webdav")),
+        Some("sftp") => Protocol::Sftp,
+        _ => return Err(invalid("type must be s3, webdav or sftp")),
     };
     let service = service(ctx);
     let storage_id = match (optional_text(request, "sameProviderAs")?, protocol) {
         (Some(same), _) => add_on_same_provider(ctx, &service, request, name, same, protocol)?,
         (None, Protocol::S3) => add_with_endpoint(ctx, &service, request, name)?,
+        (None, Protocol::Sftp) => add_sftp(ctx, &service, request, name)?,
         (None, _) => add_webdav(ctx, &service, request, name)?,
     };
     grant(ctx, &storage_id)?;
@@ -178,6 +180,52 @@ fn add_webdav(
     )
 }
 
+/// An SFTP storage on a proposed server (spec 050 US6): `config: {host, port?, folder}`, port 22
+/// unless given. The host key is never part of a proposal: the user confirms the one the server
+/// shows in holzi's window (FR-017b).
+fn add_sftp(
+    ctx: &CallContext,
+    service: &StorageService,
+    request: &Map<String, Value>,
+    name: &str,
+) -> Result<String, BridgeError> {
+    let config = config(request, &["host", "port", "folder"])?;
+    let host = optional_text(&config, "host")?.ok_or_else(|| invalid("host must be a string"))?;
+    let folder =
+        optional_text(&config, "folder")?.ok_or_else(|| invalid("folder must be a string"))?;
+    let port = match config.get("port") {
+        None | Some(Value::Null) => 22,
+        Some(Value::Number(port)) => port
+            .as_u64()
+            .and_then(|port| u16::try_from(port).ok())
+            .filter(|port| *port > 0)
+            .ok_or_else(|| invalid("port must be 1 to 65535"))?,
+        Some(_) => return Err(invalid("port must be a number")),
+    };
+    if host.is_empty() || host.contains(['/', '@', '?', '#', ' ']) {
+        return Err(invalid("endpoint not allowed"));
+    }
+    let endpoint = if host.contains(':') {
+        format!("sftp://[{}]:{port}", host.trim_matches(['[', ']']))
+    } else {
+        format!("sftp://{host}:{port}")
+    };
+    let proposed = Proposed::check(ctx, &endpoint, Protocol::Sftp)?;
+    add_on_endpoint(
+        ctx,
+        service,
+        name,
+        Target {
+            protocol: Protocol::Sftp,
+            kind: ProviderKind::Other,
+            proposed: Some(proposed),
+            region: String::new(),
+            addressing: Addressing::Path,
+            bucket: folder.to_owned(),
+        },
+    )
+}
+
 /// The new storage of `target`: on an existing connection the user picks, or on a new one with
 /// credentials typed in holzi's window.
 fn add_on_endpoint(
@@ -249,11 +297,10 @@ fn add_on_endpoint(
         .map_err(from_service)?;
         return Ok(saved.id);
     }
-    let credentials = answer.credentials.ok_or_else(cancelled)?;
+    let first = Typed::of(answer)?;
     // The scope the dialog showed; AWS by region is public.
     let scope = proposed.map_or(EndpointScope::Public, |p| p.scope);
-    let first = (credentials, answer.create_folder);
-    let connection = with_credentials(&mut dialog, first, |credentials, create_folder| {
+    let connection = with_credentials(&mut dialog, first, |typed| {
         block_on(service.save_proposed_connection(
             ConnectionInput {
                 id: None,
@@ -263,10 +310,10 @@ fn add_on_endpoint(
                 endpoint: Some(endpoint_text.clone()),
                 region: region.clone(),
                 addressing,
-                credentials: Some(credentials),
+                credentials: Some(typed.credentials),
                 bucket_for_test: storage_bucket.clone(),
-                create_folder,
-                host_key: None,
+                create_folder: typed.create_folder,
+                host_key: typed.host_key,
             },
             scope,
         ))
@@ -290,6 +337,9 @@ fn add_on_endpoint(
     }
 }
 
+#[cfg(test)]
+#[path = "remote_storage_propose_sftp_tests.rs"]
+mod sftp_tests;
 #[cfg(test)]
 #[path = "remote_storage_propose_tests.rs"]
 mod tests;

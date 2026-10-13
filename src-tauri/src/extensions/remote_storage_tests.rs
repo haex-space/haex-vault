@@ -285,6 +285,7 @@ fn no_answer_carries_credentials_endpoint_or_region() {
         name: None,
         bucket: None,
         create_folder: false,
+        host_key: None,
     });
     let calls = [
         ("extension_remote_storage_list_backends", json!({})),

@@ -77,26 +77,43 @@ fn kind_of(outcome: TestOutcome) -> &'static str {
     }
 }
 
-/// Saves with the credentials typed in holzi's window and whether the user said to make a
-/// missing folder. A failed test goes back to that window, which waits for corrected credentials,
-/// the word to make the folder, or a cancel (1002); the extension never sees it.
+/// What holzi's window sent with the credentials: whether to make a missing folder and the host
+/// key the user confirmed (SFTP).
+pub(super) struct Typed {
+    pub credentials: CredentialsInput,
+    pub create_folder: bool,
+    pub host_key: Option<String>,
+}
+
+impl Typed {
+    /// The credentials of a confirmed answer; none is a cancel.
+    pub fn of(answer: Confirmed) -> Result<Self, BridgeError> {
+        Ok(Self {
+            credentials: answer.credentials.ok_or_else(cancelled)?,
+            create_folder: answer.create_folder,
+            host_key: answer.host_key,
+        })
+    }
+}
+
+/// Saves with what holzi's window sent. A failed test goes back to that window, which shows why
+/// (for SFTP the host key to confirm) and waits for corrected credentials, the word to make the
+/// folder, the confirmed key, or a cancel (1002); the extension never sees it.
 pub(super) fn with_credentials<T>(
     dialog: &mut Dialog<'_>,
-    first: (CredentialsInput, bool),
-    save: impl Fn(CredentialsInput, bool) -> crate::error::Result<T>,
+    first: Typed,
+    save: impl Fn(Typed) -> crate::error::Result<T>,
 ) -> Result<T, BridgeError> {
-    let (mut credentials, mut create_folder) = first;
+    let mut typed = first;
     loop {
-        match save(credentials, create_folder) {
+        match save(typed) {
             Err(HolziError::StorageTestFailed {
                 outcome,
                 leftover_key,
-                ..
+                host_key,
             }) => {
-                dialog.failed(outcome, leftover_key);
-                let next = confirmed(dialog.answer()?)?;
-                credentials = next.credentials.ok_or_else(cancelled)?;
-                create_folder = next.create_folder;
+                dialog.failed(outcome, leftover_key, host_key);
+                typed = Typed::of(confirmed(dialog.answer()?)?)?;
             }
             saved => return saved.map_err(from_service),
         }
@@ -197,6 +214,8 @@ pub(super) struct Confirmed {
     pub bucket: Option<String>,
     /// Make a missing folder of a WebDAV or SFTP storage (spec 050 FR-006).
     pub create_folder: bool,
+    /// The host key the user confirmed (SFTP, spec 050 research R5).
+    pub host_key: Option<String>,
 }
 
 pub(super) fn confirmed(answer: StorageAnswer) -> Result<Confirmed, BridgeError> {
@@ -207,12 +226,14 @@ pub(super) fn confirmed(answer: StorageAnswer) -> Result<Confirmed, BridgeError>
             name,
             bucket,
             create_folder,
+            host_key,
         } => Ok(Confirmed {
             connection_id,
             credentials,
             name,
             bucket,
             create_folder,
+            host_key,
         }),
         StorageAnswer::Cancel => Err(cancelled()),
     }
@@ -252,14 +273,17 @@ pub fn update_backend(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
         }),
         &[],
     )?;
-    let answer = confirmed(dialog.answer()?)?;
+    let mut answer = confirmed(dialog.answer()?)?;
     let new_bucket = answer
         .bucket
+        .clone()
         .unwrap_or_else(|| bucket.unwrap_or(&storage.bucket).to_owned());
+    let new_name = answer.name.take();
     let mut create_folder = answer.create_folder;
-    if let Some(credentials) = answer.credentials {
-        let first = (credentials, create_folder);
-        create_folder = with_credentials(&mut dialog, first, |credentials, create_folder| {
+    if answer.credentials.is_some() {
+        let first = Typed::of(answer)?;
+        create_folder = with_credentials(&mut dialog, first, |typed| {
+            let create_folder = typed.create_folder;
             block_on(service.save_connection(ConnectionInput {
                 id: Some(connection.id.clone()),
                 protocol: connection.protocol,
@@ -268,26 +292,22 @@ pub fn update_backend(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
                 endpoint: Some(connection.endpoint.clone()),
                 region: connection.region.clone(),
                 addressing: connection.addressing,
-                credentials: Some(credentials),
+                credentials: Some(typed.credentials),
                 bucket_for_test: new_bucket.clone(),
                 create_folder,
-                host_key: None,
+                host_key: typed.host_key,
             }))
             .map(|_| create_folder)
         })?;
     }
     drop(dialog);
-    block_on(
-        service.save_storage(StorageInput {
-            id: Some(storage.id.clone()),
-            connection_id: storage.connection_id.clone(),
-            name: answer
-                .name
-                .unwrap_or_else(|| name.unwrap_or(&storage.name).to_owned()),
-            bucket: new_bucket,
-            create_folder,
-        }),
-    )
+    block_on(service.save_storage(StorageInput {
+        id: Some(storage.id.clone()),
+        connection_id: storage.connection_id.clone(),
+        name: new_name.unwrap_or_else(|| name.unwrap_or(&storage.name).to_owned()),
+        bucket: new_bucket,
+        create_folder,
+    }))
     .map_err(from_service)?;
     answer_item(&service, &storage.id)
 }
