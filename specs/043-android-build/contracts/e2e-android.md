@@ -60,11 +60,12 @@ Gerät. Höchstens ein Android-Gerät pro Gruppe und Shard.
 Form in [data-model.md](../data-model.md#ausnahmeliste-der-e2e-suite-fr-033b-sc-007-vertrag-e2e-androidmd).
 Anfangsstand (endgültig):
 
-| Szenario              | Grund                                                    | Gegenfall                         |
-| --------------------- | -------------------------------------------------------- | --------------------------------- |
-| `extension-files`     | freie Pfade und Ordner beobachten gibt es nicht (FR-016) | `android-not-available`           |
-| `extension-dev-mode`  | lädt eine Erweiterung aus einem Ordner (FR-016)          | `android-not-available`           |
-| `relaunch-after-lock` | Schließen beendet die App, kein Neustart (FR-006)        | `lock-twice` (Android: App endet) |
+| Szenario                     | Grund                                                                   | Gegenfall                         |
+| ---------------------------- | ----------------------------------------------------------------------- | --------------------------------- |
+| `extension-files`            | freie Pfade und Ordner beobachten gibt es nicht (FR-016)                | `android-not-available`           |
+| `extension-dev-mode`         | lädt eine Erweiterung aus einem Ordner (FR-016)                         | `android-not-available`           |
+| `relaunch-after-lock`        | Schließen beendet die App, kein Neustart (FR-006)                       | `lock-twice` (Android: App endet) |
+| `extension-encrypted-device` | nur über Dateizugriff auf den Ort, keine freien Pfade (FR-016, 048 US7) | `android-not-available`           |
 
 `pending`-Einträge entstehen in Stufe 1b für alles, was erst eine spätere Stufe zum Laufen
 bringt, jeweils mit Stufe. `pnpm check:e2e-exclusions` schlägt fehl, wenn ein Eintrag ohne
