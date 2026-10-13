@@ -22,7 +22,6 @@ pub(crate) struct TaskOwner {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TaskRunStatus {
     Running,
-    ConsentRequired,
     Completed,
     Failed,
     Cancelled,
@@ -121,6 +120,6 @@ impl TaskRegistry {
 
 impl TaskRunStatus {
     pub(crate) fn is_active(self) -> bool {
-        matches!(self, Self::Running | Self::ConsentRequired)
+        matches!(self, Self::Running)
     }
 }
