@@ -21,6 +21,7 @@ import { startIrohRelay } from './iroh-relay.ts'
 import type { IrohRelay } from './iroh-relay.ts'
 import type { Tools } from './preflight.ts'
 import { containerRuntimeAvailable } from './rustfs.ts'
+import { withConnectionRetry } from './infrastructure-retry.ts'
 import type {
   E2EEnv,
   RunDeps,
@@ -454,7 +455,7 @@ export function scenario(
     const env = readEnv()
     const android = env.android
     const adb = android === undefined ? undefined : createAdb(android.serial)
-    const result = await runScenario(name, options, body, {
+    const deps: RunDeps = {
       env,
       startInstance: (request) =>
         android !== undefined && adb !== undefined
@@ -517,7 +518,14 @@ export function scenario(
           providers: info.providers,
           devices: info.devices,
         }),
-    })
+    }
+    const run = () => runScenario(name, options, body, deps)
+    // These messages describe the Android adb/ChromeDriver transport. On desktop, the similar
+    // renderer/DevTools wording can be an actual WebKit failure and must not be hidden by a retry.
+    const result =
+      android === undefined
+        ? await run()
+        : await withConnectionRetry(run, (retried) => writeResult(env, retried))
     if (result.status === 'skipped') t.skip(result.skipReason)
     if (result.status === 'failed') throw new Error(result.error)
   })

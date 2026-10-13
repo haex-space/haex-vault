@@ -172,20 +172,25 @@ export function formatSummary(report: Report): string[] {
       continue
     }
     const time = seconds(s.durationMs).padStart(7)
+    const indent = ' '.repeat(head.length + 1 + time.length)
+    const retried =
+      s.retriedAfter === undefined
+        ? []
+        : [`${indent}   retried after: ${s.retriedAfter.split('\n')[0]}`]
     if (s.status === 'failed') {
       lines.push(
         `${head} ${time}   failed at: ${s.failedStep ?? s.error ?? ''}`,
       )
       if (s.material !== undefined) {
-        lines.push(
-          `${' '.repeat(head.length + 1 + time.length)}   material: ${s.material}`,
-        )
+        lines.push(`${indent}   material: ${s.material}`)
       }
+      lines.push(...retried)
       continue
     }
     const pressToEnd = pressToEndText(s.steps)
     lines.push(
       `${head} ${time}${pressToEnd === undefined ? '' : `   ${pressToEnd}`}`,
+      ...retried,
     )
   }
   const count = (status: string) =>

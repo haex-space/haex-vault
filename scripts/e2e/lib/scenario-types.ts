@@ -60,6 +60,11 @@ export interface ScenarioResult {
   failedStep?: string
   /** Where the kept material for a failure is. Failed status only. */
   material?: string
+  /**
+   * The error of a first run that the connection to the phone broke, not holzi; the result is the
+   * second run's (`infrastructure-retry.ts`).
+   */
+  retriedAfter?: string
 }
 
 export interface ScenarioOptions {
