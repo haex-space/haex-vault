@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  asksBeforeDelete,
   canCreateEncrypted,
   encryptedLook,
   shownNameKey,
@@ -13,7 +14,7 @@ import { folderMenu } from '../src/lib/files/menus.ts'
 const storage = { kind: 'storage', storageId: 's1' } as const
 const device = { kind: 'device' } as const
 
-test('an encrypted folder may be created in a storage folder only', () => {
+test('an encrypted folder may be created in a storage folder and on the device', () => {
   assert.equal(
     canCreateEncrypted({ source: storage, path: '/', inEncrypted: false }),
     true,
@@ -28,6 +29,23 @@ test('an encrypted folder may be created in a storage folder only', () => {
   )
   assert.equal(
     canCreateEncrypted({ source: device, path: '/home/a', inEncrypted: false }),
+    true,
+  )
+  assert.equal(
+    canCreateEncrypted({
+      source: device,
+      path: '/home/a/.local/share/holzi',
+      inEncrypted: false,
+      owned: true,
+    }),
+    false,
+  )
+  assert.equal(
+    canCreateEncrypted({
+      source: device,
+      path: '/home/a/Unterlagen',
+      inEncrypted: true,
+    }),
     false,
   )
   assert.equal(
@@ -144,4 +162,25 @@ test('unreadable encrypted entries show a word, not their random id', () => {
     }),
     'files.encrypted.damagedEntry',
   )
+})
+
+test('deleting asks first where there is no trash', () => {
+  const plain = { kind: 'file', encrypted: null } as const
+  const folder = {
+    kind: 'dir',
+    encrypted: { role: 'folder', state: 'readable', foreign: 2 },
+  } as const
+  const on = (input: Partial<Parameters<typeof asksBeforeDelete>[0]>) =>
+    asksBeforeDelete({
+      source: device,
+      android: false,
+      inEncrypted: false,
+      entries: [plain],
+      ...input,
+    })
+  assert.equal(on({}), false, 'a desktop moves to the trash')
+  assert.equal(on({ android: true }), true)
+  assert.equal(on({ source: storage }), true)
+  assert.equal(on({ inEncrypted: true }), true, 'inside an encrypted folder')
+  assert.equal(on({ entries: [plain, folder] }), true, 'of an encrypted folder')
 })

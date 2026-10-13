@@ -23,7 +23,7 @@ import {
   isFiltering,
   parseFilter,
 } from '~/lib/files/filters'
-import { canCreateEncrypted } from '~/lib/files/encrypted'
+import { asksBeforeDelete, canCreateEncrypted } from '~/lib/files/encrypted'
 import { entriesMenu, type FilesCommand, folderMenu } from '~/lib/files/menus'
 import { filesLocation, parseFilesPlace } from '~/lib/files/registry'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
@@ -179,16 +179,20 @@ watch(shown, (entries) => {
 const folderOwned = ref(false)
 /** The open folder is, or lies in, an encrypted folder (spec 048). */
 const folderEncrypted = ref(false)
+/** Foreign files in the open encrypted folder (spec 048 FR-048); 0 below its top. */
+const folderForeign = ref(0)
 watch(
   [source, path],
   async ([current, folderPath]) => {
     folderOwned.value = false
     folderEncrypted.value = false
+    folderForeign.value = 0
     if (folderPath === null) return
     const entry = await statAsync(current, folderPath).catch(() => null)
     if (path.value === folderPath) {
       folderOwned.value = entry?.holziOwned ?? false
       folderEncrypted.value = !!entry?.encrypted
+      folderForeign.value = entry?.encrypted?.foreign ?? 0
     }
   },
   { immediate: true },
@@ -231,6 +235,7 @@ const menuEntries = computed(() => {
         source: source.value,
         path: path.value,
         inEncrypted: folderEncrypted.value,
+        owned: folderOwned.value,
       }),
     })
   const entries = entriesOf(targets)
@@ -322,6 +327,23 @@ async function ackNotice() {
 }
 const deleting = ref(false)
 const pendingDelete = ref<string[]>([])
+/** Foreign files that go with the encrypted folders of `pendingDelete` (spec 048 FR-048). */
+const pendingForeign = ref(0)
+
+/** Asks before deleting `entries` for good, naming the foreign files of encrypted folders. */
+async function askDeleteAsync(entries: Entry[]) {
+  const folders = entries.filter((entry) => entry.encrypted?.role === 'folder')
+  const stats = await Promise.all(
+    folders.map((entry) =>
+      statAsync(source.value, entry.path).catch(() => null),
+    ),
+  )
+  pendingForeign.value = stats.reduce(
+    (sum, entry) => sum + (entry?.encrypted?.foreign ?? 0),
+    0,
+  )
+  deleting.value = true
+}
 
 const {
   noticing: openNoticing,
@@ -397,9 +419,17 @@ async function run(command: FilesCommand, targets: Selection | null) {
       break
     case 'delete':
       pendingDelete.value = entries.map((entry) => entry.path)
-      // Desktops move to the trash; Android and storages delete for good and ask first (FR-023).
-      if (isAndroid.value || source.value.kind === 'storage')
-        deleting.value = true
+      // Desktops move to the trash; Android, storages and encrypted folders delete for good and
+      // ask first (FR-023, spec 048 FR-046).
+      if (
+        asksBeforeDelete({
+          source: source.value,
+          android: isAndroid.value,
+          inEncrypted: folderEncrypted.value,
+          entries,
+        })
+      )
+        await askDeleteAsync(entries)
       else deleteNow()
       break
   }
@@ -587,6 +617,10 @@ watch(tabActive, (active) => {
         data-testid="files-main"
         @keydown.esc="selection = EMPTY_SELECTION"
       >
+        <FilesForeignHint
+          v-if="folderForeign > 0 && !searchQuery"
+          :count="folderForeign"
+        />
         <FilesAllFilesAccess
           v-if="source.kind === 'device' && allAccess.granted.value === false"
           class="flex-1"
@@ -669,6 +703,7 @@ watch(tabActive, (active) => {
     <FilesDeleteDialog
       v-model:open="deleting"
       :count="pendingDelete.length"
+      :foreign="pendingForeign"
       @confirm="deleteNow"
     />
   </div>
