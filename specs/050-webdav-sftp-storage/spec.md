@@ -339,7 +339,7 @@ SFTP-Speicher und liefern dieselben Ergebnisse wie gegen S3.
   einer berechtigten Erweiterung in ihrem Bereich.
 - **FR-007**: Alle Zugangsdaten der neuen Protokolle (Passwort, privater Schlüssel, Passphrase) MÜSSEN
   im Passwortmanager liegen und DÜRFEN sonst nirgends in lesbarer Form gespeichert werden (wie Spec
-  038 FR-005).
+  038 FR-005). Der Nutzer darf auch einen vorhandenen Eintrag wählen (Spec 052).
 - **FR-008**: holzi MUSS auf Wunsch ein SSH-Schlüsselpaar erzeugen, den öffentlichen Schlüssel zum
   Kopieren anzeigen und den privaten Schlüssel beim Speichern der Verbindung im Passwortmanager ablegen;
   bis dahin DARF der erzeugte private Schlüssel nur im Prozess von holzi liegen, nie in der Oberfläche
