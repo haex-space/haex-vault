@@ -21,10 +21,10 @@ export default defineNuxtConfig({
   // build. Layer declares its peers; we list them explicitly under
   // `dependencies` below. It ships no i18n: pass translated labels to
   // its components (e.g. `UiInputPassword` `labels`).
-  // The commit of haex-space/haextension#96 (a closed context menu trigger no
-  // longer catches clicks); move it to the merge commit once #96 is merged.
+  // Keep this on the haextension merge commit of #96: a closed context menu
+  // trigger no longer catches clicks meant for what lies above it.
   extends: [
-    'github:haex-space/haextension/packages/haex-ui#cbea6d5b6e445fb55b4be70c7ef0753f5643219d',
+    'github:haex-space/haextension/packages/haex-ui#69392dc4d2c91e94401d339a551958571f36a912',
   ],
   build: {
     transpile: ['reka-ui'],
