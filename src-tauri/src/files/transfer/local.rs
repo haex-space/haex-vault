@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 
 use tokio_util::sync::CancellationToken;
 
+pub use super::entries::free_name;
+use super::entries::{copy_link, entry_name, remove, write_error};
 use super::{ConflictChoice, TransferOp, TransferProgress};
 use crate::files::local::ops::io_error;
 use crate::files::local::OwnPlaces;
@@ -293,7 +295,7 @@ impl Run<'_, '_> {
         let aside = folder.join(format!(".{name}.holzi-old-{}", uuid::Uuid::new_v4()));
         std::fs::rename(target, &aside).map_err(|error| io_error(error, target))?;
         match put(self) {
-            Ok(()) => remove(&aside, Removal::Permanent),
+            Ok(()) => remove(&aside, Removal::Permanent).map_err(Stop::from),
             Err(stop) => {
                 let _ = remove(target, Removal::Permanent);
                 if let Err(error) = std::fs::rename(&aside, target) {
@@ -420,7 +422,7 @@ impl Run<'_, '_> {
             Err(error) if error.kind() == ErrorKind::CrossesDevices => {
                 self.copy_to(source, target)?;
                 self.check()?;
-                remove(source, Removal::Permanent)
+                remove(source, Removal::Permanent).map_err(Stop::from)
             }
             Err(error) => Err(io_error(error, source).into()),
         }
@@ -435,88 +437,10 @@ impl Run<'_, '_> {
     }
 }
 
-/// The last part of `path`.
-fn entry_name(path: &Path) -> Result<&OsStr, FilesError> {
-    path.file_name()
-        .ok_or_else(|| FilesError::invalid_path("path must name an entry"))
-}
-
-/// Removes an entry (a link itself, never its target).
-fn remove(path: &Path, how: Removal) -> Result<(), Stop> {
-    let Ok(meta) = std::fs::symlink_metadata(path) else {
-        return Ok(());
-    };
-    if how == Removal::Trash {
-        return trash(path);
-    }
-    let removed = if meta.is_dir() {
-        std::fs::remove_dir_all(path)
-    } else {
-        std::fs::remove_file(path)
-    };
-    removed.map_err(|error| io_error(error, path).into())
-}
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-fn trash(path: &Path) -> Result<(), Stop> {
-    trash::delete(path).map_err(|error| {
-        log::warn!(
-            "files: moving {} to the trash failed: {error}",
-            path.display()
-        );
-        Stop::Failed(FilesError::new(
-            FilesErrorCode::NoAccess,
-            "the system's trash refused the entry",
-        ))
-    })
-}
-
-#[cfg(any(target_os = "android", target_os = "ios"))]
-fn trash(_path: &Path) -> Result<(), Stop> {
-    Err(Stop::Failed(FilesError::new(
-        FilesErrorCode::Unsupported,
-        "no trash on this platform",
-    )))
-}
-
-#[cfg(unix)]
-fn copy_link(source: &Path, target: &Path) -> Result<(), FilesError> {
-    let points = std::fs::read_link(source).map_err(|error| io_error(error, source))?;
-    std::os::unix::fs::symlink(points, target).map_err(|error| write_error(error, target))
-}
-
-/// Windows needs other rights for links; the target of a file link is copied as a file.
-#[cfg(not(unix))]
-fn copy_link(source: &Path, target: &Path) -> Result<(), FilesError> {
-    if source.is_file() {
-        std::fs::copy(source, target)
-            .map(|_| ())
-            .map_err(|error| write_error(error, target))
-    } else {
-        Ok(())
-    }
-}
-
-/// An I/O failure while writing, with a full disk named as such.
-fn write_error(error: std::io::Error, path: &Path) -> FilesError {
-    if error.kind() == ErrorKind::StorageFull {
-        return FilesError::new(FilesErrorCode::NoSpace, "the target is full");
-    }
-    io_error(error, path)
-}
-
-/// The first name `<stem> (n)<ext>` that is free in `folder`, counting from 2.
-pub fn free_name(folder: &Path, name: &str) -> PathBuf {
-    let (stem, ext) = match name.rfind('.') {
-        Some(dot) if dot > 0 => name.split_at(dot),
-        _ => (name, ""),
-    };
-    (2..)
-        .map(|n| folder.join(format!("{stem} ({n}){ext}")))
-        .find(|path| std::fs::symlink_metadata(path).is_err())
-        .expect("some number is free")
-}
-
 #[cfg(test)]
 #[path = "local_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "local_replace_tests.rs"]
+mod replace_tests;

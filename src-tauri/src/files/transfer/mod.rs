@@ -3,6 +3,7 @@
 //! token below the gate's, so closing the vault cancels them (FR-026, ADR 0003). The window follows
 //! a transfer through a [`Channel`] and answers a name conflict with [`TransferManager::answer`].
 
+mod entries;
 pub mod local;
 pub mod remote;
 mod remote_plan;

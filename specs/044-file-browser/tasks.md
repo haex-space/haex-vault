@@ -219,10 +219,10 @@ self-checking `platform-probe` jobs of T007, because full E2E on those platforms
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T091 [P] Every new Rust and Vue file under 500 lines (`wc -l`), split where needed
-- [ ] T092 [P] Update `plans/README.md` row 044 status after each merged PR
+- [x] T091 [P] Every new Rust and Vue file under 500 lines (`wc -l`), split where needed **Note**: `FilesApp.vue` hands managing files to `composables/useFilesManage.ts`; `transfer/local.rs` hands its entry helpers to `transfer/entries.rs`, and the replace tests moved to `local_replace_tests.rs`
+- [x] T092 [P] Update `plans/README.md` row 044 status after each merged PR
 - [ ] T093 Full quickstart run on Linux by hand (SC-002, SC-003 with a 4 GB video); Windows, macOS and Android are covered by the `platform-probe` jobs; note results in the last PR
-- [ ] T094 [P] Spec bookkeeping: mark the checklist and spec status after PR H; open questions found during implementation go back to `/speckit-clarify`, not into code
+- [x] T094 [P] Spec bookkeeping: mark the checklist and spec status after PR H; open questions found during implementation go back to `/speckit-clarify`, not into code **Note**: checklist complete; spec status "Implemented (T035, T093 offen)"
 
 ---
 
