@@ -352,6 +352,7 @@ fn head_entry(head: &FolderHead, path: String) -> Entry {
         encrypted: Some(EncryptedInfo {
             role: EncryptedRole::Folder,
             state: head.state,
+            foreign: 0,
         }),
         conflict: head.conflict,
     }

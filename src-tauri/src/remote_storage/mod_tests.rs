@@ -73,3 +73,17 @@ fn credentials_never_show_their_secrets() {
         assert!(shown.contains("AKID") || shown.contains("u123"), "{shown}");
     }
 }
+
+#[test]
+fn a_local_folder_is_never_stored_nor_taken_from_the_window() {
+    assert_eq!(Protocol::Local.as_str(), "local");
+    assert_eq!(Protocol::parse("local"), None);
+    assert!(Protocol::Local.is_tree());
+    assert!(!Protocol::Local.fits(ProviderKind::Other));
+    assert!(serde_json::from_str::<Protocol>("\"local\"").is_err());
+    assert!(serde_json::to_string(&Protocol::Local).is_err());
+    assert_eq!(
+        serde_json::from_str::<Protocol>("\"sftp\"").ok(),
+        Some(Protocol::Sftp)
+    );
+}

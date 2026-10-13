@@ -231,6 +231,8 @@ pub struct FolderView {
     contents: HashMap<Id, u64>,
     damaged: HashSet<Id>,
     pub tree: Tree,
+    /// Files in the folder that are not part of the format (research R19).
+    pub foreign: u32,
 }
 
 impl FolderView {
@@ -252,6 +254,7 @@ impl FolderView {
             broken: loaded.broken,
             contents: loaded.contents,
             damaged: HashSet::new(),
+            foreign: loaded.foreign,
             tree: Tree::build(&Inputs {
                 fid,
                 versions: &[],

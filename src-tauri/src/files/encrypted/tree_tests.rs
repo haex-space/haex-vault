@@ -163,7 +163,8 @@ fn empty_folders_stay_and_paths_lead_to_their_entry() {
         entry.encrypted,
         Some(EncryptedInfo {
             role: EncryptedRole::Inside,
-            state: EncryptedState::Readable
+            state: EncryptedState::Readable,
+            foreign: 0,
         })
     );
 }

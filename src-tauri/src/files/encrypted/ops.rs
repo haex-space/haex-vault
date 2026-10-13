@@ -60,7 +60,12 @@ pub async fn list(files: &StorageFiles, at: &Located) -> Result<Vec<Entry>, File
 /// The entry at `at`: the encrypted folder itself, or an entry inside.
 pub async fn stat(files: &StorageFiles, at: &Located) -> Result<Entry, FilesError> {
     if at.rest.is_empty() {
-        return Ok(located_entry(at));
+        let mut entry = located_entry(at);
+        // The count of foreign files needs the folder open; one that does not open has none shown.
+        if let (Ok(folder), Some(info)) = (open(files, at).await, entry.encrypted.as_mut()) {
+            info.foreign = view(files, &folder).await.map_or(0, |view| view.foreign);
+        }
+        return Ok(entry);
     }
     let folder = open(files, at).await?;
     let view = view(files, &folder).await?;

@@ -95,6 +95,34 @@ async fn only_leftovers_older_than_a_day_go() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn foreign_files_never_go_in_a_cleanup() {
+    let (scene, p, [replaced, old_orphan, _]) = with_leftovers().await;
+    let foreign = [
+        format!("{p}notiz (conflicted copy).txt"),
+        format!("{p}c/kurz"),
+    ];
+    for key in &foreign {
+        scene.fake.insert(BUCKET, key, b"fremd");
+    }
+    for key in foreign.iter().chain([&replaced, &old_orphan]) {
+        scene.fake.set_modified(BUCKET, key, TWO_DAYS_AGO);
+    }
+    let loaded = loaded(&scene).await;
+    assert_eq!(loaded.foreign, 2);
+    let found = leftovers(&loaded, now());
+    let files = scene.files();
+    clean(files.store().as_ref(), files.access(), &p, &found).await;
+    let keys = scene.keys();
+    assert!(
+        !keys.contains(&old_orphan),
+        "holzi's own leftovers still go"
+    );
+    for key in &foreign {
+        assert!(keys.contains(key), "{key} stays");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn young_leftovers_stay() {
     let (scene, ..) = with_leftovers().await;
     assert!(leftovers(&loaded(&scene).await, now()).is_empty());

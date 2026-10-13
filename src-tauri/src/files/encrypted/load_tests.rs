@@ -356,3 +356,47 @@ async fn sidecars_are_read_at_most_32_at_a_time() {
     let most = gauge.most.load(Ordering::SeqCst);
     assert!(most > 1 && most <= AT_ONCE, "{most} at once");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn foreign_files_are_counted_for_the_folder_and_never_entries() {
+    use crate::files::encrypted::new_id;
+    use crate::files::encrypted::test_support::{filled, tree};
+    let scene = filled(&tree(&[("notiz.txt", "Notiz")])).await;
+    let head = scene
+        .keys()
+        .into_iter()
+        .find(|key| key.ends_with(".hxef/h"))
+        .unwrap();
+    let p = &head[..head.len() - 1];
+    for key in [
+        format!("{p}notiz (conflicted copy).txt"),
+        format!("{p}m/kurz"),
+        format!("{p}c/{}.sync-conflict", encode_id(&new_id())),
+        format!("{p}fremd/x"),
+    ] {
+        scene.fake.insert(BUCKET, &key, b"fremd");
+    }
+    let files = scene.fresh_files();
+    let names: Vec<String> = files
+        .list("/Unterlagen")
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.name)
+        .collect();
+    assert_eq!(names, ["notiz.txt"]);
+    let folder = files.stat("/Unterlagen").await.unwrap();
+    assert_eq!(folder.encrypted.unwrap().foreign, 4);
+    let inside = files.stat("/Unterlagen/notiz.txt").await.unwrap();
+    assert_eq!(
+        inside.encrypted.unwrap().foreign,
+        0,
+        "only for the folder itself"
+    );
+    let listed = files.list("/").await.unwrap();
+    assert_eq!(
+        listed[0].encrypted.unwrap().foreign,
+        0,
+        "a listing reads only heads"
+    );
+}

@@ -4516,6 +4516,7 @@ dependencies = [
  "haex-crdt",
  "hkdf",
  "hmac",
+ "httpdate",
  "hyper",
  "hyper-util",
  "image",

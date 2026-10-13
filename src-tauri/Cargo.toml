@@ -81,6 +81,7 @@ log = "0.4"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 ts-rs = { version = "12", features = ["serde-compat", "uuid-impl"] }
 filetime = "0.2"
+httpdate = "1"
 # File-integrity hashing (models.file_sha256, spec 005 Entscheidung 6).
 # Already present as a transitive dependency (rustls/haex-crdt); pinned
 # directly here because the model-integrity boundary calls it explicitly.
