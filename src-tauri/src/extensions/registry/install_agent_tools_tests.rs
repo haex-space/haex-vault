@@ -123,7 +123,11 @@ fn the_preview_lists_each_tool_with_its_effect_and_titles() {
     let preview = v.preview(&build(
         "1.0.0",
         &[
-            tool("count_unread", "read", OBJECT),
+            tool(
+                "count_unread",
+                "read",
+                r#"{"type":"object","properties":{"role":{"enum":["inbox","all"]}}}"#,
+            ),
             tool("delete_all", "destructive", OBJECT),
         ],
     ));
@@ -138,6 +142,7 @@ fn the_preview_lists_each_tool_with_its_effect_and_titles() {
                 d.title_de.as_deref(),
                 d.title_en.as_deref(),
                 d.device_scoped,
+                d.supported,
             )
         })
         .collect();
@@ -150,7 +155,8 @@ fn the_preview_lists_each_tool_with_its_effect_and_titles() {
                 "count_unread",
                 Some("count_unread de"),
                 Some("count_unread en"),
-                false
+                false,
+                Some(false),
             ),
             (
                 "agentTool",
@@ -158,7 +164,8 @@ fn the_preview_lists_each_tool_with_its_effect_and_titles() {
                 "delete_all",
                 Some("delete_all de"),
                 Some("delete_all en"),
-                false
+                false,
+                Some(true)
             ),
         ]
     );

@@ -16,6 +16,7 @@ const count = {
   target: 'count_unread',
   titleDe: 'Ungelesene zählen',
   titleEn: 'Count unread',
+  supported: true,
 }
 const archive = {
   kind: 'agentTool',
@@ -44,6 +45,11 @@ test('tools are sorted by their title in the shown locale', () => {
     splitAgentTools([zeta, archive], 'en').tools.map((t) => t.target),
     ['count_unread', 'archive_mail'],
   )
+})
+
+test('unsupported tools remain visible for the install choice', () => {
+  const unsupported = { ...count, supported: false }
+  assert.equal(splitAgentTools([unsupported], 'de').tools[0]?.supported, false)
 })
 
 test('the title follows the locale, English for any other, the name without titles', () => {

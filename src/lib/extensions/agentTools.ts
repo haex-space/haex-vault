@@ -12,6 +12,7 @@ export interface PermissionRow {
   target: string
   titleDe?: string
   titleEn?: string
+  supported?: boolean
 }
 
 /** The tool's title in `locale` (German for `de`, English otherwise), its name without titles. */

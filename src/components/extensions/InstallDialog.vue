@@ -283,7 +283,15 @@ watch(open, (isOpen) => {
                     class="mt-0.5"
                   />
                   <span class="flex flex-col">
-                    <span class="text-sm">{{ toolTitle(tool, locale) }}</span>
+                    <span class="text-sm">
+                      {{ toolTitle(tool, locale) }} ({{ tool.target }})
+                    </span>
+                    <span
+                      v-if="tool.supported === false"
+                      class="text-xs text-muted-foreground"
+                    >
+                      {{ t('extensions.install.agentTools.unavailable') }}
+                    </span>
                     <span class="text-xs text-muted-foreground">{{
                       t(effectLabelKey(tool.action))
                     }}</span>

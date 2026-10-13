@@ -2009,6 +2009,7 @@
       "permissions": "Permissions",
       "agentTools": {
         "title": "Tools for the agent",
+        "unavailable": "Not supported by holzi",
         "hint": "Ticked: the agent may use the tool; tools that change something may still ask, depending on the mode. Unticked: holzi asks before every call."
       },
       "vaultWide": "The extension is installed in the whole vault and also appears on your linked devices. Its permissions hold there as well, except those for the shell.",

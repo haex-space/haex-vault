@@ -11,4 +11,8 @@ deviceScoped: boolean,
 /**
  * For `agentTool`: the tool's title per locale, from the manifest.
  */
-titleDe?: string, titleEn?: string, };
+titleDe?: string, titleEn?: string,
+/**
+ * For `agentTool`: whether holzi can offer the tool to the agent.
+ */
+supported?: boolean, };

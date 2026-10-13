@@ -2009,6 +2009,7 @@
       "permissions": "Berechtigungen",
       "agentTools": {
         "title": "Werkzeuge für den Agenten",
+        "unavailable": "Wird von holzi nicht unterstützt",
         "hint": "Angehakt: Der Agent darf das Werkzeug nutzen, bei ändernden Werkzeugen je nach Modus mit Rückfrage. Nicht angehakt: holzi fragt bei jedem Aufruf nach."
       },
       "vaultWide": "Die Erweiterung wird in der ganzen Vault installiert und erscheint auch auf deinen verknüpften Geräten. Ihre Berechtigungen gelten dort ebenso, außer denen für die Shell.",
