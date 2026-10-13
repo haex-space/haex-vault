@@ -1,5 +1,7 @@
 //! Sources, folders and watching (spec 044 US1).
 
+use std::sync::Arc;
+
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
@@ -9,6 +11,7 @@ use super::{blocking, device_path, device_storage, place_of, Place};
 use crate::files::access::Want;
 use crate::files::encrypted::device::{name_encrypted, DeviceRoot};
 use crate::files::encrypted::format::is_folder_prefix;
+use crate::files::encrypted::ops::refresh;
 use crate::files::encrypted::redacted::Redacted;
 use crate::files::encrypted::route::{route, Route};
 use crate::files::local::drives::{drives, Drive};
@@ -216,7 +219,8 @@ pub async fn files_watch(
                 let Route::Encrypted(at) = route(&storage, &view).await? else {
                     return Err(FilesError::new(FilesErrorCode::NotFound, "not found"));
                 };
-                (root.dir.join(&at.head.prefix), true, Some(path.clone()))
+                let dir = root.dir.join(&at.head.prefix);
+                (dir, true, Some((Arc::new(storage), view, path.clone())))
             }
             _ => (
                 device_path(&files, &source, &path, Want::Read)?,
@@ -227,14 +231,21 @@ pub async fn files_watch(
     #[cfg(not(target_os = "ios"))]
     {
         let watch = crate::files::local::watch::watch_folder(&real, recursive, move |changes| {
-            let paths = match &report {
-                Some(open) => vec![open.clone()],
-                None => changes
+            let Some((storage, view, open)) = &report else {
+                let paths = changes
                     .into_iter()
                     .map(|change| change.path.to_string_lossy().into_owned())
-                    .collect(),
+                    .collect();
+                let _ = channel.send(FolderChanged { paths });
+                return;
             };
-            let _ = channel.send(FolderChanged { paths });
+            // New sidecars are read (by ETag) before the window lists the folder again.
+            let (storage, view, open) = (Arc::clone(storage), view.clone(), open.clone());
+            let channel = channel.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = refresh(&storage, &view).await;
+                let _ = channel.send(FolderChanged { paths: vec![open] });
+            });
         })
         .map_err(|reason| {
             log::warn!(

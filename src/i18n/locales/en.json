@@ -2227,7 +2227,8 @@
     "delete": {
       "title": "Delete for good?",
       "body": "{count} entry will be deleted for good. This cannot be undone. | {count} entries will be deleted for good. This cannot be undone.",
-      "confirm": "Delete"
+      "confirm": "Delete",
+      "foreign": "{count} foreign file that does not come from holzi goes with the encrypted folder. | {count} foreign files that do not come from holzi go with the encrypted folder."
     },
     "transfer": {
       "copy": "Copying",
@@ -2291,9 +2292,10 @@
     },
     "encrypted": {
       "damagedEntry": "Damaged entry",
+      "foreign": "This folder holds {count} foreign file, such as a sync program's conflict copy. holzi does not show it and never deletes it on its own. | This folder holds {count} foreign files, such as a sync program's conflict copies. holzi does not show them and never deletes them on its own.",
       "notice": {
         "title": "Encrypted folder",
-        "body": "What you put into an encrypted folder is encrypted by holzi before it goes to the cloud storage. The provider sees neither contents nor names. Only this vault can read it, on any of its devices. If the vault is lost and there is no backup, the files can no longer be read.",
+        "body": "What you put into an encrypted folder is encrypted by holzi before it is stored, in the cloud storage as on this device. Neither the provider nor other programs see contents or names. Only this vault can read it, on any of its devices. If the vault is lost and there is no backup, the files can no longer be read.",
         "confirm": "Understood"
       },
       "state": {
