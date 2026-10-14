@@ -14,15 +14,18 @@ Providers auf JSON ab; jede Regel liegt in Rust (`contacts/phone/`). Rust ruft �
 
 ## Befehle
 
-| Kotlin               | Eingabe                         | Ausgabe                                                                                        |
-| -------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `contactsAccounts`   | –                               | `[{type, name, writable, isDefault}]` (Sync-Adapter mit `supportsUploading`, lokales Konto)    |
-| `contactsIndex`      | `{offset, limit}`               | `[{id, version, deleted, accountType, accountName, sourceId, contactId, lookupKey, readOnly}]` |
-| `contactsRead`       | `{ids: number[]}` (≤ 200)       | `[{id, data: [{dataId, mimetype, isReadOnly, fields}]}]`                                       |
-| `contactsApply`      | `{ops: Op[]}` (≤ 400 je Aufruf) | `{results: [{rawContactId?, version?}], error?}`                                               |
-| `contactsPhotoRead`  | `{id}`                          | `{jpegBase64?}` (`DisplayPhoto`, sonst Vorschaubild)                                           |
-| `contactsPhotoWrite` | `{id, jpegBase64}`              | `{version}`                                                                                    |
-| `contactsGroups`     | `{accountType, accountName}`    | `[{id, title, readOnly}]`                                                                      |
+| Kotlin               | Eingabe                         | Ausgabe                                                                                                     |
+| -------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `contactsAccounts`   | –                               | `[{type, name, writable, isDefault}]` (Sync-Adapter mit `supportsUploading`, lokales Konto)                 |
+| `contactsIndex`      | `{offset, limit}`               | `[{id, version, deleted, accountType, accountName, sourceId, contactId, lookupKey, lastUpdated, readOnly}]` |
+| `contactsRead`       | `{ids: number[]}` (≤ 200)       | `[{id, data: [{dataId, mimetype, isReadOnly, fields}]}]`                                                    |
+| `contactsApply`      | `{ops: Op[]}` (≤ 400 je Aufruf) | `{results: [{rawContactId?, version?}], error?}`                                                            |
+| `contactsPhotoRead`  | `{id}`                          | `{jpegBase64?}` (`DisplayPhoto`, sonst Vorschaubild)                                                        |
+| `contactsPhotoWrite` | `{id, jpegBase64}`              | `{version}`                                                                                                 |
+| `contactsGroups`     | `{accountType, accountName}`    | `[{id, title, readOnly}]`                                                                                   |
+
+`lastUpdated` ist `Contacts.CONTACT_LAST_UPDATED_TIMESTAMP` (ms) des zusammengefassten Kontakts
+(Konfliktregel, research R6).
 
 `fields` je Mimetype: `StructuredName` (given, family, middle, prefix, suffix, display),
 `Nickname`, `Organization` (company, title), `Note`, `Phone`/`Email`/`Website`/`SipAddress`
