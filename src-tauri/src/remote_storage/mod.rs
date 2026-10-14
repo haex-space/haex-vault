@@ -44,6 +44,8 @@ pub mod service;
 #[cfg(test)]
 mod service_endpoint_tests;
 #[cfg(test)]
+mod service_link_change_tests;
+#[cfg(test)]
 mod service_link_tests;
 #[cfg(test)]
 mod service_protocol_tests;

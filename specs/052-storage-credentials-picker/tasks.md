@@ -129,15 +129,15 @@ the connection asks for new credentials (spec US3, FR-009, FR-010, FR-012, FR-01
 
 ### Tests for User Story 3
 
-- [ ] T032 [P] [US3] In `src-tauri/src/remote_storage/service_link_tests.rs` add: after the password of a chosen entry changed, `access_of(storage_id)` uses the new value (`FakeStore` sees it); removing a connection keeps a chosen entry and deletes an owned one only when no other connection uses it; two connections on one entry keep it until the last goes; switching from an owned entry to a chosen one deletes the old owned entry after the passed test; switching to the same id deletes nothing; an entry in the trash or deleted gives state `missing` and `access_of` fails with `StorageCredentialsUnavailable` without any value in the message
-- [ ] T033 [P] [US3] In `src-tauri/src/remote_storage/credentials_tests.rs` extend the usage test: `StorageUsage::uses` is true for a chosen (unowned) entry used by a connection, and the password manager's delete path names the connection for it (034 FR-034); the delete itself stays allowed
+- [x] T032 [P] [US3] In `src-tauri/src/remote_storage/service_link_tests.rs` add: after the password of a chosen entry changed, `access_of(storage_id)` uses the new value (`FakeStore` sees it); removing a connection keeps a chosen entry and deletes an owned one only when no other connection uses it; two connections on one entry keep it until the last goes; switching from an owned entry to a chosen one deletes the old owned entry after the passed test; switching to the same id deletes nothing; an entry in the trash or deleted gives state `missing` and `access_of` fails with `StorageCredentialsUnavailable` without any value in the message (done in the new `service_link_change_tests.rs`; switching from an owned to a chosen entry and to the same id are in `service_link_tests.rs` since PR B)
+- [x] T033 [P] [US3] In `src-tauri/src/remote_storage/credentials_tests.rs` extend the usage test: `StorageUsage::uses` is true for a chosen (unowned) entry used by a connection, and the password manager's delete path names the connection for it (034 FR-034); the delete itself stays allowed
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] If T033 fails, fix the cause in `credentials.rs` (`StorageUsage`) or in the delete path of `src-tauri/src/passwords/` for unowned entries (grep every caller of the usage registry; root cause, not the symptom path); otherwise record "no change needed" in the PR description
-- [ ] T035 [US3] In `src/components/settings/storage/ConnectionForm.vue` and `StorageListView.vue`: when `credentials` is `missing` for a connection whose entry was deleted or no longer fits, show "neue Zugangsdaten nötig" with the two actions "Anderen Eintrag wählen" and "Neue Zugangsdaten eingeben" (they set `source` to `entry` or `new` with `replaceCredentials` on, `data-testid` `storage-credentials-choose-other`, `storage-credentials-enter-new`); `syncing` keeps its existing text; texts in `de.json` and `en.json`
-- [ ] T036 [US3] Extend `scripts/e2e/scenarios/storage-credentials-entry.test.ts` with quickstart §2 steps 3–4 (wrong password in the entry gives "Zugang abgelehnt", restored passes; delete with the warning naming the connection, then "neue Zugangsdaten nötig", then picking another entry runs again)
-- [ ] T037 [US3] Local checks as T022; commit; include in PR D
+- [x] T034 [US3] If T033 fails, fix the cause in `credentials.rs` (`StorageUsage`) or in the delete path of `src-tauri/src/passwords/` for unowned entries (grep every caller of the usage registry; root cause, not the symptom path); otherwise record "no change needed" in the PR description (no change needed: `StorageUsage::uses` finds a chosen entry as it is)
+- [x] T035 [US3] In `src/components/settings/storage/ConnectionForm.vue` and `StorageListView.vue`: when `credentials` is `missing` for a connection whose entry was deleted or no longer fits, show "neue Zugangsdaten nötig" with the two actions "Anderen Eintrag wählen" and "Neue Zugangsdaten eingeben" (they set `source` to `entry` or `new` with `replaceCredentials` on, `data-testid` `storage-credentials-choose-other`, `storage-credentials-enter-new`); `syncing` keeps its existing text; texts in `de.json` and `en.json` (done as `CredentialsMissingNote.vue` in the form; the list already said "Neue Zugangsdaten nötig" and leads there. The row of the linked entry moved into `CredentialsLinkedEntry.vue`, so `ConnectionForm.vue` stays at 480 lines)
+- [x] T036 [US3] Extend `scripts/e2e/scenarios/storage-credentials-entry.test.ts` with quickstart §2 steps 3–4 (wrong password in the entry gives "Zugang abgelehnt", restored passes; delete with the warning naming the connection, then "neue Zugangsdaten nötig", then picking another entry runs again)
+- [x] T037 [US3] Local checks as T022; commit; include in PR D
 
 **Checkpoint**: Edits and deletes behave like one source of truth.
 
@@ -152,13 +152,13 @@ FR-011, FR-013).
 
 ### Tests for User Story 4
 
-- [ ] T038 [P] [US4] In `src-tauri/src/extensions/remote_storage_credentials_tests.rs` add: an answer with `credentials: Entry { item_id }` creates connection and storage and grants the permission; the answer the extension gets carries no entry id and no title; a bridge call with `credentials` or an entry id in its params is still refused (existing refusal test stays green)
+- [x] T038 [P] [US4] In `src-tauri/src/extensions/remote_storage_credentials_tests.rs` add: an answer with `credentials: Entry { item_id }` creates connection and storage and grants the permission; the answer the extension gets carries no entry id and no title; a bridge call with `credentials` or an entry id in its params is still refused (existing refusal test stays green) (done; the bridge also refuses `credentials` and `itemId` in a call now)
 
 ### Implementation for User Story 4
 
-- [ ] T039 [US4] In `src/components/StorageCredentialsModal.vue` offer the same source choice and `CredentialsEntryPicker` (protocol of the proposal), send `{ kind: 'entry', itemId }` through `storage_dialog_resolve` (a failed test keeps the window open, as for typed values); reuse `credentialsInputOf` from T016 where its draft fits the modal's fields, otherwise add only the `entry` branch to the modal's own builder; texts reuse the keys of T020 (the source choice and the picker are in the modal since `bc212276`; open until T038 and T040 test it)
-- [ ] T040 [P] [US4] Extend `scripts/e2e/scenarios/extension-storage-webdav.test.ts` (Docker) with a step: the test extension proposes a WebDAV storage without credentials; in holzi's window choose an existing entry; the storage exists and the extension's answer has no entry id
-- [ ] T041 [US4] Local checks as T022; commit; include in PR D
+- [x] T039 [US4] In `src/components/StorageCredentialsModal.vue` offer the same source choice and `CredentialsEntryPicker` (protocol of the proposal), send `{ kind: 'entry', itemId }` through `storage_dialog_resolve` (a failed test keeps the window open, as for typed values); reuse `credentialsInputOf` from T016 where its draft fits the modal's fields, otherwise add only the `entry` branch to the modal's own builder; texts reuse the keys of T020 (the source choice and the picker are in the modal since `bc212276`; open until T038 and T040 test it) (in the modal since `bc212276`, tested by T038 and T040)
+- [x] T040 [P] [US4] Extend `scripts/e2e/scenarios/extension-storage-webdav.test.ts` (Docker) with a step: the test extension proposes a WebDAV storage without credentials; in holzi's window choose an existing entry; the storage exists and the extension's answer has no entry id (done; the second proposal picks "new credentials" over the reusable connection, then the entry)
+- [x] T041 [US4] Local checks as T022; commit; include in PR D
 
 **Checkpoint**: Both entry points use the same choice.
 
@@ -166,9 +166,9 @@ FR-011, FR-013).
 
 ## Phase 7: Polish & Cross-Cutting (PR D)
 
-- [ ] T042 [P] Mark the tasks done in this file; set the status of the 052 row in `plans/README.md`
-- [ ] T043 [P] Check `src-tauri/src/remote_storage/service.rs`, `ConnectionForm.vue`, `credentials.rs` and every new file against the 500-line rule (`wc -l`); a file over it needs a documented reason and a split plan (constitution)
-- [ ] T044 Full local parity before the PR: `pnpm check:storage`, `pnpm check:passwords`, `pnpm check:settings`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm check:templates`, `pnpm lint:rust`, the targeted `cargo test -j 4` of `remote_storage`, `passwords_owner`, `passwords_access`, the extension storage tests, and the e2e scenarios `storage-credentials-entry`, `storage-webdav`, `extension-storage-webdav` (needs Docker; skipped without it, say so in the PR)
+- [x] T042 [P] Mark the tasks done in this file; set the status of the 052 row in `plans/README.md`
+- [x] T043 [P] Check `src-tauri/src/remote_storage/service.rs`, `ConnectionForm.vue`, `credentials.rs` and every new file against the 500-line rule (`wc -l`); a file over it needs a documented reason and a split plan (constitution) (`service.rs` 607 lines, below its 624 before 052; every new file under 500)
+- [x] T044 Full local parity before the PR: `pnpm check:storage`, `pnpm check:passwords`, `pnpm check:settings`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm check:templates`, `pnpm lint:rust`, the targeted `cargo test -j 4` of `remote_storage`, `passwords_owner`, `passwords_access`, the extension storage tests, and the e2e scenarios `storage-credentials-entry`, `storage-webdav`, `extension-storage-webdav` (needs Docker; skipped without it, say so in the PR) (all green; `files-storage` failed once with a WebDriver timeout and passed twice alone)
 - [ ] T045 Manual quickstart §3 (Android emulator `holzi-emulator`: list scrolls, keyboard does not cover the search) and §4 (older vault: all entries "S3: …", "WebDAV: …", "SFTP: …" carry the tag, second open changes nothing) by the operator; open until done, like T081 of spec 024
 
 ---

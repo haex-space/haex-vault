@@ -141,31 +141,47 @@ async fn deleting_the_credentials_of_a_connection_warns_in_the_password_manager(
         .expect("usage")
         .is_empty());
 
-    let row = ConnectionRow {
-        id: "c1".to_owned(),
-        protocol: Protocol::S3,
-        provider_name: "RustFS".to_owned(),
-        provider_kind: ProviderKind::Rustfs,
-        endpoint: "http://127.0.0.1:9000".to_owned(),
-        endpoint_scope: EndpointScope::Local,
-        region: "us-east-1".to_owned(),
-        addressing: Addressing::Path,
-        host_key: None,
-        host_key_confirmed_at: None,
-        credentials_item_id: id.clone(),
-        created_at: "t".to_owned(),
-        updated_at: "t".to_owned(),
-    };
-    db.write(move |tx| Ok(store::put_connection(tx, &row)?))
+    // Spec 052 T033: an entry the user chose warns the same way.
+    let chosen = passwords
+        .create_item(
+            &Caller::User,
+            &[],
+            crate::passwords::model::ItemInput {
+                title: Some("IDrive".to_owned()),
+                username: Some("AKID".to_owned()),
+                password: Some("placeholder".to_owned()),
+                ..Default::default()
+            },
+            None,
+        )
         .await
-        .expect("connection");
-    let check = id.clone();
+        .expect("a user entry");
+    for (connection, item) in [("c1", id.clone()), ("c2", chosen.clone())] {
+        let row = ConnectionRow {
+            id: connection.to_owned(),
+            protocol: Protocol::S3,
+            provider_name: "RustFS".to_owned(),
+            provider_kind: ProviderKind::Rustfs,
+            endpoint: "http://127.0.0.1:9000".to_owned(),
+            endpoint_scope: EndpointScope::Local,
+            region: "us-east-1".to_owned(),
+            addressing: Addressing::Path,
+            host_key: None,
+            host_key_confirmed_at: None,
+            credentials_item_id: item,
+            created_at: "t".to_owned(),
+            updated_at: "t".to_owned(),
+        };
+        db.write(move |tx| Ok(store::put_connection(tx, &row)?))
+            .await
+            .expect("connection");
+    }
     let features = tokio::task::spawn_blocking(move || {
-        passwords.item_usage(&Caller::User, &check).expect("usage")
+        [id, chosen].map(|item| passwords.item_usage(&Caller::User, &item).expect("usage"))
     })
     .await
     .expect("join");
-    assert_eq!(features, [FEATURE]);
+    assert_eq!(features, [vec![FEATURE], vec![FEATURE]]);
 }
 
 #[tokio::test]
