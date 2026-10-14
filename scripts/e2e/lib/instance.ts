@@ -258,21 +258,29 @@ async function launchDriver(
       env,
       logFile: options.logFile,
     })
+    const output = () =>
+      existsSync(options.logFile)
+        ? readFileSync(options.logFile).subarray(logOffset).toString()
+        : ''
     const end = Date.now() + limitMs
     for (;;) {
       if (hasEnded(started.child)) {
         await started.closed
-        const output = readFileSync(options.logFile)
-          .subarray(logOffset)
-          .toString()
-        if (isPortInUseOutput(output)) {
+        if (isPortInUseOutput(output())) {
           throw new PortInUseError(ports.driver)
         }
         throw new Error(
-          `driver exited before listening on port ${ports.driver} (see ${options.logFile})\n${output.trim()}`,
+          `driver exited before listening on port ${ports.driver} (see ${options.logFile})\n${output().trim()}`,
         )
       }
-      if (await portOpen(ports.driver)) return { ...started, ports }
+      // tauri-driver keeps running when the native driver it starts cannot listen on its port (seen on
+      // CI: "FATAL: Unable to listen for HTTP server … port 46071", then every session got no answer).
+      if (isPortInUseOutput(output())) {
+        if (started.child.pid !== undefined) await stopGroup(started.child.pid)
+        throw new PortInUseError(ports.native)
+      }
+      if ((await portOpen(ports.driver)) && (await portOpen(ports.native)))
+        return { ...started, ports }
       if (Date.now() >= end) {
         if (started.child.pid !== undefined) {
           await stopGroup(started.child.pid)
