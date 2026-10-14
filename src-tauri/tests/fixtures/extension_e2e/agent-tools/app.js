@@ -8480,6 +8480,14 @@ function log(text) {
   document.getElementById("log").prepend(item);
   console.info("[agent-tools]", text);
 }
+function errorText(error) {
+  if (error instanceof Error) return `${error.name}: ${error.message}`;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
 async function table() {
   await sdk.ready();
   return sdk.getTableName("entries");
@@ -8514,4 +8522,4 @@ sdk.tools.register("slow_echo", (input, { signal }) => {
     });
   });
 });
-countAsync().catch((error) => log(`count failed: ${error}`));
+countAsync().catch((error) => log(`count failed: ${errorText(error)}`));
