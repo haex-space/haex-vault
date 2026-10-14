@@ -1,11 +1,17 @@
 //! Credentials typed in holzi's window whose test fails (spec 038 US3, FR-013): the window learns
 //! why and stays open for corrected credentials or a cancel; the extension sees only the end, and
-//! nothing is kept from a failed try.
+//! nothing is kept from a failed try. An entry of the password manager chosen there (spec 052 US4)
+//! makes the storage; the extension learns neither its id nor its title, and cannot name one.
 
 use serde_json::{json, Value};
 
+use crate::extensions::bridge::blocking::block_on;
 use crate::extensions::remote_storage_dialog::{StorageAnswer, StorageTrial};
 use crate::extensions::remote_storage_test_support::{credentials, setup, SECRET};
+use crate::passwords::access::Caller;
+use crate::passwords::model::ItemInput;
+use crate::passwords::service::PasswordsService;
+use crate::remote_storage::model::CredentialsInput;
 use crate::remote_storage::test_support::Op;
 use crate::remote_storage::{StorageError, TestOutcome};
 
@@ -128,4 +134,77 @@ fn a_leftover_test_object_is_reported_to_holzis_window() {
             ..
         })]
     ));
+}
+
+#[test]
+fn an_entry_chosen_in_holzis_window_makes_the_storage_without_the_extension_learning_it() {
+    let s = setup();
+    s.permit("add", "*", "granted");
+    let title = "IDrive-title-leak-marker";
+    let item_id = block_on(PasswordsService::new(s.vault.clone()).create_item(
+        &Caller::User,
+        &[],
+        ItemInput {
+            title: Some(title.to_owned()),
+            username: Some("AKIDCHOSEN".to_owned()),
+            password: Some("chosen-secret-leak-marker".to_owned()),
+            ..ItemInput::default()
+        },
+        None,
+    ))
+    .expect("entry");
+    let entries = s.count("SELECT COUNT(*) FROM haex_passwords_item_details");
+    s.events.answer_with(StorageAnswer::Confirm {
+        connection_id: None,
+        credentials: Some(CredentialsInput::Entry {
+            item_id: item_id.clone(),
+        }),
+        name: None,
+        bucket: None,
+        create_folder: false,
+        host_key: None,
+    });
+
+    let added = s
+        .call("extension_remote_storage_add_backend", local_proposal())
+        .expect("added");
+
+    let text = added.to_string();
+    assert_eq!(added["bucket"], json!("nas-b"));
+    for hidden in [item_id.as_str(), title, "chosen-secret-leak-marker"] {
+        assert!(!text.contains(hidden), "the answer names {hidden}");
+    }
+    assert_eq!(
+        s.count("SELECT COUNT(*) FROM haex_passwords_item_details"),
+        entries,
+        "SC-002: no copy of the entry"
+    );
+    assert_eq!(
+        s.count(&format!(
+            "SELECT COUNT(*) FROM haex_storage_connections WHERE credentials_item_id = '{item_id}'"
+        )),
+        1
+    );
+}
+
+#[test]
+fn an_extension_cannot_name_an_entry_of_the_password_manager() {
+    let s = setup();
+    s.permit("add", "*", "granted");
+    let named = json!({ "kind": "entry", "itemId": "any" });
+    for request in [
+        json!({ "request": { "name": "Neu", "type": "s3", "credentials": named,
+            "config": { "endpoint": "http://192.168.1.5:9000", "region": "eu", "bucket": "b" } } }),
+        json!({ "request": { "name": "Neu", "type": "s3", "itemId": "any",
+            "config": { "endpoint": "http://192.168.1.5:9000", "region": "eu", "bucket": "b" } } }),
+        json!({ "request": { "name": "Neu", "type": "s3",
+            "config": { "endpoint": "http://192.168.1.5:9000", "region": "eu", "bucket": "b",
+                "itemId": "any" } } }),
+    ] {
+        assert_eq!(
+            s.code("extension_remote_storage_add_backend", request),
+            3001
+        );
+    }
+    assert!(s.events.dialogs().is_empty(), "no dialog appeared");
 }
