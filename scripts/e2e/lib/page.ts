@@ -116,6 +116,12 @@ async function clickDisplayed(
       Math.max(0, end - Date.now()),
     )
     try {
+      // Keep fixed desktop chrome such as the dock from intercepting a control that was just
+      // revealed below a scroll surface (the WebDriver click otherwise only scrolls it to an edge).
+      await client.execute(
+        'arguments[0].scrollIntoView({ block: "center", inline: "nearest" })',
+        [element],
+      )
       onClickSent?.()
       await client.click(element)
       return element

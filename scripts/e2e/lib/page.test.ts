@@ -76,6 +76,14 @@ describe('click', () => {
         (r) => r.method === 'POST' && r.path.endsWith('/element/el-1/click'),
       ),
     )
+    assert.ok(
+      driver.requests.some(
+        (r) =>
+          r.method === 'POST' &&
+          r.path.endsWith('/execute/sync') &&
+          (r.body as { script: string }).script.includes('scrollIntoView'),
+      ),
+    )
   })
 
   it('clicks the displayed one when the hook finds more than one element', async () => {
