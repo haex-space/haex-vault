@@ -167,6 +167,25 @@ async fn range(files: &StorageFiles, path: &str, start: u64, end: u64) -> Vec<u8
         .unwrap()
 }
 
+async fn written(files: &StorageFiles, path: &str) -> u64 {
+    let Route::Encrypted(at) = route(files, path).await.unwrap() else {
+        panic!("{path} is not encrypted");
+    };
+    let (_, version) = file_at(files, &at).await.unwrap();
+    version.sidecar.written
+}
+
+async fn wait_for_next_written_millisecond(previous: u64) {
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while crate::passwords::clock::unix_millis(std::time::SystemTime::now()) as u64 <= previous
+        {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the system clock must advance");
+}
+
 async fn acceptance(kind: Kind) {
     let backend = backend(kind).await;
     let (_vault, db) = vault();
@@ -246,7 +265,8 @@ async fn acceptance(kind: Kind) {
 
     // T091: both replace the same version without seeing each other's: a conflict copy.
     put(&one, dir.path(), "anschreiben.txt", b"von eins").await;
-    tokio::time::sleep(Duration::from_millis(5)).await;
+    let first_written = written(&one, "/Unterlagen/anschreiben.txt").await;
+    wait_for_next_written_millisecond(first_written).await;
     put(&two, dir.path(), "anschreiben.txt", b"von zwei, laenger").await;
     let third = device(&backend, &db);
     let listed = third.list("/Unterlagen").await.unwrap();
