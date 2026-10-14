@@ -96,6 +96,15 @@ pub async fn contacts_phone_enable(
 ) -> Result<PhoneEnableResult> {
     available()?;
     ensure_permission(&app).await?;
+    let accounts = with_phone(&app, &state, |_, book, _| {
+        Ok(book
+            .accounts()?
+            .into_iter()
+            .map(Account::from)
+            .collect::<Vec<_>>())
+    })
+    .await?;
+    let suggested = state::suggested(&accounts).cloned();
     let db = active_database(&state)?;
     let device = db.device_id().to_string();
     let vault = vault_name(&db).await?;
@@ -104,6 +113,11 @@ pub async fn contacts_phone_enable(
     let status = db
         .write(move |tx| {
             state::enable(tx, &device)?;
+            if state::target(tx, &device)?.is_none() {
+                if let Some(account) = suggested.as_ref() {
+                    state::set_target(tx, &device, account)?;
+                }
+            }
             state::status(tx, &device).map_err(Into::into)
         })
         .await?;
