@@ -2,12 +2,12 @@
 //! `storage_host_key_accept`): only exactly the key this process saw the server show last, never
 //! one the window names on its own. The confirmed key syncs to the other devices of the vault.
 
-use super::{invalid, view, StorageService};
+use super::{invalid, StorageService};
 use crate::error::Result;
 use crate::passwords::clock;
 use crate::remote_storage::model::ConnectionView;
 use crate::remote_storage::sftp::keys;
-use crate::remote_storage::{credentials, store, Location, Protocol};
+use crate::remote_storage::{store, Location, Protocol};
 
 impl StorageService {
     /// Confirms `host_key` (an OpenSSH line) for the SFTP connection `connection_id` when the
@@ -39,14 +39,6 @@ impl StorageService {
         self.db
             .write(move |tx| Ok(store::put_connection(tx, &written)?))
             .await?;
-        let state = credentials::state(&self.db, &row.credentials_item_id, row.protocol).await?;
-        let entry = self
-            .db
-            .read({
-                let item_id = row.credentials_item_id.clone();
-                move |q| credentials::entry(q, &item_id).map_err(Into::into)
-            })
-            .await?;
-        Ok(view(&row, state, entry))
+        self.view_of(&row).await
     }
 }
