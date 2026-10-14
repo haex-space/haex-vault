@@ -61,7 +61,9 @@ async fn new_credentials_become_an_owned_entry_that_reads_back() {
     );
     assert!(!format!("{read:?}").contains("placeholder-secret"));
     assert_eq!(
-        credentials::state(&db, &id).await.expect("state"),
+        credentials::state(&db, &id, Protocol::S3)
+            .await
+            .expect("state"),
         CredentialsState::Present
     );
 }

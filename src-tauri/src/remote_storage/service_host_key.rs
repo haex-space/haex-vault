@@ -39,7 +39,7 @@ impl StorageService {
         self.db
             .write(move |tx| Ok(store::put_connection(tx, &written)?))
             .await?;
-        let state = credentials::state(&self.db, &row.credentials_item_id).await?;
+        let state = credentials::state(&self.db, &row.credentials_item_id, row.protocol).await?;
         Ok(view(&row, state))
     }
 }

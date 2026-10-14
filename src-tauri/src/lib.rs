@@ -135,9 +135,9 @@ use providers::{
     add_provider, delete_provider, list_provider_models, list_providers, refresh_provider_models,
 };
 use remote_storage::commands::{
-    storage_connection_remove, storage_connection_save, storage_dialog_resolve,
-    storage_folder_create, storage_host_key_accept, storage_list, storage_removal_preview,
-    storage_remove, storage_save, storage_ssh_key_generate, storage_test,
+    storage_connection_remove, storage_connection_save, storage_credentials_candidates,
+    storage_dialog_resolve, storage_folder_create, storage_host_key_accept, storage_list,
+    storage_removal_preview, storage_remove, storage_save, storage_ssh_key_generate, storage_test,
 };
 use storage::preferences_commands::{clear_pref, get_pref, set_pref};
 use storage::wm_session_commands::{
@@ -520,6 +520,7 @@ pub fn run() {
             passwords_item_usage,
             storage_list,
             storage_connection_save,
+            storage_credentials_candidates,
             storage_connection_remove,
             storage_save,
             storage_remove,
