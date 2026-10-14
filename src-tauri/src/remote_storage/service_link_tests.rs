@@ -289,3 +289,117 @@ async fn an_sftp_key_entry_signs_in() {
     assert_eq!(view.credentials, CredentialsState::Present);
     assert_eq!(linked(&db), id);
 }
+
+fn tags_of(db: &VaultDb, id: &str) -> Vec<String> {
+    let id = id.to_owned();
+    db.read_blocking(move |q| crate::passwords::tags::names_of_item(q, &id).map_err(Into::into))
+        .expect("tags")
+}
+
+#[tokio::test]
+async fn a_chosen_entry_gets_the_tag_only_after_the_save_and_keeps_its_place() {
+    let s = setup();
+    let passwords = PasswordsService::new(s.db.clone());
+    let folder = passwords
+        .create_group(&Caller::User, "Cloud".to_owned(), None, None, None, None)
+        .await
+        .expect("folder");
+    let id = passwords
+        .create_item(
+            &Caller::User,
+            &[],
+            ItemInput {
+                title: Some("IDrive".to_owned()),
+                username: Some("AKIDCHOSEN".to_owned()),
+                password: Some(SECRET.to_owned()),
+                tags: vec!["Arbeit".to_owned()],
+                ..ItemInput::default()
+            },
+            Some(folder.clone()),
+        )
+        .await
+        .expect("entry");
+
+    s.fake.fail(Op::Put, StorageError::AccessDenied);
+    s.service
+        .save_connection(input(None, link(&id)))
+        .await
+        .expect_err("refused");
+    assert_eq!(
+        tags_of(&s.db, &id),
+        ["Arbeit"],
+        "a failed test tags nothing"
+    );
+
+    s.fake.heal(Op::Put);
+    s.service
+        .save_connection(input(None, link(&id)))
+        .await
+        .expect("saved");
+    let mut tags = tags_of(&s.db, &id);
+    tags.sort();
+    assert_eq!(tags, ["Arbeit", credentials::TAG], "FR-006: tag added");
+    let header = passwords
+        .get_item(&Caller::User, id)
+        .await
+        .expect("entry")
+        .header;
+    assert_eq!(header.owner, None, "FR-008: still the user's entry");
+    assert_eq!(header.group_id.as_deref(), Some(folder.as_str()));
+}
+
+#[tokio::test]
+async fn the_overview_names_the_entry_of_each_connection_while_it_is_there() {
+    let s = setup();
+    let typed_view = s
+        .service
+        .save_connection(input(None, Some(typed())))
+        .await
+        .expect("typed");
+    let own = typed_view.credentials_entry.clone().expect("entry shown");
+    assert!(own.owned);
+    assert_eq!(own.title.as_deref(), Some("S3: RustFS"));
+    let id = chosen(&s.db, "IDrive").await;
+    let chosen_view = s
+        .service
+        .save_connection(input(None, link(&id)))
+        .await
+        .expect("chosen");
+    assert_eq!(
+        chosen_view
+            .credentials_entry
+            .clone()
+            .map(|e| (e.id, e.title, e.owned)),
+        Some((id.clone(), Some("IDrive".to_owned()), false))
+    );
+    let overview = s.service.overview().await.expect("overview");
+    assert_eq!(overview.connections.len(), 2);
+    assert!(overview
+        .connections
+        .iter()
+        .all(|c| c.credentials_entry.is_some()));
+    let text = serde_json::to_string(&overview).expect("json");
+    assert!(!text.contains(SECRET), "a title, never a value");
+
+    PasswordsService::new(s.db.clone())
+        .trash_targets(
+            &Caller::User,
+            vec![Target {
+                kind: TargetKind::Item,
+                id: id.clone(),
+            }],
+        )
+        .await
+        .expect("trash");
+    let gone = s
+        .service
+        .overview()
+        .await
+        .expect("overview")
+        .connections
+        .into_iter()
+        .find(|c| c.id == chosen_view.id)
+        .expect("connection");
+    assert_eq!(gone.credentials, CredentialsState::Missing);
+    assert_eq!(gone.credentials_entry, None);
+}

@@ -302,3 +302,52 @@ async fn the_users_copy_of_an_owned_entry_stays_out_of_reach_too() {
     );
     assert!(ids.is_empty(), "the copy keeps its owner: {ids:?}");
 }
+
+#[tokio::test]
+async fn the_cloud_storage_tag_opens_no_owned_entry_but_a_chosen_one_keeps_its_grants() {
+    // Spec 052 (FR-008, assumption in spec.md): holzi tags its own entries and the ones the user
+    // chose for a connection. Rule Z14 still hides its own from everyone else, also from a grant
+    // for that tag; an entry the user chose stays an ordinary entry that such a grant reaches.
+    let (_dir, service) = service();
+    let tag = holzi_lib::remote_storage::credentials::TAG.to_string();
+    let entry = |title: &str| ItemInput {
+        title: Some(title.to_string()),
+        username: Some("access-key".to_string()),
+        password: Some(SECRET.to_string()),
+        tags: vec![tag.clone()],
+        ..ItemInput::default()
+    };
+    let owned = service
+        .create_owned_item(&STORAGE, entry("S3: RustFS"))
+        .await
+        .expect("an owned entry with the tag");
+    let chosen = service
+        .create_item(&Caller::User, &[], entry("IDrive"), None)
+        .await
+        .expect("a chosen entry with the tag");
+
+    let by_tag = vec![Grant::new(
+        GrantAction::Read,
+        Scope::Tags(std::iter::once(tag.clone()).collect()),
+    )];
+    for grants in [all(), by_tag] {
+        let ids = listed(
+            service
+                .list_headers(&extension(), &grants)
+                .await
+                .expect("list"),
+        );
+        assert_eq!(ids, std::slice::from_ref(&chosen), "{grants:?}");
+        assert!(matches!(
+            service
+                .read_secret_item(&extension(), &grants, owned.clone())
+                .await,
+            Err(HolziError::PasswordsNotFound)
+        ));
+        let read = service
+            .read_secret_item(&extension(), &grants, chosen.clone())
+            .await
+            .expect("the grant reaches the chosen entry");
+        assert_eq!(read.password.as_deref(), Some(SECRET));
+    }
+}

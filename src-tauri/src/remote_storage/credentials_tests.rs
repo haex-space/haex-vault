@@ -43,6 +43,16 @@ async fn new_credentials_become_an_owned_entry_that_reads_back() {
         .header;
     assert_eq!(header.title.as_deref(), Some("S3: RustFS"));
     assert_eq!(header.owner.as_deref(), Some(FEATURE));
+    assert_eq!(
+        header
+            .tags
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect::<Vec<_>>(),
+        [credentials::TAG],
+        "spec 052 FR-005: findable by the tag"
+    );
+    assert_eq!(header.url.as_deref(), Some("http://127.0.0.1:9000"));
 
     let Credentials::S3(read) = credentials::read(&passwords, &db, &id, Protocol::S3)
         .await

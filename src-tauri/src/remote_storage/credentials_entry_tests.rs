@@ -306,8 +306,43 @@ async fn vault_open_backfills_the_tag_on_old_storage_entries() {
         .await
         .expect("backfill");
     assert_eq!(changed, 1);
-    let tags = db
-        .read_blocking(|q| crate::passwords::tags::names_of_item(q, &id).map_err(Into::into))
-        .expect("tags");
-    assert!(tags.iter().any(|tag| tag == credentials::TAG));
+    let tags_of = |id: &str| {
+        let id = id.to_owned();
+        db.read_blocking(move |q| crate::passwords::tags::names_of_item(q, &id).map_err(Into::into))
+            .expect("tags")
+    };
+    assert!(tags_of(&id).iter().any(|tag| tag == credentials::TAG));
+    assert_eq!(
+        db.write(credentials::backfill_owned_tags)
+            .await
+            .expect("again"),
+        0,
+        "a second open changes nothing"
+    );
+    let title = passwords
+        .get_item(&Caller::User, id.clone())
+        .await
+        .expect("entry")
+        .header
+        .title;
+    assert_eq!(
+        title.as_deref(),
+        Some("Old storage"),
+        "only the tag changes"
+    );
+
+    // Entries of the user and of other holzi functions keep their tags.
+    let users = add(&passwords, entry("Bank", "anna", SECRET, &[])).await;
+    let mail = passwords
+        .create_owned_item(
+            &Caller::Internal { feature: "mail" },
+            entry("Mail", "m", SECRET, &[]),
+        )
+        .await
+        .expect("an entry of another holzi function");
+    db.write(credentials::backfill_owned_tags)
+        .await
+        .expect("backfill");
+    assert!(tags_of(&users).is_empty());
+    assert!(tags_of(&mail).is_empty());
 }
