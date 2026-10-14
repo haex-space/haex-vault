@@ -1,0 +1,81 @@
+{
+  "name": "agent-tools",
+  "version": "1.0.0",
+  "displayName": "Test-Erweiterung",
+  "publicKey": "1549fb64ff115627d507f8c95a8fd7b4bd5381c6df97120f910ed904ba50e63f",
+  "migrationsDir": "db",
+  "permissions": {
+    "database": [
+      {
+        "target": "1549fb64ff115627d507f8c95a8fd7b4bd5381c6df97120f910ed904ba50e63f__agent-tools__*",
+        "operation": "readWrite"
+      }
+    ],
+    "notifications": [{ "target": "*", "operation": "show" }]
+  },
+  "tools": [
+    {
+      "name": "count_entries",
+      "title": { "de": "Einträge zählen", "en": "Count entries" },
+      "description": "Counts the entries of the test extension.",
+      "inputSchema": { "type": "object", "properties": {} },
+      "effect": "read",
+      "examples": {
+        "de": ["Wie viele Einträge habe ich?", "Zähle meine Einträge"],
+        "en": ["How many entries do I have?", "Count my entries"]
+      }
+    },
+    {
+      "name": "add_entry",
+      "title": { "de": "Eintrag hinzufügen", "en": "Add entry" },
+      "description": "Adds an entry with the given text to the test extension and shows a notification.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string", "description": "The text of the entry" }
+        },
+        "required": ["text"]
+      },
+      "effect": "change",
+      "examples": {
+        "de": ["Füge einen Eintrag Milch hinzu", "Trag Brot als Eintrag ein"],
+        "en": ["Add an entry milk", "Add bread as an entry"]
+      }
+    },
+    {
+      "name": "slow_echo",
+      "title": { "de": "Langsames Echo", "en": "Slow echo" },
+      "description": "Echoes the text after the given number of seconds; for time limits and cancelling.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string" },
+          "seconds": {
+            "type": "integer",
+            "description": "How long to wait, default 30"
+          }
+        },
+        "required": ["text"]
+      },
+      "effect": "read",
+      "examples": {
+        "de": ["Gib ein langsames Echo von hallo"],
+        "en": ["Give a slow echo of hello"]
+      }
+    },
+    {
+      "name": "optional_note",
+      "title": { "de": "Optionale Notiz", "en": "Optional note" },
+      "description": "Outside holzi's schema subset (a union type); installed but never offered.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "note": { "type": ["string", "null"] } }
+      },
+      "effect": "read",
+      "examples": {
+        "de": ["Speichere eine optionale Notiz"],
+        "en": ["Save an optional note"]
+      }
+    }
+  ]
+}

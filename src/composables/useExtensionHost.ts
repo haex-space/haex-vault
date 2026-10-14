@@ -5,6 +5,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { toast } from 'vue-sonner'
 import type { DevModeState } from '@bindings/DevModeState'
 import { useColorScheme } from '~/composables/useColorScheme'
+import { readyFrames } from '~/lib/extensions/agentFrames'
+import { extensionAppId } from '~/lib/extensions/apps'
 import { useExtensionPermissionsStore } from '~/stores/extensionPermissions'
 import { useExtensionsStore } from '~/stores/extensions'
 import { useWindowManagerStore } from '~/stores/windowManager'
@@ -45,6 +47,9 @@ async function reloadForDevModeAsync(): Promise<boolean> {
 
 /** Brings this native window to the front. Mobile has no such window calls; their failure leaves
  * the window as it is. */
+/** How long a call of the agent waits for an extension's frame (spec 018, research R9). */
+const AGENT_FRAME_TIMEOUT_MS = 10_000
+
 async function raiseWindowAsync(): Promise<void> {
   const window = getCurrentWindow()
   for (const step of [
@@ -130,6 +135,34 @@ export function useExtensionHost() {
       })
     }),
     'notifications shown in holzi',
+  )
+
+  // A call of the agent needs a frame of the extension (spec 018, research R9): an open tab in
+  // this workspace, else a new minimized window, focus unchanged. Rust connects once its port is
+  // ready; `null` when none is ready in time.
+  const answerAgentFrameAsync = async (
+    extensionId: string,
+    requestId: string,
+  ) => {
+    const tabId = wm.openApp(extensionAppId(extensionId), null, true)
+    if (tabId) wm.markTabMounted(tabId)
+    const frame = tabId
+      ? await readyFrames.waitFor(tabId, AGENT_FRAME_TIMEOUT_MS)
+      : null
+    await invoke('extension_agent_frame_ready', { requestId, frame })
+  }
+  keep(
+    listen<{ extensionId: string; requestId: string }>(
+      'extension-agent-frame',
+      (event) =>
+        void answerAgentFrameAsync(
+          event.payload.extensionId,
+          event.payload.requestId,
+        ).catch((error: unknown) => {
+          console.error('[extensions] a frame for the agent failed', error)
+        }),
+    ),
+    'frame requests of the agent',
   )
 
   /** Loads the extension list; the session restore waits for it, so extension tabs survive. */

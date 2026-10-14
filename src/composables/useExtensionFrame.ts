@@ -16,6 +16,8 @@ import {
   readRequest,
   type FrameEvent,
 } from '~/lib/extensions/bridge'
+import { readyFrames } from '~/lib/extensions/agentFrames'
+import { mcpPortMessage, readMcpMessage } from '~/lib/extensions/mcpRelay'
 import {
   initMessage,
   navigateMessage,
@@ -142,6 +144,15 @@ export function useExtensionFrame(
   }
 
   async function relay(port: MessagePort, data: unknown): Promise<void> {
+    // The extension's answers to the agent's tool calls (spec 018), apart from the bridge.
+    const mcp = readMcpMessage(data)
+    if (mcp) {
+      if (frame)
+        void invoke('extension_mcp_send', { frame, message: mcp }).catch(
+          () => {},
+        )
+      return
+    }
     const request = readRequest(data)
     if (!request || !frame) return
     const response = await invoke<unknown>('extension_bridge_call', {
@@ -170,6 +181,7 @@ export function useExtensionFrame(
         attempts = []
         state.value = 'ready'
         events.ready()
+        if (frame) readyFrames.ready(tab.tabId, frame)
         return
       }
       if (sdkPort === channel.port1) void relay(channel.port1, event.data)
@@ -226,6 +238,7 @@ export function useExtensionFrame(
 
   /** A new document in the frame: a fresh SDK channel. */
   function startHandshake(): void {
+    readyFrames.gone(tab.tabId)
     closeSdkPorts()
     events.reset()
     // The old page's unacknowledged shell output is lost; its shells stop waiting for it.
@@ -289,6 +302,7 @@ export function useExtensionFrame(
 
   async function closeAsync(): Promise<void> {
     generation++
+    readyFrames.gone(tab.tabId)
     dialog.value = null
     closePorts()
     unregisterGuard?.()
@@ -340,6 +354,13 @@ export function useExtensionFrame(
   void Promise.all([
     listen<FrameEvent>('extension-frame-event', (event) =>
       events.push(event.payload),
+    ),
+    listen<{ frame: string; message: unknown }>(
+      'extension-mcp-message',
+      (event) => {
+        if (event.payload.frame === frame)
+          sdkPort?.postMessage(mcpPortMessage(event.payload.message))
+      },
     ),
     listen<{ frame: string; active: boolean }>(
       'extension-tab-attention',

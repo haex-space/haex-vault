@@ -60,6 +60,7 @@ use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
 };
 use device::commands::{current_device_info, list_vault_devices, update_device_alias};
+use extensions::agent_tools::commands::{extension_agent_frame_ready, extension_mcp_send};
 use extensions::commands::dev::{
     extension_dev_confirm, extension_dev_load, extension_dev_mode_get, extension_dev_mode_set,
     extension_dev_unload,
@@ -572,6 +573,8 @@ pub fn run() {
             extension_frame_close,
             extension_frame_reloaded,
             extension_bridge_call,
+            extension_mcp_send,
+            extension_agent_frame_ready,
             extension_host_context_set,
             extension_dialog_resolve,
             extension_encrypted_folder_choose_resolve,

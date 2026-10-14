@@ -172,6 +172,15 @@ MCP-Bereitschaft (`initialize`) mit Zeitlimit (10 s). Im kompakten Layout (Telef
 Hintergrund-Tab ohne Wechsel; wie der kompakte Modus „minimiert“ abbildet, prüft eine Aufgabe in der
 Umsetzung am Code von 043/045.
 
+**Befund kompakter Modus (T023, Code von 043/045)**: Der kompakte Modus kennt keinen eigenen Tab-Zustand.
+Er zeigt das aktive Fenster flächig (`windowDisplayRect` mit `compact`), und `Window.vue` blendet ein
+minimiertes Fenster per `v-show` aus, mit oder ohne `compact`. Ein Hintergrund-Rahmen ist darum in beiden
+Darstellungen dasselbe minimierte Fenster, ohne Wechsel. Gemountet wird nur, was im aktiven Arbeitsbereich
+liegt (`windowsInActiveWorkspace`), und ein Tab erst, wenn er einmal aktiv war (`markTabMounted`). Deshalb
+nimmt `openAppInBackground` nur einen Tab im aktiven Arbeitsbereich. Eine nur einmal erlaubte Erweiterung,
+die in einem anderen Arbeitsbereich offen ist, bekommt keinen zweiten Rahmen; der Aufruf endet ohne Rahmen.
+Der Extension-Host markiert den Tab als gemountet und antwortet, sobald der Port des Rahmens bereit ist.
+
 **Rationale**: ADR-0004 („opens one minimized when none exists“). Ein unsichtbarer Extra-Rahmen außerhalb
 des wm würde bei `singleInstance`-Erweiterungen (haex-mail) eine zweite Instanz starten.
 

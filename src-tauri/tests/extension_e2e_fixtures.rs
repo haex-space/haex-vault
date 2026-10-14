@@ -1,4 +1,4 @@
-//! The extension bundles of the e2e scenes of spec 017 (`scripts/e2e/scenarios/extension-*.test.ts`),
+//! The extension bundles of the e2e scenes of specs 017 and 018 (`scripts/e2e/scenarios/extension-*.test.ts`),
 //! built with the one implementation of the bundle format (`haex-bundle`) and a test key derived
 //! from a public seed: it signs these fixtures only and must never be trusted elsewhere.
 //!
@@ -63,10 +63,48 @@ fn probe(version: &str) -> Vec<u8> {
     build_archive(files, manifest, &key).expect("probe bundle")
 }
 
+/// The test extension of spec 018 (research R13): sources and `manifest.json` in `agent-tools/`,
+/// its code bundled with the released vault-sdk by `agent-tools/build.sh`.
+fn agent_tools() -> Vec<u8> {
+    let key = test_key();
+    let public_key: String = key
+        .verifying_key()
+        .as_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let source = dir().join("agent-tools");
+    let read = |name: &str| std::fs::read(source.join(name)).expect("agent-tools source");
+    let manifest =
+        parse_restricted(&String::from_utf8(read("manifest.json")).expect("manifest text"))
+            .expect("manifest");
+    let table = format!("{public_key}__agent-tools__entries");
+    let files = vec![
+        Entry {
+            path: "index.html".into(),
+            data: read("index.html"),
+        },
+        Entry {
+            path: "app.js".into(),
+            data: read("app.js"),
+        },
+        Entry {
+            path: "db/0000_init.sql".into(),
+            data: format!("CREATE TABLE `{table}` (`id` text PRIMARY KEY NOT NULL, `text` text);")
+                .into_bytes(),
+        },
+    ];
+    build_archive(files, manifest, &key).expect("agent-tools bundle")
+}
+
 #[test]
 fn the_committed_e2e_bundles_are_what_this_builds() {
-    for (file, version) in [("probe.xt", "1.0.0"), ("probe-v2.xt", "1.1.0")] {
-        let built = probe(version);
+    let bundles = [
+        ("probe.xt", probe("1.0.0")),
+        ("probe-v2.xt", probe("1.1.0")),
+        ("agent-tools.xt", agent_tools()),
+    ];
+    for (file, built) in bundles {
         let path = dir().join(file);
         if std::env::var_os("HOLZI_WRITE_E2E_FIXTURES").is_some() {
             std::fs::write(&path, &built).expect("write fixture");

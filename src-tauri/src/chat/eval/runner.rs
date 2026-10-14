@@ -15,7 +15,7 @@ use crate::adapters::ProviderAdapter;
 use crate::chat::tools::action_tool::AgentActionDef;
 use crate::chat::tools::ask_user::{AskUserTool, ASK_USER_TOOL_NAME};
 use crate::chat::tools::find_actions::{FindActionsTool, FIND_ACTIONS_TOOL_NAME};
-use crate::chat::tools::offer::{extend_offer, found_tools, tool_spec};
+use crate::chat::tools::offer::{extend_offer, found_tools, tool_spec, ExtensionScope};
 use crate::chat::tools::prompt::system_prompt;
 use crate::chat::tools::Tool;
 
@@ -197,7 +197,7 @@ pub async fn run_eval(
                 let mut next = offer.clone();
                 // A result that is no list of tools leaves the offer as it is, as in a chat turn.
                 if let Some(found) = found_tools(&result.content).filter(|_| !result.is_error) {
-                    extend_offer(&mut next, &found, tools);
+                    extend_offer(&mut next, &found, tools, &ExtensionScope::default());
                 }
                 let reached = expected
                     .iter()

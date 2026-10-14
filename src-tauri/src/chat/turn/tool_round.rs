@@ -21,7 +21,7 @@ use crate::chat::session::ChatState;
 use crate::chat::tools::action_tool::ACTION_SOURCE;
 use crate::chat::tools::agent_task::{within, AgentTask};
 use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
-use crate::chat::tools::offer::{extend_offer, found_tools};
+use crate::chat::tools::offer::{extend_offer, found_tools, ExtensionScope};
 use crate::chat::tools::permission;
 use crate::chat::tools::{ApprovalDecision, Tool, ToolResult as ToolExecResult};
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
@@ -196,6 +196,11 @@ impl TurnRunner<'_> {
             // approval first would ask twice (spec 046 FR-015).
             let decision = if call.name == ASK_USER_TOOL_NAME {
                 permission::Decision::Allow
+            } else if tool.always_ask() {
+                // An extension permission with status `ask` is stronger than the global
+                // autonomy mode: the user confirmed that this tool may be used only after a
+                // fresh approval, including in Auto and Plan mode.
+                permission::Decision::Ask
             } else {
                 permission::decide(mode, tool.risk_class())
             };
@@ -427,13 +432,24 @@ impl TurnRunner<'_> {
             });
         }
         if let Some(found) = search_result {
-            let defs = self
-                .chat_state
-                .tool_registry
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .action_defs();
-            extend_offer(&mut self.request.tools, &found, &defs);
+            let (defs, extensions) = {
+                let registry = self
+                    .chat_state
+                    .tool_registry
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                let names = registry
+                    .match_entries()
+                    .into_iter()
+                    .map(|entry| entry.tool_name)
+                    .collect();
+                (registry.action_defs(), names)
+            };
+            let scope = ExtensionScope {
+                names: extensions,
+                pinned: self.first_offer.clone(),
+            };
+            extend_offer(&mut self.request.tools, &found, &defs, &scope);
         }
     }
 

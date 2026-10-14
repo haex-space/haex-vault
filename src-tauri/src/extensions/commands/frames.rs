@@ -139,6 +139,8 @@ pub async fn extension_frame_reloaded(state: State<'_, AppState>, frame: String)
     let host = state.extensions();
     host.shells.frame_reloaded(&frame);
     if let Some(session) = host.frames.get(&frame) {
+        // The new page runs a new MCP server; the agent's next call connects to it.
+        session.mcp.reset();
         host.agent_tasks()
             .cancel_owned_by(&crate::agent_tasks::TaskOwner {
                 extension_id: session.extension_id,

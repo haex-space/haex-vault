@@ -31,7 +31,11 @@ import {
 } from '~/lib/wm/tabs'
 import { currentLocation, type TabLocation } from '~/lib/wm/navigation'
 import { titleForLocation } from '~/components/wm/appRoutes'
-import { addTabAt, openAppAt } from '~/lib/wm/tabNavigation'
+import {
+  addTabAt,
+  openAppAt,
+  openAppInBackgroundAt,
+} from '~/lib/wm/tabNavigation'
 import type {
   CloseGuard,
   WmState,
@@ -246,20 +250,19 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     }
   }
 
-  /** Opens the app, or activates its existing singleton tab (`state.activeWindowId` either way),
-   * and saves at once either way: reactivating a singleton is a deliberate click, not a continuous
-   * gesture. */
-  function openApp(appId: string, at: string | TabLocation | null = null) {
+  /** Opens the app, or activates its existing singleton tab, and saves at once (a deliberate click);
+   * `background`: for a call of the agent, focus unchanged (spec 018, research R9). */
+  function openApp(
+    appId: string,
+    at: string | TabLocation | null = null,
+    background = false,
+  ) {
     // The restore replaces the state: open it again there (a launcher click in the first moment).
-    session.noteOpened(() => openApp(appId, at))
-    const { tabId } = openAppAt(
-      state,
-      navigation.histories,
-      appId,
-      at,
-      apps(),
-      (id) => runtimeFor(id).titleOverride,
-    )
+    if (!background) session.noteOpened(() => openApp(appId, at))
+    const title = (id: string) => runtimeFor(id).titleOverride
+    const { tabId } = background
+      ? openAppInBackgroundAt(state, navigation.histories, appId, apps())
+      : openAppAt(state, navigation.histories, appId, at, apps(), title)
     syncTabRuntime()
     session.saveNow()
     return tabId

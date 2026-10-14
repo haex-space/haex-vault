@@ -20,6 +20,9 @@ pub mod availability;
 pub mod cli;
 #[cfg(test)]
 mod cli_tests;
+pub mod extension_offer;
+#[cfg(test)]
+mod extension_offer_tests;
 pub mod find_actions;
 pub mod mcp;
 #[cfg(test)]
@@ -142,6 +145,19 @@ pub struct ChoiceOption {
     pub unavailable: Option<String>,
 }
 
+/// Where a tool of an extension comes from (spec 018, research R8): shown with its calls and kept
+/// in the history, so the history stays readable after the extension is removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolOrigin {
+    pub extension_id: String,
+    pub extension_name: String,
+    pub tool_title_de: String,
+    pub tool_title_en: String,
+    /// A development version of the extension.
+    pub dev: bool,
+}
+
 /// One callable tool, regardless of source (host-CLI, MCP). `execute` takes
 /// the already-parsed JSON input the model produced and never panics —
 /// execution failures (bad input, a crashed process, an unreachable MCP
@@ -165,6 +181,19 @@ pub trait Tool: Send + Sync {
     /// Other tool sources leave it absent so offer construction can preserve
     /// them without downcasting trait objects.
     fn action_definition(&self) -> Option<&action_tool::AgentActionDef> {
+        None
+    }
+    /// The extension a tool comes from (spec 018, research R8); `None` for holzi's own tools.
+    fn origin(&self) -> Option<ToolOrigin> {
+        None
+    }
+    /// Every call needs the user's consent, in every mode, "Plan" included (spec 018: a tool the
+    /// user confirmed with "ask").
+    fn always_ask(&self) -> bool {
+        false
+    }
+    /// What the matched offer compares with a message (spec 018); only an extension's tool has it.
+    fn match_entry(&self) -> Option<extension_offer::MatchEntry> {
         None
     }
     /// `cancel` fires when `abort_current_generation` cancels the turn
@@ -223,6 +252,14 @@ impl ToolRegistry {
 
     pub fn iter(&self) -> impl Iterator<Item = &Arc<dyn Tool>> {
         self.tools.iter()
+    }
+
+    /// The texts of every extension tool for the matched offer (spec 018).
+    pub fn match_entries(&self) -> Vec<extension_offer::MatchEntry> {
+        self.tools
+            .iter()
+            .filter_map(|tool| tool.match_entry())
+            .collect()
     }
 
     pub fn action_defs(&self) -> Vec<action_tool::AgentActionDef> {
