@@ -1033,7 +1033,6 @@
         "noMatch": "No entry matches the search.",
         "required": "Please choose an entry from the password manager."
       },
-      "credentialsKept": "The credentials are in the password manager as “{label}: {name}”.",
       "credentialsLinked": "Linked password-manager entry",
       "openCredentialsEntry": "Open entry",
       "testBucketHint": "holzi checks the connection with this bucket before saving it.",
@@ -1054,11 +1053,6 @@
         "confirm": "Remove for good"
       },
       "protocols": {
-        "s3": "S3",
-        "webdav": "WebDAV",
-        "sftp": "SFTP"
-      },
-      "entryLabels": {
         "s3": "S3",
         "webdav": "WebDAV",
         "sftp": "SFTP"

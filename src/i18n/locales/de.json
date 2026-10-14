@@ -1033,7 +1033,6 @@
         "noMatch": "Kein Eintrag passt zur Suche.",
         "required": "Bitte einen Eintrag aus dem Passwortmanager wählen."
       },
-      "credentialsKept": "Die Zugangsdaten liegen im Passwortmanager als „{label}: {name}“.",
       "credentialsLinked": "Verknüpfter Passwortmanager-Eintrag",
       "openCredentialsEntry": "Eintrag öffnen",
       "testBucketHint": "Mit diesem Bucket prüft holzi die Verbindung, bevor sie gespeichert wird.",
@@ -1054,11 +1053,6 @@
         "confirm": "Endgültig entfernen"
       },
       "protocols": {
-        "s3": "S3",
-        "webdav": "WebDAV",
-        "sftp": "SFTP"
-      },
-      "entryLabels": {
         "s3": "S3",
         "webdav": "WebDAV",
         "sftp": "SFTP"
