@@ -1102,7 +1102,34 @@
     },
     "contacts": {
       "open": "Kontakte öffnen",
-      "count": "Noch keine Kontakte | Ein Kontakt | {count} Kontakte"
+      "count": "Noch keine Kontakte | Ein Kontakt | {count} Kontakte",
+      "phone": {
+        "title": "Mit Telefon-Adressbuch abgleichen",
+        "description": "Kontakte des Telefons kommen ins Adressbuch, Änderungen gehen in beide Richtungen.",
+        "target": "Zielkonto",
+        "targetHint": "Hierhin schreibt holzi Kontakte, die neu aufs Telefon kommen. Schon geschriebene bleiben in ihrem Konto.",
+        "localAccount": "Telefon (ohne Konto)",
+        "stateTitle": "Stand",
+        "state": {
+          "review": "Die Übersicht vor dem ersten Abgleich wartet auf dich.",
+          "permission": "Angehalten: holzi darf nicht auf die Kontakte des Telefons zugreifen.",
+          "massDelete": "Angehalten: Viele Kontakte würden gelöscht. Entscheide, was passieren soll.",
+          "never": "Noch nicht abgeglichen.",
+          "last": "Zuletzt {at}: {imported} übernommen, {written} ins Telefon geschrieben, {deleted} gelöscht."
+        },
+        "reviewOpen": "Übersicht anzeigen",
+        "decide": "Entscheiden",
+        "runNow": "Jetzt abgleichen",
+        "otherVault": "Auf diesem Telefon gleicht schon eine andere Vault ab. Kontakte wandern dadurch zwischen beiden Vaults.",
+        "issues": {
+          "title": "Nicht im Telefon angekommen",
+          "unknown": "Unbekannter Kontakt",
+          "read_only": "Das Telefonkonto dieses Kontakts ist nur lesbar.",
+          "account_removed": "Das Telefonkonto gibt es auf dem Telefon nicht mehr.",
+          "permission": "holzi darf nicht auf die Kontakte des Telefons zugreifen.",
+          "failed": "Das Telefon hat die Änderung abgelehnt. holzi versucht es beim nächsten Abgleich wieder."
+        }
+      }
     }
   },
   "models": {
@@ -2585,6 +2612,38 @@
       "city": "Ort",
       "region": "Bundesland",
       "country": "Land"
+    },
+    "review": {
+      "title": "Erster Abgleich mit dem Telefon",
+      "description": "So gleicht holzi das Telefon-Adressbuch und das Adressbuch ab. Geschrieben wird erst, wenn du bestätigst.",
+      "loading": "Telefon-Adressbuch wird gelesen …",
+      "toAddressBook": "Kein Kontakt kommt neu ins Adressbuch | Ein Kontakt kommt neu ins Adressbuch | {count} Kontakte kommen neu ins Adressbuch",
+      "toPhone": "Kein Kontakt kommt neu ins Telefon | Ein Kontakt kommt neu ins Telefon | {count} Kontakte kommen neu ins Telefon",
+      "merged": "Kein Kontakt wird zusammengeführt | Ein Kontakt wird zusammengeführt | {count} Kontakte werden zusammengeführt",
+      "uncertain": "Vielleicht dieselbe Person",
+      "onPhone": "Im Telefon:",
+      "inHolzi": "Im Adressbuch:",
+      "apart": "Getrennt lassen",
+      "merge": "Zusammenführen",
+      "later": "Später",
+      "confirm": "Abgleichen",
+      "done": "Abgeglichen: {imported} übernommen, {merged} zusammengeführt, {written} ins Telefon geschrieben."
+    },
+    "massDelete": {
+      "title": "Viele Kontakte löschen?",
+      "description": "Der Abgleich würde viele Kontakte auf einmal löschen und ist deshalb angehalten.",
+      "fromPhone": "Kein Kontakt | Ein Kontakt wurde im Telefon gelöscht und ginge aus dem Adressbuch | {count} Kontakte wurden im Telefon gelöscht und gingen aus dem Adressbuch",
+      "fromHolzi": "Kein Kontakt | Ein Kontakt wurde in holzi gelöscht und ginge aus dem Telefon | {count} Kontakte wurden in holzi gelöscht und gingen aus dem Telefon",
+      "later": "Später",
+      "keep": "Behalten",
+      "delete": "Löschen",
+      "done": {
+        "delete": "Die Kontakte sind gelöscht.",
+        "keep": "Die Kontakte bleiben erhalten."
+      }
+    },
+    "error": {
+      "contactsDenied": "holzi darf nicht auf die Kontakte des Telefons zugreifen. Du kannst es in den Android-Einstellungen unter Apps › holzi › Berechtigungen › Kontakte erlauben."
     }
   }
 }

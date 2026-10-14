@@ -245,6 +245,20 @@ Visitenkarte.
 _Avoid_: "Kontaktbuch" (the operator says Adressbuch); "Kontakte" for the
 sharing identities of haex-vault, which holzi does not have.
 
+**Abgleich / Telefon-Adressbuch / Roh-Kontakt / Zuordnung** (spec 051 US2):
+The **Abgleich** keeps the Adressbuch and the **Telefon-Adressbuch** (Android's
+Contacts Provider) in step on a phone where the person switched it on, in both
+directions; it runs after opening the vault and on coming back to the
+foreground, never in the background. Android keeps a person as one
+aggregated contact made of **Roh-Kontakte**, one per phone account; holzi
+makes one Kontakt of them. A **Zuordnung** (`haex_contacts_phone_links`) ties
+a Roh-Kontakt of one phone to a Kontakt and keeps the state both sides agreed
+on, so a run compares three ways and the later change wins. Before the first
+run an **Übersicht** shows what will be taken over and merged; a run that
+would delete many contacts stops and asks.
+_Avoid_: "Synchronisation" for the Abgleich (that is the vault's own sync between
+devices, spec 024).
+
 **Verweis (Platzhalter) / Passkey-Verbindung** (spec 036):
 A **Verweis** is a placeholder in a value — `{$<id>:username}`,
 `{$<id>:password}` or `{$<id>:extra:<key>}` — that stands for that value of

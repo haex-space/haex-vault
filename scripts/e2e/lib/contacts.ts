@@ -1,8 +1,9 @@
 // Helpers for the address book scenarios (spec 051): opening the window and reading what the
 // backend holds through its commands, so a scenario checks data, not pixels. Contacts are made
 // through `contacts_create` where the editor is not what is being tested.
+import assert from 'node:assert/strict'
 import { unwrap } from './flows.ts'
-import { resizeAppWindow } from './settings.ts'
+import { resizeAppWindow, runAction, waitForLocation } from './settings.ts'
 import type { FlowInstance } from './flows.ts'
 import type { WaitContext } from './sync-flows.ts'
 
@@ -64,4 +65,36 @@ export async function expectContacts(
     },
     { timeoutMs: 40_000, fixed: true },
   )
+}
+
+/** Opens Einstellungen › Kontakte. */
+export async function openContactsSettings(
+  instance: FlowInstance,
+): Promise<void> {
+  const opened = await runAction(instance, 'wm.app.open', {
+    appId: 'system.settings',
+    at: '/contacts',
+  })
+  assert.ok(opened.ok, JSON.stringify(opened))
+  await waitForLocation(instance, 'contacts')
+}
+
+/** Calls a command of the sync with the phone and answers its result. */
+export async function phoneCommand<T>(
+  instance: Pick<FlowInstance, 'invoke'>,
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  return unwrap<T>(
+    command,
+    await instance.invoke(command, args ? { args } : undefined),
+  )
+}
+
+/** Switches the sync on through its commands and confirms the overview without merging. */
+export async function startPhoneSync(
+  instance: Pick<FlowInstance, 'invoke'>,
+): Promise<void> {
+  await phoneCommand(instance, 'contacts_phone_enable')
+  await phoneCommand(instance, 'contacts_phone_confirm', { decisions: [] })
 }

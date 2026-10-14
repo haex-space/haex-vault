@@ -25,6 +25,7 @@ import app.tauri.plugin.Channel
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import java.util.concurrent.Executors
 
 @InvokeArg
 class UriArgs {
@@ -48,8 +49,8 @@ class NetworkArgs {
 
 /**
  * holzi's Android platform code (spec 043, ADR-0010); the core calls it directly. The core asks for
- * the microphone (FR-029) and, before API 30, the storage (spec 044 FR-039) through the plugin's
- * own `checkPermissions`/`requestPermissions`.
+ * the microphone (FR-029), before API 30 the storage (spec 044 FR-039) and the address book (spec
+ * 051 FR-017) through the plugin's own `checkPermissions`/`requestPermissions`.
  */
 @TauriPlugin(
     permissions = [
@@ -61,11 +62,19 @@ class NetworkArgs {
             ],
             alias = "storage",
         ),
+        Permission(
+            strings = [Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS],
+            alias = "contacts",
+        ),
     ]
 )
 class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     @Volatile private var insetsChannel: Channel? = null
     @Volatile private var lastInsets: JSObject? = null
+    private val contacts by lazy { ContactsProvider(activity) }
+
+    /** The address book's queries leave the calling thread (spec 051, contracts/android-plugin.md). */
+    private val contactsThread = Executors.newSingleThreadExecutor()
 
     /**
      * The window is drawn edge to edge, so the page must keep its controls clear of the system bars,
@@ -223,5 +232,60 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
             result.put("opened", true)
             invoke.resolve(result)
         }
+    }
+
+    /**
+     * Runs a query of the address book on its own thread and answers with what it returns; an
+     * error answers with the kind of failure only, never with a contact's data.
+     */
+    private fun contactsCall(invoke: Invoke, work: () -> JSObject) {
+        contactsThread.execute {
+            try {
+                invoke.resolve(work())
+            } catch (e: Exception) {
+                invoke.reject(e.javaClass.simpleName)
+            }
+        }
+    }
+
+    private fun rows(rows: Any): JSObject {
+        val result = JSObject()
+        result.put("rows", rows)
+        return result
+    }
+
+    /** The accounts of the phone's address book (spec 051). */
+    @Command
+    fun contactsAccounts(invoke: Invoke) = contactsCall(invoke) { rows(contacts.accounts()) }
+
+    /** The next page of raw contacts, by id. */
+    @Command
+    fun contactsIndex(invoke: Invoke) = contactsCall(invoke) {
+        val args = invoke.getArgs()
+        rows(contacts.index(args.getLong("afterId"), args.getInt("limit").coerceIn(1, 1000)))
+    }
+
+    /** The data rows of at most 200 raw contacts. */
+    @Command
+    fun contactsRead(invoke: Invoke) = contactsCall(invoke) {
+        val ids = invoke.getArgs().getJSONArray("ids")
+        require(ids.length() <= 200) { "too many ids" }
+        rows(contacts.read((0 until ids.length()).map { ids.getLong(it) }))
+    }
+
+    /** Applies at most 400 ops as one batch. */
+    @Command
+    fun contactsApply(invoke: Invoke) = contactsCall(invoke) {
+        val ops = invoke.getArgs().getJSONArray("ops")
+        require(ops.length() <= 400) { "too many ops" }
+        JSObject.fromJSONObject(contacts.apply(ops))
+    }
+
+    /** The photo of a raw contact. */
+    @Command
+    fun contactsPhotoRead(invoke: Invoke) = contactsCall(invoke) {
+        val result = JSObject()
+        contacts.photo(invoke.getArgs().getLong("id"))?.let { result.put("jpegBase64", it) }
+        result
     }
 }

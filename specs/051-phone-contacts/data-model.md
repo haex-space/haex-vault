@@ -134,6 +134,21 @@ Zuordnung je Telefon (FR-024, ADR 0001: synchronisierte Tabelle mit `vault_devic
 | `base`              | TEXT      | JSON: abgebildete Angaben dieses Roh-Kontakts nach dem letzten Lauf (R6) |
 | `photo_base`        | TEXT NULL | Hash des holzi-Fotos beim letzten Lauf                                   |
 
+## haex_contacts_phone_known_no_sync
+
+Welche Roh-Kontakte dieses Telefon schon einmal zugeordnet hat (Migration `0034`). Gerätelokal (kein
+CRDT): Löscht holzi einen Kontakt, gehen seine Zuordnungen mit (`ON DELETE CASCADE`); diese Liste
+sagt dem Telefon dann noch, welchen Roh-Kontakt es löschen muss, statt ihn als neu zu übernehmen.
+
+| Spalte           | Typ        | Regeln                               |
+| ---------------- | ---------- | ------------------------------------ |
+| `raw_contact_id` | INTEGER PK | `RawContacts._ID`                    |
+| `contact_id`     | TEXT       | Kontakt, zu dem er gehörte (ohne FK) |
+
+Ein Roh-Kontakt ohne Zuordnung, aber in dieser Liste: Ist sein Kontakt gelöscht, löscht der Abgleich
+ihn im Telefon (mit der Massenlösch-Sperre); sonst bleibt er unberührt. „Behalten“ bei einer
+Massenlöschung und ein entferntes Konto nehmen ihn aus der Liste.
+
 ## haex_contacts_phone_issues
 
 Nicht angekommene Änderungen (FR-025).

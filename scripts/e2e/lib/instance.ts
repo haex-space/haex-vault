@@ -25,6 +25,7 @@ import {
   stopGroup,
 } from './processes.ts'
 import type { Tools } from './preflight.ts'
+import type { ContactControls } from './platform/android-contacts.ts'
 import { SessionGoneError, WebDriverClient } from './webdriver.ts'
 import { createPage } from './page.ts'
 import type { Page, StepRecorder } from './page.ts'
@@ -199,7 +200,7 @@ export interface StartInstanceOptions {
  * What only a phone has (spec 043, the Android scenarios): its system gestures, its screen and the
  * system's hand on the app's process. The platform layer provides it; a desktop instance has none.
  */
-export interface PhoneControls {
+export interface PhoneControls extends ContactControls {
   /** The system's back gesture. */
   back(): void
   /** Sends the app to the background and lets the system end its process, as under memory pressure. */

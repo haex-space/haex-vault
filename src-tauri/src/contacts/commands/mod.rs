@@ -3,6 +3,7 @@
 //! are `Caller::User`. No command takes a caller as an argument.
 
 pub mod contacts;
+pub mod phone;
 
 use tauri::State;
 

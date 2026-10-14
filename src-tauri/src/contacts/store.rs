@@ -346,12 +346,24 @@ pub fn insert_value(
     position: i64,
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
+    insert_value_as(tx, &id, contact_id, (kind, label, value), position)?;
+    Ok(id)
+}
+
+/// Inserts a value under an id the caller chose (the sync with a phone maps rows to it first).
+pub fn insert_value_as(
+    tx: &mut CrdtTransaction<'_>,
+    id: &str,
+    contact_id: &str,
+    (kind, label, value): (&str, &str, &str),
+    position: i64,
+) -> Result<()> {
     tx.execute(
         "INSERT INTO haex_contacts_values (id, contact_id, kind, label, value, position) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![id, contact_id, kind, label, value, position],
     )?;
-    Ok(id)
+    Ok(())
 }
 
 /// The contact and kind of a stored value; `None` when it does not exist.

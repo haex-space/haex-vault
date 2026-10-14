@@ -37,7 +37,7 @@ use std::sync::Arc;
 use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
-use super::migrations_contacts::CONTACTS_0033;
+use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
@@ -643,6 +643,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0033_contacts"),
         CONTACTS_0033.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0034_contacts_phone_known"),
+        CONTACTS_PHONE_KNOWN_0034.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))
