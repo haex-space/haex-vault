@@ -90,8 +90,9 @@ Die Seite benutzt `var(--holzi-inset-*, 0px)`; am Desktop fehlen die Variablen.
 - `AndroidManifest.xml`: `<uses-permission android:name="android.permission.RECORD_AUDIO"/>`,
   `ACCESS_NETWORK_STATE`.
 - `@TauriPlugin(permissions = [Permission(strings = [RECORD_AUDIO], alias = "microphone")])`.
-- `build.gradle.kts`: Maven-Repo von rustls-platform-verifier, Abhängigkeit
-  `org.rustls:rustls-platform-verifier:<Version aus Cargo.lock>`, `androidx.core`.
+- `build.gradle.kts`: lokales Maven-Repo unter `android/maven/` mit dem versionierten AAR/POM
+  von rustls-platform-verifier (die Upstream-Quelle ist in research R2 dokumentiert),
+  Abhängigkeit `org.rustls:rustls-platform-verifier:<Version aus Cargo.lock>`, `androidx.core`.
 - `proguard-rules.pro` (als `consumerProguardFiles`):
   `-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }`.
 

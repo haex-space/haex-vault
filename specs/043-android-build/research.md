@@ -57,6 +57,10 @@ Netzwechsel melden (R10).
    `https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/`)
    und die Keep-Regel `-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }`
    stehen in der Gradle-Datei der Plugin-Crate (R1).
+   Nachtrag 2026-10-14: Das Maven-Repo auf GitHub antwortete in CI mit HTTP 500 und ließ den
+   Android-Build scheitern. `.aar` und `.pom` aus diesem Repo liegen seitdem unter
+   `src-tauri/plugins/holzi-android/android/maven/`, und Gradle lädt sie von dort (ab 0.2.0
+   enthält das Crate `rustls-platform-verifier-android` den Maven-Ordner nicht mehr).
 2. `lettre` bekommt einen Patch nach dem Muster von reqwest: Ohne zusätzliche Wurzeln (und auf
    Android immer) `Verifier::new(provider)` statt `new_with_extra_roots`
    (`lettre-0.11.23/src/transport/smtp/client/tls.rs:540-551`; reqwest macht es in
