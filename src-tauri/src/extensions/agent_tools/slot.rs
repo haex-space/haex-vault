@@ -3,7 +3,7 @@
 //! counts the tool calls in flight, so a host prompt the extension raises meanwhile can name the
 //! agent as its cause.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use futures::channel::mpsc::{unbounded, UnboundedSender};
@@ -52,6 +52,10 @@ pub struct McpSlot {
     current: Mutex<Option<Arc<McpLink>>>,
     /// Only one caller opens a connection; the others wait for it and reuse it.
     opening: tokio::sync::Mutex<()>,
+    /// Serializes the commit of a newly opened connection with reset/close. Without this,
+    /// a reload racing an in-progress handshake could put the old page's link back into `current`.
+    state: Mutex<()>,
+    generation: AtomicU64,
     closed: AtomicBool,
     in_flight: AtomicUsize,
 }
@@ -78,16 +82,20 @@ impl McpSlot {
         F: Fn(Value) + Send + 'static,
     {
         let _opening = self.opening.lock().await;
-        if self.closed.load(Ordering::SeqCst) {
-            return Err(LinkError::Closed);
-        }
-        if let Some(link) = lock(&self.current).clone() {
-            if !link.link.is_closed() {
-                return Ok(link);
-            }
-        }
         let (inbound, receive) = unbounded();
-        *lock(&self.inbound) = Some(inbound);
+        let generation = {
+            let _state = lock(&self.state);
+            if self.closed.load(Ordering::SeqCst) {
+                return Err(LinkError::Closed);
+            }
+            if let Some(link) = lock(&self.current).clone() {
+                if !link.link.is_closed() {
+                    return Ok(link);
+                }
+            }
+            *lock(&self.inbound) = Some(inbound);
+            self.generation.load(Ordering::SeqCst)
+        };
         let opened = async {
             let link = connect(send, receive)
                 .await
@@ -110,7 +118,10 @@ impl McpSlot {
                 return Err(error);
             }
         };
-        if self.closed.load(Ordering::SeqCst) {
+        let _state = lock(&self.state);
+        if self.closed.load(Ordering::SeqCst)
+            || self.generation.load(Ordering::SeqCst) != generation
+        {
             link.cancel();
             return Err(LinkError::Closed);
         }
@@ -121,6 +132,8 @@ impl McpSlot {
     /// Ends the connection; calls waiting for the extension fail. The next call opens a new one,
     /// as after the frame loaded a new page.
     pub fn reset(&self) {
+        let _state = lock(&self.state);
+        self.generation.fetch_add(1, Ordering::SeqCst);
         lock(&self.inbound).take();
         if let Some(link) = lock(&self.current).take() {
             link.cancel();

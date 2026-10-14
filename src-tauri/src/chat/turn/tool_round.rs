@@ -196,6 +196,11 @@ impl TurnRunner<'_> {
             // approval first would ask twice (spec 046 FR-015).
             let decision = if call.name == ASK_USER_TOOL_NAME {
                 permission::Decision::Allow
+            } else if tool.always_ask() {
+                // An extension permission with status `ask` is stronger than the global
+                // autonomy mode: the user confirmed that this tool may be used only after a
+                // fresh approval, including in Auto and Plan mode.
+                permission::Decision::Ask
             } else {
                 permission::decide(mode, tool.risk_class())
             };
