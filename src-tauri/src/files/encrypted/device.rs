@@ -81,20 +81,20 @@ impl DeviceRoot {
         }
     }
 
-    /// Whether a window path of the storage view is the device path itself (Unix, macOS,
-    /// Android); on Windows the drive is cut off.
-    pub fn same_paths(&self) -> bool {
-        self.dir == Path::new("/")
-    }
-
-    /// The window path of the storage view for the device path `path` (`/a/b`).
+    /// The window path of the storage view for the device path `path` (`/a/b`): the part below the
+    /// root. `.` and `..` stay, so the storage refuses them as it refuses them in any path.
     pub fn view_of(&self, path: &Path) -> String {
+        let below = path.strip_prefix(&self.dir).unwrap_or(path);
         let mut view = String::new();
-        for component in path.components() {
-            if let Component::Normal(name) = component {
-                view.push('/');
-                view.push_str(&name.to_string_lossy());
-            }
+        for component in below.components() {
+            let part = match component {
+                Component::Normal(name) => name.to_string_lossy(),
+                Component::CurDir => ".".into(),
+                Component::ParentDir => "..".into(),
+                Component::Prefix(_) | Component::RootDir => continue,
+            };
+            view.push('/');
+            view.push_str(&part);
         }
         if view.is_empty() {
             view.push('/');

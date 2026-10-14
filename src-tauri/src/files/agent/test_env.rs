@@ -3,7 +3,7 @@
 //! answers the question for a storage as the test says.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -45,8 +45,8 @@ pub struct FakeEnv {
     pub scoped: Option<(String, Scope)>,
     /// The protocol of every storage (S3 unless a test says otherwise; spec 050).
     pub protocol: Protocol,
-    /// The scope of the device as a storage, for its encrypted folders (spec 048 US7).
-    pub device: Option<Scope>,
+    /// The device as a storage, its root and scope, for its encrypted folders (spec 048 US7).
+    pub device: Option<(DeviceRoot, Scope)>,
     pub prompt: PermissionPrompt,
     pub asked: Arc<Mutex<Vec<FilesAgentPermissionRequest>>>,
 }
@@ -123,8 +123,10 @@ impl AgentEnv for FakeEnv {
     }
 
     async fn open_storage(&self, storage_id: &str) -> Result<StorageFiles, FilesError> {
-        if let (Some(root), Some(scope)) = (DeviceRoot::from_id(storage_id), &self.device) {
-            return Ok(root.files(Arc::new(LocalStore::new()), scope.clone()));
+        if let Some((root, scope)) = &self.device {
+            if root.storage_id == storage_id {
+                return Ok(root.files(Arc::new(LocalStore::new()), scope.clone()));
+            }
         }
         let at = |bucket: &str| {
             let mut access = access(bucket);
@@ -137,6 +139,16 @@ impl AgentEnv for FakeEnv {
             }
             None => StorageFiles::new(self.store.clone(), at(storage_id)),
         })
+    }
+
+    fn device_root(&self, path: &Path) -> Option<DeviceRoot> {
+        let (root, _) = self.device.as_ref()?;
+        path.starts_with(&root.dir).then(|| root.clone())
+    }
+
+    fn device_root_of(&self, storage_id: &str) -> Option<DeviceRoot> {
+        let (root, _) = self.device.as_ref()?;
+        (root.storage_id == storage_id).then(|| root.clone())
     }
 
     fn prompt(&self) -> &PermissionPrompt {
@@ -231,7 +243,7 @@ impl Scene {
     }
 
     /// The agent over the device of `device` (its home folder is `root`), whose encrypted folders
-    /// it reaches as the storage `device:/`; questions for a folder get `answer`, `None` is a
+    /// it reaches as the device's storage; questions for a folder get `answer`, `None` is a
     /// missing window (spec 048 US7).
     pub fn over_device(
         device: &crate::files::encrypted::device_scene::DeviceScene,
@@ -250,7 +262,10 @@ impl Scene {
             store: Arc::new(FakeStore::new()),
             scoped: None,
             protocol: Protocol::S3,
-            device: device.files().scope().cloned(),
+            device: device
+                .files()
+                .scope()
+                .map(|scope| (device.root.clone(), scope.clone())),
             prompt,
             asked,
         };

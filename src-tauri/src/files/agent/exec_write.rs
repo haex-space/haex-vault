@@ -159,10 +159,11 @@ impl<E: AgentEnv> FilesAgent<E> {
                 let (files, paths) = self
                     .storage_at(&storage, Want::Write, &[input.path], cancel)
                     .await?;
-                files
+                let entry = files
                     .create_folder(&paths[0], &input.name)
                     .await
-                    .map_err(files_error)?
+                    .map_err(files_error)?;
+                return Ok(self.storage_entry_json(&storage, &entry));
             }
         };
         Ok(entry_json(&entry))
@@ -184,10 +185,11 @@ impl<E: AgentEnv> FilesAgent<E> {
                 let (files, paths) = self
                     .storage_at(&storage, Want::Write, &[input.path], cancel)
                     .await?;
-                files
+                let entry = files
                     .rename(&paths[0], &input.new_name)
                     .await
-                    .map_err(files_error)?
+                    .map_err(files_error)?;
+                return Ok(self.storage_entry_json(&storage, &entry));
             }
         };
         Ok(entry_json(&entry))
