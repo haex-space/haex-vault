@@ -26,8 +26,8 @@ description: 'Task list for spec 053-file-icon-sets'
 ## Phase 1: Setup (PR A, docs)
 
 - [x] T001 Spec, plan, research, data model, contract, quickstart in `specs/053-file-icon-sets/` (PR #443)
-- [ ] T002 [P] Add a row for 053 to `plans/README.md` after the 052 row: "053: Austauschbare Icon-Sets für den Dateibrowser (`specs/053-file-icon-sets/`)", priority P2, effort L, status "Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-14; Lieferungen PR A–D", gate "044, 023 und 024 im Einsatz"
-- [ ] T003 Run `nix develop --command pnpm exec prettier --write specs/053-file-icon-sets plans/README.md`, commit `tasks.md` and the README row, push to PR #443
+- [x] T002 [P] Add a row for 053 to `plans/README.md` after the 052 row: "053: Austauschbare Icon-Sets für den Dateibrowser (`specs/053-file-icon-sets/`)", priority P2, effort L, status "Spezifiziert, geplant und in Aufgaben zerlegt 2026-10-14; Lieferungen PR A–D", gate "044, 023 und 024 im Einsatz"
+- [x] T003 Run `nix develop --command pnpm exec prettier --write specs/053-file-icon-sets plans/README.md`, commit `tasks.md` and the README row, push to PR #443
 
 ---
 
