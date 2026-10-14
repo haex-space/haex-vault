@@ -5,6 +5,8 @@ use std::marker::PhantomData;
 use tauri::plugin::PluginApi;
 use tauri::{AppHandle, Runtime};
 
+use crate::contacts::{ApplyResult, Op, PhoneAccount, RawData, RawIndex, UNAVAILABLE};
+
 pub fn init<R: Runtime>(_app: &AppHandle<R>, _api: PluginApi<R, ()>) -> HolziAndroid<R> {
     HolziAndroid(PhantomData)
 }
@@ -63,6 +65,31 @@ impl<R: Runtime> HolziAndroid<R> {
     /// As [`HolziAndroid::all_files_access`]: nothing to ask here.
     pub fn request_all_files_access(&self) -> Result<(), String> {
         Ok(())
+    }
+
+    /// The phone's address book exists only on Android (spec 051).
+    pub fn contacts_accounts(&self) -> Result<Vec<PhoneAccount>, String> {
+        Err(UNAVAILABLE.to_owned())
+    }
+
+    /// As [`HolziAndroid::contacts_accounts`].
+    pub fn contacts_index(&self, _after_id: i64, _limit: u32) -> Result<Vec<RawIndex>, String> {
+        Err(UNAVAILABLE.to_owned())
+    }
+
+    /// As [`HolziAndroid::contacts_accounts`].
+    pub fn contacts_read(&self, _ids: &[i64]) -> Result<Vec<RawData>, String> {
+        Err(UNAVAILABLE.to_owned())
+    }
+
+    /// As [`HolziAndroid::contacts_accounts`].
+    pub fn contacts_apply(&self, _ops: &[Op]) -> Result<ApplyResult, String> {
+        Err(UNAVAILABLE.to_owned())
+    }
+
+    /// As [`HolziAndroid::contacts_accounts`].
+    pub fn contacts_photo_read(&self, _id: i64) -> Result<Option<String>, String> {
+        Err(UNAVAILABLE.to_owned())
     }
 
     /// Screen capture protection exists only on Android.
