@@ -6,19 +6,19 @@
 
 ## Summary
 
-Das Bild eines Eintrags im Dateibrowser kommt heute aus einer festen Zuordnung in `EntryIcon.vue` und `encrypted.ts` (Lucide über Iconify). Neu wählt der Nutzer ein Icon-Set; zwei Sets sind mitgeliefert (Lucide und Phosphor), eigene lassen sich importieren und gelten auf allen Geräten der Vault.
+Das Bild eines Eintrags im Dateibrowser kommt heute aus einer festen Zuordnung in `EntryIcon.vue` und `encrypted.ts` (Lucide über Iconify). Neu wählt der Nutzer ein Icon-Set; drei Sets sind mitgeliefert (Lucide, Phosphor und ein Material-Auszug), eigene lassen sich importieren und gelten auf allen Geräten der Vault.
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
-- **Regel für Mitgeliefertes** (R1, FR-017): nur permissive Lizenz, von den Autoren selbst gezeichnet, keine Logos, kein Copyleft. Danach bleiben **Lucide** (Standard und Rückfall, kein Paket: die Iconify-Symbole der App) und **Phosphor** (MIT, kuratiertes Paket mit rund 35 Dateitypen, beim Bauen für hell und dunkel gefärbt). Material Icon Theme und Adwaita sind vom Nutzer importierbar, aber nicht mitgeliefert.
-- **Ein Format für alles** (R6, R7): ein Paket ist ein ZIP mit dem Manifest im Format der Icon-Themes von VS Code, den Bildern und einer `LICENSE`, ergänzt um den Block `x-holzi` (Rollen, Herkunft). Das mitgelieferte Paket liegt in `src-tauri/icon-sets/` und ist mit `include_bytes!` eingebunden (kein Resource-Resolver, derselbe Weg auf Android, nichts im JS-Bundle).
+- **Regel für Mitgeliefertes** (R1, FR-017): nur permissive Lizenz, von den Autoren selbst gezeichnet, keine Logos, kein Copyleft. Danach bleiben **Lucide** (Standard und Rückfall, kein Paket: die Iconify-Symbole der App), **Phosphor** (MIT, kuratiertes Paket mit rund 35 Dateitypen, beim Bauen für hell und dunkel gefärbt) und ein **kuratierter Auszug des Material Icon Themes** (MIT und Apache-2.0: Ordner nach Namen und allgemeine Dateitypen, alle Logos draußen, Auswahlliste im Repository). Adwaita und das vollständige Material sind vom Nutzer importierbar, aber nicht mitgeliefert.
+- **Ein Format für alles** (R6, R7): ein Paket ist ein ZIP mit dem Manifest im Format der Icon-Themes von VS Code, den Bildern und einer `LICENSE`, ergänzt um den Block `x-holzi` (Rollen, Herkunft). Die mitgelieferten Pakete entstehen aus eingecheckten Quellverzeichnissen (Auswahl im Diff sichtbar), werden vom selben Rust-Code wie der Import gepackt, liegen in `src-tauri/icon-sets/` und sind mit `include_bytes!` eingebunden (kein Resource-Resolver, derselbe Weg auf Android, nichts im JS-Bundle).
 - **Auflösung nur in Rust** (R5, R7, R8): Befehl `files_icons_resolve` liefert je Eintrag ein fertiges Bild (`id`, `mime`) oder ein Rückfall-Symbol; `files_icon_image` liefert die Bytes. Rolle und Reihenfolge (Zustand, Name, Endung, Rolle, Vorgabe des Themes, Standard-Set) stehen in einem Modul. Das Frontend sammelt die Anfragen der sichtbaren Zeilen und hält Antworten und `blob:`-URLs in einem begrenzten Speicher.
 - **Eine Bereinigung** (R9, R10): `icons/svg.rs` auf `quick-xml` mit Erlaubnisliste; Pixelbilder über `image` mit Limits. Sie läuft beim Import und, idempotent, beim Ausliefern; ein per Sync angekommenes Paket wird beim ersten Öffnen auf Aufbau, Limits und SHA-256 geprüft und gilt sonst als beschädigt (Rückfall Lucide).
 - **Atomar und synchronisiert** (R3, R4): ein eigenes Set ist eine Zeile in `haex_file_icon_sets` mit dem Paket als BLOB (Migration `0035`); die Wahl ist die Vault-Preference `files.iconSet`.
 - **Import in zwei Schritten** (R11): Vorschau ohne Schreiben, dann Import, wie bei den Erweiterungen. Quellen: Ordner (nur Desktop), Archiv oder VSIX. Pfadregeln über `haex_bundle::format`.
 - **Oberfläche** (R12): Gruppe „Icon-Set für Dateien“ in der Gestaltung, speichert beim Anklicken; Unterseite „Lizenzen“ aus den Paketen.
 
-Aus Planung und Vorgabe des Betreibers sind in der Spec nachgetragen: Auf Android gibt es keinen Ordner-Import (FR-009, US3); mitgeliefert werden nur Lucide und Phosphor nach der Lizenzregel (FR-007, FR-017, SC-002).
+Aus Planung und Vorgabe des Betreibers sind in der Spec nachgetragen: Auf Android gibt es keinen Ordner-Import (FR-009, US3); mitgeliefert werden Lucide, Phosphor und ein Material-Auszug nach der Lizenzregel (FR-007, FR-017, SC-002).
 
 ## Technical Context
 
@@ -38,7 +38,7 @@ Aus Planung und Vorgabe des Betreibers sind in der Spec nachgetragen: Auf Androi
 
 **Constraints**: Kein Bild wird je inline im DOM eingebettet; SVG nur als `<img>`-Quelle (`blob:`, CSP erlaubt `blob:` und `data:`); keine neue Abhängigkeit; die neue Rust-Logik in einem Verzeichnis `files/icons/` mit Dateien unter 500 Zeilen (größte vorhandene Datei in `files/` hat 475); `migrations.rs` ist mit 649 Zeilen eine dokumentierte Ausnahme und bekommt nur die Eintragung der Migration
 
-**Scale/Scope**: zwei mitgelieferte und bis zu zehn eigene Sets; bis 2000 Bilder und 5 MiB je Set; Ordner mit einigen tausend Einträgen
+**Scale/Scope**: drei mitgelieferte und bis zu zehn eigene Sets; bis 2000 Bilder und 5 MiB je Set; Ordner mit einigen tausend Einträgen
 
 ## Constitution Check
 
@@ -96,9 +96,11 @@ specs/053-file-icon-sets/
 ```text
 src-tauri/
 ├── icon-sets/
-│   ├── phosphor.zip              # NEU: Paket (phosphor-icons/core 2.1.1, MIT, hell und dunkel gefärbt)
-│   ├── phosphor/                 # NEU: icons.txt (Auswahl), mapping.json (Endungen -> Bilder)
-│   └── SOURCES.md                # NEU: gepinnte Quelle (Adresse, Commit-SHA, Prüfsumme)
+│   ├── phosphor/, material/      # NEU: Quellverzeichnisse (Manifest, ausgewählte Bilder, Lizenztexte)
+│   ├── phosphor.icons.txt, phosphor.mapping.json   # NEU: Auswahl und Endungen für Phosphor
+│   ├── material.icons.txt        # NEU: Auswahl des Material-Auszugs (Bild + was es zeigt)
+│   ├── phosphor.zip, material.zip  # NEU: gepackte Pakete (reproduzierbar, mit include_bytes! eingebunden)
+│   └── SOURCES.md                # NEU: gepinnte Quellen (Adresse, Version, Commit-SHA oder Prüfsumme)
 ├── src/files/icons/
 │   ├── mod.rs                    # NEU: Typen (IconQuery, IconAnswer), Rückfall-Tabelle
 │   ├── role.rs                   # NEU: Eintrag -> Rolle (viewer_kind, no_access, EncryptedInfo)
@@ -121,7 +123,7 @@ src-tauri/
 ├── src/lib.rs                    # Befehle registriert
 └── tests/fixtures/icon_sets/     # NEU: Theme, bösartige SVG, Archive, Bilder
 scripts/
-├── icon-sets/build.sh            # NEU: Pakete aus gepinnter Quelle bauen
+├── icon-sets/prepare.ts          # NEU: gepinnte Quelle -> Quellverzeichnis (filtern, färben, Manifest)
 ├── check-file-icons.ts           # NEU: reine Helfer (Gruppierung, Speicher)
 └── e2e/scenarios/files-icon-sets.test.ts, files-icon-sets-two-devices.test.ts   # NEU
 src/
@@ -146,10 +148,11 @@ specs/…                                                   # diese Spec
 
 Die Spec nennt keine Reihenfolge; ein Vorschlag für `/speckit-tasks`, jeweils einzeln prüfbar:
 
-1. **A – Kern**: Migration `0035`, das Paket `phosphor.zip` (`SOURCES.md`, `build.sh`, `icons.txt`, `mapping.json`), `files/icons/` ohne Import, Befehle `files_icons_resolve`, `files_icon_image`, `file_icon_sets_list`, `file_icon_set_licenses`, Tests.
+1. **A – Kern**: Migration `0035`, das Paket `phosphor.zip` (`SOURCES.md`, `prepare.ts`, Auswahl und Zuordnung, Quellverzeichnis), `files/icons/` ohne Import (ohne den Packer für Ordner, der in C kommt; A packt mit einem Test-Helfer, der in C durch den Import-Code ersetzt wird), Befehle `files_icons_resolve`, `files_icon_image`, `file_icon_sets_list`, `file_icon_set_licenses`, Tests.
 2. **B – Anzeige und Auswahl**: `useFileIcons`, `EntryIcon.vue`, Gruppe in der Gestaltung, Wahl, Vorschau, Lizenzseite, E2E `files-icon-sets` (ohne Import).
-3. **C – Import**: `import.rs`, Befehle, Dialog, Fixtures, Android-Archiv, E2E-Erweiterung.
+3. **C – Import und Packer**: `import.rs`, Befehle, Dialog, Fixtures, Android-Archiv, E2E-Erweiterung.
 4. **D – Sync**: E2E `files-icon-sets-two-devices`, Zustände `syncing` und `damaged`, Handprüfung Android.
+5. **E – Material-Auszug** (nach C, unabhängig von D): `material.icons.txt` mit jeder Aufnahme und Begründung, `prepare.ts` für das Material-Manifest, Quellverzeichnis, Paket, Lizenztexte (MIT, Apache-2.0, Hinweis), Test auf Auswahlliste und Sperrliste, Durchsicht der Bilder im PR.
 
 ## Complexity Tracking
 
