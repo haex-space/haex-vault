@@ -16,12 +16,12 @@ use tokio_util::sync::CancellationToken;
 use super::env::AgentEnv;
 use super::exec::FilesAgent;
 use super::prompt::{FilesAgentChoice, FilesAgentFolderQuestion, FilesAgentWant};
-use super::reach::{entry_json, files_error};
+use super::reach::files_error;
 use crate::chat::tools::agent_task;
 use crate::chat::tools::native_action::NativeError;
 use crate::files::access::{check_folder, Locality, StorageGrant, Verdict, Want};
 use crate::files::browser_commands::StorageSource;
-use crate::files::encrypted::device::{name_encrypted, DeviceRoot};
+use crate::files::encrypted::device::name_encrypted;
 use crate::files::encrypted::format::encode_id;
 use crate::files::encrypted::route::{route, Route};
 use crate::files::encrypted::state_error;
@@ -309,7 +309,7 @@ impl<E: AgentEnv> FilesAgent<E> {
         let files = self.storage(storage, want, cancel).await?;
         let mut resolved = Vec::with_capacity(paths.len());
         for path in paths {
-            let (path, by_ref) = self.resolved(&storage.id, path);
+            let (path, by_ref) = self.resolved(&storage.id, &self.storage_path(storage, path));
             self.gate(storage, &files, &path, by_ref, want, cancel)
                 .await?;
             resolved.push(path);
@@ -346,13 +346,13 @@ impl<E: AgentEnv> FilesAgent<E> {
         let mut hidden = 0;
         for entry in entries {
             let Some(info) = entry.encrypted else {
-                shown.push(entry_json(entry));
+                shown.push(self.storage_entry_json(storage, entry));
                 continue;
             };
             let visible = info.role == EncryptedRole::Inside
                 || self.may_read(storage, files, &entry.path).await?;
             if visible {
-                let mut value = entry_json(entry);
+                let mut value = self.storage_entry_json(storage, entry);
                 value["encrypted"] = json!(true);
                 shown.push(value);
                 continue;
@@ -361,7 +361,7 @@ impl<E: AgentEnv> FilesAgent<E> {
             let name = self.opaque_name(&storage.id, &entry.path);
             shown.push(json!({
                 "name": format!("verschlüsselter Ordner {hidden}"),
-                "path": joined(parent_of(&entry.path), &name),
+                "path": self.named(storage, &joined(parent_of(&entry.path), &name)),
                 "kind": "dir",
                 "encrypted": true,
                 "ref": name,
@@ -382,7 +382,7 @@ impl<E: AgentEnv> FilesAgent<E> {
             entry.kind == crate::files::EntryKind::Dir
                 && crate::files::encrypted::format::is_folder_prefix(&entry.name)
         };
-        let Some(root) = DeviceRoot::of(folder).filter(DeviceRoot::same_paths) else {
+        let Some(root) = self.env.device_root(folder) else {
             return Ok(Vec::new());
         };
         if !listed.iter().any(raw) {
@@ -396,9 +396,14 @@ impl<E: AgentEnv> FilesAgent<E> {
         let named = name_encrypted(&files, &root, folder, listed)
             .await
             .map_err(files_error)?;
+        // By their storage paths, as the agent's memory and checks know them.
         let encrypted: Vec<Entry> = named
             .into_iter()
             .filter(|entry| entry.encrypted.is_some())
+            .map(|mut entry| {
+                entry.path = root.view_of(std::path::Path::new(&entry.path));
+                entry
+            })
             .collect();
         let storage = StorageSource {
             id: root.storage_id.clone(),

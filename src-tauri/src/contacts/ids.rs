@@ -36,6 +36,12 @@ pub fn issue_id(vault_device_uuid: &str, contact_id: &str) -> String {
     derive("issue", &[vault_device_uuid, contact_id])
 }
 
+/// An uncertain pair of the first run: a contact of the phone (its aggregated contact's lookup
+/// key) and a contact of the address book. Stable between the overview and the confirmation.
+pub fn pair_id(group_key: &str, contact_id: &str) -> String {
+    derive("pair", &[group_key, contact_id])
+}
+
 #[cfg(test)]
 #[path = "ids_tests.rs"]
 mod tests;

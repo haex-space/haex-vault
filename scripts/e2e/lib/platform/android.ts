@@ -1,7 +1,7 @@
 // The Android implementation of the driver layer (spec 043, contract e2e-android.md): the app on one
 // device (an emulator in CI), started and ended through adb, driven through chromedriver attached to
-// its web view. One device holds one app's data, so a scenario has at most one Android device; the
-// other devices of a group run on Linux (`group.ts`).
+// its web view. One device holds one app's data, so a scenario has one Android device at most; the
+// others of a group run on Linux (`group.ts`); the address book's controls: `android-contacts.ts`.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ColorScheme, Instance, PhoneControls } from '../instance.ts'
@@ -10,6 +10,7 @@ import { createPage } from '../page.ts'
 import type { StepRecorder } from '../page.ts'
 import { WebDriverClient } from '../webdriver.ts'
 import { withDevice } from './adb.ts'
+import { contactControls } from './android-contacts.ts'
 import type { Adb } from './adb.ts'
 import { androidCapabilities, startChromedriver } from './chromedriver.ts'
 import type { Chromedriver } from './chromedriver.ts'
@@ -77,6 +78,7 @@ export function prepareDevice(
 /** The phone's own controls for the Android scenarios (spec 043, contract e2e-android.md). */
 export function phoneControls(adb: Adb): PhoneControls {
   return {
+    ...contactControls(adb),
     back: () => void adb.shell('input', 'keyevent', 'KEYCODE_BACK'),
     // As the system does under memory pressure: no shutdown of the app's own. `am kill` does not
     // end a process that has only just gone to the background, so the app's own user ends it.
@@ -135,8 +137,7 @@ export function phoneControls(adb: Adb): PhoneControls {
 
 const NOTIFICATIONS = 'android.permission.POST_NOTIFICATIONS'
 const MICROPHONE = 'android.permission.RECORD_AUDIO'
-/** The app op behind "Zugriff auf alle Dateien" (API 30 on). */
-const ALL_FILES = 'MANAGE_EXTERNAL_STORAGE'
+const ALL_FILES = 'MANAGE_EXTERNAL_STORAGE' // the app op of "Zugriff auf alle Dateien" (API 30 on)
 
 /** The package of the resumed activity in the output of `dumpsys activity activities`. */
 export function frontPackage(dump: string): string | undefined {

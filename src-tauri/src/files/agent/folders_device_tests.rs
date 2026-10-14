@@ -7,6 +7,8 @@ use serde_json::{json, Value};
 
 use super::prompt::{FilesAgentAnswer, FilesAgentChoice};
 use super::test_env::{names, Scene};
+use crate::chat::tools::agent_task::{within, AgentTask};
+use crate::files::access::Locality;
 use crate::files::encrypted::device_scene::DeviceScene;
 
 const SECRETS: [&str; 4] = ["Unterlagen", "notiz", "Strom", ".hxef"];
@@ -21,13 +23,32 @@ fn at(scene: &Scene, rel: &str) -> String {
     scene.root.join(rel).to_string_lossy().into_owned()
 }
 
+fn task() -> AgentTask {
+    AgentTask {
+        id: "turn-1".to_owned(),
+        model: "qwen3-4b".to_owned(),
+        locality: Locality::Local,
+    }
+}
+
+/// The path of the one encrypted folder of a listing.
+fn opaque(listed: &Value) -> String {
+    listed["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["encrypted"] == json!(true))
+        .and_then(|entry| entry["path"].as_str())
+        .unwrap()
+        .to_owned()
+}
+
 fn on_device(path: &str) -> Value {
     json!({ "source": "device", "path": path })
 }
 
-/// The device with "Unterlagen" (holding `notiz.txt`) and an ordinary `offen.txt`.
-async fn device() -> (DeviceScene, String) {
-    let device = DeviceScene::new();
+/// `device` with "Unterlagen" (holding `notiz.txt`) and an ordinary `offen.txt`.
+async fn with_folder(device: DeviceScene) -> (DeviceScene, String) {
     let raw = device.with_folder().await;
     std::fs::write(device.home.path().join("offen.txt"), "offen").unwrap();
     (device, raw)
@@ -35,7 +56,18 @@ async fn device() -> (DeviceScene, String) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn on_the_device_an_agent_reaches_an_encrypted_folder_only_with_its_grant() {
-    let (device, raw) = device().await;
+    reaches_only_with_its_grant(DeviceScene::new()).await;
+}
+
+/// On Windows the device's storage is its drive, whose storage paths are not the device paths:
+/// the agent still names everything by its device path.
+#[tokio::test(flavor = "multi_thread")]
+async fn on_a_drive_an_agent_reaches_an_encrypted_folder_by_device_paths() {
+    reaches_only_with_its_grant(DeviceScene::on_drive()).await;
+}
+
+async fn reaches_only_with_its_grant(device: DeviceScene) {
+    let (device, raw) = with_folder(device).await;
     let read = FilesAgentAnswer {
         choice: FilesAgentChoice::Read,
         remember: false,
@@ -51,14 +83,7 @@ async fn on_the_device_an_agent_reaches_an_encrypted_folder_only_with_its_grant(
         ["offen.txt", "verschlüsselter Ordner 1"]
     );
     assert_secret_free("the list", &top.to_string());
-    let hidden = top["entries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|entry| entry["encrypted"] == json!(true))
-        .and_then(|entry| entry["path"].as_str())
-        .unwrap()
-        .to_owned();
+    let hidden = opaque(&top);
 
     // By its real name or its raw directory: refused, and nobody is asked.
     for (action, path) in [
@@ -76,6 +101,7 @@ async fn on_the_device_an_agent_reaches_an_encrypted_folder_only_with_its_grant(
     assert_eq!(scene.asked(), 0);
 
     // By its opaque name the agent asks; with "read" it lists and reads the folder.
+    assert!(hidden.starts_with(&home), "{hidden}");
     let inside = scene.run("files.list", on_device(&hidden)).await.unwrap();
     assert_eq!(names(&inside, "entries"), ["notiz.txt"]);
     assert_eq!(scene.asked(), 1);
@@ -106,4 +132,24 @@ async fn on_the_device_an_agent_reaches_an_encrypted_folder_only_with_its_grant(
         .expect_err("mixed");
     assert_eq!(error.code, "invalid_input");
     assert!(scene.root.join("offen.txt").exists());
+
+    // In a task the answer holds: the folder answers by device paths, which lead back to it.
+    within(task(), async {
+        let top = scene.run("files.list", on_device(&home)).await.unwrap();
+        let hidden = opaque(&top);
+        let inside = scene.run("files.list", on_device(&hidden)).await.unwrap();
+        let listed = inside["entries"][0]["path"].as_str().unwrap().to_owned();
+        assert_eq!(listed, at(&scene, "Unterlagen/notiz.txt"));
+        let stat = scene.run("files.stat", on_device(&listed)).await.unwrap();
+        assert_eq!(stat["path"], json!(listed));
+        let found = scene
+            .run(
+                "files.search",
+                json!({ "source": "device", "path": at(&scene, "Unterlagen"), "query": "notiz" }),
+            )
+            .await
+            .unwrap();
+        assert_eq!(found["hits"][0]["path"], json!(listed));
+    })
+    .await;
 }

@@ -15,7 +15,7 @@ use super::prompt::{FilesAgentChoice, FilesAgentWant};
 use crate::chat::tools::native_action::NativeError;
 use crate::files::access::{check, StorageGrant, Target, Verdict, Want};
 use crate::files::browser_commands::StorageSource;
-use crate::files::encrypted::device::{has_raw_part, DeviceRoot};
+use crate::files::encrypted::device::has_raw_part;
 use crate::files::encrypted::route::{route, Route};
 use crate::files::local::{ops, resolve, resolve_entry};
 use crate::files::permissions::AgentFileStatus;
@@ -176,11 +176,10 @@ impl<E: AgentEnv> FilesAgent<E> {
     }
 
     /// The device as a storage when the device path `path` leads into an encrypted folder there.
-    /// Only where its window paths are device paths (not yet on Windows).
     async fn encrypted_on_device(&self, path: &str) -> Option<StorageSource> {
         let device = Path::new(path);
-        let root = DeviceRoot::of(device).filter(DeviceRoot::same_paths)?;
-        let (resolved, by_ref) = self.resolved(&root.storage_id, path);
+        let root = self.env.device_root(device)?;
+        let (resolved, by_ref) = self.resolved(&root.storage_id, &root.view_of(device));
         if !by_ref && (has_raw_part(device) || device.symlink_metadata().is_ok()) {
             return None;
         }
@@ -192,6 +191,28 @@ impl<E: AgentEnv> FilesAgent<E> {
             }),
             _ => None,
         }
+    }
+
+    /// The path of `storage` as the agent names it: on the device its device path (`C:\…` on
+    /// Windows), else the storage path itself.
+    pub(super) fn named(&self, storage: &StorageSource, path: &str) -> String {
+        self.env
+            .device_root_of(&storage.id)
+            .map_or_else(|| path.to_owned(), |root| root.device_of(path))
+    }
+
+    /// The path of `storage` the agent named `path`, as the storage reads it.
+    pub(super) fn storage_path(&self, storage: &StorageSource, path: &str) -> String {
+        self.env
+            .device_root_of(&storage.id)
+            .map_or_else(|| path.to_owned(), |root| root.view_of(Path::new(path)))
+    }
+
+    /// [`entry_json`] of an entry of `storage`, with its path as the agent names it.
+    pub(super) fn storage_entry_json(&self, storage: &StorageSource, entry: &Entry) -> Value {
+        let mut value = entry_json(entry);
+        value["path"] = json!(self.named(storage, &entry.path));
+        value
     }
 
     /// The resolved device path the agent may `want`; `entry` keeps a link itself.

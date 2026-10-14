@@ -15,6 +15,7 @@ pub(crate) mod test_support;
 use crate::vault_gate::VaultDb;
 
 pub use super::access::{Caller, Grant};
+pub use contacts::MAX_NOTE_BYTES;
 
 /// The service over one open vault. Cheap to build per request.
 #[derive(Clone)]

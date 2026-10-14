@@ -67,6 +67,11 @@ use contacts::commands::contacts::{
     contacts_group_save, contacts_groups, contacts_list, contacts_photo, contacts_set_photo,
     contacts_update,
 };
+use contacts::commands::phone::{
+    contacts_phone_accounts, contacts_phone_confirm, contacts_phone_disable, contacts_phone_enable,
+    contacts_phone_mass_delete, contacts_phone_review, contacts_phone_run,
+    contacts_phone_set_target, contacts_phone_status,
+};
 use device::commands::{current_device_info, list_vault_devices, update_device_alias};
 use extensions::agent_tools::commands::{extension_agent_frame_ready, extension_mcp_send};
 use extensions::commands::dev::{
@@ -220,6 +225,10 @@ pub fn run() {
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
     let builder = builder.manage(voice::VoiceState::new());
+    // Spec 051: one run of the sync with the phone's address book at a time.
+    let builder = builder.manage(std::sync::Arc::new(
+        contacts::phone::trigger::PhoneRuns::default(),
+    ));
     // Spec 024: commands reach the sync service of the open vault through this registry, and the
     // start page's link join runs without a vault.
     let builder = builder.manage(std::sync::Arc::new(sync::registry::SyncRegistry::default()));
@@ -520,6 +529,15 @@ pub fn run() {
             contacts_group_save,
             contacts_group_delete,
             contacts_group_members,
+            contacts_phone_enable,
+            contacts_phone_disable,
+            contacts_phone_accounts,
+            contacts_phone_set_target,
+            contacts_phone_review,
+            contacts_phone_confirm,
+            contacts_phone_status,
+            contacts_phone_mass_delete,
+            contacts_phone_run,
             passwords_create_item,
             passwords_update_item,
             passwords_passkey_rename,
@@ -629,6 +647,8 @@ pub fn run() {
             #[cfg(target_os = "android")]
             tauri::RunEvent::Resumed => {
                 sync::resume::wake_app(app, sync::resume::Wake::Resumed);
+                // Spec 051 (FR-020): changes of the phone's address book from the time away.
+                contacts::phone::trigger::start(app);
             }
             // Spec 043 (research R4): Android keeps the process of a finished activity cached.
             // End it, so the next start is a new process at the vault picker (ADR-0003).

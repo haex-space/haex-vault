@@ -16,4 +16,11 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
+    <!-- The address book's sync with the phone's contacts (spec 051, FR-017); a runtime permission,
+         asked when the person switches the sync on. GET_ACCOUNTS only up to API 22. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <uses-permission
+        android:name="android.permission.GET_ACCOUNTS"
+        android:maxSdkVersion="22" />
 </manifest>

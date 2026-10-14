@@ -7,6 +7,7 @@ use tauri::{AppHandle, Runtime};
 
 use std::collections::HashMap;
 
+use crate::contacts::{ApplyResult, Op, PhoneAccount, RawData, RawIndex};
 use crate::{Insets, Permission, PermissionState};
 
 const PLUGIN_IDENTIFIER: &str = "space.haex.holzi.android";
@@ -60,6 +61,39 @@ struct AllFilesAccess {
 #[derive(Deserialize)]
 struct SettingsOpened {
     opened: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IndexArgs {
+    after_id: i64,
+    limit: u32,
+}
+
+#[derive(Serialize)]
+struct ReadArgs<'a> {
+    ids: &'a [i64],
+}
+
+#[derive(Serialize)]
+struct ApplyArgs<'a> {
+    ops: &'a [Op],
+}
+
+#[derive(Serialize)]
+struct PhotoArgs {
+    id: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Photo {
+    jpeg_base64: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Rows<T> {
+    rows: Vec<T>,
 }
 
 #[derive(Serialize)]
@@ -161,6 +195,45 @@ impl<R: Runtime> HolziAndroid<R> {
             self.request_permission(Permission::Storage)?;
         }
         Ok(())
+    }
+
+    /// The accounts of the phone's address book (spec 051, contracts/android-plugin.md).
+    pub fn contacts_accounts(&self) -> Result<Vec<PhoneAccount>, String> {
+        self.0
+            .run_mobile_plugin::<Rows<PhoneAccount>>("contactsAccounts", ())
+            .map(|rows| rows.rows)
+            .map_err(|error| error.to_string())
+    }
+
+    /// The next page of the raw contacts with an id above `after_id`, deleted ones included.
+    pub fn contacts_index(&self, after_id: i64, limit: u32) -> Result<Vec<RawIndex>, String> {
+        self.0
+            .run_mobile_plugin::<Rows<RawIndex>>("contactsIndex", IndexArgs { after_id, limit })
+            .map(|rows| rows.rows)
+            .map_err(|error| error.to_string())
+    }
+
+    /// The data rows of these raw contacts (at most 200).
+    pub fn contacts_read(&self, ids: &[i64]) -> Result<Vec<RawData>, String> {
+        self.0
+            .run_mobile_plugin::<Rows<RawData>>("contactsRead", ReadArgs { ids })
+            .map(|rows| rows.rows)
+            .map_err(|error| error.to_string())
+    }
+
+    /// Applies the ops as one batch (at most 400).
+    pub fn contacts_apply(&self, ops: &[Op]) -> Result<ApplyResult, String> {
+        self.0
+            .run_mobile_plugin::<ApplyResult>("contactsApply", ApplyArgs { ops })
+            .map_err(|error| error.to_string())
+    }
+
+    /// The large photo of a raw contact as base64 JPEG, else its thumbnail; `None` without one.
+    pub fn contacts_photo_read(&self, id: i64) -> Result<Option<String>, String> {
+        self.0
+            .run_mobile_plugin::<Photo>("contactsPhotoRead", PhotoArgs { id })
+            .map(|photo| photo.jpeg_base64)
+            .map_err(|error| error.to_string())
     }
 
     /// Hides the window from screenshots, screen recordings and the recent apps view (FR-011a).

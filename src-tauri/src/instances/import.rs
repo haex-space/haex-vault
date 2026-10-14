@@ -210,6 +210,8 @@ pub async fn import_instance(
     crate::passwords::maintenance::start_after_open(&state);
     // Spec 051: the address book tidies its photos once per open.
     crate::contacts::maintenance::start_after_open(&state);
+    // Spec 051 (FR-020): the sync with the phone's address book catches up.
+    crate::contacts::phone::trigger::start(&app);
     crate::extensions::registry::blobs::start_after_open(&state);
 
     chat.bump_vault_generation();
