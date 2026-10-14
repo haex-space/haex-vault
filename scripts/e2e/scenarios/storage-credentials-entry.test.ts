@@ -14,15 +14,21 @@ import { startWebdav } from '../lib/webdav.ts'
 const FOLDER = 'Ablage'
 
 type Overview = {
-  connections: Array<{ id: string; protocol: string; credentials: string }>
+  connections: Array<{
+    id: string
+    protocol: string
+    credentials: string
+    credentialsEntry?: { id: string; title: string | null; owned: boolean }
+  }>
   storages: Array<{ id: string; bucket: string }>
 }
 
 // Spec 052, US1 (quickstart §2 steps 1–2, SC-002): the login of a local WebDAV server is already an
 // entry of the password manager. In Einstellungen → Cloud-Speicher the user chooses it instead of
 // typing; only entries that fit the protocol are offered. holzi tests with its values, saves the
-// connection pointing at it, and the password manager holds no second entry. Needs Docker; skipped
-// without it.
+// connection pointing at it, and the password manager holds no second entry. US2 (quickstart §2
+// step 5): the chosen entry carries the tag of cloud storage credentials, and the form names it
+// and opens it in the password manager. Needs Docker; skipped without it.
 scenario(
   'storage-credentials-entry',
   { timeoutMs: 300_000, needs: { container: true } },
@@ -97,5 +103,28 @@ scenario(
       'SC-002: no second entry for the connection',
     )
     ctx.step('the connection points at the chosen entry, no copy')
+
+    const chosen = (await passwords(laptop)).headers.find((h) => h.id === login)
+    assert.ok(
+      chosen?.tags.some((tag) => tag.name === 'haex-cloud-storage'),
+      'FR-006: the chosen entry carries the tag',
+    )
+    assert.deepEqual(saved.connections[0]!.credentialsEntry, {
+      id: login,
+      title: 'Mein WebDAV',
+      owned: false,
+    })
+    await laptop.click('storage-connection-row')
+    await waitForLocation(laptop, 'storage.connection')
+    await laptop.click('storage-open-credentials-entry')
+    await laptop.waitForDisplayed('passwords-edit', 20_000)
+    await ctx.waitFor(
+      'the password manager to show the chosen entry',
+      async () =>
+        (await textOf(laptop, 'passwords-entry-title').catch(() => '')) ===
+        'Mein WebDAV',
+      { fixed: true, timeoutMs: 10_000 },
+    )
+    ctx.step('the form names the entry and opens it in the password manager')
   },
 )

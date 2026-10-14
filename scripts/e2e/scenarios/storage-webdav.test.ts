@@ -18,7 +18,12 @@ type Overview = {
   storages: Array<{ id: string; name: string; bucket: string }>
 }
 
-type Header = { id: string; title: string | null; owner?: string | null }
+type Header = {
+  id: string
+  title: string | null
+  owner?: string | null
+  tags: Array<{ name: string }>
+}
 
 // Spec 050, US1 (quickstart §5, SC-001, SC-007): in Einstellungen → Cloud-Speicher the user
 // connects a local WebDAV server. A wrong password is named and saves nothing; the folder of the
@@ -116,6 +121,11 @@ scenario(
     assert.equal(headers.length, 1)
     assert.match(headers[0]!.title ?? '', /^WebDAV: /)
     assert.equal(headers[0]!.owner, 'storage')
+    assert.deepEqual(
+      headers[0]!.tags.map((tag) => tag.name),
+      ['haex-cloud-storage'],
+      'spec 052 FR-005: findable by the tag',
+    )
     ctx.step('credentials in the password manager, nothing left on the server')
 
     const storageId = saved.storages[0]!.id

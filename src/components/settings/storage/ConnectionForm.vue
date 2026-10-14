@@ -347,12 +347,6 @@ async function confirmHostKeyAsync() {
           type="checkbox"
           :checked="replaceCredentials"
           :title="t('settings.storage.newCredentials')"
-          :description="
-            t('settings.storage.credentialsKept', {
-              label: t(`settings.storage.entryLabels.${draft.protocol}`),
-              name: existing?.providerName ?? draft.providerName,
-            })
-          "
           data-testid="storage-replace-credentials"
           @change="replaceCredentials = $event"
         />

@@ -16,8 +16,8 @@ use uuid::Uuid;
 
 use super::address::{self, AddressError, Resolver};
 use super::model::{
-    ConfirmedHostKey, ConnectionInput, ConnectionView, CredentialsInput, LastTest, RemovalPreview,
-    RemovalTarget, StorageInput, StorageOverview, StorageView, StorageWarning, TestResult,
+    ConnectionInput, ConnectionView, CredentialsInput, LastTest, RemovalPreview, RemovalTarget,
+    StorageInput, StorageOverview, StorageView, StorageWarning, TestResult,
 };
 use super::probe::probe;
 use super::sftp::keys;
@@ -45,33 +45,6 @@ pub struct StorageService {
 fn invalid(field: &str) -> HolziError {
     HolziError::StorageInvalid {
         field: field.to_owned(),
-    }
-}
-
-/// Builds the public connection view with credential availability and the HTTP warning flag.
-fn view(
-    row: &ConnectionRow,
-    credentials: super::CredentialsState,
-    credentials_entry: Option<super::model::CredentialsEntry>,
-) -> ConnectionView {
-    ConnectionView {
-        id: row.id.clone(),
-        protocol: row.protocol,
-        provider_name: row.provider_name.clone(),
-        provider_kind: row.provider_kind,
-        endpoint: row.endpoint.clone(),
-        region: row.region.clone(),
-        addressing: row.addressing,
-        insecure: Url::parse(&row.endpoint).is_ok_and(|url| address::is_insecure(&url)),
-        endpoint_scope: row.endpoint_scope,
-        credentials,
-        credentials_entry,
-        host_key: row.host_key.as_deref().and_then(|line| {
-            Some(ConfirmedHostKey {
-                fingerprint: keys::fingerprint(line)?,
-                confirmed_at: row.host_key_confirmed_at.clone().unwrap_or_default(),
-            })
-        }),
     }
 }
 
@@ -343,6 +316,9 @@ impl StorageService {
             }
             return Err(error);
         }
+        if let Some(resolved) = &new_credentials {
+            self.tag_chosen(resolved).await;
+        }
         if let (Some(_), Some(old)) = (&new_credentials, old_item) {
             if old != row.credentials_item_id {
                 self.delete_credentials_if_unused(&old).await;
@@ -352,15 +328,7 @@ impl StorageService {
         if let Some(key_id) = generated {
             keys::pending().take(&key_id);
         }
-        let state = credentials::state(&self.db, &row.credentials_item_id, row.protocol).await?;
-        let entry = self
-            .db
-            .read({
-                let item_id = row.credentials_item_id.clone();
-                move |q| credentials::entry(q, &item_id).map_err(Into::into)
-            })
-            .await?;
-        Ok(view(&row, state, entry))
+        self.view_of(&row).await
     }
 
     /// Remembers `outcome` for the storages of the connection on `bucket`.
@@ -636,3 +604,4 @@ use credentials_input::credentials_of;
 
 #[path = "service_link.rs"]
 mod link;
+use link::view;
