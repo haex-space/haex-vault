@@ -235,9 +235,9 @@ starts on top of `main`.
 
 **Precondition**: Spec 048 is built and in use (phase rule of the constitution).
 
-- [ ] T090 [US7] Run the acceptance tests of spec 048 (`src-tauri/src/files/encrypted/` tests and its E2E scenarios) against the in-process WebDAV and SFTP servers and SFTPGo; fix gaps in `src-tauri/src/remote_storage/` (etag stand-ins, modification time for 048 FR-016, range reads), never by protocol checks in `files/encrypted/` **Note**: the session working on spec 048 takes PR H after PR G
-- [ ] T091 [US7] Conflict test: two devices write the same encrypted folder on a WebDAV storage → conflict copy as on S3 (048 FR-021), in the 048 test module
-- [ ] T092 [US7] Commit, open PR H
+- [x] T090 [US7] Run the acceptance tests of spec 048 (`src-tauri/src/files/encrypted/` tests and its E2E scenarios) against the in-process WebDAV and SFTP servers and SFTPGo; fix gaps in `src-tauri/src/remote_storage/` (etag stand-ins, modification time for 048 FR-016, range reads), never by protocol checks in `files/encrypted/` **Note**: the session working on spec 048 takes PR H after PR G **Done 2026-10-14**: `files/encrypted/protocols_tests.rs` runs the same acceptance (create, fill, list and read from another device, a range across blocks, only `h`/`m/`/`c/` and nothing in the clear at the provider, provider times for every object (048 FR-016), rename with refresh, the conflict of T091, a damaged content object, delete without leftovers) against the S3 fake, the in-process WebDAV and SFTP servers and a device folder; E2E `files-encrypted-tree-storage` against rclone WebDAV and the SFTP container (SFTPGo was not needed: the rclone servers of 050 cover both protocols). No gap in `remote_storage/` showed.
+- [x] T091 [US7] Conflict test: two devices write the same encrypted folder on a WebDAV storage → conflict copy as on S3 (048 FR-021), in the 048 test module
+- [x] T092 [US7] Commit, open PR H
 
 ---
 

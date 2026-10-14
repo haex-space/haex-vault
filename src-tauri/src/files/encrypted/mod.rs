@@ -45,6 +45,9 @@ mod leak_tests;
 #[cfg(test)]
 #[path = "perf_tests.rs"]
 mod perf;
+#[cfg(test)]
+#[path = "protocols_tests.rs"]
+mod protocols;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
