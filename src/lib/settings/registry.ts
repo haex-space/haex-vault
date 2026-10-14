@@ -6,7 +6,13 @@ import { normalizePath, type TabHistory } from '../wm/navigation.ts'
 import { matchRoute } from '../wm/routeMatch.ts'
 
 export type SettingsCategoryId =
-  'general' | 'models' | 'agents' | 'storage' | 'extensions' | 'federation'
+  | 'general'
+  | 'models'
+  | 'agents'
+  | 'storage'
+  | 'contacts'
+  | 'extensions'
+  | 'federation'
 
 export type SettingsCategory = {
   id: SettingsCategoryId
@@ -57,6 +63,7 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   category('models', '/models', 'lucide:box'),
   category('agents', '/agents', 'lucide:bot'),
   category('storage', '/storage', 'lucide:cloud'),
+  category('contacts', '/contacts', 'lucide:contact'),
   category('extensions', '/extensions', 'lucide:puzzle'),
   category('federation', '/federation', 'lucide:share-2'),
 ]
@@ -207,6 +214,9 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     'storage',
   ),
   subView('storage.remove', 'storage/remove/:kind/:id', 'storage'),
+  // Spec 051 FR-015a: the address book; phone sync, business card and blocked vaults come with
+  // their stories.
+  categoryLocation('contacts'),
   // Spec 017: installed extensions, installing from a file.
   categoryLocation('extensions'),
   // Reached from an extension's row in the list, never searched for.

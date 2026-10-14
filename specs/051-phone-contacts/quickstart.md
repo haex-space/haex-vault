@@ -19,7 +19,7 @@ cargo test -j 4 --manifest-path src-tauri/Cargo.toml --lib platform::
 
 # Frontend
 corepack pnpm typecheck && corepack pnpm lint && corepack pnpm format:check
-corepack pnpm vitest run src/lib/contacts
+corepack pnpm check:contacts
 
 # E2E Desktop
 corepack pnpm test:e2e --grep contacts
@@ -27,6 +27,9 @@ corepack pnpm test:e2e --grep contacts
 # E2E Android
 ANDROID_SERIAL=emulator-5554 corepack pnpm test:e2e --platform android --grep contacts
 ```
+
+Unbekannte Arten (US1-6) prüfen der Rust-Test `values_of_unknown_kinds_survive_and_stay_read_only`
+und `scripts/check-contacts-draft.ts`, weil kein Command eine unbekannte Art schreibt.
 
 Erwartet: alles grün; `pnpm check:e2e-exclusions` ohne neue Ausnahme.
 
@@ -36,7 +39,6 @@ Erwartet: alles grün; `pnpm check:e2e-exclusions` ohne neue Ausnahme.
 | ------------------------------ | ------------------------------------------------------------- |
 | `contacts-basic`               | US1: anlegen, eigene Angabe, suchen, ändern, löschen          |
 | `contacts-two-devices`         | US1-4: Änderung und Löschung kommen auf dem zweiten Gerät an  |
-| `contacts-unknown-kind`        | US1-6: unbekannte Art übersteht eine Änderung                 |
 | `android-contacts-import`      | US2-1/2: Übersicht, 2 Konten, Anzahl und Inhalt               |
 | `android-contacts-denied`      | US2-6: Berechtigung verweigert, Erklärung                     |
 | `android-contacts-two-way`     | US2-3/4/5, US3-1/2/3: Änderungen in beide Richtungen, Ziele   |

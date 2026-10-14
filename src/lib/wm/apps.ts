@@ -65,6 +65,16 @@ export const WM_APPS: readonly AppDefinition[] = [
     multiInstance: true,
     tabTitle: 'app',
   },
+  // Spec 051: the address book; several windows may be open, the tab shows the app's name.
+  {
+    id: 'system.contacts',
+    titleKey: 'wm.apps.contacts',
+    icon: 'lucide:contact',
+    defaultSize: { width: 860, height: 640 },
+    minSize: { width: 360, height: 360 },
+    multiInstance: true,
+    tabTitle: 'app',
+  },
   // Spec 044: the file browser; each tab has its own folder.
   {
     id: 'system.files',

@@ -154,6 +154,8 @@ pub async fn open_instance(
     crate::sync::start_for_active_instance(&app, &state).await;
     // Spec 034: the password manager tidies its binary data once per open.
     crate::passwords::maintenance::start_after_open(&state);
+    // Spec 051: the address book tidies its photos once per open.
+    crate::contacts::maintenance::start_after_open(&state);
     // Spec 017: files of removed extensions are freed after their grace period.
     crate::extensions::registry::blobs::start_after_open(&state);
 

@@ -208,6 +208,8 @@ pub async fn import_instance(
     crate::extensions::sql::changes::start_for_active_instance(&app, &state);
     crate::sync::start_for_active_instance(&app, &state).await;
     crate::passwords::maintenance::start_after_open(&state);
+    // Spec 051: the address book tidies its photos once per open.
+    crate::contacts::maintenance::start_after_open(&state);
     crate::extensions::registry::blobs::start_after_open(&state);
 
     chat.bump_vault_generation();
