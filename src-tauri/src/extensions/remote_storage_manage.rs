@@ -29,7 +29,10 @@ use crate::storage::query::Query;
 pub const MODULE: &str = module_path!();
 
 /// Fields a call may never carry in `request` or `config` (FR-013a, spec 050 contracts/bridge.md).
-const CREDENTIAL_FIELDS: [&str; 9] = [
+const CREDENTIAL_FIELDS: [&str; 11] = [
+    "credentials",
+    // An entry of the password manager is chosen only in holzi's window (spec 052 FR-011).
+    "itemId",
     "accessKeyId",
     "secretAccessKey",
     "sessionToken",

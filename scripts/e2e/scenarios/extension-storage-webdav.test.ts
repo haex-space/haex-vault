@@ -9,7 +9,8 @@ import {
   type BridgeAnswer,
   type InstalledExtension,
 } from '../lib/extensions.ts'
-import { KEY } from '../lib/settings.ts'
+import { createEntry, overview as passwords } from '../lib/passwords.ts'
+import { choose, KEY } from '../lib/settings.ts'
 import { listTree, startWebdav } from '../lib/webdav.ts'
 import type { Page } from '../lib/page.ts'
 
@@ -52,7 +53,9 @@ async function replaceText(page: Page, hook: string, text: string) {
 // username and password, names a wrong one, says the folder is missing and makes it only when the
 // user says so. Then the extension uses the storage as it would an S3 one: objects in its own
 // area, a name that differs only in case refused, and the folders it leaves empty removed up to
-// its area. Needs Docker; skipped without it.
+// its area. Spec 052 US4 (quickstart §3): for a second storage the user takes an entry of the
+// password manager in holzi's window; the extension learns neither its id nor its title. Needs
+// Docker; skipped without it.
 scenario(
   'extension-storage-webdav',
   { timeoutMs: 300_000, needs: { container: true } },
@@ -220,5 +223,39 @@ scenario(
     )
     assert.ok(!left.some((path) => path.includes('.holzi-part-')))
     ctx.step('objects in the extension’s own area, round trip against WebDAV')
+
+    const login = await createEntry(page, {
+      title: 'NAS-Login',
+      username: webdav.username,
+      password: webdav.password,
+    })
+    const entries = (await passwords(page)).headers.length
+    await begin(page, probe, 'extension_remote_storage_add_backend', {
+      request: {
+        name: 'Zweite',
+        type: 'webdav',
+        config: { url: webdav.endpoint, folder: FOLDER },
+      },
+    })
+    await page.waitForDisplayed('storage-dialog', 10_000)
+    await page.click('storage-dialog-new-credentials')
+    await page.click('storage-dialog-confirm')
+    await page.waitForDisplayed('storage-credentials-modal', 10_000)
+    await choose(page, 'storage-dialog-credentials-source', 'entry')
+    await page.click(`storage-entry-option-${login}`)
+    await page.click('storage-credentials-confirm')
+    const second = await answer(page, probe)
+    assert.equal(second.error, undefined, JSON.stringify(second))
+    const told = JSON.stringify(second)
+    assert.ok(
+      !told.includes(login) && !told.includes('NAS-Login'),
+      'FR-011: the extension learns nothing of the entry',
+    )
+    assert.equal(
+      (await passwords(page)).headers.length,
+      entries,
+      'SC-002: no copy of the chosen entry',
+    )
+    ctx.step('an entry of the password manager chosen in holzi’s window')
   },
 )
