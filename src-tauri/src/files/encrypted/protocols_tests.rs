@@ -26,8 +26,8 @@ use crate::remote_storage::sftp::{test_server as sftp_server, SftpStore};
 use crate::remote_storage::test_support::{access, resolver, vault, FakeStore};
 use crate::remote_storage::webdav::{test_server as webdav_server, WebDavStore};
 use crate::remote_storage::{
-    Access, Addressing, Credentials, EndpointScope, Location, PasswordCredentials, Protocol,
-    ProviderKind, RemoteStore,
+    Access, Addressing, Credentials, EndpointScope, Location, ObjectStore, PasswordCredentials,
+    Protocol, ProviderKind,
 };
 use crate::vault_gate::VaultDb;
 
@@ -35,7 +35,7 @@ const NOTE: &str = "Steuerbescheid 2025";
 
 /// A store behind the seam, its access, and what has to live as long as it.
 struct Backend {
-    store: Arc<dyn RemoteStore>,
+    store: Arc<dyn ObjectStore>,
     access: Access,
     _keep: Box<dyn Any + Send>,
 }
