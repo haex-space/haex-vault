@@ -23,12 +23,13 @@ pnpm test:e2e --grep files-icon-sets
 
 Das Szenario deckt US1, US2, US3 und US5 ab:
 
-1. Einstellungen → Gestaltung: die Gruppe „Icon-Set für Dateien“ zeigt Lucide (gewählt), Material und Adwaita mit Vorschau.
-2. „Material Icon Theme“ anklicken, im Dateibrowser ein Verzeichnis mit `Dockerfile`, `main.rs`, `foto.png` und `src` öffnen: jede Datei hat ein eigenes Bild (Bilder als `img`, nicht als `svg` im DOM), „Gespeichert.“ ist zu sehen, kein Speichern-Knopf.
+1. Einstellungen → Gestaltung: die Gruppe „Icon-Set für Dateien“ zeigt Lucide (gewählt) und Phosphor mit Vorschau.
+2. „Phosphor“ anklicken, im Dateibrowser ein Verzeichnis mit `bericht.pdf`, `main.rs`, `foto.png`, `daten.csv` und einem unbekannten Dateityp öffnen: die bekannten Endungen haben je ihr Phosphor-Bild (als `img`, nicht als `svg` im DOM), der unbekannte Typ das Datei-Bild des Sets, „Gespeichert.“ ist zu sehen, kein Speichern-Knopf. Im hellen und im dunklen Farbschema sind die Bilder lesbar (zwei Fassungen).
 3. App neu starten: das Set ist noch gewählt.
-4. Ein eigenes Set aus dem Fixture-Ordner importieren (über das Eingabefeld für Dateien, wie `BackgroundSetting`): es erscheint mit Vorschau; ein SVG im Set mit Skript ist beim Anzeigen wirkungslos, und im Speicher liegt die bereinigte Fassung.
+4. Ein eigenes Set aus dem Fixture-Ordner importieren (über das Eingabefeld für Dateien, wie `BackgroundSetting`): die Vorschau zeigt Name, Zahl der Bilder und den Hinweis zur Lizenz; nach dem Import erscheint das Set mit Vorschau; ein SVG im Set mit Skript ist beim Anzeigen wirkungslos, und im Speicher liegt die bereinigte Fassung.
 5. Entfernen mit Bestätigung: das Set ist weg, die Wahl fällt auf Lucide zurück.
-6. Ein Verzeichnis mit einer verschlüsselten, nicht lesbaren Datei: das Zustandsbild des Standard-Sets erscheint auch unter Adwaita (FR-005).
+6. Ein Verzeichnis mit einer verschlüsselten, nicht lesbaren Datei und einem Ordner ohne Zugriff: Schloss und Ordner-ohne-Zugriff erscheinen auch unter Phosphor und unter einem importierten Set ohne diese Rollen (dort aus dem Standard-Set, FR-005).
+7. Test „Lizenzregel“: jedes mitgelieferte Paket hat `LICENSE` und `origin`, die SPDX-Kennung steht in der Liste erlaubter (MIT, ISC, Apache-2.0, CC0), und im Paket liegt kein Bild mit `logo` im Namen (FR-017).
 
 ## 3. E2E `files-icon-sets-two-devices` (Spec 033)
 
@@ -41,6 +42,6 @@ Vorlage: `appearance-sync-two-devices`. Laptop und Telefon derselben Vault: Auf 
 ## 4. Handprüfung (nicht automatisierbar)
 
 - **Android** (Spec 043): Import eines Archivs per Dateiauswahl (`content://`), „Ordner wählen“ ist ausgeblendet; die Gruppe ist bedienbar; die Bilder erscheinen.
-- **Lizenzseite**: Einstellungen → Allgemein → Lizenzen zeigt für Lucide, Material und Adwaita Urheber, SPDX, Link und Text; die Angaben stimmen mit `src-tauri/icon-sets/SOURCES.md` überein.
-- **Leistung** (SC-004): einen Ordner mit 1000 Einträgen mit Material öffnen und mit Lucide vergleichen; Unterschied unter 200 ms.
-- **Marken-Logos im Material-Set** (offener Punkt für den Betreiber in [research.md](./research.md) R1): Entscheidung festhalten.
+- **Lizenzseite**: Einstellungen → Allgemein → Lizenzen zeigt für Lucide und Phosphor Urheber, SPDX, Link und Text; die Angaben stimmen mit `src-tauri/icon-sets/SOURCES.md` überein.
+- **Leistung** (SC-004): einen Ordner mit 1000 Einträgen mit einem großen importierten Theme (zum Beispiel Material, aus dem Fixture) öffnen und mit Lucide vergleichen; Unterschied unter 200 ms.
+- **Importierte Themes mit Logos** (zum Beispiel Material): Der Import lehnt sie nicht ab; die Vorschau nennt Urheber und Lizenz und weist auf die Verantwortung des Nutzers hin (FR-017).

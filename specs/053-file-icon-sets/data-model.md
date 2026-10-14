@@ -35,7 +35,7 @@ Grenzen werden im Code geprüft (Import und Lader), nicht per `CHECK` in der Tab
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Scope       | Vault (nicht Gerät): geht über den Sync auf alle Geräte                                                                                              |
 | Schlüssel   | `files.iconSet`                                                                                                                                      |
-| Werte       | `builtin:lucide`, `builtin:material`, `builtin:adwaita`, `custom:<uuid>` (die UUID einer Zeile)                                                      |
+| Werte       | `builtin:lucide`, `builtin:phosphor`, `custom:<uuid>` (die UUID einer Zeile)                                                                         |
 | Standard    | fehlt der Schlüssel: `builtin:lucide`                                                                                                                |
 | Prüfung     | Form in `validate_value` (`storage/preferences_commands.rs`); ein unbekannter oder fehlender Wert ist beim Lesen kein Fehler, er ergibt den Rückfall |
 

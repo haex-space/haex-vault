@@ -33,23 +33,25 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 - Q: Wie wird bei einem importierten Set festgelegt, ob es einfarbig (in der Textfarbe) oder bunt
   ist? → A: Gar nicht: Importierte Sets sind immer bunt, wie bei VS Code. Dort gibt es keine
   Einfärbung; ein Theme liefert fertige Bilder und bei Bedarf Bilder für das helle Schema. Nur die
-  mitgelieferten einfarbigen Sets erscheinen in der Textfarbe der Oberfläche. (Nach der Planung ist
-  das nur noch Lucide; Adwaita wird vollfarbig mitgeliefert, siehe Planung R1 und R2.)
+  mitgelieferten einfarbigen Sets erscheinen in der Textfarbe der Oberfläche. (Das ist nur Lucide;
+  das zweite mitgelieferte Set, Phosphor, wird beim Bauen in einer hellen und einer dunklen Fassung
+  gefärbt, siehe Planung R1 und R2.)
 - Q: Soll die Rolle „geöffneter Ordner“ vorkommen? → A: Nein. Der Dateibrowser zeigt nirgends einen
   geöffneten Ordner; die Rolle entfällt. Ein importiertes Theme mit einem Bild für den geöffneten
   Ordner (`folderExpanded`) wird trotzdem übernommen, das Feld wird ignoriert (siehe Annahmen).
-- Q: Welches Set ist das „VS-Code-artige“ Set mit vielen Dateitypen? → A: Das Material Icon Theme
-  (MIT): bunt, über tausend Icons, viele Ordnernamen. Catppuccin Icons und Seti sind nur Ersatz,
-  falls die Lizenzprüfung gegen das Mitliefern ausfällt.
+- Q: Welches Set mit vielen Dateitypen wird mitgeliefert? → A: Phosphor (MIT). Das Material Icon Theme
+  (vorgesehen in der ersten Fassung dieser Klärung) entfällt, weil es viele Firmen- und
+  Sprachlogos enthält und Teile aus Drittquellen stammen (Regel in FR-017, Betreiber 2026-10-14).
 - Q (Planung, 2026-10-14): Was ändert die Planung an der Spec? → A: Auf Android gibt es heute keine
-  Ordnerauswahl (Spec 043 FR-016), also dort nur das Archiv (FR-009, US3). Adwaita wird in der
-  vollfarbigen Fassung mitgeliefert und ist damit bunt, Einfärbung gibt es nur bei Lucide (Begriffe,
-  FR-006). Die Lizenzprüfung ist in der Planung gemacht (research R1); offen sind die Marken-Logos im
-  Material Icon Theme und die fehlende LICENSE-Datei von holzi (Betreiber).
-- Q: Welche Sets werden mitgeliefert? → A: „Lucide“ (bisheriges Aussehen, bleibt Standard), ein Set
-  mit vielen Dateitypen im Stil der VS-Code-Icons und „Adwaita“. Ein weiteres schlichtes Set ist
-  optional. Alle mitgelieferten Sets müssen eine Lizenz haben, die das Mitliefern erlaubt; die
-  Lizenzprüfung ist Teil dieser Spec (FR-017).
+  Ordnerauswahl (Spec 043 FR-016), also dort nur das Archiv (FR-009, US3). Die Lizenzprüfung ist in der
+  Planung gemacht (research R1); offen ist die fehlende LICENSE-Datei von holzi (Betreiber).
+- Q: Welche Sets werden mitgeliefert, und nach welcher Regel? → A: „Lucide“ (bisheriges Aussehen,
+  bleibt Standard) und „Phosphor“ (viele Dateitypen). Mitgeliefert wird nur, was unter einer
+  permissiven Lizenz steht (MIT, ISC, Apache-2.0, CC0), von den Autoren des Sets selbst gezeichnet
+  ist, keine Firmen- oder Sprachlogos enthält und kein Copyleft verlangt (Betreiber, 2026-10-14:
+  „nur Icons und Icon-Sets, die eine offene Lizenz haben und die wir ohne Probleme nutzen können“).
+  Adwaita (LGPL-3, CC-BY-SA-Anteile) und das Material Icon Theme (Logos, Drittquellen) erfüllen das
+  nicht; sie bleiben vom Nutzer importierbar. Die Lizenzprüfung ist Teil dieser Spec (FR-017).
 
 ## Begriffe
 
@@ -65,8 +67,8 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 - **Standard-Set**: „Lucide“, das bisherige Aussehen. Es füllt jede Rolle, die ein anderes Set nicht
   belegt.
 - **Einfarbiges Set**: das mitgelieferte Set „Lucide“ aus einfarbigen Symbolen, die holzi in der
-  Textfarbe der Oberfläche zeichnet, hell und dunkel passend. Alle anderen Sets, auch „Adwaita“ und
-  jedes importierte, sind **bunt**: ihre Bilder erscheinen, wie sie sind, wie bei VS Code.
+  Textfarbe der Oberfläche zeichnet, hell und dunkel passend. Alle anderen Sets, auch „Phosphor“ (in
+  einer hellen und einer dunklen Fassung gefärbt) und jedes importierte, sind **bunt**: ihre Bilder erscheinen, wie sie sind, wie bei VS Code.
 
 ## Beziehung zu bestehenden Specs
 
@@ -87,7 +89,7 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 
 Anna öffnet die Einstellungen und sieht in der Gestaltung eine Auswahl „Icon-Set für Dateien“ mit den
 mitgelieferten Sets. Zu jedem Set zeigt holzi eine Vorschau: einen Beispielordner mit den typischen
-Dateien (Ordner, Bild, Video, Musik, PDF, Text, Programmcode, Archiv). Sie klickt auf „Adwaita“, und
+Dateien (Ordner, Bild, Video, Musik, PDF, Text, Programmcode, Archiv). Sie klickt auf „Phosphor“, und
 sofort zeigen alle Dateilisten, im Raster wie in der Liste, und die Suchergebnisse das neue Aussehen. Es
 gibt nichts zu bestätigen. Beim nächsten Start ist die Wahl noch da.
 
@@ -115,8 +117,9 @@ Wahl bleibt.
 
 ### User Story 2 - Dateitypen erkennbar machen (Priority: P1)
 
-Der Nutzen eines Sets mit „vielen Dateitypen“ liegt darin, dass `Cargo.toml`, `main.rs`, `Dockerfile`,
-`foto.png` und `src` verschieden aussehen. holzi sucht das Bild eines Eintrags deshalb der Reihe nach:
+Der Nutzen eines Sets mit „vielen Dateitypen“ liegt darin, dass `foto.png`, `main.rs`, `bericht.pdf` und `daten.csv` verschieden aussehen; ein
+importiertes Theme kann das bis zu einzelnen Dateinamen wie `Dockerfile` und Ordnernamen wie `src`
+treiben. holzi sucht das Bild eines Eintrags deshalb der Reihe nach:
 zuerst nach dem genauen Dateinamen, dann nach der Endung, dann nach der Rolle (Bild, Video, Audio,
 Dokument, PDF, sonst Datei). Bei Ordnern zuerst nach dem Ordnernamen, dann nach der Rolle „Ordner“. Was ein Set nicht kennt, übernimmt das Standard-Set. Dadurch ist auch ein unvollständiges
 Set sofort brauchbar.
@@ -297,9 +300,10 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
   Textfarbe der Oberfläche erscheinen. Ein importiertes Set ist immer bunt: holzi färbt seine Bilder
   nie ein und rät nicht, ob sie einfarbig sind; sein Aussehen im hellen und dunklen Schema bestimmt
   allein das Set durch seine Hell-/Dunkel-Bilder, wie bei VS Code.
-- **FR-007**: holzi MUSS mindestens diese Sets mitliefern: „Lucide“ (Standard, bisheriges Aussehen),
-  „Material Icon Theme“ (viele Dateitypen und Ordnernamen, wie bei VS Code) und „Adwaita“. Ein weiteres schlichtes Set
-  DARF mitgeliefert werden.
+- **FR-007**: holzi MUSS diese Sets mitliefern: „Lucide“ (Standard, bisheriges Aussehen) und
+  „Phosphor“ (viele Dateitypen: Dokumente, Tabellen, Bilder, Audio, Video, Archive und die häufigen
+  Programmiersprachen, dazu Ordner und Schloss). Weitere Sets DÜRFEN nur mitgeliefert werden, wenn sie
+  FR-017 erfüllen.
 - **FR-008**: Jedes Set, mitgeliefert oder eigen, MUSS dasselbe Format haben: ein Manifest im Format
   der Icon-Themes von VS Code (Bilddefinitionen, Dateiendungen, Dateinamen, Ordnernamen, Ordner,
   Hell/Dunkel), ergänzt um die Rollen für die Zustände (FR-005). Eine Angabe, ob ein Set einfarbig ist, gehört
@@ -330,11 +334,15 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
   vollständig angekommen ist. Mitgelieferte Sets DÜRFEN nicht synchronisiert werden; nur ihre Wahl.
 - **FR-016**: Erweiterungen und Agenten DÜRFEN das Set weder lesen noch ändern, noch eine Wahl treffen;
   das Icon-Set ist eine Einstellung des Nutzers.
-- **FR-017**: Jedes mitgelieferte Set MUSS eine Lizenz haben, die das Mitliefern und Verändern der
-  Verpackung erlaubt; die Lizenzprüfung (insbesondere für Adwaita, das unter LGPL-3 / CC-BY-SA steht,
-  und für das VS-Code-artige Set) MUSS vor der Aufnahme geschehen und festgehalten werden. Sets, deren
-  Lizenz das nicht erlaubt (zum Beispiel GPL-3-Sets wie Papirus), werden nicht mitgeliefert. Urheber,
-  Lizenz und der verlangte Hinweis MÜSSEN in der App auf einer Seite „Lizenzen“ stehen.
+- **FR-017**: Ein Set darf nur mitgeliefert werden, wenn es (a) unter einer permissiven Lizenz steht
+  (MIT, ISC, Apache-2.0 oder CC0), (b) von den Autoren des Sets selbst gezeichnet ist und keine
+  Teile aus Drittquellen mit anderer Lizenz enthält, (c) keine Firmen-, Marken- oder Sprachlogos
+  enthält (solche Bilder werden beim Packen weggelassen) und (d) kein Copyleft verlangt. Die Prüfung
+  MUSS vor der Aufnahme geschehen und mit Quelle, Version und Lizenztext festgehalten werden. Urheber,
+  Lizenz und der verlangte Hinweis MÜSSEN in der App auf einer Seite „Lizenzen“ stehen. Für ein vom
+  Nutzer importiertes Set gilt die Regel nicht (er bringt es mit); die Importvorschau zeigt Urheber und
+  Lizenz an, soweit das Set sie nennt, und weist darauf hin, dass der Nutzer für die Lizenz
+  verantwortlich ist.
 - **FR-018**: Die Bilder eines Sets MÜSSEN erst geladen werden, wenn ein Eintrag sichtbar wird; ein
   Set DARF nicht bei jedem Start als Ganzes geladen werden. Ein Wechsel des Sets MUSS auch bei einem
   Set mit tausend Bildern ohne spürbare Pause geschehen.
@@ -365,10 +373,10 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 
 - **SC-001**: Ein Set zu wechseln dauert höchstens zwei Klicks in den Einstellungen, und die geöffnete
   Dateiliste zeigt das neue Aussehen innerhalb einer Sekunde, ohne Neuladen.
-- **SC-002**: Mit dem Material Icon Theme haben mindestens 30 häufige Dateiendungen und
-  Dateinamen (zum Beispiel `rs`, `ts`, `vue`, `json`, `md`, `zip`, `Dockerfile`, `Cargo.toml`) ein
-  eigenes Bild, und mindestens 10 häufige Ordnernamen (zum Beispiel `src`, `node_modules`, `docs`) ein
-  eigenes Ordner-Bild.
+- **SC-002**: Mit „Phosphor“ haben mindestens 40 häufige Dateiendungen (zum Beispiel `pdf`, `docx`,
+  `xlsx`, `pptx`, `zip`, `png`, `mp3`, `mp4`, `rs`, `ts`, `vue`, `py`, `md`, `csv`) ein passendes Bild
+  statt des allgemeinen Datei-Bildes, und die Zustände Ordner, Ordner ohne Zugriff und Schloss sind
+  belegt.
 - **SC-003**: Ein importiertes Theme aus dem VS-Code-Umfeld mit gültigem Manifest wird in höchstens
   einer Minute übernommen und erscheint ohne Handarbeit wählbar.
 - **SC-004**: Das Öffnen eines Ordners mit 1000 Einträgen dauert mit einem großen Set nicht spürbar
@@ -396,12 +404,12 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 - Vorgeschlagene Grenzen (die Planung darf sie anpassen): höchstens 5 MB je Set, höchstens 2000 Bilder
   je Set, höchstens 256 KB je Bild, Pixelbilder höchstens 512 × 512 px, höchstens 10 eigene Sets. Die
   Grenzen gelten für eigene Sets; die mitgelieferten erfüllen sie ebenfalls.
-- Das Set mit vielen Dateitypen ist das Material Icon Theme (MIT, Klärung); die Lizenzprüfung
-  (FR-017) gehört zur Planung. Fällt sie gegen das Mitliefern aus, entscheidet der Betreiber über
-  Catppuccin Icons (MIT) oder Seti als Ersatz. „Adwaita“ erfordert
-  einen Namensnennungs-Hinweis (LGPL-3 oder CC-BY-SA); sollte die Prüfung das Mitliefern nicht
-  erlauben, entscheidet der Betreiber über einen Ersatz. Weitere Kandidaten für ein schlichtes
-  Zusatz-Set: Phosphor oder Tabler (MIT). Papirus (GPL-3) ist ausgeschlossen.
+- Das Set mit vielen Dateitypen ist Phosphor (MIT, ein Urheber); die Lizenzprüfung steht in der
+  Planung (research R1). Phosphor ist einfarbig gezeichnet und wird beim Bauen in einer hellen und
+  einer dunklen Fassung gefärbt; es hat keine Zuordnung nach Dateinamen oder Ordnernamen, die
+  Endungen werden von uns auf die vorhandenen Bilder abgebildet (mehrere Endungen teilen ein Bild).
+  Material Icon Theme, Adwaita, Catppuccin, Seti, Tabler und Papirus werden nicht mitgeliefert
+  (Logos, Drittquellen, Copyleft oder zu kleine Abdeckung); der Nutzer kann sie importieren.
 - Der Import liest nur lokale Dateien; ein Import per Link (mit eigenen Sicherheitsfragen: Herkunft,
   Prüfung, Offline) kann später als eigene Spec folgen.
 - Das Format der Icon-Themes von VS Code wird gelesen, soweit es Dateien, Endungen, Ordner und
