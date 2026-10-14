@@ -65,6 +65,8 @@ pub struct PlatformCapabilities {
     pub back_gesture: bool,
     /// The presets of the model catalogs the suggestions come from.
     pub model_presets: ModelPresets,
+    /// A phone address book the address book can sync with (spec 051 FR-015).
+    pub phone_contacts: bool,
 }
 
 /// A desktop system; only a release build restarts at the vault picker after closing.
@@ -82,6 +84,7 @@ pub const fn desktop(platform: PlatformName, release: bool) -> PlatformCapabilit
         screen_capture: false,
         back_gesture: false,
         model_presets: ModelPresets::Desktop,
+        phone_contacts: false,
     }
 }
 
@@ -99,6 +102,7 @@ pub const ANDROID: PlatformCapabilities = PlatformCapabilities {
     screen_capture: true,
     back_gesture: true,
     model_presets: ModelPresets::Phone,
+    phone_contacts: true,
 };
 
 /// iOS is not a target yet (spec 043 is Android only); it gets the mobile limits without the
@@ -107,6 +111,7 @@ pub const IOS: PlatformCapabilities = PlatformCapabilities {
     platform: PlatformName::Ios,
     screen_capture: false,
     back_gesture: false,
+    phone_contacts: false,
     ..ANDROID
 };
 

@@ -1,5 +1,5 @@
 use super::{
-    capabilities, desktop, os_name, ModelPresets, PlatformCapabilities, PlatformName, ANDROID,
+    capabilities, desktop, os_name, ModelPresets, PlatformCapabilities, PlatformName, ANDROID, IOS,
 };
 
 #[test]
@@ -15,6 +15,7 @@ fn desktop_offers_every_desktop_facility() {
     assert!(table.relaunch_on_close);
     assert!(!table.screen_capture);
     assert!(!table.back_gesture);
+    assert!(!table.phone_contacts);
     assert_eq!(table.model_presets, ModelPresets::Desktop);
 }
 
@@ -41,8 +42,15 @@ fn android_has_none_of_the_desktop_facilities() {
             screen_capture: true,
             back_gesture: true,
             model_presets: ModelPresets::Phone,
+            phone_contacts: true,
         }
     );
+}
+
+#[test]
+fn only_android_has_a_phone_address_book() {
+    let tables = [ANDROID, IOS];
+    assert_eq!(tables.map(|table| table.phone_contacts), [true, false]);
 }
 
 #[cfg(target_os = "linux")]
@@ -62,4 +70,5 @@ fn the_table_reaches_the_interface_in_camel_case() {
     assert_eq!(json["cliDelegates"], false);
     assert_eq!(json["screenCapture"], true);
     assert_eq!(json["relaunchOnClose"], false);
+    assert_eq!(json["phoneContacts"], true);
 }
