@@ -82,6 +82,9 @@ re-delegation between people.
 | D32 | The relay syncs **SQLite data only**; files go only through optional operator storage (backend A). A **password manager** ([spec 034](../../specs/034-password-manager/spec.md)) holds secrets such as S3 credentials.                                                                                | 2026-09-28 |
 | D33 | **Invites are links the admin creates and hands over**, never a message to a bare vault identity: one-time secret, expiry, withdrawable; the admin confirms the acceptance. Messages without a valid open secret are dropped silently.                                                                | 2026-10-01 |
 
+D33 is superseded in one point by [ADR-0014](../adr/0014-invitations-from-the-address-book.md)
+(spec 051): an invitation may also be delivered to a contact whose business card holzi has verified.
+
 ## 3. What exists today, and what the references teach
 
 ### 3.1 holzi
