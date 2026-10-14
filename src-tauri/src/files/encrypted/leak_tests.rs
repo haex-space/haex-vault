@@ -112,3 +112,7 @@ async fn nothing_readable_reaches_the_storage() {
         }
     }
 }
+
+/// FR-027: no log line names anything of an encrypted folder.
+#[path = "log_leak_tests.rs"]
+mod logs;

@@ -181,7 +181,7 @@ pub async fn write_version(
         )
         .await
         .map_err(storage_error)?;
-    view(files, folder).await?.add(folder.fid, version, content);
+    view(files, folder).await?.add(version, content);
     Ok(())
 }
 

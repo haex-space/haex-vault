@@ -197,3 +197,39 @@ fn broken_sidecars_and_missing_or_wrong_content_are_damaged() {
     assert_eq!(state("gelesen.txt"), EncryptedState::Damaged);
     assert_eq!(state(&encode_id(&id(9))), EncryptedState::Damaged);
 }
+
+/// What a tree shows: every node's path and name, sorted.
+fn shown(tree: &Tree) -> Vec<(Vec<String>, bool)> {
+    let mut all: Vec<(Vec<String>, bool)> = tree
+        .below(0)
+        .into_iter()
+        .map(|(index, rel)| (rel, tree.node(index).conflict))
+        .collect();
+    all.sort();
+    all
+}
+
+#[test]
+fn appending_new_entries_shows_what_a_new_build_shows() {
+    let mut versions = vec![
+        folder(1, 1, FID, "Belege", T),
+        file(2, 2, id(1), "a.txt", T + 1),
+    ];
+    let mut grown = tree(&versions);
+    // New files and folders in the root, in a folder, and in a new folder: appended.
+    for (version, appended) in [
+        (file(3, 3, FID, "b.txt", T + 2), true),
+        (folder(4, 4, id(1), "2026", T + 3), true),
+        (file(5, 5, id(4), "c.txt", T + 4), true),
+        // A taken name, and a parent that is not there: the tree must be built again.
+        (file(6, 6, FID, "b.txt", T + 5), false),
+        (file(7, 7, id(99), "d.txt", T + 6), false),
+    ] {
+        assert_eq!(grown.append(&version), appended, "{}", version.sidecar.name);
+        versions.push(version);
+        if !appended {
+            grown = tree(&versions);
+        }
+    }
+    assert_eq!(shown(&grown), shown(&tree(&versions)));
+}

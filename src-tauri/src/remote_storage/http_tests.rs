@@ -40,3 +40,17 @@ async fn an_address_holzi_never_reaches_gets_no_client() {
         "http to a public host is refused"
     );
 }
+
+#[tokio::test]
+async fn a_kept_client_never_spares_the_check_of_a_call() {
+    // A public name that later points into the local network (DNS rebinding) is refused although a
+    // client for the name is kept from the first call.
+    let url = Url::parse("https://rebind.example/").expect("url");
+    let first = resolver(&[("rebind.example", &["203.0.113.9"])]);
+    pinned_client(&url, EndpointScope::Public, first.as_ref())
+        .await
+        .expect("a public address");
+    let rebound = resolver(&[("rebind.example", &["10.0.0.1"])]);
+    let refused = pinned_client(&url, EndpointScope::Public, rebound.as_ref()).await;
+    assert_eq!(refused.err(), Some(StorageError::Network));
+}

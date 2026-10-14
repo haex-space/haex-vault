@@ -19,6 +19,7 @@ pub mod cleanup;
 pub mod device;
 #[cfg(test)]
 pub mod device_scene;
+pub mod folder_view;
 pub mod format;
 pub mod journal;
 pub mod load;
@@ -41,17 +42,20 @@ mod folder_tests;
 #[cfg(test)]
 #[path = "leak_tests.rs"]
 mod leak_tests;
+#[cfg(test)]
+#[path = "perf_tests.rs"]
+mod perf;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use zeroize::Zeroizing;
 
+pub use self::folder_view::FolderView;
 use self::format::keys::FolderKeys;
 use self::format::sidecar::{seal_sidecar, FileFacts, Sidecar, WrappedDek};
 use self::format::{encode_id, FormatError, Id};
 use self::load::LoadedFolder;
-use self::tree::{Inputs, Tree, Version};
 use crate::files::{EncryptedState, FilesError, FilesErrorCode};
 use crate::vault_gate::VaultDb;
 
@@ -170,8 +174,14 @@ impl OpenFolder {
         if guard.is_none() {
             *guard = Some(FolderView::new(self.fid, load().await?));
         }
+        let fid = self.fid;
         Ok(tokio::sync::MutexGuard::map(guard, |view| {
-            view.as_mut().expect("loaded just above")
+            let view = view.as_mut().expect("loaded just above");
+            // Writes only mark the tree stale: a transfer of many files builds it once, not per file.
+            if view.stale {
+                view.rebuild(fid);
+            }
+            view
         }))
     }
 
@@ -244,177 +254,6 @@ impl OpenFolder {
 
     pub fn content_key(&self, oid: &Id) -> String {
         format!("{}c/{}", self.prefix, encode_id(oid))
-    }
-}
-
-/// What a folder holds: every version that opened, what failed, and the tree built from them.
-pub struct FolderView {
-    versions: HashMap<Id, Version>,
-    broken: Vec<Id>,
-    contents: HashMap<Id, u64>,
-    damaged: HashSet<Id>,
-    pub tree: Tree,
-    /// Files in the folder that are not part of the format (research R19).
-    pub foreign: u32,
-    journal: journal::Journal,
-}
-
-impl FolderView {
-    fn new(fid: Id, loaded: LoadedFolder) -> Self {
-        let mut view = Self {
-            versions: loaded
-                .versions
-                .into_iter()
-                .map(|row| {
-                    (
-                        row.sid,
-                        Version {
-                            sid: row.sid,
-                            sidecar: row.sidecar,
-                        },
-                    )
-                })
-                .collect(),
-            broken: loaded.broken,
-            contents: loaded.contents,
-            damaged: HashSet::new(),
-            foreign: loaded.foreign,
-            journal: journal::Journal::default(),
-            tree: Tree::build(&Inputs {
-                fid,
-                versions: &[],
-                broken: &[],
-                contents: None,
-                damaged: &HashSet::new(),
-            }),
-        };
-        view.rebuild(fid);
-        view
-    }
-
-    /// Adds a version this device wrote (its content object, if any, of `content_len` bytes).
-    pub fn add(&mut self, fid: Id, version: Version, content: Option<(Id, u64)>) {
-        let change = journal::Change::Add(Box::new(version), content);
-        self.apply(&change);
-        self.journal.record(change);
-        self.rebuild(fid);
-    }
-
-    /// `change` without rebuilding the tree.
-    fn apply(&mut self, change: &journal::Change) {
-        match change {
-            journal::Change::Add(version, content) => {
-                if let Some((oid, len)) = content {
-                    self.contents.insert(*oid, *len);
-                }
-                self.versions.insert(version.sid, (**version).clone());
-            }
-            journal::Change::Remove(sids) => {
-                for sid in sids {
-                    if let Some(version) = self.versions.remove(sid) {
-                        if let Some(facts) = tree::facts(&version) {
-                            if !self.references(&facts.content, &[]) {
-                                self.contents.remove(&facts.content);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Drops versions this device deleted; their content objects go with them unless another
-    /// version still points at one (a rename keeps the content).
-    pub fn remove(&mut self, fid: Id, sids: &[Id]) {
-        let change = journal::Change::Remove(sids.to_vec());
-        self.apply(&change);
-        self.journal.record(change);
-        self.rebuild(fid);
-    }
-
-    /// Whether a version of this view other than `except` points at the content object `oid`.
-    pub fn references(&self, oid: &Id, except: &[Id]) -> bool {
-        self.versions.values().any(|version| {
-            !except.contains(&version.sid)
-                && tree::facts(version).is_some_and(|facts| facts.content == *oid)
-        })
-    }
-
-    /// The version `sid`, whether it shows or not.
-    pub fn version(&self, sid: &Id) -> Option<&Version> {
-        self.versions.get(sid)
-    }
-
-    /// The versions of `entry` another version of it names as `base`: replaced, never shown.
-    pub fn superseded(&self, entry: &Id) -> Vec<Version> {
-        let of_entry: Vec<&Version> = self
-            .versions
-            .values()
-            .filter(|version| version.sidecar.entry == *entry)
-            .collect();
-        of_entry
-            .iter()
-            .filter(|version| {
-                of_entry
-                    .iter()
-                    .any(|other| other.sidecar.base == Some(version.sid))
-            })
-            .map(|version| (*version).clone())
-            .collect()
-    }
-
-    /// `gone` and the versions that would show again without them: a replaced version whose
-    /// every successor is in the set (format "Ansicht": a version nobody names counts).
-    pub fn with_replaced(&self, gone: &[Id]) -> Vec<Version> {
-        let mut out: HashSet<Id> = gone.iter().copied().collect();
-        let entries: HashSet<Id> = gone
-            .iter()
-            .filter_map(|sid| self.versions.get(sid))
-            .map(|version| version.sidecar.entry)
-            .collect();
-        let candidates: Vec<&Version> = self
-            .versions
-            .values()
-            .filter(|version| entries.contains(&version.sidecar.entry))
-            .collect();
-        loop {
-            let mut grown = false;
-            for version in &candidates {
-                if out.contains(&version.sid) {
-                    continue;
-                }
-                let mut successors = candidates
-                    .iter()
-                    .filter(|other| other.sidecar.base == Some(version.sid))
-                    .peekable();
-                if successors.peek().is_some() && successors.all(|other| out.contains(&other.sid)) {
-                    out.insert(version.sid);
-                    grown = true;
-                }
-            }
-            if !grown {
-                break;
-            }
-        }
-        let mut versions: Vec<Version> = out
-            .iter()
-            .filter_map(|sid| self.versions.get(sid).cloned())
-            .collect();
-        // Older versions first: what stays after a failure never shows an older one again.
-        versions.sort_by_key(|version| (version.sidecar.revision, version.sid));
-        versions
-    }
-
-    fn rebuild(&mut self, fid: Id) {
-        let mut versions: Vec<Version> = self.versions.values().cloned().collect();
-        versions.sort_by_key(|version| version.sid);
-        self.tree = Tree::build(&Inputs {
-            fid,
-            versions: &versions,
-            broken: &self.broken,
-            contents: Some(&self.contents),
-            damaged: &self.damaged,
-        });
     }
 }
 

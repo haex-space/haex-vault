@@ -180,7 +180,7 @@ pub async fn drop_versions(
         }
         gone.push(version.sid);
     }
-    view(files, folder).await?.remove(folder.fid, &gone);
+    view(files, folder).await?.remove(&gone);
     result
 }
 
