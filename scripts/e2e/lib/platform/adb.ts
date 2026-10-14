@@ -130,8 +130,16 @@ export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
     push(local, remote) {
       adb(['push', local, remote])
     },
+    // A pull only reads, so it runs again after any failure once the device is there: a connection
+    // that drops during the transfer fails without "device offline" (files-encrypted-device on CI,
+    // the adb server logging "connection terminated" 50 ms into the pull).
     pull(remote, local) {
-      adb(['pull', remote, local])
+      try {
+        adb(['pull', remote, local])
+      } catch (error) {
+        if (!waitForDevice()) throw error
+        once(['pull', remote, local])
+      }
     },
     waitForDevice,
   }

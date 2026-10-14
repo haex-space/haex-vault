@@ -89,6 +89,37 @@ describe('a device adb lost for a moment', () => {
     ])
   })
 
+  it('runs a pull again after any failure, once', () => {
+    let pulls = 0
+    const calls: string[] = []
+    const run: AdbRunner = (args) => {
+      const line = args.join(' ')
+      calls.push(line)
+      if (line === '-s emu get-state') return Buffer.from('device\n')
+      pulls += 1
+      if (pulls === 1) throw new Error('Command failed: adb -s emu pull /a /b')
+      return Buffer.from('')
+    }
+    createAdb('emu', run).pull('/a', '/b')
+    assert.deepEqual(calls, [
+      '-s emu pull /a /b',
+      '-s emu get-state',
+      '-s emu pull /a /b',
+    ])
+    const missing = fakeAdb({
+      '-s emu get-state': 'device\n',
+      '-s emu pull': new Error('remote object does not exist'),
+    })
+    assert.throws(
+      () => createAdb('emu', missing.run).pull('/a', '/b'),
+      /does not exist/,
+    )
+    assert.equal(
+      missing.calls.filter((call) => call.includes('pull')).length,
+      2,
+    )
+  })
+
   it('does not run a command again that failed on the device', () => {
     const fake = fakeAdb({ '-s emu shell false': new Error('exit 1') })
     assert.throws(() => createAdb('emu', fake.run).shell('false'), /exit 1/)
