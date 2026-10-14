@@ -13,6 +13,7 @@
 import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { TestOutcome } from '@bindings/TestOutcome'
 import { computed, ref, watch } from 'vue'
+import CredentialsEntryPicker from '~/components/settings/storage/CredentialsEntryPicker.vue'
 import CredentialsFields from '~/components/settings/storage/CredentialsFields.vue'
 import HostKeyConfirm from '~/components/settings/storage/HostKeyConfirm.vue'
 import {
@@ -32,6 +33,12 @@ const failedWith = ref<TestOutcome | null>(null)
 const shownKey = ref<ShownHostKey | null>(null)
 const busy = ref(false)
 const protocol = computed(() => request.value?.proposal.protocol ?? 's3')
+const sourceOptions = computed(() =>
+  (['new', 'entry'] as const).map((source) => ({
+    value: source,
+    label: t(`settings.storage.credentialsSource.${source}`),
+  })),
+)
 
 watch(
   () => request.value?.requestId,
@@ -46,6 +53,10 @@ watch(
 
 async function confirm(createFolder = false, hostKey?: string) {
   if (busy.value) return
+  if (credentials.value.source === 'entry' && !credentials.value.entryId) {
+    failure.value = t('settings.storage.entryPicker.required')
+    return
+  }
   if (!credentialsComplete(protocol.value, credentials.value)) {
     failure.value = t('settings.storage.invalid.credentials')
     return
@@ -107,8 +118,28 @@ function onUpdateOpen(open: boolean) {
           {{ t('extensions.storageCredentials.onlyHere') }}
         </p>
         <SettingsGroup>
-          <CredentialsFields v-model="credentials" :protocol="protocol" />
+          <SettingsRow
+            :title="t('settings.storage.credentialsSource.label')"
+            label-for="storage-dialog-credentials-source"
+          >
+            <SettingsSelect
+              id="storage-dialog-credentials-source"
+              v-model="credentials.source"
+              :options="sourceOptions"
+              data-testid="storage-dialog-credentials-source"
+            />
+          </SettingsRow>
+          <CredentialsFields
+            v-if="credentials.source === 'new'"
+            v-model="credentials"
+            :protocol="protocol"
+          />
         </SettingsGroup>
+        <CredentialsEntryPicker
+          v-if="credentials.source === 'entry'"
+          v-model="credentials.entryId"
+          :protocol="protocol"
+        />
         <p
           v-if="failure"
           class="text-sm text-destructive"

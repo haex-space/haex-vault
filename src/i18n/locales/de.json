@@ -1018,8 +1018,24 @@
         "storage": "Erster Cloud-Speicher",
         "test": "Test"
       },
-      "newCredentials": "Neue Zugangsdaten eingeben",
+      "newCredentials": "Zugangsdaten ändern",
+      "credentialsSource": {
+        "label": "Zugangsdaten",
+        "new": "Neu eingeben",
+        "entry": "Eintrag aus dem Passwortmanager"
+      },
+      "entryPicker": {
+        "label": "Eintrag aus dem Passwortmanager",
+        "search": "Einträge durchsuchen",
+        "loading": "Einträge werden geladen …",
+        "empty": "Keine passenden Einträge.",
+        "onlyFitting": "Hier stehen nur Einträge mit allem, was die Verbindung braucht: Benutzername und Passwort, für SFTP auch Benutzername und privater Schlüssel.",
+        "noMatch": "Kein Eintrag passt zur Suche.",
+        "required": "Bitte einen Eintrag aus dem Passwortmanager wählen."
+      },
       "credentialsKept": "Die Zugangsdaten liegen im Passwortmanager als „{label}: {name}“.",
+      "credentialsLinked": "Verknüpfter Passwortmanager-Eintrag",
+      "openCredentialsEntry": "Eintrag öffnen",
       "testBucketHint": "Mit diesem Bucket prüft holzi die Verbindung, bevor sie gespeichert wird.",
       "save": "Testen und speichern",
       "saveName": "Speichern",

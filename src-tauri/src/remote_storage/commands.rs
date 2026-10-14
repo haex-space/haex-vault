@@ -8,15 +8,15 @@ use tauri::State;
 
 use super::address::SystemResolver;
 use super::model::{
-    ConnectionInput, ConnectionView, GeneratedKey, RemovalPreview, RemovalTarget, StorageInput,
-    StorageOverview, StorageView, TestResult,
+    ConnectionInput, ConnectionView, CredentialsCandidate, GeneratedKey, RemovalPreview,
+    RemovalTarget, StorageInput, StorageOverview, StorageView, TestResult,
 };
 use super::protocol::ProtocolStore;
 use super::s3::S3Store;
 use super::service::StorageService;
 use super::sftp::{keys, SftpStore};
 use super::webdav::WebDavStore;
-use super::ObjectStore;
+use super::{credentials, ObjectStore, Protocol};
 use crate::error::Result;
 use crate::extensions::remote_storage_dialog::{StorageAnswer, StorageTrial};
 use crate::passwords::service::PasswordsService;
@@ -62,6 +62,16 @@ pub async fn storage_connection_save(
     input: ConnectionInput,
 ) -> Result<ConnectionView> {
     service(&state)?.save_connection(input).await
+}
+
+/// The entries of the password manager that fit `protocol`, to choose as credentials (spec 052);
+/// titles, user names and addresses only.
+#[tauri::command]
+pub async fn storage_credentials_candidates(
+    state: State<'_, AppState>,
+    protocol: Protocol,
+) -> Result<Vec<CredentialsCandidate>> {
+    credentials::candidates(&state.database()?, protocol).await
 }
 
 /// Creates the missing folder of a WebDAV or SFTP storage on the user's word, then tests it

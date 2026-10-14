@@ -49,7 +49,11 @@ fn invalid(field: &str) -> HolziError {
 }
 
 /// Builds the public connection view with credential availability and the HTTP warning flag.
-fn view(row: &ConnectionRow, credentials: super::CredentialsState) -> ConnectionView {
+fn view(
+    row: &ConnectionRow,
+    credentials: super::CredentialsState,
+    credentials_entry: Option<super::model::CredentialsEntry>,
+) -> ConnectionView {
     ConnectionView {
         id: row.id.clone(),
         protocol: row.protocol,
@@ -61,6 +65,7 @@ fn view(row: &ConnectionRow, credentials: super::CredentialsState) -> Connection
         insecure: Url::parse(&row.endpoint).is_ok_and(|url| address::is_insecure(&url)),
         endpoint_scope: row.endpoint_scope,
         credentials,
+        credentials_entry,
         host_key: row.host_key.as_deref().and_then(|line| {
             Some(ConfirmedHostKey {
                 fingerprint: keys::fingerprint(line)?,
@@ -127,8 +132,9 @@ impl StorageService {
                 let tests = store::tests(q)?;
                 let mut connections = Vec::new();
                 for row in store::connections(q)? {
-                    let state = credentials::state_in(q, &row.credentials_item_id)?;
-                    connections.push(view(&row, state));
+                    let state = credentials::state_in(q, &row.credentials_item_id, row.protocol)?;
+                    let entry = credentials::entry(q, &row.credentials_item_id)?;
+                    connections.push(view(&row, state, entry));
                 }
                 let mut storages = Vec::new();
                 for row in store::storages(q)? {
@@ -275,10 +281,10 @@ impl StorageService {
             Some(CredentialsInput::GeneratedKey { key_id, .. }) => Some(key_id.clone()),
             _ => None,
         };
-        let new_credentials = input
-            .credentials
-            .map(|credentials| credentials_of(credentials, row.protocol))
-            .transpose()?;
+        let new_credentials = match input.credentials {
+            Some(credentials) => Some(self.resolve(credentials, row.protocol).await?),
+            None => None,
+        };
         let moved = existing.as_ref().is_none_or(|e| {
             e.endpoint != row.endpoint
                 || e.region != row.region
@@ -286,7 +292,7 @@ impl StorageService {
                 || e.host_key != row.host_key
         });
         let test_with = match (&new_credentials, &existing) {
-            (Some(credentials), _) => Some(credentials.clone()),
+            (Some(resolved), _) => Some(resolved.credentials().clone()),
             (None, None) => return Err(invalid("credentials")),
             (None, Some(e)) if moved => Some(
                 credentials::read(
@@ -320,15 +326,8 @@ impl StorageService {
         }
 
         let old_item = existing.as_ref().map(|e| e.credentials_item_id.clone());
-        if let Some(credentials) = &new_credentials {
-            row.credentials_item_id = credentials::create(
-                &self.passwords,
-                row.protocol,
-                &row.provider_name,
-                &row.endpoint,
-                credentials,
-            )
-            .await?;
+        if let Some(resolved) = &new_credentials {
+            row.credentials_item_id = self.link(&row, resolved).await?;
         }
         let written = row.clone();
         if let Err(error) = self
@@ -336,20 +335,32 @@ impl StorageService {
             .write(move |tx| Ok(store::put_connection(tx, &written)?))
             .await
         {
-            if new_credentials.is_some() {
+            if new_credentials
+                .as_ref()
+                .is_some_and(link::Resolved::creates)
+            {
                 credentials::delete(&self.passwords, &row.credentials_item_id).await?;
             }
             return Err(error);
         }
         if let (Some(_), Some(old)) = (&new_credentials, old_item) {
-            self.delete_credentials_if_unused(&old).await;
+            if old != row.credentials_item_id {
+                self.delete_credentials_if_unused(&old).await;
+            }
         }
         // A generated key is in the password manager now; the process forgets it (FR-008).
         if let Some(key_id) = generated {
             keys::pending().take(&key_id);
         }
-        let state = credentials::state(&self.db, &row.credentials_item_id).await?;
-        Ok(view(&row, state))
+        let state = credentials::state(&self.db, &row.credentials_item_id, row.protocol).await?;
+        let entry = self
+            .db
+            .read({
+                let item_id = row.credentials_item_id.clone();
+                move |q| credentials::entry(q, &item_id).map_err(Into::into)
+            })
+            .await?;
+        Ok(view(&row, state, entry))
     }
 
     /// Remembers `outcome` for the storages of the connection on `bucket`.
@@ -622,3 +633,6 @@ mod host_key;
 #[path = "service_credentials.rs"]
 mod credentials_input;
 use credentials_input::credentials_of;
+
+#[path = "service_link.rs"]
+mod link;

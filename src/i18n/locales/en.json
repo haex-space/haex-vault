@@ -1018,8 +1018,24 @@
         "storage": "First cloud storage",
         "test": "Test"
       },
-      "newCredentials": "Enter new credentials",
+      "newCredentials": "Change credentials",
+      "credentialsSource": {
+        "label": "Credentials",
+        "new": "Enter new",
+        "entry": "Entry from the password manager"
+      },
+      "entryPicker": {
+        "label": "Entry from the password manager",
+        "search": "Search entries",
+        "loading": "Loading entries …",
+        "empty": "No fitting entries.",
+        "onlyFitting": "Only entries with everything the connection needs are listed: user name and password, for SFTP also user name and private key.",
+        "noMatch": "No entry matches the search.",
+        "required": "Please choose an entry from the password manager."
+      },
       "credentialsKept": "The credentials are in the password manager as “{label}: {name}”.",
+      "credentialsLinked": "Linked password-manager entry",
+      "openCredentialsEntry": "Open entry",
       "testBucketHint": "holzi checks the connection with this bucket before saving it.",
       "save": "Test and save",
       "saveName": "Save",

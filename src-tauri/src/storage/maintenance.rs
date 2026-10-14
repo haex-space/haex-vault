@@ -40,6 +40,7 @@ use uuid::Uuid;
 
 use crate::catalog;
 use crate::providers::local::ensure_local_provider;
+use crate::remote_storage::credentials;
 use crate::storage::models as models_store;
 
 use super::preferences::{self, PrefScope};
@@ -132,6 +133,7 @@ pub fn run_after_open(db: &Database) {
         log::warn!("maintenance: could not fold preferences into their scope: {e}");
     }
     if let Err(e) = db.write(|tx| {
+        credentials::backfill_owned_tags(tx)?;
         let catalog_repos: Vec<(&str, &str)> = catalog::entries()
             .iter()
             .map(|entry| (entry.id.as_str(), entry.tokenizer_repo.as_str()))

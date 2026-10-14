@@ -6,21 +6,27 @@
 //! good.
 //!
 //! Whether the entry is on this device ([`state`]): `present`, `missing` when the user deleted it
-//! (a delete marker or the trash), otherwise `syncing` (it has not arrived yet).
+//! (a delete marker or the trash) or it lacks the values of the protocol (spec 052 FR-010),
+//! otherwise `syncing` (it has not arrived yet).
+//!
+//! A connection may also point at an entry the user chose (spec 052): it stays the user's entry,
+//! with no owner; [`delete`] never removes it.
 
 use haex_crdt::rusqlite::params;
+use haex_crdt::CrdtTransaction;
 use zeroize::Zeroizing;
 
+use super::model::{CredentialsCandidate, CredentialsEntry};
 use super::{
     store, Credentials, CredentialsState, PasswordCredentials, Protocol, S3Credentials,
     SshKeyCredentials,
 };
 use crate::error::{HolziError, Result};
 use crate::passwords::access::{Caller, Grant, GrantAction, Scope};
-use crate::passwords::items;
-use crate::passwords::model::{ItemInput, KeyValueInput};
+use crate::passwords::model::{ItemInput, KeyValueInput, SecretItem};
 use crate::passwords::service::PasswordsService;
 use crate::passwords::usage::EntryUsage;
+use crate::passwords::{ids, items, reveal};
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
@@ -29,6 +35,10 @@ pub const FEATURE: &str = "storage";
 
 /// The caller this module reads and writes the password manager as.
 pub const CALLER: Caller = Caller::Internal { feature: FEATURE };
+
+/// The tag of the entries that hold the credentials of cloud storage (spec 052 FR-006); the one
+/// place of its name.
+pub const TAG: &str = "haex-cloud-storage";
 
 /// The custom field that holds a session token.
 pub const SESSION_TOKEN: &str = "sessionToken";
@@ -95,30 +105,95 @@ pub async fn create(
         username: Some(username),
         password,
         url: (!endpoint.trim().is_empty()).then(|| endpoint.trim().to_owned()),
+        tags: vec![TAG.to_owned()],
         key_values,
         ..ItemInput::default()
     };
     passwords.create_owned_item(&CALLER, input).await
 }
 
-/// Reads the credentials of the entry `item_id` for a connection of `protocol`. An entry that is not
-/// there, or one without the fields the protocol needs, is
-/// [`HolziError::StorageCredentialsUnavailable`] with its [`state`].
-pub async fn read(
-    passwords: &PasswordsService,
-    db: &VaultDb,
-    item_id: &str,
-    protocol: Protocol,
-) -> Result<Credentials> {
-    let unavailable = |state| HolziError::StorageCredentialsUnavailable { state };
-    let item = match passwords
-        .read_secret_item(&CALLER, &grants(), item_id.to_owned())
+/// Adds the cloud-storage tag to a user-selected entry without changing any other tag.
+pub async fn tag_selected(passwords: &PasswordsService, item_id: &str) -> Result<()> {
+    passwords
+        .set_tags(
+            &Caller::User,
+            vec![item_id.to_owned()],
+            vec![TAG.to_owned()],
+            Vec::new(),
+        )
         .await
-    {
-        Ok(item) => item,
-        Err(HolziError::PasswordsNotFound) => return Err(unavailable(state(db, item_id).await?)),
-        Err(error) => return Err(error),
+        .map(|_| ())
+}
+
+/// Adds the tag to storage-owned entries created before spec 052. This is idempotent; user-owned
+/// entries are deliberately not changed here. The direct CRDT return type lets this run inside
+/// the synchronous vault-open maintenance transaction.
+pub fn backfill_owned_tags(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<u32> {
+    let tag = ids::fold(TAG);
+    let existing_tag = tx
+        .query_map("SELECT id, name FROM haex_passwords_tags", &[], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .into_iter()
+        .find(|(_, name)| ids::fold(name) == tag)
+        .map(|(id, _)| id);
+    let tag_id = if let Some(id) = existing_tag {
+        id
+    } else {
+        let id = ids::tag_id(TAG).to_string();
+        tx.execute(
+            "INSERT INTO haex_passwords_tags (id, name, created_at) VALUES (?1, ?2, ?3)",
+            params![id, TAG, crate::passwords::clock::now()],
+        )?;
+        id
     };
+    let item_ids = tx.query_map(
+        "SELECT id FROM haex_passwords_item_details WHERE owner = ?1",
+        params![FEATURE],
+        |row| row.get::<_, String>(0),
+    )?;
+    let mut changed = 0;
+    for item_id in item_ids {
+        let linked = tx
+            .query_row(
+                "SELECT COUNT(*) FROM haex_passwords_item_tags WHERE item_id = ?1 AND tag_id = ?2",
+                params![item_id, tag_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .unwrap_or(0);
+        if linked == 0 {
+            tx.execute(
+                "INSERT INTO haex_passwords_item_tags (id, item_id, tag_id) VALUES (?1, ?2, ?3)",
+                params![
+                    ids::item_tag_id(&item_id, &tag_id).to_string(),
+                    item_id,
+                    tag_id
+                ],
+            )?;
+            changed += 1;
+        }
+    }
+    Ok(changed)
+}
+
+/// Returns the linked entry's safe display metadata, if it is still visible.
+pub fn entry(q: &mut impl Query, item_id: &str) -> Result<Option<CredentialsEntry>> {
+    Ok(items::headers_in_scope(q, &Scope::All, &Caller::User)?
+        .into_iter()
+        .find(|header| header.id == item_id)
+        .map(|header| CredentialsEntry {
+            id: header.id,
+            title: header.title,
+            owned: header.owner.as_deref() == Some(FEATURE),
+        }))
+}
+
+/// The credentials an entry holds for a connection of `protocol` (spec 052 data-model.md, the one
+/// rule for "fits"): S3 takes the user name as access key id and the password as secret with an
+/// optional custom field `sessionToken`; WebDAV and SFTP take user name and password; SFTP without a
+/// password takes the custom field `privateKey` with an optional `passphrase`. Empty values count as
+/// missing; `None` when the entry does not fit.
+pub fn from_item(item: &SecretItem, protocol: Protocol) -> Option<Credentials> {
     let custom = |key: &str| {
         item.key_values
             .iter()
@@ -129,7 +204,7 @@ pub async fn read(
     };
     let username = item.username.clone().filter(|name| !name.is_empty());
     let password = item.password.clone().filter(|secret| !secret.is_empty());
-    let credentials = match (protocol, username, password) {
+    match (protocol, username, password) {
         (Protocol::S3, Some(access_key_id), Some(secret)) => Some(Credentials::S3(S3Credentials {
             access_key_id,
             secret_access_key: Zeroizing::new(secret),
@@ -149,17 +224,93 @@ pub async fn read(
             }))
         }
         _ => None,
-    };
-    credentials.ok_or_else(|| unavailable(CredentialsState::Missing))
+    }
 }
 
-/// Whether the entry `item_id` is here, deleted or not yet arrived (see the module).
-pub fn state_in(q: &mut impl Query, item_id: &str) -> Result<CredentialsState> {
+/// The entry `item_id` with its values as this module reads it; one that is not there for it is
+/// [`HolziError::StorageCredentialsUnavailable`] with its [`state`].
+pub async fn read_item(
+    passwords: &PasswordsService,
+    db: &VaultDb,
+    item_id: &str,
+    protocol: Protocol,
+) -> Result<SecretItem> {
+    match passwords
+        .read_secret_item(&CALLER, &grants(), item_id.to_owned())
+        .await
+    {
+        Err(HolziError::PasswordsNotFound) => Err(HolziError::StorageCredentialsUnavailable {
+            state: state(db, item_id, protocol).await?,
+        }),
+        other => other,
+    }
+}
+
+/// Reads the credentials of the entry `item_id` for a connection of `protocol`. An entry that is not
+/// there, or one without the fields the protocol needs, is
+/// [`HolziError::StorageCredentialsUnavailable`] with its [`state`].
+pub async fn read(
+    passwords: &PasswordsService,
+    db: &VaultDb,
+    item_id: &str,
+    protocol: Protocol,
+) -> Result<Credentials> {
+    let item = read_item(passwords, db, item_id, protocol).await?;
+    from_item(&item, protocol).ok_or(HolziError::StorageCredentialsUnavailable {
+        state: CredentialsState::Missing,
+    })
+}
+
+/// The entries the user may choose for a connection of `protocol` (spec 052 research R3): not in
+/// the trash, the user's own or created by holzi for a connection, and fitting by [`from_item`].
+/// Tagged entries first, then by title regardless of case. No value leaves this function.
+pub async fn candidates(db: &VaultDb, protocol: Protocol) -> Result<Vec<CredentialsCandidate>> {
+    if protocol == Protocol::Local {
+        return Err(store::invalid("protocol"));
+    }
+    let mut found = db
+        .read(move |q| {
+            let tag = ids::fold(TAG);
+            let mut found = Vec::new();
+            for header in items::headers_in_scope(q, &Scope::All, &Caller::User)? {
+                let owned = header.owner.as_deref() == Some(FEATURE);
+                let username = header.username.clone().unwrap_or_default();
+                // Values in the header first, so only likely entries are read with their secrets.
+                if (header.owner.is_some() && !owned)
+                    || username.is_empty()
+                    || (protocol != Protocol::Sftp && !header.has_password)
+                    || !reveal::secret_item(q, &header.id)?
+                        .is_some_and(|item| from_item(&item, protocol).is_some())
+                {
+                    continue;
+                }
+                found.push(CredentialsCandidate {
+                    tagged: header.tags.iter().any(|t| ids::fold(&t.name) == tag),
+                    owned,
+                    id: header.id,
+                    title: header.title,
+                    username,
+                    url: header.url,
+                });
+            }
+            Ok(found)
+        })
+        .await?;
+    found.sort_by_cached_key(|c| (!c.tagged, c.title.as_deref().unwrap_or("").to_lowercase()));
+    Ok(found)
+}
+
+/// Whether the entry `item_id` is here with the values `protocol` needs, deleted or without them,
+/// or not yet arrived (see the module; spec 052 FR-010).
+pub fn state_in(q: &mut impl Query, item_id: &str, protocol: Protocol) -> Result<CredentialsState> {
     if let Some(stored) = items::item_state(q, item_id)? {
-        return Ok(if stored.in_trash {
-            CredentialsState::Missing
-        } else {
+        let fits = !stored.in_trash
+            && reveal::secret_item(q, item_id)?
+                .is_some_and(|item| from_item(&item, protocol).is_some());
+        return Ok(if fits {
             CredentialsState::Present
+        } else {
+            CredentialsState::Missing
         });
     }
     let deleted = q
@@ -180,9 +331,9 @@ pub fn state_in(q: &mut impl Query, item_id: &str) -> Result<CredentialsState> {
 }
 
 /// [`state_in`] on its own read.
-pub async fn state(db: &VaultDb, item_id: &str) -> Result<CredentialsState> {
+pub async fn state(db: &VaultDb, item_id: &str, protocol: Protocol) -> Result<CredentialsState> {
     let item_id = item_id.to_owned();
-    db.read(move |q| state_in(q, &item_id).map_err(Into::into))
+    db.read(move |q| state_in(q, &item_id, protocol).map_err(Into::into))
         .await
 }
 

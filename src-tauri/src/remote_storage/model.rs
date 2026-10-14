@@ -10,7 +10,8 @@ use zeroize::Zeroizing;
 use super::{Addressing, CredentialsState, EndpointScope, Protocol, ProviderKind, TestOutcome};
 
 /// Credentials as typed by the user, by kind (spec 050 contracts/tauri-commands.md): `s3` only for
-/// S3 connections, `password` for WebDAV and SFTP, `sshKey` and `generatedKey` only for SFTP.
+/// S3 connections, `password` for WebDAV and SFTP, `sshKey` and `generatedKey` only for SFTP; or
+/// `entry`, an entry of the password manager for any protocol (spec 052).
 /// `Debug` shows only the access key id or the user name.
 #[derive(Clone, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -43,6 +44,10 @@ pub enum CredentialsInput {
     /// A key holzi generated (`storage_ssh_key_generate`); its private half never left Rust.
     #[serde(rename_all = "camelCase")]
     GeneratedKey { username: String, key_id: String },
+    /// An entry of the password manager the user chose (spec 052): the connection points at it,
+    /// its values never travel through the window.
+    #[serde(rename_all = "camelCase")]
+    Entry { item_id: String },
 }
 
 impl fmt::Debug for CredentialsInput {
@@ -65,6 +70,10 @@ impl fmt::Debug for CredentialsInput {
                 .debug_struct("CredentialsInput::GeneratedKey")
                 .field("username", username)
                 .finish_non_exhaustive(),
+            Self::Entry { item_id } => f
+                .debug_struct("CredentialsInput::Entry")
+                .field("item_id", item_id)
+                .finish(),
         }
     }
 }
@@ -145,10 +154,24 @@ pub struct ConnectionView {
     /// Whether the endpoint lies in the local network or on this device (research R8).
     pub endpoint_scope: EndpointScope,
     pub credentials: CredentialsState,
+    /// The non-secret entry currently linked to this connection, when it is still visible.
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credentials_entry: Option<CredentialsEntry>,
     /// The confirmed host key of an SFTP connection (spec 050 research R5).
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host_key: Option<ConfirmedHostKey>,
+}
+
+/// The password-manager entry linked to a connection, without any secret value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialsEntry {
+    pub id: String,
+    pub title: Option<String>,
+    pub owned: bool,
 }
 
 /// The host key a user confirmed for an SFTP connection.
@@ -180,6 +203,22 @@ pub struct GeneratedKey {
     pub key_id: String,
     /// `ssh-ed25519 AAAA… holzi`, for the provider's list of keys.
     pub public_key: String,
+}
+
+/// An entry of the password manager that fits a protocol, for the choice in the form (spec 052
+/// contracts/tauri-commands.md): never a secret, for S3 `username` is the access key id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialsCandidate {
+    pub id: String,
+    pub title: Option<String>,
+    pub username: String,
+    pub url: Option<String>,
+    /// It carries the tag of cloud storage credentials.
+    pub tagged: bool,
+    /// holzi created it for a connection (owner `storage`).
+    pub owned: bool,
 }
 
 /// The last test of a storage on this device.

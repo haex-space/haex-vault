@@ -8,8 +8,10 @@
  * speichern"), because holzi tests a new connection, new credentials or a moved endpoint before it
  * saves anything (FR-003); a failed test saves nothing and names the reason. A new connection
  * also gets its first storage on the tested bucket or folder; a missing folder is made only when
- * the user says so (FR-006). The credentials go to the password manager ("S3: <Name>",
- * "WebDAV: <Name>") and never come back to this window; to change them the user types new ones.
+ * the user says so (FR-006). Typed credentials go to the password manager ("S3: <Name>",
+ * "WebDAV: <Name>") and never come back to this window; instead of typing, the user may choose an
+ * entry there that fits the protocol (spec 052 US1). To change them the user types new ones or
+ * chooses another entry.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { Addressing } from '@bindings/Addressing'
@@ -20,13 +22,15 @@ import type { ProviderKind } from '@bindings/ProviderKind'
 import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { StorageInput } from '@bindings/StorageInput'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
+import CredentialsEntryPicker from './CredentialsEntryPicker.vue'
 import CredentialsFields from './CredentialsFields.vue'
-import { credentialsInput, emptyCredentials } from './credentials'
+import { clearSecrets, credentialsInput, emptyCredentials } from './credentials'
 import HostKeyConfirm from './HostKeyConfirm.vue'
 import { PRESETS, type FormProtocol } from './presets'
 
 const { t } = useI18n()
 const router = useTabRouter()
+const { openApp } = useWmTab()
 const fieldLabels = useFieldLabels()
 const storageError = useStorageError()
 const { overview, connection } = useStorageOverview()
@@ -36,6 +40,7 @@ const isNew = computed(() => connectionId.value === 'new')
 const existing = computed(() =>
   isNew.value ? undefined : connection(connectionId.value),
 )
+const linkedCredentialsEntry = computed(() => existing.value?.credentialsEntry)
 const missing = computed(
   () => !isNew.value && overview.value !== null && !existing.value,
 )
@@ -61,6 +66,10 @@ const failure = ref<string | null>(null)
 /** The last test found the folder missing; the user may let holzi make it (FR-006). */
 const folderMissing = ref(false)
 const tree = computed(() => draft.protocol !== 's3')
+
+function openCredentialsEntry(itemId: string) {
+  openApp('system.passwords', `/entry/${itemId}`)
+}
 
 /** The form shows the stored connection once it is known; later reloads keep what is typed. */
 let filled = false
@@ -128,22 +137,17 @@ function chooseProtocol(protocol: string) {
   if (first) choose(first)
 }
 
+const sourceOptions = computed<SettingsSelectOption[]>(() =>
+  (['new', 'entry'] as const).map((source) => ({
+    value: source,
+    label: t(`settings.storage.credentialsSource.${source}`),
+  })),
+)
+
 const insecure = computed(() =>
   draft.endpoint.trim().toLowerCase().startsWith('http://'),
 )
 const withCredentials = computed(() => isNew.value || replaceCredentials.value)
-
-function clearSecrets() {
-  Object.assign(credentials.value, {
-    secretAccessKey: '',
-    sessionToken: '',
-    password: '',
-    privateKey: '',
-    passphrase: '',
-    keyId: '',
-    publicKey: '',
-  })
-}
 
 /** The credentials as typed, in the kind of the protocol. */
 function typedCredentials(): ConnectionInput['credentials'] {
@@ -156,6 +160,15 @@ async function saveAsync(createFolder = false) {
   busy.value = true
   failure.value = null
   folderMissing.value = false
+  if (
+    withCredentials.value &&
+    credentials.value.source === 'entry' &&
+    !credentials.value.entryId
+  ) {
+    failure.value = t('settings.storage.entryPicker.required')
+    busy.value = false
+    return
+  }
   const input: ConnectionInput = {
     id: isNew.value ? undefined : connectionId.value,
     protocol: draft.protocol,
@@ -173,7 +186,7 @@ async function saveAsync(createFolder = false) {
     const saved = await invoke<ConnectionView>('storage_connection_save', {
       input,
     })
-    clearSecrets()
+    clearSecrets(credentials.value)
     if (isNew.value) {
       const storage: StorageInput = {
         connectionId: saved.id,
@@ -343,12 +356,46 @@ async function confirmHostKeyAsync() {
           data-testid="storage-replace-credentials"
           @change="replaceCredentials = $event"
         />
-        <CredentialsFields
+        <SettingsRow
+          v-if="!isNew && linkedCredentialsEntry"
+          :title="t('settings.storage.credentialsLinked')"
+          :description="
+            linkedCredentialsEntry.title || linkedCredentialsEntry.id
+          "
+        >
+          <UiButton
+            type="button"
+            size="sm"
+            variant="outline"
+            data-testid="storage-open-credentials-entry"
+            @click="openCredentialsEntry(linkedCredentialsEntry.id)"
+          >
+            {{ t('settings.storage.openCredentialsEntry') }}
+          </UiButton>
+        </SettingsRow>
+        <SettingsRow
           v-if="withCredentials"
+          :title="t('settings.storage.credentialsSource.label')"
+          label-for="storage-credentials-source"
+        >
+          <SettingsSelect
+            id="storage-credentials-source"
+            v-model="credentials.source"
+            :options="sourceOptions"
+            data-testid="storage-credentials-source"
+          />
+        </SettingsRow>
+        <CredentialsFields
+          v-if="withCredentials && credentials.source === 'new'"
           v-model="credentials"
           :protocol="draft.protocol"
         />
       </SettingsGroup>
+      <CredentialsEntryPicker
+        v-if="withCredentials && credentials.source === 'entry'"
+        v-model="credentials.entryId"
+        :protocol="draft.protocol"
+      />
 
       <SettingsGroup
         :label="

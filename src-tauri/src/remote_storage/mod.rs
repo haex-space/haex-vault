@@ -15,6 +15,8 @@ mod address_tests;
 pub mod commands;
 pub mod credentials;
 #[cfg(test)]
+mod credentials_entry_tests;
+#[cfg(test)]
 mod credentials_tests;
 mod http;
 #[cfg(test)]
@@ -41,6 +43,8 @@ mod s3_tests;
 pub mod service;
 #[cfg(test)]
 mod service_endpoint_tests;
+#[cfg(test)]
+mod service_link_tests;
 #[cfg(test)]
 mod service_protocol_tests;
 #[cfg(test)]

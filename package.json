@@ -15,6 +15,7 @@
     "check:settings": "node --test scripts/check-settings.ts",
     "check:vault-data": "node --test scripts/check-vault-data.ts",
     "check:passwords": "node --test scripts/check-passwords-*.ts",
+    "check:storage": "node --test scripts/check-storage-*.ts",
     "check:contacts": "node --test scripts/check-contacts-*.ts",
     "check:fields": "node --test scripts/check-fields.ts",
     "check:appearance": "node --test scripts/check-appearance*.ts",
