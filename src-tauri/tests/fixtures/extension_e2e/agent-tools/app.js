@@ -8395,6 +8395,7 @@ var manifest_default = {
   name: "agent-tools",
   version: "1.0.0",
   displayName: "Test-Erweiterung",
+  publicKey: "1549fb64ff115627d507f8c95a8fd7b4bd5381c6df97120f910ed904ba50e63f",
   migrationsDir: "db",
   permissions: {
     database: [
@@ -8480,14 +8481,6 @@ function log(text) {
   document.getElementById("log").prepend(item);
   console.info("[agent-tools]", text);
 }
-function errorText(error) {
-  if (error instanceof Error) return `${error.name}: ${error.message}`;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
 async function table() {
   await sdk.ready();
   return sdk.getTableName("entries");
@@ -8522,4 +8515,4 @@ sdk.tools.register("slow_echo", (input, { signal }) => {
     });
   });
 });
-countAsync().catch((error) => log(`count failed: ${errorText(error)}`));
+countAsync().catch((error) => log(`count failed: ${error}`));
