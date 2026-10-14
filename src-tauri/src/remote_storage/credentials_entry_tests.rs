@@ -275,7 +275,7 @@ async fn the_list_holds_the_fitting_entries_the_user_may_choose_without_a_value(
     let sftp = ids(Protocol::Sftp).await;
     assert_eq!(
         sftp.iter().map(|c| c.id.clone()).collect::<Vec<_>>(),
-        [alpha, key, owned.clone(), zeta]
+        [alpha, owned.clone(), key, zeta]
     );
     let s3 = ids(Protocol::S3).await;
     let listed = s3.iter().find(|c| c.id == owned).expect("listed");
