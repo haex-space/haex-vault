@@ -302,7 +302,7 @@ async fn vault_open_backfills_the_tag_on_old_storage_entries() {
         .expect("old storage entry");
 
     let changed = db
-        .write(|tx| credentials::backfill_owned_tags(tx))
+        .write(credentials::backfill_owned_tags)
         .await
         .expect("backfill");
     assert_eq!(changed, 1);
