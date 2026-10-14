@@ -119,8 +119,17 @@ async function clickDisplayed(
       // Keep fixed desktop chrome such as the dock from intercepting a control that was just
       // revealed below a scroll surface (the WebDriver click otherwise only scrolls it to an edge).
       await client.execute(
-        'arguments[0].scrollIntoView({ block: "center", inline: "nearest" })',
-        [element],
+        `const elements = document.querySelectorAll(arguments[0])
+         for (const candidate of elements) {
+           const rect = candidate.getBoundingClientRect()
+           const style = getComputedStyle(candidate)
+           if (style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0) {
+             candidate.scrollIntoView({ block: 'center', inline: 'nearest' })
+             return true
+           }
+         }
+         return false`,
+        [toSelector(hook)],
       )
       onClickSent?.()
       await client.click(element)
