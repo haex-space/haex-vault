@@ -39,21 +39,22 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 - Q: Soll die Rolle „geöffneter Ordner“ vorkommen? → A: Nein. Der Dateibrowser zeigt nirgends einen
   geöffneten Ordner; die Rolle entfällt. Ein importiertes Theme mit einem Bild für den geöffneten
   Ordner (`folderExpanded`) wird trotzdem übernommen, das Feld wird ignoriert (siehe Annahmen).
-- Q: Welches Set mit vielen Dateitypen wird mitgeliefert? → A: Phosphor (MIT) und ein kuratierter
-  Auszug des Material Icon Themes (Betreiber, 2026-10-14, nachdem geklärt war, dass nur die Logos darin
-  das Problem sind, nicht die MIT-Lizenz): nur die allgemeinen Bilder, also Ordner nach Namen und
-  Dateitypen ohne Marke; alle Logos von Firmen, Produkten, Sprachen, Frameworks und Werkzeugen bleiben
-  draußen (Regel in FR-017).
+- Q: Welches Set mit vielen Dateitypen wird mitgeliefert? → A: Phosphor (MIT) und das Material Icon
+  Theme, vollständig (MIT, Teile Apache-2.0). Das Material Icon Theme enthält Logos von Firmen,
+  Produkten, Sprachen und Werkzeugen; die MIT-Lizenz räumt darauf keine Rechte Dritter ein. Der
+  Betreiber hat das Restrisiko am 2026-10-14 ausdrücklich angenommen („ich denke das Risiko können
+  wir eingehen“); eine erste Fassung mit einem logofreien Auszug ist damit abgelöst (FR-017).
 - Q (Planung, 2026-10-14): Was ändert die Planung an der Spec? → A: Auf Android gibt es heute keine
   Ordnerauswahl (Spec 043 FR-016), also dort nur das Archiv (FR-009, US3). Die Lizenzprüfung ist in der
   Planung gemacht (research R1); offen ist die fehlende LICENSE-Datei von holzi (Betreiber).
 - Q: Welche Sets werden mitgeliefert, und nach welcher Regel? → A: „Lucide“ (bisheriges Aussehen,
-  bleibt Standard), „Phosphor“ (viele Dateitypen) und „Material“ (kuratiert: Ordnernamen und
-  allgemeine Dateitypen). Mitgeliefert wird nur, was unter einer permissiven Lizenz steht (MIT, ISC,
-  Apache-2.0, CC0), keine Firmen- oder Sprachlogos enthält und kein Copyleft verlangt (Betreiber, 2026-10-14:
-  „nur Icons und Icon-Sets, die eine offene Lizenz haben und die wir ohne Probleme nutzen können“).
-  Adwaita (LGPL-3, CC-BY-SA-Anteile) und das vollständige Material Icon Theme (Logos) erfüllen das
-  nicht; sie bleiben vom Nutzer importierbar. Die Lizenzprüfung ist Teil dieser Spec (FR-017).
+  bleibt Standard), „Phosphor“ (viele Dateitypen) und „Material“ (das Material Icon Theme,
+  vollständig). Mitgeliefert wird nur, was unter einer permissiven Lizenz steht (MIT, ISC, Apache-2.0,
+  CC0) und kein Copyleft verlangt (Betreiber, 2026-10-14: „nur Icons und Icon-Sets, die eine offene
+  Lizenz haben und die wir ohne Probleme nutzen können“); für die Logos im Material Icon Theme nimmt
+  der Betreiber das Restrisiko an (siehe oben). Adwaita (LGPL-3, CC-BY-SA-Anteile) und vscode-icons
+  (CC BY-SA) erfüllen die Regel nicht; sie bleiben vom Nutzer importierbar. Die Lizenzprüfung ist Teil
+  dieser Spec (FR-017).
 
 ## Begriffe
 
@@ -304,9 +305,9 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
   allein das Set durch seine Hell-/Dunkel-Bilder, wie bei VS Code.
 - **FR-007**: holzi MUSS diese Sets mitliefern: „Lucide“ (Standard, bisheriges Aussehen), „Phosphor“
   (viele Dateitypen: Dokumente, Tabellen, Bilder, Audio, Video, Archive und die häufigen
-  Programmiersprachen als Buchstaben-Symbole, dazu Ordner und Schloss) und „Material“ (ein
-  kuratierter Auszug des Material Icon Themes: Ordner nach Namen wie `src`, `docs` oder `images` und
-  Dateitypen ohne Marke). Weitere Sets DÜRFEN nur mitgeliefert werden, wenn sie FR-017 erfüllen.
+  Programmiersprachen als Buchstaben-Symbole, dazu Ordner und Schloss) und „Material“ (das Material
+  Icon Theme mit Ordnern nach Namen und Bildern für die gängigen Dateitypen und Werkzeuge, wie bei VS
+  Code). Weitere Sets DÜRFEN nur mitgeliefert werden, wenn sie FR-017 erfüllen.
 - **FR-008**: Jedes Set, mitgeliefert oder eigen, MUSS dasselbe Format haben: ein Manifest im Format
   der Icon-Themes von VS Code (Bilddefinitionen, Dateiendungen, Dateinamen, Ordnernamen, Ordner,
   Hell/Dunkel), ergänzt um die Rollen für die Zustände (FR-005). Eine Angabe, ob ein Set einfarbig ist, gehört
@@ -338,15 +339,14 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 - **FR-016**: Erweiterungen und Agenten DÜRFEN das Set weder lesen noch ändern, noch eine Wahl treffen;
   das Icon-Set ist eine Einstellung des Nutzers.
 - **FR-017**: Ein Set darf nur mitgeliefert werden, wenn es (a) unter einer permissiven Lizenz steht
-  (MIT, ISC, Apache-2.0 oder CC0), (b) von den Autoren des Sets gezeichnet ist oder aus benannten Quellen
-  stammt, die ebenfalls permissiv lizenziert sind, und diese Quellen im Paket und auf der Lizenzseite
-  stehen, (c) keine Firmen-, Marken-, Produkt-, Sprach-, Framework- oder Werkzeuglogos enthält (ein
-  Bild gilt als Logo, wenn es den Namen, das Zeichen oder das Maskottchen von etwas Genanntem zeigt;
-  solche Bilder werden beim Packen weggelassen, jedes aufgenommene Bild steht in einer Auswahlliste im
-  Repository) und (d) kein Copyleft verlangt. Die Prüfung
-  MUSS vor der Aufnahme geschehen und mit Quelle, Version und Lizenztext festgehalten werden. Urheber,
-  Lizenz und der verlangte Hinweis MÜSSEN in der App auf einer Seite „Lizenzen“ stehen. Für ein vom
-  Nutzer importiertes Set gilt die Regel nicht (er bringt es mit); die Importvorschau zeigt Urheber und
+  (MIT, ISC, Apache-2.0 oder CC0), (b) Teile aus Drittquellen nur enthält, wenn die Quelle benannt und
+  ebenfalls permissiv lizenziert ist und im Paket und auf der Lizenzseite steht, und (c) kein
+  Copyleft verlangt. Enthält ein Set Logos, Marken oder Zeichen Dritter, MUSS die Lizenzseite sagen,
+  dass diese ihren Inhabern gehören und nur den Dateityp kennzeichnen; das gilt für das Material
+  Icon Theme, dessen Restrisiko der Betreiber angenommen hat. Die Prüfung MUSS vor der Aufnahme
+  geschehen und mit Quelle, Version und Lizenztext festgehalten werden. Urheber, Lizenz und der
+  verlangte Hinweis MÜSSEN in der App auf einer Seite „Lizenzen“ stehen. Für ein vom Nutzer
+  importiertes Set gilt die Regel nicht (er bringt es mit); die Importvorschau zeigt Urheber und
   Lizenz an, soweit das Set sie nennt, und weist darauf hin, dass der Nutzer für die Lizenz
   verantwortlich ist.
 - **FR-018**: Die Bilder eines Sets MÜSSEN erst geladen werden, wenn ein Eintrag sichtbar wird; ein
@@ -379,13 +379,13 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 
 - **SC-001**: Ein Set zu wechseln dauert höchstens zwei Klicks in den Einstellungen, und die geöffnete
   Dateiliste zeigt das neue Aussehen innerhalb einer Sekunde, ohne Neuladen.
-- **SC-002**: Mit „Material“ haben mindestens 20 häufige Ordnernamen (zum Beispiel `src`, `docs`,
-  `images`, `config`, `test`) ein eigenes Ordner-Bild und mindestens 15 häufige Dateinamen und
-  Endungen (zum Beispiel `readme`, `license`, `json`, `yaml`, `zip`) ein passendes Bild, und kein Bild
-  im Paket ist ein Logo. Mit „Phosphor“ haben mindestens 40 häufige Dateiendungen (zum Beispiel `pdf`, `docx`,
-  `xlsx`, `pptx`, `zip`, `png`, `mp3`, `mp4`, `rs`, `ts`, `vue`, `py`, `md`, `csv`) ein passendes Bild
-  statt des allgemeinen Datei-Bildes, und die Zustände Ordner, Ordner ohne Zugriff und Schloss sind
-  belegt.
+- **SC-002**: Mit „Material“ haben mindestens 50 häufige Ordnernamen (zum Beispiel `src`, `docs`,
+  `images`, `config`, `test`) ein eigenes Ordner-Bild und mindestens 100 häufige Dateinamen und
+  Endungen (zum Beispiel `readme`, `license`, `json`, `yaml`, `zip`, `rs`, `ts`, `vue`, `py`)
+  ein passendes Bild. Mit „Phosphor“ haben mindestens 40 häufige Dateiendungen (zum Beispiel `pdf`,
+  `docx`, `xlsx`, `pptx`, `zip`, `png`, `mp3`, `mp4`, `rs`, `ts`, `vue`, `py`, `md`, `csv`) ein
+  passendes Bild statt des allgemeinen Datei-Bildes, und die Zustände Ordner, Ordner ohne Zugriff und
+  Schloss sind belegt.
 - **SC-003**: Ein importiertes Theme aus dem VS-Code-Umfeld mit gültigem Manifest wird in höchstens
   einer Minute übernommen und erscheint ohne Handarbeit wählbar.
 - **SC-004**: Das Öffnen eines Ordners mit 1000 Einträgen dauert mit einem großen Set nicht spürbar
@@ -413,15 +413,14 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
 - Vorgeschlagene Grenzen (die Planung darf sie anpassen): höchstens 5 MB je Set, höchstens 2000 Bilder
   je Set, höchstens 256 KB je Bild, Pixelbilder höchstens 512 × 512 px, höchstens 10 eigene Sets. Die
   Grenzen gelten für eigene Sets; die mitgelieferten erfüllen sie ebenfalls.
-- Die Sets mit vielen Dateitypen sind Phosphor (MIT, ein Urheber) und ein kuratierter Auszug des
-  Material Icon Themes (MIT, Teile von Pictogrammers und Google unter Apache-2.0); die Lizenzprüfung
-  steht in der Planung (research R1). Phosphor ist einfarbig gezeichnet und wird beim Bauen in einer
-  hellen und einer dunklen Fassung gefärbt; es hat keine Zuordnung nach Dateinamen oder Ordnernamen,
-  die Endungen werden von uns auf die vorhandenen Bilder abgebildet. Der Material-Auszug bringt die
-  Ordnernamen und die allgemeinen Dateitypen, aber keine Sprach-Icons (Logos); für Programmiersprachen
-  ist Phosphor der passende Look. Adwaita, das vollständige Material, Catppuccin, Seti, Tabler und
-  Papirus werden nicht mitgeliefert (Logos, Copyleft oder zu kleine Abdeckung); der Nutzer kann sie
-  importieren.
+- Die Sets mit vielen Dateitypen sind Phosphor (MIT, ein Urheber) und das Material Icon Theme (MIT,
+  Teile von Pictogrammers und Google unter Apache-2.0, Release 5.39.0, vollständig); die
+  Lizenzprüfung steht in der Planung (research R1). Phosphor ist einfarbig gezeichnet und wird beim
+  Bauen in einer hellen und einer dunklen Fassung gefärbt; es hat keine Zuordnung nach Dateinamen
+  oder Ordnernamen, die Endungen werden von uns auf die vorhandenen Bilder abgebildet. Material
+  bringt Ordnernamen, Dateinamen und Endungen mit, auch für Sprachen und Werkzeuge. Adwaita,
+  Catppuccin, Seti, vscode-icons, Tabler und Papirus werden nicht mitgeliefert (Copyleft, Logos
+  ohne Mehrwert oder zu kleine Abdeckung); der Nutzer kann sie importieren.
 - Der Import liest nur lokale Dateien; ein Import per Link (mit eigenen Sicherheitsfragen: Herkunft,
   Prüfung, Offline) kann später als eigene Spec folgen.
 - Das Format der Icon-Themes von VS Code wird gelesen, soweit es Dateien, Endungen, Ordner und

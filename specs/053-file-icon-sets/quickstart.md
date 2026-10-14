@@ -29,8 +29,8 @@ Das Szenario deckt US1, US2, US3 und US5 ab:
 4. Ein eigenes Set aus dem Fixture-Ordner importieren (über das Eingabefeld für Dateien, wie `BackgroundSetting`): die Vorschau zeigt Name, Zahl der Bilder und den Hinweis zur Lizenz; nach dem Import erscheint das Set mit Vorschau; ein SVG im Set mit Skript ist beim Anzeigen wirkungslos, und im Speicher liegt die bereinigte Fassung.
 5. Entfernen mit Bestätigung: das Set ist weg, die Wahl fällt auf Lucide zurück.
 6. Ein Verzeichnis mit einer verschlüsselten, nicht lesbaren Datei und einem Ordner ohne Zugriff: Schloss und Ordner-ohne-Zugriff erscheinen auch unter Phosphor und unter einem importierten Set ohne diese Rollen (dort aus dem Standard-Set, FR-005).
-7. „Material“ wählen, ein Verzeichnis mit `src`, `docs`, `images`, `README.md`, `LICENSE`, `data.json` und `main.rs` öffnen: die Ordner und die allgemeinen Dateitypen haben je ihr Bild, `main.rs` zeigt das allgemeine Datei-Bild (kein Sprach-Logo). Ein Ordner `docker` zeigt das allgemeine Ordner-Bild.
-8. Test „Lizenzregel“: jedes mitgelieferte Paket hat `LICENSE` und `origin`, die SPDX-Kennung steht in der Liste erlaubter (MIT, ISC, Apache-2.0, CC0); im Material-Paket liegen nur Bilder aus `material.icons.txt` und keines mit einem Namen aus der Sperrliste bekannter Marken (FR-017); das eingecheckte ZIP stimmt Byte für Byte mit dem Packen des Quellverzeichnisses überein.
+7. „Material“ wählen, ein Verzeichnis mit `src`, `docs`, `images`, `README.md`, `LICENSE`, `data.json`, `main.rs` und `Dockerfile` öffnen: Ordner, Dateien nach Name und Endung haben je ihr Material-Bild.
+8. Test „Lizenzregel“: jedes mitgelieferte Paket hat `LICENSE` und `origin`, die SPDX-Kennung steht in der Liste erlaubter (MIT, ISC, Apache-2.0, CC0); das Material-Paket hat zusätzlich Apache-2.0 und `NOTICE` mit dem Hinweis auf Marken (FR-017); das eingecheckte ZIP stimmt Byte für Byte mit dem Packen des Quellverzeichnisses überein.
 
 ## 3. E2E `files-icon-sets-two-devices` (Spec 033)
 
@@ -44,5 +44,5 @@ Vorlage: `appearance-sync-two-devices`. Laptop und Telefon derselben Vault: Auf 
 
 - **Android** (Spec 043): Import eines Archivs per Dateiauswahl (`content://`), „Ordner wählen“ ist ausgeblendet; die Gruppe ist bedienbar; die Bilder erscheinen.
 - **Lizenzseite**: Einstellungen → Allgemein → Lizenzen zeigt für Lucide, Phosphor und Material Urheber, SPDX, Link und Text (bei Material zusätzlich Apache-2.0 und den Hinweis auf Material Design Icons und Material Symbols); die Angaben stimmen mit `src-tauri/icon-sets/SOURCES.md` überein.
-- **Leistung** (SC-004): einen Ordner mit 1000 Einträgen mit einem großen importierten Theme (zum Beispiel Material, aus dem Fixture) öffnen und mit Lucide vergleichen; Unterschied unter 200 ms.
-- **Importierte Themes mit Logos** (zum Beispiel Material): Der Import lehnt sie nicht ab; die Vorschau nennt Urheber und Lizenz und weist auf die Verantwortung des Nutzers hin (FR-017).
+- **Leistung** (SC-004): einen Ordner mit 1000 Einträgen mit Material öffnen und mit Lucide vergleichen; Unterschied unter 200 ms.
+- **Importierte Themes**: Der Import lehnt Themes mit Logos nicht ab; die Vorschau nennt Urheber und Lizenz und weist auf die Verantwortung des Nutzers hin (FR-017).
