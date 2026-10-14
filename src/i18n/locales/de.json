@@ -978,7 +978,11 @@
       },
       "credentialsUnavailable": {
         "syncing": "Die Zugangsdaten sind auf diesem Gerät noch nicht angekommen.",
-        "missing": "Die Zugangsdaten wurden gelöscht. Gib bei der Verbindung neue ein."
+        "missing": "Der Eintrag mit den Zugangsdaten wurde gelöscht oder ihm fehlt ein Wert. Wähle einen anderen Eintrag oder gib neue Zugangsdaten ein."
+      },
+      "credentialsMissing": {
+        "chooseOther": "Anderen Eintrag wählen",
+        "enterNew": "Neue Zugangsdaten eingeben"
       },
       "fields": {
         "providerKind": "Anbieter",

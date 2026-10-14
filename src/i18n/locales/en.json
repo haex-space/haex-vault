@@ -978,7 +978,11 @@
       },
       "credentialsUnavailable": {
         "syncing": "The credentials have not arrived on this device yet.",
-        "missing": "The credentials were deleted. Enter new ones at the connection."
+        "missing": "The entry with the credentials was deleted or lacks a value. Choose another entry or enter new credentials."
+      },
+      "credentialsMissing": {
+        "chooseOther": "Choose another entry",
+        "enterNew": "Enter new credentials"
       },
       "fields": {
         "providerKind": "Provider",

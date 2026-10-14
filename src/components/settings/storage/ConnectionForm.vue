@@ -24,13 +24,14 @@ import type { StorageInput } from '@bindings/StorageInput'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import CredentialsEntryPicker from './CredentialsEntryPicker.vue'
 import CredentialsFields from './CredentialsFields.vue'
+import CredentialsLinkedEntry from './CredentialsLinkedEntry.vue'
+import CredentialsMissingNote from './CredentialsMissingNote.vue'
 import { clearSecrets, credentialsInput, emptyCredentials } from './credentials'
 import HostKeyConfirm from './HostKeyConfirm.vue'
 import { PRESETS, type FormProtocol } from './presets'
 
 const { t } = useI18n()
 const router = useTabRouter()
-const { openApp } = useWmTab()
 const fieldLabels = useFieldLabels()
 const storageError = useStorageError()
 const { overview, connection } = useStorageOverview()
@@ -40,7 +41,6 @@ const isNew = computed(() => connectionId.value === 'new')
 const existing = computed(() =>
   isNew.value ? undefined : connection(connectionId.value),
 )
-const linkedCredentialsEntry = computed(() => existing.value?.credentialsEntry)
 const missing = computed(
   () => !isNew.value && overview.value !== null && !existing.value,
 )
@@ -66,10 +66,6 @@ const failure = ref<string | null>(null)
 /** The last test found the folder missing; the user may let holzi make it (FR-006). */
 const folderMissing = ref(false)
 const tree = computed(() => draft.protocol !== 's3')
-
-function openCredentialsEntry(itemId: string) {
-  openApp('system.passwords', `/entry/${itemId}`)
-}
 
 /** The form shows the stored connection once it is known; later reloads keep what is typed. */
 let filled = false
@@ -143,6 +139,12 @@ const sourceOptions = computed<SettingsSelectOption[]>(() =>
     label: t(`settings.storage.credentialsSource.${source}`),
   })),
 )
+
+/** The way to new credentials the user picked for a connection without them (spec 052 US3). */
+function chooseSource(source: 'entry' | 'new') {
+  replaceCredentials.value = true
+  credentials.value.source = source
+}
 
 const insecure = computed(() =>
   draft.endpoint.trim().toLowerCase().startsWith('http://'),
@@ -342,6 +344,10 @@ async function confirmHostKeyAsync() {
       </SettingsGroup>
 
       <SettingsGroup :label="t('settings.storage.groups.credentials')">
+        <CredentialsMissingNote
+          v-if="existing?.credentials === 'missing'"
+          @choose="chooseSource"
+        />
         <SettingsOptionRow
           v-if="!isNew"
           type="checkbox"
@@ -350,23 +356,10 @@ async function confirmHostKeyAsync() {
           data-testid="storage-replace-credentials"
           @change="replaceCredentials = $event"
         />
-        <SettingsRow
-          v-if="!isNew && linkedCredentialsEntry"
-          :title="t('settings.storage.credentialsLinked')"
-          :description="
-            linkedCredentialsEntry.title || linkedCredentialsEntry.id
-          "
-        >
-          <UiButton
-            type="button"
-            size="sm"
-            variant="outline"
-            data-testid="storage-open-credentials-entry"
-            @click="openCredentialsEntry(linkedCredentialsEntry.id)"
-          >
-            {{ t('settings.storage.openCredentialsEntry') }}
-          </UiButton>
-        </SettingsRow>
+        <CredentialsLinkedEntry
+          v-if="existing?.credentialsEntry"
+          :entry="existing.credentialsEntry"
+        />
         <SettingsRow
           v-if="withCredentials"
           :title="t('settings.storage.credentialsSource.label')"
