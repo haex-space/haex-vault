@@ -49,7 +49,11 @@ fn invalid(field: &str) -> HolziError {
 }
 
 /// Builds the public connection view with credential availability and the HTTP warning flag.
-fn view(row: &ConnectionRow, credentials: super::CredentialsState) -> ConnectionView {
+fn view(
+    row: &ConnectionRow,
+    credentials: super::CredentialsState,
+    credentials_entry: Option<super::model::CredentialsEntry>,
+) -> ConnectionView {
     ConnectionView {
         id: row.id.clone(),
         protocol: row.protocol,
@@ -61,6 +65,7 @@ fn view(row: &ConnectionRow, credentials: super::CredentialsState) -> Connection
         insecure: Url::parse(&row.endpoint).is_ok_and(|url| address::is_insecure(&url)),
         endpoint_scope: row.endpoint_scope,
         credentials,
+        credentials_entry,
         host_key: row.host_key.as_deref().and_then(|line| {
             Some(ConfirmedHostKey {
                 fingerprint: keys::fingerprint(line)?,
@@ -128,7 +133,8 @@ impl StorageService {
                 let mut connections = Vec::new();
                 for row in store::connections(q)? {
                     let state = credentials::state_in(q, &row.credentials_item_id, row.protocol)?;
-                    connections.push(view(&row, state));
+                    let entry = credentials::entry(q, &row.credentials_item_id)?;
+                    connections.push(view(&row, state, entry));
                 }
                 let mut storages = Vec::new();
                 for row in store::storages(q)? {
@@ -347,7 +353,14 @@ impl StorageService {
             keys::pending().take(&key_id);
         }
         let state = credentials::state(&self.db, &row.credentials_item_id, row.protocol).await?;
-        Ok(view(&row, state))
+        let entry = self
+            .db
+            .read({
+                let item_id = row.credentials_item_id.clone();
+                move |q| credentials::entry(q, &item_id).map_err(Into::into)
+            })
+            .await?;
+        Ok(view(&row, state, entry))
     }
 
     /// Remembers `outcome` for the storages of the connection on `bucket`.

@@ -58,7 +58,10 @@ impl StorageService {
     /// the chosen one as it is.
     pub(super) async fn link(&self, row: &ConnectionRow, resolved: &Resolved) -> Result<String> {
         match resolved {
-            Resolved::Linked { item_id, .. } => Ok(item_id.clone()),
+            Resolved::Linked { item_id, .. } => {
+                credentials::tag_selected(&self.passwords, item_id).await?;
+                Ok(item_id.clone())
+            }
             Resolved::Typed(typed) => {
                 credentials::create(
                     &self.passwords,

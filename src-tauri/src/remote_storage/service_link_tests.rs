@@ -74,6 +74,14 @@ async fn a_chosen_entry_makes_a_connection_without_a_new_entry() {
     assert_eq!(ops(&s.fake), 4, "tested before saving");
     assert_eq!(entries(&s.db), 1, "SC-002: no copy of the entry");
     assert_eq!(linked(&s.db), id);
+    let tags =
+        s.db.read_blocking(|q| crate::passwords::tags::names_of_item(q, &id).map_err(Into::into))
+            .expect("tags");
+    assert!(
+        tags.iter()
+            .any(|tag| tag.eq_ignore_ascii_case(credentials::TAG)),
+        "SC-003: linking marks the chosen entry"
+    );
     let Ok(super::Credentials::S3(read)) = credentials::read(
         &PasswordsService::new(s.db.clone()),
         &s.db,

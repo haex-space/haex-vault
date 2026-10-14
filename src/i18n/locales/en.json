@@ -1023,6 +1023,8 @@
         "required": "Please choose an entry from the password manager."
       },
       "credentialsKept": "The credentials are in the password manager as “{label}: {name}”.",
+      "credentialsLinked": "Linked password-manager entry",
+      "openCredentialsEntry": "Open entry",
       "testBucketHint": "holzi checks the connection with this bucket before saving it.",
       "save": "Test and save",
       "saveName": "Save",

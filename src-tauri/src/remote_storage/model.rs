@@ -154,10 +154,24 @@ pub struct ConnectionView {
     /// Whether the endpoint lies in the local network or on this device (research R8).
     pub endpoint_scope: EndpointScope,
     pub credentials: CredentialsState,
+    /// The non-secret entry currently linked to this connection, when it is still visible.
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credentials_entry: Option<CredentialsEntry>,
     /// The confirmed host key of an SFTP connection (spec 050 research R5).
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host_key: Option<ConfirmedHostKey>,
+}
+
+/// The password-manager entry linked to a connection, without any secret value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialsEntry {
+    pub id: String,
+    pub title: Option<String>,
+    pub owned: bool,
 }
 
 /// The host key a user confirmed for an SFTP connection.

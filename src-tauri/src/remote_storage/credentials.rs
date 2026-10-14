@@ -13,9 +13,10 @@
 //! with no owner; [`delete`] never removes it.
 
 use haex_crdt::rusqlite::params;
+use haex_crdt::CrdtTransaction;
 use zeroize::Zeroizing;
 
-use super::model::CredentialsCandidate;
+use super::model::{CredentialsCandidate, CredentialsEntry};
 use super::{
     store, Credentials, CredentialsState, PasswordCredentials, Protocol, S3Credentials,
     SshKeyCredentials,
@@ -104,10 +105,87 @@ pub async fn create(
         username: Some(username),
         password,
         url: (!endpoint.trim().is_empty()).then(|| endpoint.trim().to_owned()),
+        tags: vec![TAG.to_owned()],
         key_values,
         ..ItemInput::default()
     };
     passwords.create_owned_item(&CALLER, input).await
+}
+
+/// Adds the cloud-storage tag to a user-selected entry without changing any other tag.
+pub async fn tag_selected(passwords: &PasswordsService, item_id: &str) -> Result<()> {
+    passwords
+        .set_tags(
+            &Caller::User,
+            vec![item_id.to_owned()],
+            vec![TAG.to_owned()],
+            Vec::new(),
+        )
+        .await
+        .map(|_| ())
+}
+
+/// Adds the tag to storage-owned entries created before spec 052. This is idempotent; user-owned
+/// entries are deliberately not changed here. The direct CRDT return type lets this run inside
+/// the synchronous vault-open maintenance transaction.
+pub fn backfill_owned_tags(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<u32> {
+    let tag = ids::fold(TAG);
+    let existing_tag = tx
+        .query_map("SELECT id, name FROM haex_passwords_tags", &[], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .into_iter()
+        .find(|(_, name)| ids::fold(name) == tag)
+        .map(|(id, _)| id);
+    let tag_id = if let Some(id) = existing_tag {
+        id
+    } else {
+        let id = ids::tag_id(TAG).to_string();
+        tx.execute(
+            "INSERT INTO haex_passwords_tags (id, name, created_at) VALUES (?1, ?2, ?3)",
+            params![id, TAG, crate::passwords::clock::now()],
+        )?;
+        id
+    };
+    let item_ids = tx.query_map(
+        "SELECT id FROM haex_passwords_item_details WHERE owner = ?1",
+        params![FEATURE],
+        |row| row.get::<_, String>(0),
+    )?;
+    let mut changed = 0;
+    for item_id in item_ids {
+        let linked = tx
+            .query_row(
+                "SELECT COUNT(*) FROM haex_passwords_item_tags WHERE item_id = ?1 AND tag_id = ?2",
+                params![item_id, tag_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .unwrap_or(0);
+        if linked == 0 {
+            tx.execute(
+                "INSERT INTO haex_passwords_item_tags (id, item_id, tag_id) VALUES (?1, ?2, ?3)",
+                params![
+                    ids::item_tag_id(&item_id, &tag_id).to_string(),
+                    item_id,
+                    tag_id
+                ],
+            )?;
+            changed += 1;
+        }
+    }
+    Ok(changed)
+}
+
+/// Returns the linked entry's safe display metadata, if it is still visible.
+pub fn entry(q: &mut impl Query, item_id: &str) -> Result<Option<CredentialsEntry>> {
+    Ok(items::headers_in_scope(q, &Scope::All, &Caller::User)?
+        .into_iter()
+        .find(|header| header.id == item_id)
+        .map(|header| CredentialsEntry {
+            id: header.id,
+            title: header.title,
+            owned: header.owner.as_deref() == Some(FEATURE),
+        }))
 }
 
 /// The credentials an entry holds for a connection of `protocol` (spec 052 data-model.md, the one

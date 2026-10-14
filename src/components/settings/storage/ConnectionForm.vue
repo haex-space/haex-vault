@@ -30,6 +30,7 @@ import { PRESETS, type FormProtocol } from './presets'
 
 const { t } = useI18n()
 const router = useTabRouter()
+const { openApp } = useWmTab()
 const fieldLabels = useFieldLabels()
 const storageError = useStorageError()
 const { overview, connection } = useStorageOverview()
@@ -39,6 +40,7 @@ const isNew = computed(() => connectionId.value === 'new')
 const existing = computed(() =>
   isNew.value ? undefined : connection(connectionId.value),
 )
+const linkedCredentialsEntry = computed(() => existing.value?.credentialsEntry)
 const missing = computed(
   () => !isNew.value && overview.value !== null && !existing.value,
 )
@@ -64,6 +66,10 @@ const failure = ref<string | null>(null)
 /** The last test found the folder missing; the user may let holzi make it (FR-006). */
 const folderMissing = ref(false)
 const tree = computed(() => draft.protocol !== 's3')
+
+function openCredentialsEntry(itemId: string) {
+  openApp('system.passwords', `/entry/${itemId}`)
+}
 
 /** The form shows the stored connection once it is known; later reloads keep what is typed. */
 let filled = false
@@ -350,6 +356,23 @@ async function confirmHostKeyAsync() {
           data-testid="storage-replace-credentials"
           @change="replaceCredentials = $event"
         />
+        <SettingsRow
+          v-if="!isNew && linkedCredentialsEntry"
+          :title="t('settings.storage.credentialsLinked')"
+          :description="
+            linkedCredentialsEntry.title || linkedCredentialsEntry.id
+          "
+        >
+          <UiButton
+            type="button"
+            size="sm"
+            variant="outline"
+            data-testid="storage-open-credentials-entry"
+            @click="openCredentialsEntry(linkedCredentialsEntry.id)"
+          >
+            {{ t('settings.storage.openCredentialsEntry') }}
+          </UiButton>
+        </SettingsRow>
         <SettingsRow
           v-if="withCredentials"
           :title="t('settings.storage.credentialsSource.label')"

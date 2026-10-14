@@ -267,7 +267,10 @@ async fn the_list_holds_the_fitting_entries_the_user_may_choose_without_a_value(
     );
     assert!(webdav[0].tagged && !webdav[0].owned);
     assert_eq!(webdav[0].url.as_deref(), Some("https://alpha.example/"));
-    assert!(webdav[1].owned, "holzi's own entry may be chosen too");
+    assert!(
+        webdav[1].owned && webdav[1].tagged,
+        "holzi's own entry is tagged"
+    );
 
     let sftp = ids(Protocol::Sftp).await;
     assert_eq!(
@@ -282,4 +285,29 @@ async fn the_list_holds_the_fitting_entries_the_user_may_choose_without_a_value(
         credentials::candidates(&db, Protocol::Local).await,
         Err(HolziError::StorageInvalid { ref field }) if field == "protocol"
     ));
+}
+
+#[tokio::test]
+async fn vault_open_backfills_the_tag_on_old_storage_entries() {
+    let (_dir, db) = vault();
+    let passwords = PasswordsService::new(db.clone());
+    let id = passwords
+        .create_owned_item(
+            &Caller::Internal {
+                feature: credentials::FEATURE,
+            },
+            entry("Old storage", "AKID", SECRET, &[]),
+        )
+        .await
+        .expect("old storage entry");
+
+    let changed = db
+        .write(|tx| credentials::backfill_owned_tags(tx))
+        .await
+        .expect("backfill");
+    assert_eq!(changed, 1);
+    let tags = db
+        .read_blocking(|q| crate::passwords::tags::names_of_item(q, &id).map_err(Into::into))
+        .expect("tags");
+    assert!(tags.iter().any(|tag| tag == credentials::TAG));
 }
