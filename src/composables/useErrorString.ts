@@ -95,6 +95,9 @@ export function useErrorString() {
           ? t(reason, { field: typeof field === 'string' ? field : '' })
           : t('settings.appearance.failed')
       }
+      // Spec 051: the sync with the phone's address book.
+      if (kind === 'ContactsDenied') return t('contacts.error.contactsDenied')
+      if (kind === 'PhoneContactsUnavailable') return t('errors.notAvailable')
       // Spec 017: the extension host's kinds name a reason or a state, never data of an extension.
       if (kind === 'ExtensionInstall') {
         const key = `extensions.install.errors.${String(reason)}`

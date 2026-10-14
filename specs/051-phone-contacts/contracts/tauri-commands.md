@@ -39,7 +39,7 @@ unbekannter `kind` ab (`UnknownKindReadOnly`) und ändert die Herkunft nie (FR-0
 
 | Command                      | Eingabe                                    | Ausgabe                                                                              |
 | ---------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `contacts_phone_enable`      | –                                          | `PhoneEnableResult` (`denied` \| `review`)                                           |
+| `contacts_phone_enable`      | –                                          | `PhoneEnableResult` (`review`, `otherVault`); Ablehnung → Fehler `ContactsDenied`    |
 | `contacts_phone_disable`     | –                                          | `()` (FR-026: löscht nichts)                                                         |
 | `contacts_phone_accounts`    | –                                          | `PhoneAccount[]` (`writable`)                                                        |
 | `contacts_phone_set_target`  | `{ account }`                              | `()`                                                                                 |
@@ -53,7 +53,8 @@ Ereignisse: `contacts-phone-status` (Zustand geändert), `contacts-phone-mass-de
 mit Zahlen), Datenänderungen über das vorhandene `vault-data-changed`.
 
 Fehler: `ContactsDenied` (Android-Berechtigung fehlt, FR-017), `PhoneContactsUnavailable` (FR-015
-Desktop), `PhoneAccountNotWritable`.
+Desktop), `PhoneContactsFailed` (das Telefon-Adressbuch lehnte einen Aufruf ab; `reason` nennt nur die
+Art). Die Einstellungen bieten als Zielkonto nur beschreibbare Konten an.
 
 ## Visitenkarten
 

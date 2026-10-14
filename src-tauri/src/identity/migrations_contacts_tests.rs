@@ -185,3 +185,16 @@ async fn deleting_a_contact_takes_everything_that_hangs_off_it() {
     .await
     .expect("join");
 }
+
+#[tokio::test]
+async fn migration_0034_keeps_the_known_raw_contacts_on_this_device() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = open(dir.path(), "contacts-known", true, holzi_migration_source());
+        let table = "haex_contacts_phone_known_no_sync";
+        assert!(table_exists(&db, table));
+        assert!(!has_hlc_column(&db, table), "device-local: never synced");
+    })
+    .await
+    .expect("join");
+}

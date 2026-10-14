@@ -8,6 +8,7 @@ pub mod ids;
 pub mod kinds;
 pub mod maintenance;
 pub mod model;
+pub mod phone;
 pub mod photos;
 pub mod search;
 pub mod service;

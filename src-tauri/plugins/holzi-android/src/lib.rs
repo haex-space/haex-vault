@@ -9,6 +9,7 @@ use tauri::{Manager, Runtime};
 
 #[cfg(target_os = "android")]
 mod android;
+pub mod contacts;
 #[cfg(not(target_os = "android"))]
 mod other;
 
@@ -38,6 +39,8 @@ pub enum Permission {
     /// The shared storage before API 30 (spec 044 FR-039); from API 30 on "Zugriff auf alle Dateien"
     /// is no runtime permission ([`HolziAndroid::request_all_files_access`]).
     Storage,
+    /// Reading and writing the phone's address book (spec 051 FR-017).
+    Contacts,
 }
 
 impl Permission {
@@ -46,6 +49,7 @@ impl Permission {
         match self {
             Permission::Microphone => "microphone",
             Permission::Storage => "storage",
+            Permission::Contacts => "contacts",
         }
     }
 }

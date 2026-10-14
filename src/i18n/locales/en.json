@@ -1098,7 +1098,34 @@
     },
     "contacts": {
       "open": "Open contacts",
-      "count": "No contacts yet | One contact | {count} contacts"
+      "count": "No contacts yet | One contact | {count} contacts",
+      "phone": {
+        "title": "Sync with the phone's contacts",
+        "description": "Contacts of the phone come into the address book, changes go both ways.",
+        "target": "Target account",
+        "targetHint": "holzi writes contacts that newly go to the phone here. Contacts already written stay in their account.",
+        "localAccount": "Phone (no account)",
+        "stateTitle": "State",
+        "state": {
+          "review": "The overview before the first sync is waiting for you.",
+          "permission": "Paused: holzi may not access the phone's contacts.",
+          "massDelete": "Paused: many contacts would be deleted. Decide what should happen.",
+          "never": "Not synced yet.",
+          "last": "Last {at}: {imported} taken over, {written} written to the phone, {deleted} deleted."
+        },
+        "reviewOpen": "Show overview",
+        "decide": "Decide",
+        "runNow": "Sync now",
+        "otherVault": "Another vault already syncs on this phone. Contacts will move between both vaults.",
+        "issues": {
+          "title": "Did not reach the phone",
+          "unknown": "Unknown contact",
+          "read_only": "The phone account of this contact is read-only.",
+          "account_removed": "The phone account is no longer on the phone.",
+          "permission": "holzi may not access the phone's contacts.",
+          "failed": "The phone refused the change. holzi tries again at the next sync."
+        }
+      }
     }
   },
   "models": {
@@ -2581,6 +2608,38 @@
       "city": "City",
       "region": "Region",
       "country": "Country"
+    },
+    "review": {
+      "title": "First sync with the phone",
+      "description": "This is how holzi syncs the phone's contacts and the address book. Nothing is written before you confirm.",
+      "loading": "Reading the phone's contacts …",
+      "toAddressBook": "No contact is new in the address book | One contact is new in the address book | {count} contacts are new in the address book",
+      "toPhone": "No contact goes newly to the phone | One contact goes newly to the phone | {count} contacts go newly to the phone",
+      "merged": "No contact is merged | One contact is merged | {count} contacts are merged",
+      "uncertain": "Maybe the same person",
+      "onPhone": "On the phone:",
+      "inHolzi": "In the address book:",
+      "apart": "Keep apart",
+      "merge": "Merge",
+      "later": "Later",
+      "confirm": "Sync",
+      "done": "Synced: {imported} taken over, {merged} merged, {written} written to the phone."
+    },
+    "massDelete": {
+      "title": "Delete many contacts?",
+      "description": "The sync would delete many contacts at once and is paused.",
+      "fromPhone": "No contact | One contact was deleted on the phone and would go from the address book | {count} contacts were deleted on the phone and would go from the address book",
+      "fromHolzi": "No contact | One contact was deleted in holzi and would go from the phone | {count} contacts were deleted in holzi and would go from the phone",
+      "later": "Later",
+      "keep": "Keep",
+      "delete": "Delete",
+      "done": {
+        "delete": "The contacts are deleted.",
+        "keep": "The contacts are kept."
+      }
+    },
+    "error": {
+      "contactsDenied": "holzi may not access the phone's contacts. You can allow it in the Android settings under Apps › holzi › Permissions › Contacts."
     }
   }
 }
