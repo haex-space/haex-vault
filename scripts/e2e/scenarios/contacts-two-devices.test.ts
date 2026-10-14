@@ -21,7 +21,12 @@ scenario('contacts-two-devices', { timeoutMs: 300_000 }, async (ctx) => {
     values: [{ kind: 'phone', label: 'mobile', value: '0170 1111' }],
     groups: [],
   })
-  await expectContacts(ctx, phone, ['Ben Krüger'], 'the contact to show on the phone')
+  await expectContacts(
+    ctx,
+    phone,
+    ['Ben Krüger'],
+    'the contact to show on the phone',
+  )
   const [onPhone] = await contactHeaders(phone)
   assert.deepEqual(onPhone?.phones, ['0170 1111'])
   ctx.step('created on one device, shown on the other')

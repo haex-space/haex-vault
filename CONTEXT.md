@@ -228,6 +228,23 @@ a copy opens the **Kopier-Dialog**: title or suffix, "Verlauf übernehmen",
 user name or password as a Verweis on the original, "Passkeys per Verweis".
 _Avoid_: "Zwischenablage" for the Ablage.
 
+**Adressbuch / Kontakt / Angabe / Herkunft / Abgleichsziel** (spec 051):
+The **Adressbuch** is the vault's own address book: the app `system.contacts`
+over the tables `haex_contacts_*`, synced like all vault data and behind one
+`ContactsService` with the same Callers as the password manager. A
+**Kontakt** has name parts, organization, note, photo, groups and any number
+of **Angaben**: rows with an open **Art** (`kind`: phone, email, address,
+messenger, …, custom, holzi addresses), so later kinds need no migration and
+an older device keeps and shows a kind it does not know, read-only. The
+**Herkunft** says where a contact came from (made in holzi, taken over from a
+phone, read from a **Visitenkarte**) and never changes. An **Abgleichsziel** is
+a phone and account a contact is written to; contacts made in holzi have none
+until the user picks one. **holzi-Adressen** are the vault identity, devices
+and Nostr-Relays of another vault, confirmed when they come from its signed
+Visitenkarte.
+_Avoid_: "Kontaktbuch" (the operator says Adressbuch); "Kontakte" for the
+sharing identities of haex-vault, which holzi does not have.
+
 **Verweis (Platzhalter) / Passkey-Verbindung** (spec 036):
 A **Verweis** is a placeholder in a value — `{$<id>:username}`,
 `{$<id>:password}` or `{$<id>:extra:<key>}` — that stands for that value of

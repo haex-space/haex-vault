@@ -23,6 +23,8 @@ const busy = ref(false)
 async function confirmAsync() {
   busy.value = true
   try {
+    // action-exempt: the contact actions join the catalog with spec 051 US6 (T083); until then the
+    // confirmed delete of the window calls the command.
     await deleteAsync(props.ids)
     await store.quietReloadAsync()
     toast.success(t('contacts.delete.done', props.ids.length))

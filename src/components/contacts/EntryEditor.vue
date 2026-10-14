@@ -68,8 +68,26 @@ const MORE_FIELDS: readonly HeadField[] = HEAD_FIELDS.filter(
 )
 const showMore = ref(false)
 
+const form = useTemplateRef<HTMLFormElement>('form')
+
+/** A value was just added from the menu: its first field takes the focus when the menu closes. */
+let focusAdded = false
+
 function addValue(kind: string) {
   draft.value.values = [...draft.value.values, newValue(kind)]
+  focusAdded = true
+}
+
+/** The menu would hand the focus back to its button as it closes, taking it from the field the user
+ * starts typing in; the new value's first field gets it instead. */
+function onMenuClosed(event: Event) {
+  if (!focusAdded) return
+  focusAdded = false
+  event.preventDefault()
+  const rows = form.value?.querySelectorAll<HTMLElement>(
+    '[data-testid^="contacts-editor-value-"]',
+  )
+  rows?.[rows.length - 1]?.querySelector<HTMLElement>('input')?.focus()
 }
 
 function removeValue(index: number) {
@@ -112,6 +130,7 @@ function cancel() {
 
 <template>
   <form
+    ref="form"
     class="flex min-h-0 flex-col gap-4 p-3"
     data-testid="contacts-editor"
     @submit.prevent="saveAsync"
@@ -223,7 +242,10 @@ function cancel() {
                 {{ t('contacts.editor.addValue') }}
               </UiButton>
             </ShadcnDropdownMenuTrigger>
-            <ShadcnDropdownMenuContent align="start">
+            <ShadcnDropdownMenuContent
+              align="start"
+              @close-auto-focus="onMenuClosed"
+            >
               <ShadcnDropdownMenuItem
                 v-for="kind in KINDS"
                 :key="kind.id"

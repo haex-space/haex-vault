@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { clearButtonOf } from '../lib/fields.ts'
+import { reveal } from '../lib/appearance.ts'
 import { contactHeaders, openContacts } from '../lib/contacts.ts'
 
 // Spec 051, US1 (quickstart `contacts-basic`): the address book on one device. A contact made in
@@ -28,6 +29,7 @@ scenario('contacts-basic', {}, async (ctx) => {
     '[data-testid="contacts-editor-value-email"] [data-testid="contacts-editor-value"]',
     'anna@example.org',
   )
+  await reveal(instance, 'contacts-editor-add-value')
   await instance.click('contacts-editor-add-value')
   await instance.click('contacts-editor-add-custom')
   await instance.type('contacts-editor-custom-name', 'Kundennummer')
@@ -36,7 +38,15 @@ scenario('contacts-basic', {}, async (ctx) => {
     '4711',
   )
   await instance.click('contacts-editor-save')
-  await instance.waitForDisplayed('contacts-entry-name')
+  // The first open of a contact loads its page on demand. WebKitWebDriver reports the truncated
+  // heading as not displayed, so the scenario waits for the edit button and reads the name.
+  await instance.waitForDisplayed('contacts-edit', 15_000)
+  assert.equal(
+    await instance.exec<string>(
+      `return document.querySelector('[data-testid="contacts-entry-name"]')?.textContent?.trim() ?? ''`,
+    ),
+    'Anna Beck',
+  )
   const [anna] = await contactHeaders(instance)
   assert.ok(anna, 'the contact exists')
   assert.equal(anna.name, 'Anna Beck')
@@ -54,8 +64,13 @@ scenario('contacts-basic', {}, async (ctx) => {
     stored.values.some(
       (v) => v.kind === 'custom' && v.label === 'custom:Kundennummer',
     ),
+    JSON.stringify(stored.values),
   )
-  assert.deepEqual(stored.origin, { ...stored.origin, kind: 'holzi', caller: 'user' })
+  assert.deepEqual(stored.origin, {
+    ...stored.origin,
+    kind: 'holzi',
+    caller: 'user',
+  })
   ctx.step('created in the editor')
 
   // The search: by name, by bare digits of the number, and a word that is nowhere.
@@ -81,7 +96,14 @@ scenario('contacts-basic', {}, async (ctx) => {
         id: anna.id,
         patch: {
           values: {
-            upsert: [{ id: phone.id, kind: 'phone', label: 'mobile', value: '0171 7654321' }],
+            upsert: [
+              {
+                id: phone.id,
+                kind: 'phone',
+                label: 'mobile',
+                value: '0171 7654321',
+              },
+            ],
             remove: [],
           },
         },
@@ -93,7 +115,10 @@ scenario('contacts-basic', {}, async (ctx) => {
     await instance.invoke('contacts_get', { args: { id: anna.id } }),
   )
   assert.equal(changed.values.length, 3)
-  assert.equal(changed.values.find((v) => v.id === phone.id)?.value, '0171 7654321')
+  assert.equal(
+    changed.values.find((v) => v.id === phone.id)?.value,
+    '0171 7654321',
+  )
   ctx.step('changed one value')
 
   // Deleting asks first.

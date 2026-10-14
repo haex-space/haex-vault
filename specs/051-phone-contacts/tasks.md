@@ -88,7 +88,7 @@ the dead base branch).
 - [x] T026 [US1] Settings category: `contacts` in the `SettingsCategoryId` union and `category('contacts', '/contacts', 'lucide:contact')` in `SETTINGS_CATEGORIES` in `src/lib/settings/registry.ts`, `categoryLocation('contacts')` in `SETTINGS_LOCATIONS`; `src/components/settings/ContactsView.vue` with a link "Kontakte öffnen"; the phone, card and blocked sections arrive with US2/US4 (FR-015a); route in `src/components/wm/appRoutes.ts`
 - [x] T027 [P] [US1] i18n in `src/i18n/locales/de.json` and `src/i18n/locales/en.json`: `wm.apps.contacts`, `contacts.*` (list, editor, kinds, labels, origin, errors), `settings.categories.contacts.title`; no `<…>` in messages (vue-i18n refuses them)
 - [x] T028 [US1] E2E scenarios `scripts/e2e/scenarios/contacts-basic.test.ts` (US1-1/2/3/5: create with two phones, email, custom value; search "ann"; copy), `scripts/e2e/scenarios/contacts-two-devices.test.ts` (US1-4: change and delete arrive on the second device), `scripts/e2e/scenarios/contacts-unknown-kind.test.ts` (US1-6: insert a row with `kind = 'future_kind'` through the test SQL helper, edit the contact, the row is still there and shown) **Note**: `contacts-unknown-kind` is not an E2E scenario: no command writes a value of an unknown kind; the Rust test `values_of_unknown_kinds_survive_and_stay_read_only` and `scripts/check-contacts-draft.ts` cover it
-- [ ] T029 [US1] Run `cargo fmt --check`, `pnpm lint:rust`, `cargo test -j 4 --lib -- contacts caller passwords identity::migrations`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm vitest run src/lib/contacts`, the three E2E scenarios plus `passwords-basic` (caller move); commit, open PR B
+- [x] T029 [US1] Run `cargo fmt --check`, `pnpm lint:rust`, `cargo test -j 4 --lib -- contacts caller passwords identity::migrations`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm vitest run src/lib/contacts`, the three E2E scenarios plus `passwords-basic` (caller move); commit, open PR B **Note**: E2E `contacts-basic`, `contacts-two-devices`, `passwords-basic`, `settings-categories`, `settings-search` passed locally; `settings-categories` lists the new category
 
 **Checkpoint**: The address book works on every platform; the MVP is usable.
 
@@ -246,7 +246,7 @@ the dead base branch).
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T091 [P] Update `CONTEXT.md` with the terms Adressbuch, Kontakt, Angabe, Herkunft, Abgleichsziel, Visitenkarte, holzi-Adressen (and the note that haex-vault "Kontakte" were sharing identities)
+- [x] T091 [P] Update `CONTEXT.md` with the terms Adressbuch, Kontakt, Angabe, Herkunft, Abgleichsziel, Visitenkarte, holzi-Adressen (and the note that haex-vault "Kontakte" were sharing identities)
 - [ ] T092 [P] Update the 051 row in `plans/README.md` after each merged PR
 - [ ] T093 Manual checks M1–M7 of quickstart.md on real phones (operator); record results in the PR of the last story
 - [ ] T094 Keep each new source file under 500 lines; split `contacts/phone/` or the Vue views further if one grows
