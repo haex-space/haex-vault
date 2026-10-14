@@ -17,7 +17,7 @@ use zeroize::Zeroizing;
 use super::address::Resolver;
 use super::s3::{classify, S3Store};
 use super::{
-    Access, Addressing, Credentials, EndpointScope, Location, Protocol, ProviderKind, RemoteStore,
+    Access, Addressing, Credentials, EndpointScope, Location, ObjectStore, Protocol, ProviderKind,
     S3Credentials, StorageError,
 };
 

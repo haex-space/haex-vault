@@ -23,7 +23,7 @@ use super::local_fs::{
 use super::tree;
 use super::{
     Access, Addressing, Credentials, DirListing, EndpointScope, Location, ObjectHead, ObjectInfo,
-    PasswordCredentials, Protocol, ProviderKind, RemoteStore, StorageError,
+    ObjectStore, PasswordCredentials, Protocol, ProviderKind, StorageError,
 };
 
 /// What a call needs to reach the folder `root` (absolute) on this device; it needs no
@@ -47,7 +47,7 @@ pub fn access_of(root: &Path) -> Access {
     }
 }
 
-/// The local implementation of [`RemoteStore`].
+/// The local implementation of [`ObjectStore`].
 #[derive(Default)]
 pub struct LocalStore {
     /// The temporary file of each running upload, by its id.
@@ -79,7 +79,7 @@ where
 }
 
 #[async_trait]
-impl RemoteStore for LocalStore {
+impl ObjectStore for LocalStore {
     /// A file through a temporary file; a key ending in `/` creates the folder.
     async fn put(
         &self,

@@ -264,7 +264,7 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
 
 - **Decision**: Verschlüsselte Ordner auf dem Gerät laufen über dieselbe Schicht `files/encrypted` wie
   im Speicher. Darunter kommt ein `LocalStore`, eine Umsetzung der gemeinsamen Speicher-Schnittstelle
-  (heute `RemoteStore`, `src-tauri/src/remote_storage/remote_store.rs:13-152`) für ein lokales
+  (`ObjectStore`, bis 2026-10-14 `RemoteStore`; `src-tauri/src/remote_storage/object_store.rs`) für ein lokales
   Verzeichnis. Ausgewählt wird er wie S3, WebDAV und SFTP über `ProtocolStore`
   (`remote_storage/protocol.rs:30-43`) mit einem neuen `Protocol::Local`. Es wird nie als Speicher
   gespeichert oder in den Einstellungen angeboten; `Location.bucket` trägt den Wurzelpfad.
@@ -276,9 +276,8 @@ Prüfung von `file_sync/crypto` (5 420 Zeilen, 86 Tests) gegen den Anbieter als 
     synchronisiert und benennt um, `abort_upload` löscht sie.
   - `copies_on_provider` = wahr (`fs::copy`), `rename_tree` = `fs::rename`, `remove_tree` =
     `remove_dir_all`.
-- **Name**: Nach dem Merge von Spec 050 heißt die Schnittstelle `ObjectStore` (eigener, rein
-  mechanischer PR; Betreiber 2026-10-12). Bis dahin bleibt `RemoteStore`, damit die Arbeit an 050
-  keine Konflikte bekommt.
+- **Name**: Die Schnittstelle hieß bis zum Merge von Spec 050 `RemoteStore` und heißt seit PR L (2026-10-14)
+  `ObjectStore` (rein mechanischer PR; Betreiber 2026-10-12).
 - **Rationale**: Der Betreiber will alle Speicher-Anbindungen über eine Schnittstelle (S3, WebDAV,
   SFTP, lokal). Die Schicht `files/encrypted` braucht dann keine zweite Umsetzung (FR-041, FR-044).
 - **Alternatives considered**: `LocalStore` direkt an `StorageFiles` übergeben, ohne `Protocol`

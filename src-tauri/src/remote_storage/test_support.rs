@@ -1,4 +1,4 @@
-//! A [`RemoteStore`] in memory for tests (research R10): objects per bucket, an error to answer
+//! A [`ObjectStore`] in memory for tests (research R10): objects per bucket, an error to answer
 //! per operation, and a record of the calls.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 use tokio::time::Instant;
 
-use super::{Access, DirListing, ObjectHead, ObjectInfo, RemoteStore, StorageError};
+use super::{Access, DirListing, ObjectHead, ObjectInfo, ObjectStore, StorageError};
 
 pub use super::test_support_env::{access, credentials, grant_storage, resolver, vault};
 
@@ -184,7 +184,7 @@ fn slot(access: &Access, key: &str) -> (String, String) {
 }
 
 #[async_trait]
-impl RemoteStore for FakeStore {
+impl ObjectStore for FakeStore {
     async fn put(
         &self,
         access: &Access,

@@ -10,10 +10,10 @@ WebDAV-Anbietern und SSH-Bibliotheken (Quellen je Abschnitt). Die Entscheidungen
 `src-tauri/src/remote_storage/commands.rs:23` ist ein `OnceLock<S3Store>`. Ihn nutzen `service()`
 (Einstellungen), der Dateibrowser (`files/browser_commands.rs:89`) und die Erweiterungen
 (`StorageState::store()`, `extensions/remote_storage_dialog.rs:114`). Alle Aufrufer halten ein
-`Arc<dyn RemoteStore>` und geben bei jedem Aufruf ein `Access` (Ort und Zugangsdaten) mit.
+`Arc<dyn ObjectStore>` und geben bei jedem Aufruf ein `Access` (Ort und Zugangsdaten) mit.
 
 **Decision**: Ein `ProtocolStore` ersetzt `s3_store()`. Er hält je eine Instanz von `S3Store`,
-`WebDavStore` und `SftpStore` und implementiert `RemoteStore`, indem er nach `access.location.protocol`
+`WebDavStore` und `SftpStore` und implementiert `ObjectStore`, indem er nach `access.location.protocol`
 weiterreicht. `s3_store()` wird zu `stores()`; die drei Aufrufstellen ändern nur den Namen. `Location`
 bekommt `protocol: Protocol` und `host_key: Option<String>`; die Felder von S3 (Region, Adressierung)
 bleiben und sind bei WebDAV und SFTP leer bzw. ohne Bedeutung, `bucket` trägt bei ihnen den Ordnerpfad.
@@ -25,7 +25,7 @@ Stelle. Ein flaches `Location` mit Protokollfeld vermeidet, alle Vergleiche
 
 **Alternatives considered**: ein `enum Location` mit einer Variante je Protokoll (sauberer, aber berührt
 jede Stelle, die Felder liest, ohne Gewinn für die Aufrufer); je Verbindung ein eigenes
-`Arc<dyn RemoteStore>` aus einer Fabrik (verschiebt die Wahl in jeden Aufrufer und bricht die
+`Arc<dyn ObjectStore>` aus einer Fabrik (verschiebt die Wahl in jeden Aufrufer und bricht die
 Einspeisung der Tests).
 
 ## R2 — WebDAV-Client

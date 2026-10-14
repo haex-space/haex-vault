@@ -1,4 +1,4 @@
-//! The one seam to a provider (spec 038 research R10, spec 050 contracts/remote-store.md): the S3,
+//! The one seam to a provider (spec 038 research R10, spec 050 contracts/object-store.md): the S3,
 //! WebDAV and SFTP stores behind [`super::protocol::ProtocolStore`], or a fake in tests. Every call
 //! ends at `deadline`.
 
@@ -10,7 +10,7 @@ use super::{Access, DirListing, Location, ObjectHead, ObjectInfo, StorageError};
 /// The provider behind a storage. Keys are relative to the bucket or folder of `access`; a key
 /// ending in `/` names a folder.
 #[async_trait]
-pub trait RemoteStore: Send + Sync {
+pub trait ObjectStore: Send + Sync {
     /// Writes `body` to `key` in the bucket described by `access`, before `deadline`.
     async fn put(
         &self,
@@ -79,7 +79,7 @@ pub trait RemoteStore: Send + Sync {
 
     /// Copies `from` to `to` in the same bucket on the provider (spec 044: renaming, moving within
     /// a storage); objects up to 5 GB, the limit of S3's `CopyObject`. Only called when
-    /// [`RemoteStore::copies_on_provider`] says so.
+    /// [`ObjectStore::copies_on_provider`] says so.
     async fn copy(
         &self,
         access: &Access,
@@ -88,7 +88,7 @@ pub trait RemoteStore: Send + Sync {
         deadline: Instant,
     ) -> Result<(), StorageError>;
 
-    /// Whether [`RemoteStore::copy`] copies on the provider (spec 050 research R8); otherwise a
+    /// Whether [`ObjectStore::copy`] copies on the provider (spec 050 research R8); otherwise a
     /// copy streams through holzi.
     fn copies_on_provider(&self, access: &Access) -> bool;
 

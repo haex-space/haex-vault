@@ -28,7 +28,7 @@ use super::error::{BridgeError, ExtensionErrorCode};
 use super::protocol::token;
 use crate::remote_storage::address::{Resolver, SystemResolver};
 use crate::remote_storage::model::{CredentialsInput, ShownHostKey};
-use crate::remote_storage::{RemoteStore, TestOutcome};
+use crate::remote_storage::{ObjectStore, TestOutcome};
 
 /// A storage dialog nobody answers ends as cancel, like a confirmation dialog.
 pub const DIALOG_WAIT: Duration = Duration::from_secs(300);
@@ -110,7 +110,7 @@ type Dialogs = HashMap<String, (String, Sender<Answered>)>;
 /// The provider, the resolver and the open storage dialogs of this process.
 #[derive(Default)]
 pub struct StorageState {
-    store: OnceLock<Arc<dyn RemoteStore>>,
+    store: OnceLock<Arc<dyn ObjectStore>>,
     resolver: OnceLock<Arc<dyn Resolver>>,
     /// Open dialogs by request id: the frame that asked and where the answer goes.
     dialogs: Mutex<Dialogs>,
@@ -118,13 +118,13 @@ pub struct StorageState {
 
 impl StorageState {
     /// Sets provider and resolver; only the first call counts (tests set fakes).
-    pub fn set(&self, store: Arc<dyn RemoteStore>, resolver: Arc<dyn Resolver>) {
+    pub fn set(&self, store: Arc<dyn ObjectStore>, resolver: Arc<dyn Resolver>) {
         let _ = self.store.set(store);
         let _ = self.resolver.set(resolver);
     }
 
     /// The providers of every protocol unless a test set another.
-    pub fn store(&self) -> Arc<dyn RemoteStore> {
+    pub fn store(&self) -> Arc<dyn ObjectStore> {
         Arc::clone(
             self.store
                 .get_or_init(crate::remote_storage::commands::stores),

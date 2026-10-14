@@ -97,10 +97,10 @@ Kompilieren, nicht Verhalten zur Laufzeit.
 
 ## R5 S3-Client erweitern
 
-- **Befund**: `RemoteStore` (`remote_storage/mod.rs:239-275`) kennt `put(body: Vec<u8>)`,
+- **Befund**: `ObjectStore` (`remote_storage/mod.rs:239-275`) kennt `put(body: Vec<u8>)`,
   `get(max_bytes)`, `list(prefix, max)` (flach, ohne Delimiter), `delete`; `s3.rs` puffert ganze Körper
   (`read_body`, 148). Kein Range, kein HEAD, kein Multipart, kein Kopieren.
-- **Decision**: `RemoteStore` bekommt `head`, `get_range` (Range-Kopfzeile auf die vorsignierte URL),
+- **Decision**: `ObjectStore` bekommt `head`, `get_range` (Range-Kopfzeile auf die vorsignierte URL),
   `get_to_writer` (gestreamt), `list_dir` (Delimiter `/`, liefert Präfixe und Objekte, seitenweise),
   Multipart (`create`, `upload_part`, `complete`, `abort`) und `copy` (serverseitig innerhalb einer
   Verbindung). Uploads unter 8 MiB gehen weiter als ein `put`. `FakeStore`

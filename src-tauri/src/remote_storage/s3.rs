@@ -22,7 +22,7 @@ use tokio::time::Instant;
 use super::address::{self, Resolver, SystemResolver};
 pub(super) use super::http::read_body;
 use super::{
-    Access, Addressing, Credentials, DirListing, ObjectHead, ObjectInfo, RemoteStore, StorageError,
+    Access, Addressing, Credentials, DirListing, ObjectHead, ObjectInfo, ObjectStore, StorageError,
 };
 
 pub use super::s3_ext::copy_source;
@@ -39,7 +39,7 @@ const MAX_ERROR_BODY: usize = 64 * 1024;
 /// Keys per page holzi asks for (the S3 maximum).
 pub(super) const PAGE: usize = 1000;
 
-/// The S3 implementation of [`RemoteStore`].
+/// The S3 implementation of [`ObjectStore`].
 pub struct S3Store {
     resolver: Arc<dyn Resolver>,
 }
@@ -188,7 +188,7 @@ pub fn classify(status: StatusCode, code: Option<&str>) -> StorageError {
 }
 
 #[async_trait]
-impl RemoteStore for S3Store {
+impl ObjectStore for S3Store {
     /// Uploads an object through a signed PUT request using the supplied deadline.
     async fn put(
         &self,

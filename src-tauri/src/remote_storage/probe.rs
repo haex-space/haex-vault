@@ -13,7 +13,7 @@ use tokio::time::Instant;
 use uuid::Uuid;
 
 use super::model::ShownHostKey;
-use super::{Access, RemoteStore, StorageError, TestOutcome};
+use super::{Access, ObjectStore, StorageError, TestOutcome};
 
 /// The time the four steps get together.
 pub const TEST_TIME: Duration = Duration::from_secs(15);
@@ -36,7 +36,7 @@ pub struct ProbeResult {
 }
 
 /// The key the server of `access` showed, when the outcome is about host keys.
-fn shown(store: &dyn RemoteStore, access: &Access, outcome: TestOutcome) -> Option<ShownHostKey> {
+fn shown(store: &dyn ObjectStore, access: &Access, outcome: TestOutcome) -> Option<ShownHostKey> {
     if !matches!(
         outcome,
         TestOutcome::HostKeyUnknown | TestOutcome::HostKeyChanged
@@ -94,7 +94,7 @@ fn on_write(error: StorageError, tree: bool) -> TestOutcome {
 /// Write, read and list the test object; the caller deletes it. An error says whether the object
 /// may have been written (also when the write itself ran out of time).
 async fn steps(
-    store: &dyn RemoteStore,
+    store: &dyn ObjectStore,
     access: &Access,
     key: &str,
     deadline: Instant,
@@ -126,7 +126,7 @@ async fn steps(
 
 /// Whether the folder of a WebDAV or SFTP storage is there; an error is the outcome of the test.
 async fn folder_there(
-    store: &dyn RemoteStore,
+    store: &dyn ObjectStore,
     access: &Access,
     deadline: Instant,
 ) -> Result<(), TestOutcome> {
@@ -138,7 +138,7 @@ async fn folder_there(
 }
 
 /// Tests `access` within [`TEST_TIME`] (see the module).
-pub async fn probe(store: &dyn RemoteStore, access: &Access) -> ProbeResult {
+pub async fn probe(store: &dyn ObjectStore, access: &Access) -> ProbeResult {
     let key = format!("{TEST_PREFIX}{}", Uuid::new_v4());
     let deadline = Instant::now() + TEST_TIME;
     let tree = access.location.is_tree();

@@ -63,7 +63,7 @@ impl StreamingSource for LocalFileSource {
 /// A file of a storage (spec 044 US5): each range the player asks for is its own request to the
 /// provider, so seeking needs no download up to that point.
 pub struct StorageFileSource {
-    store: std::sync::Arc<dyn crate::remote_storage::RemoteStore>,
+    store: std::sync::Arc<dyn crate::remote_storage::ObjectStore>,
     access: crate::remote_storage::Access,
     key: String,
     size: u64,
@@ -72,7 +72,7 @@ pub struct StorageFileSource {
 
 impl StorageFileSource {
     pub fn new(
-        store: std::sync::Arc<dyn crate::remote_storage::RemoteStore>,
+        store: std::sync::Arc<dyn crate::remote_storage::ObjectStore>,
         access: crate::remote_storage::Access,
         key: String,
         size: u64,

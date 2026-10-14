@@ -21,7 +21,7 @@ use super::{damaged, OpenFolder};
 use crate::files::storage_source::{storage_error, StorageFiles};
 use crate::files::streaming::StreamingSource;
 use crate::files::FilesError;
-use crate::remote_storage::{Access, RemoteStore, StorageError};
+use crate::remote_storage::{Access, ObjectStore, StorageError};
 
 /// The most plaintext one request fetches.
 pub const WINDOW: u64 = 8 * 1024 * 1024;
@@ -34,7 +34,7 @@ fn soon() -> Instant {
 
 /// One opened file of an encrypted folder.
 pub struct EncryptedFile {
-    store: Arc<dyn RemoteStore>,
+    store: Arc<dyn ObjectStore>,
     access: Access,
     key: String,
     opener: ContentOpener,

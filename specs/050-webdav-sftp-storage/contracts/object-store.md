@@ -1,4 +1,4 @@
-# Contract: `RemoteStore` über drei Protokolle
+# Contract: `ObjectStore` über drei Protokolle
 
 Der Trait in `src-tauri/src/remote_storage/mod.rs` ist die eine Schnittstelle, über die Einstellungen,
 Test, Dateibrowser, Transfers, Suche, Agents, Erweiterungen und später verschlüsselte Ordner einen
