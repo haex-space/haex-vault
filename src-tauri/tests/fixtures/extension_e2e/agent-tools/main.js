@@ -1,6 +1,6 @@
 // The test extension of spec 018 (research R13): offers holzi's agent the tools of manifest.json
 // through the released vault-sdk. `build.sh` bundles this file with the SDK into app.js.
-import { createHaexVaultSdk, getTableName } from '@haex-space/vault-sdk'
+import { createHaexVaultSdk } from '@haex-space/vault-sdk'
 import manifest from './manifest.json'
 
 const sdk = createHaexVaultSdk({ manifest })
@@ -14,8 +14,7 @@ function log(text) {
 
 async function table() {
   await sdk.ready()
-  const info = sdk.extensionInfo
-  return getTableName(info.publicKey, info.name, 'entries')
+  return sdk.getTableName('entries')
 }
 
 async function countAsync() {

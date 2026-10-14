@@ -8397,6 +8397,12 @@ var manifest_default = {
   displayName: "Test-Erweiterung",
   migrationsDir: "db",
   permissions: {
+    database: [
+      {
+        target: "1549fb64ff115627d507f8c95a8fd7b4bd5381c6df97120f910ed904ba50e63f__agent-tools__*",
+        operation: "readWrite"
+      }
+    ],
     notifications: [{ target: "*", operation: "show" }]
   },
   tools: [
@@ -8476,8 +8482,7 @@ function log(text) {
 }
 async function table() {
   await sdk.ready();
-  const info = sdk.extensionInfo;
-  return getTableName2(info.publicKey, info.name, "entries");
+  return sdk.getTableName("entries");
 }
 async function countAsync() {
   const count = await sdk.database.count(await table());
