@@ -213,6 +213,20 @@ pub enum HolziError {
     #[error("This value is read-only")]
     ContactsUnknownKindReadOnly,
 
+    /// The person refused the permission for the phone's address book (FR-017); the settings
+    /// explain how to allow it.
+    #[error("Contacts permission is required")]
+    ContactsDenied,
+
+    /// This device has no phone address book (FR-015).
+    #[error("This device has no phone address book")]
+    PhoneContactsUnavailable,
+
+    /// The phone's address book refused a call; `reason` names the kind of failure, never a
+    /// contact's data.
+    #[error("The phone's address book failed: {reason}")]
+    PhoneContactsFailed { reason: String },
+
     // --- Password manager (spec 034, contracts/tauri-commands.md §Fehlerarten) ---
     // None of these carries the value of a secret in a field.
     /// The entry, attachment or passkey does not exist, or the caller may not know that it does

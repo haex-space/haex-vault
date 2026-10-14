@@ -23,7 +23,25 @@ const FRAME_LIMIT_MS = 100
  */
 const PHONE_FRAME_LIMIT_MS = 250
 
-type Scroll = { worst: number; slow: number; frames: number; end: boolean }
+/** The time between frames while scrolling, in order; `end` whether the list reached its end. */
+type Scroll = { deltas: number[]; frames: number; end: boolean }
+
+/** Mean, p95 and p99 of `deltas`, and the frames over `limitMs` as `#<frame>:<ms>`. */
+function frameStats(deltas: number[], limitMs: number): string {
+  const sorted = [...deltas].sort((a, b) => a - b)
+  const at = (q: number) =>
+    Math.round(
+      sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] ?? 0,
+    )
+  const mean =
+    deltas.reduce((sum, delta) => sum + delta, 0) / (deltas.length || 1)
+  const slow = deltas
+    .map((delta, frame) => ({ delta, frame }))
+    .filter(({ delta }) => delta > limitMs)
+    .slice(0, 12)
+    .map(({ delta, frame }) => `#${frame}:${Math.round(delta)}`)
+  return `mean ${Math.round(mean)} ms, p95 ${at(0.95)} ms, p99 ${at(0.99)} ms${slow.length ? `, over the limit ${slow.join(' ')}` : ''}`
+}
 
 scenario('files-large-folder', { timeoutMs: 300_000 }, async (ctx) => {
   const files = deviceFiles('holzi-files-large-')
@@ -93,22 +111,18 @@ scenario('files-large-folder', { timeoutMs: 300_000 }, async (ctx) => {
       `const list = document.querySelector('[data-testid="files-entries"]')
        return new Promise((resolve) => {
          let last = 0
-         let worst = 0
-         let slow = 0
          let frames = 0
+         const deltas = []
          const step = (now) => {
-           if (last > 0) {
-             worst = Math.max(worst, now - last)
-             if (now - last > ${frameLimitMs}) slow += 1
-           }
+           if (last > 0) deltas.push(now - last)
            last = now
            frames += 1
            if (list.scrollTop + list.clientHeight >= list.scrollHeight - 1) {
-             resolve({ worst, slow, frames, end: true })
+             resolve({ deltas, frames, end: true })
              return
            }
            if (frames > 5000) {
-             resolve({ worst, slow, frames, end: false })
+             resolve({ deltas, frames, end: false })
              return
            }
            list.scrollTop += list.clientHeight * 10
@@ -118,18 +132,20 @@ scenario('files-large-folder', { timeoutMs: 300_000 }, async (ctx) => {
          requestAnimationFrame(step)
        })`,
     )
-    const worst = Math.round(scroll.worst)
+    const worst = Math.round(Math.max(0, ...scroll.deltas))
+    const slow = scroll.deltas.filter((delta) => delta > frameLimitMs).length
+    const stats = frameStats(scroll.deltas, frameLimitMs)
     assert.ok(
       scroll.end,
-      `the list did not reach its end: ${JSON.stringify(scroll)}`,
+      `the list did not reach its end after ${scroll.frames} frames`,
     )
     assert.ok(
       worst <= frameLimitMs,
-      `${scroll.slow} of ${scroll.frames} frames took over ${frameLimitMs} ms while scrolling 50 000 entries, the longest ${worst} ms`,
+      `${slow} of ${scroll.frames} frames took over ${frameLimitMs} ms while scrolling 50 000 entries, the longest ${worst} ms (${stats})`,
     )
     ctx.step(
       '50 000 entries scrolled to the end',
-      `${rows} rows, ${scroll.frames} frames, longest ${worst} ms`,
+      `${rows} rows, ${scroll.frames} frames, longest ${worst} ms, ${stats}`,
     )
   } finally {
     files.remove()

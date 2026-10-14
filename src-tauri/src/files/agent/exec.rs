@@ -300,6 +300,9 @@ impl<E: AgentEnv> FilesAgent<E> {
                 )
                 .await;
                 hits = self.shown_hits(&storage, &files, hits).await?;
+                for hit in &mut hits {
+                    hit.entry.path = self.named(&storage, &hit.entry.path);
+                }
                 end
             }
         };
@@ -326,20 +329,29 @@ impl<E: AgentEnv> FilesAgent<E> {
             source: source.to_owned(),
             path: path.to_owned(),
         };
-        let source = match self.place_at(source, path).await? {
-            Place::Device => SourceRef::Device,
+        let (source, on_device) = match self.place_at(source, path).await? {
+            Place::Device => (SourceRef::Device, None),
             // The window names a folder on the device by its device path (spec 048 US7).
-            Place::Storage(storage) if is_device_storage(&storage.id) => SourceRef::Device,
-            Place::Storage(storage) => SourceRef::Storage {
-                storage_id: storage.id,
-            },
+            Place::Storage(storage) if is_device_storage(&storage.id) => {
+                (SourceRef::Device, Some(storage))
+            }
+            Place::Storage(storage) => (
+                SourceRef::Storage {
+                    storage_id: storage.id,
+                },
+                None,
+            ),
         };
         let (entry, _, _) = self.entry(&input, cancel).await?;
+        let at = match &on_device {
+            Some(storage) => self.named(storage, &entry.path),
+            None => entry.path.clone(),
+        };
         if entry.kind == EntryKind::Dir {
-            return Ok((source, entry.path, None));
+            return Ok((source, at, None));
         }
-        let folder = Path::new(&entry.path).parent().map_or_else(
-            || entry.path.clone(),
+        let folder = Path::new(&at).parent().map_or_else(
+            || at.clone(),
             |folder| folder.to_string_lossy().into_owned(),
         );
         Ok((source, folder, Some(entry.name)))

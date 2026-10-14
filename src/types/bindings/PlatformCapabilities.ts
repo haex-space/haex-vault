@@ -49,4 +49,8 @@ backGesture: boolean,
 /**
  * The presets of the model catalogs the suggestions come from.
  */
-modelPresets: ModelPresets, };
+modelPresets: ModelPresets,
+/**
+ * A phone address book the address book can sync with (spec 051 FR-015).
+ */
+phoneContacts: boolean, };

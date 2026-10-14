@@ -37,6 +37,23 @@ fn a_windows_drive_is_its_own_storage() {
     assert_eq!(root.device_of("/Users/anna"), r"C:\Users\anna");
 }
 
+/// A root below `/` stands in for a Windows drive: its window paths are not the device paths.
+#[test]
+fn a_root_below_slash_is_cut_off_like_a_drive() {
+    let root = DeviceRoot {
+        dir: PathBuf::from("/mnt/laufwerk"),
+        storage_id: "device:T:".to_owned(),
+    };
+    assert_eq!(
+        root.view_of(Path::new("/mnt/laufwerk/Users/anna")),
+        "/Users/anna"
+    );
+    assert_eq!(root.view_of(Path::new("/mnt/laufwerk")), "/");
+    assert_eq!(root.device_of("/Users/anna"), "/mnt/laufwerk/Users/anna");
+    // `..` reaches the storage, which refuses it.
+    assert_eq!(root.view_of(Path::new("/mnt/laufwerk/a/../b")), "/a/../b");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_path_by_the_decrypted_name_leads_into_the_folder() {
     let device = Device::new();
@@ -207,10 +224,8 @@ async fn a_level_that_cannot_be_listed_does_not_hide_the_folder_below() {
 fn a_storage_id_names_its_root() {
     let slash = DeviceRoot::from_id("device:/").unwrap();
     assert_eq!(slash.dir, Path::new("/"));
-    assert!(slash.same_paths());
     let drive = DeviceRoot::from_id("device:C:").unwrap();
     assert_eq!(drive.dir.to_string_lossy(), "C:\\");
-    assert!(!drive.same_paths());
     for id in ["device:", "device:c:", "device:CD:", "s1", "device:/x"] {
         assert_eq!(DeviceRoot::from_id(id), None, "{id}");
     }

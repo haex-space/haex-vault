@@ -121,3 +121,12 @@ CREATE TABLE haex_contacts_blocked_vaults (
   vault_pubkey TEXT PRIMARY KEY NOT NULL,
   blocked_at TEXT NOT NULL
 );"#;
+
+/// The migration `0034_contacts_phone_known` (spec 051, data-model.md): the raw contacts of this
+/// phone that holzi linked, and to which contact. Device-local (`_no_sync`, no CRDT triggers): a
+/// link goes with its contact when the contact is deleted, and this list is how the phone still
+/// knows which raw contact to delete then.
+pub const CONTACTS_PHONE_KNOWN_0034: &str = r#"CREATE TABLE haex_contacts_phone_known_no_sync (
+  raw_contact_id INTEGER PRIMARY KEY NOT NULL,
+  contact_id TEXT NOT NULL
+);"#;

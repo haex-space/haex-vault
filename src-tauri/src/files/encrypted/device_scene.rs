@@ -49,6 +49,17 @@ impl DeviceScene {
         }
     }
 
+    /// The same with the home folder as a drive of its own (`device:T:`), as on Windows: the
+    /// window paths of its storage view are not its device paths.
+    pub fn on_drive() -> Self {
+        let mut scene = Self::new();
+        scene.root = DeviceRoot {
+            dir: std::fs::canonicalize(scene.home.path()).unwrap(),
+            storage_id: "device:T:".to_owned(),
+        };
+        scene
+    }
+
     /// The device as the window's storage view.
     pub fn files(&self) -> StorageFiles {
         let db = self.db.clone();
@@ -64,7 +75,8 @@ impl DeviceScene {
     }
 
     pub fn view(&self, rel: &str) -> String {
-        self.root.view_of(&self.home.path().join(rel))
+        let home = std::fs::canonicalize(self.home.path()).unwrap();
+        self.root.view_of(&home.join(rel))
     }
 
     /// "Unterlagen" in the home folder with `notiz.txt` copied in.
