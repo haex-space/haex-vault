@@ -28,7 +28,7 @@ use crate::remote_storage::service::StorageService;
 use crate::remote_storage::sftp::{test_server as sftp_server, SftpStore};
 use crate::remote_storage::test_support::{resolver, vault, FakeStore};
 use crate::remote_storage::webdav::{test_server, WebDavStore};
-use crate::remote_storage::{Addressing, Protocol, ProviderKind, RemoteStore};
+use crate::remote_storage::{Addressing, ObjectStore, Protocol, ProviderKind};
 use crate::storage::known_devices;
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -112,7 +112,7 @@ pub(crate) struct Setup {
     pub vault: VaultDb,
     pub fake: Arc<FakeStore>,
     /// The fake for S3 and holzi's WebDAV client, as the host's storage calls see them.
-    pub store: Arc<dyn RemoteStore>,
+    pub store: Arc<dyn ObjectStore>,
     pub events: Arc<Events>,
     pub ctx: CallContext,
     /// Two storages the user made in the settings, on one connection.
@@ -157,7 +157,7 @@ pub(crate) fn setup_with(names: Arc<dyn Resolver>) -> Setup {
         .expect("effective")
         .bundle_id;
     let fake = Arc::new(FakeStore::new());
-    let store: Arc<dyn RemoteStore> = Arc::new(ProtocolStore::new(
+    let store: Arc<dyn ObjectStore> = Arc::new(ProtocolStore::new(
         fake.clone(),
         Some(Arc::new(WebDavStore::new(resolver(&[])))),
         Some(Arc::new(SftpStore::new(resolver(&[])))),

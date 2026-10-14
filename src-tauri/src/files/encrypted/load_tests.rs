@@ -216,7 +216,7 @@ struct Gauge {
 }
 
 #[async_trait]
-impl RemoteStore for Gauge {
+impl ObjectStore for Gauge {
     async fn get(
         &self,
         access: &Access,

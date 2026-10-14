@@ -22,8 +22,8 @@ use super::model::{
 use super::probe::probe;
 use super::sftp::keys;
 use super::{
-    credentials, store, Access, ConnectionRow, CredentialsState, EndpointScope, Location, Protocol,
-    RemoteStore, StorageRow, TestOutcome,
+    credentials, store, Access, ConnectionRow, CredentialsState, EndpointScope, Location,
+    ObjectStore, Protocol, StorageRow, TestOutcome,
 };
 use crate::error::{HolziError, Result};
 use crate::passwords::clock;
@@ -37,7 +37,7 @@ const RESOLVE_TIME: Duration = Duration::from_secs(10);
 pub struct StorageService {
     db: VaultDb,
     passwords: PasswordsService,
-    store: Arc<dyn RemoteStore>,
+    store: Arc<dyn ObjectStore>,
     resolver: Arc<dyn Resolver>,
 }
 
@@ -101,7 +101,7 @@ impl StorageService {
     pub fn new(
         db: VaultDb,
         passwords: PasswordsService,
-        store: Arc<dyn RemoteStore>,
+        store: Arc<dyn ObjectStore>,
         resolver: Arc<dyn Resolver>,
     ) -> Self {
         Self {

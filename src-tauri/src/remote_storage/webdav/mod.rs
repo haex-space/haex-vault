@@ -1,5 +1,5 @@
 //! WebDAV, written by holzi on `reqwest` and `quick-xml` (spec 050 research R2, contracts/
-//! remote-store.md): a storage is a folder on the server, a key a path below it. Files are written
+//! object-store.md): a storage is a folder on the server, a key a path below it. Files are written
 //! to a temporary file next to their name and moved onto it, so a cancel never leaves half a file
 //! (FR-016); folders are real folders and show in listings as S3 shows its folder markers.
 //!
@@ -34,7 +34,7 @@ use tokio::time::Instant;
 
 use super::address::{Resolver, SystemResolver};
 use super::tree::{self, parent_of, part_name};
-use super::{Access, Credentials, DirListing, ObjectHead, ObjectInfo, RemoteStore, StorageError};
+use super::{Access, Credentials, DirListing, ObjectHead, ObjectInfo, ObjectStore, StorageError};
 use request::{method, send, url_of};
 use upload::Sessions;
 
@@ -46,7 +46,7 @@ fn now_ms() -> i64 {
     crate::passwords::clock::unix_millis(std::time::SystemTime::now())
 }
 
-/// The WebDAV implementation of [`RemoteStore`].
+/// The WebDAV implementation of [`ObjectStore`].
 pub struct WebDavStore {
     resolver: Arc<dyn Resolver>,
     sessions: Sessions,
@@ -147,7 +147,7 @@ impl WebDavStore {
 }
 
 #[async_trait]
-impl RemoteStore for WebDavStore {
+impl ObjectStore for WebDavStore {
     /// A file through a temporary file; a key ending in `/` creates the folder.
     async fn put(
         &self,

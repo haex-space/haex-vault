@@ -1,5 +1,5 @@
 //! SFTP, spoken by holzi through `russh` and `russh-sftp` (spec 050 research R3–R5, contracts/
-//! remote-store.md): a storage is a folder on the server, a key a path below it. The host key
+//! object-store.md): a storage is a folder on the server, a key a path below it. The host key
 //! must be the confirmed one before any login (FR-012); files are written to a temporary file and
 //! renamed onto their name (FR-016); folders are real folders and show in listings as S3 shows
 //! its folder markers. Sessions are shared between calls ([`pool`]). A copy streams through holzi:
@@ -32,7 +32,7 @@ use tokio::time::Instant;
 
 use super::address::{Resolver, SystemResolver};
 use super::tree::{self, parent_of, part_name};
-use super::{Access, DirListing, Location, ObjectHead, ObjectInfo, RemoteStore, StorageError};
+use super::{Access, DirListing, Location, ObjectHead, ObjectInfo, ObjectStore, StorageError};
 use connect::{sftp_error, Session};
 use ops::{path_of, read_dir, stamp};
 use pool::Pool;
@@ -62,7 +62,7 @@ fn http_date(seconds: u32) -> String {
     )
 }
 
-/// The SFTP implementation of [`RemoteStore`].
+/// The SFTP implementation of [`ObjectStore`].
 pub struct SftpStore {
     resolver: Arc<dyn Resolver>,
     pool: Pool,
@@ -150,7 +150,7 @@ impl SftpStore {
 }
 
 #[async_trait]
-impl RemoteStore for SftpStore {
+impl ObjectStore for SftpStore {
     /// A file through a temporary file; a key ending in `/` creates the folder.
     async fn put(
         &self,
@@ -308,7 +308,7 @@ impl RemoteStore for SftpStore {
         .await
     }
 
-    /// SFTP has no copy holzi can count on; [`RemoteStore::copies_on_provider`] says so.
+    /// SFTP has no copy holzi can count on; [`ObjectStore::copies_on_provider`] says so.
     async fn copy(
         &self,
         _access: &Access,

@@ -1,6 +1,6 @@
 # Quickstart: WebDAV- und SFTP-Speicher prüfen
 
-Prüfanleitung für Spec 050. Verträge: [contracts/remote-store.md](./contracts/remote-store.md),
+Prüfanleitung für Spec 050. Verträge: [contracts/object-store.md](./contracts/object-store.md),
 [contracts/tauri-commands.md](./contracts/tauri-commands.md), [contracts/bridge.md](./contracts/bridge.md);
 Datenmodell: [data-model.md](./data-model.md).
 

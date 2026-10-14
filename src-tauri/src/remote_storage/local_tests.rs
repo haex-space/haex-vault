@@ -9,7 +9,7 @@ use tokio::io::AsyncReadExt;
 use tokio::time::Instant;
 
 use super::{access_of, LocalStore};
-use crate::remote_storage::{Access, RemoteStore, StorageError};
+use crate::remote_storage::{Access, ObjectStore, StorageError};
 
 fn soon() -> Instant {
     Instant::now() + Duration::from_secs(5)

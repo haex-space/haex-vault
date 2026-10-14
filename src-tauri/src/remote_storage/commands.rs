@@ -16,7 +16,8 @@ use super::s3::S3Store;
 use super::service::StorageService;
 use super::sftp::{keys, SftpStore};
 use super::webdav::WebDavStore;
-use super::{credentials, Protocol, RemoteStore};
+<<<<<<< HEAD
+use super::{credentials, ObjectStore, Protocol};
 use crate::error::Result;
 use crate::extensions::remote_storage_dialog::{StorageAnswer, StorageTrial};
 use crate::passwords::service::PasswordsService;
@@ -24,7 +25,7 @@ use crate::state::AppState;
 
 /// The providers of this process (spec 050 research R1): one store per protocol, each with the
 /// resolver of the operating system, chosen per call by the connection's protocol.
-pub fn stores() -> Arc<dyn RemoteStore> {
+pub fn stores() -> Arc<dyn ObjectStore> {
     static STORE: OnceLock<Arc<ProtocolStore>> = OnceLock::new();
     STORE
         .get_or_init(|| {

@@ -20,7 +20,7 @@ use super::format::{decode_id, folder_id, Id};
 use super::vault_keys::HeldKeys;
 use crate::files::storage_source::{parse_http_date_ms, parse_iso_ms, storage_error};
 use crate::files::{EncryptedState, FilesError};
-use crate::remote_storage::{Access, RemoteStore, StorageError};
+use crate::remote_storage::{Access, ObjectStore, StorageError};
 
 /// The most requests for heads or sidecars in flight at once.
 pub const AT_ONCE: usize = 32;
@@ -75,7 +75,7 @@ impl LoadedHead {
 
 /// The heads of the encrypted folders `prefixes`, sorted by prefix.
 pub async fn load_heads(
-    store: &dyn RemoteStore,
+    store: &dyn ObjectStore,
     access: &Access,
     prefixes: &[String],
     cached: &[HeadRow],
@@ -91,7 +91,7 @@ pub async fn load_heads(
 }
 
 async fn load_head(
-    store: &dyn RemoteStore,
+    store: &dyn ObjectStore,
     access: &Access,
     prefix: &str,
     cached: &[HeadRow],
@@ -179,7 +179,7 @@ async fn load_head(
 
 /// The head of the folder `prefix` with `fid`, read and opened now.
 pub async fn read_head(
-    store: &dyn RemoteStore,
+    store: &dyn ObjectStore,
     access: &Access,
     prefix: &str,
     fid: &Id,
@@ -217,7 +217,7 @@ pub struct LoadedFolder {
 
 /// Loads the folder `prefix` (`P`) with id `fid`; `cached` are the rows the cache holds for it.
 pub async fn load_folder(
-    store: &dyn RemoteStore,
+    store: &dyn ObjectStore,
     access: &Access,
     prefix: &str,
     fid: &Id,

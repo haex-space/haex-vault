@@ -1,4 +1,4 @@
-//! One [`RemoteStore`] for every protocol (spec 050 research R1): each call goes to the store of
+//! One [`ObjectStore`] for every protocol (spec 050 research R1): each call goes to the store of
 //! the protocol of `access`, so no caller needs to know whether a storage speaks S3, WebDAV or
 //! SFTP (FR-018). A protocol without a store yet answers [`StorageError::Unsupported`]. A folder on
 //! this device ([`Protocol::Local`], spec 048 research R15) always has its store.
@@ -10,23 +10,23 @@ use tokio::time::Instant;
 
 use super::local::LocalStore;
 use super::{
-    Access, DirListing, Location, ObjectHead, ObjectInfo, Protocol, RemoteStore, StorageError,
+    Access, DirListing, Location, ObjectHead, ObjectInfo, ObjectStore, Protocol, StorageError,
 };
 
 /// The stores of the protocols, chosen per call by `access.location.protocol`.
 pub struct ProtocolStore {
-    s3: Arc<dyn RemoteStore>,
-    webdav: Option<Arc<dyn RemoteStore>>,
-    sftp: Option<Arc<dyn RemoteStore>>,
-    local: Arc<dyn RemoteStore>,
+    s3: Arc<dyn ObjectStore>,
+    webdav: Option<Arc<dyn ObjectStore>>,
+    sftp: Option<Arc<dyn ObjectStore>>,
+    local: Arc<dyn ObjectStore>,
 }
 
 impl ProtocolStore {
     /// A store with `s3`, a [`LocalStore`] and, when given, the stores for WebDAV and SFTP.
     pub fn new(
-        s3: Arc<dyn RemoteStore>,
-        webdav: Option<Arc<dyn RemoteStore>>,
-        sftp: Option<Arc<dyn RemoteStore>>,
+        s3: Arc<dyn ObjectStore>,
+        webdav: Option<Arc<dyn ObjectStore>>,
+        sftp: Option<Arc<dyn ObjectStore>>,
     ) -> Self {
         Self {
             s3,
@@ -37,7 +37,7 @@ impl ProtocolStore {
     }
 
     /// The store for the protocol of `access`.
-    fn of(&self, access: &Access) -> Result<&dyn RemoteStore, StorageError> {
+    fn of(&self, access: &Access) -> Result<&dyn ObjectStore, StorageError> {
         let store = match access.location.protocol {
             Protocol::S3 => Some(&self.s3),
             Protocol::WebDav => self.webdav.as_ref(),
@@ -55,7 +55,7 @@ impl ProtocolStore {
 }
 
 #[async_trait]
-impl RemoteStore for ProtocolStore {
+impl ObjectStore for ProtocolStore {
     async fn put(
         &self,
         access: &Access,

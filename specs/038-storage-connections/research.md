@@ -226,7 +226,7 @@ mit dem eine Erweiterung dann nicht hochladen kann.
 
 ## R10 — Tests ohne Netz
 
-**Entscheidung**: Ein Trait `RemoteStore` (R21 von Spec 017) mit der S3-Umsetzung und einer Fälschung im
+**Entscheidung**: Ein Trait `ObjectStore` (R21 von Spec 017) mit der S3-Umsetzung und einer Fälschung im
 Speicher für die Tests der Bridge (Rechte, Präfix, Schlüssel, Grenzen, Dialog). Die S3-Umsetzung wird
 gegen `wiremock` (schon Dev-Abhängigkeit, lokaler Listener) getestet: signierte Anfrage vorhanden,
 Antworten lesen, Fehlerabbildung, Grenzen. Ein echter Anbieter (RustFS im Container) nur in der

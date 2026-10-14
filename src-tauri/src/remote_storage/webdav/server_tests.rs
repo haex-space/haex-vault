@@ -9,7 +9,7 @@ use tokio::time::Instant;
 
 use super::{test_server, WebDavStore};
 use crate::remote_storage::test_support::resolver;
-use crate::remote_storage::{Access, RemoteStore, StorageError};
+use crate::remote_storage::{Access, ObjectStore, StorageError};
 
 fn store() -> WebDavStore {
     WebDavStore::new(resolver(&[]))

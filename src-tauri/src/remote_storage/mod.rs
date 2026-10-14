@@ -3,7 +3,7 @@
 //! rule Z14 of spec 034) and the storages on them, one bucket or folder each. holzi speaks the
 //! protocols itself; extensions are one consumer of it, spec 029 another.
 //!
-//! [`RemoteStore`] is the one seam to the provider: [`protocol::ProtocolStore`] hands each call to
+//! [`ObjectStore`] is the one seam to the provider: [`protocol::ProtocolStore`] hands each call to
 //! the store of the connection's protocol (spec 050 research R1); [`s3::S3Store`] signs with
 //! `rusty-s3` and sends with `reqwest` to the address [`address`] checked and pinned (038 research
 //! R1, R8); tests use a fake (038 research R10). No error of this module carries an endpoint, a
@@ -26,13 +26,13 @@ mod local_fs;
 #[cfg(test)]
 mod mod_tests;
 pub mod model;
+mod object_store;
 pub mod probe;
 #[cfg(test)]
 mod probe_tests;
 pub mod protocol;
 #[cfg(test)]
 mod protocol_tests;
-mod remote_store;
 pub mod s3;
 mod s3_ext;
 #[cfg(test)]
@@ -70,7 +70,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use zeroize::Zeroizing;
 
-pub use remote_store::RemoteStore;
+pub use object_store::ObjectStore;
 pub use tree::{case_clash, PART_PREFIX};
 
 /// The protocol of a connection (spec 050 FR-001); it never changes once the connection is saved.

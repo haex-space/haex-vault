@@ -1,4 +1,4 @@
-//! The WebDAV store against a mock server (spec 050 US1, research R2, R7, contracts/remote-store.md):
+//! The WebDAV store against a mock server (spec 050 US1, research R2, R7, contracts/object-store.md):
 //! files go through a temporary file and a `MOVE`, missing folders below the storage's folder are
 //! made once, a missing folder of the storage is not, ranges and listings read as on S3, and an
 //! upload in parts streams one `PUT`.
@@ -14,8 +14,8 @@ use zeroize::Zeroizing;
 use super::WebDavStore;
 use crate::remote_storage::test_support::resolver;
 use crate::remote_storage::{
-    Access, Addressing, Credentials, EndpointScope, Location, PasswordCredentials, Protocol,
-    ProviderKind, RemoteStore, StorageError,
+    Access, Addressing, Credentials, EndpointScope, Location, ObjectStore, PasswordCredentials,
+    Protocol, ProviderKind, StorageError,
 };
 
 const PART: &str = r"^/dav/Fotos/(sub/)?\.holzi-part-[0-9a-f-]+$";

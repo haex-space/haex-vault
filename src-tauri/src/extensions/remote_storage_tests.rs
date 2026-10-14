@@ -164,7 +164,7 @@ fn keys_of_the_provider_outside_the_area_are_not_listed() {
     )
     .expect("access");
     let soon = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
-    use crate::remote_storage::RemoteStore;
+    use crate::remote_storage::ObjectStore;
     block_on(
         s.fake
             .put(&access, "elsewhere/secret.txt", b"x".to_vec(), soon),

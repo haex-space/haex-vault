@@ -78,7 +78,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | Speckit-Ablauf                                                 | ✅ specify → Freigabe des Betreibers (2026-10-11, „mach das“) → plan; danach tasks, analyze, implement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Tests in eigenen Dateien                                       | ✅ jede neue Rust-Datei mit `*_tests.rs` daneben, `#[cfg(test)] #[path]`; Testserver in eigenen Test-Support-Dateien                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | 500 LoC je Datei                                               | ✅ Aufteilung unten (WebDAV und SFTP je in mehrere Dateien)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Graphify zuerst / Wiederverwendung                             | ✅ Graph des Abzweigs (Schnappschuss, ohne Auffrischung) abgefragt nach XML-Parser, HTTP-Client mit festen Adressen, SSH/Schlüsseln, Baum-Durchlauf. Wiederverwendet: `S3Store::client_for` (wird `http::pinned_client`), `address::pin`/`scope_of`, `credentials.rs`, `probe.rs`, `RemoteStore` und seine Fälschung. Geprüft und nicht passend: `extensions/web.rs` `client()` (ohne feste Adressen, für Erweiterungen), `extensions/mail/parsing.rs` (MIME, kein XML), `passwords/import/keepass.rs` `walk` (lokaler KeePass-Baum), `sync/keys.rs` `DeviceKeys` (secp256k1-Geräteschlüssel, kein SSH), `files/local/watch.rs` (lokales Dateisystem). Kein XML- oder SSH-Code vorhanden |
+| Graphify zuerst / Wiederverwendung                             | ✅ Graph des Abzweigs (Schnappschuss, ohne Auffrischung) abgefragt nach XML-Parser, HTTP-Client mit festen Adressen, SSH/Schlüsseln, Baum-Durchlauf. Wiederverwendet: `S3Store::client_for` (wird `http::pinned_client`), `address::pin`/`scope_of`, `credentials.rs`, `probe.rs`, `ObjectStore` und seine Fälschung. Geprüft und nicht passend: `extensions/web.rs` `client()` (ohne feste Adressen, für Erweiterungen), `extensions/mail/parsing.rs` (MIME, kein XML), `passwords/import/keepass.rs` `walk` (lokaler KeePass-Baum), `sync/keys.rs` `DeviceKeys` (secp256k1-Geräteschlüssel, kein SSH), `files/local/watch.rs` (lokales Dateisystem). Kein XML- oder SSH-Code vorhanden |
 | Laziness Ladder / keine unnötige Abhängigkeit                  | ✅ zwei neue Abhängigkeiten (`russh`, `russh-sftp`), begründet in R3; WebDAV ohne Bibliothek (R2); `quick-xml` war schon im Build                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Eine Implementierung je Regel                                  | ✅ Adressprüfung, Schlüsselprüfung der Erweiterungen, Test und Zugangsdaten bleiben je eine Stelle und werden um Protokolle erweitert, nicht dupliziert                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Kein `unwrap`/`expect` auf Eingaben, Fehler nicht verschlucken | ✅ Fehler der Server werden abgebildet und ohne Geheimnisse geloggt (R10)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -102,7 +102,7 @@ specs/050-webdav-sftp-storage/
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
-│   ├── remote-store.md      # Verhalten des Traits je Protokoll
+│   ├── object-store.md      # Verhalten des Traits je Protokoll
 │   ├── tauri-commands.md    # geänderte und neue Commands
 │   └── bridge.md            # Erweiterungen: Liste, Vorschläge, Fehler
 ├── checklists/requirements.md
@@ -125,12 +125,12 @@ src-tauri/
     │   ├── http.rs (+ _tests)               # pinned_client aus s3.rs (R2)
     │   ├── tree.rs (+ _tests)               # Markierungs-Form, Zwischendateien, Präfix-Durchlauf (R7–R9)
     │   ├── webdav/
-    │   │   ├── mod.rs (+ _tests)            # WebDavStore: RemoteStore
+    │   │   ├── mod.rs (+ _tests)            # WebDavStore: ObjectStore
     │   │   ├── request.rs (+ _tests)        # Methoden, Adressen, Statusabbildung
     │   │   ├── multistatus.rs (+ _tests)    # PROPFIND-Antwort mit quick-xml, href-Prüfung
     │   │   └── upload.rs (+ _tests)         # gestreamter PUT, Sitzungen
     │   ├── sftp/
-    │   │   ├── mod.rs (+ _tests)            # SftpStore: RemoteStore
+    │   │   ├── mod.rs (+ _tests)            # SftpStore: ObjectStore
     │   │   ├── connect.rs (+ _tests)        # TCP zur geprüften Adresse, Handler, Hostschlüssel, Anmeldung
     │   │   ├── pool.rs (+ _tests)           # SSH-Sitzungen je Verbindung, Leerlauf
     │   │   ├── rename.rs (+ _tests)         # posix-rename oder löschen+umbenennen
@@ -192,7 +192,7 @@ E2E-Szenarien kommen mit dem PR ihrer Story; SFTPGo mit PR C.
 ## Abstimmung mit Spec 048
 
 Spec 048 wird parallel gebaut (Worktrees `048-b0`, `048-format`) und berührt `files/browser_commands.rs`
-(Aufteilung in PR B0) und `RemoteStore` (ETag). PR B dieser Spec ändert in `browser_commands.rs` nur den
+(Aufteilung in PR B0) und `ObjectStore` (ETag). PR B dieser Spec ändert in `browser_commands.rs` nur den
 Aufruf `s3_store()` und führt `ObjectInfo.etag` ein; wer zuerst landet, gibt die Form vor, die andere
 Spec zieht nach. Die Migration nimmt die nächste freie Nummer bei der Umsetzung.
 
