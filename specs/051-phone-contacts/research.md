@@ -79,8 +79,16 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
   - fehlende ID oder `DELETED=1` → Löschung auf dem Telefon
   - nach eigenem Schreiben neue `VERSION` sofort zurücklesen und speichern, damit eigene Änderungen nicht
     als Telefonänderung zurückkommen
+- **Dieselbe Angabe auf beiden Seiten geändert** (seit der Basis im Telefon und in holzi): die spätere
+  Änderung gewinnt, wie bei gleichzeitigen Änderungen im Datensync (Spec 024). Verglichen werden
+  `Contacts.CONTACT_LAST_UPDATED_TIMESTAMP` des Telefons (über `contactsIndex` geliefert) und die
+  physische Zeit des HLC der holzi-Spalte beziehungsweise -Zeile. Telefon später → der Telefonwert wird
+  als Änderung dieses Geräts übernommen (neuer HLC, setzt sich überall durch); holzi später oder
+  gleich, oder Zeitstempel fehlt → der holzi-Wert wird ins Telefon geschrieben. Verschiedene Angaben
+  desselben Kontakts werden nie gegeneinander abgewogen, beide bleiben.
 - **Begründung**: `DIRTY` gehört dem Sync-Adapter des Kontos; `CONTACT_LAST_UPDATED_TIMESTAMP` und
-  `DeletedContacts` gelten nur für zusammengefasste Kontakte. `VERSION` steigt bei jeder Änderung des
+  `DeletedContacts` gelten nur für zusammengefasste Kontakte (der Zeitstempel reicht aber für die
+  Konfliktregel oben, weil holzi einen holzi-Kontakt je zusammengefasstem Kontakt führt, R7). `VERSION` steigt bei jeder Änderung des
   Roh-Kontakts oder seiner Daten. Die Basis macht den Vergleich je Angabe möglich (FR-022, FR-023).
 - **Zeitpunkte**: nach dem Öffnen der Vault, bei `RunEvent::Resumed` (`lib.rs:606`, neuer `Wake` in
   `sync/resume.rs`) und nach eingehenden Änderungen an Kontakten (Abonnement auf
@@ -117,7 +125,8 @@ Android-Plugin, Geräteliste, Nostr und Erweiterungs-Berechtigungen; danach gezi
 ## R9 Massenlöschung
 
 - **Entscheidung**: Vor dem Anwenden zählt der Abgleich die Löschungen je Richtung. Mehr als 10 und
-  mehr als 10 % der abgeglichenen Kontakte dieses Telefons → keine Löschung, Lauf hält an, Frage an den
+  mehr als 10 % der abgeglichenen Kontakte dieses Telefons (Kontakte mit einer Zuordnung auf diesem
+  Telefon; Bezugsgröße wie FR-016) → keine Löschung, Lauf hält an, Frage an den
   Nutzer (FR-016). Fehlende Berechtigung oder ein verschwundenes Konto (alle Roh-Kontakte eines Kontos
   weg, Konto nicht mehr in der Kontenliste) gelten nie als Löschung, sondern lösen die Zuordnung
   (FR-026).

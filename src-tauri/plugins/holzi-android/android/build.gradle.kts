@@ -22,12 +22,15 @@ android {
 
 // Spec 043 (research R2): the Kotlin half of rustls-platform-verifier, which checks TLS
 // certificates against the phone's trust store. Its version must match
-// `rustls-platform-verifier-android` in src-tauri/Cargo.lock. The app resolves this module's
-// dependencies with its own repositories, so the repository is added to every project.
+// `rustls-platform-verifier-android` in src-tauri/Cargo.lock. Upstream publishes it only on a
+// GitHub branch (maven-archive), whose answers failed CI builds with HTTP 500, so the .aar and
+// .pom of that branch lie in maven/ here. The app resolves this module's dependencies with its
+// own repositories, so the repository is added to every project.
+val vendoredMaven = file("maven")
 rootProject.allprojects {
     repositories {
         maven {
-            url = uri("https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/")
+            url = uri(vendoredMaven)
             content { includeGroup("org.rustls") }
         }
     }

@@ -2,8 +2,10 @@ pub mod adapters;
 pub mod agent_tasks;
 #[cfg(feature = "voice")]
 pub mod audio;
+pub mod caller;
 pub mod catalog;
 pub mod chat;
+pub mod contacts;
 pub mod device;
 pub mod error;
 pub mod extensions;
@@ -15,6 +17,7 @@ pub mod llm;
 pub mod model_capabilities;
 pub mod models;
 pub mod passwords;
+pub mod patch;
 pub mod platform;
 #[cfg(feature = "platform-probe")]
 pub mod platform_probe;
@@ -58,6 +61,11 @@ use chat::model_loading::{
 use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
+};
+use contacts::commands::contacts::{
+    contacts_create, contacts_delete, contacts_get, contacts_group_delete, contacts_group_members,
+    contacts_group_save, contacts_groups, contacts_list, contacts_photo, contacts_set_photo,
+    contacts_update,
 };
 use device::commands::{current_device_info, list_vault_devices, update_device_alias};
 use extensions::agent_tools::commands::{extension_agent_frame_ready, extension_mcp_send};
@@ -501,6 +509,17 @@ pub fn run() {
             passwords_totp_code,
             passwords_copy_field,
             passwords_copy_text,
+            contacts_list,
+            contacts_get,
+            contacts_create,
+            contacts_update,
+            contacts_delete,
+            contacts_set_photo,
+            contacts_photo,
+            contacts_groups,
+            contacts_group_save,
+            contacts_group_delete,
+            contacts_group_members,
             passwords_create_item,
             passwords_update_item,
             passwords_passkey_rename,

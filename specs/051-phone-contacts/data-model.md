@@ -153,24 +153,25 @@ Wird beim nächsten erfolgreichen Schreiben des Kontakts gelöscht.
 
 Stand des Abgleichs je Telefon (FR-015a); eine Zeile je Gerät.
 
-| Spalte              | Typ        | Regeln                                                            |
-| ------------------- | ---------- | ----------------------------------------------------------------- |
-| `vault_device_uuid` | TEXT PK FK | → `known_devices` CASCADE                                         |
-| `state`             | TEXT       | `off` \| `review` (erste Übersicht offen) \| `active` \| `paused` |
-| `paused_reason`     | TEXT NULL  | `permission` \| `mass_delete`                                     |
-| `last_run_at`       | TEXT NULL  |                                                                   |
-| `counts`            | TEXT NULL  | JSON der letzten Zahlen (übernommen, geschrieben, gelöscht)       |
+| Spalte              | Typ        | Regeln                                                      |
+| ------------------- | ---------- | ----------------------------------------------------------- |
+| `vault_device_uuid` | TEXT PK FK | → `known_devices` CASCADE                                   |
+| `state`             | TEXT       | `review` (erste Übersicht offen) \| `active` \| `paused`    |
+| `paused_reason`     | TEXT NULL  | `permission` \| `mass_delete`                               |
+| `last_run_at`       | TEXT NULL  |                                                             |
+| `counts`            | TEXT NULL  | JSON der letzten Zahlen (übernommen, geschrieben, gelöscht) |
 
-An/aus und Zielkonto liegen in `preferences` (Gerät): `contacts.phone.enabled`,
-`contacts.phone.target_account`.
+An/aus und Zielkonto liegen nur in `preferences` (Gerät): `contacts.phone.enabled` ist die einzige
+Quelle für an/aus, `contacts.phone.target_account` das Zielkonto. Ist der Abgleich aus, gibt es keine
+Zeile in `haex_contacts_phone_runs` (Ausschalten löscht sie, Zuordnungen bleiben).
 
 Zustände:
 
 ```text
-off --einschalten+Berechtigung--> review --bestätigt--> active
+(aus, keine Zeile) --einschalten+Berechtigung--> review --bestätigt--> active
 active --Massenlöschung erkannt--> paused(mass_delete) --Entscheidung--> active
 active --Berechtigung fehlt--> paused(permission) --Berechtigung wieder da--> active
-* --ausschalten--> off   (Zuordnungen bleiben; beim Wiedereinschalten review)
+* --ausschalten--> (aus, Zeile gelöscht; Zuordnungen bleiben; beim Wiedereinschalten review)
 ```
 
 ## haex_contacts_own_card

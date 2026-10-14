@@ -1,0 +1,46 @@
+{
+  "contacts": [
+    {
+      "id": "anna",
+      "name": "Anna Beck",
+      "givenName": "Anna",
+      "familyName": "Beck",
+      "organization": "Gärtnerei Blüte",
+      "phones": ["0170 123-45 67", "+49 (30) 555 0101"],
+      "emails": ["anna.beck@example.org"]
+    },
+    {
+      "id": "ben",
+      "name": "Ben Krüger",
+      "givenName": "Ben",
+      "familyName": "Krüger",
+      "organization": null,
+      "phones": [],
+      "emails": ["ben@HANNOVER.example"]
+    },
+    {
+      "id": "firma",
+      "name": "Stadtwerke",
+      "givenName": null,
+      "familyName": null,
+      "organization": "Stadtwerke",
+      "phones": ["0800 7788"],
+      "emails": []
+    }
+  ],
+  "cases": [
+    { "query": "", "matches": ["anna", "ben", "firma"] },
+    { "query": "ann", "matches": ["anna", "ben"] },
+    { "query": "ANNA", "matches": ["anna"] },
+    { "query": "beck", "matches": ["anna"] },
+    { "query": "gartnerei", "matches": ["anna"] },
+    { "query": "kruger", "matches": ["ben"] },
+    { "query": "stadtwerke", "matches": ["firma"] },
+    { "query": "01701234567", "matches": ["anna"] },
+    { "query": "123 45", "matches": ["anna"] },
+    { "query": "(30) 555", "matches": ["anna"] },
+    { "query": "7788", "matches": ["firma"] },
+    { "query": "example.org", "matches": ["anna"] },
+    { "query": "zzz", "matches": [] }
+  ]
+}

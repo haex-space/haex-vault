@@ -47,7 +47,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 `nostr-sdk` 0.45, `qrcode` 0.14, `image` 0.25, `fast_image_resize` 6.1, `unicode-normalization`,
 `postcard`, `uuid` (v5), `ts-rs`; Frontend haex-ui und holzis `Settings{Group,Row,OptionRow}`
 
-**Storage**: Vault-Datenbank über haex-crdt, zehn neue Tabellen ([data-model.md](./data-model.md));
+**Storage**: Vault-Datenbank über haex-crdt, zwölf neue Tabellen ([data-model.md](./data-model.md));
 Geräteeinstellungen in `preferences`; nichts außerhalb der Vault
 
 **Testing**: `cargo test` (Lib-Tests in `*_tests.rs`, `FakePhoneBook` für den Abgleich), Vitest,
@@ -126,7 +126,7 @@ src-tauri/
 │   ├── lib.rs                                  # Commands, Barcode-Plugin, Resumed → contacts wake
 │   ├── identity/
 │   │   ├── migrations.rs                       # 0033 registrieren, HOLZI_TRIGGER_VERSION +1
-│   │   └── migrations_contacts.rs              # zehn Tabellen (data-model.md)
+│   │   └── migrations_contacts.rs              # zwölf Tabellen (data-model.md)
 │   ├── platform/mod.rs (+ mod_tests)           # phone_contacts
 │   ├── sync/
 │   │   ├── signing.rs                          # Domain::ContactCard

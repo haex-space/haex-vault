@@ -152,7 +152,8 @@
       "settings": "Einstellungen",
       "passwords": "Passwörter",
       "extension": "Erweiterung",
-      "files": "Dateien"
+      "files": "Dateien",
+      "contacts": "Kontakte"
     },
     "launcher": {
       "lock": "Sperren",
@@ -207,6 +208,12 @@
     "files": {
       "device": "Dieses Gerät",
       "storage": "Cloud-Speicher"
+    },
+    "contacts": {
+      "list": "Kontakte",
+      "group": "Gruppe",
+      "entry": "Kontakt",
+      "edit": "Kontakt bearbeiten"
     }
   },
   "chat": {
@@ -504,6 +511,10 @@
       "federation": {
         "title": "Föderation",
         "keywords": "Geräte Vault Synchronisation Sync"
+      },
+      "contacts": {
+        "title": "Kontakte",
+        "keywords": "Kontakte Adressbuch Telefonbuch Personen Gruppen"
       }
     },
     "locations": {
@@ -1090,6 +1101,10 @@
         "hetznerHint": "Hetzner nennt die Fingerabdrücke der Storage Boxen in seiner Dokumentation.",
         "changedHint": "Öffne den Speicher und teste ihn: Der Test zeigt beide Fingerabdrücke."
       }
+    },
+    "contacts": {
+      "open": "Kontakte öffnen",
+      "count": "Noch keine Kontakte | Ein Kontakt | {count} Kontakte"
     }
   },
   "models": {
@@ -2421,6 +2436,157 @@
         "kept": "holzi merkt sich die Antwort für diesen Ordner.",
         "keptLocal": "holzi merkt sich die Antwort nur für Modelle auf diesem Gerät; für diese Aufgabe gilt sie trotzdem."
       }
+    }
+  },
+  "contacts": {
+    "title": "Kontakte",
+    "loading": "Kontakte werden geladen …",
+    "empty": "Noch keine Kontakte.",
+    "noMatch": "Kein Kontakt passt zur Suche.",
+    "noName": "Ohne Namen",
+    "new": "Neuer Kontakt",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "back": "Zurück",
+    "edit": "Bearbeiten",
+    "missing": "Diesen Kontakt gibt es nicht mehr.",
+    "readOnly": "nur lesbar",
+    "copy": "{what} kopieren",
+    "copied": "{what} kopiert",
+    "copyFailed": "Kopieren ist fehlgeschlagen.",
+    "openFailed": "Öffnen ist fehlgeschlagen.",
+    "open": {
+      "call": "{what} anrufen",
+      "message": "Nachricht an {what}",
+      "mail": "E-Mail schreiben",
+      "map": "In der Karte öffnen",
+      "web": "Im Browser öffnen"
+    },
+    "sidebar": {
+      "show": "Seitenleiste zeigen",
+      "hide": "Seitenleiste ausblenden",
+      "all": "Alle Kontakte",
+      "settings": "Einstellungen"
+    },
+    "search": {
+      "placeholder": "Kontakte durchsuchen",
+      "label": "Kontakte durchsuchen"
+    },
+    "groups": {
+      "new": "Neue Gruppe",
+      "rename": "Umbenennen",
+      "delete": "Gruppe löschen",
+      "name": "Name der Gruppe",
+      "nameRequired": "Die Gruppe braucht einen Namen.",
+      "menu": "Aktionen für {name}",
+      "deleteTitle": "Gruppe löschen?",
+      "deleteText": "Die Gruppe „{name}“ wird gelöscht. Ihre Kontakte bleiben erhalten."
+    },
+    "delete": {
+      "title": "Kontakt löschen",
+      "one": "„{name}“ wird auf allen deinen Geräten gelöscht.",
+      "many": "Ein Kontakt wird auf allen deinen Geräten gelöscht. | {count} Kontakte werden auf allen deinen Geräten gelöscht.",
+      "confirm": "Löschen",
+      "done": "Kontakt gelöscht | Kontakte gelöscht"
+    },
+    "photo": {
+      "change": "Foto ändern",
+      "choose": "Foto wählen",
+      "remove": "Foto entfernen",
+      "images": "Bilder"
+    },
+    "kinds": {
+      "phone": "Telefon",
+      "email": "E-Mail",
+      "address": "Anschrift",
+      "website": "Webseite",
+      "im": "Messenger",
+      "sip": "SIP-Adresse",
+      "event": "Datum",
+      "relation": "Beziehung",
+      "custom": "Eigene Angabe",
+      "holzi_vault": "Vault-Identität",
+      "holzi_nostr_relay": "Nostr-Relay",
+      "holzi_iroh": "iroh-Adresse"
+    },
+    "labels": {
+      "home": "Privat",
+      "work": "Arbeit",
+      "mobile": "Mobil",
+      "other": "Andere",
+      "main": "Hauptnummer",
+      "fax_work": "Fax Arbeit",
+      "fax_home": "Fax privat",
+      "pager": "Pager",
+      "car": "Auto",
+      "company_main": "Firma",
+      "birthday": "Geburtstag",
+      "anniversary": "Jahrestag",
+      "assistant": "Assistenz",
+      "brother": "Bruder",
+      "child": "Kind",
+      "domestic_partner": "Lebenspartner",
+      "father": "Vater",
+      "friend": "Freund",
+      "manager": "Vorgesetzte",
+      "mother": "Mutter",
+      "parent": "Elternteil",
+      "partner": "Partner",
+      "referred_by": "Empfohlen von",
+      "relative": "Verwandt",
+      "sister": "Schwester",
+      "spouse": "Ehepartner"
+    },
+    "holziAddresses": {
+      "title": "holzi-Adressen",
+      "unconfirmed": "unbestätigt"
+    },
+    "fields": {
+      "namePrefix": "Titel",
+      "givenName": "Vorname",
+      "middleName": "Weitere Vornamen",
+      "familyName": "Nachname",
+      "nameSuffix": "Namenszusatz",
+      "nickname": "Spitzname",
+      "displayName": "Anzeigename",
+      "organization": "Organisation",
+      "jobTitle": "Position",
+      "note": "Notiz"
+    },
+    "origin": {
+      "holzi": "In holzi angelegt auf {device}",
+      "holziBy": "In holzi angelegt auf {device} von {caller}",
+      "phone": "Vom Telefon {device} übernommen ({account})",
+      "card": "Aus einer Visitenkarte, eingelesen auf {device}",
+      "thisDevice": "diesem Gerät",
+      "otherDevice": "einem anderen Gerät"
+    },
+    "editor": {
+      "newTitle": "Neuer Kontakt",
+      "editTitle": "Kontakt bearbeiten",
+      "name": "Name",
+      "moreName": "Weitere Namensfelder",
+      "work": "Arbeit",
+      "values": "Angaben",
+      "addValue": "Angabe hinzufügen",
+      "groups": "Gruppen",
+      "label": "Bezeichnung",
+      "ownLabel": "Eigene Bezeichnung",
+      "customName": "Name der Angabe",
+      "removeValue": "{what} entfernen",
+      "service": "Dienst",
+      "handle": "Kennung",
+      "date": "Datum",
+      "datePlaceholder": "JJJJ-MM-TT oder --MM-TT"
+    },
+    "address": {
+      "street": "Straße",
+      "pobox": "Postfach",
+      "neighborhood": "Ortsteil",
+      "postcode": "Postleitzahl",
+      "city": "Ort",
+      "region": "Bundesland",
+      "country": "Land"
     }
   }
 }

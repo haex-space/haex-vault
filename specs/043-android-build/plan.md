@@ -57,7 +57,8 @@ vorher Fork `haexmas/plugins-workspace@b38883e`),
 wry (Fork `haexmas/wry@47037dd`), rustls-platform-verifier 0.7.1, reqwest 0.13.5,
 haex-crdt `928d06a`, mistralrs 0.8.1, candle, cpal 0.18.2, sysinfo 0.39.6, iroh, nostr-sdk.
 **Neu**: Rust `jni` 0.22 und `ndk-context` 0.1 (nur Android); `lettre` per Patch aus
-`haexmas/lettre` (feste Revision); Gradle `org.rustls:rustls-platform-verifier` (Version wie
+`haexmas/lettre` (feste Revision); Gradle `org.rustls:rustls-platform-verifier` aus dem
+eingecheckten Maven-Repo `src-tauri/plugins/holzi-android/android/maven/` (Version wie
 `rustls-platform-verifier-android` im Lockfile), `androidx.core` (Insets, schon im Gerüst);
 e2e: chromedriver (Chrome for Testing, passend zur WebView), `iroh-relay` (Testrechner).
 

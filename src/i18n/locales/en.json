@@ -152,7 +152,8 @@
       "settings": "Settings",
       "passwords": "Passwords",
       "extension": "Extension",
-      "files": "Files"
+      "files": "Files",
+      "contacts": "Contacts"
     },
     "launcher": {
       "lock": "Lock",
@@ -207,6 +208,12 @@
     "files": {
       "device": "This device",
       "storage": "Cloud storage"
+    },
+    "contacts": {
+      "list": "Contacts",
+      "group": "Group",
+      "entry": "Contact",
+      "edit": "Edit contact"
     }
   },
   "chat": {
@@ -504,6 +511,10 @@
       "federation": {
         "title": "Federation",
         "keywords": "devices vault synchronization sync"
+      },
+      "contacts": {
+        "title": "Contacts",
+        "keywords": "contacts address book phone book people groups"
       }
     },
     "locations": {
@@ -1090,6 +1101,10 @@
         "hetznerHint": "Hetzner lists the fingerprints of its Storage Boxes in its documentation.",
         "changedHint": "Open the storage and test it: the test shows both fingerprints."
       }
+    },
+    "contacts": {
+      "open": "Open contacts",
+      "count": "No contacts yet | One contact | {count} contacts"
     }
   },
   "models": {
@@ -2421,6 +2436,157 @@
         "kept": "holzi remembers the answer for this folder.",
         "keptLocal": "holzi remembers the answer for models on this device only; it still holds for this task."
       }
+    }
+  },
+  "contacts": {
+    "title": "Contacts",
+    "loading": "Loading contacts …",
+    "empty": "No contacts yet.",
+    "noMatch": "No contact matches the search.",
+    "noName": "No name",
+    "new": "New contact",
+    "cancel": "Cancel",
+    "save": "Save",
+    "back": "Back",
+    "edit": "Edit",
+    "missing": "This contact no longer exists.",
+    "readOnly": "read-only",
+    "copy": "Copy {what}",
+    "copied": "{what} copied",
+    "copyFailed": "Copying failed.",
+    "openFailed": "Opening failed.",
+    "open": {
+      "call": "Call {what}",
+      "message": "Message {what}",
+      "mail": "Write an e-mail",
+      "map": "Open in the map",
+      "web": "Open in the browser"
+    },
+    "sidebar": {
+      "show": "Show sidebar",
+      "hide": "Hide sidebar",
+      "all": "All contacts",
+      "settings": "Settings"
+    },
+    "search": {
+      "placeholder": "Search contacts",
+      "label": "Search contacts"
+    },
+    "groups": {
+      "new": "New group",
+      "rename": "Rename",
+      "delete": "Delete group",
+      "name": "Name of the group",
+      "nameRequired": "The group needs a name.",
+      "menu": "Actions for {name}",
+      "deleteTitle": "Delete group?",
+      "deleteText": "The group “{name}” will be deleted. Its contacts stay."
+    },
+    "delete": {
+      "title": "Delete contact",
+      "one": "“{name}” will be deleted on all your devices.",
+      "many": "One contact will be deleted on all your devices. | {count} contacts will be deleted on all your devices.",
+      "confirm": "Delete",
+      "done": "Contact deleted | Contacts deleted"
+    },
+    "photo": {
+      "change": "Change photo",
+      "choose": "Choose photo",
+      "remove": "Remove photo",
+      "images": "Images"
+    },
+    "kinds": {
+      "phone": "Phone",
+      "email": "E-mail",
+      "address": "Address",
+      "website": "Website",
+      "im": "Messenger",
+      "sip": "SIP address",
+      "event": "Date",
+      "relation": "Relation",
+      "custom": "Custom value",
+      "holzi_vault": "Vault identity",
+      "holzi_nostr_relay": "Nostr relay",
+      "holzi_iroh": "iroh address"
+    },
+    "labels": {
+      "home": "Home",
+      "work": "Work",
+      "mobile": "Mobile",
+      "other": "Other",
+      "main": "Main",
+      "fax_work": "Work fax",
+      "fax_home": "Home fax",
+      "pager": "Pager",
+      "car": "Car",
+      "company_main": "Company",
+      "birthday": "Birthday",
+      "anniversary": "Anniversary",
+      "assistant": "Assistant",
+      "brother": "Brother",
+      "child": "Child",
+      "domestic_partner": "Domestic partner",
+      "father": "Father",
+      "friend": "Friend",
+      "manager": "Manager",
+      "mother": "Mother",
+      "parent": "Parent",
+      "partner": "Partner",
+      "referred_by": "Referred by",
+      "relative": "Relative",
+      "sister": "Sister",
+      "spouse": "Spouse"
+    },
+    "holziAddresses": {
+      "title": "holzi addresses",
+      "unconfirmed": "unconfirmed"
+    },
+    "fields": {
+      "namePrefix": "Title",
+      "givenName": "First name",
+      "middleName": "Middle names",
+      "familyName": "Last name",
+      "nameSuffix": "Suffix",
+      "nickname": "Nickname",
+      "displayName": "Display name",
+      "organization": "Organization",
+      "jobTitle": "Position",
+      "note": "Note"
+    },
+    "origin": {
+      "holzi": "Created in holzi on {device}",
+      "holziBy": "Created in holzi on {device} by {caller}",
+      "phone": "Taken over from the phone {device} ({account})",
+      "card": "From a business card, read on {device}",
+      "thisDevice": "this device",
+      "otherDevice": "another device"
+    },
+    "editor": {
+      "newTitle": "New contact",
+      "editTitle": "Edit contact",
+      "name": "Name",
+      "moreName": "More name fields",
+      "work": "Work",
+      "values": "Values",
+      "addValue": "Add value",
+      "groups": "Groups",
+      "label": "Label",
+      "ownLabel": "Own label",
+      "customName": "Name of the value",
+      "removeValue": "Remove {what}",
+      "service": "Service",
+      "handle": "Handle",
+      "date": "Date",
+      "datePlaceholder": "YYYY-MM-DD or --MM-DD"
+    },
+    "address": {
+      "street": "Street",
+      "pobox": "PO box",
+      "neighborhood": "District",
+      "postcode": "Postal code",
+      "city": "City",
+      "region": "Region",
+      "country": "Country"
     }
   }
 }

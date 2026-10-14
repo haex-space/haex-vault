@@ -1,0 +1,98 @@
+<script setup lang="ts">
+/**
+ * The list of the address book (spec 051, FR-002, FR-004): all contacts or those of a group,
+ * alphabetical by name under letter headings, filtered by the search of the toolbar (`?q=`). A row
+ * shows photo or initials, the name and the organization or first phone number.
+ */
+import { filterContacts, sortByName } from '~/lib/contacts/search'
+import { fold } from '~/lib/search/fold'
+
+const { t } = useI18n()
+const router = useTabRouter()
+const store = useContactsStore()
+
+const groupId = computed(() =>
+  router.route.path.startsWith('/group/') ? router.route.params.id : null,
+)
+const group = computed(() =>
+  store.groups.find((candidate) => candidate.id === groupId.value),
+)
+
+const shown = computed(() => {
+  const inPlace = groupId.value
+    ? store.headers.filter((header) => header.groups.includes(groupId.value!))
+    : store.headers
+  return sortByName(filterContacts(inPlace, router.route.query.q ?? ''))
+})
+
+/** The rows under their first letter; names that do not start with a letter go under "#". */
+const sections = computed(() => {
+  const result: { letter: string; headers: typeof shown.value }[] = []
+  for (const header of shown.value) {
+    const first = [...fold(header.name)][0]?.toUpperCase() ?? ''
+    const letter = /\p{L}/u.test(first) ? first : '#'
+    const last = result.at(-1)
+    if (last?.letter === letter) last.headers.push(header)
+    else result.push({ letter, headers: [header] })
+  }
+  return result
+})
+
+function secondLine(header: (typeof shown.value)[number]): string {
+  return header.organization ?? header.phones[0] ?? header.emails[0] ?? ''
+}
+</script>
+
+<template>
+  <div class="flex min-h-0 flex-col gap-2 p-3" data-testid="contacts-list">
+    <h1 class="px-1 text-2xl font-semibold">
+      {{ group ? group.name : t('contacts.title') }}
+    </h1>
+    <p
+      v-if="store.isLoading && !store.hasLoadedOnce"
+      class="p-4 text-muted-foreground"
+    >
+      {{ t('contacts.loading') }}
+    </p>
+    <p
+      v-else-if="shown.length === 0"
+      class="p-4 text-muted-foreground"
+      data-testid="contacts-empty"
+    >
+      {{ router.route.query.q ? t('contacts.noMatch') : t('contacts.empty') }}
+    </p>
+    <section
+      v-for="section in sections"
+      :key="section.letter"
+      class="flex flex-col gap-1"
+    >
+      <h2 class="px-2 pt-2 text-xs font-semibold text-muted-foreground">
+        {{ section.letter }}
+      </h2>
+      <ul
+        class="flex flex-col divide-y divide-background overflow-hidden rounded-xl bg-muted"
+      >
+        <li v-for="header in section.headers" :key="header.id">
+          <button
+            type="button"
+            class="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left hover:bg-foreground/5"
+            :data-testid="`contacts-row-${header.id}`"
+            @click="router.push(`/entry/${header.id}`)"
+          >
+            <ContactsAvatar :name="header.name" :photo="header.photo" />
+            <span class="flex min-w-0 flex-1 flex-col">
+              <span
+                class="truncate font-medium"
+                data-testid="contacts-row-name"
+                >{{ header.name || t('contacts.noName') }}</span
+              >
+              <span class="truncate text-sm text-muted-foreground">{{
+                secondLine(header)
+              }}</span>
+            </span>
+          </button>
+        </li>
+      </ul>
+    </section>
+  </div>
+</template>
