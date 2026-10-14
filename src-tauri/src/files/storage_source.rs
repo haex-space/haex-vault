@@ -19,7 +19,7 @@ use crate::files::kind::mime_for;
 use crate::files::local::edit::check_name;
 pub use crate::files::storage_time::{parse_http_date_ms, parse_iso_ms};
 use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode};
-use crate::remote_storage::{Access, ObjectInfo, RemoteStore, StorageError};
+use crate::remote_storage::{Access, ObjectInfo, ObjectStore, StorageError};
 
 /// How long one call to the provider may take.
 const CALL: Duration = Duration::from_secs(30);
@@ -171,13 +171,13 @@ fn folder_entry(prefix: &str) -> Entry {
 /// with real folders (WebDAV, SFTP; spec 050) finding, renaming and deleting an entry go their own
 /// way (`storage_source_tree.rs`).
 pub struct StorageFiles {
-    store: Arc<dyn RemoteStore>,
+    store: Arc<dyn ObjectStore>,
     access: Access,
     scope: Option<Scope>,
 }
 
 impl StorageFiles {
-    pub fn new(store: Arc<dyn RemoteStore>, access: Access) -> Self {
+    pub fn new(store: Arc<dyn ObjectStore>, access: Access) -> Self {
         Self {
             store,
             access,
@@ -196,7 +196,7 @@ impl StorageFiles {
         self.scope.as_ref()
     }
 
-    pub fn store(&self) -> &Arc<dyn RemoteStore> {
+    pub fn store(&self) -> &Arc<dyn ObjectStore> {
         &self.store
     }
 

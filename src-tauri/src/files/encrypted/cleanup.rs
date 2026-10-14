@@ -17,7 +17,7 @@ use tokio::time::Instant;
 use super::format::Id;
 use super::load::{LoadedFolder, AT_ONCE};
 use super::tree::facts;
-use crate::remote_storage::{Access, RemoteStore};
+use crate::remote_storage::{Access, ObjectStore};
 
 /// How long the provider must not have changed an object before the cleanup takes it.
 pub const KEEP_MS: i64 = 24 * 60 * 60 * 1000;
@@ -84,7 +84,7 @@ pub fn leftovers(loaded: &LoadedFolder, now_ms: i64) -> Leftovers {
 
 /// Deletes `leftovers` of the folder `prefix`: the content objects, then the sidecars. A failed
 /// delete stays for the next load.
-pub async fn clean(store: &dyn RemoteStore, access: &Access, prefix: &str, leftovers: &Leftovers) {
+pub async fn clean(store: &dyn ObjectStore, access: &Access, prefix: &str, leftovers: &Leftovers) {
     let key = |part: &str, id: &Id| format!("{prefix}{part}/{}", super::format::encode_id(id));
     let contents = leftovers.contents.iter().map(|oid| key("c", oid)).collect();
     let sidecars = leftovers.sidecars.iter().map(|sid| key("m", sid)).collect();

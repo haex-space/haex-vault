@@ -19,7 +19,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
   Orte und Beobachtung ziehen aus `extensions/fs/` in `files/local/`; Erweiterungen nutzen sie weiter.
 - **Medien** (R4): lokaler HTTP-Server auf 127.0.0.1 mit Tokens nach haex-vault, Range, flacher
   Speicher, Tokens je Tab; CSP und Android-Cleartext nur für 127.0.0.1.
-- **S3** (R5): `RemoteStore` lernt `head`, Range, gestreamtes Lesen, Ordner-Listen, Multipart und
+- **S3** (R5): `ObjectStore` lernt `head`, Range, gestreamtes Lesen, Ordner-Listen, Multipart und
   Kopieren.
 - **Suche** (R6): `walkdir` mit `same_file_system`, ohne Links, `frizbee` für Tippfehler, Treffer über
   einen `Channel`, abbrechbar.
@@ -168,7 +168,7 @@ Jeder PR ist für sich prüfbar und lauffähig; die Reihenfolge folgt den Priori
 3. **PR C (US2)**: Viewer für Video, Audio und PDF; Probe auf alle Plattformen erweitert.
 4. **PR D (Verwalten, US3)**: Transfers, Konflikte, Papierkorb, Drag & Drop, eigene Daten nur lesen.
 5. **PR E (Suche, US4)**.
-6. **PR F (Speicher, US5)**: `RemoteStore`-Erweiterung, Speicher als Quelle, S3-Streaming und
+6. **PR F (Speicher, US5)**: `ObjectStore`-Erweiterung, Speicher als Quelle, S3-Streaming und
    Multipart.
 7. **PR G (Agents, US6)**: ADR 0011 umgesetzt (`NativeActionTool`), Tabelle 0029, Rückfrage-Brücke,
    Textauszug, Bilder im `tool_result`, `files.show`.

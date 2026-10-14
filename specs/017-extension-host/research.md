@@ -696,7 +696,7 @@ als Härtung); lexikalischer Abgleich wie HV.
 scope}` aus `passwords/access.rs`), Berechtigungen der Art `passwords` → `Grant`. `list` →
   `list_headers`, `read` → `read_secret_item`, `create`/`update` → `create_item`/`update_item` (volle Eingabe
   des SDK wird zu einem Teil-Update), `delete` → Papierkorb. 034 ist seit PR #222 auf `main`; der Adapter braucht keinen Platzhalter mehr.
-- **Entfernter Speicher**: Trait `RemoteStore`; Erweiterungen sehen nur Speicher, die der Nutzer für sie
+- **Entfernter Speicher**: Trait `ObjectStore`; Erweiterungen sehen nur Speicher, die der Nutzer für sie
   freigibt, mit einem Schlüsselpräfix je Erweiterung (029 FR-027 erlaubt in Space-Buckets nur
   inhaltsadressierte Objekte, also nie beliebige Schlüssel dort). Anlegen, Ändern, Prüfen und Entfernen immer
   über einen Dialog von holzi. Umgesetzt durch Spec 038 (Speicherverbindungen ohne Spaces): S3-Client

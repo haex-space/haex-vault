@@ -49,7 +49,7 @@ Abhängigkeit
 neue Spalte in `haex_passwords_item_details` ([data-model.md](./data-model.md))
 
 **Testing**: `cargo test` (Lib-Tests in `*_tests.rs`, `wiremock` als lokaler S3-Mock, Fälschung des
-Traits `RemoteStore`), `pnpm typecheck`, `pnpm lint`, `pnpm format:check`; manuell bzw. e2e gegen RustFS
+Traits `ObjectStore`), `pnpm typecheck`, `pnpm lint`, `pnpm format:check`; manuell bzw. e2e gegen RustFS
 ([quickstart.md](./quickstart.md))
 
 **Target Platform**: Linux, macOS, Windows, Android, iOS (FR-016; nichts `cfg(desktop)`)
@@ -118,7 +118,7 @@ src-tauri/src/
 │   ├── items.rs                        # item_state/headers_in_scope/agent_headers mit owner
 │   └── service/items.rs, trash.rs      # create mit owner (nur Internal), endgültiges Löschen eigener Einträge
 ├── remote_storage/                     # neu: holzis S3 (unabhängig von Erweiterungen)
-│   ├── mod.rs                          # Typen, Trait RemoteStore
+│   ├── mod.rs                          # Typen, Trait ObjectStore
 │   ├── s3.rs                           # rusty-s3 + reqwest, Grenzen, Fehlerabbildung + _tests (wiremock)
 │   ├── address.rs                      # Endpunkt-Prüfung http/https (R8) + _tests
 │   ├── store.rs                        # Tabellen lesen/schreiben + _tests

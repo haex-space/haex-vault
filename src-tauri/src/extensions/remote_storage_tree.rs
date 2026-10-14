@@ -9,7 +9,7 @@ use tokio::time::Instant;
 use super::error::BridgeError;
 use super::remote_storage::invalid;
 use super::remote_storage_keys::fits_tree;
-use crate::remote_storage::{case_clash, Access, RemoteStore, StorageError};
+use crate::remote_storage::{case_clash, Access, ObjectStore, StorageError};
 
 /// The most entries of one folder holzi reads to compare names.
 const MAX_ENTRIES: usize = 100_000;
@@ -34,7 +34,7 @@ fn split(key: &str) -> (&str, &str) {
 /// Whether writing the file `key` would hit another file: its folder holds a name that differs
 /// only in case, and not the name itself.
 pub(super) async fn clashes(
-    store: &dyn RemoteStore,
+    store: &dyn ObjectStore,
     access: &Access,
     key: &str,
     deadline: Instant,
@@ -63,7 +63,7 @@ pub(super) async fn clashes(
 /// below `area` (the extension's area, ending in `/`). It stops at the first folder that holds
 /// something; a failure is only logged, the file is gone either way.
 pub(super) async fn prune(
-    store: &dyn RemoteStore,
+    store: &dyn ObjectStore,
     access: &Access,
     area: &str,
     key: &str,

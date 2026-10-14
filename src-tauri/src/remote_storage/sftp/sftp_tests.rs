@@ -12,7 +12,7 @@ use super::connect_tests::{access, password};
 use super::test_server::{self, Options, TestServer};
 use super::SftpStore;
 use crate::remote_storage::test_support::resolver;
-use crate::remote_storage::{Access, RemoteStore, StorageError};
+use crate::remote_storage::{Access, ObjectStore, StorageError};
 
 fn soon() -> Instant {
     Instant::now() + Duration::from_secs(10)

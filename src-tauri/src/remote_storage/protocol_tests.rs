@@ -8,7 +8,7 @@ use tokio::time::Instant;
 
 use super::protocol::ProtocolStore;
 use super::test_support::{access, FakeStore, Op};
-use super::{Access, Protocol, RemoteStore, StorageError};
+use super::{Access, ObjectStore, Protocol, StorageError};
 
 fn soon() -> Instant {
     Instant::now() + Duration::from_secs(5)

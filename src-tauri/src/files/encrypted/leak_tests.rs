@@ -1,6 +1,6 @@
 //! The SC-001 catalogue: whatever goes into an encrypted folder, nothing of its names, paths,
 //! content types or contents is in any object key or body the storage gets (FR-010, FR-011).
-//! `RemoteStore::put` and the parts of an upload carry only a key and bytes, so holzi sends no
+//! `ObjectStore::put` and the parts of an upload carry only a key and bytes, so holzi sends no
 //! content type and no metadata of its own; the provider answers `application/octet-stream`.
 
 use std::sync::Arc;

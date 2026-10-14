@@ -22,7 +22,7 @@ use super::Scope;
 use crate::files::storage_source::{folder_prefix, storage_error, StorageFiles};
 use crate::files::{Entry, EntryKind, FilesError, FilesErrorCode};
 use crate::remote_storage::local::access_of;
-use crate::remote_storage::RemoteStore;
+use crate::remote_storage::ObjectStore;
 
 /// The most entries of one device folder holzi reads to name its encrypted folders.
 const MAX_ENTRIES: usize = 100_000;
@@ -118,7 +118,7 @@ impl DeviceRoot {
     }
 
     /// The device as a storage with `store` (its local store) and `scope`.
-    pub fn files(&self, store: Arc<dyn RemoteStore>, scope: Scope) -> StorageFiles {
+    pub fn files(&self, store: Arc<dyn ObjectStore>, scope: Scope) -> StorageFiles {
         StorageFiles::new(store, access_of(&self.dir)).with_scope(scope)
     }
 }
