@@ -1,4 +1,5 @@
 import { defineAsyncComponent, type Component } from 'vue'
+import { contactsRoutePatterns } from '~/lib/contacts/registry'
 import { FILES_ROUTE_CHILDREN } from '~/lib/files/registry'
 import { passwordsRoutePatterns } from '~/lib/passwords/registry'
 import { settingsRoutePatterns } from '~/lib/settings/registry'
@@ -32,6 +33,9 @@ const PasswordsApp = defineAsyncComponent(
 )
 const FilesApp = defineAsyncComponent(
   () => import('~/components/apps/FilesApp.vue'),
+)
+const ContactsApp = defineAsyncComponent(
+  () => import('~/components/apps/ContactsApp.vue'),
 )
 
 /** The view of each settings location (spec 023-settings-app, contracts §1). */
@@ -98,6 +102,9 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   ),
   'storage.remove': defineAsyncComponent(
     () => import('~/components/settings/storage/RemovalView.vue'),
+  ),
+  contacts: defineAsyncComponent(
+    () => import('~/components/settings/ContactsView.vue'),
   ),
   extensions: defineAsyncComponent(
     () => import('~/components/settings/extensions/ExtensionsListView.vue'),
@@ -172,6 +179,38 @@ function passwordsRoutes(): AppRouteRecord[] {
   }))
 }
 
+/** One component object for all contacts and a group, so moving between them keeps the list
+ * mounted. */
+const CONTACTS_LIST_PAGE = defineAsyncComponent(
+  () => import('~/components/contacts/List.vue'),
+)
+
+/** The view of each place of the address book (spec 051). */
+const CONTACTS_VIEWS: Partial<Record<string, Component>> = {
+  list: CONTACTS_LIST_PAGE,
+  group: CONTACTS_LIST_PAGE,
+  entry: defineAsyncComponent(
+    () => import('~/components/contacts/EntryPage.vue'),
+  ),
+  edit: defineAsyncComponent(
+    () => import('~/components/contacts/EntryEditor.vue'),
+  ),
+}
+
+/** The address book routes from the registry: `ContactsApp` as the frame, one flat child per
+ * place. */
+function contactsRoutes(): AppRouteRecord[] {
+  return contactsRoutePatterns().map((root) => ({
+    path: root.path,
+    component: ContactsApp,
+    children: (root.children ?? []).map((child) => ({
+      path: child.path,
+      titleKey: child.titleKey,
+      component: CONTACTS_VIEWS[child.locationId ?? ''],
+    })),
+  }))
+}
+
 const APP_ROUTES: Record<string, readonly AppRouteRecord[]> = {
   // Chat (research R10): one mounted root; children only carry the location.
   'system.chat': [
@@ -186,6 +225,7 @@ const APP_ROUTES: Record<string, readonly AppRouteRecord[]> = {
   ],
   'system.settings': settingsRoutes(),
   'system.passwords': passwordsRoutes(),
+  'system.contacts': contactsRoutes(),
   // File browser (spec 044, research R13): one mounted root; children only carry the location.
   'system.files': [
     { path: '/', component: FilesApp, children: [...FILES_ROUTE_CHILDREN] },

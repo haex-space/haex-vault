@@ -196,6 +196,23 @@ pub enum HolziError {
     #[error("Transcription failed: {reason}")]
     TranscriptionFailed { reason: String },
 
+    // --- Address book (spec 051, contracts/tauri-commands.md) ---
+    /// The contact or group does not exist, or the caller may not know that it does (FR-031).
+    #[error("Contact not found")]
+    ContactsNotFound,
+
+    /// The caller has no grant for this operation.
+    #[error("Not permitted")]
+    ContactsForbidden,
+
+    /// A value or name the address book does not take; `reason` names the problem for the window.
+    #[error("Invalid contact: {reason}")]
+    ContactsInvalid { reason: String },
+
+    /// A value of a kind this version does not know is read-only (FR-007).
+    #[error("This value is read-only")]
+    ContactsUnknownKindReadOnly,
+
     // --- Password manager (spec 034, contracts/tauri-commands.md §Fehlerarten) ---
     // None of these carries the value of a secret in a field.
     /// The entry, attachment or passkey does not exist, or the caller may not know that it does

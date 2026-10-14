@@ -199,18 +199,8 @@ const MAX_SERVERS: usize = 10;
 /// URLs, iroh servers `http://` or `https://`. The error names the first
 /// that is not, and is the user's to fix, not a failure.
 pub fn validate(config: &ServerConfig) -> Result<(), String> {
-    check_list(
-        &config.nostr_relays,
-        &["ws", "wss"],
-        "a Nostr server",
-        |url| NostrRelayUrl::parse(url).is_ok(),
-    )?;
-    check_list(
-        &config.iroh_relays,
-        &["http", "https"],
-        "an iroh server",
-        |url| url.parse::<RelayUrl>().is_ok(),
-    )?;
+    check_list(&config.nostr_relays, "a Nostr server", is_nostr_relay)?;
+    check_list(&config.iroh_relays, "an iroh server", is_iroh_relay)?;
     // Switched off servers are only compared with, never dialed.
     if config.disabled.len() > 4 * MAX_SERVERS || config.disabled.iter().any(|url| url.len() > 256)
     {
@@ -219,20 +209,31 @@ pub fn validate(config: &ServerConfig) -> Result<(), String> {
     Ok(())
 }
 
-fn check_list(
-    urls: &[String],
-    schemes: &[&str],
-    what: &str,
-    parses: impl Fn(&str) -> bool,
-) -> Result<(), String> {
+/// Whether `url` is the address of a Nostr server: `ws://` or `wss://`, at most 256 characters, no
+/// whitespace. The settings and the holzi addresses of contacts (spec 051) share it.
+pub fn is_nostr_relay(url: &str) -> bool {
+    address_ok(url, &["ws", "wss"]) && NostrRelayUrl::parse(url).is_ok()
+}
+
+/// Whether `url` is the address of an iroh server: `http://` or `https://`, at most 256
+/// characters, no whitespace.
+pub fn is_iroh_relay(url: &str) -> bool {
+    address_ok(url, &["http", "https"]) && url.parse::<RelayUrl>().is_ok()
+}
+
+fn address_ok(url: &str, schemes: &[&str]) -> bool {
+    let scheme_ok = url
+        .split_once("://")
+        .is_some_and(|(scheme, rest)| schemes.contains(&scheme) && !rest.is_empty());
+    scheme_ok && url.len() <= 256 && !url.chars().any(char::is_whitespace)
+}
+
+fn check_list(urls: &[String], what: &str, accepts: impl Fn(&str) -> bool) -> Result<(), String> {
     if urls.len() > MAX_SERVERS {
         return Err(format!("at most {MAX_SERVERS} servers of one kind"));
     }
     for url in urls {
-        let scheme_ok = url
-            .split_once("://")
-            .is_some_and(|(scheme, rest)| schemes.contains(&scheme) && !rest.is_empty());
-        if !scheme_ok || !parses(url) || url.len() > 256 || url.chars().any(char::is_whitespace) {
+        if !accepts(url) {
             return Err(format!("{url:?} is not {what}"));
         }
     }

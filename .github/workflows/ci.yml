@@ -49,6 +49,9 @@ jobs:
       - name: Check passwords
         run: corepack pnpm check:passwords
 
+      - name: Check contacts
+        run: corepack pnpm check:contacts
+
       - name: Check extensions
         run: corepack pnpm check:extensions
 

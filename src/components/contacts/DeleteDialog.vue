@@ -1,0 +1,72 @@
+<script setup lang="ts">
+/** The confirmation before contacts are deleted (spec 051, FR-002): on every own device. */
+import { toast } from 'vue-sonner'
+
+const props = defineProps<{
+  ids: string[]
+  /** The name to show for one contact. */
+  name?: string
+}>()
+
+const open = defineModel<boolean>('open', { required: true })
+
+const emit = defineEmits<{
+  done: []
+}>()
+
+const { t } = useI18n()
+const { errString } = useErrorString()
+const store = useContactsStore()
+const { deleteAsync } = useContacts()
+const busy = ref(false)
+
+async function confirmAsync() {
+  busy.value = true
+  try {
+    await deleteAsync(props.ids)
+    await store.quietReloadAsync()
+    toast.success(t('contacts.delete.done', props.ids.length))
+    open.value = false
+    emit('done')
+  } catch (cause) {
+    toast.error(errString(cause))
+  } finally {
+    busy.value = false
+  }
+}
+</script>
+
+<template>
+  <ShadcnAlertDialog
+    :open="open"
+    @update:open="(value: boolean) => (open = value)"
+  >
+    <ShadcnAlertDialogContent>
+      <ShadcnAlertDialogHeader>
+        <ShadcnAlertDialogTitle>{{
+          t('contacts.delete.title')
+        }}</ShadcnAlertDialogTitle>
+        <ShadcnAlertDialogDescription>
+          {{
+            ids.length === 1 && name
+              ? t('contacts.delete.one', { name })
+              : t('contacts.delete.many', { count: ids.length }, ids.length)
+          }}
+        </ShadcnAlertDialogDescription>
+      </ShadcnAlertDialogHeader>
+      <ShadcnAlertDialogFooter>
+        <ShadcnAlertDialogCancel>{{
+          t('contacts.cancel')
+        }}</ShadcnAlertDialogCancel>
+        <UiButton
+          variant="destructive"
+          :loading="busy"
+          data-testid="contacts-delete-confirm"
+          @click="confirmAsync"
+        >
+          {{ t('contacts.delete.confirm') }}
+        </UiButton>
+      </ShadcnAlertDialogFooter>
+    </ShadcnAlertDialogContent>
+  </ShadcnAlertDialog>
+</template>

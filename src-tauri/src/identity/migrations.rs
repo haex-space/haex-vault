@@ -37,6 +37,7 @@ use std::sync::Arc;
 use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
+use super::migrations_contacts::CONTACTS_0033;
 use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
@@ -92,7 +93,8 @@ use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 /// - 20: `0031_storage_protocols` (spec 050) added `protocol`, `host_key` and
 ///   `host_key_confirmed_at` to `haex_storage_connections`.
 /// - 21: `0032_agent_folder_reach` (spec 048) added `reach` to `agent_file_permissions`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 21;
+/// - 22: `0033_contacts` (spec 051) added the address book tables.
+pub const HOLZI_TRIGGER_VERSION: i32 = 22;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -637,6 +639,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0032_agent_folder_reach"),
         AGENT_FOLDER_REACH_0032.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0033_contacts"),
+        CONTACTS_0033.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))
