@@ -55,7 +55,8 @@ scenario('extension-agent-tools', { timeoutMs: 300_000 }, async (ctx) => {
     action: row.action,
     target: row.target,
     granted:
-      row.kind === 'database' || (row.kind === 'agentTool' && ticked.includes(row.target)),
+      row.kind === 'database' ||
+      (row.kind === 'agentTool' && ticked.includes(row.target)),
   }))
   const extension = unwrap<InstalledExtension>(
     'extension_install',
