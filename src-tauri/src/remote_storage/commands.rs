@@ -16,7 +16,6 @@ use super::s3::S3Store;
 use super::service::StorageService;
 use super::sftp::{keys, SftpStore};
 use super::webdav::WebDavStore;
-<<<<<<< HEAD
 use super::{credentials, ObjectStore, Protocol};
 use crate::error::Result;
 use crate::extensions::remote_storage_dialog::{StorageAnswer, StorageTrial};
