@@ -51,7 +51,7 @@ const emit = defineEmits<{
   ]
 }>()
 
-const { t, d } = useI18n()
+const { t, locale } = useI18n()
 
 /** The name as shown: unreadable encrypted entries get a word instead of their random id. */
 function shownName(entry: Entry): string {
@@ -100,6 +100,34 @@ const list = computed(() => virtual.value.list.value)
 const containerProps = computed(() => virtual.value.containerProps)
 const wrapperProps = computed(() => virtual.value.wrapperProps.value)
 
+// Rows keep their elements while the list scrolls: a slot shows the next entry instead of a new row
+// being built for it, which a jump through a large folder would do for every row on screen
+// (FR-008). A focused row whose slot now shows another entry lets the focus go, so Enter never
+// opens what the user did not focus.
+let focusedPath: string | null = null
+
+function onFocusin(event: FocusEvent) {
+  focusedPath =
+    (event.target as HTMLElement | null)
+      ?.closest('[data-path]')
+      ?.getAttribute('data-path') ?? null
+}
+
+watch(
+  list,
+  () => {
+    const active = document.activeElement
+    if (
+      active instanceof HTMLElement &&
+      container.value?.contains(active) &&
+      active.closest('[data-path]')?.getAttribute('data-path') !== focusedPath
+    ) {
+      active.blur()
+    }
+  },
+  { flush: 'post' },
+)
+
 // A new folder starts at the top. Not on every new list: the watch and the focus load the same
 // folder again, and that keeps where the user scrolled to.
 watch(
@@ -110,10 +138,20 @@ watch(
   },
 )
 
+// One format for every row: vue-i18n's `d()` with options builds a new `Intl.DateTimeFormat` on
+// each call, and a scroll through a large folder mounts dozens of rows per frame (FR-008).
+const dateFormat = computed(
+  () =>
+    new Intl.DateTimeFormat(locale.value, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }),
+)
+
 function modified(entry: Entry): string {
   return entry.modifiedMs === null
     ? ''
-    : d(new Date(entry.modifiedMs), { dateStyle: 'medium', timeStyle: 'short' })
+    : dateFormat.value.format(entry.modifiedMs)
 }
 
 function size(entry: Entry): string {
@@ -218,6 +256,7 @@ const errorText = computed(() => {
     class="h-full min-h-0"
     :class="dropOver === folder ? 'ring-2 ring-primary ring-inset' : ''"
     @pointerdown="onPointerdown"
+    @focusin="onFocusin"
     @contextmenu="onContextMenu"
     @dragover="onDragOver(null, $event)"
     @dragleave="dropOver = null"
@@ -259,8 +298,8 @@ const errorText = computed(() => {
       <div v-bind="wrapperProps">
         <template v-if="view === 'list'">
           <button
-            v-for="{ data: [entry], index } in list"
-            :key="entry?.path ?? index"
+            v-for="({ data: [entry] }, slot) in list"
+            :key="slot"
             type="button"
             role="listitem"
             class="flex w-full items-center gap-3 px-3 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
@@ -310,14 +349,14 @@ const errorText = computed(() => {
         </template>
         <template v-else>
           <div
-            v-for="{ data: row, index } in list"
-            :key="index"
+            v-for="({ data: row }, slot) in list"
+            :key="slot"
             class="flex"
             :style="{ height: `${TILE_HEIGHT}px` }"
           >
             <button
-              v-for="entry in row"
-              :key="entry.path"
+              v-for="(entry, column) in row"
+              :key="column"
               type="button"
               role="listitem"
               class="flex flex-col items-center gap-1 rounded p-2 text-xs hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
