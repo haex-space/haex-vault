@@ -491,8 +491,8 @@ Empfänger beim Senden offline war.
   Zielkonto, Stand des letzten Abgleichs, nicht angekommene Änderungen), Inhalt der eigenen
   Visitenkarte (FR-009) und Liste der blockierten Vaults (FR-039). Die App „Kontakte“ MUSS dorthin
   verlinken.
-- **FR-016**: Würde ein Abgleich mehr als 10 Kontakte und zugleich mehr als 10 % des Adressbuchs auf
-  einmal löschen, MUSS holzi das vorher anzeigen und den Nutzer entscheiden lassen: löschen oder die
+- **FR-016**: Würde ein Abgleich mehr als 10 Kontakte und zugleich mehr als 10 % der mit diesem Telefon
+  abgeglichenen Kontakte auf einmal löschen (in welcher Richtung auch immer), MUSS holzi das vorher anzeigen und den Nutzer entscheiden lassen: löschen oder die
   betroffenen Kontakte behalten (im Adressbuch beziehungsweise neu ins Telefon schreiben).
 - **FR-017**: Beim Einschalten MUSS holzi die Android-Berechtigung zum Lesen und Schreiben von Kontakten
   anfragen; bei Ablehnung bleibt der Abgleich aus, und holzi erklärt, wie sie später erteilt wird (wie
