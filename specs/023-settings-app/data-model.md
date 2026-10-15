@@ -1,5 +1,11 @@
 # Data Model: Einstellungs-App mit Kategorien
 
+> **Hinweis (2026-10-15)**: Maßgeblich für Kategorien und Orte ist heute
+> `src/lib/settings/registry.ts`. „Modelle“ und „Agenten“ sind seit PR #454 die
+> Kategorie „KI“ (`/ai`, Orte `ai.*`); die Pfade `/models/…` und `/agents/…`
+> in diesem Dokument sind der Stand bei der Umsetzung. „Darstellung“ gehört
+> seit Spec 042 zu „Allgemein“.
+
 **Spec**: [spec.md](./spec.md) | **Research**: [research.md](./research.md)
 
 Diese Spec legt keine Tabellen an. Neu sind ein Frontend-Register, eine

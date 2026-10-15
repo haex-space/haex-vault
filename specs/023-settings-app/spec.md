@@ -3,6 +3,13 @@
 **Feature Branch**: `023-settings-app`
 **Created**: 2026-09-26
 **Status**: Implemented (all tasks T001–T074 done, 2026-09-27)
+
+> **Hinweis (2026-10-15)**: Maßgeblich für Kategorien und Orte ist heute
+> `src/lib/settings/registry.ts`. „Modelle“ und „Agenten“ sind seit PR #454 die
+> Kategorie „KI“ (`/ai`, Orte `ai.*`); die Pfade `/models/…` und `/agents/…`
+> in diesem Dokument sind der Stand bei der Umsetzung. „Darstellung“ gehört
+> seit Spec 042 zu „Allgemein“.
+
 **Input**: Die Einstellungen von holzi bekommen den Aufbau aus haex-vault: links
 eine Seitenleiste mit Kategorien, rechts der Inhalt der gewählten Kategorie mit
 Titel und Beschreibung, Übersichten mit Unteransichten. Föderation wird eine
