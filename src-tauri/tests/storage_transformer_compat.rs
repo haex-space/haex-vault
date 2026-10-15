@@ -186,6 +186,7 @@ fn message(thread_id: Uuid, parent_id: Option<Uuid>) -> ChatMessage {
         tool_is_error: None,
         tool_source: None,
         autonomy_mode: None,
+        tool_origin: None,
     }
 }
 

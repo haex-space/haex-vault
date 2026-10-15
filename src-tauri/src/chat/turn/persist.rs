@@ -98,6 +98,7 @@ pub(super) fn empty_tool_message(
         tool_is_error: None,
         tool_source: None,
         autonomy_mode: None,
+        tool_origin: None,
     }
 }
 

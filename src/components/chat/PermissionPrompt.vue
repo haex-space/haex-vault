@@ -2,9 +2,10 @@
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import { describeToolCall, type ResolveTarget } from '~/lib/actions/agentTools'
 import { ALL_ACTIONS } from '~/lib/actions/catalog'
+import { inputRows, originLabel } from '~/lib/chat/toolOrigin'
 import { useWindowManagerStore } from '~/stores/windowManager'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const props = defineProps<{
   mode: 'manual' | 'auto' | 'plan'
@@ -62,6 +63,16 @@ const description = computed(() => {
   )
 })
 
+/** An extension's tool (spec 018): "<extension>: <tool title>" and its input as fields. */
+const extensionTool = computed(() => {
+  const shown = approval.value
+  if (!shown?.toolOrigin) return undefined
+  return {
+    title: originLabel(shown.toolOrigin, locale.value),
+    inputs: inputRows(shown.toolInput),
+  }
+})
+
 const permissionModeLabel = computed(() => t(`chat.permission.${props.mode}`))
 
 const emit = defineEmits<{
@@ -107,7 +118,9 @@ function onUpdateOpen(open: boolean) {
     :open="true"
     :title="
       t('chat.permission.requestTitle', {
-        name: description ? t(description.titleKey) : approval.toolName,
+        name: description
+          ? t(description.titleKey)
+          : (extensionTool?.title ?? approval.toolName),
       })
     "
     @update:open="onUpdateOpen"
@@ -133,6 +146,16 @@ function onUpdateOpen(open: boolean) {
           </div>
           <div
             v-for="[field, value] in description.inputs"
+            :key="field"
+            class="flex gap-2"
+          >
+            <dt class="text-muted-foreground">{{ field }}:</dt>
+            <dd class="break-words">{{ value }}</dd>
+          </div>
+        </dl>
+        <dl v-else-if="extensionTool" class="space-y-1 text-sm">
+          <div
+            v-for="[field, value] in extensionTool.inputs"
             :key="field"
             class="flex gap-2"
           >

@@ -54,6 +54,13 @@ logcat_loop=$!
 ) >"$health/emulator-health.txt" 2>&1 &
 health_loop=$!
 # The adb server's own log tells transport drops (adb "device offline") apart from the app's faults.
-trap 'pkill -P "$logcat_loop" 2>/dev/null; kill "$logcat_loop" "$health_loop" 2>/dev/null; cp "${TMPDIR:-/tmp}/adb.$(id -u).log" "$health/adb-server.log" 2>/dev/null || true' EXIT
+finish() {
+  pkill -P "$logcat_loop" 2>/dev/null
+  kill "$logcat_loop" "$health_loop" 2>/dev/null
+  cp "${TMPDIR:-/tmp}/adb.$(id -u).log" "$health/adb-server.log" 2>/dev/null
+  # One line per shard in the job log, to compare runs without opening the material.
+  echo "emulator summary: adb transport drops $(grep -c 'connection terminated' "$health/adb-server.log" 2>/dev/null)"
+}
+trap 'finish || true' EXIT
 
 corepack pnpm test:e2e --platform android --apk "$apk" --shard "$shard/$shards"

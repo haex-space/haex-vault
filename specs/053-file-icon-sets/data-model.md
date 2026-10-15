@@ -2,7 +2,7 @@
 
 Eine neue synchronisierte Tabelle, eine neue Preference. Keine Änderung an vorhandenen Tabellen.
 
-## Tabelle `haex_file_icon_sets` (Migration `0035_file_icon_sets`)
+## Tabelle `haex_file_icon_sets` (Migration `0036_file_icon_sets`)
 
 Ein eigenes Set ist eine Zeile. Mitgelieferte Sets stehen nicht in der Tabelle; sie liegen in der App ([research.md](./research.md) R6).
 
@@ -25,7 +25,7 @@ Regeln für synchronisierte Tabellen (wie `migrations_storage.rs` und `migration
 - Ein Paket ist **unveränderlich**: Ersetzen heißt neue Zeile, dann die alte löschen. Damit gibt es kein feldweises Zusammenführen zweier Fassungen, und eine Zeile kommt mit einer Transaktionsgruppe vollständig oder gar nicht an (FR-015).
 - Löschen ist ein einzelnes `DELETE`; haex-crdt schreibt den Löschmarker (`haex_deleted_rows`). Es gibt keine Kind-Zeilen.
 - Die Migration trägt die Tabelle in `SYNCED_TABLES` ein (`migrations_icon_sets.rs`), und `HOLZI_TRIGGER_VERSION` wird erhöht (heute 22), mit Eintrag in der Versionsliste von `migrations.rs`. Der Test der Migration (`migrations_icon_sets_tests.rs`) prüft, dass `SYNCED_TABLES` alle Tabellen der Migration abdeckt, wie bei den anderen Familien.
-- Die Nummer `0035` ist die nächste freie auf `main` (letzte: `0034_contacts_phone_known`); beim Umsetzen gegen parallele Branches prüfen.
+- Die Nummer `0036` folgt `0035_chat_messages_tool_origin`, das während der Umsetzung auf `main` gelandet ist.
 
 Grenzen werden im Code geprüft (Import und Lader), nicht per `CHECK` in der Tabelle: höchstens 10 Zeilen, `byte_size` höchstens 8 MiB, entpackt höchstens 5 MiB.
 

@@ -58,6 +58,17 @@ pub struct PermissionView {
     #[ts(optional, inline)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub folder: Option<FolderNames>,
+    /// For `agentTool` (spec 018): the tool's title per locale and whether holzi can offer it,
+    /// from the manifest of the effective bundle.
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_de: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_en: Option<String>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported: Option<bool>,
 }
 
 /// The names of the encrypted folder `target` (`<storage_id>/<folder_id>`), if known here.
@@ -111,9 +122,13 @@ pub fn list(db: &VaultDb, host: &ExtensionHost, extension_id: Uuid) -> Result<Ve
         .iter()
         .map(|d| (d.kind.as_str().to_owned(), d.target.clone()))
         .collect();
-    let (rows, devices, names) = db.read_blocking(move |q| {
+    let (rows, devices, names, tools) = db.read_blocking(move |q| {
         let rows = permission_store::rows_of(q, extension_id)
             .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?;
+        let tools = crate::extensions::registry::list::effective_manifest(q, extension_id)
+            .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?
+            .map(|(_, manifest)| manifest.tools)
+            .unwrap_or_default();
         let mut names = Vec::new();
         for (kind, target) in rows
             .iter()
@@ -122,8 +137,13 @@ pub fn list(db: &VaultDb, host: &ExtensionHost, extension_id: Uuid) -> Result<Ve
         {
             names.push(folder_names(q, &kind, &target)?);
         }
-        Ok((rows, known_devices::list_devices(q)?, names))
+        Ok((rows, known_devices::list_devices(q)?, names, tools))
     })?;
+    let tool = |kind: &str, target: &str| {
+        tools
+            .iter()
+            .find(|t| kind == PermissionKind::AgentTool.as_str() && t.name == target)
+    };
     let mut names = names.into_iter();
     let device_name = |uuid: Uuid| {
         devices
@@ -134,6 +154,9 @@ pub fn list(db: &VaultDb, host: &ExtensionHost, extension_id: Uuid) -> Result<Ve
     let mut views: Vec<PermissionView> = rows
         .into_iter()
         .map(|row| PermissionView {
+            title_de: tool(&row.kind, &row.target).map(|t| t.title_de.clone()),
+            title_en: tool(&row.kind, &row.target).map(|t| t.title_en.clone()),
+            supported: tool(&row.kind, &row.target).map(|t| t.supported),
             unreadable: Permission::from_row(
                 &row.kind,
                 &row.action,
@@ -168,6 +191,9 @@ pub fn list(db: &VaultDb, host: &ExtensionHost, extension_id: Uuid) -> Result<Ve
         temporary: true,
         unreadable: false,
         folder: names.next().flatten(),
+        title_de: None,
+        title_en: None,
+        supported: None,
     }));
     Ok(views)
 }

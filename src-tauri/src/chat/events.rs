@@ -16,6 +16,7 @@ use crate::storage::chat_messages::FinishReason;
 
 use super::model_loading::LoadPhase;
 use super::session::ChatState;
+use super::tools::ToolOrigin;
 
 pub(crate) const EVENT_CHAT_TOKEN: &str = "chat-token";
 pub(crate) const EVENT_CHAT_MESSAGE_COMPLETE: &str = "chat-message-complete";
@@ -163,6 +164,9 @@ pub(crate) struct ToolCallEvent {
     pub(crate) tool_name: String,
     pub(crate) tool_input: Value,
     pub(crate) tool_source: String,
+    /// The extension of an extension's tool (spec 018).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tool_origin: Option<ToolOrigin>,
 }
 
 /// Payload for `chat-tool-result` (contracts/tauri-commands.md).
@@ -186,8 +190,11 @@ pub(crate) struct ToolPermissionRequestEvent {
     pub(crate) tool_name: String,
     pub(crate) tool_input: Value,
     pub(crate) risk_class: &'static str,
-    /// `mcp`, `cli` or `action`: the dialog words an action in plain language (spec 032 FR-008).
+    /// `mcp`, `cli`, `action` or `haextension`: the dialog words an action in plain language
+    /// (spec 032 FR-008) and names an extension's tool with its extension (spec 018).
     pub(crate) tool_source: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tool_origin: Option<ToolOrigin>,
 }
 
 /// Payload for `chat-choice-request` (spec 046, contracts/choice-contract.md).

@@ -204,6 +204,7 @@ async fn persist_gated_permissive_record(
         tool_is_error: None,
         tool_source: Some(tool_source.to_string()),
         autonomy_mode: Some(AutonomyMode::GatedPermissive.as_str().to_string()),
+        tool_origin: None,
     };
     let result_row = ChatMessage {
         id: Uuid::new_v4(),
@@ -227,6 +228,7 @@ async fn persist_gated_permissive_record(
         tool_is_error: Some(matches!(decision, ApprovalDecision::Deny)),
         tool_source: None,
         autonomy_mode: Some(AutonomyMode::GatedPermissive.as_str().to_string()),
+        tool_origin: None,
     };
 
     database

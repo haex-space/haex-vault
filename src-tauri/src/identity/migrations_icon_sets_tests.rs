@@ -1,4 +1,4 @@
-//! Migration tests for `0035_file_icon_sets` (spec 053, data-model.md): a fresh vault and a vault
+//! Migration tests for `0036_file_icon_sets` (spec 053, data-model.md): a fresh vault and a vault
 //! from the schema before end with the table, tracked by haex-crdt and without a UNIQUE
 //! constraint; deleting a set leaves a delete marker, so the delete reaches the other devices.
 
@@ -49,7 +49,7 @@ fn primary_key_columns(db: &Database, table: &str) -> Vec<String> {
 }
 
 #[tokio::test]
-async fn migration_0035_gives_a_fresh_vault_the_icon_set_table() {
+async fn migration_0036_gives_a_fresh_vault_the_icon_set_table() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
         let db = open(
@@ -66,14 +66,14 @@ async fn migration_0035_gives_a_fresh_vault_the_icon_set_table() {
 }
 
 #[tokio::test]
-async fn migration_0035_upgrades_a_vault_from_the_schema_before_it() {
+async fn migration_0036_upgrades_a_vault_from_the_schema_before_it() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
         let old = open(
             dir.path(),
             "icon-sets-upgrade",
             true,
-            migration_source_before("0035_file_icon_sets"),
+            migration_source_before("0036_file_icon_sets"),
         );
         assert!(!table_exists(&old, "haex_file_icon_sets"));
         drop(old);

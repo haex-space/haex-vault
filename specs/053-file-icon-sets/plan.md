@@ -14,7 +14,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Ein Format für alles** (R6, R7): ein Paket ist ein ZIP mit dem Manifest im Format der Icon-Themes von VS Code, den Bildern und einer `LICENSE`, ergänzt um den Block `x-holzi` (Rollen, Herkunft). Die mitgelieferten Pakete entstehen aus eingecheckten Quellverzeichnissen (jede Änderung im Diff sichtbar), werden vom selben Rust-Code wie der Import gepackt, liegen in `src-tauri/icon-sets/` und sind mit `include_bytes!` eingebunden (kein Resource-Resolver, derselbe Weg auf Android, nichts im JS-Bundle).
 - **Auflösung nur in Rust** (R5, R7, R8): Befehl `files_icons_resolve` liefert je Eintrag ein fertiges Bild (`id`, `mime`) oder ein Rückfall-Symbol; `files_icon_image` liefert die Bytes. Rolle und Reihenfolge (Zustand, Name, Endung, Rolle, Vorgabe des Themes, Standard-Set) stehen in einem Modul. Das Frontend sammelt die Anfragen der sichtbaren Zeilen und hält Antworten und `blob:`-URLs in einem begrenzten Speicher.
 - **Eine Bereinigung** (R9, R10): `icons/svg.rs` auf `quick-xml` mit Erlaubnisliste; Pixelbilder über `image` mit Limits. Sie läuft beim Import und, idempotent, beim Ausliefern; ein per Sync angekommenes Paket wird beim ersten Öffnen auf Aufbau, Limits und SHA-256 geprüft und gilt sonst als beschädigt (Rückfall Lucide).
-- **Atomar und synchronisiert** (R3, R4): ein eigenes Set ist eine Zeile in `haex_file_icon_sets` mit dem Paket als BLOB (Migration `0035`); die Wahl ist die Vault-Preference `files.iconSet`.
+- **Atomar und synchronisiert** (R3, R4): ein eigenes Set ist eine Zeile in `haex_file_icon_sets` mit dem Paket als BLOB (Migration `0036`); die Wahl ist die Vault-Preference `files.iconSet`.
 - **Import in zwei Schritten** (R11): Vorschau ohne Schreiben, dann Import, wie bei den Erweiterungen. Quellen: Ordner (nur Desktop), Archiv oder VSIX. Pfadregeln über `haex_bundle::format`.
 - **Oberfläche** (R12): Gruppe „Icon-Set für Dateien“ in der Gestaltung, speichert beim Anklicken; Unterseite „Lizenzen“ aus den Paketen.
 
@@ -115,7 +115,7 @@ src-tauri/
 ├── src/identity/
 │   ├── migrations_icon_sets.rs   # NEU: SQL, SYNCED_TABLES
 │   ├── migrations_icon_sets_tests.rs
-│   └── migrations.rs             # Eintragung 0035, HOLZI_TRIGGER_VERSION erhöhen
+│   └── migrations.rs             # Eintragung 0036, HOLZI_TRIGGER_VERSION erhöhen
 ├── src/storage/preferences_commands.rs   # validate_value: files.iconSet
 ├── src/vault_events.rs           # Tabellenname haex_file_icon_sets
 ├── src/files/mod.rs              # pub mod icons
@@ -147,7 +147,7 @@ specs/…                                                   # diese Spec
 
 Die Spec nennt keine Reihenfolge; ein Vorschlag für `/speckit-tasks`, jeweils einzeln prüfbar:
 
-1. **A – Kern**: Migration `0035`, `files/icons/` ohne Import-Befehle (Typen, Rolle, Manifest, Auflösung, SVG-Bereinigung, Bilder prüfen, Paket öffnen und prüfen, Packen eines Verzeichnisses, Speicher, Befehle `files_icons_resolve`, `files_icon_image`, `file_icon_sets_list`, `file_icon_set_licenses`), die Pakete `phosphor.zip` und `material.zip` (`SOURCES.md`, `prepare.ts`, Quellverzeichnisse), Tests.
+1. **A – Kern**: Migration `0036`, `files/icons/` ohne Import-Befehle (Typen, Rolle, Manifest, Auflösung, SVG-Bereinigung, Bilder prüfen, Paket öffnen und prüfen, Packen eines Verzeichnisses, Speicher, Befehle `files_icons_resolve`, `files_icon_image`, `file_icon_sets_list`, `file_icon_set_licenses`), die Pakete `phosphor.zip` und `material.zip` (`SOURCES.md`, `prepare.ts`, Quellverzeichnisse), Tests.
 2. **B – Anzeige und Auswahl**: `useFileIcons`, `EntryIcon.vue`, Gruppe in der Gestaltung, Wahl, Vorschau, Lizenzseite, E2E `files-icon-sets` (ohne Import).
 3. **C – Import**: `import.rs` (Ordner, Archiv, VSIX), Befehle, Dialog, Fixtures, Android-Archiv, E2E-Erweiterung.
 4. **D – Sync**: E2E `files-icon-sets-two-devices`, Zustände `syncing` und `damaged`, Handprüfung Android.

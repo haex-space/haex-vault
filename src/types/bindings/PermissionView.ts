@@ -36,4 +36,9 @@ folder?: { storageName: string, folderName: string,
 /**
  * The folder lies on this device, not in a cloud storage (spec 048 US7).
  */
-onDevice: boolean, }, };
+onDevice: boolean, },
+/**
+ * For `agentTool` (spec 018): the tool's title per locale and whether holzi can offer it,
+ * from the manifest of the effective bundle.
+ */
+titleDe?: string, titleEn?: string, supported?: boolean, };

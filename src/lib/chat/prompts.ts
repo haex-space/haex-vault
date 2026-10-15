@@ -1,6 +1,8 @@
 // What a chat turn waits on the user for (spec 032 approvals, spec 046 questions): the queue the
 // chat shows oldest first, and the wire shapes of a question and its answer. Types only.
 
+import type { ToolOrigin } from './toolOrigin.ts'
+
 export type RiskClass = 'safe' | 'change' | 'risky'
 
 /** A tool call waiting for the user's approval. */
@@ -11,7 +13,9 @@ export interface PendingApproval {
   toolInput: unknown
   riskClass: RiskClass
   /** `action` tools are worded in plain language; others keep the raw layout. */
-  toolSource?: 'mcp' | 'cli' | 'action'
+  toolSource?: 'mcp' | 'cli' | 'action' | 'haextension'
+  /** An extension's tool (spec 018): named by its extension and title. */
+  toolOrigin?: ToolOrigin
 }
 
 /** One proposed answer of a choice (spec 046). */

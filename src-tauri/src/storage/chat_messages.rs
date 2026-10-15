@@ -42,6 +42,9 @@ pub struct ChatMessage {
     pub tool_is_error: Option<bool>,
     /// `mcp` or `cli`. Set only on `role = ToolCall`.
     pub tool_source: Option<String>,
+    /// JSON of the `ToolOrigin` of an extension's tool (spec 018). Set only on `role = ToolCall`,
+    /// and only for `tool_source = "haextension"`.
+    pub tool_origin: Option<String>,
     /// Which `AutonomyMode` (spec 009-autonomous-delegate-mode) the turn
     /// ran under: `"standard"` / `"ungated"` / `"gated_permissive"`. `NULL`
     /// for legacy rows and for any row not produced by a `cli_delegate`
@@ -97,7 +100,7 @@ pub enum ChatMessageValidationError {
     ToolCallHasToolIsError,
     #[error("tool_result row requires tool_call_id and tool_is_error")]
     ToolResultMissingFields,
-    #[error("tool_result row must not set tool_name, tool_input, or tool_source")]
+    #[error("tool_result row must not set tool_name, tool_input, tool_source, or tool_origin")]
     ToolResultHasToolCallFields,
     #[error("role {role:?} must not set any tool_* column")]
     ToolColumnsOnNonToolRole { role: MessageRole },
@@ -124,7 +127,11 @@ pub fn validate(m: &ChatMessage) -> std::result::Result<(), ChatMessageValidatio
             if m.tool_call_id.is_none() || m.tool_is_error.is_none() {
                 return Err(ChatMessageValidationError::ToolResultMissingFields);
             }
-            if m.tool_name.is_some() || m.tool_input.is_some() || m.tool_source.is_some() {
+            if m.tool_name.is_some()
+                || m.tool_input.is_some()
+                || m.tool_source.is_some()
+                || m.tool_origin.is_some()
+            {
                 return Err(ChatMessageValidationError::ToolResultHasToolCallFields);
             }
         }
@@ -134,6 +141,7 @@ pub fn validate(m: &ChatMessage) -> std::result::Result<(), ChatMessageValidatio
                 || m.tool_input.is_some()
                 || m.tool_is_error.is_some()
                 || m.tool_source.is_some()
+                || m.tool_origin.is_some()
             {
                 return Err(ChatMessageValidationError::ToolColumnsOnNonToolRole { role: m.role });
             }
@@ -188,11 +196,11 @@ pub fn insert_message(tx: &mut CrdtTransaction<'_>, m: &ChatMessage) -> haex_crd
             provider_id, model_id, prompt_tokens, completion_tokens, \
             finish_reason, created_at, idempotency_key, \
             tool_name, tool_call_id, tool_input, tool_is_error, tool_source, \
-            autonomy_mode) \
+            autonomy_mode, tool_origin) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, \
                  MAX(?11, COALESCE((SELECT created_at + 1 FROM chat_messages \
                                    WHERE id = ?3 AND thread_id = ?2), ?11)), ?12, \
-                 ?13, ?14, ?15, ?16, ?17, ?18)",
+                 ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
         params![
             m.id.to_string(),
             m.thread_id.to_string(),
@@ -212,6 +220,7 @@ pub fn insert_message(tx: &mut CrdtTransaction<'_>, m: &ChatMessage) -> haex_crd
             m.tool_is_error,
             m.tool_source,
             m.autonomy_mode,
+            m.tool_origin,
         ],
     )
 }
@@ -228,7 +237,7 @@ pub fn find_by_idempotency_key(
                 provider_id, model_id, prompt_tokens, completion_tokens, \
                 finish_reason, created_at, idempotency_key, \
                 tool_name, tool_call_id, tool_input, tool_is_error, tool_source, \
-                autonomy_mode \
+                autonomy_mode, tool_origin \
          FROM chat_messages WHERE idempotency_key = ?1",
         params![key],
         row_to_message,
@@ -265,7 +274,7 @@ pub fn list_messages(q: &mut impl Query, thread_id: Uuid) -> haex_crdt::Result<V
                 provider_id, model_id, prompt_tokens, completion_tokens, \
                 finish_reason, created_at, idempotency_key, \
                 tool_name, tool_call_id, tool_input, tool_is_error, tool_source, \
-                autonomy_mode \
+                autonomy_mode, tool_origin \
          FROM chat_messages WHERE thread_id = ?1 \
          ORDER BY created_at ASC, id ASC",
         params![thread_id.to_string()],
@@ -303,6 +312,7 @@ fn row_to_message(row: &haex_crdt::rusqlite::Row<'_>) -> Result<ChatMessage> {
         tool_is_error: row.get(15)?,
         tool_source: row.get(16)?,
         autonomy_mode: row.get(17)?,
+        tool_origin: row.get(18)?,
     })
 }
 

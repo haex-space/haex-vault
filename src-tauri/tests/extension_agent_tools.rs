@@ -232,6 +232,11 @@ async fn the_agent_answers_with_a_confirmed_tool_of_the_test_extension() {
         .expect("a tool call row");
     assert_eq!(call.tool_name.as_deref(), Some(COUNT));
     assert_eq!(call.tool_source.as_deref(), Some("haextension"));
+    let origin: Value = serde_json::from_str(call.tool_origin.as_deref().expect("stored origin"))
+        .expect("origin JSON");
+    assert_eq!(origin["extensionName"], "Test-Erweiterung");
+    assert_eq!(origin["toolTitleDe"], "Einträge zählen");
+    assert_eq!(origin["dev"], false);
     let result = rows
         .iter()
         .find(|row| row.role == MessageRole::ToolResult)

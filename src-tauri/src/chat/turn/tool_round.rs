@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 use uuid::Uuid;
 
+use super::call_source::CallSource;
 use crate::adapters::types::{ChatMessage as LlmMessage, ChatRole, ToolCall as LlmToolCall};
 use crate::chat::events::{
     risk_class_str, strip_leaked_tool_call_markup, MessageCompleteEvent, ToolCallEvent,
@@ -39,9 +40,9 @@ use super::TurnRunner;
 /// `FinishReason::ToolLimitReached` instead of issuing a further step.
 pub const MAX_TOOL_ROUNDS: usize = 8;
 
-/// One executed call: the request, its result, and the source string
-/// recorded on the persisted row.
-pub(super) type ExecutedCall = (LlmToolCall, ToolExecResult, &'static str);
+/// One executed call: the request, its result, and where its tool came from, recorded on the
+/// persisted row.
+pub(super) type ExecutedCall = (LlmToolCall, ToolExecResult, CallSource);
 
 /// What the turn loop should do after a round.
 pub(super) enum RoundOutcome {
@@ -224,6 +225,7 @@ impl TurnRunner<'_> {
                             tool_input: call.input.clone(),
                             risk_class: risk_class_str(tool.risk_class()),
                             tool_source: tool.source(),
+                            tool_origin: tool.origin(),
                         },
                     );
                     plans.push((
@@ -255,7 +257,7 @@ impl TurnRunner<'_> {
             async move {
                 match plan {
                     ToolPlan::Allow(tool) => {
-                        let source = tool.source();
+                        let source = CallSource::of(tool.as_ref());
                         let result = tool.execute(call.input.clone(), cancel).await;
                         (call, result, source)
                     }
@@ -276,12 +278,13 @@ impl TurnRunner<'_> {
                         };
                         match decision {
                             Ok(ApprovalDecision::Allow) => {
-                                let source = tool.source();
+                                let source = CallSource::of(tool.as_ref());
                                 let result = tool.execute(call.input.clone(), tool_cancel).await;
                                 (call, result, source)
                             }
                             Ok(ApprovalDecision::Deny) => {
-                                (call, ToolExecResult::error("denied_by_user"), tool.source())
+                                let source = CallSource::of(tool.as_ref());
+                                (call, ToolExecResult::error("denied_by_user"), source)
                             }
                             Err(_) => {
                                 let mut pending = chat_state
@@ -297,7 +300,7 @@ impl TurnRunner<'_> {
                                 (
                                     call,
                                     ToolExecResult::error("tool_call_cancelled"),
-                                    tool.source(),
+                                    CallSource::of(tool.as_ref()),
                                 )
                             }
                         }
@@ -308,20 +311,17 @@ impl TurnRunner<'_> {
                         // translates it (CONTEXT.md i18n boundary),
                         // same convention as `LoadPhase` above.
                         ToolExecResult::error("blocked_by_plan_mode"),
-                        tool.source(),
+                        CallSource::of(tool.as_ref()),
                     ),
                     ToolPlan::Unknown => {
-                        // The model named a tool no longer in the
-                        // registry (e.g. its MCP server disconnected
-                        // mid-conversation, spec.md Edge Cases) or one
-                        // that never existed. `cli` never disappears
-                        // (registered unconditionally, T019), so `mcp`
-                        // is the more plausible source to record here.
+                        // The model named a tool no longer in the registry (e.g. its MCP
+                        // server disconnected mid-conversation, spec.md Edge Cases) or one
+                        // that never existed.
                         let name = call.name.clone();
                         (
                             call,
                             ToolExecResult::error(format!("unknown tool: {name}")),
-                            "mcp",
+                            CallSource::unknown(),
                         )
                     }
                 }
@@ -346,7 +346,8 @@ impl TurnRunner<'_> {
                 tool_name: Some(call.name.clone()),
                 tool_call_id: Some(call.id.clone()),
                 tool_input: Some(input_json),
-                tool_source: Some(source.to_string()),
+                tool_source: Some(source.source.to_string()),
+                tool_origin: source.origin_json(),
                 created_at: self.next_created_at,
                 ..empty_tool_message(tool_call_row_id, self.thread_id, Some(self.parent_id))
             };
@@ -375,7 +376,8 @@ impl TurnRunner<'_> {
                     thread_id: self.thread_id,
                     tool_name: call.name.clone(),
                     tool_input: call.input.clone(),
-                    tool_source: source.to_string(),
+                    tool_source: source.source.to_string(),
+                    tool_origin: source.origin.clone(),
                 },
             );
             self.emit_event(

@@ -60,6 +60,13 @@ function onUpdateOpen(open: boolean) {
           :folder="store.shown.encryptedFolder"
         />
         <p
+          v-if="store.shown.byAgent"
+          class="text-xs text-muted-foreground"
+          data-testid="extension-permission-by-agent"
+        >
+          {{ t('extensions.permissionRequest.byAgent') }}
+        </p>
+        <p
           v-if="!store.shown.declared && !folderKind"
           class="text-xs text-muted-foreground"
         >

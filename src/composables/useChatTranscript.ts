@@ -255,6 +255,7 @@ export function useChatTranscript(
       toolInput: JSON.stringify(e.toolInput),
       toolIsError: null,
       toolSource: e.toolSource,
+      toolOrigin: e.toolOrigin,
       autonomyMode: null,
     })
     messagesByThread.value[e.threadId] = list
@@ -350,6 +351,7 @@ export function useChatTranscript(
       toolInput: e.toolInput,
       riskClass: e.riskClass,
       toolSource: e.toolSource,
+      toolOrigin: e.toolOrigin,
     })
   }
 
