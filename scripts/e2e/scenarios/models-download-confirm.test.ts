@@ -30,7 +30,7 @@ function standIn(id: string, sizeBytes: number) {
 }
 
 /** The text of "Trotzdem laden" in every language holzi speaks. */
-const START_ANYWAY = translations('ai.downloadConfirm.startAnyway')
+const START_ANYWAY = translations('models.downloadConfirm.startAnyway')
 
 scenario('models-download-confirm', {}, async (ctx) => {
   const instance = await ctx.startInstance()
