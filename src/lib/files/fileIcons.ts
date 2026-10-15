@@ -22,8 +22,11 @@ export const MAX_QUERIES = 500
 export const ANSWER_MEMORY = 4000
 export const IMAGE_MEMORY = 600
 
-/** The standard set, which answers while nothing else is chosen. */
-export const STANDARD_SET: IconSetRef = { kind: 'builtin', name: 'lucide' }
+/** The set a vault has until it chooses another. */
+export const DEFAULT_SET: IconSetRef = { kind: 'builtin', name: 'material' }
+
+/** The standard set (Lucide): it answers where nothing can be asked (no vault, a read error). */
+export const FALLBACK_SET: IconSetRef = { kind: 'builtin', name: 'lucide' }
 
 /** The value of the vault preference `files.iconSet` for a set (`is_valid_selection` in Rust). */
 export function selectionValue(set: IconSetRef): string {

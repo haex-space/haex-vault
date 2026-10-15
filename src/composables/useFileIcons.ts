@@ -20,7 +20,8 @@ import {
   imageKey,
   queryKey,
   selectionValue,
-  STANDARD_SET,
+  DEFAULT_SET,
+  FALLBACK_SET,
 } from '~/lib/files/fileIcons'
 
 /** What an entry shows: an image of the set, or a symbol of the standard set. */
@@ -37,7 +38,7 @@ type Asked = {
 }
 
 /** One state per process: a process holds one vault (spec 013). */
-const chosen = shallowRef<IconSetRef>(STANDARD_SET)
+const chosen = shallowRef<IconSetRef>(DEFAULT_SET)
 const generation = shallowRef(0)
 const answers = createMemory<IconAnswer>(ANSWER_MEMORY)
 const images = createMemory<string>(IMAGE_MEMORY, (url) =>
@@ -64,7 +65,7 @@ async function refreshSelectionAsync(): Promise<void> {
   } catch {
     // No vault or a read error: the standard set answers.
   }
-  const set = next?.set ?? STANDARD_SET
+  const set = next?.set ?? FALLBACK_SET
   const key = `${selectionValue(set)}|${next?.state ?? 'ready'}`
   if (key === selectionKey) return
   selectionKey = key
