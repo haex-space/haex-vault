@@ -254,8 +254,7 @@ function prepareMaterial(vsix: string, apacheText: string): void {
   const fileNames = readStringMap(source.fileNames, 'fileNames')
   const fileExtensions = readStringMap(source.fileExtensions, 'fileExtensions')
   const folderNames = readStringMap(source.folderNames, 'folderNames')
-  if (!isRecord(source.light))
-    fail('material-icons.json has no light object')
+  if (!isRecord(source.light)) fail('material-icons.json has no light object')
 
   const outDir = path.join(SETS_DIR, 'material')
   freshDir(path.join(outDir, 'icons'))
