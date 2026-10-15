@@ -94,7 +94,8 @@ use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 ///   `host_key_confirmed_at` to `haex_storage_connections`.
 /// - 21: `0032_agent_folder_reach` (spec 048) added `reach` to `agent_file_permissions`.
 /// - 22: `0033_contacts` (spec 051) added the address book tables.
-pub const HOLZI_TRIGGER_VERSION: i32 = 22;
+/// - 23: `0035_chat_messages_tool_origin` (spec 018) added `tool_origin` to `chat_messages`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 23;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -647,6 +648,12 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0034_contacts_phone_known"),
         CONTACTS_PHONE_KNOWN_0034.to_owned(),
+    );
+    // Spec 018 (research R8): the extension a tool call came from, as JSON of `ToolOrigin`, on
+    // the `tool_call` row, so the history stays readable after the extension is removed.
+    m.insert(
+        MigrationName::from("0035_chat_messages_tool_origin"),
+        "ALTER TABLE chat_messages ADD COLUMN tool_origin TEXT;".to_string(),
     );
 
     Arc::new(StaticMigrationSource(m))

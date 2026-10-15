@@ -110,6 +110,7 @@ pub fn seed_thread(db: &Database, thread_id: Uuid, user_message_id: Uuid) {
                 tool_is_error: None,
                 tool_source: None,
                 autonomy_mode: None,
+                tool_origin: None,
             },
         )?;
         Ok(())

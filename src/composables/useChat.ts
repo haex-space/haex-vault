@@ -12,6 +12,7 @@
  */
 import type { RiskClass } from '~/lib/chat/prompts'
 import type { ToolAvailability } from '~/lib/chat/toolNotice'
+import type { ToolOrigin } from '~/lib/chat/toolOrigin'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
@@ -42,8 +43,10 @@ export interface Message {
   toolInput: string | null
   /** Set only when `role === 'tool_result'`. */
   toolIsError: boolean | null
-  /** `mcp`, `cli` or `action`. Set only when `role === 'tool_call'`. */
+  /** `mcp`, `cli`, `action` or `haextension`. Set only when `role === 'tool_call'`. */
   toolSource: string | null
+  /** An extension's tool call (spec 018); absent otherwise. */
+  toolOrigin?: ToolOrigin
   /** Which autonomy mode the turn ran under (spec
    * 009-autonomous-delegate-mode). `null` for legacy and non-delegate
    * rows — never inferred as `'standard'`. */
@@ -153,7 +156,8 @@ export interface ToolCallEvent {
   threadId: string
   toolName: string
   toolInput: unknown
-  toolSource: 'mcp' | 'cli' | 'action'
+  toolSource: 'mcp' | 'cli' | 'action' | 'haextension'
+  toolOrigin?: ToolOrigin
 }
 
 export interface ToolResultEvent {
@@ -182,7 +186,8 @@ export interface ToolPermissionRequestEvent {
   toolName: string
   toolInput: unknown
   riskClass: RiskClass
-  toolSource: 'mcp' | 'cli' | 'action'
+  toolSource: 'mcp' | 'cli' | 'action' | 'haextension'
+  toolOrigin?: ToolOrigin
 }
 
 /** Fires once per `send_message` call: whether the model got tools (spec 032 US4). */

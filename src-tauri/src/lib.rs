@@ -73,7 +73,9 @@ use contacts::commands::phone::{
     contacts_phone_set_target, contacts_phone_status,
 };
 use device::commands::{current_device_info, list_vault_devices, update_device_alias};
-use extensions::agent_tools::commands::{extension_agent_frame_ready, extension_mcp_send};
+use extensions::agent_tools::commands::{
+    extension_agent_frame_ready, extension_agent_tools_set, extension_mcp_send,
+};
 use extensions::commands::dev::{
     extension_dev_confirm, extension_dev_load, extension_dev_mode_get, extension_dev_mode_set,
     extension_dev_unload,
@@ -613,6 +615,7 @@ pub fn run() {
             extension_bridge_call,
             extension_mcp_send,
             extension_agent_frame_ready,
+            extension_agent_tools_set,
             extension_host_context_set,
             extension_dialog_resolve,
             extension_encrypted_folder_choose_resolve,

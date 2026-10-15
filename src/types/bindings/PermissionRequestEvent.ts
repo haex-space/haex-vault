@@ -17,6 +17,11 @@ deviceScoped: boolean,
  */
 targetMissing: boolean,
 /**
+ * Raised while the agent called a tool of the extension (spec 018, research R11): the
+ * question says so; it is still checked against the extension's own permissions.
+ */
+byAgent: boolean,
+/**
  * For `encryptedFolder`: the storage and the decrypted folder name the question names (spec
  * 048 FR-036); the extension never gets them.
  */

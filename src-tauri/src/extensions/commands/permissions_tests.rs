@@ -425,3 +425,20 @@ fn checking_tells_the_state_and_grants_nothing() {
     );
     assert!(s.recorded.named("extension-permission-request").is_empty());
 }
+
+/// Spec 018 (research R11): a question the extension raises while the agent's call of one of its
+/// tools runs names the agent; the same question otherwise does not.
+#[test]
+fn a_question_raised_during_an_agent_call_names_the_agent() {
+    let s = setup();
+    assert_eq!(read_foreign(&s), 1004);
+    let requests = s.recorded.named("extension-permission-request");
+    assert_eq!(requests[0]["byAgent"], false);
+
+    let s = setup();
+    let call = s.ctx.session.mcp.begin_call();
+    assert_eq!(read_foreign(&s), 1004);
+    drop(call);
+    let requests = s.recorded.named("extension-permission-request");
+    assert_eq!(requests[0]["byAgent"], true);
+}
