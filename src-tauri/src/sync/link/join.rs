@@ -229,6 +229,7 @@ fn store(
                 keys::store_vault_secret(tx, secret)?;
             }
             device_list::insert(tx, &signed)?;
+            crate::contacts::card::own_card::refresh_quietly(tx);
             envelopes::insert_envelopes(tx, &received.envelopes)?;
             let valid = device_list::valid_lists(&device_list::load_all(tx)?, &vault);
             if !valid.contains_key(&signed.hash) {

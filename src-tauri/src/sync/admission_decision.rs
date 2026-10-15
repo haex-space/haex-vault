@@ -98,6 +98,7 @@ pub fn decide(
             let signed =
                 device_list::sign_list(next, &vault_secret).map_err(haex_crdt::Error::consumer)?;
             device_list::insert(tx, &signed)?;
+            crate::contacts::card::own_card::refresh_quietly(tx);
             let wrapped = envelopes::envelopes_for(&held, &signed, &own, &request.device)?;
             envelopes::insert_envelopes(tx, &wrapped)?;
             delete_request(tx, &target)?;
@@ -147,6 +148,7 @@ pub fn enroll_as_main(
     next.check_structure().map_err(haex_crdt::Error::consumer)?;
     let signed = device_list::sign_list(next, vault_secret).map_err(haex_crdt::Error::consumer)?;
     device_list::insert(tx, &signed)?;
+    crate::contacts::card::own_card::refresh_quietly(tx);
     let wrapped = envelopes::envelopes_for(&held, &signed, own, &own.device_pubkey)?;
     envelopes::insert_envelopes(tx, &wrapped)?;
     Ok(true)

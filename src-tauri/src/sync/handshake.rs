@@ -514,6 +514,10 @@ async fn store_pushed(
             for signed in &fresh {
                 device_list::insert(tx, signed)?;
             }
+            // Spec 051 FR-010: a main device renews its business card with the new list.
+            if !fresh.is_empty() {
+                crate::contacts::card::own_card::refresh_quietly(tx);
+            }
             Ok(())
         })
     })

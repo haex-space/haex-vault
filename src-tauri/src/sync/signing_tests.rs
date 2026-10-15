@@ -42,6 +42,7 @@ fn every_domain_has_a_distinct_versioned_tag() {
         Domain::Admission,
         Domain::Link,
         Domain::LinkResume,
+        Domain::ContactCard,
     ];
     let tags: std::collections::HashSet<_> = domains.iter().map(|d| d.tag()).collect();
     assert_eq!(tags.len(), domains.len());
