@@ -62,6 +62,7 @@ use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
 };
+use contacts::commands::agent::{contacts_agent_get, contacts_agent_search, contacts_agent_update};
 use contacts::commands::cards::{
     contacts_block, contacts_blocked, contacts_card_accept, contacts_card_preview,
     contacts_own_card, contacts_own_card_set, contacts_unblock,
@@ -566,6 +567,9 @@ pub fn run() {
             contacts_blocked,
             contacts_block,
             contacts_unblock,
+            contacts_agent_search,
+            contacts_agent_get,
+            contacts_agent_update,
             passwords_create_item,
             passwords_update_item,
             passwords_passkey_rename,
