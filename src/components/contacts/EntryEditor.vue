@@ -20,6 +20,7 @@ import {
   type HeadField,
 } from '~/lib/contacts/draft'
 import { KINDS } from '~/lib/contacts/kinds'
+import { focusAfterMenu } from '~/lib/contacts/menuFocus'
 import { NEW_CONTACT } from '~/lib/contacts/registry'
 
 const { t } = useI18n()
@@ -83,11 +84,22 @@ function addValue(kind: string) {
 }
 
 /** The menu would hand the focus back to its button as it closes, taking it from the field the user
- * starts typing in; the new value's first field gets it instead. */
+ * starts typing in; the new value's first field gets it instead, unless a field of the form holds
+ * it already (the user typed before the menu finished closing). */
 function onMenuClosed(event: Event) {
   if (!focusAdded) return
   focusAdded = false
   event.preventDefault()
+  const active = document.activeElement
+  const editable =
+    active instanceof HTMLElement && active.matches('input, textarea, select')
+  if (
+    focusAfterMenu({
+      inForm: Boolean(active && form.value?.contains(active)),
+      editable,
+    }) === 'keep'
+  )
+    return
   const rows = form.value?.querySelectorAll<HTMLElement>(
     '[data-testid^="contacts-editor-value-"]',
   )
