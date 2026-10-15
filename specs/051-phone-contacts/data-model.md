@@ -77,7 +77,7 @@ Bestätigte holzi-Adressen aus einer Visitenkarte (FR-008 bis FR-013).
 | -------------- | ------- | --------------------------------------------------------- |
 | `vault_pubkey` | TEXT PK | hex, x-only; PK erzwingt „nur bei einem Kontakt“ (FR-013) |
 | `contact_id`   | TEXT FK | → `haex_contacts.id` ON DELETE CASCADE                    |
-| `card`         | BLOB    | vollständige Karte (postcard ‖ Signatur)                  |
+| `card`         | BLOB    | vollständige Karte (Länge ‖ postcard ‖ Sig.)              |
 | `issued_at`    | TEXT    | aus der Karte; nur eine neuere ersetzt (FR-012)           |
 | `received_at`  | TEXT    |                                                           |
 
@@ -203,11 +203,11 @@ active --Berechtigung fehlt--> paused(permission) --Berechtigung wieder da--> ac
 
 Die zuletzt erstellte eigene Visitenkarte (R12).
 
-| Spalte      | Typ        | Regeln              |
-| ----------- | ---------- | ------------------- |
-| `id`        | INTEGER PK | immer 1             |
-| `card`      | BLOB       | postcard ‖ Signatur |
-| `issued_at` | TEXT       |                     |
+| Spalte      | Typ        | Regeln                      |
+| ----------- | ---------- | --------------------------- |
+| `id`        | INTEGER PK | immer 1                     |
+| `card`      | BLOB       | Länge ‖ postcard ‖ Signatur |
+| `issued_at` | TEXT       |                             |
 
 Welche Angaben die Karte trägt: `preferences` (Vault) `contacts.card.values` (Liste von Wert-IDs des
 eigenen Kontakts) und `contacts.card.own_contact` (ID des eigenen Kontakts).
