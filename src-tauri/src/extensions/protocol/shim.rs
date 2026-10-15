@@ -1,7 +1,7 @@
 //! The frame shim (contracts/bridge.md §Rahmen-Shim): a small inline script holzi puts into every
 //! HTML document of an extension, right after `<head>`, so it runs before the extension's own
 //! scripts. It talks to holzi over its own port and reports navigation, title, close guards,
-//! `window.close()` and holzi's shortcuts.
+//! `window.close()`, holzi's shortcuts and clicks into the frame.
 //!
 //! WebKitGTK fires `load` on the frame element for a fragment navigation inside the frame, so
 //! holzi cannot take every `load` for a new document. The shim answers each init with
@@ -94,6 +94,10 @@ pub const SHIM: &str = r#"(() => {
     event.stopPropagation();
     send({ type: 'shortcut', id: hit.id });
   }, true);
+
+  // A click inside the frame never reaches holzi's own document, so the window around the frame
+  // could not come to the front; the shim says so, holzi raises the window.
+  listen('pointerdown', () => send({ type: 'focus' }), true);
 
   const readShortcuts = (list) => (Array.isArray(list) ? list : []).filter((s) => s
     && typeof s.id === 'string' && typeof s.code === 'string' && typeof s.ctrl === 'boolean'

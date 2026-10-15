@@ -219,6 +219,11 @@ export function useExtensionFrame(
       case 'close':
         tab.closeSelf()
         return
+      case 'focus':
+        // A click into the frame never reaches the window's own pointer handler. Only while
+        // holzi's window is active, so a frame cannot raise itself in the background.
+        if (document.hasFocus()) wm.focusWindow(tab.windowId)
+        return
       case 'shortcut':
         // Only a key the user pressed while the frame has the focus (contracts/bridge.md).
         if (document.hasFocus() && document.activeElement === iframe.value)
