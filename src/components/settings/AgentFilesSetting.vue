@@ -4,11 +4,13 @@
  * each cloud storage, changed or revoked on selection (spec 023 FR-021). The permissions sync with
  * the vault; a storage nobody decided on yet asks on the agent's first access. Remembered answers
  * for encrypted folders (spec 048 FR-033) list with storage, status and reach; a revoke removes
- * the answer at once, so the agent is asked again. Writes go through the catalog actions, which no
- * agent may call (guardrails).
+ * the answer at once, so the agent is asked again. The contacts (spec 051 FR-030) follow: all of
+ * them by selection, where "Fragt nach" revokes the answer, and remembered answers for single groups
+ * with a revoke. Writes go through the catalog actions, which no agent may call (guardrails).
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { AgentFilePermissionView } from '@bindings/AgentFilePermissionView'
+import type { ContactGroup } from '@bindings/ContactGroup'
 import {
   agentFiles,
   BUILTIN_AGENT,
@@ -22,6 +24,7 @@ const setPermission = useActionOrThrow('settings.agents.files.set')
 const removePermission = useActionOrThrow('settings.agents.files.remove')
 
 const rows = ref<AgentFilePermissionView[] | null>(null)
+const groups = ref<ContactGroup[]>([])
 const busy = ref(false)
 const loadError = ref<string | null>(null)
 const opError = ref<string | null>(null)
@@ -31,6 +34,7 @@ async function reloadAsync() {
     rows.value = await invoke<AgentFilePermissionView[]>(
       'files_agent_permissions',
     )
+    groups.value = await invoke<ContactGroup[]>('contacts_groups')
     loadError.value = null
   } catch (error: unknown) {
     loadError.value = errString(error)
@@ -60,9 +64,23 @@ const choices = computed(() =>
   })),
 )
 
+const contactChoices = computed(() =>
+  (['ask', 'read', 'readWrite', 'denied'] as const).map((value) => ({
+    value,
+    label: t(`settings.agentFiles.status.${value}`),
+  })),
+)
+
+const groupName = (groupId: string) => {
+  const name = groups.value.find((group) => group.id === groupId)?.name
+  return name
+    ? t('settings.agentFiles.contactsGroup', { name })
+    : t('settings.agentFiles.contactsGroupUnknown')
+}
+
 async function saveAsync(
   agentId: string,
-  kind: 'device' | 'storage',
+  kind: 'device' | 'storage' | 'contacts',
   target: string,
   status: string,
 ) {
@@ -78,17 +96,27 @@ async function saveAsync(
   }
 }
 
-async function revokeAsync(agentId: string, target: string) {
+async function revokeAsync(
+  agentId: string,
+  target: string,
+  kind: 'encryptedFolder' | 'contacts' = 'encryptedFolder',
+) {
   busy.value = true
   opError.value = null
   try {
-    await removePermission({ agentId, kind: 'encryptedFolder', target })
+    await removePermission({ agentId, kind, target })
   } catch (error: unknown) {
     opError.value = errString(error)
   } finally {
     busy.value = false
     await reloadAsync()
   }
+}
+
+function onContacts(agentId: string, next: string) {
+  if ((next as StorageChoice) === 'ask')
+    return revokeAsync(agentId, '*', 'contacts')
+  return saveAsync(agentId, 'contacts', '*', next)
 }
 
 function onStorage(agentId: string, storageId: string, next: string) {
@@ -146,6 +174,39 @@ function onStorage(agentId: string, storageId: string, next: string) {
           :data-testid="`agent-files-storage-${agent.agentId}-${storage.id}`"
           @update:model-value="onStorage(agent.agentId, storage.id, $event)"
         />
+      </SettingsRow>
+      <SettingsRow
+        :title="t('settings.agentFiles.contacts')"
+        :description="t('settings.agentFiles.contactsDescription')"
+        icon="lucide:contact"
+        :label-for="`agent-files-contacts-${agent.agentId}`"
+      >
+        <SettingsSelect
+          :id="`agent-files-contacts-${agent.agentId}`"
+          :model-value="agent.contacts"
+          :options="contactChoices"
+          :disabled="busy"
+          :data-testid="`agent-files-contacts-${agent.agentId}`"
+          @update:model-value="onContacts(agent.agentId, $event)"
+        />
+      </SettingsRow>
+      <SettingsRow
+        v-for="grant in agent.contactGroups"
+        :key="grant.target"
+        :title="groupName(grant.groupId)"
+        :description="t(`settings.agentFiles.status.${grant.status}`)"
+        icon="lucide:users"
+      >
+        <UiButton
+          type="button"
+          variant="outline"
+          size="sm"
+          :disabled="busy"
+          :data-testid="`agent-files-contacts-revoke-${agent.agentId}-${grant.groupId}`"
+          @click="revokeAsync(agent.agentId, grant.target, 'contacts')"
+        >
+          {{ t('settings.agentFiles.revoke') }}
+        </UiButton>
       </SettingsRow>
       <SettingsRow
         v-for="folder in agent.folders"

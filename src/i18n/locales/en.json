@@ -971,7 +971,11 @@
       },
       "revoke": "Revoke",
       "loadFailed": "Permissions not loaded",
-      "failed": "Not saved"
+      "failed": "Not saved",
+      "contacts": "Contacts",
+      "contactsDescription": "Address book",
+      "contactsGroup": "Contacts in the group “{name}”",
+      "contactsGroupUnknown": "Contacts of a deleted group"
     },
     "storage": {
       "intro": "Connections to providers over S3 or WebDAV. Each connection holds cloud storages, one bucket or folder each. Extensions only see the names and use a cloud storage only with your permission.",
@@ -1572,6 +1576,10 @@
       "files": {
         "read": "Read files",
         "write": "Change files"
+      },
+      "contacts": {
+        "read": "Read contacts",
+        "write": "Change contacts"
       }
     },
     "passwords": {
@@ -1593,6 +1601,11 @@
       "move": "Move files",
       "delete": "Delete files",
       "show": "Show a file in the file browser"
+    },
+    "contacts": {
+      "search": "Search contacts",
+      "get": "Read a contact",
+      "update": "Change a contact"
     }
   },
   "passwords": {
@@ -2515,6 +2528,14 @@
         "thisTask": "Without the checkbox the answer holds for this task only.",
         "kept": "holzi remembers the answer for this folder.",
         "keptLocal": "holzi remembers the answer for models on this device only; it still holds for this task."
+      },
+      "contacts": {
+        "title": "Access to your contacts",
+        "read": "The agent in the chat wants to read your contacts.",
+        "readWrite": "The agent in the chat wants to read and change your contacts. Changes go to all your devices and into the phone address books.",
+        "hint": "“Allow once” holds for this access only. holzi remembers “Always allow” and “Deny”; you can change that in the settings under AI.",
+        "once": "Allow once",
+        "always": "Always allow"
       }
     }
   },

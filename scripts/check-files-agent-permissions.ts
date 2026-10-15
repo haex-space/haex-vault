@@ -32,6 +32,8 @@ test('without rows the built-in agent reaches the device and every storage asks'
         { id: 's1', name: 'Fotos', status: 'ask' },
         { id: 's2', name: 'Archiv', status: 'ask' },
       ],
+      contacts: 'ask',
+      contactGroups: [],
       folders: [],
     },
   ])
@@ -126,4 +128,22 @@ test('remembered folder answers list with name, storage and reach; the device fi
       reach: 'local',
     },
   ])
+})
+
+test('the contacts ask without a row; remembered answers for all and for groups list apart', () => {
+  const [builtin] = agentFiles(
+    [
+      row(BUILTIN_AGENT, 'contacts', '*', 'read'),
+      row(BUILTIN_AGENT, 'contacts', 'group:g1', 'readWrite'),
+      row(BUILTIN_AGENT, 'contacts', 'group:g2', 'denied'),
+      row(BUILTIN_AGENT, 'contacts', 'group:', 'read'),
+    ],
+    STORAGES,
+  )
+  assert.equal(builtin!.contacts, 'read')
+  assert.deepEqual(builtin!.contactGroups, [
+    { target: 'group:g1', groupId: 'g1', status: 'readWrite' },
+    { target: 'group:g2', groupId: 'g2', status: 'denied' },
+  ])
+  assert.deepEqual(builtin!.folders, [])
 })
