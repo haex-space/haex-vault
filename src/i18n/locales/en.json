@@ -846,6 +846,10 @@
       "stateHere": "On this device",
       "notStartedHere": "Not started yet",
       "permissions": "Permissions",
+      "agentTools": {
+        "available": "Available to the agent",
+        "availableHint": "Off: the agent is offered none of these tools. The extension itself keeps running."
+      },
       "noPermissions": "No permissions remembered.",
       "status": {
         "granted": "Allowed",

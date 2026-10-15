@@ -3,13 +3,21 @@
 //! `extension_mcp_send`. The frame session, never the message, names the extension, and neither
 //! reaches a method of the bridge.
 
+use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::State;
+use uuid::Uuid;
 
-use crate::error::Result;
+use crate::error::{HolziError, Result};
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::bridge::frames::FrameRegistry;
+use crate::extensions::ids::permission_id;
+use crate::extensions::permissions::store::{self, NewPermission};
+use crate::extensions::permissions::VAULT_WIDE;
+use crate::passwords::clock::unix_millis;
 use crate::state::AppState;
+use crate::state_utils::active_database;
+use crate::vault_gate::VaultDb;
 
 /// Event: a message of holzi's MCP client for one frame.
 pub const MCP_MESSAGE: &str = "extension-mcp-message";
@@ -51,4 +59,62 @@ pub async fn extension_agent_frame_ready(
 ) -> Result<()> {
     state.extensions().agent_frames.answer(&request_id, frame);
     Ok(())
+}
+
+/// The switch "Für den Agenten verfügbar" (spec 018, research R4): off writes the user's row
+/// `agentTool / * / denied`, which offers none of the extension's tools; on removes it, and the
+/// tools are offered as they were confirmed. The registry follows the write by itself
+/// (`registration.rs`), so it applies without a restart (SC-006).
+pub fn set_available(db: &VaultDb, extension_id: Uuid, available: bool, now_ms: i64) -> Result<()> {
+    const KIND: &str = "agentTool";
+    db.write_blocking(move |tx| {
+        if available {
+            store::delete(tx, permission_id(extension_id, KIND, "*", "*", VAULT_WIDE))?;
+        } else {
+            store::put(
+                tx,
+                extension_id,
+                &NewPermission {
+                    kind: KIND,
+                    action: "*",
+                    target: "*",
+                    status: "denied",
+                    declared: false,
+                    vault_device_uuid: VAULT_WIDE,
+                },
+                now_ms,
+            )?;
+        }
+        Ok(())
+    })
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentToolsSetArgs {
+    pub extension_id: String,
+    pub available: bool,
+}
+
+/// The switch in the extension's settings.
+#[tauri::command]
+pub async fn extension_agent_tools_set(
+    state: State<'_, AppState>,
+    args: AgentToolsSetArgs,
+) -> Result<()> {
+    let extension_id =
+        Uuid::parse_str(&args.extension_id).map_err(|_| HolziError::ExtensionNotFound)?;
+    let db = active_database(&state)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        set_available(
+            &db,
+            extension_id,
+            args.available,
+            unix_millis(std::time::SystemTime::now()),
+        )
+    })
+    .await
+    .map_err(|e| HolziError::InvalidInput {
+        reason: format!("agent tools task: {e}"),
+    })?
 }

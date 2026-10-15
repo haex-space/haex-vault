@@ -7,17 +7,27 @@
  * Decisions held until holzi is closed are listed with "Entfernen"; those about an encrypted
  * folder (spec 048 FR-038) only until the extension reloads, and every encrypted folder is named
  * by its cloud storage and decrypted name.
+ * The tools it offers to the agent (spec 018) come first, with their title and effect, under the
+ * switch "Für den Agenten verfügbar", which takes all of them from the agent and gives them back.
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { PermissionView } from '@bindings/PermissionView'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
+import {
+  agentToolsAvailable,
+  effectLabelKey,
+  splitAgentTools,
+  toolTitle,
+} from '~/lib/extensions/agentTools'
 
 const props = defineProps<{ extensionId: string }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { errString } = useErrorString()
 
 const permissions = ref<PermissionView[]>([])
 const failure = ref<string | null>(null)
+const split = computed(() => splitAgentTools(permissions.value, locale.value))
+const available = computed(() => agentToolsAvailable(permissions.value))
 
 const statusOptions = computed<SettingsSelectOption[]>(() =>
   ['granted', 'ask', 'denied'].map((value) => ({
@@ -75,6 +85,14 @@ function removeAsync(permission: PermissionView) {
   )
 }
 
+function setAvailableAsync(value: boolean) {
+  return runAsync(() =>
+    invoke('extension_agent_tools_set', {
+      args: { extensionId: props.extensionId, available: value },
+    }),
+  )
+}
+
 function scopeText(permission: PermissionView): string {
   if (permission.temporary)
     return permission.kind === 'encryptedFolder'
@@ -89,15 +107,61 @@ onMounted(loadAsync)
 </script>
 
 <template>
+  <SettingsGroup
+    v-if="split.tools.length > 0"
+    :label="t('extensions.install.agentTools.title')"
+    data-testid="extension-agent-tools"
+  >
+    <li class="flex items-center justify-between gap-4 px-4 py-3">
+      <label for="extension-agent-tools-available" class="flex flex-col">
+        <span class="text-sm">{{
+          t('settings.extensions.agentTools.available')
+        }}</span>
+        <span class="text-xs text-muted-foreground">{{
+          t('settings.extensions.agentTools.availableHint')
+        }}</span>
+      </label>
+      <ShadcnSwitch
+        id="extension-agent-tools-available"
+        :model-value="available"
+        data-testid="extension-agent-tools-available"
+        @update:model-value="setAvailableAsync($event === true)"
+      />
+    </li>
+    <li
+      v-for="tool in split.tools"
+      :key="tool.id ?? tool.target"
+      class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3"
+      :class="available ? '' : 'opacity-60'"
+      :data-permission-target="tool.target"
+    >
+      <div class="flex min-w-48 flex-1 flex-col">
+        <span class="text-sm">{{ toolTitle(tool, locale) }}</span>
+        <span class="text-xs text-muted-foreground">
+          {{ t(effectLabelKey(tool.action)) }}
+          <template v-if="tool.supported === false">
+            · {{ t('extensions.install.agentTools.unavailable') }}
+          </template>
+        </span>
+      </div>
+      <SettingsSelect
+        v-if="!tool.unreadable"
+        :model-value="tool.status"
+        :options="statusOptions"
+        class="w-40"
+        @update:model-value="setAsync(tool, $event)"
+      />
+    </li>
+  </SettingsGroup>
   <SettingsGroup :label="t('settings.extensions.permissions')">
     <li
-      v-if="permissions.length === 0"
+      v-if="split.others.length === 0"
       class="px-4 py-3 text-sm text-muted-foreground"
     >
       {{ t('settings.extensions.noPermissions') }}
     </li>
     <li
-      v-for="permission in permissions"
+      v-for="permission in split.others"
       :key="
         permission.id ??
         `${permission.kind}|${permission.action}|${permission.target}`

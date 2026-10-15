@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
+import { openSettings } from '../lib/settings.ts'
 import { unwrap } from '../lib/flows.ts'
 import { onDevice } from '../lib/platform/device-files.ts'
 import {
@@ -95,4 +96,34 @@ scenario('extension-agent-tools', { timeoutMs: 300_000 }, async (ctx) => {
     { timeoutMs: 20_000 },
   )
   ctx.step('the extension starts with the released vault-sdk')
+
+  // Quickstart step 7: the switch takes every tool from the agent and gives them back.
+  const switchedOff = async () =>
+    unwrap<Array<{ kind: string; target: string; status: string }>>(
+      'extension_permissions_list',
+      await page.invoke('extension_permissions_list', {
+        extensionId: extension.id,
+      }),
+    ).some(
+      (view) =>
+        view.kind === 'agentTool' &&
+        view.target === '*' &&
+        view.status === 'denied',
+    )
+  await openSettings(page)
+  await page.click('settings-category-extensions')
+  await page.click(
+    `[data-testid="extension-row"][data-extension-id="${extension.id}"]`,
+  )
+  await page.click('extension-agent-tools-available')
+  await ctx.waitFor('the tools to be switched off', switchedOff, {
+    timeoutMs: 10_000,
+  })
+  await page.click('extension-agent-tools-available')
+  await ctx.waitFor(
+    'the tools to be switched on again',
+    async () => !(await switchedOff()),
+    { timeoutMs: 10_000 },
+  )
+  ctx.step('the switch takes the tools from the agent and gives them back')
 })

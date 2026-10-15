@@ -846,6 +846,10 @@
       "stateHere": "Auf diesem Gerät",
       "notStartedHere": "Noch nicht gestartet",
       "permissions": "Berechtigungen",
+      "agentTools": {
+        "available": "Für den Agenten verfügbar",
+        "availableHint": "Aus: Der Agent bekommt keines dieser Werkzeuge angeboten. Die Erweiterung selbst läuft weiter."
+      },
       "noPermissions": "Keine Berechtigungen gemerkt.",
       "status": {
         "granted": "Erlaubt",

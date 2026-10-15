@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  agentToolsAvailable,
   effectLabelKey,
   splitAgentTools,
   toolTitle,
@@ -68,4 +69,20 @@ test('each effect has its label key', () => {
     effectLabelKey('destructive'),
     'extensions.permissions.effect.destructive',
   )
+})
+
+test('the switch row "*" is not a tool, and only "denied" switches the tools off', () => {
+  const off = {
+    kind: 'agentTool',
+    action: '*',
+    target: '*',
+    status: 'denied',
+  }
+  assert.deepEqual(
+    splitAgentTools([count, off], 'de').tools.map((t) => t.target),
+    ['count_unread'],
+  )
+  assert.equal(agentToolsAvailable([count, web]), true)
+  assert.equal(agentToolsAvailable([count, off]), false)
+  assert.equal(agentToolsAvailable([count, { ...off, status: 'ask' }]), true)
 })
