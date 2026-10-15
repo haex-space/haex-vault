@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * Kind, action and target of one extension permission, as the install dialog, the permission
- * question and the settings show it; an encrypted folder by its storage and name. A wildcard (`*`) is spelled out and marked, so nobody mistakes
+ * question and the settings show it; an encrypted folder by its storage and name, a group of the
+ * address book by its name. A wildcard (`*`) is spelled out and marked, so nobody mistakes
  * it for a narrow target: it allows everything of its kind.
  */
 import {
@@ -58,6 +59,13 @@ const everyAction = computed(() => isEveryAction(props.kind, props.action))
           { folder: folder.folderName, storage: folder.storageName },
         )
       }}
+    </span>
+    <span
+      v-else-if="kind === 'contacts'"
+      class="text-xs break-all"
+      data-testid="extension-permission-contacts-group"
+    >
+      {{ t('extensions.permissions.contactsGroup', { name: target }) }}
     </span>
     <span v-else-if="hasTarget(kind)" class="font-mono text-xs break-all">{{
       target

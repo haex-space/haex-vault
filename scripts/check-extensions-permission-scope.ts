@@ -16,6 +16,7 @@ test('a target * allows everything of its kind', () => {
   assert.equal(everythingKey('passwords', 'read', '*'), 'passwords')
   assert.equal(everythingKey('shell', 'execute', '*'), 'shell')
   assert.equal(everythingKey('remoteStorage', 'read', '*'), 'remoteStorage')
+  assert.equal(everythingKey('contacts', 'read', '*'), 'contacts')
 })
 
 test('proposing storages on any server reads differently from using every storage', () => {
@@ -27,6 +28,7 @@ test('a narrow target or a pattern ending in * is not everything', () => {
   assert.equal(everythingKey('web', '*', '*.example.org'), null)
   assert.equal(everythingKey('web', 'GET', 'https://example.org/*'), null)
   assert.equal(everythingKey('passwords', 'readWrite', 'haex-mail'), null)
+  assert.equal(everythingKey('contacts', 'read', 'Arbeit'), null)
 })
 
 test('notifications and database never count as everything', () => {
