@@ -7,8 +7,10 @@ use std::collections::BTreeMap;
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 
+use super::mapping::{group_value_id, GROUP};
 use super::reconcile::{HolziSide, HolziValue, Plan};
 use super::store::{changed_millis, hlc_millis};
+use crate::contacts::ids::member_id;
 use crate::contacts::kinds;
 use crate::contacts::model::{Head, Origin};
 use crate::contacts::service::MAX_NOTE_BYTES;
@@ -114,6 +116,16 @@ pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Option<Loaded>> {
             millis,
         });
     }
+    for group in contact.groups {
+        let member = member_id(&group.id, contact_id);
+        values.push(HolziValue {
+            id: group_value_id(&group.name),
+            kind: GROUP.to_owned(),
+            label: String::new(),
+            millis: changed_millis(q, "haex_contacts_group_members", &member, &[])?,
+            value: group.name,
+        });
+    }
     Ok(Some(Loaded {
         side: HolziSide {
             head: head_map(&contact.head),
@@ -169,6 +181,10 @@ pub fn apply(tx: &mut CrdtTransaction<'_>, contact_id: &str, plan: &Plan, now: &
         }
     }
     for value in &plan.inserts {
+        if value.kind == GROUP {
+            join_group(tx, contact_id, &value.value)?;
+            continue;
+        }
         let position = store::next_position(tx, contact_id, &value.kind)?;
         store::insert_value_as(
             tx,
@@ -179,14 +195,67 @@ pub fn apply(tx: &mut CrdtTransaction<'_>, contact_id: &str, plan: &Plan, now: &
         )?;
     }
     for (id, label, value) in &plan.updates {
+        if let Some(name) = id.strip_prefix("group:") {
+            leave_group(tx, contact_id, name)?;
+            join_group(tx, contact_id, value)?;
+            continue;
+        }
         store::update_value(tx, id, label, value, None)?;
     }
     for id in &plan.deletes {
+        if let Some(name) = id.strip_prefix("group:") {
+            leave_group(tx, contact_id, name)?;
+            continue;
+        }
         store::delete_value(tx, id)?;
     }
     if plan.changes_holzi() {
         store::touch(tx, contact_id, now)?;
     }
+    Ok(())
+}
+
+/// The id of the group with this name, made when holzi has none (groups meet by name, T096).
+fn group_named(tx: &mut CrdtTransaction<'_>, name: &str) -> Result<String> {
+    let name = name.trim();
+    let found: Option<String> = tx.query_row(
+        "SELECT id FROM haex_contacts_groups WHERE name = ?1 ORDER BY id LIMIT 1",
+        params![name],
+        |r| r.get(0),
+    )?;
+    if let Some(id) = found {
+        return Ok(id);
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    tx.execute(
+        "INSERT INTO haex_contacts_groups (id, name) VALUES (?1, ?2)",
+        params![id, name],
+    )?;
+    Ok(id)
+}
+
+fn join_group(tx: &mut CrdtTransaction<'_>, contact_id: &str, name: &str) -> Result<()> {
+    let group = group_named(tx, name)?;
+    let id = member_id(&group, contact_id);
+    let present: Option<i64> = tx.query_row(
+        "SELECT 1 FROM haex_contacts_group_members WHERE id = ?1",
+        params![id],
+        |r| r.get(0),
+    )?;
+    if present.is_none() {
+        tx.execute(
+            "INSERT INTO haex_contacts_group_members (id, group_id, contact_id) VALUES (?1, ?2, ?3)",
+            params![id, group, contact_id],
+        )?;
+    }
+    Ok(())
+}
+
+fn leave_group(tx: &mut CrdtTransaction<'_>, contact_id: &str, name: &str) -> Result<()> {
+    tx.execute(
+        "DELETE FROM haex_contacts_group_members WHERE contact_id = ?1 AND group_id IN          (SELECT id FROM haex_contacts_groups WHERE name = ?2)",
+        params![contact_id, name.trim()],
+    )?;
     Ok(())
 }
 

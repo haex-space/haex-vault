@@ -85,9 +85,10 @@ const target = computed(() => {
   return suggested ? accountKey(suggested) : ''
 })
 
+const nameAccount = useAccountLabel()
+
 function accountLabel(account: ContactsPhoneAccount): string {
-  if (!account.accountType) return t('settings.contacts.phone.localAccount')
-  return `${account.name} (${account.accountType})`
+  return nameAccount(account.accountType, account.name)
 }
 
 const accountOptions = computed(() =>

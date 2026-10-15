@@ -57,6 +57,8 @@ fn header(id: &str, name: &str, phone: &str) -> ContactHeader {
         groups: vec![],
         photo: None,
         origin_kind: crate::contacts::model::OriginKind::Holzi,
+        targets: vec![],
+        issue: None,
     }
 }
 

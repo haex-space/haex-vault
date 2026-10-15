@@ -22,6 +22,9 @@ use crate::storage::query::Query;
 pub const PREF_ENABLED: &str = "contacts.phone.enabled";
 /// The device setting with the account new contacts go to on this phone (JSON of [`Account`]).
 pub const PREF_TARGET: &str = "contacts.phone.target_account";
+/// The device setting with the phone's accounts as the last run saw them (JSON of [`Account`]s),
+/// so another device can offer them as targets.
+pub const PREF_ACCOUNTS: &str = "contacts.phone.accounts";
 
 /// The state of the sync as the window shows it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -81,6 +84,77 @@ pub fn set_target(tx: &mut CrdtTransaction<'_>, device: &str, account: &Account)
     let json = serde_json::to_string(account).unwrap_or_default();
     preferences::insert_or_update(tx, device_scope(device)?, PREF_TARGET, &json)?;
     Ok(())
+}
+
+/// The phone's accounts as its last run saw them.
+pub fn accounts(q: &mut impl Query, device: &str) -> Result<Vec<Account>> {
+    let value = preferences::get(q, device_scope(device)?, PREF_ACCOUNTS)?;
+    Ok(value
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default())
+}
+
+/// Saves the phone's accounts when they differ from the saved ones.
+pub fn set_accounts(tx: &mut CrdtTransaction<'_>, device: &str, list: &[Account]) -> Result<()> {
+    if accounts(tx, device)? == list {
+        return Ok(());
+    }
+    let json = serde_json::to_string(list).unwrap_or_default();
+    preferences::insert_or_update(tx, device_scope(device)?, PREF_ACCOUNTS, &json)?;
+    Ok(())
+}
+
+/// A phone of the vault with the sync on, as a target for contacts (FR-018c).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(
+    export,
+    export_to = "../../src/types/bindings/",
+    rename = "ContactsPhoneSummary"
+)]
+#[serde(rename_all = "camelCase")]
+pub struct PhoneSummary {
+    /// The phone's `vault_device_uuid`.
+    pub device: String,
+    /// The phone's name in the vault.
+    pub name: Option<String>,
+    /// The account new contacts go to there.
+    pub target: Option<Account>,
+    /// The phone's accounts as its last run saw them.
+    pub accounts: Vec<Account>,
+}
+
+/// The phones of the vault with the sync on.
+pub fn phones(q: &mut impl Query) -> Result<Vec<PhoneSummary>> {
+    let mut out = Vec::new();
+    for row in preferences::list_by_key(q, PREF_ENABLED)? {
+        let PrefScope::Device(uuid) = row.scope else {
+            continue;
+        };
+        if preferences::parse_bool(row.value.as_deref()) != Some(true) {
+            continue;
+        }
+        let device = uuid.to_string();
+        let name: Option<Option<String>> = q.query_row(
+            "SELECT alias FROM known_devices WHERE vault_device_uuid = ?1",
+            haex_crdt::rusqlite::params![device],
+            |r| r.get(0),
+        )?;
+        out.push(PhoneSummary {
+            name: name.flatten(),
+            target: target(q, &device)?,
+            accounts: accounts(q, &device)?,
+            device,
+        });
+    }
+    Ok(out)
+}
+
+/// Whether a device is a phone of the vault with the sync on.
+pub fn is_phone(q: &mut impl Query, device: &str) -> Result<bool> {
+    match device_scope(device) {
+        Ok(_) => enabled(q, device),
+        Err(_) => Ok(false),
+    }
 }
 
 /// Switches the sync on; a phone without a state starts at the overview, a paused one stays.

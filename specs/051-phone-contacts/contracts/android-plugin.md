@@ -21,8 +21,8 @@ Providers auf JSON ab; jede Regel liegt in Rust (`contacts/phone/`). Rust ruft �
 | `contactsRead`       | `{ids: number[]}` (≤ 200)       | `[{id, hasPhoto, data: [{dataId, mimetype, isReadOnly, fields}]}]`                                          |
 | `contactsApply`      | `{ops: Op[]}` (≤ 400 je Aufruf) | `{results: [{rawContactId?, version?}], error?}`                                                            |
 | `contactsPhotoRead`  | `{id}`                          | `{jpegBase64?}` (`DisplayPhoto`, sonst Vorschaubild)                                                        |
-| `contactsPhotoWrite` | `{id, jpegBase64}`              | `{version}`                                                                                                 |
-| `contactsGroups`     | `{accountType, accountName}`    | `[{id, title, readOnly}]`                                                                                   |
+| `contactsPhotoWrite` | `{id, jpegBase64}`              | `{version?}` (`RawContacts.DisplayPhoto`, das Vorschaubild macht der Provider)                              |
+| `contactsGroups`     | `{accountType, accountName}`    | `[{id, title, readOnly}]` (nicht gelöschte Gruppen; `readOnly` = Gruppe des Systems, `SYSTEM_ID` gesetzt)   |
 
 `lastUpdated` ist `Contacts.CONTACT_LAST_UPDATED_TIMESTAMP` (ms) des zusammengefassten Kontakts
 (Konfliktregel, research R6). Listen kommen als `{rows: […]}`, weil eine Antwort des Plugins ein Objekt
@@ -36,7 +36,9 @@ ein Roh-Kontakt in einem Konto, dessen Sync-Adapter nicht hochlädt.
 `fields` je Mimetype: `StructuredName` (given, family, middle, prefix, suffix, display),
 `Nickname`, `Organization` (company, title), `Note`, `Phone`/`Email`/`Website`/`SipAddress`
 (value, type, label), `StructuredPostal` (Teile), `Im` (protocol, customProtocol, data),
-`Event` (startDate, type, label), `Relation` (name, type, label), `GroupMembership` (groupId).
+`Event` (startDate, type, label), `Relation` (name, type, label), `GroupMembership` (groupId; beim
+Lesen zusätzlich `title` und `readOnly` der Gruppe, damit Rust Mitgliedschaften über den Titel
+abgleicht und die Gruppen des Systems wie „My Contacts“ nie anfasst).
 Andere Mimetypes liefert `contactsRead` nicht; holzi schreibt sie nie (FR-022).
 
 `Op`:
@@ -46,8 +48,9 @@ Andere Mimetypes liefert `contactsRead` nicht; holzi schreibt sie nie (FR-022).
 - `updateData {dataId, mimetype, fields}`
 - `deleteData {dataId}`
 - `deleteRaw {rawContactId}`
-- `insertGroup {accountType, accountName, title, ref}` / `addToGroup {rawContactId | ref, groupId | ref}`
-  (kommt mit den Gruppen, T096)
+- `insertGroup {accountType, accountName, title}`: neue Gruppe eines Kontos. Rust legt fehlende
+  Gruppen in einem eigenen Aufruf vor dem Batch an und liest ihre IDs danach mit `contactsGroups`;
+  eine Mitgliedschaft ist ein `insertData` mit `GroupMembership` und `groupId` (T096).
 
 `raw` ist `{id}` oder `{ref}`; ein `ref` ist der Index des `insertRaw` im selben Aufruf.
 
@@ -61,4 +64,3 @@ bricht nur diesen Aufruf ab; Rust trägt eine Issue ein (FR-025).
 - Fotos getrennt vom Batch (Größe der Binder-Transaktion).
 - Alle Aufrufe laufen außerhalb des UI-Threads, auf einem eigenen Thread des Plugins (ein
   `Executor`, damit das Plugin keine Coroutines-Abhängigkeit braucht).
-- `contactsPhotoWrite` und `contactsGroups` kommen mit US3 (T054, T096).

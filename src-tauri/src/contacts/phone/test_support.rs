@@ -7,12 +7,9 @@ use std::collections::BTreeMap;
 use std::sync::Mutex;
 
 use serde_json::{json, Map, Value as Json};
-use tauri_plugin_holzi_android::contacts::{
-    ApplyResult, DataRow, Op, OpResult, PhoneAccount, RawData, RawIndex, Target,
-};
+use tauri_plugin_holzi_android::contacts::{DataRow, Op, PhoneAccount, RawIndex};
 
-use super::PhoneBook;
-use crate::error::{HolziError, Result};
+use fake::merge_fields;
 
 /// A raw contact of the fake.
 #[derive(Debug, Clone)]
@@ -33,6 +30,19 @@ struct Book {
     permitted: bool,
     ops: Vec<Op>,
     fail_next: bool,
+    next_group: i64,
+    groups: Vec<FakeGroup>,
+    /// Raw contacts whose photo holzi wrote, in order.
+    photo_writes: Vec<i64>,
+}
+
+/// A group of an account of the fake.
+#[derive(Debug, Clone)]
+struct FakeGroup {
+    id: i64,
+    account: (String, String),
+    title: String,
+    read_only: bool,
 }
 
 pub struct FakePhoneBook {
@@ -49,6 +59,11 @@ fn account(kind: &str, name: &str, writable: bool) -> PhoneAccount {
         writable,
         is_default: false,
     }
+}
+
+/// A membership in the group with this id.
+pub fn member(group: i64) -> (String, Map<String, Json>) {
+    row("GroupMembership", json!({ "groupId": group.to_string() }))
 }
 
 /// A data row of `mimetype` with these fields.
@@ -248,6 +263,52 @@ impl FakePhoneBook {
             .photo = Some(bytes);
     }
 
+    /// Adds a group to an account "as the user"; `read_only` is a group of the system's own.
+    pub fn add_group(&self, (kind, name): (&str, &str), title: &str, read_only: bool) -> i64 {
+        let mut book = self.book();
+        book.next_group += 1;
+        let id = book.next_group;
+        book.groups.push(FakeGroup {
+            id,
+            account: (kind.to_owned(), name.to_owned()),
+            title: title.to_owned(),
+            read_only,
+        });
+        id
+    }
+
+    /// The titles of the groups of an account.
+    pub fn group_titles(&self, (kind, name): (&str, &str)) -> Vec<String> {
+        self.book()
+            .groups
+            .iter()
+            .filter(|group| group.account.0 == kind && group.account.1 == name)
+            .map(|group| group.title.clone())
+            .collect()
+    }
+
+    /// The titles of the groups a raw contact is a member of.
+    pub fn memberships(&self, raw: i64) -> Vec<String> {
+        let book = self.book();
+        let Some(found) = book.raws.get(&raw) else {
+            return Vec::new();
+        };
+        found
+            .rows
+            .iter()
+            .filter(|row| row.mimetype == "GroupMembership")
+            .filter_map(|row| {
+                let named = book.named(row);
+                named.fields.get("title")?.as_str().map(str::to_owned)
+            })
+            .collect()
+    }
+
+    /// The raw contacts whose photo holzi wrote.
+    pub fn photo_writes(&self) -> Vec<i64> {
+        self.book().photo_writes.clone()
+    }
+
     /// The next apply fails as a whole, as an `OperationApplicationException` does.
     pub fn fail_next_apply(&self) {
         self.book().fail_next = true;
@@ -292,181 +353,5 @@ impl FakePhoneBook {
     }
 }
 
-fn merge_fields(target: &mut Map<String, Json>, fields: &Map<String, Json>) {
-    for (key, value) in fields {
-        if value.is_null() {
-            target.remove(key);
-        } else {
-            target.insert(key.clone(), value.clone());
-        }
-    }
-}
-
-impl PhoneBook for FakePhoneBook {
-    fn permitted(&self) -> Result<bool> {
-        Ok(self.book().permitted)
-    }
-
-    fn accounts(&self) -> Result<Vec<PhoneAccount>> {
-        Ok(self.book().accounts.clone())
-    }
-
-    fn index(&self, after_id: i64, limit: u32) -> Result<Vec<RawIndex>> {
-        Ok(self
-            .book()
-            .raws
-            .values()
-            .filter(|raw| raw.index.id > after_id)
-            .take(limit as usize)
-            .map(|raw| raw.index.clone())
-            .collect())
-    }
-
-    fn read(&self, ids: &[i64]) -> Result<Vec<RawData>> {
-        assert!(
-            ids.len() <= super::MAX_READ,
-            "at most {} raw contacts per read",
-            super::MAX_READ
-        );
-        let book = self.book();
-        Ok(ids
-            .iter()
-            .filter_map(|id| book.raws.get(id))
-            .map(|raw| RawData {
-                id: raw.index.id,
-                data: raw.rows.clone(),
-                has_photo: raw.photo.is_some(),
-            })
-            .collect())
-    }
-
-    fn apply(&self, ops: &[Op]) -> Result<ApplyResult> {
-        assert!(
-            ops.len() <= super::write::MAX_OPS,
-            "at most {} ops per call",
-            super::write::MAX_OPS
-        );
-        let mut book = self.book();
-        book.ops.extend(ops.iter().cloned());
-        if std::mem::take(&mut book.fail_next) {
-            return Ok(ApplyResult {
-                results: Vec::new(),
-                error: Some("OperationApplicationException".to_owned()),
-            });
-        }
-        let mut refs: BTreeMap<u32, i64> = BTreeMap::new();
-        let mut touched = Vec::new();
-        for op in ops {
-            let raw = match op {
-                Op::InsertRaw {
-                    account_type,
-                    account_name,
-                    reference,
-                } => {
-                    book.next_raw += 1;
-                    book.next_aggregate += 1;
-                    let (id, aggregate) = (book.next_raw, book.next_aggregate);
-                    let index = RawIndex {
-                        id,
-                        version: 0,
-                        deleted: false,
-                        account_type: account_type.clone(),
-                        account_name: account_name.clone(),
-                        source_id: None,
-                        contact_id: aggregate,
-                        lookup_key: format!("lookup-{aggregate}"),
-                        last_updated: Some(book.clock),
-                        read_only: false,
-                    };
-                    book.raws.insert(
-                        id,
-                        FakeRaw {
-                            index,
-                            rows: Vec::new(),
-                            photo: None,
-                        },
-                    );
-                    refs.insert(*reference, id);
-                    Some(id)
-                }
-                Op::InsertData {
-                    raw,
-                    mimetype,
-                    fields,
-                } => {
-                    let id = match raw {
-                        Target::Id(id) => *id,
-                        Target::Ref(reference) => refs[reference],
-                    };
-                    book.next_data += 1;
-                    let data_id = book.next_data;
-                    let mut clean = Map::new();
-                    merge_fields(&mut clean, fields);
-                    let target = book
-                        .raws
-                        .get_mut(&id)
-                        .ok_or_else(|| missing("raw contact"))?;
-                    target.rows.push(DataRow {
-                        data_id,
-                        mimetype: mimetype.clone(),
-                        is_read_only: false,
-                        fields: clean,
-                    });
-                    Some(id)
-                }
-                Op::UpdateData {
-                    data_id, fields, ..
-                } => {
-                    let found = book.raws.values_mut().find_map(|raw| {
-                        let row = raw.rows.iter_mut().find(|row| row.data_id == *data_id)?;
-                        merge_fields(&mut row.fields, fields);
-                        Some(raw.index.id)
-                    });
-                    Some(found.ok_or_else(|| missing("data row"))?)
-                }
-                Op::DeleteData { data_id } => {
-                    let found = book.raws.values_mut().find_map(|raw| {
-                        let before = raw.rows.len();
-                        raw.rows.retain(|row| row.data_id != *data_id);
-                        (raw.rows.len() != before).then_some(raw.index.id)
-                    });
-                    Some(found.ok_or_else(|| missing("data row"))?)
-                }
-                Op::DeleteRaw { raw_contact_id } => {
-                    book.raws.remove(raw_contact_id);
-                    Some(*raw_contact_id)
-                }
-            };
-            touched.push(raw);
-        }
-        let changed: std::collections::BTreeSet<i64> = touched.iter().flatten().copied().collect();
-        for raw in &changed {
-            if book.raws.contains_key(raw) {
-                book.raws.get_mut(raw).expect("present").index.version += 1;
-            }
-        }
-        let results = touched
-            .into_iter()
-            .map(|raw| OpResult {
-                raw_contact_id: raw,
-                version: raw
-                    .and_then(|raw| book.raws.get(&raw))
-                    .map(|raw| raw.index.version),
-            })
-            .collect();
-        Ok(ApplyResult {
-            results,
-            error: None,
-        })
-    }
-
-    fn photo(&self, id: i64) -> Result<Option<Vec<u8>>> {
-        Ok(self.book().raws.get(&id).and_then(|raw| raw.photo.clone()))
-    }
-}
-
-fn missing(what: &str) -> HolziError {
-    HolziError::PhoneContactsFailed {
-        reason: format!("no such {what}"),
-    }
-}
+#[path = "test_fake.rs"]
+mod fake;

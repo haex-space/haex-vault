@@ -113,7 +113,16 @@ Abgleichsziel (FR-018b bis FR-018d).
 | `account_name`      | TEXT    |                                       |
 
 Ein Kontakt hat höchstens ein Ziel je Telefon (abgeleitete ID). Entfernen einer Zeile + Antwort des
-Nutzers (FR-018d) steuert, ob das Telefon den Roh-Kontakt löscht.
+Nutzers (FR-018d) steuert, ob das Telefon den Roh-Kontakt löscht: Bei „löschen“ bleiben die
+Zuordnungen des Telefons stehen, und das Telefon löscht beim nächsten Lauf die Roh-Kontakte, die es
+ohne Ziel zugeordnet findet (ohne Massenlösch-Sperre, der Nutzer hat genau diese gewählt). Bei
+„behalten“ gehen die Zuordnungen des Telefons in derselben Transaktion mit; der Roh-Kontakt bleibt
+in `haex_contacts_phone_known_no_sync` und wird nicht neu übernommen. Bekommt der Kontakt das Telefon
+wieder als Ziel, führt der Lauf ihn mit diesem Roh-Kontakt zusammen, statt ihn neu zu schreiben.
+
+Gruppen gleicht der Abgleich über den Namen ab: Eine Mitgliedschaft in `haex_contacts_group_members`
+entspricht im Telefon einer `GroupMembership` in der Gruppe gleichen Titels im Konto des Roh-Kontakts;
+fehlt die Gruppe dort, legt holzi sie an. Gruppen des Systems („My Contacts“) bleiben unberührt.
 
 ## haex_contacts_phone_links
 
@@ -177,7 +186,8 @@ Stand des Abgleichs je Telefon (FR-015a); eine Zeile je Gerät.
 | `counts`            | TEXT NULL  | JSON der letzten Zahlen (übernommen, geschrieben, gelöscht) |
 
 An/aus und Zielkonto liegen nur in `preferences` (Gerät): `contacts.phone.enabled` ist die einzige
-Quelle für an/aus, `contacts.phone.target_account` das Zielkonto. Ist der Abgleich aus, gibt es keine
+Quelle für an/aus, `contacts.phone.target_account` das Zielkonto, `contacts.phone.accounts` die Konten
+des Telefons, wie sein letzter Lauf sie sah (damit andere Geräte sie als Ziel anbieten). Ist der Abgleich aus, gibt es keine
 Zeile in `haex_contacts_phone_runs` (Ausschalten löscht sie, Zuordnungen bleiben).
 
 Zustände:

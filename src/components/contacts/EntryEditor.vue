@@ -2,11 +2,13 @@
 /**
  * The editor of a contact (spec 051, FR-002, FR-003, FR-007): a new one (`entry/new/edit`, in the
  * group of `?group=` when given) or an existing one. Name parts, organization and note, any number
- * of values of every known kind, the groups. Saving sends only what changed (`toPatch`), so values
- * of kinds this version does not know stay as they are; the backend checks every value and says
- * what it refuses.
+ * of values of every known kind, the groups, and for a new one the phones it goes to (FR-018c,
+ * "only in holzi" unless chosen). Saving sends only what changed (`toPatch`), so values of kinds
+ * this version does not know stay as they are; the backend checks every value and says what it
+ * refuses.
  */
 import { toast } from 'vue-sonner'
+import type { TargetInput } from '@bindings/TargetInput'
 import {
   draftOf,
   emptyDraft,
@@ -33,6 +35,7 @@ const isNew = computed(() => id.value === NEW_CONTACT)
 
 const before = ref<Draft | null>(null)
 const draft = ref<Draft>(emptyDraft())
+const targets = ref<TargetInput[]>([])
 const error = ref<string | null>(null)
 const saving = ref(false)
 const missing = ref(false)
@@ -43,6 +46,7 @@ async function loadAsync() {
     const group = router.route.query.group
     draft.value = emptyDraft(group ? [group] : [])
     draft.value.values = [newValue('phone'), newValue('email')]
+    targets.value = []
     before.value = null
     return
   }
@@ -106,7 +110,10 @@ async function saveAsync() {
   error.value = null
   try {
     if (isNew.value) {
-      const contact = await createAsync(toInput(draft.value))
+      const contact = await createAsync({
+        ...toInput(draft.value),
+        targets: targets.value,
+      })
       await store.quietReloadAsync()
       await router.replace(`/entry/${contact.id}`)
     } else if (before.value) {
@@ -273,6 +280,8 @@ function cancel() {
           />
         </li>
       </SettingsGroup>
+
+      <ContactsTargetPicker v-if="isNew" v-model="targets" />
 
       <SettingsGroup
         v-if="store.groups.length"

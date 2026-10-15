@@ -39,6 +39,8 @@ fn header(contact: &CaseContact) -> ContactHeader {
         groups: vec![],
         photo: None,
         origin_kind: OriginKind::Holzi,
+        targets: vec![],
+        issue: None,
     }
 }
 

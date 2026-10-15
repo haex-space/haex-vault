@@ -7,7 +7,7 @@ use tauri::{AppHandle, Runtime};
 
 use std::collections::HashMap;
 
-use crate::contacts::{ApplyResult, Op, PhoneAccount, RawData, RawIndex};
+use crate::contacts::{ApplyResult, Op, PhoneAccount, PhoneGroup, RawData, RawIndex};
 use crate::{Insets, Permission, PermissionState};
 
 const PLUGIN_IDENTIFIER: &str = "space.haex.holzi.android";
@@ -89,6 +89,25 @@ struct PhotoArgs {
 #[serde(rename_all = "camelCase")]
 struct Photo {
     jpeg_base64: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PhotoWriteArgs<'a> {
+    id: i64,
+    jpeg_base64: &'a str,
+}
+
+#[derive(Deserialize)]
+struct Written {
+    version: Option<i64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupsArgs<'a> {
+    account_type: &'a str,
+    account_name: &'a str,
 }
 
 #[derive(Deserialize)]
@@ -233,6 +252,32 @@ impl<R: Runtime> HolziAndroid<R> {
         self.0
             .run_mobile_plugin::<Photo>("contactsPhotoRead", PhotoArgs { id })
             .map(|photo| photo.jpeg_base64)
+            .map_err(|error| error.to_string())
+    }
+
+    /// Writes the large photo of a raw contact; answers the raw contact's version afterwards.
+    pub fn contacts_photo_write(&self, id: i64, jpeg_base64: &str) -> Result<Option<i64>, String> {
+        self.0
+            .run_mobile_plugin::<Written>("contactsPhotoWrite", PhotoWriteArgs { id, jpeg_base64 })
+            .map(|written| written.version)
+            .map_err(|error| error.to_string())
+    }
+
+    /// The groups of an account that are not deleted.
+    pub fn contacts_groups(
+        &self,
+        account_type: &str,
+        account_name: &str,
+    ) -> Result<Vec<PhoneGroup>, String> {
+        self.0
+            .run_mobile_plugin::<Rows<PhoneGroup>>(
+                "contactsGroups",
+                GroupsArgs {
+                    account_type,
+                    account_name,
+                },
+            )
+            .map(|rows| rows.rows)
             .map_err(|error| error.to_string())
     }
 

@@ -147,6 +147,8 @@ pub async fn create_instance(
     crate::vault_events::start_for_active_instance(&app, &state);
     crate::extensions::registry::lifecycle::start_for_active_instance(&app, &state);
     crate::extensions::sql::changes::start_for_active_instance(&app, &state);
+    // Spec 051 (FR-021): changes of contacts reach the phone's address book.
+    crate::contacts::phone::trigger::watch(&app);
     crate::sync::start_for_active_instance(&app, &state).await;
 
     *chat.session.lock().unwrap_or_else(|e| e.into_inner()) = None;

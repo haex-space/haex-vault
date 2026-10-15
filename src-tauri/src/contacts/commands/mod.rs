@@ -4,6 +4,7 @@
 
 pub mod contacts;
 pub mod phone;
+pub mod targets;
 
 use tauri::State;
 

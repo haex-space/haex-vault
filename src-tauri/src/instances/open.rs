@@ -158,6 +158,7 @@ pub async fn open_instance(
     crate::contacts::maintenance::start_after_open(&state);
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
+    crate::contacts::phone::trigger::watch(&app);
     // Spec 017: files of removed extensions are freed after their grace period.
     crate::extensions::registry::blobs::start_after_open(&state);
 

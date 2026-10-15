@@ -2,7 +2,7 @@
 /**
  * One contact (spec 051, FR-002, FR-003, FR-006, FR-007, FR-018a): photo or initials, name and
  * organization, every value grouped by kind with copy and open, the holzi addresses, the note, the
- * groups and where the contact came from. Values of a kind this version does not know show as they
+ * groups, the phones it goes to and where the contact came from. Values of a kind this version does not know show as they
  * are, read-only. Reloads quietly when the contact changes elsewhere.
  */
 import { toast } from 'vue-sonner'
@@ -297,6 +297,12 @@ async function removePhotoAsync() {
           {{ group.name }}
         </button>
       </div>
+
+      <ContactsTargetsSection
+        :contact="contact"
+        :device-name="deviceName"
+        @changed="loadAsync"
+      />
 
       <p
         class="px-1 text-sm text-muted-foreground"

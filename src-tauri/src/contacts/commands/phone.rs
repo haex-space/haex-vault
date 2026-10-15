@@ -105,6 +105,7 @@ pub async fn contacts_phone_enable(
     })
     .await?;
     let suggested = state::suggested(&accounts).cloned();
+    let reported = accounts.clone();
     let db = active_database(&state)?;
     let device = db.device_id().to_string();
     let vault = vault_name(&db).await?;
@@ -113,6 +114,7 @@ pub async fn contacts_phone_enable(
     let status = db
         .write(move |tx| {
             state::enable(tx, &device)?;
+            state::set_accounts(tx, &device, &reported)?;
             if state::target(tx, &device)?.is_none() {
                 if let Some(account) = suggested.as_ref() {
                     state::set_target(tx, &device, account)?;

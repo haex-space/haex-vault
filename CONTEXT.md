@@ -248,8 +248,10 @@ sharing identities of haex-vault, which holzi does not have.
 **Abgleich / Telefon-Adressbuch / Roh-Kontakt / Zuordnung** (spec 051 US2):
 The **Abgleich** keeps the Adressbuch and the **Telefon-Adressbuch** (Android's
 Contacts Provider) in step on a phone where the person switched it on, in both
-directions; it runs after opening the vault and on coming back to the
-foreground, never in the background. Android keeps a person as one
+directions; it runs after opening the vault, on coming back to the foreground
+and when contacts change in the vault, never in the background. It writes to
+the phone only contacts with that phone as their Abgleichsziel; removing the
+target asks whether the phone deletes the contact or keeps it, unsynced. Android keeps a person as one
 aggregated contact made of **Roh-Kontakte**, one per phone account; holzi
 makes one Kontakt of them. A **Zuordnung** (`haex_contacts_phone_links`) ties
 a Roh-Kontakt of one phone to a Kontakt and keeps the state both sides agreed

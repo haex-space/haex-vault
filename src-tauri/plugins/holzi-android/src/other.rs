@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use tauri::plugin::PluginApi;
 use tauri::{AppHandle, Runtime};
 
-use crate::contacts::{ApplyResult, Op, PhoneAccount, RawData, RawIndex, UNAVAILABLE};
+use crate::contacts::{ApplyResult, Op, PhoneAccount, PhoneGroup, RawData, RawIndex, UNAVAILABLE};
 
 pub fn init<R: Runtime>(_app: &AppHandle<R>, _api: PluginApi<R, ()>) -> HolziAndroid<R> {
     HolziAndroid(PhantomData)
@@ -89,6 +89,24 @@ impl<R: Runtime> HolziAndroid<R> {
 
     /// As [`HolziAndroid::contacts_accounts`].
     pub fn contacts_photo_read(&self, _id: i64) -> Result<Option<String>, String> {
+        Err(UNAVAILABLE.to_owned())
+    }
+
+    /// As [`HolziAndroid::contacts_accounts`].
+    pub fn contacts_photo_write(
+        &self,
+        _id: i64,
+        _jpeg_base64: &str,
+    ) -> Result<Option<i64>, String> {
+        Err(UNAVAILABLE.to_owned())
+    }
+
+    /// As [`HolziAndroid::contacts_accounts`].
+    pub fn contacts_groups(
+        &self,
+        _account_type: &str,
+        _account_name: &str,
+    ) -> Result<Vec<PhoneGroup>, String> {
         Err(UNAVAILABLE.to_owned())
     }
 

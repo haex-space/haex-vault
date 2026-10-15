@@ -97,8 +97,13 @@ pub struct Deletions {
     /// Raw contacts whose contact holzi deleted, by that contact.
     pub from_holzi: BTreeMap<String, Vec<i64>>,
     /// Links to drop without deleting anything: one raw contact of several gone, or its account
-    /// left the phone (FR-026).
+    /// left the phone (FR-026), or a raw contact gone whose contact no longer has this phone as a
+    /// target.
     pub unlink: Vec<i64>,
+    /// Raw contacts of contacts that no longer have this phone as a target, while their links
+    /// stay: the user chose to delete them on the phone (FR-018d). Not held back by the guard,
+    /// the user decided on exactly these.
+    pub untargeted: BTreeMap<String, Vec<i64>>,
 }
 
 impl Deletions {
@@ -117,9 +122,17 @@ pub fn deletions(gathered: &Gathered) -> Deletions {
         &gathered.accounts,
     );
     let gone_ids: BTreeSet<i64> = gone.iter().map(|link| link.raw_contact_id).collect();
+    let targeted: BTreeSet<&str> = gathered
+        .targets
+        .iter()
+        .map(|target| target.contact_id.as_str())
+        .collect();
     for link in gone {
         let account = (link.account_type.clone(), link.account_name.clone());
-        if vanished.contains(&account) || !gathered.updated_at.contains_key(&link.contact_id) {
+        if vanished.contains(&account)
+            || !gathered.updated_at.contains_key(&link.contact_id)
+            || !targeted.contains(link.contact_id.as_str())
+        {
             out.unlink.push(link.raw_contact_id);
             continue;
         }
@@ -141,8 +154,16 @@ pub fn deletions(gathered: &Gathered) -> Deletions {
             .index
             .get(&link.raw_contact_id)
             .is_some_and(|raw| !raw.deleted);
-        if present && !gathered.updated_at.contains_key(&link.contact_id) {
+        if !present {
+            continue;
+        }
+        if !gathered.updated_at.contains_key(&link.contact_id) {
             out.from_holzi
+                .entry(link.contact_id.clone())
+                .or_default()
+                .push(link.raw_contact_id);
+        } else if !targeted.contains(link.contact_id.as_str()) {
+            out.untargeted
                 .entry(link.contact_id.clone())
                 .or_default()
                 .push(link.raw_contact_id);

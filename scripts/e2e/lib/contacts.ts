@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { unwrap } from './flows.ts'
 import { resizeAppWindow, runAction, waitForLocation } from './settings.ts'
 import type { FlowInstance } from './flows.ts'
+import type { ContactControls } from './platform/android-contacts.ts'
 import type { WaitContext } from './sync-flows.ts'
 
 /** A contact header as `contacts_list` returns it, reduced to what the scenarios read. */
@@ -14,6 +15,8 @@ export interface ContactHeader {
   phones: string[]
   emails: string[]
   groups: string[]
+  /** The phones the contact goes to. */
+  targets: string[]
 }
 
 /** Opens the address book from the launcher, fits its window into the virtual screen and waits
@@ -97,4 +100,23 @@ export async function startPhoneSync(
 ): Promise<void> {
   await phoneCommand(instance, 'contacts_phone_enable')
   await phoneCommand(instance, 'contacts_phone_confirm', { decisions: [] })
+}
+
+/** The address book controls of a group's device that runs on the phone of an Android run. */
+export function phoneOf(page: object): ContactControls {
+  const controls = (page as { phone?: ContactControls }).phone
+  assert.ok(controls !== undefined, 'the device runs on the phone')
+  return controls
+}
+
+/** The phone's own device id as the vault knows it: the one phone with the sync on. */
+export async function phoneDevice(
+  instance: Pick<FlowInstance, 'invoke'>,
+): Promise<string> {
+  const phones = await phoneCommand<Array<{ device: string }>>(
+    instance,
+    'contacts_phones',
+  )
+  assert.equal(phones.length, 1, JSON.stringify(phones))
+  return phones[0]!.device
 }

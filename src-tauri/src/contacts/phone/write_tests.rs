@@ -96,3 +96,33 @@ fn refs_count_within_one_call() {
         }
     ));
 }
+
+#[test]
+fn a_membership_moves_by_leaving_one_row_and_adding_another() {
+    let mut batches = Batches::default();
+    let mut fields = Map::new();
+    fields.insert("title".to_owned(), Json::String("Arbeit".to_owned()));
+    batches.change(
+        "c1",
+        vec![(
+            7,
+            RowOp::Update {
+                data_id: 70,
+                mimetype: "GroupMembership".to_owned(),
+                fields: fields.clone(),
+            },
+        )],
+    );
+    assert_eq!(
+        batches.calls[0].ops,
+        [
+            Op::DeleteData { data_id: 70 },
+            Op::InsertData {
+                raw: Target::Id(7),
+                mimetype: "GroupMembership".to_owned(),
+                fields,
+            },
+        ]
+    );
+    assert_eq!(batches.calls[0].purposes.len(), 2);
+}

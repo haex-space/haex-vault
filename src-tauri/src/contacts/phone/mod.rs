@@ -10,6 +10,7 @@
 pub mod android;
 mod apply;
 mod gather;
+mod groups;
 mod guard;
 mod head;
 mod index;
@@ -18,6 +19,7 @@ mod labels;
 mod mapping;
 mod matching;
 mod merge;
+mod photo_write;
 mod reconcile;
 mod run;
 mod sides;
@@ -31,7 +33,9 @@ pub mod trigger;
 mod write;
 
 use serde::{Deserialize, Serialize};
-use tauri_plugin_holzi_android::contacts::{ApplyResult, Op, PhoneAccount, RawData, RawIndex};
+use tauri_plugin_holzi_android::contacts::{
+    ApplyResult, Op, PhoneAccount, PhoneGroup, RawData, RawIndex,
+};
 use ts_rs::TS;
 
 use crate::error::Result;
@@ -53,6 +57,10 @@ pub trait PhoneBook: Send + Sync {
     fn apply(&self, ops: &[Op]) -> Result<ApplyResult>;
     /// The photo of a raw contact as JPEG (or another image format the phone stored).
     fn photo(&self, id: i64) -> Result<Option<Vec<u8>>>;
+    /// Writes the photo of a raw contact; the raw contact's version afterwards.
+    fn write_photo(&self, id: i64, jpeg: &[u8]) -> Result<Option<i64>>;
+    /// The groups of an account.
+    fn groups(&self, account_type: &str, account_name: &str) -> Result<Vec<PhoneGroup>>;
 }
 
 /// Most raw contacts per read.

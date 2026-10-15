@@ -69,7 +69,11 @@ fn merge_base(loaded: Option<&Loaded>, current: &PhoneSide) -> Base {
 }
 
 /// The raw contact new values go to: the one in the target's account, else the first writable.
-fn primary(raws: &[RawSide], index: &[RawIndex], target: Option<&Target>) -> Option<i64> {
+pub(super) fn primary(
+    raws: &[RawSide],
+    index: &[RawIndex],
+    target: Option<&Target>,
+) -> Option<i64> {
     let in_target = target.and_then(|target| {
         index.iter().find(|raw| {
             raw.account_type == target.account_type

@@ -212,6 +212,7 @@ pub async fn import_instance(
     crate::contacts::maintenance::start_after_open(&state);
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
+    crate::contacts::phone::trigger::watch(&app);
     crate::extensions::registry::blobs::start_after_open(&state);
 
     chat.bump_vault_generation();

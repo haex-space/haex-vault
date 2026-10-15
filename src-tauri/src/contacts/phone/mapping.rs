@@ -100,6 +100,16 @@ pub struct PhoneSide {
     pub values: Vec<PhoneValue>,
 }
 
+/// The kind of a group membership in the comparison (spec 051 T096). It is no kind of
+/// `haex_contacts_values`: holzi keeps memberships in `haex_contacts_group_members`, the phone in
+/// `GroupMembership` rows; both meet by the group's name, per account on the phone.
+pub const GROUP: &str = "group";
+
+/// The id of a membership in the comparison: the group's name, the same on both sides.
+pub fn group_value_id(name: &str) -> String {
+    format!("group:{}", name.trim())
+}
+
 /// The mimetype a value of `kind` is written as; `None` for kinds that never go to a phone.
 pub fn mimetype_of(kind: &str) -> Option<&'static str> {
     Some(match kind {
@@ -111,6 +121,7 @@ pub fn mimetype_of(kind: &str) -> Option<&'static str> {
         IM => "Im",
         EVENT => "Event",
         RELATION => "Relation",
+        GROUP => "GroupMembership",
         _ => return None,
     })
 }
@@ -125,6 +136,7 @@ fn kind_of(mimetype: &str) -> Option<&'static str> {
         "Im" => IM,
         "Event" => EVENT,
         "Relation" => RELATION,
+        "GroupMembership" => GROUP,
         _ => return None,
     })
 }
@@ -175,6 +187,13 @@ pub fn map_raw(rows: &[DataRow]) -> PhoneSide {
 
 /// The label and value of a row of `kind`, if holzi can store them.
 fn value_of(kind: &str, fields: &Map<String, Json>) -> Option<(String, String)> {
+    if kind == GROUP {
+        // The plugin names the group; the system's own groups are not mapped (FR-022).
+        if fields.get("readOnly").and_then(Json::as_bool) != Some(false) {
+            return None;
+        }
+        return Some((String::new(), text(fields, "title")?.to_owned()));
+    }
     let label = labels::from_phone(kind, text(fields, "type"), text(fields, "label"));
     let value = match kind {
         ADDRESS => address_of(fields)?,
@@ -286,8 +305,11 @@ pub fn update_fields(old: &PhoneValue, label: &str, value: &str) -> Map<String, 
 }
 
 fn label_fields(kind: &str, label: &str) -> Map<String, Json> {
-    let (code, own) = labels::to_phone(kind, label);
     let mut fields = Map::new();
+    if kind == GROUP {
+        return fields;
+    }
+    let (code, own) = labels::to_phone(kind, label);
     fields.insert("type".to_owned(), Json::String(code.to_string()));
     fields.insert("label".to_owned(), own.map_or(Json::Null, Json::String));
     fields
@@ -325,6 +347,10 @@ fn value_fields(kind: &str, value: &str) -> Option<Map<String, Json>> {
         }
         PHONE | EMAIL | WEBSITE | SIP => {
             fields.insert("value".to_owned(), Json::String(value.to_owned()));
+        }
+        // The title until the run puts the group's id of the raw contact's account in its place.
+        GROUP => {
+            fields.insert("title".to_owned(), Json::String(value.trim().to_owned()));
         }
         _ => return None,
     }
