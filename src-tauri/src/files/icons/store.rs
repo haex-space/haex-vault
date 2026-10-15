@@ -6,7 +6,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 
-use haex_crdt::Result;
+use haex_crdt::rusqlite::params;
+use haex_crdt::{CrdtTransaction, Result};
 
 use super::pack::{open_pack, Pack};
 use super::{BuiltinSet, IconSetRef, IconSetState, SELECTION_KEY};
@@ -87,6 +88,79 @@ pub fn rows(q: &mut impl Query) -> Result<Vec<SetRow>> {
     )?;
     rows.sort_by_cached_key(|row| (row.name.to_lowercase(), row.id.clone()));
     Ok(rows)
+}
+
+/// How many custom sets the vault holds.
+pub fn count(q: &mut impl Query) -> Result<usize> {
+    Ok(
+        q.query_row("SELECT COUNT(*) FROM haex_file_icon_sets", &[], |row| {
+            row.get::<_, i64>(0)
+        })?
+        .unwrap_or(0)
+        .try_into()
+        .unwrap_or(0),
+    )
+}
+
+/// The id of a custom set with this name (not told apart by case), if there is one.
+pub fn id_by_name(q: &mut impl Query, name: &str) -> Result<Option<String>> {
+    q.query_row(
+        "SELECT id FROM haex_file_icon_sets WHERE lower(name) = lower(?1) ORDER BY id LIMIT 1",
+        &[&name],
+        |row| row.get(0),
+    )
+}
+
+/// Whether a custom set with this id exists.
+pub fn exists(q: &mut impl Query, id: &str) -> Result<bool> {
+    Ok(q.query_row(
+        "SELECT COUNT(*) FROM haex_file_icon_sets WHERE id = ?1",
+        &[&id],
+        |row| row.get::<_, i64>(0),
+    )?
+    .unwrap_or(0)
+        > 0)
+}
+
+/// A custom set to write: its row without the id, which the writer makes.
+pub struct NewSet<'a> {
+    pub name: &'a str,
+    pub author: &'a str,
+    pub license: &'a str,
+    pub source: &'a str,
+    pub image_count: u32,
+    pub sha256: &'a str,
+    pub pack: &'a [u8],
+    pub created_at: &'a str,
+}
+
+/// Writes a set under `id`. A pack never changes after this: replacing a set is a new row and the
+/// delete of the old one.
+pub fn insert(tx: &mut CrdtTransaction<'_>, id: &str, set: &NewSet<'_>) -> Result<()> {
+    tx.execute(
+        "INSERT INTO haex_file_icon_sets \
+           (id, name, author, license, source, image_count, byte_size, sha256, pack, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            id,
+            set.name,
+            set.author,
+            set.license,
+            set.source,
+            set.image_count,
+            set.pack.len() as i64,
+            set.sha256,
+            set.pack,
+            set.created_at,
+        ],
+    )?;
+    Ok(())
+}
+
+/// Deletes a set; the delete log carries it to the other devices.
+pub fn delete(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
+    tx.execute("DELETE FROM haex_file_icon_sets WHERE id = ?1", params![id])?;
+    Ok(())
 }
 
 /// The hash and the pack of a row; `None` when there is no such set.

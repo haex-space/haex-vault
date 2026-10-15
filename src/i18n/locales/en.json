@@ -681,6 +681,26 @@
         "lucide": "Lucide",
         "phosphor": "Phosphor",
         "material": "Material (default)"
+      },
+      "import": {
+        "title": "Add icon set",
+        "fileType": "Icon set (ZIP or VSIX)",
+        "chooseFile": "Add your own icon set",
+        "chooseFileHint": "A ZIP archive or a VSIX file, for example an icon theme from VS Code.",
+        "chooseFolder": "Choose a folder",
+        "checking": "Checking the icon set …",
+        "summary": "{count} images, {size}",
+        "licenseNotice": "You are responsible for the license of this icon set. holzi does not check it.",
+        "skipped": "Not taken ({count})",
+        "replace": "An icon set with this name exists. Replace it.",
+        "cancel": "Cancel",
+        "confirm": "Add"
+      },
+      "remove": {
+        "label": "Remove {name}",
+        "title": "Remove \"{name}\"?",
+        "body": "The icon set is deleted on every device of this vault. If it is chosen, holzi shows the default set afterwards.",
+        "confirm": "Remove"
       }
     },
     "colorScheme": {

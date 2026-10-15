@@ -88,6 +88,13 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
       >
         <template #trailing>
           <SettingsFileIconSetPreview :set="info.ref" />
+          <SettingsFileIconSetRemove
+            v-if="info.removable && info.ref.kind === 'custom'"
+            :id="info.ref.id"
+            :name="info.name"
+            @removed="loadAsync"
+            @failed="opError = $event"
+          />
         </template>
       </SettingsOptionRow>
     </SettingsGroup>
@@ -95,6 +102,7 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
     <p class="px-1 text-sm text-muted-foreground">
       {{ t('settings.iconSet.description') }}
     </p>
+    <SettingsFileIconSetImport @imported="loadAsync" />
     <p v-if="unknown" class="px-1 text-sm text-warning" role="status">
       {{ t('settings.iconSet.unknown') }}
     </p>
