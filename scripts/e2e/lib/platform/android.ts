@@ -3,7 +3,7 @@
 // its web view. One device holds one app's data, so a scenario has one Android device at most; the
 // others of a group run on Linux (`group.ts`); the address book's controls: `android-contacts.ts`.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { ColorScheme, Instance, PhoneControls } from '../instance.ts'
 import { newSessionWithRetry } from '../instance.ts'
 import { createPage } from '../page.ts'
@@ -369,14 +369,10 @@ export class AndroidData implements DataHandle {
     const copied: string[] = []
     try {
       for (const file of files) {
-        const bytes = this.adb.runAs(PACKAGE, `cat ${VAULT_DIR}/${file}`)
-        const size = Number(
-          this.adb.runAs(PACKAGE, `stat -c %s ${VAULT_DIR}/${file}`).toString(),
+        writeFileSync(
+          join(target, file),
+          this.readWhole(`${VAULT_DIR}/${file}`),
         )
-        if (bytes.length !== size) {
-          throw new Error(`${file} was read only in part`)
-        }
-        writeFileSync(join(target, file), bytes)
         copied.push(file)
       }
     } catch (error) {
@@ -385,6 +381,26 @@ export class AndroidData implements DataHandle {
         `copying the vault file of "${vaultName}" failed: ${(error as Error).message}`,
         { cause: error },
       )
+    }
+  }
+
+  /**
+   * The file as the app sees it, read through `run-as`. adb can lose the emulator in the middle of
+   * a transfer and hand back what came before (the size check catches that); reading changes
+   * nothing, so it is read again once the device is back, up to three times.
+   */
+  private readWhole(path: string): Buffer {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const bytes = this.adb.runAs(PACKAGE, `cat ${path}`)
+        const size = Number(this.adb.runAs(PACKAGE, `stat -c %s ${path}`))
+        if (bytes.length !== size) {
+          throw new Error(`${basename(path)} was read only in part`)
+        }
+        return bytes
+      } catch (error) {
+        if (attempt === 3 || !this.adb.waitForDevice()) throw error
+      }
     }
   }
 

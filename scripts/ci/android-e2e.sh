@@ -28,6 +28,11 @@ curl -fsSL -o "$RUNNER_TEMP/chromedriver.zip" "$url"
 unzip -q -o "$RUNNER_TEMP/chromedriver.zip" -d "$RUNNER_TEMP"
 export E2E_CHROMEDRIVER="$RUNNER_TEMP/chromedriver-linux64/chromedriver"
 
+# The emulator compiles apps in the background for minutes at a time, over and over (artd, from the
+# first boot on), while the scenarios run on it. Nothing here needs that: stop the job and keep it off.
+adb shell cmd package bg-dexopt-job --cancel || true
+adb shell cmd package bg-dexopt-job --disable || true
+
 # The emulator's own state, written on this machine for the whole run: when the emulator stops
 # answering (adb "device offline", a web view renderer lost under load), a scenario's material can no
 # longer read logcat from the phone. Uploaded with the failure material.
@@ -54,6 +59,13 @@ logcat_loop=$!
 ) >"$health/emulator-health.txt" 2>&1 &
 health_loop=$!
 # The adb server's own log tells transport drops (adb "device offline") apart from the app's faults.
-trap 'pkill -P "$logcat_loop" 2>/dev/null; kill "$logcat_loop" "$health_loop" 2>/dev/null; cp "${TMPDIR:-/tmp}/adb.$(id -u).log" "$health/adb-server.log" 2>/dev/null || true' EXIT
+finish() {
+  pkill -P "$logcat_loop" 2>/dev/null
+  kill "$logcat_loop" "$health_loop" 2>/dev/null
+  cp "${TMPDIR:-/tmp}/adb.$(id -u).log" "$health/adb-server.log" 2>/dev/null
+  # One line per shard in the job log, to compare runs without opening the material.
+  echo "emulator summary: adb transport drops $(grep -c 'connection terminated' "$health/adb-server.log" 2>/dev/null), artd runs $(grep -c "starting service 'artd'" "$health/logcat.txt" 2>/dev/null)"
+}
+trap 'finish || true' EXIT
 
 corepack pnpm test:e2e --platform android --apk "$apk" --shard "$shard/$shards"
