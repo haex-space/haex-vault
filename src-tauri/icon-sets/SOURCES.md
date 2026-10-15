@@ -11,6 +11,24 @@ node scripts/icon-sets/prepare.ts phosphor <clone of phosphor-icons/core>
 node scripts/icon-sets/prepare.ts material <unpacked VSIX> <Apache-2.0 license text>
 ```
 
+## States of an entry (`scripts/icon-sets/holzi-states/`)
+
+Both packs carry five images drawn for holzi, in colour and the same in every set: a readable
+encrypted folder (green with a large padlock), a folder of another vault or of a newer format (red,
+locked), a folder without access (grey with a prohibition sign), a locked file and a damaged one.
+They are named by the roles `encryptedFolder`, `lockedFolder`, `folderNoAccess`, `lockedFile` and
+`damaged` and replace the role images of the set, so a state shows at a glance in every set.
+`node scripts/icon-sets/prepare.ts states` adds them to the directories as they are. They are the
+project's own drawings and are offered under the license of the pack (MIT).
+
+## Standard folders by their German, French and Spanish names
+
+Material knows the English names of the folders of a home directory (`images`, `documents`,
+`music` …). `prepare.ts` (`addLocalizedFolderNames`, also `prepare.ts states`) adds the names that
+xdg-user-dirs creates in German, French and Spanish (`Bilder`, `Dokumente`, `Musik`,
+`Schreibtisch`, `Öffentlich`, `Vorlagen`, `Projekte` …) to `folderNames`, each with the image of its
+English counterpart.
+
 ## Phosphor (`phosphor/`)
 
 - Source: https://github.com/phosphor-icons/core

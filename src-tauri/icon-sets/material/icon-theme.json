@@ -3752,6 +3752,21 @@
     },
     "folder-root-open": {
       "iconPath": "icons/folder-root-open.svg"
+    },
+    "holzi-encrypted-folder": {
+      "iconPath": "icons/holzi-encrypted-folder.svg"
+    },
+    "holzi-locked-folder": {
+      "iconPath": "icons/holzi-locked-folder.svg"
+    },
+    "holzi-folder-no-access": {
+      "iconPath": "icons/holzi-folder-no-access.svg"
+    },
+    "holzi-locked-file": {
+      "iconPath": "icons/holzi-locked-file.svg"
+    },
+    "holzi-damaged": {
+      "iconPath": "icons/holzi-damaged.svg"
     }
   },
   "file": "file",
@@ -11948,7 +11963,29 @@
     ".redislabs": "folder-redis",
     "_redislabs": "folder-redis",
     "-redislabs": "folder-redis",
-    "__redislabs__": "folder-redis"
+    "__redislabs__": "folder-redis",
+    "schreibtisch": "folder-desktop",
+    "bureau": "folder-desktop",
+    "escritorio": "folder-desktop",
+    "dokumente": "folder-docs",
+    "documentos": "folder-docs",
+    "téléchargements": "folder-download",
+    "descargas": "folder-download",
+    "musik": "folder-audio",
+    "musique": "folder-audio",
+    "música": "folder-audio",
+    "bilder": "folder-images",
+    "imágenes": "folder-images",
+    "öffentlich": "folder-public",
+    "público": "folder-public",
+    "vidéos": "folder-video",
+    "vídeos": "folder-video",
+    "vorlagen": "folder-template",
+    "modèles": "folder-template",
+    "plantillas": "folder-template",
+    "projekte": "folder-project",
+    "projets": "folder-project",
+    "proyectos": "folder-project"
   },
   "light": {
     "fileNames": {
@@ -12201,7 +12238,12 @@
       "video": "video",
       "audio": "audio",
       "pdf": "pdf",
-      "text": "document"
+      "text": "document",
+      "encryptedFolder": "holzi-encrypted-folder",
+      "lockedFolder": "holzi-locked-folder",
+      "folderNoAccess": "holzi-folder-no-access",
+      "lockedFile": "holzi-locked-file",
+      "damaged": "holzi-damaged"
     },
     "origin": {
       "author": "Material Extensions (Philipp Kief and contributors)",

@@ -18,7 +18,8 @@ export type AppDefinition = {
   description?: string
   /** Iconify name (e.g. `lucide:message-square`). */
   icon: string
-  /** An image shown instead of `icon` (an extension's own icon as a `data:` URL). */
+  /** An image shown instead of `icon` (an extension's own icon as a `data:` URL, or the coloured
+   * icon of a system app in `public/app-icons/`). */
   iconUrl?: string
   defaultSize: Size
   minSize: Size
@@ -41,6 +42,7 @@ export const WM_APPS: readonly AppDefinition[] = [
     id: 'system.chat',
     titleKey: 'wm.apps.chat',
     icon: 'lucide:message-square',
+    iconUrl: '/app-icons/chat.svg',
     defaultSize: { width: 960, height: 640 },
     minSize: { width: 420, height: 360 },
     multiInstance: true,
@@ -49,6 +51,7 @@ export const WM_APPS: readonly AppDefinition[] = [
     id: 'system.settings',
     titleKey: 'wm.apps.settings',
     icon: 'lucide:settings-2',
+    iconUrl: '/app-icons/settings.svg',
     defaultSize: { width: 760, height: 560 },
     minSize: { width: 420, height: 360 },
     multiInstance: false,
@@ -60,6 +63,7 @@ export const WM_APPS: readonly AppDefinition[] = [
     id: 'system.passwords',
     titleKey: 'wm.apps.passwords',
     icon: 'lucide:key-round',
+    iconUrl: '/app-icons/passwords.svg',
     defaultSize: { width: 960, height: 640 },
     minSize: { width: 360, height: 360 },
     multiInstance: true,
@@ -70,6 +74,7 @@ export const WM_APPS: readonly AppDefinition[] = [
     id: 'system.contacts',
     titleKey: 'wm.apps.contacts',
     icon: 'lucide:contact',
+    iconUrl: '/app-icons/contacts.svg',
     defaultSize: { width: 860, height: 640 },
     minSize: { width: 360, height: 360 },
     multiInstance: true,
@@ -80,6 +85,7 @@ export const WM_APPS: readonly AppDefinition[] = [
     id: 'system.files',
     titleKey: 'wm.apps.files',
     icon: 'lucide:folder',
+    iconUrl: '/app-icons/files.svg',
     defaultSize: { width: 960, height: 640 },
     minSize: { width: 360, height: 360 },
     multiInstance: true,
