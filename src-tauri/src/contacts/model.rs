@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::contacts::phone::{Account, IssueReason};
 use crate::patch::Patch;
 
 /// Where a contact came from (FR-018a). Set when the contact is created, never changed.
@@ -128,8 +129,44 @@ pub struct Contact {
     pub origin: Origin,
     pub values: Vec<Value>,
     pub groups: Vec<Group>,
+    /// The phones the contact goes to (FR-018b).
+    pub targets: Vec<ContactTarget>,
+    /// Changes that did not reach a phone (FR-025).
+    pub issues: Vec<ContactIssue>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// A phone a contact goes to and the account it goes into there (FR-018b).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct ContactTarget {
+    /// The phone's `vault_device_uuid`.
+    pub device: String,
+    /// Empty for the local account.
+    pub account_type: String,
+    pub account_name: String,
+}
+
+/// A change of a contact that did not reach a phone, and why (FR-025).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct ContactIssue {
+    pub device: String,
+    pub reason: IssueReason,
+    pub at: String,
+}
+
+/// A phone a new contact goes to (FR-018c); without an account it goes into the phone's target
+/// account.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetInput {
+    pub device: String,
+    pub account: Option<Account>,
 }
 
 /// What the list shows of a contact and searches in (research R11).
@@ -148,6 +185,10 @@ pub struct ContactHeader {
     pub groups: Vec<String>,
     pub photo: Option<String>,
     pub origin_kind: OriginKind,
+    /// The phones the contact goes to.
+    pub targets: Vec<String>,
+    /// Why a change did not reach a phone, if one did not.
+    pub issue: Option<IssueReason>,
 }
 
 /// A value for a new contact or a new value of an existing one.
@@ -176,6 +217,9 @@ pub struct ContactInput {
     /// Group ids.
     #[serde(default)]
     pub groups: Vec<String>,
+    /// The phones it goes to; none keeps it only in holzi (FR-018c).
+    #[serde(default)]
+    pub targets: Vec<TargetInput>,
 }
 
 /// A value to change (`id` set) or add (`id` absent) in a partial update.

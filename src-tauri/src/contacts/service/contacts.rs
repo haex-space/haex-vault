@@ -117,6 +117,10 @@ impl ContactsService {
     ) -> Result<Contact> {
         let groups: BTreeSet<String> = input.groups.iter().cloned().collect();
         authorize_create(caller, grants, &input.groups)?;
+        if !input.targets.is_empty() {
+            // Only the user decides that a contact goes to a phone (FR-018b, FR-018c).
+            require_user(caller)?;
+        }
         for (column, value) in head_fields(&input.head) {
             check_field(column, value)?;
         }
@@ -150,6 +154,7 @@ impl ContactsService {
                     )?;
                 }
                 store::set_groups(tx, &id, &groups)?;
+                super::targets::write_new(tx, &id, &input.targets)?;
                 Ok(store::load(tx, &id)?)
             })
             .await

@@ -5,10 +5,11 @@
 //!
 //! Every method takes the caller first and checks it with [`super::access`] before it touches
 //! data. The caller is the entrance, never an argument of a command. Each area adds its methods in
-//! its own file (`contacts`, `groups`).
+//! its own file (`contacts`, `groups`, `targets`).
 
 mod contacts;
 mod groups;
+mod targets;
 #[cfg(test)]
 pub(crate) mod test_support;
 
@@ -16,6 +17,7 @@ use crate::vault_gate::VaultDb;
 
 pub use super::access::{Caller, Grant};
 pub use contacts::MAX_NOTE_BYTES;
+pub use targets::{OnPhone, Selection};
 
 /// The service over one open vault. Cheap to build per request.
 #[derive(Clone)]

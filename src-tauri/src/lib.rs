@@ -72,6 +72,7 @@ use contacts::commands::phone::{
     contacts_phone_mass_delete, contacts_phone_review, contacts_phone_run,
     contacts_phone_set_target, contacts_phone_status,
 };
+use contacts::commands::targets::{contacts_phones, contacts_targets_remove, contacts_targets_set};
 use device::commands::{current_device_info, list_vault_devices, update_device_alias};
 use extensions::agent_tools::commands::{extension_agent_frame_ready, extension_mcp_send};
 use extensions::commands::dev::{
@@ -538,6 +539,9 @@ pub fn run() {
             contacts_phone_status,
             contacts_phone_mass_delete,
             contacts_phone_run,
+            contacts_phones,
+            contacts_targets_set,
+            contacts_targets_remove,
             passwords_create_item,
             passwords_update_item,
             passwords_passkey_rename,

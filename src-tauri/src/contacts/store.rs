@@ -12,6 +12,7 @@ use uuid::Uuid;
 use super::ids::member_id;
 use super::kinds::{self, EMAIL, PHONE};
 use super::model::{Contact, ContactHeader, Group, Head, Origin, OriginKind, Value};
+use super::targets;
 use crate::error::{HolziError, Result};
 use crate::storage::query::Query;
 
@@ -202,6 +203,8 @@ pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Contact> {
         photo: row.photo,
         origin: row.origin,
         groups: groups_of(q, contact_id)?,
+        targets: targets::of(q, contact_id)?,
+        issues: targets::issues_of(q, contact_id)?,
         values,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -233,6 +236,7 @@ pub fn headers(q: &mut impl Query) -> Result<Vec<ContactHeader>> {
     )? {
         memberships.entry(contact_id).or_default().push(group_id);
     }
+    let mut marks = targets::marks(q)?;
     Ok(rows
         .into_iter()
         .map(|row| {
@@ -247,6 +251,8 @@ pub fn headers(q: &mut impl Query) -> Result<Vec<ContactHeader>> {
                 emails,
                 photo: row.photo,
                 origin_kind: row.origin.kind,
+                targets: marks.targets.remove(&row.id).unwrap_or_default(),
+                issue: marks.issues.remove(&row.id),
                 id: row.id,
             }
         })
@@ -399,7 +405,8 @@ pub fn delete_value(tx: &mut CrdtTransaction<'_>, value_id: &str) -> Result<()> 
     Ok(())
 }
 
-/// Puts a contact into exactly these groups: memberships not named go, missing ones are added.
+/// Puts a contact into exactly these groups: memberships not named go, missing ones are added. A
+/// change stamps the contact, so a phone that syncs it sees the change (T096).
 pub fn set_groups(
     tx: &mut CrdtTransaction<'_>,
     contact_id: &str,
@@ -409,6 +416,9 @@ pub fn set_groups(
         .into_iter()
         .map(|group| group.id)
         .collect();
+    if &current != groups {
+        touch(tx, contact_id, &crate::passwords::clock::now())?;
+    }
     for group in current.difference(groups) {
         tx.execute(
             "DELETE FROM haex_contacts_group_members WHERE id = ?1",

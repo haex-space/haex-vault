@@ -13,3 +13,4 @@ pub mod photos;
 pub mod search;
 pub mod service;
 mod store;
+pub mod targets;
