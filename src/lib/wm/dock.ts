@@ -258,11 +258,11 @@ export function effectivePlacement(
 }
 
 /** Size of a dock entry and the least distance between two entries' centres on a ring (R6). */
-export const WHEEL_ITEM_SIZE = 48
-const WHEEL_SPACING = 56
+export const WHEEL_ITEM_SIZE = 56
+const WHEEL_SPACING = 64
 /** Radius of the innermost ring around the wheel's button, and the step to the next ring. */
-const WHEEL_FIRST_RADIUS = 76
-const WHEEL_RING_GAP = 56
+const WHEEL_FIRST_RADIUS = 84
+const WHEEL_RING_GAP = 64
 
 /** The arc the entries fan out over, in degrees (0° = right, 90° = down): a quarter circle into the
  * screen at a corner, a half circle at the middle of an edge (FR-027). */

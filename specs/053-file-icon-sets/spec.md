@@ -17,6 +17,15 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 
 ### Session 2026-10-15
 
+- Q: Wie fallen die Zustände eines Eintrags auf (verschlüsselter Ordner, gesperrt, ohne Zugriff,
+  beschädigt)? → A: Die mitgelieferten Pakete Material und Phosphor tragen dafür eigene, farbige
+  Bilder von holzi, in beiden gleich: Grün mit großem Schloss für einen lesbaren verschlüsselten
+  Ordner, Rot für gesperrt, Grau mit Verbotszeichen für „kein Zugriff“. Lucide behält seine
+  Symbole (Betreiber, 2026-10-15).
+- Q: Wie bekommen die Standardordner des Home-Verzeichnisses ihre Icons? → A: Das Material-Paket
+  kennt zusätzlich die deutschen, französischen und spanischen Namen (`Bilder`, `Dokumente`,
+  `Musik`, `Schreibtisch` …) und nimmt das Bild der englischen Entsprechung (Betreiber, 2026-10-15).
+
 - Q: Welches Set ist der Standard? → A: „Material“ (Betreiber, 2026-10-15). „Lucide“ bleibt das
   Rückfall-Set für alles, was ein Set nicht belegt oder was nicht verfügbar ist.
 

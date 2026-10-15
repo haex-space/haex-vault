@@ -61,7 +61,7 @@ function launch(appId: string) {
                 v-if="app.iconUrl"
                 :src="app.iconUrl"
                 alt=""
-                class="h-6 w-6 object-contain"
+                class="h-10 w-10 object-contain"
               />
               <Icon
                 v-else

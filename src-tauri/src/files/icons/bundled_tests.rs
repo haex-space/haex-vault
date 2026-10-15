@@ -228,6 +228,35 @@ fn material_gives_common_folder_names_a_folder_image_of_their_own() {
 }
 
 #[test]
+fn material_knows_the_standard_folders_by_their_german_names() {
+    let default = dark(BuiltinSet::Material, &dir("zz-no-such-folder"));
+    let names = [
+        "Bilder",
+        "Dokumente",
+        "Downloads",
+        "Musik",
+        "Schreibtisch",
+        "Öffentlich",
+        "Vorlagen",
+        "Videos",
+        "Projekte",
+    ];
+    let images: std::collections::BTreeSet<String> = names
+        .iter()
+        .map(|name| {
+            let image = dark(BuiltinSet::Material, &dir(name));
+            assert_ne!(image, default, "{name} is a plain folder");
+            image
+        })
+        .collect();
+    assert_eq!(
+        images.len(),
+        names.len(),
+        "each standard folder has its own image"
+    );
+}
+
+#[test]
 fn material_gives_common_names_and_extensions_an_image_of_their_own() {
     let default = dark(BuiltinSet::Material, &file("zz-no-such.file-kind"));
     let own = MATERIAL_FILES
@@ -306,10 +335,14 @@ fn every_state_resolves_for_both_packs_and_never_takes_a_name_or_extension_image
             ),
         ];
         for (state, query, plain) in cases {
+            let image = dark(set, &query);
             assert_ne!(
-                &dark(set, &query),
-                plain,
+                &image, plain,
                 "{set:?} {state}: a state never takes the image of the name"
+            );
+            assert!(
+                image.starts_with("icons/holzi-"),
+                "{set:?} {state}: the state has holzi's own image, not {image}"
             );
         }
     }

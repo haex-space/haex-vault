@@ -239,6 +239,21 @@
     },
     "folder-simple-lock-light": {
       "iconPath": "icons/folder-simple-lock.light.svg"
+    },
+    "holzi-encrypted-folder": {
+      "iconPath": "icons/holzi-encrypted-folder.svg"
+    },
+    "holzi-locked-folder": {
+      "iconPath": "icons/holzi-locked-folder.svg"
+    },
+    "holzi-folder-no-access": {
+      "iconPath": "icons/holzi-folder-no-access.svg"
+    },
+    "holzi-locked-file": {
+      "iconPath": "icons/holzi-locked-file.svg"
+    },
+    "holzi-damaged": {
+      "iconPath": "icons/holzi-damaged.svg"
     }
   },
   "file": "file",
@@ -418,17 +433,17 @@
   "x-holzi": {
     "roles": {
       "folder": "folder",
-      "folderNoAccess": "folder-lock",
+      "folderNoAccess": "holzi-folder-no-access",
       "file": "file",
       "image": "file-image",
       "video": "file-video",
       "audio": "file-audio",
       "pdf": "file-pdf",
       "text": "file-text",
-      "encryptedFolder": "folder-simple-lock",
-      "lockedFolder": "folder-lock",
-      "lockedFile": "file-lock",
-      "damaged": "file-x"
+      "encryptedFolder": "holzi-encrypted-folder",
+      "lockedFolder": "holzi-locked-folder",
+      "lockedFile": "holzi-locked-file",
+      "damaged": "holzi-damaged"
     },
     "origin": {
       "author": "Phosphor Icons",

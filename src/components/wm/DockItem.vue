@@ -155,7 +155,7 @@ function onAuxclick(event: MouseEvent) {
     <button
       ref="button"
       type="button"
-      class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
+      class="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
       :class="[
         entry.kind === 'control' && entry.id === 'launcher'
           ? 'bg-foreground text-background hover:opacity-90'
@@ -178,19 +178,21 @@ function onAuxclick(event: MouseEvent) {
         v-if="app?.iconUrl"
         :src="app.iconUrl"
         alt=""
-        class="h-6 w-6 object-contain"
+        class="h-11 w-11 object-contain"
+        :class="app.iconUrl.startsWith('data:') ? '' : 'drop-shadow-sm'"
+        draggable="false"
       />
       <Icon
         v-else
         :name="
           entry.kind === 'control' ? CONTROL_ICONS[entry.id] : (app?.icon ?? '')
         "
-        class="h-5 w-5"
+        class="h-6 w-6"
         :aria-hidden="true"
       />
       <span
         v-if="instances.length > 0"
-        class="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-foreground"
+        class="absolute bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-foreground"
       />
       <span class="sr-only">
         <template v-if="instances.length > 1">

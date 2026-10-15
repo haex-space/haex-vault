@@ -93,8 +93,8 @@ const PHOSPHOR_ROLES: Roles = {
   damaged: 'file-x',
 }
 
-// Material roles: only where an image of the right meaning exists. The lock
-// states and `damaged` fall back to the default set.
+// Material roles: only where an image of the right meaning exists. The states come from
+// `holzi-states/` (`addStateIcons`).
 const MATERIAL_ROLES: Roles = {
   file: 'file',
   folder: 'folder',
@@ -103,6 +103,77 @@ const MATERIAL_ROLES: Roles = {
   audio: 'audio',
   pdf: 'pdf',
   text: 'document',
+}
+
+// holzi's own coloured images for the states of an entry (a readable encrypted folder, a folder of
+// another vault, a folder without access, a locked file, a damaged one): the same in every
+// bundled set, drawn to be told apart at a glance. They replace the role images of the set.
+const STATES_DIR = path.join(import.meta.dirname, 'holzi-states')
+const STATE_IMAGES: Record<string, RoleKey> = {
+  'encrypted-folder': 'encryptedFolder',
+  'locked-folder': 'lockedFolder',
+  'folder-no-access': 'folderNoAccess',
+  'locked-file': 'lockedFile',
+  damaged: 'damaged',
+}
+
+/** Adds the state images to the written source directory of a set and names them as its roles. */
+function addStateIcons(set: string): void {
+  const outDir = path.join(SETS_DIR, set)
+  const manifestFile = path.join(outDir, 'icon-theme.json')
+  const manifest = readJson(manifestFile)
+  if (!isRecord(manifest) || !isRecord(manifest.iconDefinitions))
+    fail(`${set}: the manifest has no iconDefinitions object`)
+  const holzi = manifest['x-holzi']
+  if (!isRecord(holzi) || !isRecord(holzi.roles))
+    fail(`${set}: the manifest has no x-holzi.roles object`)
+  for (const [name, role] of Object.entries(STATE_IMAGES)) {
+    const id = `holzi-${name}`
+    copyFileSync(
+      path.join(STATES_DIR, `${name}.svg`),
+      path.join(outDir, 'icons', `${id}.svg`),
+    )
+    manifest.iconDefinitions[id] = { iconPath: `icons/${id}.svg` }
+    holzi.roles[role] = id
+  }
+  writeJson(manifestFile, manifest)
+  console.log(`${set}: ${Object.keys(STATE_IMAGES).length} state images`)
+}
+
+// The standard folders of a home directory under their German, French and Spanish names (the
+// folders xdg-user-dirs creates): Material knows only the English names, so `Bilder` and `Musik`
+// would be plain folders. Each name takes the image of its English counterpart.
+const LOCALIZED_FOLDERS: Record<string, string[]> = {
+  desktop: ['schreibtisch', 'bureau', 'escritorio'],
+  documents: ['dokumente', 'documentos'],
+  downloads: ['téléchargements', 'descargas'],
+  music: ['musik', 'musique', 'música'],
+  pictures: ['bilder', 'imágenes'],
+  public: ['öffentlich', 'público'],
+  videos: ['vidéos', 'vídeos'],
+  templates: ['vorlagen', 'modèles', 'plantillas'],
+  projects: ['projekte', 'projets', 'proyectos'],
+}
+
+/** Adds the localized names of the standard folders to the manifest of Material. */
+function addLocalizedFolderNames(): void {
+  const manifestFile = path.join(SETS_DIR, 'material', 'icon-theme.json')
+  const manifest = readJson(manifestFile)
+  if (!isRecord(manifest)) fail('material: the manifest is not an object')
+  const folderNames = readStringMap(manifest.folderNames, 'folderNames')
+  let added = 0
+  for (const [english, names] of Object.entries(LOCALIZED_FOLDERS)) {
+    const id = folderNames[english]
+    if (id === undefined) fail(`material has no folder image for ${english}`)
+    for (const name of names) {
+      if (name in folderNames) continue
+      folderNames[name] = id
+      added += 1
+    }
+  }
+  manifest.folderNames = folderNames
+  writeJson(manifestFile, manifest)
+  console.log(`material: ${added} localized folder names`)
 }
 
 function fail(message: string): never {
@@ -237,6 +308,7 @@ function preparePhosphor(clone: string): void {
   }
   writeJson(path.join(outDir, 'icon-theme.json'), manifest)
   copyFileSync(path.join(clone, 'LICENSE'), path.join(outDir, 'LICENSE'))
+  addStateIcons('phosphor')
   console.log(
     `phosphor: ${names.length} icons, ${names.length * 2} images, ${Object.keys(mapping).length} extensions`,
   )
@@ -299,6 +371,8 @@ function prepareMaterial(vsix: string, apacheText: string): void {
   )
   copyFileSync(apacheText, path.join(outDir, 'LICENSE-APACHE-2.0'))
   writeFileSync(path.join(outDir, 'NOTICE'), MATERIAL_NOTICE)
+  addStateIcons('material')
+  addLocalizedFolderNames()
 
   const manifestSize = statSync(path.join(outDir, 'icon-theme.json')).size
   const withStyle = files.filter((name) =>
@@ -328,8 +402,15 @@ function main(): void {
       )
     }
     prepareMaterial(path.resolve(vsix), path.resolve(apache))
+  } else if (set === 'states') {
+    // Adds the state images to the directories as they are, without the upstream sources.
+    addStateIcons('phosphor')
+    addStateIcons('material')
+    addLocalizedFolderNames()
   } else {
-    fail('usage: prepare.ts phosphor|material <source> [<apache text>]')
+    fail(
+      'usage: prepare.ts phosphor|material <source> [<apache text>] | states',
+    )
   }
 }
 
