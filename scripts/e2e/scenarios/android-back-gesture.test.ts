@@ -11,6 +11,13 @@ scenario('android-back-gesture', { needs: { phone: true } }, async (ctx) => {
   const instance = await ctx.startInstance()
   const phone = instance.phone!
   await createAndUnlock(instance, { name: 'phone-vault' })
+  // Until the page has registered the back handler, the system's own back runs and the app goes to
+  // the background instead of going back in its tab (`plugins/actions.client.ts` marks the document).
+  await ctx.waitFor('the back handler to be registered', () =>
+    instance.exec<boolean>(
+      `return document.documentElement.dataset.backGesture === 'ready'`,
+    ),
+  )
 
   const opened = await runAction(instance, 'wm.app.open', {
     appId: 'system.settings',
@@ -30,7 +37,20 @@ scenario('android-back-gesture', { needs: { phone: true } }, async (ctx) => {
   await instance.click('settings-row-general.basic.password')
   await waitForLocation(instance, 'general.basic.password')
   phone.back()
-  await waitForLocation(instance, 'general.basic')
+  try {
+    await waitForLocation(instance, 'general.basic')
+  } catch (error) {
+    // The key did not take the tab back: say what the page saw (a hidden page means the app went to
+    // the background) and what the window manager decides when it is asked directly.
+    const page = await instance.exec<string>(
+      `return JSON.stringify({ visibility: document.visibilityState, focus: document.hasFocus(), handler: document.documentElement.dataset.backGesture ?? null })`,
+    )
+    const direct = await runAction(instance, 'wm.system.back')
+    throw new Error(
+      `${(error as Error).message}; page ${page}, direct wm.system.back ${JSON.stringify(direct)}`,
+      { cause: error },
+    )
+  }
   ctx.step('back goes back in the active tab')
 
   await openLauncher(instance)
