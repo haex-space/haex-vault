@@ -69,6 +69,8 @@ fn is_valid_files_value(key: &str, value: &str) -> bool {
     match key {
         "files.view" => matches!(value, "list" | "grid"),
         "files.hidden" => matches!(value, "true" | "false"),
+        // Spec 053: the icon set of the file browser, a vault-wide choice.
+        crate::files::icons::SELECTION_KEY => crate::files::icons::is_valid_selection(value),
         "files.sort" => value.split_once(':').is_some_and(|(by, direction)| {
             matches!(by, "name" | "size" | "modified" | "type")
                 && matches!(direction, "asc" | "desc")

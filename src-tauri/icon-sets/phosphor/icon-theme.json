@@ -1,0 +1,439 @@
+{
+  "iconDefinitions": {
+    "file": {
+      "iconPath": "icons/file.svg"
+    },
+    "file-light": {
+      "iconPath": "icons/file.light.svg"
+    },
+    "file-archive": {
+      "iconPath": "icons/file-archive.svg"
+    },
+    "file-archive-light": {
+      "iconPath": "icons/file-archive.light.svg"
+    },
+    "file-audio": {
+      "iconPath": "icons/file-audio.svg"
+    },
+    "file-audio-light": {
+      "iconPath": "icons/file-audio.light.svg"
+    },
+    "file-c": {
+      "iconPath": "icons/file-c.svg"
+    },
+    "file-c-light": {
+      "iconPath": "icons/file-c.light.svg"
+    },
+    "file-c-sharp": {
+      "iconPath": "icons/file-c-sharp.svg"
+    },
+    "file-c-sharp-light": {
+      "iconPath": "icons/file-c-sharp.light.svg"
+    },
+    "file-code": {
+      "iconPath": "icons/file-code.svg"
+    },
+    "file-code-light": {
+      "iconPath": "icons/file-code.light.svg"
+    },
+    "file-cpp": {
+      "iconPath": "icons/file-cpp.svg"
+    },
+    "file-cpp-light": {
+      "iconPath": "icons/file-cpp.light.svg"
+    },
+    "file-css": {
+      "iconPath": "icons/file-css.svg"
+    },
+    "file-css-light": {
+      "iconPath": "icons/file-css.light.svg"
+    },
+    "file-csv": {
+      "iconPath": "icons/file-csv.svg"
+    },
+    "file-csv-light": {
+      "iconPath": "icons/file-csv.light.svg"
+    },
+    "file-dashed": {
+      "iconPath": "icons/file-dashed.svg"
+    },
+    "file-dashed-light": {
+      "iconPath": "icons/file-dashed.light.svg"
+    },
+    "file-doc": {
+      "iconPath": "icons/file-doc.svg"
+    },
+    "file-doc-light": {
+      "iconPath": "icons/file-doc.light.svg"
+    },
+    "file-html": {
+      "iconPath": "icons/file-html.svg"
+    },
+    "file-html-light": {
+      "iconPath": "icons/file-html.light.svg"
+    },
+    "file-image": {
+      "iconPath": "icons/file-image.svg"
+    },
+    "file-image-light": {
+      "iconPath": "icons/file-image.light.svg"
+    },
+    "file-ini": {
+      "iconPath": "icons/file-ini.svg"
+    },
+    "file-ini-light": {
+      "iconPath": "icons/file-ini.light.svg"
+    },
+    "file-jpg": {
+      "iconPath": "icons/file-jpg.svg"
+    },
+    "file-jpg-light": {
+      "iconPath": "icons/file-jpg.light.svg"
+    },
+    "file-js": {
+      "iconPath": "icons/file-js.svg"
+    },
+    "file-js-light": {
+      "iconPath": "icons/file-js.light.svg"
+    },
+    "file-jsx": {
+      "iconPath": "icons/file-jsx.svg"
+    },
+    "file-jsx-light": {
+      "iconPath": "icons/file-jsx.light.svg"
+    },
+    "file-lock": {
+      "iconPath": "icons/file-lock.svg"
+    },
+    "file-lock-light": {
+      "iconPath": "icons/file-lock.light.svg"
+    },
+    "file-md": {
+      "iconPath": "icons/file-md.svg"
+    },
+    "file-md-light": {
+      "iconPath": "icons/file-md.light.svg"
+    },
+    "file-pdf": {
+      "iconPath": "icons/file-pdf.svg"
+    },
+    "file-pdf-light": {
+      "iconPath": "icons/file-pdf.light.svg"
+    },
+    "file-png": {
+      "iconPath": "icons/file-png.svg"
+    },
+    "file-png-light": {
+      "iconPath": "icons/file-png.light.svg"
+    },
+    "file-ppt": {
+      "iconPath": "icons/file-ppt.svg"
+    },
+    "file-ppt-light": {
+      "iconPath": "icons/file-ppt.light.svg"
+    },
+    "file-py": {
+      "iconPath": "icons/file-py.svg"
+    },
+    "file-py-light": {
+      "iconPath": "icons/file-py.light.svg"
+    },
+    "file-rs": {
+      "iconPath": "icons/file-rs.svg"
+    },
+    "file-rs-light": {
+      "iconPath": "icons/file-rs.light.svg"
+    },
+    "file-sql": {
+      "iconPath": "icons/file-sql.svg"
+    },
+    "file-sql-light": {
+      "iconPath": "icons/file-sql.light.svg"
+    },
+    "file-svg": {
+      "iconPath": "icons/file-svg.svg"
+    },
+    "file-svg-light": {
+      "iconPath": "icons/file-svg.light.svg"
+    },
+    "file-text": {
+      "iconPath": "icons/file-text.svg"
+    },
+    "file-text-light": {
+      "iconPath": "icons/file-text.light.svg"
+    },
+    "file-ts": {
+      "iconPath": "icons/file-ts.svg"
+    },
+    "file-ts-light": {
+      "iconPath": "icons/file-ts.light.svg"
+    },
+    "file-tsx": {
+      "iconPath": "icons/file-tsx.svg"
+    },
+    "file-tsx-light": {
+      "iconPath": "icons/file-tsx.light.svg"
+    },
+    "file-txt": {
+      "iconPath": "icons/file-txt.svg"
+    },
+    "file-txt-light": {
+      "iconPath": "icons/file-txt.light.svg"
+    },
+    "file-video": {
+      "iconPath": "icons/file-video.svg"
+    },
+    "file-video-light": {
+      "iconPath": "icons/file-video.light.svg"
+    },
+    "file-vue": {
+      "iconPath": "icons/file-vue.svg"
+    },
+    "file-vue-light": {
+      "iconPath": "icons/file-vue.light.svg"
+    },
+    "file-x": {
+      "iconPath": "icons/file-x.svg"
+    },
+    "file-x-light": {
+      "iconPath": "icons/file-x.light.svg"
+    },
+    "file-xls": {
+      "iconPath": "icons/file-xls.svg"
+    },
+    "file-xls-light": {
+      "iconPath": "icons/file-xls.light.svg"
+    },
+    "file-zip": {
+      "iconPath": "icons/file-zip.svg"
+    },
+    "file-zip-light": {
+      "iconPath": "icons/file-zip.light.svg"
+    },
+    "folder": {
+      "iconPath": "icons/folder.svg"
+    },
+    "folder-light": {
+      "iconPath": "icons/folder.light.svg"
+    },
+    "folder-lock": {
+      "iconPath": "icons/folder-lock.svg"
+    },
+    "folder-lock-light": {
+      "iconPath": "icons/folder-lock.light.svg"
+    },
+    "folder-open": {
+      "iconPath": "icons/folder-open.svg"
+    },
+    "folder-open-light": {
+      "iconPath": "icons/folder-open.light.svg"
+    },
+    "folder-simple": {
+      "iconPath": "icons/folder-simple.svg"
+    },
+    "folder-simple-light": {
+      "iconPath": "icons/folder-simple.light.svg"
+    },
+    "folder-simple-lock": {
+      "iconPath": "icons/folder-simple-lock.svg"
+    },
+    "folder-simple-lock-light": {
+      "iconPath": "icons/folder-simple-lock.light.svg"
+    }
+  },
+  "file": "file",
+  "folder": "folder",
+  "fileExtensions": {
+    "pdf": "file-pdf",
+    "doc": "file-doc",
+    "docx": "file-doc",
+    "odt": "file-doc",
+    "rtf": "file-doc",
+    "xls": "file-xls",
+    "xlsx": "file-xls",
+    "ods": "file-xls",
+    "ppt": "file-ppt",
+    "pptx": "file-ppt",
+    "odp": "file-ppt",
+    "zip": "file-zip",
+    "7z": "file-zip",
+    "tar": "file-zip",
+    "gz": "file-zip",
+    "tgz": "file-zip",
+    "bz2": "file-zip",
+    "xz": "file-zip",
+    "rar": "file-zip",
+    "png": "file-png",
+    "jpg": "file-jpg",
+    "jpeg": "file-jpg",
+    "gif": "file-image",
+    "webp": "file-image",
+    "bmp": "file-image",
+    "avif": "file-image",
+    "svg": "file-svg",
+    "mp3": "file-audio",
+    "flac": "file-audio",
+    "wav": "file-audio",
+    "ogg": "file-audio",
+    "m4a": "file-audio",
+    "aac": "file-audio",
+    "opus": "file-audio",
+    "mp4": "file-video",
+    "mkv": "file-video",
+    "mov": "file-video",
+    "webm": "file-video",
+    "avi": "file-video",
+    "rs": "file-rs",
+    "ts": "file-ts",
+    "tsx": "file-tsx",
+    "js": "file-js",
+    "mjs": "file-js",
+    "cjs": "file-js",
+    "jsx": "file-jsx",
+    "py": "file-py",
+    "vue": "file-vue",
+    "c": "file-c",
+    "h": "file-c",
+    "cpp": "file-cpp",
+    "hpp": "file-cpp",
+    "cc": "file-cpp",
+    "cs": "file-c-sharp",
+    "sql": "file-sql",
+    "css": "file-css",
+    "scss": "file-css",
+    "html": "file-html",
+    "htm": "file-html",
+    "md": "file-md",
+    "markdown": "file-md",
+    "csv": "file-csv",
+    "ini": "file-ini",
+    "toml": "file-ini",
+    "conf": "file-ini",
+    "cfg": "file-ini",
+    "txt": "file-txt",
+    "log": "file-txt",
+    "go": "file-code",
+    "kt": "file-code",
+    "java": "file-code",
+    "rb": "file-code",
+    "php": "file-code",
+    "sh": "file-code",
+    "bash": "file-code",
+    "zsh": "file-code",
+    "swift": "file-code",
+    "lua": "file-code",
+    "json": "file-code",
+    "yaml": "file-code",
+    "yml": "file-code",
+    "xml": "file-code"
+  },
+  "light": {
+    "file": "file-light",
+    "folder": "folder-light",
+    "fileExtensions": {
+      "pdf": "file-pdf-light",
+      "doc": "file-doc-light",
+      "docx": "file-doc-light",
+      "odt": "file-doc-light",
+      "rtf": "file-doc-light",
+      "xls": "file-xls-light",
+      "xlsx": "file-xls-light",
+      "ods": "file-xls-light",
+      "ppt": "file-ppt-light",
+      "pptx": "file-ppt-light",
+      "odp": "file-ppt-light",
+      "zip": "file-zip-light",
+      "7z": "file-zip-light",
+      "tar": "file-zip-light",
+      "gz": "file-zip-light",
+      "tgz": "file-zip-light",
+      "bz2": "file-zip-light",
+      "xz": "file-zip-light",
+      "rar": "file-zip-light",
+      "png": "file-png-light",
+      "jpg": "file-jpg-light",
+      "jpeg": "file-jpg-light",
+      "gif": "file-image-light",
+      "webp": "file-image-light",
+      "bmp": "file-image-light",
+      "avif": "file-image-light",
+      "svg": "file-svg-light",
+      "mp3": "file-audio-light",
+      "flac": "file-audio-light",
+      "wav": "file-audio-light",
+      "ogg": "file-audio-light",
+      "m4a": "file-audio-light",
+      "aac": "file-audio-light",
+      "opus": "file-audio-light",
+      "mp4": "file-video-light",
+      "mkv": "file-video-light",
+      "mov": "file-video-light",
+      "webm": "file-video-light",
+      "avi": "file-video-light",
+      "rs": "file-rs-light",
+      "ts": "file-ts-light",
+      "tsx": "file-tsx-light",
+      "js": "file-js-light",
+      "mjs": "file-js-light",
+      "cjs": "file-js-light",
+      "jsx": "file-jsx-light",
+      "py": "file-py-light",
+      "vue": "file-vue-light",
+      "c": "file-c-light",
+      "h": "file-c-light",
+      "cpp": "file-cpp-light",
+      "hpp": "file-cpp-light",
+      "cc": "file-cpp-light",
+      "cs": "file-c-sharp-light",
+      "sql": "file-sql-light",
+      "css": "file-css-light",
+      "scss": "file-css-light",
+      "html": "file-html-light",
+      "htm": "file-html-light",
+      "md": "file-md-light",
+      "markdown": "file-md-light",
+      "csv": "file-csv-light",
+      "ini": "file-ini-light",
+      "toml": "file-ini-light",
+      "conf": "file-ini-light",
+      "cfg": "file-ini-light",
+      "txt": "file-txt-light",
+      "log": "file-txt-light",
+      "go": "file-code-light",
+      "kt": "file-code-light",
+      "java": "file-code-light",
+      "rb": "file-code-light",
+      "php": "file-code-light",
+      "sh": "file-code-light",
+      "bash": "file-code-light",
+      "zsh": "file-code-light",
+      "swift": "file-code-light",
+      "lua": "file-code-light",
+      "json": "file-code-light",
+      "yaml": "file-code-light",
+      "yml": "file-code-light",
+      "xml": "file-code-light"
+    }
+  },
+  "x-holzi": {
+    "roles": {
+      "folder": "folder",
+      "folderNoAccess": "folder-lock",
+      "file": "file",
+      "image": "file-image",
+      "video": "file-video",
+      "audio": "file-audio",
+      "pdf": "file-pdf",
+      "text": "file-text",
+      "encryptedFolder": "folder-simple-lock",
+      "lockedFolder": "folder-lock",
+      "lockedFile": "file-lock",
+      "damaged": "file-x"
+    },
+    "origin": {
+      "author": "Phosphor Icons",
+      "license": "MIT",
+      "source": "https://github.com/phosphor-icons/core"
+    }
+  }
+}
