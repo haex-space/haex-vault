@@ -51,6 +51,7 @@ kann die Erweiterung damit nicht auslösen.
 | `closeGuard {active}`        | `beforeunload`-Handler registriert/entfernt | `registerCloseGuard`                     |
 | `close`                      | `window.close()`                            | `closeSelf`                              |
 | `shortcut {id}`              | `keydown` passend zu `shortcuts`            | Aktion des Kürzels                       |
+| `focus`                      | `pointerdown` im Rahmen                     | Fenster des Tabs nach vorn (nur bei aktivem holzi-Fenster) |
 
 | holzi → Shim             | Wirkung                               |
 | ------------------------ | ------------------------------------- |

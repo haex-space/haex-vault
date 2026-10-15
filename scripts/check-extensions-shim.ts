@@ -90,6 +90,7 @@ test('titles, close guards and close are read; long titles are refused', () => {
     null,
   )
   assert.deepEqual(readShimMessage({ type: 'close' }, SENT), { kind: 'close' })
+  assert.deepEqual(readShimMessage({ type: 'focus' }, SENT), { kind: 'focus' })
 })
 
 test('only shortcuts holzi sent run; unknown types and non-objects are ignored', () => {

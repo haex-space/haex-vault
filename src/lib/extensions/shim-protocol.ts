@@ -18,6 +18,7 @@ export type ShimEffect =
   | { kind: 'title'; title: string }
   | { kind: 'closeGuard'; active: boolean }
   | { kind: 'close' }
+  | { kind: 'focus' }
   | { kind: 'shortcut'; actionId: string }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -56,6 +57,8 @@ export function readShimMessage(
         : null
     case 'close':
       return { kind: 'close' }
+    case 'focus':
+      return { kind: 'focus' }
     case 'shortcut':
       return typeof data.id === 'string' &&
         sentShortcuts.some((s) => s.id === data.id)
