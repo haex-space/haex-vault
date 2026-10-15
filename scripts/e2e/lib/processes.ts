@@ -12,7 +12,7 @@ import {
   readdirSync,
   readlinkSync,
 } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 
 export const MARKER_ENV = 'HOLZI_E2E_RUN'
@@ -189,6 +189,49 @@ export async function stopRun(
   options: StopOptions = {},
 ): Promise<MarkedProcess[]> {
   const found = findByMarker(marker)
+  await terminate(
+    found.map((p) => p.pid),
+    options.graceMs ?? 1500,
+  )
+  return found
+}
+
+/**
+ * Every process whose environment points at this instance folder: what the application started
+ * and left behind, such as an app it opened through the system (`xdg-open`), which keeps running
+ * after the application ended and keeps writing to the instance's cache. The other processes of the
+ * run have their own folders, and this runner has none of them.
+ */
+export function findByRoot(root: string): MarkedProcess[] {
+  const cache = `XDG_CACHE_HOME=${join(root, 'cache')}`
+  const found: MarkedProcess[] = []
+  for (const entry of readdirSync('/proc')) {
+    if (!/^\d+$/.test(entry)) continue
+    const pid = Number(entry)
+    if (pid === process.pid) continue
+    try {
+      const environ = readFileSync(`/proc/${pid}/environ`, 'latin1').split('\0')
+      if (environ.includes(cache)) {
+        const marker = environ.find((e) => e.startsWith(`${MARKER_ENV}=`))
+        found.push({
+          pid,
+          marker: marker?.slice(MARKER_ENV.length + 1) ?? '',
+          exe: readExe(pid),
+        })
+      }
+    } catch {
+      // Not ours to read, or gone meanwhile.
+    }
+  }
+  return found
+}
+
+/** Stop what an instance left running in its folder, and report what was stopped. */
+export async function stopLeftovers(
+  root: string,
+  options: StopOptions = {},
+): Promise<MarkedProcess[]> {
+  const found = findByRoot(root)
   await terminate(
     found.map((p) => p.pid),
     options.graceMs ?? 1500,

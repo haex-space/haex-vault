@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   findByMarker,
+  findByRoot,
   findOrphans,
   newMarker,
   parseMarker,
@@ -16,6 +17,7 @@ import {
   runnerStartTime,
   spawnMarked,
   stopGroup,
+  stopLeftovers,
   stopRun,
   sweepOrphans,
 } from './processes.ts'
@@ -139,6 +141,37 @@ describe(
       assert.ok(await waitGone(b.pid))
       assert.ok(pidAlive(other.pid))
       assert.ok(pidAlive(unmarked.pid))
+    })
+
+    it('stops what an instance left running in its folder and nothing else', async () => {
+      const root = mkdtempSync(join(tmpdir(), 'e2e-leftover-'))
+      try {
+        const inFolder = (folder: string) =>
+          spawn('sleep', ['60'], {
+            env: { ...process.env, XDG_CACHE_HOME: join(folder, 'cache') },
+            stdio: 'ignore',
+            detached: true,
+          })
+        const leftover = inFolder(root)
+        const elsewhere = inFolder(join(root, 'other'))
+        const unrelated = sleeper()
+        spawned.push(leftover, elsewhere)
+        assert.ok(leftover.pid !== undefined && elsewhere.pid !== undefined)
+        assert.deepEqual(
+          findByRoot(root).map((p) => p.pid),
+          [leftover.pid],
+        )
+        const stopped = await stopLeftovers(root, { graceMs: 200 })
+        assert.deepEqual(
+          stopped.map((p) => p.pid),
+          [leftover.pid],
+        )
+        assert.ok(await waitGone(leftover.pid))
+        assert.ok(pidAlive(elsewhere.pid))
+        assert.ok(pidAlive(unrelated.pid))
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
     })
 
     it('stops a detached group including a grandchild', async () => {
