@@ -19,21 +19,19 @@ scenario('settings-deep-links', {}, async (ctx) => {
   await createAndUnlock(instance, { name })
   const workspace = `tauri://localhost/workspace/${encodeURIComponent(name)}`
 
-  await instance.navigate(
-    `${workspace}?open=system.settings&at=%2Fmodels%2Fspeech`,
-  )
-  await waitForLocation(instance, 'models.speech', 10000)
+  await instance.navigate(`${workspace}?open=system.settings&at=%2Fai%2Fspeech`)
+  await waitForLocation(instance, 'ai.speech', 10000)
   const query = await instance.exec<string>('return location.search')
   assert.equal(query, '', 'the deep link stayed in the address')
   ctx.step('S8 page load')
 
-  await instance.click('settings-category-agents')
-  await waitForLocation(instance, 'agents')
+  await instance.click('settings-category-storage')
+  await waitForLocation(instance, 'storage')
   await instance.exec(
     `return document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router
-       .replace({ query: { open: 'system.settings', at: '/models/speech' } }).then(() => true)`,
+       .replace({ query: { open: 'system.settings', at: '/ai/speech' } }).then(() => true)`,
   )
-  await waitForLocation(instance, 'models.speech')
+  await waitForLocation(instance, 'ai.speech')
   const tabs = settingsTabs(await wmSnapshot(instance))
   assert.equal(
     tabs.length,
@@ -44,15 +42,15 @@ scenario('settings-deep-links', {}, async (ctx) => {
     tabId: tabs[0]!.tabId,
   })
   assert.ok(back.ok, `wm.tab.back failed: ${JSON.stringify(back)}`)
-  await waitForLocation(instance, 'agents')
+  await waitForLocation(instance, 'storage')
   ctx.step('S8 open settings, same tab, back to the previous place')
 
   await instance.navigate(
-    `${workspace}?open=system.settings&at=%2Fmodels%2Fdownload%2Frepo%2FQwen%2FQwen2.5-0.5B-Instruct-GGUF`,
+    `${workspace}?open=system.settings&at=%2Fai%2Fdownload%2Frepo%2FQwen%2FQwen2.5-0.5B-Instruct-GGUF`,
   )
-  await waitForLocation(instance, 'models.download.repo', 10000)
+  await waitForLocation(instance, 'ai.download.repo', 10000)
   await instance.click('settings-back')
-  await waitForLocation(instance, 'models.download.search')
+  await waitForLocation(instance, 'ai.download.search')
   ctx.step('S9 repo, arrow up to the search')
 
   await instance.navigate(

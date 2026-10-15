@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Installed models (spec 005, moved to the location `/models/installed` by spec 023, research
+ * Installed models (spec 005, moved to the location `/ai/installed` by spec 023, research
  * R10): load, delete, check and install HuggingFace updates, and the integrity dialog. Lists, the
  * active model and the integrity flow are `useModelsStore()` state shared with the chat.
  */
@@ -194,9 +194,9 @@ onMounted(async () => {
     </div>
     <SettingsGroup v-else-if="installed.length === 0">
       <SettingsRow
-        to="/models/download"
+        to="/ai/download"
         icon="lucide:download"
-        :title="t('settings.locations.models.download.title')"
+        :title="t('settings.locations.ai.download.title')"
         :description="t('models.installed.empty')"
         data-testid="settings-installed-empty"
       />

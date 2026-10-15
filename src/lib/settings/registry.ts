@@ -6,13 +6,10 @@ import { normalizePath, type TabHistory } from '../wm/navigation.ts'
 import { matchRoute } from '../wm/routeMatch.ts'
 
 export type SettingsCategoryId =
-  | 'general'
-  | 'models'
-  | 'agents'
-  | 'storage'
-  | 'contacts'
-  | 'extensions'
-  | 'federation'
+  'general' | 'ai' | 'storage' | 'contacts' | 'extensions' | 'federation'
+
+/** Headings of an overview that groups its rows by task. */
+export type SettingsGroupId = 'chat' | 'local' | 'speech' | 'agents'
 
 export type SettingsCategory = {
   id: SettingsCategoryId
@@ -31,6 +28,8 @@ export type SettingsLocation = {
   parent?: string
   /** Only locations shown as an overview row. */
   icon?: string
+  /** The heading an overview row is listed under; rows without one stand alone. */
+  group?: SettingsGroupId
   /** Title in the header and the history list; may use the route params. */
   titleKey: string
   /** One line under the title where the location appears as a row (overview, search entry). The
@@ -60,8 +59,7 @@ function category(
 /** In sidebar order (FR-005). */
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
   category('general', '/', 'lucide:sliders-horizontal'),
-  category('models', '/models', 'lucide:box'),
-  category('agents', '/agents', 'lucide:bot'),
+  category('ai', '/ai', 'lucide:sparkles'),
   category('storage', '/storage', 'lucide:cloud'),
   category('contacts', '/contacts', 'lucide:contact'),
   category('extensions', '/extensions', 'lucide:puzzle'),
@@ -89,6 +87,7 @@ function subView(
   parent: string,
   options: {
     icon?: string
+    group?: SettingsGroupId
     overviewRow?: boolean
     row?: boolean
     settingKeys?: readonly string[]
@@ -101,6 +100,7 @@ function subView(
     category: parent.split('.')[0] as SettingsCategoryId,
     parent,
     icon: options.icon,
+    group: options.group,
     titleKey: `settings.locations.${id}.title`,
     descriptionKey: shownAsRow
       ? `settings.locations.${id}.description`
@@ -158,50 +158,57 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       'settings.dock.items',
     ],
   }),
-  categoryLocation('models'),
-  subView('models.default', 'models/default', 'models', {
+  // "KI" gathers the models and the agents, grouped by task in the overview.
+  categoryLocation('ai'),
+  subView('ai.default', 'ai/default', 'ai', {
     icon: 'lucide:star',
+    group: 'chat',
     overviewRow: true,
   }),
-  subView('models.installed', 'models/installed', 'models', {
-    icon: 'lucide:hard-drive',
-    overviewRow: true,
-  }),
-  subView('models.download', 'models/download', 'models', {
-    icon: 'lucide:download',
-    overviewRow: true,
-  }),
-  subView(
-    'models.download.search',
-    'models/download/search',
-    'models.download',
-    { icon: 'lucide:search', row: true },
-  ),
-  subView(
-    'models.download.repo',
-    'models/download/repo/:owner/:name',
-    'models.download.search',
-  ),
-  subView('models.speech', 'models/speech', 'models', {
-    icon: 'lucide:mic',
-    overviewRow: true,
-  }),
-  categoryLocation('agents'),
-  subView('agents.providers', 'agents/providers', 'agents', {
+  // Reached from "Standard-Modell" and the chat; an agent opens it with `wm.app.open`.
+  subView('ai.providers', 'ai/providers', 'ai', {
     icon: 'lucide:plug',
+    group: 'chat',
     overviewRow: true,
   }),
-  subView('agents.autonomy', 'agents/autonomy', 'agents', {
+  subView('ai.installed', 'ai/installed', 'ai', {
+    icon: 'lucide:hard-drive',
+    group: 'local',
+    overviewRow: true,
+  }),
+  subView('ai.download', 'ai/download', 'ai', {
+    icon: 'lucide:download',
+    group: 'local',
+    overviewRow: true,
+  }),
+  subView('ai.download.search', 'ai/download/search', 'ai.download', {
+    icon: 'lucide:search',
+    row: true,
+  }),
+  subView(
+    'ai.download.repo',
+    'ai/download/repo/:owner/:name',
+    'ai.download.search',
+  ),
+  subView('ai.speech', 'ai/speech', 'ai', {
+    icon: 'lucide:mic',
+    group: 'speech',
+    overviewRow: true,
+  }),
+  subView('ai.autonomy', 'ai/autonomy', 'ai', {
     icon: 'lucide:shield',
+    group: 'agents',
     overviewRow: true,
   }),
-  subView('agents.denyRules', 'agents/deny-rules', 'agents', {
+  subView('ai.denyRules', 'ai/deny-rules', 'ai', {
     icon: 'lucide:ban',
+    group: 'agents',
     overviewRow: true,
   }),
   // Spec 044 FR-031b: what each agent may do with files.
-  subView('agents.files', 'agents/files', 'agents', {
+  subView('ai.files', 'ai/files', 'ai', {
     icon: 'lucide:folder-lock',
+    group: 'agents',
     overviewRow: true,
   }),
   // Spec 038: storage connections (S3) and the storages on them. The forms and the removal are
@@ -276,6 +283,23 @@ export function overviewRows(
   return SETTINGS_LOCATIONS.filter(
     (location) => location.category === categoryId && location.overviewRow,
   )
+}
+
+/** The overview rows of a category under their headings, in registry order; `group` is
+ * `undefined` for rows without one. Rows of one group stay together at the group's first row. */
+export function overviewGroups(
+  categoryId: SettingsCategoryId,
+): { group: SettingsGroupId | undefined; rows: SettingsLocation[] }[] {
+  const groups: {
+    group: SettingsGroupId | undefined
+    rows: SettingsLocation[]
+  }[] = []
+  for (const row of overviewRows(categoryId)) {
+    const existing = row.group && groups.find((g) => g.group === row.group)
+    if (existing) existing.rows.push(row)
+    else groups.push({ group: row.group, rows: [row] })
+  }
+  return groups
 }
 
 /** The path of a location without route params (every parent is one). */

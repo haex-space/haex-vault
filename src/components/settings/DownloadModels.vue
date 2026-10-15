@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Download models (spec 005, moved to `/models/download` by spec 023, research R10): the
+ * Download models (spec 005, moved to `/ai/download` by spec 023, research R10): the
  * recommended catalog models with their download progress, and the way into the HuggingFace
  * search as a sub-view.
  */
@@ -79,12 +79,10 @@ onMounted(reloadAsync)
   <section class="flex flex-col gap-6">
     <SettingsGroup>
       <SettingsRow
-        to="/models/download/search"
+        to="/ai/download/search"
         icon="lucide:search"
-        :title="t('settings.locations.models.download.search.title')"
-        :description="
-          t('settings.locations.models.download.search.description')
-        "
+        :title="t('settings.locations.ai.download.search.title')"
+        :description="t('settings.locations.ai.download.search.description')"
         data-testid="settings-row-models.download.search"
       />
     </SettingsGroup>

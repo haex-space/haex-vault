@@ -5,8 +5,7 @@ import { isShown, settingsLocation, waitForLocation } from '../lib/settings.ts'
 
 const CATEGORIES = [
   'general',
-  'models',
-  'agents',
+  'ai',
   'storage',
   'contacts',
   'extensions',
@@ -104,42 +103,38 @@ scenario('settings-categories', {}, async (ctx) => {
       'settings-color-scheme',
     ],
     [
-      ['settings-category-models', 'settings-row-models.default'],
-      'models.default',
+      ['settings-category-ai', 'settings-row-ai.default'],
+      'ai.default',
       'settings-default-model',
     ],
+    [['settings-category-ai', 'settings-row-ai.speech'], 'ai.speech', null],
     [
-      ['settings-category-models', 'settings-row-models.speech'],
-      'models.speech',
-      null,
-    ],
-    [
-      ['settings-category-models', 'settings-row-models.installed'],
-      'models.installed',
+      ['settings-category-ai', 'settings-row-ai.installed'],
+      'ai.installed',
       'settings-installed-empty',
     ],
     [
       [
-        'settings-category-models',
-        'settings-row-models.download',
-        'settings-row-models.download.search',
+        'settings-category-ai',
+        'settings-row-ai.download',
+        'settings-row-ai.download.search',
       ],
-      'models.download.search',
+      'ai.download.search',
       null,
     ],
     [
-      ['settings-category-agents', 'settings-row-agents.providers'],
-      'agents.providers',
+      ['settings-category-ai', 'settings-row-ai.providers'],
+      'ai.providers',
       null,
     ],
     [
-      ['settings-category-agents', 'settings-row-agents.autonomy'],
-      'agents.autonomy',
+      ['settings-category-ai', 'settings-row-ai.autonomy'],
+      'ai.autonomy',
       'settings-autonomy-standard',
     ],
     [
-      ['settings-category-agents', 'settings-row-agents.denyRules'],
-      'agents.denyRules',
+      ['settings-category-ai', 'settings-row-ai.denyRules'],
+      'ai.denyRules',
       'settings-deny-network_access',
     ],
   ]
@@ -149,6 +144,6 @@ scenario('settings-categories', {}, async (ctx) => {
     await waitForLocation(instance, location)
     if (hook) await instance.waitForDisplayed(hook)
   }
-  assert.equal(await settingsLocation(instance), 'agents.denyRules')
+  assert.equal(await settingsLocation(instance), 'ai.denyRules')
   ctx.step('S3 every setting within three clicks')
 })

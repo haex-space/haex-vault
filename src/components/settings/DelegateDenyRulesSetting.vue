@@ -93,7 +93,7 @@ onVaultTablesChanged(['preferences'], () => {
     </p>
 
     <template v-if="!loading">
-      <fieldset :aria-label="t('settings.locations.agents.denyRules.title')">
+      <fieldset :aria-label="t('settings.locations.ai.denyRules.title')">
         <SettingsGroup>
           <SettingsOptionRow
             v-for="category in CATEGORIES"

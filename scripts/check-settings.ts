@@ -9,6 +9,7 @@ import {
   categoryOf,
   headerBack,
   locationFor,
+  overviewGroups,
   overviewRows,
   SETTINGS_CATEGORIES,
   SETTINGS_LOCATIONS,
@@ -46,18 +47,17 @@ const LOCATION_PATHS: Record<string, string> = {
   'general.basic.password': '/general/basic/password',
   'general.appearance': '/general/appearance',
   'general.dock': '/general/dock',
-  models: '/models',
-  'models.default': '/models/default',
-  'models.installed': '/models/installed',
-  'models.download': '/models/download',
-  'models.download.search': '/models/download/search',
-  'models.download.repo': '/models/download/repo/Qwen/Qwen2.5-GGUF',
-  'models.speech': '/models/speech',
-  agents: '/agents',
-  'agents.providers': '/agents/providers',
-  'agents.autonomy': '/agents/autonomy',
-  'agents.denyRules': '/agents/deny-rules',
-  'agents.files': '/agents/files',
+  ai: '/ai',
+  'ai.default': '/ai/default',
+  'ai.providers': '/ai/providers',
+  'ai.installed': '/ai/installed',
+  'ai.download': '/ai/download',
+  'ai.download.search': '/ai/download/search',
+  'ai.download.repo': '/ai/download/repo/Qwen/Qwen2.5-GGUF',
+  'ai.speech': '/ai/speech',
+  'ai.autonomy': '/ai/autonomy',
+  'ai.denyRules': '/ai/deny-rules',
+  'ai.files': '/ai/files',
   storage: '/storage',
   'storage.connection': '/storage/connections/new',
   'storage.storage': '/storage/connections/c1/storages/new',
@@ -103,13 +103,12 @@ function germanT(): (key: string) => string {
   }
 }
 
-test('seven categories in the order of FR-005 (storage from spec 038, contacts from spec 051, extensions from spec 017, no appearance since spec 042), each at its own location', () => {
+test('six categories in the order of FR-005 (storage from spec 038, contacts from spec 051, extensions from spec 017, no appearance since spec 042, models and agents merged into ai), each at its own location', () => {
   assert.deepEqual(
     SETTINGS_CATEGORIES.map((category) => [category.id, category.path]),
     [
       ['general', '/'],
-      ['models', '/models'],
-      ['agents', '/agents'],
+      ['ai', '/ai'],
       ['storage', '/storage'],
       ['contacts', '/contacts'],
       ['extensions', '/extensions'],
@@ -148,20 +147,18 @@ test('locations have unique ids and patterns, a category, and titles', () => {
   }
 })
 
-test('overview rows of general (spec 042), models and agents; federation has none', () => {
+test('overview rows of general (spec 042) and ai; federation has none', () => {
   const rows = (id: Parameters<typeof overviewRows>[0]) =>
     overviewRows(id).map((location) => location.id)
-  assert.deepEqual(rows('models'), [
-    'models.default',
-    'models.installed',
-    'models.download',
-    'models.speech',
-  ])
-  assert.deepEqual(rows('agents'), [
-    'agents.providers',
-    'agents.autonomy',
-    'agents.denyRules',
-    'agents.files',
+  assert.deepEqual(rows('ai'), [
+    'ai.default',
+    'ai.providers',
+    'ai.installed',
+    'ai.download',
+    'ai.speech',
+    'ai.autonomy',
+    'ai.denyRules',
+    'ai.files',
   ])
   assert.deepEqual(rows('general'), [
     'general.basic',
@@ -169,6 +166,38 @@ test('overview rows of general (spec 042), models and agents; federation has non
     'general.dock',
   ])
   assert.deepEqual(rows('federation'), [])
+})
+
+test('the ai overview groups its rows by task, one heading each', () => {
+  assert.deepEqual(
+    overviewGroups('ai').map((g) => [g.group, g.rows.map((row) => row.id)]),
+    [
+      ['chat', ['ai.default', 'ai.providers']],
+      ['local', ['ai.installed', 'ai.download']],
+      ['speech', ['ai.speech']],
+      ['agents', ['ai.autonomy', 'ai.denyRules', 'ai.files']],
+    ],
+  )
+  // Rows without a group stay one list each, in order.
+  assert.deepEqual(
+    overviewGroups('general').map((g) => [g.group, g.rows.length]),
+    [
+      [undefined, 1],
+      [undefined, 1],
+      [undefined, 1],
+    ],
+  )
+})
+
+test('the former models and agents paths no longer resolve', () => {
+  for (const path of [
+    '/models',
+    '/models/installed',
+    '/agents',
+    '/agents/files',
+  ]) {
+    assert.equal(locationFor(path), undefined, path)
+  }
 })
 
 test('the route patterns resolve every location, with the repo params', () => {
@@ -179,21 +208,18 @@ test('the route patterns resolve every location, with the repo params', () => {
     assert.equal(match.chain.length, 2, path)
     assert.equal(locationFor(path)?.location.id, id, path)
   }
-  assert.deepEqual(
-    locationFor('/models/download/repo/Qwen/Qwen2.5-GGUF')?.params,
-    {
-      owner: 'Qwen',
-      name: 'Qwen2.5-GGUF',
-    },
-  )
+  assert.deepEqual(locationFor('/ai/download/repo/Qwen/Qwen2.5-GGUF')?.params, {
+    owner: 'Qwen',
+    name: 'Qwen2.5-GGUF',
+  })
   assert.equal(locationFor('/nope'), undefined)
-  assert.equal(locationFor('/models/nope'), undefined)
+  assert.equal(locationFor('/ai/nope'), undefined)
 })
 
 test('categoryOf maps every location to its category', () => {
   assert.equal(categoryOf('/'), 'general')
-  assert.equal(categoryOf('/models/download/repo/Qwen/Qwen2.5-GGUF'), 'models')
-  assert.equal(categoryOf('/agents/deny-rules'), 'agents')
+  assert.equal(categoryOf('/ai/download/repo/Qwen/Qwen2.5-GGUF'), 'ai')
+  assert.equal(categoryOf('/ai/deny-rules'), 'ai')
   assert.equal(categoryOf('/federation'), 'federation')
   assert.equal(categoryOf('/nope'), undefined)
 })
@@ -210,6 +236,9 @@ test('every registry text exists in German and English (FR-020)', () => {
       ...(location.keywordsKey ? [location.keywordsKey] : []),
       ...(location.settingKeys ?? []),
     ]),
+    ...(['chat', 'local', 'speech', 'agents'] as const).map(
+      (group) => `settings.groups.${group}`,
+    ),
     'settings.back',
     'settings.search.label',
     'settings.search.placeholder',
@@ -229,43 +258,43 @@ test('every registry text exists in German and English (FR-020)', () => {
 
 test('header back returns to the previous station in the same category', () => {
   const fromSearch = push(
-    push(createHistory('/models/download'), '/models/download/search?q=qwen'),
-    '/models/download/repo/Qwen/Qwen2.5-GGUF',
+    push(createHistory('/ai/download'), '/ai/download/search?q=qwen'),
+    '/ai/download/repo/Qwen/Qwen2.5-GGUF',
   )
   assert.deepEqual(headerBack(fromSearch), {
     kind: 'back',
-    path: '/models/download/search',
+    path: '/ai/download/search',
   })
-  const fromOverview = push(createHistory('/models'), '/models/installed')
-  assert.deepEqual(headerBack(fromOverview), { kind: 'back', path: '/models' })
+  const fromOverview = push(createHistory('/ai'), '/ai/installed')
+  assert.deepEqual(headerBack(fromOverview), { kind: 'back', path: '/ai' })
   // Modelle → Installierte Modelle → Modelle herunterladen: back to Installierte Modelle.
   const lateral = push(
-    push(createHistory('/models'), '/models/installed'),
-    '/models/download',
+    push(createHistory('/ai'), '/ai/installed'),
+    '/ai/download',
   )
   assert.deepEqual(headerBack(lateral), {
     kind: 'back',
-    path: '/models/installed',
+    path: '/ai/installed',
   })
 })
 
 test('header back goes to the parent after a jump from another category or a deep link', () => {
-  const fromElsewhere = push(createHistory('/agents'), '/models/installed')
+  const fromElsewhere = push(createHistory('/storage'), '/ai/installed')
   assert.deepEqual(headerBack(fromElsewhere), {
     kind: 'push',
-    path: '/models',
+    path: '/ai',
   })
-  const deepLink = createHistory('/models/download/repo/Qwen/Qwen2.5-GGUF')
+  const deepLink = createHistory('/ai/download/repo/Qwen/Qwen2.5-GGUF')
   assert.deepEqual(headerBack(deepLink), {
     kind: 'push',
-    path: '/models/download/search',
+    path: '/ai/download/search',
   })
-  assert.equal(headerBack(createHistory('/models')), undefined)
+  assert.equal(headerBack(createHistory('/ai')), undefined)
 })
 
 test('the settings tab keeps the app title; other apps show the location title', () => {
   const routed = {
-    key: 'settings.locations.models.installed.title',
+    key: 'settings.locations.ai.installed.title',
     params: {},
   }
   const settings = getAppDefinition('system.settings')
@@ -307,8 +336,8 @@ test('the search finds locations by title, synonym and single setting (FR-023)',
   assert.deepEqual(searchSettings('   ', t), [])
   assert.deepEqual(searchSettings('xyzzy', t), [])
 
-  assert.equal(first('standard')?.path, '/models/default')
-  assert.equal(first('whisper')?.path, '/models/speech')
+  assert.equal(first('standard')?.path, '/ai/default')
+  assert.equal(first('whisper')?.path, '/ai/speech')
   assert.equal(first('dunkel')?.path, '/general/appearance')
 
   const alias = first('geratename')
@@ -317,8 +346,8 @@ test('the search finds locations by title, synonym and single setting (FR-023)',
   assert.deepEqual(alias?.trail, ['Allgemein', 'Grundeinstellung'])
 
   const search = first('huggingface suchen')
-  assert.equal(search?.path, '/models/download/search')
-  assert.deepEqual(search?.trail, ['Modelle', 'Modelle herunterladen'])
+  assert.equal(search?.path, '/ai/download/search')
+  assert.deepEqual(search?.trail, ['KI', 'Modelle herunterladen'])
 
   assert.ok(
     searchSettings('modell', t).every((hit) => !hit.path.includes('/repo/')),
@@ -332,7 +361,7 @@ test('a title match ranks above a synonym match', () => {
     t('settings.sessionRestore.title'),
     'Grundeinstellung',
   ])
-  assert.equal(searchSettings('modelle', t)[0]?.path, '/models')
+  assert.equal(searchSettings('modelle', t)[0]?.path, '/ai/download')
 })
 
 test('color scheme: known values parse, anything else is unset', () => {

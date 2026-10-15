@@ -52,8 +52,8 @@ scenario('settings-narrow-window', {}, async (ctx) => {
        return sidebar.left <= main.left + 1 && sidebar.right >= main.right - 1`,
     ),
   )
-  await instance.click('settings-category-agents')
-  await waitForLocation(instance, 'agents')
+  await instance.click('settings-category-ai')
+  await waitForLocation(instance, 'ai')
   await ctx.waitFor(
     'a category to close the sidebar',
     async () => !(await sidebarShown(instance)),
@@ -68,7 +68,7 @@ scenario('settings-narrow-window', {}, async (ctx) => {
   ctx.step('narrow: open over the content, category and Escape close')
 
   await resizeSettingsWindow(instance, 360)
-  for (const id of ['general', 'models', 'agents', 'federation']) {
+  for (const id of ['general', 'ai', 'federation']) {
     await instance.click('settings-sidebar-toggle')
     await ctx.waitFor('the sidebar to finish opening', () =>
       sidebarShown(instance),

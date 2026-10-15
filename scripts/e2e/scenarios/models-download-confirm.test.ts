@@ -30,7 +30,7 @@ function standIn(id: string, sizeBytes: number) {
 }
 
 /** The text of "Trotzdem laden" in every language holzi speaks. */
-const START_ANYWAY = translations('models.downloadConfirm.startAnyway')
+const START_ANYWAY = translations('ai.downloadConfirm.startAnyway')
 
 scenario('models-download-confirm', {}, async (ctx) => {
   const instance = await ctx.startInstance()
@@ -48,10 +48,10 @@ scenario('models-download-confirm', {}, async (ctx) => {
   )
   const opened = await runAction(instance, 'wm.app.open', {
     appId: 'system.settings',
-    at: '/models/download',
+    at: '/ai/download',
   })
   assert.ok(opened.ok, JSON.stringify(opened))
-  await waitForLocation(instance, 'models.download')
+  await waitForLocation(instance, 'ai.download')
   await instance.waitForDisplayed(`models-download-${small.id}`)
 
   const text = (hook: string) =>

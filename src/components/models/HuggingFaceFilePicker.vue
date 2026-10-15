@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * File choice of one HuggingFace repository, the location `/models/download/repo/:owner/:name`
+ * File choice of one HuggingFace repository, the location `/ai/download/repo/:owner/:name`
  * (spec 005, spec 023 research R1/R10). `?files=a.gguf,b.gguf` limits the list to the files that
  * matched the search filters; without it (a deep link) every GGUF file is offered. Progress comes
  * from the download store, so it survives leaving the view.
@@ -130,7 +130,7 @@ async function installAsync() {
       forceTooBig: tooBigConfirmed.value,
     })) as InstalledModel
     downloads.clearDownload(model.id)
-    router.push('/models/installed')
+    router.push('/ai/installed')
   } catch (e) {
     downloads.clearDownload(downloadModelId.value)
     installErrorKey.value = hfErrorKey(e)
@@ -171,9 +171,9 @@ onMounted(loadDetailsAsync)
       data-testid="settings-repo-missing"
     >
       <SettingsRow
-        to="/models/download/search"
+        to="/ai/download/search"
         icon="lucide:search"
-        :title="t('settings.locations.models.download.search.title')"
+        :title="t('settings.locations.ai.download.search.title')"
       >
         <template #description>
           <span
