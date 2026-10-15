@@ -54,10 +54,14 @@ impl Batches {
 
     /// The changes of a linked contact's raw contacts.
     pub fn change(&mut self, contact_id: &str, ops: Vec<(i64, RowOp)>) {
+        let ops: Vec<Op> = ops
+            .into_iter()
+            .flat_map(|(raw, op)| row_ops(raw, op))
+            .collect();
         for chunk in ops.chunks(MAX_OPS) {
             let batch = self.room(chunk.len());
-            for (raw, op) in chunk {
-                batch.ops.push(row_op(Target::Id(*raw), op.clone()));
+            for op in chunk {
+                batch.ops.push(op.clone());
                 batch.purposes.push(Purpose::Change {
                     contact_id: contact_id.to_owned(),
                 });
@@ -106,6 +110,26 @@ impl Batches {
         let batch = self.room(1);
         batch.ops.push(Op::DeleteRaw { raw_contact_id });
         batch.purposes.push(Purpose::Delete { raw_contact_id });
+    }
+}
+
+/// The ops of a row change. A membership moves to another group by leaving one row and adding
+/// another: the new group's id depends on the raw contact's account (T096).
+fn row_ops(raw: i64, op: RowOp) -> Vec<Op> {
+    match op {
+        RowOp::Update {
+            data_id,
+            mimetype,
+            fields,
+        } if mimetype == "GroupMembership" => vec![
+            Op::DeleteData { data_id },
+            Op::InsertData {
+                raw: Target::Id(raw),
+                mimetype,
+                fields,
+            },
+        ],
+        op => vec![row_op(Target::Id(raw), op)],
     }
 }
 

@@ -16,7 +16,7 @@ use super::run::ACTIVE;
 use super::sides::{self, Loaded};
 use super::store::{self, IssueReason, Link, RunRow, Target};
 use super::write::{Batches, Purpose};
-use super::{Counts, PhoneBook, RunSummary};
+use super::{state, Account, Counts, PhoneBook, RunSummary};
 use crate::contacts::{photos, store as contacts_store};
 use crate::error::Result;
 use crate::vault_gate::VaultDb;
@@ -153,7 +153,27 @@ pub fn finish(
             batches.delete(*raw);
         }
     }
-    let answers = send(book, batches);
+    for raw in found.untargeted.values().flatten() {
+        if gathered
+            .index
+            .get(raw)
+            .is_some_and(|raw| gathered.writable(raw))
+        {
+            batches.delete(*raw);
+        }
+    }
+    super::groups::resolve(book, &mut batches, gathered);
+    let mut answers = send(book, batches);
+    let photos_written = super::photo_write::write(
+        db,
+        book,
+        gathered,
+        &planned,
+        creates,
+        loaded,
+        &mut answers.created,
+    )?;
+    answers.versions.extend(&photos_written.versions);
 
     let mut reread: Vec<i64> = answers.versions.keys().copied().collect();
     reread.extend(answers.created.values().map(|(raw, _)| *raw));
@@ -171,6 +191,7 @@ pub fn finish(
         gathered,
         answers: &answers,
         after: &after,
+        photos: &photos_written.hashes,
         now,
     };
     let counts = db.write_blocking(|tx| {
@@ -186,6 +207,13 @@ pub fn finish(
         state
             .deletions(tx, found, &mut counts)
             .map_err(haex_crdt::Error::from)?;
+        let accounts: Vec<Account> = gathered
+            .accounts
+            .iter()
+            .cloned()
+            .map(Account::from)
+            .collect();
+        state::set_accounts(tx, device, &accounts).map_err(haex_crdt::Error::from)?;
         let row = RunRow {
             state: ACTIVE.to_owned(),
             paused_reason: None,
@@ -208,6 +236,8 @@ struct Written<'a> {
     gathered: &'a Gathered,
     answers: &'a Answers,
     after: &'a BTreeMap<i64, PhoneSide>,
+    /// Contact → the hash of the photo written to the phone in this run.
+    photos: &'a BTreeMap<String, String>,
     now: &'a str,
 }
 
@@ -291,9 +321,7 @@ impl Written<'_> {
                     .unwrap_or(raw.version),
                 read_only: !side.writable,
                 base: next_base(&updated_at, &head, &values, phone, &side.base.mapping),
-                photo_base: photo_hash
-                    .clone()
-                    .or_else(|| previous.and_then(|link| link.photo_base.clone())),
+                photo_base: self.photo_base(item, photo_hash.as_ref(), previous),
             };
             store::save_link(tx, self.device, &link)?;
         }
@@ -313,6 +341,25 @@ impl Written<'_> {
             counts.written += 1;
         }
         Ok(())
+    }
+
+    /// The photo the phone and holzi agree on after this run: the one taken over or written now,
+    /// holzi's on a merge, none once holzi has none, else the last one (a refused write is tried
+    /// again).
+    fn photo_base(
+        &self,
+        item: &Planned,
+        taken: Option<&String>,
+        previous: Option<&Link>,
+    ) -> Option<String> {
+        let holzi = item.loaded.as_ref().and_then(|loaded| loaded.photo.clone());
+        if let Some(hash) = taken.or_else(|| self.photos.get(&item.contact_id)) {
+            return Some(hash.clone());
+        }
+        if item.merge || holzi.is_none() {
+            return holzi;
+        }
+        previous.and_then(|link| link.photo_base.clone())
     }
 
     fn creates(
@@ -361,7 +408,7 @@ impl Written<'_> {
                     phone,
                     &BTreeMap::new(),
                 ),
-                photo_base: None,
+                photo_base: self.photos.get(id).cloned(),
             };
             store::save_link(tx, self.device, &link)?;
             store::clear_issue(tx, self.device, id)?;
@@ -403,6 +450,24 @@ impl Written<'_> {
         }
         for raw in &found.unlink {
             store::drop_link(tx, self.device, *raw, true)?;
+        }
+        // Contacts without this phone as a target: their raw contacts are deleted; one the phone
+        // cannot delete (a read-only account) is only let go, and stays known so that it is not
+        // taken over again.
+        for raws in found.untargeted.values() {
+            let mut any = false;
+            for raw in raws {
+                let present = self.gathered.index.get(raw).filter(|raw| !raw.deleted);
+                if self.answers.deleted.contains(raw) || present.is_none() {
+                    store::drop_link(tx, self.device, *raw, true)?;
+                    any = true;
+                } else if present.is_some_and(|raw| !self.gathered.writable(raw)) {
+                    store::drop_link(tx, self.device, *raw, false)?;
+                }
+            }
+            if any {
+                counts.deleted += 1;
+            }
         }
         Ok(())
     }

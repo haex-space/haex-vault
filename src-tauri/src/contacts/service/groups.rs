@@ -50,6 +50,7 @@ impl ContactsService {
                         if changed == 0 {
                             return Err(HolziError::ContactsNotFound.into());
                         }
+                        touch_members(tx, &id)?;
                         id
                     }
                     None => {
@@ -71,6 +72,7 @@ impl ContactsService {
         require_user(caller)?;
         self.db()
             .write(move |tx| {
+                touch_members(tx, &id)?;
                 tx.execute(
                     "DELETE FROM haex_contacts_groups WHERE id = ?1",
                     params![id],
@@ -93,10 +95,13 @@ impl ContactsService {
             .write(move |tx| {
                 store::check_groups_exist(tx, &BTreeSet::from([group_id.clone()]))?;
                 for contact in &remove {
-                    tx.execute(
+                    let left = tx.execute(
                         "DELETE FROM haex_contacts_group_members WHERE id = ?1",
                         params![member_id(&group_id, contact)],
                     )?;
+                    if left > 0 {
+                        store::touch(tx, contact, &crate::passwords::clock::now())?;
+                    }
                 }
                 for contact in &add {
                     store::group_ids_if_exists(tx, contact)?.ok_or(HolziError::ContactsNotFound)?;
@@ -111,6 +116,17 @@ impl ContactsService {
             })
             .await
     }
+}
+
+/// Stamps the members of a group whose name changes or which goes: their membership as a phone
+/// sees it changes with it (T096).
+fn touch_members(tx: &mut haex_crdt::CrdtTransaction<'_>, group_id: &str) -> haex_crdt::Result<()> {
+    tx.execute(
+        "UPDATE haex_contacts SET updated_at = ?1 WHERE id IN \
+         (SELECT contact_id FROM haex_contacts_group_members WHERE group_id = ?2)",
+        params![crate::passwords::clock::now(), group_id],
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -200,3 +200,35 @@ fn values_compare_by_their_meaning() {
     assert!(same_value(PHONE, "+49 170 1234567", "0170 1234567"));
     assert!(!same_value(PHONE, "0170 1234567", "0171 1234567"));
 }
+
+#[test]
+fn a_membership_is_its_groups_title_and_system_groups_are_not_mapped() {
+    let side = map_raw(&[
+        data_row(
+            1,
+            "GroupMembership",
+            json!({ "groupId": "5", "title": "Familie", "readOnly": false }),
+        ),
+        data_row(
+            2,
+            "GroupMembership",
+            json!({ "groupId": "6", "title": "My Contacts", "readOnly": true }),
+        ),
+        data_row(3, "GroupMembership", json!({ "groupId": "7" })),
+    ]);
+    let groups: Vec<(&str, &str)> = side
+        .values
+        .iter()
+        .map(|value| (value.kind.as_str(), value.value.as_str()))
+        .collect();
+    assert_eq!(groups, [(GROUP, "Familie")]);
+
+    let (mimetype, fields) = insert_fields(GROUP, "", "Arbeit").expect("a membership");
+    assert_eq!(mimetype, "GroupMembership");
+    assert_eq!(
+        Json::Object(fields),
+        json!({ "title": "Arbeit" }),
+        "no type, no label"
+    );
+    assert_eq!(group_value_id(" Arbeit "), "group:Arbeit");
+}

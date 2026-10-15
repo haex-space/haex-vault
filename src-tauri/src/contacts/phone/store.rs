@@ -9,7 +9,7 @@ use haex_crdt::CrdtTransaction;
 use serde::{Deserialize, Serialize};
 
 use super::mapping::PhoneSide;
-use crate::contacts::ids::{issue_id, link_id, target_id};
+use crate::contacts::ids::{issue_id, link_id};
 use crate::error::Result;
 use crate::storage::query::Query;
 
@@ -192,25 +192,12 @@ pub fn targets(q: &mut impl Query, device: &str) -> Result<Vec<Target>> {
 
 /// Makes this phone a target of a contact, in the given account.
 pub fn set_target(tx: &mut CrdtTransaction<'_>, device: &str, target: &Target) -> Result<()> {
-    let id = target_id(&target.contact_id, device);
-    let updated = tx.execute(
-        "UPDATE haex_contacts_targets SET account_type = ?2, account_name = ?3 WHERE id = ?1",
-        params![id, target.account_type, target.account_name],
-    )?;
-    if updated == 0 {
-        tx.execute(
-            "INSERT INTO haex_contacts_targets (id, contact_id, vault_device_uuid, account_type, \
-             account_name) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![
-                id,
-                target.contact_id,
-                device,
-                target.account_type,
-                target.account_name
-            ],
-        )?;
-    }
-    Ok(())
+    crate::contacts::targets::set(
+        tx,
+        &target.contact_id,
+        device,
+        (&target.account_type, &target.account_name),
+    )
 }
 
 /// Why a change did not reach the phone (FR-025).

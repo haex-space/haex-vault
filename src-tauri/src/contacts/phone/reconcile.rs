@@ -305,7 +305,11 @@ fn values(
 
 fn new_value(row: &PhoneValue) -> HolziValue {
     HolziValue {
-        id: Uuid::new_v4().to_string(),
+        id: if row.kind == mapping::GROUP {
+            mapping::group_value_id(&row.value)
+        } else {
+            Uuid::new_v4().to_string()
+        },
         kind: row.kind.clone(),
         label: row.label.clone(),
         value: row.value.clone(),

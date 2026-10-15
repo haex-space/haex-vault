@@ -5,7 +5,7 @@
 use base64::Engine;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_holzi_android::contacts::{
-    ApplyResult, Op, PhoneAccount, RawData, RawIndex, UNAVAILABLE,
+    ApplyResult, Op, PhoneAccount, PhoneGroup, RawData, RawIndex, UNAVAILABLE,
 };
 use tauri_plugin_holzi_android::{HolziAndroidExt, Permission, PermissionState};
 
@@ -67,6 +67,21 @@ impl<R: Runtime> PhoneBook for AndroidPhoneBook<R> {
             .contacts_photo_read(id)
             .map_err(failed)?;
         Ok(encoded.and_then(|text| base64::engine::general_purpose::STANDARD.decode(text).ok()))
+    }
+
+    fn write_photo(&self, id: i64, jpeg: &[u8]) -> Result<Option<i64>> {
+        let encoded = base64::engine::general_purpose::STANDARD.encode(jpeg);
+        self.app
+            .holzi_android()
+            .contacts_photo_write(id, &encoded)
+            .map_err(failed)
+    }
+
+    fn groups(&self, account_type: &str, account_name: &str) -> Result<Vec<PhoneGroup>> {
+        self.app
+            .holzi_android()
+            .contacts_groups(account_type, account_name)
+            .map_err(failed)
     }
 }
 

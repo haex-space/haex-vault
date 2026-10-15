@@ -5,6 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use tauri_plugin_holzi_android::contacts::RawIndex;
 use uuid::Uuid;
 
 use super::apply::Planned;
@@ -28,6 +29,10 @@ pub enum Mode<'a> {
     First(&'a [PairDecision]),
     /// A run on its own: after opening, on coming back, by hand.
     Normal,
+    /// A run because contacts changed in the vault (FR-021). It takes no deletions over from the
+    /// phone: a phone that deletes contacts one by one while holzi is open would otherwise be
+    /// followed run by run, each below the guard. The next full run sees them all at once.
+    Changes,
     /// The person decided on held-back deletions.
     Decided(MassDecision),
 }
@@ -103,8 +108,8 @@ pub fn run(
     match (mode, row.state.as_str(), paused) {
         (Mode::First(_), REVIEW, _) => {}
         (Mode::First(_), ..) => return Err(off()),
-        (Mode::Normal, REVIEW, _) => return Ok(RunSummary::default()),
-        (Mode::Normal, PAUSED, Some(Paused::MassDelete)) => {
+        (Mode::Normal | Mode::Changes, REVIEW, _) => return Ok(RunSummary::default()),
+        (Mode::Normal | Mode::Changes, PAUSED, Some(Paused::MassDelete)) => {
             return Ok(RunSummary {
                 paused: Some(Paused::MassDelete),
                 mass_delete: row
@@ -128,7 +133,10 @@ pub fn run(
         });
     }
     let gathered = gather(db, book, device)?;
-    let found = deletions(&gathered);
+    let mut found = deletions(&gathered);
+    if matches!(mode, Mode::Changes) {
+        found.from_phone.clear();
+    }
     let linked = linked_contacts(&gathered).len();
     if found.count() > 0 && is_mass_delete(found.count(), linked) {
         match mode {
@@ -228,11 +236,18 @@ fn sync(
             .iter()
             .flat_map(|group| group.raws.iter().map(|raw| raw.id)),
     );
+    // Raw contacts kept for a contact that may be a target again (see `kept_raws`).
+    to_read.extend(gathered.targets.iter().flat_map(|target| {
+        kept_raws(gathered, &target.contact_id)
+            .into_iter()
+            .map(|raw| raw.id)
+    }));
     let data = read_all(book, &to_read)?;
     let deleted: BTreeSet<&String> = found
         .from_phone
         .keys()
         .chain(found.from_holzi.keys())
+        .chain(found.untargeted.keys())
         .collect();
 
     // Links this run drops count as gone already: their contacts go to the phone again, or show
@@ -292,6 +307,9 @@ fn sync(
     }
     for group in &groups {
         if let Some(contact_id) = &group.joins {
+            if deleted.contains(contact_id) {
+                continue;
+            }
             let job = jobs
                 .entry(contact_id.clone())
                 .or_insert_with(|| Job::Linked {
@@ -332,12 +350,28 @@ fn sync(
             _ => None,
         })
         .collect();
-    let creates: Vec<&Target> = unlinked_targets
+    let mut creates: Vec<&Target> = unlinked_targets
         .into_iter()
         .filter(|target| {
             !merged.contains(&target.contact_id) && !deleted.contains(&target.contact_id)
         })
         .collect();
+    // A contact that is a target again finds the raw contacts this phone kept for it (FR-018d
+    // "keep") and is merged with them instead of written a second time.
+    creates.retain(|target| {
+        let kept = kept_raws(gathered, &target.contact_id);
+        if kept.is_empty() {
+            return true;
+        }
+        jobs.insert(
+            target.contact_id.clone(),
+            Job::Merge {
+                contact_id: target.contact_id.clone(),
+                raws: kept,
+            },
+        );
+        false
+    });
 
     // holzi's side of every contact the run touches.
     let wanted: Vec<String> = jobs
@@ -369,6 +403,21 @@ fn sync(
     )
 }
 
+/// The raw contacts on the phone this phone once linked to a contact and no longer does.
+fn kept_raws(gathered: &Gathered, contact_id: &str) -> Vec<RawIndex> {
+    gathered
+        .classified
+        .new
+        .iter()
+        .filter(|raw| gathered.known.get(&raw.id).map(String::as_str) == Some(contact_id))
+        .cloned()
+        .collect()
+}
+
 #[cfg(test)]
 #[path = "run_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "run_targets_tests.rs"]
+mod targets_tests;
