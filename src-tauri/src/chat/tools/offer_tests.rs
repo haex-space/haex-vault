@@ -193,6 +193,30 @@ fn search_matches_singular_and_plural_of_a_word() {
     assert!(page.is_empty());
 }
 
+#[test]
+fn search_keeps_a_word_with_umlauts_whole() {
+    let defs = vec![
+        def("window.resize", "Größe ändern", false),
+        def("entries.count", "Einträge zählen", false),
+    ];
+    let ids = |query| {
+        search_actions(&defs, Some(query), None, 5)
+            .0
+            .iter()
+            .map(|action| action.action_id.clone())
+            .collect::<Vec<_>>()
+    };
+
+    assert!(ids("Grüße senden").is_empty());
+    assert_eq!(ids("Einträge"), ["entries.count"]);
+    // "Büch" is four letters but five bytes, so it does not match "Bücher" as a prefix.
+    assert!(
+        search_actions(&[def("books.list", "Bücher", false)], Some("Büch"), None, 5)
+            .0
+            .is_empty()
+    );
+}
+
 #[tokio::test]
 async fn find_actions_hint_says_a_miss_is_about_actions_not_data() {
     let tool = FindActionsTool::new(vec![def("settings.get", "Read all settings", false)]);

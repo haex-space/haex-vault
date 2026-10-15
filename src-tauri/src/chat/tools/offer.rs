@@ -133,22 +133,23 @@ pub fn found_tools(result: &str) -> Option<Vec<ToolSpec>> {
     )
 }
 
-fn words(text: &str) -> Vec<String> {
+/// Lowercase words, also split where camelCase turns upper; umlauts belong to the word ("Einträge").
+pub(super) fn words(text: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut word = String::new();
     let mut previous_lower = false;
     for character in text.chars() {
-        if !character.is_ascii_alphanumeric() {
+        if !character.is_alphanumeric() {
             if !word.is_empty() {
                 result.push(std::mem::take(&mut word));
             }
             previous_lower = false;
         } else {
-            if character.is_ascii_uppercase() && previous_lower && !word.is_empty() {
+            if character.is_uppercase() && previous_lower && !word.is_empty() {
                 result.push(std::mem::take(&mut word));
             }
-            word.push(character.to_ascii_lowercase());
-            previous_lower = character.is_ascii_lowercase();
+            word.extend(character.to_lowercase());
+            previous_lower = character.is_lowercase();
         }
     }
     if !word.is_empty() {
@@ -217,7 +218,7 @@ pub(super) fn word_matches(query: &str, known: &str) -> bool {
     } else {
         (known, query)
     };
-    shorter == longer || (shorter.len() >= MIN_PREFIX_LEN && longer.starts_with(shorter))
+    shorter == longer || (shorter.chars().count() >= MIN_PREFIX_LEN && longer.starts_with(shorter))
 }
 
 /// Searches `entries`, with stable key ordering for ties. The cursor is an opaque decimal offset
