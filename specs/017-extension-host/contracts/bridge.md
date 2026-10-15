@@ -43,14 +43,14 @@ führt holzi nur aus, wenn der Rahmen gerade den Fokus hat (`document.activeElem
 Fenster von holzi aktiv ist; sonst wird es verworfen. Mehr als ein Tastendruck des Nutzers in diesem Moment
 kann die Erweiterung damit nicht auslösen.
 
-| Shim → holzi                 | Auslöser                                    | Wirkung in holzi                         |
-| ---------------------------- | ------------------------------------------- | ---------------------------------------- |
-| `hello {fresh}`              | `holzi:frame:init`                          | bei `fresh` neuer SDK-Kanal              |
-| `nav {path, query, replace}` | `hashchange`, `popstate`                    | `useTabRouter().push/replace` (Spec 020) |
-| `title {text}`               | Änderung von `document.title`               | `useWmTab().setTitle`                    |
-| `closeGuard {active}`        | `beforeunload`-Handler registriert/entfernt | `registerCloseGuard`                     |
-| `close`                      | `window.close()`                            | `closeSelf`                              |
-| `shortcut {id}`              | `keydown` passend zu `shortcuts`            | Aktion des Kürzels                       |
+| Shim → holzi                 | Auslöser                                    | Wirkung in holzi                                           |
+| ---------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
+| `hello {fresh}`              | `holzi:frame:init`                          | bei `fresh` neuer SDK-Kanal                                |
+| `nav {path, query, replace}` | `hashchange`, `popstate`                    | `useTabRouter().push/replace` (Spec 020)                   |
+| `title {text}`               | Änderung von `document.title`               | `useWmTab().setTitle`                                      |
+| `closeGuard {active}`        | `beforeunload`-Handler registriert/entfernt | `registerCloseGuard`                                       |
+| `close`                      | `window.close()`                            | `closeSelf`                                                |
+| `shortcut {id}`              | `keydown` passend zu `shortcuts`            | Aktion des Kürzels                                         |
 | `focus`                      | `pointerdown` im Rahmen                     | Fenster des Tabs nach vorn (nur bei aktivem holzi-Fenster) |
 
 | holzi → Shim             | Wirkung                               |
