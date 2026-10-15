@@ -178,7 +178,7 @@ the dead base branch).
 - [x] T067 [US4] UI: `src/components/contacts/OwnCard.vue` (QR, copy link, issued at, hint on linked devices without card), `src/components/contacts/CardImport.vue` (paste link; on phones a "Scannen" button; preview with name, npub, number of devices, values; "Neuer Kontakt" / "Zu Kontakt hinzufügen …"), confirmed holzi addresses in `EntryPage.vue` (devices, relays, copy and QR per value, FR-009) — the own card and the import are places of the app (`card`, `card/import`) behind a card menu in the toolbar; confirmed addresses offer copy, no QR per value (the card's QR carries them all); the preview can block the vault, unconfirmed manual values marked "unbestätigt"; card values and blocked vaults sections in `src/components/settings/ContactsView.vue`; toolbar entries "Meine Visitenkarte" and "Visitenkarte einlesen"
 - [x] T068 [P] [US4] i18n for cards and blocking in `src/i18n/locales/de.json` and `en.json`
 - [x] T069 [US4] E2E `scripts/e2e/scenarios/contacts-card.test.ts` with two desktop instances of different vaults (US4-1 to US4-6; the modified card by flipping one character of the link) — US4-1 to US4-5; US4-6 (the phone keeps holzi addresses) is the rule FR-014 of the phone sync with its own tests
-- [ ] T070 [US4] Run `cargo test -j 4 --lib -- contacts sync::signing sync::device_list`, frontend checks, `contacts-card`, the Android build; commit, open PR E
+- [x] T070 [US4] Run `cargo test -j 4 --lib -- contacts sync::signing sync::device_list`, frontend checks, `contacts-card`, the Android build; commit, open PR E
 
 **Checkpoint**: Contacts can carry confirmed holzi addresses.
 
@@ -192,16 +192,16 @@ the dead base branch).
 
 ### Tests for User Story 5
 
-- [ ] T071 [P] [US5] Permission tests in `src-tauri/src/extensions/permissions/model_tests.rs` (or the existing tests file): `contacts` parses, only action `read` is allowed, `write` is refused at manifest load
-- [ ] T072 [P] [US5] Bridge tests in `src-tauri/src/extensions/contacts_tests.rs`: no permission → 1002 without revealing existence; state "fragen" → 1004 with `{resourceType: "contacts", action, target}`; `*` → all; group "Arbeit" → only members; denied `*` beats a granted group; `ContactDetail` contains unknown kinds and confirmed holzi addresses but no origin, targets or links; photo bytes only for a readable contact
+- [x] T071 [P] [US5] Permission tests in `src-tauri/src/extensions/permissions/model_tests.rs` (or the existing tests file): `contacts` parses, only action `read` is allowed, `write` is refused at manifest load — in `target_tests.rs` and `manifest_map_tests.rs`; a write is listed as an unreadable declaration and never becomes a permission
+- [x] T072 [P] [US5] Bridge tests in `src-tauri/src/extensions/contacts_tests.rs`: no permission → 1002 without revealing existence; state "fragen" → 1004 with `{resourceType: "contacts", action, target}`; `*` → all; group "Arbeit" → only members; denied `*` beats a granted group; `ContactDetail` contains unknown kinds and confirmed holzi addresses but no origin, targets or links; photo bytes only for a readable contact
 
 ### Implementation for User Story 5
 
-- [ ] T073 [US5] `PermissionKind::Contacts` in `src-tauri/src/extensions/permissions/model.rs` (`ALL` array, `as_str`/`parse`, allowed actions `read` only), `src-tauri/src/extensions/permissions/manifest_map.rs`, target parsing in `src-tauri/src/extensions/permissions/target.rs` (`*` → `Any`, else group name as `Tag`)
-- [ ] T074 [US5] Handler `src-tauri/src/extensions/contacts.rs` after `src-tauri/src/extensions/passwords.rs` (`permissions`, `grants_of`, `refused`, caller `Caller::Extension{id}`) and methods `extension_contacts_list`, `extension_contacts_read`, `extension_contacts_search`, `extension_contacts_photo` in `src-tauri/src/extensions/bridge/dispatch.rs`
-- [ ] T075 [US5] Install and prompt texts for the new kind in `src/i18n/locales/de.json` and `en.json` and wherever permission kinds are labeled (grep `remoteStorage` in `src/components/extensions/`)
+- [x] T073 [US5] `PermissionKind::Contacts` in `src-tauri/src/extensions/permissions/model.rs` (`ALL` array, `as_str`/`parse`, allowed actions `read` only), `src-tauri/src/extensions/permissions/manifest_map.rs`, target parsing in `src-tauri/src/extensions/permissions/target.rs` (`*` → `Any`, else group name as `Tag`)
+- [x] T074 [US5] Handler `src-tauri/src/extensions/contacts.rs` after `src-tauri/src/extensions/passwords.rs` (`permissions`, `grants_of`, `refused`, caller `Caller::Extension{id}`) and methods `extension_contacts_list`, `extension_contacts_read`, `extension_contacts_search`, `extension_contacts_photo` in `src-tauri/src/extensions/bridge/dispatch.rs` — the method table moved to `bridge/allowlist.rs` (dispatch.rs would have passed 500 lines); the service got `search` and lets holzi's own functions read the groups to turn group names into grants
+- [x] T075 [US5] Install and prompt texts for the new kind in `src/i18n/locales/de.json` and `en.json` and wherever permission kinds are labeled (grep `remoteStorage` in `src/components/extensions/`)
 - [ ] T076 [US5] vault-sdk: `src/api/contacts.ts`, `src/commands/contacts.ts`, export in `src/index.ts` in `https://github.com/haex-space/vault-sdk` (push as `haex-space`); after merge, bump the dependency in holzi and note the full commit SHA in the PR
-- [ ] T077 [US5] Probe extension: add contacts calls to `src-tauri/tests/fixtures/extension_e2e/probe.js`, declare `contacts` in its manifest and rebuild `probe.xt` per `SOURCE.md`; E2E `scripts/e2e/scenarios/extension-contacts.test.ts` (US5-1/2/3)
+- [x] T077 [US5] Probe extension: add contacts calls to `src-tauri/tests/fixtures/extension_e2e/probe.js`, declare `contacts` in its manifest and rebuild `probe.xt` per `SOURCE.md`; E2E `scripts/e2e/scenarios/extension-contacts.test.ts` (US5-1/2/3) — the probe page already sends any bridge method, so only its manifest (built in `src-tauri/tests/extension_e2e_fixtures.rs`, `HOLZI_WRITE_E2E_FIXTURES=1`) declares `contacts` for the group "Arbeit"
 - [ ] T078 [US5] Run `cargo test -j 4 --lib -- extensions contacts`, frontend checks, `extension-contacts`, `extension-permission-prompt`; commit, open PR F
 
 **Checkpoint**: Extensions such as haex-mail can suggest recipients.
