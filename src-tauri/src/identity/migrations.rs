@@ -42,6 +42,7 @@ use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
 use super::migrations_extensions::SYNC_PARKING_0025;
+use super::migrations_icon_sets::FILE_ICON_SETS_0036;
 use super::migrations_passwords::PASSWORDS_0022;
 use super::migrations_passwords_owner::PASSWORDS_OWNER_0027;
 use super::migrations_passwords_refs::PASSWORDS_REFS_0026;
@@ -95,7 +96,8 @@ use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 /// - 21: `0032_agent_folder_reach` (spec 048) added `reach` to `agent_file_permissions`.
 /// - 22: `0033_contacts` (spec 051) added the address book tables.
 /// - 23: `0035_chat_messages_tool_origin` (spec 018) added `tool_origin` to `chat_messages`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 23;
+/// - 24: `0036_file_icon_sets` (spec 053) added the CRDT-tracked `haex_file_icon_sets`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 24;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -654,6 +656,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0035_chat_messages_tool_origin"),
         "ALTER TABLE chat_messages ADD COLUMN tool_origin TEXT;".to_string(),
+    );
+    m.insert(
+        MigrationName::from("0036_file_icon_sets"),
+        FILE_ICON_SETS_0036.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

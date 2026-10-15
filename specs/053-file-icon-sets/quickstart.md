@@ -30,7 +30,7 @@ Das Szenario deckt US1, US2, US3 und US5 ab:
 5. Entfernen mit Bestätigung: das Set ist weg, die Wahl fällt auf Lucide zurück.
 6. Ein Verzeichnis mit einer verschlüsselten, nicht lesbaren Datei und einem Ordner ohne Zugriff: Schloss und Ordner-ohne-Zugriff erscheinen auch unter Phosphor und unter einem importierten Set ohne diese Rollen (dort aus dem Standard-Set, FR-005).
 7. „Material“ wählen, ein Verzeichnis mit `src`, `docs`, `images`, `README.md`, `LICENSE`, `data.json`, `main.rs` und `Dockerfile` öffnen: Ordner, Dateien nach Name und Endung haben je ihr Material-Bild.
-8. Test „Lizenzregel“: jedes mitgelieferte Paket hat `LICENSE` und `origin`, die SPDX-Kennung steht in der Liste erlaubter (MIT, ISC, Apache-2.0, CC0); das Material-Paket hat zusätzlich Apache-2.0 und `NOTICE` mit dem Hinweis auf Marken (FR-017); das eingecheckte ZIP stimmt Byte für Byte mit dem Packen des Quellverzeichnisses überein.
+8. Test „Lizenzregel“: jedes mitgelieferte Paket hat `LICENSE` und `origin`, die SPDX-Kennung steht in der Liste erlaubter (MIT, ISC, Apache-2.0, CC0); das Material-Paket hat zusätzlich Apache-2.0 und `NOTICE` mit dem Hinweis auf Marken (FR-017); das eingecheckte ZIP enthält dieselben Dateien (Namen und Inhalt) wie das Quellverzeichnis.
 
 ## 3. E2E `files-icon-sets-two-devices` (Spec 033)
 

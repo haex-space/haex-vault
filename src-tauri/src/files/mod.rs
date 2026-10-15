@@ -9,6 +9,7 @@ pub mod browser_commands;
 pub mod commands;
 pub mod encrypted;
 pub mod extract;
+pub mod icons;
 pub mod kind;
 pub mod local;
 pub mod media;
@@ -151,7 +152,7 @@ pub struct Entry {
 }
 
 /// Where an entry stands to encryption (spec 048, contracts/tauri-commands.md).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct EncryptedInfo {
@@ -163,7 +164,7 @@ pub struct EncryptedInfo {
 }
 
 /// The encrypted folder itself, or an entry in one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum EncryptedRole {
@@ -173,7 +174,7 @@ pub enum EncryptedRole {
 
 /// What holzi can do with an encrypted folder or an entry (data-model.md). A `damaged` entry can
 /// only be deleted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum EncryptedState {

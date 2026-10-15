@@ -72,6 +72,12 @@ fn file_browser_preferences_take_only_their_choices() {
         ("files.hidden", "false"),
         ("files.sort", "name:asc"),
         ("files.sort", "modified:desc"),
+        ("files.iconSet", "builtin:lucide"),
+        ("files.iconSet", "builtin:phosphor"),
+        (
+            "files.iconSet",
+            "custom:0b9a2c52-6a53-4f4e-9a1b-3c1a1d0a77aa",
+        ),
     ] {
         validate_value(key, value).expect("a choice");
     }
@@ -81,6 +87,9 @@ fn file_browser_preferences_take_only_their_choices() {
         ("files.sort", "name"),
         ("files.sort", "colour:asc"),
         ("files.sort", "size:up"),
+        ("files.iconSet", "builtin:future"),
+        ("files.iconSet", "custom:not-a-uuid"),
+        ("files.iconSet", "phosphor"),
     ] {
         validate_value(key, value).expect_err("not a choice");
     }
