@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { chmodSync, mkdirSync } from 'node:fs'
 
 import { deviceFiles } from '../lib/extension-files.ts'
 import type { FlowInstance } from '../lib/flows.ts'
@@ -9,8 +8,8 @@ import { openSettings, runAction, waitForLocation } from '../lib/settings.ts'
 // Spec 053, quickstart §2 steps 1 to 3 and 6 (US1): the settings list Lucide, Phosphor and
 // Material with a preview; choosing Phosphor shows the images of the set in the open folder as
 // `img` elements (never `svg` elements in the DOM) at once and says "Gespeichert." without a save
-// button; the images differ between the light and the dark scheme; the choice survives a restart;
-// a folder without access keeps its own picture under Phosphor.
+// button; the images differ between the light and the dark scheme; the choice survives a restart.
+// The pictures of the states (no access, locked, damaged) are checked in Rust, `bundled_tests.rs`.
 
 const SET = (id: string) => `settings-icon-set-option-${id}`
 
@@ -37,7 +36,6 @@ const openFolder = (instance: FlowInstance, folder: string) =>
 
 scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
   const files = deviceFiles('holzi-icons-')
-  const locked = files.path('gesperrt')
   try {
     const group = await ctx.group({ users: { anna: ['laptop'] } })
     const device = group.device('anna/laptop')
@@ -47,14 +45,6 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
     files.write('main.rs', 'fn main() {}')
     files.write('daten.csv', 'a;b')
     files.write('unbekannt.zzz', 'x')
-    // Where the process is not root, a folder nobody may read is a folder without access.
-    const canLock =
-      process.env.E2E_PLATFORM !== 'android' && process.getuid?.() !== 0
-    if (canLock) {
-      mkdirSync(locked)
-      chmodSync(locked, 0o000)
-    }
-
     // 1. The group lists the three sets, Lucide chosen, each with a preview.
     await openSettings(page)
     await page.click('settings-category-general')
@@ -137,15 +127,6 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
     )
     ctx.step('light and dark scheme give different images')
 
-    // A folder without access keeps its own picture under Phosphor (FR-005).
-    if (canLock) {
-      await page.waitForDisplayed('files-entry-gesperrt')
-      const folder = await pictureOf(page, 'gesperrt')
-      assert.equal(folder.tag, 'img', 'the locked folder is an image too')
-      assert.equal(folder.loaded, true)
-      ctx.step('a folder without access has its picture under Phosphor')
-    }
-
     // 3. The choice survives a restart.
     await device.restart()
     page = device.page
@@ -158,11 +139,6 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
     )
     ctx.step('the choice survives a restart')
   } finally {
-    try {
-      chmodSync(locked, 0o700)
-    } catch {
-      // It was never made.
-    }
     files.remove()
   }
 })
