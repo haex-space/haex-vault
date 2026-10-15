@@ -2505,7 +2505,8 @@
       "nameRequired": "Die Gruppe braucht einen Namen.",
       "menu": "Aktionen für {name}",
       "deleteTitle": "Gruppe löschen?",
-      "deleteText": "Die Gruppe „{name}“ wird gelöscht. Ihre Kontakte bleiben erhalten."
+      "deleteText": "Die Gruppe „{name}“ wird gelöscht. Ihre Kontakte bleiben erhalten.",
+      "sendTo": "Aufs Telefon {phone}"
     },
     "delete": {
       "title": "Kontakt löschen",
@@ -2644,6 +2645,28 @@
     },
     "error": {
       "contactsDenied": "holzi darf nicht auf die Kontakte des Telefons zugreifen. Du kannst es in den Android-Einstellungen unter Apps › holzi › Berechtigungen › Kontakte erlauben."
+    },
+    "targets": {
+      "title": "Abgleich mit Telefonen",
+      "question": "Auch aufs Telefon?",
+      "onlyHolzi": "Nur in holzi: Der Kontakt kommt auf kein Telefon.",
+      "unnamedPhone": "Telefon",
+      "targetAccount": "Zielkonto des Telefons",
+      "add": "Aufs Telefon …",
+      "remove": "Nicht mehr mit {phone} abgleichen",
+      "removeTitle": "Nicht mehr mit {phone} abgleichen?",
+      "removeQuestion": "Soll {phone} den Kontakt löschen oder behalten? Behalten heißt: Er bleibt im Telefon, holzi gleicht ihn dort aber nicht mehr ab. | Soll {phone} die {count} Kontakte löschen oder behalten? Behalten heißt: Sie bleiben im Telefon, holzi gleicht sie dort aber nicht mehr ab.",
+      "keepOnPhone": "Im Telefon behalten",
+      "deleteOnPhone": "Im Telefon löschen",
+      "send": "Aufs Telefon …",
+      "takeOff": "Vom Telefon nehmen …",
+      "sent": "Ein Kontakt kommt beim nächsten Abgleich auf {phone}. | {count} Kontakte kommen beim nächsten Abgleich auf {phone}.",
+      "onPhone": "Wird mit einem Telefon abgeglichen"
+    },
+    "selection": {
+      "start": "Auswählen",
+      "done": "Fertig",
+      "count": "Keiner ausgewählt | Einer ausgewählt | {count} ausgewählt"
     }
   }
 }

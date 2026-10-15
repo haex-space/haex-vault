@@ -2505,7 +2505,8 @@
       "nameRequired": "The group needs a name.",
       "menu": "Actions for {name}",
       "deleteTitle": "Delete group?",
-      "deleteText": "The group “{name}” will be deleted. Its contacts stay."
+      "deleteText": "The group “{name}” will be deleted. Its contacts stay.",
+      "sendTo": "Add to {phone}"
     },
     "delete": {
       "title": "Delete contact",
@@ -2644,6 +2645,28 @@
     },
     "error": {
       "contactsDenied": "holzi may not access the phone's contacts. You can allow it in the Android settings under Apps › holzi › Permissions › Contacts."
+    },
+    "targets": {
+      "title": "Sync with phones",
+      "question": "On a phone too?",
+      "onlyHolzi": "Only in holzi: the contact goes to no phone.",
+      "unnamedPhone": "Phone",
+      "targetAccount": "The phone’s target account",
+      "add": "Add to a phone …",
+      "remove": "Stop syncing with {phone}",
+      "removeTitle": "Stop syncing with {phone}?",
+      "removeQuestion": "Should {phone} delete the contact or keep it? Keep means: it stays on the phone, but holzi no longer syncs it there. | Should {phone} delete the {count} contacts or keep them? Keep means: they stay on the phone, but holzi no longer syncs them there.",
+      "keepOnPhone": "Keep on the phone",
+      "deleteOnPhone": "Delete on the phone",
+      "send": "Add to a phone …",
+      "takeOff": "Take off a phone …",
+      "sent": "One contact goes to {phone} with the next sync. | {count} contacts go to {phone} with the next sync.",
+      "onPhone": "Synced with a phone"
+    },
+    "selection": {
+      "start": "Select",
+      "done": "Done",
+      "count": "None selected | One selected | {count} selected"
     }
   }
 }

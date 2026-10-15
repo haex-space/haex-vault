@@ -1,18 +1,22 @@
 <script setup lang="ts">
 /**
  * The sidebar of the address book (spec 051, FR-002, FR-003): all contacts, the groups with their
- * counts, new group, rename and delete of a group, and the way to the settings of the address
- * book. Only ids travel.
+ * counts, new group, rename and delete of a group, sending a whole group to a phone of the vault
+ * (FR-018c), and the way to the settings of the address book. Only ids travel.
  */
+import { toast } from 'vue-sonner'
 import type { ContactGroup } from '@bindings/ContactGroup'
+import type { ContactsPhoneSummary } from '@bindings/ContactsPhoneSummary'
 
 const emit = defineEmits<{
   navigated: []
 }>()
 
 const { t } = useI18n()
+const { errString } = useErrorString()
 const router = useTabRouter()
 const store = useContactsStore()
+const { groupTargetSetAsync } = useContactTargets()
 const { openApp } = useWmTab()
 
 const activeGroup = computed(() =>
@@ -47,6 +51,20 @@ function newGroup() {
 function rename(group: ContactGroup) {
   editing.value = group
   groupDialog.value = true
+}
+
+async function sendAsync(group: ContactGroup, phone: ContactsPhoneSummary) {
+  const name = phone.name ?? t('contacts.targets.unnamedPhone')
+  try {
+    // action-exempt: the contact actions join the catalog with spec 051 US6 (T083); until then the
+    // choice of the window calls the command.
+    await groupTargetSetAsync(group.id, phone.device)
+    await store.quietReloadAsync()
+    const count = counts.value.get(group.id) ?? 0
+    toast.success(t('contacts.targets.sent', { phone: name, count }, count))
+  } catch (cause) {
+    toast.error(errString(cause))
+  }
 }
 
 function afterDelete(id: string) {
@@ -112,6 +130,20 @@ function afterDelete(id: string) {
             <ShadcnDropdownMenuItem class="gap-2" @select="rename(group)">
               <Icon name="lucide:pencil" class="size-4" />
               {{ t('contacts.groups.rename') }}
+            </ShadcnDropdownMenuItem>
+            <ShadcnDropdownMenuItem
+              v-for="phone in store.phones"
+              :key="phone.device"
+              class="gap-2"
+              :data-testid="`contacts-group-send-${phone.device}`"
+              @select="sendAsync(group, phone)"
+            >
+              <Icon name="lucide:smartphone" class="size-4" />
+              {{
+                t('contacts.groups.sendTo', {
+                  phone: phone.name ?? t('contacts.targets.unnamedPhone'),
+                })
+              }}
             </ShadcnDropdownMenuItem>
             <ShadcnDropdownMenuItem
               class="gap-2 text-destructive"
