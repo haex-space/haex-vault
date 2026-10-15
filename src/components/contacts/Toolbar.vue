@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * The first row of the address book (spec 051, FR-002, FR-004): the sidebar button, the search
- * field bound to `?q=` of the place, and "+" for a new contact. While a contact is open the search
+ * field bound to `?q=` of the place, the Visitenkarte menu (own card, read one in) and "+" for a
+ * new contact. While a contact is open the search
  * leaves the row.
  */
 import { Search } from '@lucide/vue'
@@ -19,7 +20,12 @@ const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 
-const entryOpen = computed(() => router.route.path.startsWith('/entry/'))
+/** A contact or a Visitenkarte is open: no search there. */
+const entryOpen = computed(
+  () =>
+    router.route.path.startsWith('/entry/') ||
+    router.route.path.startsWith('/card'),
+)
 
 const query = ref(router.route.query.q ?? '')
 watch(
@@ -87,6 +93,38 @@ function newContact() {
       @update:model-value="onUpdate"
       @keydown.esc.prevent.stop="clear"
     />
+    <ShadcnDropdownMenu v-if="!entryOpen">
+      <ShadcnDropdownMenuTrigger as-child>
+        <UiButton
+          variant="ghost"
+          size="icon"
+          class="shrink-0"
+          :aria-label="t('contacts.card.menu')"
+          :tooltip="t('contacts.card.menu')"
+          data-testid="contacts-card-menu"
+        >
+          <Icon name="lucide:id-card" class="size-4" />
+        </UiButton>
+      </ShadcnDropdownMenuTrigger>
+      <ShadcnDropdownMenuContent align="end">
+        <ShadcnDropdownMenuItem
+          class="gap-2"
+          data-testid="contacts-card-menu-own"
+          @select="router.push('/card')"
+        >
+          <Icon name="lucide:qr-code" class="size-4" />
+          {{ t('contacts.card.own') }}
+        </ShadcnDropdownMenuItem>
+        <ShadcnDropdownMenuItem
+          class="gap-2"
+          data-testid="contacts-card-menu-import"
+          @select="router.push('/card/import')"
+        >
+          <Icon name="lucide:scan-qr-code" class="size-4" />
+          {{ t('contacts.card.import') }}
+        </ShadcnDropdownMenuItem>
+      </ShadcnDropdownMenuContent>
+    </ShadcnDropdownMenu>
     <UiButton
       v-if="!entryOpen"
       size="icon"

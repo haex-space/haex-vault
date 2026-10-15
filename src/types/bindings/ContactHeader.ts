@@ -17,4 +17,8 @@ targets: Array<string>,
 /**
  * Why a change did not reach a phone, if one did not.
  */
-issue: ContactsPhoneIssueReason | null, };
+issue: ContactsPhoneIssueReason | null,
+/**
+ * The contact has confirmed holzi addresses (a Visitenkarte).
+ */
+hasCard: boolean, };

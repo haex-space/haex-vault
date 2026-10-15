@@ -121,6 +121,7 @@ pub fn remove_device(
             let signed =
                 device_list::sign_list(next, &vault_secret).map_err(haex_crdt::Error::consumer)?;
             device_list::insert(tx, &signed)?;
+            crate::contacts::card::own_card::refresh_quietly(tx);
 
             // One generation above every one the vault ever had, wrapped for
             // the devices of the new list only.

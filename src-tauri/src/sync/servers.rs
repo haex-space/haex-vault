@@ -251,6 +251,8 @@ pub fn write(tx: &mut CrdtTransaction<'_>, config: &ServerConfig) -> haex_crdt::
             serde_json::to_string(urls).map_err(|e| haex_crdt::Error::consumer(e.to_string()))?;
         preferences::insert_or_update(tx, PrefScope::Vault, key, &json)?;
     }
+    // Spec 051 FR-010: the business card carries the Nostr-Relays.
+    crate::contacts::card::own_card::refresh_quietly(tx);
     Ok(())
 }
 

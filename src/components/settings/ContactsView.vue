@@ -1,8 +1,7 @@
 <script setup lang="ts">
 /**
- * The settings category "Kontakte" (spec 051, FR-015a): the way into the address book and the sync
- * with this phone's address book. The own business card and the blocked vaults join it with their
- * stories.
+ * The settings category "Kontakte" (spec 051, FR-015a): the way into the address book, the sync
+ * with this phone's address book, what the own Visitenkarte carries and the blocked vaults.
  */
 const { t } = useI18n()
 const store = useContactsStore()
@@ -32,5 +31,7 @@ onMounted(() => {
       />
     </SettingsGroup>
     <SettingsContactsPhoneSetting />
+    <SettingsContactsCardSetting />
+    <SettingsContactsBlockedSetting />
   </div>
 </template>

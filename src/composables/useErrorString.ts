@@ -98,6 +98,10 @@ export function useErrorString() {
       // Spec 051: the sync with the phone's address book.
       if (kind === 'ContactsDenied') return t('contacts.error.contactsDenied')
       if (kind === 'PhoneContactsUnavailable') return t('errors.notAvailable')
+      if (kind === 'CardInvalid') return t('contacts.error.cardInvalid')
+      if (kind === 'CardOwn') return t('contacts.error.cardOwn')
+      if (kind === 'CardOlder') return t('contacts.error.cardOlder')
+      if (kind === 'CardTooLarge') return t('contacts.error.cardTooLarge')
       // Spec 017: the extension host's kinds name a reason or a state, never data of an extension.
       if (kind === 'ExtensionInstall') {
         const key = `extensions.install.errors.${String(reason)}`

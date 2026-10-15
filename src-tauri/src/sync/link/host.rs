@@ -328,6 +328,7 @@ fn publish_now(
             device_list::check_pushed(&record.list_payload, &record.list_signature, &vault)
                 .map_err(haex_crdt::Error::consumer)?;
         device_list::insert(tx, &signed)?;
+        crate::contacts::card::own_card::refresh_quietly(tx);
         let held = envelopes::held_keys(tx)?;
         let wrapped = envelopes::envelopes_for(&held, &signed, keys, &record.peer_device)?;
         envelopes::insert_envelopes(tx, &wrapped)?;

@@ -66,14 +66,14 @@ Art). Die Einstellungen bieten als Zielkonto nur beschreibbare Konten an.
 
 ## Visitenkarten
 
-| Command                               | Eingabe                                   | Ausgabe                                                                                                                |
-| ------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `contacts_own_card`                   | –                                         | `{ text, qr_svg, issued_at, can_sign, omitted[] }`                                                                     |
-| `contacts_own_card_set`               | `{ own_contact?, value_ids }`             | `()` (Hauptgerät erstellt neu)                                                                                         |
-| `contacts_card_preview`               | `{ text }`                                | `CardPreview` (Name, npub, Geräte, Angaben, `existing_contact?`) oder Fehler `CardInvalid` \| `CardOwn` \| `CardOlder` |
-| `contacts_card_accept`                | `{ text, into: "new" \| { contact_id } }` | `Contact`                                                                                                              |
-| `contacts_blocked`                    | –                                         | `BlockedVault[]`                                                                                                       |
-| `contacts_block` / `contacts_unblock` | `{ vault_pubkey }`                        | `()`                                                                                                                   |
+| Command                               | Eingabe                                                             | Ausgabe                                                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `contacts_own_card`                   | –                                                                   | `{ text, qr_svg, issued_at, can_sign, omitted[], own_contact, value_ids }` (ein Hauptgerät erstellt die erste)         |
+| `contacts_own_card_set`               | `{ own_contact?, value_ids }`                                       | wie `contacts_own_card` (Hauptgerät erstellt neu)                                                                      |
+| `contacts_card_preview`               | `{ text }`                                                          | `CardPreview` (Name, npub, Geräte, Angaben, `existing_contact?`) oder Fehler `CardInvalid` \| `CardOwn` \| `CardOlder` |
+| `contacts_card_accept`                | `{ text, into: { kind: "new" } \| { kind: "contact", contactId } }` | `Contact` (die Karte wird erneut geprüft)                                                                              |
+| `contacts_blocked`                    | –                                                                   | `BlockedVault[]`                                                                                                       |
+| `contacts_block` / `contacts_unblock` | `{ vault_pubkey }`                                                  | `()`                                                                                                                   |
 
 ## Eingebauter Agent
 

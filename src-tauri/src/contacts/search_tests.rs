@@ -41,6 +41,7 @@ fn header(contact: &CaseContact) -> ContactHeader {
         origin_kind: OriginKind::Holzi,
         targets: vec![],
         issue: None,
+        has_card: false,
     }
 }
 

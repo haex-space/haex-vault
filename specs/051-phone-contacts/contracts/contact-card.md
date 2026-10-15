@@ -36,8 +36,12 @@ struct CardValue { kind: String, label: String, value: String }
 5. Gibt es schon eine Karte zu `vault`: `issued_at` muss größer sein, sonst `CardOlder` (keine
    Änderung, FR-012).
 
+Ein Hauptgerät erstellt eine neue Karte immer mit `issued_at` größer als dem der vorigen, auch wenn
+zwei Karten in derselben Sekunde entstehen.
+
 ## Verwendung
 
-- `haex_contacts_cards.card` speichert den Text ohne Präfix dekodiert (postcard ‖ sig).
+- `haex_contacts_cards.card` und `haex_contacts_own_card.card` speichern den Text ohne Präfix dekodiert
+  (`len ‖ postcard ‖ sig`), sodass dieselbe Prüfung für Text und gespeicherte Karte gilt.
 - Für US7 nimmt der Absender die eigene Karte in die Einladung auf; der Empfänger prüft sie nach
   denselben Regeln und den Seal-Schlüssel gegen `devices`.

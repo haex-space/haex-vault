@@ -3,6 +3,7 @@
 //! [`access`] holds its rules, [`store`] its SQL, [`kinds`] the open set of value kinds.
 
 pub mod access;
+pub mod card;
 pub mod commands;
 pub mod ids;
 pub mod kinds;

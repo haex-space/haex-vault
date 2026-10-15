@@ -222,6 +222,22 @@ pub enum HolziError {
     #[error("This device has no phone address book")]
     PhoneContactsUnavailable,
 
+    /// A Visitenkarte that is not one, or whose signature does not verify (FR-011).
+    #[error("Invalid business card: {reason}")]
+    CardInvalid { reason: String },
+
+    /// The Visitenkarte of this vault itself (FR-011).
+    #[error("This is your own business card")]
+    CardOwn,
+
+    /// A Visitenkarte older than the one already stored for its vault (FR-012).
+    #[error("An older business card")]
+    CardOlder,
+
+    /// The own Visitenkarte does not fit 2,048 characters even without values.
+    #[error("The business card is too large")]
+    CardTooLarge,
+
     /// The phone's address book refused a call; `reason` names the kind of failure, never a
     /// contact's data.
     #[error("The phone's address book failed: {reason}")]

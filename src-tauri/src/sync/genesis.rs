@@ -95,6 +95,7 @@ pub fn ensure_sync_state(
                 let signed = device_list::sign_list(list, vault_secret)
                     .map_err(haex_crdt::Error::consumer)?;
                 device_list::insert(tx, &signed)?;
+                crate::contacts::card::own_card::refresh_quietly(tx);
                 content_keys::issue_generation(tx, &key, &signed, &device, now)?;
                 issued_first_list = true;
             }

@@ -19,6 +19,8 @@ pub enum Domain {
     Admission,
     Link,
     LinkResume,
+    /// A Visitenkarte of the vault (spec 051, contracts/contact-card.md).
+    ContactCard,
 }
 
 impl Domain {
@@ -31,6 +33,7 @@ impl Domain {
             Domain::Admission => b"holzi-admission/v1",
             Domain::Link => b"holzi-link/v1",
             Domain::LinkResume => b"holzi-link-resume/v1",
+            Domain::ContactCard => b"holzi-contact-card/v1",
         }
     }
 }

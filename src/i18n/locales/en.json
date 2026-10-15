@@ -213,7 +213,9 @@
       "list": "Contacts",
       "group": "Group",
       "entry": "Contact",
-      "edit": "Edit contact"
+      "edit": "Edit contact",
+      "card": "My business card",
+      "cardImport": "Read a business card"
     }
   },
   "chat": {
@@ -1133,6 +1135,18 @@
           "permission": "holzi may not access the phone's contacts.",
           "failed": "The phone refused the change. holzi tries again at the next sync."
         }
+      },
+      "card": {
+        "title": "Business card",
+        "ownContact": "Own contact",
+        "ownContactHint": "Its name is on your business card, with the values you choose here.",
+        "noOwnContact": "None",
+        "onCard": "On the business card"
+      },
+      "blocked": {
+        "title": "Blocked vaults",
+        "since": "Blocked since {at}",
+        "unblock": "Unblock"
       }
     }
   },
@@ -2649,7 +2663,11 @@
       }
     },
     "error": {
-      "contactsDenied": "holzi may not access the phone's contacts. You can allow it in the Android settings under Apps › holzi › Permissions › Contacts."
+      "contactsDenied": "holzi may not access the phone's contacts. You can allow it in the Android settings under Apps › holzi › Permissions › Contacts.",
+      "cardInvalid": "This is no valid business card, or it was changed.",
+      "cardOwn": "This is the business card of your own vault.",
+      "cardOlder": "This business card is older than the stored one. Everything stays as it is.",
+      "cardTooLarge": "The business card is too large."
     },
     "targets": {
       "title": "Sync with phones",
@@ -2672,6 +2690,34 @@
       "start": "Select",
       "done": "Done",
       "count": "None selected | One selected | {count} selected"
+    },
+    "card": {
+      "menu": "Business card",
+      "own": "My business card",
+      "import": "Read a business card",
+      "copied": "Link of the business card copied",
+      "copy": "Copy link",
+      "qr": "QR code of the business card",
+      "issuedAt": "Made {at}",
+      "noneYet": "No business card yet: a main device of the vault makes it.",
+      "linkedDevice": "This device shows the card a main device of the vault made. Only main devices make new ones.",
+      "omitted": "No longer fits the card: {values}",
+      "noOwnContact": "You have not chosen your own contact yet, so the card carries no name.",
+      "choose": "Choose the content",
+      "paste": "Link of the business card",
+      "check": "Check",
+      "scan": "Scan",
+      "preview": "Preview",
+      "devices": "One device | {count} devices",
+      "blockedNote": "This vault is blocked.",
+      "block": "Block vault",
+      "update": "Update {name}",
+      "asNew": "New contact",
+      "addTo": "Add to contact …",
+      "add": "Add",
+      "accepted": "Business card saved on {name}",
+      "confirmed": "Confirmed holzi addresses",
+      "confirmedAt": "confirmed on {at}"
     }
   }
 }

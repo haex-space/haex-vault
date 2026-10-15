@@ -2,6 +2,7 @@
 //! the [`ContactsService`], with the caller its entrance stands for: the commands of the window
 //! are `Caller::User`. No command takes a caller as an argument.
 
+pub mod cards;
 pub mod contacts;
 pub mod phone;
 pub mod targets;

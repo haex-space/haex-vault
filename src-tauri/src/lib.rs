@@ -62,6 +62,10 @@ use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
 };
+use contacts::commands::cards::{
+    contacts_block, contacts_blocked, contacts_card_accept, contacts_card_preview,
+    contacts_own_card, contacts_own_card_set, contacts_unblock,
+};
 use contacts::commands::contacts::{
     contacts_create, contacts_delete, contacts_get, contacts_group_delete, contacts_group_members,
     contacts_group_save, contacts_groups, contacts_list, contacts_photo, contacts_set_photo,
@@ -238,6 +242,9 @@ pub fn run() {
     let builder = builder.manage(sync::link::join_task::LinkJoin::default());
     // Spec 017: files of extensions for their sandboxed frames.
     let builder = extensions::protocol::handler::register(builder);
+    // Spec 051 (research R13): QR codes of Visitenkarten from the camera, on phones only.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
     builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -549,6 +556,13 @@ pub fn run() {
             contacts_phones,
             contacts_targets_set,
             contacts_targets_remove,
+            contacts_own_card,
+            contacts_own_card_set,
+            contacts_card_preview,
+            contacts_card_accept,
+            contacts_blocked,
+            contacts_block,
+            contacts_unblock,
             passwords_create_item,
             passwords_update_item,
             passwords_passkey_rename,

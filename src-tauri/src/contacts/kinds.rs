@@ -90,6 +90,11 @@ pub fn is_known(kind: &str) -> bool {
     KNOWN.contains(&kind)
 }
 
+/// Whether values of this kind are holzi addresses (FR-008).
+pub fn is_holzi_address(kind: &str) -> bool {
+    matches!(kind, HOLZI_VAULT | HOLZI_NOSTR_RELAY | HOLZI_IROH)
+}
+
 /// Whether values of this kind go to a phone's address book (FR-014).
 pub fn goes_to_phone(kind: &str) -> bool {
     matches!(
