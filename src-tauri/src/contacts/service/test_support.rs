@@ -92,3 +92,18 @@ pub(crate) fn add_phone(
         .expect("add a phone");
     device
 }
+
+/// A vault with its own identity and device list, made on a main device (spec 024 genesis), so it
+/// has a Visitenkarte.
+pub(crate) fn card_vault() -> TestVault {
+    let (dir, db) = open_test_vault();
+    crate::sync::genesis::ensure_sync_state(&db, uuid::Uuid::new_v4(), true).expect("genesis");
+    let db = VaultGate::new()
+        .vault_db(Arc::new(db))
+        .expect("a vault handle");
+    TestVault {
+        _dir: dir,
+        service: ContactsService::new(db.clone()),
+        db,
+    }
+}

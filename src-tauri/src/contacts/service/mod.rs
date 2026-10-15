@@ -5,8 +5,9 @@
 //!
 //! Every method takes the caller first and checks it with [`super::access`] before it touches
 //! data. The caller is the entrance, never an argument of a command. Each area adds its methods in
-//! its own file (`contacts`, `groups`, `targets`).
+//! its own file (`cards`, `contacts`, `groups`, `targets`).
 
+mod cards;
 mod contacts;
 mod groups;
 mod targets;
@@ -16,6 +17,7 @@ pub(crate) mod test_support;
 use crate::vault_gate::VaultDb;
 
 pub use super::access::{Caller, Grant};
+pub use cards::{CardInto, CardPreview};
 pub use contacts::MAX_NOTE_BYTES;
 pub use targets::{OnPhone, Selection};
 

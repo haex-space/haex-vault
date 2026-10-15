@@ -59,6 +59,7 @@ fn header(id: &str, name: &str, phone: &str) -> ContactHeader {
         origin_kind: crate::contacts::model::OriginKind::Holzi,
         targets: vec![],
         issue: None,
+        has_card: false,
     }
 }
 

@@ -133,6 +133,8 @@ pub struct Contact {
     pub targets: Vec<ContactTarget>,
     /// Changes that did not reach a phone (FR-025).
     pub issues: Vec<ContactIssue>,
+    /// The confirmed holzi addresses, from the contact's Visitenkarte (FR-008).
+    pub card: Option<crate::contacts::card::received::ContactCardInfo>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -189,6 +191,8 @@ pub struct ContactHeader {
     pub targets: Vec<String>,
     /// Why a change did not reach a phone, if one did not.
     pub issue: Option<IssueReason>,
+    /// The contact has confirmed holzi addresses (a Visitenkarte).
+    pub has_card: bool,
 }
 
 /// A value for a new contact or a new value of an existing one.

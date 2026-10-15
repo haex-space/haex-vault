@@ -205,6 +205,7 @@ pub fn load(q: &mut impl Query, contact_id: &str) -> Result<Contact> {
         groups: groups_of(q, contact_id)?,
         targets: targets::of(q, contact_id)?,
         issues: targets::issues_of(q, contact_id)?,
+        card: super::card::received::of(q, contact_id)?,
         values,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -237,6 +238,7 @@ pub fn headers(q: &mut impl Query) -> Result<Vec<ContactHeader>> {
         memberships.entry(contact_id).or_default().push(group_id);
     }
     let mut marks = targets::marks(q)?;
+    let cards = super::card::received::with_cards(q)?;
     Ok(rows
         .into_iter()
         .map(|row| {
@@ -253,6 +255,7 @@ pub fn headers(q: &mut impl Query) -> Result<Vec<ContactHeader>> {
                 origin_kind: row.origin.kind,
                 targets: marks.targets.remove(&row.id).unwrap_or_default(),
                 issue: marks.issues.remove(&row.id),
+                has_card: cards.contains(&row.id),
                 id: row.id,
             }
         })
