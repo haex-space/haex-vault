@@ -259,7 +259,7 @@ fn a_permission_in_the_state_ask_asks_for_it() {
 fn every_contact_with_star_and_only_the_groups_members_with_a_group() {
     let s = setup();
     s.permit("arbeit", "granted");
-    assert_eq!(s.listed(), [s.colleague.clone()]);
+    assert_eq!(s.listed(), std::slice::from_ref(&s.colleague));
     assert_eq!(
         code(s.call("extension_contacts_read", json!({ "id": s.friend }))),
         1002
