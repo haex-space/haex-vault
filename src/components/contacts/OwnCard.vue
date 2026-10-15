@@ -84,7 +84,7 @@ async function copyAsync() {
           <img
             :src="qrSource"
             :alt="t('contacts.card.qr')"
-            class="size-64 rounded-lg bg-white p-2"
+            class="size-64 rounded-lg bg-background p-2"
             data-testid="contacts-own-card-qr"
           />
           <p class="text-sm text-muted-foreground">
