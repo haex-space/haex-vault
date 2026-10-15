@@ -10,6 +10,9 @@ function loadAsync(): Promise<PlatformCapabilities | null> {
     .then((table) => (capabilities.value = table))
     .catch((error: unknown) => {
       console.warn('platform_capabilities failed', error)
+      // A failed read is not the table: the next call asks again, instead of every caller for the
+      // life of the page getting the same `null` (the back gesture is registered from the table).
+      loading = null
       return null
     })
   return loading

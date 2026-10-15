@@ -29,15 +29,22 @@ export default defineNuxtPlugin((nuxtApp) => {
 
   // The decision logic behind `wm.system.back` is covered by `pnpm check:wm-navigation`, the
   // gesture itself by the e2e scenario `android-back-gesture`.
-  void useDeviceCapabilities()
-    .readyAsync()
-    .then(async (table) => {
-      if (!table?.backGesture) return
-      await onBackButtonPress(() => {
-        void wm.runAction('wm.system.back')
-      })
+  const { readyAsync } = useDeviceCapabilities()
+  void (async () => {
+    // A failed read of the table is asked again for a few seconds: without it the handler would
+    // never be registered, and the system's own back would send the app to the background.
+    let table = await readyAsync()
+    for (let attempt = 0; table === null && attempt < 20; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      table = await readyAsync()
+    }
+    if (!table?.backGesture) return
+    await onBackButtonPress(() => {
+      void wm.runAction('wm.system.back')
     })
-    .catch((error: unknown) => {
-      console.error('[wm] onBackButtonPress unavailable', error)
-    })
+    // The e2e scenario presses the key only once it sees this mark.
+    document.documentElement.dataset.backGesture = 'ready'
+  })().catch((error: unknown) => {
+    console.error('[wm] onBackButtonPress unavailable', error)
+  })
 })
