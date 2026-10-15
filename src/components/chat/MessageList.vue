@@ -13,6 +13,7 @@ import { marked } from 'marked'
 import type { Message } from '~/composables/useChat'
 import { fromToolName } from '~/lib/actions/agentTools'
 import { ALL_ACTIONS } from '~/lib/actions/catalog'
+import { originLabel } from '~/lib/chat/toolOrigin'
 import { prettyToolText } from '~/lib/chat/toolText'
 import type { Provider } from '~/composables/useProviders'
 
@@ -32,10 +33,12 @@ const emit = defineEmits<{
   toggleReasoning: [messageId: string, expanded: boolean]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
-/** Tool rows of an action show the action's localized title, other tools their own name. */
+/** Tool rows of an action show the action's localized title, an extension's tool its extension
+ * and title (spec 018), other tools their own name. */
 function toolLabel(m: Message): string {
+  if (m.toolOrigin) return originLabel(m.toolOrigin, locale.value)
   if (m.toolSource !== 'action') return m.toolName ?? ''
   const action = fromToolName(m.toolName ?? '', ALL_ACTIONS)
   return action ? t(action.titleKey) : (m.toolName ?? '')
@@ -139,6 +142,7 @@ function renderMarkdown(content: string): string {
         <div class="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
           <template v-if="m.role === 'tool_call'">
             {{ t('chat.tool.call', { name: toolLabel(m) }) }}
+            <WmDevBadge v-if="m.toolOrigin?.dev" />
           </template>
           <template v-else-if="m.role === 'tool_result'">
             {{
