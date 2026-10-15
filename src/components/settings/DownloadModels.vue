@@ -83,7 +83,7 @@ onMounted(reloadAsync)
         icon="lucide:search"
         :title="t('settings.locations.ai.download.search.title')"
         :description="t('settings.locations.ai.download.search.description')"
-        data-testid="settings-row-models.download.search"
+        data-testid="settings-row-ai.download.search"
       />
     </SettingsGroup>
 
