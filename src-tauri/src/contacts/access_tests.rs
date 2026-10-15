@@ -127,3 +127,36 @@ fn denials_map_to_the_contacts_errors() {
         HolziError::ContactsForbidden
     ));
 }
+
+#[test]
+fn all_but_a_denied_group_hides_its_members_unless_another_granted_group_shows_them() {
+    let denied: BTreeSet<String> = ["private".to_owned()].into();
+    let caller = Caller::Extension { id: "ext".into() };
+    let grants = vec![
+        Grant::new(GrantAction::Read, Scope::all_except(denied)),
+        Grant::new(GrantAction::Read, in_groups(&["work"])),
+    ];
+    let scope = authorize_list(&caller, &grants).unwrap();
+    assert!(scope.covers(&[]));
+    assert!(scope.covers(&groups(&["family"])));
+    assert!(!scope.covers(&groups(&["private"])));
+    assert!(scope.covers(&groups(&["private", "work"])));
+    assert_eq!(
+        authorize_read(&caller, &grants, &groups(&["private"])),
+        Err(Denied::NotFound)
+    );
+}
+
+#[test]
+fn all_except_nothing_is_all() {
+    assert_eq!(Scope::all_except(BTreeSet::new()), Scope::All);
+}
+
+#[test]
+fn holzi_functions_pass_require_holzi_but_no_outside_caller_does() {
+    assert_eq!(require_holzi(&Caller::User), Ok(()));
+    assert_eq!(require_holzi(&Caller::Internal { feature: "x" }), Ok(()));
+    for caller in outside_callers() {
+        assert_eq!(require_holzi(&caller), Err(Denied::Forbidden));
+    }
+}

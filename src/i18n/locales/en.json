@@ -2165,6 +2165,7 @@
         "mail": "Mail",
         "shell": "Run programs",
         "encryptedFolder": "Encrypted folder",
+        "contacts": "Contacts",
         "agentTool": "Tool for the agent"
       },
       "effect": {
@@ -2173,6 +2174,7 @@
         "destructive": "deletes or cannot be undone"
       },
       "everyMethod": "all requests",
+      "contactsGroup": "Contacts in the group “{name}”",
       "everything": {
         "filesystem": "All files and folders",
         "web": "Every website and server on the internet",
@@ -2180,7 +2182,8 @@
         "remoteStorage": "All cloud storages",
         "remoteStorageAdd": "Cloud storages on any server",
         "mail": "All mail servers",
-        "shell": "Any program"
+        "shell": "Any program",
+        "contacts": "All contacts"
       }
     },
     "encryptedChooser": {

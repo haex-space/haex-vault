@@ -14,7 +14,7 @@ use crate::contacts::kinds::{self, EMAIL, PHONE};
 use crate::contacts::model::{
     Contact, ContactHeader, ContactInput, ContactPatch, Head, Origin, OriginKind, ValueInput,
 };
-use crate::contacts::{photos, store};
+use crate::contacts::{photos, search, store};
 use crate::error::{HolziError, Result};
 use crate::passwords::clock;
 use crate::patch::Patch;
@@ -91,6 +91,18 @@ impl ContactsService {
             .read(|q| store::headers(q).map_err(Into::into))
             .await?;
         headers.retain(|header| scope.covers(&header.groups));
+        Ok(headers)
+    }
+
+    /// The headers of the contacts the caller may see that match `query` (FR-004, research R11).
+    pub async fn search(
+        &self,
+        caller: &Caller,
+        grants: &[Grant],
+        query: &str,
+    ) -> Result<Vec<ContactHeader>> {
+        let mut headers = self.list(caller, grants).await?;
+        headers.retain(|header| search::matches(&search::haystack(header), query));
         Ok(headers)
     }
 

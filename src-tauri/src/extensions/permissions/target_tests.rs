@@ -369,3 +369,37 @@ fn an_agent_tool_permission_has_an_effect_and_the_star_row_covers_every_effect()
     }
     assert!(!Action::Change.covers(&Action::Destructive));
 }
+
+#[test]
+fn a_contacts_target_is_all_or_a_group_by_its_folded_name() {
+    use crate::extensions::permissions::Permission;
+    assert_eq!(
+        Target::parse(PermissionKind::Contacts, "*"),
+        Some(Target::Any)
+    );
+    assert_eq!(
+        Target::parse(PermissionKind::Contacts, " Arbeit "),
+        Some(Target::Tag("arbeit".to_string()))
+    );
+    assert_eq!(Target::parse(PermissionKind::Contacts, "  "), None);
+    assert_eq!(
+        PermissionKind::parse("contacts"),
+        Some(PermissionKind::Contacts)
+    );
+    assert_eq!(
+        Action::parse(PermissionKind::Contacts, "read"),
+        Some(Action::Read)
+    );
+    for refused in ["readWrite", "write", "*"] {
+        assert_eq!(Action::parse(PermissionKind::Contacts, refused), None);
+    }
+    assert!(Permission::from_row(
+        "contacts",
+        "readWrite",
+        "*",
+        "granted",
+        crate::extensions::permissions::VAULT_WIDE
+    )
+    .is_none());
+    assert!(!PermissionKind::Contacts.is_device_scoped());
+}

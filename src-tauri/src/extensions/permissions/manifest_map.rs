@@ -55,6 +55,7 @@ fn category_kind(category: &str) -> Option<PermissionKind> {
         "cloudStorage" | "remoteStorage" => Some(PermissionKind::RemoteStorage),
         "mail" => Some(PermissionKind::Mail),
         "shell" => Some(PermissionKind::Shell),
+        "contacts" => Some(PermissionKind::Contacts),
         _ => None,
     }
 }
@@ -79,7 +80,8 @@ fn default_action(kind: PermissionKind) -> Option<&'static str> {
         PermissionKind::Database
         | PermissionKind::Filesystem
         | PermissionKind::Passwords
-        | PermissionKind::RemoteStorage => Some("read"),
+        | PermissionKind::RemoteStorage
+        | PermissionKind::Contacts => Some("read"),
         PermissionKind::Web => Some("*"),
         PermissionKind::Notifications => Some("show"),
         PermissionKind::Shell => Some("execute"),

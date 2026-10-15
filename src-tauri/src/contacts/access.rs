@@ -19,14 +19,36 @@ pub enum GrantAction {
     ReadWrite,
 }
 
-/// Which contacts a grant covers: all, or those in one of the groups (by group id).
+/// Which contacts a grant covers: all, those in one of the groups, or all but those in a denied
+/// group (group ids throughout).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Scope {
     All,
     Groups(BTreeSet<String>),
+    /// Every contact except one in a group of `denied`; a contact also in a group of `granted` is
+    /// covered all the same, because a granted group beats a denied one (spec 017 FR-017, as for
+    /// the tags of the password manager).
+    AllExcept {
+        denied: BTreeSet<String>,
+        granted: BTreeSet<String>,
+    },
 }
 
 impl Scope {
+    /// Every contact but those in `denied`; without a denied group simply all.
+    pub fn all_except(denied: BTreeSet<String>) -> Scope {
+        if denied.is_empty() {
+            Scope::All
+        } else {
+            Scope::AllExcept {
+                denied,
+                granted: BTreeSet::new(),
+            }
+        }
+    }
+
+    // Two `AllExcept` scopes join with the union of their denied groups, which hides more than the
+    // exact union; all grants of one caller carry the same denials, so it is exact there.
     fn union(self, other: Scope) -> Scope {
         match (self, other) {
             (Scope::All, _) | (_, Scope::All) => Scope::All,
@@ -34,14 +56,47 @@ impl Scope {
                 a.extend(b);
                 Scope::Groups(a)
             }
+            (
+                Scope::AllExcept {
+                    denied,
+                    mut granted,
+                },
+                Scope::Groups(groups),
+            )
+            | (
+                Scope::Groups(groups),
+                Scope::AllExcept {
+                    denied,
+                    mut granted,
+                },
+            ) => {
+                granted.extend(groups);
+                Scope::AllExcept { denied, granted }
+            }
+            (
+                Scope::AllExcept {
+                    mut denied,
+                    mut granted,
+                },
+                Scope::AllExcept {
+                    denied: d,
+                    granted: g,
+                },
+            ) => {
+                denied.extend(d);
+                granted.extend(g);
+                Scope::AllExcept { denied, granted }
+            }
         }
     }
 
     /// Whether a contact in these groups lies in this scope.
     pub fn covers(&self, groups: &[String]) -> bool {
+        let has = |set: &BTreeSet<String>| groups.iter().any(|group| set.contains(group));
         match self {
             Scope::All => true,
-            Scope::Groups(scope) => groups.iter().any(|group| scope.contains(group)),
+            Scope::Groups(scope) => has(scope),
+            Scope::AllExcept { denied, granted } => has(granted) || !has(denied),
         }
     }
 }
@@ -95,6 +150,15 @@ fn reach(caller: &Caller, grants: &[Grant], needed: GrantAction) -> Result<Scope
 pub fn require_user(caller: &Caller) -> Result<(), Denied> {
     match caller {
         Caller::User => Ok(()),
+        _ => Err(Denied::Forbidden),
+    }
+}
+
+/// Methods for the window and holzi's own functions, such as reading the groups to turn the
+/// group names of an extension's permissions into grants.
+pub fn require_holzi(caller: &Caller) -> Result<(), Denied> {
+    match caller {
+        Caller::User | Caller::Internal { .. } => Ok(()),
         _ => Err(Denied::Forbidden),
     }
 }

@@ -31,7 +31,8 @@ pub enum Target {
     MailServer { host: String, port: Option<u16> },
     /// A program, by its canonical path.
     Program(PathBuf),
-    /// A tag of the password manager, compared in its folded form.
+    /// A tag of the password manager or a group of the address book, by name, compared in its
+    /// folded form.
     Tag(String),
     /// A remote storage, by its id; for the action `add` the host of an endpoint
     /// (`host:port`, `host`, an IPv6 address as `[addr]` or `[addr]:port`), matched like a mail
@@ -175,6 +176,11 @@ impl Target {
             K::Shell if value == "*" => Some(Self::Any),
             K::Shell => clean_absolute(value).map(Self::Program),
             K::EncryptedFolder => FolderRef::parse(value).map(Self::EncryptedFolder),
+            K::Contacts if value == "*" => Some(Self::Any),
+            K::Contacts => {
+                let group = fold(value);
+                (!group.is_empty()).then_some(Self::Tag(group))
+            }
             K::AgentTool if value == "*" => Some(Self::Any),
             K::AgentTool => is_tool_name(value).then(|| Self::Tool(value.to_owned())),
         }

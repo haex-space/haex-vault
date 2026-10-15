@@ -2,6 +2,7 @@
 //! sessions, the allowlist of bridge methods and events to frames.
 
 pub(crate) mod agent_tasks;
+mod allowlist;
 pub mod blocking;
 pub mod database;
 pub mod dispatch;

@@ -7,7 +7,7 @@ use haex_crdt::rusqlite::params;
 use uuid::Uuid;
 
 use super::{Caller, ContactsService};
-use crate::contacts::access::require_user;
+use crate::contacts::access::{require_holzi, require_user};
 use crate::contacts::ids::member_id;
 use crate::contacts::model::Group;
 use crate::contacts::store;
@@ -17,9 +17,10 @@ use crate::error::{HolziError, Result};
 const MAX_NAME_CHARS: usize = 100;
 
 impl ContactsService {
-    /// Every group.
+    /// Every group; for the window and for holzi's own functions, which turn the group names of
+    /// permissions into grants (FR-029).
     pub async fn groups(&self, caller: &Caller) -> Result<Vec<Group>> {
-        require_user(caller)?;
+        require_holzi(caller)?;
         self.db()
             .read(|q| store::all_groups(q).map_err(Into::into))
             .await

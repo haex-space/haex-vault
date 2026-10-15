@@ -8,6 +8,7 @@ pub mod agent_tools;
 pub mod bridge;
 pub mod bundle;
 pub mod commands;
+pub mod contacts;
 pub mod desktop;
 pub mod dev;
 pub mod dev_csp;

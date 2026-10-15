@@ -22,7 +22,8 @@ fn test_key() -> SigningKey {
     SigningKey::from_bytes(&seed.into())
 }
 
-/// The probe at `version`; 1.1.0 adds a column (the update of `extension-two-devices`).
+/// The probe at `version`; 1.1.0 adds a column (the update of `extension-two-devices`). It
+/// declares reading the contacts of the group "Arbeit" (spec 051, `extension-contacts`).
 fn probe(version: &str) -> Vec<u8> {
     let key = test_key();
     let public_key: String = key
@@ -34,7 +35,8 @@ fn probe(version: &str) -> Vec<u8> {
     let table = format!("{public_key}__probe__items");
     let manifest = parse_restricted(&format!(
         r#"{{"name":"probe","version":"{version}","displayName":"Probe","migrationsDir":"db",
-            "permissions":{{"filesystem":[{{"target":"/tmp/holzi-probe","operation":"read"}}]}}}}"#
+            "permissions":{{"filesystem":[{{"target":"/tmp/holzi-probe","operation":"read"}}],
+            "contacts":[{{"target":"Arbeit","operation":"read"}}]}}}}"#
     ))
     .expect("manifest");
     let page = std::fs::read(dir().join("probe.html")).expect("probe page");
