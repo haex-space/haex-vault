@@ -29,6 +29,7 @@ fn base(role: MessageRole) -> ChatMessage {
         tool_is_error: None,
         tool_source: None,
         autonomy_mode: None,
+        tool_origin: None,
     }
 }
 
@@ -208,4 +209,41 @@ fn a_pre_migration_row_with_every_new_field_none_is_valid() {
     ] {
         assert_eq!(validate(&base(role)), Ok(()));
     }
+}
+
+/// Spec 018: an extension's tool call keeps its origin on the call row only.
+#[test]
+fn only_a_tool_call_row_carries_the_tool_origin() {
+    let origin = Some(r#"{"extensionId":"e","extensionName":"Mail"}"#.to_string());
+    let call = ChatMessage {
+        tool_name: Some("x_mail_count".to_string()),
+        tool_call_id: Some("call-1".to_string()),
+        tool_input: Some("{}".to_string()),
+        tool_source: Some("haextension".to_string()),
+        tool_origin: origin.clone(),
+        ..base(MessageRole::ToolCall)
+    };
+    assert_eq!(validate(&call), Ok(()));
+
+    let result = ChatMessage {
+        tool_call_id: Some("call-1".to_string()),
+        tool_is_error: Some(false),
+        tool_origin: origin.clone(),
+        ..base(MessageRole::ToolResult)
+    };
+    assert_eq!(
+        validate(&result),
+        Err(ChatMessageValidationError::ToolResultHasToolCallFields)
+    );
+
+    let assistant = ChatMessage {
+        tool_origin: origin,
+        ..base(MessageRole::Assistant)
+    };
+    assert_eq!(
+        validate(&assistant),
+        Err(ChatMessageValidationError::ToolColumnsOnNonToolRole {
+            role: MessageRole::Assistant
+        })
+    );
 }

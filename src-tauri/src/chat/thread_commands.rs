@@ -185,6 +185,10 @@ pub struct MessagePayload {
     /// 009-autonomous-delegate-mode): `"standard"` / `"ungated"` /
     /// `"gated_permissive"`. `null` for legacy and non-delegate rows.
     pub autonomy_mode: Option<String>,
+    /// The extension of an extension's tool call (spec 018); absent otherwise, and for a stored
+    /// origin that no longer reads.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_origin: Option<crate::chat::tools::ToolOrigin>,
 }
 
 impl From<ChatMessage> for MessagePayload {
@@ -219,6 +223,10 @@ impl From<ChatMessage> for MessagePayload {
             tool_is_error: m.tool_is_error,
             tool_source: m.tool_source,
             autonomy_mode: m.autonomy_mode,
+            tool_origin: m
+                .tool_origin
+                .as_deref()
+                .and_then(|origin| serde_json::from_str(origin).ok()),
         }
     }
 }
