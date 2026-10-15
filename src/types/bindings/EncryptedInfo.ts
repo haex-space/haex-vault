@@ -5,7 +5,7 @@ import type { EncryptedState } from "./EncryptedState";
 /**
  * Where an entry stands to encryption (spec 048, contracts/tauri-commands.md).
  */
-export type EncryptedInfo = { role: EncryptedRole, state: EncryptedState, 
+export type EncryptedInfo = { role: EncryptedRole, state: EncryptedState,
 /**
  * Files in the folder that are not part of the format (research R19), for the folder itself
  * when it was opened; 0 for an entry inside and in a listing of the folder's parent.
