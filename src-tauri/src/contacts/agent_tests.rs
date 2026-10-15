@@ -246,6 +246,49 @@ async fn a_read_grant_reads_but_never_changes_and_a_denied_write_keeps_the_read(
 }
 
 #[tokio::test]
+async fn a_group_read_grant_survives_a_denied_write() {
+    let vault = test_vault();
+    let work = vault
+        .service
+        .group_save(&Caller::User, None, "Arbeit".into())
+        .await
+        .unwrap();
+    let carla = vault
+        .service
+        .create(&Caller::User, &[], person("Carla", vec![work.id.clone()]))
+        .await
+        .unwrap();
+    let row = AgentFilePermission {
+        agent_id: "builtin".into(),
+        kind: AgentFileKind::Contacts,
+        target: permissions::group_target(&work.id),
+        status: Read,
+        updated_at: 1,
+        reach: None,
+    };
+    vault
+        .db
+        .write_blocking(move |tx| Ok(permissions::set(tx, &row)?))
+        .unwrap();
+
+    let (prompt, asked) = window(once(FilesAgentChoice::Deny));
+    let agent = agent(&vault, prompt);
+    let refused = agent
+        .update(
+            &carla.id,
+            renumber(&carla.values[0].id),
+            &CancellationToken::new(),
+        )
+        .await;
+    assert!(matches!(refused, Err(HolziError::ContactsNotFound)));
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    let target = permissions::group_target(&work.id);
+    assert_eq!(stored(&vault), rows(&[(&target, Read)]));
+    let readable = agent.get(&carla.id, &CancellationToken::new()).await;
+    assert!(readable.is_ok(), "the group read grant must survive");
+}
+
+#[tokio::test]
 async fn a_group_grant_shows_only_its_members_without_asking() {
     let vault = test_vault();
     let work = vault

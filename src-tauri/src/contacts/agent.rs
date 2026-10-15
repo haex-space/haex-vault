@@ -165,7 +165,11 @@ impl ContactsAgent {
             FilesAgentChoice::Read => AgentFileStatus::Read,
             FilesAgentChoice::ReadWrite => AgentFileStatus::ReadWrite,
             FilesAgentChoice::Deny => {
-                if star(&rows).is_none() {
+                // A global denial cannot be stored alongside a group read grant: the row model
+                // would make that denial hide the existing read grant as well. Keep that grant
+                // intact; with no grant at all, a denied star still remembers the refusal.
+                let has_grant = rows.iter().any(|(_, status)| action_of(*status).is_some());
+                if star(&rows).is_none() && !has_grant {
                     self.store(AgentFileStatus::Denied).await?;
                 }
                 return Ok(grants_from(&self.rows().await?));

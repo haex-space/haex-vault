@@ -55,9 +55,7 @@
           "description": "Signed number of entries."
         }
       },
-      "required": [
-        "steps"
-      ]
+      "required": ["steps"]
     },
     "effect": "write",
     "core": false,
@@ -85,9 +83,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "to"
-      ]
+      "required": ["to"]
     },
     "effect": "write",
     "core": false,
@@ -112,9 +108,7 @@
           "description": "Optional app-relative start location, e.g. '/thread/<id>'."
         }
       },
-      "required": [
-        "appId"
-      ]
+      "required": ["appId"]
     },
     "effect": "write",
     "core": true,
@@ -143,9 +137,7 @@
           "description": "Optional app-relative start location, e.g. '/thread/<id>'."
         }
       },
-      "required": [
-        "appId"
-      ]
+      "required": ["appId"]
     },
     "effect": "write",
     "core": true,
@@ -278,12 +270,7 @@
           "type": "number"
         }
       },
-      "required": [
-        "x",
-        "y",
-        "width",
-        "height"
-      ]
+      "required": ["x", "y", "width", "height"]
     },
     "effect": "write",
     "core": false,
@@ -328,9 +315,7 @@
           "description": "Destination workspace."
         }
       },
-      "required": [
-        "toWorkspaceId"
-      ]
+      "required": ["toWorkspaceId"]
     },
     "effect": "write",
     "core": false,
@@ -531,9 +516,7 @@
           "description": "Conversation id (see chat.conversations.list)."
         }
       },
-      "required": [
-        "threadId"
-      ]
+      "required": ["threadId"]
     },
     "effect": "write",
     "core": false,
@@ -557,10 +540,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "threadId",
-        "title"
-      ]
+      "required": ["threadId", "title"]
     },
     "effect": "write",
     "core": false,
@@ -581,9 +561,7 @@
           "description": "Conversation id (see chat.conversations.list)."
         }
       },
-      "required": [
-        "threadId"
-      ]
+      "required": ["threadId"]
     },
     "effect": "destructive",
     "core": false,
@@ -619,9 +597,7 @@
           "description": "Conversation id (see chat.conversations.list)."
         }
       },
-      "required": [
-        "threadId"
-      ]
+      "required": ["threadId"]
     },
     "effect": "read",
     "core": false,
@@ -641,9 +617,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "modelId"
-      ]
+      "required": ["modelId"]
     },
     "effect": "write",
     "core": false,
@@ -697,9 +671,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "entryId"
-      ]
+      "required": ["entryId"]
     },
     "effect": "write",
     "core": false,
@@ -719,9 +691,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "enabled"
-      ]
+      "required": ["enabled"]
     },
     "effect": "write",
     "core": false,
@@ -816,9 +786,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "alias"
-      ]
+      "required": ["alias"]
     },
     "effect": "write",
     "core": false,
@@ -838,9 +806,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "enabled"
-      ]
+      "required": ["enabled"]
     },
     "effect": "write",
     "core": false,
@@ -858,16 +824,11 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "de",
-            "en"
-          ],
+          "enum": ["de", "en"],
           "description": "Interface language: German (de) or English (en)."
         }
       },
-      "required": [
-        "language"
-      ]
+      "required": ["language"]
     },
     "effect": "write",
     "core": false,
@@ -885,16 +846,10 @@
       "properties": {
         "scheme": {
           "type": "string",
-          "enum": [
-            "light",
-            "dark",
-            "system"
-          ]
+          "enum": ["light", "dark", "system"]
         }
       },
-      "required": [
-        "scheme"
-      ]
+      "required": ["scheme"]
     },
     "effect": "write",
     "core": true,
@@ -1044,9 +999,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "file"
-      ]
+      "required": ["file"]
     },
     "effect": "write",
     "core": false,
@@ -1067,9 +1020,7 @@
           "description": "Installed model id (see settings.models.list)."
         }
       },
-      "required": [
-        "modelId"
-      ]
+      "required": ["modelId"]
     },
     "effect": "write",
     "core": false,
@@ -1104,9 +1055,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "catalogId"
-      ]
+      "required": ["catalogId"]
     },
     "effect": "write",
     "core": false,
@@ -1126,9 +1075,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "entryId"
-      ]
+      "required": ["entryId"]
     },
     "effect": "write",
     "core": false,
@@ -1166,10 +1113,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "repoId",
-        "filename"
-      ]
+      "required": ["repoId", "filename"]
     },
     "effect": "write",
     "core": false,
@@ -1190,9 +1134,7 @@
           "description": "Installed model id (see settings.models.list)."
         }
       },
-      "required": [
-        "modelId"
-      ]
+      "required": ["modelId"]
     },
     "effect": "write",
     "core": false,
@@ -1213,9 +1155,7 @@
           "description": "Installed model id (see settings.models.list)."
         }
       },
-      "required": [
-        "modelId"
-      ]
+      "required": ["modelId"]
     },
     "effect": "destructive",
     "core": false,
@@ -1235,9 +1175,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "providerId"
-      ]
+      "required": ["providerId"]
     },
     "effect": "write",
     "core": false,
@@ -1309,10 +1247,7 @@
           "description": "At most 2000."
         }
       },
-      "required": [
-        "source",
-        "path"
-      ]
+      "required": ["source", "path"]
     },
     "effect": "read",
     "core": false,
@@ -1338,10 +1273,7 @@
           "description": "On the device an absolute path; in a storage a path from \"/\", such as \"/Fotos/2025\"."
         }
       },
-      "required": [
-        "source",
-        "path"
-      ]
+      "required": ["source", "path"]
     },
     "effect": "read",
     "core": false,
@@ -1374,13 +1306,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "image",
-              "video",
-              "audio",
-              "document",
-              "text"
-            ]
+            "enum": ["image", "video", "audio", "document", "text"]
           }
         },
         "sizeMin": {
@@ -1396,11 +1322,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "source",
-        "path",
-        "query"
-      ]
+      "required": ["source", "path", "query"]
     },
     "effect": "read",
     "core": false,
@@ -1426,10 +1348,7 @@
           "description": "On the device an absolute path; in a storage a path from \"/\", such as \"/Fotos/2025\"."
         }
       },
-      "required": [
-        "source",
-        "path"
-      ]
+      "required": ["source", "path"]
     },
     "effect": "read",
     "core": false,
@@ -1458,11 +1377,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "source",
-        "path",
-        "name"
-      ]
+      "required": ["source", "path", "name"]
     },
     "effect": "write",
     "core": false,
@@ -1501,18 +1416,11 @@
         },
         "onConflict": {
           "type": "string",
-          "enum": [
-            "skip",
-            "keepBoth"
-          ],
+          "enum": ["skip", "keepBoth"],
           "description": "What happens to a name already taken at the target."
         }
       },
-      "required": [
-        "source",
-        "paths",
-        "to"
-      ]
+      "required": ["source", "paths", "to"]
     },
     "effect": "write",
     "core": false,
@@ -1541,11 +1449,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "source",
-        "path",
-        "newName"
-      ]
+      "required": ["source", "path", "newName"]
     },
     "effect": "write",
     "core": false,
@@ -1584,19 +1488,11 @@
         },
         "onConflict": {
           "type": "string",
-          "enum": [
-            "skip",
-            "keepBoth",
-            "replace"
-          ],
+          "enum": ["skip", "keepBoth", "replace"],
           "description": "What happens to a name already taken at the target."
         }
       },
-      "required": [
-        "source",
-        "paths",
-        "to"
-      ]
+      "required": ["source", "paths", "to"]
     },
     "effect": "destructive",
     "core": false,
@@ -1626,10 +1522,7 @@
           "description": "The files and folders, by path."
         }
       },
-      "required": [
-        "source",
-        "paths"
-      ]
+      "required": ["source", "paths"]
     },
     "effect": "destructive",
     "core": false,
@@ -1655,10 +1548,7 @@
           "description": "On the device an absolute path; in a storage a path from \"/\", such as \"/Fotos/2025\"."
         }
       },
-      "required": [
-        "source",
-        "path"
-      ]
+      "required": ["source", "path"]
     },
     "effect": "write",
     "core": false,
@@ -1683,9 +1573,7 @@
           "description": "At most this many contacts (at most 100, 20 by default)."
         }
       },
-      "required": [
-        "query"
-      ]
+      "required": ["query"]
     },
     "effect": "read",
     "core": false,
@@ -1706,9 +1594,7 @@
           "description": "The contact id."
         }
       },
-      "required": [
-        "id"
-      ]
+      "required": ["id"]
     },
     "effect": "read",
     "core": false,
@@ -1782,9 +1668,7 @@
           "description": "Ids of values to remove."
         }
       },
-      "required": [
-        "id"
-      ]
+      "required": ["id"]
     },
     "effect": "write",
     "core": false,
