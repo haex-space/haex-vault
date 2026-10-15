@@ -8,15 +8,7 @@ import type { CredentialsState } from '@bindings/CredentialsState'
 import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { StorageOverview } from '@bindings/StorageOverview'
 import type { TestOutcome } from '@bindings/TestOutcome'
-
-/** The tables whose changes (also from another device) change the overview. */
-const TABLES = [
-  'haex_storage_connections',
-  'haex_storages',
-  'storage_tests_no_sync',
-  'haex_passwords_item_details',
-  'extension_permissions',
-] as const
+import { OVERVIEW_TABLES } from '~/lib/storage/overviewTables'
 
 /** The overview, read on mount and again when one of its tables changes. */
 export function useStorageOverview() {
@@ -34,7 +26,7 @@ export function useStorageOverview() {
   }
 
   onMounted(loadAsync)
-  onVaultTablesChanged(TABLES, loadAsync)
+  onVaultTablesChanged(OVERVIEW_TABLES, loadAsync)
 
   const connection = (id: string): ConnectionView | undefined =>
     overview.value?.connections.find((c) => c.id === id)
