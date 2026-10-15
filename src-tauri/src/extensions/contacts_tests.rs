@@ -237,14 +237,15 @@ fn without_a_permission_every_call_is_1002_and_a_missing_contact_looks_the_same(
 #[test]
 fn a_permission_in_the_state_ask_asks_for_it() {
     let s = setup();
-    s.permit("Arbeit", "ask");
+    s.permit("arbeit", "ask");
     let error = s
         .call("extension_contacts_list", json!({}))
         .expect_err("asks");
     assert_eq!(error.code.as_u16(), 1004);
     assert_eq!(
         error.details,
-        Some(json!({ "resourceType": "contacts", "action": "read", "target": "arbeit" }))
+        Some(json!({ "resourceType": "contacts", "action": "read", "target": "Arbeit" })),
+        "the group as the address book spells it"
     );
 
     s.permit("*", "ask");

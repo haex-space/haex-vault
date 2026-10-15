@@ -124,8 +124,9 @@ pub fn grants_of(permissions: &[Permission], groups: &[Group]) -> Vec<Grant> {
 
 /// The answer to a call without grants: a question for a permission in the state "ask" (the one
 /// for `group` first, when the call names one), else 1002. Under a denied `*`, or for a permission
-/// on a denied group, no answer could help, so none is asked.
-fn refused(permissions: &[Permission], group: Option<&str>) -> BridgeError {
+/// on a denied group, no answer could help, so none is asked. The question names a group as the
+/// address book spells it, not in its folded form.
+fn refused(permissions: &[Permission], groups: &[Group], group: Option<&str>) -> BridgeError {
     if denies_all(permissions) {
         return denied();
     }
@@ -149,7 +150,10 @@ fn refused(permissions: &[Permission], group: Option<&str>) -> BridgeError {
         .or_else(|| asking.first().copied().filter(|_| group.is_none()));
     let target = match chosen.map(|p| &p.target) {
         Some(Target::Any) => "*".to_owned(),
-        Some(Target::Tag(name)) => name.clone(),
+        Some(Target::Tag(name)) => groups
+            .iter()
+            .find(|group| fold(&group.name) == *name)
+            .map_or_else(|| name.clone(), |group| group.name.clone()),
         _ => return denied(),
     };
     BridgeError::new(
@@ -164,9 +168,9 @@ fn refused(permissions: &[Permission], group: Option<&str>) -> BridgeError {
 }
 
 /// Maps a failure of the service; a contact outside the grants and a missing one look the same.
-fn map_error(error: HolziError, permissions: &[Permission], group: Option<&str>) -> BridgeError {
+fn map_error(error: HolziError, c: &Call, group: Option<&str>) -> BridgeError {
     match error {
-        HolziError::ContactsForbidden => refused(permissions, group),
+        HolziError::ContactsForbidden => refused(&c.permissions, &c.groups, group),
         HolziError::ContactsNotFound => denied(),
         HolziError::ContactsInvalid { reason } => invalid(&reason),
         _ => unavailable(),
@@ -290,8 +294,8 @@ pub fn list(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let offset = count(params, "offset", (0, usize::MAX))?;
     let limit = count(params, "limit", LIST_LIMIT)?;
     let c = call(ctx)?;
-    let mut headers = block_on(c.service.list(&c.caller, &c.grants))
-        .map_err(|e| map_error(e, &c.permissions, group))?;
+    let mut headers =
+        block_on(c.service.list(&c.caller, &c.grants)).map_err(|e| map_error(e, &c, group))?;
     if let Some(group) = group {
         let ids = ids_named(&c.groups, &fold(group));
         headers.retain(|header| header.groups.iter().any(|id| ids.contains(id)));
@@ -310,8 +314,8 @@ pub fn list(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
 pub fn read(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let id = required(params, "id")?;
     let c = call(ctx)?;
-    let contact = block_on(c.service.get(&c.caller, &c.grants, &id))
-        .map_err(|e| map_error(e, &c.permissions, None))?;
+    let contact =
+        block_on(c.service.get(&c.caller, &c.grants, &id)).map_err(|e| map_error(e, &c, None))?;
     Ok(detail(contact))
 }
 
@@ -322,7 +326,7 @@ pub fn search(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let limit = count(params, "limit", SEARCH_LIMIT)?;
     let c = call(ctx)?;
     let headers = block_on(c.service.search(&c.caller, &c.grants, query))
-        .map_err(|e| map_error(e, &c.permissions, None))?;
+        .map_err(|e| map_error(e, &c, None))?;
     let contacts: Vec<Value> = headers
         .into_iter()
         .take(limit)
@@ -337,7 +341,7 @@ pub fn photo(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let c = call(ctx)?;
     block_on(c.service.photo(&c.caller, &c.grants, &hash))
         .map(|bytes| Value::String(STANDARD.encode(bytes)))
-        .map_err(|e| map_error(e, &c.permissions, None))
+        .map_err(|e| map_error(e, &c, None))
 }
 
 #[cfg(test)]
