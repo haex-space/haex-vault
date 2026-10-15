@@ -19,7 +19,7 @@ mod raster;
 mod resolve;
 mod role;
 mod sources;
-mod store;
+pub(crate) mod store;
 mod svg;
 
 use std::str::FromStr;
@@ -29,7 +29,7 @@ use ts_rs::TS;
 
 use super::EncryptedInfo;
 
-pub use pack::{open_pack, pack_dir, Pack, PackError};
+pub use pack::{open_pack, pack_dir, pack_hash, Pack, PackError};
 pub use resolve::resolve;
 pub use role::role_of;
 
@@ -303,7 +303,16 @@ mod bundled_scheme_tests;
 #[path = "bundled_tests.rs"]
 mod bundled_tests;
 #[cfg(test)]
+#[path = "guard_tests.rs"]
+mod guard_tests;
+#[cfg(test)]
 mod import_support;
+#[cfg(test)]
+#[path = "licenses_tests.rs"]
+mod licenses_tests;
+#[cfg(test)]
+#[path = "perf_tests.rs"]
+mod perf_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;

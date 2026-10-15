@@ -542,6 +542,11 @@
           "title": "Dock",
           "description": "Position, style and entries of the dock.",
           "keywords": "dock bar taskbar wheel pin position edge corner auto hide"
+        },
+        "licenses": {
+          "title": "Licenses",
+          "description": "The licenses of the bundled icon sets.",
+          "keywords": "license licenses icons icon set author source Material Phosphor Lucide MIT"
         }
       },
       "ai": {
@@ -670,13 +675,27 @@
       "add": "Add",
       "unavailable": "Not available on this device"
     },
+    "licenses": {
+      "intro": "holzi ships these icon sets. Each is under an open license. The marks and logos of companies, products and tools that some images of the Material set show belong to their owners and only mark the file type.",
+      "author": "Author",
+      "license": "License",
+      "source": "Source",
+      "text": "License text"
+    },
     "iconSet": {
       "label": "Icon set for files",
       "description": "Applies to the folders and files in the file browser, on every device of this vault.",
       "saved": "Saved.",
       "failed": "The icon set could not be saved",
       "reset": "Reset",
-      "unknown": "The chosen icon set needs a newer version of the app. Until then holzi shows the standard icons.",
+      "states": {
+        "syncing": "The chosen icon set is still being synchronised. Until then holzi shows the standard icons.",
+        "missing": "The chosen icon set was removed. Choose another one.",
+        "damaged": "The chosen icon set is damaged. Remove it or choose another one.",
+        "damagedShort": "damaged",
+        "unknown": "The chosen icon set needs a newer version of the app. Until then holzi shows the standard icons."
+      },
+      "images": "{count} images",
       "sets": {
         "lucide": "Lucide",
         "phosphor": "Phosphor",

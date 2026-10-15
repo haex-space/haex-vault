@@ -9,7 +9,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use haex_crdt::rusqlite::params;
 use haex_crdt::{CrdtTransaction, Result};
 
-use super::pack::{open_pack, Pack};
+use super::pack::{open_pack, pack_hash, Pack};
 use super::{BuiltinSet, IconSetRef, IconSetState, SELECTION_KEY};
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
@@ -54,17 +54,24 @@ static OPENED: LazyLock<Mutex<HashMap<String, Option<Arc<Pack>>>>> = LazyLock::n
 /// Enough for every set of the vault and the built-in ones; a longer run starts over.
 const OPENED_MAX: usize = 32;
 
-/// Opens `bytes` (or takes the pack opened before under `hash`); `None` when it is damaged.
-pub fn open_cached(hash: &str, bytes: &[u8]) -> Option<Arc<Pack>> {
+/// Opens `bytes` (or takes the pack opened before for the same bytes); `None` when it is damaged.
+/// The cache is keyed by the hash of the bytes themselves, not by the hash the row claims, so bytes
+/// that changed on the way never take the place of a pack that was opened before under the same
+/// claim.
+pub fn open_cached(claimed: &str, bytes: &[u8]) -> Option<Arc<Pack>> {
+    let actual = pack_hash(bytes);
+    if actual != claimed {
+        return None;
+    }
     let mut opened = OPENED.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(known) = opened.get(hash) {
+    if let Some(known) = opened.get(&actual) {
         return known.clone();
     }
-    let pack = open_pack(bytes, Some(hash)).map(Arc::new).ok();
+    let pack = open_pack(bytes, Some(&actual)).map(Arc::new).ok();
     if opened.len() >= OPENED_MAX {
         opened.clear();
     }
-    opened.insert(hash.to_owned(), pack.clone());
+    opened.insert(actual, pack.clone());
     pack
 }
 

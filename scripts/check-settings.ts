@@ -47,6 +47,7 @@ const LOCATION_PATHS: Record<string, string> = {
   'general.basic.password': '/general/basic/password',
   'general.appearance': '/general/appearance',
   'general.dock': '/general/dock',
+  'general.licenses': '/general/licenses',
   ai: '/ai',
   'ai.default': '/ai/default',
   'ai.providers': '/ai/providers',
@@ -164,6 +165,7 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'general.basic',
     'general.appearance',
     'general.dock',
+    'general.licenses',
   ])
   assert.deepEqual(rows('federation'), [])
 })
@@ -182,6 +184,7 @@ test('the ai overview groups its rows by task, one heading each', () => {
   assert.deepEqual(
     overviewGroups('general').map((g) => [g.group, g.rows.length]),
     [
+      [undefined, 1],
       [undefined, 1],
       [undefined, 1],
       [undefined, 1],

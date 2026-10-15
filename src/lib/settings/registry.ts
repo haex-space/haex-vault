@@ -159,6 +159,11 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       'settings.dock.items',
     ],
   }),
+  // Spec 053: the licenses of the bundled icon sets.
+  subView('general.licenses', 'general/licenses', 'general', {
+    icon: 'lucide:scale',
+    overviewRow: true,
+  }),
   // "KI" gathers the models and the agents, grouped by task in the overview.
   categoryLocation('ai'),
   subView('ai.default', 'ai/default', 'ai', {

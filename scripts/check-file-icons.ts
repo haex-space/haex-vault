@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
+import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
+
 import {
   batches,
   createMemory,
@@ -101,4 +103,15 @@ test('replacing a value hands the old one back; clearing hands back all', () => 
   memory.clear()
   assert.deepEqual(left.sort(), ['blob:1', 'blob:2', 'blob:3'])
   assert.equal(memory.size(), 0)
+})
+
+test('no action of the catalog reads, writes or names the icon set (FR-016)', () => {
+  // The catalog is what agents and the shell offer; the choice of an icon set is the window's own.
+  const text = JSON.stringify(ALL_ACTIONS)
+  for (const word of ['iconSet', 'files.iconSet', 'icon-set', 'file_icon']) {
+    assert.equal(text.includes(word), false, `an action names ${word}`)
+  }
+  for (const action of ALL_ACTIONS) {
+    assert.doesNotMatch(action.id, /icon/i, action.id)
+  }
 })

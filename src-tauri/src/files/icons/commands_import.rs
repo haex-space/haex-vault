@@ -145,9 +145,27 @@ pub fn import(
         })
 }
 
+/// Whether `id` names a custom set: a bundled set has no id of this shape and cannot be removed.
+pub fn check_set_id(id: &str) -> Result<()> {
+    if super::is_set_id(id) {
+        Ok(())
+    } else {
+        Err(HolziError::InvalidInput {
+            reason: "only an own icon set can be removed".to_owned(),
+        })
+    }
+}
+
 /// Deletes a custom set inside the transaction `tx`; when the vault had chosen it, the choice
-/// falls back to the default set in the same transaction.
-pub fn remove_set(tx: &mut CrdtTransaction<'_>, id: &str) -> haex_crdt::Result<()> {
+/// falls back to the default set in the same transaction. A set that is not there writes nothing
+/// and comes back as the inner error.
+pub fn remove_set(
+    tx: &mut CrdtTransaction<'_>,
+    id: &str,
+) -> haex_crdt::Result<std::result::Result<(), ImportError>> {
+    if !store::exists(tx, id)? {
+        return Ok(Err(ImportError::NoSuchSet));
+    }
     let set = IconSetRef::Custom { id: id.to_owned() };
     if store::selection_value(tx)?.as_deref() == Some(set.selection_value().as_str()) {
         preferences::insert_or_update(
@@ -157,7 +175,8 @@ pub fn remove_set(tx: &mut CrdtTransaction<'_>, id: &str) -> haex_crdt::Result<(
             &DEFAULT_SET.selection_value(),
         )?;
     }
-    store::delete(tx, id)
+    store::delete(tx, id)?;
+    Ok(Ok(()))
 }
 
 /// Reads the source and tells what an import would do; writes nothing.
@@ -199,15 +218,14 @@ pub async fn file_icon_set_import(
 /// Removes a custom set of the vault.
 #[tauri::command]
 pub async fn file_icon_set_remove(state: State<'_, AppState>, id: String) -> Result<()> {
-    if !super::is_set_id(&id) {
-        return Err(HolziError::InvalidInput {
-            reason: "not a set id".to_owned(),
-        });
-    }
+    check_set_id(&id)?;
     let db = active_database(&state)?;
-    tauri::async_runtime::spawn_blocking(move || db.write_blocking(|tx| remove_set(tx, &id)))
-        .await
-        .map_err(join_error)?
+    tauri::async_runtime::spawn_blocking(move || {
+        db.write_blocking(|tx| remove_set(tx, &id))??;
+        Ok(())
+    })
+    .await
+    .map_err(join_error)?
 }
 
 #[cfg(test)]

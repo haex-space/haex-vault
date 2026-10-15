@@ -204,6 +204,15 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
     assert.match(stored, /<path/)
     ctx.step('an own set is imported, shown and clean')
 
+    // The row of an own set shows what it names: name, license and the number of its images.
+    await page.waitForDisplayed(SET(custom))
+    const row = await page.exec<string>(
+      `return document.querySelector('[data-testid="${SET(custom)}"]').closest('li').textContent`,
+    )
+    assert.match(row, /demo-set/)
+    assert.match(row, /2\s+(Bilder|images)/)
+    ctx.step('an own set shows its details')
+
     // 5. Removing it asks first; the set is gone and the choice falls to a built-in one.
     await page.waitForDisplayed(SET(custom))
     await page.exec(
@@ -225,6 +234,21 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
     )
     assert.match(checked ?? '', /settings-icon-set-option-builtin:/)
     ctx.step('removing asks first and falls back to a built-in set')
+
+    // 6. The page "Lizenzen" lists every bundled set with its author and an SPDX license.
+    await runAction(page, 'wm.app.open', {
+      appId: 'system.settings',
+      at: '/general/licenses',
+    })
+    await waitForLocation(page, 'general.licenses')
+    for (const name of ['Lucide', 'Phosphor', 'Material']) {
+      await page.waitForDisplayed(`settings-license-${name}`)
+      const text = await page.exec<string>(
+        `return document.querySelector('[data-testid="settings-license-${name}"]').textContent`,
+      )
+      assert.match(text, /MIT|ISC/, `${name} names its license`)
+    }
+    ctx.step('the licenses page lists every bundled set')
   } finally {
     files.remove()
   }
