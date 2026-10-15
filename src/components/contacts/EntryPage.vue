@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * One contact (spec 051, FR-002, FR-003, FR-006, FR-007, FR-018a): photo or initials, name and
- * organization, every value grouped by kind with copy and open, the holzi addresses, the note, the
+ * organization, every value grouped by kind with copy and open, the holzi addresses (confirmed ones
+ * from the contact's Visitenkarte, FR-008), the note, the
  * groups, the phones it goes to and where the contact came from. Values of a kind this version does not know show as they
  * are, read-only. Reloads quietly when the contact changes elsewhere.
  */
@@ -11,7 +12,7 @@ import type { ContactValue } from '@bindings/ContactValue'
 import type { VaultDevice } from '@bindings/VaultDevice'
 import { displayValue, HOLZI_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
 
-const { t } = useI18n()
+const { t, d } = useI18n()
 const { errString } = useErrorString()
 const router = useTabRouter()
 const store = useContactsStore()
@@ -273,6 +274,49 @@ async function removePhotoAsync() {
             :kind="value.kind"
             :value="value.value"
             :label="kindName(value.kind)"
+          />
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup
+        v-if="contact.card"
+        :label="t('contacts.card.confirmed')"
+        data-testid="contacts-card-addresses"
+      >
+        <SettingsRow
+          :title="contact.card.npub"
+          :description="`${kindName('holzi_vault')} · ${t('contacts.card.confirmedAt', { at: d(new Date(contact.card.issuedAt), { dateStyle: 'medium' }) })}`"
+          data-testid="contacts-card-vault"
+        >
+          <ContactsValueActions
+            kind="holzi_vault"
+            :value="contact.card.npub"
+            :label="kindName('holzi_vault')"
+          />
+        </SettingsRow>
+        <SettingsRow
+          v-for="device in contact.card.devices"
+          :key="device.devicePubkey"
+          :title="device.endpointId"
+          :description="device.irohRelay ?? kindName('holzi_iroh')"
+          data-testid="contacts-card-device"
+        >
+          <ContactsValueActions
+            kind="holzi_iroh"
+            :value="device.endpointId"
+            :label="kindName('holzi_iroh')"
+          />
+        </SettingsRow>
+        <SettingsRow
+          v-for="relay in contact.card.nostrRelays"
+          :key="relay"
+          :title="relay"
+          :description="kindName('holzi_nostr_relay')"
+        >
+          <ContactsValueActions
+            kind="holzi_nostr_relay"
+            :value="relay"
+            :label="kindName('holzi_nostr_relay')"
           />
         </SettingsRow>
       </SettingsGroup>

@@ -213,7 +213,9 @@
       "list": "Kontakte",
       "group": "Gruppe",
       "entry": "Kontakt",
-      "edit": "Kontakt bearbeiten"
+      "edit": "Kontakt bearbeiten",
+      "card": "Meine Visitenkarte",
+      "cardImport": "Visitenkarte einlesen"
     }
   },
   "chat": {
@@ -1133,6 +1135,18 @@
           "permission": "holzi darf nicht auf die Kontakte des Telefons zugreifen.",
           "failed": "Das Telefon hat die Änderung abgelehnt. holzi versucht es beim nächsten Abgleich wieder."
         }
+      },
+      "card": {
+        "title": "Visitenkarte",
+        "ownContact": "Eigener Kontakt",
+        "ownContactHint": "Sein Name steht auf deiner Visitenkarte, dazu die Angaben, die du hier wählst.",
+        "noOwnContact": "Keiner",
+        "onCard": "Auf der Visitenkarte"
+      },
+      "blocked": {
+        "title": "Blockierte Vaults",
+        "since": "Blockiert seit {at}",
+        "unblock": "Freigeben"
       }
     }
   },
@@ -2649,7 +2663,11 @@
       }
     },
     "error": {
-      "contactsDenied": "holzi darf nicht auf die Kontakte des Telefons zugreifen. Du kannst es in den Android-Einstellungen unter Apps › holzi › Berechtigungen › Kontakte erlauben."
+      "contactsDenied": "holzi darf nicht auf die Kontakte des Telefons zugreifen. Du kannst es in den Android-Einstellungen unter Apps › holzi › Berechtigungen › Kontakte erlauben.",
+      "cardInvalid": "Das ist keine gültige Visitenkarte, oder sie wurde verändert.",
+      "cardOwn": "Das ist die Visitenkarte deiner eigenen Vault.",
+      "cardOlder": "Diese Visitenkarte ist älter als die gespeicherte. Es bleibt alles, wie es ist.",
+      "cardTooLarge": "Die Visitenkarte ist zu groß."
     },
     "targets": {
       "title": "Abgleich mit Telefonen",
@@ -2672,6 +2690,34 @@
       "start": "Auswählen",
       "done": "Fertig",
       "count": "Keiner ausgewählt | Einer ausgewählt | {count} ausgewählt"
+    },
+    "card": {
+      "menu": "Visitenkarte",
+      "own": "Meine Visitenkarte",
+      "import": "Visitenkarte einlesen",
+      "copied": "Link der Visitenkarte kopiert",
+      "copy": "Link kopieren",
+      "qr": "QR-Code der Visitenkarte",
+      "issuedAt": "Erstellt {at}",
+      "noneYet": "Noch keine Visitenkarte: Ein Hauptgerät der Vault erstellt sie.",
+      "linkedDevice": "Dieses Gerät zeigt die Karte, die ein Hauptgerät der Vault erstellt hat. Nur Hauptgeräte erstellen neue.",
+      "omitted": "Passt nicht mehr auf die Karte: {values}",
+      "noOwnContact": "Du hast noch keinen eigenen Kontakt gewählt; die Karte trägt dann keinen Namen.",
+      "choose": "Inhalt wählen",
+      "paste": "Link der Visitenkarte",
+      "check": "Prüfen",
+      "scan": "Scannen",
+      "preview": "Vorschau",
+      "devices": "Ein Gerät | {count} Geräte",
+      "blockedNote": "Diese Vault ist blockiert.",
+      "block": "Vault blockieren",
+      "update": "Bei {name} aktualisieren",
+      "asNew": "Neuer Kontakt",
+      "addTo": "Zu Kontakt hinzufügen …",
+      "add": "Hinzufügen",
+      "accepted": "Visitenkarte bei {name} gespeichert",
+      "confirmed": "Bestätigte holzi-Adressen",
+      "confirmedAt": "bestätigt am {at}"
     }
   }
 }
