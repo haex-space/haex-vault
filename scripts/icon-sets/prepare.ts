@@ -44,22 +44,19 @@ const STROKE_FOR_LIGHT_SCHEME = '#4a4a4a'
 const ROOT = path.resolve(import.meta.dirname, '..', '..')
 const SETS_DIR = path.join(ROOT, 'src-tauri', 'icon-sets')
 
-const ROLE_KEYS = [
-  'folder',
-  'folderNoAccess',
-  'file',
-  'image',
-  'video',
-  'audio',
-  'pdf',
-  'text',
-  'encryptedFolder',
-  'lockedFolder',
-  'lockedFile',
-  'damaged',
-] as const
-
-type RoleKey = (typeof ROLE_KEYS)[number]
+type RoleKey =
+  | 'folder'
+  | 'folderNoAccess'
+  | 'file'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'pdf'
+  | 'text'
+  | 'encryptedFolder'
+  | 'lockedFolder'
+  | 'lockedFile'
+  | 'damaged'
 type Roles = Partial<Record<RoleKey, string>>
 type StringMap = Record<string, string>
 
@@ -113,8 +110,26 @@ function fail(message: string): never {
   process.exit(1)
 }
 
-function readJson(file: string): any {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function readJson(file: string): unknown {
   return JSON.parse(readFileSync(file, 'utf8'))
+}
+
+function readString(value: unknown, label: string): string {
+  if (typeof value !== 'string') fail(`${label} is not a string`)
+  return value
+}
+
+function readStringMap(value: unknown, label: string): StringMap {
+  if (!isRecord(value)) fail(`${label} is not an object`)
+  const entries = Object.entries(value)
+  if (entries.some(([, entry]) => typeof entry !== 'string')) {
+    fail(`${label} contains a non-string value`)
+  }
+  return Object.fromEntries(entries) as StringMap
 }
 
 function writeJson(file: string, value: unknown): void {
@@ -173,8 +188,9 @@ function preparePhosphor(clone: string): void {
     }
   }
 
-  const mapping: StringMap = readJson(
-    path.join(SETS_DIR, 'phosphor.mapping.json'),
+  const mapping = readStringMap(
+    readJson(path.join(SETS_DIR, 'phosphor.mapping.json')),
+    'phosphor.mapping.json',
   )
   for (const [extension, name] of Object.entries(mapping)) {
     if (!names.includes(name)) {
@@ -232,6 +248,14 @@ function prepareMaterial(vsix: string, apacheText: string): void {
   const source = readJson(
     path.join(extensionDir, 'dist', 'material-icons.json'),
   )
+  if (!isRecord(source)) fail('material-icons.json is not an object')
+  if (!isRecord(source.iconDefinitions))
+    fail('material-icons.json has no iconDefinitions object')
+  const fileNames = readStringMap(source.fileNames, 'fileNames')
+  const fileExtensions = readStringMap(source.fileExtensions, 'fileExtensions')
+  const folderNames = readStringMap(source.folderNames, 'folderNames')
+  if (!isRecord(source.light))
+    fail('material-icons.json has no light object')
 
   const outDir = path.join(SETS_DIR, 'material')
   freshDir(path.join(outDir, 'icons'))
@@ -243,8 +267,8 @@ function prepareMaterial(vsix: string, apacheText: string): void {
   }
 
   const iconDefinitions: Record<string, { iconPath: string }> = {}
-  for (const [id, definition] of Object.entries<any>(source.iconDefinitions)) {
-    if (typeof definition.iconPath !== 'string') {
+  for (const [id, definition] of Object.entries(source.iconDefinitions)) {
+    if (!isRecord(definition) || typeof definition.iconPath !== 'string') {
       fail(`${id}: definition without iconPath`)
     }
     const iconPath = normalizeIconPath(definition.iconPath)
@@ -260,9 +284,11 @@ function prepareMaterial(vsix: string, apacheText: string): void {
   const maps = ['fileNames', 'fileExtensions', 'folderNames'] as const
   const manifest = {
     iconDefinitions,
-    file: source.file,
-    folder: source.folder,
-    ...pick(source, maps),
+    file: readString(source.file, 'file'),
+    folder: readString(source.folder, 'folder'),
+    fileNames,
+    fileExtensions,
+    folderNames,
     light: pick(source.light, ['file', 'folder', ...maps]),
     'x-holzi': { roles: MATERIAL_ROLES, origin: MATERIAL_ORIGIN },
   }
@@ -282,7 +308,7 @@ function prepareMaterial(vsix: string, apacheText: string): void {
   console.log(`material: ${files.length} images`)
   console.log(`material: manifest ${manifestSize} bytes`)
   console.log(
-    `material: ${Object.keys(source.fileNames).length} fileNames, ${Object.keys(source.fileExtensions).length} fileExtensions, ${Object.keys(source.folderNames).length} folderNames`,
+    `material: ${Object.keys(fileNames).length} fileNames, ${Object.keys(fileExtensions).length} fileExtensions, ${Object.keys(folderNames).length} folderNames`,
   )
   console.log(`material: ${withStyle} images with a <style> element`)
 }
