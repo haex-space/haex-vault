@@ -14,6 +14,8 @@ export const ACTION_SCOPE_IDS = [
   'passwords.read',
   'files.read',
   'files.write',
+  'contacts.read',
+  'contacts.write',
   'guardrails',
 ] as const
 
@@ -43,6 +45,10 @@ const DESCRIPTIONS: Record<ActionScopeId, string> = {
     "List, search and read files of this device and of the storages granted, never holzi's own data.",
   'files.write':
     'Create folders, copy, rename, move and delete files of this device and of the storages granted for writing.',
+  'contacts.read':
+    'Search and read contacts of the address book, as far as the user allowed.',
+  'contacts.write':
+    'Change names and values of contacts, as far as the user allowed; never groups or where a contact goes.',
   guardrails:
     'Autonomy mode, delegate deny rules, provider connections, approvals and permission mode. Never callable by agents.',
 }

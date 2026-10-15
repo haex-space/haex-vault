@@ -478,21 +478,22 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
   setting({
     id: 'settings.agents.files.set',
     description:
-      "Set an agent's permission for the files of this device or for one storage. User only.",
+      "Set an agent's permission for the files of this device, for one storage or for the contacts. User only.",
     input: {
       type: 'object',
       properties: {
         agentId: { type: 'string' },
-        kind: { type: 'string', enum: ['device', 'storage'] },
+        kind: { type: 'string', enum: ['device', 'storage', 'contacts'] },
         target: {
           type: 'string',
-          description: 'Empty for the device, the storage id for a storage.',
+          description:
+            "Empty for the device, the storage id for a storage, '*' or 'group:<id>' for the contacts.",
         },
         status: {
           type: 'string',
           enum: ['granted', 'read', 'readWrite', 'denied'],
           description:
-            "'granted' or 'denied' for the device; 'read', 'readWrite' or 'denied' for a storage.",
+            "'granted' or 'denied' for the device; 'read', 'readWrite' or 'denied' for a storage or the contacts.",
         },
       },
       required: ['agentId', 'kind', 'target', 'status'],
@@ -510,7 +511,7 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
         agentId: { type: 'string' },
         kind: {
           type: 'string',
-          enum: ['device', 'storage', 'encryptedFolder'],
+          enum: ['device', 'storage', 'encryptedFolder', 'contacts'],
         },
         target: { type: 'string' },
       },

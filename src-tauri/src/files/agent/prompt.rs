@@ -1,5 +1,6 @@
 //! The question to the user when an agent reaches for a storage it has no permission for (spec 044
-//! FR-031a, research R14), or for an encrypted folder in it (spec 048 FR-030a, FR-031), after the
+//! FR-031a, research R14), for an encrypted folder in it (spec 048 FR-030a, FR-031), or for the
+//! contacts (spec 051 FR-030, research R15), after the
 //! pattern of `chat/tools/action_bridge.rs`: Rust emits
 //! `files-agent-permission-request`, parks on a oneshot and waits for
 //! `files_agent_permission_answer`. Nobody to ask (no window), no answer in 60 s or a cancelled turn
@@ -74,6 +75,17 @@ pub struct FilesAgentFolderQuestion {
     pub cloud: bool,
 }
 
+/// What a question is about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum FilesAgentQuestionKind {
+    /// A storage, or an encrypted folder in it.
+    Storage,
+    /// The address book; `storage_id` and `storage_name` are empty.
+    Contacts,
+}
+
 /// The payload of [`EVENT_PERMISSION_REQUEST`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -81,6 +93,7 @@ pub struct FilesAgentFolderQuestion {
 pub struct FilesAgentPermissionRequest {
     pub request_id: String,
     pub agent_id: String,
+    pub kind: FilesAgentQuestionKind,
     pub storage_id: String,
     pub storage_name: String,
     pub wants: FilesAgentWant,
@@ -140,7 +153,7 @@ impl PermissionPrompt {
         self.inner.asking.lock().await
     }
 
-    /// Asks and waits; `None` when nobody answered.
+    /// Asks for a storage or a folder in it and waits; `None` when nobody answered.
     pub async fn ask(
         &self,
         agent_id: &str,
@@ -150,20 +163,55 @@ impl PermissionPrompt {
         folder: Option<FilesAgentFolderQuestion>,
         cancel: &CancellationToken,
     ) -> Option<FilesAgentAnswer> {
+        self.question(
+            FilesAgentPermissionRequest {
+                request_id: Uuid::new_v4().to_string(),
+                agent_id: agent_id.to_owned(),
+                kind: FilesAgentQuestionKind::Storage,
+                storage_id: storage_id.to_owned(),
+                storage_name: storage_name.to_owned(),
+                wants,
+                folder,
+            },
+            cancel,
+        )
+        .await
+    }
+
+    /// Asks for the contacts and waits; `None` when nobody answered. The answer is kept only with
+    /// `remember` ("Immer erlauben") or as a denial.
+    pub async fn ask_contacts(
+        &self,
+        agent_id: &str,
+        wants: FilesAgentWant,
+        cancel: &CancellationToken,
+    ) -> Option<FilesAgentAnswer> {
+        self.question(
+            FilesAgentPermissionRequest {
+                request_id: Uuid::new_v4().to_string(),
+                agent_id: agent_id.to_owned(),
+                kind: FilesAgentQuestionKind::Contacts,
+                storage_id: String::new(),
+                storage_name: String::new(),
+                wants,
+                folder: None,
+            },
+            cancel,
+        )
+        .await
+    }
+
+    async fn question(
+        &self,
+        request: FilesAgentPermissionRequest,
+        cancel: &CancellationToken,
+    ) -> Option<FilesAgentAnswer> {
         let emitter = self
             .inner
             .emitter
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()?;
-        let request = FilesAgentPermissionRequest {
-            request_id: Uuid::new_v4().to_string(),
-            agent_id: agent_id.to_owned(),
-            storage_id: storage_id.to_owned(),
-            storage_name: storage_name.to_owned(),
-            wants,
-            folder,
-        };
         let (sender, receiver) = oneshot::channel();
         self.pending().insert(request.request_id.clone(), sender);
         let choice = if emitter(&request) {

@@ -77,12 +77,22 @@ Art). Die Einstellungen bieten als Zielkonto nur beschreibbare Konten an.
 
 ## Eingebauter Agent
 
-| Command                 | Eingabe             | Ausgabe           |
-| ----------------------- | ------------------- | ----------------- |
-| `contacts_agent_search` | `{ query, limit? }` | `ContactHeader[]` |
-| `contacts_agent_get`    | `{ id }`            | `Contact`         |
-| `contacts_agent_update` | `{ id, patch }`     | `Contact`         |
+| Command                 | Eingabe             | Ausgabe            |
+| ----------------------- | ------------------- | ------------------ |
+| `contacts_agent_search` | `{ query, limit? }` | `OutsideSummary[]` |
+| `contacts_agent_get`    | `{ id }`            | `OutsideContact`   |
+| `contacts_agent_update` | `{ id, patch }`     | `OutsideContact`   |
 
-Ohne gemerkte Freigabe parkt der Command auf der Rückfrage (Ereignis
-`files-agent-permission-request` mit `kind: "contacts"`, Antwort über
-`files_agent_permission_answer`, R15). Ablehnung → `NotFound`-gleicher Fehler (FR-031).
+`OutsideSummary` und `OutsideContact` (`contacts/outside.rs`) sind dieselbe Sicht wie
+`ContactSummary` und `ContactDetail` der Erweiterungen ([bridge.md](./bridge.md)), mit den Kennungen
+der Angaben. `patch` ist `ContactPatch` ohne `groups`; ein Patch mit `groups` wird abgelehnt.
+
+Freigaben sind Zeilen der Art `contacts` in `agent_file_permissions` (Ziel `*` oder `group:<id>`,
+Status `read`, `readWrite`, `denied`). Deckt keine Zeile den Aufruf, parkt der Command auf der
+Rückfrage (Ereignis `files-agent-permission-request` mit `kind: "contacts"` und `wants`, Antwort über
+`files_agent_permission_answer`, R15): „Einmal erlauben“ (`remember: false`) gilt für diesen Aufruf,
+„Immer erlauben“ (`remember: true`) und „Ablehnen“ werden für `*` gemerkt; eine abgelehnte
+Schreib-Frage lässt eine Lese-Freigabe stehen. Unter einem abgelehnten `*` fragt holzi nicht mehr.
+Keine Antwort in 60 s oder kein Fenster → abgelehnt, nichts gemerkt. Ablehnung → `NotFound`-gleicher
+Fehler (FR-031). Die Einstellungen (KI › Agenten-Zugriff) setzen und widerrufen die Zeilen über
+`settings.agents.files.set` und `settings.agents.files.remove` mit `kind: "contacts"`.

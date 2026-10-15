@@ -72,7 +72,7 @@ Bilder, Downloads. `StorageSource`: Id und Name des Speichers aus 038.
 `AgentFilePermissionView` ist eine Zeile von `agent_file_permissions` mit `folderName?`: dem
 entschlüsselten Namen eines verschlüsselten Ordners, wenn dieses Gerät seinen Kopf gelesen hat.
 
-Event `files-agent-permission-request { requestId, agentId, storageId, storageName, wants: 'read'|'readWrite', folder? }`
+Event `files-agent-permission-request { requestId, agentId, kind: 'storage'|'contacts', storageId, storageName, wants: 'read'|'readWrite', folder? }` (`kind: 'contacts'` mit leerem Speicher: Spec 051 R15)
 von Rust an das Fenster; `folder { name, model, cloud }` steht bei einem verschlüsselten Ordner
 (spec 048 FR-030a). Ohne Antwort in 60 s oder ohne Fenster gilt „abgelehnt für diesen Aufruf“
 (nicht gespeichert).

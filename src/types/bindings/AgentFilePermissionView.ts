@@ -12,7 +12,7 @@ export type AgentFilePermissionView = {
  */
 folderName?: string, agentId: string, kind: AgentFileKind,
 /**
- * Empty for the device, the storage id for a storage.
+ * Empty for the device, the storage id for a storage, `*` or `group:<id>` for the contacts.
  */
 target: string, status: AgentFileStatus, updatedAt: number,
 /**

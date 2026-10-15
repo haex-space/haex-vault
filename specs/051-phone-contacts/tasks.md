@@ -202,7 +202,7 @@ the dead base branch).
 - [x] T075 [US5] Install and prompt texts for the new kind in `src/i18n/locales/de.json` and `en.json` and wherever permission kinds are labeled (grep `remoteStorage` in `src/components/extensions/`)
 - [ ] T076 [US5] vault-sdk: `src/api/contacts.ts`, `src/commands/contacts.ts`, export in `src/index.ts` in `https://github.com/haex-space/vault-sdk` (push as `haex-space`); after merge, bump the dependency in holzi and note the full commit SHA in the PR
 - [x] T077 [US5] Probe extension: add contacts calls to `src-tauri/tests/fixtures/extension_e2e/probe.js`, declare `contacts` in its manifest and rebuild `probe.xt` per `SOURCE.md`; E2E `scripts/e2e/scenarios/extension-contacts.test.ts` (US5-1/2/3) — the probe page already sends any bridge method, so only its manifest (built in `src-tauri/tests/extension_e2e_fixtures.rs`, `HOLZI_WRITE_E2E_FIXTURES=1`) declares `contacts` for the group "Arbeit"
-- [ ] T078 [US5] Run `cargo test -j 4 --lib -- extensions contacts`, frontend checks, `extension-contacts`, `extension-permission-prompt`; commit, open PR F
+- [x] T078 [US5] Run `cargo test -j 4 --lib -- extensions contacts`, frontend checks, `extension-contacts`, `extension-permission-prompt`; commit, open PR F
 
 **Checkpoint**: Extensions such as haex-mail can suggest recipients.
 
@@ -216,15 +216,15 @@ the dead base branch).
 
 ### Tests for User Story 6
 
-- [ ] T079 [P] [US6] Grant tests in `src-tauri/src/files/permissions_tests.rs` (or a new `src-tauri/src/contacts/agent_tests.rs`): kind `contacts`, target `*` or `group:<id>`, read vs write, remembered answer, revoke
-- [ ] T080 [P] [US6] Agent command tests in `src-tauri/src/contacts/commands/agent_tests.rs`: without grant the command parks on the prompt; refused → same error as a missing contact (FR-031); read grant cannot update; write grant update reaches the phone targets like a user change
+- [x] T079 [P] [US6] Grant tests in `src-tauri/src/files/permissions_tests.rs` (or a new `src-tauri/src/contacts/agent_tests.rs`): kind `contacts`, target `*` or `group:<id>`, read vs write, remembered answer, revoke — in `src-tauri/src/contacts/agent_tests.rs`
+- [x] T080 [P] [US6] Agent command tests in `src-tauri/src/contacts/commands/agent_tests.rs`: without grant the command parks on the prompt; refused → same error as a missing contact (FR-031); read grant cannot update; write grant update reaches the phone targets like a user change — in `src-tauri/src/contacts/agent_tests.rs` against `ContactsAgent` (the commands are thin): no window or no answer refuses and keeps nothing; "Einmal erlauben" holds for the call; a denied write keeps the read grant; agents never change groups
 
 ### Implementation for User Story 6
 
-- [ ] T081 [US6] Agent grants of kind `contacts` in `agent_file_permissions` (research R15): extend `src-tauri/src/files/permissions.rs` and `src-tauri/src/files/agent/prompt.rs` (event `files-agent-permission-request` with `kind: "contacts"`), and `src/components/files/AgentPermissionDialog.vue` / `src/lib/files/agentPermissions.ts` to show the contacts wording
-- [ ] T082 [US6] Commands `contacts_agent_search`, `contacts_agent_get`, `contacts_agent_update` in `src-tauri/src/contacts/commands/agent.rs` with `Caller::BuiltinAgent` fixed in the body
-- [ ] T083 [US6] Scopes `contacts.read` and `contacts.write` in `src/lib/actions/scopes.ts` (with descriptions and `actions.scopes.*` title keys); actions `contacts.search`, `contacts.get` (read) and `contacts.update` (write) in a new `src/lib/actions/contactsActions.ts`, registered in `src/lib/actions/catalog.ts`; handlers in `src/stores/contactsActionHandlers.ts`; contacts in `src/components/settings/AgentFilesSetting.vue` (or a sibling view) to see and revoke remembered answers
-- [ ] T084 [US6] E2E `scripts/e2e/scenarios/agent-contacts.test.ts` (US6-1/2/3 through the built-in agent's stand-in model like `files-agent`)
+- [x] T081 [US6] Agent grants of kind `contacts` in `agent_file_permissions` (research R15): extend `src-tauri/src/files/permissions.rs` and `src-tauri/src/files/agent/prompt.rs` (event `files-agent-permission-request` with `kind: "contacts"`), and `src/components/files/AgentPermissionDialog.vue` / `src/lib/files/agentPermissions.ts` to show the contacts wording — the question got `kind: "storage" | "contacts"`; the dialog shows "Ablehnen", "Einmal erlauben", "Immer erlauben" for the contacts
+- [x] T082 [US6] Commands `contacts_agent_search`, `contacts_agent_get`, `contacts_agent_update` in `src-tauri/src/contacts/commands/agent.rs` with `Caller::BuiltinAgent` fixed in the body — the logic lives in `src-tauri/src/contacts/agent.rs` (`ContactsAgent`); what agents and extensions see is one view, `src-tauri/src/contacts/outside.rs`
+- [x] T083 [US6] Scopes `contacts.read` and `contacts.write` in `src/lib/actions/scopes.ts` (with descriptions and `actions.scopes.*` title keys); actions `contacts.search`, `contacts.get` (read) and `contacts.update` (write) in a new `src/lib/actions/contactsActions.ts`, registered in `src/lib/actions/catalog.ts`; handlers in `src/stores/contactsActionHandlers.ts`; contacts in `src/components/settings/AgentFilesSetting.vue` (or a sibling view) to see and revoke remembered answers — in `AgentFilesSetting.vue`: a row "Kontakte" ("Fragt nach" revokes) and a revoke per remembered group
+- [x] T084 [US6] E2E `scripts/e2e/scenarios/agent-contacts.test.ts` (US6-1/2/3 through the built-in agent's stand-in model like `files-agent`)
 - [ ] T085 [US6] Run `cargo test -j 4 --lib -- contacts files::permissions files::agent`, frontend checks, `agent-contacts`, `files-agent`; commit, open PR G
 
 **Checkpoint**: Agents get contacts only with a remembered grant.

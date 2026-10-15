@@ -16,6 +16,7 @@ use serde_json::{json, Value};
 
 use crate::contacts::access::{Caller, Grant, GrantAction, Scope};
 use crate::contacts::model::{Contact, ContactHeader, Group};
+use crate::contacts::outside;
 use crate::contacts::service::ContactsService;
 use crate::error::HolziError;
 use crate::extensions::bridge::blocking::block_on;
@@ -187,24 +188,9 @@ struct Call {
 }
 
 impl Call {
-    fn group_names(&self, ids: &[String]) -> Vec<String> {
-        ids.iter()
-            .filter_map(|id| self.groups.iter().find(|group| &group.id == id))
-            .map(|group| group.name.clone())
-            .collect()
-    }
-
     /// The SDK's `ContactSummary`.
     fn summary(&self, header: ContactHeader) -> Value {
-        json!({
-            "id": header.id,
-            "displayName": header.name,
-            "organization": header.organization,
-            "phones": header.phones,
-            "emails": header.emails,
-            "groups": self.group_names(&header.groups),
-            "photo": header.photo,
-        })
+        json!(outside::summary(header, &self.groups))
     }
 }
 
@@ -223,41 +209,9 @@ fn call(ctx: &CallContext) -> Result<Call, BridgeError> {
     })
 }
 
-/// The SDK's `ContactDetail`: everything a person reads on the card, without where the contact
-/// came from, which phones it goes to and how it is linked there.
+/// The SDK's `ContactDetail` (`contacts::outside`).
 fn detail(contact: Contact) -> Value {
-    let head = contact.head;
-    json!({
-        "id": contact.id,
-        "displayName": contact.name,
-        "givenName": head.given_name,
-        "familyName": head.family_name,
-        "middleName": head.middle_name,
-        "namePrefix": head.name_prefix,
-        "nameSuffix": head.name_suffix,
-        "nickname": head.nickname,
-        "organization": head.organization,
-        "jobTitle": head.job_title,
-        "note": head.note,
-        "values": contact.values.into_iter().map(|value| json!({
-            "kind": value.kind,
-            "label": value.label,
-            "value": value.value,
-        })).collect::<Vec<_>>(),
-        "groups": contact.groups.into_iter().map(|group| group.name).collect::<Vec<_>>(),
-        "photo": contact.photo,
-        "holziAddresses": contact.card.map(|card| json!({
-            "vault": card.vault_pubkey,
-            "npub": card.npub,
-            "devices": card.devices.into_iter().map(|device| json!({
-                "devicePubkey": device.device_pubkey,
-                "endpointId": device.endpoint_id,
-                "irohRelay": device.iroh_relay,
-            })).collect::<Vec<_>>(),
-            "nostrRelays": card.nostr_relays,
-        })),
-        "updatedAt": contact.updated_at,
-    })
+    json!(outside::contact(contact))
 }
 
 fn text<'a>(params: &'a Value, key: &str) -> Result<Option<&'a str>, BridgeError> {

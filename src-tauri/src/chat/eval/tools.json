@@ -1556,5 +1556,125 @@
       "de": "Datei im Dateibrowser zeigen",
       "en": "Show a file in the file browser"
     }
+  },
+  {
+    "toolName": "contacts_search",
+    "actionId": "contacts.search",
+    "description": "Search the address book by name, organization, phone number or e-mail address. Returns id, name, organization, phone numbers, e-mail addresses and group names of each match. Needs the user to allow reading contacts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Text a match contains; case and accents do not matter, phone numbers also match as bare digits."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "At most this many contacts (at most 100, 20 by default)."
+        }
+      },
+      "required": ["query"]
+    },
+    "effect": "read",
+    "core": false,
+    "titles": {
+      "de": "Kontakte suchen",
+      "en": "Search contacts"
+    }
+  },
+  {
+    "toolName": "contacts_get",
+    "actionId": "contacts.get",
+    "description": "Read one contact with all its values (phone numbers, addresses, dates, …) and their ids. Needs the user to allow reading contacts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The contact id."
+        }
+      },
+      "required": ["id"]
+    },
+    "effect": "read",
+    "core": false,
+    "titles": {
+      "de": "Kontakt lesen",
+      "en": "Read a contact"
+    }
+  },
+  {
+    "toolName": "contacts_update",
+    "actionId": "contacts.update",
+    "description": "Change the name, organization, note or values of one contact. Only the fields given change; a value with an id from contacts.get is changed, one without an id is added, ids in `remove` are removed. The change reaches every device and the phone address books like one made in holzi. Needs the user to allow changing contacts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The contact id."
+        },
+        "givenName": {
+          "type": "string",
+          "description": "The new text; an empty text clears the field."
+        },
+        "familyName": {
+          "type": "string",
+          "description": "The new text; an empty text clears the field."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The new text; an empty text clears the field."
+        },
+        "organization": {
+          "type": "string",
+          "description": "The new text; an empty text clears the field."
+        },
+        "jobTitle": {
+          "type": "string",
+          "description": "The new text; an empty text clears the field."
+        },
+        "note": {
+          "type": "string",
+          "description": "The new text; an empty text clears the field."
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "description": "phone, email, address, url, date, im, relation, custom or a kind of a newer holzi."
+              },
+              "label": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Values to change (with id) or add (without id)."
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Ids of values to remove."
+        }
+      },
+      "required": ["id"]
+    },
+    "effect": "write",
+    "core": false,
+    "titles": {
+      "de": "Kontakt ändern",
+      "en": "Change a contact"
+    }
   }
 ]

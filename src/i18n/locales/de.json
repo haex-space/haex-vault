@@ -990,7 +990,11 @@
       },
       "revoke": "Widerrufen",
       "loadFailed": "Berechtigungen nicht geladen",
-      "failed": "Nicht gespeichert"
+      "failed": "Nicht gespeichert",
+      "contacts": "Kontakte",
+      "contactsDescription": "Adressbuch",
+      "contactsGroup": "Kontakte der Gruppe „{name}“",
+      "contactsGroupUnknown": "Kontakte einer gelöschten Gruppe"
     },
     "storage": {
       "intro": "Verbindungen zu Anbietern über S3 oder WebDAV. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket oder Ordner. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
@@ -1591,6 +1595,10 @@
       "files": {
         "read": "Dateien lesen",
         "write": "Dateien ändern"
+      },
+      "contacts": {
+        "read": "Kontakte lesen",
+        "write": "Kontakte ändern"
       }
     },
     "passwords": {
@@ -1612,6 +1620,11 @@
       "move": "Dateien verschieben",
       "delete": "Dateien löschen",
       "show": "Datei im Dateibrowser zeigen"
+    },
+    "contacts": {
+      "search": "Kontakte suchen",
+      "get": "Kontakt lesen",
+      "update": "Kontakt ändern"
     }
   },
   "passwords": {
@@ -2534,6 +2547,14 @@
         "thisTask": "Ohne Haken gilt die Antwort nur für diese Aufgabe.",
         "kept": "holzi merkt sich die Antwort für diesen Ordner.",
         "keptLocal": "holzi merkt sich die Antwort nur für Modelle auf diesem Gerät; für diese Aufgabe gilt sie trotzdem."
+      },
+      "contacts": {
+        "title": "Zugriff auf deine Kontakte",
+        "read": "Der Agent im Chat möchte deine Kontakte lesen.",
+        "readWrite": "Der Agent im Chat möchte deine Kontakte lesen und ändern. Änderungen gehen auf alle deine Geräte und in die Telefon-Adressbücher.",
+        "hint": "„Einmal erlauben“ gilt nur für diesen Zugriff. „Immer erlauben“ und „Ablehnen“ merkt sich holzi; in den Einstellungen unter KI kannst du das wieder ändern.",
+        "once": "Einmal erlauben",
+        "always": "Immer erlauben"
       }
     }
   },

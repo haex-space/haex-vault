@@ -25,10 +25,12 @@
 
 - `ContactSummary`: `id`, `displayName`, `organization`, `phones[]`, `emails[]`, `groups[]`
   (Gruppennamen), `photo`.
-- `ContactDetail`: `id`, `displayName`, alle Kopf-Felder, alle Angaben (`kind`, `label`, `value`)
+- `ContactDetail`: `id`, `displayName`, alle Kopf-Felder, alle Angaben (`id`, `kind`, `label`, `value`)
   einschließlich unbekannter Arten, Gruppennamen, `photo`, bestätigte holzi-Adressen als
   `holziAddresses` (`vault` hex, `npub`, `devices[]` mit `devicePubkey`, `endpointId`, `irohRelay`,
-  `nostrRelays[]`) oder `null`, `updatedAt`; ohne Herkunft, Abgleichsziele, Probleme und Zuordnungen.
+  `nostrRelays[]`), `updatedAt`; ohne Herkunft, Abgleichsziele, Probleme und Zuordnungen.
+- Ein Feld ohne Wert fehlt, nie `null` (die Aktionen der Agenten prüfen ihre Ergebnisse gegen ein
+  Schema ohne `null`).
 - Fotos: `photo` als Hash; Bytes über `extension_contacts_photo { hash }` mit derselben Prüfung.
 - `list` gibt ohne `limit` 100 Kontakte, höchstens 1.000; `total` zählt alle im Bereich (der Gruppe).
   `search` gibt ohne `limit` 20 Treffer, höchstens 200, mit derselben Suche wie das Fenster.

@@ -6,6 +6,9 @@
  * or in the cloud; its answer is kept only with "Erlaubnis merken", and for cloud models only with
  * "auch für Cloud-Modelle" too. Rust stores the answer; without an answer in 60 s it refuses this
  * one call. Questions that arrive together wait in line.
+ *
+ * The same question asks for the contacts (spec 051 FR-030, research R15): "Einmal erlauben" holds
+ * for this access, "Immer erlauben" and "Ablehnen" are kept.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -71,7 +74,13 @@ onBeforeUnmount(() => {
   requestTimeouts.clear()
 })
 
-async function answerAsync(choice: FilesAgentChoice): Promise<void> {
+const contacts = computed(() => current.value?.kind === 'contacts')
+
+/** `keep` answers a contacts question for good ("Immer erlauben"). */
+async function answerAsync(
+  choice: FilesAgentChoice,
+  keep = false,
+): Promise<void> {
   const request = queue.value.shift()
   if (!request) return
   const timeout = requestTimeouts.get(request.requestId)
@@ -82,7 +91,7 @@ async function answerAsync(choice: FilesAgentChoice): Promise<void> {
     args: {
       requestId: request.requestId,
       choice,
-      remember: folder && remember.value,
+      remember: request.kind === 'contacts' ? keep : folder && remember.value,
       alsoCloud: folder && remember.value && alsoCloud.value,
     },
   }).catch((error: unknown) => {
@@ -103,12 +112,18 @@ async function answerAsync(choice: FilesAgentChoice): Promise<void> {
       <ShadcnAlertDialogHeader>
         <ShadcnAlertDialogTitle>
           {{
-            current.folder
-              ? t('files.agentPermission.folder.title')
-              : t('files.agentPermission.title')
+            contacts
+              ? t('files.agentPermission.contacts.title')
+              : current.folder
+                ? t('files.agentPermission.folder.title')
+                : t('files.agentPermission.title')
           }}
         </ShadcnAlertDialogTitle>
-        <ShadcnAlertDialogDescription v-if="current.folder">
+        <ShadcnAlertDialogDescription v-if="contacts">
+          {{ t(`files.agentPermission.contacts.${current.wants}`) }}
+          {{ t('files.agentPermission.contacts.hint') }}
+        </ShadcnAlertDialogDescription>
+        <ShadcnAlertDialogDescription v-else-if="current.folder">
           {{
             t(
               `files.agentPermission.folder.${current.wants}${current.storageId.startsWith('device:') ? 'Device' : ''}`,
@@ -161,7 +176,25 @@ async function answerAsync(choice: FilesAgentChoice): Promise<void> {
           }}
         </p>
       </div>
-      <ShadcnAlertDialogFooter class="flex-wrap gap-2">
+      <ShadcnAlertDialogFooter v-if="contacts" class="flex-wrap gap-2">
+        <ShadcnAlertDialogCancel data-testid="files-agent-permission-deny">
+          {{ t('files.agentPermission.deny') }}
+        </ShadcnAlertDialogCancel>
+        <UiButton
+          variant="outline"
+          data-testid="files-agent-permission-once"
+          @click="answerAsync(current.wants)"
+        >
+          {{ t('files.agentPermission.contacts.once') }}
+        </UiButton>
+        <UiButton
+          data-testid="files-agent-permission-always"
+          @click="answerAsync(current.wants, true)"
+        >
+          {{ t('files.agentPermission.contacts.always') }}
+        </UiButton>
+      </ShadcnAlertDialogFooter>
+      <ShadcnAlertDialogFooter v-else class="flex-wrap gap-2">
         <ShadcnAlertDialogCancel data-testid="files-agent-permission-deny">
           {{ t('files.agentPermission.deny') }}
         </ShadcnAlertDialogCancel>
