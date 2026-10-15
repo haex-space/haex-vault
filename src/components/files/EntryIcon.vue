@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * The picture of an entry (spec 044 FR-003, FR-005): a thumbnail for images in the grid, else an
- * icon by kind. Encrypted folders and entries that cannot be read show their state (spec 048). Thumbnails are asked for only while the entry is on screen (the virtual list
- * mounts visible rows only).
+ * The picture of an entry (spec 044 FR-003, FR-005): a thumbnail for images in the grid, else the
+ * icon of the chosen icon set (spec 053: an image of the set, or a symbol of the standard set).
+ * Encrypted folders and entries that cannot be read show their state (spec 048). Thumbnails are
+ * asked for only while the entry is on screen (the virtual list mounts visible rows only).
  */
 import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
@@ -20,25 +21,13 @@ const { thumbnailFor } = useFilesThumbnails()
 const look = computed(() => encryptedLook(props.entry))
 const url = ref<string | null>(null)
 
-const icon = computed(() => {
-  if (look.value) return look.value.icon
-  if (props.entry.kind === 'dir') {
-    return props.entry.noAccess ? 'lucide:folder-lock' : 'lucide:folder'
-  }
-  switch (viewerKind(props.entry.name)) {
-    case 'image':
-      return 'lucide:image'
-    case 'video':
-      return 'lucide:film'
-    case 'audio':
-      return 'lucide:music'
-    case 'pdf':
-    case 'text':
-      return 'lucide:file-text'
-    default:
-      return 'lucide:file'
-  }
-})
+const query = computed(() => ({
+  name: props.entry.name,
+  isDir: props.entry.kind === 'dir',
+  noAccess: props.entry.noAccess,
+  encrypted: props.entry.encrypted,
+}))
+const icon = useFileIcon(() => query.value)
 
 watch(
   () => [
@@ -71,11 +60,21 @@ watch(
     class="size-full object-contain"
     draggable="false"
   />
+  <img
+    v-else-if="icon?.kind === 'image'"
+    :src="icon.url"
+    alt=""
+    class="size-full object-contain"
+    draggable="false"
+    :title="look?.stateKey ? t(look.stateKey) : undefined"
+    :data-encrypted="entry.encrypted?.state"
+  />
   <Icon
-    v-else
-    :name="icon"
+    v-else-if="icon?.kind === 'builtin'"
+    :name="icon.name"
     class="size-full text-muted-foreground"
     :title="look?.stateKey ? t(look.stateKey) : undefined"
     :data-encrypted="entry.encrypted?.state"
   />
+  <span v-else class="block size-full" aria-hidden="true" />
 </template>

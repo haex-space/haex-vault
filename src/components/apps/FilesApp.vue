@@ -104,6 +104,7 @@ onBeforeUnmount(() => {
   openFrames -= 1
   if (openFrames > 0) return
   clearFilesThumbnails()
+  clearFileIcons()
 })
 
 /** Opens a folder, with the filter kept and the search ended. */

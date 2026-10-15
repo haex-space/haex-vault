@@ -17,6 +17,7 @@ const failed = (text: string) => (status.value = { kind: 'failed', text })
   <div class="flex flex-col gap-4">
     <SettingsColorSchemeSetting />
     <SettingsBackgroundSetting />
+    <SettingsFileIconSetSetting />
 
     <div class="flex flex-wrap items-center justify-end gap-2">
       <SettingsAppearanceFileButtons @done="done" @failed="failed" />
