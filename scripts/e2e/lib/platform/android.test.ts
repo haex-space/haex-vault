@@ -382,6 +382,7 @@ describe('copying a vault file from the phone (stage 2)', () => {
     try {
       const fake = phoneWith({
         [`${runAs} stat -c %s instances/v.db.vault-id`]: '9',
+        '-s emu get-state': 'device\n',
       })
       const source = new AndroidData(createAdb('emu', fake.run))
       await assert.rejects(
@@ -389,6 +390,38 @@ describe('copying a vault file from the phone (stage 2)', () => {
         /v\.db\.vault-id was read only in part/,
       )
       assert.deepEqual(readdirSync(join(root, ...VAULT_DIR)), [])
+      // Read three times before it gives up.
+      assert.equal(
+        fake.calls.filter((call) =>
+          call.endsWith('cat instances/v.db.vault-id'),
+        ).length,
+        3,
+      )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('reads a file again when adb lost the device in the middle of the transfer', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'holzi-android-copy-'))
+    try {
+      const phone = phoneWith({ '-s emu get-state': 'device\n' })
+      let cut = true
+      const run: AdbRunner = (args, input) => {
+        if (cut && args.join(' ').endsWith('cat instances/v.db')) {
+          cut = false
+          return Buffer.from('va') // what arrived before the connection broke
+        }
+        return phone.run(args, input)
+      }
+      await new AndroidData(createAdb('emu', run)).copyVaultFile(
+        'v',
+        new LinuxData(root),
+      )
+      assert.equal(
+        readFileSync(join(root, ...VAULT_DIR, 'v.db'), 'utf8'),
+        'vault',
+      )
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
