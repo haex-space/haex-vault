@@ -23,6 +23,7 @@ import {
   processGroupOf,
   spawnMarked,
   stopGroup,
+  stopLeftovers,
 } from './processes.ts'
 import type { Tools } from './preflight.ts'
 import type { ContactControls } from './platform/android-contacts.ts'
@@ -364,6 +365,9 @@ export async function startInstance(
     }
     await stopGroup(driverPid)
     await Promise.race([closed, sleep(1000)])
+    // What the application opened through the system outlives it and keeps writing to the folder
+    // that is removed next (`ENOTEMPTY` on its cache, files-encrypted on #446).
+    await stopLeftovers(options.root)
   }
 
   let pid: number | undefined
