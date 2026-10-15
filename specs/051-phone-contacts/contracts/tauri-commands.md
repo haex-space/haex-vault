@@ -21,7 +21,9 @@ den eingebauten Agenten setzen `Caller::BuiltinAgent` im Rumpf, nie als Argument
 | `contacts_group_members` | `{ group_id, add: id[], remove: id[] }`             | `()`              |
 
 `ContactHeader`: `id`, `display_name`, `organization`, `phones[]`, `emails[]`, `groups[]`, `photo?`,
-`origin`, `targets[]`, `has_card`, `issue?`.
+`origin`, `targets[]` (Telefone), `has_card`, `issue?` (ein Grund, wenn eine Änderung ein Telefon nicht
+erreichte). `Contact` hat dazu `targets[]` (`device`, `accountType`, `accountName`) und `issues[]`
+(`device`, `reason`, `at`) aller Telefone.
 
 `ContactPatch` enthält nur Geänderte: Kopf-Felder als `Option<Option<T>>`; Angaben als
 `values: { upsert: ValueInput[], remove: id[] }`. Der Dienst lehnt `upsert`/`remove` für Werte mit
@@ -29,11 +31,17 @@ unbekannter `kind` ab (`UnknownKindReadOnly`) und ändert die Herkunft nie (FR-0
 
 ## Abgleichsziele
 
-| Command                   | Eingabe                                                                   | Ausgabe                                                        |
-| ------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `contacts_phones`         | –                                                                         | `PhoneSummary[]` (Telefone mit Abgleich an, Konten, Zielkonto) |
-| `contacts_targets_set`    | `{ contact_ids, device, account? }` oder `{ group_id, device, account? }` | `()`                                                           |
-| `contacts_targets_remove` | `{ contact_ids, device, on_phone: "delete" \| "keep" }` (FR-018d)         | `()`                                                           |
+| Command                   | Eingabe                                                                 | Ausgabe                                                        |
+| ------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `contacts_phones`         | –                                                                       | `PhoneSummary[]` (Telefone mit Abgleich an, Konten, Zielkonto) |
+| `contacts_targets_set`    | `{ contactIds, device, account? }` oder `{ groupId, device, account? }` | `()`                                                           |
+| `contacts_targets_remove` | `{ contactIds, device, onPhone: "delete" \| "keep" }` (FR-018d)         | `()`                                                           |
+
+`PhoneSummary`: `device`, `name` (Name des Geräts in der Vault), `target` (Zielkonto), `accounts` (die
+Konten, wie der letzte Lauf des Telefons sie sah; Geräte-Einstellung `contacts.phone.accounts`). Nur
+der Nutzer setzt Ziele (`Caller::User`); ein Telefon ohne eingeschalteten Abgleich oder ein Konto, das
+das Telefon nicht als beschreibbar meldete, antwortet `ContactsInvalid`. Entfernen geht auch für ein
+Telefon, dessen Abgleich aus ist. `contacts_create` nimmt `targets` nur vom Nutzer an.
 
 ## Abgleich mit dem Telefon (nur mit Fähigkeit `phoneContacts`)
 

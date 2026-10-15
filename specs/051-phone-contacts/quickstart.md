@@ -41,7 +41,8 @@ Erwartet: alles grün; `pnpm check:e2e-exclusions` ohne neue Ausnahme.
 | `contacts-two-devices`         | US1-4: Änderung und Löschung kommen auf dem zweiten Gerät an  |
 | `android-contacts-import`      | US2-1/2: Übersicht, 2 Konten, Anzahl und Inhalt               |
 | `android-contacts-denied`      | US2-6: Berechtigung verweigert, Erklärung                     |
-| `android-contacts-two-way`     | US2-3/4/5, US3-1/2/3: Änderungen in beide Richtungen, Ziele   |
+| `android-contacts-two-way`     | US2-3/4/5/7: Änderungen in beide Richtungen, Ausschalten      |
+| `android-contacts-desktop`     | US3-1/2/4/6: Telefon und Laptop, Ziele vom Laptop             |
 | `android-contacts-targets`     | US3-4/5: Ziel entfernen (löschen/behalten), Mehrfachauswahl   |
 | `android-contacts-mass-delete` | FR-016: Konto weg, Berechtigung weg, > 10 % gelöscht          |
 | `contacts-card`                | US4-1/2/3/4/5: Karte zeigen, einlesen, ungültig, älter, neuer |
