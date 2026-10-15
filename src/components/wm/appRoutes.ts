@@ -55,6 +55,9 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'general.dock': defineAsyncComponent(
     () => import('~/components/settings/DockView.vue'),
   ),
+  'general.licenses': defineAsyncComponent(
+    () => import('~/components/settings/LicensesView.vue'),
+  ),
   ai: defineAsyncComponent(
     () => import('~/components/settings/OverviewView.vue'),
   ),

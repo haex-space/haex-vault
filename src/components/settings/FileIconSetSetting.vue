@@ -61,7 +61,26 @@ function nameOf(info: IconSetInfo): string {
     : info.name
 }
 
-const unknown = computed(() => selection.value?.state === 'unknown')
+/** Why the chosen set is not the one on screen (the standard icons show meanwhile). */
+const notice = computed(() => {
+  const state = selection.value?.state
+  return state && state !== 'ready'
+    ? t(`settings.iconSet.states.${state}`)
+    : null
+})
+
+/** What the list says under a set: its author, license and source as far as it names them; for a
+ * custom set also the number of images, and when its pack failed the checks, that. */
+function descriptionOf(info: IconSetInfo): string {
+  const parts = [info.author, info.license]
+  if (info.ref.kind === 'custom') {
+    if (info.source) parts.push(info.source)
+    parts.push(t('settings.iconSet.images', { count: info.imageCount }))
+  }
+  if (info.state === 'damaged')
+    parts.push(t('settings.iconSet.states.damagedShort'))
+  return parts.filter(Boolean).join(' · ')
+}
 
 onMounted(() => void loadAsync())
 onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
@@ -83,7 +102,7 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
         type="radio"
         :value="selectionValue(info.ref)"
         :title="nameOf(info)"
-        :description="`${info.author} · ${info.license}`"
+        :description="descriptionOf(info)"
         :data-testid="`settings-icon-set-option-${selectionValue(info.ref)}`"
       >
         <template #trailing>
@@ -103,8 +122,13 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
       {{ t('settings.iconSet.description') }}
     </p>
     <SettingsFileIconSetImport @imported="loadAsync" />
-    <p v-if="unknown" class="px-1 text-sm text-warning" role="status">
-      {{ t('settings.iconSet.unknown') }}
+    <p
+      v-if="notice"
+      class="px-1 text-sm text-warning"
+      role="status"
+      data-testid="settings-icon-set-notice"
+    >
+      {{ notice }}
     </p>
     <div class="flex flex-wrap items-center gap-2">
       <UiButton

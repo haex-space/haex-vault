@@ -165,13 +165,17 @@ fn removing_the_chosen_set_falls_back_to_the_default() {
     write(&db, &prepared("theme-basic"), A, None).expect("written");
     write(&db, &prepared("theme-basic"), B, None).expect("written");
     set_choice(&db, &format!("custom:{A}"));
-    db.write(|tx| remove_set(tx, B)).expect("removed");
+    db.write(|tx| remove_set(tx, B))
+        .expect("a transaction")
+        .expect("removed");
     assert_eq!(
         choice(&db).as_deref(),
         Some(format!("custom:{A}").as_str()),
         "removing another set leaves the choice"
     );
-    db.write(|tx| remove_set(tx, A)).expect("removed");
+    db.write(|tx| remove_set(tx, A))
+        .expect("a transaction")
+        .expect("removed");
     assert_eq!(rows(&db), 0);
     assert_eq!(
         choice(&db).as_deref(),
@@ -225,4 +229,37 @@ fn the_answer_names_the_source_by_no_path() {
     let json = serde_json::to_string(&report).expect("json");
     assert!(!json.contains("fixtures"), "{json}");
     assert!(!json.contains(env!("CARGO_MANIFEST_DIR")), "{json}");
+}
+
+#[test]
+fn only_an_own_set_can_be_removed() {
+    // A bundled set has no id of the shape of a custom set: the command refuses it before it
+    // reads anything.
+    for id in ["builtin:lucide", "lucide", "material", ""] {
+        assert!(
+            matches!(check_set_id(id), Err(HolziError::InvalidInput { .. })),
+            "{id}"
+        );
+    }
+    check_set_id(A).expect("the id of a custom set");
+    let list = read(&open_vault().1, |q| super::super::commands::list(q)).expect("list");
+    assert!(
+        list.iter()
+            .filter(|info| matches!(info.set_ref, IconSetRef::Builtin { .. }))
+            .all(|info| !info.removable),
+        "a bundled set is not removable"
+    );
+}
+
+#[test]
+fn a_set_that_is_not_there_is_refused_and_writes_nothing() {
+    let (_dir, db) = open_vault();
+    write(&db, &prepared("theme-basic"), A, None).expect("written");
+    set_choice(&db, &format!("custom:{A}"));
+    let refused = db
+        .write(|tx| remove_set(tx, "00000000-0000-4000-8000-0000000000ff"))
+        .expect("a transaction");
+    assert_eq!(refused, Err(ImportError::NoSuchSet));
+    assert_eq!(rows(&db), 1);
+    assert_eq!(choice(&db).as_deref(), Some(format!("custom:{A}").as_str()));
 }

@@ -92,3 +92,7 @@ mod tests;
 #[cfg(test)]
 #[path = "large_preference_tests.rs"]
 mod large_preference_tests;
+
+#[cfg(test)]
+#[path = "icon_set_sync_tests.rs"]
+mod icon_set_sync_tests;

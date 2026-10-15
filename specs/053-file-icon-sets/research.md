@@ -166,6 +166,8 @@ Texte: `de.json` und `en.json` (nur diese Sprachen), Begriff „Icon-Set“.
 
 **Zielwerte**: Eine Gruppe von 200 sichtbaren Einträgen in unter 20 ms antworten, ein Set in unter 100 ms öffnen (beim Packen und im Test messen; kein Wert ist im Bestand belegt).
 
+**Gemessen** (2026-10-15, `cargo test --release --lib files::icons::perf -- --ignored --nocapture`, Linux-Desktop; der Test steht in `perf_tests.rs`): das Material-Paket öffnen 20,7 ms (Ziel unter 100 ms), 200 sichtbare Einträge auflösen 0,05 ms (Ziel unter 20 ms), 1000 Einträge mit Material gegenüber Lucide 0,09 ms Unterschied (Ziel unter 200 ms). Im Debug-Build dauert das Öffnen 181 ms, die übrigen Werte liegen unter 2 ms; ein Release-Build ist es, den der Nutzer bekommt. Gemessen ist die Rust-Seite; das Laden der Bilder in den Webview (`files_icon_image`, ein Aufruf je neues Bild) kommt dazu und wird je Bild nur einmal gemacht.
+
 ## R14 – Test und Fixtures
 
 **Entscheidung**: Testdateien getrennt von der Produktion (`*_tests.rs`). Fixtures unter `src-tauri/tests/fixtures/icon_sets/`: ein gültiges VS-Code-Theme (klein, mit `light`-Block), ein SVG mit Skript, `onload`, `foreignObject`, `href` auf eine fremde Adresse und `url()`; ein Archiv mit `../`-Pfaden, ein Archiv mit sehr hohem Verhältnis (Bombe), ein Manifest mit Verweisen aus dem Ordner heraus, ein beschädigtes PNG und eines über 512 px. E2E: `files-icon-sets` (wählen, Bilder erscheinen, Neustart behält die Wahl, Import, Entfernen) und `files-icon-sets-two-devices` nach dem Muster `appearance-sync-two-devices`.
