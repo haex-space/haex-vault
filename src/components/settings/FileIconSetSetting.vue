@@ -8,7 +8,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { IconSelection } from '@bindings/IconSelection'
 import type { IconSetInfo } from '@bindings/IconSetInfo'
-import { selectionValue, STANDARD_SET } from '~/lib/files/fileIcons'
+import { selectionValue, DEFAULT_SET } from '~/lib/files/fileIcons'
 
 const KEY = 'files.iconSet'
 
@@ -23,7 +23,7 @@ const savedFlash = ref(false)
 const opError = ref<string | null>(null)
 
 const chosen = computed(() =>
-  selectionValue(selection.value?.set ?? STANDARD_SET),
+  selectionValue(selection.value?.set ?? DEFAULT_SET),
 )
 
 async function loadAsync() {
@@ -102,9 +102,9 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
       <UiButton
         variant="outline"
         size="sm"
-        :disabled="busy || chosen === selectionValue(STANDARD_SET)"
+        :disabled="busy || chosen === selectionValue(DEFAULT_SET)"
         data-testid="settings-icon-set-reset"
-        @click="saveAsync(selectionValue(STANDARD_SET))"
+        @click="saveAsync(selectionValue(DEFAULT_SET))"
       >
         {{ t('settings.iconSet.reset') }}
       </UiButton>

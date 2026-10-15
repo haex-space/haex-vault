@@ -61,8 +61,14 @@ pub enum IconSetRef {
     Custom { id: String },
 }
 
-/// The standard set, which also answers for every set that is not available (FR-020).
+/// The set a vault has until it chooses another (operator, 2026-10-15).
 pub const DEFAULT_SET: IconSetRef = IconSetRef::Builtin {
+    name: BuiltinSet::Material,
+};
+
+/// The standard set (Lucide): it fills every role a set does not have and answers for every set
+/// that is not available (FR-020).
+pub const FALLBACK_SET: IconSetRef = IconSetRef::Builtin {
     name: BuiltinSet::Lucide,
 };
 

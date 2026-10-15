@@ -678,9 +678,9 @@
       "reset": "Reset",
       "unknown": "The chosen icon set needs a newer version of the app. Until then holzi shows the standard icons.",
       "sets": {
-        "lucide": "Lucide (default)",
+        "lucide": "Lucide",
         "phosphor": "Phosphor",
-        "material": "Material"
+        "material": "Material (default)"
       }
     },
     "colorScheme": {

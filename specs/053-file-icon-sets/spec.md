@@ -15,6 +15,11 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
 
 ## Clarifications
 
+### Session 2026-10-15
+
+- Q: Welches Set ist der Standard? → A: „Material“ (Betreiber, 2026-10-15). „Lucide“ bleibt das
+  Rückfall-Set für alles, was ein Set nicht belegt oder was nicht verfügbar ist.
+
 ### Session 2026-10-14
 
 - Q: Welche Bildformate dürfen eigene Sets enthalten? → A: SVG mindestens, zusätzlich PNG und WebP.
@@ -67,8 +72,9 @@ VS Code als Vorbild) und ein Adwaita-Set; weitere gute Vorschläge sind willkomm
   lesbare Datei, beschädigt).
 - **Mitgeliefertes Set**: gehört zur App, ist nicht löschbar und wird nicht synchronisiert.
 - **Eigenes Set**: vom Nutzer importiert, gehört zur Vault, ist entfernbar und wird synchronisiert.
-- **Standard-Set**: „Lucide“, das bisherige Aussehen. Es füllt jede Rolle, die ein anderes Set nicht
-  belegt.
+- **Standard-Set**: „Material“, das Set, das eine Vault ohne eigene Wahl hat (Betreiber, 2026-10-15).
+- **Rückfall-Set**: „Lucide“, das bisherige Aussehen. Es füllt jede Rolle, die ein anderes Set nicht
+  belegt, und antwortet für jedes Set, das nicht verfügbar ist.
 - **Einfarbiges Set**: das mitgelieferte Set „Lucide“ aus einfarbigen Symbolen, die holzi in der
   Textfarbe der Oberfläche zeichnet, hell und dunkel passend. Alle anderen Sets, auch „Phosphor“ (in
   einer hellen und einer dunklen Fassung gefärbt) und jedes importierte, sind **bunt**: ihre Bilder erscheinen, wie sie sind, wie bei VS Code.
@@ -105,7 +111,8 @@ Wahl bleibt.
 **Acceptance Scenarios**:
 
 1. **Given** eine frische Vault, **When** Anna den Dateibrowser öffnet, **Then** sehen Ordner und
-   Dateien aus wie bisher (Standard-Set „Lucide“).
+   Dateien aus wie im Standard-Set „Material“ (bis zum Betreiber-Beschluss vom 2026-10-15 war es
+   „Lucide“, das bisherige Aussehen, das jetzt Rückfall-Set ist).
 2. **Given** die Auswahl der Sets, **When** Anna ein Set anklickt, **Then** nutzen Liste, Raster und
    Suchergebnisse des Dateibrowsers sofort dieses Set, ohne Speichern-Knopf.
 3. **Given** ein gewähltes Set, **When** Anna die App neu startet, **Then** ist dasselbe Set gewählt.
@@ -303,7 +310,7 @@ Lizenzseite öffnen und die Angaben zu jedem mitgelieferten Set finden.
   Textfarbe der Oberfläche erscheinen. Ein importiertes Set ist immer bunt: holzi färbt seine Bilder
   nie ein und rät nicht, ob sie einfarbig sind; sein Aussehen im hellen und dunklen Schema bestimmt
   allein das Set durch seine Hell-/Dunkel-Bilder, wie bei VS Code.
-- **FR-007**: holzi MUSS diese Sets mitliefern: „Lucide“ (Standard, bisheriges Aussehen), „Phosphor“
+- **FR-007**: holzi MUSS diese Sets mitliefern: „Lucide“ (Rückfall, bisheriges Aussehen), „Phosphor“
   (viele Dateitypen: Dokumente, Tabellen, Bilder, Audio, Video, Archive und die häufigen
   Programmiersprachen als Buchstaben-Symbole, dazu Ordner und Schloss) und „Material“ (das Material
   Icon Theme mit Ordnern nach Namen und Bildern für die gängigen Dateitypen und Werkzeuge, wie bei VS
