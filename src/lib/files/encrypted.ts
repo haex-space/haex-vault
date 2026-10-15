@@ -64,28 +64,20 @@ export function asksBeforeDelete(input: DeleteInput): boolean {
 }
 
 export type EncryptedLook = {
-  icon: string
   /** i18n key of the state, when it is worth a word (not for a readable entry). */
   stateKey: string | null
 }
 
-/** The icon and state text of an entry with encryption, or `null` for an ordinary entry. */
+/**
+ * The state text of an entry with encryption, or `null` for an ordinary entry. Which icon the state
+ * gets is the icon set's to say (spec 053, `files::icons`), not this module's.
+ */
 export function encryptedLook(entry: EncryptedEntry): EncryptedLook | null {
   const info = entry.encrypted
   if (!info) return null
-  if (info.state !== 'readable') {
-    return {
-      icon:
-        info.state === 'damaged'
-          ? 'lucide:file-warning'
-          : entry.kind === 'dir'
-            ? 'lucide:folder-lock'
-            : 'lucide:file-lock',
-      stateKey: `files.encrypted.state.${info.state}`,
-    }
-  }
-  if (info.role === 'folder')
-    return { icon: 'lucide:folder-key', stateKey: null }
+  if (info.state !== 'readable')
+    return { stateKey: `files.encrypted.state.${info.state}` }
+  if (info.role === 'folder') return { stateKey: null }
   return null
 }
 

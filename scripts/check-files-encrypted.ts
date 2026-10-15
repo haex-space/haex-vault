@@ -94,13 +94,13 @@ test('the folder menu offers the encrypted folder only where allowed', () => {
   assert.deepEqual(ids(false), ['newFolder', 'paste'])
 })
 
-test('readable encrypted folders get a key icon; entries inside look ordinary', () => {
+test('readable encrypted folders look encrypted without a word; entries inside look ordinary', () => {
   assert.deepEqual(
     encryptedLook({
       kind: 'dir',
       encrypted: { role: 'folder', state: 'readable' },
     }),
-    { icon: 'lucide:folder-key', stateKey: null },
+    { stateKey: null },
   )
   assert.equal(
     encryptedLook({
@@ -118,17 +118,14 @@ test('states that cannot be read name themselves', () => {
       kind: 'dir',
       encrypted: { role: 'folder', state: 'otherVault' },
     }),
-    {
-      icon: 'lucide:folder-lock',
-      stateKey: 'files.encrypted.state.otherVault',
-    },
+    { stateKey: 'files.encrypted.state.otherVault' },
   )
   assert.deepEqual(
     encryptedLook({
       kind: 'file',
       encrypted: { role: 'inside', state: 'damaged' },
     }),
-    { icon: 'lucide:file-warning', stateKey: 'files.encrypted.state.damaged' },
+    { stateKey: 'files.encrypted.state.damaged' },
   )
   assert.equal(
     encryptedLook({

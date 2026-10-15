@@ -91,6 +91,9 @@ jobs:
       - name: Check the file browser
         run: corepack pnpm check:files
 
+      - name: Check the file icons
+        run: corepack pnpm check:file-icons
+
       - name: Check Android versions against the devShell
         run: corepack pnpm check:android-versions
 

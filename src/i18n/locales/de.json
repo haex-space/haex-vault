@@ -670,6 +670,19 @@
       "add": "Hinzufügen",
       "unavailable": "Auf diesem Gerät nicht verfügbar"
     },
+    "iconSet": {
+      "label": "Icon-Set für Dateien",
+      "description": "Gilt für die Ordner und Dateien im Dateibrowser, auf allen Geräten dieser Vault.",
+      "saved": "Gespeichert.",
+      "failed": "Das Icon-Set konnte nicht gespeichert werden",
+      "reset": "Zurücksetzen",
+      "unknown": "Das gewählte Icon-Set braucht eine neuere App-Version. Bis dahin zeigt holzi die Standard-Icons.",
+      "sets": {
+        "lucide": "Lucide (Standard)",
+        "phosphor": "Phosphor",
+        "material": "Material"
+      }
+    },
     "colorScheme": {
       "label": "Farbschema",
       "light": "Hell",

@@ -670,6 +670,19 @@
       "add": "Add",
       "unavailable": "Not available on this device"
     },
+    "iconSet": {
+      "label": "Icon set for files",
+      "description": "Applies to the folders and files in the file browser, on every device of this vault.",
+      "saved": "Saved.",
+      "failed": "The icon set could not be saved",
+      "reset": "Reset",
+      "unknown": "The chosen icon set needs a newer version of the app. Until then holzi shows the standard icons.",
+      "sets": {
+        "lucide": "Lucide (default)",
+        "phosphor": "Phosphor",
+        "material": "Material"
+      }
+    },
     "colorScheme": {
       "label": "Color scheme",
       "light": "Light",

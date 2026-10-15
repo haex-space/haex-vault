@@ -4,7 +4,7 @@
  * label of its radio button or checkbox (haex-ui's `ShadcnRadioGroupItem` / `ShadcnCheckbox`), so
  * a click anywhere on it chooses. A radio row needs a `SettingsGroup radio`, which owns the chosen
  * `value`; a checkbox row reports `change`, saving is the caller's. Attributes such as
- * `data-testid` go to the control.
+ * `data-testid` go to the control. The slot `trailing` sits at the end of the row (a preview).
  */
 defineOptions({ inheritAttrs: false })
 
@@ -46,6 +46,7 @@ const emit = defineEmits<{
           {{ description }}
         </span>
       </span>
+      <slot name="trailing" />
     </label>
   </li>
 </template>
