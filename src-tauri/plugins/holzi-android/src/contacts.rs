@@ -94,6 +94,22 @@ pub enum Op {
     DeleteData { data_id: i64 },
     #[serde(rename_all = "camelCase")]
     DeleteRaw { raw_contact_id: i64 },
+    /// A new group of an account; the core reads its id with the groups afterwards.
+    #[serde(rename_all = "camelCase")]
+    InsertGroup {
+        account_type: String,
+        account_name: String,
+        title: String,
+    },
+}
+
+/// A group of an account of the phone's address book. Read-only are the system's own groups.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PhoneGroup {
+    pub id: i64,
+    pub title: String,
+    pub read_only: bool,
 }
 
 /// What a batch did: per op the raw contact it touched and that raw contact's version after the

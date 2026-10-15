@@ -9,6 +9,7 @@ import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds
 import android.provider.ContactsContract.Contacts
 import android.provider.ContactsContract.Data
+import android.provider.ContactsContract.Groups
 import android.provider.ContactsContract.RawContacts
 import android.util.Base64
 import org.json.JSONArray
@@ -23,109 +24,7 @@ import org.json.JSONObject
 class ContactsProvider(private val context: Context) {
     private val resolver: ContentResolver get() = context.contentResolver
 
-    private class Kind(val mime: String, val columns: Map<String, String>)
-
-    private val kinds = mapOf(
-        "StructuredName" to Kind(
-            CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE,
-            mapOf(
-                "display" to CommonDataKinds.StructuredName.DISPLAY_NAME,
-                "given" to CommonDataKinds.StructuredName.GIVEN_NAME,
-                "family" to CommonDataKinds.StructuredName.FAMILY_NAME,
-                "middle" to CommonDataKinds.StructuredName.MIDDLE_NAME,
-                "prefix" to CommonDataKinds.StructuredName.PREFIX,
-                "suffix" to CommonDataKinds.StructuredName.SUFFIX,
-            ),
-        ),
-        "Nickname" to Kind(
-            CommonDataKinds.Nickname.CONTENT_ITEM_TYPE,
-            mapOf("name" to CommonDataKinds.Nickname.NAME),
-        ),
-        "Organization" to Kind(
-            CommonDataKinds.Organization.CONTENT_ITEM_TYPE,
-            mapOf(
-                "company" to CommonDataKinds.Organization.COMPANY,
-                "title" to CommonDataKinds.Organization.TITLE,
-            ),
-        ),
-        "Note" to Kind(
-            CommonDataKinds.Note.CONTENT_ITEM_TYPE,
-            mapOf("note" to CommonDataKinds.Note.NOTE),
-        ),
-        "Phone" to Kind(
-            CommonDataKinds.Phone.CONTENT_ITEM_TYPE,
-            mapOf(
-                "value" to CommonDataKinds.Phone.NUMBER,
-                "type" to CommonDataKinds.Phone.TYPE,
-                "label" to CommonDataKinds.Phone.LABEL,
-            ),
-        ),
-        "Email" to Kind(
-            CommonDataKinds.Email.CONTENT_ITEM_TYPE,
-            mapOf(
-                "value" to CommonDataKinds.Email.ADDRESS,
-                "type" to CommonDataKinds.Email.TYPE,
-                "label" to CommonDataKinds.Email.LABEL,
-            ),
-        ),
-        "Website" to Kind(
-            CommonDataKinds.Website.CONTENT_ITEM_TYPE,
-            mapOf(
-                "value" to CommonDataKinds.Website.URL,
-                "type" to CommonDataKinds.Website.TYPE,
-                "label" to CommonDataKinds.Website.LABEL,
-            ),
-        ),
-        "SipAddress" to Kind(
-            CommonDataKinds.SipAddress.CONTENT_ITEM_TYPE,
-            mapOf(
-                "value" to CommonDataKinds.SipAddress.SIP_ADDRESS,
-                "type" to CommonDataKinds.SipAddress.TYPE,
-                "label" to CommonDataKinds.SipAddress.LABEL,
-            ),
-        ),
-        "StructuredPostal" to Kind(
-            CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE,
-            mapOf(
-                "formatted" to CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS,
-                "street" to CommonDataKinds.StructuredPostal.STREET,
-                "pobox" to CommonDataKinds.StructuredPostal.POBOX,
-                "neighborhood" to CommonDataKinds.StructuredPostal.NEIGHBORHOOD,
-                "city" to CommonDataKinds.StructuredPostal.CITY,
-                "region" to CommonDataKinds.StructuredPostal.REGION,
-                "postcode" to CommonDataKinds.StructuredPostal.POSTCODE,
-                "country" to CommonDataKinds.StructuredPostal.COUNTRY,
-                "type" to CommonDataKinds.StructuredPostal.TYPE,
-                "label" to CommonDataKinds.StructuredPostal.LABEL,
-            ),
-        ),
-        "Im" to Kind(
-            CommonDataKinds.Im.CONTENT_ITEM_TYPE,
-            mapOf(
-                "data" to CommonDataKinds.Im.DATA,
-                "type" to CommonDataKinds.Im.TYPE,
-                "label" to CommonDataKinds.Im.LABEL,
-                "protocol" to CommonDataKinds.Im.PROTOCOL,
-                "customProtocol" to CommonDataKinds.Im.CUSTOM_PROTOCOL,
-            ),
-        ),
-        "Event" to Kind(
-            CommonDataKinds.Event.CONTENT_ITEM_TYPE,
-            mapOf(
-                "startDate" to CommonDataKinds.Event.START_DATE,
-                "type" to CommonDataKinds.Event.TYPE,
-                "label" to CommonDataKinds.Event.LABEL,
-            ),
-        ),
-        "Relation" to Kind(
-            CommonDataKinds.Relation.CONTENT_ITEM_TYPE,
-            mapOf(
-                "name" to CommonDataKinds.Relation.NAME,
-                "type" to CommonDataKinds.Relation.TYPE,
-                "label" to CommonDataKinds.Relation.LABEL,
-            ),
-        ),
-    )
+    private val kinds = contactKinds
 
     private val shortNames = kinds.entries.associate { (short, kind) -> kind.mime to short }
 
@@ -232,6 +131,7 @@ class ContactsProvider(private val context: Context) {
         ids.forEach { byRaw[it] = JSONArray() }
         if (ids.isEmpty()) return JSONArray()
         val photos = HashSet<Long>()
+        val memberships = ArrayList<Pair<JSONObject, Long>>()
         val mimes = (kinds.values.map { it.mime } + CommonDataKinds.Photo.CONTENT_ITEM_TYPE)
             .joinToString(",") { "'$it'" }
         resolver.query(
@@ -267,8 +167,12 @@ class ContactsProvider(private val context: Context) {
                 row.put("isReadOnly", false)
                 row.put("fields", fields)
                 byRaw[cursor.getLong(rawColumn)]?.put(row)
+                if (short == "GroupMembership") {
+                    fields.optString("groupId").toLongOrNull()?.let { memberships.add(Pair(fields, it)) }
+                }
             }
         }
+        nameGroups(memberships)
         val rows = JSONArray()
         for ((id, data) in byRaw) {
             val row = JSONObject()
@@ -278,6 +182,72 @@ class ContactsProvider(private val context: Context) {
             rows.put(row)
         }
         return rows
+    }
+
+    /**
+     * Adds the title of its group to each membership, and whether the group is the system's own
+     * ("My Contacts", "Starred"): the core maps memberships by title and leaves system groups alone.
+     */
+    private fun nameGroups(memberships: List<Pair<JSONObject, Long>>) {
+        val titles = HashMap<Long, Pair<String, Boolean>>()
+        for (chunk in memberships.map { it.second }.distinct().chunked(200)) {
+            resolver.query(
+                Groups.CONTENT_URI,
+                arrayOf(Groups._ID, Groups.TITLE, Groups.SYSTEM_ID),
+                "${Groups._ID} IN (${chunk.joinToString(",")})",
+                null,
+                null,
+            )?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    titles[cursor.getLong(0)] = Pair(cursor.getString(1) ?: "", !cursor.isNull(2))
+                }
+            }
+        }
+        for ((fields, group) in memberships) {
+            val (title, system) = titles[group] ?: Pair("", true)
+            fields.put("title", title)
+            fields.put("readOnly", system)
+        }
+    }
+
+    /** The groups of an account that are not deleted; the system's own ones are read-only. */
+    fun groups(accountType: String, accountName: String): JSONArray {
+        val (selection, args) = if (accountType.isEmpty()) {
+            Pair("${Groups.ACCOUNT_TYPE} IS NULL AND ${Groups.ACCOUNT_NAME} IS NULL", arrayOf<String>())
+        } else {
+            Pair("${Groups.ACCOUNT_TYPE} = ? AND ${Groups.ACCOUNT_NAME} = ?", arrayOf(accountType, accountName))
+        }
+        val rows = JSONArray()
+        resolver.query(
+            Groups.CONTENT_URI,
+            arrayOf(Groups._ID, Groups.TITLE, Groups.SYSTEM_ID),
+            "$selection AND ${Groups.DELETED} = 0",
+            args,
+            "${Groups._ID} ASC",
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val row = JSONObject()
+                row.put("id", cursor.getLong(0))
+                row.put("title", cursor.getString(1) ?: "")
+                row.put("readOnly", !cursor.isNull(2))
+                rows.put(row)
+            }
+        }
+        return rows
+    }
+
+    /**
+     * Writes the large photo of a raw contact (the provider makes the thumbnail) and answers the
+     * raw contact's version afterwards.
+     */
+    fun writePhoto(id: Long, jpegBase64: String): Long? {
+        val bytes = Base64.decode(jpegBase64, Base64.NO_WRAP)
+        val raw = ContentUris.withAppendedId(RawContacts.CONTENT_URI, id)
+        val display = Uri.withAppendedPath(raw, RawContacts.DisplayPhoto.CONTENT_DIRECTORY)
+        resolver.openAssetFileDescriptor(display, "rw")?.use { file ->
+            file.createOutputStream().use { it.write(bytes) }
+        } ?: throw IllegalStateException("no photo file")
+        return versionsOf(setOf(id))[id]
     }
 
     /**
@@ -328,6 +298,11 @@ class ContactsProvider(private val context: Context) {
                     ContentProviderOperation.newDelete(Data.CONTENT_URI)
                         .withSelection("${Data._ID} = ?", arrayOf(dataId.toString()))
                 }
+                "insertGroup" -> ContentProviderOperation.newInsert(Groups.CONTENT_URI)
+                    .withValue(Groups.ACCOUNT_TYPE, op.getString("accountType").ifEmpty { null })
+                    .withValue(Groups.ACCOUNT_NAME, op.getString("accountName").ifEmpty { null })
+                    .withValue(Groups.TITLE, op.getString("title"))
+                    .withValue(Groups.GROUP_VISIBLE, 1)
                 "deleteRaw" -> {
                     val id = op.getLong("rawContactId")
                     opRaw[i] = id

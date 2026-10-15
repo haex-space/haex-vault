@@ -288,4 +288,20 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
         contacts.photo(invoke.getArgs().getLong("id"))?.let { result.put("jpegBase64", it) }
         result
     }
+
+    /** Writes the photo of a raw contact; answers its version afterwards. */
+    @Command
+    fun contactsPhotoWrite(invoke: Invoke) = contactsCall(invoke) {
+        val args = invoke.getArgs()
+        val result = JSObject()
+        contacts.writePhoto(args.getLong("id"), args.getString("jpegBase64") ?: "")?.let { result.put("version", it) }
+        result
+    }
+
+    /** The groups of an account. */
+    @Command
+    fun contactsGroups(invoke: Invoke) = contactsCall(invoke) {
+        val args = invoke.getArgs()
+        rows(contacts.groups(args.getString("accountType") ?: "", args.getString("accountName") ?: ""))
+    }
 }
