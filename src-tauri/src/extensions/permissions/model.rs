@@ -22,13 +22,16 @@ pub enum PermissionKind {
     /// One encrypted folder of a storage (spec 048 FR-036): granted only by the user when asked,
     /// never from a manifest (FR-037).
     EncryptedFolder,
+    /// The address book (spec 051 FR-029): only `read`, of every contact (`*`) or of the members
+    /// of a group, by its name.
+    Contacts,
     /// A tool the extension offers to the agent (spec 018): declared in the manifest's `tools`,
     /// the action is its effect and the target its name; `*` stands for every tool.
     AgentTool,
 }
 
 impl PermissionKind {
-    pub const ALL: [PermissionKind; 10] = [
+    pub const ALL: [PermissionKind; 11] = [
         Self::Database,
         Self::Filesystem,
         Self::Web,
@@ -38,6 +41,7 @@ impl PermissionKind {
         Self::Mail,
         Self::Shell,
         Self::EncryptedFolder,
+        Self::Contacts,
         Self::AgentTool,
     ];
 
@@ -58,6 +62,7 @@ impl PermissionKind {
             Self::Mail => "mail",
             Self::Shell => "shell",
             Self::EncryptedFolder => "encryptedFolder",
+            Self::Contacts => "contacts",
             Self::AgentTool => "agentTool",
         }
     }
@@ -121,6 +126,7 @@ impl Action {
                 K::Database | K::Filesystem | K::Passwords | K::RemoteStorage | K::EncryptedFolder,
                 "readWrite",
             ) => Some(Self::ReadWrite),
+            (K::Contacts, "read") => Some(Self::Read),
             (K::Web, "*") => Some(Self::AnyMethod),
             (K::Web, method) if is_http_method(method) => Some(Self::Method(method.to_owned())),
             (K::Notifications, "show") => Some(Self::Show),

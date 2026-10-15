@@ -395,3 +395,50 @@ async fn an_agent_with_a_write_grant_creates_with_its_own_origin() {
         Err(HolziError::ContactsForbidden)
     ));
 }
+
+#[tokio::test]
+async fn search_finds_only_within_the_scope() {
+    let vault = test_vault();
+    let work = vault
+        .service
+        .group_save(&Caller::User, None, "Arbeit".into())
+        .await
+        .expect("group");
+    let mut colleague = person("Anna", "Dorn", vec![]);
+    colleague.groups = vec![work.id.clone()];
+    let colleague = vault
+        .service
+        .create(&Caller::User, &[], colleague)
+        .await
+        .expect("create");
+    vault
+        .service
+        .create(&Caller::User, &[], anna())
+        .await
+        .expect("create");
+
+    let found = vault
+        .service
+        .search(&Caller::User, &[], "anna")
+        .await
+        .expect("search");
+    assert_eq!(found.len(), 2);
+    let extension = Caller::Extension { id: "mail".into() };
+    let grants = [Grant::new(
+        GrantAction::Read,
+        Scope::Groups([work.id.clone()].into()),
+    )];
+    let found = vault
+        .service
+        .search(&extension, &grants, "anna")
+        .await
+        .expect("search");
+    assert_eq!(
+        found.iter().map(|h| h.id.as_str()).collect::<Vec<_>>(),
+        [colleague.id.as_str()]
+    );
+    assert!(matches!(
+        vault.service.search(&extension, &[], "anna").await,
+        Err(HolziError::ContactsForbidden)
+    ));
+}

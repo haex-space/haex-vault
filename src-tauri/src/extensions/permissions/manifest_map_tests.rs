@@ -238,3 +238,30 @@ fn tools_are_declared_only_in_the_tools_block() {
     assert!(result.declared.is_empty());
     assert_eq!(result.unsupported_categories, ["agentTool"]);
 }
+
+// Spec 051 FR-029: extensions only read the address book.
+#[test]
+fn contacts_are_read_only_of_all_or_of_a_group() {
+    let result = declared(json!({
+        "contacts": [
+            { "target": "*" },
+            { "target": "Arbeit", "action": "read" },
+            { "target": "*", "action": "readWrite" },
+            { "target": "*", "operation": "write" },
+            { "target": "" }
+        ]
+    }));
+    assert_eq!(
+        kinds_and_actions(&result),
+        vec![
+            (PermissionKind::Contacts, Action::Read, "*".to_string()),
+            (PermissionKind::Contacts, Action::Read, "Arbeit".to_string()),
+        ]
+    );
+    assert_eq!(result.declared[1].target, Target::Tag("arbeit".to_string()));
+    assert_eq!(
+        result.invalid.len(),
+        3,
+        "a write never becomes a permission"
+    );
+}
