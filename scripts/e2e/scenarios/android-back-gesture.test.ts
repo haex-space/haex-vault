@@ -1,9 +1,33 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, openLauncher } from '../lib/flows.ts'
-import { isShown, runAction, waitForLocation } from '../lib/settings.ts'
+import type { FlowInstance } from '../lib/flows.ts'
+import {
+  WM,
+  isShown,
+  runAction,
+  settingsLocation,
+  waitForLocation,
+} from '../lib/settings.ts'
 
 const LAUNCHER_ENTRY = '[data-app-id="system.settings"]'
+
+/** What `wm.system.back` decides on: the overlays, and per window its place in the stack and the history of its active tab. */
+function backState(instance: FlowInstance): Promise<string> {
+  return instance.exec<string>(
+    `const wm = ${WM}
+     return JSON.stringify({
+       overlays: { ...wm.overlays },
+       windows: wm.windows.map((w) => ({
+         app: w.tabs.find((t) => t.id === w.activeTabId)?.appId,
+         workspace: w.workspaceId,
+         stack: w.stack,
+         minimized: w.minimized,
+         history: wm.historyOf(w.activeTabId),
+       })),
+     })`,
+  )
+}
 
 // Spec 043 FR-013 with spec 020 FR-019: the system's back gesture closes an open overlay, else goes
 // back in the active tab, else (on a phone) opens the window overview, and it never leaves the app.
@@ -29,8 +53,23 @@ scenario('android-back-gesture', { needs: { phone: true } }, async (ctx) => {
   await waitForLocation(instance, 'general.basic')
   await instance.click('settings-row-general.basic.password')
   await waitForLocation(instance, 'general.basic.password')
+  const before = await backState(instance)
   phone.back()
-  await waitForLocation(instance, 'general.basic')
+  try {
+    await waitForLocation(instance, 'general.basic')
+  } catch (error) {
+    // On CI the key got no effect since the address book landed (three runs in a row), where a
+    // local emulator with the same APK passes. A second key tells a lost key from a state that
+    // has nothing to go back to; the failure carries both states.
+    const after = await backState(instance)
+    phone.back()
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    const second = await settingsLocation(instance)
+    throw new Error(
+      `${(error as Error).message}\nbefore the back key: ${before}\nafter it: ${after}\nlocation after a second back key: ${JSON.stringify(second)}`,
+      { cause: error },
+    )
+  }
   ctx.step('back goes back in the active tab')
 
   await openLauncher(instance)
