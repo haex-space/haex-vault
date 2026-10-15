@@ -19,7 +19,8 @@ locked), a folder without access (grey with a prohibition sign), a locked file a
 They are named by the roles `encryptedFolder`, `lockedFolder`, `folderNoAccess`, `lockedFile` and
 `damaged` and replace the role images of the set, so a state shows at a glance in every set.
 `node scripts/icon-sets/prepare.ts states` adds them to the directories as they are. They are the
-project's own drawings and are offered under the license of the pack (MIT).
+project's own drawings; the license metadata of each bundled pack remains unchanged, and these
+drawings are not part of the upstream icon sources.
 
 ## Standard folders by their German, French and Spanish names
 
