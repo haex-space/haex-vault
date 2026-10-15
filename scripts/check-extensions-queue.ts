@@ -25,6 +25,7 @@ function question(
     declared: false,
     deviceScoped: false,
     targetMissing: false,
+    byAgent: false,
   }
 }
 

@@ -2168,6 +2168,7 @@
     "permissionRequest": {
       "title": "“{name}” asks for a permission",
       "notDeclared": "This permission is not in the extension's manifest.",
+      "byAgent": "Triggered by a call of the agent.",
       "targetMissing": "The extension whose data is requested is not installed.",
       "shellWarning": "Caution: with this permission the extension can run programs on this device.",
       "remember": "Remember",

@@ -2168,6 +2168,7 @@
     "permissionRequest": {
       "title": "„{name}“ bittet um eine Berechtigung",
       "notDeclared": "Diese Berechtigung steht nicht im Manifest der Erweiterung.",
+      "byAgent": "Ausgelöst durch einen Aufruf des Agenten.",
       "targetMissing": "Die Erweiterung, deren Daten angefragt werden, ist nicht installiert.",
       "shellWarning": "Achtung: Mit dieser Berechtigung kann die Erweiterung Programme auf diesem Gerät ausführen.",
       "remember": "Merken",

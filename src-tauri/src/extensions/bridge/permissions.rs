@@ -98,6 +98,7 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
         declared,
         device_scoped: kind.is_device_scoped(),
         target_missing,
+        by_agent: ctx.session.mcp.calls_in_flight() > 0,
         encrypted_folder: folder,
     };
     if let Ok(payload) = serde_json::to_value(event) {

@@ -37,6 +37,9 @@ pub struct PermissionRequestEvent {
     pub device_scoped: bool,
     /// A `database` target of an extension that is not installed: only "Verweigern" is offered.
     pub target_missing: bool,
+    /// Raised while the agent called a tool of the extension (spec 018, research R11): the
+    /// question says so; it is still checked against the extension's own permissions.
+    pub by_agent: bool,
     /// For `encryptedFolder`: the storage and the decrypted folder name the question names (spec
     /// 048 FR-036); the extension never gets them.
     // Inline: the scripts' type check reads this binding without its siblings.
