@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 
-use super::offer::word_matches;
+use super::offer::{word_matches, words};
 
 /// `Tool::source` of an extension's tool, persisted as `chat_messages.tool_source`.
 pub const EXTENSION_SOURCE: &str = "haextension";
@@ -44,15 +44,9 @@ pub struct MatchEntry {
     pub texts: Vec<String>,
 }
 
-/// Lowercase words; unlike `offer.rs`, letters beyond ASCII belong to the word ("Einträge").
-fn words(text: &str) -> impl Iterator<Item = String> + '_ {
-    text.split(|c: char| !c.is_alphanumeric())
-        .filter(|word| !word.is_empty())
-        .map(str::to_lowercase)
-}
-
 fn content_words(text: &str) -> BTreeSet<String> {
     words(text)
+        .into_iter()
         .filter(|word| !STOP_WORDS.contains(&word.as_str()))
         .collect()
 }
