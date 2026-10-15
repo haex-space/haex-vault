@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 16 16" onload="alert(1)">
+  <script>alert("x")</script>
+  <foreignObject><div xmlns="http://www.w3.org/1999/xhtml">hi</div></foreignObject>
+  <image xlink:href="http://example.com/a.png" href="http://example.com/a.png"/>
+  <rect width="16" height="16" fill="url(http://example.com/g)" onclick="alert(2)"/>
+  <path d="M2 2h12v12H2z" fill="#c00"/>
+</svg>

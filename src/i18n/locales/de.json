@@ -681,6 +681,26 @@
         "lucide": "Lucide (Standard)",
         "phosphor": "Phosphor",
         "material": "Material"
+      },
+      "import": {
+        "title": "Icon-Set hinzufügen",
+        "fileType": "Icon-Set (ZIP oder VSIX)",
+        "chooseFile": "Eigenes Icon-Set hinzufügen",
+        "chooseFileHint": "Ein ZIP-Archiv oder eine VSIX-Datei, zum Beispiel ein Icon-Theme aus VS Code.",
+        "chooseFolder": "Ordner wählen",
+        "checking": "Das Icon-Set wird geprüft …",
+        "summary": "{count} Bilder, {size}",
+        "licenseNotice": "Du bist für die Lizenz dieses Icon-Sets verantwortlich. holzi prüft sie nicht.",
+        "skipped": "Nicht übernommen ({count})",
+        "replace": "Ein Icon-Set mit diesem Namen gibt es schon. Ersetzen.",
+        "cancel": "Abbrechen",
+        "confirm": "Hinzufügen"
+      },
+      "remove": {
+        "label": "{name} entfernen",
+        "title": "„{name}“ entfernen?",
+        "body": "Das Icon-Set wird auf allen Geräten dieser Vault gelöscht. Ist es gewählt, zeigt holzi danach das Standard-Set.",
+        "confirm": "Entfernen"
       }
     },
     "colorScheme": {

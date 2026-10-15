@@ -1,0 +1,41 @@
+{
+  "iconDefinitions": {
+    "file": {
+      "iconPath": "./icons/file.svg"
+    },
+    "folder": {
+      "iconPath": "./icons/folder.svg"
+    },
+    "rust": {
+      "iconPath": "./icons/rust.svg"
+    },
+    "rust-light": {
+      "iconPath": "./icons/rust_light.svg"
+    },
+    "glyph": {
+      "fontCharacter": "\\E001",
+      "fontColor": "#ffffff"
+    }
+  },
+  "file": "file",
+  "folder": "folder",
+  "folderExpanded": "folder",
+  "fileExtensions": {
+    "rs": "rust"
+  },
+  "fileNames": {
+    "cargo.toml": "rust"
+  },
+  "folderNames": {
+    "src": "folder"
+  },
+  "light": {
+    "fileExtensions": {
+      "rs": "rust-light"
+    }
+  },
+  "languageIds": {
+    "rust": "rust"
+  },
+  "hidesExplorerArrows": true
+}

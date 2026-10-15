@@ -1,0 +1,14 @@
+{
+  "iconDefinitions": {
+    "file": {
+      "iconPath": "./icons/ok.svg"
+    },
+    "secret": {
+      "iconPath": "../secret.svg"
+    }
+  },
+  "file": "file",
+  "fileNames": {
+    "secret.txt": "secret"
+  }
+}

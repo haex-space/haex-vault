@@ -1,0 +1,19 @@
+{
+  "name": "demo-icons",
+  "displayName": "Demo Icons",
+  "publisher": "demo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/demo-icons"
+  },
+  "contributes": {
+    "iconThemes": [
+      {
+        "id": "demo",
+        "label": "Demo",
+        "path": "./fileicons/demo-icon-theme.json"
+      }
+    ]
+  }
+}

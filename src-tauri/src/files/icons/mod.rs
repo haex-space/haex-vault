@@ -11,11 +11,14 @@
 
 pub mod builtin;
 pub mod commands;
+pub mod commands_import;
+mod import;
 mod manifest;
 mod pack;
 mod raster;
 mod resolve;
 mod role;
+mod sources;
 mod store;
 mod svg;
 
@@ -293,6 +296,8 @@ mod bundled_scheme_tests;
 #[cfg(test)]
 #[path = "bundled_tests.rs"]
 mod bundled_tests;
+#[cfg(test)]
+mod import_support;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;

@@ -292,16 +292,28 @@ pub fn pack_dir(dir: &Path) -> Result<Vec<u8>, PackError> {
         names.push((name, entry.into_path()));
     }
     names.sort();
+    let mut files = BTreeMap::new();
+    for (name, path) in names {
+        let data = std::fs::read(&path).map_err(|error| PackError::Archive(error.to_string()))?;
+        files.insert(name, data);
+    }
+    pack_files(&files)
+}
+
+/// Packs files by name into a ZIP the way [`pack_dir`] does: sorted, fixed timestamps, one
+/// compression. The import writes the pack of a custom set with it.
+pub fn pack_files(files: &BTreeMap<String, Vec<u8>>) -> Result<Vec<u8>, PackError> {
     let options = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .last_modified_time(DateTime::default())
         .unix_permissions(0o644);
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
-    for (name, path) in names {
-        let data = std::fs::read(&path).map_err(|error| PackError::Archive(error.to_string()))?;
-        writer.start_file(name, options).map_err(archive_error)?;
+    for (name, data) in files {
         writer
-            .write_all(&data)
+            .start_file(name.as_str(), options)
+            .map_err(archive_error)?;
+        writer
+            .write_all(data)
             .map_err(|error| PackError::Archive(error.to_string()))?;
     }
     Ok(writer.finish().map_err(archive_error)?.into_inner())
