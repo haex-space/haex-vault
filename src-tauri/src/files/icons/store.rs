@@ -231,7 +231,7 @@ pub fn chosen(q: &mut impl Query) -> Result<(IconSetRef, InUse)> {
             let in_use = in_use(q, &set)?;
             Ok((set, in_use))
         }
-        None => Ok((super::DEFAULT_SET, InUse::lucide(IconSetState::Unknown))),
+        None => Ok((super::FALLBACK_SET, InUse::lucide(IconSetState::Unknown))),
     }
 }
 

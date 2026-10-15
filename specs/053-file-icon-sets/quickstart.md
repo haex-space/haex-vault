@@ -23,7 +23,7 @@ pnpm test:e2e --grep files-icon-sets
 
 Das Szenario deckt US1, US2, US3 und US5 ab:
 
-1. Einstellungen → Gestaltung: die Gruppe „Icon-Set für Dateien“ zeigt Lucide (gewählt), Phosphor und Material mit Vorschau.
+1. Einstellungen → Gestaltung: die Gruppe „Icon-Set für Dateien“ zeigt Material (gewählt), Phosphor und Lucide mit Vorschau.
 2. „Phosphor“ anklicken, im Dateibrowser ein Verzeichnis mit `bericht.pdf`, `main.rs`, `foto.png`, `daten.csv` und einem unbekannten Dateityp öffnen: die bekannten Endungen haben je ihr Phosphor-Bild (als `img`, nicht als `svg` im DOM), der unbekannte Typ das Datei-Bild des Sets, „Gespeichert.“ ist zu sehen, kein Speichern-Knopf. Im hellen und im dunklen Farbschema sind die Bilder lesbar (zwei Fassungen).
 3. App neu starten: das Set ist noch gewählt.
 4. Ein eigenes Set aus dem Fixture-Ordner importieren (über das Eingabefeld für Dateien, wie `BackgroundSetting`): die Vorschau zeigt Name, Zahl der Bilder und den Hinweis zur Lizenz; nach dem Import erscheint das Set mit Vorschau; ein SVG im Set mit Skript ist beim Anzeigen wirkungslos, und im Speicher liegt die bereinigte Fassung.

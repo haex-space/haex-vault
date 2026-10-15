@@ -65,7 +65,7 @@ fn state_of(db: &Database) -> (IconSetRef, IconSetState) {
 }
 
 #[test]
-fn no_choice_is_the_standard_set() {
+fn no_choice_is_the_default_set() {
     let (_dir, db) = open_vault("icons-default");
     assert_eq!(
         state_of(&db),
@@ -155,7 +155,7 @@ fn a_built_in_name_of_a_newer_app_is_unknown_and_shows_the_standard_set() {
     })
     .expect("a raw write");
     let (set, state) = state_of(&db);
-    assert_eq!(set, super::super::DEFAULT_SET);
+    assert_eq!(set, super::super::FALLBACK_SET);
     assert_eq!(state, IconSetState::Unknown);
 }
 

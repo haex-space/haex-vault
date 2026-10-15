@@ -678,9 +678,9 @@
       "reset": "Zurücksetzen",
       "unknown": "Das gewählte Icon-Set braucht eine neuere App-Version. Bis dahin zeigt holzi die Standard-Icons.",
       "sets": {
-        "lucide": "Lucide (Standard)",
+        "lucide": "Lucide",
         "phosphor": "Phosphor",
-        "material": "Material"
+        "material": "Material (Standard)"
       },
       "import": {
         "title": "Icon-Set hinzufügen",

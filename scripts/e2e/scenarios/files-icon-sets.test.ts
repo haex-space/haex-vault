@@ -6,8 +6,8 @@ import { zipOf } from '../lib/zip.ts'
 import { scenario } from '../lib/scenario.ts'
 import { openSettings, runAction, waitForLocation } from '../lib/settings.ts'
 
-// Spec 053, quickstart §2 steps 1 to 5 (US1, US3): the settings list Lucide, Phosphor and
-// Material with a preview; choosing Phosphor shows the images of the set in the open folder as
+// Spec 053, quickstart §2 steps 1 to 6 (US1, US3): the settings list Material, Phosphor and
+// Lucide with a preview; choosing Phosphor shows the images of the set in the open folder as
 // `img` elements (never `svg` elements in the DOM) at once and says "Gespeichert." without a save
 // button; the images differ between the light and the dark scheme; the choice survives a restart.
 // The pictures of the states (no access, locked, damaged) are checked in Rust, `bundled_tests.rs`.
@@ -56,13 +56,13 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
       await page.waitForDisplayed(SET(id))
     assert.equal(
       await page.exec<string | null>(
-        `const el = document.querySelector('[data-testid="${SET('builtin:lucide')}"]')
+        `const el = document.querySelector('[data-testid="${SET('builtin:material')}"]')
          return el && el.getAttribute('data-state')`,
       ),
       'checked',
-      'Lucide is chosen at first',
+      'Material is chosen at first',
     )
-    ctx.step('the group lists Lucide, Phosphor and Material')
+    ctx.step('the group lists Material, Phosphor and Lucide')
 
     // 2. Phosphor at once: img elements in the list, a saved note, no save button.
     await page.click(SET('builtin:phosphor'))
