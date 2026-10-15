@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * HuggingFace search, the location `/models/download/search` (spec 005, spec 023 research R1).
+ * HuggingFace search, the location `/ai/download/search` (spec 005, spec 023 research R1).
  * The submitted term and the filters live in the tab location's query (`q`, `quant`, `size`,
  * `fit`, replaced in place), so back from a repository returns to the same results. A result opens
  * its repository as a new location, passing the files that matched the filters.
@@ -197,7 +197,7 @@ const filtersActive = computed(
 function openResult(result: HuggingFaceModelResult) {
   const [owner = '', ...rest] = result.repoId.split('/')
   router.push({
-    path: `/models/download/repo/${encodeURIComponent(owner)}/${encodeURIComponent(rest.join('/'))}`,
+    path: `/ai/download/repo/${encodeURIComponent(owner)}/${encodeURIComponent(rest.join('/'))}`,
     query: filtersActive.value
       ? { files: result.files.map((file) => file.filename).join(',') }
       : {},

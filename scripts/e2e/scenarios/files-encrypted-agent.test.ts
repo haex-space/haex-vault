@@ -260,10 +260,10 @@ scenario(
 
     // The settings list the remembered answer; a revoke removes it.
     await openSettings(instance)
-    await instance.click('settings-category-agents')
-    await waitForLocation(instance, 'agents')
-    await instance.click('settings-row-agents.files')
-    await waitForLocation(instance, 'agents.files')
+    await instance.click('settings-category-ai')
+    await waitForLocation(instance, 'ai')
+    await instance.click('settings-row-ai.files')
+    await waitForLocation(instance, 'ai.files')
     const revoke = `agent-files-folder-revoke-builtin-${folders[0]!.target}`
     await instance.waitForDisplayed(revoke)
     const row = await instance.exec<string>(

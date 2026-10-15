@@ -55,40 +55,37 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'general.dock': defineAsyncComponent(
     () => import('~/components/settings/DockView.vue'),
   ),
-  models: defineAsyncComponent(
+  ai: defineAsyncComponent(
     () => import('~/components/settings/OverviewView.vue'),
   ),
-  'models.default': defineAsyncComponent(
+  'ai.default': defineAsyncComponent(
     () => import('~/components/settings/DefaultModelSetting.vue'),
   ),
-  'models.installed': defineAsyncComponent(
+  'ai.installed': defineAsyncComponent(
     () => import('~/components/settings/InstalledModels.vue'),
   ),
-  'models.download': defineAsyncComponent(
+  'ai.download': defineAsyncComponent(
     () => import('~/components/settings/DownloadModels.vue'),
   ),
-  'models.download.search': defineAsyncComponent(
+  'ai.download.search': defineAsyncComponent(
     () => import('~/components/models/HuggingFaceSearch.vue'),
   ),
-  'models.download.repo': defineAsyncComponent(
+  'ai.download.repo': defineAsyncComponent(
     () => import('~/components/models/HuggingFaceFilePicker.vue'),
   ),
-  'models.speech': defineAsyncComponent(
+  'ai.speech': defineAsyncComponent(
     () => import('~/components/settings/SttModelSetting.vue'),
   ),
-  agents: defineAsyncComponent(
-    () => import('~/components/settings/OverviewView.vue'),
-  ),
-  'agents.providers': defineAsyncComponent(
+  'ai.providers': defineAsyncComponent(
     () => import('~/components/settings/ConnectDelegateProvider.vue'),
   ),
-  'agents.autonomy': defineAsyncComponent(
+  'ai.autonomy': defineAsyncComponent(
     () => import('~/components/settings/AutonomyModeSetting.vue'),
   ),
-  'agents.denyRules': defineAsyncComponent(
+  'ai.denyRules': defineAsyncComponent(
     () => import('~/components/settings/DelegateDenyRulesSetting.vue'),
   ),
-  'agents.files': defineAsyncComponent(
+  'ai.files': defineAsyncComponent(
     () => import('~/components/settings/AgentFilesSetting.vue'),
   ),
   storage: defineAsyncComponent(

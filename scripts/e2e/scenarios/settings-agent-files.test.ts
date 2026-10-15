@@ -40,10 +40,10 @@ scenario(
     const storage = `agent-files-storage-builtin-${storageId}`
 
     await openSettings(instance)
-    await instance.click('settings-category-agents')
-    await waitForLocation(instance, 'agents')
-    await instance.click('settings-row-agents.files')
-    await waitForLocation(instance, 'agents.files')
+    await instance.click('settings-category-ai')
+    await waitForLocation(instance, 'ai')
+    await instance.click('settings-row-ai.files')
+    await waitForLocation(instance, 'ai.files')
     await instance.waitForDisplayed(storage)
     assert.equal(
       await instance.exec<string | null>(

@@ -137,10 +137,10 @@ scenario('android-not-available', { needs: { phone: true } }, async (ctx) => {
 
   const agents = await runAction(instance, 'wm.app.open', {
     appId: 'system.settings',
-    at: '/agents/providers',
+    at: '/ai/providers',
   })
   assert.ok(agents.ok, JSON.stringify(agents))
-  await waitForLocation(instance, 'agents.providers')
+  await waitForLocation(instance, 'ai.providers')
   await instance.waitForDisplayed('settings-not-on-this-device')
   ctx.step('the delegate settings say they are not available here')
 })

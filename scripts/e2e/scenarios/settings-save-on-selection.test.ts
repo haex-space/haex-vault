@@ -69,16 +69,16 @@ scenario('settings-save-on-selection', {}, async (ctx) => {
   )
   ctx.step('session restore saved for the vault')
 
-  await instance.click('settings-category-agents')
-  await instance.click('settings-row-agents.denyRules')
-  await waitForLocation(instance, 'agents.denyRules')
+  await instance.click('settings-category-ai')
+  await instance.click('settings-row-ai.denyRules')
+  await waitForLocation(instance, 'ai.denyRules')
   await instance.waitForDisplayed('settings-deny-network_access')
   const wasChecked = await instance.exec<boolean>(
     'return document.querySelector(\'[data-testid="settings-deny-network_access"]\').getAttribute("aria-checked") === "true"',
   )
   await instance.click('settings-deny-network_access')
-  await instance.click('settings-category-models')
-  await waitForLocation(instance, 'models')
+  await instance.click('settings-category-ai')
+  await waitForLocation(instance, 'ai')
   await ctx.waitFor('the deny rules to be saved for the vault', async () => {
     const raw = await vaultPref('cli_delegate.deny_rules')
     const rules = raw ? (JSON.parse(raw) as string[]) : []
@@ -86,9 +86,9 @@ scenario('settings-save-on-selection', {}, async (ctx) => {
   })
   ctx.step('S17 deny rules saved on change')
 
-  await instance.click('settings-category-agents')
-  await instance.click('settings-row-agents.autonomy')
-  await waitForLocation(instance, 'agents.autonomy')
+  await instance.click('settings-category-ai')
+  await instance.click('settings-row-ai.autonomy')
+  await waitForLocation(instance, 'ai.autonomy')
   await instance.click('settings-autonomy-gated_permissive')
   await ctx.waitFor('the autonomy mode to be saved for the vault', async () =>
     (await vaultPref('chat.autonomy_mode'))?.includes('gated_permissive'),

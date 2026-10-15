@@ -91,7 +91,7 @@ onVaultTablesChanged(['preferences'], () => {
 
     <fieldset
       v-if="!loading"
-      :aria-label="t('settings.locations.agents.autonomy.title')"
+      :aria-label="t('settings.locations.ai.autonomy.title')"
     >
       <SettingsGroup
         radio

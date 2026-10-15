@@ -492,13 +492,9 @@
         "title": "Allgemein",
         "keywords": "Allgemein Grundeinstellung Erscheinungsbild"
       },
-      "models": {
-        "title": "Modelle",
-        "keywords": "Modelle LLM KI"
-      },
-      "agents": {
-        "title": "Agenten",
-        "keywords": "Agenten Delegaten Claude Codex"
+      "ai": {
+        "title": "KI",
+        "keywords": "KI Modelle Agenten LLM Chat Delegaten Claude Codex Abo"
       },
       "storage": {
         "title": "Cloud-Speicher",
@@ -516,6 +512,12 @@
         "title": "Kontakte",
         "keywords": "Kontakte Adressbuch Telefonbuch Personen Gruppen"
       }
+    },
+    "groups": {
+      "chat": "Chat-Modell",
+      "local": "Lokale Modelle",
+      "speech": "Spracheingabe",
+      "agents": "Agenten-Rechte"
     },
     "locations": {
       "general": {
@@ -540,7 +542,7 @@
           "keywords": "Dock Leiste Taskleiste Rad anheften Position Kante Ecke automatisch ausblenden"
         }
       },
-      "models": {
+      "ai": {
         "default": {
           "title": "Standard-Modell",
           "description": "Welches Modell nach dem Öffnen der Vault geladen wird.",
@@ -568,9 +570,7 @@
           "title": "Sprach-zu-Text-Modell",
           "description": "Das Modell für die Spracheingabe auf diesem Gerät.",
           "keywords": "Spracherkennung Spracheingabe Whisper Mikrofon Diktat STT"
-        }
-      },
-      "agents": {
+        },
         "providers": {
           "title": "Abo verbinden",
           "description": "Dein Claude-Code- oder Codex-Abo als Chat-Backend nutzen.",

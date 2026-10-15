@@ -492,13 +492,9 @@
         "title": "General",
         "keywords": "general basic settings appearance"
       },
-      "models": {
-        "title": "Models",
-        "keywords": "models LLM AI"
-      },
-      "agents": {
-        "title": "Agents",
-        "keywords": "agents delegates Claude Codex"
+      "ai": {
+        "title": "AI",
+        "keywords": "AI models agents LLM chat delegates Claude Codex subscription"
       },
       "storage": {
         "title": "Cloud storage",
@@ -516,6 +512,12 @@
         "title": "Contacts",
         "keywords": "contacts address book phone book people groups"
       }
+    },
+    "groups": {
+      "chat": "Chat model",
+      "local": "Local models",
+      "speech": "Speech input",
+      "agents": "Agent permissions"
     },
     "locations": {
       "general": {
@@ -540,7 +542,7 @@
           "keywords": "dock bar taskbar wheel pin position edge corner auto hide"
         }
       },
-      "models": {
+      "ai": {
         "default": {
           "title": "Default model",
           "description": "Which model loads when the vault opens.",
@@ -568,9 +570,7 @@
           "title": "Speech-to-text model",
           "description": "The model for voice input on this device.",
           "keywords": "speech recognition voice input Whisper microphone dictation STT"
-        }
-      },
-      "agents": {
+        },
         "providers": {
           "title": "Connect a subscription",
           "description": "Use your Claude Code or Codex subscription as a chat backend.",
