@@ -130,15 +130,20 @@ export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
     push(local, remote) {
       adb(['push', local, remote])
     },
-    // A pull only reads, so it runs again after any failure once the device is there: a connection
-    // that drops during the transfer fails without "device offline" (files-encrypted-device on CI,
-    // the adb server logging "connection terminated" 50 ms into the pull).
+    // A pull only reads, so it runs again after any failure once the device is there, up to three
+    // times: a connection that drops during the transfer fails without "device offline"
+    // (files-encrypted-device on CI), and the emulator can drop a second time half a second after
+    // it came back, so each new attempt waits a moment first.
     pull(remote, local) {
-      try {
-        adb(['pull', remote, local])
-      } catch (error) {
-        if (!waitForDevice()) throw error
-        once(['pull', remote, local])
+      for (let attempt = 1; ; attempt++) {
+        try {
+          if (attempt === 1) adb(['pull', remote, local])
+          else once(['pull', remote, local])
+          return
+        } catch (error) {
+          if (attempt === 3 || !waitForDevice()) throw error
+          sleepSync(1000)
+        }
       }
     },
     waitForDevice,
