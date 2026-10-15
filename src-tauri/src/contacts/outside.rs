@@ -2,7 +2,7 @@
 //! and agents get the same view. Everything a person reads on the contact: the head fields, every
 //! value (unknown kinds too), group names, the photo hash and the confirmed holzi addresses. Never
 //! where the contact came from, which phones it goes to, what did not reach them or how it is linked
-//! there.
+//! there. A field without a value is left out, never `null`.
 
 use serde::Serialize;
 
@@ -14,11 +14,13 @@ use super::model::{Contact, ContactHeader, Group};
 pub struct OutsideSummary {
     pub id: String,
     pub display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub organization: Option<String>,
     pub phones: Vec<String>,
     pub emails: Vec<String>,
     /// Group names.
     pub groups: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub photo: Option<String>,
 }
 
@@ -37,6 +39,7 @@ pub struct OutsideValue {
 pub struct OutsideDevice {
     pub device_pubkey: String,
     pub endpoint_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub iroh_relay: Option<String>,
 }
 
@@ -57,19 +60,30 @@ pub struct OutsideAddresses {
 pub struct OutsideContact {
     pub id: String,
     pub display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub given_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub family_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub middle_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name_prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name_suffix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub nickname: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub organization: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub job_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
     pub values: Vec<OutsideValue>,
     /// Group names.
     pub groups: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub photo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub holzi_addresses: Option<OutsideAddresses>,
     pub updated_at: String,
 }

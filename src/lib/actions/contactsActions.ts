@@ -18,6 +18,7 @@ const SUMMARY: JsonSchema = {
       items: { type: 'string' },
       description: 'Group names.',
     },
+    photo: { type: 'string', description: 'Hash of the photo, if any.' },
   },
 }
 
@@ -42,6 +43,10 @@ const CONTACT: JsonSchema = {
     displayName: { type: 'string' },
     givenName: { type: 'string' },
     familyName: { type: 'string' },
+    middleName: { type: 'string' },
+    namePrefix: { type: 'string' },
+    nameSuffix: { type: 'string' },
+    nickname: { type: 'string' },
     organization: { type: 'string' },
     jobTitle: { type: 'string' },
     note: { type: 'string' },
@@ -51,6 +56,13 @@ const CONTACT: JsonSchema = {
       items: { type: 'string' },
       description: 'Group names.',
     },
+    photo: { type: 'string', description: 'Hash of the photo, if any.' },
+    holziAddresses: {
+      type: 'object',
+      description:
+        "The confirmed holzi addresses from the contact's business card: vault identity, devices and Nostr relays; absent without a card.",
+    },
+    updatedAt: { type: 'string' },
   },
 }
 
