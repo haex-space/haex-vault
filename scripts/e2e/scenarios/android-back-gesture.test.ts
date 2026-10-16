@@ -36,22 +36,46 @@ scenario('android-back-gesture', { needs: { phone: true } }, async (ctx) => {
   await waitForLocation(instance, 'general.basic')
   await instance.click('settings-row-general.basic.password')
   await waitForLocation(instance, 'general.basic.password')
+  // A key the system loses never reaches the page (seen on CI: the page stayed on the password
+  // settings for the whole wait, the handler was registered and a direct `wm.system.back` worked).
+  // Press it once more then, as a person would; a key that reached the page and did not take the tab
+  // back fails at once.
+  const pressesAtPage = () =>
+    instance.exec<number>(
+      `return Number(document.documentElement.dataset.backPresses ?? 0)`,
+    )
   phone.back()
+  let pressed = 1
+  try {
+    await ctx.waitFor(
+      'the back key to reach the page',
+      async () => (await pressesAtPage()) >= 1,
+      {
+        timeoutMs: 3_000,
+      },
+    )
+  } catch {
+    phone.back()
+    pressed = 2
+  }
   try {
     await waitForLocation(instance, 'general.basic')
   } catch (error) {
     // The key did not take the tab back: say what the page saw (a hidden page means the app went to
     // the background) and what the window manager decides when it is asked directly.
     const page = await instance.exec<string>(
-      `return JSON.stringify({ visibility: document.visibilityState, focus: document.hasFocus(), handler: document.documentElement.dataset.backGesture ?? null })`,
+      `return JSON.stringify({ visibility: document.visibilityState, focus: document.hasFocus(), handler: document.documentElement.dataset.backGesture ?? null, presses: document.documentElement.dataset.backPresses ?? null })`,
     )
     const direct = await runAction(instance, 'wm.system.back')
     throw new Error(
-      `${(error as Error).message}; page ${page}, direct wm.system.back ${JSON.stringify(direct)}`,
+      `${(error as Error).message}; keys sent ${pressed}, page ${page}, direct wm.system.back ${JSON.stringify(direct)}`,
       { cause: error },
     )
   }
-  ctx.step('back goes back in the active tab')
+  ctx.step(
+    'back goes back in the active tab',
+    pressed === 1 ? undefined : 'the first key never reached the page',
+  )
 
   await openLauncher(instance)
   await ctx.waitFor('the launcher', () => isShown(instance, LAUNCHER_ENTRY))
