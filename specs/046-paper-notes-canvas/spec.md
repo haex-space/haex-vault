@@ -8,6 +8,18 @@
 
 **Input**: User description: "Schüler fotografieren handschriftliche Notizen auf normalem Papier. Haex-notes erstellt daraus ein aufgeräumtes, bearbeitbares Canvas mit korrigiertem Text in einer auswählbaren Handschrift, erhaltenen Zeichnungen und PDF-Export. Das Original bleibt erhalten; eine persönliche Handschrift-Erkennung ist ausdrücklich nicht Bestandteil des ersten Schritts."
 
+## Änderungen nach Messung und Entscheidung (2026-10-16)
+
+Diese Punkte gelten vor dem übrigen Text dieser Spec; wo sie widersprechen, haben sie Vorrang. Der Rest wird mit dem Plan angepasst.
+
+- **Handschrift ist Pflicht.** Ziel sind handschriftliche Mitschriften und Tafelbilder, ebenso Arbeitsblätter mit handgeschriebenen Einträgen. Es muss nicht alles perfekt erkannt werden; der Schüler verbessert Falsches selbst.
+- **Ergebnis aus Texten, Bildern und Tabellen.** Tabellen werden als Zeilen und Zellen erkannt, nicht als Bild, und lassen sich verschieben und verändern. Aus den erkannten Teilen entsteht ein ordentlich neu zusammengesetztes Tafelbild: Texte änderbar und erweiterbar, Bilder vergrößerbar, verkleinerbar und frei positionierbar.
+- **Kein Prüfteil.** User Story 2 (Markierungen bei unsicheren Wörtern, Vorschläge, Ausschnitt des Originals als Referenz) entfällt. Ein Korrekturschritt setzt Rechtschreibung und eindeutige Lesefehler direkt ein, ohne Markierung und ohne Zurücksetzen. Er ändert nichts darüber hinaus: Abkürzungen, Wortwahl und Zeilenumbrüche bleiben.
+- **Original bleibt** als ausblendbare Ebene erhalten.
+- **Erkennung über Spec 055.** Das Foto geht über die Modellschnittstelle für Erweiterungen (Spec 055) an ein lokales Modell, ein Modell auf einem Server oder in der Cloud, je nach Freigabe des Nutzers. Das Handy nimmt nur das Foto auf. Die feste Aufgabe `paper-note-recognition` aus Spec 047 geht im Auftragsformat „Seitenerkennung“ von Spec 055 auf.
+- **Gedrehte Fotos.** Fotos kommen oft seitlich oder kopfüber (Messenger entfernen die Drehinformation). Die Seite wird aufrecht ausgewertet, oder die Erweiterung bietet dem Schüler das Drehen an.
+- **Unbrauchbare Erkennung** (Schleifen, leer, Schriftwechsel) wird technisch verworfen; der betroffene Bereich bleibt leer oder bleibt als Bild stehen.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Foto in einen sauberen Entwurf umwandeln (Priority: P1)
