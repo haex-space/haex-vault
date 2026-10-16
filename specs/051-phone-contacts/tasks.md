@@ -248,10 +248,10 @@ the dead base branch).
 ## Phase 10: Polish & Cross-Cutting Concerns
 
 - [x] T091 [P] Update `CONTEXT.md` with the terms Adressbuch, Kontakt, Angabe, Herkunft, Abgleichsziel, Visitenkarte, holzi-Adressen (and the note that haex-vault "Kontakte" were sharing identities)
-- [ ] T092 [P] Update the 051 row in `plans/README.md` after each merged PR
+- [x] T092 [P] Update the 051 row in `plans/README.md` after each merged PR
 - [ ] T093 Manual checks M1–M7 of quickstart.md on real phones (operator); record results in the PR of the last story
-- [ ] T094 Keep each new source file under 500 lines; split `contacts/phone/` or the Vue views further if one grows
-- [ ] T095 [P] Add deterministic acceptance checks for the measurable scale and latency criteria: a release-like fake-phone run with 2,000 contacts completes in under 60 seconds, search over 5,000 contacts returns within 200 ms per input, foreground import of a phone change and write-back after vault sync each complete within 5 seconds, and the two-phone 500-contact fixture produces no duplicates; retain M1, M2 and M6 as real-device validation (SC-001–SC-007)
+- [x] T094 Keep each new source file under 500 lines; split `contacts/phone/` or the Vue views further if one grows — every file of 051 is below 500 lines (largest `contacts/store.rs` 492, `contacts/phone/apply.rs` 474); `src/lib/actions/settingsActions.ts`, over 500 before 051, gave its agent permission actions to `settingsAgentActions.ts`
+- [x] T095 [P] Add deterministic acceptance checks for the measurable scale and latency criteria: a release-like fake-phone run with 2,000 contacts completes in under 60 seconds, search over 5,000 contacts returns within 200 ms per input, foreground import of a phone change and write-back after vault sync each complete within 5 seconds, and the two-phone 500-contact fixture produces no duplicates; retain M1, M2 and M6 as real-device validation (SC-001–SC-007) — in `src-tauri/src/contacts/phone/acceptance_tests.rs` (a debug build: first run of 2,000 about 8 s, a phone change and a write-back about 0.15 s each, the search rule over 5,000 about 65 ms per input) and for the window's list in `scripts/check-contacts-search.ts`; the search measures the rule over the headers already held, as the window does, since reading 5,000 headers from the vault takes about as long in a debug build as the whole limit
 
 ---
 
