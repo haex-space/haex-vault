@@ -39,14 +39,24 @@ const shows = (instance: Instance, name: string) =>
 
 async function setName(instance: Instance, name: string) {
   await instance.waitForDisplayed('files-name-input')
-  await instance.exec(
-    `const input = document.querySelector('[data-testid="files-name-input"]')
-     input.value = ''
-     input.dispatchEvent(new Event('input', { bubbles: true }))
-     return true`,
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await instance.type(
+      'files-name-input',
+      `${KEY.control}a${KEY.release}${KEY.backspace}`,
+    )
+    await instance.type('files-name-input', name)
+    const value = await instance.exec<string>(
+      `return document.querySelector('[data-testid="files-name-input"]').value`,
+    )
+    if (value === name) {
+      await instance.click('files-name-save')
+      return
+    }
+  }
+  const value = await instance.exec<string>(
+    `return document.querySelector('[data-testid="files-name-input"]').value`,
   )
-  await instance.type('files-name-input', name)
-  await instance.click('files-name-save')
+  assert.equal(value, name)
 }
 
 scenario('files-keyboard', { timeoutMs: 240_000 }, async (ctx) => {
