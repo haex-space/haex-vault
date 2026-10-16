@@ -12,6 +12,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import net from 'node:net'
 import { join } from 'node:path'
 import type { ChildProcess } from 'node:child_process'
@@ -122,18 +123,26 @@ export function removeRoot(root: string): void {
 export async function removeRootSettled(
   root: string,
   options: {
-    remove?: (root: string) => void
+    remove?: (root: string) => void | Promise<void>
     stopLeftovers?: (root: string) => Promise<unknown>
     attempts?: number
     pauseMs?: number
   } = {},
 ): Promise<void> {
-  const remove = options.remove ?? removeRoot
+  const remove =
+    options.remove ??
+    ((r: string) =>
+      rm(r, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      }))
   const stop = options.stopLeftovers ?? ((r: string) => stopLeftovers(r))
   const attempts = options.attempts ?? 5
   for (let attempt = 1; ; attempt++) {
     try {
-      remove(root)
+      await remove(root)
       return
     } catch (error) {
       if (attempt >= attempts) throw error
