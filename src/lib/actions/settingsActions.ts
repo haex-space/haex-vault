@@ -3,6 +3,7 @@
 // `stores/settingsActionHandlers.ts`. Provider connections, the autonomy mode and the delegate
 // deny rules are guardrails — never callable by agents (FR-032). `settings.get` never returns
 // provider credentials.
+import { SETTINGS_AGENT_ACTIONS } from './settingsAgentActions.ts'
 import type { JsonSchema, ActionDefinition } from './types.ts'
 
 const DONE: JsonSchema = {
@@ -475,49 +476,5 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     scope: 'guardrails',
     effect: 'write',
   }),
-  setting({
-    id: 'settings.agents.files.set',
-    description:
-      "Set an agent's permission for the files of this device, for one storage or for the contacts. User only.",
-    input: {
-      type: 'object',
-      properties: {
-        agentId: { type: 'string' },
-        kind: { type: 'string', enum: ['device', 'storage', 'contacts'] },
-        target: {
-          type: 'string',
-          description:
-            "Empty for the device, the storage id for a storage, '*' or 'group:<id>' for the contacts.",
-        },
-        status: {
-          type: 'string',
-          enum: ['granted', 'read', 'readWrite', 'denied'],
-          description:
-            "'granted' or 'denied' for the device; 'read', 'readWrite' or 'denied' for a storage or the contacts.",
-        },
-      },
-      required: ['agentId', 'kind', 'target', 'status'],
-    },
-    scope: 'guardrails',
-    effect: 'write',
-  }),
-  setting({
-    id: 'settings.agents.files.remove',
-    description:
-      "Remove an agent's remembered file permission, such as one for an encrypted folder; the agent is asked again. User only.",
-    input: {
-      type: 'object',
-      properties: {
-        agentId: { type: 'string' },
-        kind: {
-          type: 'string',
-          enum: ['device', 'storage', 'encryptedFolder', 'contacts'],
-        },
-        target: { type: 'string' },
-      },
-      required: ['agentId', 'kind', 'target'],
-    },
-    scope: 'guardrails',
-    effect: 'write',
-  }),
+  ...SETTINGS_AGENT_ACTIONS,
 ]
