@@ -1,3 +1,5 @@
+<p align="center"><img src="branding/haex-vault-icon.png" alt="" width="160"></p>
+
 # holzi
 
 A portable, isolated personal-agent app. Runs as a Tauri application on any device the operator owns (desktop, server, iOS, Android).
