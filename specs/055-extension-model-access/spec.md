@@ -21,14 +21,14 @@ Eine Erweiterung schickt holzi eine Anfrage mit Text und/oder Bildern. Sie nennt
 **Acceptance Scenarios**:
 
 1. **Given** eine Erweiterung mit Freigabe für ein Modell, **When** sie eine Anfrage stellt, **Then** erhält sie ein Ergebnis im vereinbarten Format und die Angabe, welches Modell, welcher Aufwand und welcher Ort verwendet wurden.
-2. **Given** eine Erweiterung ohne Freigabe, **When** sie eine Anfrage stellt, **Then** wird nichts verarbeitet und sie erhält einen klaren Fehler.
+2. **Given** eine Erweiterung mit dem Berechtigungszustand `denied` (explizit abgelehnt), **When** sie eine Anfrage stellt, **Then** wird nichts verarbeitet und sie erhält einen klaren Fehler.
 3. **Given** eine beliebige Anfrage, **When** sie ausgeführt wird, **Then** sieht die Erweiterung zu keinem Zeitpunkt Zugangsdaten, Schlüssel oder Adressen interner Dienste.
 
 ---
 
 ### User Story 2 - Der Nutzer bestimmt pro Erweiterung Modelle und Aufwand (Priority: P1)
 
-In den Einstellungen der Erweiterung sieht der Nutzer die Modelle, die holzi kennt, und legt fest, welche die Erweiterung nutzen darf und mit welchem höchsten Aufwand (Effort). Ohne Freigabe hat die Erweiterung keinen Zugriff. Fragt eine Erweiterung zum ersten Mal an, fragt holzi den Nutzer, statt stillschweigend zu verarbeiten.
+In den Einstellungen der Erweiterung sieht der Nutzer die Modelle, die holzi kennt, und legt fest, welche die Erweiterung nutzen darf und mit welchem höchsten Aufwand (Effort). Der Berechtigungszustand `denied` sperrt den Zugriff. Steht die Berechtigung auf `ask`, fragt holzi bei der ersten Anfrage den Nutzer, statt stillschweigend zu verarbeiten.
 
 **Why this priority**: Der Nutzer behält die Kontrolle darüber, welche Erweiterung welche Modelle, auch bezahlte, und wie intensiv anspricht.
 
@@ -63,7 +63,7 @@ Jeder Auftrag hat ein vorab vereinbartes Ergebnisformat. Ein Auftrag kann aus me
 
 ### User Story 4 - Auftragsdaten verlassen das Gerät nur mit Einwilligung (Priority: P1)
 
-holzi nutzt zuerst ein lokales Modell, wenn eines passt, und die Auftragsdaten bleiben auf dem Gerät. Sollen Text oder Bilder an ein anderes Gerät, einen Server oder einen Cloud-Anbieter gehen, sieht der Nutzer vor dem ersten Versand an dieses Ziel, welche Daten übertragen werden und wohin, und willigt ein oder lehnt ab.
+holzi berücksichtigt zuerst geeignete lokale Modelle. Sind mehrere geeignete Modelle freigegeben, entscheidet die Rangfolge des Nutzers; ein lokales Modell ist vorzuziehen, wenn kein höher geranktes geeignetes Modell existiert. Wird ein höher geranktes Remote-Modell gewählt, bleiben die Auftragsdaten bis zur Einwilligung auf dem Gerät. Sollen Text oder Bilder an ein anderes Gerät, einen Server oder einen Cloud-Anbieter gehen, sieht der Nutzer vor dem ersten Versand an dieses Ziel, welche Daten übertragen werden und wohin, und willigt ein oder lehnt ab.
 
 **Why this priority**: Schülernotizen können personenbezogene oder schulische Inhalte enthalten. Qualität geht vor Offline, aber nie ohne Wissen des Nutzers.
 
@@ -71,9 +71,9 @@ holzi nutzt zuerst ein lokales Modell, wenn eines passt, und die Auftragsdaten b
 
 **Acceptance Scenarios**:
 
-1. **Given** ein lokales und ein Cloud-Modell sind freigegeben und das lokale genügt, **When** eine Anfrage mit Bild kommt, **Then** läuft sie lokal und kein Bildbyte verlässt das Gerät.
+1. **Given** ein lokales und ein Cloud-Modell sind freigegeben und das lokale ist das höchstgerankte geeignete Modell, **When** eine Anfrage mit Bild kommt, **Then** läuft sie lokal und kein Bildbyte verlässt das Gerät.
 2. **Given** nur ein Ziel außerhalb des Geräts ist freigegeben, **When** zum ersten Mal Text oder ein Bild dorthin soll, **Then** zeigt holzi die Datenübertragung und das Ziel und fragt um Einwilligung, bevor etwas gesendet wird.
-3. **Given** eine für die Sitzung erteilte Einwilligung, **When** spätere Anfragen derselben Erweiterung dasselbe Ziel nutzen, **Then** wird in dieser Sitzung nicht erneut gefragt; nach einem Neustart von holzi fragt es wieder.
+3. **Given** eine für die Tresorsitzung erteilte Einwilligung, **When** spätere Anfragen derselben Erweiterung dasselbe Ziel nutzen, **Then** wird in dieser Tresorsitzung nicht erneut gefragt; nach ihrem Schließen fragt es bei der nächsten Tresorsitzung wieder.
 4. **Given** eine dauerhaft erteilte Einwilligung, **When** spätere Anfragen dasselbe Ziel nutzen, **Then** wird nicht mehr gefragt, bis der Nutzer sie in den Einstellungen widerruft.
 5. **Given** ein lokales Modell ist nicht verfügbar, **When** ein freigegebenes Ziel außerhalb des Geräts existiert, **Then** wechselt holzi nicht stillschweigend dorthin, sondern nur zu einem Ziel mit erteilter Einwilligung, sonst mit Rückfrage.
 
@@ -140,21 +140,21 @@ Das erste Auftragsformat dient haex-notes: Aus dem Foto einer Seite entsteht ein
 ### Functional Requirements
 
 - **FR-001**: holzi MUST einer berechtigten, aktiven Erweiterung erlauben, Anfragen mit Text und/oder Bildern an Modelle von holzi zu stellen.
-- **FR-002**: Eine Erweiterung ohne Freigabe MUST abgelehnt werden, bevor ein Modell angesprochen wird.
-- **FR-003**: Der Nutzer MUST pro Erweiterung festlegen können, welche Modelle sie nutzen darf und mit welchem höchsten Aufwand; ohne ausdrückliche Freigabe MUST kein Modell nutzbar sein.
-- **FR-004**: Fragt eine Erweiterung zum ersten Mal an, MUST holzi den Nutzer um Freigabe bitten, statt stillschweigend zu verarbeiten oder zu scheitern. Die Abfrage folgt den übrigen Berechtigungsabfragen von holzi: Erlauben gilt für die Sitzung oder dauerhaft.
+- **FR-002**: Eine Anfrage mit dem Berechtigungszustand `denied` MUST abgelehnt werden, bevor ein Modell angesprochen wird. Der Zustand `ask` MUST zuerst die übliche Berechtigungsabfrage auslösen und darf weder verarbeitet noch als endgültig abgelehnt behandelt werden.
+- **FR-003**: Der Nutzer MUST pro Erweiterung festlegen können, welche Modelle sie nutzen darf und mit welchem höchsten Aufwand; ohne ausdrückliche Freigabe MUST kein Modell nutzbar sein. Die Zustände `granted`, `denied` und `ask` folgen dabei dem bestehenden Berechtigungsmodell.
+- **FR-004**: Steht die Berechtigung einer Erweiterung auf `ask`, MUST holzi bei der ersten passenden Anfrage den Nutzer um Freigabe bitten, statt stillschweigend zu verarbeiten oder zu scheitern. Die Abfrage folgt den übrigen Berechtigungsabfragen von holzi: Erlauben gilt für die Tresorsitzung oder dauerhaft; ein gespeichertes `denied` hat Vorrang vor einer Freigabe.
 - **FR-005**: Ein Widerruf MUST ab der nächsten Anfrage wirken.
 - **FR-006**: Verlangt eine Erweiterung mehr Aufwand als erlaubt, MUST er auf das Erlaubte begrenzt werden; das Ergebnis MUST den tatsächlichen Aufwand nennen.
-- **FR-007**: Nennt eine Erweiterung nur, was sie braucht, MUST holzi unter den freigegebenen Modellen nach der Rangfolge des Nutzers das passende wählen.
+- **FR-007**: Nennt eine Erweiterung nur, was sie braucht, MUST holzi unter den freigegebenen und geeigneten Modellen nach der Rangfolge des Nutzers das passende wählen.
 - **FR-008**: Jeder Auftrag MUST ein versioniertes Ergebnisformat haben; freier Modelltext MUST NICHT als Erfolg gelten.
 - **FR-009**: Ein Auftrag MUST aus mehreren Schritten mit je eigenem Modell bestehen können; das Ergebnis eines Schritts MUST dem nächsten als Eingabe dienen.
 - **FR-010**: holzi MUST Ausgabe, die nicht zum Format passt, leer ist, sich in Schleifen wiederholt oder in eine andere Schrift wechselt, verwerfen und der Erweiterung einen strukturierten Fehler liefern.
 - **FR-011**: Der Fehler für unbrauchbare Ausgabe MUST von „Modell nicht verfügbar“, „nicht freigegeben“, „Zeitüberschreitung“ und „abgebrochen“ unterscheidbar sein.
 - **FR-012**: holzi MUST für verworfene Ausgabe keine Markierung im Text des Nutzers erzeugen; die Darstellung bleibt der Erweiterung überlassen.
-- **FR-013**: Ein Korrekturschritt MUST nur Rechtschreibung und eindeutige Lesefehler ändern und Abkürzungen, Wortwahl und Zeilenumbrüche erhalten.
-- **FR-014**: holzi MUST lokale Modelle bevorzugen, wenn eines freigegeben und für den Auftrag geeignet ist; Bilddaten MUST dann das Gerät nicht verlassen.
+- **FR-013**: Ein Korrekturschritt MUST nur Rechtschreibung und eindeutige Lesefehler ändern und Abkürzungen, Wortwahl und Zeilenumbrüche erhalten. Kann holzi diese Einschränkung nicht prüfen, MUST es die Ausgabe als unbrauchbar verwerfen.
+- **FR-014**: holzi MUST ein lokales Modell bevorzugen, wenn es freigegeben und für den Auftrag geeignet ist und kein höher geranktes geeignetes Modell existiert; wird es gewählt, MUST die Verarbeitung lokal bleiben.
 - **FR-015**: Vor dem ersten Versand von Auftragsdaten (Text oder Bilder) an ein Ziel außerhalb des Geräts MUST holzi die Datenübertragung und das Ziel sichtbar machen und die Einwilligung des Nutzers einholen; ohne Einwilligung MUST nichts gesendet werden.
-- **FR-016**: Die Einwilligung MUST wie jede andere Berechtigungsabfrage in holzi funktionieren: Sie gilt pro Erweiterung und Ziel und wird für die Sitzung oder dauerhaft erteilt. Eine dauerhafte Einwilligung MUST in den Einstellungen widerrufbar sein, eine Sitzungs-Einwilligung endet mit dem Neustart von holzi.
+- **FR-016**: Die Einwilligung MUST wie jede andere Berechtigungsabfrage in holzi funktionieren: Sie gilt pro Erweiterung und Ziel und wird für die Tresorsitzung oder dauerhaft erteilt. Eine dauerhafte Einwilligung MUST in den Einstellungen widerrufbar sein, eine Sitzungs-Einwilligung endet beim Schließen der Tresorsitzung.
 - **FR-017**: holzi MUST NICHT stillschweigend von einem lokalen Modell auf ein Ziel ohne erteilte Einwilligung wechseln.
 - **FR-018**: Der Nutzer MUST einen allgemeinen Anbieter nach einem verbreiteten Schnittstellenstandard (OpenAI-kompatibel) mit Adresse und Zugangsschlüssel eintragen können; dessen Modelle MUST in der Freigabeliste erscheinen.
 - **FR-019**: Zu jedem Modell MUST bekannt sein, ob es Bilder annimmt (erkannt oder vom Nutzer angegeben); Bildaufträge an Modelle ohne Bildfähigkeit MUST vor der Übertragung abgelehnt werden.
@@ -174,7 +174,7 @@ Das erste Auftragsformat dient haex-notes: Aus dem Foto einer Seite entsteht ein
 - **Anbieter**: Eine Quelle für Modelle: lokal, ein Konto bei einem Cloud-Dienst, die Anbindung eines Befehlszeilen-Agenten oder ein allgemeiner OpenAI-kompatibler Dienst mit Adresse und Schlüssel.
 - **Fähigkeit**: Aussage, ob ein Modell Bilder, strukturierte Ausgabe oder Werkzeuge kann.
 - **Ziel**: Wo ein Auftrag verarbeitet wird: dieses Gerät, ein anderes Gerät, ein Server oder die Cloud.
-- **Einwilligung**: Die Zustimmung des Nutzers pro Erweiterung und Ziel, Auftragsdaten dorthin zu senden; für die Sitzung oder dauerhaft.
+- **Einwilligung**: Die Zustimmung des Nutzers pro Erweiterung und Ziel, Auftragsdaten dorthin zu senden; für die Tresorsitzung oder dauerhaft.
 - **Herkunft**: Nicht geheime Angaben, welches Format, Modell, Aufwand und Ziel tatsächlich verwendet wurden.
 
 ## Out of Scope
@@ -190,7 +190,7 @@ Das erste Auftragsformat dient haex-notes: Aus dem Foto einer Seite entsteht ein
 
 ### Measurable Outcomes
 
-- **SC-001**: 100 % der Anfragen einer Erweiterung ohne Freigabe werden abgelehnt, bevor ein Modell angesprochen wird.
+- **SC-001**: 100 % der Anfragen einer Erweiterung mit dem Zustand `denied` werden abgelehnt, bevor ein Modell angesprochen wird; Anfragen im Zustand `ask` lösen stattdessen zuerst eine Berechtigungsabfrage aus.
 - **SC-002**: Ein Widerruf wirkt bei der nächsten Anfrage; in keinem Testfall wird danach noch verarbeitet.
 - **SC-003**: Bei lokaler Verarbeitung verlässt in einem überwachten Test kein Bildbyte das Gerät.
 - **SC-004**: Ohne Einwilligung startet keine Übertragung an ein Ziel außerhalb des Geräts; die Abfrage nennt das Ziel in 100 % der Fälle.
@@ -205,8 +205,8 @@ Das erste Auftragsformat dient haex-notes: Aus dem Foto einer Seite entsteht ein
 
 - holzi hat bereits eine gemeinsame Verwaltung von Anbietern und Modellen (lokal, Konto bei einem Cloud-Dienst, Befehlszeilen-Agent); diese Spec ergänzt den Zugriff von Erweiterungen, den allgemeinen Anbieter und Bildfähigkeit für lokale Modelle.
 - Das Auftragsformat „Seitenerkennung“ ersetzt das feste Format `paper-note-recognition` aus Spec 047; die dort gebaute Hostschnittstelle (Start, Abbruch, Ergebnisprüfung, Ereignis bei Abschluss) wird weiterverwendet und verallgemeinert.
-- Einwilligung und erste Freigabe nutzen die Berechtigungsabfrage, die holzi für Erweiterungen schon hat: Der Nutzer erlaubt für die Sitzung oder dauerhaft und kann in den Einstellungen widerrufen. Ein Auftrag fragt nicht jedes Mal neu.
-- Wählt die Erweiterung kein Modell, entscheidet holzi nach der Rangfolge, die der Nutzer pro Erweiterung festlegt.
+- Einwilligung und erste Freigabe nutzen die Berechtigungsabfrage, die holzi für Erweiterungen schon hat (Spec 017, CONTEXT.md): Der Nutzer erlaubt für die Tresorsitzung oder dauerhaft und kann in den Einstellungen widerrufen. Ein Auftrag fragt nicht jedes Mal neu.
+- Wählt die Erweiterung kein Modell, entscheidet holzi nach der Rangfolge, die der Nutzer pro Erweiterung festlegt; ein lokales Modell wird gewählt, wenn kein höher geranktes geeignetes Modell existiert.
 - Verlangter Aufwand über dem Erlaubten wird begrenzt und nicht abgelehnt; das Ergebnis nennt den tatsächlichen Aufwand.
 - Die Qualität einzelner Modelle bei Handschrift, Tabellen und Positionen wird gesondert gemessen (Testfotos liegen vor); die Wahl eines Modells ist daher keine Voraussetzung dieser Spec.
 - Das Handy nimmt nur das Foto auf; es läuft dort kein lokales Bildmodell. Wo das Foto ausgewertet wird, bestimmen die freigegebenen Modelle und Ziele.
