@@ -255,3 +255,7 @@ pub enum MassDecision {
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "acceptance_tests.rs"]
+mod acceptance_tests;
