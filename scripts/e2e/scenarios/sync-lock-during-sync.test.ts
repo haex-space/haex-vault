@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { expectOnline } from '../lib/group-expect.ts'
 import { openLauncher } from '../lib/flows.ts'
-import { addThreads, threadCount, threadTitles } from '../lib/sync-flows.ts'
+import {
+  addThreads,
+  threadCount,
+  threadTitles,
+  waitForThreadCount,
+} from '../lib/sync-flows.ts'
 
 /**
  * How many chats the first device has made while the second one is away. The second one takes them in
@@ -49,10 +54,12 @@ scenario('sync-lock-during-sync', { timeoutMs: 600_000 }, async (ctx) => {
   ctx.step('the other device sees the locked one gone')
 
   await b.start()
-  await ctx.waitFor(
+  await waitForThreadCount(
+    ctx,
+    b,
+    COUNT,
     'the reopened device to hold every chat',
-    async () => (await threadCount(b)) >= COUNT,
-    { timeoutMs: 180_000, fixed: true },
+    180_000,
   )
   assert.deepEqual(await threadTitles(b), wanted, 'none missing, none twice')
   assert.equal(await threadCount(a), COUNT)
