@@ -107,6 +107,7 @@ async function clickDisplayed(
   hook: string,
   deadlineMs = 5000,
   onClickSent?: () => void,
+  settle = false,
 ): Promise<string> {
   const end = Date.now() + deadlineMs
   for (;;) {
@@ -118,18 +119,43 @@ async function clickDisplayed(
     try {
       // Keep fixed desktop chrome such as the dock from intercepting a control that was just
       // revealed below a scroll surface (the WebDriver click otherwise only scrolls it to an edge).
+      // With `settle` the script then waits until the control stands still (see `SETTLE_MS`): the
+      // driver clicks the centre of the box it measures at that moment, and a control that is still
+      // moving (a row above it collapsing, the list settling after a scroll) is not where it was.
       await client.execute(
         `const elements = document.querySelectorAll(arguments[0])
+         const settle = arguments[1]
+         const limit = arguments[2]
          for (const candidate of elements) {
            const rect = candidate.getBoundingClientRect()
            const style = getComputedStyle(candidate)
            if (style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0) {
              candidate.scrollIntoView({ block: 'center', inline: 'nearest' })
-             return true
+             if (!settle || document.hidden) return true
+             return new Promise((resolve) => {
+               const place = () => {
+                 const box = candidate.getBoundingClientRect()
+                 return box.left + ',' + box.top + ',' + box.width + ',' + box.height
+               }
+               let last = place()
+               let still = 0
+               // A page that draws no frames (in the background) must not hold the click up.
+               const timer = setTimeout(() => resolve(true), limit)
+               const tick = () => {
+                 const now = place()
+                 still = now === last ? still + 1 : 0
+                 last = now
+                 if (still >= 2) {
+                   clearTimeout(timer)
+                   resolve(true)
+                 } else requestAnimationFrame(tick)
+               }
+               requestAnimationFrame(tick)
+             })
            }
          }
          return false`,
-        [toSelector(hook)],
+        [toSelector(hook), settle, SETTLE_MS],
       )
       onClickSent?.()
       await client.click(element)
@@ -155,13 +181,23 @@ async function clickDisplayed(
   }
 }
 
-/** Clicks the displayed control found by hook. Polls until the deadline; fails naming the hook. */
+/**
+ * The longest a click waits for its control to stand still: the box of the control is the same over
+ * two animation frames. Short, so a control that never stands still (a spinner) costs this and then
+ * gets its click.
+ */
+const SETTLE_MS = 300
+
+/**
+ * Clicks the displayed control found by hook, once it stands still. Polls until the deadline; fails
+ * naming the hook.
+ */
 export async function click(
   client: WebDriverClient,
   hook: string,
   deadlineMs = 5000,
 ): Promise<void> {
-  await clickDisplayed(client, hook, deadlineMs)
+  await clickDisplayed(client, hook, deadlineMs, undefined, true)
 }
 
 /** Waits until a stable hook is displayed without activating it. */
