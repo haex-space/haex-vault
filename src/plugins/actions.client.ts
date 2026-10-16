@@ -42,6 +42,10 @@ export default defineNuxtPlugin((nuxtApp) => {
     }
     if (!table?.backGesture) return
     await onBackButtonPress(() => {
+      // The e2e scenario counts the presses that reach the page, to tell a key the system lost from
+      // one the window manager handled differently.
+      const marks = document.documentElement.dataset
+      marks.backPresses = String(Number(marks.backPresses ?? 0) + 1)
       void wm.runAction('wm.system.back')
     })
     // The e2e scenario presses the key only once it sees this mark.
