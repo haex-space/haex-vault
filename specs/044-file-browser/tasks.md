@@ -226,6 +226,16 @@ self-checking `platform-probe` jobs of T007, because full E2E on those platforms
 
 ---
 
+## Phase 11: Tastaturkürzel (FR-017b) (PR I)
+
+**Goal**: Der Dateibrowser lässt sich mit der Tastatur bedienen, wie der Passwortmanager (Spec 036
+FR-016).
+
+- [x] T095 [P] Pure resolver in `src/lib/files/shortcuts.ts` (`resolveFilesShortcut`, `moveIndex`, `keyboardSelection`, `typeAhead`) with tests in `scripts/check-files-shortcuts.ts`: platform chords, guards (text field, dialog, selected text, focus outside the list), the window manager's chords left alone, moves in list and grid, type-to-jump
+- [x] T096 [P] One label for shortcuts in every menu: `src/lib/wm/shortcutLabel.ts` and `composables/useShortcutText.ts` (moved from the password manager, key names under `wm.keys`); `lib/files/menus.ts` names the keys, `components/files/Menu.vue` shows them
+- [x] T097 UI: `composables/useFilesKeyboard.ts` on the frame's root; `FolderView.vue` focuses an entry through the virtual list (`focusEntry`) and takes the focus after a folder opens; `useFilesManage().runKey` runs a command under the menu's rules
+- [x] T098 E2E `scripts/e2e/scenarios/files-keyboard.test.ts`: move and select with the arrows and Shift, type-to-jump, copy and paste, rename with F2, new folder, delete, up with Alt+↑, hidden entries with Strg+H; checks as T036; commit, open PR I **Note**: any key other than a letter ends the name being typed, so a letter after a move starts a new name
+
 ## Dependencies & Execution Order
 
 - **Phase 1** → **Phase 2** → stories. T007 (spike) gates T014–T016.

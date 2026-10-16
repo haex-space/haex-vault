@@ -110,6 +110,15 @@ HTTP-Server mit Tokens (aus haex-vault), nie ganze Datei im RAM."
   Leertaste öffnet ihn, ein Klick auf die freie Fläche hebt die Auswahl auf. Auf Touch öffnet ein
   Tippen, solange nichts ausgewählt ist (Betreiber).
 
+### Session 2026-10-16
+
+- Q: Welche Tastenkürzel hat der Dateibrowser? → A: Die Pfeiltasten (im Raster auch links und rechts),
+  Pos1 und Ende bewegen den Fokus und wählen den Eintrag aus, mit Umschalt erweitern sie die Auswahl;
+  Strg+A wählt alles, Esc hebt die Auswahl auf; Strg+C, Strg+X, Strg+V kopieren, schneiden aus und
+  fügen ein; Entf löscht, F2 benennt um, Strg+Umschalt+N legt einen Ordner an, Alt+↑ geht einen Ordner
+  hinauf; dazu Strg+F für die Suche, F5 und Strg+R zum Neuladen, Strg+H für versteckte Einträge und
+  Tippen springt zum Namen. Das Kontextmenü nennt die Kürzel. Auf macOS Cmd statt Strg (Betreiber).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Dateien durchsuchen und ansehen (Priority: P1)
@@ -405,6 +414,12 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 - **FR-017a**: Mit der Maus MUSS ein Klick einen Eintrag auswählen und ein Doppelklick ihn öffnen;
   Enter und Leertaste MÜSSEN ihn ebenfalls öffnen. Auf Touch MUSS ein Tippen ihn öffnen, solange
   nichts ausgewählt ist.
+- **FR-017b**: Der Dateibrowser MUSS sich mit der Tastatur bedienen lassen (Kürzel siehe
+  Klärung 2026-10-16, auf macOS Cmd statt Strg, Löschen dort auch mit ⌫). Die Kürzel DÜRFEN nicht in
+  einem Textfeld, einem Dialog, dem Viewer oder auf markiertem Text wirken und nicht die Kürzel des
+  Window Managers belegen (Alt+← und Alt+→ bleiben Zurück und Vor). Was auf Einträge wirkt, verlangt
+  den Fokus in der Liste; was das Menü sperrt (ein eigener Ort von holzi, Umbenennen mehrerer),
+  sperrt auch die Tastatur. Nach dem Öffnen eines Ordners hat die Liste den Fokus.
 - **FR-018**: Der Nutzer MUSS eine Auswahl kopieren und verschieben können, über Menü, eine
   Zwischenablage innerhalb von holzi und Ziehen innerhalb von holzi, auch zwischen Gerät und
   Speicher.
