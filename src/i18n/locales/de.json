@@ -117,6 +117,12 @@
     }
   },
   "wm": {
+    "keys": {
+      "mod": "Strg",
+      "shift": "Umschalt",
+      "delete": "Entf",
+      "enter": "Eingabe"
+    },
     "dock": {
       "label": "Dock",
       "pin": "An Dock anheften",
@@ -1667,13 +1673,7 @@
       "deleteForGood": "Endgültig löschen",
       "newEntry": "Neuer Eintrag",
       "newFolder": "Neuer Ordner",
-      "emptyTrash": "Papierkorb leeren",
-      "keys": {
-        "mod": "Strg",
-        "shift": "Umschalt",
-        "delete": "Entf",
-        "enter": "Eingabe"
-      }
+      "emptyTrash": "Papierkorb leeren"
     },
     "new": "Neu",
     "newMenu": {

@@ -3,7 +3,7 @@
 // sidebar offers. The right-click menu and the menu button of a row render the same list, and the
 // selection bar runs the same commands, so they cannot drift apart. Pure, so
 // `scripts/check-passwords-menus.ts` runs it without vue.
-import type { ShortcutHint } from './shortcuts.ts'
+import type { ShortcutHint } from '../wm/shortcutLabel.ts'
 
 export type MenuKind = 'entry' | 'folder' | 'treeFolder' | 'empty' | 'trashNode'
 

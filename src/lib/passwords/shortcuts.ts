@@ -95,35 +95,3 @@ export function resolveListShortcut(event: ShortcutEvent): ListCommand | null {
   if (ROW_COMMANDS.has(found) && !event.inList) return null
   return found
 }
-
-/** A shortcut as the menus show it next to an action. */
-export type ShortcutHint = {
-  mod?: boolean
-  shift?: boolean
-  key: 'A' | 'X' | 'C' | 'V' | 'B' | 'F' | 'Delete' | 'Enter'
-}
-
-/** The words for the keys in the interface language (`Strg`/`Ctrl`, …); macOS uses symbols. */
-export type KeyNames = {
-  mod: string
-  shift: string
-  Delete: string
-  Enter: string
-}
-
-export function shortcutLabel(
-  hint: ShortcutHint,
-  platform: Platform,
-  names: KeyNames,
-): string {
-  if (platform === 'mac') {
-    const key =
-      hint.key === 'Delete' ? '⌫' : hint.key === 'Enter' ? '↩' : hint.key
-    return `${hint.shift ? '⇧' : ''}${hint.mod ? '⌘' : ''}${key}`
-  }
-  const key =
-    hint.key === 'Delete' || hint.key === 'Enter' ? names[hint.key] : hint.key
-  return [hint.mod ? names.mod : null, hint.shift ? names.shift : null, key]
-    .filter((part) => part !== null)
-    .join('+')
-}

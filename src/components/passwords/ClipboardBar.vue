@@ -15,7 +15,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const clipboard = usePasswordsClipboardStore()
-const { shortcut } = usePasswordsMenuText()
+const { shortcut } = useShortcutText()
 </script>
 
 <template>

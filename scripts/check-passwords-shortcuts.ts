@@ -6,7 +6,6 @@ import { test } from 'node:test'
 
 import {
   resolveListShortcut,
-  shortcutLabel,
   type ShortcutEvent,
 } from '../src/lib/passwords/shortcuts.ts'
 
@@ -112,26 +111,4 @@ test('the chords of the window manager are never taken', () => {
   assert.equal(resolve('ArrowDown', { altKey: true }), null)
   assert.equal(resolve('[', { metaKey: true }, 'mac'), null)
   assert.equal(resolve(']', { metaKey: true }, 'mac'), null)
-})
-
-test('the label of a shortcut follows the platform and the language', () => {
-  const de = {
-    mod: 'Strg',
-    shift: 'Umschalt',
-    Delete: 'Entf',
-    Enter: 'Eingabe',
-  }
-  assert.equal(shortcutLabel({ mod: true, key: 'X' }, 'default', de), 'Strg+X')
-  assert.equal(
-    shortcutLabel({ mod: true, shift: true, key: 'C' }, 'default', de),
-    'Strg+Umschalt+C',
-  )
-  assert.equal(shortcutLabel({ key: 'Delete' }, 'default', de), 'Entf')
-  assert.equal(shortcutLabel({ mod: true, key: 'X' }, 'mac', de), '⌘X')
-  assert.equal(
-    shortcutLabel({ mod: true, shift: true, key: 'C' }, 'mac', de),
-    '⇧⌘C',
-  )
-  assert.equal(shortcutLabel({ key: 'Enter' }, 'mac', de), '↩')
-  assert.equal(shortcutLabel({ key: 'Delete' }, 'mac', de), '⌫')
 })

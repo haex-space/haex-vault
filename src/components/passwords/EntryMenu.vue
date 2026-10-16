@@ -19,7 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { shortcut } = usePasswordsMenuText()
+const { shortcut } = useShortcutText()
 
 function shown(): readonly MenuEntry[] {
   return typeof props.entries === 'function' ? props.entries() : props.entries
