@@ -180,3 +180,16 @@ Abdeckungsrechnung der Desktop-Fälle.
   Frage des Systems selbst lässt sich nicht bedienen.
 - Texte prüfen die Szenarien sprachunabhängig über `lib/translations.ts` (der Text eines
   Schlüssels in allen Sprachen); Szenarien selbst lesen keine Dateien (SC-005).
+
+## Verlorene Tasten auf dem CI-Emulator
+
+- Auf dem CI-Emulator kam eine Zurück-Taste mehrfach nicht an (Befund vom 16.10.2026 aus den
+  Fehlerunterlagen: Im logcat des Fensters gab es keinen einzigen Aktivitätswechsel, obwohl das
+  Szenario alle drei Sekunden drückte; lokal besteht dasselbe Szenario fünf von fünf Läufen).
+- `android-all-files`: Zurück aus den Systemeinstellungen ist Sache des Systems, nicht holzis. Nach
+  zwei Tastendrücken kommt das Szenario über den Task der App zurück (`bringToFront`, `am start`,
+  wie beim Antippen unter den letzten Apps). Der Schritt nennt den Weg; die Fehlermeldung nennt die
+  Aktivität im Vordergrund (`frontDetail`).
+- `android-back-gesture`: Der Back-Handler der Seite zählt die Tasten, die ihn erreichen
+  (`dataset.backPresses`). Kommt die erste Taste nicht an, drückt das Szenario einmal erneut;
+  kommt sie an und geht der Tab nicht zurück, schlägt es sofort fehl und nennt die Zahl.

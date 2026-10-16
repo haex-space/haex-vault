@@ -121,6 +121,15 @@ export function phoneControls(adb: Adb): PhoneControls {
     },
     frontPackage: () =>
       frontPackage(adb.shell('dumpsys', 'activity', 'activities')),
+    frontDetail: () =>
+      adb
+        .shell('dumpsys', 'activity', 'activities')
+        .split('\n')
+        .filter((line) => /ResumedActivity/.test(line))
+        .map((line) => line.trim())
+        .join(' | '),
+    // The task exists: the single-task activity comes to the front without a new process.
+    bringToFront: () => void adb.shell('am', 'start', '-n', ACTIVITY),
     // Not granted until now, so marking it decided does not end the app.
     refuseMicrophone: () => {
       adb.shell(

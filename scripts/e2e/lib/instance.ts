@@ -219,6 +219,10 @@ export interface PhoneControls extends ContactControls {
   allowAllFiles(): void
   /** The package whose activity is in front, e.g. the system's settings. */
   frontPackage(): string | undefined
+  /** The line of the system's activity dump that names the resumed activity, for a failure message. */
+  frontDetail(): string
+  /** The app's task to the front again, as the person does by tapping it among the recent apps. */
+  bringToFront(): void
   /** The titles of the app's notifications the system shows now. */
   notificationTitles(): string[]
   /** What the app's process `pid` left in the system's crash log, e.g. an abort while it ended. */
