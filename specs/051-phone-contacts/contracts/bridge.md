@@ -48,5 +48,6 @@
 ## vault-sdk
 
 Neue Datei `src/api/contacts.ts` und `src/commands/contacts.ts` im Repository
-`https://github.com/haex-space/vault-sdk`; Export in `src/index.ts`. Der Plan der Umsetzung nennt den
-Commit mit vollem SHA, sobald der PR dort gemergt ist.
+`https://github.com/haex-space/vault-sdk`; Export in `src/index.ts`. Gemergt mit haex-space/vault-sdk#71
+als Commit `04a9cd614d68a13a94d0b28247208afeddfe5cca` (`sdk.contacts.listAsync`, `readAsync`,
+`searchAsync`, `photoAsync`).
