@@ -98,6 +98,21 @@ describe('WebDriverClient', () => {
     )
   })
 
+  it('awaits a Promise through the asynchronous script endpoint', async () => {
+    driver.onExecute((kind, script, args) => {
+      assert.equal(kind, 'async')
+      assert.match(script, /Promise\.resolve/)
+      assert.deepEqual(args, ['value'])
+      return { value: { ok: true, value: 'result' } }
+    })
+    assert.equal(
+      await client.executeAsync('return Promise.resolve(arguments[0])', [
+        'value',
+      ]),
+      'result',
+    )
+  })
+
   it('calls a backend command through the page and resolves the outcome instead of throwing', async () => {
     driver.onExecute(() => ({ value: { ok: true, data: 42 } }))
     assert.deepEqual(await client.invoke('list_instances', { a: 1 }), {

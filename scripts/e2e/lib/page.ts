@@ -122,8 +122,7 @@ async function clickDisplayed(
       // With `settle` the script then waits until the control stands still (see `SETTLE_MS`): the
       // driver clicks the centre of the box it measures at that moment, and a control that is still
       // moving (a row above it collapsing, the list settling after a scroll) is not where it was.
-      await client.execute(
-        `const elements = document.querySelectorAll(arguments[0])
+      const settleScript = `const elements = document.querySelectorAll(arguments[0])
          const settle = arguments[1]
          const limit = arguments[2]
          for (const candidate of elements) {
@@ -154,9 +153,10 @@ async function clickDisplayed(
              })
            }
          }
-         return false`,
-        [toSelector(hook), settle, SETTLE_MS],
-      )
+         return false`
+      const settleArgs = [toSelector(hook), settle, SETTLE_MS]
+      if (settle) await client.executeAsync(settleScript, settleArgs)
+      else await client.execute(settleScript, settleArgs)
       onClickSent?.()
       await client.click(element)
       return element
