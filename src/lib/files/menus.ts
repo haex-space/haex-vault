@@ -1,7 +1,9 @@
 // The context menus of the file browser (spec 044 FR-017 to FR-023, T050): the menu of entries and
 // the menu of the open folder's empty area. The right-click menu (a long press on touch) and the
 // selection bar run the same commands. Pure, so `scripts/check-files-clipboard.ts` runs it without
-// vue. holzi's own places are read-only (FR-037): their changes stay disabled.
+// vue. holzi's own places are read-only (FR-037): their changes stay disabled. An item names its
+// keyboard shortcut (FR-017b, `lib/files/shortcuts.ts`).
+import type { ShortcutHint } from '../wm/shortcutLabel.ts'
 
 export type FilesCommand =
   | 'open'
@@ -19,6 +21,7 @@ export type FilesMenuItem = {
   id: FilesCommand
   labelKey: string
   disabled?: boolean
+  shortcut?: ShortcutHint
 }
 
 export type FilesMenuEntry = FilesMenuItem | { separator: true }
@@ -36,10 +39,22 @@ export type EntriesMenuInput = {
   systemApps?: boolean
 }
 
+/** The keys of the commands that have one (`resolveFilesShortcut`). */
+const SHORTCUTS: Partial<Record<FilesCommand, ShortcutHint>> = {
+  open: { key: 'Enter' },
+  copy: { mod: true, key: 'C' },
+  cut: { mod: true, key: 'X' },
+  paste: { mod: true, key: 'V' },
+  rename: { key: 'F2' },
+  delete: { key: 'Delete' },
+  newFolder: { mod: true, shift: true, key: 'N' },
+}
+
 const item = (id: FilesCommand, disabled = false): FilesMenuItem => ({
   id,
   labelKey: `files.actions.${id}`,
   disabled,
+  shortcut: SHORTCUTS[id],
 })
 
 const SEPARATOR = { separator: true } as const

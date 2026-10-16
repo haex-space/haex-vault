@@ -101,8 +101,8 @@ export function useFilesManage(options: {
     return targets.paths.flatMap((target) => entryAt(target) ?? [])
   }
 
-  const menuEntries = computed(() => {
-    const targets = menuTargets.value
+  /** The menu for `targets` (entries, or the folder's empty area for `null`). */
+  function menuFor(targets: Selection | null) {
     if (!targets)
       return folderMenu({
         readOnly: folderOwned.value,
@@ -122,7 +122,9 @@ export function useFilesManage(options: {
       selecting: selecting.value,
       systemApps: !isAndroid.value,
     })
-  })
+  }
+
+  const menuEntries = computed(() => menuFor(menuTargets.value))
 
   const dimmed = computed(() =>
     transfers.clipboard?.op === 'cut'
@@ -322,6 +324,21 @@ export function useFilesManage(options: {
     void run(command, selection.value)
   }
 
+  /**
+   * A command from the keyboard (FR-017b) on `targets`, or on the open folder for `null`: under the
+   * rules of the menu, so what the menu disables (a read-only place, rename of several) does not
+   * run. Whether it ran.
+   */
+  function runKey(command: FilesCommand, targets: Selection | null): boolean {
+    if (targets?.paths.length === 0) return false
+    const found = menuFor(targets).find(
+      (entry) => 'id' in entry && entry.id === command,
+    )
+    if (!found || ('disabled' in found && found.disabled)) return false
+    void run(command, targets)
+    return true
+  }
+
   function onDrop(
     payload: DragPayload,
     target: string,
@@ -374,6 +391,7 @@ export function useFilesManage(options: {
     onContext,
     runMenu,
     runBar,
+    runKey,
     onDrop,
     importDropped,
     naming,
