@@ -112,6 +112,38 @@ export function removeRoot(root: string): void {
 }
 
 /**
+ * Removes the root of a finished instance and, while that fails, stops what still runs in it and
+ * tries again. `stop` ends what the application left behind, but only what it finds at that moment: an
+ * app opened through the system (`xdg-open`) that was still starting when the application ended is
+ * found by the next look, and until then it writes into the folder (`ENOTEMPTY`, files-encrypted
+ * on #446 and again on main). A root that stays behind also fails the retry of the scenario, which
+ * finds the same folder not empty.
+ */
+export async function removeRootSettled(
+  root: string,
+  options: {
+    remove?: (root: string) => void
+    stopLeftovers?: (root: string) => Promise<unknown>
+    attempts?: number
+    pauseMs?: number
+  } = {},
+): Promise<void> {
+  const remove = options.remove ?? removeRoot
+  const stop = options.stopLeftovers ?? ((r: string) => stopLeftovers(r))
+  const attempts = options.attempts ?? 5
+  for (let attempt = 1; ; attempt++) {
+    try {
+      remove(root)
+      return
+    } catch (error) {
+      if (attempt >= attempts) throw error
+    }
+    await stop(root)
+    await sleep(options.pauseMs ?? 300)
+  }
+}
+
+/**
  * The command that starts the driver on its own virtual screen. The driver, the webview driver and the
  * application inherit the screen from `xvfb-run` and it ends with them.
  * ponytail: one X server per instance costs well under a second and keeps scenarios apart; the upgrade

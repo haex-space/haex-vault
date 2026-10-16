@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { removeRoot, startInstance } from './instance.ts'
+import { removeRoot, removeRootSettled, startInstance } from './instance.ts'
 import type { Instance } from './instance.ts'
 import { toTools } from './preflight.ts'
 import { startNostrRelay } from './nostr-relay.ts'
@@ -220,7 +220,7 @@ export async function runScenario(
         // The root is removed with the scenario, not when the instance stops, so a fresh instance can reuse it.
         teardowns.push(async () => {
           await instance.stop()
-          removeRoot(root)
+          await removeRootSettled(root)
         })
         step('instance-ready')
         return instance
