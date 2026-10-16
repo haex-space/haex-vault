@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { deviceFiles } from '../lib/extension-files.ts'
+import { deviceFiles } from '../lib/platform/device-files.ts'
 import { unwrap, type FlowInstance } from '../lib/flows.ts'
 import { scenario } from '../lib/scenario.ts'
 import { zipOf } from '../lib/zip.ts'
@@ -36,7 +36,8 @@ const valueOf = (selection: Selection) =>
     : `custom:${selection.set.id}`
 
 scenario('files-icon-sets-two-devices', { timeoutMs: 420_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-icons-sync-')
+  // The laptop of a group runs on this host, also in an Android run: its file lies on the host.
+  const files = deviceFiles('holzi-icons-sync-', { E2E_PLATFORM: 'linux' })
   try {
     const group = await ctx.group({ users: { anna: ['laptop', 'phone'] } })
     const laptop = group.device('anna/laptop').page
