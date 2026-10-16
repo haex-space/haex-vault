@@ -171,7 +171,10 @@ export function annotations(report: Report): string[] {
   return report.scenarios
     .filter((s) => s.retriedAfter !== undefined)
     .map((s) => {
-      const first = (s.retriedAfter ?? '').split('\n')[0]
+      const first = (s.retriedAfter ?? '')
+        .split('\n')[0]
+        .replaceAll('%', '%25')
+        .replaceAll('\r', '%0D')
       const outcome =
         s.status === 'passed' ? 'passed on the second run' : 'failed again'
       return `::warning title=Scenario ran twice::${s.name} ${outcome}; the first run failed with: ${first}`

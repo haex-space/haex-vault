@@ -218,11 +218,12 @@ describe('formatSummary', () => {
         retriedAfter: 'hook "x" not displayed\n  (more)',
       }),
       result('b', 'failed', { error: 'y', retriedAfter: 'z' }),
-      result('c', 'passed'),
+      result('c', 'passed', { retriedAfter: '50% complete\rwhile loading' }),
     ])
     assert.deepEqual(annotations(report), [
       '::warning title=Scenario ran twice::a passed on the second run; the first run failed with: hook "x" not displayed',
       '::warning title=Scenario ran twice::b failed again; the first run failed with: z',
+      '::warning title=Scenario ran twice::c passed on the second run; the first run failed with: 50%25 complete%0Dwhile loading',
     ])
   })
 
