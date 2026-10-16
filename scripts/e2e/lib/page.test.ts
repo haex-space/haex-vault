@@ -80,7 +80,7 @@ describe('click', () => {
       driver.requests.some(
         (r) =>
           r.method === 'POST' &&
-          r.path.endsWith('/execute/sync') &&
+          r.path.endsWith('/execute/async') &&
           (r.body as { script: string }).script.includes('scrollIntoView'),
       ),
     )

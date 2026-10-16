@@ -146,6 +146,35 @@ export class WebDriverClient {
     })) as T
   }
 
+  /** Runs a script through WebDriver's asynchronous-script endpoint and awaits its Promise result. */
+  async executeAsync<T = unknown>(
+    script: string,
+    args: unknown[] = [],
+  ): Promise<T> {
+    const wrapped = `
+      const done = arguments[arguments.length - 1]
+      const userArgs = Array.prototype.slice.call(arguments, 0, -1)
+      try {
+        Promise.resolve((function () { ${script} }).apply(null, userArgs))
+          .then((value) => done({ ok: true, value }))
+          .catch((error) => done({ ok: false, error: String(error) }))
+      } catch (error) {
+        done({ ok: false, error: String(error) })
+      }
+    `
+    const result = (await this.call('POST', this.session('/execute/async'), {
+      script: wrapped,
+      args,
+    })) as { ok?: boolean; value?: T; error?: string }
+    if (result.ok === false) {
+      throw new WebDriverError(
+        'javascript error',
+        result.error ?? 'asynchronous script failed',
+      )
+    }
+    return result.value as T
+  }
+
   /**
    * Call a backend command from the page. Resolves to an object instead of throwing, so an error of the
    * command is told apart from an application that ended before it could answer.

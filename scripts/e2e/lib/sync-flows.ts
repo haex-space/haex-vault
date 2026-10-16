@@ -182,6 +182,34 @@ export function threadCount(device: {
   )
 }
 
+/** Between two counts of `waitForThreadCount`; see there. */
+const COUNT_PAUSE_MS = 1000
+
+/**
+ * Waits until the device holds at least `count` threads, counting once a second. Every count carries
+ * the whole list through the page, and the wait itself polls every 50 ms: while thousands of threads
+ * are still arriving on a phone (a few cores, the main thread already busy taking them in), counting
+ * back to back left the renderer without a frame for seconds, and the driver lost it ("Unable to
+ * receive message from renderer"). The pause leaves it the time to take the data in.
+ */
+export async function waitForThreadCount(
+  ctx: WaitContext,
+  device: { instance: Pick<Page, 'exec'> },
+  count: number,
+  description: string,
+  timeoutMs: number,
+): Promise<void> {
+  await ctx.waitFor(
+    description,
+    async () => {
+      if ((await threadCount(device)) >= count) return true
+      await new Promise((resolve) => setTimeout(resolve, COUNT_PAUSE_MS))
+      return false
+    },
+    { timeoutMs, fixed: true },
+  )
+}
+
 /** A new thread with the title; returns its id. */
 export async function addThread(
   device: ThreadDevice,
