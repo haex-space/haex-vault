@@ -49,7 +49,16 @@ async function setName(instance: Instance, name: string) {
       `return document.querySelector('[data-testid="files-name-input"]').value`,
     )
     if (value === name) {
-      await instance.click('files-name-save')
+      try {
+        await instance.click('files-name-save')
+      } catch (cause) {
+        // WebKit can report the button as non-interactable after the click already submitted the
+        // form and the drawer closed. The caller's entry assertion verifies that the save landed.
+        const dialogOpen = await instance.exec<boolean>(
+          `return Boolean(document.querySelector('[data-testid="files-name-form"]'))`,
+        )
+        if (dialogOpen) throw cause
+      }
       return
     }
   }
