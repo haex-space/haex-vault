@@ -207,11 +207,15 @@ export const KEY = {
   arrowUp: '\uE013',
   arrowLeft: '\uE012',
   arrowRight: '\uE014',
+  home: '\uE011',
   end: '\uE010',
   delete: '\uE017',
+  f2: '\uE032',
+  f5: '\uE035',
   /** Held down for the rest of the text until `release` (WebDriver modifier keys). */
   control: '\uE009',
   shift: '\uE008',
+  alt: '\uE00A',
   release: '\uE000',
 } as const
 

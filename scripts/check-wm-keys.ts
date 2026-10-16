@@ -13,6 +13,7 @@ import {
   resolveChord,
   shouldYield,
 } from '../src/lib/wm/keybindings.ts'
+import { shortcutLabel } from '../src/lib/wm/shortcutLabel.ts'
 
 // ---------------------------------------------------------------------------
 // Keybindings (keybindings.ts)
@@ -90,4 +91,32 @@ test('isEditableTarget recognizes text inputs, textareas and contenteditable', (
   assert.ok(isEditableTarget({ tagName: 'DIV', isContentEditable: true }))
   assert.ok(!isEditableTarget({ tagName: 'DIV' }))
   assert.ok(!isEditableTarget(null))
+})
+
+// Spec 036 FR-016, spec 044 FR-017b: the label next to a menu action, shared by every app.
+test('the label of a shortcut follows the platform and the language', () => {
+  const de = {
+    mod: 'Strg',
+    shift: 'Umschalt',
+    Delete: 'Entf',
+    Enter: 'Eingabe',
+  }
+  assert.equal(shortcutLabel({ mod: true, key: 'X' }, 'default', de), 'Strg+X')
+  assert.equal(
+    shortcutLabel({ mod: true, shift: true, key: 'C' }, 'default', de),
+    'Strg+Umschalt+C',
+  )
+  assert.equal(shortcutLabel({ key: 'Delete' }, 'default', de), 'Entf')
+  assert.equal(shortcutLabel({ mod: true, key: 'X' }, 'mac', de), '⌘X')
+  assert.equal(
+    shortcutLabel({ mod: true, shift: true, key: 'C' }, 'mac', de),
+    '⇧⌘C',
+  )
+  assert.equal(shortcutLabel({ key: 'Enter' }, 'mac', de), '↩')
+  assert.equal(shortcutLabel({ key: 'Delete' }, 'mac', de), '⌫')
+  assert.equal(shortcutLabel({ key: 'F2' }, 'default', de), 'F2')
+  assert.equal(
+    shortcutLabel({ mod: true, shift: true, key: 'N' }, 'mac', de),
+    '⇧⌘N',
+  )
 })

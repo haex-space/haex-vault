@@ -117,6 +117,12 @@
     }
   },
   "wm": {
+    "keys": {
+      "mod": "Ctrl",
+      "shift": "Shift",
+      "delete": "Del",
+      "enter": "Enter"
+    },
     "dock": {
       "label": "Dock",
       "pin": "Pin to dock",
@@ -1667,13 +1673,7 @@
       "deleteForGood": "Delete for good",
       "newEntry": "New entry",
       "newFolder": "New folder",
-      "emptyTrash": "Empty trash",
-      "keys": {
-        "mod": "Ctrl",
-        "shift": "Shift",
-        "delete": "Del",
-        "enter": "Enter"
-      }
+      "emptyTrash": "Empty trash"
     },
     "new": "New",
     "newMenu": {

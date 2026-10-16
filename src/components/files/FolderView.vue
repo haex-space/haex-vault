@@ -5,7 +5,8 @@
  * list; a folder the system denies shows why. A press reports the entry with the keys held (the
  * frame decides between opening and selecting, `lib/files/clipboard.ts`); a double click, Enter or
  * Space opens it, a click on the empty area clears the selection. Entries drag onto a folder row or
- * the open folder (FR-018).
+ * the open folder (FR-018). The keyboard moves the focus through the entries (`focusEntry`, FR-017b),
+ * and a new folder takes the focus unless a text field has it.
  */
 import type { Entry } from '@bindings/Entry'
 import type { FilesError } from '@bindings/FilesError'
@@ -19,6 +20,7 @@ import {
   parseDragPayload,
 } from '~/lib/files/clipboard'
 import { shownNameKey } from '~/lib/files/encrypted'
+import { isEditableTarget } from '~/lib/wm/keybindings'
 import { formatFileSize } from '~/lib/passwords/format'
 
 const props = defineProps<{
@@ -102,8 +104,9 @@ const wrapperProps = computed(() => virtual.value.wrapperProps.value)
 
 // Rows keep their elements while the list scrolls: a slot shows the next entry instead of a new row
 // being built for it, which a jump through a large folder would do for every row on screen
-// (FR-008). A focused row whose slot now shows another entry lets the focus go, so Enter never
-// opens what the user did not focus.
+// (FR-008). A focused row whose slot now shows another entry hands the focus to the list, so Enter
+// never opens what the user did not focus and the keys still act here (FR-017b); so does a focused
+// row that is gone (deleted, or scrolled away).
 let focusedPath: string | null = null
 
 function onFocusin(event: FocusEvent) {
@@ -117,12 +120,15 @@ watch(
   list,
   () => {
     const active = document.activeElement
-    if (
+    const moved =
       active instanceof HTMLElement &&
       container.value?.contains(active) &&
+      active !== container.value &&
       active.closest('[data-path]')?.getAttribute('data-path') !== focusedPath
-    ) {
-      active.blur()
+    const lost = focusedPath !== null && (!active || active === document.body)
+    if (moved || lost) {
+      focusedPath = null
+      container.value?.focus({ preventScroll: true })
     }
   },
   { flush: 'post' },
@@ -135,8 +141,59 @@ watch(
   () => {
     listVirtual.scrollTo(0)
     gridVirtual.scrollTo(0)
+    void nextTick(takeFocus)
   },
 )
+onMounted(takeFocus)
+
+/** Gives the list the focus after a folder opened, so the keys act there (FR-017b): unless a text
+ * field or a place outside the file browser has it. */
+function takeFocus() {
+  const active = document.activeElement
+  const frame = container.value?.closest('[data-files-app]')
+  const lost = !active || active === document.body
+  if (!lost && (!frame?.contains(active) || isEditableTarget(active))) return
+  if (container.value?.contains(active)) return
+  container.value?.focus({ preventScroll: true })
+}
+
+/** How many entries one row holds: 1 in the list. */
+const rowLength = computed(() => (props.view === 'list' ? 1 : columns.value))
+
+const rowElements = () =>
+  container.value?.querySelectorAll<HTMLElement>('[data-path]') ?? []
+
+/**
+ * Moves the focus to the entry at `path` (FR-017b): scrolls its row into view first, as the virtual
+ * list only builds the rows on screen, and focuses it once it is built.
+ */
+async function focusEntry(path: string) {
+  const index = props.entries.findIndex((entry) => entry.path === path)
+  if (index < 0) return
+  const height = props.view === 'list' ? ROW_HEIGHT : TILE_HEIGHT
+  const top = Math.floor(index / rowLength.value) * height
+  const scroller = containerProps.value.ref.value
+  if (scroller) {
+    if (top < scroller.scrollTop) scroller.scrollTop = top
+    else if (top + height > scroller.scrollTop + scroller.clientHeight)
+      scroller.scrollTop = top + height - scroller.clientHeight
+  }
+  // The virtual list builds the row after the scroll event: a few frames at most.
+  for (let frame = 0; frame < 10; frame++) {
+    await nextTick()
+    const row = [...rowElements()].find(
+      (element) => element.getAttribute('data-path') === path,
+    )
+    if (row) {
+      focusedPath = path
+      row.focus({ preventScroll: true })
+      return
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+  }
+}
+
+defineExpose({ focusEntry, rowLength })
 
 // One format for every row: vue-i18n's `d()` with options builds a new `Intl.DateTimeFormat` on
 // each call, and a scroll through a large folder mounts dozens of rows per frame (FR-008).
@@ -253,8 +310,10 @@ const errorText = computed(() => {
 <template>
   <div
     ref="container"
-    class="h-full min-h-0"
+    class="h-full min-h-0 outline-none"
     :class="dropOver === folder ? 'ring-2 ring-primary ring-inset' : ''"
+    tabindex="-1"
+    data-files-list
     @pointerdown="onPointerdown"
     @focusin="onFocusin"
     @contextmenu="onContextMenu"

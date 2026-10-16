@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Entry } from '@bindings/Entry'
+import type { FolderKeys } from '~/composables/useFilesKeyboard'
 import {
   admits,
   type FilesFilter,
@@ -7,6 +8,7 @@ import {
   isFiltering,
   parseFilter,
 } from '~/lib/files/filters'
+import { shownNameKey } from '~/lib/files/encrypted'
 import { filesLocation, parseFilesPlace } from '~/lib/files/registry'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
 
@@ -152,6 +154,7 @@ const {
   onContext,
   runMenu,
   runBar,
+  runKey,
   onDrop,
   importDropped,
   naming,
@@ -207,6 +210,26 @@ function showSibling(entry: Entry) {
 }
 
 const root = useTemplateRef<HTMLElement>('root')
+const folderView = useTemplateRef<FolderKeys>('folderView')
+
+// --- Keyboard (FR-017b) ---
+
+const { onKeydown } = useFilesKeyboard({
+  root,
+  folderView,
+  shown,
+  selection,
+  grid: computed(() => prefs.view.value === 'grid'),
+  nameOf: (entry) => {
+    const key = shownNameKey(entry)
+    return key ? t(key) : entry.name
+  },
+  runKey,
+  clearSelection,
+  up: goUp,
+  reload: () => void folder.reload(),
+  toggleHidden: () => prefs.setShowHidden(!prefs.showHidden.value),
+})
 const sidebar = useTemplateRef<HTMLElement>('sidebar')
 const { wideHidden, menuOpen, visible, toggle, close } = useSidebarFrame(
   root,
@@ -275,6 +298,7 @@ watch(tabActive, (active) => {
     ref="root"
     class="@container flex h-full min-h-0 flex-col bg-muted/20"
     data-files-app
+    @keydown="onKeydown"
   >
     <FilesToolbar
       class="h-13 shrink-0 px-2"
@@ -313,7 +337,6 @@ watch(tabActive, (active) => {
       <main
         class="relative flex min-w-0 flex-1 flex-col"
         data-testid="files-main"
-        @keydown.esc="clearSelection()"
       >
         <FilesForeignHint
           v-if="folderForeign > 0 && !searchQuery"
@@ -345,6 +368,7 @@ watch(tabActive, (active) => {
         >
           <FilesMenu :entries="menuEntries" @run="runMenu">
             <FilesFolderView
+              ref="folderView"
               :source="source"
               :entries="shown"
               :loading="folder.loading.value"
