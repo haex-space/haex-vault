@@ -142,6 +142,9 @@ scenario('files-keyboard', { timeoutMs: 240_000 }, async (ctx) => {
     await press(KEY.f2)
     await setName(instance, 'beta2.txt')
     await instance.waitForDisplayed('files-entry-beta2.txt')
+    await ctx.waitFor('the list to have the focus after renaming', () =>
+      listFocused(instance),
+    )
     ctx.step('F2 renames')
 
     await press(chord(KEY.control, KEY.shift, 'n'))
