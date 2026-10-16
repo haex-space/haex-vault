@@ -21,7 +21,7 @@ import { startIrohRelay } from './iroh-relay.ts'
 import type { IrohRelay } from './iroh-relay.ts'
 import type { Tools } from './preflight.ts'
 import { containerRuntimeAvailable } from './rustfs.ts'
-import { withConnectionRetry } from './infrastructure-retry.ts'
+import { keepFirstMaterial, retriesUsed, withRetry } from './scenario-retry.ts'
 import type {
   E2EEnv,
   RunDeps,
@@ -520,12 +520,15 @@ export function scenario(
         }),
     }
     const run = () => runScenario(name, options, body, deps)
-    // These messages describe the Android adb/ChromeDriver transport. On desktop, the similar
-    // renderer/DevTools wording can be an actual WebKit failure and must not be hidden by a retry.
-    const result =
-      android === undefined
-        ? await run()
-        : await withConnectionRetry(run, (retried) => writeResult(env, retried))
+    // A failed scenario runs once more (`scenario-retry.ts`); the report names the first error.
+    const result = await withRetry(
+      run,
+      (retried) => writeResult(env, retried),
+      {
+        used: () => retriesUsed(env.runDir),
+        beforeRetry: () => keepFirstMaterial(env.runDir, name),
+      },
+    )
     if (result.status === 'skipped') t.skip(result.skipReason)
     if (result.status === 'failed') throw new Error(result.error)
   })

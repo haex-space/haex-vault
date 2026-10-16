@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import {
   buildReport,
   exitCodeFor,
+  annotations,
   formatSummary,
   readResults,
   writeReport,
@@ -188,6 +189,7 @@ describe('formatSummary', () => {
       result('a', 'passed', {
         durationMs: 9100,
         retriedAfter: 'chrome not reachable\n  (details)',
+        retriedMaterial: '/run/retried/a',
       }),
       result('b', 'failed', {
         durationMs: 4000,
@@ -202,8 +204,27 @@ describe('formatSummary', () => {
     assert.match(after('a') ?? '', /^\s+retried after: chrome not reachable$/)
     assert.match(
       lines.join('\n'),
+      /retried after: chrome not reachable\n\s+first run's material: \/run\/retried\/a/,
+    )
+    assert.match(
+      lines.join('\n'),
       /material: \/run\/b\n\s+retried after: not connected to DevTools/,
     )
+  })
+
+  it('annotates the scenarios that ran twice for GitHub', () => {
+    const report = buildReport(facts({ expected: ['a', 'b', 'c'] }), [
+      result('a', 'passed', {
+        retriedAfter: 'hook "x" not displayed\n  (more)',
+      }),
+      result('b', 'failed', { error: 'y', retriedAfter: 'z' }),
+      result('c', 'passed', { retriedAfter: '50% complete\rwhile loading' }),
+    ])
+    assert.deepEqual(annotations(report), [
+      '::warning title=Scenario ran twice::a passed on the second run; the first run failed with: hook "x" not displayed',
+      '::warning title=Scenario ran twice::b failed again; the first run failed with: z',
+      '::warning title=Scenario ran twice::c passed on the second run; the first run failed with: 50%25 complete%0Dwhile loading',
+    ])
   })
 
   it('shows press to process end for a passing scenario with both steps', () => {

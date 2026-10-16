@@ -398,8 +398,10 @@ jobs:
       # The relaunch scenario only runs against a release build (`--app`),
       # so this ordinary run always reports it skipped — expected, not a
       # failure (spec 016 SC-001).
+      # Also in a green run when a scenario passed only on its second run: the material of its
+      # first run is what finds the flake (`scripts/e2e/lib/scenario-retry.ts`).
       - name: Upload failure material
-        if: failure()
+        if: failure() || hashFiles('src-tauri/target/e2e/*/retried/**') != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-failure-material
@@ -708,7 +710,7 @@ jobs:
           script: scripts/ci/android-e2e.sh ${{ matrix.shard }} 3 ${{ runner.temp }}/apk/x86_64/debug/app-x86_64-debug.apk
 
       - name: Upload failure material
-        if: failure()
+        if: failure() || hashFiles('src-tauri/target/e2e/*/retried/**') != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-e2e-failure-material-${{ matrix.shard }}

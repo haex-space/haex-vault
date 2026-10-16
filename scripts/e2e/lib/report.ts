@@ -162,6 +162,25 @@ function pressToEndText(steps: Step[]): string | undefined {
   return `press to process end ${seconds(ended.atMs - press.atMs)}`
 }
 
+/**
+ * GitHub Actions annotations for the scenarios that ran twice (`::warning …`), so a flaky scenario
+ * shows on the run's page even when the run is green. Printed by the run itself: from a scenario's
+ * own process the test runner would put `# ` before the command and GitHub would not see it.
+ */
+export function annotations(report: Report): string[] {
+  return report.scenarios
+    .filter((s) => s.retriedAfter !== undefined)
+    .map((s) => {
+      const first = (s.retriedAfter ?? '')
+        .split('\n')[0]
+        .replaceAll('%', '%25')
+        .replaceAll('\r', '%0D')
+      const outcome =
+        s.status === 'passed' ? 'passed on the second run' : 'failed again'
+      return `::warning title=Scenario ran twice::${s.name} ${outcome}; the first run failed with: ${first}`
+    })
+}
+
 export function formatSummary(report: Report): string[] {
   const width = Math.max(0, ...report.scenarios.map((s) => s.name.length))
   const lines: string[] = []
@@ -176,7 +195,12 @@ export function formatSummary(report: Report): string[] {
     const retried =
       s.retriedAfter === undefined
         ? []
-        : [`${indent}   retried after: ${s.retriedAfter.split('\n')[0]}`]
+        : [
+            `${indent}   retried after: ${s.retriedAfter.split('\n')[0]}`,
+            ...(s.retriedMaterial === undefined
+              ? []
+              : [`${indent}   first run's material: ${s.retriedMaterial}`]),
+          ]
     if (s.status === 'failed') {
       lines.push(
         `${head} ${time}   failed at: ${s.failedStep ?? s.error ?? ''}`,

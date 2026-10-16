@@ -49,11 +49,15 @@ Paths in the report are for reading on the machine that produced it; they are no
 `failedStep` names the last step the scenario reached before failing, or the failing wait's description,
 so that a maintainer needs no second run to find the step (SC-004).
 
-`retriedAfter` is set when the scenario ran a second time because the connection to the phone broke in
-the first run (spec 043: the adb transport dropped, or chromedriver lost or never reached the web
-view; `scripts/e2e/lib/infrastructure-retry.ts` lists the messages). It holds the first run's error;
-everything else in the entry is the second run's. Any other failure is never retried, and a scenario
-runs at most twice.
+`retriedAfter` is set when the scenario failed in its first run and ran a second time
+(`scripts/e2e/lib/scenario-retry.ts`; any failure, on every platform). It holds the first run's error;
+everything else in the entry is the second run's. `retriedMaterial` says where the first run's material
+is kept (`<run directory>/retried/<scenario>`), also when the second run passes. A scenario that passes
+with `retriedAfter` is flaky and needs a look: the summary prints both lines, and on GitHub Actions the
+run adds a `::warning` annotation for it. A scenario runs at most twice, and only three scenarios of a
+run get the second run: more failures than that mean the build or the emulator is broken, not one
+scenario, and they end the run without a second run each. The CI uploads `retried/` also when the run
+is green.
 
 ## Key steps (FR-020)
 

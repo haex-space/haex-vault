@@ -26,6 +26,7 @@ import type { MarkedProcess } from './lib/processes.ts'
 import {
   buildReport,
   exitCodeFor,
+  annotations,
   formatSummary,
   readResults,
   writeReport,
@@ -271,6 +272,9 @@ export async function runCli(
   ): number => {
     const report = buildReport({ ...base, ...facts }, readResults(runDir))
     for (const line of formatSummary(report)) deps.print(line)
+    if (env.GITHUB_ACTIONS === 'true') {
+      for (const line of annotations(report)) deps.print(line)
+    }
     writeReport(runDir, report)
     return exitCodeFor(report)
   }
