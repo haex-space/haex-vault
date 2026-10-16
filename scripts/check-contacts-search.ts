@@ -57,3 +57,29 @@ test('the list is sorted by name with nameless contacts last', () => {
     ['1', '4', '2', '3'],
   )
 })
+
+// SC-007: what the list does on each input (`components/contacts/List.vue`), over 5,000 contacts.
+test('filtering and sorting 5,000 contacts takes under 200 ms per input', () => {
+  const many: SearchableContact[] = Array.from({ length: 5_000 }, (_, n) => ({
+    id: `c${n}`,
+    name: `Vorname${n} Nachname${n}`,
+    givenName: `Vorname${n}`,
+    familyName: `Nachname${n}`,
+    organization: n % 3 === 0 ? `Firma ${n % 50}` : null,
+    phones: [`0170 ${String(n).padStart(7, '0')}`],
+    emails: [`person${n}@example.org`],
+  }))
+  for (const query of [
+    'v',
+    'vorname4',
+    'nachname12',
+    '0170 0004',
+    'Firma 7',
+    'xyz',
+  ]) {
+    const started = performance.now()
+    sortByName(filterContacts(many, query))
+    const took = performance.now() - started
+    assert.ok(took < 200, `${query}: ${took.toFixed(1)} ms`)
+  }
+})
