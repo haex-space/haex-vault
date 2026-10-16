@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feat/structured-agent-tasks`
 **Created**: 2026-10-09
-**Status**: Draft
+**Status**: Draft. Wird durch Spec 055 verallgemeinert: Das feste Format `paper-note-recognition` geht im Auftragsformat „Seitenerkennung“ auf, die hier gebaute Hostschnittstelle (Start, Abbruch, Ergebnisprüfung, Ereignis bei Abschluss) wird weiterverwendet. Profile, Freigaben, Einwilligung und Anbieter folgen dann Spec 055. Der Haken-Stand in `tasks.md` ist nicht nachgeführt.
 **Input**: haex-notes soll fotografierte Papiernotizen über den Holzi-Agenten aufbereiten können. Der Nutzer soll in Holzi Modell und Harness wählen können; ein lokales Vision-/OCR-Modell soll möglich sein.
 
 ## User Scenarios & Testing
