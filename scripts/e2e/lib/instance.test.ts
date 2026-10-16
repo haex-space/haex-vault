@@ -20,6 +20,7 @@ import {
   newSessionWithRetry,
   prepareRoot,
   removeRoot,
+  removeRootSettled,
 } from './instance.ts'
 import { WebDriverClient } from './webdriver.ts'
 import { startFakeDriver } from './fake-driver.testlib.ts'
@@ -282,5 +283,57 @@ describe('newSessionWithRetry', () => {
       /session not created/,
     )
     assert.equal(calls, 1)
+  })
+})
+
+describe('removeRootSettled', () => {
+  const notEmpty = () => {
+    throw Object.assign(new Error('ENOTEMPTY'), { code: 'ENOTEMPTY' })
+  }
+
+  it('stops what runs in the root and tries again until it is removed', async () => {
+    let removals = 0
+    const stopped: string[] = []
+    await removeRootSettled('/root', {
+      remove: () => {
+        if (++removals < 3) notEmpty()
+      },
+      stopLeftovers: (root) => {
+        stopped.push(root)
+        return Promise.resolve([])
+      },
+      pauseMs: 0,
+    })
+    assert.equal(removals, 3)
+    assert.deepEqual(stopped, ['/root', '/root'])
+  })
+
+  it('does not stop anything when the first removal works', async () => {
+    let stops = 0
+    await removeRootSettled('/root', {
+      remove: () => {},
+      stopLeftovers: () => {
+        stops++
+        return Promise.resolve([])
+      },
+    })
+    assert.equal(stops, 0)
+  })
+
+  it('gives the error of the last attempt when the root stays', async () => {
+    let removals = 0
+    await assert.rejects(
+      removeRootSettled('/root', {
+        remove: () => {
+          removals++
+          notEmpty()
+        },
+        stopLeftovers: () => Promise.resolve([]),
+        attempts: 3,
+        pauseMs: 0,
+      }),
+      /ENOTEMPTY/,
+    )
+    assert.equal(removals, 3)
   })
 })
