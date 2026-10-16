@@ -61,18 +61,18 @@ Jeder Auftrag hat ein vorab vereinbartes Ergebnisformat. Ein Auftrag kann aus me
 
 ---
 
-### User Story 4 - Bilder verlassen das Gerät nur mit Einwilligung (Priority: P1)
+### User Story 4 - Auftragsdaten verlassen das Gerät nur mit Einwilligung (Priority: P1)
 
-holzi nutzt zuerst ein lokales Modell, wenn eines passt, und das Bild bleibt auf dem Gerät. Soll das Bild an ein anderes Gerät, einen Server oder einen Cloud-Anbieter gehen, sieht der Nutzer vor dem ersten Versand an dieses Ziel, dass Bilddaten übertragen werden und wohin, und willigt ein oder lehnt ab.
+holzi nutzt zuerst ein lokales Modell, wenn eines passt, und die Auftragsdaten bleiben auf dem Gerät. Sollen Text oder Bilder an ein anderes Gerät, einen Server oder einen Cloud-Anbieter gehen, sieht der Nutzer vor dem ersten Versand an dieses Ziel, welche Daten übertragen werden und wohin, und willigt ein oder lehnt ab.
 
 **Why this priority**: Schülernotizen können personenbezogene oder schulische Inhalte enthalten. Qualität geht vor Offline, aber nie ohne Wissen des Nutzers.
 
-**Independent Test**: Eine Anfrage an ein Cloud-Modell ohne Einwilligung sendet nichts. Eine Anfrage an ein lokales Modell erzeugt keine Netzwerkanfrage nach außen.
+**Independent Test**: Eine Anfrage mit Text oder Bild an ein Cloud-Modell ohne Einwilligung sendet nichts. Eine Anfrage an ein lokales Modell erzeugt keine Netzwerkanfrage nach außen.
 
 **Acceptance Scenarios**:
 
 1. **Given** ein lokales und ein Cloud-Modell sind freigegeben und das lokale genügt, **When** eine Anfrage mit Bild kommt, **Then** läuft sie lokal und kein Bildbyte verlässt das Gerät.
-2. **Given** nur ein Ziel außerhalb des Geräts ist freigegeben, **When** zum ersten Mal ein Bild dorthin soll, **Then** zeigt holzi das Ziel und fragt um Einwilligung, bevor etwas gesendet wird.
+2. **Given** nur ein Ziel außerhalb des Geräts ist freigegeben, **When** zum ersten Mal Text oder ein Bild dorthin soll, **Then** zeigt holzi die Datenübertragung und das Ziel und fragt um Einwilligung, bevor etwas gesendet wird.
 3. **Given** eine für die Sitzung erteilte Einwilligung, **When** spätere Anfragen derselben Erweiterung dasselbe Ziel nutzen, **Then** wird in dieser Sitzung nicht erneut gefragt; nach einem Neustart von holzi fragt es wieder.
 4. **Given** eine dauerhaft erteilte Einwilligung, **When** spätere Anfragen dasselbe Ziel nutzen, **Then** wird nicht mehr gefragt, bis der Nutzer sie in den Einstellungen widerruft.
 5. **Given** ein lokales Modell ist nicht verfügbar, **When** ein freigegebenes Ziel außerhalb des Geräts existiert, **Then** wechselt holzi nicht stillschweigend dorthin, sondern nur zu einem Ziel mit erteilter Einwilligung, sonst mit Rückfrage.
@@ -153,7 +153,7 @@ Das erste Auftragsformat dient haex-notes: Aus dem Foto einer Seite entsteht ein
 - **FR-012**: holzi MUST für verworfene Ausgabe keine Markierung im Text des Nutzers erzeugen; die Darstellung bleibt der Erweiterung überlassen.
 - **FR-013**: Ein Korrekturschritt MUST nur Rechtschreibung und eindeutige Lesefehler ändern und Abkürzungen, Wortwahl und Zeilenumbrüche erhalten.
 - **FR-014**: holzi MUST lokale Modelle bevorzugen, wenn eines freigegeben und für den Auftrag geeignet ist; Bilddaten MUST dann das Gerät nicht verlassen.
-- **FR-015**: Vor dem ersten Versand von Bilddaten an ein Ziel außerhalb des Geräts MUST holzi das Ziel und die Übertragung sichtbar machen und die Einwilligung des Nutzers einholen; ohne Einwilligung MUST nichts gesendet werden.
+- **FR-015**: Vor dem ersten Versand von Auftragsdaten (Text oder Bilder) an ein Ziel außerhalb des Geräts MUST holzi die Datenübertragung und das Ziel sichtbar machen und die Einwilligung des Nutzers einholen; ohne Einwilligung MUST nichts gesendet werden.
 - **FR-016**: Die Einwilligung MUST wie jede andere Berechtigungsabfrage in holzi funktionieren: Sie gilt pro Erweiterung und Ziel und wird für die Sitzung oder dauerhaft erteilt. Eine dauerhafte Einwilligung MUST in den Einstellungen widerrufbar sein, eine Sitzungs-Einwilligung endet mit dem Neustart von holzi.
 - **FR-017**: holzi MUST NICHT stillschweigend von einem lokalen Modell auf ein Ziel ohne erteilte Einwilligung wechseln.
 - **FR-018**: Der Nutzer MUST einen allgemeinen Anbieter nach einem verbreiteten Schnittstellenstandard (OpenAI-kompatibel) mit Adresse und Zugangsschlüssel eintragen können; dessen Modelle MUST in der Freigabeliste erscheinen.
@@ -174,7 +174,7 @@ Das erste Auftragsformat dient haex-notes: Aus dem Foto einer Seite entsteht ein
 - **Anbieter**: Eine Quelle für Modelle: lokal, ein Konto bei einem Cloud-Dienst, die Anbindung eines Befehlszeilen-Agenten oder ein allgemeiner OpenAI-kompatibler Dienst mit Adresse und Schlüssel.
 - **Fähigkeit**: Aussage, ob ein Modell Bilder, strukturierte Ausgabe oder Werkzeuge kann.
 - **Ziel**: Wo ein Auftrag verarbeitet wird: dieses Gerät, ein anderes Gerät, ein Server oder die Cloud.
-- **Einwilligung**: Die Zustimmung des Nutzers pro Erweiterung und Ziel, Bilddaten dorthin zu senden; für die Sitzung oder dauerhaft.
+- **Einwilligung**: Die Zustimmung des Nutzers pro Erweiterung und Ziel, Auftragsdaten dorthin zu senden; für die Sitzung oder dauerhaft.
 - **Herkunft**: Nicht geheime Angaben, welches Format, Modell, Aufwand und Ziel tatsächlich verwendet wurden.
 
 ## Out of Scope
