@@ -33,23 +33,12 @@ Ein Schüler fotografiert seine handschriftlichen Unterrichtsnotizen und importi
 **Acceptance Scenarios**:
 
 1. **Given** ein unterstütztes Foto einer einzelnen Notizseite, **When** der Schüler es direkt mit der Runtime-Kamera aufnimmt oder eine Bilddatei auswählt und die Aufbereitung startet, **Then** wird eine neue Canvas-Seite mit dem Originalbild und einem aufbereiteten Entwurf angelegt.
-2. **Given** ein Foto mit Text, Zeichnungen und einer durchgestrichenen Textstelle, **When** die Aufbereitung abgeschlossen ist, **Then** werden Text und visuelle Inhalte als getrennt bearbeitbare Bereiche dargestellt.
+2. **Given** ein Foto mit Text, Zeichnungen, Tabellen und einer durchgestrichenen Textstelle, **When** die Aufbereitung abgeschlossen ist, **Then** werden Text, Tabellen als Zeilen und Zellen sowie visuelle Inhalte als getrennt bearbeitbare Bereiche dargestellt.
 3. **Given** ein Foto mit schlechter Perspektive oder ungleichmäßiger Beleuchtung, **When** die Aufbereitung startet, **Then** wird es soweit möglich entzerrt und lesbarer gemacht, ein neuer Aufnahmeversuch vorgeschlagen und das unveränderte Original trotzdem erhalten.
 
-### User Story 2 - Erkannte Inhalte prüfen und korrigieren (Priority: P1)
+### User Story 2 - Entfällt
 
-Ein Schüler prüft den automatisch erzeugten Entwurf. Unklare Wörter und mögliche Rechtschreibkorrekturen werden sichtbar markiert, sodass der Schüler sie bestätigen, ändern oder auf den ursprünglichen Bildausschnitt zurücksetzen kann.
-
-**Why this priority**: Handschrift-OCR und die Interpretation von Durchstreichungen können fehlerhaft sein. Die Kontrolle durch den Schüler ist deshalb ein Kernbestandteil und kein Ausnahmefall.
-
-**Independent Test**: In einem Entwurf mit absichtlich schlecht lesbaren Wörtern kann der Schüler jede markierte Stelle korrigieren und den endgültigen Text speichern.
-
-**Acceptance Scenarios**:
-
-1. **Given** ein Wort mit geringer Erkennungssicherheit, **When** der Schüler den Entwurf öffnet, **Then** ist die Stelle eindeutig als prüfbedürftig markiert.
-2. **Given** ein erkannter Text mit einem Rechtschreibvorschlag, **When** der Schüler den Vorschlag öffnet, **Then** kann er ihn übernehmen, ablehnen oder einen eigenen Text eingeben.
-3. **Given** eine erkannte Stelle, **When** der Schüler sie auswählt, **Then** kann er den zugehörigen Ausschnitt des Originalfotos als Referenz anzeigen.
-4. **Given** eine durchgestrichene oder widersprüchliche Textstelle, **When** die automatische Interpretation nicht eindeutig ist, **Then** wird sie zur Prüfung markiert und nicht stillschweigend als endgültiger Inhalt behandelt.
+Ein separater Prüfteil mit Unsicherheitsmarkierungen, Vorschlagslisten und Referenz-Crops gehört nicht zur ersten Ausbaustufe. Der Korrekturschritt wendet ausschließlich Rechtschreibung und eindeutige Lesefehler direkt an; der Schüler kann das Ergebnis danach wie jeden anderen Canvas-Inhalt bearbeiten.
 
 ### User Story 3 - Den Entwurf als Canvas weiterbearbeiten (Priority: P1)
 
@@ -64,27 +53,27 @@ Ein Schüler bearbeitet den erzeugten Entwurf wie eine digitale Notizseite. Er k
 1. **Given** ein aufbereiteter Textbereich, **When** der Schüler Wörter ändert oder ergänzt, **Then** bleibt die Änderung auf diesen Textbereich beschränkt und das Original bleibt unverändert.
 2. **Given** eine Zeichnung oder ein Diagramm, **When** der Schüler es auswählt, **Then** kann er es verschieben und in der Größe verändern.
 3. **Given** ein Entwurf mit mehreren Ebenen, **When** der Schüler zwischen Original, bereinigter Ansicht und Vergleichsansicht wechselt, **Then** werden die entsprechenden Inhalte ein- oder ausgeblendet, ohne Daten zu verlieren.
-4. **Given** ein gespeicherter Entwurf, **When** der Schüler ihn später erneut öffnet, **Then** sind Text, visuelle Inhalte, Korrekturen und Ebenenzustände weiterhin vorhanden.
+4. **Given** ein gespeicherter Entwurf, **When** der Schüler ihn später erneut öffnet, **Then** sind Text, visuelle Inhalte, Bearbeitungen und Ebenenzustände weiterhin vorhanden.
 
 ### User Story 4 - Eine lesbare Version exportieren (Priority: P2)
 
-Ein Schüler exportiert den fertig geprüften Canvas als PDF, um ihn abzugeben, zu teilen oder zu archivieren.
+Ein Schüler exportiert den fertig bearbeiteten Canvas als PDF, um ihn abzugeben, zu teilen oder zu archivieren.
 
 **Why this priority**: Der Export macht das Ergebnis außerhalb von haex-notes nutzbar, ist aber erst sinnvoll, wenn Import, Erkennung und Bearbeitung funktionieren.
 
-**Independent Test**: Ein fertig geprüfter Entwurf kann als PDF exportiert und in einem üblichen PDF-Betrachter geöffnet werden.
+**Independent Test**: Ein fertig bearbeiteter Entwurf kann als PDF exportiert und in einem üblichen PDF-Betrachter geöffnet werden.
 
 **Acceptance Scenarios**:
 
-1. **Given** ein fertig geprüfter Canvas, **When** der Schüler PDF-Export auswählt, **Then** enthält die PDF die sichtbaren bereinigten Text- und Bildelemente in ihrer aktuellen Anordnung.
+1. **Given** ein fertig bearbeiteter Canvas, **When** der Schüler PDF-Export auswählt, **Then** enthält die PDF die sichtbaren bereinigten Text- und Bildelemente in ihrer aktuellen Anordnung.
 2. **Given** ein Canvas mit ausgeblendeter Originalebene, **When** der Schüler exportiert, **Then** wird das Originalbild nicht in die bereinigte PDF aufgenommen.
 3. **Given** ein Canvas, bei dem die Originalebene sichtbar ist, **When** der Schüler exportiert, **Then** wird die PDF entsprechend der gewählten Sichtbarkeit erstellt.
 
 ### Edge Cases
 
 - Das Foto ist unscharf, stark geneigt oder teilweise verdeckt. Die Anwendung muss die Qualität verständlich anzeigen, ein neues Foto vorschlagen und trotzdem eine best-effort-Aufbereitung ermöglichen, ohne das Original zu verwerfen.
-- Einzelne Wörter oder Symbole sind nicht lesbar. Sie bleiben als prüfbedürftige Bereiche beziehungsweise als Originalbild erhalten.
-- Durchgestrichener Text kann nicht sicher von einer gültigen Ergänzung unterschieden werden. Die Anwendung darf keine eindeutige Interpretation vortäuschen.
+- Einzelne Wörter oder Symbole sind nicht lesbar. Der betroffene Bereich wird verworfen oder bleibt als Originalbild erhalten; es wird kein Prüfhinweis erzeugt.
+- Durchgestrichener Text kann nicht sicher von einer gültigen Ergänzung unterschieden werden. Die Anwendung verwirft die unbrauchbare Erkennung oder belässt den betroffenen Bereich als Bild.
 - Zeichnungen, Tabellen und Text werden falsch klassifiziert. Der Schüler muss die betroffenen Bereiche weiterhin als bearbeitbare Inhalte korrigieren können.
 - Die Verarbeitung schlägt fehl oder ist vorübergehend nicht verfügbar. Das Originalbild muss trotzdem als Canvas-Inhalt gespeichert werden können.
 - Eine verwendete Handschrift-Darstellung ist nicht verfügbar. Der Text muss mit einer neutralen Fallback-Darstellung lesbar bleiben.
@@ -99,20 +88,20 @@ Ein Schüler exportiert den fertig geprüften Canvas als PDF, um ihn abzugeben, 
 - **FR-002**: haex-notes MUST eine lokale Arbeitskopie hinsichtlich Zuschnitt, Perspektive und Lesbarkeit aufbereiten, ohne das Originalbild zu überschreiben. Bei erkannten Qualitätsproblemen MUSS die Anwendung einen neuen Aufnahmeversuch vorschlagen und die best-effort-Verarbeitung dennoch ermöglichen.
 - **FR-003**: Das System MUST erkannte Inhalte nach ihrer Rolle unterscheiden können, mindestens zwischen Text und visuellen Inhalten wie Zeichnungen oder Diagrammen.
 - **FR-004**: Das System MUST erkannten Text mit seiner Position auf der Seite in einen bearbeitbaren Entwurf übernehmen.
-- **FR-005**: Das System MUST Erkennungsunsicherheiten sichtbar kennzeichnen und darf unsichere Inhalte nicht als zweifelsfrei korrekt darstellen.
-- **FR-006**: Das System MUST Rechtschreibkorrekturen als überprüfbare Vorschläge anbieten. Vorschläge dürfen den erkannten Text nicht ohne Bestätigung ersetzen.
-- **FR-007**: Das System MUST durchgestrichene, widersprüchliche oder nicht eindeutig interpretierbare Inhalte zur Prüfung markieren und die ursprüngliche Darstellung zugänglich halten.
+- **FR-005**: Das System MUST unbrauchbare Erkennung (etwa Schleifen, leere Ergebnisse oder unbrauchbare Schriftwechsel) für den betroffenen Bereich verwerfen; der Bereich bleibt leer oder als Originalbild erhalten.
+- **FR-006**: Das System MUST Rechtschreibung und eindeutige Lesefehler direkt korrigieren, ohne einen separaten Prüfhinweis oder eine Vorschlagsliste zu erzeugen. Abkürzungen, Wortwahl und Zeilenumbrüche dürfen dabei nicht verändert werden.
+- **FR-007**: Das System MUST die unveränderte Originaldarstellung als ausblendbare Ebene erhalten, auch wenn die Interpretation eines Bereichs verworfen wird.
 - **FR-008**: Das System MUST die Auswahl einer handschriftlichen Darstellung für bereinigten Text ermöglichen. Die Darstellung dient der Präsentation; der zugrunde liegende Inhalt bleibt bearbeitbarer Text.
 - **FR-009**: Das System MUST erkannte Zeichnungen, Diagramme und vergleichbare visuelle Inhalte als eigenständige Objekte im Canvas speichern, die der Schüler verschieben und in ihrer Größe verändern kann.
 - **FR-010**: Das System MUST eine Ansicht ermöglichen, in der das Originalbild, der bereinigte Entwurf und ein direkter Vergleich ein- oder ausgeblendet werden können.
-- **FR-011**: Das System MUST für einen bearbeiteten Textbereich den zugehörigen Originalausschnitt als Referenz anzeigen können.
-- **FR-012**: Das System MUST den Entwurf mit allen Text-, Bild-, Korrektur- und Sichtbarkeitsinformationen speichern und wiederherstellen können.
+- **FR-011**: Das System MUST Tabellen als bearbeitbare Zeilen und Zellen speichern können, statt sie nur als Bild zu behandeln.
+- **FR-012**: Das System MUST den Entwurf mit allen Text-, Bild-, Tabellen- und Sichtbarkeitsinformationen speichern und wiederherstellen können.
 - **FR-013**: Das System MUST den sichtbaren Canvas-Zustand als PDF exportieren können.
 - **FR-014**: Das System MUST ohne persönliche Schreibproben oder ein persönliches Handschriftprofil funktionieren. Eine individuelle Handschriftanpassung ist nicht Bestandteil dieser ersten Ausbaustufe.
 - **FR-015**: Das System MUST vor einer Verarbeitung außerhalb des eigenen Geräts verständlich anzeigen, wohin Notizbilder und erkannte Inhalte übertragen werden, und eine solche Übertragung darf nicht stillschweigend erfolgen.
 - **FR-016**: Das System MUST bei nicht verfügbarer oder fehlgeschlagener automatischer Verarbeitung den manuellen Zugriff auf das Originalbild und das Erstellen eines bearbeitbaren Canvas ermöglichen.
 - **FR-017**: Die automatische Aufbereitung MUST standardmäßig über den konfigurierten Holzi-Agent-Task laufen. haex-notes darf für den Standardpfad weder einen konkreten LLM-Anbieter noch ein eigenes Provider-SDK voraussetzen.
-- **FR-018**: Der Holzi-Agent-Task MUST ein strukturiertes, schema-validiertes Ergebnis mit Text-/Bildregionen, Quellpositionen, Konfidenzen, Vorschlägen und Verarbeitungsmetadaten liefern. Freier Chat-Text darf nicht direkt als Canvas-Dokument interpretiert werden.
+- **FR-018**: Der Holzi-Agent-Task MUST ein strukturiertes, schema-validiertes Ergebnis mit Text-, Bild- und Tabellenregionen, Quellpositionen und Verarbeitungsmetadaten liefern. Freier Chat-Text darf nicht direkt als Canvas-Dokument interpretiert werden.
 - **FR-019**: Die Auswahl von Modell und Harness MUST außerhalb des Canvas-Datenmodells über Holzi-Agent-Einstellungen erfolgen. Die Seite darf nur die verwendete Profil-/Modellkennung und den Verarbeitungsstatus als Provenienz speichern, niemals Zugangsdaten.
 
 ### Key Entities
@@ -120,9 +109,8 @@ Ein Schüler exportiert den fertig geprüften Canvas als PDF, um ihn abzugeben, 
 - **Notizimport**: Ein vom Schüler hinzugefügtes Originalfoto einschließlich Aufnahme- und Seiteninformationen.
 - **Originalebene**: Die unveränderte Referenzdarstellung des importierten Fotos, die nicht durch automatische Korrekturen überschrieben wird.
 - **Inhaltsbereich**: Ein räumlich abgegrenzter erkannter Bereich mit Rolle, Position und optionaler Verbindung zum Originalausschnitt.
-- **Textbereich**: Ein bearbeitbarer Textinhalt mit Erkennungsergebnis, Korrekturstatus und verwendeter Handschrift-Darstellung.
+- **Textbereich**: Ein bearbeitbarer Textinhalt mit Erkennungsergebnis und verwendeter Handschrift-Darstellung.
 - **Visuelles Objekt**: Eine Zeichnung, ein Diagramm, eine Tabelle oder ein anderer nicht als Text behandelter Bereich, der unabhängig im Canvas bearbeitet werden kann.
-- **Prüfhinweis**: Eine markierte Stelle, bei der Erkennung, Rechtschreibung oder Interpretation nicht ausreichend sicher ist.
 - **Canvas-Entwurf**: Die zusammengesetzte, speicherbare Seite aus Original, Textbereichen, visuellen Objekten und Sichtbarkeitseinstellungen.
 - **Recognition-Profil**: Eine in Holzi konfigurierte Auswahl aus Harness, Modell, Verarbeitungsort und optionaler Fallback-Regel für strukturierte Papiernotiz-Aufbereitung.
 
@@ -130,7 +118,7 @@ Ein Schüler exportiert den fertig geprüften Canvas als PDF, um ihn abzugeben, 
 
 - Persönliches Training oder lokales Abrufen einer individuellen Handschrift des Schülers.
 - Automatische Umwandlung von Zeichnungen in vollständig editierbare Vektorgrafiken.
-- Vollautomatische inhaltliche Verbesserung, bei der die Anwendung ohne Bestätigung Text erfindet, löscht oder umformuliert.
+- Vollautomatische inhaltliche Verbesserung über Rechtschreibung und eindeutige Lesefehler hinaus; insbesondere darf die Anwendung keine Inhalte erfinden, löschen oder umformulieren.
 - Zwangsbindung an einen bestimmten Cloud-Anbieter oder ein bestimmtes KI-Modell.
 - Eine direkte LLM-/OCR-Integration in haex-notes neben dem Holzi-Agent-Task.
 
@@ -139,17 +127,17 @@ Ein Schüler exportiert den fertig geprüften Canvas als PDF, um ihn abzugeben, 
 ### Measurable Outcomes
 
 - **SC-001**: Für jede repräsentative Einzelbild-Fixture wird auf der festgelegten Referenzumgebung innerhalb von drei Minuten entweder ein erster Canvas-Entwurf oder eine verständliche Qualitäts-/Verarbeitungswarnung angezeigt.
-- **SC-002**: Alle in den annotierten Referenz-Fixtures als unsicher markierten Regionen sind im Entwurf sichtbar prüfbar.
-- **SC-003**: Der Quickstart-Durchlauf ermöglicht das Prüfen und Korrigieren eines markierten Textfehlers, ohne das Originalbild zu verändern.
+- **SC-002**: Alle in den annotierten Referenz-Fixtures als unbrauchbar gekennzeichneten Regionen werden verworfen oder als Originalbild erhalten; es wird kein leerer oder erfundener Inhalt daraus erzeugt.
+- **SC-003**: Der Quickstart-Durchlauf ermöglicht das Bearbeiten eines erzeugten Text- und Bildbereichs, ohne das Originalbild zu verändern.
 - **SC-004**: Alle in einer annotierten Referenz-Fixture erwarteten Text- und visuellen Objekte bleiben nach Speichern, erneutem Öffnen und PDF-Export mit definierter Positionstoleranz und erwarteter Sichtbarkeit erhalten.
-- **SC-005**: Für jede automatisch vorgeschlagene Textänderung ist im Entwurf nachvollziehbar, welcher Originalbereich zugrunde lag; keine bestätigungsbedürftige Korrektur wird stillschweigend angewendet.
+- **SC-005**: Automatische Änderungen beschränken sich auf Rechtschreibung und eindeutige Lesefehler; Abkürzungen, Wortwahl und Zeilenumbrüche bleiben in allen annotierten Referenz-Fixtures erhalten.
 - **SC-006**: Bei einem Ausfall der automatischen Verarbeitung bleibt das Originalbild für 100 % der erfolgreich importierten Testseiten zugänglich und der Nutzer kann den Entwurf manuell weiterbearbeiten.
 - **SC-007**: Eine spätere Pilotbewertung kann die wahrgenommene Übersichtlichkeit und Bearbeitbarkeit erfassen; sie ist kein technisches Release-Gate dieser Ausbaustufe.
 
 ## Assumptions
 
 - Die erste Version erhält Bilder über den Dateiauswahldialog der plattformunabhängigen holzi-Runtime; eine verfügbare Kamera kann zusätzlich unterstützt werden. Eine zusätzliche Scanner- oder Tafel-App ist nicht erforderlich.
-- Der Schüler prüft automatisch erzeugte Inhalte selbst. Die Anwendung stellt einen korrigierbaren Entwurf bereit, keine verbindliche Transkription.
+- Der Schüler bearbeitet automatisch erzeugte Inhalte selbst. Die Anwendung stellt einen korrigierbaren Entwurf bereit, keine verbindliche Transkription.
 - Bilder werden einzeln verarbeitet und jeweils einer Notizseite zugeordnet; Batch- und Mehrseitenimport sind nicht Teil der ersten Ausbaustufe.
 - Die Auswahl und Lizenzierung der verfügbaren Handschrift-Darstellungen wird vor der Veröffentlichung separat geprüft.
 - Die Entscheidung, ob die automatische Verarbeitung lokal oder über einen externen Dienst erfolgt, bleibt eine spätere Architekturentscheidung; der Nutzer muss den Verarbeitungsort jedoch nachvollziehen können.
