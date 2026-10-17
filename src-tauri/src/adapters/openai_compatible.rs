@@ -18,7 +18,7 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 
 use super::anthropic::truncate_body;
-use super::openai_request::build_chat_body;
+use super::openai_request::{build_chat_body_with_limit, TokenLimitField};
 use super::types::{AdapterStream, ChatRequest, StreamChunk, StreamError, ToolCall};
 use super::{AdapterError, ProviderAdapter, ProviderModel};
 use crate::model_capabilities::ModelCapabilities;
@@ -31,6 +31,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 pub struct OpenAiCompatibleAdapter {
     client: Client,
     base_url: String,
+    token_limit_field: TokenLimitField,
     /// `None` when the server needs no key.
     api_key: Option<String>,
 }
@@ -49,6 +50,7 @@ impl OpenAiCompatibleAdapter {
         let api_key = Some(api_key).filter(|key| !key.trim().is_empty());
         Ok(Self {
             client,
+            token_limit_field: token_limit_field_for_endpoint(&base_url),
             base_url,
             api_key,
         })
@@ -63,6 +65,22 @@ impl OpenAiCompatibleAdapter {
             Some(key) => request.bearer_auth(key),
             None => request,
         }
+    }
+}
+
+/// OpenAI's o-series endpoint rejects `max_tokens`; compatible local and hosted servers use it.
+pub(super) fn token_limit_field_for_endpoint(base_url: &str) -> TokenLimitField {
+    let host = reqwest::Url::parse(base_url)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_ascii_lowercase));
+    if host.as_deref() == Some("api.openai.com")
+        || host
+            .as_deref()
+            .is_some_and(|host| host.ends_with(".openai.azure.com"))
+    {
+        TokenLimitField::MaxCompletionTokens
+    } else {
+        TokenLimitField::MaxTokens
     }
 }
 
@@ -139,7 +157,7 @@ impl ProviderAdapter for OpenAiCompatibleAdapter {
 
     async fn stream_chat(&self, req: ChatRequest) -> Result<AdapterStream, AdapterError> {
         let endpoint = self.endpoint("chat/completions");
-        let body = build_chat_body(&req);
+        let body = build_chat_body_with_limit(&req, self.token_limit_field);
         let resp = self
             .authorize(
                 self.client

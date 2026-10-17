@@ -5,9 +5,26 @@ use serde_json::json;
 use wiremock::matchers::{body_partial_json, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::openai_compatible::OpenAiCompatibleAdapter;
+use super::openai_compatible::{token_limit_field_for_endpoint, OpenAiCompatibleAdapter};
+use super::openai_request::TokenLimitField;
 use super::types::{ChatMessage, ChatRequest, ChatRole, StreamChunk, StreamError};
 use super::{AdapterError, ProviderAdapter};
+
+#[test]
+fn token_limit_field_is_selected_by_endpoint() {
+    assert_eq!(
+        token_limit_field_for_endpoint("https://api.openai.com/v1"),
+        TokenLimitField::MaxCompletionTokens
+    );
+    assert_eq!(
+        token_limit_field_for_endpoint("http://localhost:11434/v1"),
+        TokenLimitField::MaxTokens
+    );
+    assert_eq!(
+        token_limit_field_for_endpoint("http://school-server/v1"),
+        TokenLimitField::MaxTokens
+    );
+}
 
 fn request(reasoning: bool) -> ChatRequest {
     ChatRequest {

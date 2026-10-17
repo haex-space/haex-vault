@@ -10,8 +10,22 @@ use serde_json::{json, Value};
 
 use super::types::{Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TokenLimitField {
+    MaxTokens,
+    MaxCompletionTokens,
+}
+
 /// Serializes a provider-neutral chat request for `POST {base}/chat/completions`.
 pub(super) fn build_chat_body(req: &ChatRequest) -> Value {
+    build_chat_body_with_limit(req, TokenLimitField::MaxTokens)
+}
+
+/// Serializes a request using the token-limit field supported by the configured endpoint.
+pub(super) fn build_chat_body_with_limit(
+    req: &ChatRequest,
+    token_limit_field: TokenLimitField,
+) -> Value {
     let mut messages = Vec::new();
     if let Some(system) = req.system_prompt.as_ref() {
         messages.push(json!({"role": "system", "content": system}));
@@ -33,10 +47,9 @@ pub(super) fn build_chat_body(req: &ChatRequest) -> Value {
         "stream_options": {"include_usage": true},
     });
     if let Some(max) = req.max_new_tokens {
-        let token_limit = if is_openai_reasoning_model(model_id) {
-            "max_completion_tokens"
-        } else {
-            "max_tokens"
+        let token_limit = match token_limit_field {
+            TokenLimitField::MaxTokens => "max_tokens",
+            TokenLimitField::MaxCompletionTokens => "max_completion_tokens",
         };
         body[token_limit] = json!(max);
     }
@@ -70,25 +83,6 @@ pub(super) fn build_chat_body(req: &ChatRequest) -> Value {
         body["tools"] = Value::Array(tools);
     }
     body
-}
-
-/// OpenAI's o-series rejects the legacy `max_tokens` field. Other compatible servers, including
-/// Gemini, Ollama, vLLM and llama.cpp, use the broadly supported legacy field. Only switch when the
-/// model id unambiguously names an o-series model so a similarly named local model is unaffected.
-fn is_openai_reasoning_model(model_id: &str) -> bool {
-    let model = model_id
-        .strip_prefix("models/")
-        .unwrap_or(model_id)
-        .rsplit('/')
-        .next()
-        .unwrap_or(model_id)
-        .to_ascii_lowercase();
-    ["o1", "o3", "o4"].iter().any(|prefix| {
-        model == *prefix
-            || model.strip_prefix(prefix).is_some_and(|suffix| {
-                suffix.starts_with('-') || suffix.starts_with('_') || suffix.starts_with(':')
-            })
-    })
 }
 
 /// Regroups holzi's flat per-row history: consecutive `ToolCall` rows become one `assistant`

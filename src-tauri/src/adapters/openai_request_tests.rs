@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use super::openai_request::build_chat_body;
+use super::openai_request::{build_chat_body, build_chat_body_with_limit, TokenLimitField};
 use super::types::{Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole, ToolSpec};
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 
@@ -94,7 +94,7 @@ fn an_openai_o_series_model_uses_the_completion_token_field() {
     req.model_id = "o3-mini".to_string();
     req.max_new_tokens = Some(256);
 
-    let body = build_chat_body(&req);
+    let body = build_chat_body_with_limit(&req, TokenLimitField::MaxCompletionTokens);
 
     assert_eq!(body["max_completion_tokens"], 256);
     assert!(body.get("max_tokens").is_none());
