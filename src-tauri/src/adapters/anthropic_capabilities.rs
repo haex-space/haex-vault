@@ -184,6 +184,7 @@ pub(super) fn map_capabilities(wire: &WireCapabilities) -> ModelCapabilities {
         // The wire API has no tool field; every current Claude model calls tools. A provider that
         // reports the opposite takes precedence (spec 032 FR-015), there is no such signal yet.
         tool_use: Some(ToolUse::new(ToolSupport::Supported, ToolUseBasis::Provider)),
+        user: None,
     }
 }
 

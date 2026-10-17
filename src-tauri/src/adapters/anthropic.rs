@@ -438,7 +438,7 @@ impl ProviderAdapter for AnthropicAdapter {
 /// `HolziError` and across the Tauri boundary. A misconfigured
 /// `base_url` can answer with a multi-megabyte HTML page, and that
 /// belongs in neither an error string nor the UI.
-fn truncate_body(mut body: String) -> String {
+pub(super) fn truncate_body(mut body: String) -> String {
     const MAX_BODY: usize = 512;
     if body.len() <= MAX_BODY {
         return body;

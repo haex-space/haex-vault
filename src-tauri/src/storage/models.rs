@@ -12,7 +12,7 @@ use haex_crdt::rusqlite::{params, Result};
 use haex_crdt::CrdtTransaction;
 use serde::{Deserialize, Serialize};
 
-use crate::model_capabilities::{ModelCapabilities, ToolUse};
+use crate::model_capabilities::{ModelCapabilities, ToolUse, UserCapabilities};
 use crate::storage::query::Query;
 use crate::storage::uuid;
 
@@ -229,6 +229,56 @@ pub fn set_tool_use(
     )? > 0)
 }
 
+/// What the user stated about a model, if anything.
+fn user_stated(
+    tx: &mut CrdtTransaction<'_>,
+    id: &str,
+) -> haex_crdt::Result<Option<UserCapabilities>> {
+    let stored: Vec<Option<String>> = tx.query_map(
+        "SELECT capabilities_json FROM models WHERE id = ?1",
+        params![id],
+        |r| r.get(0),
+    )?;
+    Ok(stored
+        .into_iter()
+        .next()
+        .and_then(|raw| capabilities_from_column(id, raw))
+        .and_then(|capabilities| capabilities.user)
+        .filter(|user| !user.is_empty()))
+}
+
+/// Stores what the user states about a model and lays it over the record, keeping the rest of
+/// it. An empty statement withdraws the earlier one together with the values it set. Returns the
+/// new record, or `None` when the model does not exist.
+pub fn set_user_capabilities(
+    tx: &mut CrdtTransaction<'_>,
+    id: &str,
+    user: UserCapabilities,
+) -> haex_crdt::Result<Option<ModelCapabilities>> {
+    let stored: Vec<Option<String>> = tx.query_map(
+        "SELECT capabilities_json FROM models WHERE id = ?1",
+        params![id],
+        |r| r.get(0),
+    )?;
+    let Some(raw) = stored.into_iter().next() else {
+        return Ok(None);
+    };
+    let capabilities = capabilities_from_column(id, raw).unwrap_or_default();
+    let capabilities = if user.is_empty() {
+        capabilities.without_user()
+    } else {
+        let mut capabilities = capabilities.without_user();
+        capabilities.user = Some(user);
+        capabilities.with_user_applied()
+    };
+    let json = capabilities_to_column(Some(&capabilities))?;
+    tx.execute(
+        "UPDATE models SET capabilities_json = ?1 WHERE id = ?2",
+        params![json, id],
+    )?;
+    Ok(Some(capabilities))
+}
+
 /// Reads `capabilities_json` leniently: a value that cannot be parsed reads
 /// as "not determined" and is logged with the model id and the parse error,
 /// so one corrupt row can never make the model list fail to load (spec 012
@@ -349,7 +399,20 @@ pub fn replace_provider_models(
     fresh: &[ModelRow],
 ) -> haex_crdt::Result<()> {
     for m in fresh {
-        upsert_model(tx, m)?;
+        // One thing survives a refresh: what the user stated about the model (spec 055 FR-019).
+        // The provider's answer is merged under it; nothing else of the old record is kept.
+        match user_stated(tx, &m.id)? {
+            Some(user) => {
+                let mut row = m.clone();
+                let mut capabilities = row.capabilities.take().unwrap_or_default();
+                capabilities.user = Some(user);
+                row.capabilities = Some(capabilities.with_user_applied());
+                upsert_model(tx, &row)?;
+            }
+            None => {
+                upsert_model(tx, m)?;
+            }
+        }
     }
 
     let keep: HashSet<&str> = fresh.iter().map(|m| m.id.as_str()).collect();

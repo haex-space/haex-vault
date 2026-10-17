@@ -38,6 +38,31 @@ pub struct ModelCapabilities {
     /// Whether the model can call tools (spec 032). `None` = not determined: tools are offered
     /// with a hint. The value is vault-wide and syncs with the `models` row.
     pub tool_use: Option<ToolUse>,
+    /// What the user stated about this model because the provider cannot describe it (spec 055
+    /// FR-019). A refresh keeps it and lays it over the provider's answer
+    /// ([`ModelCapabilities::with_user_applied`]). `None` = the user stated nothing; the field is
+    /// then absent from the stored JSON, so existing records read and write as before.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<UserCapabilities>,
+}
+
+/// The user's statements about a model (spec 055 FR-019): what an OpenAI-compatible server's
+/// `/models` answer does not say. Each field is independent; `None` = not stated.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UserCapabilities {
+    /// `Some(true)`: the model takes images; `Some(false)`: it does not.
+    pub accepts_images: Option<bool>,
+    /// The effort levels the model takes, as provider-native ids, lowest first. `Some(vec![])`:
+    /// the model has none.
+    pub effort_levels: Option<Vec<String>>,
+}
+
+impl UserCapabilities {
+    /// True when the user stated nothing at all.
+    pub fn is_empty(&self) -> bool {
+        self.accepts_images.is_none() && self.effort_levels.is_none()
+    }
 }
 
 /// Whether a model can call tools, and where that knowledge comes from.
@@ -167,6 +192,48 @@ impl ModelCapabilities {
         *self == ModelCapabilities::default()
     }
 
+    /// Lays the user's statements over the record: what the user said about images and effort
+    /// levels replaces what the provider said (or left undetermined), so every reader of the
+    /// ordinary fields sees it. A record without statements is returned unchanged.
+    pub fn with_user_applied(mut self) -> Self {
+        let Some(user) = self.user.clone() else {
+            return self;
+        };
+        if let Some(images) = user.accepts_images {
+            let mut kinds = vec![AttachmentKind::Text];
+            if images {
+                kinds.push(AttachmentKind::Image);
+            }
+            self.accepted_attachment_kinds = Some(kinds);
+        }
+        if let Some(levels) = user.effort_levels {
+            self.reasoning = Some(ReasoningControl::presets(
+                levels
+                    .into_iter()
+                    .map(|id| ReasoningOption {
+                        label: id.clone(),
+                        id,
+                    })
+                    .collect(),
+            ));
+        }
+        self
+    }
+
+    /// Withdraws the user's statements and the values they set, so the next refresh restores what
+    /// the provider says (or "not determined").
+    pub fn without_user(mut self) -> Self {
+        if let Some(user) = self.user.take() {
+            if user.accepts_images.is_some() {
+                self.accepted_attachment_kinds = None;
+            }
+            if user.effort_levels.is_some() {
+                self.reasoning = None;
+            }
+        }
+        self
+    }
+
     /// Restores the "presets are never empty" invariant for a record that
     /// came through serde (storage or the wire), which bypasses
     /// [`ReasoningControl::presets`].
@@ -192,6 +259,7 @@ impl ModelCapabilities {
             tool_use: crate::catalog::get(model_id)
                 .and_then(|entry| entry.tool_use)
                 .map(|support| ToolUse::new(support, ToolUseBasis::Curated)),
+            user: None,
         }
     }
 }

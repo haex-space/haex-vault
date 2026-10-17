@@ -48,6 +48,7 @@ fn serialized_shape_matches_the_documented_examples() {
         accepted_attachment_kinds: Some(vec![AttachmentKind::Text, AttachmentKind::Image]),
         thinking_style: Some(ThinkingStyle::Adaptive),
         tool_use: Some(ToolUse::new(ToolSupport::Supported, ToolUseBasis::Provider)),
+        user: None,
     };
 
     assert_eq!(

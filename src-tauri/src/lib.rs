@@ -151,6 +151,7 @@ use passwords::commands::trash::{
     passwords_delete_permanently, passwords_empty_trash, passwords_restore, passwords_trash,
 };
 use passwords::commands::usage::passwords_item_usage;
+use providers::capabilities::set_model_user_capabilities;
 use providers::connect::{connect_cli_delegate, submit_cli_delegate_code, DelegateConnectState};
 use providers::{
     add_provider, delete_provider, list_provider_models, list_providers, refresh_provider_models,
@@ -466,6 +467,7 @@ pub fn run() {
             connect_cli_delegate,
             submit_cli_delegate_code,
             refresh_provider_models,
+            set_model_user_capabilities,
             list_provider_models,
             download_model_from_catalog,
             model_download_check,

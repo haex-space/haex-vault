@@ -50,8 +50,10 @@ Gleiche Ablage wie die übrigen Grenzwerte (`extensions/registry/limits.rs`); di
 
 - `providers.adapter` bekommt den Wert `openai_compatible` (neben `anthropic`, `claude`, `codex`).
   `base_url` und `credentials` wie bei `api_key`-Anbietern.
-- `models.capabilities_json` (`ModelCapabilities`) darf `accepted_attachment_kinds` und eine Liste der
-  Aufwandstufen als Nutzerangabe tragen; sie hat Vorrang vor der Auskunft des Anbieters.
+- `models.capabilities_json` (`ModelCapabilities`) trägt ein Feld `user` mit der Nutzerangabe („nimmt Bilder
+  an“, Aufwandstufen). Die Angabe wird über die gewöhnlichen Felder gelegt (`with_user_applied`), damit alle
+  Leser sie sehen, und überlebt das Auffrischen der Modellliste: `replace_provider_models` mischt sie unter die
+  neue Auskunft des Anbieters. Eine leere Angabe nimmt sie samt den gesetzten Werten zurück.
 
 ### Katalog lokaler Modelle (`S/catalog/model_catalog.json`)
 

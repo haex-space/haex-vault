@@ -136,12 +136,12 @@ remote-model tests in B, which use a fake adapter.
 
 **Independent Test**: A test server with this interface is entered as a provider; its models show in the grant list and a granted extension receives a result through it.
 
-- [ ] T050 [US5] Tests first in `src-tauri/src/adapters/openai_compatible_tests.rs` against a local mock server: model list; streaming with `delta.content`, `delta.reasoning_content` and `[DONE]`; fragments of `tool_calls`; an image as an `image_url` data URI; `reasoning_effort`; 401 and 403 give `InvalidCredentials`, 429 and 5xx are transient; a TLS error is reported through `transport_error`
-- [ ] T051 [US5] Implement `src-tauri/src/adapters/openai_compatible.rs` (`ProviderAdapter`: `list_models`, `stream_chat`, `Authorization: Bearer`) and export it in `src-tauri/src/adapters/mod.rs`
+- [x] T050 [US5] Tests first in `src-tauri/src/adapters/openai_compatible_tests.rs` against a local mock server: model list; streaming with `delta.content`, `delta.reasoning_content` and `[DONE]`; fragments of `tool_calls`; an image as an `image_url` data URI; `reasoning_effort`; 401 and 403 give `InvalidCredentials`, 429 and 5xx are transient; a TLS error is reported through `transport_error`
+- [x] T051 [US5] Implement `src-tauri/src/adapters/openai_compatible.rs` (`ProviderAdapter`: `list_models`, `stream_chat`, `Authorization: Bearer`) and export it in `src-tauri/src/adapters/mod.rs`
 - [ ] T052 [US5] Tests first in `src-tauri/src/providers/openai_compatible_tests.rs`: adding a provider with the adapter `openai_compatible` stores base URL and encrypted key, refreshes the models; a wrong key fails with a message that holds no key; `build_adapter` returns the adapter
-- [ ] T053 [US5] Register `openai_compatible` in `validate_adapter`, `build_adapter` and `add_provider` in `src-tauri/src/providers/mod.rs`
+- [x] T053 [US5] Register `openai_compatible` in `validate_adapter`, `build_adapter` and `add_provider` in `src-tauri/src/providers/mod.rs`
 - [ ] T054 [US5] Tests first for the user's model capabilities in `src-tauri/src/providers/capabilities_override_tests.rs`: the user sets "takes images" and the effort levels for a model; the setting wins over the provider's answer in `models.capabilities_json`; candidates and `extension_model_list` read it (FR-019)
-- [ ] T055 [US5] Implement the capability override command in `src-tauri/src/providers/` and its use in `model_capabilities.rs`; regenerate bindings
+- [x] T055 [US5] Implement the capability override command in `src-tauri/src/providers/` and its use in `model_capabilities.rs`; regenerate bindings
 - [ ] T056 [US5] Frontend: the provider dialog gets the vendor "OpenAI-kompatibel" (address, key), the model list a "takes images" switch and the effort levels in `src/components/settings/providers/…`; de/en keys; a pure check for the address validation in `scripts/check-provider-address.ts`
 
 **Checkpoint**: US5 works (delivery A, can land first). Quickstart step 1.
