@@ -40,10 +40,11 @@ Sonderfälle, die die Regel nicht von selbst löst:
 - **Typpräfix**: `HolziError` wird `VaultError`, nicht `HaexVaultError`. `VaultError` ist im Code
   frei; `VaultGate` und ähnliche Namen existieren, kollidieren aber nicht. Jeder Typ wird
   beim Anwenden gegen vorhandene Namen geprüft; bei Kollision gilt `HaexVault…`.
-- **`HOLZI_VAULT`** wird nach der Regel `HAEX_VAULT_VAULT`. Das ist unschön, aber eindeutig; ein
-  freier Name wäre eine eigene Entscheidung, und eine zweite Regel kostet mehr als der Name.
-- **Kontaktart `holzi_vault`**: Regel ergäbe `haex_vault_vault`. Sie wird `haex_vault`, die zwei
-  anderen `haex_vault_nostr_relay` und `haex_vault_iroh`. Der Name `haex_vault` meint hier eine
+- **Kontaktart `holzi_vault`** und ihre Konstante `HOLZI_VAULT` (keine Umgebungsvariable, nur in
+  `contacts/kinds.rs` und deren Tests): Die Regel ergäbe `haex_vault_vault` und `HAEX_VAULT_VAULT`.
+  Sie werden `haex_vault` und `HAEX_VAULT` (Entscheidung des Betreibers, 2026-10-17); `HAEX_VAULT`
+  ist im Code frei. Die zwei anderen Arten folgen der Regel: `haex_vault_nostr_relay` und
+  `haex_vault_iroh`. Der Name `haex_vault` meint hier eine
   Vault-Identität dieser App; die alte App spielt in dieser Liste keine Rolle (R4).
 - **Anzeigename**: Die Spec verlangt „haex-vault“ in der Oberfläche. Die Schreibweise „Haex Vault“
   des Produktnamens der alten App wird nicht übernommen.
