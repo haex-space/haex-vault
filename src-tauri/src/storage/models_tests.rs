@@ -20,6 +20,7 @@ fn determined() -> ModelCapabilities {
         accepted_attachment_kinds: Some(vec![AttachmentKind::Text]),
         thinking_style: Some(ThinkingStyle::Manual),
         tool_use: Some(ToolUse::new(ToolSupport::Supported, ToolUseBasis::Provider)),
+        user: None,
     }
 }
 

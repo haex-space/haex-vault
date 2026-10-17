@@ -12,10 +12,13 @@
 //! `providers/refresh.rs` next to `providers/connect.rs`, leaving the
 //! provider CRUD commands here.
 
+pub mod capabilities;
 pub mod connect;
 #[cfg(test)]
 mod connect_tests;
 pub mod local;
+#[cfg(test)]
+mod openai_compatible_tests;
 #[cfg(test)]
 mod providers_tests;
 
@@ -25,6 +28,7 @@ use uuid::Uuid;
 
 use crate::adapters::anthropic::AnthropicAdapter;
 use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
+use crate::adapters::openai_compatible::OpenAiCompatibleAdapter;
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
 use crate::error::{HolziError, Result};
 use crate::model_capabilities::ModelCapabilities;
@@ -115,7 +119,10 @@ pub async fn add_provider(
                     reason: "api_key provider requires base_url".into(),
                 });
             }
-            if args.api_key.as_deref().unwrap_or("").is_empty() {
+            // A server in the own network (Ollama, a school server) often wants no key.
+            if !key_is_optional(args.adapter.as_deref())
+                && args.api_key.as_deref().unwrap_or("").is_empty()
+            {
                 return Err(HolziError::InvalidInput {
                     reason: "api_key provider requires api_key".into(),
                 });
@@ -165,13 +172,17 @@ pub async fn add_provider(
 
     let db = active_database(&state)?;
     let now = now_ms();
+    let key_optional = key_is_optional(args.adapter.as_deref());
     let provider = Provider {
         id: Uuid::new_v4(),
         kind: args.kind,
         adapter: args.adapter,
         name: args.name,
         base_url: args.base_url,
-        credentials: args.api_key.map(|k| k.into_bytes()),
+        credentials: args
+            .api_key
+            .filter(|k| !(key_optional && k.trim().is_empty()))
+            .map(|k| k.into_bytes()),
         created_at: now,
         // `add_provider` only ever creates chat providers today (spec 008's
         // transcription capability is additive but not yet exposed through
@@ -373,21 +384,31 @@ pub(crate) fn build_adapter(
                     .ok_or_else(|| HolziError::InvalidInput {
                         reason: "api_key provider is missing base_url".into(),
                     })?;
-            let credentials =
-                provider
-                    .credentials
-                    .as_ref()
-                    .ok_or_else(|| HolziError::InvalidInput {
+            let key = provider
+                .credentials
+                .as_ref()
+                .map(|credentials| {
+                    std::str::from_utf8(credentials.as_slice())
+                        .map(str::to_string)
+                        .map_err(|e| HolziError::InvalidInput {
+                            reason: format!("api_key credentials are not UTF-8: {e}"),
+                        })
+                })
+                .transpose()?;
+            let adapter: Box<dyn ProviderAdapter> = match provider.adapter.as_deref() {
+                Some("anthropic") => {
+                    let api_key = key.ok_or_else(|| HolziError::InvalidInput {
                         reason: "api_key provider is missing credentials".into(),
                     })?;
-            let api_key = std::str::from_utf8(credentials.as_slice())
-                .map_err(|e| HolziError::InvalidInput {
-                    reason: format!("api_key credentials are not UTF-8: {e}"),
-                })?
-                .to_string();
-            let adapter = match provider.adapter.as_deref() {
-                Some("anthropic") => AnthropicAdapter::new(base_url.to_string(), api_key)
-                    .map_err(map_adapter_error)?,
+                    Box::new(
+                        AnthropicAdapter::new(base_url.to_string(), api_key)
+                            .map_err(map_adapter_error)?,
+                    )
+                }
+                Some(OPENAI_COMPATIBLE) => Box::new(
+                    OpenAiCompatibleAdapter::new(base_url.to_string(), key.unwrap_or_default())
+                        .map_err(map_adapter_error)?,
+                ),
                 Some(other) => {
                     return Err(HolziError::InvalidInput {
                         reason: format!("unsupported provider adapter: {other}"),
@@ -399,7 +420,7 @@ pub(crate) fn build_adapter(
                     });
                 }
             };
-            Ok(Box::new(adapter))
+            Ok(adapter)
         }
         ProviderKind::CliDelegate => {
             let vendor = provider
@@ -430,11 +451,19 @@ pub(crate) fn build_adapter(
     }
 }
 
+/// Adapter id of the generic OpenAI-compatible provider (spec 055 R7).
+pub(crate) const OPENAI_COMPATIBLE: &str = "openai_compatible";
+
+/// Whether a provider of this adapter may be saved without a key.
+fn key_is_optional(adapter: Option<&str>) -> bool {
+    adapter == Some(OPENAI_COMPATIBLE)
+}
+
 /// Validates the adapter discriminator before storing an API-key provider.
 /// Dispatch must remain explicit as more vendor adapters are added.
 fn validate_adapter(adapter: Option<&str>) -> Result<()> {
     match adapter {
-        Some("anthropic") => Ok(()),
+        Some("anthropic") | Some(OPENAI_COMPATIBLE) => Ok(()),
         Some(other) => Err(HolziError::InvalidInput {
             reason: format!("unsupported provider adapter: {other}"),
         }),

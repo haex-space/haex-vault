@@ -88,6 +88,7 @@ fn claude_capabilities() -> ModelCapabilities {
         accepted_attachment_kinds: Some(vec![AttachmentKind::Text, AttachmentKind::Image]),
         thinking_style: Some(ThinkingStyle::Adaptive),
         tool_use: Some(ToolUse::new(ToolSupport::Supported, ToolUseBasis::Provider)),
+        user: None,
     }
 }
 
@@ -281,6 +282,7 @@ fn backfill_fills_only_null_local_rows_and_is_idempotent() {
         accepted_attachment_kinds: Some(vec![AttachmentKind::Image]),
         thinking_style: None,
         tool_use: None,
+        user: None,
     };
     upsert(
         &db,

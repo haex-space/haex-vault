@@ -48,7 +48,7 @@ fn legacy_adapter_repair_does_not_guess_from_kind() {
 
 // --- Model refresh and capabilities (spec 012) ------------------------------
 
-fn open_vault(dir: &std::path::Path) -> Arc<Database> {
+pub(super) fn open_vault(dir: &std::path::Path) -> Arc<Database> {
     Arc::new(
         Database::open(DatabaseConfig {
             path: dir.join("vault.db"),
