@@ -41,7 +41,10 @@ Kommentare:
 | `until`   | optional, `S10`: nach dieser Stufe wird der Eintrag entfernt; die Prüfung kennt das Feld nur als Hinweis in der Ausgabe                                                                                                                             |
 
 Die Liste ist **abschließend**: Ein Eintrag ohne Treffer ist ein Fehler („unbenutzter Eintrag“),
-damit sie nicht über die Zeit verwaist. Der Anfangsinhalt steht in
+damit sie nicht über die Zeit verwaist. Die drei Gate-Metadateien selbst (`check-old-name.py`,
+`test_check_old_name.py` und `old-name-allowlist.txt`) stehen als explizite `path`-Einträge in der
+Liste, weil Implementierung, Tests und Konfiguration den Suchbegriff absichtlich als Prüfdatum
+enthalten. Der Anfangsinhalt steht in
 [data-model.md](../data-model.md).
 
 ## Ausgabe und Rückgabewert
@@ -74,5 +77,5 @@ Jeder Test baut ein kleines Git-Repo in einem temporären Verzeichnis:
 
 Ab S8 ist die Prüfung Teil von „Documentation consistency“ (Pflichtprüfung für `main`). Ein PR, der
 den Namen neu einführt, scheitert dort mit den Fundstellen (SC-001). S10 entfernt die zwei Einträge
-mit `until: S10`; danach bleibt die Liste bei drei Einträgen (Spec 054, Verzeichnisname 032, der
-Hinweissatz „früher holzi“ im README und in `CONTEXT.md`).
+mit `until: S10`; danach bleiben die sechs dauerhaften Einträge für Spec 054, Verzeichnisname 032,
+die drei Gate-Metadateien und die zwei Hinweissätze „früher holzi“ im README und in `CONTEXT.md`.

@@ -57,13 +57,16 @@ Repo (Format: [contracts/old-name-gate.md](contracts/old-name-gate.md)).
 
 Anfangsinhalt (nach S8):
 
-| Muster                                                      | kind     | Grund                                     | until |
-| ----------------------------------------------------------- | -------- | ----------------------------------------- | ----- |
-| `specs/054-haex-vault-rename/**`                            | path     | Die Spec beschreibt die Umbenennung.      | –     |
-| `specs/032-model-operates-holzi`                            | pathname | Verzeichnisname bleibt (FR-018).          | –     |
-| `.spaex/**`                                                 | path     | Vom spaex-Werkzeug aus den atoms erzeugt. | S10   |
-| `.specify/memory/constitution.md`                           | path     | Wie `.spaex`, vom Werkzeug erzeugt.       | S10   |
-| README, `CONTEXT.md`: der eine Hinweissatz („früher holzi“) | line     | Name als Vergangenheit (FR-004).          | –     |
+| Muster                                                      | kind     | Grund                                                | until |
+| ----------------------------------------------------------- | -------- | ---------------------------------------------------- | ----- |
+| `specs/054-haex-vault-rename/**`                            | path     | Die Spec beschreibt die Umbenennung.                 | –     |
+| `specs/032-model-operates-holzi`                            | pathname | Verzeichnisname bleibt (FR-018).                     | –     |
+| `.spaex/**`                                                 | path     | Vom spaex-Werkzeug aus den atoms erzeugt.            | S10   |
+| `.specify/memory/constitution.md`                           | path     | Wie `.spaex`, vom Werkzeug erzeugt.                  | S10   |
+| `scripts/ci/check-old-name.py`                              | path     | Gate-Implementierung enthält das Suchmuster.         | –     |
+| `scripts/ci/test_check_old_name.py`                         | path     | Gate-Testfälle enthalten das Suchmuster.             | –     |
+| `scripts/ci/old-name-allowlist.txt`                         | path     | Gate-Konfiguration enthält Suchmuster und Ausnahmen. | –     |
+| README, `CONTEXT.md`: der eine Hinweissatz („früher holzi“) | line     | Name als Vergangenheit (FR-004).                     | –     |
 
 Git-Historie und der Tag `holzi-final` sind keine verfolgten Dateien und liegen außerhalb der
 Prüfung.
