@@ -262,14 +262,15 @@ async fn tool_call_fragments_become_one_call_before_done() {
 }
 
 #[tokio::test]
-async fn malformed_tool_call_arguments_fail_instead_of_running_with_empty_input() {
+async fn malformed_tool_arguments_end_the_stream_with_a_model_error() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/chat/completions"))
         .respond_with(sse(
             &[
                 json!({"choices": [{"delta": {"tool_calls": [
-                    {"index": 0, "id": "call_bad", "function": {"name": "weather", "arguments": "{"}}
+                    {"index": 0, "id": "call_1", "type": "function",
+                     "function": {"name": "weather", "arguments": "{"}}
                 ]}}]}),
                 json!({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}),
             ],
@@ -283,7 +284,7 @@ async fn malformed_tool_call_arguments_fail_instead_of_running_with_empty_input(
 
     assert!(matches!(
         chunks.last(),
-        Some(Err(StreamError::Model(message))) if message.contains("invalid tool call arguments")
+        Some(Err(StreamError::Model(message))) if message.contains("invalid tool arguments")
     ));
     assert!(!chunks
         .iter()

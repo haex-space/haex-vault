@@ -1,7 +1,7 @@
 //! Chat-completions request construction for OpenAI-compatible servers (spec 055, research R7).
 //!
 //! Turns a provider-neutral [`ChatRequest`] into the body most servers share (OpenAI, Gemini's
-//! compatibility layer, Ollama, vLLM, llama.cpp): `messages`, `stream`, optional `max_tokens`,
+//! compatibility layer, Ollama, vLLM, llama.cpp): `messages`, `stream`, optional token limit,
 //! `reasoning_effort` and `tools`. Kept apart from `openai_compatible.rs` so the transport and the
 //! SSE decoding stay readable on their own.
 
@@ -73,12 +73,22 @@ pub(super) fn build_chat_body(req: &ChatRequest) -> Value {
 }
 
 /// OpenAI's o-series rejects the legacy `max_tokens` field. Other compatible servers, including
-/// Gemini, Ollama, vLLM and llama.cpp, use the broadly supported legacy field.
+/// Gemini, Ollama, vLLM and llama.cpp, use the broadly supported legacy field. Only switch when the
+/// model id unambiguously names an o-series model so a similarly named local model is unaffected.
 fn is_openai_reasoning_model(model_id: &str) -> bool {
-    let model_id = model_id.to_ascii_lowercase();
-    ["o1", "o3", "o4"]
-        .iter()
-        .any(|prefix| model_id.starts_with(prefix))
+    let model = model_id
+        .strip_prefix("models/")
+        .unwrap_or(model_id)
+        .rsplit('/')
+        .next()
+        .unwrap_or(model_id)
+        .to_ascii_lowercase();
+    ["o1", "o3", "o4"].iter().any(|prefix| {
+        model == *prefix
+            || model.strip_prefix(prefix).is_some_and(|suffix| {
+                suffix.starts_with('-') || suffix.starts_with('_') || suffix.starts_with(':')
+            })
+    })
 }
 
 /// Regroups holzi's flat per-row history: consecutive `ToolCall` rows become one `assistant`

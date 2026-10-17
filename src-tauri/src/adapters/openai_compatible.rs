@@ -333,19 +333,17 @@ impl Run {
     /// calls go out as one chunk right before `Done`, like with Anthropic.
     fn finish(&mut self) -> Result<Vec<StreamChunk>, StreamError> {
         let mut out = Vec::new();
-        let calls: Vec<ToolCall> = std::mem::take(&mut self.tool_calls)
-            .into_values()
-            .map(|(id, name, arguments)| {
-                let input = if arguments.trim().is_empty() {
-                    serde_json::json!({})
-                } else {
-                    serde_json::from_str(&arguments).map_err(|error| {
-                        StreamError::Model(format!("invalid tool call arguments: {error}"))
-                    })?
-                };
-                Ok(ToolCall { id, name, input })
-            })
-            .collect::<Result<_, StreamError>>()?;
+        let mut calls = Vec::with_capacity(self.tool_calls.len());
+        for (id, name, arguments) in std::mem::take(&mut self.tool_calls).into_values() {
+            let input = if arguments.trim().is_empty() {
+                serde_json::json!({})
+            } else {
+                serde_json::from_str(&arguments).map_err(|error| {
+                    StreamError::Model(format!("invalid tool arguments for {name}: {error}"))
+                })?
+            };
+            calls.push(ToolCall { id, name, input });
+        }
         if !calls.is_empty() {
             out.push(StreamChunk::ToolCalls(calls));
         }
