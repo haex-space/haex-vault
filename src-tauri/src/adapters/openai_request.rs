@@ -33,7 +33,12 @@ pub(super) fn build_chat_body(req: &ChatRequest) -> Value {
         "stream_options": {"include_usage": true},
     });
     if let Some(max) = req.max_new_tokens {
-        body["max_tokens"] = json!(max);
+        let token_limit = if is_openai_reasoning_model(model_id) {
+            "max_completion_tokens"
+        } else {
+            "max_tokens"
+        };
+        body[token_limit] = json!(max);
     }
     // Sent only when it is one of this model's own cached options (as for Anthropic): an option
     // the model does not offer must never reach the server.
@@ -65,6 +70,15 @@ pub(super) fn build_chat_body(req: &ChatRequest) -> Value {
         body["tools"] = Value::Array(tools);
     }
     body
+}
+
+/// OpenAI's o-series rejects the legacy `max_tokens` field. Other compatible servers, including
+/// Gemini, Ollama, vLLM and llama.cpp, use the broadly supported legacy field.
+fn is_openai_reasoning_model(model_id: &str) -> bool {
+    let model_id = model_id.to_ascii_lowercase();
+    ["o1", "o3", "o4"]
+        .iter()
+        .any(|prefix| model_id.starts_with(prefix))
 }
 
 /// Regroups holzi's flat per-row history: consecutive `ToolCall` rows become one `assistant`

@@ -262,6 +262,35 @@ async fn tool_call_fragments_become_one_call_before_done() {
 }
 
 #[tokio::test]
+async fn malformed_tool_call_arguments_fail_instead_of_running_with_empty_input() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(sse(
+            &[
+                json!({"choices": [{"delta": {"tool_calls": [
+                    {"index": 0, "id": "call_bad", "function": {"name": "weather", "arguments": "{"}}
+                ]}}]}),
+                json!({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}),
+            ],
+            true,
+        ))
+        .mount(&server)
+        .await;
+    let adapter = OpenAiCompatibleAdapter::new(server.uri(), String::new()).expect("adapter");
+
+    let chunks = collect(&adapter, request(false)).await;
+
+    assert!(matches!(
+        chunks.last(),
+        Some(Err(StreamError::Model(message))) if message.contains("invalid tool call arguments")
+    ));
+    assert!(!chunks
+        .iter()
+        .any(|chunk| matches!(chunk, Ok(StreamChunk::ToolCalls(_)))));
+}
+
+#[tokio::test]
 async fn a_stream_that_closes_after_the_finish_reason_still_ends_with_done() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))

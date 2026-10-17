@@ -89,6 +89,18 @@ fn the_system_prompt_leads_and_the_cap_is_sent() {
 }
 
 #[test]
+fn an_openai_o_series_model_uses_the_completion_token_field() {
+    let mut req = request(vec![message(ChatRole::User, "hi")]);
+    req.model_id = "o3-mini".to_string();
+    req.max_new_tokens = Some(256);
+
+    let body = build_chat_body(&req);
+
+    assert_eq!(body["max_completion_tokens"], 256);
+    assert!(body.get("max_tokens").is_none());
+}
+
+#[test]
 fn an_image_goes_as_a_data_uri_part_after_the_text() {
     let mut user = message(ChatRole::User, "Read this page");
     user.attachments.push(image(&[1, 2, 3]));

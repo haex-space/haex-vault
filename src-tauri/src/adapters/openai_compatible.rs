@@ -172,7 +172,14 @@ impl ProviderAdapter for OpenAiCompatibleAdapter {
                 };
                 let data = event.data.trim();
                 if data == "[DONE]" {
-                    for chunk in run.finish() {
+                    let chunks = match run.finish() {
+                        Ok(chunks) => chunks,
+                        Err(error) => {
+                            let _ = tx.send(Err(error));
+                            return;
+                        }
+                    };
+                    for chunk in chunks {
                         let _ = tx.send(Ok(chunk));
                     }
                     return;
@@ -192,7 +199,14 @@ impl ProviderAdapter for OpenAiCompatibleAdapter {
             }
             // Some servers close the stream after the last chunk without `[DONE]`.
             if run.finish_reason.is_some() {
-                for chunk in run.finish() {
+                let chunks = match run.finish() {
+                    Ok(chunks) => chunks,
+                    Err(error) => {
+                        let _ = tx.send(Err(error));
+                        return;
+                    }
+                };
+                for chunk in chunks {
                     let _ = tx.send(Ok(chunk));
                 }
             } else {
@@ -317,20 +331,21 @@ impl Run {
 
     /// The closing chunks. A tool call is complete only now, when all its fragments are in; the
     /// calls go out as one chunk right before `Done`, like with Anthropic.
-    fn finish(&mut self) -> Vec<StreamChunk> {
+    fn finish(&mut self) -> Result<Vec<StreamChunk>, StreamError> {
         let mut out = Vec::new();
         let calls: Vec<ToolCall> = std::mem::take(&mut self.tool_calls)
             .into_values()
-            .map(|(id, name, arguments)| ToolCall {
-                id,
-                name,
-                input: if arguments.trim().is_empty() {
+            .map(|(id, name, arguments)| {
+                let input = if arguments.trim().is_empty() {
                     serde_json::json!({})
                 } else {
-                    serde_json::from_str(&arguments).unwrap_or(serde_json::json!({}))
-                },
+                    serde_json::from_str(&arguments).map_err(|error| {
+                        StreamError::Model(format!("invalid tool call arguments: {error}"))
+                    })?
+                };
+                Ok(ToolCall { id, name, input })
             })
-            .collect();
+            .collect::<Result<_, StreamError>>()?;
         if !calls.is_empty() {
             out.push(StreamChunk::ToolCalls(calls));
         }
@@ -341,6 +356,6 @@ impl Run {
             ttft_ms: self.ttft_ms,
             total_ms: self.start.elapsed().as_millis() as u64,
         });
-        out
+        Ok(out)
     }
 }
