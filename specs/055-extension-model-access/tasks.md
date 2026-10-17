@@ -19,7 +19,7 @@ table added to a synced table bumps `HOLZI_TRIGGER_VERSION`. Cross-repo referenc
 worktree on a topic branch from `origin/main`; its PR follows the operator's account rules.
 
 **Deliveries** (plan): A = Phase 7 (US5, provider); B + D = Phases 1–6 (job core, permissions, dialogs);
-C = Phase 8 (US6, local images, starts with the spike T046); E = Phase 9 (US7, test extension, SDK).
+C = Phase 8 (US6, local images, starts with the spike T057); E = Phase 9 (US7, test extension, SDK).
 Each delivery is its own PR. Order: A, B + D, C, E. A and B + D do not depend on each other except for the
 remote-model tests in B, which use a fake adapter.
 
@@ -63,11 +63,11 @@ remote-model tests in B, which use a fake adapter.
 
 **Independent Test**: A test extension with a grant sends an image, an instruction and a format to a scripted fake adapter and receives a format-valid result; without a grant the adapter is never called.
 
-- [ ] T021 [US1] Integration test `src-tauri/tests/extension_model_jobs.rs` with a scripted fake `ProviderAdapter`: (1) grant, then a result with provenance; (2) no grant, then `ConsentRequired` prompt or `NoCapableModel` and zero adapter calls; (3) no field of any answer or event holds a key or address (seeded provider data)
+- [ ] T021 [US1] Integration test `src-tauri/tests/extension_model_jobs.rs` with a scripted fake `ProviderAdapter`: (1) grant, then a result with provenance; (2) no grant, then a `PermissionPromptRequired` (1004) prompt and zero adapter calls; (3) no field of any answer or event holds a key or address (seeded provider data)
 - [ ] T022 [P] [US1] Tests first in `src-tauri/src/model_jobs/model_source_tests.rs`: a remote model yields an adapter built from its `providers` and `models` rows; a missing or unreachable provider yields `Unavailable`; the local source is a trait with a fake for tests
 - [ ] T023 [US1] Implement `src-tauri/src/model_jobs/model_source.rs` (`adapter_for(model_id)`: remote through `providers::build_adapter`, local through a trait implemented in Phase 8; until then local reports `Unavailable`)
-- [ ] T024 [P] [US1] Tests first in `src-tauri/src/model_jobs/candidates_tests.rs`: candidates are the models the extension may use (grants, including `*`), that satisfy `needs` (image from `ModelCapabilities.accepted_attachment_kinds`), and are reachable, in the order of `extension_model_order`, then of grant time
-- [ ] T025 [US1] Implement `src-tauri/src/model_jobs/candidates.rs` (`for_step(ctx, extension_id, step) -> Vec<Candidate>` with place and capped effort)
+- [ ] T024 [P] [US1] Tests first in `src-tauri/src/model_jobs/candidates_tests.rs`: candidates are the models the extension may use (grants, including `*`) that satisfy `needs` (image from `ModelCapabilities.accepted_attachment_kinds`), in the order of `extension_model_order`, then of grant time; do not filter by reachability before an attempt, so `Unavailable` remains visible in provenance and the fallback can run
+- [ ] T025 [US1] Implement `src-tauri/src/model_jobs/candidates.rs` (`for_step(ctx, extension_id, step) -> Vec<Candidate>` with place and capped effort); check reachability only when attempting a candidate
 - [ ] T026 [US1] Tests first in `src-tauri/src/model_jobs/runner_tests.rs` (single step): the request carries no tools, the instruction as system prompt, the images as attachments and the format's schema as a hint; the stream is collected to text; the deadline and the cancel token abort and drop the stream
 - [ ] T027 [US1] Implement the single-step run in `src-tauri/src/model_jobs/runner.rs` (build `ChatRequest` with `tools: []`, `max_new_tokens` from `maxOutputTokens`, `reasoning_option` from `effort.rs`; collect `StreamChunk::Delta`; honour the cancel token and deadline)
 - [ ] T028 [US1] Implement `start` and `cancel` in `src-tauri/src/model_jobs/bridge.rs`: preflight, spawn the run, emit `haextension:model-job:completed` with `provenance` through `extensions/bridge/events.rs`, remove the record afterwards; adapt the frame hooks in `src-tauri/src/extensions/commands/frames.rs` to `model_jobs`; tests in `bridge_tests.rs` (owner check, wrong owner `SecurityViolation`, unknown id `{cancelled: false}`)
@@ -154,7 +154,7 @@ remote-model tests in B, which use a fake adapter.
 
 **Independent Test**: With a local vision test model an image job runs without network access; with a text-only model the same job is rejected before any processing.
 
-- [ ] T057 [US6] **Spike** (research R8): an ignored test `src-tauri/src/llm/local/multimodal_spike_tests.rs` loads Qwen3-VL-4B through `MultimodalModelBuilder` with 4-bit in-situ quantisation on the development card and reads a test page; record peak VRAM and time per page in `research.md` R8 and decide: go (T058–T062) or fallback (T063). Needs a full CUDA build and a model download: ask first and run memory-limited (`systemd-run --user --scope -p MemoryMax=10G cargo test -j 2 …`), with the holzi dev app closed
+- [ ] T057 [US6] **Spike** (research R8): an ignored test `src-tauri/src/llm/local/multimodal_spike_tests.rs` loads Qwen3-VL-4B through `MultimodalModelBuilder` with 4-bit in-situ quantisation on the development card and reads a test page; record peak VRAM and time per page in `research.md` R8 and decide: go (T058–T062) or fallback (T063). Needs a full CUDA build and a model download: ask first and run memory-limited through the devShell (`systemd-run --user --scope -p MemoryMax=10G nix develop --command scripts/with-nix-host-bridge.sh cargo test -j 2 …`), with the holzi dev app closed
 - [ ] T058 [US6] Tests first in `src-tauri/src/llm/local/stream_tests.rs`: `build_request` decodes `Attachment` bytes to `DynamicImage` and uses `add_image_message`; a corrupt image gives an error, not a silent drop
 - [ ] T059 [US6] Add `LocalModel::load_multimodal(dir, isq)` in `src-tauri/src/llm/local/loader.rs` and the image path in `src-tauri/src/llm/local/stream.rs`
 - [ ] T060 [US6] Catalog fields `format`, `vision`, `isq` in `src-tauri/src/catalog/model_catalog.json` and its Rust type, a vision entry (Qwen3-VL-4B) and the download of a directory model (progress, `relative_path` of the directory, summed `size_bytes` in `device_downloaded_models_no_sync`); tests next to the catalog code
@@ -186,7 +186,7 @@ remote-model tests in B, which use a fake adapter.
 - [ ] T070 [P] Storage test `src-tauri/tests/extension_model_jobs_storage.rs`: after completed, cancelled and failed jobs the content of every table equals the content before, except permissions and consents (SC-011); and no `tracing` field logs an image, instruction or answer (grep test over `model_jobs/`)
 - [ ] T071 [P] Check every new or changed file stays under 500 lines (`wc -l` over the plan's structure tree)
 - [ ] T072 Remove leftovers of `agent_tasks` and `extension_ai_task_*` in code, comments and docs (`rg "agent_tasks|extension_ai_task|ai-task"`)
-- [ ] T073 Run `cargo fmt --check`, `pnpm lint:rust` (both feature sets), `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features`, every `pnpm check:*`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, `pnpm format:check`, and the E2E scenario; clippy for the Android target as well; Rust builds memory-limited
+- [ ] T073 Run the checks through the devShell: `nix develop --command scripts/with-nix-host-bridge.sh cargo fmt --check`, `nix develop --command scripts/with-nix-host-bridge.sh cargo check --manifest-path src-tauri/Cargo.toml` and the corresponding `cargo test --manifest-path src-tauri/Cargo.toml` commands for both default and `--no-default-features`, `nix develop --command pnpm lint:rust` (both feature sets), and `nix develop --command pnpm <script>` for every `check:*`, `typecheck`, `typecheck:scripts`, `lint`, `format:check` and the E2E scenario; run clippy for the Android target as well and keep Rust builds memory-limited
 - [ ] T074 Walk through `specs/055-extension-model-access/quickstart.md` steps 1–12 (and the local-image step with delivery C); record skipped steps in the PR description
 - [ ] T075 Add **Modellauftrag**, **Modellfreigabe** and **Ziel (Ort)** to `CONTEXT.md` (extensions section)
 
