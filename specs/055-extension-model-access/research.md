@@ -45,8 +45,9 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 - **Begründung**: Das Zeilenmodell (`kind, action, target, status`) trägt beides ohne Migration. Die Abfrage
   läuft über den vorhandenen Weg: Handler gibt `PermissionPromptRequired` (1004) mit Einzelheiten zurück,
   `bridge/permissions.rs::ask` fragt, `extension_permission_resolve` speichert mit `remember` eine Zeile oder
-  hält die Entscheidung bis zum Ende des Prozesses (`PermissionState::hold`). Das ist genau „Sitzung oder
-  dauerhaft“ aus FR-004 und FR-016.
+  hält die Entscheidung bis zum Ende der Tresorsitzung (`PermissionState::hold`). Der bestehende Holder ist
+  derzeit prozessweit; die Lieferung muss ihn beim Schließen der Tresorsitzung leeren, damit FR-004 und FR-016
+  tatsächlich „Sitzung oder dauerhaft“ bedeuten.
 - **Folgen**: `Action` und `Target` brauchen Parser für beide Arten, `manifest_map.rs` bekommt „keine
   Manifestkategorie“ wie `AgentTool`, der Dialog (`PermissionRequestDialog.vue`) bekommt zwei Zweige, die
   Einstellungen listen beide Arten (`ExtensionPermissionsView.vue`).
@@ -61,11 +62,13 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 - **Entscheidung**: `extension_model_job_start` prüft vor jedem Modellaufruf in dieser Reihenfolge:
   1. Eingabe und Grenzen (R9). Verstoß: `LimitExceeded` mit dem Namen der Grenze.
   2. Je Schritt die Kandidatenliste: freigegebene Modelle der Erweiterung, in der Rangfolge (R5), die
-     `needs` erfüllen und erreichbar sind. Leere Liste: gibt es gar keine Freigabe oder passt keines zu
-     `needs`, fragt der Start nach einer Freigabe (1004 `model`, mit Modellauswahl im Dialog); sonst
-     `NoCapableModel`.
+     `needs` erfüllen. Die Erreichbarkeit wird erst beim Versuch geprüft und darf keinen Kandidaten vorab
+     aus der Liste entfernen, damit Ausfälle in der Herkunft und im Ausweichweg sichtbar bleiben. Leere Liste:
+     gibt es gar keine Freigabe oder passt keines zu `needs`, fragt der Start nach einer Freigabe (1004 `model`,
+     mit Modellauswahl im Dialog); sonst `NoCapableModel`.
   3. Für den ersten Kandidaten jedes Schritts mit Ziel außerhalb des Geräts: fehlt die Einwilligung, fragt der
-     Start (1004 `modelDestination`).
+     Start (1004 `modelDestination`). Die Abfrage enthält eine Zusammenfassung der Daten dieses Schritts
+     (Text-/Bildarten und Größen), Ziel und Ort; Inhalte werden nicht in der Berechtigungsentscheidung gespeichert.
   4. Ausweichkandidaten ohne Einwilligung fallen aus der Liste.
   5. Erst dann startet der Lauf im Hintergrund.
 - **Begründung**: FR-025 (alle Schritte vorab) und FR-015/FR-017 (nie ohne Einwilligung, auch nicht nach einem

@@ -18,7 +18,8 @@ werden nie gespeichert (FR-028).
 - Beide Arten sind vault-weit (nicht gerätegebunden); sie synchronisieren wie jede Berechtigung
   (`extension_permissions`, Entwicklungsversionen in `dev_extension_permissions_no_sync`).
 - „Nur für die Sitzung“ erzeugt keine Zeile. Die Entscheidung liegt im Arbeitsspeicher (`PermissionState::hold`)
-  und endet mit dem Prozess.
+  und endet beim Schließen der Tresorsitzung; die Lieferung muss den derzeit prozessweiten Holder an diesen
+  Lebenszyklus binden.
 - Lokale Ziele (`this_device`) haben nie eine `modelDestination`-Zeile.
 
 ### `extension_model_order` (neu, CRDT-getrackt)

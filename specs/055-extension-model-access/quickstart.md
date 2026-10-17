@@ -16,8 +16,9 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
    _(FR-006)_
 5. **Ziel außerhalb des Geräts**: Ein Auftrag mit Bild an das Cloud-Modell fragt zuerst nach der Einwilligung mit
    Ziel und Ort; „ablehnen“ sendet nichts. _(FR-015, SC-004)_
-6. **Sitzung gegen dauerhaft**: Nach „für die Sitzung“ fragt der nächste Auftrag nicht; nach dem Neustart von holzi
-   wieder. Nach „dauerhaft“ nicht, bis der Nutzer in den Einstellungen widerruft. _(FR-016)_
+6. **Sitzung gegen dauerhaft**: Nach „für die Sitzung“ fragt der nächste Auftrag nicht; nach dem Schließen und
+   erneuten Öffnen der Tresorsitzung wieder. Nach „dauerhaft“ nicht, bis der Nutzer in den Einstellungen widerruft.
+   _(FR-016)_
 7. **Rangfolge und Ausweichweg**: Zwei Modelle freigeben, das bevorzugte absichtlich unbrauchbar machen (Testmodus
    der Test-Erweiterung: Schleife). Das zweite liefert; ohne Einwilligung für dessen Ziel endet der Auftrag mit
    einem Fehler und die Herkunft nennt den ersten Versuch. _(FR-027, FR-017)_

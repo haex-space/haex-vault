@@ -33,10 +33,11 @@ Image { mimeType: "image/jpeg" | "image/png" | "image/webp", data: string /* Bas
 
 - `from` darf nur auf einen **früheren** Schritt zeigen; der Teil unter `pointer` wird dem Modell als Text
   (JSON) angehängt. Beim Start prüft holzi, dass `step` früher im Auftrag steht und dass `pointer` nach dem
-  Schema dieses Schritts vorkommen kann; sonst `InvalidInput`. Fehlt der Teil zur Laufzeit im tatsächlichen
+  Schema des referenzierten früheren Schritts vorkommen kann; sonst `InvalidInput`. Fehlt der Teil zur Laufzeit im tatsächlichen
   Ergebnis, endet der Schritt mit `Unusable` (Grund „from fehlt“) und der Ausweichweg greift nicht, weil das
   Ergebnis des früheren Schritts feststeht.
-- `images` und `from` dürfen nur in dem Schritt stehen, dessen `needs` es erlauben (`image` für Bilder).
+- `images` dürfen nur in einem Schritt stehen, dessen `needs` `"image"` enthält. `from` darf nur in einem
+  Schritt stehen, dessen `needs` `"text"` enthält, weil frühere Ergebnisse als Text/JSON übergeben werden.
 - Der Text für das Modell besteht aus `instruction` (Systemanweisung), dem Eingabetext und dem Schema als
   Hinweis auf das erwartete JSON. holzi fügt einen festen Satz hinzu, der verlangt, nur gültiges JSON nach dem
   Schema auszugeben. Mehr stellt holzi nicht voran; die Anweisung bleibt die der Erweiterung.

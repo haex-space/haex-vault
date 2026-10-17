@@ -50,7 +50,9 @@ Fehler bei der Vorprüfung kommen als Antwort der Methode (BridgeError), nicht a
 `PermissionPromptRequired` trägt `details`:
 
 - `{ resourceType: "model", action: "<Aufwand>", target: "<models.id>" }`: Freigabe eines Modells.
-- `{ resourceType: "modelDestination", action: "send", target: "<providers.id>" }`: Einwilligung für ein Ziel.
+- `{ resourceType: "modelDestination", action: "send", target: "<providers.id>",
+   transfer: { kinds: ["text"|"image"], textBytes: number,
+               imageCount: number, imageBytes: number } }`: Einwilligung für ein Ziel.
 
 Eine Ablehnung des Nutzers liefert `ConsentDenied` bzw. `NoCapableModel`, abhängig davon, was fehlt.
 
@@ -76,16 +78,19 @@ data: {
   status: "completed" | "failed" | "cancelled",
   result?: { steps: [ { id: string, result: <Wert nach format.schema> } ], final: <Ergebnis des letzten Schritts> },
   provenance: [ { stepId: string, formatName: string, formatVersion: number,
-                  attempts: [ { model: string, place: "...", effort: "none"|"low"|"medium"|"high"|"managed",
+                  attempts: [ { model: string, place: "this_device"|"network"|"cloud",
+                                effort: "none"|"low"|"medium"|"high"|"managed",
                                 outcome: "used" | "unusable" | "unavailable" | "timeout", reason?: string } ] } ],
-  error?: { code: string, message: string, stepId?: string }
+  error?: { code: "Unusable"|"Unavailable"|"Timeout"|"Cancelled"|"ConsentDenied"|"NoCapableModel",
+            message: string, stepId?: string }
 }
 ```
 
 - `provenance` gibt je Schritt alle versuchten Modelle mit Ausgang an (FR-023, FR-027). `effort` ist der
   tatsächlich verwendete Aufwand nach dem Deckeln (FR-006).
 - Fehlercodes des Ereignisses: `Unusable` (Wächter oder Schema, Grund in `message`), `Unavailable` (kein
-  Modell erreichbar), `Timeout`, `Cancelled`, `ConsentDenied`. `Unusable` ist von den anderen unterscheidbar
+  Modell erreichbar), `Timeout`, `Cancelled`, `ConsentDenied` und `NoCapableModel` (eine Freigabe wurde während
+  des Auftrags entzogen). `Unusable` ist von den anderen unterscheidbar
   (FR-011). `message` enthält nie Adresse, Schlüssel oder Antwortkörper des Anbieters.
 - Nach dem Ereignis kennt holzi den Auftrag nicht mehr; die Erweiterung hält Ergebnis und Herkunft selbst.
 

@@ -17,7 +17,9 @@ Technischer Ansatz (Begründungen in [research.md](./research.md)):
   Besitzer, Abbruch, Rahmen-Haken und Abschluss-Ereignis bleiben; Eingabe, Definitionen, Prüfung und Testdaten
   werden ersetzt. Aufträge haben 1 bis 4 Schritte, ein späterer Schritt liest einen Teil des früheren.
 - **Berechtigungen** (R3, R5): zwei neue Arten in `extension_permissions` (`model` mit höchstem Aufwand,
-  `modelDestination` für die Einwilligung), dieselbe Abfrage wie überall (Sitzung oder dauerhaft); eine kleine
+  `modelDestination` für die Einwilligung), dieselbe Abfrage wie überall (Sitzung oder dauerhaft); die
+  sitzungsgebundene Entscheidung wird beim Schließen der Tresorsitzung aus dem bestehenden In-Memory-Holder
+  entfernt; eine kleine
   Tabelle `extension_model_order` für die Rangfolge.
 - **Ziele und Ausweichweg** (R4, R6): Ort jedes Modells (`this_device`, `network`, `cloud`); alle Fragen stellt
   der Start; Ausweichmodelle ohne Einwilligung fallen weg.
@@ -60,7 +62,8 @@ für neue reine TS-Module; E2E-Szenario mit der Test-Erweiterung; Versuch zum lo
 Seitenauftrag auf der Zielhardware in der Größenordnung von Sekunden bis wenigen Minuten (Test: 3–130 s je Seite);
 kein Messziel für Modelle (Spec: Modellwahl ist Einstellung).
 
-**Constraints**: Aufträge ohne Werkzeuge (FR-026); nichts dauerhaft speichern (FR-028); kein Byte außerhalb des
+**Constraints**: Aufträge ohne Werkzeuge (FR-026); nichts dauerhaft speichern (FR-028); sitzungsgebundene
+Berechtigungen enden mit der Tresorsitzung (FR-016); kein Byte außerhalb des
 Geräts ohne Einwilligung (FR-015); Obergrenzen (R9); Dateien < 500 Zeilen; Rust-Tests in `*_tests.rs`;
 keine Zugangsdaten in Fehlern, Ereignissen oder Protokollen.
 
