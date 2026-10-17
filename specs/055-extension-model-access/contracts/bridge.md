@@ -50,9 +50,15 @@ Fehler bei der Vorprüfung kommen als Antwort der Methode (BridgeError), nicht a
 `PermissionPromptRequired` trägt `details`:
 
 - `{ resourceType: "model", action: "<Aufwand>", target: "<models.id>" }`: Freigabe eines Modells.
-- `{ resourceType: "modelDestination", action: "send", target: "<providers.id>",
-   transfer: { kinds: ["text"|"image"], textBytes: number,
-               imageCount: number, imageBytes: number } }`: Einwilligung für ein Ziel.
+- `modelDestination` trägt für die Einwilligung zusätzlich die Datenübersicht:
+
+  ```text
+  { resourceType: "modelDestination", action: "send", target: "<providers.id>",
+    transfer: { kinds: ["text"|"image"], textBytes: number,
+                imageCount: number, imageBytes: number } }
+  ```
+
+  Sie nennt die übertragenen Datentypen und Größen, aber keine Inhalte.
 
 Eine Ablehnung des Nutzers liefert `ConsentDenied` bzw. `NoCapableModel`, abhängig davon, was fehlt.
 
