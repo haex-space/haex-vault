@@ -5,9 +5,10 @@ nicht anders genannt).
 
 ## R1: Wie groß ist die Änderung, und wo steckt der Name?
 
-**Befund.** Rund 1140 Dateien enthalten „holzi“, zusammen etwa 4500 Treffer; dazu 264 Dateien unter
-`specs/`. `src-tauri` hat 3233 Treffer (2431 in `src-tauri/src`, 72 Integrationstests importieren
-`holzi_lib`), `scripts` 111 Dateien (davon 267 Treffer im E2E-Rig), `src` 107 Dateien, `docs` 25,
+**Befund.** Auf `main` bei `3392de8f` enthalten 1147 verfolgte Dateien „holzi“ mit 7101 Treffern;
+außerhalb von `specs/` sind es 879 Dateien mit 4232 Treffern, in `specs/` 268 Dateien mit 2869
+Treffern. `src-tauri` hat 3225 Treffer (2431 in `src-tauri/src`, 72 Integrationstests importieren
+`holzi_lib`), `scripts` 109 Dateien (davon 267 Treffer im E2E-Rig), `src` 107 Dateien, `docs` 25,
 `.github` 2, `.spaex` 3. Der Name steckt auch in **Pfaden**: das Plugin-Verzeichnis
 `src-tauri/plugins/holzi-android`, die Kotlin-Verzeichnisse `com/haex/holzi` (App) und
 `space/haex/holzi` (Plugin), zehn Bilddateien `holzi-*.svg` in den Icon-Sets, ein Skriptordner

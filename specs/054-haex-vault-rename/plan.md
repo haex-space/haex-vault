@@ -32,7 +32,7 @@ iroh, vault-sdk (Erweiterungen), ts-rs (Typen für das Frontend), Gradle für An
 folgt dem Identifier
 
 **Testing**: `cargo fmt/check/clippy/test` (alle Pakete und Ziele, auch `--no-default-features`),
-`node --test scripts/check-*.ts` (Frontend-Logik), `pnpm lint`, ts-rs-Drift-Prüfung, Desktop-
+`nix develop --command pnpm check:*` (Frontend-Logik), `nix develop --command pnpm lint`, ts-rs-Drift-Prüfung, Desktop-
 End-to-End-Suite (tauri-driver, Playwright), Android-End-to-End (3 Shards), Plattform-Probe
 (Windows, macOS, Android), `scripts/ci/check-docs.py` mit Test
 
@@ -46,9 +46,9 @@ End-to-End-Suite (tauri-driver, Playwright), Android-End-to-End (3 Shards), Plat
 einzeln grün und mergebar; Rust-Builds sind teuer (kalter Build, Speicher), deshalb nur gezielte
 Testziele lokal (`-j 4`); Android- und iOS-Builds sind Pflicht
 
-**Scale/Scope**: etwa 1140 Dateien mit „holzi“ außerhalb von `specs/`, davon 3233 Treffer in
-`src-tauri` (2431 in `src-tauri/src`, 72 Integrationstests), 107 Dateien in `src`, 111 in
-`scripts`; 264 Dateien in `specs/`; 5 Geschwister-Repos
+**Scale/Scope**: 879 Dateien mit „holzi“ außerhalb von `specs/` und 4232 Treffern, davon 3225 in
+`src-tauri` (2431 in `src-tauri/src`, 72 Integrationstests), 107 Dateien in `src`, 109 in
+`scripts`; 268 Dateien in `specs/`; 5 Geschwister-Repos
 
 ## Constitution Check
 
@@ -60,12 +60,12 @@ Geprüft gegen `.specify/memory/constitution.md` (Principles I–VIII) und `.spa
 | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Keine Geheimnisse im Git (I)                                                                                             | Erfüllt. Der Testvault (S1) nutzt eine eigens dafür gewählte, wertlose Passphrase und keine Daten aus `test.db`. Die echte Datei und ihre Sicherung bleiben außerhalb.                                 |
 | Keine lokalen absoluten Pfade (II)                                                                                       | Erfüllt. `quickstart.md` und die Verträge nennen Pfade nur relativ oder als `<AppLocalData>`.                                                                                                          |
-| Cross-Repo-Verweise pinnen unveränderliche Revisionen (IV)                                                               | Gilt für S8–S9: Jeder Verweis auf vault-sdk, atoms und haex-crdt trägt Repo, vollständigen Commit-SHA und Pfad. Der Plan nennt keine Branches.                                                         |
+| Cross-Repo-Verweise pinnen unveränderliche Revisionen (IV)                                                               | Gilt für S10: Jeder dort verwendete Verweis auf vault-sdk, atoms und haex-crdt muss Repo, vollständigen Commit-SHA und Pfad tragen. Der Plan nennt keine Branches.                                     |
 | Änderungen nur über PR nach `main`, in einem eigenen Worktree auf einem Topic-Branch                                     | Erfüllt: jede Stufe ein Worktree und ein PR.                                                                                                                                                           |
 | Keine Agenten-Hinweise in Commits und Dateien                                                                            | Erfüllt: Commit-Nachrichten und PR-Texte ohne Trailer.                                                                                                                                                 |
 | Tests getrennt vom Produktionscode                                                                                       | Erfüllt: die Prüfung des alten Namens bekommt eine eigene Testdatei (wie `test_check_docs.py`), der Testvault liegt unter `src-tauri/tests/fixtures/`.                                                 |
 | Größe: ~100 Zeilen Warnschwelle, ~1000 Zeilen Anlass zum Teilen; mechanische Umbenennungen sind eine anerkannte Ausnahme | Die Stufen S2–S6 sind mechanisch und größer. Sie werden nach Gebiet geschnitten und sind je durch die Regel der Namenstabelle prüfbar; das Review prüft die Regel und die Ausnahmen, nicht jede Zeile. |
-| graphify zuerst (nur bei neuen benannten Einheiten; gilt nicht für Umbenennungen)                                        | Die einzige neue Einheit ist das Prüfskript (S6); davor wird per `graphify query` geprüft, ob es ein passendes gibt (`check-docs.py`).                                                                 |
+| graphify zuerst (nur bei neuen benannten Einheiten; gilt nicht für Umbenennungen)                                        | Die einzige neue Einheit ist das Prüfskript (S8); davor wird per `graphify query` geprüft, ob es ein passendes gibt (`check-docs.py`).                                                                 |
 | Relay-Ausfall blockiert keine lokale Arbeit (VII)                                                                        | Nicht berührt.                                                                                                                                                                                         |
 
 **Ergebnis**: keine Verstöße, keine Einträge unter „Complexity Tracking“. Nach Phase 1 erneut
@@ -111,14 +111,14 @@ src-tauri/
 ├── capabilities/, icon-sets/              # Berechtigungen, Bilder holzi-*.svg, x-holzi
 src/                                       # 107 Dateien: Titel, CSS-Variablen, i18n, Kontaktart
 src/types/bindings/                        # von ts-rs erzeugt, nach dem Rust-Umbau neu erzeugen
-scripts/                                   # 111 Dateien: E2E-Rig, Umgebungsvariablen, Binärpfade
-scripts/ci/check-old-name.py + Test        # neu (S6): die Prüfung des alten Namens
+scripts/                                   # 109 Dateien: E2E-Rig, Umgebungsvariablen, Binärpfade
+scripts/ci/check-old-name.py + Test        # neu (S8): die Prüfung des alten Namens
 .github/workflows/                         # CI, Android-Release: Namen, Binärpfad, Artefakte
 .devshell/                                 # packages.nix (Befehl `holzi-emulator`, `holzi-api`,
                                            #   `holzi-android-env`), rust-toolchain.toml
 flake.nix, package.json, nuxt.config.ts, README.md, CONTEXT.md
-docs/, plans/, specs/                      # Text (S5); Verzeichnisname 032-model-operates-holzi bleibt
-.spaex/, .specify/memory/constitution.md   # S9: mit dem neuen Stand der atoms neu gebaut
+docs/, plans/, specs/                      # Text (S7); Verzeichnisname 032-model-operates-holzi bleibt
+.spaex/, .specify/memory/constitution.md   # S10: mit dem neuen Stand der atoms neu gebaut
 ```
 
 **Structure Decision**: Kein neuer Code außer der Prüfung des alten Namens und dem Testvault. Die

@@ -1,9 +1,8 @@
 # Quickstart: Umbenennung prüfen
 
-Prüfschritte, die zeigen, dass die Umbenennung vollständig und folgenlos ist. Die Befehle laufen in
-einem Worktree des Repos; Rust-Befehle über den Nix-Wrapper (`pnpm lint:rust`, `pnpm tauri:dev`
-usw. rufen `scripts/with-nix-host-bridge.sh` auf). Rust-Builds sind teuer: nur gezielte Ziele,
-`-j 4`.
+Prüfschritte, die zeigen, dass die Umbenennung vollständig und folgenlos ist. Die Frontend- und
+Script-Befehle laufen über die Nix-DevShell; Rust-Befehle über den Nix-Wrapper
+(`scripts/with-nix-host-bridge.sh`). Rust-Builds sind teuer: nur gezielte Ziele, `-j 4`.
 
 ## Voraussetzungen
 
@@ -14,9 +13,9 @@ usw. rufen `scripts/with-nix-host-bridge.sh` auf). Rust-Builds sind teuer: nur g
 ## 1. Der Name ist weg (nach S8, Szenario US 1)
 
 ```sh
-python3 scripts/ci/check-old-name.py          # Rückgabewert 0, „old name: clean …“
-python3 -m unittest scripts.ci.test_check_old_name
-git grep -n -i holzi -- . ':!specs/054-haex-vault-rename'   # nur Pfadname 032 und der Hinweissatz
+nix develop --command python3 scripts/ci/check-old-name.py          # Rückgabewert 0, „old name: clean …“
+nix develop --command python3 -B -m unittest discover -s scripts/ci -p 'test_check_old_name.py'
+git grep -n -i holzi -- . ':!specs/054-haex-vault-rename' ':!.spaex/**' ':!.specify/memory/constitution.md' # nur erlaubte Inhaltszeilen; Pfadtreffer prüft das Gate
 ```
 
 Erwartung: keine Treffer außerhalb der Ausnahmeliste (SC-001). Ein Test-Branch, der „holzi“ in eine
@@ -48,12 +47,14 @@ persistierte Name ihn trifft (data-model.md, Tabelle „Persistierte Namen“).
 ## 4. Alles baut und läuft (nach jeder Stufe, US 3)
 
 ```sh
-pnpm lint && pnpm typecheck                      # Frontend
-pnpm check:passwords && pnpm check:contacts      # betroffene check-Gruppen
+nix develop --command pnpm lint                   # Frontend
+nix develop --command pnpm typecheck
+nix develop --command pnpm check:passwords
+nix develop --command pnpm check:contacts         # betroffene check-Gruppen
 scripts/with-nix-host-bridge.sh cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-pnpm lint:rust                                    # clippy, beide Feature-Sätze, -D warnings
+nix develop --command pnpm lint:rust              # clippy, beide Feature-Sätze, -D warnings
 scripts/with-nix-host-bridge.sh cargo test --manifest-path src-tauri/Cargo.toml -j 4   # nur gezielt lokal
-pnpm test:e2e --run-timeout 2700                  # Desktop-End-to-End (CI: Pflicht)
+nix develop --command pnpm test:e2e --run-timeout 2700 # Desktop-End-to-End (CI: Pflicht)
 ```
 
 Die CI führt zusätzlich die drei Shards der Android-End-to-End-Tests, die Builds für Android und
@@ -64,8 +65,8 @@ ts-rs-Bindings sind neu erzeugt und die Drift-Prüfung der CI ist grün.
 
 Die Mehrgeräte-Szenarien aus Spec 033 (`sync-link`, `passwords-sync-two-devices`,
 `contacts-two-devices`, `extension-two-devices` in `scripts/e2e/scenarios/`) laufen mit
-`pnpm test:e2e` unverändert in ihren bisherigen Wartezeiten. Von Hand: zwei frische Instanzen von
-`pnpm tauri:dev` verknüpfen (Einstellungen → Föderation → „Gerät verknüpfen“, auf dem neuen Gerät
+`nix develop --command pnpm test:e2e` unverändert in ihren bisherigen Wartezeiten. Von Hand: zwei
+frische Instanzen von `nix develop --command pnpm tauri:dev` verknüpfen (Einstellungen → Föderation → „Gerät verknüpfen“, auf dem neuen Gerät
 „Mit einer Vault verknüpfen“) und einen Passwort-Eintrag anlegen; er erscheint auf dem zweiten
 Gerät.
 
@@ -76,7 +77,7 @@ Gerät.
 - Android: die Debug-APK trägt den Paketnamen `space.haex.vault`, das Eichhörnchen-Icon und den
   Namen „haex-vault“ (`adb shell pm list packages | grep space.haex.vault`,
   `aapt dump badging <apk>`); die Android-End-to-End-Tests laufen mit
-  `pnpm test:e2e --platform android --apk <apk> --shard 1/3` (wie `scripts/ci/android-e2e.sh`); den
+  `nix develop --command pnpm test:e2e --platform android --apk <apk> --shard 1/3` (wie `scripts/ci/android-e2e.sh`); den
   Emulator liefert der devShell-Befehl, der heute `holzi-emulator` heißt und nach S4 den neuen Namen
   trägt (`.devshell/packages.nix`).
 
