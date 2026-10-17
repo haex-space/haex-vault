@@ -18,8 +18,15 @@ pub(super) fn build_chat_body(req: &ChatRequest) -> Value {
     }
     messages.extend(build_messages(&req.messages));
 
+    // Gemini's OpenAI-compatible model listing can return `models/<id>`, while its
+    // chat-completions endpoint expects the short model id. Keep the provider's
+    // persisted id unchanged and normalize only the wire value.
+    let model_id = req
+        .model_id
+        .strip_prefix("models/")
+        .unwrap_or(&req.model_id);
     let mut body = json!({
-        "model": req.model_id,
+        "model": model_id,
         "messages": messages,
         "stream": true,
         // Ask for the token counts in a last chunk; servers that do not know it ignore it.

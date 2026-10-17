@@ -65,6 +65,15 @@ fn a_plain_request_streams_and_asks_for_the_token_counts() {
 }
 
 #[test]
+fn a_gemini_models_prefix_is_removed_only_from_the_wire_model_id() {
+    let mut req = request(vec![message(ChatRole::User, "hi")]);
+    req.model_id = "models/gemini-3.8-flash".to_string();
+
+    assert_eq!(build_chat_body(&req)["model"], "gemini-3.8-flash");
+    assert_eq!(req.model_id, "models/gemini-3.8-flash");
+}
+
+#[test]
 fn the_system_prompt_leads_and_the_cap_is_sent() {
     let mut req = request(vec![message(ChatRole::User, "hi")]);
     req.system_prompt = Some("Be brief.".to_string());
