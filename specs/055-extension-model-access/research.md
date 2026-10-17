@@ -168,10 +168,11 @@ Vec<DynamicImage>)`; das GGUF-Format hat keine Bildmodelle, sie laden als Safete
 
 - **Entscheidung**: Ein allgemeiner Prüfer `S/model_jobs/guard.rs`, unabhängig vom Format:
   1. leer oder nur Leerraum;
-  2. **Schleife**: Anteil verschiedener Wörter unter 0,35 bei mindestens 12 Wörtern, oder dieselbe Zeile oder
-     derselbe Satz dreimal hintereinander;
-  3. **Schriftwechsel**: Schriftsysteme in der Ausgabe, die weder in Anweisung noch im Eingabetext vorkommen
-     und nicht Latein, Ziffern oder Satzzeichen sind (Beispiel: CJK in einer deutschen Anweisung);
+  2. **Schleife** (Zahlen in `contracts/job-format.md`): zu wenig verschiedene Wörter bei langem Text, dieselbe
+     Wortfolge oder dieselbe Zeile mehrfach hintereinander;
+  3. **Schriftwechsel**: mindestens ein Fünftel der Buchstaben in einem Schriftsystem, das weder Latein ist noch in
+     Anweisung oder Eingabe vorkommt (Beispiel: CJK in einer deutschen Anweisung); ein griechisches Symbol in einer
+     Physiknotiz zählt nicht;
   4. kein gültiges JSON oder Verstoß gegen das Schema (R11).
      Jeder Verstoß ist `Unusable` mit Grund; danach greift der Ausweichweg (FR-027).
 - **Begründung aus dem Test**: Qwen3-VL-4B lief auf einem unscharfen Poster in eine Schleife („1.00 Uhr“
@@ -184,16 +185,19 @@ Vec<DynamicImage>)`; das GGUF-Format hat keine Bildmodelle, sie laden als Safete
   Ausgabe auf das Schema (`Constraint::JsonSchema`, 0.8.1) und verhindert Schleifen vor allem bei JSON.
 - **Verworfen**: Ein zweites Modell prüft das erste. Es verdoppelt Kosten und Zeit für einen kleinen Gewinn.
 
-## R11 — Schema-Prüfer
+## R11 — Schema-Prüfer: ein eigener, größerer als der der Aktionen
 
-- **Entscheidung**: Die Schema-Teilmenge, die Spec 018 für Werkzeug-Schemas eingeführt hat
-  (`S/extensions/agent_tools/defs.rs`, Tests in `defs_tests.rs`), wird in ein gemeinsames Modul
-  (`S/schema_subset.rs`) gehoben und von beiden benutzt: Typen `object`, `array`, `string`, `integer`, `number`,
-  `boolean`, `enum`, `required`, Längen- und Mengengrenzen, kein `pattern`, keine Verweise.
-- **Begründung**: Gleiche Regeln für Erweiterungen, ein Prüfer weniger. Die Menge reicht für Seitenerkennung
-  (Regionen mit Art, Rahmen, Text, Zeilen und Zellen).
-- **Verworfen**: Eine vollständige JSON-Schema-Bibliothek. Mehr Angriffsfläche (Verweise, Rekursion) für eine
-  Erweiterung, deren Anweisung nicht vertraut wird.
+- **Befund (geprüft am 2026-10-17)**: Der Schema-Prüfer von Spec 018 liegt nicht in `extensions/agent_tools/defs.rs`,
+  sondern in `chat/tools/action_tool.rs::schema_in_subset` und kennt nur `type`, `description`, `properties`,
+  `required`, `items`, `enum`. Das Frontend spiegelt ihn in `src/lib/actions/schema.ts`; er darf nicht wachsen.
+  `chat/eval/scoring.rs::valid_against` prüft einen Wert, gehört aber zur Bewertung der Modelle.
+- **Entscheidung**: Aufträge bekommen `model_jobs/schema.rs` mit `check_subset(schema)` und `validate(schema,
+value)`. Die Teilmenge ist größer (Grenzen, `additionalProperties`, `null`-Paar, `enum` ohne `type`), der Fehler
+  nennt den ersten Verstoß mit Pfad. Ein Objekt mit `properties` erlaubt keine weiteren Schlüssel, außer
+  `additionalProperties` ist `true`.
+- **Begründung**: Die Seitenerkennung braucht `maxItems`, `minimum`, `maximum` und optionale Felder. Den
+  Aktionsprüfer dafür zu erweitern ändert eine Teilmenge, die Manifeste und Frontend teilen.
+- **Verworfen**: Eine vollständige JSON-Schema-Bibliothek (Verweise, Rekursion, mehr Angriffsfläche).
 
 ## R12 — Anweisung der Erweiterung ist nicht vertraut
 

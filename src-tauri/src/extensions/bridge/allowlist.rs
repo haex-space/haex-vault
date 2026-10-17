@@ -2,7 +2,7 @@
 //! can call, with its handler. [`super::dispatch::call`] runs nothing else.
 
 use super::dispatch::Method;
-use super::{agent_tasks, database, methods, permissions};
+use super::{database, methods, model_jobs, permissions};
 use crate::extensions::{
     contacts, encrypted_folder, fs, kv, logs, mail, notifications, passwords, remote_storage,
     remote_storage_manage, remote_storage_propose, shell, web,
@@ -12,13 +12,13 @@ use crate::extensions::{
 pub static METHODS: &[Method] = &[
     Method {
         name: "extension_ai_task_start",
-        handler: agent_tasks::start,
-        module: agent_tasks::MODULE,
+        handler: model_jobs::start,
+        module: model_jobs::MODULE,
     },
     Method {
         name: "extension_ai_task_cancel",
-        handler: agent_tasks::cancel,
-        module: agent_tasks::MODULE,
+        handler: model_jobs::cancel,
+        module: model_jobs::MODULE,
     },
     Method {
         name: "extension_context_get",

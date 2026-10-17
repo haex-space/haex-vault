@@ -1,5 +1,4 @@
 pub mod adapters;
-pub mod agent_tasks;
 #[cfg(feature = "voice")]
 pub mod audio;
 pub mod caller;
@@ -15,6 +14,7 @@ pub mod identity;
 pub mod instances;
 pub mod llm;
 pub mod model_capabilities;
+pub mod model_jobs;
 pub mod models;
 pub mod passwords;
 pub mod patch;
